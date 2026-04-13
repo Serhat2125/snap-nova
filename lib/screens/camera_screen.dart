@@ -88,7 +88,7 @@ class _CameraScreenState extends State<CameraScreen>
       try { cams = await availableCameras(); globalCameras = cams; } catch (_) {}
     }
     if (cams.isEmpty) {
-      if (mounted) setState(() => _errorMsg = 'Kamera bulunamadı.');
+      if (mounted) setState(() => _errorMsg = localeService.tr('camera_not_found'));
       return;
     }
 
@@ -113,7 +113,7 @@ class _CameraScreenState extends State<CameraScreen>
       } catch (_) {}
       setState(() { _isInitialized = true; _errorMsg = null; });
     } on CameraException catch (e) {
-      if (mounted) setState(() => _errorMsg = e.description ?? 'Kamera hatası');
+      if (mounted) setState(() => _errorMsg = e.description ?? localeService.tr('camera_error'));
     }
   }
 
@@ -142,7 +142,7 @@ class _CameraScreenState extends State<CameraScreen>
     } on CameraException catch (e) {
       if (mounted) {
         setState(() => _isCapturing = false);
-        _showSnack(e.description ?? 'Fotoğraf çekilemedi');
+        _showSnack(e.description ?? localeService.tr('photo_failed'));
       }
     }
   }
@@ -349,7 +349,7 @@ class _CameraScreenState extends State<CameraScreen>
                     const SizedBox(width: 28),
                     _BottomIconBtn(
                       icon: _isFlashOn ? Icons.flash_on_rounded : Icons.flash_off_rounded,
-                      label: _isFlashOn ? 'Açık' : 'Flash',
+                      label: _isFlashOn ? localeService.tr('flash_on') : 'Flash',
                       color: _isFlashOn ? Colors.amber : Colors.white70,
                       onTap: _toggleFlash,
                     ),
@@ -405,8 +405,8 @@ class _CameraScreenState extends State<CameraScreen>
       padding: const EdgeInsets.all(3),
       child: Row(
         children: [
-          _tabBtn(label: 'Çoklu', selected:  _isMultiCapture, onTap: () => setState(() => _isMultiCapture = true)),
-          _tabBtn(label: 'Tekli', selected: !_isMultiCapture, onTap: () {
+          _tabBtn(label: localeService.tr('multi_mode'), selected:  _isMultiCapture, onTap: () => setState(() => _isMultiCapture = true)),
+          _tabBtn(label: localeService.tr('single_mode'), selected: !_isMultiCapture, onTap: () {
             // Tekli moda geçince zoom sıfırla
             if (_currentZoom != _minZoom) {
               _controller?.setZoomLevel(_minZoom);

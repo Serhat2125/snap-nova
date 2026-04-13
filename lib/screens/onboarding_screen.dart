@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../main.dart' show localeService;
 import 'camera_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -136,7 +137,7 @@ class _Page1 extends StatelessWidget {
 
                 const SizedBox(height: 6),
                 Text(
-                  'Her soruyu anında çözer.',
+                  localeService.tr('solves_instantly'),
                   style: TextStyle(
                     fontSize: 15,
                     color: Colors.white.withValues(alpha: 0.50),
@@ -170,7 +171,7 @@ class _Page1 extends StatelessWidget {
                 ),
 
                 const SizedBox(height: 14),
-                _ActionButton(label: 'Başla', onTap: onNext),
+                _ActionButton(label: localeService.tr('start'), onTap: onNext),
                 const SizedBox(height: 16),
                 _PageDots(current: 0, total: 2),
                 const SizedBox(height: 16),
@@ -268,8 +269,8 @@ class _Page2 extends StatelessWidget {
                         ),
                       ]),
                       const SizedBox(height: 10),
-                      const Text(
-                        'Her derste, her konuda istediğini sor.\nSnapNova anında çözsün.',
+                      Text(
+                        localeService.tr('onboarding_slogan'),
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -340,7 +341,7 @@ class _Page2 extends StatelessWidget {
                 ),
 
                 const SizedBox(height: 14),
-                _ActionButton(label: 'Hemen Başla', onTap: onNext),
+                _ActionButton(label: localeService.tr('start_now'), onTap: onNext),
                 const SizedBox(height: 16),
                 _PageDots(current: 1, total: 2),
                 const SizedBox(height: 16),

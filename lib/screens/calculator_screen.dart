@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../main.dart' show localeService;
 import '../theme/app_theme.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -44,7 +45,7 @@ class _CalculatorScreenState extends State<CalculatorScreen>
   // ── Hesaplama ─────────────────────────────────────────────────────────────────
 
   String _fmt(double n) {
-    if (n.isNaN) return 'Tanımsız';
+    if (n.isNaN) return localeService.tr('undefined');
     if (n.isInfinite) return n > 0 ? '∞' : '-∞';
     if (n == n.roundToDouble() && n.abs() < 1e13) return n.toInt().toString();
     String s = n
@@ -206,8 +207,8 @@ class _CalculatorScreenState extends State<CalculatorScreen>
               icon: const Icon(Icons.arrow_back_rounded, color: AppColors.cyan),
               onPressed: () => Navigator.pop(context),
             ),
-            const Text(
-              'Hesap Makinası',
+            Text(
+              localeService.tr('calculator'),
               style: TextStyle(
                   color: Colors.white,
                   fontSize: 18,
@@ -323,7 +324,7 @@ class _CalculatorScreenState extends State<CalculatorScreen>
 
   Widget _buildHistoryList() => _history.isEmpty
       ? Center(
-          child: Text('Henüz hesaplama yok',
+          child: Text(localeService.tr('no_calculations'),
               style: TextStyle(color: AppColors.textMuted)))
       : ListView.separated(
           reverse: false,

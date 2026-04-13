@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../main.dart' show localeService;
 import '../theme/app_theme.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -18,18 +19,18 @@ class _ChatScreenState extends State<ChatScreen> {
   final _focusNode = FocusNode();
   bool _isSending = false;
 
-  final List<_Message> _messages = [
+  late final List<_Message> _messages = [
     _Message(
-      text: 'Merhaba! Ben SnapNova AI. Matematik, Fizik, Kimya ve daha fazlasında sana yardımcı olmak için buradayım. Ne öğrenmek istiyorsun?',
+      text: localeService.tr('chat_welcome'),
       isAI: true,
     ),
   ];
 
-  static const _suggestions = [
-    'Türev nasıl alınır?',
-    'Newton\'un 2. yasası nedir?',
-    'Mol kavramını açıkla',
-    'İntegral örnekleri ver',
+  late final List<String> _suggestions = [
+    localeService.tr('chat_example_1'),
+    localeService.tr('chat_example_2'),
+    localeService.tr('chat_example_3'),
+    localeService.tr('chat_example_4'),
   ];
 
   @override
@@ -67,15 +68,15 @@ class _ChatScreenState extends State<ChatScreen> {
 
   String _aiReply(String q) {
     if (q.toLowerCase().contains('türev')) {
-      return 'Türev, bir fonksiyonun değişim hızını ifade eder. f\'(x) = lim(h→0) [f(x+h) - f(x)] / h formülüyle tanımlanır. Örnek: f(x) = x² için f\'(x) = 2x.';
+      return localeService.tr('chat_deriv_response');
     }
     if (q.toLowerCase().contains('integral')) {
-      return 'İntegral, türevin tersi işlemidir. ∫xⁿ dx = xⁿ⁺¹/(n+1) + C şeklinde hesaplanır. Örnek: ∫x² dx = x³/3 + C.';
+      return localeService.tr('chat_integral_response');
     }
     if (q.toLowerCase().contains('newton')) {
-      return 'Newton\'un 2. Hareket Yasası: F = m × a\nKuvvet (F), kütle (m) ile ivmenin (a) çarpımına eşittir. Birim: Newton (N) = kg × m/s².';
+      return localeService.tr('chat_newton_response');
     }
-    return 'Harika bir soru! Bu konuyu adım adım açıklayabilirim. Lütfen sorunun hangi bölümünde zorlandığını belirt, daha detaylı yardımcı olayım. 📚';
+    return localeService.tr('chat_default_response');
   }
 
   void _scrollToBottom() {
@@ -182,7 +183,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
                   const SizedBox(width: 4),
-                  const Text('Çevrimiçi',
+                  Text(localeService.tr('online'),
                       style: TextStyle(
                           color: Color(0xFF22C55E),
                           fontSize: 10,
@@ -202,7 +203,7 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Örnek sorular',
+          Text(localeService.tr('example_questions'),
               style: TextStyle(
                   color: AppColors.textMuted,
                   fontSize: 10,
@@ -269,7 +270,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => _send(),
                 decoration: InputDecoration(
-                  hintText: 'Sorunuzu yazın...',
+                  hintText: localeService.tr('type_question'),
                   hintStyle: TextStyle(
                       color: Colors.white.withValues(alpha: 0.28),
                       fontSize: 13),

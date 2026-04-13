@@ -8,6 +8,7 @@ import '../services/solutions_storage.dart';
 import '../services/feedback_service.dart';
 import '../widgets/latex_text.dart';
 import '../widgets/study_suite_sheet.dart';
+import '../main.dart' show localeService;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  AiResultScreen
@@ -185,7 +186,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
       _showSnack(e.userMessage.replaceAll('\n', ' '));
     } catch (_) {
       if (!mounted) return;
-      _showSnack('Bir hata oluştu, tekrar dene.');
+      _showSnack(localeService.tr('error_retry'));
     } finally {
       if (mounted) setState(() => _isAsking = false);
     }
@@ -237,10 +238,10 @@ class _AiResultScreenState extends State<AiResultScreen> {
                     const SizedBox(height: 16),
 
                     // "Çözüm" başlığı — siyah, geniş harf aralığı
-                    const SizedBox(
+                    SizedBox(
                       width: double.infinity,
                       child: Text(
-                        'Çözüm',
+                        localeService.tr('solution'),
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.black,
@@ -444,13 +445,13 @@ class _AiResultScreenState extends State<AiResultScreen> {
             border: Border.all(
                 color: AppColors.cyan.withValues(alpha: 0.20)),
           ),
-          child: const Row(
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.fast_forward_rounded,
+              const Icon(Icons.fast_forward_rounded,
                   color: AppColors.textMuted, size: 13),
-              SizedBox(width: 5),
-              Text('Tamamını Göster',
+              const SizedBox(width: 5),
+              Text(localeService.tr('show_all'),
                   style: TextStyle(
                       color: AppColors.textMuted,
                       fontSize: 11,
@@ -480,8 +481,8 @@ class _AiResultScreenState extends State<AiResultScreen> {
             const Icon(Icons.check_circle_outline_rounded,
                 color: Color(0xFF22C55E), size: 13),
             const SizedBox(width: 5),
-            const Text(
-              'Çözüm tamamlandı',
+            Text(
+              localeService.tr('solution_complete'),
               style: TextStyle(
                   color: Colors.black, fontSize: 11, fontWeight: FontWeight.w600),
             ),
@@ -585,12 +586,12 @@ class _AiResultScreenState extends State<AiResultScreen> {
 
   void _showNegativeFeedbackSheet() {
     final reasons = [
-      'İşlem hatası var',
-      'Yanlış cevap verdi',
-      'Anlatım karmaşık',
-      'Yanlış konu algılandı',
-      'Çözüm eksik kaldı',
-      'Çok yavaş yanıt verdi',
+      localeService.tr('fb_calculation_error'),
+      localeService.tr('fb_wrong_answer'),
+      localeService.tr('fb_complex'),
+      localeService.tr('fb_wrong_topic'),
+      localeService.tr('fb_incomplete'),
+      localeService.tr('fb_slow'),
     ];
     final selected = <String>{};
 
@@ -633,9 +634,9 @@ class _AiResultScreenState extends State<AiResultScreen> {
               ),
               const SizedBox(height: 20),
 
-              const Center(
+              Center(
                 child: Text(
-                  'Neyi Geliştirelim?',
+                  localeService.tr('what_to_improve'),
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 17,
@@ -750,9 +751,9 @@ class _AiResultScreenState extends State<AiResultScreen> {
                       width: 1.3,
                     ),
                   ),
-                  child: const Center(
+                  child: Center(
                     child: Text(
-                      'Geri Bildirim Gönder',
+                      localeService.tr('send_feedback'),
                       style: TextStyle(
                         color: AppColors.cyan,
                         fontSize: 14,
@@ -819,8 +820,8 @@ class _AiResultScreenState extends State<AiResultScreen> {
                     color: AppColors.cyan, size: 26),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Geri bildirimin için teşekkürler!',
+              Text(
+                localeService.tr('feedback_thanks'),
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 15,
@@ -830,7 +831,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Bu soruyu senin için AI Öğretmen modunda tekrar çözmemi ister misin?',
+                localeService.tr('ai_teacher_offer'),
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.65),
                   fontSize: 13,
@@ -861,14 +862,14 @@ class _AiResultScreenState extends State<AiResultScreen> {
                       ),
                     ],
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.school_rounded,
+                      const Icon(Icons.school_rounded,
                           color: Colors.white, size: 18),
-                      SizedBox(width: 8),
+                      const SizedBox(width: 8),
                       Text(
-                        'Evet, AI Öğretmen ile çöz',
+                        localeService.tr('yes_ai_teacher'),
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 13,
@@ -894,7 +895,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                   ),
                   child: Center(
                     child: Text(
-                      'Hayır, teşekkürler',
+                      localeService.tr('no_thanks'),
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.50),
                         fontSize: 13,
@@ -920,7 +921,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
     try {
       final result = await GeminiService.analyzeImage(
         widget.imagePath,
-        'AI Öğretmen',
+        localeService.tr('ai_teacher'),
       );
       if (!mounted) return;
       Navigator.pushReplacement(
@@ -929,7 +930,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
           builder: (_) => AiResultScreen(
             result: result,
             imagePath: widget.imagePath,
-            solutionType: 'AI Öğretmen',
+            solutionType: localeService.tr('ai_teacher'),
             modelName: widget.modelName,
           ),
         ),
@@ -941,7 +942,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _isRetrying = false);
-      _showSnack('Bir hata oluştu, tekrar dene.');
+      _showSnack(localeService.tr('error_retry'));
     }
   }
 
@@ -972,19 +973,19 @@ class _AiResultScreenState extends State<AiResultScreen> {
             : [],
       ),
       child: _isRetrying
-          ? const Padding(
-              padding: EdgeInsets.symmetric(vertical: 4),
+          ? Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  SizedBox(
+                  const SizedBox(
                     width: 14, height: 14,
                     child: CircularProgressIndicator(
                       color: AppColors.cyan, strokeWidth: 2),
                   ),
-                  SizedBox(width: 10),
+                  const SizedBox(width: 10),
                   Text(
-                    'AI Öğretmen hazırlanıyor…',
+                    localeService.tr('ai_teacher_loading'),
                     style: TextStyle(
                       color: AppColors.cyan,
                       fontSize: 12,
@@ -1000,8 +1001,8 @@ class _AiResultScreenState extends State<AiResultScreen> {
                 Expanded(
                   child: Text(
                     _liked == true
-                        ? '✨ Harika! Başarılar dileriz.'
-                        : 'Bu çözüm sana yardımcı oldu mu?',
+                        ? localeService.tr('great_success')
+                        : localeService.tr('was_helpful'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -1025,7 +1026,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                 const SizedBox(width: 5),
                 _FeedbackButton(
                   emoji: '👎',
-                  label: 'Hayır',
+                  label: localeService.tr('no'),
                   selected: _liked == false,
                   activeColor: const Color(0xFFEF4444),
                   onTap: _onNegativeTapped,
@@ -1079,8 +1080,8 @@ class _AiResultScreenState extends State<AiResultScreen> {
               child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 14),
             ),
             const SizedBox(width: 10),
-            const Text(
-              'Bu soruyla ilgili konuyu pekiştir',
+            Text(
+              localeService.tr('reinforce_this_topic'),
               style: TextStyle(
                 color: Colors.black,
                 fontSize: 16,
@@ -1119,13 +1120,13 @@ class _AiResultScreenState extends State<AiResultScreen> {
             ),
           ],
         ),
-        child: const Row(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 20),
-            SizedBox(width: 10),
+            const Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 20),
+            const SizedBox(width: 10),
             Text(
-              'Başka Soru Tara',
+              localeService.tr('scan_another'),
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 15,
@@ -1187,7 +1188,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                 minLines: 1,
                 style: const TextStyle(color: Colors.black, fontSize: 13),
                 decoration: InputDecoration(
-                  hintText: 'Aklına ne takıldıysa sor',
+                  hintText: localeService.tr('ask_anything'),
                   hintStyle: TextStyle(
                     color: Colors.black.withValues(alpha: 0.38),
                     fontSize: 13,

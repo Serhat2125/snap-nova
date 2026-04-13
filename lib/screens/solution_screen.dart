@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
+import '../main.dart' show localeService;
 import '../widgets/ai_model_card.dart';
 import '../services/gemini_service.dart';
 import 'ai_result_screen.dart';
@@ -65,7 +66,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
     AiModel(
       name: 'SnapNova',
       subtitle: 'Hızlı ve genel çözüm',
-      badge: 'Önerilen',
+      badge: localeService.tr('recommended'),
       accentColor: AppColors.cyan,
       logo: ShaderMask(
         shaderCallback: (b) => const LinearGradient(
@@ -154,9 +155,9 @@ class _SolutionScreenState extends State<SolutionScreen> {
     if (_selectedOption == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text(
-            'Önce bir çözüm yöntemi seçin',
-            style: TextStyle(fontWeight: FontWeight.w600),
+          content: Text(
+            localeService.tr('select_method_first'),
+            style: const TextStyle(fontWeight: FontWeight.w600),
           ),
           backgroundColor: AppColors.surfaceElevated,
           behavior: SnackBarBehavior.floating,
@@ -527,7 +528,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
             final model    = e.value;
             final sel      = idx == _centeredModelIdx;
             final c        = model.accentColor;
-            final isActive = model.badge == 'Önerilen';
+            final isActive = model.badge == localeService.tr('recommended');
             return GestureDetector(
               onTap: () {
                 setState(() {

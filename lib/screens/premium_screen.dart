@@ -48,7 +48,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
     final lang = localeService.localeCode;
     _countryCode = PricingService.countryFromLang(lang);
     setState(() {
-      _plan = PricingService.getPlan(_countryCode);
+      _plan = PricingService.getPlan(_countryCode, locale: localeService);
     });
   }
 
@@ -137,7 +137,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                           Padding(
                             padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
                             child: Text(
-                              'Dünyanın en iyi yapay zeka uygulamalarını tek bir yerde sınırsız kullan',
+                              localeService.tr('premium_slogan'),
                               textAlign: TextAlign.center,
                               style: GoogleFonts.poppins(
                                 fontSize: 15,
@@ -246,7 +246,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                       child: Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
-                          'Avantajlar',
+                          localeService.tr('advantages'),
                           style: GoogleFonts.poppins(
                             fontSize: 15,
                             fontWeight: FontWeight.w800,
@@ -293,7 +293,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                                   Expanded(
                                     flex: 5,
                                     child: Text(
-                                      'Özellikler',
+                                      localeService.tr('features'),
                                       style: GoogleFonts.poppins(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w700,
@@ -304,7 +304,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                                   SizedBox(
                                     width: 56,
                                     child: Text(
-                                      'Ücretsiz',
+                                      localeService.tr('free'),
                                       textAlign: TextAlign.center,
                                       style: GoogleFonts.poppins(
                                         fontSize: 11,
@@ -344,15 +344,15 @@ class _PremiumScreenState extends State<PremiumScreen> {
                               color: const Color(0xFFE5E7EB),
                             ),
                             const SizedBox(height: 8),
-                            _featureRow('Sınırsız En İyi Modeller'),
-                            _featureRow('Maksimum Doğruluk'),
-                            _featureRow('Reklamsız Çözüm'),
-                            _featureRowSub('Benzer Sorular Türet',
-                                'Çözdüğün soruya benzer soru türet'),
-                            _featureRowSub('Eşleştirme Kartları',
-                                'Kendi hafıza oyununu oluştur'),
+                            _featureRow(localeService.tr('unlimited_models')),
+                            _featureRow(localeService.tr('max_accuracy')),
+                            _featureRow(localeService.tr('ad_free')),
+                            _featureRowSub(localeService.tr('similar_q'),
+                                localeService.tr('similar_q_desc')),
+                            _featureRowSub(localeService.tr('match_cards'),
+                                localeService.tr('match_cards_desc')),
                             _featureRowSub(
-                                'Bilgi Kartları', 'Konunun önemli bilgileri'),
+                                localeService.tr('info_cards'), localeService.tr('info_cards_desc')),
                             const SizedBox(height: 14),
                           ],
                         ),
@@ -418,8 +418,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
                       child: Center(
                         child: Text(
                           _selectedPlan == 2
-                              ? '3 Günlük Ücretsiz Denemeye Başla'
-                              : 'Devam et',
+                              ? localeService.tr('free_trial_3day')
+                              : localeService.tr('continue_btn'),
                           style: GoogleFonts.poppins(
                             fontSize: _selectedPlan == 2 ? 15 : 18,
                             fontWeight: FontWeight.w800,
@@ -477,7 +477,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
 
               // Google Play başlığı
               Text(
-                'Google Play',
+                'Google Play', // platform adı — çevrilmez
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -490,7 +490,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
 
               // Uygulama adı + açıklama
               Text(
-                'Snap Nova ${_selectedPlan == 0 ? "Aylık" : _selectedPlan == 1 ? "3 Aylık" : "Yıllık"} Premium',
+                'Snap Nova ${_selectedPlan == 0 ? localeService.tr("monthly_label") : _selectedPlan == 1 ? localeService.tr("quarterly_label") : localeService.tr("yearly_label")} Premium',
                 style: GoogleFonts.poppins(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
@@ -499,7 +499,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
               ),
               const SizedBox(height: 2),
               Text(
-                'Snap Nova - Tüm Dersler & Tüm Ev Ödevleri',
+                'Snap Nova - ${localeService.tr("all_lessons")}',
                 style: GoogleFonts.poppins(
                   fontSize: 12,
                   color: const Color(0xFF6B7280),
@@ -530,7 +530,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Bugün · ${_selectedPlan == 0 ? "1 aylık" : _selectedPlan == 1 ? "3 aylık" : "12 aylık"} dönem',
+                            '${localeService.tr("today")} · ${_selectedPlan == 0 ? "1 ${localeService.tr("month_unit")}" : _selectedPlan == 1 ? localeService.tr("three_months_unit") : "12 ${localeService.tr("month_unit")}"} ${localeService.tr("period")}',
                             style: GoogleFonts.poppins(
                               fontSize: 13,
                               color: const Color(0xFF333333),
@@ -560,14 +560,14 @@ class _PremiumScreenState extends State<PremiumScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Başlangıç tarihi: 12 May 2026',
+                            '${localeService.tr("start_date")}: 12 May 2026',
                             style: GoogleFonts.poppins(
                               fontSize: 12,
                               color: const Color(0xFF6B7280),
                             ),
                           ),
                           Text(
-                            '${_plan.monthlyOld}/${_selectedPlan == 0 ? "ay" : _selectedPlan == 1 ? "3ay" : "yıl"}',
+                            '${_plan.monthlyOld}/${_selectedPlan == 0 ? localeService.tr("month_unit") : _selectedPlan == 1 ? localeService.tr("three_months_unit") : localeService.tr("year_unit")}',
                             style: GoogleFonts.poppins(
                               fontSize: 12,
                               color: const Color(0xFF6B7280),
@@ -583,11 +583,9 @@ class _PremiumScreenState extends State<PremiumScreen> {
               const SizedBox(height: 14),
 
               // Bilgi maddeleri
-              _infoBullet(
-                  'Google Play\'de Abonelikler bölümünde istediğiniz zaman iptal edebilirsiniz'),
+              _infoBullet(localeService.tr('cancel_anytime_info')),
               const SizedBox(height: 8),
-              _infoBullet(
-                  'Size sunulan tanıtım fiyatı sona ermeden 7 gün önce size hatırlatıcı göndereceğiz'),
+              _infoBullet(localeService.tr('promo_reminder')),
 
               const SizedBox(height: 16),
 
@@ -628,7 +626,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Adres bilgilerini güncelleyin',
+                localeService.tr('update_address'),
                 style: GoogleFonts.poppins(
                   fontSize: 12,
                   color: const Color(0xFF3B82F6),
@@ -655,7 +653,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   ),
                   child: Center(
                     child: Text(
-                      'Onayla',
+                      localeService.tr('confirm'),
                       style: GoogleFonts.poppins(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
@@ -721,7 +719,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
               const SizedBox(height: 16),
 
               Text(
-                'Ödeme Başarılı!',
+                localeService.tr('payment_success'),
                 style: GoogleFonts.poppins(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -732,7 +730,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
               const SizedBox(height: 8),
 
               Text(
-                'Premium üyeliğiniz aktif edildi. Artık tüm özelliklere sınırsız erişebilirsiniz.',
+                localeService.tr('premium_activated'),
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
                   fontSize: 12,
@@ -761,14 +759,14 @@ class _PremiumScreenState extends State<PremiumScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Plan',
+                            localeService.tr('plan_label'),
                             style: GoogleFonts.poppins(
                               fontSize: 12,
                               color: const Color(0xFF6B7280),
                             ),
                           ),
                           Text(
-                            _selectedPlan == 0 ? 'Monthly Premium' : _selectedPlan == 1 ? 'Quarterly Premium' : 'Yearly Premium',
+                            '${_selectedPlan == 0 ? localeService.tr("monthly_label") : _selectedPlan == 1 ? localeService.tr("quarterly_label") : localeService.tr("yearly_label")} Premium',
                             style: GoogleFonts.poppins(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
@@ -790,7 +788,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Ödenen tutar',
+                            localeService.tr('amount_paid'),
                             style: GoogleFonts.poppins(
                               fontSize: 12,
                               color: const Color(0xFF6B7280),
@@ -819,7 +817,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Sonraki yenileme',
+                            localeService.tr('next_renewal'),
                             style: GoogleFonts.poppins(
                               fontSize: 12,
                               color: const Color(0xFF6B7280),
@@ -859,7 +857,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   ),
                   child: Center(
                     child: Text(
-                      'Tamam',
+                      localeService.tr('ok'),
                       style: GoogleFonts.poppins(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
@@ -1035,7 +1033,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  '$discount İndirim',
+                  '$discount ${localeService.tr("discount_label")}',
                   style: GoogleFonts.poppins(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
@@ -1059,7 +1057,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
               ),
             ),
             Text(
-              'Ay',
+              localeService.tr('month_unit'),
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
@@ -1135,7 +1133,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
               )
             else if (total != null)
               Text(
-                'Toplam $total',
+                '${localeService.tr("total_label")} $total',
                 style: GoogleFonts.poppins(
                   fontSize: 9,
                   fontWeight: FontWeight.w500,
@@ -1352,7 +1350,7 @@ class _DiscountBalloonState extends State<_DiscountBalloon>
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        '%50 indirim',
+                        localeService.tr('discount_50'),
                         textAlign: TextAlign.center,
                         style: GoogleFonts.poppins(
                           fontSize: 18,
@@ -1370,7 +1368,7 @@ class _DiscountBalloonState extends State<_DiscountBalloon>
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          'Yılın tam 6 ayını\nbedavaya sınırsız kullan! 😍',
+                          '${localeService.tr("half_year_free")} 😍',
                           textAlign: TextAlign.center,
                           style: GoogleFonts.poppins(
                             fontSize: 14,

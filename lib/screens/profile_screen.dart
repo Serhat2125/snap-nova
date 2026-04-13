@@ -233,7 +233,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    "Premium'a Yükselt",
+                                    locale.tr('upgrade_premium'),
                                     style: GoogleFonts.poppins(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w800,
@@ -241,7 +241,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     ),
                                   ),
                                   Text(
-                                    'Dünyanın en iyi yapay zeka modellerini sınırsız kullan',
+                                    locale.tr('premium_slogan'),
                                     style: GoogleFonts.poppins(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w500,

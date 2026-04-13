@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'locale_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  PricingService — Ülke bazlı 5 kademeli fiyatlandırma + Canlı döviz kuru
@@ -362,7 +363,7 @@ class PricingService {
   //  ANA FONKSİYON — Ülke koduna göre plan oluştur
   // ═══════════════════════════════════════════════════════════════════════════
 
-  static PricingPlan getPlan(String countryCode) {
+  static PricingPlan getPlan(String countryCode, {LocaleService? locale}) {
     final code = countryCode.toUpperCase();
     final tier = _countryTier[code] ?? 3;
     final monthlyUsd = _tierMonthlyUsd[tier]!;
@@ -397,23 +398,44 @@ class PricingService {
     // Fiyatı güzel formatla
     String fmt(double val) => _formatPrice(val, currency, symbol);
 
+    // Çeviri fonksiyonu — locale yoksa Türkçe fallback
+    String t(String key) => locale?.tr(key) ?? _fallbackTr[key] ?? key;
+
+    final perDay = t('per_day');
+    final mo = t('month_unit');
+    final mo3 = t('three_months_unit');
+    final yr = t('year_unit');
+
     return PricingPlan(
       monthly: fmt(m),
       quarterly: fmt(q),
       yearly: fmt(y),
-      monthlyPerDay: '${fmt(m / 30)}/gün',
-      quarterlyPerDay: '${fmt(q / 90)}/gün',
-      yearlyPerDay: '${fmt(y / 365)}/gün',
+      monthlyPerDay: '${fmt(m / 30)}$perDay',
+      quarterlyPerDay: '${fmt(q / 90)}$perDay',
+      yearlyPerDay: '${fmt(y / 365)}$perDay',
       monthlyOld: fmt(mOld),
       currencySymbol: symbol,
-      footerMonthly: 'Süre dolduğunda ${fmt(mRenew)}/ay ile yenilenir. İstediğiniz zaman iptal edebilirsiniz.',
-      footerQuarterly: 'Süre dolduğunda ${fmt(qRenew)}/3 ay ile yenilenir. İstediğiniz zaman iptal edebilirsiniz.',
-      footerYearly: 'Süre dolduğunda ${fmt(yRenew)}/yıl ile yenilenir (indirimsiz). İstediğiniz zaman iptal edebilirsiniz.',
-      dailyMonthly: 'Günlük sadece ${fmt(m / 30)} ile sınırsız eriş',
-      dailyQuarterly: 'Günlük sadece ${fmt(q / 90)} ile sınırsız eriş',
-      dailyYearly: 'Günlük sadece ${fmt(y / 365)} ile sınırsız eriş',
+      footerMonthly: '${t("renewal_notice")} ${fmt(mRenew)}/$mo ${t("renewal_suffix")}',
+      footerQuarterly: '${t("renewal_notice")} ${fmt(qRenew)}/$mo3 ${t("renewal_suffix")}',
+      footerYearly: '${t("renewal_notice")} ${fmt(yRenew)}/$yr ${t("renewal_suffix_yearly")}',
+      dailyMonthly: '${t("daily_only")} ${fmt(m / 30)} ${t("daily_suffix")}',
+      dailyQuarterly: '${t("daily_only")} ${fmt(q / 90)} ${t("daily_suffix")}',
+      dailyYearly: '${t("daily_only")} ${fmt(y / 365)} ${t("daily_suffix")}',
     );
   }
+
+  // Türkçe fallback (locale olmadan çağrıldığında)
+  static const _fallbackTr = {
+    'per_day': '/gün',
+    'month_unit': 'ay',
+    'three_months_unit': '3 ay',
+    'year_unit': 'yıl',
+    'renewal_notice': 'Süre dolduğunda',
+    'renewal_suffix': 'ile yenilenir. İstediğiniz zaman iptal edebilirsiniz.',
+    'renewal_suffix_yearly': 'ile yenilenir (indirimsiz). İstediğiniz zaman iptal edebilirsiniz.',
+    'daily_only': 'Günlük sadece',
+    'daily_suffix': 'ile sınırsız eriş',
+  };
 
   // ═══════════════════════════════════════════════════════════════════════════
   //  Fiyat formatlama yardımcıları

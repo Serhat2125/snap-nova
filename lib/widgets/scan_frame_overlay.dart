@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../main.dart' show localeService;
 
 /// Çerçeve dışını blur + karartma, içini net bırakır.
 /// Tekli kamera modunda kullanılır. Kenar kollarıyla yeniden boyutlandırılabilir.
@@ -95,7 +96,7 @@ class _ScanFrameOverlayState extends State<ScanFrameOverlay>
                       left: 16, right: 16,
                       top: f.top - 32,
                       child: Text(
-                        'Sorunuzun net bir fotoğrafını çekin',
+                        localeService.tr('take_clear_photo'),
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.88),

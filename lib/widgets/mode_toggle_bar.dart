@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../main.dart' show localeService;
 
 enum CameraMode { tekli, coklu }
 
@@ -26,7 +27,7 @@ class ModeToggleBar extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           _Tab(
-            label: 'Çoklu',
+            label: localeService.tr('multi_mode'),
             icon: Icons.fullscreen_rounded,
             isSelected: selectedMode == CameraMode.coklu,
             onTap: () => onModeChanged(CameraMode.coklu),

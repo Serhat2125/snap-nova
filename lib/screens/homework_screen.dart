@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import '../theme/app_theme.dart';
+import '../main.dart' show localeService;
 import '../services/gemini_service.dart';
 import '../widgets/latex_text.dart';
 import 'solution_screen.dart';
@@ -124,12 +125,12 @@ Color _colorFor(String s) => switch (s) {
 };
 
 ({Color color, String label, IconData icon}) _urgency(DateTime due, bool isDone) {
-  if (isDone) return (color: const Color(0xFF34D399), label: 'Tamamlandı', icon: Icons.check_circle_rounded);
+  if (isDone) return (color: const Color(0xFF34D399), label: localeService.tr('completed'), icon: Icons.check_circle_rounded);
   final d = due.difference(DateTime.now());
-  if (d.isNegative)  return (color: const Color(0xFFEF4444), label: 'Gecikti!',        icon: Icons.warning_rounded);
-  if (d.inHours < 24) return (color: const Color(0xFFF97316), label: 'Bugün',           icon: Icons.timer_rounded);
-  if (d.inDays == 1)  return (color: const Color(0xFFF59E0B), label: 'Yarın',           icon: Icons.schedule_rounded);
-  if (d.inDays <= 7)  return (color: const Color(0xFF60A5FA), label: '${d.inDays} gün', icon: Icons.event_rounded);
+  if (d.isNegative)  return (color: const Color(0xFFEF4444), label: localeService.tr('overdue'),   icon: Icons.warning_rounded);
+  if (d.inHours < 24) return (color: const Color(0xFFF97316), label: localeService.tr('today'),    icon: Icons.timer_rounded);
+  if (d.inDays == 1)  return (color: const Color(0xFFF59E0B), label: localeService.tr('tomorrow'), icon: Icons.schedule_rounded);
+  if (d.inDays <= 7)  return (color: const Color(0xFF60A5FA), label: '${d.inDays} ${localeService.tr("days")}', icon: Icons.event_rounded);
   return                     (color: const Color(0xFF6B7280), label: _fd(due),           icon: Icons.calendar_today_rounded);
 }
 
@@ -209,12 +210,12 @@ class _HomeworkScreenState extends State<HomeworkScreen>
               Expanded(child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Ödevlerim', style: GoogleFonts.inter(
+                  Text(localeService.tr('my_homework'), style: GoogleFonts.inter(
                     color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800)),
                   const SizedBox(height: 2),
                   Text(
-                    _pending == 0 ? 'Harika! Tüm ödevler tamam 🎉'
-                                  : '$_pending bekleyen • $_solved AI ile çözüldü',
+                    _pending == 0 ? localeService.tr('all_homework_done')
+                                  : '$_pending ${localeService.tr("pending")} • $_solved ${localeService.tr("ai_solved")}',
                     style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11),
                   ),
                 ],
@@ -244,11 +245,11 @@ class _HomeworkScreenState extends State<HomeworkScreen>
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(children: [
-              _stat('Bekleyen', _pending, Icons.hourglass_top_rounded, const Color(0xFF60A5FA)),
+              _stat(localeService.tr('pending'), _pending, Icons.hourglass_top_rounded, const Color(0xFF60A5FA)),
               const SizedBox(width: 8),
-              _stat('AI Çözdü', _solved, Icons.auto_awesome_rounded, AppColors.cyan),
+              _stat(localeService.tr('ai_solved'), _solved, Icons.auto_awesome_rounded, AppColors.cyan),
               const SizedBox(width: 8),
-              _stat('Tamam', _done, Icons.check_circle_rounded, const Color(0xFF34D399)),
+              _stat(localeService.tr('ok'), _done, Icons.check_circle_rounded, const Color(0xFF34D399)),
             ]),
           ),
 
