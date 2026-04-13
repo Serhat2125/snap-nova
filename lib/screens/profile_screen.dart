@@ -979,6 +979,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _showLanguageBottomSheet(BuildContext context) {
     final locale = LocaleInherited.of(context);
+    String searchQuery = '';
+    final searchController = TextEditingController();
 
     showModalBottomSheet(
       context: context,
@@ -990,8 +992,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
           filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
           child: StatefulBuilder(
             builder: (ctx, setSheetState) {
+              // Arama filtresi
+              final query = searchQuery.toLowerCase().trim();
+              final allLangs = LocaleService.languages;
+              final filtered = query.isEmpty
+                  ? allLangs
+                  : allLangs.where((lang) {
+                      final (_, name, englishName, code) = lang;
+                      return name.toLowerCase().contains(query) ||
+                          englishName.toLowerCase().contains(query) ||
+                          code.toLowerCase().contains(query);
+                    }).toList();
+
+              // Seçili dili en üstte göster
+              final selectedCode = locale.localeCode;
+              final sortedLangs = <(String, String, String, String)>[];
+              (String, String, String, String)? selectedLang;
+              for (final lang in filtered) {
+                if (lang.$4 == selectedCode) {
+                  selectedLang = lang;
+                } else {
+                  sortedLangs.add(lang);
+                }
+              }
+              if (selectedLang != null) sortedLangs.insert(0, selectedLang);
+
               return Container(
-                height: MediaQuery.of(context).size.height * 0.65,
+                height: MediaQuery.of(context).size.height * 0.75,
                 decoration: const BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.only(
@@ -1028,86 +1055,159 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ],
                       ),
                     ),
-                    const Divider(height: 1, color: Color(0xFFE5E7EB)),
-                    Expanded(
-                      child: ListView.builder(
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        itemCount: LocaleService.languages.length,
-                        itemBuilder: (_, i) {
-                          final (flag, name, englishName, code) =
-                              LocaleService.languages[i];
-                          final isSelected = locale.localeCode == code;
 
-                          return GestureDetector(
-                            onTap: () {
-                              locale.setLocale(code);
-                              setSheetState(() {});
-                              if (mounted) setState(() {});
-                            },
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              margin: const EdgeInsets.only(bottom: 6),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 14),
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? const Color(0xFF3B82F6)
-                                        .withOpacity(0.08)
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(24),
-                                border: Border.all(
-                                  color: isSelected
-                                      ? const Color(0xFF3B82F6)
-                                      : const Color(0xFFE5E7EB),
-                                  width: isSelected ? 1.5 : 1,
+                    // ── Arama çubuğu ──────────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF3F4F6),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: TextField(
+                          controller: searchController,
+                          onChanged: (val) =>
+                              setSheetState(() => searchQuery = val),
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            color: const Color(0xFF333333),
+                          ),
+                          cursorColor: const Color(0xFF3B82F6),
+                          decoration: InputDecoration(
+                            hintText: locale.tr('search_language'),
+                            hintStyle: GoogleFonts.poppins(
+                              fontSize: 14,
+                              color: const Color(0xFF9CA3AF),
+                            ),
+                            prefixIcon: const Icon(
+                              Icons.search_rounded,
+                              color: Color(0xFF9CA3AF),
+                              size: 20,
+                            ),
+                            suffixIcon: searchQuery.isNotEmpty
+                                ? GestureDetector(
+                                    onTap: () {
+                                      searchController.clear();
+                                      setSheetState(
+                                          () => searchQuery = '');
+                                    },
+                                    child: const Icon(
+                                      Icons.close_rounded,
+                                      color: Color(0xFF9CA3AF),
+                                      size: 18,
+                                    ),
+                                  )
+                                : null,
+                            border: InputBorder.none,
+                            contentPadding:
+                                const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const Divider(height: 1, color: Color(0xFFE5E7EB)),
+
+                    // ── Dil listesi ───────────────────────────────────
+                    Expanded(
+                      child: sortedLangs.isEmpty
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(32),
+                                child: Text(
+                                  locale.tr('no_results'),
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    color: const Color(0xFF9CA3AF),
+                                  ),
                                 ),
                               ),
-                              child: Row(
-                                children: [
-                                  Text(flag,
-                                      style:
-                                          const TextStyle(fontSize: 26)),
-                                  const SizedBox(width: 14),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                            )
+                          : ListView.builder(
+                              physics: const BouncingScrollPhysics(),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
+                              itemCount: sortedLangs.length,
+                              itemBuilder: (_, i) {
+                                final (flag, name, englishName, code) =
+                                    sortedLangs[i];
+                                final isSelected =
+                                    locale.localeCode == code;
+
+                                return GestureDetector(
+                                  onTap: () {
+                                    locale.setLocale(code);
+                                    setSheetState(() {});
+                                    if (mounted) setState(() {});
+                                  },
+                                  child: AnimatedContainer(
+                                    duration:
+                                        const Duration(milliseconds: 200),
+                                    margin:
+                                        const EdgeInsets.only(bottom: 6),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16, vertical: 14),
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? const Color(0xFF3B82F6)
+                                              .withOpacity(0.08)
+                                          : Colors.transparent,
+                                      borderRadius:
+                                          BorderRadius.circular(24),
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? const Color(0xFF3B82F6)
+                                            : const Color(0xFFE5E7EB),
+                                        width: isSelected ? 1.5 : 1,
+                                      ),
+                                    ),
+                                    child: Row(
                                       children: [
-                                        Text(
-                                          name,
-                                          style: GoogleFonts.poppins(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w600,
-                                            color: isSelected
-                                                ? const Color(0xFF3B82F6)
-                                                : const Color(0xFF333333),
+                                        Text(flag,
+                                            style: const TextStyle(
+                                                fontSize: 26)),
+                                        const SizedBox(width: 14),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                name,
+                                                style: GoogleFonts.poppins(
+                                                  fontSize: 15,
+                                                  fontWeight:
+                                                      FontWeight.w600,
+                                                  color: isSelected
+                                                      ? const Color(
+                                                          0xFF3B82F6)
+                                                      : const Color(
+                                                          0xFF333333),
+                                                ),
+                                              ),
+                                              Text(
+                                                englishName,
+                                                style: GoogleFonts.poppins(
+                                                  fontSize: 11,
+                                                  color: const Color(
+                                                      0xFF9CA3AF),
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
-                                        Text(
-                                          englishName,
-                                          style: GoogleFonts.poppins(
-                                            fontSize: 11,
-                                            color:
-                                                const Color(0xFF9CA3AF),
+                                        if (isSelected)
+                                          const Icon(
+                                            Icons.check_circle_rounded,
+                                            color: Color(0xFF3B82F6),
+                                            size: 24,
                                           ),
-                                        ),
                                       ],
                                     ),
                                   ),
-                                  if (isSelected)
-                                    const Icon(
-                                      Icons.check_circle_rounded,
-                                      color: Color(0xFF3B82F6),
-                                      size: 24,
-                                    ),
-                                ],
-                              ),
+                                );
+                              },
                             ),
-                          );
-                        },
-                      ),
                     ),
                   ],
                 ),

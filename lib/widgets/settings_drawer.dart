@@ -576,72 +576,173 @@ class _LanguagePage extends StatefulWidget {
 }
 
 class _LanguagePageState extends State<_LanguagePage> {
+  String _search = '';
+  final _searchController = TextEditingController();
+  final _focusNode = FocusNode();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final shell = context.findAncestorStateOfType<_SettingsDrawerState>()!;
     final locale = LocaleInherited.of(context);
-    final langs = LocaleService.languages;
+    final allLangs = LocaleService.languages;
+
+    // Arama filtresi
+    final query = _search.toLowerCase().trim();
+    final filtered = query.isEmpty
+        ? allLangs
+        : allLangs.where((lang) {
+            final (_, name, englishName, code) = lang;
+            return name.toLowerCase().contains(query) ||
+                englishName.toLowerCase().contains(query) ||
+                code.toLowerCase().contains(query);
+          }).toList();
+
+    // Seçili dili her zaman en üstte göster
+    final selectedCode = locale.localeCode;
+    final sortedLangs = <(String, String, String, String)>[];
+    (String, String, String, String)? selectedLang;
+    for (final lang in filtered) {
+      if (lang.$4 == selectedCode) {
+        selectedLang = lang;
+      } else {
+        sortedLangs.add(lang);
+      }
+    }
+    if (selectedLang != null) sortedLangs.insert(0, selectedLang);
 
     return SafeArea(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         _PageHeader(title: locale.tr('language_options'), onBack: shell._closePage),
-        Expanded(
-          child: ListView.builder(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            itemCount: langs.length,
-            itemBuilder: (_, i) {
-              final (flag, name, englishName, code) = langs[i];
-              final sel = locale.localeCode == code;
-              return GestureDetector(
-                onTap: () {
-                  locale.setLocale(code);
-                  setState(() {});
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 160),
-                  margin: const EdgeInsets.only(bottom: 6),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: sel
-                        ? Colors.cyanAccent.withValues(alpha: 0.08)
-                        : Colors.white.withValues(alpha: 0.03),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                        color: sel
-                            ? Colors.cyanAccent.withValues(alpha: 0.55)
-                            : Colors.white.withValues(alpha: 0.08),
-                        width: sel ? 1.4 : 1.0),
-                  ),
-                  child: Row(children: [
-                    Text(flag, style: const TextStyle(fontSize: 22)),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(name,
-                                style: TextStyle(
-                                    color:
-                                        sel ? Colors.cyanAccent : Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600)),
-                            Text(englishName,
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.white
-                                        .withValues(alpha: 0.38))),
-                          ]),
-                    ),
-                    if (sel)
-                      const Icon(Icons.check_circle_rounded,
-                          color: Colors.cyanAccent, size: 20),
-                  ]),
+
+        // ── Arama çubuğu ──────────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.12),
+              ),
+            ),
+            child: TextField(
+              controller: _searchController,
+              focusNode: _focusNode,
+              onChanged: (val) => setState(() => _search = val),
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              cursorColor: Colors.cyanAccent,
+              decoration: InputDecoration(
+                hintText: locale.tr('search_language'),
+                hintStyle: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.35),
+                  fontSize: 14,
                 ),
-              );
-            },
+                prefixIcon: Icon(
+                  Icons.search_rounded,
+                  color: Colors.white.withValues(alpha: 0.4),
+                  size: 20,
+                ),
+                suffixIcon: _search.isNotEmpty
+                    ? GestureDetector(
+                        onTap: () {
+                          _searchController.clear();
+                          setState(() => _search = '');
+                          _focusNode.unfocus();
+                        },
+                        child: Icon(
+                          Icons.close_rounded,
+                          color: Colors.white.withValues(alpha: 0.4),
+                          size: 18,
+                        ),
+                      )
+                    : null,
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
           ),
+        ),
+
+        // ── Dil listesi ───────────────────────────────────────────────
+        Expanded(
+          child: sortedLangs.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Text(
+                      locale.tr('no_results'),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.4),
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  physics: const BouncingScrollPhysics(),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  itemCount: sortedLangs.length,
+                  itemBuilder: (_, i) {
+                    final (flag, name, englishName, code) = sortedLangs[i];
+                    final sel = locale.localeCode == code;
+                    return GestureDetector(
+                      onTap: () {
+                        locale.setLocale(code);
+                        setState(() {});
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 160),
+                        margin: const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: sel
+                              ? Colors.cyanAccent.withValues(alpha: 0.08)
+                              : Colors.white.withValues(alpha: 0.03),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                              color: sel
+                                  ? Colors.cyanAccent.withValues(alpha: 0.55)
+                                  : Colors.white.withValues(alpha: 0.08),
+                              width: sel ? 1.4 : 1.0),
+                        ),
+                        child: Row(children: [
+                          Text(flag, style: const TextStyle(fontSize: 22)),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(name,
+                                      style: TextStyle(
+                                          color: sel
+                                              ? Colors.cyanAccent
+                                              : Colors.white,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600)),
+                                  Text(englishName,
+                                      style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.white
+                                              .withValues(alpha: 0.38))),
+                                ]),
+                          ),
+                          if (sel)
+                            const Icon(Icons.check_circle_rounded,
+                                color: Colors.cyanAccent, size: 20),
+                        ]),
+                      ),
+                    );
+                  },
+                ),
         ),
       ]),
     );

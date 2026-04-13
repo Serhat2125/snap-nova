@@ -9,13 +9,117 @@ import 'package:http/http.dart' as http;
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class GeminiService {
-  static const _apiKey  = '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';
-  static const _model   = 'google/gemini-2.0-flash-001';
-  static const _baseUrl = 'https://openrouter.ai/api/v1/chat/completions';
+  static const _apiKey  = 'AIzaSyADUEj_oR9aVbG5ulgJkWz4YM2TGTof410';
+  static const _model   = 'gemini-2.0-flash';
+  static const _baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
   static const _tag     = '🤖 [GeminiService]';
 
   static void _log(String msg) {
     if (kDebugMode) debugPrint('$_tag $msg');
+  }
+
+  // ── Google AI API çağrısı (metin) ──────────────────────────────────────────
+  static Future<String> _callGemini({
+    required String systemPrompt,
+    required String userMessage,
+    int maxTokens = 2048,
+    double temperature = 0.3,
+    Duration timeout = const Duration(seconds: 60),
+  }) async {
+    final url = '$_baseUrl/$_model:generateContent?key=$_apiKey';
+    final response = await http.post(
+      Uri.parse(url),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'contents': [
+          {
+            'role': 'user',
+            'parts': [{'text': '$systemPrompt\n\n$userMessage'}],
+          },
+        ],
+        'generationConfig': {
+          'maxOutputTokens': maxTokens,
+          'temperature': temperature,
+        },
+      }),
+    ).timeout(timeout);
+
+    if (response.statusCode == 200) {
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      final text = json['candidates']?[0]?['content']?['parts']?[0]?['text'] as String?;
+      if (text == null || text.trim().isEmpty) throw GeminiException.blurryImage();
+      return text;
+    }
+
+    _handleError(response);
+  }
+
+  // ── Google AI API çağrısı (görsel) ─────────────────────────────────────────
+  static Future<String> _callGeminiWithImage({
+    required String prompt,
+    required String base64Image,
+    required String mimeType,
+    int maxTokens = 2048,
+    double temperature = 0.3,
+  }) async {
+    final url = '$_baseUrl/$_model:generateContent?key=$_apiKey';
+    final response = await http.post(
+      Uri.parse(url),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'contents': [
+          {
+            'role': 'user',
+            'parts': [
+              {'text': prompt},
+              {
+                'inlineData': {
+                  'mimeType': mimeType,
+                  'data': base64Image,
+                },
+              },
+            ],
+          },
+        ],
+        'generationConfig': {
+          'maxOutputTokens': maxTokens,
+          'temperature': temperature,
+        },
+      }),
+    ).timeout(const Duration(seconds: 60));
+
+    if (response.statusCode == 200) {
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      final text = json['candidates']?[0]?['content']?['parts']?[0]?['text'] as String?;
+      if (text == null || text.trim().isEmpty) throw GeminiException.blurryImage();
+      return text;
+    }
+
+    _handleError(response);
+  }
+
+  // ── Hata yönetimi ──────────────────────────────────────────────────────────
+  static Never _handleError(http.Response response) {
+    final raw = response.body;
+    final s = raw.toLowerCase();
+    _log('HATA yanıtı: HTTP ${response.statusCode} — $raw');
+
+    if (response.statusCode == 429 || s.contains('quota') || s.contains('rate') || s.contains('resource_exhausted')) {
+      throw GeminiException._quotaExceeded(raw);
+    }
+    if (response.statusCode == 400 && (s.contains('api_key') || s.contains('api key'))) {
+      throw GeminiException._invalidKey(raw);
+    }
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      throw GeminiException._invalidKey(raw);
+    }
+    if (response.statusCode == 413 || s.contains('too large')) {
+      throw GeminiException._imageTooLarge(raw);
+    }
+    if (response.statusCode >= 500) {
+      throw GeminiException._serverTimeout(raw);
+    }
+    throw GeminiException.unknown(raw);
   }
 
   // ══════════════════════════════════════════════════════════════════════════════
@@ -34,7 +138,7 @@ class GeminiService {
     // ── 1. İnternet kontrolü ──────────────────────────────────────────────────
     _log('[1/5] İnternet kontrolü...');
     try {
-      final dns = await InternetAddress.lookup('openrouter.ai')
+      final dns = await InternetAddress.lookup('generativelanguage.googleapis.com')
           .timeout(const Duration(seconds: 10));
       if (dns.isEmpty || dns[0].rawAddress.isEmpty) {
         throw GeminiException.noInternet();
@@ -75,79 +179,22 @@ class GeminiService {
     final prompt = _buildPrompt(solutionType, isMulti: isMulti);
     _log('[4/5] OK: ${prompt.substring(0, prompt.length.clamp(0, 60))}...');
 
-    // ── 5. OpenRouter HTTP POST ───────────────────────────────────────────────
-    _log('[5/5] OpenRouter isteği gönderiliyor... (timeout: 60 sn)');
+    // ── 5. Google AI HTTP POST ─────────────────────────────────────────────
+    _log('[5/5] Google AI isteği gönderiliyor... (timeout: 60 sn)');
     try {
       final sw = Stopwatch()..start();
 
-      final response = await http.post(
-        Uri.parse(_baseUrl),
-        headers: {
-          'Authorization': 'Bearer $_apiKey',
-          'HTTP-Referer': 'aura_snap',
-          'X-Title': 'AuraSnap',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'model': _model,
-          'messages': [
-            {
-              'role': 'user',
-              'content': [
-                {'type': 'text', 'text': prompt},
-                {
-                  'type': 'image_url',
-                  'image_url': {
-                    'url': 'data:$mime;base64,$base64Image',
-                  },
-                },
-              ],
-            },
-          ],
-          'max_tokens': 2048,
-          'temperature': 0.3,
-        }),
-      ).timeout(const Duration(seconds: 60));
+      final text = await _callGeminiWithImage(
+        prompt: prompt,
+        base64Image: base64Image,
+        mimeType: mime,
+      );
 
       sw.stop();
-      _log('[5/5] HTTP ${response.statusCode} — ${sw.elapsedMilliseconds} ms');
-
-      // ── Başarılı yanıt ─────────────────────────────────────────────────────
-      if (response.statusCode == 200) {
-        final json = jsonDecode(response.body) as Map<String, dynamic>;
-        final text =
-            json['choices']?[0]?['message']?['content'] as String?;
-        if (text == null || text.trim().isEmpty) {
-          _log('[5/5] HATA: Yanıt boş');
-          throw GeminiException.blurryImage();
-        }
-        _log('[5/5] OK: ${text.length} karakter');
-        _log('analyzeImage() BAŞARILI ✅');
-        _log('══════════════════════════════════════════');
-        return text;
-      }
-
-      // ── Hata yanıtları ─────────────────────────────────────────────────────
-      final raw = response.body;
-      final s   = raw.toLowerCase();
-      _log('[5/5] HATA yanıtı: $raw');
-
-      if (response.statusCode == 429 ||
-          s.contains('quota') ||
-          s.contains('rate') ||
-          s.contains('resource_exhausted')) {
-        throw GeminiException._quotaExceeded(raw);
-      }
-      if (response.statusCode == 401 || response.statusCode == 403) {
-        throw GeminiException._invalidKey(raw);
-      }
-      if (response.statusCode == 413 || s.contains('too large')) {
-        throw GeminiException._imageTooLarge(raw);
-      }
-      if (response.statusCode >= 500) {
-        throw GeminiException._serverTimeout(raw);
-      }
-      throw GeminiException.unknown(raw);
+      _log('[5/5] OK: ${text.length} karakter — ${sw.elapsedMilliseconds} ms');
+      _log('analyzeImage() BAŞARILI ✅');
+      _log('══════════════════════════════════════════');
+      return text;
 
     } on GeminiException {
       rethrow;
@@ -184,7 +231,7 @@ class GeminiService {
     _log('fetchStudySuite() — ders: "$subject"');
 
     try {
-      final dns = await InternetAddress.lookup('openrouter.ai')
+      final dns = await InternetAddress.lookup('generativelanguage.googleapis.com')
           .timeout(const Duration(seconds: 10));
       if (dns.isEmpty || dns[0].rawAddress.isEmpty) throw GeminiException.noInternet();
     } on SocketException { throw GeminiException.noInternet(); }
@@ -245,44 +292,17 @@ Aşağıdaki çözümü analiz ederek içerik üret:
 $solution''';
 
     try {
-      final response = await http.post(
-        Uri.parse(_baseUrl),
-        headers: {
-          'Authorization': 'Bearer $_apiKey',
-          'HTTP-Referer': 'aura_snap',
-          'X-Title': 'AuraSnap',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'model': _model,
-          'messages': [
-            {'role': 'system', 'content': systemPrompt},
-            {'role': 'user',   'content': 'Yukarıdaki JSON şablonunu doldur.'},
-          ],
-          'max_tokens': 3000,
-          'temperature': 0.4,
-          'response_format': {'type': 'json_object'},
-        }),
-      ).timeout(const Duration(seconds: 60));
-
-      if (response.statusCode == 200) {
-        final body = jsonDecode(response.body) as Map<String, dynamic>;
-        var text   = body['choices']?[0]?['message']?['content'] as String? ?? '';
-        // Markdown kod bloğu varsa soy
-        text = text.replaceAll(RegExp(r'```json\s*'), '').replaceAll(RegExp(r'```\s*'), '').trim();
-        _log('fetchStudySuite OK: ${text.length} karakter');
-        return jsonDecode(text) as Map<String, dynamic>;
-      }
-      final raw = response.body;
-      final s   = raw.toLowerCase();
-      if (response.statusCode == 429 || s.contains('quota') || s.contains('rate')) {
-        throw GeminiException._quotaExceeded(raw);
-      }
-      if (response.statusCode == 401 || response.statusCode == 403) {
-        throw GeminiException._invalidKey(raw);
-      }
-      if (response.statusCode >= 500) throw GeminiException._serverTimeout(raw);
-      throw GeminiException.unknown(raw);
+      var text = await _callGemini(
+        systemPrompt: systemPrompt,
+        userMessage: 'Yukarıdaki JSON şablonunu doldur.',
+        maxTokens: 3000,
+        temperature: 0.4,
+        timeout: const Duration(seconds: 60),
+      );
+      // Markdown kod bloğu varsa soy
+      text = text.replaceAll(RegExp(r'```json\s*'), '').replaceAll(RegExp(r'```\s*'), '').trim();
+      _log('fetchStudySuite OK: ${text.length} karakter');
+      return jsonDecode(text) as Map<String, dynamic>;
 
     } on GeminiException { rethrow; }
      on TimeoutException  { throw GeminiException.serverTimeout(); }
@@ -300,7 +320,7 @@ $solution''';
     _log('generateSimilarQuestion() — ders: "$subject"');
 
     try {
-      final dns = await InternetAddress.lookup('openrouter.ai')
+      final dns = await InternetAddress.lookup('generativelanguage.googleapis.com')
           .timeout(const Duration(seconds: 10));
       if (dns.isEmpty || dns[0].rawAddress.isEmpty) throw GeminiException.noInternet();
     } on SocketException { throw GeminiException.noInternet(); }
@@ -330,42 +350,14 @@ MEVCUT ÇÖZÜM (referans için):
 $existingSolution''';
 
     try {
-      final response = await http.post(
-        Uri.parse(_baseUrl),
-        headers: {
-          'Authorization': 'Bearer $_apiKey',
-          'HTTP-Referer': 'aura_snap',
-          'X-Title': 'AuraSnap',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'model': _model,
-          'messages': [
-            {'role': 'system', 'content': systemPrompt},
-            {'role': 'user',   'content': 'Bu çözümden benzer bir soru türet ve çöz.'},
-          ],
-          'max_tokens': 2048,
-          'temperature': 0.5,
-        }),
-      ).timeout(const Duration(seconds: 60));
-
-      if (response.statusCode == 200) {
-        final json = jsonDecode(response.body) as Map<String, dynamic>;
-        final text = json['choices']?[0]?['message']?['content'] as String?;
-        if (text == null || text.trim().isEmpty) throw GeminiException.blurryImage();
-        _log('generateSimilarQuestion OK: ${text.length} karakter');
-        return text;
-      }
-      final raw = response.body;
-      final s = raw.toLowerCase();
-      if (response.statusCode == 429 || s.contains('quota') || s.contains('rate')) {
-        throw GeminiException._quotaExceeded(raw);
-      }
-      if (response.statusCode == 401 || response.statusCode == 403) {
-        throw GeminiException._invalidKey(raw);
-      }
-      if (response.statusCode >= 500) throw GeminiException._serverTimeout(raw);
-      throw GeminiException.unknown(raw);
+      final text = await _callGemini(
+        systemPrompt: systemPrompt,
+        userMessage: 'Bu çözümden benzer bir soru türet ve çöz.',
+        maxTokens: 2048,
+        temperature: 0.5,
+      );
+      _log('generateSimilarQuestion OK: ${text.length} karakter');
+      return text;
 
     } on GeminiException { rethrow; }
      on TimeoutException  { throw GeminiException.serverTimeout(); }
@@ -383,7 +375,7 @@ $existingSolution''';
     _log('getTopicSummary() — ders: "$subject"');
 
     try {
-      final dns = await InternetAddress.lookup('openrouter.ai')
+      final dns = await InternetAddress.lookup('generativelanguage.googleapis.com')
           .timeout(const Duration(seconds: 10));
       if (dns.isEmpty || dns[0].rawAddress.isEmpty) throw GeminiException.noInternet();
     } on SocketException { throw GeminiException.noInternet(); }
@@ -406,42 +398,15 @@ Maksimum 200-250 kelime. Şu bölümleri içer:
 $existingSolution''';
 
     try {
-      final response = await http.post(
-        Uri.parse(_baseUrl),
-        headers: {
-          'Authorization': 'Bearer $_apiKey',
-          'HTTP-Referer': 'aura_snap',
-          'X-Title': 'AuraSnap',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'model': _model,
-          'messages': [
-            {'role': 'system', 'content': systemPrompt},
-            {'role': 'user',   'content': 'Bu çözümün konu özetini çıkar.'},
-          ],
-          'max_tokens': 800,
-          'temperature': 0.2,
-        }),
-      ).timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 200) {
-        final json = jsonDecode(response.body) as Map<String, dynamic>;
-        final text = json['choices']?[0]?['message']?['content'] as String?;
-        if (text == null || text.trim().isEmpty) throw GeminiException.blurryImage();
-        _log('getTopicSummary OK: ${text.length} karakter');
-        return text;
-      }
-      final raw = response.body;
-      final s = raw.toLowerCase();
-      if (response.statusCode == 429 || s.contains('quota') || s.contains('rate')) {
-        throw GeminiException._quotaExceeded(raw);
-      }
-      if (response.statusCode == 401 || response.statusCode == 403) {
-        throw GeminiException._invalidKey(raw);
-      }
-      if (response.statusCode >= 500) throw GeminiException._serverTimeout(raw);
-      throw GeminiException.unknown(raw);
+      final text = await _callGemini(
+        systemPrompt: systemPrompt,
+        userMessage: 'Bu çözümün konu özetini çıkar.',
+        maxTokens: 800,
+        temperature: 0.2,
+        timeout: const Duration(seconds: 30),
+      );
+      _log('getTopicSummary OK: ${text.length} karakter');
+      return text;
 
     } on GeminiException { rethrow; }
      on TimeoutException  { throw GeminiException.serverTimeout(); }
@@ -460,7 +425,7 @@ $existingSolution''';
     _log('solveHomework() — ders: $subject, tip: $solutionType');
 
     try {
-      final dns = await InternetAddress.lookup('openrouter.ai')
+      final dns = await InternetAddress.lookup('generativelanguage.googleapis.com')
           .timeout(const Duration(seconds: 10));
       if (dns.isEmpty || dns[0].rawAddress.isEmpty) throw GeminiException.noInternet();
     } on SocketException { throw GeminiException.noInternet(); }
@@ -485,38 +450,16 @@ $modeInstr
 Cevabı Türkçe ver.''';
 
     try {
-      final response = await http.post(
-        Uri.parse(_baseUrl),
-        headers: {
-          'Authorization': 'Bearer $_apiKey',
-          'HTTP-Referer': 'aura_snap',
-          'X-Title': 'AuraSnap',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'model': _model,
-          'messages': [
-            {'role': 'system', 'content': systemPrompt},
-            {'role': 'user',   'content': question},
-          ],
-          'max_tokens': 2048,
-          'temperature': 0.2,
-        }),
-      ).timeout(const Duration(seconds: 45));
+      final text = await _callGemini(
+        systemPrompt: systemPrompt,
+        userMessage: question,
+        maxTokens: 2048,
+        temperature: 0.2,
+        timeout: const Duration(seconds: 45),
+      );
+      _log('solveHomework OK: ${text.length} karakter');
+      return text;
 
-      if (response.statusCode == 200) {
-        final json = jsonDecode(response.body) as Map<String, dynamic>;
-        final text = json['choices']?[0]?['message']?['content'] as String?;
-        if (text == null || text.trim().isEmpty) throw GeminiException.blurryImage();
-        _log('solveHomework OK: ${text.length} karakter');
-        return text;
-      }
-      final raw = response.body;
-      final s = raw.toLowerCase();
-      if (response.statusCode == 429 || s.contains('quota') || s.contains('rate')) throw GeminiException._quotaExceeded(raw);
-      if (response.statusCode == 401 || response.statusCode == 403) throw GeminiException._invalidKey(raw);
-      if (response.statusCode >= 500) throw GeminiException._serverTimeout(raw);
-      throw GeminiException.unknown(raw);
     } on GeminiException { rethrow; }
      on TimeoutException  { throw GeminiException.serverTimeout(); }
      on SocketException   { throw GeminiException.noInternet(); }
@@ -533,7 +476,7 @@ Cevabı Türkçe ver.''';
     _log('askFollowUp() — soru: "$userQuestion"');
 
     try {
-      final dns = await InternetAddress.lookup('openrouter.ai')
+      final dns = await InternetAddress.lookup('generativelanguage.googleapis.com')
           .timeout(const Duration(seconds: 10));
       if (dns.isEmpty || dns[0].rawAddress.isEmpty) throw GeminiException.noInternet();
     } on SocketException { throw GeminiException.noInternet(); }
@@ -552,42 +495,15 @@ Adım gerekliyse "1. Adım:" formatını kullan. Son satırda "Sonuç:" ile öze
 $previousSolution''';
 
     try {
-      final response = await http.post(
-        Uri.parse(_baseUrl),
-        headers: {
-          'Authorization': 'Bearer $_apiKey',
-          'HTTP-Referer': 'aura_snap',
-          'X-Title': 'AuraSnap',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'model': _model,
-          'messages': [
-            {'role': 'system', 'content': systemPrompt},
-            {'role': 'user',   'content': userQuestion},
-          ],
-          'max_tokens': 1024,
-          'temperature': 0.2,
-        }),
-      ).timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 200) {
-        final json = jsonDecode(response.body) as Map<String, dynamic>;
-        final text = json['choices']?[0]?['message']?['content'] as String?;
-        if (text == null || text.trim().isEmpty) throw GeminiException.blurryImage();
-        _log('askFollowUp OK: ${text.length} karakter');
-        return text;
-      }
-      final raw = response.body;
-      final s = raw.toLowerCase();
-      if (response.statusCode == 429 || s.contains('quota') || s.contains('rate')) {
-        throw GeminiException._quotaExceeded(raw);
-      }
-      if (response.statusCode == 401 || response.statusCode == 403) {
-        throw GeminiException._invalidKey(raw);
-      }
-      if (response.statusCode >= 500) throw GeminiException._serverTimeout(raw);
-      throw GeminiException.unknown(raw);
+      final text = await _callGemini(
+        systemPrompt: systemPrompt,
+        userMessage: userQuestion,
+        maxTokens: 1024,
+        temperature: 0.2,
+        timeout: const Duration(seconds: 30),
+      );
+      _log('askFollowUp OK: ${text.length} karakter');
+      return text;
 
     } on GeminiException { rethrow; }
      on TimeoutException  { throw GeminiException.serverTimeout(); }
@@ -912,40 +828,19 @@ KURALLAR:
     Biyoloji - Hücre Bölünmesi''';
 
     try {
-      final response = await http.post(
-        Uri.parse(_baseUrl),
-        headers: {
-          'Authorization': 'Bearer $_apiKey',
-          'HTTP-Referer': 'aura_snap',
-          'X-Title': 'AuraSnap',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'model': _model,
-          'messages': [
-            {'role': 'system', 'content': systemPrompt},
-            {'role': 'user',   'content': snippet},
-          ],
-          'max_tokens': 32,
-          'temperature': 0.1,
-        }),
-      ).timeout(const Duration(seconds: 20));
-
-      if (response.statusCode != 200) {
-        _log('generateTitle HATA: HTTP ${response.statusCode}');
-        return '';
-      }
-
-      final json = jsonDecode(response.body) as Map<String, dynamic>;
-      var text = (json['choices']?[0]?['message']?['content'] as String?)?.trim() ?? '';
-      if (text.isEmpty) return '';
+      var text = await _callGemini(
+        systemPrompt: systemPrompt,
+        userMessage: snippet,
+        maxTokens: 32,
+        temperature: 0.1,
+        timeout: const Duration(seconds: 20),
+      );
 
       // Temizle: ilk satırı al, tırnakları/noktalamayı kaldır.
       text = text.split('\n').first.trim();
-      text = text.replaceAll(RegExp(r'^["“”\[]+|["“”\].]+$'), '').trim();
-      // "Ders - Konu" formatı değilse bile gelen metni kısalt ve döndür.
+      text = text.replaceAll(RegExp(r'^[“””\[]+|[“””\].]+$'), '').trim();
       if (text.length > 60) text = text.substring(0, 60);
-      _log('generateTitle OK: "$text"');
+      _log('generateTitle OK: “$text”');
       return text;
     } catch (e) {
       _log('generateTitle istisna: $e');

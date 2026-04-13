@@ -1,9 +1,11 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../services/pricing_service.dart';
+import '../main.dart' show localeService;
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  PremiumScreen — Abonelik & Avantajlar
+//  PremiumScreen — Abonelik & Avantajlar (Ülke Bazlı Fiyatlandırma)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class PremiumScreen extends StatefulWidget {
@@ -27,8 +29,37 @@ class _PremiumScreenState extends State<PremiumScreen> {
   OverlayEntry? _balloonEntry;
   bool _balloonVisible = false;
 
+  late String _countryCode;
+  late PricingPlan _plan;
+
+  @override
+  void initState() {
+    super.initState();
+    _updatePricing();
+    localeService.addListener(_onLocaleChanged);
+    _loadLiveRates();
+  }
+
+  void _onLocaleChanged() {
+    _updatePricing();
+  }
+
+  void _updatePricing() {
+    final lang = localeService.localeCode;
+    _countryCode = PricingService.countryFromLang(lang);
+    setState(() {
+      _plan = PricingService.getPlan(_countryCode);
+    });
+  }
+
+  Future<void> _loadLiveRates() async {
+    await PricingService.loadExchangeRates();
+    if (mounted) _updatePricing();
+  }
+
   @override
   void dispose() {
+    localeService.removeListener(_onLocaleChanged);
     _balloonEntry?.remove();
     super.dispose();
   }
@@ -136,10 +167,10 @@ class _PremiumScreenState extends State<PremiumScreen> {
                             child: _buildPlanCard(
                               index: 0,
                               title: '1 Ay',
-                              monthly: '₺299,99',
-                              daily: '₺10/gün',
-                              total: '₺299,99',
-                              oldPrice: '₺399,99',
+                              price: _plan.monthly,
+                              priceSuffix: '/ay',
+                              total: null,
+                              oldPrice: _plan.monthlyOld,
                               discount: null,
                             ),
                           ),
@@ -148,9 +179,9 @@ class _PremiumScreenState extends State<PremiumScreen> {
                             child: _buildPlanCard(
                               index: 1,
                               title: '3 Ay',
-                              monthly: '₺279,99',
-                              daily: '₺9/gün',
-                              total: '₺840',
+                              price: _plan.quarterly,
+                              priceSuffix: '/3 ay',
+                              total: null,
                               oldPrice: null,
                               discount: null,
                             ),
@@ -160,9 +191,9 @@ class _PremiumScreenState extends State<PremiumScreen> {
                             child: _buildPlanCard(
                               index: 2,
                               title: '12 Ay',
-                              monthly: '₺199,99',
-                              daily: '₺7/gün',
-                              total: '₺2.400',
+                              price: _plan.yearly,
+                              priceSuffix: '/yıl',
+                              total: null,
                               oldPrice: null,
                               discount: '%50',
                               tickKey: _tickKey12Ay,
@@ -409,11 +440,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
   }
 
   void _onContinue(BuildContext context) {
-    if (_selectedPlan == 0) {
-      _showPaymentSheet(context);
-    } else {
-      // TODO: 3 ay / 12 ay ödeme akışı
-    }
+    _showPaymentSheet(context);
   }
 
   void _showPaymentSheet(BuildContext context) {
@@ -463,7 +490,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
 
               // Uygulama adı + açıklama
               Text(
-                'SnapPhoto Plus Aylık Premium',
+                'Snap Nova ${_selectedPlan == 0 ? "Aylık" : _selectedPlan == 1 ? "3 Aylık" : "Yıllık"} Premium',
                 style: GoogleFonts.poppins(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
@@ -472,7 +499,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
               ),
               const SizedBox(height: 2),
               Text(
-                'SnapPhoto - Tüm Dersler & Tüm Ev Ödevleri',
+                'Snap Nova - Tüm Dersler & Tüm Ev Ödevleri',
                 style: GoogleFonts.poppins(
                   fontSize: 12,
                   color: const Color(0xFF6B7280),
@@ -503,14 +530,14 @@ class _PremiumScreenState extends State<PremiumScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Bugün · 1 aylık dönem',
+                            'Bugün · ${_selectedPlan == 0 ? "1 aylık" : _selectedPlan == 1 ? "3 aylık" : "12 aylık"} dönem',
                             style: GoogleFonts.poppins(
                               fontSize: 13,
                               color: const Color(0xFF333333),
                             ),
                           ),
                           Text(
-                            '₺299,99',
+                            _selectedPlan == 0 ? _plan.monthly : _selectedPlan == 1 ? _plan.quarterly : _plan.yearly,
                             style: GoogleFonts.poppins(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
@@ -540,7 +567,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                             ),
                           ),
                           Text(
-                            '₺399,99/ay',
+                            '${_plan.monthlyOld}/${_selectedPlan == 0 ? "ay" : _selectedPlan == 1 ? "3ay" : "yıl"}',
                             style: GoogleFonts.poppins(
                               fontSize: 12,
                               color: const Color(0xFF6B7280),
@@ -741,7 +768,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                             ),
                           ),
                           Text(
-                            'Monthly Premium',
+                            _selectedPlan == 0 ? 'Monthly Premium' : _selectedPlan == 1 ? 'Quarterly Premium' : 'Yearly Premium',
                             style: GoogleFonts.poppins(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
@@ -770,7 +797,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                             ),
                           ),
                           Text(
-                            '₺299,99',
+                            _selectedPlan == 0 ? _plan.monthly : _selectedPlan == 1 ? _plan.quarterly : _plan.yearly,
                             style: GoogleFonts.poppins(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
@@ -882,11 +909,11 @@ class _PremiumScreenState extends State<PremiumScreen> {
   String _dailyText() {
     switch (_selectedPlan) {
       case 0:
-        return 'Günlük sadece ₺10 ile sınırsız eriş';
+        return _plan.dailyMonthly;
       case 1:
-        return 'Günlük sadece ₺9 ile sınırsız eriş';
+        return _plan.dailyQuarterly;
       case 2:
-        return 'Günlük sadece ₺7 ile sınırsız eriş';
+        return _plan.dailyYearly;
       default:
         return '';
     }
@@ -895,11 +922,11 @@ class _PremiumScreenState extends State<PremiumScreen> {
   String _footerText() {
     switch (_selectedPlan) {
       case 0:
-        return 'İlk ay ₺299,99; ₺399,99/ay ile yenilenir; istediğiniz zaman iptal edin';
+        return _plan.footerMonthly;
       case 1:
-        return '3 aylık ₺840; ₺1.200/3 ay ile yenilenir; istediğiniz zaman iptal edin';
+        return _plan.footerQuarterly;
       case 2:
-        return 'Yıllık ₺2.400; ₺4.800/yıl ile yenilenir; istediğiniz zaman iptal edin';
+        return _plan.footerYearly;
       default:
         return '';
     }
@@ -953,8 +980,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
   Widget _buildPlanCard({
     required int index,
     required String title,
-    required String monthly,
-    required String daily,
+    required String price,
+    required String priceSuffix,
     String? total,
     String? oldPrice,
     String? discount,
@@ -1042,14 +1069,14 @@ class _PremiumScreenState extends State<PremiumScreen> {
 
             const SizedBox(height: 10),
 
-            // Aylık fiyat + /ay yan yana
+            // Fiyat + süre etiketi
             Row(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: [
                 Text(
-                  monthly,
+                  price,
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -1058,7 +1085,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   ),
                 ),
                 Text(
-                  '/ay',
+                  priceSuffix,
                   style: GoogleFonts.poppins(
                     fontSize: 9,
                     fontWeight: FontWeight.w400,
@@ -1079,7 +1106,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
 
             const SizedBox(height: 12),
 
-            // Toplam fiyat
+            // Alt bilgi — eski fiyat veya toplam
             if (oldPrice != null)
               Row(
                 mainAxisSize: MainAxisSize.min,
@@ -1097,7 +1124,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    total ?? '',
+                    price,
                     style: GoogleFonts.poppins(
                       fontSize: 9,
                       fontWeight: FontWeight.w600,
@@ -1106,7 +1133,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   ),
                 ],
               )
-            else
+            else if (total != null)
               Text(
                 'Toplam $total',
                 style: GoogleFonts.poppins(
@@ -1114,7 +1141,9 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   fontWeight: FontWeight.w500,
                   color: const Color(0xFF6B7280),
                 ),
-              ),
+              )
+            else
+              const SizedBox(height: 12),
 
             const SizedBox(height: 10),
 
