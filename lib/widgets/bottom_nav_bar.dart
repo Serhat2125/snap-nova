@@ -30,9 +30,9 @@ class CameraBottomNav extends StatelessWidget {
       color: Color(0xFFAA44FF),
     ),
     _NavItem(
-      icon: Icons.menu_book_outlined,
-      activeIcon: Icons.menu_book_rounded,
-      labelKey: 'my_homework',
+      icon: Icons.calendar_month_outlined,
+      activeIcon: Icons.calendar_month_rounded,
+      labelKey: 'academic_planner',
       color: Color(0xFF34D399),
     ),
     _NavItem(

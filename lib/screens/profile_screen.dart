@@ -125,7 +125,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   boxShadow: [
                                     BoxShadow(
                                       color: const Color(0xFF00E5FF)
-                                          .withOpacity(0.3),
+                                          .withValues(alpha: 0.3),
                                       blurRadius: 20,
                                       spreadRadius: 2,
                                     ),
@@ -163,14 +163,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   shape: BoxShape.circle,
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.12),
+                                      color: Colors.black.withValues(alpha: 0.12),
                                       blurRadius: 6,
                                       offset: const Offset(0, 2),
                                     ),
                                   ],
                                   border: Border.all(
                                     color: const Color(0xFF00E5FF)
-                                        .withOpacity(0.4),
+                                        .withValues(alpha: 0.4),
                                     width: 1.5,
                                   ),
                                 ),
@@ -218,7 +218,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFFF59E0B).withOpacity(0.25),
+                              color: const Color(0xFFF59E0B).withValues(alpha: 0.25),
                               blurRadius: 12,
                             ),
                           ],
@@ -245,7 +245,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     style: GoogleFonts.poppins(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w500,
-                                      color: Colors.white.withOpacity(0.9),
+                                      color: Colors.white.withValues(alpha: 0.9),
                                       height: 1.3,
                                     ),
                                   ),
@@ -315,7 +315,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _buildOvalMenuItem(
                 emoji: '📄',
                 title: tr('terms_privacy'),
-                onTap: () => _showSnack(tr('privacy_soon')),
+                onTap: () => _showTermsPrivacySheet(context),
               ),
 
               const SizedBox(height: 32),
@@ -336,7 +336,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       borderRadius: BorderRadius.circular(50),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.06),
+                          color: Colors.black.withValues(alpha: 0.06),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -409,7 +409,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             borderRadius: BorderRadius.circular(50),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.06),
+                color: Colors.black.withValues(alpha: 0.06),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -455,7 +455,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withOpacity(0.15),
+      barrierColor: Colors.black.withValues(alpha: 0.15),
       builder: (ctx) {
         return BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
@@ -506,7 +506,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFF00E5FF).withOpacity(0.25),
+                                  color: const Color(0xFF00E5FF).withValues(alpha: 0.25),
                                   blurRadius: 16,
                                 ),
                               ],
@@ -584,10 +584,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF3B82F6).withOpacity(0.08),
+                          color: const Color(0xFF3B82F6).withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(50),
                           border: Border.all(
-                            color: const Color(0xFF3B82F6).withOpacity(0.3),
+                            color: const Color(0xFF3B82F6).withValues(alpha: 0.3),
                           ),
                         ),
                         child: Row(
@@ -631,7 +631,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           borderRadius: BorderRadius.circular(50),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF00E5FF).withOpacity(0.25),
+                              color: const Color(0xFF00E5FF).withValues(alpha: 0.25),
                               blurRadius: 12,
                             ),
                           ],
@@ -727,7 +727,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withOpacity(0.15),
+      barrierColor: Colors.black.withValues(alpha: 0.15),
       builder: (ctx) {
         return BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
@@ -844,7 +844,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             borderRadius: BorderRadius.circular(50),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF3B82F6).withOpacity(0.25),
+                                color: const Color(0xFF3B82F6).withValues(alpha: 0.25),
                                 blurRadius: 12,
                               ),
                             ],
@@ -952,7 +952,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF3B82F6).withOpacity(0.15),
+        color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0xFF3B82F6), width: 1.5),
       ),
@@ -986,7 +986,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withOpacity(0.15),
+      barrierColor: Colors.black.withValues(alpha: 0.40),
       builder: (ctx) {
         return BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
@@ -998,7 +998,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               final filtered = query.isEmpty
                   ? allLangs
                   : allLangs.where((lang) {
-                      final (_, name, englishName, code) = lang;
+                      final (_, name, englishName, code, _) = lang;
                       return name.toLowerCase().contains(query) ||
                           englishName.toLowerCase().contains(query) ||
                           code.toLowerCase().contains(query);
@@ -1006,8 +1006,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               // Seçili dili en üstte göster
               final selectedCode = locale.localeCode;
-              final sortedLangs = <(String, String, String, String)>[];
-              (String, String, String, String)? selectedLang;
+              final sortedLangs = <(String, String, String, String, String)>[];
+              (String, String, String, String, String)? selectedLang;
               for (final lang in filtered) {
                 if (lang.$4 == selectedCode) {
                   selectedLang = lang;
@@ -1020,7 +1020,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               return Container(
                 height: MediaQuery.of(context).size.height * 0.75,
                 decoration: const BoxDecoration(
-                  color: Colors.white,
+                  color: Color(0xFFF3F4F6),
                   borderRadius: BorderRadius.only(
                     topLeft: Radius.circular(24),
                     topRight: Radius.circular(24),
@@ -1129,7 +1129,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   horizontal: 16, vertical: 8),
                               itemCount: sortedLangs.length,
                               itemBuilder: (_, i) {
-                                final (flag, name, englishName, code) =
+                                final (flag, name, englishName, code, culture) =
                                     sortedLangs[i];
                                 final isSelected =
                                     locale.localeCode == code;
@@ -1137,8 +1137,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 return GestureDetector(
                                   onTap: () {
                                     locale.setLocale(code);
-                                    setSheetState(() {});
                                     if (mounted) setState(() {});
+                                    Navigator.pop(ctx);
                                   },
                                   child: AnimatedContainer(
                                     duration:
@@ -1150,7 +1150,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     decoration: BoxDecoration(
                                       color: isSelected
                                           ? const Color(0xFF3B82F6)
-                                              .withOpacity(0.08)
+                                              .withValues(alpha: 0.08)
                                           : Colors.transparent,
                                       borderRadius:
                                           BorderRadius.circular(24),
@@ -1196,12 +1196,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                             ],
                                           ),
                                         ),
-                                        if (isSelected)
+                                        Text(culture,
+                                            style: const TextStyle(
+                                                fontSize: 22)),
+                                        if (isSelected) ...[
+                                          const SizedBox(width: 10),
                                           const Icon(
                                             Icons.check_circle_rounded,
                                             color: Color(0xFF3B82F6),
                                             size: 24,
                                           ),
+                                        ],
                                       ],
                                     ),
                                   ),
@@ -1237,7 +1242,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF8B5CF6).withOpacity(0.15),
+        color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0xFF8B5CF6), width: 1.5),
       ),
@@ -1279,7 +1284,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       isScrollControlled: false,
       backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withOpacity(0.15),
+      barrierColor: Colors.black.withValues(alpha: 0.15),
       builder: (ctx) {
         return BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
@@ -1341,7 +1346,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               horizontal: 16, vertical: 16),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? color.withOpacity(0.08)
+                                ? color.withValues(alpha: 0.08)
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(24),
                             border: Border.all(
@@ -1357,8 +1362,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 width: 44,
                                 height: 44,
                                 decoration: BoxDecoration(
-                                  color: color.withOpacity(
-                                      isSelected ? 0.18 : 0.08),
+                                  color: color.withValues(
+                                      alpha: isSelected ? 0.18 : 0.08),
                                   borderRadius: BorderRadius.circular(14),
                                 ),
                                 child:
@@ -1401,150 +1406,149 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _showFeedbackBottomSheet(BuildContext context) {
     final locale = LocaleInherited.of(context);
+    final controller = TextEditingController();
+    bool sent = false;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withOpacity(0.15),
+      barrierColor: Colors.black.withValues(alpha: 0.40),
       builder: (ctx) {
         return BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
-          child: Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(ctx).viewInsets.bottom,
-            ),
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
+          child: StatefulBuilder(
+            builder: (ctx, setSheetState) {
+              return Padding(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(ctx).viewInsets.bottom,
                 ),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Tutma çubuğu
-                  Center(
-                    child: Container(
-                      margin: const EdgeInsets.only(top: 12),
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFD1D5DB),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(24),
+                      topRight: Radius.circular(24),
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(0, 18, 0, 12),
-                    child: Row(
-                      children: [
-                        const Text('⭐', style: TextStyle(fontSize: 22)),
-                        const SizedBox(width: 10),
-                        Text(
-                          locale.tr('send_feedback'),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Tutma çubuğu
+                      Center(
+                        child: Container(
+                          margin: const EdgeInsets.only(top: 12),
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFD1D5DB),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(0, 18, 0, 12),
+                        child: Row(
+                          children: [
+                            const Text('⭐', style: TextStyle(fontSize: 22)),
+                            const SizedBox(width: 10),
+                            Text(
+                              locale.tr('send_feedback'),
+                              style: GoogleFonts.poppins(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF333333),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                      const SizedBox(height: 16),
+
+                      // Yazı yazma alanı
+                      Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF7F8FA),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFE5E7EB)),
+                        ),
+                        child: TextField(
+                          controller: controller,
+                          maxLines: 6,
+                          minLines: 4,
                           style: GoogleFonts.poppins(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
                             color: const Color(0xFF333333),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Divider(height: 1, color: Color(0xFFE5E7EB)),
-                  const SizedBox(height: 16),
-
-                  // Profesyonel açıklama metni — basılı tutarak kopyalanabilir
-                  SelectableText(
-                    locale.tr('feedback_desc'),
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      color: const Color(0xFF6B7280),
-                      height: 1.6,
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // E-posta satırı
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 13),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF7F8FA),
-                      borderRadius: BorderRadius.circular(50),
-                      border:
-                          Border.all(color: const Color(0xFFE5E7EB)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.email_outlined,
-                            size: 20, color: Color(0xFF00C2D4)),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: SelectableText(
-                            locale.tr('contact_email'),
-                            style: GoogleFonts.poppins(
+                          cursorColor: const Color(0xFF00C2D4),
+                          decoration: InputDecoration(
+                            hintText: locale.tr('feedback_desc'),
+                            hintStyle: GoogleFonts.poppins(
                               fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF00C2D4),
+                              color: const Color(0xFFB0B7C3),
                             ),
+                            hintMaxLines: 4,
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.all(16),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Gönder butonu
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _launchEmail(subject: 'SnapNova - Geri Bildirim');
-                    },
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF00E5FF), Color(0xFF6B21F2)],
-                        ),
-                        borderRadius: BorderRadius.circular(50),
-                        boxShadow: [
-                          BoxShadow(
-                            color:
-                                const Color(0xFF00E5FF).withOpacity(0.25),
-                            blurRadius: 12,
-                          ),
-                        ],
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.send_rounded,
-                              color: Colors.white, size: 18),
-                          const SizedBox(width: 8),
-                          Text(
-                            locale.tr('send'),
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
+
+                      const SizedBox(height: 20),
+
+                      // Gönder butonu
+                      GestureDetector(
+                        onTap: () {
+                          if (controller.text.trim().isEmpty) return;
+                          _launchEmail(
+                            subject: 'SnapNova - Geri Bildirim',
+                            body: controller.text.trim(),
+                          );
+                          setSheetState(() => sent = true);
+                          Future.delayed(const Duration(milliseconds: 1200), () {
+                            if (ctx.mounted) Navigator.pop(ctx);
+                          });
+                        },
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: sent
+                                  ? [const Color(0xFF22C55E), const Color(0xFF16A34A)]
+                                  : [const Color(0xFF00E5FF), const Color(0xFF6B21F2)],
                             ),
+                            borderRadius: BorderRadius.circular(50),
                           ),
-                        ],
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                sent ? Icons.check_circle_rounded : Icons.send_rounded,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                sent ? locale.tr('feedback_thanks') : locale.tr('send'),
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           ),
         );
       },
@@ -1562,7 +1566,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       isScrollControlled: false,
       backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withOpacity(0.15),
+      barrierColor: Colors.black.withValues(alpha: 0.15),
       builder: (ctx) {
         return BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
@@ -1632,10 +1636,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 16, vertical: 14),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF00C2D4).withOpacity(0.08),
+                      color: const Color(0xFF00C2D4).withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(50),
                       border: Border.all(
-                        color: const Color(0xFF00C2D4).withOpacity(0.3),
+                        color: const Color(0xFF00C2D4).withValues(alpha: 0.3),
                       ),
                     ),
                     child: Row(
@@ -1671,11 +1675,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   //  E-posta & Yardımcı Metodlar
   // ═══════════════════════════════════════════════════════════════════════════
 
-  Future<void> _launchEmail({String subject = 'SnapNova'}) async {
+  Future<void> _launchEmail({String subject = 'SnapNova', String body = ''}) async {
+    final params = <String, String>{'subject': subject};
+    if (body.isNotEmpty) params['body'] = body;
     final uri = Uri(
       scheme: 'mailto',
       path: 'serhatdsme@gmail.com',
-      queryParameters: {'subject': subject},
+      queryParameters: params,
     );
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
@@ -1708,60 +1714,302 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // ═══════════════════════════════════════════════════════════════════════════
 
   void _showAboutDialog() {
-    final locale = LocaleInherited.of(context);
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            ShaderMask(
-              shaderCallback: (bounds) => const LinearGradient(
-                colors: [Color(0xFF00E5FF), Color(0xFF6B21F2)],
-              ).createShader(bounds),
-              child: const Icon(Icons.auto_awesome_rounded,
-                  size: 28, color: Colors.white),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              'SnapNova',
-              style: GoogleFonts.poppins(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: const Color(0xFF333333),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.40),
+      builder: (ctx) {
+        return BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+          child: Container(
+            height: MediaQuery.of(context).size.height * 0.85,
+            decoration: const BoxDecoration(
+              color: Color(0xFFEEEFF3),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(24),
+                topRight: Radius.circular(24),
               ),
             ),
-          ],
+            child: Column(
+              children: [
+                // Tutma çubuğu
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 12),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD1D5DB),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                // İçerik
+                Expanded(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // ── Logo + Başlık ────────────────────────────────
+                        Center(
+                          child: Column(
+                            children: [
+                              Container(
+                                width: 72,
+                                height: 72,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFF00E5FF), Color(0xFF6B21F2)],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(20),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF00E5FF).withValues(alpha: 0.3),
+                                      blurRadius: 20,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(Icons.auto_awesome_rounded,
+                                    size: 36, color: Colors.white),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'SnapNova',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w900,
+                                  color: const Color(0xFF1A1A2E),
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  'Geleceğin Yapay Zeka Ekosistemi',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF3B82F6),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // ── Vizyon Açıklaması ────────────────────────────
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Text(
+                            'SnapNova, modern mühendislik disiplinleri ile yapay zekanın sınırsız potansiyelini bir araya getiren hibrit bir teknoloji platformudur.',
+                            style: GoogleFonts.poppins(
+                              fontSize: 15,
+                              color: const Color(0xFF6B7280),
+                              height: 1.7,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // ── Esnek Çözüm Metodolojileri ───────────────────
+                        _aboutSectionTitle('⚡', 'Esnek Çözüm Metodolojileri'),
+                        const SizedBox(height: 12),
+                        _aboutFeatureCard(
+                          icon: Icons.bolt_rounded,
+                          color: const Color(0xFFF59E0B),
+                          title: 'Pratik Çözüm Modu',
+                          desc: 'Zamanın kısıtlı olduğunda, en doğru sonuca en hızlı algoritma ile ulaşmanı sağlar.',
+                        ),
+                        const SizedBox(height: 10),
+                        _aboutFeatureCard(
+                          icon: Icons.list_alt_rounded,
+                          color: const Color(0xFF3B82F6),
+                          title: 'Adım Adım Çözüm Analizi',
+                          desc: 'Her problemin mantıksal katmanlarını parçalara ayırarak, çözümün "nasıl" ve "neden" gerçekleştiğini derinlemesine öğretir.',
+                        ),
+                        const SizedBox(height: 10),
+                        _aboutFeatureCard(
+                          icon: Icons.school_rounded,
+                          color: const Color(0xFFEC4899),
+                          title: 'AI Öğretmen',
+                          desc: 'İsmi öğretmen olsa da, o aslında senin en iyi arkadaşın! Soruları seninle konuşarak, samimi bir dille anlatır. Küçük ipuçlarıyla cevabı senin keşfetmeni sağlar.',
+                        ),
+                        const SizedBox(height: 20),
+
+                        // ── Dünyanın En Güçlü Zekaları ──────────────────
+                        _aboutSectionTitle('🧠', 'Dünyanın En Güçlü Zekaları'),
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'ChatGPT-5 Pro · Claude Max · Gemini Pro\nSuper Grok · DeepSeek',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF1A1A2E),
+                                  height: 1.6,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                'Dünyanın en iyi ve en gelişmiş yapay zeka modellerini sınırsız bir şekilde hizmetine sunar. Bu devasa modellerin birleşen gücüyle, her soruda en kaliteli ve en akıllı yanıtı alacağın bir deneyim seni bekliyor.',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  color: const Color(0xFF6B7280),
+                                  height: 1.6,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        // ── Aktif Öğrenme ve Pekiştirme ──────────────────
+                        _aboutSectionTitle('🎯', 'Aktif Öğrenme ve Pekiştirme'),
+                        const SizedBox(height: 12),
+                        _aboutFeatureCard(
+                          icon: Icons.shuffle_rounded,
+                          color: const Color(0xFF8B5CF6),
+                          title: 'Dinamik Soru Varyasyonu',
+                          desc: 'Öğrenilen bilgiyi pekiştirmek için, çözülen her soru için anlık olarak benzer yeni sorular türetilir.',
+                        ),
+                        const SizedBox(height: 10),
+                        _aboutFeatureCard(
+                          icon: Icons.style_rounded,
+                          color: const Color(0xFF06B6D4),
+                          title: 'Akıllı Bilgi Kartları',
+                          desc: 'Sorulan her soruyu derinlemesine analiz ederek ilgili konunun temel kavramlarını, formüllerini ve en kritik bilgilerini tarar; ardından bu verileri derli toplu maddeler halinde sunan dijital kartlar oluşturur. Böylece konunun özünü tek bakışta kavrar, tekrar etmen gereken noktaları anında görürsün.',
+                        ),
+                        const SizedBox(height: 10),
+                        _aboutFeatureCard(
+                          icon: Icons.emoji_events_rounded,
+                          color: const Color(0xFF10B981),
+                          title: 'Oyunlaştırılmış Öğrenme',
+                          desc: 'Edinilen bilgiyi interaktif oyunlaştırma teknikleri ile birleştirerek, süreci akılda kalıcı ve rekabetçi bir eğlenceye dönüştürür.',
+                        ),
+                        const SizedBox(height: 24),
+
+                        // ── Bilgi satırları ──────────────────────────────
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            children: [
+                              _infoRow('Versiyon', '0.1.0'),
+                              _infoRow('Geliştirici', 'SnapNova Team'),
+                              _infoRow('AI Model', 'Gemini 2.0 Flash'),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _aboutSectionTitle(String emoji, String title) {
+    return Row(
+      children: [
+        Text(emoji, style: const TextStyle(fontSize: 26)),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            title,
+            style: GoogleFonts.poppins(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF1A1A2E),
+            ),
+          ),
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              locale.tr('ai_assistant'),
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                color: const Color(0xFF6B7280),
-                height: 1.5,
-              ),
+      ],
+    );
+  }
+
+  Widget _aboutFeatureCard({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String desc,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
             ),
-            const SizedBox(height: 16),
-            _infoRow(locale.tr('version'), '0.1.0'),
-            _infoRow(locale.tr('developer'), 'SnapNova Team'),
-            _infoRow(locale.tr('ai_model'), 'Gemini 2.0 Flash'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              locale.tr('ok'),
-              style: GoogleFonts.poppins(
-                color: const Color(0xFF00C2D4),
-                fontWeight: FontWeight.w700,
-              ),
+            child: Icon(icon, size: 24, color: color),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF333333),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  desc,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: const Color(0xFF6B7280),
+                    height: 1.6,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -1795,6 +2043,241 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  Kullanım Koşulları ve Gizlilik Politikası
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  void _showTermsPrivacySheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.40),
+      builder: (ctx) {
+        return BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+          child: Container(
+            height: MediaQuery.of(context).size.height * 0.88,
+            decoration: const BoxDecoration(
+              color: Color(0xFFEEEFF3),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(24),
+                topRight: Radius.circular(24),
+              ),
+            ),
+            child: Column(
+              children: [
+                // Tutma çubuğu
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 12),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD1D5DB),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                // İçerik
+                Expanded(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // ══════════════════════════════════════════════════
+                        //  KULLANIM KOŞULLARI
+                        // ══════════════════════════════════════════════════
+                        Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              '📋 Kullanım Şartları ve Koşulları',
+                              style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF3B82F6),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Giriş
+                        _termsCard(
+                          'SnapNova\'yı kullanarak, bu şartlara uymayı kabul etmiş sayılırsınız. '
+                          'Bu platform, gelişmiş yapay zeka modellerini kullanarak size akademik destek sunan bir araçtır.',
+                        ),
+                        const SizedBox(height: 12),
+
+                        // 1. Hizmet Kapsamı
+                        _termsSectionTitle('1', 'Hizmet Kapsamı ve Yapay Zeka Sorumluluğu'),
+                        const SizedBox(height: 8),
+                        _termsCard(
+                          'SnapNova; ChatGPT-5 Pro, Claude Max, Super Grok ve diğer üçüncü taraf modelleri kullanır. '
+                          'Yapay zeka tarafından üretilen yanıtlar %100 doğruluk garantisi taşımaz. '
+                          'Sunulan çözümler birer "öneri" niteliğindedir; akademik kararlarınızda son sorumluluk kullanıcıya aittir.',
+                        ),
+                        const SizedBox(height: 12),
+
+                        // 2. Kullanım Amacı
+                        _termsSectionTitle('2', 'Kullanım Amacı'),
+                        const SizedBox(height: 8),
+                        _termsCard(
+                          'Uygulama, öğrenmeyi kolaylaştırmak için tasarlanmıştır. '
+                          'Sınav güvenliğini ihlal edecek şekilde kullanımı veya platformun tersine mühendislik yöntemleriyle kopyalanması kesinlikle yasaktır.',
+                        ),
+                        const SizedBox(height: 12),
+
+                        // 3. Abonelik ve Ödemeler
+                        _termsSectionTitle('3', 'Abonelik ve Ödemeler'),
+                        const SizedBox(height: 8),
+                        _termsCard(
+                          'Premium abonelikler, uygulama içi satın alma kurallarına tabidir. '
+                          'Satın alma işlemi gerçekleştikten sonra iade süreçleri Apple App Store ve Google Play Store politikaları üzerinden yürütülür.',
+                        ),
+                        const SizedBox(height: 28),
+
+                        // ══════════════════════════════════════════════════
+                        //  GİZLİLİK POLİTİKASI
+                        // ══════════════════════════════════════════════════
+                        Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              '🔐 Gizlilik ve Veri Güvenliği Bildirimi',
+                              style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF10B981),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Giriş
+                        _termsCard(
+                          'SnapNova, gizliliğinize en az başarınız kadar önem verir. '
+                          'Verilerinizin nasıl işlendiğini şeffaf bir şekilde aşağıda açıklıyoruz.',
+                        ),
+                        const SizedBox(height: 12),
+
+                        // 1. Toplanan Veriler
+                        _termsSectionTitle('1', 'Toplanan Veriler'),
+                        const SizedBox(height: 8),
+                        _termsCard(
+                          '📸 Görsel Veriler: Çözülmesi için yüklediğiniz fotoğraflar sadece ilgili yapay zeka modeline analiz için gönderilir ve işlem bittikten sonra güvenli bir şekilde işlenir.\n\n'
+                          '📊 Kullanım Verileri: Deneyiminizi iyileştirmek için anonim kullanım istatistikleri toplanabilir.',
+                        ),
+                        const SizedBox(height: 12),
+
+                        // 2. Veri Paylaşımı
+                        _termsSectionTitle('2', 'Veri Paylaşımı ve Güvenliği'),
+                        const SizedBox(height: 8),
+                        _termsCard(
+                          'SnapNova, kişisel verilerinizi üçüncü taraflara satmaz. '
+                          'Verileriniz, dünya standartlarındaki ChatGPT-5 Pro ve Gemini Pro API\'ları üzerinden yüksek güvenlikli şifreleme protokolleri ile iletilir.',
+                        ),
+                        const SizedBox(height: 12),
+
+                        // 3. Kullanıcı Hakları
+                        _termsSectionTitle('3', 'Kullanıcı Hakları'),
+                        const SizedBox(height: 8),
+                        _termsCard(
+                          'Dilediğiniz zaman hesabınızı ve yüklediğiniz tüm geçmiş çözümleri uygulama içerisinden kalıcı olarak silme hakkına sahipsiniz.',
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Alt bilgi
+                        Center(
+                          child: Text(
+                            'SnapNova © 2026 — Tüm hakları saklıdır.',
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              color: const Color(0xFF9CA3AF),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _termsSectionTitle(String number, String title) {
+    return Row(
+      children: [
+        Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Center(
+            child: Text(
+              number,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: const Color(0xFF3B82F6),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            title,
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF1A1A2E),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _termsCard(String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        text,
+        style: GoogleFonts.poppins(
+          fontSize: 14,
+          color: const Color(0xFF6B7280),
+          height: 1.7,
+        ),
+      ),
+    );
+  }
+
   void _showLogoutDialog() {
     final locale = LocaleInherited.of(context);
     showDialog(
@@ -1809,7 +2292,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: const Color(0xFFEF4444).withOpacity(0.12),
+                color: const Color(0xFFEF4444).withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
               child: const Icon(

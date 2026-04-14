@@ -12,6 +12,8 @@ class PricingPlan {
   final String monthly;
   final String quarterly;
   final String yearly;
+  final String quarterlyPerMonth; // 3 aylık / 3 = aylık birim fiyat
+  final String yearlyPerMonth;    // 12 aylık / 12 = aylık birim fiyat
   final String monthlyPerDay;
   final String quarterlyPerDay;
   final String yearlyPerDay;
@@ -28,6 +30,8 @@ class PricingPlan {
     required this.monthly,
     required this.quarterly,
     required this.yearly,
+    required this.quarterlyPerMonth,
+    required this.yearlyPerMonth,
     required this.monthlyPerDay,
     required this.quarterlyPerDay,
     required this.yearlyPerDay,
@@ -246,11 +250,11 @@ class PricingService {
   //  5 KATEGORİ — Kişi başı gelir seviyesine göre (USD bazlı fiyatlar)
   // ═══════════════════════════════════════════════════════════════════════════
   //
-  //  Tier 1 — Çok yüksek gelir  → Aylık  $9.99 | 3 Ay $29.97 (3x) | Yıl $59.94 (%50)
-  //  Tier 2 — Yüksek gelir      → Aylık  $7.99 | 3 Ay $23.97 (3x) | Yıl $47.94 (%50)
-  //  Tier 3 — Orta-üst gelir    → Aylık  $5.99 | 3 Ay $17.97 (3x) | Yıl $35.94 (%50)
-  //  Tier 4 — Orta gelir        → Aylık  $3.99 | 3 Ay $11.97 (3x) | Yıl $23.94 (%50)
-  //  Tier 5 — Düşük gelir       → Aylık  $1.99 | 3 Ay  $5.97 (3x) | Yıl $11.94 (%50)
+  //  Tier 1 — Çok yüksek gelir  → Aylık  $9.99
+  //  Tier 2 — Yüksek gelir      → Aylık  $9.99
+  //  Tier 3 — Orta-üst gelir    → Aylık  $6.99
+  //  Tier 4 — Orta gelir        → Aylık  $4.99
+  //  Tier 5 — Düşük gelir       → Aylık  $2.99
   //
   //  3 Aylık = Aylık x 3 (indirim yok)
   //  Yıllık  = Aylık x 12 x 0.50 (%50 indirim)
@@ -259,10 +263,10 @@ class PricingService {
 
   static const Map<int, double> _tierMonthlyUsd = {
     1: 9.99,
-    2: 7.99,
-    3: 5.99,
-    4: 3.99,
-    5: 1.99,
+    2: 9.99,
+    3: 6.99,
+    4: 4.99,
+    5: 2.99,
   };
 
   // ── Ülke → Tier eşleşmesi ───────────────────────────────────────────────
@@ -410,6 +414,8 @@ class PricingService {
       monthly: fmt(m),
       quarterly: fmt(q),
       yearly: fmt(y),
+      quarterlyPerMonth: fmt(q / 3),
+      yearlyPerMonth: fmt(y / 12),
       monthlyPerDay: '${fmt(m / 30)}$perDay',
       quarterlyPerDay: '${fmt(q / 90)}$perDay',
       yearlyPerDay: '${fmt(y / 365)}$perDay',

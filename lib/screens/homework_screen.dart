@@ -765,8 +765,9 @@ class _AddSheetState extends State<_AddSheet> {
             // Sadece kaydet
             Expanded(child: GestureDetector(
               onTap: valid ? () async {
+                final nav = Navigator.of(context);
                 await widget.onSave(_build());
-                if (mounted) Navigator.pop(context);
+                if (mounted) nav.pop();
               } : null,
               child: _actionBtn(
                 icon: Icons.bookmark_add_rounded,
@@ -780,10 +781,11 @@ class _AddSheetState extends State<_AddSheet> {
             // AI ile çöz
             Expanded(child: GestureDetector(
               onTap: valid ? () async {
+                final nav = Navigator.of(context);
                 final rec = _build();
                 await widget.onSave(rec);
                 if (mounted) {
-                  Navigator.pop(context);
+                  nav.pop();
                   // AI çözüm sheet'i ana ekrandan açılır
                   await Future.delayed(const Duration(milliseconds: 300));
                 }

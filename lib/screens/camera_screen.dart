@@ -13,7 +13,7 @@ import '../widgets/scan_frame_overlay.dart';
 import '../widgets/bottom_nav_bar.dart';
 import 'solution_screen.dart';
 import 'history_screen.dart';
-import 'homework_screen.dart';
+import 'academic_planner.dart';
 import 'calculator_screen.dart';
 import 'profile_screen.dart';
 
@@ -374,7 +374,7 @@ class _CameraScreenState extends State<CameraScreen>
                     Widget child;
                     switch (i) {
                       case 0: child = const HistoryScreen(); break;
-                      case 2: child = const HomeworkScreen(); break;
+                      case 2: child = const AcademicPlanner(); break;
                       case 3: child = const ProfileScreen(); break;
                       default: return;
                     }
@@ -507,7 +507,7 @@ class _NavShell extends StatelessWidget {
     Widget newChild;
     switch (i) {
       case 0: newChild = const HistoryScreen(); break;
-      case 2: newChild = const HomeworkScreen(); break;
+      case 2: newChild = const AcademicPlanner(); break;
       case 3: newChild = const ProfileScreen(); break;
       default: return;
     }

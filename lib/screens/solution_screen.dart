@@ -259,7 +259,8 @@ class _SolutionScreenState extends State<SolutionScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF0F2F5),
-      body: Stack(
+      body: SelectionArea(
+      child: Stack(
         children: [
           // ── 1 — Ana içerik ──────────────────────────────────────────────────
           SafeArea(
@@ -275,17 +276,6 @@ class _SolutionScreenState extends State<SolutionScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Banner görseli
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(20),
-                          child: Image.asset(
-                            'lib/assets/9ejrn (1).jpg',
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-
                         _buildPhotoCard(),
                         const SizedBox(height: 8),
 
@@ -365,6 +355,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
           if (_isLoading) const Positioned.fill(child: _AuraLoadingOverlay()),
         ],
       ),
+      ),
     );
   }
 
@@ -383,9 +374,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
   // ── Fotoğraf kartı ────────────────────────────────────────────────────────────
 
   Widget _buildPhotoCard() {
-    // Sabit 4:3 çerçeve — siyah oval border (radius 28) ve antiAlias clip
-    // sayesinde fotoğraf BoxFit.cover ile tamamını dolduruyor, köşelerden
-    // taşma olmuyor. Kullanıcı dokunup kaydıramaz — tam sabit.
+    // Sabit 4:3 çerçeve — siyah border (radius 14) ve antiAlias clip
     return Stack(
       children: [
         Container(
@@ -393,8 +382,8 @@ class _SolutionScreenState extends State<SolutionScreen> {
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: const Color(0xFFF0F2F5),
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: Colors.black, width: 4),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.black, width: 3),
           ),
           child: AspectRatio(
             aspectRatio: 4 / 3,

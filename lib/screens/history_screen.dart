@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import '../services/solutions_storage.dart';
 import '../services/pdf_service.dart';
+import '../main.dart' show localeService;
 import 'ai_result_screen.dart';
 import 'solution_screen.dart';
 
@@ -24,7 +25,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   List<SolutionRecord> _records = [];
   bool _showFavoritesOnly = false;
   bool _isLoading         = false;
-  String _loadingMessage  = 'Yükleniyor…';
+  String _loadingMessage  = '';
   bool _isSelecting       = false;
   final Set<String> _selectedIds = {};
 
@@ -32,6 +33,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
     'Matematik', 'Fizik', 'Kimya', 'Biyoloji',
     'Coğrafya', 'Tarih', 'Edebiyat', 'Felsefe', 'İngilizce', 'Diğer',
   ];
+
+  static const _subjectKeys = {
+    'Matematik': 'subj_math', 'Fizik': 'subj_physics', 'Kimya': 'subj_chemistry',
+    'Biyoloji': 'subj_biology', 'Coğrafya': 'subj_geography', 'Tarih': 'subj_history',
+    'Edebiyat': 'subj_literature', 'Felsefe': 'subj_philosophy', 'İngilizce': 'subj_english',
+    'Diğer': 'subj_other',
+  };
+  String _trSubject(String name) => localeService.tr(_subjectKeys[name] ?? name);
 
   @override
   void initState() {
@@ -113,11 +122,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
       setState(() => _isLoading = false);
 
   Future<void> _exportPdf(SolutionRecord rec) async {
-    _startLoading('PDF oluşturuluyor…');
+    _startLoading(localeService.tr('creating_pdf'));
     try {
       await PdfService.generateAndShare(rec);
     } catch (_) {
-      _showError('PDF oluşturulurken hata oluştu.');
+      _showError(localeService.tr('pdf_error'));
     } finally {
       _stopLoading();
     }
@@ -159,7 +168,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ctx: ctx,
                 icon: rec.isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
                 iconColor: const Color(0xFFF59E0B),
-                label: rec.isFavorite ? 'Favorilerden Çıkar' : 'Favorilere Ekle',
+                label: rec.isFavorite ? localeService.tr('remove_favorite') : localeService.tr('add_favorite'),
                 subtitle: null,
                 onTap: () {
                   Navigator.pop(ctx);
@@ -173,7 +182,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ctx: ctx,
                 icon: Icons.share_rounded,
                 iconColor: const Color(0xFF3B82F6),
-                label: 'Paylaş',
+                label: localeService.tr('share'),
                 subtitle: null,
                 onTap: () {
                   Navigator.pop(ctx);
@@ -187,7 +196,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ctx: ctx,
                 icon: Icons.picture_as_pdf_rounded,
                 iconColor: const Color(0xFFEC4899),
-                label: 'PDF Olarak Al',
+                label: localeService.tr('get_pdf'),
                 subtitle: null,
                 onTap: () {
                   Navigator.pop(ctx);
@@ -201,7 +210,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ctx: ctx,
                 icon: Icons.replay_rounded,
                 iconColor: const Color(0xFF10B981),
-                label: 'Tekrar Çöz',
+                label: localeService.tr('resolve'),
                 subtitle: null,
                 onTap: () {
                   Navigator.pop(ctx);
@@ -220,7 +229,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ctx: ctx,
                 icon: Icons.delete_rounded,
                 iconColor: const Color(0xFFEF4444),
-                label: 'Sil',
+                label: localeService.tr('delete'),
                 subtitle: null,
                 onTap: () {
                   Navigator.pop(ctx);
@@ -234,7 +243,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ctx: ctx,
                 icon: Icons.checklist_rounded,
                 iconColor: const Color(0xFF8B5CF6),
-                label: 'Toplu Sil',
+                label: localeService.tr('bulk_delete'),
                 subtitle: null,
                 onTap: () {
                   Navigator.pop(ctx);
@@ -307,19 +316,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
-        title: const Text('Sil', style: TextStyle(color: Color(0xFF333333), fontSize: 16)),
-        content: const Text(
-          'Bu çözüm geçmişten silinsin mi?',
-          style: TextStyle(color: Color(0xFF6B7280), fontSize: 13),
+        title: Text(localeService.tr('delete'), style: const TextStyle(color: Color(0xFF333333), fontSize: 16)),
+        content: Text(
+          localeService.tr('confirm_delete_solution'),
+          style: const TextStyle(color: Color(0xFF6B7280), fontSize: 13),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('İptal', style: TextStyle(color: Color(0xFF9CA3AF))),
+            child: Text(localeService.tr('cancel'), style: const TextStyle(color: Color(0xFF9CA3AF))),
           ),
           TextButton(
             onPressed: () { Navigator.pop(ctx); _delete(id); },
-            child: const Text('Sil', style: TextStyle(color: Color(0xFFEF4444))),
+            child: Text(localeService.tr('delete'), style: const TextStyle(color: Color(0xFFEF4444))),
           ),
         ],
       ),
@@ -354,29 +363,31 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
               ),
               // Başlık
-              const Padding(
-                padding: EdgeInsets.fromLTRB(22, 6, 22, 4),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 6, 22, 4),
                 child: Row(
                   children: [
-                    Icon(Icons.auto_awesome_rounded, color: Colors.black, size: 20),
-                    SizedBox(width: 8),
-                    Text(
-                      'Çözümler Sayfası — Nasıl Kullanılır?',
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.3,
+                    const Icon(Icons.auto_awesome_rounded, color: Colors.black, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        localeService.tr('help_title'),
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.3,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-              const Padding(
-                padding: EdgeInsets.fromLTRB(22, 0, 22, 10),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 0, 22, 10),
                 child: Text(
-                  'Bu sayfa, çözdüğün tüm soruların akıllı arşividir. İşte en verimli kullanım:',
-                  style: TextStyle(color: Colors.black54, fontSize: 12, height: 1.45),
+                  localeService.tr('help_subtitle'),
+                  style: const TextStyle(color: Colors.black54, fontSize: 12, height: 1.45),
                 ),
               ),
 
@@ -384,62 +395,48 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 child: ListView(
                   controller: scrollCtrl,
                   padding: const EdgeInsets.fromLTRB(16, 6, 16, 24),
-                  children: const [
+                  children: [
                     _HelpTile(
                       icon: Icons.auto_awesome_rounded,
-                      color: Color(0xFF3B82F6),
-                      title: 'Otomatik Kategori',
-                      body:
-                          'Yapay zeka her soruyu okur, dersi ve konusunu belirler '
-                          '(örn. "Fizik - Kuvvet ve Hareket") ve kart başlığı olarak ekler.',
+                      color: const Color(0xFF3B82F6),
+                      title: localeService.tr('help_auto_category_title'),
+                      body: localeService.tr('help_auto_category_body'),
                     ),
                     _HelpTile(
                       icon: Icons.filter_list_rounded,
-                      color: Color(0xFF8B5CF6),
-                      title: 'Ders Filtreleri',
-                      body:
-                          'Üst kısımdaki yatay ders çiplerinden birine dokunarak '
-                          'sadece o derse ait soruları listeleyebilirsin.',
+                      color: const Color(0xFF8B5CF6),
+                      title: localeService.tr('help_subject_filters_title'),
+                      body: localeService.tr('help_subject_filters_body'),
                     ),
                     _HelpTile(
                       icon: Icons.image_rounded,
-                      color: Color(0xFF10B981),
-                      title: 'Tam Boy Fotoğraf',
-                      body:
-                          'Her kart, sorunun orijinal fotoğrafını tam boy gösterir. '
-                          'Fotoğraflar sen silene kadar cihazında kalıcı olarak saklanır.',
+                      color: const Color(0xFF10B981),
+                      title: localeService.tr('help_full_photo_title'),
+                      body: localeService.tr('help_full_photo_body'),
                     ),
                     _HelpTile(
                       icon: Icons.star_rounded,
-                      color: Color(0xFFF59E0B),
-                      title: 'Favoriler',
-                      body:
-                          'Sağ üstteki sarı yıldıza dokunarak sadece favori sorularını gör. '
-                          'Bir karta uzun basıp "Favorilere Ekle" diyebilirsin.',
+                      color: const Color(0xFFF59E0B),
+                      title: localeService.tr('help_favorites_title'),
+                      body: localeService.tr('help_favorites_body'),
                     ),
                     _HelpTile(
                       icon: Icons.touch_app_rounded,
-                      color: Color(0xFFEC4899),
-                      title: 'Uzun Bas = Seçenekler',
-                      body:
-                          'Karta uzun basarak paylaş, PDF al, tekrar çöz, favori ekle '
-                          've toplu silme gibi işlemlere ulaşabilirsin.',
+                      color: const Color(0xFFEC4899),
+                      title: localeService.tr('help_long_press_title'),
+                      body: localeService.tr('help_long_press_body'),
                     ),
                     _HelpTile(
                       icon: Icons.replay_rounded,
-                      color: Color(0xFF06B6D4),
-                      title: 'Tekrar Çöz',
-                      body:
-                          'Zorlandığın bir soruyu "Tekrar Çöz" ile farklı bir AI moduyla '
-                          '(Adım Adım, AI Öğretmen) yeniden çözdürebilirsin.',
+                      color: const Color(0xFF06B6D4),
+                      title: localeService.tr('help_resolve_title'),
+                      body: localeService.tr('help_resolve_body'),
                     ),
                     _HelpTile(
                       icon: Icons.lock_outline_rounded,
-                      color: Color(0xFF64748B),
-                      title: 'Gizli Kalır',
-                      body:
-                          'Tüm çözümlerin ve fotoğrafların yalnızca senin cihazında tutulur. '
-                          'Bulut yok, paylaşım yok — sen izin vermeden hiçbir yere gitmez.',
+                      color: const Color(0xFF64748B),
+                      title: localeService.tr('help_privacy_title'),
+                      body: localeService.tr('help_privacy_body'),
                     ),
                   ],
                 ),
@@ -470,6 +467,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF0F2F5),
       body: SafeArea(
+        child: SelectionArea(
         child: Stack(
           children: [
             Column(
@@ -495,7 +493,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         ),
                       ),
                       Text(
-                        _showFavoritesOnly ? 'Favori Sorularım' : 'Çözümler',
+                        _showFavoritesOnly ? localeService.tr('my_favorites') : localeService.tr('solutions'),
                         style: GoogleFonts.inter(
                           color: Colors.black,
                           fontSize: 20,
@@ -538,7 +536,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 ],
                               ),
                               child: Text(
-                                'Tümü  •  ${_records.length}',
+                                '${localeService.tr('all_filter')}  •  ${_records.length}',
                                 style: GoogleFonts.inter(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w700,
@@ -627,7 +625,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 Text(_emojiFor(f), style: const TextStyle(fontSize: 16)),
                                 const SizedBox(width: 8),
                                 Text(
-                                  cnt > 0 ? '$f  $cnt' : f,
+                                  cnt > 0 ? '${_trSubject(f)}  $cnt' : _trSubject(f),
                                   style: GoogleFonts.inter(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
@@ -669,8 +667,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           Expanded(
                             child: Text(
                               _selectedIds.isEmpty
-                                  ? 'Silmek istediğin soruları seç'
-                                  : '${_selectedIds.length} soru seçildi',
+                                  ? localeService.tr('select_to_delete')
+                                  : '${_selectedIds.length} ${localeService.tr('selected')}',
                               style: const TextStyle(color: Color(0xFF333333), fontSize: 13, fontWeight: FontWeight.w600),
                             ),
                           ),
@@ -681,14 +679,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 builder: (ctx) => AlertDialog(
                                   backgroundColor: Colors.white,
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                  title: const Text('Toplu Sil', style: TextStyle(color: Color(0xFF333333), fontSize: 16)),
+                                  title: Text(localeService.tr('bulk_delete'), style: const TextStyle(color: Color(0xFF333333), fontSize: 16)),
                                   content: Text(
-                                    '${_selectedIds.length} soru silinsin mi?',
+                                    '${_selectedIds.length} ${localeService.tr('confirm_bulk_delete')}',
                                     style: const TextStyle(color: Color(0xFF6B7280), fontSize: 13),
                                   ),
                                   actions: [
-                                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('İptal', style: TextStyle(color: Color(0xFF9CA3AF)))),
-                                    TextButton(onPressed: () { Navigator.pop(ctx); _deleteSelected(); }, child: const Text('Sil', style: TextStyle(color: Color(0xFFEF4444)))),
+                                    TextButton(onPressed: () => Navigator.pop(ctx), child: Text(localeService.tr('cancel'), style: const TextStyle(color: Color(0xFF9CA3AF)))),
+                                    TextButton(onPressed: () { Navigator.pop(ctx); _deleteSelected(); }, child: Text(localeService.tr('delete'), style: const TextStyle(color: Color(0xFFEF4444)))),
                                   ],
                                 ),
                               ),
@@ -698,7 +696,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   color: const Color(0xFFEF4444).withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(20),
                                 ),
-                                child: const Text('Sil', style: TextStyle(color: Color(0xFFEF4444), fontSize: 12, fontWeight: FontWeight.w700)),
+                                child: Text(localeService.tr('delete'), style: const TextStyle(color: Color(0xFFEF4444), fontSize: 12, fontWeight: FontWeight.w700)),
                               ),
                             ),
                           const SizedBox(width: 8),
@@ -757,6 +755,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
               ),
           ],
+        ),
         ),
       ),
     );
@@ -844,18 +843,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
           const SizedBox(height: 14),
           Text(
             isFavorites
-                ? 'Hata Defteriniz boş'
+                ? localeService.tr('empty_favorites')
                 : isFiltered
-                    ? 'Bu kategoride çözüm yok'
-                    : 'Henüz çözüm kaydedilmedi',
+                    ? localeService.tr('empty_category')
+                    : localeService.tr('empty_solutions'),
             style: const TextStyle(color: Color(0xFF6B7280), fontSize: 14),
           ),
           if (isFavorites) ...[
             const SizedBox(height: 6),
-            const Text(
-              'Bir çözüme uzun basıp ⭐ Favorilere Ekle\ndeyin — otomatik buraya gelir.',
+            Text(
+              localeService.tr('empty_favorites_hint'),
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 color: Color(0xFF9CA3AF),
                 fontSize: 12,
                 height: 1.5,
@@ -863,10 +862,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ),
           ] else if (!isFiltered) ...[
             const SizedBox(height: 6),
-            const Text(
-              'Bir soruyu analiz ettikten sonra\notomatik olarak burada görünür.',
+            Text(
+              localeService.tr('empty_solutions_hint'),
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 color: Color(0xFF9CA3AF),
                 fontSize: 12,
                 height: 1.5,
@@ -913,9 +912,9 @@ class _HistoryCard extends StatelessWidget {
 
   static ({IconData icon, Color color, String label}) _modeInfo(String type) {
     return switch (type) {
-      'Adım Adım Çöz'  => (icon: Icons.stairs_rounded,  color: const Color(0xFF3B82F6), label: 'Adım Adım'),
-      'AI Öğretmen'    => (icon: Icons.school_rounded,   color: const Color(0xFF8B5CF6), label: 'AI Öğretmen'),
-      _                => (icon: Icons.bolt_rounded,     color: const Color(0xFFF59E0B), label: 'Hızlı Çözüm'),
+      'Adım Adım Çöz'  => (icon: Icons.stairs_rounded,  color: const Color(0xFF3B82F6), label: localeService.tr('mode_step_by_step')),
+      'AI Öğretmen'    => (icon: Icons.school_rounded,   color: const Color(0xFF8B5CF6), label: localeService.tr('mode_ai_teacher')),
+      _                => (icon: Icons.bolt_rounded,     color: const Color(0xFFF59E0B), label: localeService.tr('mode_quick_solve')),
     };
   }
 
@@ -958,11 +957,11 @@ class _HistoryCard extends StatelessWidget {
                 Container(
                   decoration: BoxDecoration(
                     color: Colors.black,
-                    borderRadius: BorderRadius.circular(26),
-                    border: Border.all(color: Colors.black, width: 4),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: Colors.black, width: 2),
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(22),
+                    borderRadius: BorderRadius.circular(16),
                     child: AspectRatio(
                       aspectRatio: 4 / 3,
                       child: hasImg
@@ -1014,7 +1013,9 @@ class _HistoryCard extends StatelessWidget {
                 children: [
                   _InfoAtom(
                     icon: _iconFor(record.subject),
-                    label: record.subject,
+                    label: _HistoryScreenState._subjectKeys.containsKey(record.subject)
+                        ? localeService.tr(_HistoryScreenState._subjectKeys[record.subject]!)
+                        : record.subject,
                     color: Colors.black,
                   ),
                   const _InfoDot(),
@@ -1057,11 +1058,11 @@ class _HistoryCard extends StatelessWidget {
 String _formatDate(DateTime dt) {
   final now = DateTime.now();
   final diff = now.difference(dt);
-  if (diff.inMinutes < 1) return 'Az önce';
-  if (diff.inHours < 1) return '${diff.inMinutes}dk önce';
-  if (diff.inDays < 1) return '${diff.inHours}sa önce';
-  if (diff.inDays == 1) return 'Dün';
-  if (diff.inDays < 7) return '${diff.inDays} gün önce';
+  if (diff.inMinutes < 1) return localeService.tr('just_now');
+  if (diff.inHours < 1) return '${diff.inMinutes}${localeService.tr('minutes_ago')}';
+  if (diff.inDays < 1) return '${diff.inHours}${localeService.tr('hours_ago')}';
+  if (diff.inDays == 1) return localeService.tr('yesterday');
+  if (diff.inDays < 7) return '${diff.inDays} ${localeService.tr('days_ago')}';
   return '${dt.day}.${dt.month}.${dt.year}';
 }
 
@@ -1206,7 +1207,9 @@ class _SubjectGroup extends StatelessWidget {
             child: Text(emoji, style: const TextStyle(fontSize: 20)),
           ),
           title: Text(
-            subject,
+            _HistoryScreenState._subjectKeys.containsKey(subject)
+                ? localeService.tr(_HistoryScreenState._subjectKeys[subject]!)
+                : subject,
             style: GoogleFonts.inter(
               color: Colors.black87,
               fontSize: 14,
@@ -1217,7 +1220,7 @@ class _SubjectGroup extends StatelessWidget {
           subtitle: Padding(
             padding: const EdgeInsets.only(top: 1),
             child: Text(
-              '${records.length} çözüm',
+              '${records.length} ${localeService.tr('solution_count')}',
               style: GoogleFonts.inter(
                 color: Colors.black38,
                 fontSize: 10,

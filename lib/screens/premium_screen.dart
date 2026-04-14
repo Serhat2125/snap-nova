@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/pricing_service.dart';
 import '../main.dart' show localeService;
+import 'mock_payment_screen.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  PremiumScreen — Abonelik & Avantajlar (Ülke Bazlı Fiyatlandırma)
@@ -115,11 +116,11 @@ class _PremiumScreenState extends State<PremiumScreen> {
                                     width: 36,
                                     height: 36,
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.9),
+                                      color: Colors.white.withValues(alpha: 0.9),
                                       shape: BoxShape.circle,
                                       boxShadow: [
                                         BoxShadow(
-                                          color: Colors.black.withOpacity(0.08),
+                                          color: Colors.black.withValues(alpha: 0.08),
                                           blurRadius: 8,
                                         ),
                                       ],
@@ -166,10 +167,10 @@ class _PremiumScreenState extends State<PremiumScreen> {
                           Expanded(
                             child: _buildPlanCard(
                               index: 0,
-                              title: '1 Ay',
+                              title: '1 ${localeService.tr("month_unit")}',
                               price: _plan.monthly,
-                              priceSuffix: '/ay',
-                              total: null,
+                              priceSuffix: '/${localeService.tr("month_unit")}',
+                              total: _plan.monthly,
                               oldPrice: _plan.monthlyOld,
                               discount: null,
                             ),
@@ -178,10 +179,10 @@ class _PremiumScreenState extends State<PremiumScreen> {
                           Expanded(
                             child: _buildPlanCard(
                               index: 1,
-                              title: '3 Ay',
-                              price: _plan.quarterly,
-                              priceSuffix: '/3 ay',
-                              total: null,
+                              title: '3 ${localeService.tr("month_unit")}',
+                              price: _plan.quarterlyPerMonth,
+                              priceSuffix: '/${localeService.tr("month_unit")}',
+                              total: _plan.quarterly,
                               oldPrice: null,
                               discount: null,
                             ),
@@ -190,10 +191,10 @@ class _PremiumScreenState extends State<PremiumScreen> {
                           Expanded(
                             child: _buildPlanCard(
                               index: 2,
-                              title: '12 Ay',
-                              price: _plan.yearly,
-                              priceSuffix: '/yıl',
-                              total: null,
+                              title: '12 ${localeService.tr("month_unit")}',
+                              price: _plan.yearlyPerMonth,
+                              priceSuffix: '/${localeService.tr("month_unit")}',
+                              total: _plan.yearly,
                               oldPrice: null,
                               discount: '%50',
                               tickKey: _tickKey12Ay,
@@ -277,7 +278,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.06),
+                              color: Colors.black.withValues(alpha: 0.06),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
@@ -369,7 +370,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                         child: BackdropFilter(
                           filter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
                           child: Container(
-                            color: Colors.black.withOpacity(0.08),
+                            color: Colors.black.withValues(alpha: 0.08),
                           ),
                         ),
                       ),
@@ -387,7 +388,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                 color: const Color(0xFFF0F2F5),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha: 0.04),
                     blurRadius: 8,
                     offset: const Offset(0, -2),
                   ),
@@ -409,7 +410,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                         borderRadius: BorderRadius.circular(50),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFFF59E0B).withOpacity(0.35),
+                            color: const Color(0xFFF59E0B).withValues(alpha: 0.35),
                             blurRadius: 16,
                             offset: const Offset(0, 4),
                           ),
@@ -547,12 +548,6 @@ class _PremiumScreenState extends State<PremiumScreen> {
                         ],
                       ),
                     ),
-                    // Çizgi
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 14),
-                      height: 0.5,
-                      color: const Color(0xFFE5E7EB),
-                    ),
                     // Başlangıç tarihi satırı
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -625,22 +620,28 @@ class _PremiumScreenState extends State<PremiumScreen> {
                 ],
               ),
               const SizedBox(height: 6),
-              Text(
-                localeService.tr('update_address'),
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  color: const Color(0xFF3B82F6),
-                  fontWeight: FontWeight.w500,
+              GestureDetector(
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showAddressSheet(context);
+                },
+                child: Text(
+                  localeService.tr('update_address'),
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: const Color(0xFF3B82F6),
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
 
               const SizedBox(height: 20),
 
-              // Onayla butonu
+              // Devam et butonu
               GestureDetector(
                 onTap: () {
                   Navigator.pop(ctx);
-                  _showConfirmSheet(context);
+                  _showPaymentMethodsSheet(context);
                 },
                 child: Container(
                   width: double.infinity,
@@ -653,7 +654,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   ),
                   child: Center(
                     child: Text(
-                      localeService.tr('confirm'),
+                      'Devam et',
                       style: GoogleFonts.poppins(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
@@ -670,6 +671,136 @@ class _PremiumScreenState extends State<PremiumScreen> {
     );
   }
 
+  void _showAddressSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          ),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(20),
+                topRight: Radius.circular(20),
+              ),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 12, bottom: 16),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD1D5DB),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Text(
+                  'Adres Bilgileri',
+                  style: GoogleFonts.poppins(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF111111),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Fatura adresinizi güncelleyin',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: const Color(0xFF6B7280),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _addressField('Ad Soyad'),
+                const SizedBox(height: 10),
+                _addressField('Adres'),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(child: _addressField('Şehir')),
+                    const SizedBox(width: 10),
+                    Expanded(child: _addressField('Posta Kodu')),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                _addressField('Ülke'),
+                const SizedBox(height: 20),
+                GestureDetector(
+                  onTap: () => Navigator.pop(ctx),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFF59E0B), Color(0xFFE8850C)],
+                      ),
+                      borderRadius: BorderRadius.circular(50),
+                    ),
+                    child: Center(
+                      child: Text(
+                        'Kaydet',
+                        style: GoogleFonts.poppins(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _addressField(String hint) {
+    return TextField(
+      style: GoogleFonts.poppins(fontSize: 13, color: const Color(0xFF111111)),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: GoogleFonts.poppins(
+          fontSize: 13,
+          color: const Color(0xFF9CA3AF),
+        ),
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        filled: true,
+        fillColor: const Color(0xFFFAFAFB),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 0.5),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 0.5),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFFF59E0B), width: 1),
+        ),
+      ),
+    );
+  }
+
+  void _showPaymentMethodsSheet(BuildContext context) {
+    MockPaymentScreen.show(context);
+  }
+
+  // ignore: unused_element
   void _showConfirmSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -706,7 +837,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                 width: 64,
                 height: 64,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF22C55E).withOpacity(0.1),
+                  color: const Color(0xFF22C55E).withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -1005,14 +1136,14 @@ class _PremiumScreenState extends State<PremiumScreen> {
           boxShadow: [
             BoxShadow(
               color: selected
-                  ? const Color(0xFF22C55E).withOpacity(0.15)
-                  : const Color(0xFF9CA3AF).withOpacity(0.10),
+                  ? const Color(0xFF22C55E).withValues(alpha: 0.15)
+                  : const Color(0xFF9CA3AF).withValues(alpha: 0.10),
               blurRadius: selected ? 18 : 10,
               spreadRadius: selected ? 1 : 0,
               offset: const Offset(0, 4),
             ),
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: Colors.black.withValues(alpha: 0.03),
               blurRadius: 4,
               offset: const Offset(0, 1),
             ),
@@ -1023,21 +1154,25 @@ class _PremiumScreenState extends State<PremiumScreen> {
           children: [
             // İndirim badge — üst çizgiye yakın
             if (discount != null)
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFFF6B35), Color(0xFFEF4444)],
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFF6B35), Color(0xFFEF4444)],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '$discount ${localeService.tr("discount_label")}',
-                  style: GoogleFonts.poppins(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                  child: Text(
+                    '$discount ${localeService.tr("discount_label")}',
+                    maxLines: 1,
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               )
@@ -1068,29 +1203,32 @@ class _PremiumScreenState extends State<PremiumScreen> {
             const SizedBox(height: 10),
 
             // Fiyat + süre etiketi
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Text(
-                  price,
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: selected ? const Color(0xFF22C55E) : const Color(0xFF444444),
-                    height: 1.1,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    price,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: selected ? const Color(0xFF22C55E) : const Color(0xFF444444),
+                      height: 1.1,
+                    ),
                   ),
-                ),
-                Text(
-                  priceSuffix,
-                  style: GoogleFonts.poppins(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w400,
-                    color: const Color(0xFFAAAAAA),
+                  Text(
+                    priceSuffix,
+                    style: GoogleFonts.poppins(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w400,
+                      color: const Color(0xFFAAAAAA),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
 
             const SizedBox(height: 12),
@@ -1104,40 +1242,17 @@ class _PremiumScreenState extends State<PremiumScreen> {
 
             const SizedBox(height: 12),
 
-            // Alt bilgi — eski fiyat veya toplam
-            if (oldPrice != null)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    oldPrice,
-                    style: GoogleFonts.poppins(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w500,
-                      color: const Color(0xFFAAAAAA),
-                      decoration: TextDecoration.lineThrough,
-                      decorationColor: const Color(0xFFEF4444),
-                      decorationThickness: 1.5,
-                    ),
+            // Alt bilgi — toplam fiyat (çizgi altı)
+            if (total != null)
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  '${localeService.tr("total_label")} $total',
+                  style: GoogleFonts.poppins(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF6B7280),
                   ),
-                  const SizedBox(width: 4),
-                  Text(
-                    price,
-                    style: GoogleFonts.poppins(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF6B7280),
-                    ),
-                  ),
-                ],
-              )
-            else if (total != null)
-              Text(
-                '${localeService.tr("total_label")} $total',
-                style: GoogleFonts.poppins(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w500,
-                  color: const Color(0xFF6B7280),
                 ),
               )
             else
@@ -1335,7 +1450,7 @@ class _DiscountBalloonState extends State<_DiscountBalloon>
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
+                        color: Colors.black.withValues(alpha: 0.15),
                         blurRadius: 24,
                         offset: const Offset(0, 10),
                       ),

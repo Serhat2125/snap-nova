@@ -481,9 +481,6 @@ class _MiuiKeyboardState extends State<_MiuiKeyboard> {
     if (text.isEmpty) return;
     final pos = sel.isValid && sel.start > 0 ? sel.start : text.length;
     if (pos == 0) return;
-    // Handle multi-byte chars (emoji etc.)
-    final newText = text.characters.toList()
-      ..removeAt(text.characters.toList().length - (text.length - pos + 1));
     final nt = text.replaceRange(pos - 1, pos, '');
     ctrl.value = TextEditingValue(
       text: nt,

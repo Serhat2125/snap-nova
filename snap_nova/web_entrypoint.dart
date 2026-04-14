@@ -182,7 +182,7 @@ class _MainScreenState extends State<MainScreen> {
               decoration: BoxDecoration(
                 color: Colors.black54,
                 borderRadius: BorderRadius.circular(25),
-                border: Border.all(color: Colors.cyanAccent.withOpacity(0.5), width: 2),
+                border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.5), width: 2),
               ),
               child: const Center(child: Icon(Icons.image, size: 60, color: Colors.cyanAccent)),
             ),
@@ -193,7 +193,7 @@ class _MainScreenState extends State<MainScreen> {
               child: Container(
                 padding: const EdgeInsets.all(20),
                 margin: const EdgeInsets.symmetric(horizontal: 20),
-                decoration: _boxDecoration(Colors.cyanAccent.withOpacity(0.3)),
+                decoration: _boxDecoration(Colors.cyanAccent.withValues(alpha: 0.3)),
                 child: Wrap(
                   alignment: WrapAlignment.center,
                   spacing: 15, runSpacing: 15,
@@ -214,7 +214,7 @@ class _MainScreenState extends State<MainScreen> {
               child: Container(
                 padding: const EdgeInsets.all(15),
                 margin: const EdgeInsets.symmetric(horizontal: 20),
-                decoration: _boxDecoration(Colors.purpleAccent.withOpacity(0.2)),
+                decoration: _boxDecoration(Colors.purpleAccent.withValues(alpha: 0.2)),
                 child: Column(
                   children: [
                     _aiRow("SnapNova", "Hızlı AI asistanı", Colors.cyanAccent),
@@ -241,12 +241,12 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _solCard(String t, String e, String s, Color c) => Container(
     width: 140, padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(color: c.withOpacity(0.1), borderRadius: BorderRadius.circular(20), border: Border.all(color: c.withOpacity(0.3))),
+    decoration: BoxDecoration(color: c.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20), border: Border.all(color: c.withValues(alpha: 0.3))),
     child: Column(children: [Text(e, style: const TextStyle(fontSize: 24)), const SizedBox(height: 8), Text(t, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), textAlign: TextAlign.center), const SizedBox(height: 4), Text(s, style: const TextStyle(fontSize: 9, color: Colors.white54), textAlign: TextAlign.center)]),
   );
 
   Widget _aiRow(String n, String d, Color c) => Container(
-    padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(15), border: Border.all(color: c.withOpacity(0.3))),
+    padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(15), border: Border.all(color: c.withValues(alpha: 0.3))),
     child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(n, style: TextStyle(color: c, fontWeight: FontWeight.bold)), Text(d, style: const TextStyle(fontSize: 10, color: Colors.white54))]), Icon(Icons.check_circle, color: c, size: 20)]),
   );
 
@@ -254,7 +254,7 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _buildActionButton(String t, VoidCallback o) => ElevatedButton(onPressed: o, style: ElevatedButton.styleFrom(backgroundColor: Colors.cyanAccent, foregroundColor: Colors.black, minimumSize: const Size(double.infinity, 55), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))), child: Text(t, style: const TextStyle(fontWeight: FontWeight.bold)));
 
-  BoxDecoration _boxDecoration(Color c) => BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(25), border: Border.all(color: c.withOpacity(0.2)));
+  BoxDecoration _boxDecoration(Color c) => BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(25), border: Border.all(color: c.withValues(alpha: 0.2)));
 
   Widget _buildBaseTemplate({required Widget child}) => Padding(padding: const EdgeInsets.all(20), child: child);
 

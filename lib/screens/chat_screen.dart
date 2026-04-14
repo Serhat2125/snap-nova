@@ -97,6 +97,7 @@ class _ChatScreenState extends State<ChatScreen> {
       backgroundColor: AppColors.background,
       resizeToAvoidBottomInset: true,
       body: SafeArea(
+        child: SelectionArea(
         child: Column(
           children: [
             // ── Başlık ──────────────────────────────────────────────────────
@@ -123,6 +124,7 @@ class _ChatScreenState extends State<ChatScreen> {
             // ── Girdi alanı ─────────────────────────────────────────────────
             _buildInput(),
           ],
+        ),
         ),
       ),
     );

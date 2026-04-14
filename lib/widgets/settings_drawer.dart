@@ -598,7 +598,7 @@ class _LanguagePageState extends State<_LanguagePage> {
     final filtered = query.isEmpty
         ? allLangs
         : allLangs.where((lang) {
-            final (_, name, englishName, code) = lang;
+            final (_, name, englishName, code, _) = lang;
             return name.toLowerCase().contains(query) ||
                 englishName.toLowerCase().contains(query) ||
                 code.toLowerCase().contains(query);
@@ -606,8 +606,8 @@ class _LanguagePageState extends State<_LanguagePage> {
 
     // Seçili dili her zaman en üstte göster
     final selectedCode = locale.localeCode;
-    final sortedLangs = <(String, String, String, String)>[];
-    (String, String, String, String)? selectedLang;
+    final sortedLangs = <(String, String, String, String, String)>[];
+    (String, String, String, String, String)? selectedLang;
     for (final lang in filtered) {
       if (lang.$4 == selectedCode) {
         selectedLang = lang;
@@ -691,7 +691,7 @@ class _LanguagePageState extends State<_LanguagePage> {
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   itemCount: sortedLangs.length,
                   itemBuilder: (_, i) {
-                    final (flag, name, englishName, code) = sortedLangs[i];
+                    final (flag, name, englishName, code, culture) = sortedLangs[i];
                     final sel = locale.localeCode == code;
                     return GestureDetector(
                       onTap: () {
@@ -735,9 +735,13 @@ class _LanguagePageState extends State<_LanguagePage> {
                                               .withValues(alpha: 0.38))),
                                 ]),
                           ),
-                          if (sel)
+                          Text(culture,
+                              style: const TextStyle(fontSize: 18)),
+                          if (sel) ...[
+                            const SizedBox(width: 8),
                             const Icon(Icons.check_circle_rounded,
                                 color: Colors.cyanAccent, size: 20),
+                          ],
                         ]),
                       ),
                     );

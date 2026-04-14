@@ -220,6 +220,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
       backgroundColor: const Color(0xFFF0F2F5),
       resizeToAvoidBottomInset: true,
       body: SafeArea(
+        child: SelectionArea(
         child: Stack(
           children: [
             Column(
@@ -298,6 +299,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                 ),
               ),
           ],
+        ),
         ),
       ),
     );
