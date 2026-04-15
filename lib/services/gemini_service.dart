@@ -9,49 +9,81 @@ import 'package:http/http.dart' as http;
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class GeminiService {
-  static const _apiKey  = 'AIzaSyADUEj_oR9aVbG5ulgJkWz4YM2TGTof410';
+  static const _apiKey  = 'AIzaSyCSHZdcVtzXBTyc60EdmexFuLgqazBLFx0';
   static const _model   = 'gemini-2.0-flash';
   static const _baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
   static const _tag     = '🤖 [GeminiService]';
+
+  // ── DeepSeek (geçici, sadece metin) ────────────────────────────────────────
+  // TODO(prod): Yayın öncesi bu anahtarı kaldır / env değişkenine taşı.
+  static const _deepseekKey = 'sk-2236d5778c104a7b924c5b93d4ed3e86';
+  static const _deepseekModel = 'deepseek-chat';
+  static const _deepseekUrl = 'https://api.deepseek.com/chat/completions';
 
   static void _log(String msg) {
     if (kDebugMode) debugPrint('$_tag $msg');
   }
 
-  // ── Google AI API çağrısı (metin) ──────────────────────────────────────────
+  // ── Metin çağrısı — DeepSeek (hızlı mod: deepseek-chat, reasoning yok) ─────
   static Future<String> _callGemini({
     required String systemPrompt,
     required String userMessage,
-    int maxTokens = 2048,
+    int maxTokens = 1500,
     double temperature = 0.3,
-    Duration timeout = const Duration(seconds: 60),
+    Duration timeout = const Duration(seconds: 90),
   }) async {
-    final url = '$_baseUrl/$_model:generateContent?key=$_apiKey';
-    final response = await http.post(
-      Uri.parse(url),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'contents': [
-          {
-            'role': 'user',
-            'parts': [{'text': '$systemPrompt\n\n$userMessage'}],
-          },
-        ],
-        'generationConfig': {
-          'maxOutputTokens': maxTokens,
-          'temperature': temperature,
+    // Hızlı mod için sıkı sınır: çok uzun düşünmesin, direkt cevap versin.
+    final cappedMax = maxTokens > 1500 ? 1500 : maxTokens;
+    final sysPrompt =
+        '$systemPrompt\n\n[HIZLI MOD] Kısa ve net cevap ver. '
+        'Uzun uzun düşünme ya da iç muhakeme yazma. '
+        'Doğrudan çözüme geç, gereksiz tekrar yapma.';
+
+    _log('DeepSeek isteği → model=$_deepseekModel, maxTokens=$cappedMax');
+    try {
+      final response = await http.post(
+        Uri.parse(_deepseekUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_deepseekKey',
         },
-      }),
-    ).timeout(timeout);
+        body: jsonEncode({
+          'model': _deepseekModel,
+          'messages': [
+            {'role': 'system', 'content': sysPrompt},
+            {'role': 'user', 'content': userMessage},
+          ],
+          'max_tokens': cappedMax,
+          'temperature': temperature,
+          'top_p': 0.9,
+          'stream': false,
+        }),
+      ).timeout(timeout);
 
-    if (response.statusCode == 200) {
-      final json = jsonDecode(response.body) as Map<String, dynamic>;
-      final text = json['candidates']?[0]?['content']?['parts']?[0]?['text'] as String?;
-      if (text == null || text.trim().isEmpty) throw GeminiException.blurryImage();
-      return text;
+      _log('DeepSeek HTTP ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(utf8.decode(response.bodyBytes))
+            as Map<String, dynamic>;
+        final choice =
+            (json['choices'] as List?)?.isNotEmpty == true
+                ? json['choices'][0] as Map<String, dynamic>
+                : null;
+        final text = choice?['message']?['content'] as String?;
+        final finishReason = choice?['finish_reason'] as String?;
+        if (finishReason == 'length') {
+          _log('UYARI: yanıt max_tokens sınırında kesildi');
+        }
+        if (text == null || text.trim().isEmpty) {
+          throw GeminiException.blurryImage();
+        }
+        return text;
+      }
+
+      _handleError(response);
+    } on TimeoutException {
+      throw GeminiException._serverTimeout('DeepSeek timeout (${timeout.inSeconds}s)');
     }
-
-    _handleError(response);
   }
 
   // ── Google AI API çağrısı (görsel) ─────────────────────────────────────────
@@ -104,6 +136,9 @@ class GeminiService {
     final s = raw.toLowerCase();
     _log('HATA yanıtı: HTTP ${response.statusCode} — $raw');
 
+    if (response.statusCode == 402 || s.contains('insufficient balance')) {
+      throw GeminiException._insufficientBalance(raw);
+    }
     if (response.statusCode == 429 || s.contains('quota') || s.contains('rate') || s.contains('resource_exhausted')) {
       throw GeminiException._quotaExceeded(raw);
     }
@@ -208,6 +243,64 @@ class GeminiService {
       _log('[5/5] HATA: ${e.runtimeType} — $e');
       throw GeminiException.unknown(e.toString());
     }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  DeepSeek ile görsel analiz — Gemini OCR + DeepSeek çözüm (hızlı mod)
+  // ══════════════════════════════════════════════════════════════════════════════
+  static Future<String> analyzeImageWithDeepseek(
+    String imagePath,
+    String solutionType, {
+    bool isMulti = false,
+  }) async {
+    _log('══════════════════════════════════════════');
+    _log('analyzeImageWithDeepseek() BAŞLADI');
+
+    final imageFile = File(imagePath);
+    if (!await imageFile.exists()) throw GeminiException.blurryImage();
+    final imageBytes = await imageFile.readAsBytes();
+    if (imageBytes.isEmpty) throw GeminiException.blurryImage();
+    final sizeMb = imageBytes.lengthInBytes / (1024 * 1024);
+    if (sizeMb > 14) throw GeminiException.imageTooLarge();
+
+    final base64Image = base64Encode(imageBytes);
+    final mime = _mimeOf(imagePath);
+
+    // 1) Gemini OCR — sorunun ham metnini çek
+    _log('[DS 1/2] Gemini OCR...');
+    String extracted;
+    try {
+      extracted = await _callGeminiWithImage(
+        prompt:
+            'Bu görseldeki TÜM soru metnini, formülleri, şıkları ve değerleri '
+            'değiştirmeden olduğu gibi yaz. Yorum yapma, çözme. '
+            'Sadece sorunun kendisini düz metin olarak döndür. '
+            'Matematiksel ifadeleri LaTeX olarak koru.',
+        base64Image: base64Image,
+        mimeType: mime,
+        maxTokens: 1200,
+        temperature: 0.0,
+      );
+    } catch (e) {
+      _log('[DS 1/2] OCR HATA: $e');
+      rethrow;
+    }
+    _log('[DS 1/2] OK (${extracted.length} karakter)');
+
+    // 2) DeepSeek — çözüm
+    _log('[DS 2/2] DeepSeek çözüm...');
+    final prompt = _buildPrompt(solutionType, isMulti: isMulti);
+    final answer = await _callGemini(
+      systemPrompt: prompt,
+      userMessage:
+          'Aşağıdaki soruyu yukarıdaki kurallara göre çöz:\n\n$extracted',
+      maxTokens: 1500,
+      temperature: 0.3,
+      timeout: const Duration(seconds: 90),
+    );
+    _log('[DS 2/2] OK (${answer.length} karakter)');
+    _log('analyzeImageWithDeepseek() BAŞARILI ✅');
+    return answer;
   }
 
   // ── Yardımcılar ───────────────────────────────────────────────────────────────
@@ -938,6 +1031,12 @@ class GeminiException implements Exception {
         userMessage:
             'Sunucu yanıt vermiyor.\n\n60 saniye içinde cevap gelmedi. Tekrar dene.',
         type: GeminiErrorType.serverTimeout, raw: r);
+
+  factory GeminiException._insufficientBalance(String r) => GeminiException._(
+        userMessage:
+            'DeepSeek hesabında bakiye yok.\n\nplatform.deepseek.com üzerinden '
+            'bakiye yükle veya QuAlsar / Gemini ile çöz.',
+        type: GeminiErrorType.quotaExceeded, raw: r);
 
   @override
   String toString() => 'GeminiException(${type.name}): $_raw';

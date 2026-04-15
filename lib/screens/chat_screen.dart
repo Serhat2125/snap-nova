@@ -169,7 +169,7 @@ class _ChatScreenState extends State<ChatScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('SnapNova AI',
+              const Text('QuAlsar AI',
                   style: TextStyle(
                       color: Colors.white,
                       fontSize: 15,

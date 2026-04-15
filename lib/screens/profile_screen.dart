@@ -1,13 +1,29 @@
 import 'dart:io';
+import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/locale_service.dart';
+import '../main.dart' show themeService;
 import 'premium_screen.dart';
+
+// ── Kullanıcı ID yardımcısı (ilk açılışta üret, kalıcı sakla) ──────────────
+Future<String> loadOrCreateUserId() async {
+  final prefs = await SharedPreferences.getInstance();
+  var id = prefs.getString('user_id');
+  if (id == null || id.isEmpty) {
+    final rng = Random.secure();
+    id = List.generate(8, (_) => rng.nextInt(10)).join();
+    await prefs.setString('user_id', id);
+  }
+  return id;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  ProfileScreen — Modern Soft Design
@@ -22,7 +38,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   // 0 = Dark, 1 = Light, 2 = System
-  int _themeMode = 0;
+  int get _themeMode => themeService.index;
 
   // Profil bilgileri
   final _nameCtrl = TextEditingController();
@@ -100,9 +116,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
                   children: [
-                    // Profil Fotoğrafı + Rozet — Tıkla → profil bilgileri aç
+                    // Profil Fotoğrafı + Rozet — Tıkla → tam sayfa profil düzenle
                     GestureDetector(
-                      onTap: () => _showProfileBottomSheet(context),
+                      onTap: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ProfileEditPage(),
+                          ),
+                        );
+                        await _loadProfile();
+                        if (mounted) setState(() {});
+                      },
                       child: SizedBox(
                         width: 90,
                         height: 90,
@@ -197,8 +222,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    // Premium'a Yükselt çerçevesi
-                    GestureDetector(
+                    // Premium'a Yükselt — animasyonlu shimmer + büyük vurgulu
+                    _PremiumBanner(
                       onTap: () {
                         Navigator.push(
                           context,
@@ -207,56 +232,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         );
                       },
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 18, vertical: 14),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFF59E0B), Color(0xFFEC4899)],
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFFF59E0B).withValues(alpha: 0.25),
-                              blurRadius: 12,
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.workspace_premium_rounded,
-                                color: Colors.white, size: 22),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    locale.tr('upgrade_premium'),
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w800,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  Text(
-                                    locale.tr('premium_slogan'),
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.white.withValues(alpha: 0.9),
-                                      height: 1.3,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const Icon(Icons.chevron_right_rounded,
-                                color: Colors.white, size: 22),
-                          ],
-                        ),
-                      ),
                     ),
                   ],
                 ),
@@ -265,7 +240,125 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 24),
 
               // ═════════════════════════════════════════════════════════════
-              //  2. Uygulama Tercihleri
+              //  2. Davet
+              // ═════════════════════════════════════════════════════════════
+              _buildSectionTitle('DAVET'),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const InvitePage(),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFF9A4D), Color(0xFFFF6A00)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                        color: const Color(0xFFFFD9B8),
+                        width: 2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFFF6A00).withValues(alpha: 0.28),
+                          blurRadius: 18,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Positioned(
+                          top: -6,
+                          right: -6,
+                          child: Text('✨',
+                              style: TextStyle(
+                                  fontSize: 18,
+                                  color: Colors.white
+                                      .withValues(alpha: 0.9))),
+                        ),
+                        Positioned(
+                          bottom: -4,
+                          left: -2,
+                          child: Text('🎉',
+                              style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.white
+                                      .withValues(alpha: 0.85))),
+                        ),
+                        Row(
+                          children: [
+                            Container(
+                              width: 52,
+                              height: 52,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.22),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.55),
+                                  width: 1.5,
+                                ),
+                              ),
+                              alignment: Alignment.center,
+                              child: const Text('🎁',
+                                  style: TextStyle(fontSize: 26)),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Arkadaşlarını Davet Et',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.black,
+                                      letterSpacing: 0.2,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'İkiniz de premium üyelik kazanın, her şeye sınırsız erişin.',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black,
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              size: 16,
+                              color: Colors.white.withValues(alpha: 0.95),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // ═════════════════════════════════════════════════════════════
+              //  3. Uygulama Tercihleri
               // ═════════════════════════════════════════════════════════════
               _buildSectionTitle(tr('app_preferences')),
               _buildOvalMenuItem(
@@ -285,7 +378,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 24),
 
               // ═════════════════════════════════════════════════════════════
-              //  3. Destek ve İletişim
+              //  4. Destek ve İletişim
               // ═════════════════════════════════════════════════════════════
               _buildSectionTitle(tr('support_contact')),
               _buildOvalMenuItem(
@@ -448,6 +541,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   //  1) Profil Bottom Sheet — Düzenlenebilir Alanlar + Şifre + Kaydet
   // ═══════════════════════════════════════════════════════════════════════════
 
+  // ignore: unused_element
   void _showProfileBottomSheet(BuildContext context) {
     final locale = LocaleInherited.of(context);
 
@@ -1335,8 +1429,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       final (icon, label, color) = options[i];
                       final isSelected = _themeMode == i;
                       return GestureDetector(
-                        onTap: () {
-                          setState(() => _themeMode = i);
+                        onTap: () async {
+                          await themeService.setIndex(i);
+                          if (mounted) setState(() {});
                           setSheetState(() {});
                         },
                         child: AnimatedContainer(
@@ -1504,7 +1599,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onTap: () {
                           if (controller.text.trim().isEmpty) return;
                           _launchEmail(
-                            subject: 'SnapNova - Geri Bildirim',
+                            subject: 'QuAlsar - Geri Bildirim',
                             body: controller.text.trim(),
                           );
                           setSheetState(() => sent = true);
@@ -1630,7 +1725,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 GestureDetector(
                   onTap: () {
                     Navigator.pop(ctx);
-                    _launchEmail(subject: 'SnapNova - İletişim');
+                    _launchEmail(subject: 'QuAlsar - İletişim');
                   },
                   child: Container(
                     padding: const EdgeInsets.symmetric(
@@ -1675,19 +1770,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
   //  E-posta & Yardımcı Metodlar
   // ═══════════════════════════════════════════════════════════════════════════
 
-  Future<void> _launchEmail({String subject = 'SnapNova', String body = ''}) async {
-    final params = <String, String>{'subject': subject};
-    if (body.isNotEmpty) params['body'] = body;
-    final uri = Uri(
-      scheme: 'mailto',
-      path: 'serhatdsme@gmail.com',
-      queryParameters: params,
-    );
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    } else {
-      if (mounted) _showSnack('serhatdsme@gmail.com');
-    }
+  Future<void> _launchEmail({String subject = 'QuAlsar', String body = ''}) async {
+    const email = 'serhatdsme@gmail.com';
+    final query = <String>[];
+    query.add('subject=${Uri.encodeComponent(subject)}');
+    if (body.isNotEmpty) query.add('body=${Uri.encodeComponent(body)}');
+    final uri = Uri.parse('mailto:$email?${query.join('&')}');
+
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (ok) return;
+    } catch (_) {}
+
+    await Clipboard.setData(const ClipboardData(text: email));
+    if (mounted) _showSnack('$email kopyalandı');
   }
 
   void _showSnack(String msg) {
@@ -1780,7 +1876,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                'SnapNova',
+                                'QuAlsar',
                                 style: GoogleFonts.poppins(
                                   fontSize: 28,
                                   fontWeight: FontWeight.w900,
@@ -1819,7 +1915,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Text(
-                            'SnapNova, modern mühendislik disiplinleri ile yapay zekanın sınırsız potansiyelini bir araya getiren hibrit bir teknoloji platformudur.',
+                            'QuAlsar, modern mühendislik disiplinleri ile yapay zekanın sınırsız potansiyelini bir araya getiren hibrit bir teknoloji platformudur.',
                             style: GoogleFonts.poppins(
                               fontSize: 15,
                               color: const Color(0xFF6B7280),
@@ -1926,7 +2022,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           child: Column(
                             children: [
                               _infoRow('Versiyon', '0.1.0'),
-                              _infoRow('Geliştirici', 'SnapNova Team'),
+                              _infoRow('Geliştirici', 'QuAlsar Team'),
                               _infoRow('AI Model', 'Gemini 2.0 Flash'),
                             ],
                           ),
@@ -2112,7 +2208,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                         // Giriş
                         _termsCard(
-                          'SnapNova\'yı kullanarak, bu şartlara uymayı kabul etmiş sayılırsınız. '
+                          'QuAlsar\'yı kullanarak, bu şartlara uymayı kabul etmiş sayılırsınız. '
                           'Bu platform, gelişmiş yapay zeka modellerini kullanarak size akademik destek sunan bir araçtır.',
                         ),
                         const SizedBox(height: 12),
@@ -2121,7 +2217,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _termsSectionTitle('1', 'Hizmet Kapsamı ve Yapay Zeka Sorumluluğu'),
                         const SizedBox(height: 8),
                         _termsCard(
-                          'SnapNova; ChatGPT-5 Pro, Claude Max, Super Grok ve diğer üçüncü taraf modelleri kullanır. '
+                          'QuAlsar; ChatGPT-5 Pro, Claude Max, Super Grok ve diğer üçüncü taraf modelleri kullanır. '
                           'Yapay zeka tarafından üretilen yanıtlar %100 doğruluk garantisi taşımaz. '
                           'Sunulan çözümler birer "öneri" niteliğindedir; akademik kararlarınızda son sorumluluk kullanıcıya aittir.',
                         ),
@@ -2170,7 +2266,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                         // Giriş
                         _termsCard(
-                          'SnapNova, gizliliğinize en az başarınız kadar önem verir. '
+                          'QuAlsar, gizliliğinize en az başarınız kadar önem verir. '
                           'Verilerinizin nasıl işlendiğini şeffaf bir şekilde aşağıda açıklıyoruz.',
                         ),
                         const SizedBox(height: 12),
@@ -2188,7 +2284,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _termsSectionTitle('2', 'Veri Paylaşımı ve Güvenliği'),
                         const SizedBox(height: 8),
                         _termsCard(
-                          'SnapNova, kişisel verilerinizi üçüncü taraflara satmaz. '
+                          'QuAlsar, kişisel verilerinizi üçüncü taraflara satmaz. '
                           'Verileriniz, dünya standartlarındaki ChatGPT-5 Pro ve Gemini Pro API\'ları üzerinden yüksek güvenlikli şifreleme protokolleri ile iletilir.',
                         ),
                         const SizedBox(height: 12),
@@ -2204,7 +2300,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         // Alt bilgi
                         Center(
                           child: Text(
-                            'SnapNova © 2026 — Tüm hakları saklıdır.',
+                            'QuAlsar © 2026 — Tüm hakları saklıdır.',
                             style: GoogleFonts.poppins(
                               fontSize: 11,
                               color: const Color(0xFF9CA3AF),
@@ -2344,6 +2440,1775 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Premium Banner — shimmer animasyonlu, büyük vurgulu
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _PremiumBanner extends StatefulWidget {
+  final VoidCallback onTap;
+  const _PremiumBanner({required this.onTap});
+
+  @override
+  State<_PremiumBanner> createState() => _PremiumBannerState();
+}
+
+class _PremiumBannerState extends State<_PremiumBanner>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    // Yumuşak nefes alma döngüsü (~3.5sn)
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 3500),
+      vsync: this,
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF4C1D95), // derin mor
+              Color(0xFFDB2777), // canlı pembe
+              Color(0xFFF59E0B), // sıcak turuncu
+            ],
+            stops: [0.0, 0.55, 1.0],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFDB2777).withValues(alpha: 0.35),
+              blurRadius: 22,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(
+            children: [
+              // Dekoratif parlama — sağ üst
+              Positioned(
+                right: -30,
+                top: -40,
+                child: Container(
+                  width: 140,
+                  height: 140,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        Colors.white.withValues(alpha: 0.22),
+                        Colors.white.withValues(alpha: 0.0),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // Dekoratif parlama — sol alt
+              Positioned(
+                left: -20,
+                bottom: -30,
+                child: Container(
+                  width: 110,
+                  height: 110,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        Colors.white.withValues(alpha: 0.14),
+                        Colors.white.withValues(alpha: 0.0),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // Nefes alan yumuşak pulse — kartın kendi renginde (pembe/turuncu)
+              AnimatedBuilder(
+                animation: _controller,
+                builder: (_, __) {
+                  // 0 ↔ 1 arası sinüs benzeri yumuşak geçiş
+                  final t = (_controller.value * 2 - 1).abs(); // 0→1→0
+                  final intensity = 0.05 + t * 0.10; // 0.05 – 0.15 arası
+                  return Positioned.fill(
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: RadialGradient(
+                            center: const Alignment(0.6, -0.4),
+                            radius: 1.1,
+                            colors: [
+                              const Color(0xFFFFC4A0)
+                                  .withValues(alpha: intensity),
+                              const Color(0xFFDB2777)
+                                  .withValues(alpha: intensity * 0.5),
+                              Colors.transparent,
+                            ],
+                            stops: const [0.0, 0.45, 1.0],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              // İçerik
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // PRO rozeti + "Sınırlı teklif"
+                    Row(
+                      children: [
+                        _proBadge(),
+                        const SizedBox(width: 8),
+                        _limitedChip(),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    // Büyük başlık
+                    Text(
+                      'Sınırsız Güce Geç',
+                      style: GoogleFonts.poppins(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: -0.4,
+                        height: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    // Punch subtitle
+                    Text(
+                      'Her soru saniyede çözülsün.\nReklamsız, sınırsız, adım adım çözüm.',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white.withValues(alpha: 0.92),
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    // CTA — Ücretsiz deneme vurgusu
+                    Container(
+                      width: double.infinity,
+                      padding:
+                          const EdgeInsets.symmetric(vertical: 13),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.12),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          ShaderMask(
+                            shaderCallback: (r) => const LinearGradient(
+                              colors: [
+                                Color(0xFF4C1D95),
+                                Color(0xFFDB2777),
+                              ],
+                            ).createShader(r),
+                            child: Text(
+                              '7 Gün Ücretsiz Dene',
+                              style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                                letterSpacing: 0.1,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Icon(
+                            Icons.arrow_forward_rounded,
+                            color: Color(0xFF4C1D95),
+                            size: 17,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _proBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.22),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.35),
+          width: 0.8,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.bolt_rounded,
+              color: Color(0xFFFFE44D), size: 13),
+          const SizedBox(width: 4),
+          Text(
+            'PRO',
+            style: GoogleFonts.poppins(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              letterSpacing: 1.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _limitedChip() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFE44D).withValues(alpha: 0.22),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFFFFE44D).withValues(alpha: 0.45),
+          width: 0.8,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.local_fire_department_rounded,
+              color: Color(0xFFFFE44D), size: 13),
+          const SizedBox(width: 4),
+          Text(
+            'SINIRLI TEKLİF',
+            style: GoogleFonts.poppins(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ProfileEditPage — Tam Sayfa Profil Düzenleme
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class ProfileEditPage extends StatefulWidget {
+  const ProfileEditPage({super.key});
+
+  @override
+  State<ProfileEditPage> createState() => _ProfileEditPageState();
+}
+
+class _ProfileEditPageState extends State<ProfileEditPage> {
+  final _nameCtrl = TextEditingController();
+  final _statusCtrl = TextEditingController();
+  String? _profileImagePath;
+  String? _educationLevel;
+  String _userId = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final id = await loadOrCreateUserId();
+    if (!mounted) return;
+    setState(() {
+      _nameCtrl.text = prefs.getString('profile_name') ?? '';
+      _statusCtrl.text = prefs.getString('profile_status_message') ?? '';
+      _profileImagePath = prefs.getString('profile_image');
+      _educationLevel = prefs.getString('profile_education_level');
+      _userId = id;
+    });
+  }
+
+  Future<void> _saveName() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('profile_name', _nameCtrl.text.trim());
+  }
+
+  Future<void> _saveStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('profile_status_message', _statusCtrl.text.trim());
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery, maxWidth: 512);
+    if (picked == null) return;
+    final dir = await getApplicationDocumentsDirectory();
+    final savedPath = '${dir.path}/profile_avatar.jpg';
+    await File(picked.path).copy(savedPath);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('profile_image', savedPath);
+    if (mounted) setState(() => _profileImagePath = savedPath);
+  }
+
+  @override
+  void dispose() {
+    _saveName();
+    _saveStatus();
+    _nameCtrl.dispose();
+    _statusCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF0F2F5),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFF0F2F5),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_rounded,
+              color: Color(0xFF333333), size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          'Profil',
+          style: GoogleFonts.poppins(
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            color: const Color(0xFF333333),
+          ),
+        ),
+        centerTitle: true,
+      ),
+      body: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Avatar — ortada penguen veya kullanıcı resmi
+            Center(
+              child: GestureDetector(
+                onTap: _pickImage,
+                child: Stack(
+                  children: [
+                    Container(
+                      width: 120,
+                      height: 120,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF00E5FF), Color(0xFF6B21F2)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF00E5FF).withValues(alpha: 0.25),
+                            blurRadius: 22,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                      padding: const EdgeInsets.all(3.5),
+                      child: _profileImagePath != null
+                          ? CircleAvatar(
+                              radius: 56,
+                              backgroundImage:
+                                  FileImage(File(_profileImagePath!)),
+                            )
+                          : Container(
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFEAF6FF),
+                                shape: BoxShape.circle,
+                              ),
+                              alignment: Alignment.center,
+                              child: const Text(
+                                '🐱',
+                                style: TextStyle(fontSize: 64),
+                              ),
+                            ),
+                    ),
+                    Positioned(
+                      right: 4,
+                      bottom: 4,
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.12),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(Icons.camera_alt_rounded,
+                            color: Color(0xFF00C2D4), size: 18),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 28),
+
+            // Sekme 1 — Kullanıcı Adı
+            _LabeledCard(
+              label: 'Kullanıcı Adı',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: _nameCtrl,
+                    style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF1F2937),
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Adınızı yazın',
+                      hintStyle: GoogleFonts.poppins(
+                        color: const Color(0xFF9CA3AF),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    onChanged: (_) => _saveName(),
+                  ),
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: () async {
+                      if (_userId.isEmpty) return;
+                      await Clipboard.setData(ClipboardData(text: _userId));
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          behavior: SnackBarBehavior.floating,
+                          backgroundColor: const Color(0xFF1F2937),
+                          content: Text(
+                            'ID kopyalandı',
+                            style: GoogleFonts.poppins(fontSize: 13),
+                          ),
+                          duration: const Duration(seconds: 1),
+                        ),
+                      );
+                    },
+                    child: Row(
+                      children: [
+                        Icon(Icons.badge_outlined,
+                            size: 14,
+                            color: Colors.grey.shade500),
+                        const SizedBox(width: 4),
+                        Text(
+                          'ID: $_userId',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade500,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(Icons.copy_rounded,
+                            size: 12, color: Colors.grey.shade400),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+
+            // Sekme 2 — Durum Mesajı
+            _LabeledCard(
+              label: 'Durum Mesajı',
+              child: TextField(
+                controller: _statusCtrl,
+                style: GoogleFonts.poppins(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF1F2937),
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Bir şeyler yazın…',
+                  hintStyle: GoogleFonts.poppins(
+                    color: const Color(0xFF9CA3AF),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                onChanged: (_) => _saveStatus(),
+              ),
+            ),
+            const SizedBox(height: 18),
+
+            // Sekme 3 — Öğrenci Bilgileri
+            _LabeledCard(
+              label: 'Öğrenci Bilgileri',
+              onTap: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const StudentInfoPage(),
+                  ),
+                );
+                await _load();
+              },
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _educationLevel ?? 'Eğitim seviyenizi seçin',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: _educationLevel == null
+                            ? const Color(0xFF9CA3AF)
+                            : const Color(0xFF1F2937),
+                      ),
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right_rounded,
+                      color: Color(0xFF9CA3AF), size: 22),
+                ],
+              ),
+            ),
+            const SizedBox(height: 28),
+
+            // Kaydet butonu — turuncu, basınca önceki sayfaya dön
+            GestureDetector(
+              onTap: () async {
+                await _saveName();
+                await _saveStatus();
+                if (!context.mounted) return;
+                Navigator.pop(context);
+              },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFF8A3D), Color(0xFFFF6A00)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFFF6A00).withValues(alpha: 0.32),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  'Kaydet',
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Etiketli kart — başlık kartın ÜSTÜNDE, içerik kartın içinde ────────────
+class _LabeledCard extends StatelessWidget {
+  final String label;
+  final Widget child;
+  final VoidCallback? onTap;
+
+  const _LabeledCard({
+    required this.label,
+    required this.child,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 6, bottom: 8),
+          child: Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF6B7280),
+              letterSpacing: 0.2,
+            ),
+          ),
+        ),
+        GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: child,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  StudentInfoPage — Eğitim Seviyesi Seçimi
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class StudentInfoPage extends StatefulWidget {
+  const StudentInfoPage({super.key});
+
+  @override
+  State<StudentInfoPage> createState() => _StudentInfoPageState();
+}
+
+class _StudentInfoPageState extends State<StudentInfoPage> {
+  static const _levels = <String>[
+    'İlkokul',
+    'Ortaokul',
+    'Lise',
+    'Üniversite (Lisans)',
+    'Yüksek Lisans',
+    'Doktora',
+  ];
+
+  String? _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() => _selected = prefs.getString('profile_education_level'));
+  }
+
+  Future<void> _save(String level) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('profile_education_level', level);
+    setState(() => _selected = level);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF0F2F5),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFF0F2F5),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_rounded,
+              color: Color(0xFF333333), size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          'Öğrenci Bilgileri',
+          style: GoogleFonts.poppins(
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            color: const Color(0xFF333333),
+          ),
+        ),
+        centerTitle: true,
+      ),
+      body: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Şu anki eğitim seviyeniz nedir?',
+              style: GoogleFonts.poppins(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: const Color(0xFF1F2937),
+                letterSpacing: -0.3,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Vereceğiniz bilgilere dayanarak size özel içerik hazırlayacağız.',
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF9CA3AF),
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 22),
+            ..._levels.map((lvl) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _LevelTile(
+                    label: lvl,
+                    selected: _selected == lvl,
+                    onTap: () => _save(lvl),
+                  ),
+                )),
+            const SizedBox(height: 18),
+            GestureDetector(
+              onTap: _selected == null ? null : () => Navigator.pop(context),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: _selected == null
+                        ? [const Color(0xFFFFB380), const Color(0xFFFFCFAE)]
+                        : [const Color(0xFFFF8A3D), const Color(0xFFFF6A00)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFFF6A00).withValues(
+                          alpha: _selected == null ? 0.12 : 0.32),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  'Tamam',
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  InvitePage — Arkadaşlarını Davet Et (3 kişi)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class InvitePage extends StatefulWidget {
+  const InvitePage({super.key});
+
+  @override
+  State<InvitePage> createState() => _InvitePageState();
+}
+
+class _InvitePageState extends State<InvitePage> {
+  static const _maxInvites = 3;
+  String _userId = '';
+  int _invitedCount = 0;
+  bool _premiumUnlocked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final id = await loadOrCreateUserId();
+    final count = prefs.getInt('invited_count') ?? 0;
+    var unlocked = prefs.getBool('invite_premium_unlocked') ?? false;
+
+    if (count >= _maxInvites && !unlocked) {
+      final until = DateTime.now().add(const Duration(days: 30));
+      await prefs.setBool('is_premium', true);
+      await prefs.setString('premium_until', until.toIso8601String());
+      await prefs.setBool('invite_premium_unlocked', true);
+      unlocked = true;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _userId = id;
+      _invitedCount = count;
+      _premiumUnlocked = unlocked;
+    });
+  }
+
+  Future<void> _shareCode() async {
+    final msg =
+        'QuAlsar\'yı denemeni istiyorum! AI destekli ödev asistanı. '
+        'Uygulamayı indir, kaydolurken benim davet kodumu gir: $_userId';
+    await Share.share(msg);
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF0F2F5),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFF0F2F5),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_rounded,
+              color: Color(0xFF333333), size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          'Arkadaş Davet Etkinliği',
+          style: GoogleFonts.poppins(
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            color: const Color(0xFF333333),
+          ),
+        ),
+        centerTitle: true,
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: Image.asset(
+                        'lib/assets/invite_hero.jpeg',
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+            // Başlık + alt başlık — ortalı
+            Text(
+              'Arkadaşlarını davet et',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: const Color(0xFF1F2937),
+                height: 1.2,
+                letterSpacing: -0.3,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'İkinizde premium üyelik kazanın.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                color: const Color(0xFF1F2937),
+                height: 1.2,
+                letterSpacing: -0.3,
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Davetlerim başlık — ortalı
+            Text(
+              'Davetlerim ($_invitedCount/$_maxInvites)',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: const Color(0xFF1F2937),
+                letterSpacing: 0.2,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: List.generate(_maxInvites, (i) {
+                final filled = i < _invitedCount;
+                return Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      right: i == _maxInvites - 1 ? 0 : 10,
+                    ),
+                    child: _InviteSlot(index: i, filled: filled),
+                  ),
+                );
+              }),
+            ),
+            const SizedBox(height: 14),
+
+            // Görev tamamlama çizgisi — %33 / %66 / %100
+            LayoutBuilder(
+              builder: (context, c) {
+                final progress = _invitedCount / _maxInvites;
+                return Stack(
+                  children: [
+                    Container(
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE5E7EB),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 600),
+                      curve: Curves.easeOutCubic,
+                      height: 10,
+                      width: c.maxWidth * progress,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [
+                            Color(0xFF10B981),
+                            Color(0xFF3B82F6),
+                            Color(0xFF8B5CF6),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: progress > 0
+                            ? [
+                                BoxShadow(
+                                  color: const Color(0xFF8B5CF6)
+                                      .withValues(alpha: 0.35),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                )
+                              ]
+                            : [],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '%${(_invitedCount * 100 / _maxInvites).round()} tamamlandı',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF6B7280),
+              ),
+            ),
+            const SizedBox(height: 22),
+
+            // Ödül durumu
+            if (_premiumUnlocked)
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFFD700), Color(0xFFFF8A3D)],
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFFF8A3D).withValues(alpha: 0.3),
+                      blurRadius: 14,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    const Text('🎉', style: TextStyle(fontSize: 32)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '1 Aylık Premium Kazandınız!',
+                            style: GoogleFonts.poppins(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '3 arkadaşını başarıyla davet ettin.',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white.withValues(alpha: 0.95),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFFB26B), Color(0xFFFF6A00)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                        color: const Color(0xFFFFE4B5),
+                        width: 2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFFF6A00).withValues(alpha: 0.35),
+                          blurRadius: 18,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 54,
+                          height: 54,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.22),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.6),
+                              width: 1.4,
+                            ),
+                          ),
+                          child: const Text('🎁',
+                              style: TextStyle(fontSize: 30)),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '1 AY PREMIUM SENI BEKLIYOR',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                  letterSpacing: 1.4,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '3 arkadaşın kaydolduğunda ödülün aktif olur.',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Süs — köşelere yıldız/parlaklık
+                  Positioned(
+                    top: -10,
+                    right: 14,
+                    child: Transform.rotate(
+                      angle: 0.4,
+                      child: const Text('✨', style: TextStyle(fontSize: 22)),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: -8,
+                    left: 18,
+                    child: Transform.rotate(
+                      angle: -0.3,
+                      child: const Text('⭐',
+                          style: TextStyle(fontSize: 18)),
+                    ),
+                  ),
+                  Positioned(
+                    top: 10,
+                    left: -6,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFE44D),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFFFE44D)
+                                .withValues(alpha: 0.6),
+                            blurRadius: 8,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+                      const SizedBox(height: 26),
+
+                      // ══════════════════════════════════════════════════════
+                      //  SİSTEM NASIL ÇALIŞIR?
+                      // ══════════════════════════════════════════════════════
+                      Text(
+                        'Nasıl Katılırsın?',
+                        style: GoogleFonts.poppins(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF1F2937),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _HowItWorksStep(
+                        index: 1,
+                        title: 'Davet kodunu paylaş',
+                        body:
+                            'Kendi davet kodunu WhatsApp, SMS veya sosyal medyadan arkadaşlarına gönder.',
+                      ),
+                      _HowItWorksStep(
+                        index: 2,
+                        title: 'Arkadaşların uygulamayı indirsin',
+                        body:
+                            'Arkadaşın QuAlsar\'ı indirip kaydolurken davet kodunu girsin. Kodu giren arkadaşın anında 1 hafta ücretsiz premium kazanır.',
+                      ),
+                      _HowItWorksStep(
+                        index: 3,
+                        title: '3 arkadaş tamamlansın',
+                        body:
+                            '3 arkadaşın kaydoldukça ikonlar yeşile döner ve çizgi %33, %66, %100 olarak dolar.',
+                      ),
+                      _HowItWorksStep(
+                        index: 4,
+                        title: 'Tam dolunca ödülün aktif olur',
+                        body:
+                            'Çizgi tam dolduğunda hesabına otomatik 1 aylık premium tanımlanır. Ara kazanç yoktur, ödül hedef tamamlandığında verilir.',
+                        isLast: true,
+                      ),
+
+                      const SizedBox(height: 26),
+
+                      // ══════════════════════════════════════════════════════
+                      //  ÖNEMLİ NOTLAR
+                      // ══════════════════════════════════════════════════════
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: const Color(0xFFE5E7EB),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: const Color(0xFFE5E7EB),
+                                ),
+                              ),
+                              child: Text(
+                                'Önemli Notlar',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: const Color(0xFF1F2937),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _NoteItem(
+                              text:
+                                  'Davetlerin sayılabilmesi ve ödüllerin hesabına işlenebilmesi için internet bağlantın açık olmalıdır.',
+                            ),
+                            _NoteItem(
+                              text:
+                                  'Kazandığın ücretsiz premium günleri süresi bittiğinde kendiliğinden yenilenmez.',
+                            ),
+                            _NoteItem(
+                              text:
+                                  'Davet ettiğin arkadaş sonradan hesabını silse de kazandığın premium kuponu geri alınmaz.',
+                            ),
+                            _NoteItem(
+                              text:
+                                  'Arkadaş davet ederek elde ettiğin premium günler ayrıca jeton veya kredi içermez.',
+                              isLast: true,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
+          ),
+          // ════════════════════════════════════════════════════════════════
+          //  SABIT ALT — Paylaş butonu (scroll ile kaybolmaz)
+          // ════════════════════════════════════════════════════════════════
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
+              child: GestureDetector(
+                onTap: _shareCode,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFF8A3D), Color(0xFFFF6A00)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFFF6A00).withValues(alpha: 0.32),
+                        blurRadius: 16,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.share_rounded,
+                          color: Colors.white, size: 20),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Arkadaşlarınla Paylaş',
+                        style: GoogleFonts.poppins(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Arkadaş Davet Hero — görsel tam oranda + telefon ekranı dile göre ─────
+class _InviteHero extends StatelessWidget {
+  static const _wonTxt = <String, String>{
+    'tr': 'Üyelik\nKazandınız',
+    'en': 'Membership\nUnlocked',
+    'es': 'Membresía\nGanada',
+    'fr': 'Abonnement\nGagné',
+    'de': 'Mitgliedschaft\nFreigeschaltet',
+    'it': 'Abbonamento\nSbloccato',
+    'pt': 'Assinatura\nDesbloqueada',
+    'ru': 'Подписка\nАктивирована',
+    'zh': '会员\n已激活',
+    'ja': 'メンバーシップ\n獲得',
+    'ko': '멤버십\n획득',
+    'ar': 'تم تفعيل\nالعضوية',
+    'hi': 'सदस्यता\nमिली',
+    'nl': 'Lidmaatschap\nVrijgespeeld',
+    'pl': 'Członkostwo\nOdblokowane',
+    'sv': 'Medlemskap\nLåst Upp',
+    'id': 'Keanggotaan\nTerbuka',
+    'vi': 'Mở Khóa\nThành Viên',
+    'el': 'Συνδρομή\nΞεκλειδώθηκε',
+    'uk': 'Підписка\nРозблокована',
+    'fa': 'عضویت\nباز شد',
+    'ms': 'Keahlian\nDibuka',
+  };
+
+  static const _premiumTxt = <String, String>{
+    'ru': 'Премиум',
+    'zh': '高级',
+    'ja': 'プレミアム',
+    'ko': '프리미엄',
+    'ar': 'مميز',
+    'hi': 'प्रीमियम',
+    'el': 'Πρέμιουμ',
+    'uk': 'Преміум',
+    'fa': 'پرمیوم',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final code = LocaleInherited.of(context).localeCode;
+    final wonText = _wonTxt[code] ?? _wonTxt['en']!;
+    final premiumText = _premiumTxt[code] ?? 'Premium';
+
+    return AspectRatio(
+      // Görsel orijinal en/boy oranı — tam sığar, kırpılmaz
+      aspectRatio: 1.6,
+      child: LayoutBuilder(
+        builder: (context, c) {
+          final w = c.maxWidth;
+          final h = c.maxHeight;
+          // Telefon ekranı (beyaz iç alan) — görseldeki konuma oran olarak
+          final screenLeft = w * 0.595;
+          final screenTop = h * 0.22;
+          final screenW = w * 0.205;
+          final screenH = h * 0.63;
+
+          return Stack(
+            children: [
+              Positioned.fill(
+                child: Image.asset(
+                  'lib/assets/Gemini_Generated_Image_iepbkmiepbkmiepb.png',
+                  fit: BoxFit.cover,
+                ),
+              ),
+              Positioned(
+                left: screenLeft,
+                top: screenTop,
+                width: screenW,
+                height: screenH,
+                child: Container(
+                  color: Colors.white,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: screenW * 0.08,
+                    vertical: screenH * 0.08,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: RichText(
+                          text: TextSpan(
+                            style: GoogleFonts.poppins(
+                              fontSize: screenW * 0.19,
+                              fontWeight: FontWeight.w900,
+                              color: const Color(0xFF111827),
+                              height: 1.0,
+                              letterSpacing: -0.3,
+                            ),
+                            children: const [
+                              TextSpan(text: 'Qu'),
+                              TextSpan(
+                                text: 'Al',
+                                style: TextStyle(color: Color(0xFFE11D48)),
+                              ),
+                              TextSpan(text: 'sar'),
+                            ],
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: screenH * 0.05),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          premiumText,
+                          style: GoogleFonts.poppins(
+                            fontSize: screenW * 0.14,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFFFF6A00),
+                            height: 1.0,
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: screenH * 0.05),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          wonText,
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.poppins(
+                            fontSize: screenW * 0.11,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF374151),
+                            height: 1.15,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ── Önemli Notlar — tek madde ─────────────────────────────────────────────
+class _NoteItem extends StatelessWidget {
+  final String text;
+  final bool isLast;
+
+  const _NoteItem({required this.text, this.isLast = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 10),
+      child: Text(
+        text,
+        style: GoogleFonts.poppins(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w500,
+          color: const Color(0xFF6B7280),
+          height: 1.5,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Nasıl Katılırsın — tek adım satırı ────────────────────────────────────
+class _HowItWorksStep extends StatelessWidget {
+  final int index;
+  final String title;
+  final String body;
+  final bool isLast;
+
+  const _HowItWorksStep({
+    required this.index,
+    required this.title,
+    required this.body,
+    this.isLast = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 10),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 14, 16, 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFFE5E7EB),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 30,
+              height: 30,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFF8A3D), Color(0xFFFF6A00)],
+                ),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFFF6A00).withValues(alpha: 0.3),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Text(
+                '$index',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF1F2937),
+                      height: 1.25,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    body,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                      color: const Color(0xFF6B7280),
+                      height: 1.45,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Davet slotu — dolu olanlar her biri farklı renk paleti ────────────────
+class _InviteSlot extends StatelessWidget {
+  final int index;
+  final bool filled;
+
+  const _InviteSlot({required this.index, required this.filled});
+
+  static const _palettes = <List<Color>>[
+    [Color(0xFF10B981), Color(0xFF059669)], // yeşil
+    [Color(0xFF3B82F6), Color(0xFF1D4ED8)], // mavi
+    [Color(0xFF8B5CF6), Color(0xFF6D28D9)], // mor
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    if (!filled) {
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFFE5E7EB),
+            width: 1.2,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              Icons.person_add_alt_1_rounded,
+              color: Colors.grey.shade400,
+              size: 26,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Arkadaş ${index + 1}',
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF9CA3AF),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final colors = _palettes[index % _palettes.length];
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: colors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: colors.first.withValues(alpha: 0.32),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.verified_rounded,
+            color: Colors.white,
+            size: 28,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Katıldı',
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LevelTile extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _LevelTile({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected
+                ? const Color(0xFF00C2D4)
+                : Colors.transparent,
+            width: 1.6,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: selected
+                  ? const Color(0xFF00E5FF).withValues(alpha: 0.18)
+                  : Colors.black.withValues(alpha: 0.05),
+              blurRadius: selected ? 14 : 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF1F2937),
+                ),
+              ),
+            ),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: selected
+                    ? const LinearGradient(
+                        colors: [Color(0xFF00E5FF), Color(0xFF6B21F2)],
+                      )
+                    : null,
+                color: selected ? null : const Color(0xFFE5E7EB),
+              ),
+              child: selected
+                  ? const Icon(Icons.check_rounded,
+                      color: Colors.white, size: 18)
+                  : null,
+            ),
+          ],
+        ),
       ),
     );
   }

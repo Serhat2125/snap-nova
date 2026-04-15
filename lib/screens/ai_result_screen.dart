@@ -2,6 +2,10 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
 import '../services/gemini_service.dart';
 import '../services/solutions_storage.dart';
@@ -65,6 +69,10 @@ class _AiResultScreenState extends State<AiResultScreen> {
   late final String   _recordId;
   late final DateTime _createdAt;
   String _aiTitle = '';
+
+  // ── Paylaş kartı için key ─────────────────────────────────────────────────
+  final GlobalKey _shareCardKey = GlobalKey();
+  bool _sharing = false;
 
   @override
   void initState() {
@@ -140,7 +148,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
       id: _recordId,
       imagePath: persistedPath,
       solutionType: widget.solutionType.replaceAll('\n', ' '),
-      modelName: widget.modelName.isEmpty ? 'SnapNova' : widget.modelName,
+      modelName: widget.modelName.isEmpty ? 'QuAlsar' : widget.modelName,
       result: widget.result,
       qaList: _qaList
           .map((qa) => QARecord(question: qa.question, answer: qa.answer))
@@ -342,6 +350,13 @@ class _AiResultScreenState extends State<AiResultScreen> {
             ),
           ),
           const SizedBox(width: 8),
+          if (_done)
+            IconButton(
+              icon: const Icon(Icons.ios_share_rounded,
+                  color: Color(0xFFFF6A00), size: 22),
+              tooltip: 'Paylaş',
+              onPressed: _openSharePreview,
+            ),
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 300),
             child: _done
@@ -353,6 +368,249 @@ class _AiResultScreenState extends State<AiResultScreen> {
         ],
       ),
     );
+  }
+
+  // ── Paylaş: önizleme sheet'i ──────────────────────────────────────────────
+  void _openSharePreview() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.55),
+      builder: (sheetCtx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: RepaintBoundary(
+                      key: _shareCardKey,
+                      child: _buildShareCard(),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => Navigator.pop(sheetCtx),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Colors.white54),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14)),
+                        ),
+                        icon: const Icon(Icons.close_rounded),
+                        label: Text(
+                          'İptal',
+                          style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: StatefulBuilder(
+                        builder: (ctx, setLocal) => FilledButton.icon(
+                          onPressed: _sharing
+                              ? null
+                              : () async {
+                                  setLocal(() => _sharing = true);
+                                  await _shareAsImage();
+                                  if (ctx.mounted) {
+                                    setLocal(() => _sharing = false);
+                                  }
+                                  if (sheetCtx.mounted) {
+                                    Navigator.pop(sheetCtx);
+                                  }
+                                },
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFFFF6A00),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14)),
+                          ),
+                          icon: _sharing
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.share_rounded),
+                          label: Text(
+                            _sharing ? 'Hazırlanıyor…' : 'Paylaş',
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ── Paylaşılacak kart görseli ─────────────────────────────────────────────
+  Widget _buildShareCard() {
+    final preview = _mainText.length > 520
+        ? '${_mainText.substring(0, 520)}…'
+        : _mainText;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFFF7EE), Color(0xFFFFE7D0)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: const Color(0xFFFFB380), width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFF8A3D), Color(0xFFFF6A00)],
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                alignment: Alignment.center,
+                child: const Icon(Icons.auto_awesome_rounded,
+                    color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'QuAlsar',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFF1F2937),
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFFF6A00)),
+                ),
+                child: Text(
+                  widget.solutionType.replaceAll('\n', ' '),
+                  style: GoogleFonts.poppins(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFFFF6A00),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (widget.imagePath.isNotEmpty && File(widget.imagePath).existsSync())
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Image.file(
+                  File(widget.imagePath),
+                  width: double.infinity,
+                  height: 140,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+          Container(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFFFE2C7)),
+            ),
+            child: Text(
+              preview,
+              style: GoogleFonts.poppins(
+                fontSize: 12.5,
+                height: 1.55,
+                color: const Color(0xFF1F2937),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Icon(Icons.bolt_rounded,
+                  size: 14, color: Color(0xFFFF6A00)),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  'QuAlsar ile saniyeler içinde çözüldü',
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFFFF6A00),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Kartı görsele çevir ve paylaş ─────────────────────────────────────────
+  Future<void> _shareAsImage() async {
+    try {
+      await WidgetsBinding.instance.endOfFrame;
+      final boundary = _shareCardKey.currentContext
+          ?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) throw Exception('Kart bulunamadı');
+      final image = await boundary.toImage(pixelRatio: 3.0);
+      final byteData =
+          await image.toByteData(format: ImageByteFormat.png);
+      if (byteData == null) throw Exception('Görsel oluşturulamadı');
+      final bytes = byteData.buffer.asUint8List();
+
+      final dir = await getTemporaryDirectory();
+      final file = File(
+          '${dir.path}/qualsar_cozum_${DateTime.now().millisecondsSinceEpoch}.png');
+      await file.writeAsBytes(bytes);
+
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: 'QuAlsar ile çözdüm — sen de dene!',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Paylaşım başarısız: $e')),
+      );
+    }
   }
 
   // ── Fotoğraf kartı ─ belirgin çerçeve ────────────────────────────────────────

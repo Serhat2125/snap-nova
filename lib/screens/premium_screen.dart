@@ -491,7 +491,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
 
               // Uygulama adı + açıklama
               Text(
-                'Snap Nova ${_selectedPlan == 0 ? localeService.tr("monthly_label") : _selectedPlan == 1 ? localeService.tr("quarterly_label") : localeService.tr("yearly_label")} Premium',
+                'QuAlsar ${_selectedPlan == 0 ? localeService.tr("monthly_label") : _selectedPlan == 1 ? localeService.tr("quarterly_label") : localeService.tr("yearly_label")} Premium',
                 style: GoogleFonts.poppins(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
@@ -500,7 +500,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
               ),
               const SizedBox(height: 2),
               Text(
-                'Snap Nova - ${localeService.tr("all_lessons")}',
+                'QuAlsar - ${localeService.tr("all_lessons")}',
                 style: GoogleFonts.poppins(
                   fontSize: 12,
                   color: const Color(0xFF6B7280),
@@ -797,7 +797,37 @@ class _PremiumScreenState extends State<PremiumScreen> {
   }
 
   void _showPaymentMethodsSheet(BuildContext context) {
-    MockPaymentScreen.show(context);
+    final periodLabel = _selectedPlan == 0
+        ? localeService.tr('monthly_label')
+        : _selectedPlan == 1
+            ? localeService.tr('quarterly_label')
+            : localeService.tr('yearly_label');
+    final planLabel = 'QuAlsar $periodLabel Premium';
+    final amount = _selectedPlan == 0
+        ? _plan.monthly
+        : _selectedPlan == 1
+            ? _plan.quarterly
+            : _plan.yearly;
+
+    // Sonraki yenileme tarihi
+    final now = DateTime.now();
+    final next = _selectedPlan == 0
+        ? DateTime(now.year, now.month + 1, now.day)
+        : _selectedPlan == 1
+            ? DateTime(now.year, now.month + 3, now.day)
+            : DateTime(now.year + 1, now.month, now.day);
+    const months = [
+      'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz',
+      'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara',
+    ];
+    final renewalDate = '${next.day} ${months[next.month - 1]} ${next.year}';
+
+    MockPaymentScreen.show(
+      context,
+      planLabel: planLabel,
+      amount: amount,
+      renewalDate: renewalDate,
+    );
   }
 
   // ignore: unused_element

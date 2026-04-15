@@ -64,7 +64,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
 
   static final _models = [
     AiModel(
-      name: 'SnapNova',
+      name: 'QuAlsar',
       subtitle: 'Hızlı ve genel çözüm',
       badge: localeService.tr('recommended'),
       accentColor: AppColors.cyan,
@@ -108,7 +108,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
     AiModel(
       name: 'Deepseek',
       subtitle: 'Derin analiz ve akıl yürütme',
-      badge: 'Yakında',
+      badge: 'Aktif',
       accentColor: Color(0xFF4B8BF5),
       logo: const Center(
         child: Text('DS', style: TextStyle(color: Color(0xFF4B8BF5), fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
@@ -176,8 +176,10 @@ class _SolutionScreenState extends State<SolutionScreen> {
     if (_selectedOption == null || _isLoading || _centeredModelIdx == null) return;
     final model = _models[_centeredModelIdx!];
 
-    // SnapNova ve Gemini aktif — diğerleri yakında
-    if (model.name != 'SnapNova' && model.name != 'Gemini') {
+    // QuAlsar, Gemini ve Deepseek aktif — diğerleri yakında
+    if (model.name != 'QuAlsar' &&
+        model.name != 'Gemini' &&
+        model.name != 'Deepseek') {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('${model.name} yakında geliyor! 🚀'),
@@ -197,11 +199,19 @@ class _SolutionScreenState extends State<SolutionScreen> {
     GeminiException? geminiError;
 
     try {
-      result = await GeminiService.analyzeImage(
-        widget.imagePath,
-        _selectedOption!,
-        isMulti: widget.isMultiCapture,
-      );
+      if (model.name == 'Deepseek') {
+        result = await GeminiService.analyzeImageWithDeepseek(
+          widget.imagePath,
+          _selectedOption!,
+          isMulti: widget.isMultiCapture,
+        );
+      } else {
+        result = await GeminiService.analyzeImage(
+          widget.imagePath,
+          _selectedOption!,
+          isMulti: widget.isMultiCapture,
+        );
+      }
     } on GeminiException catch (e) {
       geminiError = e;
     } catch (e) {
@@ -389,7 +399,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
             aspectRatio: 4 / 3,
             child: Image.file(
               File(widget.imagePath),
-              fit: BoxFit.cover,
+              fit: BoxFit.contain,
               errorBuilder: (_, __, ___) => Container(
                 color: const Color(0xFFF0F2F5),
                 child: const Icon(Icons.image_not_supported_outlined,
@@ -612,7 +622,9 @@ class _SolutionScreenState extends State<SolutionScreen> {
 
   Widget _buildSolveButton() {
     final model    = _models[_centeredModelIdx ?? 0];
-    final isActive = model.name == 'SnapNova' || model.name == 'Gemini';
+    final isActive = model.name == 'QuAlsar' ||
+        model.name == 'Gemini' ||
+        model.name == 'Deepseek';
     final color    = model.accentColor;
 
     return GestureDetector(
@@ -863,7 +875,13 @@ class _FuturisticErrorDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = _color;
-    return Container(
+    final maxH = MediaQuery.of(context).size.height * 0.75;
+    final rawTrimmed = exception.rawError.length > 400
+        ? '${exception.rawError.substring(0, 400)}…'
+        : exception.rawError;
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxH),
+      child: Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: const Color(0xFF0A0818),
@@ -877,7 +895,8 @@ class _FuturisticErrorDialog extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
+      child: SingleChildScrollView(
+        child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           // İkon
@@ -919,7 +938,7 @@ class _FuturisticErrorDialog extends StatelessWidget {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                exception.rawError,
+                rawTrimmed,
                 textAlign: TextAlign.left,
                 style: const TextStyle(
                   color: Colors.white54,
@@ -953,6 +972,8 @@ class _FuturisticErrorDialog extends StatelessWidget {
             ),
           ),
         ],
+      ),
+      ),
       ),
     );
   }

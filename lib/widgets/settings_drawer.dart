@@ -486,7 +486,7 @@ class _ProfilePage extends StatelessWidget {
                       fontSize: 20,
                       fontWeight: FontWeight.w800)),
               const SizedBox(height: 4),
-              Text('ayse@snapnova.app',
+              Text('ayse@qualsar.app',
                   style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.50), fontSize: 13)),
             ]),
@@ -495,7 +495,7 @@ class _ProfilePage extends StatelessWidget {
 
           _neonField('Ad Soyad', 'Ayşe Yılmaz', Icons.person_outline),
           const SizedBox(height: 12),
-          _neonField('E-posta', 'ayse@snapnova.app', Icons.email_outlined),
+          _neonField('E-posta', 'ayse@qualsar.app', Icons.email_outlined),
           const SizedBox(height: 24),
 
           _neonBtn('Üyeliğim', Icons.workspace_premium_rounded,
@@ -932,7 +932,7 @@ class _FeedbackPageState extends State<_FeedbackPage> {
                 scheme: 'mailto',
                 path: 'serhatdsme@gmail.com',
                 queryParameters: {
-                  'subject': 'SnapNova - Geri Bildirim',
+                  'subject': 'QuAlsar - Geri Bildirim',
                   'body': body,
                 },
               );
@@ -991,7 +991,7 @@ class _FaqPageState extends State<_FaqPage> {
   int? _open;
 
   static const _items = [
-    ('SnapNova nasıl çalışır?',
+    ('QuAlsar nasıl çalışır?',
         'Fotoğraf çek veya galeriden seç, yapay zeka soruyu tanıyarak çözüm üretir.'),
     ('Hangi dersler destekleniyor?',
         'Matematik, Fizik, Kimya, Biyoloji, Edebiyat, Tarih ve daha fazlası.'),
@@ -1111,7 +1111,7 @@ class _AboutPage extends StatelessWidget {
                     color: Colors.white, size: 38),
               ),
               const SizedBox(height: 12),
-              const Text('SnapNova',
+              const Text('QuAlsar',
                   style: TextStyle(
                       color: Colors.cyanAccent,
                       fontSize: 24,
@@ -1125,7 +1125,7 @@ class _AboutPage extends StatelessWidget {
           const SizedBox(height: 24),
           _card(
               'Her derste, her konuda yapay zeka destekli çözüm. '
-              'SnapNova öğrencilerin öğrenme sürecini kişiselleştirerek '
+              'QuAlsar öğrencilerin öğrenme sürecini kişiselleştirerek '
               'daha hızlı ve daha etkili bir eğitim deneyimi sunar.'),
           const SizedBox(height: 16),
           const Text('Sosyal Medya',
@@ -1134,9 +1134,9 @@ class _AboutPage extends StatelessWidget {
                   fontSize: 14,
                   fontWeight: FontWeight.w700)),
           const SizedBox(height: 10),
-          _socialBtn(Icons.language_rounded, 'snapnova.app', const Color(0xFF3B82F6)),
+          _socialBtn(Icons.language_rounded, 'qualsar.app', const Color(0xFF3B82F6)),
           const SizedBox(height: 8),
-          _socialBtn(Icons.camera_alt_outlined, '@snapnova', const Color(0xFFEC4899)),
+          _socialBtn(Icons.camera_alt_outlined, '@qualsar', const Color(0xFFEC4899)),
           const SizedBox(height: 8),
           _socialBtn(Icons.email_outlined, 'serhatdsme@gmail.com', const Color(0xFF10B981)),
           const SizedBox(height: 30),
@@ -1197,7 +1197,7 @@ class _TermsPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _section('1. Hizmet Kapsamı',
-                    'SnapNova, öğrencilere yapay zeka destekli akademik çözümler sunar. '
+                    'QuAlsar, öğrencilere yapay zeka destekli akademik çözümler sunar. '
                     'Hizmet eğitim amaçlıdır; ticari kullanım yasaktır.'),
                 _section('2. Kullanıcı Sorumlulukları',
                     'Kullanıcılar platform üzerinden yanlış, yanıltıcı veya zararlı içerik '
@@ -1209,7 +1209,7 @@ class _TermsPage extends StatelessWidget {
                     'Premium abonelikler otomatik yenilenir. İptal en az 24 saat '
                     'öncesinden yapılmalıdır.'),
                 _section('5. Değişiklikler',
-                    'SnapNova bu koşulları önceden bildirmeksizin değiştirme hakkını '
+                    'QuAlsar bu koşulları önceden bildirmeksizin değiştirme hakkını '
                     'saklı tutar.'),
                 const SizedBox(height: 8),
                 Text('Son güncelleme: Nisan 2026',

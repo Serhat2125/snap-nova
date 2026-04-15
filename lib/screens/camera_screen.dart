@@ -1,9 +1,6 @@
-import 'dart:io';
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../main.dart';
@@ -125,12 +122,10 @@ class _CameraScreenState extends State<CameraScreen>
 
     try {
       final file = await _controller!.takePicture();
-      String path = file.path;
-
-      if (!_isMultiCapture && mounted) {
-        final screen = MediaQuery.of(context).size;
-        path = await _cropToFrame(path, screen);
-      }
+      final path = file.path;
+      // NOT: Tekli modda çerçeveye kırpmıyoruz — preview gerilmiş/yamuk olabildiği
+      // için kırpma hatalı alanı yakalıyordu. Tam fotoğrafı AI'ya gönderip
+      // sonuç ekranında BoxFit.contain ile gösteriyoruz.
 
       if (!mounted) return;
       setState(() => _isCapturing = false);
@@ -144,58 +139,6 @@ class _CameraScreenState extends State<CameraScreen>
         setState(() => _isCapturing = false);
         _showSnack(e.description ?? localeService.tr('photo_failed'));
       }
-    }
-  }
-
-  // ── Kırpma ───────────────────────────────────────────────────────────────────
-
-  Future<String> _cropToFrame(String srcPath, Size screen) async {
-    ui.Image? srcImage;
-    ui.Image? cropped;
-    try {
-      final bytes = await File(srcPath).readAsBytes();
-      final codec = await ui.instantiateImageCodec(bytes, targetWidth: 1024);
-      final srcFrame = await codec.getNextFrame();
-      srcImage = srcFrame.image;
-
-      final frame = _frameNotifier.value.isEmpty
-          ? ScanFrameOverlay.frameRect(screen)
-          : _frameNotifier.value;
-      final scaleX = srcImage.width  / screen.width;
-      final scaleY = srcImage.height / screen.height;
-
-      final srcRect = Rect.fromLTWH(
-        frame.left * scaleX, frame.top * scaleY,
-        frame.width * scaleX, frame.height * scaleY,
-      );
-      final dstRect = Rect.fromLTWH(0, 0, srcRect.width, srcRect.height);
-
-      final recorder = ui.PictureRecorder();
-      final canvas   = ui.Canvas(recorder);
-      canvas.drawImageRect(srcImage, srcRect, dstRect, ui.Paint());
-      final picture  = recorder.endRecording();
-
-      srcImage.dispose();
-      srcImage = null;
-
-      cropped = await picture.toImage(
-        srcRect.width.round().clamp(1, 4096),
-        srcRect.height.round().clamp(1, 4096),
-      );
-      final bd = await cropped.toByteData(format: ui.ImageByteFormat.png);
-      cropped.dispose();
-      cropped = null;
-
-      if (bd == null) return srcPath;
-      final dir = await getTemporaryDirectory();
-      final out = File('${dir.path}/snap_${DateTime.now().millisecondsSinceEpoch}.png');
-      await out.writeAsBytes(bd.buffer.asUint8List());
-      return out.path;
-    } catch (_) {
-      return srcPath;
-    } finally {
-      srcImage?.dispose();
-      cropped?.dispose();
     }
   }
 

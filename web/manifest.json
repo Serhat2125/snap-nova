@@ -1,6 +1,6 @@
 {
-    "name": "snap_nova",
-    "short_name": "snap_nova",
+    "name": "QuAlsar",
+    "short_name": "QuAlsar",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

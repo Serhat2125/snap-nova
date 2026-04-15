@@ -6,7 +6,12 @@ import 'package:google_fonts/google_fonts.dart';
 class MockPaymentScreen extends StatelessWidget {
   const MockPaymentScreen({super.key});
 
-  static void show(BuildContext context) {
+  static void show(
+    BuildContext context, {
+    String planLabel = 'Premium',
+    String amount = '',
+    String renewalDate = '',
+  }) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -22,7 +27,12 @@ class MockPaymentScreen extends StatelessWidget {
           ),
           child: Container(
             color: Colors.white,
-            child: _MockPaymentContent(scrollController: scrollController),
+            child: _MockPaymentContent(
+              scrollController: scrollController,
+              planLabel: planLabel,
+              amount: amount,
+              renewalDate: renewalDate,
+            ),
           ),
         ),
       ),
@@ -42,7 +52,15 @@ class MockPaymentScreen extends StatelessWidget {
 
 class _MockPaymentContent extends StatelessWidget {
   final ScrollController? scrollController;
-  const _MockPaymentContent({this.scrollController});
+  final String planLabel;
+  final String amount;
+  final String renewalDate;
+  const _MockPaymentContent({
+    this.scrollController,
+    this.planLabel = 'Premium',
+    this.amount = '',
+    this.renewalDate = '',
+  });
 
   void _showComingSoon(BuildContext context) {
     showDialog(
@@ -480,8 +498,19 @@ class _MockPaymentContent extends StatelessWidget {
                             if (dateErr == null &&
                                 cvcErr == null &&
                                 nameErr == null) {
-                              Navigator.pop(ctx);
-                              _showComingSoon(context);
+                              final rootNav =
+                                  Navigator.of(context, rootNavigator: true);
+                              Navigator.pop(ctx); // kart sheet'ini kapat
+                              Navigator.pop(context); // ödeme yöntemleri sheet'i
+                              rootNav.push(
+                                MaterialPageRoute(
+                                  builder: (_) => _PaymentProcessingPage(
+                                    planLabel: planLabel,
+                                    amount: amount,
+                                    renewalDate: renewalDate,
+                                  ),
+                                ),
+                              );
                             }
                           },
                           child: Text(
@@ -1453,3 +1482,211 @@ Bir üçüncü taraf satıcıyla, web sitesiyle veya uygulamayla doğrudan payla
 
 © 2026 Google — Google Hizmet Şartları — Önceki Gizlilik Uyarıları
 ''';
+
+// ───────────────────────────────────────────────────────────────────────────
+// Ödeme işleniyor → Başarı ekranı (QandA tarzı)
+// ───────────────────────────────────────────────────────────────────────────
+
+class _PaymentProcessingPage extends StatefulWidget {
+  final String planLabel;
+  final String amount;
+  final String renewalDate;
+  const _PaymentProcessingPage({
+    required this.planLabel,
+    required this.amount,
+    required this.renewalDate,
+  });
+
+  @override
+  State<_PaymentProcessingPage> createState() => _PaymentProcessingPageState();
+}
+
+class _PaymentProcessingPageState extends State<_PaymentProcessingPage> {
+  bool _done = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(milliseconds: 2200), () {
+      if (mounted) setState(() => _done = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: _done, // işlem sırasında geri alınamaz
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 350),
+            child: _done ? _buildSuccess(context) : _buildLoading(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoading() {
+    return Center(
+      key: const ValueKey('loading'),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const SizedBox(
+            width: 56,
+            height: 56,
+            child: CircularProgressIndicator(
+              strokeWidth: 3,
+              valueColor:
+                  AlwaysStoppedAnimation<Color>(Color(0xFF1A73E8)),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Ödeme işleniyor…',
+            style: GoogleFonts.poppins(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF202124),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Lütfen bu ekrandan ayrılma',
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              color: const Color(0xFF5F6368),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuccess(BuildContext context) {
+    return Padding(
+      key: const ValueKey('success'),
+      padding: const EdgeInsets.fromLTRB(24, 40, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Spacer(),
+          // Büyük yeşil tik
+          Center(
+            child: Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                color: const Color(0xFF22C55E).withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.check_circle_rounded,
+                size: 72,
+                color: Color(0xFF22C55E),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Ödemen alındı',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Premium üyeliğin aktif edildi.\nTüm özelliklerin keyfini çıkar!',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              height: 1.5,
+              color: const Color(0xFF5F6368),
+            ),
+          ),
+          const SizedBox(height: 28),
+          // Plan özeti kartı
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFFAFAFB),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                  color: const Color(0xFFE5E7EB), width: 0.5),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Column(
+              children: [
+                _summaryRow('Plan', widget.planLabel),
+                const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                if (widget.amount.isNotEmpty) ...[
+                  _summaryRow('Ödenen tutar', widget.amount),
+                  const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                ],
+                if (widget.renewalDate.isNotEmpty)
+                  _summaryRow('Sonraki yenileme', widget.renewalDate),
+              ],
+            ),
+          ),
+          const Spacer(),
+          // Ana buton
+          SizedBox(
+            height: 52,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1A73E8),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(50),
+                ),
+              ),
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(
+                "Premium'un keyfini çıkar",
+                style: GoogleFonts.poppins(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 12.5,
+              color: const Color(0xFF6B7280),
+            ),
+          ),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF202124),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

@@ -35,7 +35,7 @@ class SolutionRecord {
     required this.id,
     required this.imagePath,
     required this.solutionType,
-    this.modelName = 'SnapNova',
+    this.modelName = 'QuAlsar',
     required this.result,
     required this.qaList,
     required this.subject,
@@ -74,7 +74,7 @@ class SolutionRecord {
         id: j['id'] as String,
         imagePath: j['imagePath'] as String,
         solutionType: j['solutionType'] as String,
-        modelName: j['modelName'] as String? ?? 'SnapNova',
+        modelName: j['modelName'] as String? ?? 'QuAlsar',
         result: j['result'] as String,
         qaList: (j['qaList'] as List)
             .map((e) => QARecord.fromJson(e as Map<String, dynamic>))

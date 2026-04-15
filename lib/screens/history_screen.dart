@@ -924,7 +924,7 @@ class _HistoryCard extends StatelessWidget {
     final imgFile = File(record.imagePath);
     final hasImg  = imgFile.existsSync();
     final dateStr = _formatDate(record.timestamp);
-    final model   = record.modelName.isEmpty ? 'SnapNova' : record.modelName;
+    final model   = record.modelName.isEmpty ? 'QuAlsar' : record.modelName;
 
     return GestureDetector(
       onTap: onTap,

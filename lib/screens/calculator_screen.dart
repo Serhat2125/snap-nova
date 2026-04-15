@@ -1,14 +1,18 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../main.dart' show localeService;
-import '../theme/app_theme.dart';
+import 'package:flutter_math_fork/flutter_math.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../services/gemini_service.dart';
+import 'ai_result_screen.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  CalculatorScreen — Photomath tarzı hesap makinası
-//  • Üst panel: LaTeX benzeri ifade önizleme + canlı sonuç
-//  • Alt panel: Özel klavye (Temel / Bilimsel sekme)
-//  • Bellek barı, geçmiş, DEG/RAD toggle
+//  CalculatorScreen — Qanda tarzı
+//  • Üst: LaTeX ifade önizleme + canlı sonuç
+//  • Aksiyon satırı: Grafik Çiz / Adım Adım Çöz
+//  • Grafik (açılır)
+//  • Klavye: Temel / Bilimsel sekmeli
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class CalculatorScreen extends StatefulWidget {
@@ -21,19 +25,21 @@ class _CalculatorScreenState extends State<CalculatorScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tab;
 
+  // İfade: kullanıcı dostu unicode (π, √, ², sin, vs.)
   String _expr = '';
-  String _display = '0';
-  bool _justEvaluated = false;
+  String _result = '';
   bool _isDeg = true;
-  double _memory = 0;
-  bool _memHasValue = false;
-  final List<String> _history = [];
-  bool _showHistory = false;
+  bool _showGraph = false;
+  bool _stepLoading = false;
+  final List<_HistoryItem> _history = [];
+
+  static const _orange = Color(0xFFFF6A00);
+  static const _orangeDark = Color(0xFFE85D00);
 
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 2, vsync: this);
+    _tab = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -42,557 +48,779 @@ class _CalculatorScreenState extends State<CalculatorScreen>
     super.dispose();
   }
 
-  // ── Hesaplama ─────────────────────────────────────────────────────────────────
+  // ── İfade düzenleme ────────────────────────────────────────────────────────
+  void _append(String s) => setState(() {
+        _expr += s;
+        _evaluate();
+      });
 
-  String _fmt(double n) {
-    if (n.isNaN) return localeService.tr('undefined');
-    if (n.isInfinite) return n > 0 ? '∞' : '-∞';
-    if (n == n.roundToDouble() && n.abs() < 1e13) return n.toInt().toString();
-    String s = n
-        .toStringAsPrecision(10)
-        .replaceAll(RegExp(r'0+$'), '')
-        .replaceAll(RegExp(r'\.$'), '');
-    return s;
-  }
+  void _backspace() => setState(() {
+        if (_expr.isEmpty) return;
+        // Son fonksiyon adı bir bütün olarak silinsin
+        for (final fn in _Engine.functions) {
+          if (_expr.endsWith(fn)) {
+            _expr = _expr.substring(0, _expr.length - fn.length);
+            _evaluate();
+            return;
+          }
+        }
+        _expr = _expr.substring(0, _expr.length - 1);
+        _evaluate();
+      });
 
-  double _eval(String raw) {
-    final s = raw
-        .replaceAll('×', '*')
-        .replaceAll('÷', '/')
-        .replaceAll('π', '${math.pi}')
-        .replaceAll('e', '${math.e}')
-        .replaceAll('√(', 'sqrt(')
-        .replaceAll('√', 'sqrt(');
-    return _Parser(s, isDeg: _isDeg).evaluate();
-  }
+  void _clear() => setState(() {
+        _expr = '';
+        _result = '';
+      });
 
-  void _liveEval() {
-    if (_expr.isEmpty) {
-      setState(() => _display = '0');
+  void _evaluate() {
+    if (_expr.trim().isEmpty) {
+      _result = '';
       return;
     }
     try {
-      final v = _eval(_expr);
-      setState(() => _display = _fmt(v));
+      final v = _Engine.evaluate(_expr, isDeg: _isDeg);
+      if (v.isNaN) {
+        _result = '';
+      } else {
+        _result = _Engine.format(v);
+      }
     } catch (_) {
-      // ifade eksik — son sonucu koru
+      _result = '';
     }
   }
 
-  void _press(String k) {
-    HapticFeedback.selectionClick();
+  void _onEquals() {
+    if (_result.isEmpty) return;
+    final latex = _Engine.toLatex(_expr);
     setState(() {
-      switch (k) {
-        case 'AC':
-          _expr = '';
-          _display = '0';
-          _justEvaluated = false;
-          return;
-        case 'C':
-          if (_expr.isNotEmpty) {
-            _expr = _expr.substring(0, _expr.length - 1);
-          } else {
-            _display = '0';
-          }
-          _justEvaluated = false;
-          _liveEval();
-          return;
-        case '=':
-          if (_expr.isEmpty) return;
-          try {
-            final opens =
-                '('.allMatches(_expr).length - ')'.allMatches(_expr).length;
-            final full = _expr + (')' * opens.clamp(0, 10));
-            final v = _eval(full);
-            final res = _fmt(v);
-            _history.insert(0, '$_expr = $res');
-            if (_history.length > 50) _history.removeLast();
-            _expr = res;
-            _display = res;
-            _justEvaluated = true;
-          } catch (_) {
-            _display = 'Hata';
-            _justEvaluated = false;
-          }
-          return;
-        case '±':
-          if (_expr.startsWith('-')) {
-            _expr = _expr.substring(1);
-          } else if (_expr.isNotEmpty) {
-            _expr = '-$_expr';
-          }
-          _liveEval();
-          return;
-        case '%':
-          _expr += '%';
-          _liveEval();
-          return;
-        case 'MC':
-          _memory = 0;
-          _memHasValue = false;
-          return;
-        case 'MR':
-          if (_memHasValue) {
-            if (_justEvaluated || _expr.isEmpty) {
-              _expr = _fmt(_memory);
-            } else {
-              _expr += _fmt(_memory);
-            }
-            _justEvaluated = false;
-            _liveEval();
-          }
-          return;
-        case 'M+':
-          try {
-            _memory += _eval(_expr.isEmpty ? '0' : _expr);
-            _memHasValue = true;
-          } catch (_) {}
-          return;
-        case 'M-':
-          try {
-            _memory -= _eval(_expr.isEmpty ? '0' : _expr);
-            _memHasValue = true;
-          } catch (_) {}
-          return;
-        case 'n!':
-          _expr += '!';
-          _liveEval();
-          return;
-        default:
-          if (_justEvaluated && _isOperator(k)) {
-            _justEvaluated = false;
-          } else if (_justEvaluated && !_isOperator(k)) {
-            _expr = '';
-            _justEvaluated = false;
-          }
-          _expr += k;
-          _liveEval();
-      }
+      _history.insert(0, _HistoryItem(expr: _expr, latex: latex, result: _result));
+      if (_history.length > 50) _history.removeLast();
+      _expr = _result;
+      _evaluate();
     });
   }
 
-  bool _isOperator(String k) =>
-      k == '+' || k == '-' || k == '×' || k == '÷' || k == '^';
-
-  // ── Build ─────────────────────────────────────────────────────────────────────
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0A0A18),
-      body: SafeArea(
-        child: MediaQuery(
-          data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
-          child: Column(
-            children: [
-              _buildHeader(),
-              _buildDisplayPanel(),
-              _buildMemBar(),
-              _buildTabBar(),
-              Expanded(child: _buildKeyboard()),
-            ],
-          ),
-        ),
-      ),
-    );
+  // ── Grafik ─────────────────────────────────────────────────────────────────
+  List<FlSpot> _graphSpots() {
+    if (_expr.isEmpty) return const [];
+    final spots = <FlSpot>[];
+    const n = 200;
+    const minX = -10.0, maxX = 10.0;
+    for (var i = 0; i <= n; i++) {
+      final x = minX + (maxX - minX) * i / n;
+      try {
+        final y = _Engine.evaluate(_expr, isDeg: _isDeg, variables: {'x': x});
+        if (y.isFinite && y.abs() < 1000) spots.add(FlSpot(x, y));
+      } catch (_) {}
+    }
+    return spots;
   }
 
-  // ── Header ────────────────────────────────────────────────────────────────────
-
-  Widget _buildHeader() => Padding(
-        padding: const EdgeInsets.fromLTRB(4, 4, 16, 0),
-        child: Row(
-          children: [
-            IconButton(
-              icon: const Icon(Icons.arrow_back_rounded, color: AppColors.cyan),
-              onPressed: () => Navigator.pop(context),
-            ),
-            Text(
-              localeService.tr('calculator'),
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800),
-            ),
-            const Spacer(),
-            // DEG / RAD toggle
-            GestureDetector(
-              onTap: () => setState(() => _isDeg = !_isDeg),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppColors.cyan.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                      color: AppColors.cyan.withValues(alpha: 0.35)),
-                ),
-                child: Text(
-                  _isDeg ? 'DEG' : 'RAD',
-                  style: const TextStyle(
-                      color: AppColors.cyan,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Geçmiş
-            GestureDetector(
-              onTap: () => setState(() => _showHistory = !_showHistory),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: _showHistory
-                      ? AppColors.cyan.withValues(alpha: 0.18)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: const Icon(Icons.history_rounded,
-                    color: AppColors.textSecondary, size: 18),
-              ),
-            ),
-          ],
+  // ── Adım adım çöz ──────────────────────────────────────────────────────────
+  Future<void> _solveSteps() async {
+    if (_expr.trim().isEmpty || _stepLoading) return;
+    setState(() => _stepLoading = true);
+    try {
+      final latex = _Engine.toLatex(_expr);
+      final prompt = 'Aşağıdaki ifadeyi adım adım çöz ve sonucunu ver. '
+          'Türkçe yanıt ver. LaTeX formatını koru.\n\nİfade: $latex';
+      final res = await GeminiService.solveHomework(
+        question: prompt,
+        solutionType: 'Adım Adım Çöz',
+        subject: 'Matematik',
+      );
+      if (!mounted) return;
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AiResultScreen(
+            result: res,
+            imagePath: '',
+            solutionType: 'Adım Adım Çözüm',
+            modelName: 'QuAlsar',
+          ),
         ),
       );
+    } on GeminiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.userMessage)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Hata: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _stepLoading = false);
+    }
+  }
 
-  // ── Display panel — Photomath tarzı ifade önizleme ─────────────────────────
-
-  Widget _buildDisplayPanel() {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
-      height: _showHistory ? 200 : 130,
-      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0F0F22),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.06),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.cyan.withValues(alpha: 0.04),
-            blurRadius: 20,
-          ),
-        ],
+  // ── Geçmiş bottom sheet ────────────────────────────────────────────────────
+  void _openHistory() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: _showHistory ? _buildHistoryList() : _buildExprDisplay(),
-    );
-  }
-
-  // LaTeX benzeri ifade önizleme
-  Widget _buildExprDisplay() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.end,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // İfade önizleme (üstte, soluk)
-        if (_expr.isNotEmpty && !_justEvaluated)
-          Expanded(
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                reverse: true,
-                child: _ExprPreview(expr: _expr),
-              ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(ctx).size.height * 0.7,
             ),
-          ),
-
-        // Ana sonuç
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerRight,
-          child: AnimatedDefaultTextStyle(
-            duration: const Duration(milliseconds: 180),
-            style: TextStyle(
-              color: _justEvaluated ? AppColors.cyan : Colors.white,
-              fontSize: 56,
-              fontWeight: FontWeight.w200,
-              letterSpacing: -1,
-            ),
-            child: Text(_display),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildHistoryList() => _history.isEmpty
-      ? Center(
-          child: Text(localeService.tr('no_calculations'),
-              style: TextStyle(color: AppColors.textMuted)))
-      : ListView.separated(
-          reverse: false,
-          physics: const BouncingScrollPhysics(),
-          itemCount: _history.length,
-          separatorBuilder: (_, __) => Divider(
-            height: 1,
-            color: Colors.white.withValues(alpha: 0.05),
-          ),
-          itemBuilder: (_, i) => GestureDetector(
-            onTap: () {
-              final parts = _history[i].split(' = ');
-              if (parts.length == 2) {
-                setState(() {
-                  _expr = parts[1];
-                  _display = parts[1];
-                  _justEvaluated = true;
-                  _showHistory = false;
-                });
-              }
-            },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Text(
-                _history[i],
-                textAlign: TextAlign.right,
-                style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 13),
-              ),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Row(
+                  children: [
+                    Text(
+                      'Geçmiş',
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const Spacer(),
+                    if (_history.isNotEmpty)
+                      TextButton(
+                        onPressed: () {
+                          setState(_history.clear);
+                          Navigator.pop(ctx);
+                        },
+                        child: const Text('Temizle',
+                            style: TextStyle(color: _orange)),
+                      ),
+                  ],
+                ),
+                const Divider(),
+                Expanded(
+                  child: _history.isEmpty
+                      ? Center(
+                          child: Text(
+                            'Geçmiş boş',
+                            style: GoogleFonts.poppins(
+                                color: Colors.grey.shade500),
+                          ),
+                        )
+                      : ListView.separated(
+                          itemCount: _history.length,
+                          separatorBuilder: (_, __) => const Divider(height: 16),
+                          itemBuilder: (_, i) {
+                            final h = _history[i];
+                            return InkWell(
+                              onTap: () {
+                                setState(() {
+                                  _expr = h.expr;
+                                  _evaluate();
+                                });
+                                Navigator.pop(ctx);
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 6),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Math.tex(h.latex,
+                                        textStyle: const TextStyle(
+                                            fontSize: 16, color: Colors.black)),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '= ${h.result}',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                        color: _orange,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
             ),
           ),
         );
+      },
+    );
+  }
 
-  // ── Hafıza barı ───────────────────────────────────────────────────────────────
+  // ── UI ─────────────────────────────────────────────────────────────────────
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F6FA),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        foregroundColor: Colors.black87,
+        title: Text(
+          'Hesap Makinesi',
+          style: GoogleFonts.poppins(
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            color: Colors.black87,
+          ),
+        ),
+        actions: [
+          GestureDetector(
+            onTap: () => setState(() => _isDeg = !_isDeg),
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: _orange.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: _orange),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                _isDeg ? 'DEG' : 'RAD',
+                style: GoogleFonts.poppins(
+                  color: _orange,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.history_rounded),
+            onPressed: _openHistory,
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          _buildDisplay(),
+          _buildActionRow(),
+          if (_showGraph) _buildGraph(),
+          Expanded(child: _buildKeyboard()),
+        ],
+      ),
+    );
+  }
 
-  Widget _buildMemBar() => Container(
-        height: 32,
-        margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-        child: Row(
-          children: [
-            for (final k in ['MC', 'MR', 'M+', 'M-'])
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => _press(k),
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 2),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: k == 'MR' && _memHasValue
-                            ? AppColors.cyan.withValues(alpha: 0.50)
-                            : AppColors.border,
+  Widget _buildDisplay() {
+    final latex = _Engine.toLatex(_expr);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 44),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              reverse: true,
+              child: _expr.isEmpty
+                  ? Text(
+                      '0',
+                      style: GoogleFonts.poppins(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade400,
                       ),
-                    ),
-                    child: Center(
-                      child: Text(
-                        k,
-                        style: TextStyle(
-                          color: k == 'MR' && _memHasValue
-                              ? AppColors.cyan
-                              : AppColors.textSecondary,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
+                    )
+                  : Math.tex(
+                      latex,
+                      textStyle: const TextStyle(
+                        fontSize: 26,
+                        color: Colors.black,
+                      ),
+                      onErrorFallback: (_) => Text(
+                        _expr,
+                        style: GoogleFonts.poppins(
+                          fontSize: 22,
+                          color: Colors.black,
                         ),
                       ),
                     ),
-                  ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          GestureDetector(
+            onTap: _result.isEmpty
+                ? null
+                : () async {
+                    await Clipboard.setData(ClipboardData(text: _result));
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Sonuç kopyalandı'),
+                        duration: Duration(seconds: 1),
+                      ),
+                    );
+                  },
+            child: Text(
+              _result.isEmpty ? ' ' : '= $_result',
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: _orange,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionRow() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: _actionChip(
+              icon: Icons.show_chart_rounded,
+              label: _showGraph ? 'Grafiği Gizle' : 'Grafik Çiz',
+              onTap: () => setState(() => _showGraph = !_showGraph),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _actionChip(
+              icon: _stepLoading
+                  ? Icons.hourglass_top_rounded
+                  : Icons.auto_awesome_rounded,
+              label: _stepLoading ? 'Çözülüyor…' : 'Adım Adım Çöz',
+              filled: true,
+              onTap: _solveSteps,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _actionChip({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool filled = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+        decoration: BoxDecoration(
+          color: filled ? _orange : _orange.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _orange, width: 1.2),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 18, color: filled ? Colors.white : _orange),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(
+                  color: filled ? Colors.white : _orange,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
+            ),
           ],
         ),
-      );
+      ),
+    );
+  }
 
-  // ── Sekme barı ─────────────────────────────────────────────────────────────────
-
-  Widget _buildTabBar() => Container(
-        margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-        height: 36,
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: TabBar(
-          controller: _tab,
-          indicator: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF00E5FF), Color(0xFF6B21F2)],
+  Widget _buildGraph() {
+    final spots = _graphSpots();
+    return Container(
+      height: 200,
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: spots.isEmpty
+          ? Center(
+              child: Text(
+                'Grafik için ifadeye x değişkeni ekle\n(örn. x^2 + 2x − 3)',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            )
+          : LineChart(
+              LineChartData(
+                minX: -10,
+                maxX: 10,
+                clipData: const FlClipData.all(),
+                gridData: FlGridData(
+                  show: true,
+                  getDrawingHorizontalLine: (_) => FlLine(
+                      color: Colors.grey.shade200, strokeWidth: 1),
+                  getDrawingVerticalLine: (_) => FlLine(
+                      color: Colors.grey.shade200, strokeWidth: 1),
+                ),
+                titlesData: const FlTitlesData(show: false),
+                borderData: FlBorderData(
+                  show: true,
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: spots,
+                    isCurved: true,
+                    color: _orange,
+                    barWidth: 2.2,
+                    dotData: const FlDotData(show: false),
+                  ),
+                ],
+              ),
             ),
-            borderRadius: BorderRadius.circular(10),
+    );
+  }
+
+  // ── Klavye ─────────────────────────────────────────────────────────────────
+  Widget _buildKeyboard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
           ),
-          indicatorSize: TabBarIndicatorSize.tab,
-          dividerColor: Colors.transparent,
-          labelColor: Colors.black87,
-          unselectedLabelColor: AppColors.textSecondary,
-          labelStyle:
-              const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-          tabs: const [Tab(text: 'Temel'), Tab(text: 'Bilimsel')],
-        ),
-      );
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 8),
+      child: Column(
+        children: [
+          TabBar(
+            controller: _tab,
+            isScrollable: true,
+            labelColor: _orange,
+            unselectedLabelColor: Colors.grey.shade600,
+            indicatorColor: _orange,
+            indicatorWeight: 2.5,
+            labelStyle: GoogleFonts.poppins(
+                fontSize: 13, fontWeight: FontWeight.w700),
+            tabs: const [
+              Tab(text: 'Temel'),
+              Tab(text: 'Bilimsel'),
+              Tab(text: 'Fonksiyon'),
+              Tab(text: 'İstatistik'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tab,
+              children: [
+                _basicPad(),
+                _sciPad(),
+                _fnPad(),
+                _statPad(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-  // ── Klavye ────────────────────────────────────────────────────────────────────
+  Widget _basicPad() {
+    final rows = <List<_Key>>[
+      [
+        _Key.fn('AC', onTap: _clear, color: Colors.red.shade400),
+        _Key.fn('( )', onTap: () => _append(
+            _expr.lastIndexOf('(') > _expr.lastIndexOf(')') ? ')' : '(')),
+        _Key.fn('%', onTap: () => _append('%')),
+        _Key.op('÷', value: '/'),
+      ],
+      [
+        _Key.num('7'), _Key.num('8'), _Key.num('9'),
+        _Key.op('×', value: '*'),
+      ],
+      [
+        _Key.num('4'), _Key.num('5'), _Key.num('6'),
+        _Key.op('−', value: '-'),
+      ],
+      [
+        _Key.num('1'), _Key.num('2'), _Key.num('3'),
+        _Key.op('+', value: '+'),
+      ],
+      [
+        _Key.fn('x', onTap: () => _append('x')),
+        _Key.num('0'),
+        _Key.num('.'),
+        _Key.fn('=', onTap: _onEquals, color: _orangeDark, white: true),
+      ],
+      [
+        _Key.fn('⌫', onTap: _backspace, color: Colors.grey.shade400),
+      ],
+    ];
+    return _padGrid(rows);
+  }
 
-  Widget _buildKeyboard() => Padding(
-        padding: const EdgeInsets.fromLTRB(8, 6, 8, 10),
-        child: TabBarView(
-          controller: _tab,
-          children: [_basicPad(), _sciPad()],
-        ),
-      );
+  Widget _sciPad() {
+    final rows = <List<_Key>>[
+      [
+        _Key.fn('sin', onTap: () => _append('sin(')),
+        _Key.fn('cos', onTap: () => _append('cos(')),
+        _Key.fn('tan', onTap: () => _append('tan(')),
+        _Key.fn('⌫', onTap: _backspace, color: Colors.grey.shade400),
+      ],
+      [
+        _Key.fn('sin⁻¹', onTap: () => _append('asin(')),
+        _Key.fn('cos⁻¹', onTap: () => _append('acos(')),
+        _Key.fn('tan⁻¹', onTap: () => _append('atan(')),
+        _Key.fn('AC', onTap: _clear, color: Colors.red.shade400),
+      ],
+      [
+        _Key.fn('xʸ', onTap: () => _append('^')),
+        _Key.fn('x²', onTap: () => _append('^2')),
+        _Key.fn('√', onTap: () => _append('sqrt(')),
+        _Key.fn('|x|', onTap: () => _append('abs(')),
+      ],
+      [
+        _Key.fn('log', onTap: () => _append('log(')),
+        _Key.fn('ln', onTap: () => _append('ln(')),
+        _Key.fn('eˣ', onTap: () => _append('exp(')),
+        _Key.fn('n!', onTap: () => _append('!')),
+      ],
+      [
+        _Key.fn('π', onTap: () => _append('π')),
+        _Key.fn('e', onTap: () => _append('e')),
+        _Key.fn('(', onTap: () => _append('(')),
+        _Key.fn(')', onTap: () => _append(')')),
+      ],
+      [
+        _Key.fn('x', onTap: () => _append('x')),
+        _Key.fn('=', onTap: _onEquals, color: _orangeDark, white: true),
+      ],
+    ];
+    return _padGrid(rows);
+  }
 
-  // Temel klavye
-  static const _basicKeys = [
-    ['AC', '±', '%', '÷'],
-    ['7', '8', '9', '×'],
-    ['4', '5', '6', '-'],
-    ['1', '2', '3', '+'],
-    ['0', '.', 'C', '='],
-  ];
+  Widget _fnPad() {
+    final rows = <List<_Key>>[
+      [
+        _Key.fn('gcd', onTap: () => _append('gcd(')),
+        _Key.fn('lcm', onTap: () => _append('lcm(')),
+        _Key.fn('mod', onTap: () => _append('mod(')),
+        _Key.fn('⌫', onTap: _backspace, color: Colors.grey.shade400),
+      ],
+      [
+        _Key.fn('min', onTap: () => _append('min(')),
+        _Key.fn('max', onTap: () => _append('max(')),
+        _Key.fn(',', onTap: () => _append(',')),
+        _Key.fn('AC', onTap: _clear, color: Colors.red.shade400),
+      ],
+      [
+        _Key.fn('nPr', onTap: () => _append('nPr(')),
+        _Key.fn('nCr', onTap: () => _append('nCr(')),
+        _Key.fn('n!', onTap: () => _append('!')),
+        _Key.fn('|x|', onTap: () => _append('abs(')),
+      ],
+      [
+        _Key.fn('floor', onTap: () => _append('floor(')),
+        _Key.fn('ceil', onTap: () => _append('ceil(')),
+        _Key.fn('round', onTap: () => _append('round(')),
+        _Key.fn('sign', onTap: () => _append('sign(')),
+      ],
+      [
+        _Key.fn('log_b', onTap: () => _append('logb(')),
+        _Key.fn('root', onTap: () => _append('root(')),
+        _Key.fn('(', onTap: () => _append('(')),
+        _Key.fn(')', onTap: () => _append(')')),
+      ],
+      [
+        _Key.fn('x', onTap: () => _append('x')),
+        _Key.fn('=', onTap: _onEquals, color: _orangeDark, white: true),
+      ],
+    ];
+    return _padGrid(rows);
+  }
 
-  Widget _basicPad() => Column(
-        children: _basicKeys
-            .map((row) => Expanded(
-                  child: Row(
-                    children: row.map((k) => _buildKey(k)).toList(),
+  Widget _statPad() {
+    final rows = <List<_Key>>[
+      [
+        _Key.fn('sum', onTap: () => _append('sum(')),
+        _Key.fn('ort', onTap: () => _append('mean(')),
+        _Key.fn('med', onTap: () => _append('median(')),
+        _Key.fn('⌫', onTap: _backspace, color: Colors.grey.shade400),
+      ],
+      [
+        _Key.fn('var', onTap: () => _append('var(')),
+        _Key.fn('σ', onTap: () => _append('stdev(')),
+        _Key.fn('min', onTap: () => _append('min(')),
+        _Key.fn('max', onTap: () => _append('max(')),
+      ],
+      [
+        _Key.fn('say', onTap: () => _append('count(')),
+        _Key.fn('fark', onTap: () => _append('range(')),
+        _Key.fn(',', onTap: () => _append(',')),
+        _Key.fn('AC', onTap: _clear, color: Colors.red.shade400),
+      ],
+      [
+        _Key.num('7'), _Key.num('8'), _Key.num('9'),
+        _Key.op('×', value: '*'),
+      ],
+      [
+        _Key.num('4'), _Key.num('5'), _Key.num('6'),
+        _Key.fn('(', onTap: () => _append('(')),
+      ],
+      [
+        _Key.num('1'), _Key.num('2'), _Key.num('3'),
+        _Key.fn(')', onTap: () => _append(')')),
+      ],
+      [
+        _Key.num('0'),
+        _Key.num('.'),
+        _Key.fn('=', onTap: _onEquals, color: _orangeDark, white: true),
+      ],
+    ];
+    return _padGrid(rows);
+  }
+
+  Widget _padGrid(List<List<_Key>> rows) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        children: rows
+            .map((r) => Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: Row(
+                      children: r
+                          .map(
+                            (k) => Expanded(
+                              flex: k.flex,
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 3),
+                                child: _KeyButton(
+                                  k: k,
+                                  onNumber: _append,
+                                  onOp: _append,
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    ),
                   ),
                 ))
             .toList(),
-      );
+      ),
+    );
+  }
+}
 
-  // Bilimsel klavye
-  static const _sciRows = [
-    ['sin', 'cos', 'tan', 'sin⁻¹', 'cos⁻¹', 'tan⁻¹'],
-    ['log', 'ln', 'log₂', '√(', 'x²', 'xʸ'],
-    ['n!', '|x|', '10^(', 'e^(', '(', ')'],
-    ['π', 'e', '1/x', 'mod', 'C', '='],
-  ];
+// ─── Tuş modeli ──────────────────────────────────────────────────────────────
 
-  static const _numRow = ['7', '8', '9', '÷', '×'];
-  static const _numRow2 = ['4', '5', '6', '+', '-'];
-  static const _numRow3 = ['1', '2', '3', '.', '0'];
+enum _KeyKind { num, op, fn }
 
-  Widget _sciPad() => Column(children: [
-        ..._sciRows.map((row) => Expanded(
-              child: Row(
-                  children: row.map((k) => _buildKey(k, fontSize: 11)).toList()),
-            )),
-        Expanded(
-            child: Row(children: _numRow.map((k) => _buildKey(k)).toList())),
-        Expanded(
-            child: Row(children: _numRow2.map((k) => _buildKey(k)).toList())),
-        Expanded(
-            child: Row(children: _numRow3.map((k) => _buildKey(k)).toList())),
-      ]);
+class _Key {
+  final String label;
+  final String? value;
+  final _KeyKind kind;
+  final VoidCallback? onTap;
+  final Color? color;
+  final bool white;
+  final int flex;
+  _Key._(this.label, this.kind,
+      {this.value, this.onTap, this.color, this.white = false, this.flex = 1});
+  factory _Key.num(String label, {int flex = 1}) =>
+      _Key._(label, _KeyKind.num, value: label, flex: flex);
+  factory _Key.op(String label, {required String value, int flex = 1}) =>
+      _Key._(label, _KeyKind.op, value: value, flex: flex);
+  factory _Key.fn(String label,
+          {required VoidCallback onTap,
+          Color? color,
+          bool white = false,
+          int flex = 1}) =>
+      _Key._(label, _KeyKind.fn,
+          onTap: onTap, color: color, white: white, flex: flex);
+}
 
-  // ── Tek tuş ───────────────────────────────────────────────────────────────────
+class _KeyButton extends StatelessWidget {
+  final _Key k;
+  final void Function(String) onNumber;
+  final void Function(String) onOp;
+  const _KeyButton(
+      {required this.k, required this.onNumber, required this.onOp});
 
-  Widget _buildKey(String label, {double fontSize = 17}) {
-    final isOp =
-        label == '÷' || label == '×' || label == '-' || label == '+';
-    final isEq = label == '=';
-    final isClear = label == 'AC' || label == 'C';
-    final isSci = !RegExp(r'^[0-9.]$').hasMatch(label) &&
-        !isOp &&
-        !isEq &&
-        !isClear;
-
-    String displayLabel = label;
-    String pressKey = label;
-
-    // Tuş etiketi ↔ basılı değer eşlemeleri
-    const keyMap = {
-      'x²': (display: 'x²', press: '^2'),
-      'xʸ': (display: 'xʸ', press: '^'),
-      '1/x': (display: '1/x', press: '1/('),
-      'mod': (display: 'mod', press: '%'),
-      '|x|': (display: '|x|', press: 'abs('),
-      '10^(': (display: '10ˣ', press: '10^('),
-      'e^(': (display: 'eˣ', press: 'e^('),
-      'log₂': (display: 'log₂', press: 'log₂('),
-      'sin⁻¹': (display: 'sin⁻¹', press: 'sin⁻¹('),
-      'cos⁻¹': (display: 'cos⁻¹', press: 'cos⁻¹('),
-      'tan⁻¹': (display: 'tan⁻¹', press: 'tan⁻¹('),
-      'sin': (display: 'sin', press: 'sin('),
-      'cos': (display: 'cos', press: 'cos('),
-      'tan': (display: 'tan', press: 'tan('),
-      'log': (display: 'log', press: 'log('),
-      'ln': (display: 'ln', press: 'ln('),
-      '√(': (display: '√', press: '√('),
-    };
-
-    final mapped = keyMap[label];
-    if (mapped != null) {
-      displayLabel = mapped.display;
-      pressKey = mapped.press;
-    }
-
-    // Renk şeması
-    Color bg, fg;
-    Gradient? grad;
-
-    if (isEq) {
-      bg = Colors.transparent;
-      fg = Colors.black87;
-      grad = const LinearGradient(
-        colors: [Color(0xFF00E5FF), Color(0xFF6B21F2)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      );
-    } else if (isClear) {
-      bg = const Color(0xFFEF4444).withValues(alpha: 0.15);
-      fg = const Color(0xFFEF4444);
-      grad = null;
-    } else if (isOp) {
-      bg = AppColors.cyan.withValues(alpha: 0.12);
-      fg = AppColors.cyan;
-      grad = null;
-    } else if (isSci) {
-      bg = const Color(0xFF151530);
-      fg = const Color(0xFFBB99FF);
-      grad = null;
-    } else {
-      bg = const Color(0xFF13132A);
-      fg = Colors.white;
-      grad = null;
-    }
-
-    return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.all(3),
-        child: GestureDetector(
-          onTap: () => _press(pressKey),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 80),
-            decoration: BoxDecoration(
-              gradient: grad,
-              color: grad == null ? bg : null,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: isEq
-                    ? Colors.transparent
-                    : Colors.white.withValues(alpha: 0.05),
-                width: 0.5,
-              ),
-              boxShadow: isEq
-                  ? [
-                      BoxShadow(
-                        color: AppColors.cyan.withValues(alpha: 0.25),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      )
-                    ]
-                  : [],
-            ),
-            child: Center(
-              child: Text(
-                displayLabel,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: fg,
-                  fontSize: fontSize,
-                  fontWeight: isEq || isOp ? FontWeight.w700 : FontWeight.w500,
-                  letterSpacing: -0.2,
-                ),
-              ),
+  @override
+  Widget build(BuildContext context) {
+    final base = k.color ??
+        (k.kind == _KeyKind.op
+            ? const Color(0xFFFFF0E0)
+            : k.kind == _KeyKind.fn
+                ? const Color(0xFFF1F3F7)
+                : Colors.white);
+    final textColor = k.white
+        ? Colors.white
+        : (k.kind == _KeyKind.op
+            ? const Color(0xFFFF6A00)
+            : Colors.black87);
+    return Material(
+      color: base,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () {
+          switch (k.kind) {
+            case _KeyKind.num:
+              onNumber(k.value!);
+              break;
+            case _KeyKind.op:
+              onOp(k.value!);
+              break;
+            case _KeyKind.fn:
+              k.onTap?.call();
+              break;
+          }
+        },
+        child: Container(
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: k.kind == _KeyKind.num
+                ? Border.all(color: Colors.grey.shade200)
+                : null,
+          ),
+          child: Text(
+            k.label,
+            style: GoogleFonts.poppins(
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              color: textColor,
             ),
           ),
         ),
@@ -601,275 +829,328 @@ class _CalculatorScreenState extends State<CalculatorScreen>
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  _ExprPreview — Photomath tarzı ifade önizleme
-//  Üst simgeler (², ³), fonksiyon adları ve operatörler farklı boyut/renkle
-//  gösterilir — gerçek LaTeX render'a altyapı hazır.
-// ═══════════════════════════════════════════════════════════════════════════════
-
-class _ExprPreview extends StatelessWidget {
+class _HistoryItem {
   final String expr;
-  const _ExprPreview({required this.expr});
-
-  @override
-  Widget build(BuildContext context) {
-    return RichText(
-      text: TextSpan(children: _tokenize(expr)),
-      maxLines: 2,
-      overflow: TextOverflow.ellipsis,
-      textScaler: TextScaler.noScaling,
-    );
-  }
-
-  List<InlineSpan> _tokenize(String s) {
-    final spans = <InlineSpan>[];
-    int i = 0;
-
-    while (i < s.length) {
-      // Fonksiyon adı
-      final fnMatch =
-          RegExp(r'^(sin⁻¹|cos⁻¹|tan⁻¹|sinh|cosh|tanh|sin|cos|tan|log₂|log|ln|sqrt|abs)')
-              .matchAsPrefix(s, i);
-      if (fnMatch != null) {
-        spans.add(TextSpan(
-          text: fnMatch.group(0),
-          style: const TextStyle(
-            color: Color(0xFFBB99FF),
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-          ),
-        ));
-        i += fnMatch.group(0)!.length;
-        continue;
-      }
-
-      // Üst simge karakterler (², ³, ⁻¹ vs.)
-      if ('²³⁴⁵⁶⁷⁸⁹'.contains(s[i])) {
-        spans.add(WidgetSpan(
-          alignment: PlaceholderAlignment.top,
-          child: Text(
-            s[i],
-            style: const TextStyle(
-              color: AppColors.cyan,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ));
-        i++;
-        continue;
-      }
-
-      // Operatörler
-      if ('×÷+-^%'.contains(s[i])) {
-        spans.add(TextSpan(
-          text: ' ${s[i]} ',
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.70),
-            fontSize: 15,
-            fontWeight: FontWeight.w400,
-          ),
-        ));
-        i++;
-        continue;
-      }
-
-      // Parantezler
-      if ('()'.contains(s[i])) {
-        spans.add(TextSpan(
-          text: s[i],
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.50),
-            fontSize: 15,
-          ),
-        ));
-        i++;
-        continue;
-      }
-
-      // π, e sabitleri
-      if (s[i] == 'π' || s[i] == 'e') {
-        spans.add(TextSpan(
-          text: s[i],
-          style: const TextStyle(
-            color: Color(0xFF10B981),
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-          ),
-        ));
-        i++;
-        continue;
-      }
-
-      // Rakamlar ve nokta
-      spans.add(TextSpan(
-        text: s[i],
-        style: TextStyle(
-          color: Colors.white.withValues(alpha: 0.55),
-          fontSize: 15,
-          fontWeight: FontWeight.w300,
-        ),
-      ));
-      i++;
-    }
-
-    return spans;
-  }
+  final String latex;
+  final String result;
+  const _HistoryItem(
+      {required this.expr, required this.latex, required this.result});
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  İfade Ayrıştırıcı (Recursive Descent Parser)
+//  _Engine — ifade ayrıştır, hesapla, LaTeX'e çevir
 // ═══════════════════════════════════════════════════════════════════════════════
+
+class _Engine {
+  // Klavye tuşlarının ürettiği fonksiyon adları (backspace bunları bir bütün siler)
+  static const functions = [
+    'asin(', 'acos(', 'atan(', 'sinh(', 'cosh(', 'tanh(',
+    'sin(', 'cos(', 'tan(', 'log(', 'ln(', 'exp(', 'sqrt(', 'abs(',
+    'gcd(', 'lcm(', 'mod(', 'min(', 'max(', 'nPr(', 'nCr(',
+    'floor(', 'ceil(', 'round(', 'sign(', 'logb(', 'root(',
+    'sum(', 'mean(', 'median(', 'var(', 'stdev(', 'count(', 'range(',
+  ];
+
+  static String format(double v) {
+    if (v.isNaN) return 'NaN';
+    if (v.isInfinite) return v > 0 ? '∞' : '-∞';
+    if (v == v.roundToDouble() && v.abs() < 1e13) return v.toInt().toString();
+    var s = v.toStringAsFixed(8);
+    s = s.replaceFirst(RegExp(r'0+$'), '');
+    s = s.replaceFirst(RegExp(r'\.$'), '');
+    return s;
+  }
+
+  static double evaluate(String expr,
+      {bool isDeg = true, Map<String, double> variables = const {}}) {
+    return _Parser(expr, isDeg: isDeg, vars: variables).parse();
+  }
+
+  // Basit LaTeX dönüşümü: sqrt(...) → \sqrt{...}, ^2 → ^{2}, * → \cdot, / → \frac{}{}
+  static String toLatex(String expr) {
+    if (expr.isEmpty) return '';
+    var s = expr;
+    s = s.replaceAllMapped(RegExp(r'sqrt\(([^()]*)\)'),
+        (m) => '\\sqrt{${m[1]}}');
+    s = s.replaceAllMapped(RegExp(r'abs\(([^()]*)\)'),
+        (m) => '\\left|${m[1]}\\right|');
+    s = s.replaceAllMapped(RegExp(r'\^(\d+(?:\.\d+)?)'), (m) => '^{${m[1]}}');
+    s = s.replaceAll('*', '\\cdot ');
+    s = s.replaceAll('/', '\\div ');
+    s = s.replaceAll('π', '\\pi ');
+    s = s.replaceAllMapped(RegExp(r'\b(sin|cos|tan|log|ln|exp)\('),
+        (m) => '\\${m[1]}(');
+    s = s.replaceAllMapped(RegExp(r'\b(asin|acos|atan)\('),
+        (m) => '\\${m[1]!.substring(1)}^{-1}(');
+    return s;
+  }
+}
 
 class _Parser {
   final String _s;
   final bool isDeg;
+  final Map<String, double> vars;
   int _i = 0;
 
-  _Parser(this._s, {required this.isDeg});
+  _Parser(String s, {required this.isDeg, this.vars = const {}})
+      : _s = s.replaceAll(' ', '');
 
-  double evaluate() => _addSub();
+  double parse() {
+    final v = _expr();
+    if (_i != _s.length) {
+      throw FormatException('Unexpected at $_i: ${_s.substring(_i)}');
+    }
+    return v;
+  }
 
-  double _addSub() {
-    double v = _mulDiv();
-    while (_i < _s.length) {
-      if (_ch == '+') {
-        _i++;
-        v += _mulDiv();
-      } else if (_ch == '-') {
-        _i++;
-        v -= _mulDiv();
+  double _expr() {
+    var v = _term();
+    while (_i < _s.length && (_ch == '+' || _ch == '-')) {
+      final op = _s[_i++];
+      final r = _term();
+      v = op == '+' ? v + r : v - r;
+    }
+    return v;
+  }
+
+  double _term() {
+    var v = _factor();
+    while (_i < _s.length &&
+        (_ch == '*' || _ch == '/' || _ch == '%' ||
+            // implicit: 2π, 3x, 4(, 2sin(
+            (_isImplicit()))) {
+      if (_isImplicit()) {
+        v *= _factor();
+        continue;
+      }
+      final op = _s[_i++];
+      final r = _factor();
+      if (op == '*') {
+        v *= r;
+      } else if (op == '/') {
+        v = r == 0 ? double.nan : v / r;
       } else {
-        break;
+        v = v % r;
       }
     }
     return v;
   }
 
-  double _mulDiv() {
-    double v = _pow();
-    while (_i < _s.length) {
-      if (_ch == '*') {
-        _i++;
-        v *= _pow();
-      } else if (_ch == '/') {
-        _i++;
-        final d = _pow();
-        v = d == 0 ? double.infinity : v / d;
-      } else if (_ch == '%') {
-        _i++;
-        v = v % _pow();
-      } else {
-        break;
-      }
-    }
-    return v;
+  bool _isImplicit() {
+    if (_i >= _s.length) return false;
+    final c = _ch;
+    return c == '(' ||
+        c == 'π' ||
+        c == 'x' ||
+        c == 'e' ||
+        RegExp(r'[a-z]').hasMatch(c);
   }
 
-  double _pow() {
-    double b = _factorial();
-    if (_i < _s.length && _ch == '^') {
+  double _factor() {
+    var b = _unary();
+    while (_i < _s.length && _ch == '^') {
       _i++;
-      b = math.pow(b, _pow()).toDouble();
+      final e = _unary();
+      b = math.pow(b, e).toDouble();
+    }
+    // postfix !
+    while (_i < _s.length && _ch == '!') {
+      _i++;
+      final n = b.toInt();
+      if (n < 0 || n > 20) return double.nan;
+      var f = 1;
+      for (var k = 2; k <= n; k++) { f *= k; }
+      b = f.toDouble();
     }
     return b;
   }
 
-  double _factorial() {
-    double v = _unary();
-    while (_i < _s.length && _ch == '!') {
-      _i++;
-      final n = v.toInt();
-      if (n < 0 || n > 20) return double.nan;
-      int f = 1;
-      for (int k = 2; k <= n; k++) { f *= k; }
-      v = f.toDouble();
-    }
-    return v;
-  }
-
   double _unary() {
-    _ws();
     if (_i < _s.length && _ch == '-') {
       _i++;
-      return -_func();
+      return -_unary();
     }
     if (_i < _s.length && _ch == '+') _i++;
-    return _func();
+    return _atom();
   }
 
-  static const _fns = [
-    'sin⁻¹', 'cos⁻¹', 'tan⁻¹', 'sinh', 'cosh', 'tanh',
-    'sin', 'cos', 'tan', 'log₂', 'log', 'ln', 'sqrt', 'abs',
-  ];
+  double _atom() {
+    if (_i >= _s.length) throw const FormatException('EOF');
+    final c = _ch;
 
-  double _func() {
-    _ws();
-    for (final fn in _fns) {
+    if (c == '(') {
+      _i++;
+      final v = _expr();
+      if (_i < _s.length && _ch == ')') _i++;
+      return v;
+    }
+    if (c == 'π') {
+      _i++;
+      return math.pi;
+    }
+    if (c == 'e' && !_peekFunc()) {
+      _i++;
+      return math.e;
+    }
+    if (c == 'x') {
+      _i++;
+      final v = vars['x'];
+      if (v == null) throw const FormatException('x not defined');
+      return v;
+    }
+    if (RegExp(r'[0-9.]').hasMatch(c)) {
+      final st = _i;
+      while (_i < _s.length && RegExp(r'[0-9.]').hasMatch(_ch)) { _i++; }
+      return double.parse(_s.substring(st, _i));
+    }
+    // Çok argümanlı fonksiyonlar
+    const multiArg = [
+      'gcd','lcm','mod','min','max','nPr','nCr',
+      'floor','ceil','round','sign','logb','root',
+      'sum','mean','median','var','stdev','count','range',
+    ];
+    for (final fn in multiArg) {
+      if (_s.startsWith(fn, _i) &&
+          _i + fn.length < _s.length &&
+          _s[_i + fn.length] == '(') {
+        _i += fn.length + 1; // ad + '('
+        final args = <double>[];
+        if (_ch != ')') {
+          args.add(_expr());
+          while (_i < _s.length && _ch == ',') {
+            _i++;
+            args.add(_expr());
+          }
+        }
+        if (_i < _s.length && _ch == ')') _i++;
+        return _applyMulti(fn, args);
+      }
+    }
+    // Tek argümanlı fonksiyonlar
+    for (final fn in const [
+      'asin','acos','atan','sinh','cosh','tanh',
+      'sin','cos','tan','log','ln','exp','sqrt','abs',
+    ]) {
       if (_s.startsWith(fn, _i)) {
         _i += fn.length;
-        _ws();
         double arg;
         if (_i < _s.length && _ch == '(') {
           _i++;
-          arg = _addSub();
+          arg = _expr();
           if (_i < _s.length && _ch == ')') _i++;
         } else {
-          arg = _prim();
+          arg = _atom();
         }
         return _apply(fn, arg);
       }
     }
-    return _prim();
+    throw FormatException('Unexpected "$c" at $_i');
+  }
+
+  bool _peekFunc() {
+    // 'exp' gibi fonksiyon kontrolü — 'e' tek başınaysa sabit, 'exp' ise fonksiyon
+    return _s.startsWith('exp', _i);
   }
 
   double _apply(String fn, double x) {
     final r = isDeg ? math.pi / 180 : 1.0;
     final d = isDeg ? 180 / math.pi : 1.0;
     switch (fn) {
-      case 'sin': return math.sin(x * r);
-      case 'cos': return math.cos(x * r);
-      case 'tan': return math.tan(x * r);
-      case 'sin⁻¹': return math.asin(x) * d;
-      case 'cos⁻¹': return math.acos(x) * d;
-      case 'tan⁻¹': return math.atan(x) * d;
+      case 'sin':  return math.sin(x * r);
+      case 'cos':  return math.cos(x * r);
+      case 'tan':  return math.tan(x * r);
+      case 'asin': return math.asin(x) * d;
+      case 'acos': return math.acos(x) * d;
+      case 'atan': return math.atan(x) * d;
       case 'sinh': return (math.exp(x) - math.exp(-x)) / 2;
       case 'cosh': return (math.exp(x) + math.exp(-x)) / 2;
-      case 'tanh': final e = math.exp(2 * x); return (e - 1) / (e + 1);
-      case 'log': return math.log(x) / math.ln10;
-      case 'log₂': return math.log(x) / math.log(2);
-      case 'ln': return math.log(x);
+      case 'tanh':
+        final e = math.exp(2 * x);
+        return (e - 1) / (e + 1);
+      case 'log':  return math.log(x) / math.ln10;
+      case 'ln':   return math.log(x);
+      case 'exp':  return math.exp(x);
       case 'sqrt': return math.sqrt(x);
-      case 'abs': return x.abs();
-      default: return x;
+      case 'abs':  return x.abs();
+      default:     return x;
     }
   }
 
-  double _prim() {
-    _ws();
-    if (_i >= _s.length) return 0;
-    if (_ch == '(') {
-      _i++;
-      final v = _addSub();
-      if (_i < _s.length && _ch == ')') _i++;
-      return v;
+  double _applyMulti(String fn, List<double> a) {
+    if (a.isEmpty) return double.nan;
+    int ii(double v) => v.round();
+    int g(int x, int y) => y == 0 ? x.abs() : g(y, x % y);
+    double sortNth(List<double> list, int n) {
+      final s = [...list]..sort();
+      return s[n];
     }
-    // π sabiti
-    if (_ch == 'π') {
-      _i++;
-      return math.pi;
-    }
-    // Rakam
-    final st = _i;
-    while (_i < _s.length && (_isDigit(_ch) || _ch == '.')) { _i++; }
-    if (_i == st) throw FormatException('Unexpected char at $_i');
-    return double.parse(_s.substring(st, _i));
-  }
 
-  void _ws() {
-    while (_i < _s.length && _ch == ' ') { _i++; }
+    switch (fn) {
+      case 'gcd':
+        return a.map(ii).reduce((x, y) => g(x.abs(), y.abs())).toDouble();
+      case 'lcm':
+        return a.map(ii).reduce((x, y) {
+          final gg = g(x.abs(), y.abs());
+          return gg == 0 ? 0 : (x.abs() ~/ gg) * y.abs();
+        }).toDouble();
+      case 'mod':
+        if (a.length < 2 || a[1] == 0) return double.nan;
+        return a[0] % a[1];
+      case 'min': return a.reduce(math.min);
+      case 'max': return a.reduce(math.max);
+      case 'nPr':
+        if (a.length < 2) return double.nan;
+        final n = ii(a[0]), r = ii(a[1]);
+        if (n < 0 || r < 0 || r > n) return double.nan;
+        var p = 1;
+        for (var k = 0; k < r; k++) { p *= (n - k); }
+        return p.toDouble();
+      case 'nCr':
+        if (a.length < 2) return double.nan;
+        final n = ii(a[0]), r = ii(a[1]);
+        if (n < 0 || r < 0 || r > n) return double.nan;
+        final rr = math.min(r, n - r);
+        var num = 1, den = 1;
+        for (var k = 0; k < rr; k++) {
+          num *= (n - k);
+          den *= (k + 1);
+        }
+        return (num / den);
+      case 'floor': return a[0].floorToDouble();
+      case 'ceil':  return a[0].ceilToDouble();
+      case 'round': return a[0].roundToDouble();
+      case 'sign':  return a[0] == 0 ? 0 : (a[0] > 0 ? 1 : -1);
+      case 'logb':
+        if (a.length < 2 || a[0] <= 0 || a[0] == 1 || a[1] <= 0) {
+          return double.nan;
+        }
+        return math.log(a[1]) / math.log(a[0]);
+      case 'root':
+        if (a.length < 2 || a[0] == 0) return double.nan;
+        return math.pow(a[1], 1 / a[0]).toDouble();
+      case 'sum':
+        return a.reduce((x, y) => x + y);
+      case 'mean':
+        return a.reduce((x, y) => x + y) / a.length;
+      case 'median':
+        final s = [...a]..sort();
+        final n = s.length;
+        return n.isOdd ? s[n ~/ 2] : (s[n ~/ 2 - 1] + s[n ~/ 2]) / 2;
+      case 'var':
+        final m = a.reduce((x, y) => x + y) / a.length;
+        return a.map((v) => (v - m) * (v - m)).reduce((x, y) => x + y) /
+            a.length;
+      case 'stdev':
+        final m = a.reduce((x, y) => x + y) / a.length;
+        final v = a.map((z) => (z - m) * (z - m)).reduce((x, y) => x + y) /
+            a.length;
+        return math.sqrt(v);
+      case 'count': return a.length.toDouble();
+      case 'range':
+        return sortNth(a, a.length - 1) - sortNth(a, 0);
+      default: return double.nan;
+    }
   }
 
   String get _ch => _s[_i];
-  bool _isDigit(String c) => RegExp(r'[0-9]').hasMatch(c);
 }
