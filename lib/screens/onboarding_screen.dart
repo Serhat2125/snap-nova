@@ -653,9 +653,12 @@ class _GradePage extends StatelessWidget {
   static const _grades = [
     {'label': 'İlkokul', 'icon': Icons.backpack_rounded, 'color': Color(0xFF22C55E)},
     {'label': 'Ortaokul', 'icon': Icons.school_rounded, 'color': Color(0xFF3B82F6)},
-    {'label': 'Lise', 'icon': Icons.auto_stories_rounded, 'color': Color(0xFFA78BFA)},
+    {'label': 'LGS Hazırlık', 'icon': Icons.star_rounded, 'color': Color(0xFF06B6D4)},
+    {'label': 'Lise 9-10', 'icon': Icons.auto_stories_rounded, 'color': Color(0xFFA78BFA)},
+    {'label': 'TYT Hazırlık', 'icon': Icons.emoji_events_rounded, 'color': Color(0xFFF59E0B)},
+    {'label': 'AYT Hazırlık', 'icon': Icons.emoji_events_rounded, 'color': Color(0xFFEF4444)},
     {'label': 'Üniversite', 'icon': Icons.workspace_premium_rounded, 'color': Color(0xFFEC4899)},
-    {'label': 'Sınava Hazırlanıyorum', 'icon': Icons.emoji_events_rounded, 'color': Color(0xFFF59E0B)},
+    {'label': 'KPSS Hazırlık', 'icon': Icons.badge_rounded, 'color': Color(0xFF0EA5E9)},
     {'label': 'Diğer', 'icon': Icons.more_horiz_rounded, 'color': Color(0xFF64748B)},
   ];
 

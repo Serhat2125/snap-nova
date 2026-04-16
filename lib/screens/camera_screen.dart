@@ -317,7 +317,7 @@ class _CameraScreenState extends State<CameraScreen>
                     Widget child;
                     switch (i) {
                       case 0: child = const HistoryScreen(); break;
-                      case 2: child = const AcademicPlanner(); break;
+                      case 2: child = const LibraryLanding(); break;
                       case 3: child = const ProfileScreen(); break;
                       default: return;
                     }
@@ -450,7 +450,7 @@ class _NavShell extends StatelessWidget {
     Widget newChild;
     switch (i) {
       case 0: newChild = const HistoryScreen(); break;
-      case 2: newChild = const AcademicPlanner(); break;
+      case 2: newChild = const LibraryLanding(); break;
       case 3: newChild = const ProfileScreen(); break;
       default: return;
     }

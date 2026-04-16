@@ -9,17 +9,117 @@ import 'package:http/http.dart' as http;
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class GeminiService {
-  static const _apiKey  = 'AIzaSyB4C09UA7HDQz2W1TW3bkmpD5t8CtLIjpw';
+  static const _apiKey  = 'AIzaSyADt3qL4abtthn09HymDQFwwIfYXVe_URs';
   static const _model   = 'gemini-2.5-flash';
   static const _baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
   static const _tag     = '🤖 [GeminiService]';
 
+  // ── OpenAI yedek (Gemini kotası dolunca otomatik devreye girer) ──────────
+  // NOT: Anahtarı bu dosyaya ekleme (GitHub secret scanning engeller). Lokal
+  // geliştirmede aşağıdaki placeholder'ı kendi anahtarınla değiştir, commit etme.
+  static const _openaiKey = '';
+  static const _openaiUrl = 'https://api.openai.com/v1/chat/completions';
+  static const _openaiTextModel = 'gpt-4o-mini';
+  static const _openaiVisionModel = 'gpt-4o';
 
   static void _log(String msg) {
     if (kDebugMode) debugPrint('$_tag $msg');
   }
 
-  // ── Metin çağrısı — Google Gemini (thinking kapalı, hızlı) ────────────────
+  // ── OpenAI metin çağrısı ──────────────────────────────────────────────────
+  static Future<String> _callOpenAI({
+    required String systemPrompt,
+    required String userMessage,
+    int maxTokens = 2048,
+    double temperature = 0.3,
+    Duration timeout = const Duration(seconds: 60),
+  }) async {
+    _log('OpenAI isteği → model=$_openaiTextModel');
+    try {
+      final response = await http.post(
+        Uri.parse(_openaiUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_openaiKey',
+        },
+        body: jsonEncode({
+          'model': _openaiTextModel,
+          'messages': [
+            {'role': 'system', 'content': systemPrompt},
+            {'role': 'user', 'content': userMessage},
+          ],
+          'max_tokens': maxTokens,
+          'temperature': temperature,
+        }),
+      ).timeout(timeout);
+      _log('OpenAI HTTP ${response.statusCode}');
+      if (response.statusCode == 200) {
+        final j = jsonDecode(utf8.decode(response.bodyBytes))
+            as Map<String, dynamic>;
+        final text =
+            j['choices']?[0]?['message']?['content'] as String?;
+        if (text == null || text.trim().isEmpty) {
+          throw GeminiException.blurryImage();
+        }
+        return text;
+      }
+      _handleError(response);
+    } on TimeoutException {
+      throw GeminiException._serverTimeout(
+          'OpenAI timeout (${timeout.inSeconds}s)');
+    }
+  }
+
+  // ── OpenAI görsel çağrısı ────────────────────────────────────────────────
+  static Future<String> _callOpenAIWithImage({
+    required String prompt,
+    required String base64Image,
+    required String mimeType,
+    int maxTokens = 2048,
+    double temperature = 0.3,
+  }) async {
+    _log('OpenAI Vision isteği → model=$_openaiVisionModel');
+    final response = await http.post(
+      Uri.parse(_openaiUrl),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $_openaiKey',
+      },
+      body: jsonEncode({
+        'model': _openaiVisionModel,
+        'messages': [
+          {
+            'role': 'user',
+            'content': [
+              {'type': 'text', 'text': prompt},
+              {
+                'type': 'image_url',
+                'image_url': {
+                  'url': 'data:$mimeType;base64,$base64Image',
+                },
+              },
+            ],
+          },
+        ],
+        'max_tokens': maxTokens,
+        'temperature': temperature,
+      }),
+    ).timeout(const Duration(seconds: 90));
+    _log('OpenAI Vision HTTP ${response.statusCode}');
+    if (response.statusCode == 200) {
+      final j = jsonDecode(utf8.decode(response.bodyBytes))
+          as Map<String, dynamic>;
+      final text =
+          j['choices']?[0]?['message']?['content'] as String?;
+      if (text == null || text.trim().isEmpty) {
+        throw GeminiException.blurryImage();
+      }
+      return text;
+    }
+    _handleError(response);
+  }
+
+  // ── Metin çağrısı — Gemini; kota dolunca OpenAI'a fallback ──────────────
   static Future<String> _callGemini({
     required String systemPrompt,
     required String userMessage,
@@ -45,7 +145,6 @@ class GeminiService {
           'generationConfig': {
             'maxOutputTokens': maxTokens,
             'temperature': temperature,
-            // Gemini 2.5 Flash'ın düşünme özelliğini kapat — hızlı cevap için
             'thinkingConfig': {'thinkingBudget': 0},
           },
         }),
@@ -64,14 +163,32 @@ class GeminiService {
         return text;
       }
 
+      // Gemini 429 (kota) veya 5xx → OpenAI'a fallback dene
+      if (response.statusCode == 429 || response.statusCode >= 500) {
+        _log('Gemini kota/hata → OpenAI fallback');
+        return _callOpenAI(
+          systemPrompt: systemPrompt,
+          userMessage: userMessage,
+          maxTokens: maxTokens,
+          temperature: temperature,
+          timeout: timeout,
+        );
+      }
+
       _handleError(response);
     } on TimeoutException {
-      throw GeminiException._serverTimeout(
-          'Gemini timeout (${timeout.inSeconds}s)');
+      _log('Gemini timeout → OpenAI fallback');
+      return _callOpenAI(
+        systemPrompt: systemPrompt,
+        userMessage: userMessage,
+        maxTokens: maxTokens,
+        temperature: temperature,
+        timeout: timeout,
+      );
     }
   }
 
-  // ── Google AI API çağrısı (görsel) ─────────────────────────────────────────
+  // ── Görsel çağrısı — Gemini Vision; kota dolunca OpenAI Vision'a fallback
   static Future<String> _callGeminiWithImage({
     required String prompt,
     required String base64Image,
@@ -80,6 +197,41 @@ class GeminiService {
     double temperature = 0.3,
   }) async {
     final url = '$_baseUrl/$_model:generateContent?key=$_apiKey';
+    try {
+      return await _callGeminiVisionInner(
+        url: url,
+        prompt: prompt,
+        base64Image: base64Image,
+        mimeType: mimeType,
+        maxTokens: maxTokens,
+        temperature: temperature,
+      );
+    } catch (e) {
+      // Kota/sunucu hatası → OpenAI vision'a geç
+      if (e is GeminiException &&
+          (e.type == GeminiErrorType.quotaExceeded ||
+              e.type == GeminiErrorType.serverTimeout)) {
+        _log('Gemini vision kota/hata → OpenAI vision fallback');
+        return _callOpenAIWithImage(
+          prompt: prompt,
+          base64Image: base64Image,
+          mimeType: mimeType,
+          maxTokens: maxTokens,
+          temperature: temperature,
+        );
+      }
+      rethrow;
+    }
+  }
+
+  static Future<String> _callGeminiVisionInner({
+    required String url,
+    required String prompt,
+    required String base64Image,
+    required String mimeType,
+    required int maxTokens,
+    required double temperature,
+  }) async {
     final response = await http.post(
       Uri.parse(url),
       headers: {'Content-Type': 'application/json'},
@@ -510,12 +662,42 @@ $existingSolution''';
      on TimeoutException { throw GeminiException.noInternet(); }
 
     final modeInstr = switch (solutionType) {
+      // BASİT ÇÖZ — en kısa, yalnızca cevap + tek satırlık açıklama
+      'Basit Çöz' =>
+          '[BASİT MOD — ULTRA KISA]\n'
+          'Soruyu en kısa yoldan çöz. Kurallar:\n'
+          '• Uzun anlatım, ara adım YOK. Maksimum 3-4 satır.\n'
+          '• Varsa kilit formülü 1 satırda LaTeX ile göster.\n'
+          '• Hesaplama adımları KISA: "2+3=5" şeklinde.\n'
+          '• Son satır: "Sonuç: [kesin cevap]"\n'
+          '• Konu anlatımı, "neden böyle", tavsiye YAZMA.',
+
+      // ADIM ADIM ÇÖZ — detaylı, her adım net etiketli
       'Adım Adım Çöz' =>
-        'Soruyu adım adım çöz. Her adımı "Adım N:" başlığıyla yaz. Son satırda "Sonuç:" ile bitir.',
-      'AI Öğretmen'   =>
-        'Sokratik yöntemle rehberlik et. Doğrudan cevap verme; ipuçları ve sorularla öğrenciyi yönlendir.',
-      _               =>
-        'Soruyu kısa ve net çöz. Formülleri LaTeX ile yaz. Son satırda "Sonuç:" ile bitir.',
+          '[ADIM ADIM MOD — ORTA DETAY]\n'
+          'Soruyu detaylı adımlarla çöz. Kurallar:\n'
+          '• "Verilenler:" kısmını ilk satıra yaz (kısaca).\n'
+          '• Her adımı "Adım 1:", "Adım 2:" başlığıyla ayır.\n'
+          '• Her adımda kullandığın formülü veya kuralı BELİRT.\n'
+          '• Sayısal dersler için LaTeX kullan.\n'
+          '• Ara kontrol yapma, ancak her adım anlaşılır olsun.\n'
+          '• Son satır: "Sonuç: [kesin cevap]"\n'
+          '• Püf Nokta: satırı ekle (1 cümle).',
+
+      // AI ÖĞRETMEN — sohbet tarzı, açıklamalı, sokratik
+      'AI Öğretmen' =>
+          '[ÖĞRETMEN MOD — SOHBET VE REHBERLİK]\n'
+          'Bir öğretmen gibi sıcak, açıklayıcı ve motive edici bir dille anlat. Kurallar:\n'
+          '• "Hadi beraber bakalım..." gibi doğal bir girişle başla.\n'
+          '• Her adımı açıkla AMA öğrenciye de sorular sor: "Sence neden bu formülü seçtik?" → hemen cevabı ver.\n'
+          '• Her adımda hangi KAVRAMın kullanıldığını belirt ve kısa bir analoji/örnek kat.\n'
+          '• En az 1 "Vay canına" bilgisi ya da günlük hayattan bağlantı ekle.\n'
+          '• Sayısal dersler için LaTeX kullan; sözel derslerde akıcı paragraf yaz.\n'
+          '• Son satır: "Sonuç: [kesin cevap]"\n'
+          '• Bitirirken: "Aklına takılan yeri aşağıdan sorabilirsin, birlikte çözeriz! 😊"',
+
+      _ =>
+          'Soruyu kısa ve net çöz. Formülleri LaTeX ile yaz. Son satırda "Sonuç:" ile bitir.',
     };
 
     final systemPrompt = '''$_sysIdentity
@@ -527,12 +709,21 @@ Ders: $subject
 $modeInstr
 Cevabı Türkçe ver.''';
 
+    // Moda göre token bütçesi ve yaratıcılık
+    final (maxTok, temp) = switch (solutionType) {
+      'Basit Çöz'     => (500,  0.1),
+      'Adım Adım Çöz' => (1500, 0.2),
+      'AI Öğretmen'   => (2500, 0.4),
+      'KonuÖzeti'     => (3500, 0.3), // zengin, numaralı yapı
+      _               => (1500, 0.2),
+    };
+
     try {
       final text = await _callGemini(
         systemPrompt: systemPrompt,
         userMessage: question,
-        maxTokens: 2048,
-        temperature: 0.2,
+        maxTokens: maxTok,
+        temperature: temp,
         timeout: const Duration(seconds: 45),
       );
       _log('solveHomework OK: ${text.length} karakter');
@@ -737,7 +928,47 @@ Bunun yerine şu protokolü uygula:
 
     return switch (tab) {
 
-      // ── 1. ADIM ADIM ÇÖZÜM — Chain-of-Thought Expert ────────────────────────
+      // ── BASİT ÇÖZ — ultra kısa, sadece cevap ───────────────────────────────
+      'Basit Çöz' => '''$base
+[MODE: SIMPLE SOLVE — ULTRA MINIMAL]
+Hedef: Görseldeki soruyu en kısa biçimde çöz — anlatım veya ara adım YOK.
+
+KATI KURALLAR:
+• Maksimum 3-4 satır.
+• Varsa sadece 1 satırda kilit formülü LaTeX ile göster.
+• Hesaplama adımları tek satır: "2·3 = 6" şeklinde.
+• Son satır: "Sonuç: [kesin cevap]"
+• Konu anlatımı, "neden", tavsiye, kaynak önerisi YAZMA.''',
+
+      // ── ADIM ADIM ÇÖZ ──────────────────────────────────────────────────────
+      'Adım Adım Çöz' => '''$base
+[MODE: STEP-BY-STEP SOLVER]
+Hedef: Soruyu açık ve takip edilebilir adımlarla çöz.
+
+PROTOKOL:
+• İlk satırda "Verilenler:" kısaca listele.
+• Her adımı "Adım 1:", "Adım 2:" gibi başlıklarla ayır.
+• Her adımda kullandığın FORMÜL / KURAL'ı belirt.
+• Sayısal dersler için LaTeX zorunlu.
+• Son satır: "Sonuç: [kesin cevap]"
+• "Püf Nokta: ..." satırı ekle (1 cümle).''',
+
+      // ── AI ÖĞRETMEN — sohbet + rehberlik ───────────────────────────────────
+      'AI Öğretmen' => '''$base
+[MODE: SOCRATIC TEACHER — Warm & Explanatory]
+Hedef: Bir öğretmen gibi sıcak, diyalog tarzında anlat — öğrencinin düşünmesini sağla.
+
+PROTOKOL:
+• "Hadi beraber bakalım..." gibi doğal bir girişle başla (1-2 cümle).
+• Her adımı "1. Adım:" formatında belirt; araya sohbet cümleleri serpiştir.
+• En az 2 Sokratik soru sor → hemen cevapla:
+  → "Sence bu noktada neden bu formülü seçtik? Çünkü..."
+• 1 ilginç bilgi, tarihsel bağlam veya günlük hayat bağlantısı ekle.
+• Sayısal: LaTeX. Sözel: akıcı paragraf (madde işareti yok).
+• Son satır: "Aklına takılan yeri aşağıdan sorabilirsin, birlikte çözeriz! 😊"
+• Sonuç: [kesin cevap]''',
+
+      // ── (eski) ADIM ADIM ÇÖZÜM — geriye uyumluluk ──────────────────────────
       'Adım Adım Çözüm' => '''$base
 [MODE: CHAIN-OF-THOUGHT EXPERT SOLVER]
 Hedef: Modelin Chain-of-Thought (Düşünce Zinciri) kapasitesini maksimuma çıkarmak.
