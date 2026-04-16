@@ -383,7 +383,7 @@ class LocaleService extends ChangeNotifier {
       'solution_count': 'çözüm',
       'resolve': 'Tekrar Çöz',
       // ── Akademik Ajanda ──
-      'academic_planner': 'Ajanda',
+      'academic_planner': 'Kütüphane',
       'exam_countdown': 'Sınava Geri Sayım',
       'days_left': 'Gün',
       'hours_left': 'Saat',

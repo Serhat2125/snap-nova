@@ -9,71 +9,55 @@ import 'package:http/http.dart' as http;
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class GeminiService {
-  static const _apiKey  = 'AIzaSyCSHZdcVtzXBTyc60EdmexFuLgqazBLFx0';
-  static const _model   = 'gemini-2.0-flash';
+  static const _apiKey  = 'AIzaSyB4C09UA7HDQz2W1TW3bkmpD5t8CtLIjpw';
+  static const _model   = 'gemini-2.5-flash';
   static const _baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
   static const _tag     = '🤖 [GeminiService]';
 
-  // ── DeepSeek (geçici, sadece metin) ────────────────────────────────────────
-  // TODO(prod): Yayın öncesi bu anahtarı kaldır / env değişkenine taşı.
-  static const _deepseekKey = 'sk-2236d5778c104a7b924c5b93d4ed3e86';
-  static const _deepseekModel = 'deepseek-chat';
-  static const _deepseekUrl = 'https://api.deepseek.com/chat/completions';
 
   static void _log(String msg) {
     if (kDebugMode) debugPrint('$_tag $msg');
   }
 
-  // ── Metin çağrısı — DeepSeek (hızlı mod: deepseek-chat, reasoning yok) ─────
+  // ── Metin çağrısı — Google Gemini (thinking kapalı, hızlı) ────────────────
   static Future<String> _callGemini({
     required String systemPrompt,
     required String userMessage,
-    int maxTokens = 1500,
+    int maxTokens = 2048,
     double temperature = 0.3,
     Duration timeout = const Duration(seconds: 90),
   }) async {
-    // Hızlı mod için sıkı sınır: çok uzun düşünmesin, direkt cevap versin.
-    final cappedMax = maxTokens > 1500 ? 1500 : maxTokens;
-    final sysPrompt =
-        '$systemPrompt\n\n[HIZLI MOD] Kısa ve net cevap ver. '
-        'Uzun uzun düşünme ya da iç muhakeme yazma. '
-        'Doğrudan çözüme geç, gereksiz tekrar yapma.';
-
-    _log('DeepSeek isteği → model=$_deepseekModel, maxTokens=$cappedMax');
+    final url = '$_baseUrl/$_model:generateContent?key=$_apiKey';
+    _log('Gemini isteği → model=$_model, maxTokens=$maxTokens');
     try {
       final response = await http.post(
-        Uri.parse(_deepseekUrl),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_deepseekKey',
-        },
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'model': _deepseekModel,
-          'messages': [
-            {'role': 'system', 'content': sysPrompt},
-            {'role': 'user', 'content': userMessage},
+          'contents': [
+            {
+              'role': 'user',
+              'parts': [
+                {'text': '$systemPrompt\n\n$userMessage'},
+              ],
+            },
           ],
-          'max_tokens': cappedMax,
-          'temperature': temperature,
-          'top_p': 0.9,
-          'stream': false,
+          'generationConfig': {
+            'maxOutputTokens': maxTokens,
+            'temperature': temperature,
+            // Gemini 2.5 Flash'ın düşünme özelliğini kapat — hızlı cevap için
+            'thinkingConfig': {'thinkingBudget': 0},
+          },
         }),
       ).timeout(timeout);
 
-      _log('DeepSeek HTTP ${response.statusCode}');
+      _log('Gemini HTTP ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final json = jsonDecode(utf8.decode(response.bodyBytes))
             as Map<String, dynamic>;
-        final choice =
-            (json['choices'] as List?)?.isNotEmpty == true
-                ? json['choices'][0] as Map<String, dynamic>
-                : null;
-        final text = choice?['message']?['content'] as String?;
-        final finishReason = choice?['finish_reason'] as String?;
-        if (finishReason == 'length') {
-          _log('UYARI: yanıt max_tokens sınırında kesildi');
-        }
+        final text = json['candidates']?[0]?['content']?['parts']?[0]
+            ?['text'] as String?;
         if (text == null || text.trim().isEmpty) {
           throw GeminiException.blurryImage();
         }
@@ -82,7 +66,8 @@ class GeminiService {
 
       _handleError(response);
     } on TimeoutException {
-      throw GeminiException._serverTimeout('DeepSeek timeout (${timeout.inSeconds}s)');
+      throw GeminiException._serverTimeout(
+          'Gemini timeout (${timeout.inSeconds}s)');
     }
   }
 
