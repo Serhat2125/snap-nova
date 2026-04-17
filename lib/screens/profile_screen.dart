@@ -10,7 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/locale_service.dart';
-import '../main.dart' show themeService;
+import '../main.dart' show themeService, localeService;
 import 'premium_screen.dart';
 
 // ── Kullanıcı ID yardımcısı (ilk açılışta üret, kalıcı sakla) ──────────────
@@ -320,7 +320,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Arkadaşlarını Davet Et',
+                                    localeService.tr('invite_friends_title'),
                                     style: GoogleFonts.poppins(
                                       fontSize: 15,
                                       fontWeight: FontWeight.w800,
@@ -330,7 +330,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    'İkiniz de premium üyelik kazanın, her şeye sınırsız erişin.',
+                                    localeService.tr('invite_card_subtitle'),
                                     style: GoogleFonts.poppins(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w600,
@@ -1893,7 +1893,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Text(
-                                  'Geleceğin Yapay Zeka Ekosistemi',
+                                  localeService.tr('future_ai_ecosystem'),
                                   style: GoogleFonts.poppins(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
@@ -1915,7 +1915,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Text(
-                            'QuAlsar, modern mühendislik disiplinleri ile yapay zekanın sınırsız potansiyelini bir araya getiren hibrit bir teknoloji platformudur.',
+                            localeService.tr('about_vision_desc'),
                             style: GoogleFonts.poppins(
                               fontSize: 15,
                               color: const Color(0xFF6B7280),
@@ -1926,32 +1926,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const SizedBox(height: 24),
 
                         // ── Esnek Çözüm Metodolojileri ───────────────────
-                        _aboutSectionTitle('⚡', 'Esnek Çözüm Metodolojileri'),
+                        _aboutSectionTitle('⚡', localeService.tr('flexible_solutions')),
                         const SizedBox(height: 12),
                         _aboutFeatureCard(
                           icon: Icons.bolt_rounded,
                           color: const Color(0xFFF59E0B),
-                          title: 'Pratik Çözüm Modu',
-                          desc: 'Zamanın kısıtlı olduğunda, en doğru sonuca en hızlı algoritma ile ulaşmanı sağlar.',
+                          title: localeService.tr('quick_solve_mode'),
+                          desc: localeService.tr('quick_solve_mode_desc'),
                         ),
                         const SizedBox(height: 10),
                         _aboutFeatureCard(
                           icon: Icons.list_alt_rounded,
                           color: const Color(0xFF3B82F6),
-                          title: 'Adım Adım Çözüm Analizi',
-                          desc: 'Her problemin mantıksal katmanlarını parçalara ayırarak, çözümün "nasıl" ve "neden" gerçekleştiğini derinlemesine öğretir.',
+                          title: localeService.tr('step_analysis'),
+                          desc: localeService.tr('step_analysis_desc'),
                         ),
                         const SizedBox(height: 10),
                         _aboutFeatureCard(
                           icon: Icons.school_rounded,
                           color: const Color(0xFFEC4899),
-                          title: 'AI Öğretmen',
-                          desc: 'İsmi öğretmen olsa da, o aslında senin en iyi arkadaşın! Soruları seninle konuşarak, samimi bir dille anlatır. Küçük ipuçlarıyla cevabı senin keşfetmeni sağlar.',
+                          title: localeService.tr('ai_teacher'),
+                          desc: localeService.tr('ai_teacher_desc'),
                         ),
                         const SizedBox(height: 20),
 
                         // ── Dünyanın En Güçlü Zekaları ──────────────────
-                        _aboutSectionTitle('🧠', 'Dünyanın En Güçlü Zekaları'),
+                        _aboutSectionTitle('🧠', localeService.tr('worlds_strongest_ai')),
                         const SizedBox(height: 12),
                         Container(
                           width: double.infinity,
@@ -1974,7 +1974,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                               const SizedBox(height: 10),
                               Text(
-                                'Dünyanın en iyi ve en gelişmiş yapay zeka modellerini sınırsız bir şekilde hizmetine sunar. Bu devasa modellerin birleşen gücüyle, her soruda en kaliteli ve en akıllı yanıtı alacağın bir deneyim seni bekliyor.',
+                                localeService.tr('worlds_strongest_ai_desc'),
                                 style: GoogleFonts.poppins(
                                   fontSize: 14,
                                   color: const Color(0xFF6B7280),
@@ -1987,27 +1987,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const SizedBox(height: 20),
 
                         // ── Aktif Öğrenme ve Pekiştirme ──────────────────
-                        _aboutSectionTitle('🎯', 'Aktif Öğrenme ve Pekiştirme'),
+                        _aboutSectionTitle('🎯', localeService.tr('active_learning')),
                         const SizedBox(height: 12),
                         _aboutFeatureCard(
                           icon: Icons.shuffle_rounded,
                           color: const Color(0xFF8B5CF6),
-                          title: 'Dinamik Soru Varyasyonu',
-                          desc: 'Öğrenilen bilgiyi pekiştirmek için, çözülen her soru için anlık olarak benzer yeni sorular türetilir.',
+                          title: localeService.tr('similar_q'),
+                          desc: localeService.tr('active_learning_desc'),
                         ),
                         const SizedBox(height: 10),
                         _aboutFeatureCard(
                           icon: Icons.style_rounded,
                           color: const Color(0xFF06B6D4),
-                          title: 'Akıllı Bilgi Kartları',
-                          desc: 'Sorulan her soruyu derinlemesine analiz ederek ilgili konunun temel kavramlarını, formüllerini ve en kritik bilgilerini tarar; ardından bu verileri derli toplu maddeler halinde sunan dijital kartlar oluşturur. Böylece konunun özünü tek bakışta kavrar, tekrar etmen gereken noktaları anında görürsün.',
+                          title: localeService.tr('smart_info_cards'),
+                          desc: localeService.tr('smart_info_cards_desc'),
                         ),
                         const SizedBox(height: 10),
                         _aboutFeatureCard(
                           icon: Icons.emoji_events_rounded,
                           color: const Color(0xFF10B981),
-                          title: 'Oyunlaştırılmış Öğrenme',
-                          desc: 'Edinilen bilgiyi interaktif oyunlaştırma teknikleri ile birleştirerek, süreci akılda kalıcı ve rekabetçi bir eğlenceye dönüştürür.',
+                          title: localeService.tr('gamified_learning'),
+                          desc: localeService.tr('gamified_learning_desc'),
                         ),
                         const SizedBox(height: 24),
 
@@ -2021,9 +2021,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           child: Column(
                             children: [
-                              _infoRow('Versiyon', '0.1.0'),
-                              _infoRow('Geliştirici', 'QuAlsar Team'),
-                              _infoRow('AI Model', 'Gemini 2.0 Flash'),
+                              _infoRow(localeService.tr('version'), '0.1.0'),
+                              _infoRow(localeService.tr('developer'), 'QuAlsar Team'),
+                              _infoRow(localeService.tr('ai_model'), 'Gemini 2.0 Flash'),
                             ],
                           ),
                         ),
@@ -2195,7 +2195,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(
-                              '📋 Kullanım Şartları ve Koşulları',
+                              localeService.tr('terms_header'),
                               style: GoogleFonts.poppins(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
@@ -2207,38 +2207,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const SizedBox(height: 16),
 
                         // Giriş
-                        _termsCard(
-                          'QuAlsar\'yı kullanarak, bu şartlara uymayı kabul etmiş sayılırsınız. '
-                          'Bu platform, gelişmiş yapay zeka modellerini kullanarak size akademik destek sunan bir araçtır.',
-                        ),
+                        _termsCard(localeService.tr('terms_intro')),
                         const SizedBox(height: 12),
 
                         // 1. Hizmet Kapsamı
-                        _termsSectionTitle('1', 'Hizmet Kapsamı ve Yapay Zeka Sorumluluğu'),
+                        _termsSectionTitle('1', localeService.tr('service_scope_title')),
                         const SizedBox(height: 8),
-                        _termsCard(
-                          'QuAlsar; ChatGPT-5 Pro, Claude Max, Super Grok ve diğer üçüncü taraf modelleri kullanır. '
-                          'Yapay zeka tarafından üretilen yanıtlar %100 doğruluk garantisi taşımaz. '
-                          'Sunulan çözümler birer "öneri" niteliğindedir; akademik kararlarınızda son sorumluluk kullanıcıya aittir.',
-                        ),
+                        _termsCard(localeService.tr('service_scope_body')),
                         const SizedBox(height: 12),
 
                         // 2. Kullanım Amacı
-                        _termsSectionTitle('2', 'Kullanım Amacı'),
+                        _termsSectionTitle('2', localeService.tr('usage_purpose_title')),
                         const SizedBox(height: 8),
-                        _termsCard(
-                          'Uygulama, öğrenmeyi kolaylaştırmak için tasarlanmıştır. '
-                          'Sınav güvenliğini ihlal edecek şekilde kullanımı veya platformun tersine mühendislik yöntemleriyle kopyalanması kesinlikle yasaktır.',
-                        ),
+                        _termsCard(localeService.tr('usage_purpose_body')),
                         const SizedBox(height: 12),
 
                         // 3. Abonelik ve Ödemeler
-                        _termsSectionTitle('3', 'Abonelik ve Ödemeler'),
+                        _termsSectionTitle('3', localeService.tr('subscription_title')),
                         const SizedBox(height: 8),
-                        _termsCard(
-                          'Premium abonelikler, uygulama içi satın alma kurallarına tabidir. '
-                          'Satın alma işlemi gerçekleştikten sonra iade süreçleri Apple App Store ve Google Play Store politikaları üzerinden yürütülür.',
-                        ),
+                        _termsCard(localeService.tr('subscription_body')),
                         const SizedBox(height: 28),
 
                         // ══════════════════════════════════════════════════
@@ -2253,7 +2240,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(
-                              '🔐 Gizlilik ve Veri Güvenliği Bildirimi',
+                              localeService.tr('privacy_header'),
                               style: GoogleFonts.poppins(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
@@ -2265,42 +2252,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const SizedBox(height: 16),
 
                         // Giriş
-                        _termsCard(
-                          'QuAlsar, gizliliğinize en az başarınız kadar önem verir. '
-                          'Verilerinizin nasıl işlendiğini şeffaf bir şekilde aşağıda açıklıyoruz.',
-                        ),
+                        _termsCard(localeService.tr('privacy_intro')),
                         const SizedBox(height: 12),
 
                         // 1. Toplanan Veriler
-                        _termsSectionTitle('1', 'Toplanan Veriler'),
+                        _termsSectionTitle('1', localeService.tr('data_collection_title')),
                         const SizedBox(height: 8),
-                        _termsCard(
-                          '📸 Görsel Veriler: Çözülmesi için yüklediğiniz fotoğraflar sadece ilgili yapay zeka modeline analiz için gönderilir ve işlem bittikten sonra güvenli bir şekilde işlenir.\n\n'
-                          '📊 Kullanım Verileri: Deneyiminizi iyileştirmek için anonim kullanım istatistikleri toplanabilir.',
-                        ),
+                        _termsCard(localeService.tr('privacy_data_types')),
                         const SizedBox(height: 12),
 
                         // 2. Veri Paylaşımı
-                        _termsSectionTitle('2', 'Veri Paylaşımı ve Güvenliği'),
+                        _termsSectionTitle('2', localeService.tr('data_sharing_title')),
                         const SizedBox(height: 8),
-                        _termsCard(
-                          'QuAlsar, kişisel verilerinizi üçüncü taraflara satmaz. '
-                          'Verileriniz, dünya standartlarındaki ChatGPT-5 Pro ve Gemini Pro API\'ları üzerinden yüksek güvenlikli şifreleme protokolleri ile iletilir.',
-                        ),
+                        _termsCard(localeService.tr('data_sharing_body')),
                         const SizedBox(height: 12),
 
                         // 3. Kullanıcı Hakları
-                        _termsSectionTitle('3', 'Kullanıcı Hakları'),
+                        _termsSectionTitle('3', localeService.tr('user_rights_title')),
                         const SizedBox(height: 8),
-                        _termsCard(
-                          'Dilediğiniz zaman hesabınızı ve yüklediğiniz tüm geçmiş çözümleri uygulama içerisinden kalıcı olarak silme hakkına sahipsiniz.',
-                        ),
+                        _termsCard(localeService.tr('user_rights_body')),
                         const SizedBox(height: 24),
 
                         // Alt bilgi
                         Center(
                           child: Text(
-                            'QuAlsar © 2026 — Tüm hakları saklıdır.',
+                            localeService.tr('copyright_footer'),
                             style: GoogleFonts.poppins(
                               fontSize: 11,
                               color: const Color(0xFF9CA3AF),
@@ -2589,7 +2565,7 @@ class _PremiumBannerState extends State<_PremiumBanner>
                     const SizedBox(height: 14),
                     // Büyük başlık
                     Text(
-                      'Sınırsız Güce Geç',
+                      localeService.tr('unlimited_power_title'),
                       style: GoogleFonts.poppins(
                         fontSize: 22,
                         fontWeight: FontWeight.w900,
@@ -2601,7 +2577,7 @@ class _PremiumBannerState extends State<_PremiumBanner>
                     const SizedBox(height: 6),
                     // Punch subtitle
                     Text(
-                      'Her soru saniyede çözülsün.\nReklamsız, sınırsız, adım adım çözüm.',
+                      localeService.tr('unlimited_power_subtitle'),
                       style: GoogleFonts.poppins(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w500,
@@ -2637,7 +2613,7 @@ class _PremiumBannerState extends State<_PremiumBanner>
                               ],
                             ).createShader(r),
                             child: Text(
-                              '7 Gün Ücretsiz Dene',
+                              localeService.tr('try_7days_free'),
                               style: GoogleFonts.poppins(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w800,
@@ -2714,7 +2690,7 @@ class _PremiumBannerState extends State<_PremiumBanner>
               color: Color(0xFFFFE44D), size: 13),
           const SizedBox(width: 4),
           Text(
-            'SINIRLI TEKLİF',
+            localeService.tr('limited_offer'),
             style: GoogleFonts.poppins(
               fontSize: 9.5,
               fontWeight: FontWeight.w800,
@@ -2896,7 +2872,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
 
             // Sekme 1 — Kullanıcı Adı
             _LabeledCard(
-              label: 'Kullanıcı Adı',
+              label: localeService.tr('username'),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -2908,7 +2884,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                       color: const Color(0xFF1F2937),
                     ),
                     decoration: InputDecoration(
-                      hintText: 'Adınızı yazın',
+                      hintText: localeService.tr('your_name_hint'),
                       hintStyle: GoogleFonts.poppins(
                         color: const Color(0xFF9CA3AF),
                         fontSize: 14,
@@ -2931,7 +2907,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                           behavior: SnackBarBehavior.floating,
                           backgroundColor: const Color(0xFF1F2937),
                           content: Text(
-                            'ID kopyalandı',
+                            localeService.tr('id_copied'),
                             style: GoogleFonts.poppins(fontSize: 13),
                           ),
                           duration: const Duration(seconds: 1),
@@ -2966,7 +2942,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
 
             // Sekme 2 — Durum Mesajı
             _LabeledCard(
-              label: 'Durum Mesajı',
+              label: localeService.tr('status_message_label'),
               child: TextField(
                 controller: _statusCtrl,
                 style: GoogleFonts.poppins(
@@ -2975,7 +2951,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                   color: const Color(0xFF1F2937),
                 ),
                 decoration: InputDecoration(
-                  hintText: 'Bir şeyler yazın…',
+                  hintText: localeService.tr('write_something_hint'),
                   hintStyle: GoogleFonts.poppins(
                     color: const Color(0xFF9CA3AF),
                     fontSize: 14,
@@ -2992,7 +2968,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
 
             // Sekme 3 — Öğrenci Bilgileri
             _LabeledCard(
-              label: 'Öğrenci Bilgileri',
+              label: localeService.tr('student_info'),
               onTap: () async {
                 await Navigator.push(
                   context,
@@ -3006,7 +2982,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 children: [
                   Expanded(
                     child: Text(
-                      _educationLevel ?? 'Eğitim seviyenizi seçin',
+                      _educationLevel ?? localeService.tr('select_education_level'),
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -3051,7 +3027,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 ),
                 alignment: Alignment.center,
                 child: Text(
-                  'Kaydet',
+                  localeService.tr('save'),
                   style: GoogleFonts.poppins(
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
@@ -3132,14 +3108,14 @@ class StudentInfoPage extends StatefulWidget {
 }
 
 class _StudentInfoPageState extends State<StudentInfoPage> {
-  static const _levels = <String>[
-    'İlkokul',
-    'Ortaokul',
-    'Lise',
-    'Üniversite (Lisans)',
-    'Yüksek Lisans',
-    'Doktora',
-  ];
+  List<String> _levels() => [
+        localeService.tr('edu_primary'),
+        localeService.tr('edu_middle'),
+        localeService.tr('edu_high'),
+        localeService.tr('edu_uni'),
+        localeService.tr('edu_master'),
+        localeService.tr('edu_phd'),
+      ];
 
   String? _selected;
 
@@ -3173,7 +3149,7 @@ class _StudentInfoPageState extends State<StudentInfoPage> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Öğrenci Bilgileri',
+          localeService.tr('student_info'),
           style: GoogleFonts.poppins(
             fontSize: 17,
             fontWeight: FontWeight.w700,
@@ -3189,7 +3165,7 @@ class _StudentInfoPageState extends State<StudentInfoPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Şu anki eğitim seviyeniz nedir?',
+              localeService.tr('current_edu_level'),
               style: GoogleFonts.poppins(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
@@ -3199,7 +3175,7 @@ class _StudentInfoPageState extends State<StudentInfoPage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Vereceğiniz bilgilere dayanarak size özel içerik hazırlayacağız.',
+              localeService.tr('edu_info_helper'),
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
@@ -3208,7 +3184,7 @@ class _StudentInfoPageState extends State<StudentInfoPage> {
               ),
             ),
             const SizedBox(height: 22),
-            ..._levels.map((lvl) => Padding(
+            ..._levels().map((lvl) => Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: _LevelTile(
                     label: lvl,
@@ -3330,7 +3306,7 @@ class _InvitePageState extends State<InvitePage> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Arkadaş Davet Etkinliği',
+          localeService.tr('invite_event_title'),
           style: GoogleFonts.poppins(
             fontSize: 17,
             fontWeight: FontWeight.w700,
@@ -3365,7 +3341,7 @@ class _InvitePageState extends State<InvitePage> {
                       children: [
             // Başlık + alt başlık — ortalı
             Text(
-              'Arkadaşlarını davet et',
+              localeService.tr('invite_friends_title'),
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(
                 fontSize: 18,
@@ -3377,7 +3353,7 @@ class _InvitePageState extends State<InvitePage> {
             ),
             const SizedBox(height: 4),
             Text(
-              'İkinizde premium üyelik kazanın.',
+              localeService.tr('invite_both_premium'),
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(
                 fontSize: 18,
@@ -3391,7 +3367,7 @@ class _InvitePageState extends State<InvitePage> {
 
             // Davetlerim başlık — ortalı
             Text(
-              'Davetlerim ($_invitedCount/$_maxInvites)',
+              '${localeService.tr('my_invites_counter')} ($_invitedCount/$_maxInvites)',
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(
                 fontSize: 14,
@@ -3461,7 +3437,7 @@ class _InvitePageState extends State<InvitePage> {
             ),
             const SizedBox(height: 8),
             Text(
-              '%${(_invitedCount * 100 / _maxInvites).round()} tamamlandı',
+              '%${(_invitedCount * 100 / _maxInvites).round()} ${localeService.tr('percent_completed_suffix')}',
               style: GoogleFonts.poppins(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
@@ -3496,7 +3472,7 @@ class _InvitePageState extends State<InvitePage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '1 Aylık Premium Kazandınız!',
+                            localeService.tr('reward_1month_title'),
                             style: GoogleFonts.poppins(
                               fontSize: 15,
                               fontWeight: FontWeight.w900,
@@ -3505,7 +3481,7 @@ class _InvitePageState extends State<InvitePage> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            '3 arkadaşını başarıyla davet ettin.',
+                            localeService.tr('reward_1month_body'),
                             style: GoogleFonts.poppins(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
@@ -3566,7 +3542,7 @@ class _InvitePageState extends State<InvitePage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '1 AY PREMIUM SENI BEKLIYOR',
+                                localeService.tr('offer_1month_title'),
                                 style: GoogleFonts.poppins(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w900,
@@ -3576,7 +3552,7 @@ class _InvitePageState extends State<InvitePage> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                '3 arkadaşın kaydolduğunda ödülün aktif olur.',
+                                localeService.tr('offer_1month_body'),
                                 style: GoogleFonts.poppins(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w700,
@@ -3635,7 +3611,7 @@ class _InvitePageState extends State<InvitePage> {
                       //  SİSTEM NASIL ÇALIŞIR?
                       // ══════════════════════════════════════════════════════
                       Text(
-                        'Nasıl Katılırsın?',
+                        localeService.tr('how_to_join'),
                         style: GoogleFonts.poppins(
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
@@ -3645,27 +3621,23 @@ class _InvitePageState extends State<InvitePage> {
                       const SizedBox(height: 12),
                       _HowItWorksStep(
                         index: 1,
-                        title: 'Davet kodunu paylaş',
-                        body:
-                            'Kendi davet kodunu WhatsApp, SMS veya sosyal medyadan arkadaşlarına gönder.',
+                        title: localeService.tr('share_invite_code'),
+                        body: localeService.tr('invite_step1_desc'),
                       ),
                       _HowItWorksStep(
                         index: 2,
-                        title: 'Arkadaşların uygulamayı indirsin',
-                        body:
-                            'Arkadaşın QuAlsar\'ı indirip kaydolurken davet kodunu girsin. Kodu giren arkadaşın anında 1 hafta ücretsiz premium kazanır.',
+                        title: localeService.tr('friends_download_app'),
+                        body: localeService.tr('invite_step2_desc'),
                       ),
                       _HowItWorksStep(
                         index: 3,
-                        title: '3 arkadaş tamamlansın',
-                        body:
-                            '3 arkadaşın kaydoldukça ikonlar yeşile döner ve çizgi %33, %66, %100 olarak dolar.',
+                        title: localeService.tr('three_friends_complete'),
+                        body: localeService.tr('invite_step3_desc'),
                       ),
                       _HowItWorksStep(
                         index: 4,
-                        title: 'Tam dolunca ödülün aktif olur',
-                        body:
-                            'Çizgi tam dolduğunda hesabına otomatik 1 aylık premium tanımlanır. Ara kazanç yoktur, ödül hedef tamamlandığında verilir.',
+                        title: localeService.tr('reward_active_when_full'),
+                        body: localeService.tr('reward_active_desc'),
                         isLast: true,
                       ),
 
@@ -3698,7 +3670,7 @@ class _InvitePageState extends State<InvitePage> {
                                 ),
                               ),
                               child: Text(
-                                'Önemli Notlar',
+                                localeService.tr('important_notes'),
                                 style: GoogleFonts.poppins(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w800,
@@ -3707,21 +3679,11 @@ class _InvitePageState extends State<InvitePage> {
                               ),
                             ),
                             const SizedBox(height: 12),
+                            _NoteItem(text: localeService.tr('invite_note_1')),
+                            _NoteItem(text: localeService.tr('invite_note_2')),
+                            _NoteItem(text: localeService.tr('invite_note_3')),
                             _NoteItem(
-                              text:
-                                  'Davetlerin sayılabilmesi ve ödüllerin hesabına işlenebilmesi için internet bağlantın açık olmalıdır.',
-                            ),
-                            _NoteItem(
-                              text:
-                                  'Kazandığın ücretsiz premium günleri süresi bittiğinde kendiliğinden yenilenmez.',
-                            ),
-                            _NoteItem(
-                              text:
-                                  'Davet ettiğin arkadaş sonradan hesabını silse de kazandığın premium kuponu geri alınmaz.',
-                            ),
-                            _NoteItem(
-                              text:
-                                  'Arkadaş davet ederek elde ettiğin premium günler ayrıca jeton veya kredi içermez.',
+                              text: localeService.tr('invite_note_4'),
                               isLast: true,
                             ),
                           ],
@@ -3769,7 +3731,7 @@ class _InvitePageState extends State<InvitePage> {
                           color: Colors.white, size: 20),
                       const SizedBox(width: 10),
                       Text(
-                        'Arkadaşlarınla Paylaş',
+                        localeService.tr('share_with_friends'),
                         style: GoogleFonts.poppins(
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
@@ -4087,7 +4049,7 @@ class _InviteSlot extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              'Arkadaş ${index + 1}',
+              '${localeService.tr('friend_slot_label')} ${index + 1}',
               style: GoogleFonts.poppins(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
@@ -4126,7 +4088,7 @@ class _InviteSlot extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Katıldı',
+            localeService.tr('joined'),
             style: GoogleFonts.poppins(
               fontSize: 11,
               fontWeight: FontWeight.w800,

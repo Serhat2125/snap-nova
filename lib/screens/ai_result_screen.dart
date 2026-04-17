@@ -603,12 +603,12 @@ class _AiResultScreenState extends State<AiResultScreen> {
 
       await Share.shareXFiles(
         [XFile(file.path)],
-        text: 'QuAlsar ile çözdüm — sen de dene!',
+        text: localeService.tr('share_invite_text'),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Paylaşım başarısız: $e')),
+        SnackBar(content: Text('${localeService.tr('share_failed')}: $e')),
       );
     }
   }
@@ -1278,7 +1278,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                 const SizedBox(width: 6),
                 _FeedbackButton(
                   emoji: '👍',
-                  label: 'Evet',
+                  label: localeService.tr('yes'),
                   selected: _liked == true,
                   activeColor: const Color(0xFF22C55E),
                   onTap: _onPositiveTapped,

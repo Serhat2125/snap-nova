@@ -441,9 +441,9 @@ class _HWCard extends StatelessWidget {
               style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('İptal', style: TextStyle(color: AppColors.textSecondary))),
+                child: Text(localeService.tr('cancel'), style: const TextStyle(color: AppColors.textSecondary))),
             TextButton(onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Sil', style: TextStyle(color: Color(0xFFEF4444)))),
+                child: Text(localeService.tr('delete'), style: const TextStyle(color: Color(0xFFEF4444)))),
           ],
         ),
       ) ?? false,
@@ -576,7 +576,7 @@ class _HWCard extends StatelessWidget {
                         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                           const Icon(Icons.visibility_rounded, color: AppColors.cyan, size: 14),
                           const SizedBox(width: 6),
-                          Text('AI Çözümünü Gör', style: GoogleFonts.inter(
+                          Text(localeService.tr('view_ai_solution'), style: GoogleFonts.inter(
                             color: AppColors.cyan, fontSize: 11, fontWeight: FontWeight.w700)),
                         ]),
                       ),
@@ -597,7 +597,7 @@ class _HWCard extends StatelessWidget {
                         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                           const Icon(Icons.auto_awesome_rounded, color: AppColors.cyan, size: 14),
                           const SizedBox(width: 6),
-                          Text('AI ile Çöz', style: GoogleFonts.inter(
+                          Text(localeService.tr('solve_with_ai'), style: GoogleFonts.inter(
                             color: AppColors.cyan, fontSize: 11, fontWeight: FontWeight.w700)),
                         ]),
                       ),
@@ -700,7 +700,7 @@ class _AddSheetState extends State<_AddSheet> {
           const SizedBox(height: 12),
 
           // Ders seçimi
-          Text('Ders', style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w600)),
+          Text(localeService.tr('subject_label'), style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
           SizedBox(height: 34, child: ListView.separated(
             scrollDirection: Axis.horizontal,
@@ -757,7 +757,7 @@ class _AddSheetState extends State<_AddSheet> {
           const SizedBox(height: 16),
 
           // ── Aksiyon butonları ────────────────────────────────────────────
-          Text('Nasıl Devam Etmek İstersin?', style: GoogleFonts.inter(
+          Text(localeService.tr('how_to_continue'), style: GoogleFonts.inter(
             color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
 
@@ -771,8 +771,8 @@ class _AddSheetState extends State<_AddSheet> {
               } : null,
               child: _actionBtn(
                 icon: Icons.bookmark_add_rounded,
-                label: 'Kaydet',
-                sub: 'Hatırlatıcı',
+                label: localeService.tr('save'),
+                sub: localeService.tr('reminder'),
                 color: const Color(0xFF6B7280),
                 active: valid,
               ),
@@ -926,7 +926,7 @@ class _SolveSheetState extends State<_SolveSheet> {
                 ),
                 const SizedBox(width: 10),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('AI ile Çöz', style: GoogleFonts.inter(
+                  Text(localeService.tr('solve_with_ai'), style: GoogleFonts.inter(
                     color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
                   Text(widget.record.subject, style: GoogleFonts.inter(
                     color: sc.withValues(alpha: 0.80), fontSize: 10, fontWeight: FontWeight.w600)),
@@ -958,7 +958,7 @@ class _SolveSheetState extends State<_SolveSheet> {
                         child: Row(children: [
                           const Icon(Icons.check_circle_rounded, color: Color(0xFF34D399), size: 16),
                           const SizedBox(width: 8),
-                          Text('AI çözümü hazır!', style: GoogleFonts.inter(
+                          Text(localeService.tr('ai_solution_ready'), style: GoogleFonts.inter(
                             color: const Color(0xFF34D399), fontSize: 12, fontWeight: FontWeight.w700)),
                           const Spacer(),
                           Text(_mode, style: GoogleFonts.inter(
@@ -989,7 +989,7 @@ class _SolveSheetState extends State<_SolveSheet> {
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                     children: [
                       // Soru alanı
-                      Text('Soru', style: GoogleFonts.inter(
+                      Text(localeService.tr('question_label'), style: GoogleFonts.inter(
                         color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 6),
                       TextField(
@@ -997,7 +997,7 @@ class _SolveSheetState extends State<_SolveSheet> {
                         maxLines: 4,
                         style: GoogleFonts.inter(color: Colors.white, fontSize: 13),
                         decoration: InputDecoration(
-                          hintText: 'Ödevi buraya yaz veya düzenle…',
+                          hintText: localeService.tr('homework_text_hint'),
                           hintStyle: GoogleFonts.inter(
                             color: Colors.white.withValues(alpha: 0.28), fontSize: 13),
                           filled: true, fillColor: Colors.white.withValues(alpha: 0.04),
@@ -1013,7 +1013,7 @@ class _SolveSheetState extends State<_SolveSheet> {
                       const SizedBox(height: 14),
 
                       // Çözüm tipi
-                      Text('Çözüm Yöntemi', style: GoogleFonts.inter(
+                      Text(localeService.tr('solution_method'), style: GoogleFonts.inter(
                         color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 8),
                       Row(children: _modes.map((m) {
@@ -1081,7 +1081,7 @@ class _SolveSheetState extends State<_SolveSheet> {
                               : Row(mainAxisSize: MainAxisSize.min, children: [
                                   const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 16),
                                   const SizedBox(width: 8),
-                                  Text('AI ile Çöz', style: GoogleFonts.inter(
+                                  Text(localeService.tr('solve_with_ai'), style: GoogleFonts.inter(
                                     color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800)),
                                 ])),
                         ),
@@ -1182,7 +1182,7 @@ class _SolutionView extends StatelessWidget {
                     child: Row(children: [
                       const Icon(Icons.auto_awesome_rounded, color: AppColors.cyan, size: 13),
                       const SizedBox(width: 6),
-                      Text('${record.solutionType} • AI Çözümü', style: GoogleFonts.inter(
+                      Text('${record.solutionType} • ${localeService.tr('ai_solution_suffix')}', style: GoogleFonts.inter(
                         color: AppColors.cyan, fontSize: 10, fontWeight: FontWeight.w700)),
                     ]),
                   ),

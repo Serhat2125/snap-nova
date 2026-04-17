@@ -654,7 +654,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   ),
                   child: Center(
                     child: Text(
-                      'Devam et',
+                      localeService.tr('continue_btn'),
                       style: GoogleFonts.poppins(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
@@ -706,7 +706,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   ),
                 ),
                 Text(
-                  'Adres Bilgileri',
+                  localeService.tr('address_info'),
                   style: GoogleFonts.poppins(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -715,26 +715,26 @@ class _PremiumScreenState extends State<PremiumScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Fatura adresinizi güncelleyin',
+                  localeService.tr('update_billing_address'),
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     color: const Color(0xFF6B7280),
                   ),
                 ),
                 const SizedBox(height: 16),
-                _addressField('Ad Soyad'),
+                _addressField(localeService.tr('full_name')),
                 const SizedBox(height: 10),
-                _addressField('Adres'),
+                _addressField(localeService.tr('address_hint')),
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    Expanded(child: _addressField('Şehir')),
+                    Expanded(child: _addressField(localeService.tr('city_hint'))),
                     const SizedBox(width: 10),
-                    Expanded(child: _addressField('Posta Kodu')),
+                    Expanded(child: _addressField(localeService.tr('postal_code_hint'))),
                   ],
                 ),
                 const SizedBox(height: 10),
-                _addressField('Ülke'),
+                _addressField(localeService.tr('country_hint')),
                 const SizedBox(height: 20),
                 GestureDetector(
                   onTap: () => Navigator.pop(ctx),
@@ -749,7 +749,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                     ),
                     child: Center(
                       child: Text(
-                        'Kaydet',
+                        localeService.tr('save'),
                         style: GoogleFonts.poppins(
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
@@ -816,9 +816,19 @@ class _PremiumScreenState extends State<PremiumScreen> {
         : _selectedPlan == 1
             ? DateTime(now.year, now.month + 3, now.day)
             : DateTime(now.year + 1, now.month, now.day);
-    const months = [
-      'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz',
-      'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara',
+    final months = [
+      localeService.tr('month_jan_short'),
+      localeService.tr('month_feb_short'),
+      localeService.tr('month_mar_short'),
+      localeService.tr('month_apr_short'),
+      localeService.tr('month_may_short'),
+      localeService.tr('month_jun_short'),
+      localeService.tr('month_jul_short'),
+      localeService.tr('month_aug_short'),
+      localeService.tr('month_sep_short'),
+      localeService.tr('month_oct_short'),
+      localeService.tr('month_nov_short'),
+      localeService.tr('month_dec_short'),
     ];
     final renewalDate = '${next.day} ${months[next.month - 1]} ${next.year}';
 
@@ -985,7 +995,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                             ),
                           ),
                           Text(
-                            '12 Haz 2026',
+                            '12 ${localeService.tr('month_jun_short')} 2026',
                             style: GoogleFonts.poppins(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../main.dart' show localeService;
 import '../theme/app_theme.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -229,14 +230,14 @@ class _WriteQuestionScreenState extends State<WriteQuestionScreen> {
                 color: Colors.white, size: 18),
           ),
           const SizedBox(width: 10),
-          const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Soruyu Yaz',
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Soruyu Yaz',
                 style: TextStyle(
                     color: Colors.white,
                     fontSize: 15,
                     fontWeight: FontWeight.w700)),
-            Text('Sözlü soru & AI çözüm',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 10)),
+            Text(localeService.tr('voice_question_ai'),
+                style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
           ]),
         ]),
       );
@@ -272,9 +273,9 @@ class _WriteQuestionScreenState extends State<WriteQuestionScreen> {
                 showCursor: true,
                 maxLines: null,
                 style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.4),
-                decoration: const InputDecoration(
-                  hintText: 'Sorunuzu yazın...',
-                  hintStyle: TextStyle(
+                decoration: InputDecoration(
+                  hintText: localeService.tr('type_question'),
+                  hintStyle: const TextStyle(
                       color: Color(0xFF4A4A68), fontSize: 13),
                   border: InputBorder.none,
                   isDense: true,
@@ -633,9 +634,9 @@ class _MiuiKeyboardState extends State<_MiuiKeyboard> {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
               ),
-              child: const Center(
-                child: Text('boşluk',
-                    style: TextStyle(
+              child: Center(
+                child: Text(localeService.tr('space_key'),
+                    style: const TextStyle(
                         color: Color(0xFF888899),
                         fontSize: 12,
                         fontWeight: FontWeight.w500)),

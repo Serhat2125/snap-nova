@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:camera/camera.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -186,31 +187,31 @@ class _GlobalSidebarOverlayState extends State<_GlobalSidebarOverlay>
       items: [
         // ── 1. Profilim ana başlık ────────────────────────────────────────
         SidebarItem(
-          title: 'Profilim',
+          title: localeService.tr('my_profile'),
           color: _kBlue,
           pageBuilder: (_) => const ProfileScreen(),
           openFullscreen: () => _push(const ProfileScreen()),
           children: [
             SidebarItem(
-              title: 'Sınırsıza Geç',
+              title: localeService.tr('upgrade_unlimited'),
               color: _kPurple,
               pageBuilder: (_) => const PremiumScreen(),
               openFullscreen: () => _push(const PremiumScreen()),
             ),
             SidebarItem(
-              title: 'Arkadaşlarını Davet Et',
+              title: localeService.tr('invite_friends_short'),
               color: _kPink,
               pageBuilder: (_) => const InvitePage(),
               openFullscreen: () => _push(const InvitePage()),
             ),
             SidebarItem(
-              title: 'Dil Seçimi',
+              title: localeService.tr('language_selection'),
               color: _kBlue,
               pageBuilder: (_) => const ProfileScreen(),
               openFullscreen: () => _push(const ProfileScreen()),
             ),
             SidebarItem(
-              title: 'Görünüm',
+              title: localeService.tr('appearance'),
               color: _kPurple,
               pageBuilder: (_) => const ProfileScreen(),
               openFullscreen: () => _push(const ProfileScreen()),
@@ -220,13 +221,13 @@ class _GlobalSidebarOverlayState extends State<_GlobalSidebarOverlay>
 
         // ── 2. Kütüphanem ana başlık ──────────────────────────────────────
         SidebarItem(
-          title: 'Kütüphanem',
+          title: localeService.tr('my_library'),
           color: _kBlue,
           pageBuilder: (_) => const LibraryLanding(),
           openFullscreen: () => _push(const LibraryLanding()),
           children: [
             SidebarItem(
-              title: 'Konu Özeti Oluştur',
+              title: localeService.tr('create_topic_summary'),
               color: _kBlue,
               pageBuilder: (_) =>
                   const AcademicPlanner(mode: LibraryMode.summary),
@@ -235,7 +236,7 @@ class _GlobalSidebarOverlayState extends State<_GlobalSidebarOverlay>
               children: _summarySubjects,
             ),
             SidebarItem(
-              title: 'Sınav Soruları Oluştur',
+              title: localeService.tr('create_exam_questions'),
               color: _kOrange,
               pageBuilder: (_) =>
                   const AcademicPlanner(mode: LibraryMode.questions),
@@ -244,7 +245,7 @@ class _GlobalSidebarOverlayState extends State<_GlobalSidebarOverlay>
               children: _questionSubjects,
             ),
             SidebarItem(
-              title: 'Çalışma Takvimim',
+              title: localeService.tr('my_study_calendar'),
               color: _kPurple,
               pageBuilder: (_) => const StudyCalendarPage(),
               openFullscreen: () => _push(const StudyCalendarPage()),
@@ -330,7 +331,7 @@ class QuAlsarApp extends StatelessWidget {
         service: themeService,
         child: Builder(
           builder: (context) {
-            final _ = LocaleInherited.of(context);
+            final locale = LocaleInherited.of(context);
             final theme = ThemeInherited.of(context);
             return MaterialApp(
               debugShowCheckedModeBanner: false,
@@ -339,6 +340,23 @@ class QuAlsarApp extends StatelessWidget {
               darkTheme: AppTheme.dark,
               themeMode: theme.themeMode,
               navigatorKey: globalNavigatorKey,
+              locale: Locale(locale.localeCode),
+              supportedLocales: LocaleService.supportedLocales
+                  .map((c) => Locale(c))
+                  .toList(),
+              localeResolutionCallback: (device, supported) {
+                if (device != null) {
+                  for (final s in supported) {
+                    if (s.languageCode == device.languageCode) return s;
+                  }
+                }
+                return const Locale('en');
+              },
+              localizationsDelegates: const [
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
               builder: (context, child) {
                 return Stack(
                   fit: StackFit.expand,

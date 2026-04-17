@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../main.dart';
@@ -122,10 +125,17 @@ class _CameraScreenState extends State<CameraScreen>
 
     try {
       final file = await _controller!.takePicture();
-      final path = file.path;
-      // NOT: Tekli modda çerçeveye kırpmıyoruz — preview gerilmiş/yamuk olabildiği
-      // için kırpma hatalı alanı yakalıyordu. Tam fotoğrafı AI'ya gönderip
-      // sonuç ekranında BoxFit.contain ile gösteriyoruz.
+      var path = file.path;
+
+      // Tekli modda çerçeveyi kırp — AI sadece çerçeve içini görsün
+      if (!_isMultiCapture && mounted) {
+        final screen = MediaQuery.of(context).size;
+        final frame = _frameNotifier.value.isEmpty
+            ? ScanFrameOverlay.frameRect(screen)
+            : _frameNotifier.value;
+        final cropped = await _cropToFrame(path, screen, frame);
+        if (cropped != null) path = cropped;
+      }
 
       if (!mounted) return;
       setState(() => _isCapturing = false);
@@ -139,6 +149,76 @@ class _CameraScreenState extends State<CameraScreen>
         setState(() => _isCapturing = false);
         _showSnack(e.description ?? localeService.tr('photo_failed'));
       }
+    }
+  }
+
+  // ── Çerçeveye göre kırp ──────────────────────────────────────────────────
+  // CameraPreview AspectRatio ile gösterilir → ekranla aspect farkı varsa
+  // letterbox (üst/alt siyah) veya pillarbox olur. Kırparken gerçek preview
+  // dikdörtgenini hesaplayıp ona göre normalize ediyoruz.
+  Future<String?> _cropToFrame(
+      String srcPath, Size screen, Rect frame) async {
+    try {
+      final bytes = await File(srcPath).readAsBytes();
+      var im = img.decodeImage(bytes);
+      if (im == null) return null;
+      // EXIF rotasyonunu uygula (fiziksel olarak döndür)
+      im = img.bakeOrientation(im);
+
+      final imgW = im.width.toDouble();
+      final imgH = im.height.toDouble();
+      if (imgW <= 0 || imgH <= 0) return null;
+
+      final imgAspect = imgW / imgH;
+      final screenAspect = screen.width / screen.height;
+
+      // Preview'ın ekrandaki dikdörtgeni (letterbox/pillarbox hesabı)
+      double pLeft, pTop, pW, pH;
+      if (imgAspect > screenAspect) {
+        // Image daha geniş → üst/alt boşluk
+        pW = screen.width;
+        pH = pW / imgAspect;
+        pLeft = 0;
+        pTop = (screen.height - pH) / 2;
+      } else {
+        // Image daha dar → sol/sağ boşluk
+        pH = screen.height;
+        pW = pH * imgAspect;
+        pTop = 0;
+        pLeft = (screen.width - pW) / 2;
+      }
+
+      // Çerçeveyi preview'a clamp'le
+      final clampedLeft = frame.left.clamp(pLeft, pLeft + pW);
+      final clampedTop = frame.top.clamp(pTop, pTop + pH);
+      final clampedRight = frame.right.clamp(pLeft, pLeft + pW);
+      final clampedBottom = frame.bottom.clamp(pTop, pTop + pH);
+      final cw = clampedRight - clampedLeft;
+      final ch = clampedBottom - clampedTop;
+      if (cw <= 0 || ch <= 0) return null;
+
+      // Preview koordinatlarını 0..1 normalize et
+      final xN = (clampedLeft - pLeft) / pW;
+      final yN = (clampedTop - pTop) / pH;
+      final wN = cw / pW;
+      final hN = ch / pH;
+
+      // Gerçek image piksellerine uygula
+      final sx = (xN * imgW).round().clamp(0, im.width - 1);
+      final sy = (yN * imgH).round().clamp(0, im.height - 1);
+      final sw = (wN * imgW).round().clamp(1, im.width - sx);
+      final sh = (hN * imgH).round().clamp(1, im.height - sy);
+
+      final cropped = img.copyCrop(im, x: sx, y: sy, width: sw, height: sh);
+      final encoded = img.encodeJpg(cropped, quality: 90);
+
+      final dir = await getTemporaryDirectory();
+      final out = File(
+          '${dir.path}/snap_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      await out.writeAsBytes(encoded);
+      return out.path;
+    } catch (_) {
+      return null;
     }
   }
 
@@ -283,7 +363,7 @@ class _CameraScreenState extends State<CameraScreen>
                   children: [
                     _BottomIconBtn(
                       icon: Icons.photo_library_rounded,
-                      label: 'Galeri',
+                      label: localeService.tr('gallery'),
                       color: const Color(0xFF22C55E),
                       onTap: _openGallery,
                     ),
@@ -520,7 +600,7 @@ class _ErrorView extends StatelessWidget {
         const SizedBox(height: 12),
         Text(message, style: const TextStyle(color: AppColors.textSecondary, fontSize: 14), textAlign: TextAlign.center),
         const SizedBox(height: 20),
-        TextButton(onPressed: onRetry, child: const Text('Tekrar Dene', style: TextStyle(color: AppColors.cyan))),
+        TextButton(onPressed: onRetry, child: Text(localeService.tr('try_again'), style: const TextStyle(color: AppColors.cyan))),
       ],
     );
   }

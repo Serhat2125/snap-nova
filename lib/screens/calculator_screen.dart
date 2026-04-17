@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../main.dart' show localeService;
 import '../services/gemini_service.dart';
 import 'ai_result_screen.dart';
 
@@ -632,12 +633,12 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           _pillButton(
-            label: 'Ekranı Temizle',
+            label: localeService.tr('clear_screen'),
             onTap: _clearAll,
             color: _btnBlue,
           ),
           _pillButton(
-            label: _solving ? 'Çözülüyor…' : 'Çözümü Göster',
+            label: _solving ? localeService.tr('solving') : localeService.tr('show_solution_btn'),
             onTap: _solving ? null : _solveWithAi,
             color: const Color(0xFFFF6A00),
             filled: true,

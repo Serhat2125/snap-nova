@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../main.dart' show localeService;
 import '../theme/app_theme.dart';
 import '../services/solutions_storage.dart';
 import '../services/gemini_service.dart';
@@ -81,8 +82,8 @@ class _SolutionDetailScreenState extends State<SolutionDetailScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Beklenmedik bir hata oluştu.'),
+        SnackBar(
+          content: Text(localeService.tr('unexpected_error')),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
         ),
@@ -426,7 +427,7 @@ class _SolutionDetailScreenState extends State<SolutionDetailScreen> {
                   keyboardType: TextInputType.multiline,
                   textInputAction: TextInputAction.newline,
                   decoration: InputDecoration(
-                    hintText: 'Aklına ne takıldıysa sor',
+                    hintText: localeService.tr('ask_anything'),
                     hintStyle: TextStyle(
                       color: Colors.white.withValues(alpha: 0.35),
                       fontSize: 13,

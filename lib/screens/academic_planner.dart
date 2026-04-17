@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../main.dart' show localeService;
 import '../services/gemini_service.dart';
 import '../widgets/latex_text.dart';
 
@@ -133,7 +134,15 @@ class _WeeklyCalendarState extends State<_WeeklyCalendar> {
     final now = DateTime.now();
     final monday = now.subtract(Duration(days: now.weekday - 1));
     final today = DateTime(now.year, now.month, now.day);
-    const labels = ['Pzt', 'Sa', 'Çar', 'Per', 'Cu', 'Cmt', 'Pa'];
+    final labels = [
+      localeService.tr('day_mon_short'),
+      localeService.tr('day_tue_short'),
+      localeService.tr('day_wed_short'),
+      localeService.tr('day_thu_short'),
+      localeService.tr('day_fri_short'),
+      localeService.tr('day_sat_short'),
+      localeService.tr('day_sun_short'),
+    ];
 
     return SizedBox(
       height: 76,
@@ -189,14 +198,14 @@ class _StudyCalendarPageState extends State<StudyCalendarPage> {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final monday = now.subtract(Duration(days: now.weekday - 1));
-    const dayNames = [
-      'Pazartesi',
-      'Salı',
-      'Çarşamba',
-      'Perşembe',
-      'Cuma',
-      'Cumartesi',
-      'Pazar'
+    final dayNames = [
+      localeService.tr('day_mon_full'),
+      localeService.tr('day_tue_full'),
+      localeService.tr('day_wed_full'),
+      localeService.tr('day_thu_full'),
+      localeService.tr('day_fri_full'),
+      localeService.tr('day_sat_full'),
+      localeService.tr('day_sun_full'),
     ];
 
     return Scaffold(
@@ -206,7 +215,7 @@ class _StudyCalendarPageState extends State<StudyCalendarPage> {
         elevation: 0,
         foregroundColor: Colors.black87,
         title: Text(
-          'Çalışma Takvimim',
+          localeService.tr('my_study_calendar'),
           style: GoogleFonts.poppins(
             fontSize: 17,
             fontWeight: FontWeight.w800,
@@ -295,7 +304,7 @@ class _StudyCalendarPageState extends State<StudyCalendarPage> {
                 padding: const EdgeInsets.symmetric(
                     horizontal: 14, vertical: 14),
                 child: Text(
-                  'Bu gün henüz çalışma kaydı yok.',
+                  localeService.tr('no_activity_today'),
                   style: GoogleFonts.poppins(
                     fontSize: 12.5,
                     color: Colors.grey.shade500,
@@ -356,7 +365,7 @@ class _StudyCalendarPageState extends State<StudyCalendarPage> {
                   ),
                 ),
                 Text(
-                  '${e.subject} · ${isQ ? "soru üretildi" : "özet"}',
+                  '${e.subject} · ${isQ ? localeService.tr('activity_questions_generated') : localeService.tr('activity_summary_label')}',
                   style: GoogleFonts.poppins(
                     fontSize: 10.5,
                     color: Colors.grey.shade600,
@@ -479,7 +488,7 @@ class LibraryLanding extends StatelessWidget {
                 color: _blue, size: 22),
             const SizedBox(width: 8),
             Text(
-              'Kütüphanem',
+              localeService.tr('my_library'),
               style: GoogleFonts.poppins(
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
@@ -498,7 +507,7 @@ class LibraryLanding extends StatelessWidget {
                 Expanded(
                   child: _LandingCard(
                     icon: Icons.auto_stories_rounded,
-                    title: 'Konu Özeti Oluştur',
+                    title: localeService.tr('create_topic_summary'),
                     color: _blue,
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
@@ -512,7 +521,7 @@ class LibraryLanding extends StatelessWidget {
                 Expanded(
                   child: _LandingCard(
                     icon: Icons.quiz_rounded,
-                    title: 'Sınav Soruları Oluştur',
+                    title: localeService.tr('create_exam_questions'),
                     color: _orange,
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
@@ -527,7 +536,7 @@ class LibraryLanding extends StatelessWidget {
             const SizedBox(height: 12),
             _LandingCard(
               icon: Icons.calendar_month_rounded,
-              title: 'Çalışma Takvimim',
+              title: localeService.tr('my_study_calendar'),
               color: _indigo,
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(
@@ -697,20 +706,20 @@ String _contextFromGrade(String grade) {
   }
 }
 
-// Ders → konu placeholder ipucu
+// Ders → konu placeholder ipucu (locale-aware)
 String _topicHintForSubject(String subject) {
   final s = subject.toLowerCase();
-  if (s.contains('matem')) return 'Örn. Türev kuralları';
-  if (s.contains('fiz')) return 'Örn. Newton kanunları';
-  if (s.contains('kim')) return 'Örn. Asit-baz dengesi';
-  if (s.contains('biyo')) return 'Örn. Hücre bölünmesi';
-  if (s.contains('coğraf')) return 'Örn. Enlemler ve paraleller';
-  if (s.contains('tar')) return 'Örn. Kurtuluş Savaşı';
-  if (s.contains('edeb')) return 'Örn. Tanzimat Edebiyatı';
-  if (s.contains('türk')) return 'Örn. Sözcük türleri';
-  if (s.contains('feles')) return 'Örn. Bilgi felsefesi';
-  if (s.contains('ingil') || s.contains('engl')) return 'Örn. Tenses';
-  return 'Konuyu yazın...';
+  if (s.contains('matem') || s.contains('math')) return localeService.tr('topic_hint_math');
+  if (s.contains('fiz') || s.contains('phys')) return localeService.tr('topic_hint_physics');
+  if (s.contains('kim') || s.contains('chem')) return localeService.tr('topic_hint_chemistry');
+  if (s.contains('biyo') || s.contains('bio')) return localeService.tr('topic_hint_biology');
+  if (s.contains('coğraf') || s.contains('geo')) return localeService.tr('topic_hint_geography');
+  if (s.contains('tar') || s.contains('hist')) return localeService.tr('topic_hint_history');
+  if (s.contains('edeb') || s.contains('lit')) return localeService.tr('topic_hint_literature');
+  if (s.contains('türk') || s.contains('gram')) return localeService.tr('topic_hint_grammar');
+  if (s.contains('feles') || s.contains('phil')) return localeService.tr('topic_hint_philosophy');
+  if (s.contains('ingil') || s.contains('engl')) return localeService.tr('topic_hint_english');
+  return localeService.tr('topic_hint_generic');
 }
 
 enum LibraryMode { summary, questions }
@@ -729,11 +738,11 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
   static const _usageKey = 'topic_summary_usage';
 
   String get _title => widget.mode == LibraryMode.summary
-      ? 'Konu Özetleri'
-      : 'Sınav Soruları';
+      ? localeService.tr('topic_summaries')
+      : localeService.tr('exam_questions');
   String get _headline => widget.mode == LibraryMode.summary
-      ? 'İstediğin konunun özetini oluştur'
-      : 'İstediğin konu için sınav soruları oluştur';
+      ? localeService.tr('create_summary_hint')
+      : localeService.tr('create_questions_hint');
 
   String _grade = '';
   int _monthUsed = 0;
@@ -834,7 +843,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
   Future<bool> _generateForExistingSubject(
       _Subject subject, String topic) async {
     if (_monthUsed >= _monthlyLimit) {
-      _showSnack('Bu ay kullanılabilir özet hakkınız doldu.');
+      _showSnack(localeService.tr('monthly_limit_reached'));
       return false;
     }
     try {
@@ -868,7 +877,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
       if (mounted) _showSnack(e.userMessage);
       return false;
     } catch (e) {
-      if (mounted) _showSnack('Hata: $e');
+      if (mounted) _showSnack('${localeService.tr('error_label')}: $e');
       return false;
     }
   }
@@ -881,7 +890,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
     _Subject? existingSubject,
   }) async {
     if (_monthUsed >= _monthlyLimit) {
-      _showSnack('Bu ay kullanılabilir özet hakkınız doldu.');
+      _showSnack(localeService.tr('monthly_limit_reached'));
       return;
     }
     setState(() => _generating = true);
@@ -935,7 +944,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _generating = false);
-      _showSnack('Hata: $e');
+      _showSnack('${localeService.tr('error_label')}: $e');
     }
   }
 
@@ -1112,16 +1121,16 @@ KATI KURALLAR (bozarsan cevap geçersiz):
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text('${s.name} silinsin mi?'),
-        content: Text('Bu dersin tüm ${s.summaries.length} özeti silinecek.'),
+        title: Text('${s.name} — ${localeService.tr('delete_subject_confirm')}'),
+        content: Text(localeService.tr('delete_subject_body')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('İptal'),
+            child: Text(localeService.tr('cancel')),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Sil', style: TextStyle(color: Colors.red)),
+            child: Text(localeService.tr('delete'), style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -1238,7 +1247,7 @@ KATI KURALLAR (bozarsan cevap geçersiz):
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 2, 20, 0),
                     child: Text(
-                      'Seviye: $_grade',
+                      '${localeService.tr('level_label')}: $_grade',
                       style: GoogleFonts.poppins(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w600,
@@ -1280,7 +1289,7 @@ KATI KURALLAR (bozarsan cevap geçersiz):
                       ),
                       const SizedBox(width: 14),
                       Text(
-                        'Özet hazırlanıyor…',
+                        localeService.tr('summary_preparing'),
                         style: GoogleFonts.poppins(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -1396,7 +1405,7 @@ KATI KURALLAR (bozarsan cevap geçersiz):
               ),
               if (s.summaries.length > 3)
                 Text(
-                  '+${s.summaries.length - 3} daha',
+                  '+${s.summaries.length - 3} ${localeService.tr('more_count_suffix')}',
                   style: GoogleFonts.poppins(
                     fontSize: 9,
                     fontWeight: FontWeight.w600,
@@ -1430,7 +1439,7 @@ KATI KURALLAR (bozarsan cevap geçersiz):
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Kütüphanemize hoşgeldin!',
+              localeService.tr('library_welcome'),
               style: GoogleFonts.poppins(
                 fontSize: 15,
                 fontWeight: FontWeight.w800,
@@ -1498,7 +1507,7 @@ class _NewSubjectSheetState extends State<_NewSubjectSheet> {
                 ),
               ),
             ),
-            Text('Ders Başlığı',
+            Text(localeService.tr('subject_title'),
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
@@ -1515,10 +1524,10 @@ class _NewSubjectSheetState extends State<_NewSubjectSheet> {
                 fontWeight: FontWeight.w500,
               ),
               cursorColor: _blue,
-              decoration: _inputDec('Örn. Matematik'),
+              decoration: _inputDec(localeService.tr('subject_title_hint')),
             ),
             const SizedBox(height: 16),
-            Text('Konu Adı',
+            Text(localeService.tr('topic_name'),
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
@@ -1536,7 +1545,7 @@ class _NewSubjectSheetState extends State<_NewSubjectSheet> {
                 fontWeight: FontWeight.w500,
               ),
               cursorColor: _blue,
-              decoration: _inputDec('Örn. Türev kuralları'),
+              decoration: _inputDec(localeService.tr('topic_name_hint')),
             ),
             const SizedBox(height: 22),
             SizedBox(
@@ -1551,7 +1560,7 @@ class _NewSubjectSheetState extends State<_NewSubjectSheet> {
                 ),
                 icon: const Icon(Icons.auto_awesome_rounded, size: 18),
                 label: Text(
-                  'Özet Oluştur',
+                  localeService.tr('create_summary_btn'),
                   style: GoogleFonts.poppins(
                       fontSize: 15, fontWeight: FontWeight.w800),
                 ),
@@ -1567,8 +1576,8 @@ class _NewSubjectSheetState extends State<_NewSubjectSheet> {
     final subject = _subjectCtrl.text.trim();
     final topic = _topicCtrl.text.trim();
     if (subject.isEmpty || topic.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Ders başlığı ve konu adı gerekli.'),
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(localeService.tr('subject_topic_required')),
         behavior: SnackBarBehavior.floating,
       ));
       return;
@@ -1635,7 +1644,7 @@ class _NewTopicSheetState extends State<_NewTopicSheet> {
               ],
             ),
             const SizedBox(height: 14),
-            Text('Hangi konunun özetini oluşturalım?',
+            Text(localeService.tr('which_topic_summary'),
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -1668,7 +1677,7 @@ class _NewTopicSheetState extends State<_NewTopicSheet> {
                       borderRadius: BorderRadius.circular(14)),
                 ),
                 icon: const Icon(Icons.auto_awesome_rounded, size: 18),
-                label: Text('Özet Oluştur',
+                label: Text(localeService.tr('create_summary_btn'),
                     style: GoogleFonts.poppins(
                         fontSize: 15, fontWeight: FontWeight.w800)),
               ),
@@ -1773,14 +1782,14 @@ class _SubjectDetailPageState extends State<_SubjectDetailPage> {
                     strokeWidth: 2.2, color: Colors.white),
               )
             : const Icon(Icons.add_rounded),
-        label: Text(_generating ? 'Hazırlanıyor…' : 'Yeni Konu',
+        label: Text(_generating ? localeService.tr('preparing') : localeService.tr('new_topic'),
             style: GoogleFonts.poppins(fontWeight: FontWeight.w800)),
       ),
       body: Stack(
         children: [
           s.summaries.isEmpty
               ? Center(
-                  child: Text('Bu derste henüz özet yok.',
+                  child: Text(localeService.tr('no_summary_yet'),
                       style: GoogleFonts.poppins(
                           color: Colors.grey.shade500)),
                 )
@@ -1891,7 +1900,7 @@ class _SubjectDetailPageState extends State<_SubjectDetailPage> {
                       ),
                       const SizedBox(width: 14),
                       Text(
-                        'Özet hazırlanıyor…',
+                        localeService.tr('summary_preparing'),
                         style: GoogleFonts.poppins(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -1986,7 +1995,7 @@ class _SummaryDetailPage extends StatelessWidget {
                 const Text('📚', style: TextStyle(fontSize: 18)),
                 const SizedBox(width: 8),
                 Text(
-                  'QuAlsar Kaynak Önerileri',
+                  localeService.tr('source_suggestions'),
                   style: GoogleFonts.poppins(
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
@@ -2164,14 +2173,14 @@ class _ResourceCard extends StatelessWidget {
       final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!ok && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Açılamadı: $uri'),
+          content: Text('${localeService.tr('cannot_open_url')}: $uri'),
           behavior: SnackBarBehavior.floating,
         ));
       }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Hata: $e'),
+          content: Text('${localeService.tr('error_label')}: $e'),
           behavior: SnackBarBehavior.floating,
         ));
       }
@@ -2234,7 +2243,7 @@ class _ResourceCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      isVideo ? 'YouTube' : 'Web',
+                      isVideo ? 'YouTube' : localeService.tr('web_label'),
                       style: GoogleFonts.poppins(
                         fontSize: 10.5,
                         fontWeight: FontWeight.w600,

@@ -789,7 +789,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       children: [
         for (final subject in keys)
           _SubjectGroup(
-            subject: subject,
+            subject: _trSubject(subject),
             emoji: _emojiFor(subject),
             records: groups[subject]!,
             cardBuilder: _cardFor,

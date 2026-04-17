@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../main.dart' show localeService;
 
 class MockPaymentScreen extends StatelessWidget {
   const MockPaymentScreen({super.key});
@@ -176,7 +177,7 @@ class _MockPaymentContent extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
                 child: Text(
-                  'Google Hesabınıza ödeme yöntemi ekleyin',
+                  localeService.tr('add_payment_method_google'),
                   style: GoogleFonts.poppins(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -187,12 +188,12 @@ class _MockPaymentContent extends StatelessWidget {
               _optionTile(
                 context,
                 icon: Icons.phone_android,
-                title: 'Mobil Ödeme',
+                title: localeService.tr('mobile_payment'),
               ),
               _optionTile(
                 context,
                 icon: Icons.credit_card,
-                title: 'Kart Ekle',
+                title: localeService.tr('add_card'),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -215,7 +216,7 @@ class _MockPaymentContent extends StatelessWidget {
               _optionTile(
                 context,
                 icon: Icons.confirmation_number,
-                title: 'Kod Kullan',
+                title: localeService.tr('use_code'),
               ),
               const SizedBox(height: 20),
             ],
@@ -413,7 +414,7 @@ class _MockPaymentContent extends StatelessWidget {
                                 SizedBox(
                                   width: 130,
                                   child: _centerLabeledField(
-                                    label: 'AA/YY',
+                                    label: localeService.tr('card_expiry'),
                                     controller: dateCtrl,
                                     errorText: dateErr,
                                     keyboardType: TextInputType.number,
@@ -424,7 +425,7 @@ class _MockPaymentContent extends StatelessWidget {
                                 SizedBox(
                                   width: 90,
                                   child: _centerLabeledField(
-                                    label: 'CVC',
+                                    label: localeService.tr('card_cvc'),
                                     controller: cvcCtrl,
                                     errorText: cvcErr,
                                     keyboardType: TextInputType.number,
@@ -438,7 +439,7 @@ class _MockPaymentContent extends StatelessWidget {
                             ),
                             const SizedBox(height: 48),
                             _leftLabeledField(
-                              label: 'Kart sahibinin adı',
+                              label: localeService.tr('cardholder_name'),
                               controller: nameCtrl,
                               errorText: nameErr,
                               textCapitalization: TextCapitalization.words,

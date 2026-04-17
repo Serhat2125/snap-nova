@@ -182,7 +182,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
         model.name != 'Deepseek') {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${model.name} yakında geliyor! 🚀'),
+          content: Text('${model.name} ${localeService.tr('coming_soon_suffix')}'),
           backgroundColor: AppColors.surfaceElevated,
           behavior: SnackBarBehavior.floating,
           shape:
@@ -384,7 +384,9 @@ class _SolutionScreenState extends State<SolutionScreen> {
   // ── Fotoğraf kartı ────────────────────────────────────────────────────────────
 
   Widget _buildPhotoCard() {
-    // Sabit 4:3 çerçeve — siyah border (radius 14) ve antiAlias clip
+    // Sabit 4:3 çerçeve — sekmeler yerinden oynamasın.
+    // BoxFit.cover ile görsel kutuyu doldurur; dışarı taşan kısım sadece
+    // görüntüleme için kırpılır (AI'ya giden dosya aynen çerçeve kırpımıdır).
     return Stack(
       children: [
         Container(
@@ -399,9 +401,10 @@ class _SolutionScreenState extends State<SolutionScreen> {
             aspectRatio: 4 / 3,
             child: Image.file(
               File(widget.imagePath),
-              fit: BoxFit.contain,
+              fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => Container(
                 color: const Color(0xFFF0F2F5),
+                alignment: Alignment.center,
                 child: const Icon(Icons.image_not_supported_outlined,
                     color: Colors.black26, size: 36),
               ),
