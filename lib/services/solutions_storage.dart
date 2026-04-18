@@ -31,6 +31,15 @@ class SolutionRecord {
   final DateTime timestamp;
   final bool isFavorite;
 
+  /// "Bu soruyla ilgili konuyu pekiştir" — bir defa üretilip kalıcı saklanan
+  /// Study Suite JSON blob'u (benzer sorular + bilgi kartları + eşleştirme).
+  /// null: henüz üretilmemiş.
+  final Map<String, dynamic>? studySuite;
+
+  /// Paylaşım için bir kez OCR ile çıkarılan soru metni (hızlı tekrar paylaşım).
+  /// Boş ise henüz üretilmemiş.
+  final String cachedQuestionText;
+
   SolutionRecord({
     required this.id,
     required this.imagePath,
@@ -42,9 +51,17 @@ class SolutionRecord {
     this.aiTitle = '',
     required this.timestamp,
     this.isFavorite = false,
+    this.studySuite,
+    this.cachedQuestionText = '',
   });
 
-  SolutionRecord copyWith({bool? isFavorite, String? aiTitle}) => SolutionRecord(
+  SolutionRecord copyWith({
+    bool? isFavorite,
+    String? aiTitle,
+    Map<String, dynamic>? studySuite,
+    String? cachedQuestionText,
+  }) =>
+      SolutionRecord(
         id: id,
         imagePath: imagePath,
         solutionType: solutionType,
@@ -55,6 +72,8 @@ class SolutionRecord {
         aiTitle: aiTitle ?? this.aiTitle,
         timestamp: timestamp,
         isFavorite: isFavorite ?? this.isFavorite,
+        studySuite: studySuite ?? this.studySuite,
+        cachedQuestionText: cachedQuestionText ?? this.cachedQuestionText,
       );
 
   Map<String, dynamic> toJson() => {
@@ -68,6 +87,9 @@ class SolutionRecord {
         'aiTitle': aiTitle,
         'timestamp': timestamp.toIso8601String(),
         'isFavorite': isFavorite,
+        if (studySuite != null) 'studySuite': studySuite,
+        if (cachedQuestionText.isNotEmpty)
+          'cachedQuestionText': cachedQuestionText,
       };
 
   factory SolutionRecord.fromJson(Map<String, dynamic> j) => SolutionRecord(
@@ -83,6 +105,10 @@ class SolutionRecord {
         aiTitle: j['aiTitle'] as String? ?? '',
         timestamp: DateTime.parse(j['timestamp'] as String),
         isFavorite: j['isFavorite'] as bool? ?? false,
+        cachedQuestionText: j['cachedQuestionText'] as String? ?? '',
+        studySuite: j['studySuite'] is Map
+            ? (j['studySuite'] as Map).cast<String, dynamic>()
+            : null,
       );
 }
 
@@ -183,6 +209,57 @@ class SolutionsStorage {
       await f.writeAsString(
           jsonEncode(records.map((r) => r.toJson()).toList()));
     } catch (_) {}
+  }
+
+  /// OCR ile çıkarılan soru metnini kaydeder (paylaşımı hızlandırmak için).
+  static Future<void> saveQuestionText(String id, String questionText) async {
+    try {
+      final records = await loadAll();
+      final idx = records.indexWhere((r) => r.id == id);
+      if (idx < 0) return;
+      records[idx] = records[idx].copyWith(cachedQuestionText: questionText);
+      final f = await _file();
+      await f.writeAsString(
+          jsonEncode(records.map((r) => r.toJson()).toList()));
+    } catch (_) {}
+  }
+
+  /// Belirli bir kayda Study Suite JSON'unu kalıcı olarak yaz.
+  /// Kayıt yoksa sessizce atlar.
+  static Future<void> saveStudySuite(
+      String id, Map<String, dynamic> suite) async {
+    try {
+      final records = await loadAll();
+      final idx = records.indexWhere((r) => r.id == id);
+      if (idx < 0) return;
+      records[idx] = records[idx].copyWith(studySuite: suite);
+      final f = await _file();
+      await f.writeAsString(
+          jsonEncode(records.map((r) => r.toJson()).toList()));
+    } catch (_) {}
+  }
+
+  /// Belirli bir kayda kayıtlı Study Suite varsa getirir, yoksa null.
+  static Future<Map<String, dynamic>?> loadStudySuite(String id) async {
+    try {
+      final records = await loadAll();
+      final rec = records.firstWhere(
+        (r) => r.id == id,
+        orElse: () => SolutionRecord(
+          id: '',
+          imagePath: '',
+          solutionType: '',
+          result: '',
+          qaList: const [],
+          subject: '',
+          timestamp: DateTime.now(),
+        ),
+      );
+      if (rec.id.isEmpty) return null;
+      return rec.studySuite;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// AI çıktısının en başındaki `[Ders: X]` etiketini yakala.

@@ -70,10 +70,14 @@ class _SuiteData {
 //  Giriş noktası
 // ─────────────────────────────────────────────────────────────────────────────
 class StudySuiteSheet {
+  /// [cached] — daha önce üretilmiş JSON blob (varsa API çağrısı yapılmaz).
+  /// [onFetched] — yeni üretildiğinde çağrılır; çağıran cache'e yazabilir.
   static void show(
     BuildContext context, {
     required String solution,
     required String subject,
+    Map<String, dynamic>? cached,
+    void Function(Map<String, dynamic> json)? onFetched,
   }) {
     showModalBottomSheet(
       context: context,
@@ -81,7 +85,12 @@ class StudySuiteSheet {
       isScrollControlled: true,
       barrierColor: Colors.black.withValues(alpha: 0.55),
       useSafeArea: true,
-      builder: (_) => _StudySuiteContent(solution: solution, subject: subject),
+      builder: (_) => _StudySuiteContent(
+        solution: solution,
+        subject: subject,
+        cached: cached,
+        onFetched: onFetched,
+      ),
     );
   }
 }
@@ -92,7 +101,14 @@ class StudySuiteSheet {
 class _StudySuiteContent extends StatefulWidget {
   final String solution;
   final String subject;
-  const _StudySuiteContent({required this.solution, required this.subject});
+  final Map<String, dynamic>? cached;
+  final void Function(Map<String, dynamic>)? onFetched;
+  const _StudySuiteContent({
+    required this.solution,
+    required this.subject,
+    this.cached,
+    this.onFetched,
+  });
 
   @override
   State<_StudySuiteContent> createState() => _StudySuiteContentState();
@@ -108,9 +124,9 @@ class _StudySuiteContentState extends State<_StudySuiteContent> {
 
   // ── Yükleme adım animasyonu ───────────────────────────────────────────────────
   static const _loadingSteps = [
-    'Benzer sorular hazırlanıyor',
-    'Konu anlatımlı videolar taranıyor',
-    'Ders notları oluşturuluyor',
+    'Benzer sorular oluşturuluyor',
+    'Bilgi kartları hazırlanıyor',
+    'Eşleştirme kartları yükleniyor',
   ];
   int    _visibleCount = 0; // kaç satır göründüğü
   Timer? _stepTimer;
@@ -118,12 +134,21 @@ class _StudySuiteContentState extends State<_StudySuiteContent> {
   @override
   void initState() {
     super.initState();
+    // Cache varsa anında göster, API çağrısı yapma.
+    if (widget.cached != null) {
+      _data = _SuiteData.fromJson(widget.cached!);
+      _loading = false;
+      _visibleCount = _loadingSteps.length;
+      return;
+    }
     _startStepTimer();
     _fetch();
   }
 
   void _startStepTimer() {
-    _stepTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+    // İlk mesaj hemen görünsün, sonrakiler 700 ms aralıkla.
+    setState(() => _visibleCount = 1);
+    _stepTimer = Timer.periodic(const Duration(milliseconds: 700), (_) {
       if (!mounted) return;
       if (_visibleCount < _loadingSteps.length) {
         setState(() => _visibleCount++);
@@ -145,6 +170,8 @@ class _StudySuiteContentState extends State<_StudySuiteContent> {
         subject:  widget.subject,
       );
       _stepTimer?.cancel();
+      // Yeni üretilen içeriği kalıcı saklaması için çağırana bildir.
+      widget.onFetched?.call(json);
       if (mounted) setState(() { _data = _SuiteData.fromJson(json); _loading = false; });
     } on GeminiException catch (e) {
       _stepTimer?.cancel();

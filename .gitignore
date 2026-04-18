@@ -43,3 +43,13 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# API keys / secrets — ASLA commit edilmez
+lib/services/secrets.dart
+
+# Claude Code / IDE yerel ayarları — anahtar sızdırabilir
+.claude/
+**/.claude/
+**/.ClaudeA/
+**/.claude*/
+*.cla

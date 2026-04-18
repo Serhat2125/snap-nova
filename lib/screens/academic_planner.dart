@@ -7,6 +7,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../main.dart' show localeService;
 import '../services/gemini_service.dart';
 import '../widgets/latex_text.dart';
+import 'green_colony_screen.dart';
+import 'qualsar_mars_screen.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  Kütüphane — Ders bazlı kart sistemi
@@ -223,12 +225,50 @@ class _StudyCalendarPageState extends State<StudyCalendarPage> {
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(0, 14, 0, 24),
+        padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
         children: [
-          const _WeeklyCalendar(),
-          const SizedBox(height: 14),
-          for (var i = 0; i < 7; i++)
-            _buildDayFrame(monday.add(Duration(days: i)), dayNames[i]),
+          // Üstte ortalanmış başlık — dış çerçevenin üstünde
+          Center(
+            child: Text(
+              localeService.tr('weekly_study_tracker'),
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: _indigo,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Dış büyük çerçeve — 7 günü içeren
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: _indigo.withValues(alpha: 0.35), width: 1.4),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: GridView.count(
+              crossAxisCount: 3,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 0.72,
+              children: [
+                for (var i = 0; i < 7; i++)
+                  _buildDayFrame(monday.add(Duration(days: i)), dayNames[i]),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -237,156 +277,177 @@ class _StudyCalendarPageState extends State<StudyCalendarPage> {
   Widget _buildDayFrame(DateTime day, String dayName) {
     final entries = _grouped[_ActivityStore.dayKey(day)] ?? const [];
     final dateText =
-        '${day.day.toString().padLeft(2, '0')}.${day.month.toString().padLeft(2, '0')}.${day.year}';
+        '${day.day.toString().padLeft(2, '0')}.${day.month.toString().padLeft(2, '0')}';
+    final now = DateTime.now();
+    final isToday = day.year == now.year &&
+        day.month == now.month &&
+        day.day == now.day;
+    // Son aktivite saati; yoksa bugün için "şimdi", değilse "—"
+    String timeText;
+    if (entries.isNotEmpty) {
+      final last = entries.first.when;
+      timeText =
+          '${last.hour.toString().padLeft(2, '0')}:${last.minute.toString().padLeft(2, '0')}';
+    } else if (isToday) {
+      timeText =
+          '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    } else {
+      timeText = '—';
+    }
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isToday
+              ? _indigo
+              : const Color(0xFFE5E7EB),
+          width: isToday ? 1.6 : 1.0,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: _indigo.withValues(alpha: 0.10),
-                borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(15)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.event_note_rounded,
-                      color: _indigo, size: 18),
-                  const SizedBox(width: 8),
-                  Text(
-                    '$dayName  ·  $dateText',
-                    style: GoogleFonts.poppins(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w800,
-                      color: _indigo,
-                    ),
+        boxShadow: isToday
+            ? [
+                BoxShadow(
+                  color: _indigo.withValues(alpha: 0.12),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : null,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Başlık bandı: gün, saat, tarih
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            decoration: BoxDecoration(
+              color: _indigo.withValues(alpha: 0.08),
+              borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(11)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  dayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                    color: _indigo,
                   ),
-                  const Spacer(),
-                  if (entries.isNotEmpty)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: _indigo,
-                        borderRadius: BorderRadius.circular(10),
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Icon(Icons.schedule_rounded,
+                        size: 10, color: Colors.grey.shade600),
+                    const SizedBox(width: 3),
+                    Text(
+                      timeText,
+                      style: GoogleFonts.poppins(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade700,
                       ),
+                    ),
+                    const SizedBox(width: 6),
+                    Icon(Icons.calendar_today_rounded,
+                        size: 9, color: Colors.grey.shade600),
+                    const SizedBox(width: 3),
+                    Text(
+                      dateText,
+                      style: GoogleFonts.poppins(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          // Aktivite listesi (kompakt)
+          Expanded(
+            child: entries.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(6),
                       child: Text(
-                        '${entries.length}',
+                        localeService.tr('no_activity_today'),
+                        textAlign: TextAlign.center,
                         style: GoogleFonts.poppins(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
+                          fontSize: 9.5,
+                          color: Colors.grey.shade500,
                         ),
                       ),
                     ),
-                ],
-              ),
-            ),
-            if (entries.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 14),
-                child: Text(
-                  localeService.tr('no_activity_today'),
-                  style: GoogleFonts.poppins(
-                    fontSize: 12.5,
-                    color: Colors.grey.shade500,
+                  )
+                : Padding(
+                    padding: const EdgeInsets.fromLTRB(6, 4, 6, 4),
+                    child: ListView(
+                      physics: const BouncingScrollPhysics(),
+                      padding: EdgeInsets.zero,
+                      children: entries
+                          .map((e) => _compactActivityRow(e))
+                          .toList(),
+                    ),
                   ),
-                ),
-              )
-            else
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 8),
-                child: Column(
-                  children: entries
-                      .map((e) => _activityRow(e))
-                      .toList(),
-                ),
-              ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _activityRow(_ActivityEntry e) {
-    final time =
-        '${e.when.hour.toString().padLeft(2, '0')}:${e.when.minute.toString().padLeft(2, '0')}';
+  Widget _compactActivityRow(_ActivityEntry e) {
     final isQ = e.type == 'soru';
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              color: (isQ ? _orange : _blue).withValues(alpha: 0.13),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            alignment: Alignment.center,
-            child: Icon(
-              isQ ? Icons.quiz_rounded : Icons.menu_book_rounded,
-              size: 16,
-              color: isQ ? _orange : _blue,
-            ),
+          Icon(
+            isQ ? Icons.quiz_rounded : Icons.menu_book_rounded,
+            size: 10,
+            color: isQ ? _orange : _blue,
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 4),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   e.topic,
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.poppins(
-                    fontSize: 13,
+                    fontSize: 9.5,
                     fontWeight: FontWeight.w700,
                     color: Colors.black87,
+                    height: 1.15,
                   ),
                 ),
                 Text(
-                  '${e.subject} · ${isQ ? localeService.tr('activity_questions_generated') : localeService.tr('activity_summary_label')}',
+                  e.subject,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.poppins(
-                    fontSize: 10.5,
+                    fontSize: 8.5,
                     color: Colors.grey.shade600,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 10),
-          Text(
-            time,
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: _indigo,
-            ),
-          ),
         ],
       ),
     );
   }
+
 }
 
 class _DayCell extends StatelessWidget {
@@ -534,15 +595,53 @@ class LibraryLanding extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            _LandingCard(
-              icon: Icons.calendar_month_rounded,
-              title: localeService.tr('my_study_calendar'),
-              color: _indigo,
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const StudyCalendarPage(),
+            Row(
+              children: [
+                Expanded(
+                  child: _LandingCard(
+                    icon: Icons.calendar_month_rounded,
+                    title: localeService.tr('my_study_calendar'),
+                    color: _indigo,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const StudyCalendarPage(),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _LandingCard(
+                    icon: Icons.eco_rounded,
+                    title: 'Yeşil Koloni',
+                    color: const Color(0xFF00B070),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const GreenColonyScreen(),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _LandingCard(
+                    icon: Icons.rocket_launch_rounded,
+                    title: 'QuAlsar · Mars Protokolü',
+                    color: const Color(0xFFFF6A3C),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const QuAlsarMarsScreen(),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(child: SizedBox()),
+              ],
             ),
           ],
         ),

@@ -3,24 +3,38 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'secrets.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  GeminiService — OpenRouter API (google/gemini-flash-1.5)
+//  GeminiService — Google Generative Language API (gemini-2.5-flash)
+//  Tüm API anahtarları Secrets sınıfından okunur (lib/services/secrets.dart,
+//  git-ignored). Hardcoded key KULLANMA — hem süresi dolabilir hem de GitHub
+//  secret scanning'e takılır.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class GeminiService {
-  static const _apiKey  = 'AIzaSyADt3qL4abtthn09HymDQFwwIfYXVe_URs';
   static const _model   = 'gemini-2.5-flash';
   static const _baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
   static const _tag     = '🤖 [GeminiService]';
 
-  // ── OpenAI yedek (Gemini kotası dolunca otomatik devreye girer) ──────────
-  // NOT: Anahtarı bu dosyaya ekleme (GitHub secret scanning engeller). Lokal
-  // geliştirmede aşağıdaki placeholder'ı kendi anahtarınla değiştir, commit etme.
-  static const _openaiKey = '';
+  // ── OpenAI son yedek (Gemini + fallback key'ler de başarısızsa) ──────────
+  static String get _openaiKey => Secrets.openai;
   static const _openaiUrl = 'https://api.openai.com/v1/chat/completions';
   static const _openaiTextModel = 'gpt-4o-mini';
   static const _openaiVisionModel = 'gpt-4o';
+
+  // Tüm Gemini key'leri sıralı liste: birincil + yedekler.
+  // Bir key 401/403/429 dönerse bir sonrakine otomatik geçilir.
+  static List<String> _allGeminiKeys() {
+    final keys = <String>[
+      if (Secrets.gemini.isNotEmpty) Secrets.gemini,
+      ...Secrets.geminiFallbacks.where((k) => k.isNotEmpty),
+    ];
+    return keys;
+  }
+
+  static bool _isKeyFailure(int status) =>
+      status == 401 || status == 403 || status == 429 || status == 400;
 
   static void _log(String msg) {
     if (kDebugMode) debugPrint('$_tag $msg');
@@ -71,7 +85,7 @@ class GeminiService {
   }
 
   // ── OpenAI görsel çağrısı ────────────────────────────────────────────────
-  static Future<String> _callOpenAIWithImage({
+  static Future<({String text, String finishReason})> _callOpenAIWithImage({
     required String prompt,
     required String base64Image,
     required String mimeType,
@@ -111,15 +125,17 @@ class GeminiService {
           as Map<String, dynamic>;
       final text =
           j['choices']?[0]?['message']?['content'] as String?;
+      final fr = (j['choices']?[0]?['finish_reason'] as String?) ?? 'stop';
       if (text == null || text.trim().isEmpty) {
         throw GeminiException.blurryImage();
       }
-      return text;
+      // OpenAI finish_reason = 'length' → MAX_TOKENS normalize
+      return (text: text, finishReason: fr == 'length' ? 'MAX_TOKENS' : 'STOP');
     }
     _handleError(response);
   }
 
-  // ── Metin çağrısı — Gemini; kota dolunca OpenAI'a fallback ──────────────
+  // ── Metin çağrısı (string) — geriye uyum için ────────────────────────────
   static Future<String> _callGemini({
     required String systemPrompt,
     required String userMessage,
@@ -127,110 +143,209 @@ class GeminiService {
     double temperature = 0.3,
     Duration timeout = const Duration(seconds: 90),
   }) async {
-    final url = '$_baseUrl/$_model:generateContent?key=$_apiKey';
-    _log('Gemini isteği → model=$_model, maxTokens=$maxTokens');
-    try {
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'contents': [
-            {
-              'role': 'user',
-              'parts': [
-                {'text': '$systemPrompt\n\n$userMessage'},
-              ],
+    final res = await _callGeminiFull(
+      systemPrompt: systemPrompt,
+      userMessage: userMessage,
+      maxTokens: maxTokens,
+      temperature: temperature,
+      timeout: timeout,
+    );
+    return res.text;
+  }
+
+  // ── Metin çağrısı (full) — finishReason ile birlikte ────────────────────
+  static Future<({String text, String finishReason})> _callGeminiFull({
+    required String systemPrompt,
+    required String userMessage,
+    int maxTokens = 2048,
+    double temperature = 0.3,
+    int thinkingBudget = 0,
+    String? responseMimeType,
+    Duration timeout = const Duration(seconds: 90),
+  }) async {
+    final keys = _allGeminiKeys();
+    if (keys.isEmpty) {
+      _log('Hiç Gemini key yok!');
+      throw GeminiException.invalidKey();
+    }
+
+    http.Response? lastBadResponse;
+    for (var i = 0; i < keys.length; i++) {
+      final key = keys[i];
+      final url = '$_baseUrl/$_model:generateContent?key=$key';
+      _log('Gemini isteği [${i + 1}/${keys.length}] → model=$_model, maxTokens=$maxTokens');
+      try {
+        final response = await http.post(
+          Uri.parse(url),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'contents': [
+              {
+                'role': 'user',
+                'parts': [
+                  {'text': '$systemPrompt\n\n$userMessage'},
+                ],
+              },
+            ],
+            'generationConfig': {
+              'maxOutputTokens': maxTokens,
+              'temperature': temperature,
+              'thinkingConfig': {'thinkingBudget': thinkingBudget},
+              if (responseMimeType != null) 'responseMimeType': responseMimeType,
             },
-          ],
-          'generationConfig': {
-            'maxOutputTokens': maxTokens,
-            'temperature': temperature,
-            'thinkingConfig': {'thinkingBudget': 0},
-          },
-        }),
-      ).timeout(timeout);
+          }),
+        ).timeout(timeout);
 
-      _log('Gemini HTTP ${response.statusCode}');
+        _log('Gemini HTTP ${response.statusCode} [key ${i + 1}]');
 
-      if (response.statusCode == 200) {
-        final json = jsonDecode(utf8.decode(response.bodyBytes))
-            as Map<String, dynamic>;
-        final text = json['candidates']?[0]?['content']?['parts']?[0]
-            ?['text'] as String?;
-        if (text == null || text.trim().isEmpty) {
-          throw GeminiException.blurryImage();
+        if (response.statusCode == 200) {
+          final json = jsonDecode(utf8.decode(response.bodyBytes))
+              as Map<String, dynamic>;
+          final candidate = json['candidates']?[0];
+          final text = candidate?['content']?['parts']?[0]?['text'] as String?;
+          final fr = (candidate?['finishReason'] as String?) ?? 'STOP';
+          if (text == null || text.trim().isEmpty) {
+            throw GeminiException.blurryImage();
+          }
+          _log('Gemini text finishReason=$fr, textLen=${text.length}');
+          return (text: text, finishReason: fr);
         }
-        return text;
-      }
 
-      // Gemini 429 (kota) veya 5xx → OpenAI'a fallback dene
-      if (response.statusCode == 429 || response.statusCode >= 500) {
-        _log('Gemini kota/hata → OpenAI fallback');
-        return _callOpenAI(
-          systemPrompt: systemPrompt,
-          userMessage: userMessage,
-          maxTokens: maxTokens,
-          temperature: temperature,
-          timeout: timeout,
-        );
-      }
+        // Key-level hata (kota/yetki) → sıradaki key'i dene
+        if (_isKeyFailure(response.statusCode)) {
+          _log('Gemini key ${i + 1} başarısız (${response.statusCode}) → sıradaki key');
+          lastBadResponse = response;
+          continue;
+        }
 
-      _handleError(response);
-    } on TimeoutException {
-      _log('Gemini timeout → OpenAI fallback');
-      return _callOpenAI(
+        // 5xx → OpenAI fallback (key varsa)
+        if (response.statusCode >= 500) {
+          if (_openaiKey.isEmpty) {
+            _handleError(response);
+          }
+          _log('Gemini 5xx → OpenAI fallback');
+          final t = await _callOpenAI(
+            systemPrompt: systemPrompt,
+            userMessage: userMessage,
+            maxTokens: maxTokens,
+            temperature: temperature,
+            timeout: timeout,
+          );
+          return (text: t, finishReason: 'STOP');
+        }
+
+        _handleError(response);
+      } on TimeoutException {
+        _log('Gemini timeout [key ${i + 1}] → sıradaki key');
+        if (i == keys.length - 1) {
+          if (_openaiKey.isNotEmpty) {
+            _log('Tum keyler timeout => OpenAI fallback');
+            final t = await _callOpenAI(
+              systemPrompt: systemPrompt,
+              userMessage: userMessage,
+              maxTokens: maxTokens,
+              temperature: temperature,
+              timeout: timeout,
+            );
+            return (text: t, finishReason: 'STOP');
+          }
+          throw GeminiException.serverTimeout();
+        }
+        continue;
+      }
+    }
+
+    // Tum Gemini keyleri basarisiz — OpenAI varsa dene
+    if (_openaiKey.isNotEmpty) {
+      _log('Tum Gemini keyleri basarisiz => OpenAI fallback');
+      final t = await _callOpenAI(
         systemPrompt: systemPrompt,
         userMessage: userMessage,
         maxTokens: maxTokens,
         temperature: temperature,
         timeout: timeout,
       );
+      return (text: t, finishReason: 'STOP');
     }
+    // OpenAI de yok — son response'a göre uygun hatayı fırlat
+    if (lastBadResponse != null) _handleError(lastBadResponse);
+    throw GeminiException.quotaExceeded();
   }
 
-  // ── Görsel çağrısı — Gemini Vision; kota dolunca OpenAI Vision'a fallback
-  static Future<String> _callGeminiWithImage({
+  // ── Görsel çağrısı — key başarısız olursa sırayla yedeklere geç ─────────
+  static Future<({String text, String finishReason})> _callGeminiWithImage({
     required String prompt,
     required String base64Image,
     required String mimeType,
     int maxTokens = 2048,
     double temperature = 0.3,
+    int thinkingBudget = 0,
   }) async {
-    final url = '$_baseUrl/$_model:generateContent?key=$_apiKey';
-    try {
-      return await _callGeminiVisionInner(
-        url: url,
+    final keys = _allGeminiKeys();
+    if (keys.isEmpty) {
+      throw GeminiException.invalidKey();
+    }
+
+    GeminiException? lastKeyErr;
+    for (var i = 0; i < keys.length; i++) {
+      final key = keys[i];
+      final url = '$_baseUrl/$_model:generateContent?key=$key';
+      _log('Gemini Vision [${i + 1}/${keys.length}]');
+      try {
+        return await _callGeminiVisionInner(
+          url: url,
+          prompt: prompt,
+          base64Image: base64Image,
+          mimeType: mimeType,
+          maxTokens: maxTokens,
+          temperature: temperature,
+          thinkingBudget: thinkingBudget,
+        );
+      } on GeminiException catch (e) {
+        // Key-level hata → sıradaki key'i dene
+        if (e.type == GeminiErrorType.quotaExceeded ||
+            e.type == GeminiErrorType.invalidKey) {
+          _log('Gemini Vision key ${i + 1} başarısız (${e.type.name}) → sıradaki key');
+          lastKeyErr = e;
+          continue;
+        }
+        // Timeout veya server error → OpenAI Vision yedek
+        if (e.type == GeminiErrorType.serverTimeout && _openaiKey.isNotEmpty) {
+          _log('Gemini Vision timeout → OpenAI Vision');
+          return _callOpenAIWithImage(
+            prompt: prompt,
+            base64Image: base64Image,
+            mimeType: mimeType,
+            maxTokens: maxTokens,
+            temperature: temperature,
+          );
+        }
+        rethrow;
+      }
+    }
+
+    // Tum Gemini keyleri basarisiz — OpenAI Vision varsa dene
+    if (_openaiKey.isNotEmpty) {
+      _log('Tum Gemini Vision keyleri basarisiz => OpenAI Vision');
+      return _callOpenAIWithImage(
         prompt: prompt,
         base64Image: base64Image,
         mimeType: mimeType,
         maxTokens: maxTokens,
         temperature: temperature,
       );
-    } catch (e) {
-      // Kota/sunucu hatası → OpenAI vision'a geç
-      if (e is GeminiException &&
-          (e.type == GeminiErrorType.quotaExceeded ||
-              e.type == GeminiErrorType.serverTimeout)) {
-        _log('Gemini vision kota/hata → OpenAI vision fallback');
-        return _callOpenAIWithImage(
-          prompt: prompt,
-          base64Image: base64Image,
-          mimeType: mimeType,
-          maxTokens: maxTokens,
-          temperature: temperature,
-        );
-      }
-      rethrow;
     }
+    throw lastKeyErr ?? GeminiException.quotaExceeded();
   }
 
-  static Future<String> _callGeminiVisionInner({
+  static Future<({String text, String finishReason})> _callGeminiVisionInner({
     required String url,
     required String prompt,
     required String base64Image,
     required String mimeType,
     required int maxTokens,
     required double temperature,
+    int thinkingBudget = 0,
   }) async {
     final response = await http.post(
       Uri.parse(url),
@@ -253,15 +368,20 @@ class GeminiService {
         'generationConfig': {
           'maxOutputTokens': maxTokens,
           'temperature': temperature,
+          'thinkingConfig': {'thinkingBudget': thinkingBudget},
         },
       }),
-    ).timeout(const Duration(seconds: 60));
+    ).timeout(const Duration(seconds: 120));
 
     if (response.statusCode == 200) {
-      final json = jsonDecode(response.body) as Map<String, dynamic>;
-      final text = json['candidates']?[0]?['content']?['parts']?[0]?['text'] as String?;
+      final json = jsonDecode(utf8.decode(response.bodyBytes))
+          as Map<String, dynamic>;
+      final candidate = json['candidates']?[0];
+      final text = candidate?['content']?['parts']?[0]?['text'] as String?;
+      final fr = (candidate?['finishReason'] as String?) ?? 'STOP';
       if (text == null || text.trim().isEmpty) throw GeminiException.blurryImage();
-      return text;
+      _log('Gemini Vision finishReason=$fr, textLen=${text.length}');
+      return (text: text, finishReason: fr);
     }
 
     _handleError(response);
@@ -352,21 +472,45 @@ class GeminiService {
     _log('[4/5] OK: ${prompt.substring(0, prompt.length.clamp(0, 60))}...');
 
     // ── 5. Google AI HTTP POST ─────────────────────────────────────────────
-    _log('[5/5] Google AI isteği gönderiliyor... (timeout: 60 sn)');
+    // Mod bazlı token & sıcaklık & thinking bütçesi (hız ↔ muhakeme dengesi)
+    // Token tavanlarını yüksek tuttuk — uzun sorularda cevap yarıda kesilmesin.
+    // Yine de MAX_TOKENS gelirse _extendUntilComplete devam çağrısı yapıyor.
+    final (visionMaxTok, visionTemp, visionThinking) = switch (solutionType) {
+      'Basit Çöz'     => (4096,  0.15, 0),     // hız önce — ama tam cevap
+      'Hızlı Çözüm'   => (3072,  0.15, 0),     // en hızlı
+      'Adım Adım Çöz' => (16384, 0.2,  1024),  // muhakeme + uzun çözüm
+      'AI Öğretmen'   => (24576, 0.35, 2048),  // geniş muhakeme + tam anlatım
+      'Konu Anlatımı' => (32768, 0.3,  2048),
+      'Benzer Sorular'=> (24576, 0.3,  2048),
+      'Video Ders'    => (12288, 0.3,  1024),
+      _               => (16384, 0.3,  0),
+    };
+    _log('[5/5] Google AI isteği gönderiliyor... (maxTok: $visionMaxTok, thinking: $visionThinking)');
     try {
       final sw = Stopwatch()..start();
 
-      final text = await _callGeminiWithImage(
+      final result = await _callGeminiWithImage(
         prompt: prompt,
         base64Image: base64Image,
         mimeType: mime,
+        maxTokens: visionMaxTok,
+        temperature: visionTemp,
+        thinkingBudget: visionThinking,
+      );
+
+      // Yarıda kalma koruması — MAX_TOKENS ise metin tamamlama çağrıları yap
+      final full = await _extendUntilComplete(
+        partial: result.text,
+        finishReason: result.finishReason,
+        originalPrompt: prompt,
+        temperature: visionTemp,
       );
 
       sw.stop();
-      _log('[5/5] OK: ${text.length} karakter — ${sw.elapsedMilliseconds} ms');
+      _log('[5/5] OK: ${full.length} karakter — ${sw.elapsedMilliseconds} ms — finishReason: ${result.finishReason}');
       _log('analyzeImage() BAŞARILI ✅');
       _log('══════════════════════════════════════════');
-      return text;
+      return full;
 
     } on GeminiException {
       rethrow;
@@ -379,6 +523,87 @@ class GeminiService {
     } catch (e) {
       _log('[5/5] HATA: ${e.runtimeType} — $e');
       throw GeminiException.unknown(e.toString());
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  Hızlı konu sınıflandırıcı — yükleme animasyonunu (sayısal / sözel) seçmek
+  //  için 1-2 sn'lik küçük bir görsel çağrıdır. Hata durumunda 'numeric' döner.
+  // ══════════════════════════════════════════════════════════════════════════════
+  static Future<String> classifySubjectQuick(String imagePath) async {
+    _log('classifySubjectQuick() başladı');
+    try {
+      final imageFile = File(imagePath);
+      if (!await imageFile.exists()) return 'numeric';
+      final imageBytes = await imageFile.readAsBytes();
+      if (imageBytes.isEmpty) return 'numeric';
+      final sizeMb = imageBytes.lengthInBytes / (1024 * 1024);
+      if (sizeMb > 14) return 'numeric';
+
+      final base64Image = base64Encode(imageBytes);
+      final mime = _mimeOf(imagePath);
+
+      final res = await _callGeminiWithImage(
+        prompt:
+            'Bu görselde soru var. Sorunun TEK kelime ile kategorisini söyle: '
+            '"numeric" veya "verbal".\n'
+            '- "numeric": Matematik, Fizik, Kimya, Geometri veya hesap gerektiren Biyoloji.\n'
+            '- "verbal": Türkçe, Edebiyat, Tarih, Coğrafya, Felsefe, Yabancı Dil, '
+            'din, sosyal içerik.\n'
+            'Sadece kelimeyi döndür, başka hiçbir şey yazma.',
+        base64Image: base64Image,
+        mimeType: mime,
+        maxTokens: 8,
+        temperature: 0.0,
+        thinkingBudget: 0,
+      );
+      final raw = res.text.trim().toLowerCase();
+      if (raw.contains('verbal') || raw.contains('sözel') || raw.contains('sozel')) {
+        _log('classifySubjectQuick → verbal');
+        return 'verbal';
+      }
+      _log('classifySubjectQuick → numeric ($raw)');
+      return 'numeric';
+    } catch (e) {
+      _log('classifySubjectQuick HATA: $e → numeric fallback');
+      return 'numeric';
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  Sadece OCR — paylaşım için sorunun metnini çıkarır (hiç çözmez)
+  //  Başarısız olursa boş string döndürür; çağıran fallback'e düşer.
+  // ══════════════════════════════════════════════════════════════════════════════
+  static Future<String> extractQuestionText(String imagePath) async {
+    _log('extractQuestionText() başladı');
+    try {
+      final imageFile = File(imagePath);
+      if (!await imageFile.exists()) return '';
+      final imageBytes = await imageFile.readAsBytes();
+      if (imageBytes.isEmpty) return '';
+      final sizeMb = imageBytes.lengthInBytes / (1024 * 1024);
+      if (sizeMb > 14) return '';
+
+      final base64Image = base64Encode(imageBytes);
+      final mime = _mimeOf(imagePath);
+
+      final extracted = await _callGeminiWithImage(
+        prompt:
+            'Bu görseldeki TÜM soru metnini, formülleri, şıkları ve değerleri '
+            'değiştirmeden olduğu gibi yaz. Yorum yapma, çözme. '
+            'Sadece sorunun kendisini düz metin olarak döndür. '
+            r'Matematiksel ifadeleri LaTeX olarak koru (\(...\) formatinda). '
+            'Coktan secmeli ise siklari A) B) C) D) E) formatinda ayri satirda yaz.',
+        base64Image: base64Image,
+        mimeType: mime,
+        maxTokens: 2000,
+        temperature: 0.0,
+      );
+      _log('extractQuestionText OK: ${extracted.text.length} karakter');
+      return extracted.text.trim();
+    } catch (e) {
+      _log('extractQuestionText HATA: $e');
+      return '';
     }
   }
 
@@ -407,7 +632,7 @@ class GeminiService {
     _log('[DS 1/2] Gemini OCR...');
     String extracted;
     try {
-      extracted = await _callGeminiWithImage(
+      final ocr = await _callGeminiWithImage(
         prompt:
             'Bu görseldeki TÜM soru metnini, formülleri, şıkları ve değerleri '
             'değiştirmeden olduğu gibi yaz. Yorum yapma, çözme. '
@@ -415,29 +640,92 @@ class GeminiService {
             'Matematiksel ifadeleri LaTeX olarak koru.',
         base64Image: base64Image,
         mimeType: mime,
-        maxTokens: 1200,
+        maxTokens: 2000,
         temperature: 0.0,
       );
+      extracted = ocr.text;
     } catch (e) {
       _log('[DS 1/2] OCR HATA: $e');
       rethrow;
     }
     _log('[DS 1/2] OK (${extracted.length} karakter)');
 
-    // 2) DeepSeek — çözüm
-    _log('[DS 2/2] DeepSeek çözüm...');
+    // 2) Gemini — çözüm (yüksek token + tamamlama garantisi)
+    _log('[DS 2/2] Gemini çözüm...');
     final prompt = _buildPrompt(solutionType, isMulti: isMulti);
-    final answer = await _callGemini(
+    final (solverMax, solverThink) = switch (solutionType) {
+      'Basit Çöz'     => (4096, 0),
+      'Hızlı Çözüm'   => (3072, 0),
+      'Adım Adım Çöz' => (16384, 1024),
+      'AI Öğretmen'   => (24576, 2048),
+      _               => (16384, 512),
+    };
+    final initial = await _callGeminiFull(
       systemPrompt: prompt,
       userMessage:
           'Aşağıdaki soruyu yukarıdaki kurallara göre çöz:\n\n$extracted',
-      maxTokens: 1500,
+      maxTokens: solverMax,
       temperature: 0.3,
-      timeout: const Duration(seconds: 90),
+      thinkingBudget: solverThink,
+      timeout: const Duration(seconds: 120),
+    );
+    final answer = await _extendUntilComplete(
+      partial: initial.text,
+      finishReason: initial.finishReason,
+      originalPrompt: prompt,
+      temperature: 0.3,
     );
     _log('[DS 2/2] OK (${answer.length} karakter)');
     _log('analyzeImageWithDeepseek() BAŞARILI ✅');
     return answer;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  Yarıda kalma koruması — MAX_TOKENS algılarsa devam ettir
+  //  En fazla 3 devam turu yapar; her turda kaldığı yerden bağlar.
+  // ══════════════════════════════════════════════════════════════════════════════
+  static Future<String> _extendUntilComplete({
+    required String partial,
+    required String finishReason,
+    required String originalPrompt,
+    required double temperature,
+    int maxRounds = 3,
+  }) async {
+    if (finishReason != 'MAX_TOKENS') return partial;
+    _log('[!] Yanıt MAX_TOKENS oldu → devam turu başlatılıyor...');
+
+    var full = partial;
+    var lastReason = finishReason;
+    for (var round = 1; round <= maxRounds && lastReason == 'MAX_TOKENS'; round++) {
+      _log('[devam $round/$maxRounds] ${full.length} karakter birikti');
+      try {
+        final res = await _callGeminiFull(
+          systemPrompt: '$originalPrompt\n\n'
+              '[SYSTEM — CONTINUATION MODE]\n'
+              'Bir önceki yanıtın uzun olduğu için yarıda kesildi. '
+              'Aşağıda şimdiye kadar yazdığın metin yer alıyor. Aynı biçimde, aynı '
+              'üslupta, ASLA baştan başlatmadan, KALDIĞIN YERDEN devam et. '
+              'Yarım kalan cümleyi tamamla. Çözüm biter bitmez "Sonuç:" ve '
+              '"Püf Nokta:" satırlarını mutlaka yaz. Tekrar açıklama girişi yapma.',
+          userMessage:
+              'ÖNCEKİ YANIT:\n---\n$full\n---\n\nŞimdi yukarıdaki yarım '
+              'yanıtı, ilk karakterinden itibaren aynı metinle ASLA tekrar '
+              'etmeden, son karakterinden sonraki yerden sorunsuzca devam ettir.',
+          maxTokens: 24576,
+          temperature: temperature,
+          thinkingBudget: 0,
+          timeout: const Duration(seconds: 120),
+        );
+        full = '$full${res.text}';
+        lastReason = res.finishReason;
+        _log('[devam $round] finishReason=${res.finishReason}, ek=${res.text.length}');
+      } catch (e) {
+        _log('[devam $round] HATA: $e — döngüden çıkılıyor');
+        break;
+      }
+    }
+    _log('[extend] Toplam ${full.length} karakter, son finishReason=$lastReason');
+    return full;
   }
 
   // ── Yardımcılar ───────────────────────────────────────────────────────────────
@@ -522,21 +810,26 @@ Aşağıdaki çözümü analiz ederek içerik üret:
 $solution''';
 
     try {
-      var text = await _callGemini(
+      final res = await _callGeminiFull(
         systemPrompt: systemPrompt,
         userMessage: 'Yukarıdaki JSON şablonunu doldur.',
-        maxTokens: 3000,
-        temperature: 0.4,
+        maxTokens: 4096,
+        temperature: 0.25,
+        thinkingBudget: 0,
+        responseMimeType: 'application/json',
         timeout: const Duration(seconds: 60),
       );
-      // Markdown kod bloğu varsa soy
-      text = text.replaceAll(RegExp(r'```json\s*'), '').replaceAll(RegExp(r'```\s*'), '').trim();
+      var text = res.text
+          .replaceAll(RegExp(r'```json\s*'), '')
+          .replaceAll(RegExp(r'```\s*'), '')
+          .trim();
       _log('fetchStudySuite OK: ${text.length} karakter');
       return jsonDecode(text) as Map<String, dynamic>;
 
     } on GeminiException { rethrow; }
      on TimeoutException  { throw GeminiException.serverTimeout(); }
      on SocketException   { throw GeminiException.noInternet(); }
+     on FormatException catch (e) { throw GeminiException.unknown('JSON parse: $e'); }
      catch (e)            { throw GeminiException.unknown(e.toString()); }
   }
 
@@ -662,39 +955,43 @@ $existingSolution''';
      on TimeoutException { throw GeminiException.noInternet(); }
 
     final modeInstr = switch (solutionType) {
-      // BASİT ÇÖZ — en kısa, yalnızca cevap + tek satırlık açıklama
+      // BASİT ÇÖZ — spec: kısa öz, doğrudan sonuç
       'Basit Çöz' =>
-          '[BASİT MOD — ULTRA KISA]\n'
-          'Soruyu en kısa yoldan çöz. Kurallar:\n'
-          '• Uzun anlatım, ara adım YOK. Maksimum 3-4 satır.\n'
-          '• Varsa kilit formülü 1 satırda LaTeX ile göster.\n'
-          '• Hesaplama adımları KISA: "2+3=5" şeklinde.\n'
-          '• Son satır: "Sonuç: [kesin cevap]"\n'
-          '• Konu anlatımı, "neden böyle", tavsiye YAZMA.',
+          '[MOD: BASİT ÇÖZÜM]\n'
+          'HEDEF: Sorunun özünü en kısa ve anlaşılır şekilde ver.\n'
+          'TARZ: Gereksiz teknik detaydan kaç, doğrudan sonuca odaklan.\n'
+          'YAPI:\n'
+          '1) Kısa bir mantık açıklaması (1-2 cümle).\n'
+          '2) LaTeX ile çözüm (formül → değerler → işlem arka arkaya).\n'
+          '3) "Sonuç: [net cevap]" satırıyla bitir.\n'
+          'KURAL: Konu anlatımı, süsleme, tavsiye KULLANMA. Maksimum 5-6 satır.',
 
-      // ADIM ADIM ÇÖZ — detaylı, her adım net etiketli
+      // ADIM ADIM ÇÖZ — spec: profesyonel, mantıksal akış
       'Adım Adım Çöz' =>
-          '[ADIM ADIM MOD — ORTA DETAY]\n'
-          'Soruyu detaylı adımlarla çöz. Kurallar:\n'
-          '• "Verilenler:" kısmını ilk satıra yaz (kısaca).\n'
-          '• Her adımı "Adım 1:", "Adım 2:" başlığıyla ayır.\n'
-          '• Her adımda kullandığın formülü veya kuralı BELİRT.\n'
-          '• Sayısal dersler için LaTeX kullan.\n'
-          '• Ara kontrol yapma, ancak her adım anlaşılır olsun.\n'
-          '• Son satır: "Sonuç: [kesin cevap]"\n'
-          '• Püf Nokta: satırı ekle (1 cümle).',
+          '[MOD: ADIM ADIM ÇÖZÜM]\n'
+          'HEDEF: Mantıksal akışı profesyonelce öğretmek.\n'
+          'TARZ: Her adımı numaralandır. Dolambaçlı cümleden kaç; sadece '
+          '"Neden bu adımı yapıyoruz?" ve "Nasıl yapıyoruz?" sorularına odaklan.\n'
+          'YAPI:\n'
+          '• "Verilenler:" ve "İstenen:" satırları (kısa liste).\n'
+          '• "1. Adım:", "2. Adım:" ... şeklinde numaralı adımlar. Her adımda '
+          'ilgili formülü LaTeX ile göster, sonra değerleri yerleştir.\n'
+          '• "Sonuç ve Kontrol:" bölümü: kesin cevap + 1 cümlelik kısa doğrulama '
+          '(boyut analizi, sağlama veya mantık kontrolü).',
 
-      // AI ÖĞRETMEN — sohbet tarzı, açıklamalı, sokratik
+      // AI ÖĞRETMEN — spec: sıcak giriş + konu + çözüm + ipucu
       'AI Öğretmen' =>
-          '[ÖĞRETMEN MOD — SOHBET VE REHBERLİK]\n'
-          'Bir öğretmen gibi sıcak, açıklayıcı ve motive edici bir dille anlat. Kurallar:\n'
-          '• "Hadi beraber bakalım..." gibi doğal bir girişle başla.\n'
-          '• Her adımı açıkla AMA öğrenciye de sorular sor: "Sence neden bu formülü seçtik?" → hemen cevabı ver.\n'
-          '• Her adımda hangi KAVRAMın kullanıldığını belirt ve kısa bir analoji/örnek kat.\n'
-          '• En az 1 "Vay canına" bilgisi ya da günlük hayattan bağlantı ekle.\n'
-          '• Sayısal dersler için LaTeX kullan; sözel derslerde akıcı paragraf yaz.\n'
-          '• Son satır: "Sonuç: [kesin cevap]"\n'
-          '• Bitirirken: "Aklına takılan yeri aşağıdan sorabilirsin, birlikte çözeriz! 😊"',
+          '[MOD: AI ÖĞRETMEN]\n'
+          'HEDEF: Öğrenciyi sıkmadan, sohbet eder gibi ama uzman otoritesiyle öğretmek.\n'
+          'TARZ: "Hadi gel bu problemi birlikte çözelim" gibi sıcak bir girişle '
+          'başla. Kavramların mantığını günlük hayattan kısa örneklerle bağlantıla.\n'
+          'YAPI:\n'
+          '1) Kısa KONU ANLATIMI (2-3 cümle): sorunun dayandığı temel kavram + '
+          'günlük hayattan 1 analoji.\n'
+          '2) ÇÖZÜM: numaralı adımlar, her adımda formül LaTeX ile + kısa açıklama.\n'
+          '3) "Sonuç: [cevap]" satırı.\n'
+          '4) "İpucu: [bu tür sorularda hatırlanması gereken tek şey]" — 1 cümle.\n'
+          'KURAL: Retorik veya Sokratik soru KULLANMA. Samimi ama ciddi ol. Anchor ikonlarını [SYSTEM — ICON USAGE] kurallarına göre seçici kullan.',
 
       _ =>
           'Soruyu kısa ve net çöz. Formülleri LaTeX ile yaz. Son satırda "Sonuç:" ile bitir.',
@@ -702,7 +999,13 @@ $existingSolution''';
 
     final systemPrompt = '''$_sysIdentity
 
+$_sysCoreRules
+
 $_sysLatex
+
+$_sysMathMastery
+
+$_sysFormulas
 
 [ÖDEV ÇÖZME MODU]
 Ders: $subject
@@ -713,7 +1016,7 @@ Cevabı Türkçe ver.''';
     final (maxTok, temp) = switch (solutionType) {
       'Basit Çöz'     => (500,  0.1),
       'Adım Adım Çöz' => (1500, 0.2),
-      'AI Öğretmen'   => (2500, 0.4),
+      'AI Öğretmen'   => (2000, 0.35),
       'KonuÖzeti'     => (3500, 0.3), // zengin, numaralı yapı
       _               => (1500, 0.2),
     };
@@ -798,34 +1101,56 @@ KURAL A — EVRENSELLİK: Görseldeki hiçbir soruyu asla reddetme; ister sembol
 KURAL B — AKADEMİK DOĞRULUK: Yanıtların bilimsel, tarihsel ve dilbilimsel olarak %100 doğru olmalı. Belirsiz veya spekülasyon içerebilecek noktalarda bunu açıkça belirt.
 KURAL C — MOTİVASYON: Akademik ciddiyet ile öğrenciyi teşvik eden sıcak bir dil dengesi kur. Hiçbir zaman küçümseyici veya sert bir tona geçme.''';
 
+  // ── BLOK 1A: Kritik Kurallar (her modda geçerli) ───────────────────────────
+  static const _sysCoreRules = '''
+[SYSTEM — CRITICAL RULES]
+Aşağıdaki kurallar HER modda mutlak uygulanır:
+1) MATEMATİKSEL YAZIM: Tüm formüller, semboller, denklemler LaTeX ile yazılır. Satır içi: \\( E=mc^2 \\) · Bağımsız: \\[ \\frac{-b \\pm \\sqrt{\\Delta}}{2a} \\]. Düz metin matematik (x^2, kök, bölü işareti) YASAK. DOLAR işareti (\$) çıktıda HİÇ kullanılmaz — ne para birimi ne sınırlayıcı olarak; tek sınırlayıcılar \\( \\) ve \\[ \\].
+2) TAMAMLAMA GARANTİSİ (en kritik kural): Çözümü ASLA yarıda kesme. Soru ne kadar uzun olursa olsun, ne kadar zor olursa olsun, TAM çöz. Ara hesapları kısaltabilirsin ama sonuca mutlaka ulaş. "Sonuç:" ve onun altında "Püf Nokta:" satırları yanıtın sonunda MUTLAKA bulunmak zorundadır. Yer kalmadığını hissedersen giriş/özet kısımlarını at, çözüm adımlarını sıkıştır; ama final satırlarını bırakma. Sözde bitmiş ama Sonuç satırı olmayan çıktı kabul edilmez.
+3) DOĞRULUK: Bilimsel hata yapma. Soru eksikse varsayımda bulunmak yerine eksik kısmı nazikçe belirt (örn. "Sorunun çözülmesi için X değerinin verilmiş olması gerekir").
+4) ÇIKTI: Temiz Markdown yapısı kullan. Başlık, adım, liste okunaklı hizalansın.''';
+
   // ── BLOK 1.5: Ders Tanımlama Protokolü (Subject Identification) ─────────────
   static const _sysSubject = '''
 [SYSTEM — SUBJECT IDENTIFICATION PROTOCOL]
 Çözüme başlamadan önce görseli tam bir OCR taramasından geçir ve aşağıdaki iki aşamayı kesinlikle uygula:
 
 AŞAMA 1 — DERS TEŞHİSİ (zorunlu, atlanamaz):
-Görseldeki her izi incele: formüller, semboller, birimler, indisler, harita/diyagram detayları,
-anahtar kelimeler, soru kalıpları, yazı karakterleri.
-Bu kanıtlara dayanarak sorunun ait olduğu tek dersi veya bileşik alanı belirle.
-Tanıma rehberi —
-  • ∫ ∑ ∂ lim →/← vektör işareti, f(x), matris           → Matematik
-  • F=ma v²=v₀²+2ax λ J W kg m/s² ohm Hz newton joule    → Fizik
-  • mol M pH denge tepkimesi element periyodik tablo       → Kimya
-  • hücre DNA ATP mitoz mayoz fotosentez sinir sistemi     → Biyoloji
-  • koordinat enlem boylam iklim nüfus harita lejandı      → Coğrafya
-  • tarih yılı savaş antlaşma padişah devlet kronoloji     → Tarih
-  • şair yazar roman şiir edebi dönem dil bilgisi özne     → Edebiyat / Türkçe
-  • philosophe kavramı düşünür argüman etik metafizik      → Felsefe
-  • tense grammar vocabulary article preposition           → İngilizce / Yabancı Dil
-Disiplinler arası sorularda (örn. Fizik + Matematik) baskın olan dersin
-akademik kurallarını önceliklendir; hem ikisini belirt: "Fizik (Matematik ağırlıklı)".
+Görseldeki her izi incele: formüller, semboller, birimler, indisler, harita/diyagram detayları, anahtar kelimeler, soru kalıpları, yazı karakterleri. Bu kanıtlara dayanarak dersi belirle.
+
+TEŞHİS REHBERİ —
+  • Matematik: saf cebirsel ifadeler (\\( x^2+3x-4 \\)), türev/integral SADECE matematiksel bağlamda (\\( f(x)=\\ldots \\), \\( \\int f(x)dx \\), \\( \\lim_{x\\to a} \\)), geometrik şekil (üçgen, daire, açı) problemleri, matris/determinant, küme, olasılık, kombinasyon/permütasyon, denklem sistemleri, fonksiyon grafikleri, trigonometrik özdeşlik ispatı.
+  • Fizik: FİZİKSEL NİCELİK varsa (kuvvet, hız, ivme, kütle, zaman, enerji, güç, moment, basınç, elektrik akımı, voltaj, direnç, manyetik alan, ışık, dalga, frekans, sıcaklık), fiziksel birim varsa (N, J, W, m/s, m/s², kg, Pa, A, V, Ω, T, Hz, K, °C, mol), fiziksel formül varsa (F=ma, v=v₀+at, E=mc², V=IR, P=UI, Q=mcΔT, PV=nRT (ideal gaz), λf=c, F=kq₁q₂/r², p=mv). Türev/integral fiziksel bir niceliğe uygulanıyorsa (hız = konumun türevi) → Fizik.
+  • Kimya: mol, M (molarite), pH, oksidasyon, element sembolü, periyodik tablo, tepkime denklemi (→ veya ⇌), denge sabiti (Kₐ, Kᵦ, Kw), asit-baz, redoks, iyon, Avogadro, atom numarası, bağ türleri (iyonik, kovalent, hidrojen), karışım/çözelti, gaz yasaları KİMYASAL bağlamda.
+  • Biyoloji: hücre, DNA, RNA, protein, enzim, ATP, mitoz, mayoz, gen, alel, fotosentez, solunum, sinir sistemi, dolaşım, hormon, organ, ekosistem, tür, evrim, genotip, fenotip.
+  • Coğrafya: enlem, boylam, harita, iklim (sıcaklık, yağış), biyom, nüfus yoğunluğu, tarım, sanayi, yer şekli, levha tektoniği, akarsu/göl, rüzgâr yönü, Türkiye/dünya bölgeleri, kartografya.
+  • Tarih: kesin yıl (örn. 1071, 1923), savaş, antlaşma, padişah/hükümdar, devlet, medeniyet, kronoloji, Kurtuluş Savaşı, Osmanlı, Cumhuriyet, inkılap.
+  • Edebiyat / Türkçe: şair/yazar adı, şiir türleri, edebi dönem (Divan, Tanzimat, Servet-i Fünun), cümle ögesi (özne, yüklem, nesne), yazım kuralı, anlatım bozukluğu, ses olayı, paragraf analizi.
+  • Felsefe: filozof adı, argüman, etik, metafizik, epistemoloji, mantık çıkarımı (kıyas), bilgi kuramı, varlık.
+  • İngilizce / Yabancı Dil: grammar (tense, article, preposition, modal), vocabulary, reading, fill-in-the-blank.
+
+DISAMBIGUATION — KRİTİK:
+1) **Sayı + harf + denklem görülürse otomatik olarak Fizik ya da Matematik mi?**
+   → BİRİM varsa (m/s, N, kg vb.) veya FİZİKSEL NİCELİK (kuvvet, hız) adı geçiyorsa **Fizik**.
+   → Yalnızca x, y, a, b gibi soyut değişkenler ve birim yoksa **Matematik**.
+   Örn: "F = ma, m=2 kg, a=3 m/s² ⇒ F=?" → FİZİK (Matematik değil).
+   Örn: "2x² - 5x + 3 = 0 denkleminin kökleri" → MATEMATİK (Fizik değil).
+2) **Harita, iklim diyagramı, nüfus piramidi** → Coğrafya (Biyoloji değil, Tarih değil).
+   Coğrafyada sayısal veri olsa bile matematik değildir.
+3) **Kimyasal formül (H₂O, CO₂, NaCl) ve ok (→) varsa** → Kimya (Matematik değil).
+4) **DNA, hücre, organel, enzim** → Biyoloji (Kimya değil), atom-bağ seviyesinde kimyaya geçse bile.
+5) **Osmanlıca metin, tarih olayı** → Tarih (Edebiyat değil), yazar/şair adı ön planda ise Edebiyat.
+6) **Trigonometri saf özdeşlik (sin²θ+cos²θ=1)** → Matematik. Fizik problemi içinde trigonometri geçiyorsa (eğik atış açısı) → Fizik.
+7) Tereddütte: ders soruda **sorulan nicelik** ne ise o dersin temel problemidir. "Hızı kaç m/s?" → Fizik. "Kök sayısı kaç?" → Matematik. "Hangi yıl imzalandı?" → Tarih.
+
+Disiplinler arası sorularda baskın dersin akademik kurallarını önceliklendir; hem ikisini belirt: "Fizik (Matematik ağırlıklı)". Ama baskın ders NET olmalı — 60/40 kuralı: ikinci ders %40'ın altındaysa hiç anma, sadece baskın dersi yaz.
 
 AŞAMA 2 — ÇÖZÜM MOD ANAHTARI:
 Tespit edilen derse göre KALICI çözüm moduna geç ve bu modu hiçbir zaman değiştirme:
 
 SAYISAL MOD (Matematik / Fizik / Kimya / Biyoloji-hesap):
   • Tüm formüller, sabitler ve birimler LaTeX ile yazılmalı.
-  • Fizik sabitleri: g = \$9{,}8\\ \\text{m/s}^2\$  |  pi = \$\\pi = 3{,}14159\$
+  • Fizik sabitleri: \\( g = 9{,}8\\ \\text{m/s}^2 \\)  |  \\( \\pi = 3{,}14159 \\)
   • Kimya: denklem denkleştirme zorunlu, mol hesabı LaTeX ile.
   • Her adımda önce formülü göster, sonra sayısal değerleri yerleştir, sonra sonucu hesapla.
   • Boyut analizi (birim takibi) en az bir adımda açıkça yapılmalı.
@@ -842,19 +1167,108 @@ SÖZEL MOD (Tarih / Edebiyat / Coğrafya / Felsefe / Yabancı Dil):
 Örnekler: [Ders: Fizik] | [Ders: Matematik] | [Ders: Fizik (Matematik ağırlıklı)] | [Ders: Tarih]
 Bu etiket olmadan yanıt geçersiz sayılır.''';
 
-  // ── BLOK 2: LaTeX Standartı ──────────────────────────────────────────────────
+  // ── BLOK 2: LaTeX Standartı — DOLAR İŞARETSİZ ────────────────────────────────
   static const _sysLatex = '''
 [SYSTEM — MATH RENDERING]
-Sayısal dersler (Matematik, Fizik, Kimya, Biyoloji hesaplamaları) için STRICT LaTeX zorunludur:
-• Satır içi formül   → \$...\$        örn: \$x^2 + y^2 = r^2\$
-• Bağımsız formül    → \$\$...\$\$    örn: \$\$\\int_0^\\infty e^{-x}\\,dx = 1\$\$
+Sayısal dersler (Matematik, Fizik, Kimya, Biyoloji hesaplamaları) için STRICT LaTeX zorunludur.
+SINIRLAYICILAR — yalnızca bunlar kullanılır:
+• Satır içi formül   → \\( ... \\)            örn: \\( x^2 + y^2 = r^2 \\)
+• Bağımsız formül    → \\[ ... \\]            örn: \\[ \\int_0^{\\infty} e^{-x}\\,dx = 1 \\]
+
+KESİN YASAKLAR:
+• DOLAR işareti (\$) çıktıda HİÇ geçmez. Ne sınırlayıcı olarak (\$...\$, \$\$...\$\$) ne para birimi olarak. Para birimi gerekiyorsa "dolar", "TL", "USD" yaz.
+• Düz metin matematik YASAK: x^2, sqrt(2), 3/4, <=, >=, !=, pi, alpha, sum, int yazma. Hepsini LaTeX içinde yaz.
+• Açılan her \\( veya \\[ mutlaka kapanan \\) veya \\] ile biter.
+
+LaTeX SÖZLÜĞÜ:
 • Kesir              → \\frac{pay}{payda}
 • Karekök            → \\sqrt{x}  veya  \\sqrt[n]{x}
-• Üst/Alt indis      → x^{n}  |  x_{i}
-• Yunan harfleri     → \\alpha  \\beta  \\Delta  \\pi  \\sigma
-• Türev / İntegral   → \\frac{d}{dx}  |  \\int  |  \\sum_{i=1}^{n}
-UYARI: LaTeX yerine düz metin (x^2 gibi ASCII matematik) YASAK; UI tarafı yalnızca LaTeX render eder.
+• Üst / alt indis    → x^{n}  |  x_{i}
+• Yunan harfleri     → \\alpha \\beta \\gamma \\delta \\theta \\lambda \\mu \\pi \\sigma \\phi \\omega \\Delta \\Sigma \\Omega
+• Operatörler        → \\cdot \\times \\div \\pm \\mp \\leq \\geq \\neq \\approx \\equiv \\propto \\in \\notin \\subset \\cup \\cap
+• Sonsuzluk/ok       → \\infty \\to \\rightarrow \\Leftrightarrow
+• Türev / İntegral   → \\frac{d}{dx} \\ \\ \\int \\ \\ \\sum_{i=1}^{n} \\ \\ \\prod \\ \\ \\lim_{x \\to 0}
+• Trig / log         → \\sin \\cos \\tan \\cot \\sec \\csc \\ln \\log \\log_{2}
+• Mutlak değer       → \\left| x \\right|
+• Matris             → \\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}
+• Metin içi sözcük   → \\text{...}   örn: \\( v = \\frac{\\text{yol}}{\\text{zaman}} \\)
+• Ondalık ayraç TR   → virgül: \\( 3{,}14 \\)  (nokta değil)
+
 İstisna: Tamamen sözel alanlarda (Tarih, Edebiyat, Felsefe, dil dersleri) LaTeX kullanma.''';
+
+  // ── BLOK 2.5: MATEMATİK USTALIK MODU — ilkokuldan üniversiteye ──────────────
+  static const _sysMathMastery = '''
+[SYSTEM — MATH MASTERY MODE]
+Matematik, Geometri, Fizik veya Kimya hesap sorularında uzman bir öğretmen kalitesinde çöz. Seviye ayrımı yapmadan — ilkokul toplamadan üniversite düzeyine kadar — aynı ciddiyetle çalış.
+
+SEMBOL TANIMA:
+Görseldeki tüm matematik karakterlerini doğru oku ve LaTeX'te birebir yaz. Küçük/büyük Yunan harfleri, üs ve alt indisler, trigonometrik fonksiyonlar, integral/toplam/limit sınırları, vektör okları, mutlak değer, faktöriyel (!), permütasyon (P), kombinasyon (C / \\binom), matris parantezleri, derece (°), dakika (′), saniye (″), küme sembolleri, fonksiyon notasyonu \\( f(x) \\), kesir çizgileri, kök işareti (\\sqrt), üstel notasyon (e^x, 10^n), logaritma tabanı, türev işareti (f'(x), \\frac{dy}{dx}), kısmi türev (\\partial). Hiçbir sembol "~" veya "?" ile atlanmaz — okunamıyorsa "okunamayan sembol için X varsayımı" diye açıkça belirt.
+
+SORUYU TEKRAR YAZMA:
+Sorunun metnini/ifadesini çözümün başında TEKRAR YAZMA. Kullanıcının fotoğrafı zaten ekranda — "Soru:", "Verilen:" veya özet paragraf ile soruyu baştan yazmak tekrardan başka bir şey değil. Doğrudan çözüme gir. (Nicelikleri ilk adımda formülde kullanırken değişken adlarını tanıtabilirsin; bu tekrar sayılmaz.)
+
+SEVİYEYE GÖRE DİL:
+• İlkokul (1-4): Günlük örnek, "elma", "kalem" dili. Adımlar çok kısa.
+• Ortaokul (5-8): Formülü ilk kez tanıtır gibi 1 cümlelik temel mantık ver.
+• Lise (9-12): Formülü isimle söyle, tanımını hatırlat ("Diskriminant \\( \\Delta = b^2 - 4ac \\)").
+• TYT/AYT/Üniversite hazırlık: Pratik yol, ezber ipucu, "Bu tip sorularda hızda ... " gibi stratejik notlar ekle.
+• Üniversite: Tam matematiksel titizlik, gerekiyorsa teorem adı.
+
+HESAP DİSİPLİNİ:
+• Her ara adımda iki tarafa da aynı işlemi yaptığını açıkla: "Her iki yana 3 ekliyoruz".
+• Negatif sayı, kesir, ondalık, büyük sayı işlemlerinde dikkatli ol; işaret hatası yapma.
+• Cebirsel işlemleri atlamadan göster: \\( (x+2)(x-3) \\) açılımı tek adımda değil, FOIL yap.
+• Geometride şekli sözcüklerle betimle (hangi üçgen, hangi açı, hangi köşegen).
+• Fizik/kimya karışımlarında birimi her adımda taşı ve en sonda boyut kontrolü yap.
+
+DOĞRULAMA:
+"Doğrulama:" satırında cevabı orijinal denklemde/formülde yerine koyarak veya ters işlemle kontrol et. Hata bulursan geri dön, düzelt.
+
+ASLA:
+• "Bu soru çok basit / çok zor" gibi küçümseme veya vazgeçme yazma.
+• "Bu değeri bilmiyorum" deme; matematiksel ifade ile elde edilebiliyorsa elde et.
+• Hesap makinesinde olmayan bir sonucu yuvarlamadan bırakma — hem tam hem yaklaşık değeri ver: \\( \\sqrt{2} \\approx 1{,}4142 \\).''';
+
+  // ── BLOK 2.6: Formül dağarcığı — hızlı erişim için ──────────────────────────
+  static const _sysFormulas = '''
+[SYSTEM — FORMULA LIBRARY]
+Tüm standart formülleri ezbere bil ve doğru uygula. Aşağıdaki referans listesi KISMİdir; bu listedekiler dahil ama sınırlı olmamak üzere her dersin tüm standart formüllerine hâkimsin.
+
+MATEMATİK:
+• İkinci dereceden denklem: \\( x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a} \\), diskriminant \\( \\Delta = b^2-4ac \\), kökler toplamı \\( -b/a \\), çarpımı \\( c/a \\).
+• Özdeşlikler: \\( (a\\pm b)^2 = a^2 \\pm 2ab + b^2 \\), \\( a^2-b^2=(a-b)(a+b) \\), \\( a^3\\pm b^3=(a\\pm b)(a^2\\mp ab+b^2) \\).
+• Üslü/köklü: \\( a^m \\cdot a^n=a^{m+n} \\), \\( (a^m)^n=a^{mn} \\), \\( \\sqrt[n]{a^m}=a^{m/n} \\).
+• Logaritma: \\( \\log_a(xy)=\\log_a x+\\log_a y \\), \\( \\log_a(x^n)=n\\log_a x \\), \\( \\log_a b=\\frac{\\ln b}{\\ln a} \\).
+• Trigonometri: \\( \\sin^2\\theta+\\cos^2\\theta=1 \\), \\( \\sin(2\\theta)=2\\sin\\theta\\cos\\theta \\), \\( \\cos(2\\theta)=\\cos^2\\theta-\\sin^2\\theta \\), sinüs teoremi \\( \\frac{a}{\\sin A}=\\frac{b}{\\sin B}=2R \\), kosinüs teoremi \\( a^2=b^2+c^2-2bc\\cos A \\).
+• Geometri: üçgen alanı \\( \\frac{1}{2}ab\\sin C \\); daire alanı \\( \\pi r^2 \\), çevresi \\( 2\\pi r \\); küre hacmi \\( \\frac{4}{3}\\pi r^3 \\); koni hacmi \\( \\frac{1}{3}\\pi r^2 h \\); silindir hacmi \\( \\pi r^2 h \\); Pisagor \\( a^2+b^2=c^2 \\).
+• Türev: \\( (x^n)'=nx^{n-1} \\), \\( (\\sin x)'=\\cos x \\), \\( (\\cos x)'=-\\sin x \\), çarpım \\( (uv)'=u'v+uv' \\), bölüm \\( (u/v)'=(u'v-uv')/v^2 \\), zincir \\( [f(g(x))]'=f'(g(x))g'(x) \\).
+• İntegral: \\( \\int x^n dx=\\frac{x^{n+1}}{n+1}+C \\) (n≠-1), \\( \\int \\frac{1}{x}dx=\\ln|x|+C \\), \\( \\int e^x dx=e^x+C \\), \\( \\int \\sin x dx=-\\cos x+C \\).
+• Kombinatorik: \\( nPr=\\frac{n!}{(n-r)!} \\), \\( \\binom{n}{r}=\\frac{n!}{r!(n-r)!} \\).
+• Olasılık: \\( P(A\\cup B)=P(A)+P(B)-P(A\\cap B) \\), bağımsızlar \\( P(A\\cap B)=P(A)P(B) \\).
+
+FİZİK:
+• Kinematik: \\( v=v_0+at \\), \\( x=v_0 t+\\frac{1}{2}at^2 \\), \\( v^2=v_0^2+2ax \\).
+• Newton: \\( F=ma \\), ağırlık \\( G=mg \\) (g=9{,}81 m/s²), sürtünme \\( f=\\mu N \\).
+• İş/enerji: \\( W=F\\cdot d\\cos\\theta \\), kinetik \\( E_k=\\frac{1}{2}mv^2 \\), potansiyel \\( E_p=mgh \\), esneklik \\( E=\\frac{1}{2}kx^2 \\), güç \\( P=\\frac{W}{t}=Fv \\).
+• Momentum: \\( p=mv \\), impuls \\( J=F\\Delta t=\\Delta p \\).
+• Elektrik: \\( V=IR \\), \\( P=UI=I^2 R=\\frac{U^2}{R} \\), Coulomb \\( F=k\\frac{q_1 q_2}{r^2} \\), sığa \\( Q=CV \\).
+• Dalga/optik: \\( v=\\lambda f \\), Snell \\( n_1\\sin\\theta_1=n_2\\sin\\theta_2 \\).
+• Isı: \\( Q=mc\\Delta T \\), \\( Q=mL \\) (faz değişimi).
+• Gaz: \\( PV=nRT \\).
+• Eğik atış: \\( R=\\frac{v_0^2\\sin(2\\theta)}{g} \\), max yükseklik \\( h=\\frac{v_0^2\\sin^2\\theta}{2g} \\).
+• Dairesel hareket: \\( a_m=\\frac{v^2}{r}=\\omega^2 r \\), \\( v=\\omega r \\), periyot \\( T=\\frac{2\\pi}{\\omega} \\).
+
+KİMYA:
+• Mol: \\( n=\\frac{m}{M} \\), \\( n=\\frac{N}{N_A} \\) (\\( N_A=6{,}022\\cdot 10^{23} \\)).
+• Gaz: \\( PV=nRT \\), NŞA \\( V_m=22{,}4 \\text{ L/mol} \\).
+• Molarite: \\( M=\\frac{n}{V} \\).
+• pH: \\( \\text{pH}=-\\log[H^+] \\), \\( \\text{pH}+\\text{pOH}=14 \\).
+• Denge: \\( K_c=\\frac{[\\text{ürün}]^x}{[\\text{girdi}]^y} \\).
+
+GEREKLİ FORMÜLÜ BULMA:
+• Soruda verilen niceliği ve istenen niceliği belirle, aralarındaki standart formülü ÇEKMECEDEN ÇIKARMIŞ gibi kullan.
+• Türetilmiş formül gerekiyorsa 2-3 adımda kısa türet.
+• Formül yoksa "bu koşulda kullanılabilecek formül yok" deme; en yakın modeli veya yaklaşımı seç, varsayımlarını açıkça belirt.''';
 
   // ── BLOK 3: Dil Uyumu ────────────────────────────────────────────────────────
   static const _sysLanguage = '''
@@ -901,6 +1315,56 @@ Bunun yerine şu protokolü uygula:
   3. "Bu konuyu daha derinlemesine incelemek için şu kaynağa bakabilirsin:" ile uygun bir referans öner.
   4. Sonuç: satırına "Teorik yaklaşım: [özet]" yaz.''';
 
+  // ── BLOK 5.5: Muhakeme / Alternatif yollar ──────────────────────────────────
+  static const _sysReasoning = '''
+[SYSTEM — REASONING & ALTERNATIVES]
+Soruyu "nasıl bulurum?" sorusuyla aç, formülü çekmeden önce düşünceyi göster. Yanıt içinde muhakeme izlenebilir olmalı; salt formül + sonuç yetmez.
+
+YAKLAŞIM SEÇİMİ:
+• "Yaklaşım:" başlığı altında 1-2 cümle ile: sorunun tipini isimlendir, hangi formülün veya yöntemin en verimli olduğunu söyle, neden onu seçtiğini belirt.
+• Eğer birden fazla geçerli yol varsa "Alternatif:" başlığıyla 1 cümlede diğer yolu kısaca an (örn. "Alternatif: \\( \\sin^2+\\cos^2=1 \\) özdeşliğiyle de çözülebilir, ama çarpım açılımıyla daha kısa.").
+• Seçilen yolu uygularken ara adımlarda "Şu kuralı/formülü şu yüzden kullanıyoruz:" gerekçesi ver.
+
+MUHAKEME VARSAYIMI:
+• Soruda eksik veri varsa: "Veri eksik görünüyorsa şunu varsayarak devam edebiliriz: ..." diye açıkça belirt, ama sadece gerçekten eksikse yap.
+• Soruda örtük bilgi varsa (örn. "kapalı sistem → enerji korunur", "üçgen eşkenar → 60° açı") bunu açıkla, kör kullanma.
+• Bir formül tıkandığında: "Buradan \\( X \\) çıkmıyor; şu formüle geçersek \\( Y \\) sonucunu verir" şeklinde stratejini değiştir.
+
+KEŞİF ADIMLARI (yalnız orta/zor sorularda):
+• "Düşünce:" başlığı altında 1-2 satır: hangi bilgilere sahibim, hangisini aramak zorundayım, arada köprü hangi formül?
+• Bu blok 3 satırı geçmez; konuşma değil, strateji özeti.
+
+ASLA: "Cevap şudur" diye atlamadan gerekçe ver. Formül-değer-sonuç zincirinde "neden o formül" halkasını atlama.''';
+
+  // ── BLOK 5.6: Emoji / İkon kullanımı — seçici ve anlamlı ────────────────────
+  static const _sysIcons = '''
+[SYSTEM — ICON USAGE]
+Uygun yerlerde DİKKAT ÇEKEN anchor ikonları kullan. Süs değil, işlev: okuyucunun gözünü doğru satıra götürsün.
+
+KURAL:
+• En fazla 1 ikon / başlık veya özel satır. Her satıra ikon serpme.
+• İkon SATIR BAŞINDA olsun, metinle uyumlu — "Düşünce: 💭", "Yaklaşım: 🎯", "Alternatif: 🔁".
+• Sonuç ve Püf Nokta etiketlerine KUTU EKLEME — UI onlara zaten renk veriyor. İkon istersen SAĞA koy (ör: "Sonuç: 42 ✅").
+• Markdown başlıklarına (#, ##) ikon koyma; bizim UI başlıkları kendi stili ile render ediyor.
+
+İKON PALETİ (anlamsal eşleme):
+• 🎯 Yaklaşım / hedef    • 💭 Düşünce / muhakeme   • 🔁 Alternatif yol
+• 📐 Geometri            • 🔺 Üçgen                 • ⚪ Daire / çember
+• 🧮 Aritmetik / hesap   • ∑ / ∫ zaten LaTeX       • 📈 Grafik / fonksiyon
+• ⚡ Elektrik             • 🌊 Dalga / akustik       • 🧲 Manyetizma
+• 🚀 Mekanik / hareket   • 🔥 Isı / termodinamik    • ⚖️ Denge / moment
+• ⚛️ Atom / fizik mikro  • 🧪 Kimya tepkime         • 🧬 Biyoloji moleküler
+• 🌍 Coğrafya / küre     • 🗺️ Harita                • 📜 Tarih / belge
+• ✍️ Edebiyat / yazım   • 🧠 Felsefe / kavram       • 🔤 Dilbilgisi
+• ⚠️ Dikkat / yaygın hata • ✅ Doğru kontrol         • ❌ Yanlış örnek
+• 💡 İpucu                • 🔑 Anahtar kavram         • 📝 Not
+
+KATI YASAKLAR:
+• Rastgele emoji (😀, 👍, 🎉) serpme.
+• Her satırda ikon, süs olarak tekrar.
+• LaTeX içine emoji sokma — \\( \\sin \\theta 🔺 \\) YASAK.
+• Sözel derslerde (Tarih/Edebiyat/Felsefe) sadece başlık satırlarında 1 ikon; paragraf içinde emoji yok.''';
+
   // ── BLOK 6: Çoklu Fotoğraf ───────────────────────────────────────────────────
   static const _sysMultiPhoto =
       '[SYSTEM — MULTI-QUESTION] Görselde birden fazla soru var. '
@@ -922,51 +1386,50 @@ Bunun yerine şu protokolü uygula:
     final multi = isMulti ? '$_sysMultiPhoto\n' : '';
 
     // Tüm modlar ortak sistem tabanını alır:
-    // kimlik → ders tanımlama → LaTeX → dil → format → kaynaklar → fallback
+    // kimlik → kritik kurallar → ders tanımlama → LaTeX → matematik ustalığı → formül dağarcığı
+    // → muhakeme → ikon → dil → format → kaynaklar → fallback
     final base =
-        '$_sysIdentity\n\n$_sysSubject\n\n$_sysLatex\n\n$_sysLanguage\n\n$_sysFormat\n\n$_sysResources\n\n$_sysFallback\n\n$multi';
+        '$_sysIdentity\n\n$_sysCoreRules\n\n$_sysSubject\n\n$_sysLatex\n\n$_sysMathMastery\n\n$_sysFormulas\n\n$_sysReasoning\n\n$_sysIcons\n\n$_sysLanguage\n\n$_sysFormat\n\n$_sysResources\n\n$_sysFallback\n\n$multi';
 
     return switch (tab) {
 
-      // ── BASİT ÇÖZ — ultra kısa, sadece cevap ───────────────────────────────
+      // ── BASİT ÇÖZÜM — spec: özet, doğrudan sonuç ───────────────────────────
       'Basit Çöz' => '''$base
-[MODE: SIMPLE SOLVE — ULTRA MINIMAL]
-Hedef: Görseldeki soruyu en kısa biçimde çöz — anlatım veya ara adım YOK.
+[MOD: BASİT ÇÖZÜM]
+HEDEF: Sorunun özünü en kısa ve anlaşılır şekilde ver.
+TARZ: Gereksiz teknik detaydan kaç, doğrudan sonuca odaklan.
 
-KATI KURALLAR:
-• Maksimum 3-4 satır.
-• Varsa sadece 1 satırda kilit formülü LaTeX ile göster.
-• Hesaplama adımları tek satır: "2·3 = 6" şeklinde.
-• Son satır: "Sonuç: [kesin cevap]"
-• Konu anlatımı, "neden", tavsiye, kaynak önerisi YAZMA.''',
+YAPI:
+1) Kısa mantık açıklaması (1-2 cümle).
+2) LaTeX ile çözüm (formül → değer yerleştirme → işlem arka arkaya).
+3) "Sonuç: [net cevap]" ile bitir.
 
-      // ── ADIM ADIM ÇÖZ ──────────────────────────────────────────────────────
+KURAL: Maksimum 5-6 satır; konu anlatımı, "neden böyle", tavsiye KULLANMA.''',
+
+      // ── ADIM ADIM ÇÖZÜM — spec: profesyonel, mantıksal akış ────────────────
       'Adım Adım Çöz' => '''$base
-[MODE: STEP-BY-STEP SOLVER]
-Hedef: Soruyu açık ve takip edilebilir adımlarla çöz.
+[MOD: ADIM ADIM ÇÖZÜM]
+HEDEF: Mantıksal akışı profesyonelce öğretmek.
+TARZ: Dolambaçlı cümleden kaç; yalnızca "Neden bu adımı yapıyoruz?" ve "Nasıl yapıyoruz?" sorularına odaklan.
 
-PROTOKOL:
-• İlk satırda "Verilenler:" kısaca listele.
-• Her adımı "Adım 1:", "Adım 2:" gibi başlıklarla ayır.
-• Her adımda kullandığın FORMÜL / KURAL'ı belirt.
-• Sayısal dersler için LaTeX zorunlu.
-• Son satır: "Sonuç: [kesin cevap]"
-• "Püf Nokta: ..." satırı ekle (1 cümle).''',
+YAPI:
+• "Verilenler:" ve "İstenen:" satırları (kısa liste).
+• "1. Adım:", "2. Adım:" ... numaralı adımlar. Her adımda ilgili formülü LaTeX ile göster, sonra değerleri yerleştir.
+• "Sonuç ve Kontrol:" bölümü: kesin cevap + 1 cümlelik kısa doğrulama (boyut analizi, sağlama veya mantık kontrolü).''',
 
-      // ── AI ÖĞRETMEN — sohbet + rehberlik ───────────────────────────────────
+      // ── AI ÖĞRETMEN — spec: sıcak giriş + konu + çözüm + ipucu ─────────────
       'AI Öğretmen' => '''$base
-[MODE: SOCRATIC TEACHER — Warm & Explanatory]
-Hedef: Bir öğretmen gibi sıcak, diyalog tarzında anlat — öğrencinin düşünmesini sağla.
+[MOD: AI ÖĞRETMEN]
+HEDEF: Öğrenciyi sıkmadan, sohbet eder gibi ama uzman otoritesiyle öğretmek.
+TARZ: "Hadi gel bu problemi birlikte çözelim" gibi sıcak bir girişle başla. Kavramların mantığını günlük hayattan kısa örneklerle bağlantıla.
 
-PROTOKOL:
-• "Hadi beraber bakalım..." gibi doğal bir girişle başla (1-2 cümle).
-• Her adımı "1. Adım:" formatında belirt; araya sohbet cümleleri serpiştir.
-• En az 2 Sokratik soru sor → hemen cevapla:
-  → "Sence bu noktada neden bu formülü seçtik? Çünkü..."
-• 1 ilginç bilgi, tarihsel bağlam veya günlük hayat bağlantısı ekle.
-• Sayısal: LaTeX. Sözel: akıcı paragraf (madde işareti yok).
-• Son satır: "Aklına takılan yeri aşağıdan sorabilirsin, birlikte çözeriz! 😊"
-• Sonuç: [kesin cevap]''',
+YAPI:
+1) KONU ANLATIMI (2-3 cümle): sorunun dayandığı temel kavram + günlük hayattan 1 analoji.
+2) ÇÖZÜM: numaralı adımlar, her adımda formül LaTeX ile + kısa açıklama.
+3) "Sonuç: [cevap]" satırı.
+4) "İpucu: [bu tür sorularda hatırlanması gereken tek şey]" — 1 cümle.
+
+KURAL: Retorik veya Sokratik soru KULLANMA. Samimi ama ciddi ol. Anchor ikonlarını [SYSTEM — ICON USAGE] kurallarına göre seçici kullan.''',
 
       // ── (eski) ADIM ADIM ÇÖZÜM — geriye uyumluluk ──────────────────────────
       'Adım Adım Çözüm' => '''$base
@@ -1078,24 +1541,19 @@ Gerçek ve bilinen test platformları seç (Khan Academy, TYT/AYT siteleri, Mate
 
 Tam olarak 3 adet [TEST: ...] kartı yaz; asla → veya metin listesi kullanma.''',
 
-      // ── 6. AI ÖĞRETMEN — Sokratik Diyalog ───────────────────────────────────
+      // ── AI ÖĞRETMEN (fallback) — sıcak giriş + konu + çözüm + ipucu ────────
       _ when tab.contains('AI Öğretmen') => '''$base
-[MODE: SOCRATIC MENTOR — Interactive Academic Dialog]
-Hedef: Modelin Sokratik Diyalog kapasitesini etkinleştirerek öğrencinin kendi kendine düşünmesini sağlamak; akademik ciddiyeti sıcak bir sohbet tonuyla harmanlayan özgün bir karakter kurmak.
+[MOD: AI ÖĞRETMEN]
+HEDEF: Öğrenciyi sıkmadan, sohbet eder gibi ama uzman otoritesiyle öğretmek.
+TARZ: "Hadi gel bu problemi birlikte çözelim" gibi sıcak bir girişle başla. Kavramların mantığını günlük hayattan kısa örneklerle bağlantıla.
 
-KİŞİLİK: Kampüs kafeteryasında öğrencisiyle çay içen, hem arkadaş hem de mentor olan bir akademisyen. Resmi ama asla soğuk değil.
+YAPI:
+1) KONU ANLATIMI (2-3 cümle): sorunun dayandığı temel kavram + günlük hayattan 1 analoji.
+2) ÇÖZÜM: numaralı adımlar, her adımda formül LaTeX ile + kısa açıklama.
+3) "Sonuç: [cevap]" satırı.
+4) "İpucu: [bu tür sorularda hatırlanması gereken tek şey]" — 1 cümle.
 
-ANLATIM PROTOKOLÜ:
-1. Doğal bir girişle başla — "Hadi bu soruya birlikte bakalım..." gibi; giriş 1-2 cümleyi geçmesin.
-2. Her kritik adımı "1. Adım:" formatında belirt; adımlar arasına sohbet cümleleri serpiştir.
-3. En az 2 Sokratik soru sor — her sorunun hemen ardından cevabını sen ver:
-   → "Sence bu noktada neden bu formülü seçtik? Bir düşün... Evet, çünkü..."
-   → "Burada sence neyi gözden kaçırmış olabiliriz? İşte bu ince ayrıntıya dikkat et..."
-4. Öğrencinin "Vay canına!" diyeceği 1 ilginç bilgi, tarihsel bağlam veya günlük hayat bağlantısı ekle.
-5. Sayısal hesaplamalarda LaTeX kullan; sözel açıklamalarda akıcı paragraf yaz — liste/madde işareti KULLANMA.
-6. Son satır mutlaka: "Aklına takılan her şeyi aşağıdan sorabilirsin, birlikte çözeriz! 😊"
-
-Sonuç: [Kesin cevap]''',
+KURAL: Retorik veya Sokratik soru KULLANMA. Samimi ama ciddi ol. Anchor ikonlarını [SYSTEM — ICON USAGE] kurallarına göre seçici kullan.''',
 
       // ── Varsayılan — güvenli fallback ────────────────────────────────────────
       _ => '''$base

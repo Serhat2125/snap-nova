@@ -382,9 +382,9 @@ class _CameraScreenState extends State<CameraScreen>
             ),
           ),
 
-          // ── Nav bar — sadece bu alan siyah ─────────────────────────────
+          // ── Nav bar — beyaz arka plan ──────────────────────────────────
           Container(
-            color: Colors.black,
+            color: Colors.white,
             child: SafeArea(
               top: false,
               child: Padding(
@@ -552,18 +552,7 @@ class _NavShell extends StatelessWidget {
         Positioned(
           left: 0, right: 0, bottom: 0,
           child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.bottomCenter,
-                end: Alignment.topCenter,
-                colors: [
-                  Colors.black.withValues(alpha: 0.96),
-                  Colors.black.withValues(alpha: 0.80),
-                  Colors.transparent,
-                ],
-                stops: const [0, 0.80, 1],
-              ),
-            ),
+            color: Colors.white,
             child: SafeArea(
               top: false,
               child: MediaQuery(

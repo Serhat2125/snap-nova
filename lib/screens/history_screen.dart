@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import '../services/solutions_storage.dart';
 import '../services/pdf_service.dart';
+import '../widgets/adaptive_photo.dart';
 import '../main.dart' show localeService;
 import 'ai_result_screen.dart';
 import 'solution_screen.dart';
@@ -951,29 +952,24 @@ class _HistoryCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Tam boy foto — kalın siyah oval çerçeve ─────────────
+            // ── Foto — kendi oranında TAM görünür, ince siyah çerçeve ─────
             Stack(
               children: [
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.black,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: Colors.black, width: 2),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: AspectRatio(
-                      aspectRatio: 4 / 3,
-                      child: hasImg
-                          ? Image.file(
-                              imgFile,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => _thumbFallback(record.subject),
-                            )
-                          : _thumbFallback(record.subject),
-                    ),
-                  ),
-                ),
+                hasImg
+                    ? AdaptivePhoto(
+                        path: record.imagePath,
+                        maxHeightFactor: 0.45,
+                        borderRadius: 18,
+                        border: Border.all(color: Colors.black, width: 1),
+                        background: Colors.white,
+                      )
+                    : ClipRRect(
+                        borderRadius: BorderRadius.circular(18),
+                        child: AspectRatio(
+                          aspectRatio: 4 / 3,
+                          child: _thumbFallback(record.subject),
+                        ),
+                      ),
 
                 // Favori yıldız — sağ üst (kart içinde)
                 if (record.isFavorite)

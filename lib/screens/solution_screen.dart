@@ -5,7 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
 import '../main.dart' show localeService;
+import '../widgets/adaptive_photo.dart';
 import '../widgets/ai_model_card.dart';
+import '../widgets/qualsar_numeric_loader.dart';
+import '../widgets/qualsar_verbal_loader.dart';
 import '../services/gemini_service.dart';
 import 'ai_result_screen.dart';
 
@@ -37,6 +40,8 @@ class _SolutionScreenState extends State<SolutionScreen> {
 
   // ── API durumu ────────────────────────────────────────────────────────────────
   bool _isLoading = false;
+  // 'numeric' | 'verbal' — hızlı sınıflandırıcıdan paralel gelir; null → henüz belirsiz
+  String? _subjectKind;
 
   // ── 3 Çözüm modu ─────────────────────────────────────────────────────────────
   static const _modes = [
@@ -192,7 +197,16 @@ class _SolutionScreenState extends State<SolutionScreen> {
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _subjectKind = null;
+    });
+
+    // Paralel: hızlı konu sınıflandırıcı — 1-2 sn'de döner, loader'ı geçer.
+    // Hata veya gecikme olursa sayısal loader ile devam eder (varsayılan).
+    GeminiService.classifySubjectQuick(widget.imagePath).then((kind) {
+      if (mounted && _isLoading) setState(() => _subjectKind = kind);
+    }).catchError((_) {});
 
     // Sonuç değişkenleri finally dışına taşındı — finally her zaman çalışır
     String? result;
@@ -361,8 +375,15 @@ class _SolutionScreenState extends State<SolutionScreen> {
               ),
             ),
 
-          // ── 3 — Aura yükleme overlay ────────────────────────────────────────
-          if (_isLoading) const Positioned.fill(child: _AuraLoadingOverlay()),
+          // ── 3 — Yükleme overlay (sayısal / sözel) ─────────────────────────
+          // classifySubjectQuick paralel çalışır; hazır olana kadar sayısal
+          // gösterilir, sonuç gelince sözel ise switch edilir.
+          if (_isLoading)
+            Positioned.fill(
+              child: _subjectKind == 'verbal'
+                  ? const QuAlsarVerbalLoader()
+                  : const QuAlsarNumericLoader(),
+            ),
         ],
       ),
       ),
@@ -384,32 +405,17 @@ class _SolutionScreenState extends State<SolutionScreen> {
   // ── Fotoğraf kartı ────────────────────────────────────────────────────────────
 
   Widget _buildPhotoCard() {
-    // Sabit 4:3 çerçeve — sekmeler yerinden oynamasın.
-    // BoxFit.cover ile görsel kutuyu doldurur; dışarı taşan kısım sadece
-    // görüntüleme için kırpılır (AI'ya giden dosya aynen çerçeve kırpımıdır).
+    // Çerçeve artık sabit 4:3 DEĞİL — fotoğrafın gerçek en-boy oranına göre
+    // uzar/kısalır, böylece dikey/yatay her görsel TAM gözükür (BoxFit.contain).
+    // En fazla ekranın %55'i kadar yer kaplar.
     return Stack(
       children: [
-        Container(
-          width: double.infinity,
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: const Color(0xFFF0F2F5),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.black, width: 3),
-          ),
-          child: AspectRatio(
-            aspectRatio: 4 / 3,
-            child: Image.file(
-              File(widget.imagePath),
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                color: const Color(0xFFF0F2F5),
-                alignment: Alignment.center,
-                child: const Icon(Icons.image_not_supported_outlined,
-                    color: Colors.black26, size: 36),
-              ),
-            ),
-          ),
+        AdaptivePhoto(
+          path: widget.imagePath,
+          maxHeightFactor: 0.55,
+          borderRadius: 14,
+          border: Border.all(color: Colors.black, width: 3),
+          background: const Color(0xFFF0F2F5),
         ),
         Positioned(
           top: 10,

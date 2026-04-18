@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -10,6 +11,8 @@ import '../theme/app_theme.dart';
 import '../services/gemini_service.dart';
 import '../services/solutions_storage.dart';
 import '../services/feedback_service.dart';
+import '../services/image_share_service.dart';
+import '../widgets/adaptive_photo.dart';
 import '../widgets/latex_text.dart';
 import '../widgets/study_suite_sheet.dart';
 import '../main.dart' show localeService;
@@ -74,6 +77,9 @@ class _AiResultScreenState extends State<AiResultScreen> {
   final GlobalKey _shareCardKey = GlobalKey();
   bool _sharing = false;
 
+  // ── Study Suite cache (Konuyu Pekiştir) ───────────────────────────────────
+  Map<String, dynamic>? _cachedStudySuite;
+
   @override
   void initState() {
     super.initState();
@@ -87,8 +93,17 @@ class _AiResultScreenState extends State<AiResultScreen> {
       // Geçmişten açıldı — anında göster, tekrar kaydetme
       _displayed = _mainText;
       _done      = true;
+      // Daha önce üretilmiş Study Suite varsa yükle
+      _loadCachedStudySuite();
     } else {
       _startTypewriter();
+    }
+  }
+
+  Future<void> _loadCachedStudySuite() async {
+    final cached = await SolutionsStorage.loadStudySuite(_recordId);
+    if (mounted && cached != null) {
+      setState(() => _cachedStudySuite = cached);
     }
   }
 
@@ -156,6 +171,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
       subject: subject,
       aiTitle: _aiTitle,
       timestamp: _createdAt,
+      studySuite: _cachedStudySuite, // Konuyu Pekiştir cache — silinmesin
     );
     await SolutionsStorage.saveOrUpdate(record);
   }
@@ -239,28 +255,12 @@ class _AiResultScreenState extends State<AiResultScreen> {
               child: SingleChildScrollView(
                 controller: _scrollCtrl,
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                padding: const EdgeInsets.fromLTRB(6, 18, 6, 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildPhotoCard(),
-                    const SizedBox(height: 16),
-
-                    // "Çözüm" başlığı — siyah, geniş harf aralığı
-                    SizedBox(
-                      width: double.infinity,
-                      child: Text(
-                        localeService.tr('solution'),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 4.0,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 26),
 
                     _buildSolutionCard(),
 
@@ -280,8 +280,6 @@ class _AiResultScreenState extends State<AiResultScreen> {
                     if (_done) ...[
                       const SizedBox(height: 24),
                       _buildStudySuiteButton(),
-                      const SizedBox(height: 14),
-                      _buildFeedbackCard(),
                       const SizedBox(height: 12),
                       _buildScanAgainButton(),
                     ],
@@ -350,13 +348,6 @@ class _AiResultScreenState extends State<AiResultScreen> {
             ),
           ),
           const SizedBox(width: 8),
-          if (_done)
-            IconButton(
-              icon: const Icon(Icons.ios_share_rounded,
-                  color: Color(0xFFFF6A00), size: 22),
-              tooltip: 'Paylaş',
-              onPressed: _openSharePreview,
-            ),
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 300),
             child: _done
@@ -370,7 +361,8 @@ class _AiResultScreenState extends State<AiResultScreen> {
     );
   }
 
-  // ── Paylaş: önizleme sheet'i ──────────────────────────────────────────────
+  // ── Paylaş: önizleme sheet'i (artık PDF paylaşımıyla değiştirildi) ────────
+  // ignore: unused_element
   void _openSharePreview() {
     showModalBottomSheet(
       context: context,
@@ -613,83 +605,120 @@ class _AiResultScreenState extends State<AiResultScreen> {
     }
   }
 
-  // ── Fotoğraf kartı ─ belirgin çerçeve ────────────────────────────────────────
+  // ── Fotoğraf kartı ─ ince çerçeve, üstte ders etiketi ──────────────────────
 
   Widget _buildPhotoCard() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: Colors.black,
-          width: 2.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
+    final subject = SolutionsStorage.detectSubjectSmart(widget.result);
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        // Fotoğraf artık sabit 250 px DEĞİL — kendi oranına göre uzar/kısar,
+        // dikey/yatay tüm görseller TAM gözükür (BoxFit.contain).
+        AdaptivePhoto(
+          path: widget.imagePath,
+          maxHeightFactor: 0.55,
+          borderRadius: 14,
+          border: Border.all(
+            color: Colors.black.withValues(alpha: 0.55),
+            width: 0.6,
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: SizedBox(
-          width: double.infinity,
-          height: 250,
-          child: InteractiveViewer(
-            minScale: 1.0,
-            maxScale: 5.0,
-            clipBehavior: Clip.none,
-            child: Image.file(
-              File(widget.imagePath),
-              width: double.infinity,
-              height: 250,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                width: double.infinity,
-                height: 250,
-                color: AppColors.surface,
-                child: const Icon(Icons.image_not_supported_outlined,
-                    color: AppColors.textMuted, size: 36),
-              ),
-            ),
+          background: AppColors.surface,
+        ),
+        _frameLabel(top: -7, left: 14, text: subject.toUpperCase()),
+        _frameLabel(
+          bottom: -7,
+          right: 14,
+          text: _shortStamp(),
+          muted: true,
+        ),
+      ],
+    );
+  }
+
+  String _shortStamp() {
+    String two(int n) => n.toString().padLeft(2, '0');
+    final t = _createdAt;
+    return '${two(t.day)}.${two(t.month)} ${two(t.hour)}:${two(t.minute)}';
+  }
+
+  // Çerçeve üstünde/altında "kesik" etkili küçük etiket.
+  Widget _frameLabel({
+    double? top,
+    double? bottom,
+    double? left,
+    double? right,
+    required String text,
+    bool muted = false,
+  }) {
+    return Positioned(
+      top: top,
+      bottom: bottom,
+      left: left,
+      right: right,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+        color: const Color(0xFFF0F2F5),
+        child: Text(
+          text,
+          style: TextStyle(
+            color: muted ? Colors.black54 : Colors.black,
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.2,
           ),
         ),
       ),
     );
   }
 
-  // ── Çözüm kartı ─ adım etiketleri renkli ────────────────────────────────────
+  // ── Çözüm kartı ─ ince çerçeve, üstte etiket ───────────────────────────────
 
   Widget _buildSolutionCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: Colors.black,
-          width: 2.0,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+    final subject = SolutionsStorage.detectSubjectSmart(widget.result);
+    final modelLabel = widget.modelName.isEmpty ? 'QuAlsar' : widget.modelName;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: _done
+              ? const EdgeInsets.fromLTRB(14, 16, 14, 0)
+              : const EdgeInsets.fromLTRB(14, 16, 14, 16),
+          clipBehavior: Clip.hardEdge,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: Colors.black.withValues(alpha: 0.55),
+              width: 0.6,
+            ),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          LatexText(_displayed),
-          if (!_done) ...[
-            const SizedBox(height: 6),
-            const _BlinkingCursor(),
-          ],
-        ],
-      ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              LatexText(_displayed),
+              if (!_done) ...[
+                const SizedBox(height: 6),
+                const _BlinkingCursor(),
+              ] else ...[
+                const SizedBox(height: 14),
+                _buildFeedbackCard(),
+              ],
+            ],
+          ),
+        ),
+        _frameLabel(
+          top: -7,
+          left: 14,
+          text: '${localeService.tr('solution').toUpperCase()} · ${subject.toUpperCase()}',
+        ),
+        _frameLabel(
+          bottom: -7,
+          right: 14,
+          text: modelLabel.toUpperCase(),
+          muted: true,
+        ),
+      ],
     );
   }
 
@@ -724,32 +753,116 @@ class _AiResultScreenState extends State<AiResultScreen> {
   }
 
   Widget _buildDoneRow() {
-    return Center(
+    // Tek geniş "Arkadaşına Gönder" sekmesi — yatayda tam genişlik.
+    return GestureDetector(
+      onTap: _sharing ? null : _shareSolutionAsPdf,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: Colors.black,
-            width: 1.5,
-          ),
+          border: Border.all(color: Colors.black, width: 1.5),
         ),
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.check_circle_outline_rounded,
-                color: Color(0xFF22C55E), size: 13),
-            const SizedBox(width: 5),
-            Text(
-              localeService.tr('solution_complete'),
-              style: TextStyle(
-                  color: Colors.black, fontSize: 11, fontWeight: FontWeight.w600),
-            ),
+            if (_sharing)
+              const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  color: AppColors.cyan,
+                  strokeWidth: 2,
+                ),
+              )
+            else ...[
+              Flexible(
+                child: Text(
+                  localeService.tr('share_with_friend'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Transform.rotate(
+                // +x yönü — saat 2 civarı: -45° (−π/4)
+                angle: -math.pi / 4,
+                child: const Icon(Icons.send_rounded,
+                    color: Color(0xFF0070FF), size: 22),
+              ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  // Çift görsel (preview + tam çözüm) olarak paylaş
+  Future<void> _shareSolutionAsPdf() async {
+    if (_sharing) return;
+    setState(() => _sharing = true);
+    try {
+      // Defans: storage'da bu id için güncel bir kayıt varsa onu kullan.
+      // Aksi halde widget'tan kur. Bu, widget.imagePath'in eski temp dosyaya
+      // işaret ettiği durumlarda yanlış fotoğraf paylaşılmasını engeller.
+      SolutionRecord? record;
+      try {
+        final all = await SolutionsStorage.loadAll();
+        record = all.firstWhere(
+          (r) => r.id == _recordId,
+          orElse: () => SolutionRecord(
+            id: '',
+            imagePath: '',
+            solutionType: '',
+            result: '',
+            qaList: const [],
+            subject: '',
+            timestamp: _createdAt,
+          ),
+        );
+        if (record.id.isEmpty) record = null;
+      } catch (_) {
+        record = null;
+      }
+
+      record ??= SolutionRecord(
+        id: _recordId,
+        imagePath: widget.imagePath,
+        solutionType: widget.solutionType.replaceAll('\n', ' '),
+        modelName: widget.modelName.isEmpty ? 'QuAlsar' : widget.modelName,
+        result: widget.result,
+        qaList: _qaList
+            .map((qa) => QARecord(question: qa.question, answer: qa.answer))
+            .toList(),
+        subject: SolutionsStorage.detectSubjectSmart(widget.result),
+        aiTitle: _aiTitle,
+        timestamp: _createdAt,
+      );
+
+      debugPrint('[Share] record id=${record.id} '
+          'img=${record.imagePath.split('/').last} '
+          'resultLen=${record.result.length}');
+
+      if (!mounted) return;
+      await ImageShareService.shareDouble(
+        context: context,
+        record: record,
+      );
+    } catch (e, st) {
+      debugPrint('[AiResultScreen] image share error: $e\n$st');
+      if (mounted) {
+        _showSnack('Görsel paylaşılamadı: ${e.toString().replaceAll('\n', ' ')}');
+      }
+    } finally {
+      if (mounted) setState(() => _sharing = false);
+    }
   }
 
   // ── Q&A kartı ─────────────────────────────────────────────────────────────────
@@ -805,14 +918,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
               bottomRight: Radius.circular(16),
             ),
             border: Border.all(
-                color: Colors.black, width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
+                color: Colors.black.withValues(alpha: 0.55), width: 0.6),
           ),
           child: LatexText(qa.answer, fontSize: 13, lineHeight: 1.65),
         ),
@@ -867,14 +973,14 @@ class _AiResultScreenState extends State<AiResultScreen> {
       ),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheet) => Container(
-          // ── Tüm sheet alanı çerçeveli ───────────────────────────────────────
+          // ── Tüm sheet alanı beyaz, siyah ince çerçeve ───────────────────
           decoration: BoxDecoration(
-            color: const Color(0xFF0D1520),
+            color: Colors.white,
             borderRadius:
                 const BorderRadius.vertical(top: Radius.circular(24)),
             border: Border.all(
-              color: AppColors.cyan.withValues(alpha: 0.35),
-              width: 1.4,
+              color: Colors.black.withValues(alpha: 0.12),
+              width: 1.2,
             ),
           ),
           padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
@@ -887,7 +993,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                 child: Container(
                   width: 40, height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.18),
+                    color: Colors.black.withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -897,8 +1003,8 @@ class _AiResultScreenState extends State<AiResultScreen> {
               Center(
                 child: Text(
                   localeService.tr('what_to_improve'),
-                  style: TextStyle(
-                    color: Colors.white,
+                  style: const TextStyle(
+                    color: Colors.black,
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.2,
@@ -910,7 +1016,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                 child: Text(
                   'Geri bildirimin sistemi daha iyi hale getirecek.',
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.40),
+                    color: Colors.black.withValues(alpha: 0.55),
                     fontSize: 12,
                   ),
                 ),
@@ -934,14 +1040,15 @@ class _AiResultScreenState extends State<AiResultScreen> {
                       duration: const Duration(milliseconds: 180),
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                       decoration: BoxDecoration(
+                        // İç çerçeve de beyaz; seçiliyken hafif cyan tint
                         color: sel
-                            ? AppColors.cyan.withValues(alpha: 0.10)
-                            : Colors.white.withValues(alpha: 0.04),
+                            ? AppColors.cyan.withValues(alpha: 0.06)
+                            : Colors.white,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: sel
                               ? AppColors.cyan.withValues(alpha: 0.75)
-                              : Colors.white.withValues(alpha: 0.10),
+                              : Colors.black.withValues(alpha: 0.18),
                           width: sel ? 1.6 : 1.0,
                         ),
                         boxShadow: sel
@@ -957,12 +1064,12 @@ class _AiResultScreenState extends State<AiResultScreen> {
                               shape: BoxShape.circle,
                               color: sel ? AppColors.cyan : Colors.transparent,
                               border: Border.all(
-                                color: sel ? AppColors.cyan : Colors.white.withValues(alpha: 0.28),
+                                color: sel ? AppColors.cyan : Colors.black.withValues(alpha: 0.35),
                                 width: 1.4,
                               ),
                             ),
                             child: sel
-                                ? const Icon(Icons.check, color: Colors.black, size: 10)
+                                ? const Icon(Icons.check, color: Colors.white, size: 10)
                                 : null,
                           ),
                           const SizedBox(width: 8),
@@ -972,9 +1079,9 @@ class _AiResultScreenState extends State<AiResultScreen> {
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                color: sel ? Colors.white : Colors.white.withValues(alpha: 0.65),
+                                color: Colors.black,
                                 fontSize: 11.5,
-                                fontWeight: sel ? FontWeight.w700 : FontWeight.w400,
+                                fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
                               ),
                             ),
                           ),
@@ -987,7 +1094,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
 
               const SizedBox(height: 10),
 
-              // ── Gönder butonu — mavi ──────────────────────────────────────
+              // ── Gönder butonu — beyaz arka plan, cyan kenar ───────────
               GestureDetector(
                 onTap: () {
                   Navigator.pop(ctx);
@@ -1004,11 +1111,11 @@ class _AiResultScreenState extends State<AiResultScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
-                    color: AppColors.cyan.withValues(alpha: 0.12),
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: AppColors.cyan.withValues(alpha: 0.55),
-                      width: 1.3,
+                      color: AppColors.cyan.withValues(alpha: 0.70),
+                      width: 1.4,
                     ),
                   ),
                   child: Center(
@@ -1062,9 +1169,14 @@ class _AiResultScreenState extends State<AiResultScreen> {
         );
       },
       pageBuilder: (ctx, _, __) => Dialog(
-        backgroundColor: AppColors.surface,
+        backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20)),
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: Colors.black.withValues(alpha: 0.12),
+            width: 1.0,
+          ),
+        ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
           child: Column(
@@ -1073,8 +1185,12 @@ class _AiResultScreenState extends State<AiResultScreen> {
               Container(
                 width: 52, height: 52,
                 decoration: BoxDecoration(
-                  color: AppColors.cyan.withValues(alpha: 0.12),
+                  color: AppColors.cyan.withValues(alpha: 0.10),
                   shape: BoxShape.circle,
+                  border: Border.all(
+                    color: AppColors.cyan.withValues(alpha: 0.35),
+                    width: 1.2,
+                  ),
                 ),
                 child: const Icon(Icons.auto_fix_high_rounded,
                     color: AppColors.cyan, size: 26),
@@ -1082,8 +1198,8 @@ class _AiResultScreenState extends State<AiResultScreen> {
               const SizedBox(height: 16),
               Text(
                 localeService.tr('feedback_thanks'),
-                style: TextStyle(
-                  color: Colors.white,
+                style: const TextStyle(
+                  color: Colors.black,
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
                 ),
@@ -1093,7 +1209,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
               Text(
                 localeService.tr('ai_teacher_offer'),
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.65),
+                  color: Colors.black.withValues(alpha: 0.60),
                   fontSize: 13,
                   height: 1.5,
                 ),
@@ -1142,23 +1258,26 @@ class _AiResultScreenState extends State<AiResultScreen> {
               ),
               const SizedBox(height: 10),
 
-              // Hayır → kapat
+              // Hayır → kapat (beyaz arka plan, siyah kenar, siyah yazı)
               GestureDetector(
                 onTap: () => Navigator.pop(ctx),
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 11),
                   decoration: BoxDecoration(
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.12)),
+                        color: Colors.black.withValues(alpha: 0.30),
+                        width: 1.0),
                   ),
                   child: Center(
                     child: Text(
                       localeService.tr('no_thanks'),
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.50),
+                      style: const TextStyle(
+                        color: Colors.black,
                         fontSize: 13,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -1212,25 +1331,12 @@ class _AiResultScreenState extends State<AiResultScreen> {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 14),
+      padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 4),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _positiveGlow
+            ? const Color(0xFF22C55E).withValues(alpha: 0.06)
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: _positiveGlow
-              ? const Color(0xFF22C55E)
-              : Colors.black,
-          width: 2.0,
-        ),
-        boxShadow: _positiveGlow
-            ? [
-                BoxShadow(
-                  color: const Color(0xFF22C55E).withValues(alpha: 0.12),
-                  blurRadius: 12,
-                  spreadRadius: 1,
-                ),
-              ]
-            : [],
       ),
       child: _isRetrying
           ? Padding(
@@ -1300,11 +1406,19 @@ class _AiResultScreenState extends State<AiResultScreen> {
 
   Widget _buildStudySuiteButton() {
     final subject = SolutionsStorage.detectSubject(widget.result);
+    final hasCache = _cachedStudySuite != null;
+    final label = localeService.tr(
+        hasCache ? 'continue_studying' : 'reinforce_this_topic');
     return GestureDetector(
       onTap: () => StudySuiteSheet.show(
         context,
         solution: widget.result,
         subject:  subject,
+        cached: _cachedStudySuite,
+        onFetched: (json) {
+          if (mounted) setState(() => _cachedStudySuite = json);
+          SolutionsStorage.saveStudySuite(_recordId, json);
+        },
       ),
       child: Container(
         width: double.infinity,
@@ -1337,16 +1451,26 @@ class _AiResultScreenState extends State<AiResultScreen> {
                 ),
                 borderRadius: BorderRadius.circular(7),
               ),
-              child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 14),
+              child: Icon(
+                hasCache
+                    ? Icons.bookmark_rounded
+                    : Icons.auto_awesome_rounded,
+                color: Colors.white,
+                size: 14,
+              ),
             ),
             const SizedBox(width: 10),
-            Text(
-              localeService.tr('reinforce_this_topic'),
-              style: TextStyle(
-                color: Colors.black,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.2,
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.black,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.2,
+                ),
               ),
             ),
             const SizedBox(width: 6),
@@ -1409,8 +1533,8 @@ class _AiResultScreenState extends State<AiResultScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        // Dış kabuk — beyaz arka plan
-        color: Colors.white,
+        // Dış kabuk — soluk beyaz
+        color: const Color(0xFFF5F5F5),
         border: Border(
           top: BorderSide(
               color: Colors.black.withValues(alpha: 0.10), width: 1),
@@ -1420,11 +1544,11 @@ class _AiResultScreenState extends State<AiResultScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // Input alanı — beyaza yakın hafif gri ton farkı
+          // Input alanı — saf beyaz
           Expanded(
             child: Container(
               decoration: BoxDecoration(
-                color: const Color(0xFFF3F4F6), // beyazdan hafif koyu ton
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: focused

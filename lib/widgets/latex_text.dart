@@ -6,9 +6,11 @@ import 'media_cards.dart';
 // ═══════════════════════════════════════════════════════════════════════════════
 //  LatexText — AI yanıtlarını LaTeX destekli, stilize şekilde render eder.
 //
-//  Desteklenen sözdizimi:
-//    $...$   → Satır içi (inline) LaTeX
-//    $$...$$ → Bağımsız (block / display) LaTeX — ayrı satırda ortalı
+//  Desteklenen sözdizimi (tercih edilen + eski):
+//    \( ... \)  → Satır içi (inline) LaTeX  ★ yeni standart
+//    \[ ... \]  → Bağımsız (block / display) LaTeX  ★ yeni standart
+//    $...$      → Satır içi (eski, geriye uyum)
+//    $$...$$    → Bağımsız (eski, geriye uyum)
 //
 //  Otomatik vurgulanan etiketler:
 //    "N. Adım:"    → gradient badge + cyan
@@ -19,6 +21,24 @@ import 'media_cards.dart';
 //    "SORU N:"     → cyan
 //    Formül: / Kural: / Gerekçe: / Tespit: / vb. → cyan
 // ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── Giriş normalizasyonu: \( \) \[ \] → $ $ / $$ $$ ──────────────────────────
+// AI dolar işareti kullanmak zorunda kalmasın diye \( ... \) ve \[ ... \]
+// sözdizimlerini kabul ediyoruz; burada mevcut akışa uygun biçime çeviriyoruz.
+String _normalizeLatex(String input) {
+  var s = input;
+  // \[ formula \]  →  $$formula$$   (çok satırlı olabilir)
+  s = s.replaceAllMapped(
+    RegExp(r'\\\[([\s\S]*?)\\\]'),
+    (m) => '\$\$${m.group(1)!.trim()}\$\$',
+  );
+  // \( formula \)  →  $formula$
+  s = s.replaceAllMapped(
+    RegExp(r'\\\(([\s\S]*?)\\\)'),
+    (m) => '\$${m.group(1)!.trim()}\$',
+  );
+  return s;
+}
 
 // ─── Yardımcı: inline $...$ parçacıklarını InlineSpan listesine çevirir ───────
 
@@ -81,15 +101,16 @@ class LatexText extends StatelessWidget {
   static final _reTest    = RegExp(r'^\[TEST:\s*"(.+?)"\s*\|\s*(.+?)\]\s*$');
   static final _reSpecial = RegExp(
     r'^(Kural\s*:|Gerekçe\s*:|İşlem\s*:|Tespit\s*:|Formül\s*:|Hesap\s*:|'
-    r'Cevap\s*:|Düşünce Zinciri\s*:|Ara Kontrol\s*:|Doğrulama\s*:|'
+    r'Cevap\s*:|Düşünce Zinciri\s*:|Düşünce\s*:|Ara Kontrol\s*:|Doğrulama\s*:|'
     r'Verilenlerin Analizi\s*:|Verilenler\s*:|Kavram\s*:|Uygula\s*:|'
-    r'Hesapla\s*:|Yorumla\s*:|Açıkla\s*:|Püf Nokta\s*:)',
+    r'Hesapla\s*:|Yorumla\s*:|Açıkla\s*:|Püf Nokta\s*:|'
+    r'Yaklaşım\s*:|Alternatif\s*:|Soru\s*:|İpucu\s*:)',
   );
   static final _rePuf = RegExp(r'^(Püf Nokta\s*:)');
 
   @override
   Widget build(BuildContext context) {
-    final lines = text.split('\n');
+    final lines = _normalizeLatex(text).split('\n');
     final gap   = (fontSize * (lineHeight - 1.0) * 0.45).clamp(1.0, 10.0);
     final children = <Widget>[];
 

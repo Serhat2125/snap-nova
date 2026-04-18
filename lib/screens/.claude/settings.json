@@ -1,7 +1,0 @@
-{
-  "anthropic.apiKey": "",
-  "anthropic.base_url": "https://openrouter.ai/api",
-  "anthropic.customHeaders": {
-    "Authorization": "Bearer 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"
-  }
-}

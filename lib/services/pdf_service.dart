@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -11,9 +12,11 @@ import '../services/solutions_storage.dart';
 
 class PdfService {
   static Future<void> generateAndShare(SolutionRecord record) async {
+    debugPrint('[PDF] generateAndShare start — id=${record.id}');
     final pdf = pw.Document();
 
-    // ── Yerleşik fontlar ──────────────────────────────────────────────────────
+    // ── Fontlar — built-in helvetica (internet/asset gerektirmez).
+    //   Turkish-specific glyphs (ı, ğ, ş) için aşağıda transliterate ediliyor.
     final ttf     = pw.Font.helvetica();
     final ttfBold = pw.Font.helveticaBold();
 
@@ -24,78 +27,100 @@ class PdfService {
       if (await imgFile.exists()) {
         final bytes = await imgFile.readAsBytes();
         questionImage = pw.MemoryImage(bytes);
+        debugPrint('[PDF] image loaded (${bytes.length} bytes)');
+      } else {
+        debugPrint('[PDF] image file missing: ${record.imagePath}');
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[PDF] image load error: $e');
+    }
 
-    // ── Temizlenmiş metin ─────────────────────────────────────────────────────
-    final cleanText = _cleanForPdf(record.result);
+    // ── Temizlenmiş + Türkçe→ASCII-güvenli metin ─────────────────────────
+    final cleanText = _toLatin1Safe(_cleanForPdf(record.result));
 
     // ── Tarih formatı ─────────────────────────────────────────────────────────
     final dt  = record.timestamp;
     final h   = dt.hour.toString().padLeft(2, '0');
     final min = dt.minute.toString().padLeft(2, '0');
     const months = [
-      'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
-      'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
+      'Ocak', 'Subat', 'Mart', 'Nisan', 'Mayis', 'Haziran',
+      'Temmuz', 'Agustos', 'Eylul', 'Ekim', 'Kasim', 'Aralik',
     ];
     final dateStr = '${dt.day} ${months[dt.month - 1]} ${dt.year}, $h:$min';
 
-    // ── PDF sayfası ───────────────────────────────────────────────────────────
+    // ── PDF sayfası — soru + çözüm TEK büyük çerçevede ───────────────────
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.fromLTRB(36, 48, 36, 40),
-        header: (ctx) => _buildHeader(ttfBold, ttf, record, dateStr),
+        margin: const pw.EdgeInsets.fromLTRB(32, 40, 32, 36),
+        header: (ctx) =>
+            ctx.pageNumber == 1 ? _buildHeader(ttfBold, ttf, record, dateStr) : pw.SizedBox(),
         footer: (ctx) => _buildFooter(ttf, ctx),
         build: (ctx) => [
-          pw.SizedBox(height: 16),
+          pw.SizedBox(height: 10),
 
-          // Soru görseli
-          if (questionImage != null) ...[
-            pw.Center(
-              child: pw.ClipRRect(
-                horizontalRadius: 8,
-                verticalRadius: 8,
-                child: pw.Image(questionImage, height: 200, fit: pw.BoxFit.contain),
-              ),
-            ),
-            pw.SizedBox(height: 20),
-          ],
-
-          // Çözüm başlığı
+          // Soru + Çözüm'ü kapsayan büyük çerçeve
           pw.Container(
             width: double.infinity,
-            padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const pw.EdgeInsets.all(14),
             decoration: pw.BoxDecoration(
-              color: PdfColors.blueGrey50,
-              borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
-              border: pw.Border.all(color: PdfColors.blueGrey200, width: 0.5),
+              color: PdfColors.white,
+              borderRadius: const pw.BorderRadius.all(pw.Radius.circular(10)),
+              border: pw.Border.all(color: PdfColors.blueGrey300, width: 1.2),
             ),
-            child: pw.Text(
-              'ÇÖZÜM',
-              style: pw.TextStyle(font: ttfBold, fontSize: 11, color: PdfColors.blueGrey700),
-            ),
-          ),
-          pw.SizedBox(height: 12),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                // Soru görseli
+                if (questionImage != null) ...[
+                  pw.Center(
+                    child: pw.ClipRRect(
+                      horizontalRadius: 6,
+                      verticalRadius: 6,
+                      child: pw.Image(questionImage,
+                          height: 220, fit: pw.BoxFit.contain),
+                    ),
+                  ),
+                  pw.SizedBox(height: 10),
+                  pw.Divider(color: PdfColors.blueGrey200, thickness: 0.5, height: 10),
+                  pw.SizedBox(height: 4),
+                ],
 
-          // Çözüm metni
-          pw.Text(
-            cleanText,
-            style: pw.TextStyle(font: ttf, fontSize: 10.5, lineSpacing: 2, color: PdfColors.grey900),
+                // Çözüm metni — büyük, okunaklı
+                pw.Text(
+                  cleanText,
+                  style: pw.TextStyle(
+                    font: ttf,
+                    fontSize: 13,
+                    lineSpacing: 3,
+                    color: PdfColors.grey900,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
 
     // ── Kaydet ve paylaş ──────────────────────────────────────────────────────
-    final dir  = await getTemporaryDirectory();
-    final file = File('${dir.path}/aurasnap_${record.id}.pdf');
-    await file.writeAsBytes(await pdf.save());
+    try {
+      final dir  = await getTemporaryDirectory();
+      final file = File('${dir.path}/aurasnap_${record.id}.pdf');
+      final bytes = await pdf.save();
+      debugPrint('[PDF] built ${bytes.length} bytes → ${file.path}');
+      await file.writeAsBytes(bytes);
 
-    await Share.shareXFiles(
-      [XFile(file.path)],
-      text: '${record.subject} — ${record.solutionType}\nAuraSnap ile çözüldü.',
-    );
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'application/pdf')],
+        text: _toLatin1Safe(
+            '${record.subject} — ${record.solutionType}\nAuraSnap ile cozuldu.'),
+      );
+      debugPrint('[PDF] share sheet opened');
+    } catch (e, st) {
+      debugPrint('[PDF] build/share FAILED: $e\n$st');
+      rethrow;
+    }
   }
 
   // ── Üst bilgi ───────────────────────────────────────────────────────────────
@@ -124,9 +149,9 @@ class PdfService {
         pw.SizedBox(height: 4),
         pw.Row(
           children: [
-            _chip(bold, record.subject, PdfColors.blue700, PdfColors.blue50),
+            _chip(bold, _toLatin1Safe(record.subject), PdfColors.blue700, PdfColors.blue50),
             pw.SizedBox(width: 6),
-            _chip(bold, record.solutionType, PdfColors.blueGrey600, PdfColors.blueGrey50),
+            _chip(bold, _toLatin1Safe(record.solutionType), PdfColors.blueGrey600, PdfColors.blueGrey50),
           ],
         ),
         pw.SizedBox(height: 6),
@@ -155,7 +180,7 @@ class PdfService {
       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
       children: [
         pw.Text(
-          'AuraSnap — AI Destekli Eğitim',
+          'AuraSnap - AI Destekli Egitim',
           style: pw.TextStyle(font: regular, fontSize: 8, color: PdfColors.blueGrey400),
         ),
         pw.Text(
@@ -183,5 +208,49 @@ class PdfService {
         .replaceAll(RegExp(r'_{(.+?)}'), r'_$1')
         .replaceAll(RegExp(r'\s{3,}'), '\n\n')
         .trim();
+  }
+
+  // ── Latin-1 güvenli transliterasyon ──────────────────────────────────────
+  //   Built-in helvetica PDF font'u Latin-1 destekler ama ı, ğ, Ş, İ gibi
+  //   Türkçe-özgü karakterleri render edemez. Bu eşleştirme ile ASCII-safe
+  //   yaparak hata/boş glyph oluşmasını engelliyoruz. ç, ö, ü, ğ'nin büyük
+  //   halleri Latin-1'de var, küçük ı ve büyük İ yok — onları da çeviriyoruz.
+  static const Map<String, String> _trMap = {
+    'ı': 'i', 'İ': 'I',
+    'ğ': 'g', 'Ğ': 'G',
+    'ş': 's', 'Ş': 'S',
+    'ç': 'c', 'Ç': 'C',
+    'ö': 'o', 'Ö': 'O',
+    'ü': 'u', 'Ü': 'U',
+    '—': '-', '–': '-',
+    '“': '"', '”': '"', '‘': "'", '’': "'",
+    '…': '...',
+    '•': '*',
+    '×': 'x', '÷': '/',
+    '≤': '<=', '≥': '>=',
+    '≈': '~',
+    '°': 'deg',
+    'π': 'pi', 'α': 'alpha', 'β': 'beta', 'γ': 'gamma', 'Δ': 'Delta',
+    'θ': 'theta', 'λ': 'lambda', 'μ': 'mu', 'σ': 'sigma', 'ω': 'omega',
+    '∑': 'Sum', '∫': 'Int', '∞': 'inf', '√': 'sqrt',
+  };
+
+  static String _toLatin1Safe(String input) {
+    final sb = StringBuffer();
+    for (final ch in input.runes) {
+      final s = String.fromCharCode(ch);
+      if (_trMap.containsKey(s)) {
+        sb.write(_trMap[s]);
+      } else if (ch < 128) {
+        sb.write(s);
+      } else if (ch < 256) {
+        // Latin-1 aralığı — helvetica destekler
+        sb.write(s);
+      } else {
+        // Desteklenmeyen karakter — boşluk ile ikame
+        sb.write(' ');
+      }
+    }
+    return sb.toString();
   }
 }
