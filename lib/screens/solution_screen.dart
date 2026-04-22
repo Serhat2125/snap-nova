@@ -1,3 +1,4 @@
+import '../services/runtime_translator.dart';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui';
@@ -44,24 +45,24 @@ class _SolutionScreenState extends State<SolutionScreen> {
   String? _subjectKind;
 
   // ── 3 Çözüm modu ─────────────────────────────────────────────────────────────
-  static const _modes = [
+  List<_ModeOption> get _modes => [
     _ModeOption(
-      label:    'Basit Çöz',
+      label: 'Basit Çöz'.tr(),
       subtitle: '',
       icon:     Icons.bolt_rounded,
-      color:    Color(0xFFF59E0B),
+      color:    const Color(0xFFF59E0B),
     ),
     _ModeOption(
-      label:    'Adım Adım Çöz',
+      label: 'Adım Adım Çöz'.tr(),
       subtitle: '',
       icon:     Icons.list_alt_rounded,
-      color:    Color(0xFF3B82F6),
+      color:    const Color(0xFF3B82F6),
     ),
     _ModeOption(
-      label:    'AI Öğretmen',
+      label: 'AI Öğretmen'.tr(),
       subtitle: '',
       icon:     Icons.school_rounded,
-      color:    Color(0xFFEC4899),
+      color:    const Color(0xFFEC4899),
     ),
   ];
 
@@ -70,7 +71,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
   static final _models = [
     AiModel(
       name: 'QuAlsar',
-      subtitle: 'Hızlı ve genel çözüm',
+      subtitle: 'Hızlı ve genel çözüm'.tr(),
       badge: localeService.tr('recommended'),
       accentColor: AppColors.cyan,
       logo: ShaderMask(
@@ -84,7 +85,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
     ),
     AiModel(
       name: 'ChatGPT',
-      subtitle: 'Detaylı ve mantıklı çözüm',
+      subtitle: 'Detaylı ve mantıklı çözüm'.tr(),
       badge: 'Yakında',
       accentColor: Color(0xFF10A37F),
       logo: const Center(
@@ -93,7 +94,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
     ),
     AiModel(
       name: 'Gemini',
-      subtitle: 'Hızlı analiz ve alternatif çözüm',
+      subtitle: 'Hızlı analiz ve alternatif çözüm'.tr(),
       badge: 'Aktif',
       accentColor: Color(0xFF4796E3),
       logo: Padding(
@@ -103,7 +104,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
     ),
     AiModel(
       name: 'Grok',
-      subtitle: 'Anlık ve yaratıcı çözüm',
+      subtitle: 'Anlık ve yaratıcı çözüm'.tr(),
       badge: 'Yakında',
       accentColor: Color(0xFF9CA3AF),
       logo: const Center(
@@ -112,7 +113,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
     ),
     AiModel(
       name: 'Deepseek',
-      subtitle: 'Derin analiz ve akıl yürütme',
+      subtitle: 'Derin analiz ve akıl yürütme'.tr(),
       badge: 'Aktif',
       accentColor: Color(0xFF4B8BF5),
       logo: const Center(
@@ -121,7 +122,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
     ),
     AiModel(
       name: 'Claude',
-      subtitle: 'Derin açıklama ve mantık yürütme',
+      subtitle: 'Derin açıklama ve mantık yürütme'.tr(),
       badge: 'Yakında',
       accentColor: Color(0xFFD97706),
       logo: const Center(

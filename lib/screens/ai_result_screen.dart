@@ -1,3 +1,4 @@
+import '../services/runtime_translator.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
@@ -439,7 +440,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                                 )
                               : const Icon(Icons.share_rounded),
                           label: Text(
-                            _sharing ? 'Hazırlanıyor…' : 'Paylaş',
+                            _sharing ? 'Hazırlanıyor…'.tr() : 'Paylaş'.tr(),
                             style: GoogleFonts.poppins(
                               fontWeight: FontWeight.w800,
                             ),

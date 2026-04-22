@@ -1,0 +1,77 @@
+rules_version = '2';
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  QuAlsar — Production Firestore Security Rules
+//  Firebase Console → Firestore → Rules sekmesine YAPIŞTIRIN.
+//  `firebase deploy --only firestore:rules` ile de gönderebilirsiniz.
+// ═══════════════════════════════════════════════════════════════════════════
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Yardımcı fonksiyonlar ─────────────────────────────────────────────
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && request.auth.token.admin == true;
+    }
+
+    // ── app_errors: istemciler sadece yazabilir ──────────────────────────
+    //    Okuma sadece admin. Hata raporları dışarı açılmaz.
+    match /app_errors/{doc} {
+      allow create: if true;          // anonim kullanıcı da hata gönderebilir
+      allow read, update, delete: if isAdmin();
+    }
+
+    // ── config/runtime: herkes okur, sadece admin yazar ──────────────────
+    //    Uzaktan yapılandırma (RemoteConfigService) bu koleksiyonu okur.
+    match /config/{doc} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ── feedback: kullanıcılar gönderir, sadece admin okur ──────────────
+    match /feedback/{doc} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // ── users/{uid}: kullanıcının kendi profili ──────────────────────────
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+
+      // Alt koleksiyonlar (solved_problems, mastery, achievements vb.)
+      match /{sub=**} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    // ── leaderboards: herkes okur, sadece admin ya da Cloud Functions yazar
+    match /leaderboards/{doc} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ── arena_matches/{id}: taraflar okur; sadece katılanlar yazar ──────
+    match /arena_matches/{id} {
+      allow read: if isSignedIn()
+        && (request.auth.uid in resource.data.participants);
+      allow create: if isSignedIn()
+        && request.auth.uid in request.resource.data.participants;
+      allow update: if isSignedIn()
+        && request.auth.uid in resource.data.participants;
+    }
+
+    // ── Varsayılan: reddet ───────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

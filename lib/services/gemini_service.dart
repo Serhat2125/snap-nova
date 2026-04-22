@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'curriculum_catalog.dart';
+import 'education_profile.dart';
+import 'locale_service.dart';
 import 'secrets.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -35,6 +38,27 @@ class GeminiService {
 
   static bool _isKeyFailure(int status) =>
       status == 401 || status == 403 || status == 429 || status == 400;
+
+  // Gemini 429 yanıtı genelde şunu içerir:
+  //   error.details[].retryDelay = "27s"
+  // Parse edip saniye olarak döndür. Parse edilemezse null.
+  static int? _parseRetryDelaySeconds(http.Response r) {
+    try {
+      final body = jsonDecode(utf8.decode(r.bodyBytes));
+      final err = body is Map ? body['error'] : null;
+      final details = err is Map ? err['details'] : null;
+      if (details is List) {
+        for (final d in details) {
+          if (d is Map && d['retryDelay'] != null) {
+            final rd = d['retryDelay'].toString();
+            final m = RegExp(r'(\d+)').firstMatch(rd);
+            if (m != null) return int.tryParse(m.group(1)!);
+          }
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
 
   static void _log(String msg) {
     if (kDebugMode) debugPrint('$_tag $msg');
@@ -170,76 +194,88 @@ class GeminiService {
     }
 
     http.Response? lastBadResponse;
+    final body = jsonEncode({
+      'contents': [
+        {
+          'role': 'user',
+          'parts': [
+            {'text': '$systemPrompt\n\n$userMessage'},
+          ],
+        },
+      ],
+      'generationConfig': {
+        'maxOutputTokens': maxTokens,
+        'temperature': temperature,
+        'thinkingConfig': {'thinkingBudget': thinkingBudget},
+        if (responseMimeType != null) 'responseMimeType': responseMimeType,
+      },
+    });
+
     for (var i = 0; i < keys.length; i++) {
       final key = keys[i];
       final url = '$_baseUrl/$_model:generateContent?key=$key';
-      _log('Gemini isteği [${i + 1}/${keys.length}] → model=$_model, maxTokens=$maxTokens');
-      try {
-        final response = await http.post(
-          Uri.parse(url),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'contents': [
-              {
-                'role': 'user',
-                'parts': [
-                  {'text': '$systemPrompt\n\n$userMessage'},
-                ],
-              },
-            ],
-            'generationConfig': {
-              'maxOutputTokens': maxTokens,
-              'temperature': temperature,
-              'thinkingConfig': {'thinkingBudget': thinkingBudget},
-              if (responseMimeType != null) 'responseMimeType': responseMimeType,
-            },
-          }),
-        ).timeout(timeout);
+      // 429 için en fazla 1 retry yapıyoruz (toplam 2 deneme). Daha uzun
+      // bekletmek kullanıcıyı strand ediyor — hızlı hata + snack mesajı
+      // daha iyi UX.
+      const maxAttempts = 2;
 
-        _log('Gemini HTTP ${response.statusCode} [key ${i + 1}]');
+      int attempt = 0;
+      bool keyExhausted = false;
+      while (attempt < maxAttempts && !keyExhausted) {
+        attempt++;
+        _log('Gemini [${i + 1}/${keys.length} · deneme $attempt/$maxAttempts] → model=$_model');
+        try {
+          final response = await http
+              .post(
+                Uri.parse(url),
+                headers: {'Content-Type': 'application/json'},
+                body: body,
+              )
+              .timeout(timeout);
 
-        if (response.statusCode == 200) {
-          final json = jsonDecode(utf8.decode(response.bodyBytes))
-              as Map<String, dynamic>;
-          final candidate = json['candidates']?[0];
-          final text = candidate?['content']?['parts']?[0]?['text'] as String?;
-          final fr = (candidate?['finishReason'] as String?) ?? 'STOP';
-          if (text == null || text.trim().isEmpty) {
-            throw GeminiException.blurryImage();
+          _log('Gemini HTTP ${response.statusCode} [key ${i + 1} · d.$attempt]');
+
+          if (response.statusCode == 200) {
+            final json = jsonDecode(utf8.decode(response.bodyBytes))
+                as Map<String, dynamic>;
+            final candidate = json['candidates']?[0];
+            final text =
+                candidate?['content']?['parts']?[0]?['text'] as String?;
+            final fr = (candidate?['finishReason'] as String?) ?? 'STOP';
+            if (text == null || text.trim().isEmpty) {
+              throw GeminiException.blurryImage();
+            }
+            _log('Gemini OK, len=${text.length}');
+            return (text: text, finishReason: fr);
           }
-          _log('Gemini text finishReason=$fr, textLen=${text.length}');
-          return (text: text, finishReason: fr);
-        }
 
-        // Key-level hata (kota/yetki) → sıradaki key'i dene
-        if (_isKeyFailure(response.statusCode)) {
-          _log('Gemini key ${i + 1} başarısız (${response.statusCode}) → sıradaki key');
-          lastBadResponse = response;
-          continue;
-        }
-
-        // 5xx → OpenAI fallback (key varsa)
-        if (response.statusCode >= 500) {
-          if (_openaiKey.isEmpty) {
-            _handleError(response);
+          // 429 özel yol: Gemini rate-limit (RPM) dolmuş. Kısa bir bekleme
+          // sonrası bir kere daha dene — olmazsa sıradaki key / OpenAI /
+          // kullanıcıya net hata.
+          if (response.statusCode == 429 && attempt < maxAttempts) {
+            final hinted = _parseRetryDelaySeconds(response);
+            // Max 12 sn bekle; retryDelay hintlenmişse onu (12'yi geçmeyecek
+            // şekilde) kullan. Daha uzun bekleme kullanıcıyı kaybettiriyor.
+            final secs = (hinted ?? 8).clamp(3, 12);
+            _log('429 → $secs sn bekle + aynı key ile tekrar dene');
+            await Future.delayed(Duration(seconds: secs));
+            continue;
           }
-          _log('Gemini 5xx → OpenAI fallback');
-          final t = await _callOpenAI(
-            systemPrompt: systemPrompt,
-            userMessage: userMessage,
-            maxTokens: maxTokens,
-            temperature: temperature,
-            timeout: timeout,
-          );
-          return (text: t, finishReason: 'STOP');
-        }
 
-        _handleError(response);
-      } on TimeoutException {
-        _log('Gemini timeout [key ${i + 1}] → sıradaki key');
-        if (i == keys.length - 1) {
-          if (_openaiKey.isNotEmpty) {
-            _log('Tum keyler timeout => OpenAI fallback');
+          // Diğer key-level hatalar → sıradaki key
+          if (_isKeyFailure(response.statusCode)) {
+            _log('Key ${i + 1} başarısız (${response.statusCode}) → sıradaki key');
+            lastBadResponse = response;
+            keyExhausted = true;
+            break;
+          }
+
+          // 5xx → OpenAI fallback (key varsa)
+          if (response.statusCode >= 500) {
+            if (_openaiKey.isEmpty) {
+              _handleError(response);
+            }
+            _log('Gemini 5xx → OpenAI fallback');
             final t = await _callOpenAI(
               systemPrompt: systemPrompt,
               userMessage: userMessage,
@@ -249,9 +285,32 @@ class GeminiService {
             );
             return (text: t, finishReason: 'STOP');
           }
-          throw GeminiException.serverTimeout();
+
+          _handleError(response);
+        } on TimeoutException {
+          _log('Gemini timeout [key ${i + 1} · d.$attempt]');
+          // Tekrar dene (aynı key, eğer hakkımız varsa)
+          if (attempt < maxAttempts) {
+            continue;
+          }
+          // Son key + son deneme → OpenAI fallback veya hata
+          if (i == keys.length - 1) {
+            if (_openaiKey.isNotEmpty) {
+              _log('Tum denemeler timeout => OpenAI fallback');
+              final t = await _callOpenAI(
+                systemPrompt: systemPrompt,
+                userMessage: userMessage,
+                maxTokens: maxTokens,
+                temperature: temperature,
+                timeout: timeout,
+              );
+              return (text: t, finishReason: 'STOP');
+            }
+            throw GeminiException.serverTimeout();
+          }
+          keyExhausted = true;
+          break;
         }
-        continue;
       }
     }
 
@@ -993,11 +1052,50 @@ $existingSolution''';
           '4) "İpucu: [bu tür sorularda hatırlanması gereken tek şey]" — 1 cümle.\n'
           'KURAL: Retorik veya Sokratik soru KULLANMA. Samimi ama ciddi ol. Anchor ikonlarını [SYSTEM — ICON USAGE] kurallarına göre seçici kullan.',
 
+      // KONU ÖZETİ — kullanıcı prompt'u (academic_planner._buildSummaryPrompt)
+      // zaten tüm yapıyı ve kuralları içeriyor. Buraya Sonuç/Püf Nokta
+      // zorunluluğu GETİRME — özet maddelerden oluşuyor.
+      'KonuÖzeti' =>
+          '[MOD: KONU ÖZETİ]\n'
+          'Kullanıcının verdiği şablonu birebir uygula. "Sonuç:" veya '
+          '"Püf Nokta:" satırı YAZMA — özet bu satırlarla bitirilmez.',
+
+      // TEST SORULARI — 10 soruluk test. Kullanıcı prompt'u yapıyı
+      // dayatıyor; bu modda da "Sonuç:" ve "Püf Nokta:" etiketleri
+      // kullanılmayacak.
+      'TestSorulari' =>
+          '[MOD: TEST SORULARI]\n'
+          'Kullanıcının verdiği 10 soruluk şablonu birebir uygula. '
+          'Sorular sırayla zorluk artışı, her soruda 5 şık (A-E), her '
+          'çözümde "Doğru cevap:" satırı. "Sonuç:" veya "Püf Nokta:" '
+          'satırı YAZMA. TAM 10 soru.',
+
       _ =>
           'Soruyu kısa ve net çöz. Formülleri LaTeX ile yaz. Son satırda "Sonuç:" ile bitir.',
     };
 
-    final systemPrompt = '''$_sysIdentity
+    // Konu Özeti / Test Soruları modlarında sıkı çözüm formatı (Sonuç/Püf
+    // Nokta zorunluluğu) devreye girmesin — kullanıcı şablonu kendi yapısını
+    // zaten dayatıyor.
+    final isSummary =
+        solutionType == 'KonuÖzeti' || solutionType == 'TestSorulari';
+    final systemPrompt = isSummary
+        ? '''$_sysIdentity
+
+$_sysLatex
+
+[KONU ÖZETİ MODU]
+Ders: $subject
+$modeInstr
+
+KESİN YASAK:
+- "Sonuç:" satırı yazma.
+- "Püf Nokta:" satırı yazma.
+- "İpucu:" etiketi koyma.
+- Çözüm adımları, cevap kutusu, doğrulama bölümü yazma.
+
+Cevabı Türkçe ver.'''
+        : '''$_sysIdentity
 
 $_sysCoreRules
 
@@ -1018,6 +1116,7 @@ Cevabı Türkçe ver.''';
       'Adım Adım Çöz' => (1500, 0.2),
       'AI Öğretmen'   => (2000, 0.35),
       'KonuÖzeti'     => (3500, 0.3), // zengin, numaralı yapı
+      'TestSorulari'  => (8000, 0.4), // 10 soru + çözümler
       _               => (1500, 0.2),
     };
 
@@ -1271,11 +1370,38 @@ GEREKLİ FORMÜLÜ BULMA:
 • Formül yoksa "bu koşulda kullanılabilecek formül yok" deme; en yakın modeli veya yaklaşımı seç, varsayımlarını açıkça belirt.''';
 
   // ── BLOK 3: Dil Uyumu ────────────────────────────────────────────────────────
-  static const _sysLanguage = '''
+  /// Öğrencinin müfredat bağlamını sistem prompt'a katar.
+  /// EduProfile.current varsa curriculum_catalog'dan hangi dersleri
+  /// + hangi konuları gördüğü eklenir → AI doğru seviyede çözer.
+  static String _buildCurriculumBlock() {
+    final p = EduProfile.current;
+    if (p == null) return '';
+    final base = educationContext(p);
+    final detail = curriculumContextForPrompt(p);
+    if (base.isEmpty && detail.isEmpty) return '';
+    return '[SYSTEM — STUDENT CURRICULUM]\n'
+        '$base\n$detail\n'
+        'Use this curriculum to match the student\'s exact syllabus. '
+        'Example: if the student is Turkish 11th grade Sayısal, assume '
+        'MEB standards — trigonometry, derivatives, analytic geometry, '
+        'organic chem, genetics — and use those terms.';
+  }
+
+  /// **Kullanıcının seçtiği ülkenin dilini** AI'ya dayatır. Soru hangi
+  /// dilde olursa olsun, kullanıcı uygulamayı hangi dilde kullanıyorsa
+  /// cevap o dilde gelir. Bu sabit bir string değil — çağrı anında
+  /// LocaleService.global üzerinden dinamik üretilir.
+  static String get _sysLanguage {
+    final svc = LocaleService.global;
+    if (svc != null) {
+      return svc.aiLanguageDirective();
+    }
+    // LocaleService henüz init olmadı — nötr fallback
+    return '''
 [SYSTEM — LANGUAGE]
-Sorunun dilini otomatik tespit et; yanıtını tamamen o dilde ver.
-Türkçe soru → Türkçe yanıt | English question → English answer | Karma → baskın dili seç.
-Bölüm başlıkları (ÇÖZÜM, KONU ÖZETİ vb.) da sorunun diliyle eşleşsin.''';
+Detect the question's language automatically and respond entirely in it.
+All section titles (SOLUTION, SUMMARY) match the question's language.''';
+  }
 
   // ── BLOK 4: Çıktı Formatı — UI etiket standardı ─────────────────────────────
   static const _sysFormat = '''
@@ -1385,11 +1511,16 @@ KATI YASAKLAR:
     final tab   = raw.replaceAll('\n', ' ').trim();
     final multi = isMulti ? '$_sysMultiPhoto\n' : '';
 
+    // Öğrencinin müfredatı — seviye + ülke + sınıf + alan
+    // AI bu bağlamla ülkenin resmi müfredatına göre terminoloji seçer,
+    // doğru soru türlerinde doğru notasyon kullanır.
+    final curriculumBlock = _buildCurriculumBlock();
+
     // Tüm modlar ortak sistem tabanını alır:
     // kimlik → kritik kurallar → ders tanımlama → LaTeX → matematik ustalığı → formül dağarcığı
-    // → muhakeme → ikon → dil → format → kaynaklar → fallback
+    // → muhakeme → ikon → dil → müfredat → format → kaynaklar → fallback
     final base =
-        '$_sysIdentity\n\n$_sysCoreRules\n\n$_sysSubject\n\n$_sysLatex\n\n$_sysMathMastery\n\n$_sysFormulas\n\n$_sysReasoning\n\n$_sysIcons\n\n$_sysLanguage\n\n$_sysFormat\n\n$_sysResources\n\n$_sysFallback\n\n$multi';
+        '$_sysIdentity\n\n$_sysCoreRules\n\n$_sysSubject\n\n$_sysLatex\n\n$_sysMathMastery\n\n$_sysFormulas\n\n$_sysReasoning\n\n$_sysIcons\n\n$_sysLanguage\n\n$curriculumBlock\n\n$_sysFormat\n\n$_sysResources\n\n$_sysFallback\n\n$multi';
 
     return switch (tab) {
 

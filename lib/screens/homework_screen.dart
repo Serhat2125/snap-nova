@@ -1,3 +1,4 @@
+import '../services/runtime_translator.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -436,7 +437,7 @@ class _HWCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             side: BorderSide(color: const Color(0xFFEF4444).withValues(alpha: 0.35)),
           ),
-          title: const Text('Ödevi Sil', style: TextStyle(color: Colors.white, fontSize: 15)),
+          title: Text('Ödevi Sil'.tr(), style: TextStyle(color: Colors.white, fontSize: 15)),
           content: Text('"${record.title}" silinsin mi?',
               style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
           actions: [
@@ -673,7 +674,7 @@ class _AddSheetState extends State<_AddSheet> {
               color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(2)),
           )),
 
-          Text('Ödev Ekle', style: GoogleFonts.inter(
+          Text('Ödev Ekle'.tr(), style: GoogleFonts.inter(
             color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
           const SizedBox(height: 14),
 
@@ -685,7 +686,7 @@ class _AddSheetState extends State<_AddSheet> {
             onChanged: (_) => setState(() {}),
             style: GoogleFonts.inter(color: Colors.white, fontSize: 13),
             decoration: InputDecoration(
-              hintText: 'Ödev veya soru yaz…',
+              hintText: 'Ödev veya soru yaz…'.tr(),
               hintStyle: GoogleFonts.inter(color: Colors.white.withValues(alpha: 0.28), fontSize: 13),
               filled: true, fillColor: Colors.white.withValues(alpha: 0.04),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
@@ -792,7 +793,7 @@ class _AddSheetState extends State<_AddSheet> {
               } : null,
               child: _actionBtn(
                 icon: Icons.auto_awesome_rounded,
-                label: 'Yaz & Çöz',
+                label: 'Yaz & Çöz'.tr(),
                 sub: 'AI ile anında çöz',
                 color: AppColors.cyan,
                 active: valid,
@@ -860,11 +861,14 @@ class _SolveSheetState extends State<_SolveSheet> {
   bool    _loading = false;
   String? _error;
 
-  static const _modes = [
+  static const _modesRaw = [
     (label: 'Hızlı Çözüm',   icon: Icons.bolt_rounded,     color: Color(0xFFF59E0B)),
     (label: 'Adım Adım Çöz', icon: Icons.list_alt_rounded,  color: Color(0xFF3B82F6)),
     (label: 'AI Öğretmen',   icon: Icons.school_rounded,    color: Color(0xFFEC4899)),
   ];
+  // Çeviri uygulandığı için getter; `.tr()` runtime çalışır.
+  List<({String label, IconData icon, Color color})> get _modes =>
+      _modesRaw.map((m) => (label: m.label.tr(), icon: m.icon, color: m.color)).toList();
 
   Future<void> _solve() async {
     final q = _ctrl.text.trim();

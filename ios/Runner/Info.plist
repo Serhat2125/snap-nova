@@ -74,5 +74,23 @@
 	<string>Çekilen fotoğrafları kaydetmek için galerinize erişim gerekiyor.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Kamera kullanımı için mikrofon erişimi gerekiyor.</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>whatsapp</string>
+		<string>instagram</string>
+		<string>instagram-stories</string>
+		<string>tiktok</string>
+		<string>snssdk1233</string>
+		<string>twitter</string>
+		<string>tg</string>
+		<string>fb</string>
+		<string>fb-messenger</string>
+		<string>snapchat</string>
+		<string>linkedin</string>
+		<string>discord</string>
+		<string>pinterest</string>
+		<string>reddit</string>
+		<string>threads</string>
+	</array>
 </dict>
 </plist>

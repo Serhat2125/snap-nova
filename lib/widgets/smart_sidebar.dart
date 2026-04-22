@@ -108,7 +108,8 @@ class _SmartSidebarState extends State<SmartSidebar>
   Widget build(BuildContext context) {
     final screen = MediaQuery.of(context).size;
     final padTop = MediaQuery.of(context).padding.top;
-    final clampedY = _edgeY.clamp(padTop + 20, screen.height - _barHeight - 20);
+    final clampedY = _edgeY.
+    clamp(padTop + 20, screen.height - _barHeight - 20);
 
     return Stack(
       children: [

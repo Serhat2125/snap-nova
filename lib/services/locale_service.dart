@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,9 +9,119 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class LocaleService extends ChangeNotifier {
   static const _prefKey = 'app_locale';
+  static const _countryPrefKey = 'detected_country_v1';
+
+  /// Servislerden (gemini_service, vs.) main.dart'ı import etmeden erişim.
+  /// İlk `LocaleService()` çağrısında kendini buraya atar.
+  static LocaleService? _global;
+  static LocaleService? get global => _global;
+
+  LocaleService() {
+    _global ??= this;
+  }
 
   String _localeCode = 'en';
   String get localeCode => _localeCode;
+
+  String? _detectedCountry;
+  /// Cihaz locale'inden algılanan ülke kodu (tr, us, de, jp ...).
+  /// EducationSetupScreen ilk açılışta bunu ön-doldurur.
+  String? get detectedCountry => _detectedCountry;
+
+  /// ISO 3166-1 alpha-2 kodunu uygulama içi ülke koduna dönüştür.
+  /// Çoğu aynı, özel durumlar: GB→uk, KR→kr (zaten), vs.
+  static String? _normalizeIsoCountry(String iso) {
+    final c = iso.toLowerCase();
+    switch (c) {
+      case 'gb':
+        return 'uk';
+      default:
+        return c;
+    }
+  }
+
+  /// Ülke kodundan o ülkenin **birincil UI dilini** döndürür.
+  /// Uygulamanın indirildiği ülkeye göre otomatik dil seçimi için kullanılır.
+  /// Döndürülen değer [supportedLocales] içindeki bir kod olmalıdır.
+  static String? _primaryLangForCountry(String country) {
+    const map = <String, String>{
+      // Türkiye
+      'tr': 'tr',
+      // İngilizce
+      'us': 'en', 'uk': 'en', 'au': 'en', 'nz': 'en', 'ie': 'en', 'ca': 'en',
+      'sg': 'en', 'za': 'en', 'hk': 'en', 'jm': 'en', 'ng': 'en', 'gh': 'en',
+      'ug': 'en', 'ke': 'sw', 'tz': 'sw',
+      // Hintçe (Hindistan'da en yaygın; 'hi' desteklenen kodda)
+      'in': 'hi',
+      // Almanca
+      'de': 'de', 'at': 'de', 'ch': 'de', 'li': 'de', 'lu': 'de',
+      // Fransızca
+      'fr': 'fr', 'be': 'fr', 'mc': 'fr', 'ma': 'fr', 'dz': 'fr',
+      'tn': 'fr', 'cm': 'fr', 'cd': 'fr', 'mg': 'fr',
+      // İspanyolca
+      'es': 'es', 'mx': 'es', 'ar': 'es', 'co': 'es', 've': 'es',
+      'pe': 'es', 'cl': 'es', 'ec': 'es', 'gt': 'es', 'cu': 'es',
+      'bo': 'es', 'do': 'es', 'hn': 'es', 'py': 'es', 'sv': 'es',
+      'ni': 'es', 'cr': 'es', 'pa': 'es', 'uy': 'es',
+      // Portekizce
+      'br': 'pt', 'pt': 'pt', 'ao': 'pt', 'mz': 'pt',
+      // Japonca
+      'jp': 'ja',
+      // Korece
+      'kr': 'ko', 'kp': 'ko',
+      // Çince
+      'cn': 'zh', 'tw': 'zh',
+      // Rusça
+      'ru': 'ru', 'by': 'ru', 'kz': 'ru', 'kg': 'ru',
+      'tj': 'ru', 'am': 'ru',
+      // Arapça
+      'sa': 'ar', 'ae': 'ar', 'qa': 'ar', 'kw': 'ar', 'eg': 'ar',
+      'jo': 'ar', 'lb': 'ar', 'iq': 'ar', 'ye': 'ar', 'sy': 'ar',
+      'om': 'ar', 'bh': 'ar', 'ly': 'ar', 'ps': 'ar', 'sd': 'ar',
+      // İtalyanca
+      'it': 'it', 'sm': 'it',
+      // Hollandaca
+      'nl': 'nl',
+      // Farsça
+      'ir': 'fa', 'af': 'fa',
+      // Endonezce
+      'id': 'id',
+      // Malayca (Malezya)
+      'my': 'ms',
+      // Vietnamca
+      'vn': 'vi',
+      // Tayca
+      'th': 'th',
+      // Bengalce
+      'bd': 'bn',
+      // Urduca
+      'pk': 'ur',
+      // Ukraynaca (locale_service'de 'uk' = Ukrainian)
+      'ua': 'uk',
+      // Lehçe
+      'pl': 'pl',
+      // Amharca (Etiyopya)
+      'et': 'am',
+      // Burmaca
+      'mm': 'my',
+      // Nepalce
+      'np': 'ne',
+      // Filipince
+      'ph': 'tl',
+      // Özbekçe
+      'uz': 'uz',
+      // İbranice
+      'il': 'he',
+      // Yunanca
+      'gr': 'el',
+      // Çekçe, Macarca, vs.
+      'cz': 'cs', 'hu': 'hu', 'ro': 'ro', 'sk': 'sk', 'bg': 'bg',
+      'hr': 'hr', 'rs': 'sr', 'si': 'sk', 'dk': 'da', 'fi': 'fi',
+      'no': 'no', 'se': 'sv', 'ee': 'et', 'lt': 'lt', 'lv': 'lv',
+      'ge': 'ka', 'az': 'az', 'mn': 'mn',
+    };
+    return map[country];
+  }
 
   // ── Desteklenen diller ─────────────────────────────────────────────────────
   static const supportedLocales = [
@@ -86,20 +197,85 @@ class LocaleService extends ChangeNotifier {
   // ── Başlatma ───────────────────────────────────────────────────────────────
 
   /// SharedPreferences'tan kaydedilmiş dili yükle; yoksa cihaz dilini algıla.
+  /// Ayrıca cihaz ülkesini algılayıp kalıcı olarak kaydeder.
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(_prefKey);
 
+    // ── Dil algılama ─────────────────────────────────────────────────────
+    String? detectedLang;
+    String? detectedCountryCode;
+    try {
+      final platformLocale = Platform.localeName; // "tr_TR", "en_US" vb.
+      final parts = platformLocale.split(RegExp(r'[_-]'));
+      if (parts.isNotEmpty) {
+        detectedLang = parts.first.toLowerCase();
+      }
+      if (parts.length >= 2) {
+        final raw = parts[1].split('.').first; // "TR.UTF-8" gibi varyantları temizle
+        detectedCountryCode = _normalizeIsoCountry(raw);
+      }
+    } catch (_) {}
+
     if (saved != null && supportedLocales.contains(saved)) {
       _localeCode = saved;
     } else {
-      // Platform dilini algıla
-      try {
-        final platformLocale = Platform.localeName; // "tr_TR", "en_US" vb.
-        final code = platformLocale.split('_').first.toLowerCase();
-        _localeCode = supportedLocales.contains(code) ? code : 'en';
-      } catch (_) {
-        _localeCode = 'en';
+      // Öncelik: ülkenin birincil dili (indirildiği ülkenin dili) >
+      //          cihazın dil segmenti > İngilizce.
+      String? choice;
+      if (detectedCountryCode != null) {
+        final byCountry = _primaryLangForCountry(detectedCountryCode);
+        if (byCountry != null && supportedLocales.contains(byCountry)) {
+          choice = byCountry;
+        }
+      }
+      choice ??=
+          (detectedLang != null && supportedLocales.contains(detectedLang))
+              ? detectedLang
+              : 'en';
+      _localeCode = choice;
+    }
+
+    // ── Ülke algılama (ilk açılışta bir kez) ────────────────────────────
+    // Öncelik: IP geolocation cache (varsa) > cihaz locale segmenti.
+    // IP geo `GeolocationService` tarafından `ip_geo_country_v1`'e yazılır.
+    final savedCountry = prefs.getString(_countryPrefKey);
+    final ipCountry = prefs.getString('ip_geo_country_v1');
+
+    if (savedCountry != null && savedCountry.isNotEmpty) {
+      _detectedCountry = savedCountry;
+    } else if (ipCountry != null && ipCountry.isNotEmpty) {
+      _detectedCountry = ipCountry;
+      await prefs.setString(_countryPrefKey, ipCountry);
+    } else if (detectedCountryCode != null &&
+        detectedCountryCode.isNotEmpty) {
+      _detectedCountry = detectedCountryCode;
+      await prefs.setString(_countryPrefKey, detectedCountryCode);
+    }
+
+    notifyListeners();
+  }
+
+  /// IP geolocation tamamlandıktan sonra (arka planda) ülke ve dili yeniden
+  /// değerlendir. Kullanıcı manuel dil seçmediyse UI dili yeni ülkenin
+  /// birincil diline otomatik geçer.
+  Future<void> reevaluateFromGeo({String? ipCountry}) async {
+    if (ipCountry == null || ipCountry.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    final savedLang = prefs.getString(_prefKey);
+
+    // Ülke imzasını tazele
+    _detectedCountry = ipCountry;
+    await prefs.setString(_countryPrefKey, ipCountry);
+
+    // Dil kullanıcı tarafından manuel ayarlanmadıysa ülkenin birincil
+    // diline geç.
+    if (savedLang == null) {
+      final preferred = _primaryLangForCountry(ipCountry);
+      if (preferred != null &&
+          supportedLocales.contains(preferred) &&
+          preferred != _localeCode) {
+        _localeCode = preferred;
       }
     }
     notifyListeners();
@@ -113,12 +289,91 @@ class LocaleService extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefKey, code);
+    // Runtime translator — arka planda tüm hardcoded string'leri yeni dile çevirt.
+    // LocaleService'in runtime_translator'a doğrudan bağımlılığı olmasın diye
+    // dışarıdan set edilebilir bir callback üzerinden tetikliyoruz.
+    if (_onLocaleChanged != null) {
+      // UI blokajı yok; preload arka planda ilerler ve bittikçe notify eder.
+      unawaited(_onLocaleChanged!(code));
+    }
+  }
+
+  /// main.dart burada RuntimeTranslator.preloadAll'u bağlar.
+  static Future<void> Function(String lang)? _onLocaleChanged;
+  static void setLocaleChangeHook(Future<void> Function(String lang) cb) {
+    _onLocaleChanged = cb;
+  }
+
+  /// Ülke kodundan uygulama dilini ayarlar (EducationSetupScreen'de ülke
+  /// seçilince çağrılır). Manuel tercih gibi davranır — kalıcıdır.
+  Future<void> setLocaleForCountry(String country) async {
+    final preferred = _primaryLangForCountry(country);
+    if (preferred == null || !supportedLocales.contains(preferred)) return;
+    await setLocale(preferred);
+  }
+
+  /// Aktif locale'in İngilizce adı (örn. 'Turkish', 'Japanese', 'Arabic').
+  /// AI promptlarında kullanılır.
+  String get languageEnglishName {
+    for (final lang in languages) {
+      if (lang.$4 == _localeCode) return lang.$3;
+    }
+    return 'English';
+  }
+
+  /// Aktif locale'in kendi dilindeki adı (örn. 'Türkçe', '日本語', 'العربية').
+  String get languageNativeName {
+    for (final lang in languages) {
+      if (lang.$4 == _localeCode) return lang.$2;
+    }
+    return 'English';
+  }
+
+  /// AI sistem promptuna eklenecek dil talimatı. Hem kullanıcının dilinde
+  /// hem İngilizce olarak yazılır — LLM tereddüt etmesin.
+  ///
+  /// Gemini / OpenAI çağrılarında `systemPrompt` değişkenine inject edilir.
+  String aiLanguageDirective() {
+    final native = languageNativeName;
+    final english = languageEnglishName;
+    return '''
+[SYSTEM — OUTPUT LANGUAGE LOCK]
+The user's app language is $english ($native). Code: "$_localeCode".
+RESPOND ENTIRELY IN $english ($native).
+All section titles, labels, explanations, result lines, tips, and resource
+descriptions MUST be in $english. Even if the question in the image is
+written in another language, translate your explanation into $english.
+Mathematical formulas stay in LaTeX (language-neutral), but every word of
+prose — steps, reasoning, conclusion, "Püf Nokta"/"Tip"/etc equivalents —
+is in $english.
+If the section label "Sonuç:" / "Püf Nokta:" appears in the format rules,
+replace it with the $english equivalent while keeping the same meaning and
+the same MANDATORY presence.''';
   }
 
   // ── Çeviri yardımcısı ──────────────────────────────────────────────────────
 
   String tr(String key) {
-    return _translations[_localeCode]?[key] ?? _translations['en']?[key] ?? key;
+    // 1) Aktif dildeki elle girilmiş çeviri
+    final direct = _translations[_localeCode]?[key];
+    if (direct != null && direct.isNotEmpty) return direct;
+    // 2) Çeviri yok — Türkçe kaynağı (varsa) runtime translator'a gönder
+    final trSource = _translations['tr']?[key];
+    if (trSource != null && _runtimeTranslate != null &&
+        _localeCode != 'tr') {
+      return _runtimeTranslate!(trSource);
+    }
+    // 3) İngilizce fallback
+    final en = _translations['en']?[key];
+    if (en != null) return en;
+    return key;
+  }
+
+  /// main.dart `RuntimeTranslator.instance.lookup`'ı buraya bağlar.
+  /// Eksik anahtarlar için Türkçe kaynak üzerinden runtime çeviri kullanır.
+  static String Function(String source)? _runtimeTranslate;
+  static void setRuntimeTranslateHook(String Function(String) cb) {
+    _runtimeTranslate = cb;
   }
 
   /// Context üzerinden erişim kolaylığı

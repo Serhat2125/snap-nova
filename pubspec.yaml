@@ -56,6 +56,9 @@ dependencies:
   # Screen wake (pomodoro)
   wakelock_plus: ^1.2.8
 
+  # QR code (paylaşım kartında qualsar.app linki)
+  qr_flutter: ^4.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

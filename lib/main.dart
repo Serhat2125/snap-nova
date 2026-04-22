@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -6,6 +8,7 @@ import 'package:camera/camera.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/camera_screen.dart';
+import 'screens/education_setup_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/academic_planner.dart';
 import 'screens/premium_screen.dart';
@@ -13,6 +16,14 @@ import 'screens/profile_screen.dart';
 import 'theme/app_theme.dart';
 import 'services/locale_service.dart';
 import 'services/theme_service.dart';
+import 'services/connectivity_service.dart';
+import 'services/country_resolver.dart';
+import 'services/curriculum_catalog.dart';
+import 'services/education_profile.dart';
+import 'services/error_logger.dart';
+import 'services/geolocation_service.dart';
+import 'services/remote_config_service.dart';
+import 'services/runtime_translator.dart';
 import 'widgets/smart_sidebar.dart';
 
 /// Tüm uygulama için tek navigator (global sidebar buradan navigate eder)
@@ -29,44 +40,154 @@ final localeService = LocaleService();
 /// Uygulama genelinde erişilebilen tema servisi.
 final themeService = ThemeService();
 
+/// Ağ durumu servisi — snackbar, offline rozeti, API retry kararları.
+final connectivityService = ConnectivityService();
+
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  // ═══════════════════════════════════════════════════════════════════════
+  //  Global hata sınırı — çöken her widget / zone exception'ı
+  //  ErrorLogger'a düşer, uygulama açık kalır.
+  // ═══════════════════════════════════════════════════════════════════════
+  runZonedGuarded<Future<void>>(() async {
+    WidgetsFlutterBinding.ensureInitialized();
 
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.light,
-  ));
-  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+    ));
+    await SystemChrome.setPreferredOrientations(
+        [DeviceOrientation.portraitUp]);
 
-  try {
-    await Firebase.initializeApp();
-  } catch (_) {
-    // Firebase henüz yapılandırılmamış — google-services.json eksik olabilir.
-    // Uygulama Firebase olmadan da çalışır; feedback sessizce atlanır.
-  }
+    // ── Firebase ───────────────────────────────────────────────────────
+    try {
+      await Firebase.initializeApp();
+      // Firestore offline cache — ağ kesikken son veriye erişim + yazma
+      // kuyruğu. Varsayılan etkin, yine de açık şekilde yapılandıralım.
+      FirebaseFirestore.instance.settings = const Settings(
+        persistenceEnabled: true,
+        cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+      );
+    } catch (_) {
+      // Firebase henüz yapılandırılmamış — google-services.json eksik olabilir.
+      // Uygulama Firebase olmadan da çalışır; ilgili servisler sessizce atlanır.
+    }
 
-  try {
-    globalCameras = await availableCameras();
-  } catch (_) {
-    globalCameras = [];
-  }
+    // ── Hata toplayıcı (Firestore opsiyonel) ──────────────────────────
+    await ErrorLogger.instance.init();
 
-  // Dil tercihini yükle (SharedPreferences) veya cihaz dilini algıla
-  await localeService.init();
-  await themeService.init();
+    // ── Kamera, dil, tema, ağ, ülke, uzaktan ayar ─────────────────────
+    try {
+      globalCameras = await availableCameras();
+    } catch (e, st) {
+      globalCameras = [];
+      ErrorLogger.instance.capture(e, st, context: 'camera_enumeration');
+    }
 
-  runApp(const QuAlsarApp());
+    await localeService.init();
+    await themeService.init();
+    await connectivityService.init();
+    // Runtime translator — kalıcı cache'i yükle + LocaleService'e hook bağla
+    await RuntimeTranslator.instance.init();
+    LocaleService.setLocaleChangeHook((lang) async {
+      await RuntimeTranslator.instance.preloadAll(lang);
+    });
+    // LocaleService.tr() içinde bir key'in çevirisi yoksa Türkçe kaynağı
+    // runtime translator'dan geçirip cache'den okutsun.
+    LocaleService.setRuntimeTranslateHook((source) {
+      RuntimeTranslator.instance.register(source);
+      return RuntimeTranslator.instance.lookup(source);
+    });
+    // Açılışta mevcut dil Türkçe değilse eksik çevirileri arka planda çek
+    if (localeService.localeCode != 'tr') {
+      unawaited(RuntimeTranslator.instance.preloadAll(localeService.localeCode));
+    }
+
+    // IP geolocation arka planda (UI'ı bekletmez). Başarılıysa
+    // locale'i ve ülke çözümleyiciyi yeniden değerlendir.
+    unawaited(GeolocationService.resolve().then((geo) async {
+      if (geo != null) {
+        await localeService.reevaluateFromGeo(ipCountry: geo.country);
+      }
+      await CountryResolver.instance.refresh(locale: localeService);
+    }));
+    // Ülke çözümleyiciyi mevcut sinyallerle hemen doldur
+    await CountryResolver.instance.init(locale: localeService);
+
+    // Uzaktan ayar — cache anında, tazeleme arka planda
+    await RemoteConfigService.instance.init();
+
+    // Müfredat kataloğu → education_profile'a bağla
+    initCurriculumCatalog();
+
+    // Mevcut öğrenci profilini cache'e yükle (AI prompt'larında kullanılır)
+    await EduProfile.load();
+
+    runApp(const QuAlsarApp());
+  }, (error, stack) {
+    // Zone dışına sızan her şey
+    ErrorLogger.instance.capture(
+      error,
+      stack,
+      context: 'root_zone',
+      fatal: true,
+    );
+  });
 }
 
 /// İlk açılışta SharedPreferences'a bakarak onboarding gösterilecek mi,
-/// yoksa doğrudan CameraScreen'e mi gidilecek karar verir.
-class _StartupRouter extends StatelessWidget {
+/// eğitim profili seçimi gerekli mi, yoksa doğrudan CameraScreen'e mi
+/// gidilecek karar verir.
+class _StartupRouter extends StatefulWidget {
   const _StartupRouter();
 
   @override
+  State<_StartupRouter> createState() => _StartupRouterState();
+}
+
+class _StartupRouterState extends State<_StartupRouter> {
+  Future<_StartupState>? _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _resolve();
+  }
+
+  Future<_StartupState> _resolve() async {
+    final prefs = await SharedPreferences.getInstance();
+    final onboardingDone = prefs.getBool(OnboardingScreen.prefKey) ?? false;
+    if (!onboardingDone) {
+      return _StartupState.onboarding;
+    }
+    // Uygulama açılış sayacını artır (deneme ilk 10 giriş için)
+    final prev = prefs.getInt('app_launch_count_v2') ?? 0;
+    final next = prev >= 999 ? 999 : prev + 1;
+    await prefs.setInt('app_launch_count_v2', next);
+    final profileSet = prefs.getBool('mini_test_edu_profile_set') ?? false;
+    final inTrial = next <= 20;
+    // İlk 20 giriş her seferinde eğitim profil ekranı (profil yoksa zorunlu).
+    // Uygulama yapım aşamasında olduğu için deneme penceresi genişletildi.
+    if (inTrial || !profileSet) {
+      return _StartupState.educationSetup;
+    }
+    return _StartupState.home;
+  }
+
+  void _onSetupSaved() {
+    setState(() {
+      _future = Future.value(_StartupState.home);
+    });
+  }
+
+  Future<int> _currentTrialEntry() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt('app_launch_count_v2') ?? 1;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return FutureBuilder<bool>(
-      future: _hasSeenOnboarding(),
+    return FutureBuilder<_StartupState>(
+      future: _future,
       builder: (context, snap) {
         if (!snap.hasData) {
           return const Scaffold(
@@ -74,16 +195,26 @@ class _StartupRouter extends StatelessWidget {
             body: SizedBox.shrink(),
           );
         }
-        return snap.data! ? const CameraScreen() : const OnboardingScreen();
+        switch (snap.data!) {
+          case _StartupState.onboarding:
+            return const OnboardingScreen();
+          case _StartupState.educationSetup:
+            return FutureBuilder<int>(
+              future: _currentTrialEntry(),
+              builder: (_, s) => EducationSetupScreen(
+                trialEntryNumber: s.data ?? 1,
+                onSaved: _onSetupSaved,
+              ),
+            );
+          case _StartupState.home:
+            return const CameraScreen();
+        }
       },
     );
   }
-
-  Future<bool> _hasSeenOnboarding() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(OnboardingScreen.prefKey) ?? false;
-  }
 }
+
+enum _StartupState { onboarding, educationSetup, home }
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  GlobalSidebarOverlay — Tüm sayfalarda görünen sürüklenebilir yan panel
@@ -329,11 +460,15 @@ class QuAlsarApp extends StatelessWidget {
       service: localeService,
       child: ThemeInherited(
         service: themeService,
-        child: Builder(
-          builder: (context) {
-            final locale = LocaleInherited.of(context);
-            final theme = ThemeInherited.of(context);
-            return MaterialApp(
+        child: AnimatedBuilder(
+          // RuntimeTranslator notifyListeners → tüm uygulama rebuild
+          // (preload parça parça bittikçe UI otomatik günceller)
+          animation: RuntimeTranslator.instance,
+          builder: (context, _) => Builder(
+            builder: (context) {
+              final locale = LocaleInherited.of(context);
+              final theme = ThemeInherited.of(context);
+              return MaterialApp(
               debugShowCheckedModeBanner: false,
               title: 'QuAlsar',
               theme: AppTheme.light,
@@ -366,9 +501,10 @@ class QuAlsarApp extends StatelessWidget {
                   ],
                 );
               },
-              home: const _StartupRouter(),
-            );
-          },
+                home: const _StartupRouter(),
+              );
+            },
+          ),
         ),
       ),
     );

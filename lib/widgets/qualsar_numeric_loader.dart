@@ -10,8 +10,35 @@ import 'package:flutter/material.dart';
 //    if (_isLoading) const Positioned.fill(child: QuAlsarNumericLoader()),
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/// Loader sembol varyantı. Sayısal dersler için formüller/sayılar;
+/// sözel dersler için harfler/kelimeler/simgeler.
+enum QuAlsarLoaderVariant { numeric, verbal }
+
 class QuAlsarNumericLoader extends StatefulWidget {
-  const QuAlsarNumericLoader({super.key});
+  /// İlk 3 saniyede gösterilen birincil metin.
+  /// null → varsayılan "Sorunuz Analiz Ediliyor".
+  final String? primaryText;
+
+  /// 3 sn sonra geçilen ikincil metin.
+  /// null → varsayılan "Sorunuz Çözülüyor".
+  /// [staticLabel] true iken yok sayılır.
+  final String? secondaryText;
+
+  /// true → tek sabit metin. Aşama değişmez, sadece [primaryText] görünür.
+  /// false → 3 sn sonra [primaryText] → [secondaryText] geçişi yapılır.
+  final bool staticLabel;
+
+  /// Sembol varyantı. numeric = matematik/fizik/kimya sembolleri.
+  /// verbal = harfler, kelimeler, edebiyat/tarih odaklı simgeler.
+  final QuAlsarLoaderVariant variant;
+
+  const QuAlsarNumericLoader({
+    super.key,
+    this.primaryText,
+    this.secondaryText,
+    this.staticLabel = false,
+    this.variant = QuAlsarLoaderVariant.numeric,
+  });
 
   @override
   State<QuAlsarNumericLoader> createState() => _QuAlsarNumericLoaderState();
@@ -74,15 +101,17 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
     _centerTimer = Timer.periodic(const Duration(milliseconds: 180), (_) {
       if (!mounted) return;
       setState(() {
-        _centerIdx = (_centerIdx + 1) % _centerSymbols.length;
+        _centerIdx = (_centerIdx + 1) % _centerPool.length;
       });
     });
 
-    // 3 sn sonra "Sorunuz Çözülüyor"a geç
-    _stageTimer = Timer(const Duration(seconds: 3), () {
-      if (!mounted) return;
-      setState(() => _solving = true);
-    });
+    // 3 sn sonra ikincil metne geç — sadece staticLabel false iken
+    if (!widget.staticLabel) {
+      _stageTimer = Timer(const Duration(seconds: 3), () {
+        if (!mounted) return;
+        setState(() => _solving = true);
+      });
+    }
 
     // Nokta animasyonu (300 ms aralık)
     _dotTimer = Timer.periodic(const Duration(milliseconds: 300), (_) {
@@ -107,11 +136,19 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
     super.dispose();
   }
 
+  List<String> get _chars => widget.variant == QuAlsarLoaderVariant.verbal
+      ? _verbalStreamChars
+      : _streamChars;
+  List<String> get _centerPool =>
+      widget.variant == QuAlsarLoaderVariant.verbal
+          ? _verbalCenterSymbols
+          : _centerSymbols;
+
   void _spawnSymbol() {
-    final char = _streamChars[_rng.nextInt(_streamChars.length)];
+    final char = _chars[_rng.nextInt(_chars.length)];
     final color = _streamColors[_rng.nextInt(_streamColors.length)];
     final angle = _rng.nextDouble() * math.pi * 2;
-    final distance = 70 + _rng.nextDouble() * 20;
+    final distance = 88 + _rng.nextDouble() * 25;
     final fromX = math.cos(angle) * distance;
     final fromY = math.sin(angle) * distance;
     final isLong = char.length > 3;
@@ -136,29 +173,26 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
 
   @override
   Widget build(BuildContext context) {
+    // Arka plan saf beyaz. Dönen disk ekranın tam ortasında, QuAlsar logosu
+    // biraz daha aşağıda (önceki üst SafeArea 72 → şimdi ~%20 aşağı).
     return Container(
-      decoration: const BoxDecoration(
-        gradient: RadialGradient(
-          center: Alignment.center,
-          radius: 1.0,
-          colors: [Color(0xFF1A0033), Color(0xFF000011)],
-        ),
-      ),
+      color: Colors.white,
       child: SafeArea(
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // QuAlsar logo
-              _buildLogo(),
-              const SizedBox(height: 20),
-              // Mini loader
-              _buildLoader(),
-              const SizedBox(height: 15),
-              // Aşama metni
-              _buildStageText(),
-            ],
-          ),
+        child: Stack(
+          children: [
+            // QuAlsar logosu — üstte ama biraz daha aşağıda
+            Align(
+              alignment: const Alignment(0, -0.55),
+              child: _buildLogo(),
+            ),
+            // Dönen disk — ekranın tam ortasında
+            Center(child: _buildLoader()),
+            // Durum metni — spinner'ın hemen altında
+            Align(
+              alignment: const Alignment(0, 0.35),
+              child: _buildStageText(),
+            ),
+          ],
         ),
       ),
     );
@@ -177,37 +211,25 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
             children: [
               TextSpan(
                 text: 'Qu',
-                style: _logoStyle(Colors.white, [
+                style: _logoStyle(Colors.black, [
                   Shadow(
-                      color: Colors.white.withValues(alpha: 0.5 + 0.3 * t),
+                      color: Colors.black.withValues(alpha: 0.15 + 0.15 * t),
                       blurRadius: whiteGlow),
-                  const Shadow(
-                      color: Colors.black54,
-                      offset: Offset(0, 2),
-                      blurRadius: 6),
                 ]),
               ),
               TextSpan(
                 text: 'Al',
                 style: _logoStyle(const Color(0xFFFF3333), [
-                  const Shadow(color: Color(0xFFFF3333), blurRadius: 15),
-                  Shadow(color: const Color(0xFFFF0000), blurRadius: redGlow),
-                  if (t > 0.3)
-                    Shadow(
-                        color: const Color(0xFFFF0000),
-                        blurRadius: redGlow * 1.4),
+                  const Shadow(color: Color(0xFFFF3333), blurRadius: 12),
+                  Shadow(color: const Color(0xFFFF0000), blurRadius: redGlow * 0.6),
                 ]),
               ),
               TextSpan(
                 text: 'sar',
-                style: _logoStyle(Colors.white, [
+                style: _logoStyle(Colors.black, [
                   Shadow(
-                      color: Colors.white.withValues(alpha: 0.5 + 0.3 * t),
+                      color: Colors.black.withValues(alpha: 0.15 + 0.15 * t),
                       blurRadius: whiteGlow),
-                  const Shadow(
-                      color: Colors.black54,
-                      offset: Offset(0, 2),
-                      blurRadius: 6),
                 ]),
               ),
             ],
@@ -228,16 +250,19 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
 
   // ── Loader ──────────────────────────────────────────────────────────────────
   Widget _buildLoader() {
+    const disc = 200.0; // önceki 160 → biraz daha büyük
+    const mid = disc / 2;
     return Container(
-      width: 160,
-      height: 160,
+      width: disc,
+      height: disc,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: Colors.black,
+        color: const Color(0xFF0E0E10),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.8),
-              blurRadius: 30),
+              color: Colors.black.withValues(alpha: 0.25),
+              blurRadius: 28,
+              offset: const Offset(0, 8)),
         ],
       ),
       child: Stack(
@@ -250,8 +275,8 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
             builder: (_, __) {
               final now = DateTime.now().millisecondsSinceEpoch;
               return SizedBox(
-                width: 160,
-                height: 160,
+                width: disc,
+                height: disc,
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: _symbols.map((s) {
@@ -260,8 +285,8 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
                     final offsetX = s.fromX * st.posMul;
                     final offsetY = s.fromY * st.posMul;
                     return Positioned(
-                      left: 80 + offsetX - 10,
-                      top: 80 + offsetY - 10,
+                      left: mid + offsetX - 10,
+                      top: mid + offsetY - 10,
                       child: Transform.scale(
                         scale: st.scale,
                         child: Opacity(
@@ -287,31 +312,31 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
               );
             },
           ),
-          // Orbit 1 — 160, kırmızı/pembe, saat yönü
+          // Orbit 1 — disc, kırmızı/pembe, saat yönü
           RotationTransition(
             turns: _orbit1,
             child: _OrbitRing(
-              size: 160,
+              size: disc,
               color: const Color(0xFFFF3366),
               sides: const [_Side.top, _Side.right],
               dotAlign: Alignment.topCenter,
             ),
           ),
-          // Orbit 2 — 115, cyan, ters yön
+          // Orbit 2 — 145, cyan, ters yön
           RotationTransition(
             turns: ReverseAnimation(_orbit2),
             child: _OrbitRing(
-              size: 115,
+              size: 145,
               color: const Color(0xFF00FFFF),
               sides: const [_Side.top, _Side.left],
               dotAlign: Alignment.centerRight,
             ),
           ),
-          // Orbit 3 — 70, magenta, saat yönü
+          // Orbit 3 — 88, magenta, saat yönü
           RotationTransition(
             turns: _orbit3,
             child: _OrbitRing(
-              size: 70,
+              size: 88,
               color: const Color(0xFFFF00FF),
               sides: const [_Side.top, _Side.bottom],
               dotAlign: Alignment.bottomCenter,
@@ -325,7 +350,7 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
   }
 
   Widget _buildCenterSymbol() {
-    final sym = _centerSymbols[_centerIdx];
+    final sym = _centerPool[_centerIdx];
     final isLong = sym.length > 3;
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 140),
@@ -353,8 +378,9 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
   // ── Aşama metni (iki aşama: Analiz → Çözüm) ────────────────────────────────
   Widget _buildStageText() {
     final dotStr = '.' * _dots;
-    final label =
-        _solving ? 'Sorunuz Çözülüyor' : 'Sorunuz Analiz Ediliyor';
+    final primary = widget.primaryText ?? 'Sorunuz Analiz Ediliyor';
+    final secondary = widget.secondaryText ?? 'Sorunuz Çözülüyor';
+    final label = (widget.staticLabel || !_solving) ? primary : secondary;
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 320),
       transitionBuilder: (child, anim) =>
@@ -363,17 +389,11 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
         '$label$dotStr',
         key: ValueKey(_solving),
         textAlign: TextAlign.center,
-        style: TextStyle(
-          color: Colors.white,
+        style: const TextStyle(
+          color: Colors.black,
           fontSize: 15,
           letterSpacing: 1.2,
           fontWeight: FontWeight.w700,
-          shadows: [
-            Shadow(
-              color: Colors.white.withValues(alpha: 0.4),
-              blurRadius: 10,
-            ),
-          ],
         ),
       ),
     );
@@ -564,5 +584,52 @@ const List<String> _centerSymbols = [
   '∑','π','√','∫','∞','Δ','∂','±',
   'ℏ','λ','ω','Ψ','E','c','γ','Φ',
   'H₂O','CO₂','pH','NaCl','O₂','Fe','→','⇌',
+];
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Sözel varyant — edebiyat, tarih, coğrafya, felsefe, yabancı dil için
+//  harfler, kelimeler, noktalama, sembol ve tarihsel referanslar.
+// ═════════════════════════════════════════════════════════════════════════════
+
+const List<String> _verbalStreamChars = [
+  // Türk alfabesi (büyük)
+  'A','B','C','Ç','D','E','F','G','Ğ','H','I','İ','J','K','L',
+  'M','N','O','Ö','P','R','S','Ş','T','U','Ü','V','Y','Z',
+  // Latin alfabesi (küçük) — bol görünsün
+  'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z',
+  // Noktalama & tipografi
+  '.', ',', ';', ':', '!', '?', '«', '»', '"', '\'', '—', '…', '¶', '§', '&',
+  // Edebiyat / söylem sembolleri
+  '“', '”', '‘', '’', '©', '™',
+  // Sık kelimeler — Türkçe
+  'Şiir','Roman','Öykü','Dram','Destan','Masal','Efsane',
+  'Dize','Mısra','Kafiye','Uyak','Redif','İmge','İstiare',
+  'Özne','Yüklem','Nesne','Tümleç','Fiil','İsim','Sıfat','Zamir',
+  'Tarih','Savaş','Barış','Antlaşma','Devlet','İmparator','Sultan',
+  'Çağ','Dönem','Devir','Asır','Yüzyıl',
+  'Kıta','Ülke','Şehir','Başkent','Nehir','Dağ','Okyanus','Deniz',
+  'İklim','Ekvator','Kuzey','Güney','Doğu','Batı',
+  'Felsefe','Mantık','Ahlak','Varlık','Bilgi','Sanat',
+  // Tarihsel yıllar
+  'M.Ö.','M.S.','1453','1492','1789','1923','1945','1969',
+  // İngilizce — yabancı dil
+  'The','And','Of','To','In','Is','Was','Be','Have','That',
+  'word','verb','noun','tense','past','future',
+  // Fransızca / diğer kısa
+  'Le','La','Les','Je','Tu','Il','Nous','Vous','Le Monde',
+  'Der','Die','Das','Ich','Du','Wir',
+  // Ünlü isimler (klasik)
+  'Atatürk','Fatih','Süleyman','Mevlana','Yunus','Karacaoğlan',
+  'Shakespeare','Dante','Goethe','Dostoyevski','Tolstoy','Homer',
+  'Sokrates','Platon','Aristo','Kant','Nietzsche',
+];
+
+const List<String> _verbalCenterSymbols = [
+  'A','B','Ç','E','İ','M','N','S','Z',
+  '«','»','…','¶','§',
+  'Şiir','Tarih','Roman','Kıta','Çağ','Fiil','Dize',
+  'The','Le','Der','Я',
+  '1453','1923','M.Ö.',
+  '✍️','📜','📖','🗺️',
 ];
 

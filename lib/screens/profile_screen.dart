@@ -1,3 +1,4 @@
+import '../services/runtime_translator.dart';
 import 'dart:io';
 import 'dart:math';
 import 'dart:ui';
@@ -282,7 +283,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Positioned(
                           top: -6,
                           right: -6,
-                          child: Text('✨',
+                          child: Text('✨'.tr(),
                               style: TextStyle(
                                   fontSize: 18,
                                   color: Colors.white
@@ -291,7 +292,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Positioned(
                           bottom: -4,
                           left: -2,
-                          child: Text('🎉',
+                          child: Text('🎉'.tr(),
                               style: TextStyle(
                                   fontSize: 16,
                                   color: Colors.white
@@ -311,7 +312,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                               ),
                               alignment: Alignment.center,
-                              child: const Text('🎁',
+                              child: Text('🎁'.tr(),
                                   style: TextStyle(fontSize: 26)),
                             ),
                             const SizedBox(width: 14),
@@ -438,7 +439,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text('🚪', style: TextStyle(fontSize: 20)),
+                        Text('🚪'.tr(), style: TextStyle(fontSize: 20)),
                         const SizedBox(width: 12),
                         Text(
                           tr('logout'),
@@ -858,7 +859,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         padding: const EdgeInsets.fromLTRB(0, 18, 0, 12),
                         child: Row(
                           children: [
-                            const Text('🔒', style: TextStyle(fontSize: 22)),
+                            Text('🔒'.tr(), style: TextStyle(fontSize: 22)),
                             const SizedBox(width: 10),
                             Text(
                               locale.tr('change_password'),
@@ -1135,7 +1136,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       padding: const EdgeInsets.fromLTRB(24, 18, 24, 8),
                       child: Row(
                         children: [
-                          const Text('🌐',
+                          Text('🌐'.tr(),
                               style: TextStyle(fontSize: 22)),
                           const SizedBox(width: 10),
                           Text(
@@ -1409,7 +1410,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       padding: const EdgeInsets.fromLTRB(4, 18, 4, 12),
                       child: Row(
                         children: [
-                          const Text('🌗',
+                          Text('🌗'.tr(),
                               style: TextStyle(fontSize: 22)),
                           const SizedBox(width: 10),
                           Text(
@@ -1693,7 +1694,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   padding: const EdgeInsets.fromLTRB(0, 18, 0, 12),
                   child: Row(
                     children: [
-                      const Text('✉️', style: TextStyle(fontSize: 22)),
+                      Text('✉️'.tr(), style: TextStyle(fontSize: 22)),
                       const SizedBox(width: 10),
                       Text(
                         locale.tr('contact_us'),
@@ -3465,7 +3466,7 @@ class _InvitePageState extends State<InvitePage> {
                 ),
                 child: Row(
                   children: [
-                    const Text('🎉', style: TextStyle(fontSize: 32)),
+                    Text('🎉'.tr(), style: TextStyle(fontSize: 32)),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -3533,7 +3534,7 @@ class _InvitePageState extends State<InvitePage> {
                               width: 1.4,
                             ),
                           ),
-                          child: const Text('🎁',
+                          child: Text('🎁'.tr(),
                               style: TextStyle(fontSize: 30)),
                         ),
                         const SizedBox(width: 14),
@@ -3572,7 +3573,7 @@ class _InvitePageState extends State<InvitePage> {
                     right: 14,
                     child: Transform.rotate(
                       angle: 0.4,
-                      child: const Text('✨', style: TextStyle(fontSize: 22)),
+                      child: Text('✨'.tr(), style: TextStyle(fontSize: 22)),
                     ),
                   ),
                   Positioned(
