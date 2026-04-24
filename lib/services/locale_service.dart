@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'critical_translations.dart';
+import 'translations_generated.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  LocaleService — 55-dil desteği, otomatik algılama, kalıcı tercih
@@ -354,16 +356,23 @@ the same MANDATORY presence.''';
   // ── Çeviri yardımcısı ──────────────────────────────────────────────────────
 
   String tr(String key) {
-    // 1) Aktif dildeki elle girilmiş çeviri
+    // 1) Aktif dildeki elle girilmiş ana çeviri haritası
     final direct = _translations[_localeCode]?[key];
     if (direct != null && direct.isNotEmpty) return direct;
-    // 2) Çeviri yok — Türkçe kaynağı (varsa) runtime translator'a gönder
+    // 2) Kritik UI anahtarları (elle kodlanmış, 55 dil × 26 anahtar —
+    //    Gemini'den bağımsız, API key değişiminde bile korunur)
+    final critical = criticalTranslations[_localeCode]?[key];
+    if (critical != null && critical.isNotEmpty) return critical;
+    // 3) Tool tarafından önceden Gemini ile üretilmiş kalıcı çeviri
+    final generated = generatedTranslations[_localeCode]?[key];
+    if (generated != null && generated.isNotEmpty) return generated;
+    // 4) Çeviri yok — Türkçe kaynağı (varsa) runtime translator'a gönder
     final trSource = _translations['tr']?[key];
     if (trSource != null && _runtimeTranslate != null &&
         _localeCode != 'tr') {
       return _runtimeTranslate!(trSource);
     }
-    // 3) İngilizce fallback
+    // 5) İngilizce fallback
     final en = _translations['en']?[key];
     if (en != null) return en;
     return key;
@@ -375,6 +384,13 @@ the same MANDATORY presence.''';
   static void setRuntimeTranslateHook(String Function(String) cb) {
     _runtimeTranslate = cb;
   }
+
+  /// Tüm TR kaynak string'leri (runtime translator'a toplu register için).
+  /// Dil değişiminde bu setin tamamı preload'a gönderilir; böylece kullanıcı
+  /// yeni dile geçtiğinde tek tek string "görülmesini" beklemez, hepsi birden
+  /// çevrilir.
+  static Iterable<String> get allTrSourceStrings =>
+      _translations['tr']?.values ?? const <String>[];
 
   /// Context üzerinden erişim kolaylığı
   static LocaleService of(BuildContext context) {
@@ -420,6 +436,7 @@ the same MANDATORY presence.''';
       'ai_model': 'AI Model',
       'preferences': 'Tercihler',
       'language_options': 'Dil Seçenekleri',
+      'translating_please_wait': 'Çeviriler hazırlanıyor, lütfen bekleyin…',
       'theme_appearance': 'Tema Görünümü',
       'dark_mode': 'Koyu Mod',
       'support': 'Destek',
@@ -888,6 +905,79 @@ the same MANDATORY presence.''';
       'upgrade_unlimited': 'Sınırsıza Geç',
       'invite_friends_short': 'Arkadaşlarını Davet Et',
       'my_profile': 'Profilim',
+      // ── Onboarding (ilk açılış tanıtımı) ──
+      'onb_skip': 'Atla',
+      'onb_continue': 'Devam Et',
+      'onb_get_started': 'Başlayalım',
+      'onb_finish_cta': 'Öğrenmeye Başla',
+      'onb_hero_tagline': 'Yapay zekâ destekli çalışma arkadaşın',
+      'onb_hero_subtitle': 'Her soruya çözüm, kendi kütüphanen ve canlı yarışlar — hepsi tek yerde.',
+      'onb_solve_title': 'Her Soruyu Çöz',
+      'onb_solve_subtitle': 'Her konuda, her derste: Fotoğraf çek\nSaniyeler içinde çözümü al',
+      'onb_solve_b1': 'Matematikten tarihe her ders',
+      'onb_solve_b2': 'Fotoğraftan anlık çözüm',
+      'onb_solve_b3': 'Adım adım yapay zekâ açıklaması',
+      'subject_math': 'Matematik',
+      'subject_physics': 'Fizik',
+      'subject_chemistry': 'Kimya',
+      'subject_biology': 'Biyoloji',
+      'subject_english': 'İngilizce',
+      'subject_geography': 'Coğrafya',
+      'subject_history': 'Tarih',
+      'subject_literature': 'Edebiyat',
+      'subject_computer': 'Bilgisayar',
+      'subject_economics': 'İktisat',
+      'subject_philosophy': 'Felsefe',
+      'subject_art': 'Sanat',
+      'onb_solve_b1_title': 'Sorunun fotoğrafını çek',
+      'onb_solve_b1_desc': 'Dilediğin dersten (Matematik, Fizik, Coğrafya, Tarih, Biyoloji, İktisat ve dahası…) istediğin soruyu anında sisteme yükle.',
+      'onb_solve_phone_q_math': 'x² − 5x + 6 = 0 · Çözüm kümesi?',
+      'onb_solve_phone_math_a': '{1, 2}',
+      'onb_solve_phone_math_b': '{2, 3}',
+      'onb_solve_phone_math_c': '{−1, 6}',
+      'onb_solve_phone_math_d': '{3, 4}',
+      'onb_solve_phone_math_e': '{1, 6}',
+      'onb_solve_phone_q_geo': 'Yükselti arttıkça?',
+      'onb_solve_phone_geo_a': 'Sıcaklık artar',
+      'onb_solve_phone_geo_b': 'Basınç artar',
+      'onb_solve_phone_geo_c': 'Nem artar',
+      'onb_solve_phone_geo_d': 'Basınç azalır',
+      'onb_solve_phone_geo_e': 'Yoğunluk artar',
+      'onb_solve_phone_q_chem': 'Dengeli tepkime?',
+      'onb_solve_phone_chem_a': 'H₂ + O₂ → H₂O',
+      'onb_solve_phone_chem_b': '2H₂ + O₂ → 2H₂O',
+      'onb_solve_phone_chem_c': 'H₂ + 2O₂ → 2H₂O',
+      'onb_solve_phone_chem_d': 'H₂ + O₂ → 2H₂O',
+      'onb_solve_phone_chem_e': '3H₂ + O₂ → H₂O',
+      'onb_solve_b2_title': 'Sana uygun yöntemi seç',
+      'onb_solve_b2_desc': 'Hızlı çözüm, adım adım detaylı anlatım veya AI Öğretmen moduyla konuyu derinlemesine öğren.',
+      'onb_solve_b3_title': 'Dev Yapay Zeka modelleriyle çöz',
+      'onb_solve_b3_desc': "QuAlsar AI'ın özel analiz gücüyle birlikte; ChatGPT-5, Gemini 3.1, Claude 4.7, Grok 4.3 ve DeepSeek V4 gibi dünyanın en zeki motorlarından dilediğini seç ve saniyeler içinde sonuca ulaş.",
+      'onb_create_title': 'Öğrendiklerini Pekiştir',
+      'onb_create_subtitle': 'Sadece çözmekle kalma\nKonuya tam hakim ol ve asla unutma',
+      'onb_create_b1': 'Sana özel konu özetleri',
+      'onb_create_b2': 'İstediğin konudan sınav soruları',
+      'onb_create_b3': 'Tüm notların ve testlerin tek yerde',
+      'onb_create_b1_title': 'Benzer sorularla kendini dene',
+      'onb_create_b1_desc': 'Çözdüğün soruya benzer yeni sorular türet; ister kendin çöz, ister yapay zeka analizine göz at.',
+      'onb_create_b2_title': 'Bilgi kartlarıyla hızlı tekrar yap',
+      'onb_create_b2_desc': 'Konunun en can alıcı noktalarını özetleyen akıllı bilgi kartları oluşturarak eksiklerini anında kapat.',
+      'onb_create_b3_title': 'Eğlenerek tam öğrenme sağla',
+      'onb_create_b3_desc': 'Konuyla ilgili interaktif eşleştirme kartlarını oyun formatında oyna, bilgileri hafızana kalıcı olarak kazı.',
+      'onb_compete_title': 'Sahneye Çık, Yarış',
+      'onb_compete_subtitle': 'Kendi kategorinde, ülkende ve dünyada rakiplerinle 1v1 canlı bilgi yarışı.',
+      'onb_compete_b1': '1v1 canlı bilgi yarışı',
+      'onb_compete_b2': 'Ülke sıralaması ve küresel arena',
+      'onb_compete_b3': 'Öğren, yarış, tırman',
+      'onb_grade_title': 'Seviyeni Seç',
+      'onb_grade_subtitle': 'İçerik sana göre kişiselleşsin — ne kadar net olursan, çözümler o kadar isabetli.',
+      'onb_grade_primary': 'İlkokul',
+      'onb_grade_middle': 'Ortaokul',
+      'onb_grade_high': 'Lise',
+      'onb_grade_uni_prep': 'Üniversiteye Hazırlık',
+      'onb_grade_university': 'Üniversite',
+      'onb_grade_adult': 'Yetişkin / Kendi Çalışmam',
+      'onb_grade_other': 'Diğer',
     },
 
     // ─── English ─────────────────────────────────────────────────────────
@@ -901,7 +991,7 @@ the same MANDATORY presence.''';
       'profile_info': 'My Profile Info',
       'change_password': 'Change Password',
       'app_preferences': 'App Preferences',
-      'language_selection': 'Language',
+      'language_selection': 'Language Selection',
       'appearance': 'Appearance',
       'support_contact': 'Support & Contact',
       'send_feedback': 'Send Feedback',
@@ -922,6 +1012,7 @@ the same MANDATORY presence.''';
       'ai_model': 'AI Model',
       'preferences': 'Preferences',
       'language_options': 'Language Options',
+      'translating_please_wait': 'Preparing translations, please wait…',
       'theme_appearance': 'Theme',
       'dark_mode': 'Dark Mode',
       'support': 'Support',
@@ -1378,6 +1469,79 @@ the same MANDATORY presence.''';
       'upgrade_unlimited': 'Go Unlimited',
       'invite_friends_short': 'Invite Friends',
       'my_profile': 'My Profile',
+      // ── Onboarding (first-launch intro) ──
+      'onb_skip': 'Skip',
+      'onb_continue': 'Continue',
+      'onb_get_started': 'Get Started',
+      'onb_finish_cta': 'Start Learning',
+      'onb_hero_tagline': 'Your AI-powered study companion',
+      'onb_hero_subtitle': 'Instant answers, your own library, and live contests — all in one place.',
+      'onb_solve_title': 'Solve Every Question',
+      'onb_solve_subtitle': 'Any topic, any subject: Snap a photo\nGet the solution in seconds',
+      'onb_solve_b1': 'Every subject, from math to history',
+      'onb_solve_b2': 'Instant photo-to-solution',
+      'onb_solve_b3': 'Step-by-step AI explanations',
+      'subject_math': 'Math',
+      'subject_physics': 'Physics',
+      'subject_chemistry': 'Chemistry',
+      'subject_biology': 'Biology',
+      'subject_english': 'English',
+      'subject_geography': 'Geography',
+      'subject_history': 'History',
+      'subject_literature': 'Literature',
+      'subject_computer': 'Computer Sci.',
+      'subject_economics': 'Economics',
+      'subject_philosophy': 'Philosophy',
+      'subject_art': 'Art',
+      'onb_solve_b1_title': 'Snap your question',
+      'onb_solve_b1_desc': 'Upload any question from any subject (Math, Physics, Geography, History, Biology, Economics and more…) to the app instantly.',
+      'onb_solve_phone_q_math': 'x² − 5x + 6 = 0 · Solution set?',
+      'onb_solve_phone_math_a': '{1, 2}',
+      'onb_solve_phone_math_b': '{2, 3}',
+      'onb_solve_phone_math_c': '{−1, 6}',
+      'onb_solve_phone_math_d': '{3, 4}',
+      'onb_solve_phone_math_e': '{1, 6}',
+      'onb_solve_phone_q_geo': 'As altitude increases?',
+      'onb_solve_phone_geo_a': 'Temperature rises',
+      'onb_solve_phone_geo_b': 'Pressure rises',
+      'onb_solve_phone_geo_c': 'Humidity rises',
+      'onb_solve_phone_geo_d': 'Pressure drops',
+      'onb_solve_phone_geo_e': 'Density rises',
+      'onb_solve_phone_q_chem': 'Balanced reaction?',
+      'onb_solve_phone_chem_a': 'H₂ + O₂ → H₂O',
+      'onb_solve_phone_chem_b': '2H₂ + O₂ → 2H₂O',
+      'onb_solve_phone_chem_c': 'H₂ + 2O₂ → 2H₂O',
+      'onb_solve_phone_chem_d': 'H₂ + O₂ → 2H₂O',
+      'onb_solve_phone_chem_e': '3H₂ + O₂ → H₂O',
+      'onb_solve_b2_title': 'Pick the method that fits you',
+      'onb_solve_b2_desc': 'Quick solution, step-by-step walkthrough, or the AI Tutor mode to master the topic in depth.',
+      'onb_solve_b3_title': 'Solve with giant AI models',
+      'onb_solve_b3_desc': "Powered by QuAlsar AI's custom analysis engine — choose from the world's smartest models: ChatGPT-5, Gemini 3.1, Claude 4.7, Grok 4.3 and DeepSeek V4, and get the answer in seconds.",
+      'onb_create_title': 'Reinforce What You Learn',
+      'onb_create_subtitle': "Don't just solve\nMaster the topic and never forget it",
+      'onb_create_b1': 'Topic summaries tailored to you',
+      'onb_create_b2': 'Exam questions on any topic you want',
+      'onb_create_b3': 'All your notes and tests in one place',
+      'onb_create_b1_title': 'Test yourself with similar questions',
+      'onb_create_b1_desc': 'Generate fresh questions similar to the one you solved — try them yourself or review the AI analysis.',
+      'onb_create_b2_title': 'Quick review with flashcards',
+      'onb_create_b2_desc': 'Create smart flashcards that capture the essentials, and close your gaps instantly.',
+      'onb_create_b3_title': 'Learn fully by having fun',
+      'onb_create_b3_desc': 'Play interactive matching-card games about the topic and lock the knowledge into long-term memory.',
+      'onb_compete_title': 'Step Up, Compete',
+      'onb_compete_subtitle': 'Live 1v1 knowledge duels in your category, your country, and worldwide.',
+      'onb_compete_b1': 'Live 1v1 knowledge duels',
+      'onb_compete_b2': 'Country leaderboard & global arena',
+      'onb_compete_b3': 'Learn, compete, climb',
+      'onb_grade_title': 'Pick Your Level',
+      'onb_grade_subtitle': 'The clearer you are, the sharper your personalized content will be.',
+      'onb_grade_primary': 'Primary School',
+      'onb_grade_middle': 'Middle School',
+      'onb_grade_high': 'High School',
+      'onb_grade_uni_prep': 'University Prep',
+      'onb_grade_university': 'University',
+      'onb_grade_adult': 'Adult / Self-study',
+      'onb_grade_other': 'Other',
     },
 
     // ─── Español ─────────────────────────────────────────────────────────
