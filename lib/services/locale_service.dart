@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'critical_translations.dart';
+import 'library_translations.dart';
 import 'translations_generated.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -363,20 +364,22 @@ the same MANDATORY presence.''';
     // 1) Aktif dildeki elle girilmiş ana çeviri haritası
     final direct = _translations[_localeCode]?[key];
     if (direct != null && direct.isNotEmpty) return direct;
-    // 2) Kritik UI anahtarları (elle kodlanmış, 55 dil × 26 anahtar —
-    //    Gemini'den bağımsız, API key değişiminde bile korunur)
+    // 2) Kritik UI anahtarları (elle kodlanmış, tüm dillerde, 26 anahtar)
     final critical = criticalTranslations[_localeCode]?[key];
     if (critical != null && critical.isNotEmpty) return critical;
-    // 3) Tool tarafından önceden Gemini ile üretilmiş kalıcı çeviri
+    // 3) Kütüphane tanıtım sayfası anahtarları (elle kodlanmış, tüm dillerde)
+    final library = libraryTranslations[_localeCode]?[key];
+    if (library != null && library.isNotEmpty) return library;
+    // 4) Tool tarafından önceden Gemini ile üretilmiş kalıcı çeviri
     final generated = generatedTranslations[_localeCode]?[key];
     if (generated != null && generated.isNotEmpty) return generated;
-    // 4) Çeviri yok — Türkçe kaynağı (varsa) runtime translator'a gönder
+    // 5) Çeviri yok — Türkçe kaynağı (varsa) runtime translator'a gönder
     final trSource = _translations['tr']?[key];
     if (trSource != null && _runtimeTranslate != null &&
         _localeCode != 'tr') {
       return _runtimeTranslate!(trSource);
     }
-    // 5) İngilizce fallback
+    // 6) İngilizce fallback
     final en = _translations['en']?[key];
     if (en != null) return en;
     return key;
@@ -968,6 +971,14 @@ the same MANDATORY presence.''';
       'onb_create_b2_desc': 'Konunun en can alıcı noktalarını özetleyen akıllı bilgi kartları oluşturarak eksiklerini anında kapat.',
       'onb_create_b3_title': 'Eğlenerek tam öğrenme sağla',
       'onb_create_b3_desc': 'Konuyla ilgili interaktif eşleştirme kartlarını oyun formatında oyna, bilgileri hafızana kalıcı olarak kazı.',
+      'onb_library_title': 'Kendi Kütüphanen',
+      'onb_library_subtitle': 'Her ders, her konu tek yerde\nÖğrenmeni sen yönet',
+      'onb_library_b1_title': 'Konu özetlerini tek dokunuşla çıkar',
+      'onb_library_b1_desc': 'Fotoğraftan aldığın çözümler veya seçtiğin konulardan AI otomatik özet üretsin; ders bazlı kartlarla kütüphanende biriksin.',
+      'onb_library_b2_title': 'Sınav soruları üret ve kendini ölç',
+      'onb_library_b2_desc': 'İstediğin konudan anında çoktan seçmeli veya açık uçlu sorular türet; zayıf noktalarını görüp hızla kapat.',
+      'onb_library_b3_title': 'Çalışma takvimini hazırla ve odaklan',
+      'onb_library_b3_desc': 'Günlük/haftalık plan oluştur, pomodoro sayacıyla derin odaklan, ilerlemeni görsel olarak takip et.',
       'onb_compete_title': 'Sahneye Çık, Yarış',
       'onb_compete_subtitle': 'Kendi kategorinde, ülkende ve dünyada rakiplerinle 1v1 canlı bilgi yarışı.',
       'onb_compete_b1': '1v1 canlı bilgi yarışı',
@@ -1532,6 +1543,14 @@ the same MANDATORY presence.''';
       'onb_create_b2_desc': 'Create smart flashcards that capture the essentials, and close your gaps instantly.',
       'onb_create_b3_title': 'Learn fully by having fun',
       'onb_create_b3_desc': 'Play interactive matching-card games about the topic and lock the knowledge into long-term memory.',
+      'onb_library_title': 'Your Own Library',
+      'onb_library_subtitle': 'Every subject, every topic in one place\nYou run your learning',
+      'onb_library_b1_title': 'Generate topic summaries with one tap',
+      'onb_library_b1_desc': 'Let AI auto-summarize your photo solutions or chosen topics; everything stacks up in subject-based cards in your library.',
+      'onb_library_b2_title': 'Generate exam questions and test yourself',
+      'onb_library_b2_desc': 'Produce multiple-choice or open-ended questions from any topic instantly; spot your weak spots and close them fast.',
+      'onb_library_b3_title': 'Plan your study calendar and focus',
+      'onb_library_b3_desc': 'Build daily/weekly plans, focus deeply with the pomodoro timer, and track your progress visually.',
       'onb_compete_title': 'Step Up, Compete',
       'onb_compete_subtitle': 'Live 1v1 knowledge duels in your category, your country, and worldwide.',
       'onb_compete_b1': 'Live 1v1 knowledge duels',

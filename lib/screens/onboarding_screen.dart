@@ -224,13 +224,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ),
                   _FeaturePage(
                     accent: _accentPerPage[3],
-                    icon: Icons.emoji_events_rounded,
-                    titleKey: 'onb_compete_title',
-                    subtitleKey: 'onb_compete_subtitle',
+                    icon: Icons.auto_stories_rounded,
+                    titleKey: 'onb_library_title',
+                    subtitleKey: 'onb_library_subtitle',
                     bulletKeys: const [
-                      ('onb_compete_b1', null),
-                      ('onb_compete_b2', null),
-                      ('onb_compete_b3', null),
+                      ('onb_library_b1_title', 'onb_library_b1_desc'),
+                      ('onb_library_b2_title', 'onb_library_b2_desc'),
+                      ('onb_library_b3_title', 'onb_library_b3_desc'),
                     ],
                   ),
                   _GradePage(
