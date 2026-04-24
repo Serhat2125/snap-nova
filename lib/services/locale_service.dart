@@ -134,6 +134,7 @@ class LocaleService extends ChangeNotifier {
     'fa', 'ur', 'bn', 'ta', 'te', 'ms', 'tl', 'sw',
     'af', 'am', 'my', 'km', 'lo', 'ne', 'si', 'ka',
     'az', 'kk', 'uz', 'mn', 'et', 'lt', 'lv',
+    'pa', 'mr', 'ha',
   ];
 
   // (bayrak, yereldeki ad, İngilizce ad, kod)
@@ -194,6 +195,9 @@ class LocaleService extends ChangeNotifier {
     ('🇪🇪', 'Eesti', 'Estonian', 'et', '🏰'),
     ('🇱🇹', 'Lietuvių', 'Lithuanian', 'lt', '🏰'),
     ('🇱🇻', 'Latviešu', 'Latvian', 'lv', '🌲'),
+    ('🇮🇳', 'ਪੰਜਾਬੀ', 'Punjabi', 'pa', '🪔'),
+    ('🇮🇳', 'मराठी', 'Marathi', 'mr', '🪕'),
+    ('🇳🇬', 'Hausa', 'Hausa', 'ha', '🥁'),
   ];
 
   // ── Başlatma ───────────────────────────────────────────────────────────────

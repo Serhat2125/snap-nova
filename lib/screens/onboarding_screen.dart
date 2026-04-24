@@ -337,13 +337,18 @@ class _LanguageChip extends StatelessWidget {
 // Küçük sayı = daha kalabalık. Dil picker'da sıralama için kullanılır.
 const Map<String, int> _languageSpeakerRank = {
   'en': 1, 'zh': 2, 'hi': 3, 'es': 4, 'ar': 5, 'fr': 6, 'pt': 7,
-  'bn': 8, 'ru': 9, 'ur': 10, 'id': 11, 'de': 12, 'ja': 13, 'ko': 14,
-  'vi': 15, 'ta': 16, 'fa': 17, 'te': 18, 'it': 19, 'sw': 20, 'th': 21,
-  'pl': 22, 'ms': 23, 'uk': 24, 'uz': 25, 'am': 26, 'my': 27, 'tl': 28,
-  'ne': 29, 'ro': 30, 'nl': 31, 'az': 32, 'si': 33, 'km': 34, 'hu': 35,
-  'el': 36, 'cs': 37, 'kk': 38, 'sr': 39, 'sv': 40, 'bg': 41, 'he': 42,
-  'af': 43, 'fi': 44, 'no': 45, 'da': 46, 'sk': 47, 'hr': 48, 'mn': 49,
-  'lo': 50, 'lt': 51, 'ka': 52, 'lv': 53, 'et': 54,
+  'bn': 8, 'ru': 9, 'ur': 10, 'id': 11, 'de': 12, 'ja': 13,
+  // ~125M konuşucu — Pencapça ve Marathi burada
+  'pa': 14, 'ko': 15,
+  'vi': 16, 'ta': 17, 'mr': 18,
+  'fa': 19, 'te': 20, 'it': 21, 'sw': 22,
+  // ~80M — Hausa burada
+  'ha': 23, 'th': 24,
+  'pl': 25, 'ms': 26, 'uk': 27, 'uz': 28, 'am': 29, 'my': 30, 'tl': 31,
+  'ne': 32, 'ro': 33, 'nl': 34, 'az': 35, 'si': 36, 'km': 37, 'hu': 38,
+  'el': 39, 'cs': 40, 'kk': 41, 'sr': 42, 'sv': 43, 'bg': 44, 'he': 45,
+  'af': 46, 'fi': 47, 'no': 48, 'da': 49, 'sk': 50, 'hr': 51, 'mn': 52,
+  'lo': 53, 'lt': 54, 'ka': 55, 'lv': 56, 'et': 57,
 };
 
 class _LanguagePickerSheet extends StatefulWidget {
@@ -955,8 +960,8 @@ class _FeaturePage extends StatelessWidget {
         children: [
           // Üst boşluk yok → logo ve yazısı üst bar'ın hemen altında dursun.
           headerGraphic ?? _SectionIconBadge(icon: icon!, color: accent),
-          // Başlık ve altındaki tüm içerik aşağıda dursun diye ekstra boşluk.
-          const SizedBox(height: 40),
+          // Başlık ve altı carousel/ikona yakın dursun — daha yukarıda.
+          const SizedBox(height: 20),
           Text(
             localeService.tr(titleKey),
             textAlign: TextAlign.center,
