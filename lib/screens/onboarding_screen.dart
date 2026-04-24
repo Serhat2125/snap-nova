@@ -1448,10 +1448,12 @@ class _SubjectCarouselState extends State<_SubjectCarousel>
   late final AnimationController _ctrl;
   int _groupIdx = 0;
 
-  // Döngü 3000 ms: 300 fade-in + 2000 statik + 700 yazı uç & pill boşalır.
-  static const int _cycleMs = 3000;
-  static const double _fadeInEnd = 300 / _cycleMs; // 0.10
-  static const double _flyStart = (300 + 2000) / _cycleMs; // 0.767
+  // Döngü 2500 ms:
+  //   0 – flyStart (1500 ms) → mevcut grup pill içinde sabit
+  //   flyStart – 1 (1000 ms) → mevcut grup yazısı logoya DOĞRUSAL hızda uçar,
+  //     AYNI ANDA sıradaki grup pill içinde fade-in olur (paralel).
+  static const int _cycleMs = 2500;
+  static const double _flyStart = 0.60; // 1500 ms
 
   // Header ölçüleri.
   static const double _headerW = 300;
@@ -1500,58 +1502,45 @@ class _SubjectCarouselState extends State<_SubjectCarousel>
         animation: _ctrl,
         builder: (_, __) {
           final t = _ctrl.value;
+          // Uçuş fazının 0..1 ilerlemesi (DOĞRUSAL — hız sabit).
+          final flyT = t < _flyStart ? 0.0 : (t - _flyStart) / (1 - _flyStart);
 
-          // Phase hesapları.
-          double fadeIn;
-          double flyT; // 0..1 fly phase
-          if (t < _fadeInEnd) {
-            fadeIn = t / _fadeInEnd;
-            flyT = 0.0;
-          } else if (t < _flyStart) {
-            fadeIn = 1.0;
-            flyT = 0.0;
-          } else {
-            fadeIn = 1.0;
-            flyT = ((t - _flyStart) / (1 - _flyStart)).clamp(0.0, 1.0);
-          }
-
-          // İkon opaklığı — metin pill sınırını geçer geçmez (~flyT 0.25) kaybolur.
-          double iconOpacity;
+          // Mevcut grup: 0..flyStart tam görünür; flyStart..1 logoya uçar.
+          // İkon pill sınırını geçer geçmez hızla kaybolur.
+          double curIconOpacity;
+          double curTextOpacity;
           if (flyT == 0) {
-            iconOpacity = fadeIn;
-          } else if (flyT < 0.25) {
-            iconOpacity = 1.0;
-          } else if (flyT < 0.38) {
-            iconOpacity = 1.0 - (flyT - 0.25) / 0.13;
+            curIconOpacity = 1.0;
+            curTextOpacity = 1.0;
           } else {
-            iconOpacity = 0.0;
+            curIconOpacity = flyT < 0.15
+                ? 1.0
+                : flyT < 0.30
+                    ? 1.0 - (flyT - 0.15) / 0.15
+                    : 0.0;
+            curTextOpacity = flyT < 0.75 ? 1.0 : (1.0 - flyT) / 0.25;
           }
+          // Sıradaki grup: flyT == 0 iken gizli; sonrasında 0→1 linear fade-in.
+          final nextOpacity = flyT;
+          // Uçuş konumu ve ölçeği — DOĞRUSAL.
+          final textScale = 1.0 - flyT * 0.85;
 
-          // Metin: pill merkezinden logo merkezine doğru süzülür.
-          final curvedFly = Curves.easeInCubic.transform(flyT);
-          double textOpacity;
-          if (flyT == 0) {
-            textOpacity = fadeIn;
-          } else if (flyT < 0.75) {
-            textOpacity = 1.0;
-          } else {
-            textOpacity = (1.0 - flyT) / 0.25;
-          }
-          final textScale = 1.0 - curvedFly * 0.85;
-
-          final group = _subjects.sublist(_groupIdx * 3, _groupIdx * 3 + 3);
+          final curGroup =
+              _subjects.sublist(_groupIdx * 3, _groupIdx * 3 + 3);
+          final nextIdx = (_groupIdx + 1) % 4;
+          final nextGroup = _subjects.sublist(nextIdx * 3, nextIdx * 3 + 3);
 
           return Stack(
             clipBehavior: Clip.hardEdge,
             children: [
-              // 3 SABİT pill çerçevesi — konumu hiç değişmez.
+              // 3 SABİT pill çerçevesi.
               for (int i = 0; i < 3; i++)
                 Positioned(
                   left: rowStart + i * (_pillW + _gap),
                   top: _pillY,
                   child: _PillFrame(color: widget.color),
                 ),
-              // İkonlar — pill içi, opaklık phase'e göre.
+              // Sıradaki grup — fly fazında pill içinde ALTTAN fade-in.
               for (int i = 0; i < 3; i++)
                 Positioned(
                   left: rowStart + i * (_pillW + _gap),
@@ -1559,10 +1548,10 @@ class _SubjectCarouselState extends State<_SubjectCarousel>
                   width: _pillW,
                   child: IgnorePointer(
                     child: Opacity(
-                      opacity: iconOpacity.clamp(0.0, 1.0),
+                      opacity: nextOpacity.clamp(0.0, 1.0),
                       child: Center(
                         child: Icon(
-                          group[i].icon,
+                          nextGroup[i].icon,
                           color: widget.color,
                           size: 20,
                         ),
@@ -1570,13 +1559,58 @@ class _SubjectCarouselState extends State<_SubjectCarousel>
                     ),
                   ),
                 ),
-              // Ders adları — pill içinde başlar, logoya uçar.
+              for (int i = 0; i < 3; i++)
+                Positioned(
+                  left: rowStart + i * (_pillW + _gap),
+                  top: _pillY + _pillH / 2 + 4,
+                  width: _pillW,
+                  child: IgnorePointer(
+                    child: Opacity(
+                      opacity: nextOpacity.clamp(0.0, 1.0),
+                      child: Center(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            localeService.tr(nextGroup[i].key),
+                            maxLines: 1,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black,
+                              letterSpacing: -0.1,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              // Mevcut grubun ikonları — pill içinde, uçuş başladıkça kaybolur.
+              for (int i = 0; i < 3; i++)
+                Positioned(
+                  left: rowStart + i * (_pillW + _gap),
+                  top: _pillY + 8,
+                  width: _pillW,
+                  child: IgnorePointer(
+                    child: Opacity(
+                      opacity: curIconOpacity.clamp(0.0, 1.0),
+                      child: Center(
+                        child: Icon(
+                          curGroup[i].icon,
+                          color: widget.color,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              // Mevcut grubun yazıları — doğrusal hızla logoya uçar.
               for (int i = 0; i < 3; i++)
                 _buildFlyingText(
-                  subject: group[i],
+                  subject: curGroup[i],
                   slotX: rowStart + i * (_pillW + _gap),
-                  curvedFly: curvedFly,
-                  opacity: textOpacity,
+                  curvedFly: flyT,
+                  opacity: curTextOpacity,
                   scale: textScale,
                   logoCX: logoCX,
                   logoCY: logoCY,
