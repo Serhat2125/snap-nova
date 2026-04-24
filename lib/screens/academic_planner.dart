@@ -1,6 +1,7 @@
 import '../services/runtime_translator.dart';
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -14,6 +15,7 @@ import 'test_page.dart';
 import 'green_colony_screen.dart';
 import 'qualsar_arena_screen.dart';
 import 'qualsar_mars_screen.dart';
+import 'study_buddy_screen.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  Kütüphane — Ders bazlı kart sistemi
@@ -824,19 +826,7 @@ class _DayDetailPageState extends State<_DayDetailPage> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: GestureDetector(
-        onTap: () {
-          // Türüne göre ilgili sayfaya yönlendir: test ise sınav sorular,
-          // özet ise konu özetleri.
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => AcademicPlanner(
-                mode: isQ
-                    ? LibraryMode.questions
-                    : LibraryMode.summary,
-              ),
-            ),
-          );
-        },
+        onTap: () => _openActivityEntry(e),
         child: Container(
           padding: const EdgeInsets.fromLTRB(10, 10, 12, 10),
           decoration: BoxDecoration(
@@ -941,6 +931,142 @@ class _DayDetailPageState extends State<_DayDetailPage> {
         ),
       ),
     );
+  }
+
+  // Aktivite kartına basılınca — özet veya teste DOĞRUDAN yönlendir.
+  // 'özet' → _SummaryDetailPage, 'soru' → son test denemesi
+  // (tamamlandıysa TestResultPage, değilse TestPage).
+  Future<void> _openActivityEntry(_ActivityEntry e) async {
+    final isQ = e.type == 'soru';
+    final key =
+        isQ ? 'library_subjects_questions_v2' : 'library_subjects_v2';
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final listRaw = prefs.getStringList(key) ?? const [];
+      final subjects = listRaw
+          .map((s) {
+            try {
+              return _Subject.fromJson(
+                  jsonDecode(s) as Map<String, dynamic>);
+            } catch (_) {
+              return null;
+            }
+          })
+          .whereType<_Subject>()
+          .toList();
+
+      // Ders eşleştir — önce birebir eşleşme, sonra case-insensitive
+      _Subject? subject;
+      for (final s in subjects) {
+        if (s.name == e.subject) {
+          subject = s;
+          break;
+        }
+      }
+      if (subject == null) {
+        final target = e.subject.toLowerCase();
+        for (final s in subjects) {
+          if (s.name.toLowerCase() == target) {
+            subject = s;
+            break;
+          }
+        }
+      }
+
+      // Konu (özet) eşleştir
+      _Summary? summary;
+      if (subject != null) {
+        for (final sum in subject.summaries) {
+          if (sum.topic == e.topic) {
+            summary = sum;
+            break;
+          }
+        }
+        if (summary == null) {
+          final target = e.topic.toLowerCase();
+          for (final sum in subject.summaries) {
+            if (sum.topic.toLowerCase() == target) {
+              summary = sum;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!mounted) return;
+
+      // Kayıt bulunamadıysa kütüphaneye fallback, kullanıcı kendi bulsun.
+      if (subject == null || summary == null) {
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => AcademicPlanner(
+            mode: isQ ? LibraryMode.questions : LibraryMode.summary,
+          ),
+        ));
+        return;
+      }
+
+      if (isQ) {
+        // En son oluşturulmuş test denemesi
+        if (summary.tests.isEmpty) {
+          // Hiç test denemesi yoksa kütüphaneye düş
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) =>
+                const AcademicPlanner(mode: LibraryMode.questions),
+          ));
+          return;
+        }
+        final attempt = summary.tests.last;
+        if (attempt.completed) {
+          final questions = parseTestQuestions(attempt.content);
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => TestResultPage(
+              questions: questions,
+              answers: attempt.answers,
+              subjectName: subject!.name,
+              topic: summary!.topic,
+            ),
+          ));
+        } else {
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => TestPage(
+              rawContent: attempt.content,
+              subjectName: subject!.name,
+              topic: summary!.topic,
+              initialAnswers: attempt.answers,
+              timeLimit: attempt.timeLimit,
+              onFinish: (answers) async {
+                attempt.answers = Map<int, String?>.from(answers);
+                attempt.completed = true;
+                // Değişiklikleri diske yaz
+                try {
+                  final prefs2 =
+                      await SharedPreferences.getInstance();
+                  final updated = subjects
+                      .map((s) => jsonEncode(s.toJson()))
+                      .toList();
+                  await prefs2.setStringList(key, updated);
+                } catch (_) {}
+              },
+            ),
+          ));
+        }
+      } else {
+        // Konu özeti — detay sayfası
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => _SummaryDetailPage(
+            summary: summary!,
+            subjectName: subject!.name,
+          ),
+        ));
+      }
+    } catch (_) {
+      if (!mounted) return;
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => AcademicPlanner(
+          mode: isQ ? LibraryMode.questions : LibraryMode.summary,
+        ),
+      ));
+    }
   }
 
   Widget _buildColorPanel() {
@@ -1192,13 +1318,121 @@ class _DayCell extends StatelessWidget {
 //  • Ortalanmış "Kütüphanem" başlığı + ikon
 //  • Altında 2 eşit beyaz çerçeve: Konu Özeti / Sınav Soruları
 // ═══════════════════════════════════════════════════════════════════════════════
-class LibraryLanding extends StatelessWidget {
+class LibraryLanding extends StatefulWidget {
   const LibraryLanding({super.key});
+
+  @override
+  State<LibraryLanding> createState() => _LibraryLandingState();
+}
+
+class _LibraryLandingState extends State<LibraryLanding> {
+  // ── Renk özelleştirme — diğer sayfalardakiyle aynı format ─────────────
+  bool _showColorPicker = false;
+  String _colorMode = 'frame'; // 'frame' | 'text'
+  String _colorTarget = 'bg'; // 'bg' | 'cards'
+  Color? _pageBgOverride;
+  Color? _cardsBgOverride;
+  Color? _cardsTextOverride;
+
+  static const _libraryColorsKey = 'library_colors_v1';
+  static const _libraryPalette = <Color>[
+    Colors.white,
+    Color(0xFFF3F4F6),
+    Color(0xFFD1D5DB),
+    Color(0xFF9CA3AF),
+    Color(0xFF0F172A),
+    Color(0xFFFFEFD5),
+    Color(0xFFFFD1DC),
+    Color(0xFFFCA5A5),
+    Color(0xFFFF6A00),
+    Color(0xFFC8102E),
+    Color(0xFFDB2777),
+    Color(0xFFFBBF24),
+    Color(0xFFDCFCE7),
+    Color(0xFF86EFAC),
+    Color(0xFF10B981),
+    Color(0xFFE0F2FE),
+    Color(0xFF22D3EE),
+    Color(0xFF2563EB),
+    Color(0xFFE9D5FF),
+    Color(0xFFA855F7),
+    Color(0xFF7C3AED),
+    Color(0xFFF5F5DC),
+    Color(0xFFD4A373),
+    Color(0xFF92400E),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLibraryColors();
+  }
+
+  Future<void> _loadLibraryColors() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_libraryColorsKey);
+      if (raw == null || raw.isEmpty) return;
+      final m = jsonDecode(raw) as Map<String, dynamic>;
+      if (!mounted) return;
+      setState(() {
+        Color? read(String k) {
+          final v = m[k];
+          return v is num ? Color(v.toInt()) : null;
+        }
+        _pageBgOverride = read('bg');
+        _cardsBgOverride = read('cards');
+        _cardsTextOverride = read('cardsText');
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _saveLibraryColors() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final m = <String, int>{};
+      void put(String k, Color? c) {
+        if (c != null) m[k] = c.toARGB32();
+      }
+      put('bg', _pageBgOverride);
+      put('cards', _cardsBgOverride);
+      put('cardsText', _cardsTextOverride);
+      if (m.isEmpty) {
+        await prefs.remove(_libraryColorsKey);
+      } else {
+        await prefs.setString(_libraryColorsKey, jsonEncode(m));
+      }
+    } catch (_) {}
+  }
+
+  void _applyLibraryColor(String target, Color c) {
+    setState(() {
+      if (_colorMode == 'text') {
+        _cardsTextOverride = c;
+      } else {
+        if (target == 'bg') {
+          _pageBgOverride = c;
+        } else {
+          _cardsBgOverride = c;
+        }
+      }
+    });
+    _saveLibraryColors();
+  }
+
+  void _resetLibraryColors() {
+    setState(() {
+      _pageBgOverride = null;
+      _cardsBgOverride = null;
+      _cardsTextOverride = null;
+    });
+    _saveLibraryColors();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
+      backgroundColor: _pageBgOverride ?? const Color(0xFFF5F6FA),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -1221,12 +1455,73 @@ class LibraryLanding extends StatelessWidget {
             ),
           ],
         ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: Center(
+              child: GestureDetector(
+                onTap: () => setState(
+                    () => _showColorPicker = !_showColorPicker),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color(0xFFFF6A00),
+                        Color(0xFFDB2777),
+                        Color(0xFF7C3AED),
+                        Color(0xFF2563EB),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(999),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.12),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _showColorPicker
+                            ? Icons.close_rounded
+                            : Icons.palette_rounded,
+                        size: 14,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        _showColorPicker
+                            ? localeService.tr('close')
+                            : 'Renk Seç',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
       body: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (_showColorPicker) _buildLibraryColorPanel(),
+            if (_showColorPicker) const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
@@ -1234,6 +1529,9 @@ class LibraryLanding extends StatelessWidget {
                     icon: Icons.auto_stories_rounded,
                     title: localeService.tr('create_topic_summary'),
                     color: _blue,
+                    customBg: _cardsBgOverride,
+                    customTextColor: _cardsTextOverride,
+                    onColorAccept: (c) => _applyLibraryColor('cards', c),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => const AcademicPlanner(
@@ -1245,9 +1543,12 @@ class LibraryLanding extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: _LandingCard(
-                    icon: Icons.assignment_rounded,
+                    icon: Icons.quiz_rounded,
                     title: localeService.tr('create_exam_questions'),
                     color: _orange,
+                    customBg: _cardsBgOverride,
+                    customTextColor: _cardsTextOverride,
+                    onColorAccept: (c) => _applyLibraryColor('cards', c),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => const AcademicPlanner(
@@ -1266,6 +1567,9 @@ class LibraryLanding extends StatelessWidget {
                     icon: Icons.calendar_month_rounded,
                     title: localeService.tr('my_study_calendar'),
                     color: _indigo,
+                    customBg: _cardsBgOverride,
+                    customTextColor: _cardsTextOverride,
+                    onColorAccept: (c) => _applyLibraryColor('cards', c),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => const StudyCalendarPage(),
@@ -1279,6 +1583,9 @@ class LibraryLanding extends StatelessWidget {
                     icon: Icons.timer_rounded,
                     title: 'Pomodoro Tekniği'.tr(),
                     color: const Color(0xFFE11D48),
+                    customBg: _cardsBgOverride,
+                    customTextColor: _cardsTextOverride,
+                    onColorAccept: (c) => _applyLibraryColor('cards', c),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => const _PomodoroTechniquePage(),
@@ -1293,9 +1600,12 @@ class LibraryLanding extends StatelessWidget {
               children: [
                 Expanded(
                   child: _LandingCard(
-                    icon: Icons.workspace_premium_rounded,
+                    icon: Icons.stadium_rounded,
                     title: 'QuAlsar Arena',
                     color: const Color(0xFFFF5B2E),
+                    customBg: _cardsBgOverride,
+                    customTextColor: _cardsTextOverride,
+                    onColorAccept: (c) => _applyLibraryColor('cards', c),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => const QuAlsarArenaScreen(),
@@ -1306,12 +1616,15 @@ class LibraryLanding extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: _LandingCard(
-                    icon: Icons.emoji_events_rounded,
+                    icon: Icons.sports_esports_rounded,
                     title: 'Bilgi Yarışı'.tr(),
                     subtitle:
                         'Ülkende ve dünyada rakiplerle 1v1 canlı yarış.'
                             .tr(),
                     color: const Color(0xFFFFB800),
+                    customBg: _cardsBgOverride,
+                    customTextColor: _cardsTextOverride,
+                    onColorAccept: (c) => _applyLibraryColor('cards', c),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => const DueloLobbyScreen(),
@@ -1321,8 +1634,240 @@ class LibraryLanding extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            // Çalışma Arkadaşım — en altta tek sıra.
+            _LandingCard(
+              icon: Icons.smart_toy_rounded,
+              title: localeService.tr('my_study_buddy'),
+              subtitle: localeService.tr('my_study_buddy_subtitle'),
+              color: const Color(0xFF7C3AED),
+              customBg: _cardsBgOverride,
+              customTextColor: _cardsTextOverride,
+              onColorAccept: (c) => _applyLibraryColor('cards', c),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const StudyBuddyScreen(),
+                ),
+              ),
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  // ══════ Renk seçim paneli — diğer sayfalar ile aynı format ═══════════════
+  Widget _buildLibraryColorPanel() {
+    const orange = Color(0xFFFF6A00);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.black, width: 1.1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.palette_rounded, size: 16, color: Colors.black),
+              const SizedBox(width: 6),
+              Text('Renk',
+                  style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.black)),
+              const SizedBox(width: 10),
+              Expanded(child: _libraryModeToggle(orange)),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: _resetLibraryColors,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF3F4F6),
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(color: Colors.black12),
+                  ),
+                  child: Text('Sıfırla',
+                      style: GoogleFonts.poppins(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.black54)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _libraryTargetToggle(orange),
+          const SizedBox(height: 6),
+          Text(
+            'Renge bas ya da sürükleyip istediğin yere bırak.',
+            style: GoogleFonts.poppins(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: Colors.black54,
+                height: 1.3),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 76,
+            child: GridView.builder(
+              scrollDirection: Axis.horizontal,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 6,
+                crossAxisSpacing: 6,
+                childAspectRatio: 1.0,
+              ),
+              itemCount: _libraryPalette.length,
+              itemBuilder: (_, i) => _libraryDraggableColor(_libraryPalette[i]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _libraryModeToggle(Color orange) {
+    Widget box(String id, IconData icon, String label) {
+      final active = _colorMode == id;
+      return Expanded(
+        child: GestureDetector(
+          onTap: () => setState(() => _colorMode = id),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 6),
+            decoration: BoxDecoration(
+              color: active
+                  ? orange.withValues(alpha: 0.12)
+                  : const Color(0xFFF9FAFB),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: active ? orange : Colors.black,
+                width: active ? 1.6 : 1,
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 13, color: active ? orange : Colors.black),
+                const SizedBox(width: 5),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: active ? orange : Colors.black,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        box('text', Icons.text_fields_rounded, 'Yazı'),
+        const SizedBox(width: 8),
+        box('frame', Icons.crop_square_rounded, 'Çerçeve'),
+      ],
+    );
+  }
+
+  Widget _libraryTargetToggle(Color orange) {
+    Widget chip(String id, String label) {
+      final active = _colorTarget == id;
+      return Expanded(
+        child: GestureDetector(
+          onTap: () => setState(() => _colorTarget = id),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+            decoration: BoxDecoration(
+              color: active
+                  ? orange.withValues(alpha: 0.12)
+                  : const Color(0xFFF3F4F6),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: active ? orange : Colors.black12,
+                width: active ? 1.4 : 1,
+              ),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                  color: active ? orange : Colors.black),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        chip('bg', 'Arka plan'),
+        const SizedBox(width: 6),
+        chip('cards', 'Kartlar'),
+      ],
+    );
+  }
+
+  Widget _libraryDraggableColor(Color c) {
+    return Draggable<Color>(
+      data: c,
+      dragAnchorStrategy: pointerDragAnchorStrategy,
+      feedback: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: c,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.3),
+              blurRadius: 10,
+            ),
+          ],
+        ),
+      ),
+      childWhenDragging: Opacity(opacity: 0.3, child: _libraryDot(c)),
+      child: GestureDetector(
+        onTap: () => _applyLibraryColor(_colorTarget, c),
+        child: _libraryDot(c),
+      ),
+    );
+  }
+
+  Widget _libraryDot(Color c) {
+    return Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        color: c,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.black26, width: 1),
       ),
     );
   }
@@ -1334,77 +1879,97 @@ class _LandingCard extends StatelessWidget {
   final String? subtitle;
   final Color color;
   final VoidCallback onTap;
+  final Color? customBg;
+  final Color? customTextColor;
+  final ValueChanged<Color>? onColorAccept;
   const _LandingCard({
     required this.icon,
     required this.title,
     required this.color,
     required this.onTap,
     this.subtitle,
+    this.customBg,
+    this.customTextColor,
+    this.onColorAccept,
   });
 
   @override
   Widget build(BuildContext context) {
     final hasSub = subtitle != null && subtitle!.isNotEmpty;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 128,
-        padding: EdgeInsets.symmetric(
-            horizontal: 10, vertical: hasSub ? 10 : 14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withValues(alpha: 0.45), width: 1.2),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: hasSub ? 40 : 48,
-              height: hasSub ? 40 : 48,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(hasSub ? 12 : 14),
+    final bgColor = customBg ?? Colors.white;
+    final lum = 0.299 * bgColor.r + 0.587 * bgColor.g + 0.114 * bgColor.b;
+    final isDark = lum < 0.55;
+    final titleColor =
+        customTextColor ?? (isDark ? Colors.white : Colors.black);
+    final subtitleColor = customTextColor ??
+        (isDark ? Colors.white70 : Colors.black54);
+
+    return DragTarget<Color>(
+      onAcceptWithDetails: (d) => onColorAccept?.call(d.data),
+      builder: (ctx, cand, _) => GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          height: 128,
+          padding: EdgeInsets.symmetric(
+              horizontal: 10, vertical: hasSub ? 10 : 14),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(16),
+            border: cand.isNotEmpty
+                ? Border.all(color: const Color(0xFFFF6A00), width: 2)
+                : null,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
-              alignment: Alignment.center,
-              child: Icon(icon, color: color, size: hasSub ? 22 : 26),
-            ),
-            SizedBox(height: hasSub ? 6 : 10),
-            Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(
-                fontSize: hasSub ? 12.5 : 13,
-                fontWeight: FontWeight.w800,
-                color: Colors.black,
-                height: 1.15,
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: hasSub ? 40 : 48,
+                height: hasSub ? 40 : 48,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(hasSub ? 12 : 14),
+                ),
+                alignment: Alignment.center,
+                child: Icon(icon, color: color, size: hasSub ? 22 : 26),
               ),
-            ),
-            if (hasSub) ...[
-              const SizedBox(height: 3),
+              SizedBox(height: hasSub ? 6 : 10),
               Text(
-                subtitle!,
-                maxLines: 3,
+                title,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black54,
-                  height: 1.25,
+                  fontSize: hasSub ? 12.5 : 13,
+                  fontWeight: FontWeight.w800,
+                  color: titleColor,
+                  height: 1.15,
                 ),
               ),
+              if (hasSub) ...[
+                const SizedBox(height: 3),
+                Text(
+                  subtitle!,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w500,
+                    color: subtitleColor,
+                    height: 1.25,
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -2474,21 +3039,33 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
           'Bu konu için 3 test hakkın da bitti. Başka bir konu dene.'.tr());
       return;
     }
-    final cfg = await Navigator.of(context).push<_TestConfig>(
-      MaterialPageRoute(
-        builder: (_) => _TestSetupPage(
-          subjectName: subjectName,
-          topic: topic,
-          attemptIndex: nextIdx,
-        ),
-      ),
-    );
+    // Küçük zorluk seçici dialog — arka plan flu + 3 kutu + Tamam butonu.
+    final cfg = await _showDifficultyDialog();
     if (cfg == null) return;
     await _generate(
       subjectName: subjectName,
       topic: topic,
       newSubject: true,
       config: cfg,
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  Zorluk seçici dialog — Kolay · Orta · Zor + Tamam butonu.
+  //  Arka plan BackdropFilter ile fludur. Kullanıcı bir zorluğa basınca
+  //  seçili olur; "Tamam"a basınca _TestConfig döner.
+  // ══════════════════════════════════════════════════════════════════════════
+  Future<_TestConfig?> _showDifficultyDialog() {
+    return showGeneralDialog<_TestConfig>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'dismiss',
+      barrierColor: Colors.black.withValues(alpha: 0.2),
+      transitionDuration: const Duration(milliseconds: 200),
+      pageBuilder: (ctx, a1, a2) => BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+        child: const _DifficultyPickerDialog(),
+      ),
     );
   }
 
@@ -3117,6 +3694,217 @@ KATI KURALLAR (bozarsan cevap geçersiz):
       cells.add(const Expanded(child: SizedBox()));
     }
     return Row(children: cells);
+  }
+
+  // ignore: unused_element
+  Widget _unusedQuestionsSubjectSection(_Subject subject) {
+    final customBg = _summaryCardColors[subject.id];
+    final bg = customBg ?? Colors.white;
+    final lum = 0.299 * bg.r + 0.587 * bg.g + 0.114 * bg.b;
+    final ink = lum < 0.55 ? Colors.white : Colors.black;
+    final allAttempts = <_AttemptRef>[];
+    for (final sum in subject.summaries) {
+      for (var i = 0; i < sum.tests.length; i++) {
+        allAttempts.add(_AttemptRef(
+          summary: sum,
+          attempt: sum.tests[i],
+          attemptIndex: i + 1,
+        ));
+      }
+    }
+    allAttempts.sort((a, b) =>
+        b.attempt.createdAt.compareTo(a.attempt.createdAt));
+    return DragTarget<Color>(
+      onWillAcceptWithDetails: (_) => true,
+      onAcceptWithDetails: (d) =>
+          _applyColorToSummaryCard(subject.id, d.data),
+      builder: (ctx, cand, _) {
+        final hovering = cand.isNotEmpty;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: hovering ? _orange : Colors.black,
+              width: hovering ? 2 : 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Başlık — ders ismi
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      subject.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        color: ink,
+                        letterSpacing: 0.15,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '${allAttempts.length} ${'test'.tr()}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: ink.withValues(alpha: 0.65),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Container(height: 1, color: ink.withValues(alpha: 0.2)),
+              const SizedBox(height: 8),
+              for (final ref in allAttempts)
+                _unusedTestAttemptRow(subject, ref, ink),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ignore: unused_element
+  Widget _unusedTestAttemptRow(
+      _Subject subject, _AttemptRef ref, Color ink) {
+    final attempt = ref.attempt;
+    final completed = attempt.completed;
+    // Skor hesabı — tamamlandıysa parse et.
+    String statusText;
+    Color statusColor;
+    if (completed) {
+      try {
+        final questions = parseTestQuestions(attempt.content);
+        if (questions.isEmpty) {
+          statusText = 'Tamamlandı'.tr();
+          statusColor = const Color(0xFF10B981);
+        } else {
+          var correct = 0;
+          for (var i = 0; i < questions.length; i++) {
+            final userAns = attempt.answers[i];
+            if (userAns != null &&
+                userAns.toUpperCase() == questions[i].ans) {
+              correct++;
+            }
+          }
+          final pct = (correct / questions.length * 100).round();
+          statusText = '%$pct';
+          statusColor = pct >= 70
+              ? const Color(0xFF10B981)
+              : pct >= 40
+                  ? const Color(0xFFF59E0B)
+                  : const Color(0xFFDC2626);
+        }
+      } catch (_) {
+        statusText = 'Tamamlandı'.tr();
+        statusColor = const Color(0xFF10B981);
+      }
+    } else {
+      // Cevap var mı? Varsa "Devam et", yoksa "Başla"
+      if (attempt.answers.isNotEmpty) {
+        statusText = 'Devam et'.tr();
+        statusColor = _orange;
+      } else {
+        statusText = 'Başla'.tr();
+        statusColor = _blue;
+      }
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: GestureDetector(
+        onTap: () {
+          if (completed) {
+            _openCompletedAttempt(ref.summary, attempt, subject.name);
+          } else {
+            _openTestAttempt(ref.summary, attempt, subject.name);
+          }
+        },
+        child: Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          decoration: BoxDecoration(
+            color: ink.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: ink.withValues(alpha: 0.15),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: _orange.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                alignment: Alignment.center,
+                child: const Icon(Icons.quiz_rounded,
+                    size: 16, color: _orange),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      ref.summary.topic,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                        color: ink,
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      '${ref.attemptIndex}. ${'Deneme'.tr()}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w500,
+                        color: ink.withValues(alpha: 0.65),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: statusColor,
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: Text(
+                  statusText,
+                  style: GoogleFonts.poppins(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(Icons.chevron_right_rounded,
+                  size: 18, color: ink.withValues(alpha: 0.55)),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
 
@@ -4637,7 +5425,7 @@ class _SubjectDetailPageState extends State<_SubjectDetailPage> {
 // ═══════════════════════════════════════════════════════════════════════════
 //  Özet Detay Sayfası (çerçeveli, temiz, profesyonel)
 // ═══════════════════════════════════════════════════════════════════════════
-class _SummaryDetailPage extends StatelessWidget {
+class _SummaryDetailPage extends StatefulWidget {
   final _Summary summary;
   final String subjectName;
   const _SummaryDetailPage({
@@ -4646,9 +5434,147 @@ class _SummaryDetailPage extends StatelessWidget {
   });
 
   @override
+  State<_SummaryDetailPage> createState() => _SummaryDetailPageState();
+}
+
+class _SummaryDetailPageState extends State<_SummaryDetailPage> {
+  // ── Renk özelleştirme state'i — Konu Özetleri / Bilgi Yarışı ile aynı ──
+  // 3 hedef: 'bg' (sayfa arka planı) · 'title' (üst başlık çerçevesi) ·
+  // 'cards' (alt başlık kartları + en önemli 5 bilgi kartı).
+  // 2 mod: 'frame' (zemin) · 'text' (yazı rengi).
+  bool _showColorPicker = false;
+  String _colorMode = 'frame'; // 'frame' | 'text'
+  String _colorTarget = 'bg'; // 'bg' | 'title' | 'cards'
+  Color? _pageBgOverride;
+  Color? _titleBgOverride;
+  Color? _cardsBgOverride;
+  Color? _titleTextOverride;
+  Color? _cardsTextOverride;
+
+  static const _palette = <Color>[
+    Colors.white,
+    Color(0xFFF3F4F6),
+    Color(0xFFD1D5DB),
+    Color(0xFF9CA3AF),
+    Color(0xFF0F172A),
+    Color(0xFFFFEFD5),
+    Color(0xFFFFD1DC),
+    Color(0xFFFCA5A5),
+    Color(0xFFFF6A00),
+    Color(0xFFC8102E),
+    Color(0xFFDB2777),
+    Color(0xFFFBBF24),
+    Color(0xFFDCFCE7),
+    Color(0xFF86EFAC),
+    Color(0xFF10B981),
+    Color(0xFFE0F2FE),
+    Color(0xFF22D3EE),
+    Color(0xFF2563EB),
+    Color(0xFFE9D5FF),
+    Color(0xFFA855F7),
+    Color(0xFF7C3AED),
+    Color(0xFFF5F5DC),
+    Color(0xFFD4A373),
+    Color(0xFF92400E),
+  ];
+
+  // Her özet kendi renk setine sahip — SharedPreferences anahtarı özet id'si.
+  String get _prefKey => 'summary_colors_${widget.summary.id}';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadColors();
+  }
+
+  Future<void> _loadColors() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_prefKey);
+      if (raw == null || raw.isEmpty) return;
+      final m = jsonDecode(raw) as Map<String, dynamic>;
+      if (!mounted) return;
+      setState(() {
+        Color? read(String k) {
+          final v = m[k];
+          return v is num ? Color(v.toInt()) : null;
+        }
+
+        _pageBgOverride = read('bg');
+        _titleBgOverride = read('title');
+        _cardsBgOverride = read('cards');
+        _titleTextOverride = read('titleText');
+        _cardsTextOverride = read('cardsText');
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _saveColors() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final m = <String, int>{};
+      void put(String k, Color? c) {
+        if (c != null) m[k] = c.toARGB32();
+      }
+
+      put('bg', _pageBgOverride);
+      put('title', _titleBgOverride);
+      put('cards', _cardsBgOverride);
+      put('titleText', _titleTextOverride);
+      put('cardsText', _cardsTextOverride);
+      if (m.isEmpty) {
+        await prefs.remove(_prefKey);
+      } else {
+        await prefs.setString(_prefKey, jsonEncode(m));
+      }
+    } catch (_) {}
+  }
+
+  void _applyColorTo(String target, Color c) {
+    setState(() {
+      if (_colorMode == 'text') {
+        if (target == 'title') {
+          _titleTextOverride = c;
+        } else if (target == 'cards') {
+          _cardsTextOverride = c;
+        } else {
+          // 'bg' Yazı modunda — başlık + kart yazılarını birlikte ayarla.
+          _titleTextOverride = c;
+          _cardsTextOverride = c;
+        }
+      } else {
+        if (target == 'bg') {
+          _pageBgOverride = c;
+        } else if (target == 'title') {
+          _titleBgOverride = c;
+        } else {
+          _cardsBgOverride = c;
+        }
+      }
+    });
+    _saveColors();
+  }
+
+  void _resetColors() {
+    setState(() {
+      _pageBgOverride = null;
+      _titleBgOverride = null;
+      _cardsBgOverride = null;
+      _titleTextOverride = null;
+      _cardsTextOverride = null;
+    });
+    _saveColors();
+  }
+
+  bool _isDark(Color c) {
+    final l = 0.299 * c.r + 0.587 * c.g + 0.114 * c.b;
+    return l < 0.55;
+  }
+
+  @override
   Widget build(BuildContext context) {
     // YouTube/Web önerilerini sök + markdown gürültüyü temizle
-    final cleaned = _clean(summary.content);
+    final cleaned = _clean(widget.summary.content);
     final sections = _splitSections(cleaned);
 
     // "En Önemli 5 Bilgi" bölümünü ayır (⭐ marker) — özel kart olarak render
@@ -4662,86 +5588,193 @@ class _SummaryDetailPage extends StatelessWidget {
       }
     }
 
+    final pageBg = _pageBgOverride ?? const Color(0xFFFAFAFA);
+
     return Scaffold(
-      // Sayfa arka planı: hafif kırık beyaz. Büyük kartlar saf beyaz
-      // olduğu için hafif kontrast oluşur, kartlar "en yüksek beyaz" olur.
-      backgroundColor: const Color(0xFFFAFAFA),
-      // ── AppBar: sadece geri ok'u, yazı yok ────────────────────────────
+      backgroundColor: pageBg,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFAFAFA),
+        backgroundColor: pageBg,
         elevation: 0,
         foregroundColor: Colors.black,
         titleSpacing: 0,
         title: const SizedBox.shrink(),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
-        children: [
-          // ── Tek başlık sekmesi: SOL ders · SAĞ konu (sayfa ile aynı ton) ──
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFAFAFA),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.black, width: 1),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    subjectName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.black,
-                      letterSpacing: 0.1,
-                    ),
+        actions: [
+          // Renkli "Renk Seç" pill — diğer sayfalardaki ile aynı.
+          Padding(
+            padding:
+                const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+            child: GestureDetector(
+              onTap: () => setState(
+                  () => _showColorPicker = !_showColorPicker),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0xFFFF6A00),
+                      Color(0xFFDB2777),
+                      Color(0xFF7C3AED),
+                      Color(0xFF2563EB),
+                    ],
                   ),
-                ),
-                Container(
-                  width: 1,
-                  height: 16,
-                  color: Colors.black.withValues(alpha: 0.35),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    summary.topic,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.right,
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.black87,
+                  borderRadius: BorderRadius.circular(999),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _showColorPicker
+                          ? Icons.close_rounded
+                          : Icons.palette_rounded,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _showColorPicker
+                          ? 'Kapat'.tr()
+                          : 'Renk Seç'.tr(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 14),
-          // ── Normal alt başlık kartları ───────────────────────────────
-          if (normalSections.isEmpty && keyFactsSection == null)
-            _card(header: '', headerColor: Colors.black, body: cleaned)
-          else
-            ...normalSections.map((s) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _card(
-                    header: s.header,
-                    headerColor: s.color,
-                    body: s.body,
-                  ),
-                )),
-          // ── EN ÖNEMLİ 5 BİLGİ — vurgulu kart ──────────────────────────
-          if (keyFactsSection != null) ...[
-            const SizedBox(height: 6),
-            _keyFactsCard(keyFactsSection),
-          ],
         ],
       ),
+      body: Column(
+        children: [
+          if (_showColorPicker) _buildColorPickerPanel(),
+          Expanded(
+            child: DragTarget<Color>(
+              onAcceptWithDetails: (d) {
+                if (_colorMode == 'text') return;
+                setState(() => _pageBgOverride = d.data);
+                _saveColors();
+              },
+              builder: (ctx, cand, _) => ListView(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+                children: [
+                  // ── Üst başlık çerçevesi — DragTarget (title) ─────────
+                  DragTarget<Color>(
+                    onAcceptWithDetails: (d) =>
+                        _applyColorTo('title', d.data),
+                    builder: (ctx, cand, _) {
+                      final hovering = cand.isNotEmpty;
+                      final bg = _titleBgOverride ??
+                          const Color(0xFFFAFAFA);
+                      final ink = _titleTextOverride ??
+                          (_isDark(bg) ? Colors.white : Colors.black);
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: bg,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: hovering
+                                ? const Color(0xFFFF6A00)
+                                : Colors.black,
+                            width: hovering ? 2 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                widget.subjectName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: ink,
+                                  letterSpacing: 0.1,
+                                ),
+                              ),
+                            ),
+                            Container(
+                              width: 1,
+                              height: 16,
+                              color: ink.withValues(alpha: 0.35),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                widget.summary.topic,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.right,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: ink.withValues(alpha: 0.85),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  // ── Normal alt başlık kartları ───────────────────────
+                  if (normalSections.isEmpty && keyFactsSection == null)
+                    _wrappedCard(
+                      child: _card(
+                          header: '',
+                          headerColor: Colors.black,
+                          body: cleaned),
+                    )
+                  else
+                    ...normalSections.map((s) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _wrappedCard(
+                            child: _card(
+                              header: s.header,
+                              headerColor: s.color,
+                              body: s.body,
+                            ),
+                          ),
+                        )),
+                  // ── EN ÖNEMLİ 5 BİLGİ — vurgulu kart ────────────────
+                  if (keyFactsSection != null) ...[
+                    const SizedBox(height: 6),
+                    _wrappedCard(
+                      child: _keyFactsCard(keyFactsSection),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Kart'ı DragTarget<Color> ile sar — hedef 'cards'.
+  Widget _wrappedCard({required Widget child}) {
+    return DragTarget<Color>(
+      onAcceptWithDetails: (d) => _applyColorTo('cards', d.data),
+      builder: (ctx, cand, _) => child,
     );
   }
 
@@ -4810,17 +5843,20 @@ class _SummaryDetailPage extends StatelessWidget {
         t.contains('5 temel');
   }
 
-  // ═════ Normal alt başlık kartı — saf beyaz, ince siyah çerçeve ═════
+  // ═════ Normal alt başlık kartı — arka plan ve yazı renkleri state'ten ═════
   Widget _card({
     required String header,
     required Color headerColor,
     required String body,
   }) {
+    final bg = _cardsBgOverride ?? Colors.white;
+    final ink = _cardsTextOverride ??
+        (_isDark(bg) ? Colors.white : Colors.black);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: bg,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.black, width: 1),
       ),
@@ -4833,15 +5869,18 @@ class _SummaryDetailPage extends StatelessWidget {
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 fontWeight: FontWeight.w800,
-                color: Colors.black,
+                color: ink,
                 letterSpacing: 0.15,
               ),
             ),
             const SizedBox(height: 6),
-            Container(height: 1, color: Colors.black.withValues(alpha: 0.18)),
+            Container(height: 1, color: ink.withValues(alpha: 0.18)),
             const SizedBox(height: 10),
           ],
-          LatexText(body, fontSize: 14, lineHeight: 1.65),
+          DefaultTextStyle.merge(
+            style: TextStyle(color: ink),
+            child: LatexText(body, fontSize: 14, lineHeight: 1.65),
+          ),
         ],
       ),
     );
@@ -4849,11 +5888,14 @@ class _SummaryDetailPage extends StatelessWidget {
 
   // ═════ ⭐ En Önemli 5 Bilgi — vurgulu, farklı renk kartı ═════
   Widget _keyFactsCard(_Section s) {
+    final bg = _cardsBgOverride ?? const Color(0xFFFFFAE8);
+    final ink = _cardsTextOverride ??
+        (_isDark(bg) ? Colors.white : Colors.black);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFFAE8), // hafif krem sarı
+        color: bg,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.black, width: 1),
       ),
@@ -4870,7 +5912,7 @@ class _SummaryDetailPage extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
-                    color: Colors.black,
+                    color: ink,
                     letterSpacing: 0.15,
                   ),
                 ),
@@ -4878,10 +5920,237 @@ class _SummaryDetailPage extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 6),
-          Container(height: 1, color: Colors.black.withValues(alpha: 0.25)),
+          Container(height: 1, color: ink.withValues(alpha: 0.25)),
           const SizedBox(height: 10),
-          LatexText(s.body, fontSize: 14, lineHeight: 1.7),
+          DefaultTextStyle.merge(
+            style: TextStyle(color: ink),
+            child: LatexText(s.body, fontSize: 14, lineHeight: 1.7),
+          ),
         ],
+      ),
+    );
+  }
+
+  // ══════════════════ Renk seçim paneli — diğer sayfalar ile aynı ═══════════
+  Widget _buildColorPickerPanel() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.black, width: 1.1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.palette_rounded,
+                  size: 16, color: Colors.black),
+              const SizedBox(width: 6),
+              Text('Renk'.tr(),
+                  style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.black)),
+              const SizedBox(width: 10),
+              Expanded(child: _modeToggle()),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: _resetColors,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF3F4F6),
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(color: Colors.black12),
+                  ),
+                  child: Text('Sıfırla'.tr(),
+                      style: GoogleFonts.poppins(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.black54)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _targetToggle(),
+          const SizedBox(height: 6),
+          Text(
+            'Renge bas ya da sürükleyip istediğin yere bırak.'.tr(),
+            style: GoogleFonts.poppins(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: Colors.black54,
+                height: 1.3),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 76,
+            child: GridView.builder(
+              scrollDirection: Axis.horizontal,
+              gridDelegate:
+                  const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 6,
+                crossAxisSpacing: 6,
+                childAspectRatio: 1.0,
+              ),
+              itemCount: _palette.length,
+              itemBuilder: (_, i) => _draggableColor(_palette[i]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _modeToggle() {
+    Widget box(String id, IconData icon, String label) {
+      final active = _colorMode == id;
+      return Expanded(
+        child: GestureDetector(
+          onTap: () => setState(() => _colorMode = id),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            padding:
+                const EdgeInsets.symmetric(vertical: 7, horizontal: 6),
+            decoration: BoxDecoration(
+              color: active
+                  ? _orange.withValues(alpha: 0.12)
+                  : const Color(0xFFF9FAFB),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: active ? _orange : Colors.black,
+                width: active ? 1.6 : 1,
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon,
+                    size: 13,
+                    color: active ? _orange : Colors.black),
+                const SizedBox(width: 5),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: active ? _orange : Colors.black,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        box('text', Icons.text_fields_rounded, 'Yazı'.tr()),
+        const SizedBox(width: 8),
+        box('frame', Icons.crop_square_rounded, 'Çerçeve'.tr()),
+      ],
+    );
+  }
+
+  Widget _targetToggle() {
+    Widget chip(String id, String label) {
+      final active = _colorTarget == id;
+      return Expanded(
+        child: GestureDetector(
+          onTap: () => setState(() => _colorTarget = id),
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+            decoration: BoxDecoration(
+              color: active
+                  ? _orange.withValues(alpha: 0.12)
+                  : const Color(0xFFF3F4F6),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: active ? _orange : Colors.black12,
+                width: active ? 1.4 : 1,
+              ),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                  color: active ? _orange : Colors.black),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        chip('bg', 'Arka plan'.tr()),
+        const SizedBox(width: 6),
+        chip('title', 'Başlık'.tr()),
+        const SizedBox(width: 6),
+        chip('cards', 'Kartlar'.tr()),
+      ],
+    );
+  }
+
+  Widget _draggableColor(Color c) {
+    return Draggable<Color>(
+      data: c,
+      dragAnchorStrategy: pointerDragAnchorStrategy,
+      feedback: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: c,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.3),
+              blurRadius: 10,
+            ),
+          ],
+        ),
+      ),
+      childWhenDragging: Opacity(opacity: 0.3, child: _dot(c)),
+      child: GestureDetector(
+        onTap: () => _applyColorTo(_colorTarget, c),
+        child: _dot(c),
+      ),
+    );
+  }
+
+  Widget _dot(Color c) {
+    return Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        color: c,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.black26, width: 1),
       ),
     );
   }
@@ -4906,14 +6175,19 @@ class _SummaryDetailPage extends StatelessWidget {
     final lines = content.split('\n');
     final sections = <_Section>[];
     _Section? current;
+    // ⭐ "EN ÖNEMLİ 5 BİLGİ" section'ı başlayınca — sonraki satırlar marker
+    // (🔑 vs.) olsa bile yeni section açma; hepsi bu vurgulu kartın body'si.
+    bool inKeyFactsBlock = false;
     for (final raw in lines) {
       final line = raw.trimRight();
       final trim = line.trimLeft();
       String? foundMarker;
-      for (final m in markers.keys) {
-        if (trim.startsWith(m)) {
-          foundMarker = m;
-          break;
+      if (!inKeyFactsBlock) {
+        for (final m in markers.keys) {
+          if (trim.startsWith(m)) {
+            foundMarker = m;
+            break;
+          }
         }
       }
       if (foundMarker != null) {
@@ -4928,6 +6202,7 @@ class _SummaryDetailPage extends StatelessWidget {
           color: markers[foundMarker]!,
           body: '',
         );
+        if (foundMarker == '⭐') inKeyFactsBlock = true;
       } else if (current != null) {
         current.body += '$line\n';
       } else if (line.trim().isNotEmpty) {
@@ -4953,6 +6228,204 @@ class _Section {
   Color color;
   String body;
   _Section({required this.header, required this.color, required this.body});
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  Zorluk Seçici Dialog — Kolay · Orta · Zor. Kullanıcı bir kutuya basarak
+//  seçer, sağ altta "Tamam" ile _TestConfig döner.
+// ══════════════════════════════════════════════════════════════════════════
+class _DifficultyPickerDialog extends StatefulWidget {
+  const _DifficultyPickerDialog();
+
+  @override
+  State<_DifficultyPickerDialog> createState() =>
+      _DifficultyPickerDialogState();
+}
+
+class _DifficultyPickerDialogState extends State<_DifficultyPickerDialog> {
+  String? _selected; // null | 'easy' | 'medium' | 'hard'
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 360),
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Başlık
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Zorluk Seç'.tr(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.black,
+                        letterSpacing: 0.1,
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFFF3F4F6),
+                        border: Border.all(color: Colors.black12),
+                      ),
+                      child: const Icon(Icons.close_rounded,
+                          size: 15, color: Colors.black),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Test zorluğunu seç ve Tamam\'a bas.'.tr(),
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black54,
+                  height: 1.3,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: _difficultyBox(
+                      id: 'easy',
+                      emoji: '🌱',
+                      label: 'Kolay'.tr(),
+                      accent: const Color(0xFF10B981),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _difficultyBox(
+                      id: 'medium',
+                      emoji: '⚖️',
+                      label: 'Orta'.tr(),
+                      accent: const Color(0xFFF59E0B),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _difficultyBox(
+                      id: 'hard',
+                      emoji: '🔥',
+                      label: 'Zor'.tr(),
+                      accent: const Color(0xFFDC2626),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // Tamam butonu — sadece bir zorluk seçiliyse aktif.
+              GestureDetector(
+                onTap: _selected == null
+                    ? null
+                    : () {
+                        final cfg = _TestConfig()..difficulty = _selected!;
+                        Navigator.of(context).pop(cfg);
+                      },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  decoration: BoxDecoration(
+                    color: _selected == null
+                        ? const Color(0xFFE5E7EB)
+                        : Colors.black,
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    'Tamam'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      color: _selected == null
+                          ? Colors.black38
+                          : Colors.white,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _difficultyBox({
+    required String id,
+    required String emoji,
+    required String label,
+    required Color accent,
+  }) {
+    final active = _selected == id;
+    return GestureDetector(
+      onTap: () => setState(() => _selected = id),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+        decoration: BoxDecoration(
+          color: active ? accent.withValues(alpha: 0.12) : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: active ? accent : Colors.black,
+            width: active ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 26)),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: active ? accent : Colors.black,
+                letterSpacing: 0.1,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Sınav Soruları sayfasında — bir dersin altındaki her test için
+// özet + test denemesi + sırası (1./2./3. deneme) ikilisi.
+class _AttemptRef {
+  final _Summary summary;
+  final _TestAttempt attempt;
+  final int attemptIndex; // 1-based
+  _AttemptRef({
+    required this.summary,
+    required this.attempt,
+    required this.attemptIndex,
+  });
 }
 
 
