@@ -980,23 +980,30 @@ class _FeaturePage extends StatelessWidget {
           ),
           const SizedBox(height: 22),
           // Her madde kendi beyaz kartı — başlığa basınca açıklama açılıp
-          // kapanır, böylece küçük açıklamalar sekmenin içine sığar.
-          Column(
-            children: [
-              for (int i = 0; i < bulletKeys.length; i++) ...[
-                _ExpandableBullet(
-                  number: i + 1,
-                  title: localeService.tr(bulletKeys[i].$1),
-                  description: bulletKeys[i].$2 != null
-                      ? localeService.tr(bulletKeys[i].$2!)
-                      : null,
-                  color: accent,
-                ),
-                if (i != bulletKeys.length - 1) const SizedBox(height: 10),
-              ],
-            ],
+          // kapanır. Uzun çevirilerde kaydırılabilir olarak kalır; sayfa
+          // alt bar'a taşmaz.
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Column(
+                children: [
+                  for (int i = 0; i < bulletKeys.length; i++) ...[
+                    _ExpandableBullet(
+                      number: i + 1,
+                      title: localeService.tr(bulletKeys[i].$1),
+                      description: bulletKeys[i].$2 != null
+                          ? localeService.tr(bulletKeys[i].$2!)
+                          : null,
+                      color: accent,
+                    ),
+                    if (i != bulletKeys.length - 1)
+                      const SizedBox(height: 10),
+                  ],
+                ],
+              ),
+            ),
           ),
-          const Spacer(flex: 3),
         ],
       ),
     );
@@ -1081,6 +1088,7 @@ class _ExpandableBulletState extends State<_ExpandableBullet> {
                 Expanded(
                   child: Text(
                     widget.title,
+                    softWrap: true,
                     style: const TextStyle(
                       fontSize: 16,
                       color: Colors.black,
@@ -1109,9 +1117,10 @@ class _ExpandableBulletState extends State<_ExpandableBullet> {
               alignment: Alignment.topCenter,
               child: (hasDesc && _open)
                   ? Padding(
-                      padding: const EdgeInsets.fromLTRB(44, 8, 4, 2),
+                      padding: const EdgeInsets.fromLTRB(44, 8, 8, 2),
                       child: Text(
                         widget.description!,
+                        softWrap: true,
                         style: TextStyle(
                           fontSize: 12.5,
                           color: Colors.black.withValues(alpha: 0.72),
