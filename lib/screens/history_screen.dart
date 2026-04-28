@@ -1304,7 +1304,7 @@ class _HistoryCard extends StatelessWidget {
   static ({IconData icon, Color color, String label}) _modeInfo(String type) {
     return switch (type) {
       'Adım Adım Çöz'  => (icon: Icons.stairs_rounded,  color: const Color(0xFF3B82F6), label: localeService.tr('mode_step_by_step')),
-      'AI Öğretmen'    => (icon: Icons.school_rounded,   color: const Color(0xFF8B5CF6), label: localeService.tr('mode_ai_teacher')),
+      'AI Öğretmen' || 'AI Arkadaşım' => (icon: Icons.school_rounded, color: const Color(0xFF8B5CF6), label: localeService.tr('mode_ai_teacher')),
       _                => (icon: Icons.bolt_rounded,     color: const Color(0xFFF59E0B), label: localeService.tr('mode_quick_solve')),
     };
   }

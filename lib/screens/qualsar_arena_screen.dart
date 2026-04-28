@@ -3525,7 +3525,18 @@ _Subject _findSubjectByKey(String key) {
 }
 
 // Kullanıcının profiline göre dünya dersleri (baz + fakülte + özel)
+//
+// "Dünyada yarış" modunda kullanıcı kendi profilindeki derslerle yarışır;
+// bu yüzden EduProfile.current → subjectsForProfile() çıktısını öncelik
+// veriyoruz. Boşsa eski statik liste devreye girer.
 List<_Subject> _worldSubjectsForUser() {
+  final fromEdu = _subjectsFromCurrentEduProfile();
+  if (fromEdu.isNotEmpty) {
+    final out = <_Subject>[...fromEdu];
+    out.addAll(_customWorldSubjects);
+    return out;
+  }
+  // Fallback: eski statik kataloglar
   final out = <_Subject>[..._globalDueloSubjects];
   final fac = _currentFaculty;
   if (fac != null) {
@@ -4381,14 +4392,61 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> with SingleTickerPr
   bool _draggingFromSheet = false;
   List<_DueloRecord> _records = const [];
 
+  /// Sol üst seviye etiketi — Bilgi Yarışı çerçevesinin TAMAMEN ÜSTÜNDE.
+  String? _profileBadgeText() {
+    final p = EduProfile.current;
+    if (p == null) return null;
+    String flag = '';
+    for (final c in kAllCountries) {
+      if (c.key == p.country) {
+        flag = c.flag;
+        break;
+      }
+    }
+    String text;
+    switch (p.level) {
+      case 'primary':
+        text = 'İlkokul ${p.grade}';
+        break;
+      case 'middle':
+        text = 'Ortaokul ${p.grade}';
+        break;
+      case 'high':
+        text = 'Lise ${p.grade}';
+        break;
+      case 'exam_prep':
+        text = p.grade.split(' (').first.trim();
+        break;
+      case 'university':
+        text = (p.faculty != null && p.faculty!.isNotEmpty)
+            ? '${p.faculty!} ${p.grade}'
+            : 'Üniversite ${p.grade}';
+        break;
+      case 'masters':
+        text = (p.faculty != null && p.faculty!.isNotEmpty)
+            ? '${p.faculty!} Yüksek Lisans'
+            : 'Yüksek Lisans';
+        break;
+      case 'doctorate':
+        text = (p.faculty != null && p.faculty!.isNotEmpty)
+            ? '${p.faculty!} Doktora'
+            : 'Doktora';
+        break;
+      default:
+        text = p.grade;
+    }
+    return [flag, text].where((s) => s.isNotEmpty).join(' ');
+  }
+
   // ── Renk özelleştirme state'i ──────────────────────────────────────
   // Kullanıcı sağ üstteki palet butonundan açar; hedefi (arka plan veya
   // ders çerçeveleri) seçip renge basarak uygular ya da rengi sürükleyip
   // istediği kareye/arka plana bırakarak da uygular.
   bool _showColorPicker = false;
   String _colorMode = 'frame'; // 'frame' | 'text'
-  String _colorTarget = 'bg'; // 'bg' | 'subjects'
+  String _colorTarget = 'bg'; // 'bg' | 'frame' | 'subjects'
   Color? _pageBgOverride;
+  Color? _frameOverride;
   final Map<String, Color> _subjectColors = {};
   final Map<String, Color> _subjectTextColors = {};
 
@@ -4420,6 +4478,7 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> with SingleTickerPr
   ];
 
   static const _duelBgColorKey = 'duelo_bg_color';
+  static const _duelFrameColorKey = 'duelo_frame_color';
   static const _duelTileColorsKey = 'duelo_tile_colors';
   static const _duelTileTextColorsKey = 'duelo_tile_text_colors';
   static const _duelOrderKey = 'duelo_subject_order';
@@ -4489,11 +4548,13 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> with SingleTickerPr
     try {
       final prefs = await SharedPreferences.getInstance();
       final bgInt = prefs.getInt(_duelBgColorKey);
+      final frameInt = prefs.getInt(_duelFrameColorKey);
       final tilesRaw = prefs.getString(_duelTileColorsKey);
       final tilesTextRaw = prefs.getString(_duelTileTextColorsKey);
       if (!mounted) return;
       setState(() {
         if (bgInt != null) _pageBgOverride = Color(bgInt);
+        if (frameInt != null) _frameOverride = Color(frameInt);
         if (tilesRaw != null && tilesRaw.isNotEmpty) {
           try {
             final m = jsonDecode(tilesRaw) as Map<String, dynamic>;
@@ -4525,6 +4586,12 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> with SingleTickerPr
         await prefs.setInt(
             _duelBgColorKey, _pageBgOverride!.toARGB32());
       }
+      if (_frameOverride == null) {
+        await prefs.remove(_duelFrameColorKey);
+      } else {
+        await prefs.setInt(
+            _duelFrameColorKey, _frameOverride!.toARGB32());
+      }
       if (_subjectColors.isEmpty) {
         await prefs.remove(_duelTileColorsKey);
       } else {
@@ -4551,6 +4618,8 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> with SingleTickerPr
         }
       } else if (target == 'bg') {
         _pageBgOverride = c;
+      } else if (target == 'frame') {
+        _frameOverride = c;
       } else {
         // Tüm görünür dersleri boyanmış say.
         for (final s in _availableSubjects()) {
@@ -4683,7 +4752,7 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> with SingleTickerPr
     );
   }
 
-  Future<void> _findMatch() async {
+  Future<void> _findMatch({String raceType = 'test'}) async {
     if (!_canStart) return;
     setState(() => _matching = true);
 
@@ -4691,6 +4760,71 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> with SingleTickerPr
     final topic = _selectedTopic;
     final subjectObj = _findSubjectByKey(subjectKey);
     final rng = math.Random();
+
+    // ── Eşleştirme yarışı dalı ──────────────────────────────────────────────
+    if (raceType == 'match') {
+      try {
+        final pairs = await GeminiService.fetchMatchPairs(
+          subject: subjectObj.name,
+          topic: topic ?? subjectObj.name,
+        );
+        // Rakip arama animasyonu — test ile aynı 2 sn delay.
+        final DueloMatchResult? match = await _fakeMatchmakingDelay();
+        if (!mounted) return;
+
+        String oppName, oppAvatar, oppFlag, oppCountry;
+        int oppElo;
+        if (match != null) {
+          oppName = match.opponentUsername;
+          oppAvatar = oppName.isEmpty ? '?' : oppName[0].toUpperCase();
+          oppFlag = match.opponentFlag;
+          oppCountry = match.opponentCountry;
+          oppElo = match.opponentElo;
+        } else {
+          final pool =
+              _scope == 'world' ? _worldOpponents : _countryOpponents;
+          final opp = pool[rng.nextInt(pool.length)];
+          oppName = opp.username;
+          oppAvatar = opp.avatar;
+          oppFlag = opp.flag;
+          oppCountry = opp.country;
+          oppElo = opp.elo;
+        }
+
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => _DueloMatchingScreen(
+              pairs: pairs,
+              opponentName: oppName,
+              opponentAvatar: oppAvatar,
+              opponentFlag: oppFlag,
+              opponentCountry: oppCountry,
+              opponentElo: oppElo,
+              subjectName: subjectObj.name,
+              topicName: topic ?? '',
+              scope: _scope,
+              myName: _currentUsername,
+              myFlag: _userFlag(),
+              myCountry: _userCountryName(),
+            ),
+          ),
+        );
+      } catch (e) {
+        debugPrint('[Duelo] match pairs üretimi başarısız: $e');
+        if (mounted) {
+          setState(() => _matching = false);
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                'Bu konu için eşleştirme kartları üretilemedi. Tekrar dene.'
+                    .tr()),
+            behavior: SnackBarBehavior.floating,
+          ));
+        }
+      }
+      return;
+    }
+    // ── /Eşleştirme yarışı dalı ─────────────────────────────────────────────
 
     const targetCount = 5;
     const minProceedCount = 3; // <3 soru varsa oyunu hiç başlatma
@@ -4845,14 +4979,20 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> with SingleTickerPr
   }) async {
     final String topicLabel = topic ??
         (subject.topics.isNotEmpty ? subject.topics.first : subject.name);
+    final eduCtx = educationContext(EduProfile.current);
     final prompt = '''
 [DÜELLO SORU ÜRETİMİ — $count SORU · JSON]
-Ders: ${subject.name}
+${eduCtx.isNotEmpty ? '$eduCtx\n' : ''}Ders: ${subject.name}
 Konu: $topicLabel
 
 GÖREVİN: TAM OLARAK $count soru üret. SADECE "$topicLabel" konusu
 için ve sadece "${subject.name}" dersi kapsamında sorular yaz.
 BAŞKA DERSTEN (matematik, tarih, vb.) soru ÜRETME.
+
+SEVİYE: Soruları öğrencinin EĞİTİM SEVİYESİ ve ÜLKE MÜFREDATI'na göre
+hazırla. İlkokul 2. sınıf öğrencisine farklı, üniversite öğrencisine
+farklı zorlukta yaz. Ülke neyse o ülkenin resmi sistemine göre
+terminoloji/içerik kullan.
 
 SADECE geçerli bir JSON array döndür — başka metin, markdown fence,
 emoji başlık yok.
@@ -4873,7 +5013,8 @@ KURALLAR:
 • TAM $count soru.
 • "opts" her zaman 4 şık: A, B, C, D.
 • "ans" şık harfi: "A" | "B" | "C" | "D".
-• Türkçe yaz. Dolar işareti yok; LaTeX \\( ... \\).
+• Soruları, şıkları ve çözümleri KULLANICININ DİLİNDE yaz (uygulama
+  dili neyse o). Dolar işareti yok; LaTeX \\( ... \\).
 • Markdown yıldız (**) veya başlık (#) YAZMA.
 • "Sonuç:" / "Püf Nokta:" yazma.
 • Çıktın tek başına geçerli bir JSON array olmalı.
@@ -4964,6 +5105,8 @@ KURALLAR:
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Bilgi Yarışı'.tr(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: _serif(size: 20, weight: FontWeight.w700, letterSpacing: -0.02)),
                         Text(_currentGrade,
                             maxLines: 1,
@@ -5041,24 +5184,100 @@ KURALLAR:
                 builder: (context, cand, rej) => ListView(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
                   children: [
-                    // Kapsam seçici (Dünya / Ülkem)
-                    _buildScopeTabs(),
-                  const SizedBox(height: 6),
-                  Text(
-                    _scope == 'world'
-                        ? '🌍 Dünyadan aynı seviyede (${_currentLevel == 'universite' && _currentFaculty != null ? _facultyLabels[_currentFaculty] : _currentGrade}) bir rakiple karşılaşırsın. Her iki taraf aynı evrensel dersi/konuyu seçer.'
-                        : '🇹🇷 Ülkendeki aynı seviyede bir rakiple karşılaşırsın. Tüm derslerden yarışabilirsin.',
-                    style: _sans(size: 11, color: _Palette.inkMute, height: 1.4),
-                  ),
-                  const SizedBox(height: 16),
-                  // Ders seçimi
-                  Text('HANGİ DERSTE YARIŞACAKSIN?'.tr(),
-                      style: _sans(size: 10, weight: FontWeight.w700, color: _Palette.inkMute, letterSpacing: 0.08)),
-                  const SizedBox(height: 10),
-                  _buildSubjectGrid(subjects),
-                  // Kayıtlı yarış kartları — diğer dersler / yeni ders ekle
-                  // satırının hemen altında duruyor.
-                  _buildRecordsSection(),
+                    // ── Kapsam + ders seçim çerçevesi ───────────────
+                    // Dünya/Ülke sekmeleri + açıklama + HANGİ DERSTE +
+                    // 8 ders grid'i + "Diğer Dersler" butonu — hepsini
+                    // tek bir dış çerçeve içine al. Stack ile sol üst köşeye
+                    // seviye etiketi (örn. "🇹🇷 Lise 11") asılır.
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                    DragTarget<Color>(
+                      onWillAcceptWithDetails: (_) =>
+                          _colorTarget == 'frame' || _showColorPicker,
+                      onAcceptWithDetails: (d) =>
+                          _applyColorTo('frame', d.data),
+                      builder: (ctx, fcand, _) {
+                        final fhover = fcand.isNotEmpty;
+                        return AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          padding: const EdgeInsets.fromLTRB(
+                              8, 12, 8, 12),
+                          decoration: BoxDecoration(
+                            color: _frameOverride ?? Colors.white,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: fhover
+                                  ? const Color(0xFFFF6A00)
+                                  : _Palette.ink,
+                              width: fhover ? 2 : 1,
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // Kapsam seçici (Dünya / Ülkem)
+                              _buildScopeTabs(),
+                              const SizedBox(height: 6),
+                              Text(
+                                _scope == 'world'
+                                    ? '🌍 Dünyadan aynı seviyede (${_currentLevel == 'universite' && _currentFaculty != null ? _facultyLabels[_currentFaculty] : _currentGrade}) bir rakiple karşılaşırsın. Her iki taraf aynı evrensel dersi/konuyu seçer.'
+                                    : '🇹🇷 Ülkendeki aynı seviyede bir rakiple karşılaşırsın. Tüm derslerden yarışabilirsin.',
+                                style: _sans(
+                                    size: 11,
+                                    color: _Palette.inkMute,
+                                    height: 1.4),
+                              ),
+                              const SizedBox(height: 16),
+                              // Ders seçimi
+                              Text('HANGİ DERSTE YARIŞACAKSIN?'.tr(),
+                                  style: _sans(
+                                      size: 10,
+                                      weight: FontWeight.w700,
+                                      color: _Palette.inkMute,
+                                      letterSpacing: 0.08)),
+                              const SizedBox(height: 10),
+                              _buildSubjectGrid(subjects),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                    if (_profileBadgeText() != null)
+                      Positioned(
+                        top: -26,
+                        left: 16,
+                        child: IgnorePointer(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFB800)
+                                  .withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(50),
+                              border: Border.all(
+                                color: const Color(0xFFFFB800),
+                                width: 1.2,
+                              ),
+                            ),
+                            child: Text(
+                              _profileBadgeText()!,
+                              style: GoogleFonts.poppins(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFFB45309),
+                                height: 1.1,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    // Kayıtlı yarış kartları — diğer dersler / yeni ders ekle
+                    // satırının hemen altında duruyor.
+                    _buildRecordsSection(),
                   // Seçili konu varsa alt önizleme rozeti (rahat bakılsın).
                   if (_selectedTopic != null) ...[
                     const SizedBox(height: 14),
@@ -5498,7 +5717,166 @@ KURALLAR:
     );
     if (picked != null && mounted) {
       setState(() => _selectedTopic = picked);
+      // Konu seçildi → hemen Yarış Tipi dialog'u aç (Test / Eşleştirme).
+      final raceType = await _showRaceTypeDialog();
+      if (raceType != null && mounted) {
+        // Seçim yapıldı → doğrudan rakip aramaya geç.
+        _findMatch(raceType: raceType);
+      }
     }
+  }
+
+  // Konu seçildikten sonra: Test Soruları / Eşleştirme Kartları seçici.
+  Future<String?> _showRaceTypeDialog() async {
+    return showGeneralDialog<String>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'dismiss',
+      barrierColor: Colors.black.withValues(alpha: 0.25),
+      transitionDuration: const Duration(milliseconds: 200),
+      pageBuilder: (ctx, _, __) => BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+        child: Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Yarış Tipi'.tr(),
+                        style: _serif(
+                            size: 18,
+                            weight: FontWeight.w800,
+                            letterSpacing: -0.01),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.of(ctx).pop(),
+                      child: Container(
+                        width: 30,
+                        height: 30,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _Palette.surface,
+                          border: Border.all(color: _Palette.line),
+                        ),
+                        child: const Icon(Icons.close_rounded, size: 14),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Hangisinde yarışmak istersin?'.tr(),
+                  style: _sans(
+                      size: 12,
+                      weight: FontWeight.w600,
+                      color: _Palette.inkMute),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _raceTypeCard(
+                        ctx: ctx,
+                        type: 'test',
+                        icon: Icons.quiz_rounded,
+                        accent: const Color(0xFF60A5FA),
+                        title: 'Test Soruları'.tr(),
+                        subtitle: '5 çoktan seçmeli'.tr(),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _raceTypeCard(
+                        ctx: ctx,
+                        type: 'match',
+                        icon: Icons.style_rounded,
+                        accent: const Color(0xFF8B5CF6),
+                        title: 'Eşleştirme Kartları'.tr(),
+                        subtitle: '6 terim–tanım'.tr(),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _raceTypeCard({
+    required BuildContext ctx,
+    required String type,
+    required IconData icon,
+    required Color accent,
+    required String title,
+    required String subtitle,
+  }) {
+    return GestureDetector(
+      onTap: () => Navigator.of(ctx).pop(type),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: accent.withValues(alpha: 0.55), width: 1.4),
+          boxShadow: [
+            BoxShadow(
+              color: accent.withValues(alpha: 0.12),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: accent.withValues(alpha: 0.14),
+                border: Border.all(color: accent.withValues(alpha: 0.50)),
+              ),
+              child: Icon(icon, color: accent, size: 22),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: _sans(
+                  size: 13,
+                  weight: FontWeight.w800,
+                  color: _Palette.ink),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              subtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: _sans(
+                  size: 10.5,
+                  weight: FontWeight.w500,
+                  color: _Palette.inkMute),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<String?> _showTopicsDialog({
@@ -5748,6 +6126,7 @@ KURALLAR:
                 onTap: () {
                   setState(() {
                     _pageBgOverride = null;
+                    _frameOverride = null;
                     _subjectColors.clear();
                     _subjectTextColors.clear();
                   });
@@ -5909,6 +6288,8 @@ KURALLAR:
     return Row(
       children: [
         chip('bg', 'Arka plan'.tr()),
+        const SizedBox(width: 6),
+        chip('frame', 'Çerçeve'.tr()),
         const SizedBox(width: 6),
         chip('subjects', 'Ders Çerçeveleri'.tr()),
       ],
@@ -12165,12 +12546,35 @@ List<String> _topicsForGrade(String subjectKey) {
   if (byGrade != null && byGrade[subjectKey] != null) {
     return byGrade[subjectKey]!;
   }
-  // Ders genel konu listesine düş
-  return _findSubjectByKey(subjectKey).topics;
+  // _allSubjects içinde bu key TAM eşleşiyorsa onun topics'ini ver.
+  // ÖNEMLİ: _findSubjectByKey() default olarak _allSubjects.first döndürür
+  // (genelde Matematik) — bu, "Arkeoloji seçtim ama Matematik konuları çıktı"
+  // bug'ına yol açar. Burada KESİN eşleşme aranır, yoksa boş liste döner.
+  for (final s in _allSubjects) {
+    if (s.key == subjectKey) return s.topics;
+  }
+  for (final s in _globalDueloSubjects) {
+    if (s.key == subjectKey) return s.topics;
+  }
+  for (final s in _customWorldSubjects) {
+    if (s.key == subjectKey) return s.topics;
+  }
+  for (final list in _facultyGlobalSubjects.values) {
+    for (final s in list) {
+      if (s.key == subjectKey) return s.topics;
+    }
+  }
+  // Bulunamadı → boş liste (UI burada AI'dan topic fetch tetikleyebilir).
+  return const [];
 }
 
 List<_Subject> _subjectsForGrade() {
-  // Türkiye için detaylı müfredat (sınıf × alan bazlı)
+  // ÖNCE: merkezi EduProfile + AI cache + faculty/exam haritalarını dener.
+  // Onboarding'de yapılan seçim bu sayede arena'da da aynı listeyi gösterir.
+  final fromEdu = _subjectsFromCurrentEduProfile();
+  if (fromEdu.isNotEmpty) return fromEdu;
+
+  // Türkiye için detaylı müfredat (sınıf × alan bazlı) — fallback.
   if (_currentCountryKey == 'tr') {
     var keys = _gradeSubjectKeys[_currentGrade];
     if (keys == null) {
@@ -12182,7 +12586,6 @@ List<_Subject> _subjectsForGrade() {
       return [for (final k in keys) if (subjectMap[k] != null) subjectMap[k]!];
     }
   }
-  // Diğer ülkeler: _countrySubjects haritasından level bazında çek
   final levelKey = _currentLevel ?? 'high';
   final keys = _countrySubjects[_currentCountryKey]?[levelKey];
   if (keys != null) {
@@ -12190,6 +12593,31 @@ List<_Subject> _subjectsForGrade() {
     return [for (final k in keys) if (subjectMap[k] != null) subjectMap[k]!];
   }
   return List.of(_allSubjects);
+}
+
+/// EduProfile.current → arena için _Subject listesi.
+/// Merkezi `subjectsForProfile()` çağrılır (AI cache + faculty + exam dahil).
+List<_Subject> _subjectsFromCurrentEduProfile() {
+  final p = EduProfile.current;
+  if (p == null) return const [];
+  final eduList = subjectsForProfile(p);
+  if (eduList.isEmpty) return const [];
+  // EduSubject → _Subject — topicsCount ve topics boş, _topicsForGrade
+  // gerektiğinde dolduruyor (statik _curriculum veya AI ile).
+  final allSubjMap = {for (final s in _allSubjects) s.key: s};
+  return eduList.map((e) {
+    // Eğer arena'nın _allSubjects haritasında bu key zaten varsa onun
+    // topics listesini de getir (statik soru bankası ile uyum).
+    final existing = allSubjMap[e.key];
+    return _Subject(
+      e.key,
+      e.emoji,
+      e.name,
+      existing?.topicsCount ?? 0,
+      e.color,
+      existing?.topics ?? const <String>[],
+    );
+  }).toList();
 }
 
 class _WizardConfig {
@@ -16178,6 +16606,844 @@ class _SecondaryButton extends StatelessWidget {
         alignment: Alignment.center,
         child: Text(label, style: _sans(size: 14, weight: FontWeight.w600)),
       ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  EŞLEŞTİRME YARIŞI — _DueloMatchingScreen
+//  Soldaki kullanıcı + sağdaki rakip; kart konumları DETERMINISTIK (her ikisi
+//  için aynı). Kullanıcı oynar, rakibin ilerlemesi simülasyonla aynı tempoda
+//  güncellenir. Kim önce biterse onun zamanı kazanır, ama kullanıcı isterse
+//  oyununu tamamlayıp rakibin hamle/sürelerini görebilir.
+// ═══════════════════════════════════════════════════════════════════════════════
+enum _MatchKind2 { term, definition }
+
+class _MatchCard2 {
+  final int pairId;
+  final _MatchKind2 kind;
+  final String text;
+  final bool open;
+  final bool matched;
+  const _MatchCard2({
+    required this.pairId,
+    required this.kind,
+    required this.text,
+    this.open = false,
+    this.matched = false,
+  });
+  _MatchCard2 copyWith({bool? open, bool? matched}) => _MatchCard2(
+        pairId: pairId,
+        kind: kind,
+        text: text,
+        open: open ?? this.open,
+        matched: matched ?? this.matched,
+      );
+}
+
+class _DueloMatchingScreen extends StatefulWidget {
+  final List<({String term, String definition})> pairs;
+  final String opponentName, opponentAvatar, opponentFlag, opponentCountry;
+  final int opponentElo;
+  final String subjectName, topicName, scope;
+  final String myName, myFlag, myCountry;
+  const _DueloMatchingScreen({
+    required this.pairs,
+    required this.opponentName,
+    required this.opponentAvatar,
+    required this.opponentFlag,
+    required this.opponentCountry,
+    required this.opponentElo,
+    required this.subjectName,
+    required this.topicName,
+    required this.scope,
+    required this.myName,
+    required this.myFlag,
+    required this.myCountry,
+  });
+
+  @override
+  State<_DueloMatchingScreen> createState() => _DueloMatchingScreenState();
+}
+
+class _DueloMatchingScreenState extends State<_DueloMatchingScreen> {
+  late List<_MatchCard2> _cards;
+  int? _firstIdx;
+  int _myMoves = 0;
+  int _myMatched = 0;
+  bool _locked = false;
+  final Stopwatch _watch = Stopwatch();
+  Timer? _ticker;
+
+  // Rakip simülasyonu — ELO'ya göre toplam hedef süre + hamle planlanır,
+  // tickerda doğrusal interpolasyonla "matched" sayısı artar.
+  int _oppMoves = 0;
+  int _oppMatched = 0;
+  late int _oppTargetMoves;     // 8..14 arası
+  late int _oppTargetSeconds;   // 25..70 arası
+  bool _oppFinished = false;
+  int? _oppFinishedAtMs;
+
+  // Kullanıcının bitiş zamanı (kazanan kararı için).
+  int? _myFinishedAtMs;
+
+  int get _totalPairs => widget.pairs.length;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupCards();
+    _planOpponent();
+    _watch.start();
+    _ticker = Timer.periodic(const Duration(milliseconds: 250), (_) {
+      if (!mounted) return;
+      _stepOpponent();
+      setState(() {});
+      if (_myFinishedAtMs != null && _oppFinished) {
+        _ticker?.cancel();
+        _watch.stop();
+        Future.delayed(const Duration(milliseconds: 600), _goResults);
+      }
+    });
+  }
+
+  void _setupCards() {
+    final list = <_MatchCard2>[];
+    for (var i = 0; i < widget.pairs.length; i++) {
+      final p = widget.pairs[i];
+      list.add(_MatchCard2(pairId: i, kind: _MatchKind2.term, text: p.term));
+      list.add(_MatchCard2(
+          pairId: i, kind: _MatchKind2.definition, text: p.definition));
+    }
+    // Konu+ders ile deterministik shuffle — iki oyuncuda da aynı düzen
+    // olabilsin. (Sim. opponent için görsel anlamı yok ama protokol uyumu.)
+    final seed = ('${widget.subjectName}|${widget.topicName}').hashCode;
+    list.shuffle(math.Random(seed));
+    _cards = list;
+  }
+
+  void _planOpponent() {
+    final rng = math.Random();
+    // Toplam terim/tanım çifti 6 ise ideal hamle ~12, kötü oyuncu 18+.
+    _oppTargetMoves =
+        _totalPairs * 2 + rng.nextInt(_totalPairs); // 12-17
+    _oppTargetSeconds = 30 + rng.nextInt(40); // 30-69 sn
+  }
+
+  void _stepOpponent() {
+    if (_oppFinished) return;
+    final elapsed = _watch.elapsed.inMilliseconds;
+    final ratio =
+        (elapsed / (_oppTargetSeconds * 1000)).clamp(0.0, 1.0);
+    final newMatched = (_totalPairs * ratio).floor().clamp(0, _totalPairs);
+    final newMoves = (_oppTargetMoves * ratio).floor().clamp(0, _oppTargetMoves);
+    if (newMatched != _oppMatched || newMoves != _oppMoves) {
+      _oppMatched = newMatched;
+      _oppMoves = newMoves;
+    }
+    if (ratio >= 1.0 && !_oppFinished) {
+      _oppFinished = true;
+      _oppMatched = _totalPairs;
+      _oppMoves = _oppTargetMoves;
+      _oppFinishedAtMs = _oppTargetSeconds * 1000;
+    }
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    _watch.stop();
+    super.dispose();
+  }
+
+  void _onTap(int idx) {
+    if (_locked) return;
+    if (_myFinishedAtMs != null) return;
+    final card = _cards[idx];
+    if (card.matched || card.open) return;
+
+    HapticFeedback.selectionClick();
+    setState(() => _cards[idx] = card.copyWith(open: true));
+
+    if (_firstIdx == null) {
+      _firstIdx = idx;
+      return;
+    }
+    final first = _cards[_firstIdx!];
+    final second = _cards[idx];
+    final isMatch = first.pairId == second.pairId && _firstIdx != idx;
+    setState(() => _myMoves++);
+
+    if (isMatch) {
+      HapticFeedback.mediumImpact();
+      setState(() {
+        _cards[_firstIdx!] = first.copyWith(matched: true, open: true);
+        _cards[idx] = second.copyWith(matched: true, open: true);
+        _myMatched++;
+        _firstIdx = null;
+      });
+      if (_myMatched >= _totalPairs && _myFinishedAtMs == null) {
+        _myFinishedAtMs = _watch.elapsed.inMilliseconds;
+      }
+    } else {
+      _locked = true;
+      Future.delayed(const Duration(milliseconds: 850), () {
+        if (!mounted) return;
+        setState(() {
+          _cards[_firstIdx!] = _cards[_firstIdx!].copyWith(open: false);
+          _cards[idx] = _cards[idx].copyWith(open: false);
+          _firstIdx = null;
+          _locked = false;
+        });
+      });
+    }
+  }
+
+  void _goResults() {
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => _DueloMatchingResultsScreen(
+          subjectName: widget.subjectName,
+          topicName: widget.topicName,
+          scope: widget.scope,
+          totalPairs: _totalPairs,
+          myName: widget.myName,
+          myFlag: widget.myFlag,
+          myCountry: widget.myCountry,
+          myMoves: _myMoves,
+          myElapsedMs: _myFinishedAtMs ?? _watch.elapsed.inMilliseconds,
+          opponentName: widget.opponentName,
+          opponentFlag: widget.opponentFlag,
+          opponentCountry: widget.opponentCountry,
+          opponentElo: widget.opponentElo,
+          opponentMoves: _oppMoves,
+          opponentElapsedMs:
+              _oppFinishedAtMs ?? _oppTargetSeconds * 1000,
+        ),
+      ),
+    );
+  }
+
+  String _fmtElapsed() {
+    final s = _watch.elapsed.inSeconds;
+    return '${(s ~/ 60).toString().padLeft(2, '0')}:${(s % 60).toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final completed = _myFinishedAtMs != null;
+    return Scaffold(
+      backgroundColor: _Palette.bg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ── Üst bar: skor + zamanlayıcı ─────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+              child: Row(
+                children: [
+                  // Sen
+                  Expanded(child: _playerBadge(
+                    name: widget.myName,
+                    flag: widget.myFlag,
+                    matched: _myMatched,
+                    moves: _myMoves,
+                    accent: const Color(0xFF22C55E),
+                    finished: completed,
+                  )),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black,
+                        borderRadius: BorderRadius.circular(50),
+                      ),
+                      child: Text(
+                        _fmtElapsed(),
+                        style: _sans(
+                            size: 13,
+                            weight: FontWeight.w900,
+                            color: Colors.white,
+                            letterSpacing: 0.5),
+                      ),
+                    ),
+                  ),
+                  // Rakip
+                  Expanded(child: _playerBadge(
+                    name: widget.opponentName,
+                    flag: widget.opponentFlag,
+                    matched: _oppMatched,
+                    moves: _oppMoves,
+                    accent: const Color(0xFFF43F5E),
+                    finished: _oppFinished,
+                    isRight: true,
+                  )),
+                ],
+              ),
+            ),
+            // ── Kart ızgarası ─────────────────────────────────────────
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                child: GridView.builder(
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    childAspectRatio: 0.85,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                  ),
+                  itemCount: _cards.length,
+                  itemBuilder: (_, i) =>
+                      _MatchTileRace(card: _cards[i], onTap: () => _onTap(i)),
+                ),
+              ),
+            ),
+            // ── Bilgilendirici banner: rakip bitince ──────────────────
+            if (_oppFinished && !completed)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFF59E0B)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.flag_rounded,
+                        color: Color(0xFFF59E0B), size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Rakip bitirdi! Sen tamamlayınca sonuçlar açılır.'
+                            .tr(),
+                        style: _sans(
+                            size: 12.5, weight: FontWeight.w700, color: Colors.black),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _playerBadge({
+    required String name,
+    required String flag,
+    required int matched,
+    required int moves,
+    required Color accent,
+    required bool finished,
+    bool isRight = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: finished ? accent : Colors.black12, width: finished ? 1.4 : 1),
+      ),
+      child: Column(
+        crossAxisAlignment:
+            isRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (!isRight) Text(flag, style: const TextStyle(fontSize: 14)),
+              if (!isRight) const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _sans(size: 12, weight: FontWeight.w800),
+                ),
+              ),
+              if (isRight) const SizedBox(width: 6),
+              if (isRight) Text(flag, style: const TextStyle(fontSize: 14)),
+            ],
+          ),
+          const SizedBox(height: 3),
+          Text(
+            '$matched/$_totalPairs · $moves hamle',
+            style: _sans(
+                size: 11,
+                weight: FontWeight.w700,
+                color: accent),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Kart tile — _MatchCardTile'ın yarış için yalın klonu (state'i parent yönetir)
+class _MatchTileRace extends StatelessWidget {
+  final _MatchCard2 card;
+  final VoidCallback onTap;
+  const _MatchTileRace({required this.card, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween<double>(begin: 0, end: card.open ? 1 : 0),
+        duration: const Duration(milliseconds: 380),
+        curve: Curves.easeOutCubic,
+        builder: (_, t, __) {
+          final angle = t * math.pi;
+          final isBack = angle < math.pi / 2;
+          return Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()
+              ..setEntry(3, 2, 0.001)
+              ..rotateY(angle),
+            child: isBack
+                ? _closed()
+                : Transform(
+                    alignment: Alignment.center,
+                    transform: Matrix4.identity()..rotateY(math.pi),
+                    child: _open(),
+                  ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _closed() {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF8B5CF6), Color(0xFF3B82F6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: Colors.black, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF8B5CF6).withValues(alpha: 0.22),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: const Center(
+        child: Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 22),
+      ),
+    );
+  }
+
+  Widget _open() {
+    final isTerm = card.kind == _MatchKind2.term;
+    final bg = card.matched ? const Color(0xFFDCFCE7) : Colors.white;
+    final border = card.matched ? const Color(0xFF22C55E) : Colors.black;
+    final labelCol = isTerm ? const Color(0xFF8B5CF6) : const Color(0xFF3B82F6);
+    return Container(
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: border, width: card.matched ? 1.6 : 1.2),
+      ),
+      padding: const EdgeInsets.all(8),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: labelCol.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(50),
+            ),
+            child: Text(
+              isTerm ? 'TERİM' : 'TANIM',
+              style: _sans(
+                  size: 9,
+                  weight: FontWeight.w800,
+                  color: labelCol,
+                  letterSpacing: 0.6),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Expanded(
+            child: Center(
+              child: Text(
+                card.text,
+                textAlign: TextAlign.center,
+                maxLines: 6,
+                overflow: TextOverflow.ellipsis,
+                style: _sans(
+                    size: isTerm ? 13 : 11,
+                    weight: isTerm ? FontWeight.w800 : FontWeight.w500,
+                    height: 1.25),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  Eşleştirme sonuç ekranı — iki kart yan yana
+// ═══════════════════════════════════════════════════════════════════════════════
+class _DueloMatchingResultsScreen extends StatelessWidget {
+  final String subjectName, topicName, scope;
+  final int totalPairs;
+  final String myName, myFlag, myCountry;
+  final int myMoves, myElapsedMs;
+  final String opponentName, opponentFlag, opponentCountry;
+  final int opponentElo, opponentMoves, opponentElapsedMs;
+
+  const _DueloMatchingResultsScreen({
+    required this.subjectName,
+    required this.topicName,
+    required this.scope,
+    required this.totalPairs,
+    required this.myName,
+    required this.myFlag,
+    required this.myCountry,
+    required this.myMoves,
+    required this.myElapsedMs,
+    required this.opponentName,
+    required this.opponentFlag,
+    required this.opponentCountry,
+    required this.opponentElo,
+    required this.opponentMoves,
+    required this.opponentElapsedMs,
+  });
+
+  // Kazanan: önce daha hızlı (az ms), eşitse daha az hamle.
+  int get _winner {
+    if (myElapsedMs < opponentElapsedMs) return 1;
+    if (opponentElapsedMs < myElapsedMs) return -1;
+    if (myMoves < opponentMoves) return 1;
+    if (opponentMoves < myMoves) return -1;
+    return 0;
+  }
+
+  String _fmtMs(int ms) {
+    final s = ms ~/ 1000;
+    final m = s ~/ 60;
+    final r = s % 60;
+    return m > 0
+        ? '$m:${r.toString().padLeft(2, '0')}'
+        : '$r sn';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final win = _winner;
+    return Scaffold(
+      backgroundColor: _Palette.bg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: Row(
+                children: [
+                  const Spacer(),
+                  _CircleBtn(
+                    icon: Icons.close_rounded,
+                    onTap: () {
+                      if (Navigator.of(context).canPop()) {
+                        Navigator.of(context).pop();
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                child: Column(
+                  children: [
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 10,
+                      runSpacing: 6,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: scope == 'world'
+                                ? _Palette.accent.withValues(alpha: 0.12)
+                                : _Palette.brand.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(100),
+                            border: Border.all(
+                                color: scope == 'world'
+                                    ? _Palette.accent
+                                    : _Palette.brand,
+                                width: 1),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(scope == 'world' ? '🌍' : '🇹🇷',
+                                  style: const TextStyle(fontSize: 12)),
+                              const SizedBox(width: 5),
+                              Text(
+                                scope == 'world' ? 'Dünya'.tr() : 'Ülke'.tr(),
+                                style: _sans(
+                                    size: 12,
+                                    weight: FontWeight.w900,
+                                    color: scope == 'world'
+                                        ? _Palette.accent
+                                        : _Palette.brand,
+                                    letterSpacing: 0.3),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (subjectName.isNotEmpty)
+                          _kvChip('Ders'.tr(), subjectName),
+                        if (topicName.isNotEmpty)
+                          _kvChip('Konu'.tr(), topicName),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF8B5CF6)
+                                .withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(100),
+                            border: Border.all(
+                                color: const Color(0xFF8B5CF6), width: 1),
+                          ),
+                          child: Text(
+                            'Eşleştirme'.tr(),
+                            style: _sans(
+                                size: 12,
+                                weight: FontWeight.w900,
+                                color: const Color(0xFF8B5CF6)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    // ── İki kart yan yana ─────────────────────────────────
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(child: _resultCard(
+                          name: myName,
+                          flag: myFlag,
+                          country: myCountry,
+                          moves: myMoves,
+                          elapsedMs: myElapsedMs,
+                          totalPairs: totalPairs,
+                          winState: win == 1 ? 'win' : (win == 0 ? 'tie' : 'lose'),
+                          accent: const Color(0xFF22C55E),
+                          isMe: true,
+                        )),
+                        const SizedBox(width: 10),
+                        Expanded(child: _resultCard(
+                          name: opponentName,
+                          flag: opponentFlag,
+                          country: opponentCountry,
+                          moves: opponentMoves,
+                          elapsedMs: opponentElapsedMs,
+                          totalPairs: totalPairs,
+                          winState: win == -1 ? 'win' : (win == 0 ? 'tie' : 'lose'),
+                          accent: const Color(0xFFF43F5E),
+                          isMe: false,
+                          eloLabel: 'ELO $opponentElo',
+                        )),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        color: win == 1
+                            ? const Color(0xFFDCFCE7)
+                            : (win == 0
+                                ? const Color(0xFFFEF3C7)
+                                : const Color(0xFFFEE2E2)),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                            color: win == 1
+                                ? const Color(0xFF22C55E)
+                                : (win == 0
+                                    ? const Color(0xFFF59E0B)
+                                    : const Color(0xFFEF4444))),
+                      ),
+                      child: Center(
+                        child: Text(
+                          win == 1
+                              ? '🏆 Kazandın!'.tr()
+                              : (win == 0
+                                  ? '🤝 Berabere'.tr()
+                                  : '😅 Yenildin'.tr()),
+                          style: _sans(
+                              size: 16,
+                              weight: FontWeight.w900,
+                              color: Colors.black,
+                              letterSpacing: 0.3),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _kvChip(String k, String v) {
+    return RichText(
+      text: TextSpan(
+        children: [
+          TextSpan(
+            text: '$k: ',
+            style: _sans(
+                size: 13,
+                weight: FontWeight.w700,
+                color: _Palette.inkMute),
+          ),
+          TextSpan(
+            text: v,
+            style: _sans(
+                size: 13,
+                weight: FontWeight.w900,
+                color: _Palette.ink),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _resultCard({
+    required String name,
+    required String flag,
+    required String country,
+    required int moves,
+    required int elapsedMs,
+    required int totalPairs,
+    required String winState,
+    required Color accent,
+    required bool isMe,
+    String? eloLabel,
+  }) {
+    final badge = winState == 'win'
+        ? '🏆 Kazandı'.tr()
+        : (winState == 'tie' ? '🤝 Berabere'.tr() : '');
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+            color: winState == 'win' ? accent : Colors.black12,
+            width: winState == 'win' ? 1.6 : 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(flag, style: const TextStyle(fontSize: 26)),
+          const SizedBox(height: 6),
+          Text(
+            isMe ? 'Sen'.tr() : name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: _sans(
+                size: 14, weight: FontWeight.w900, color: _Palette.ink),
+          ),
+          const SizedBox(height: 1),
+          Text(
+            isMe ? country : (eloLabel ?? country),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: _sans(
+                size: 10,
+                weight: FontWeight.w600,
+                color: _Palette.inkMute),
+          ),
+          const SizedBox(height: 12),
+          _statRow(Icons.swap_horiz_rounded, 'Hamle'.tr(), '$moves'),
+          const SizedBox(height: 6),
+          _statRow(Icons.timer_outlined, 'Süre'.tr(), _fmtMs(elapsedMs)),
+          const SizedBox(height: 6),
+          _statRow(Icons.check_circle_rounded, 'Eşleşme'.tr(),
+              '$totalPairs/$totalPairs'),
+          if (badge.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(50),
+                border: Border.all(color: accent),
+              ),
+              child: Text(
+                badge,
+                style: _sans(
+                    size: 10,
+                    weight: FontWeight.w900,
+                    color: accent,
+                    letterSpacing: 0.3),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _statRow(IconData icon, String k, String v) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: _Palette.inkMute),
+            const SizedBox(width: 5),
+            Text(k,
+                style: _sans(
+                    size: 11,
+                    weight: FontWeight.w600,
+                    color: _Palette.inkMute)),
+          ],
+        ),
+        Text(v,
+            style: _sans(
+                size: 13,
+                weight: FontWeight.w900,
+                color: _Palette.ink)),
+      ],
     );
   }
 }

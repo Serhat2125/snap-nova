@@ -1,9 +1,11 @@
 import '../services/runtime_translator.dart';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme.dart';
 import '../main.dart' show localeService;
 import '../widgets/adaptive_photo.dart';
@@ -48,19 +50,19 @@ class _SolutionScreenState extends State<SolutionScreen> {
   List<_ModeOption> get _modes => [
     _ModeOption(
       label: 'Basit Çöz'.tr(),
-      subtitle: '',
+      subtitle: 'Basit ve pratik çözer'.tr(),
       icon:     Icons.bolt_rounded,
       color:    const Color(0xFFF59E0B),
     ),
     _ModeOption(
       label: 'Adım Adım Çöz'.tr(),
-      subtitle: '',
+      subtitle: 'Detaylı adım adım çözer'.tr(),
       icon:     Icons.list_alt_rounded,
       color:    const Color(0xFF3B82F6),
     ),
     _ModeOption(
-      label: 'AI Öğretmen'.tr(),
-      subtitle: '',
+      label: 'AI Arkadaşım'.tr(),
+      subtitle: 'Bir arkadaş gibi çözer'.tr(),
       icon:     Icons.school_rounded,
       color:    const Color(0xFFEC4899),
     ),
@@ -88,8 +90,9 @@ class _SolutionScreenState extends State<SolutionScreen> {
       subtitle: 'Detaylı ve mantıklı çözüm'.tr(),
       badge: 'Yakında',
       accentColor: Color(0xFF10A37F),
-      logo: const Center(
-        child: Text('GPT', style: TextStyle(color: Color(0xFF10A37F), fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
+      logo: Padding(
+        padding: EdgeInsets.all(2),
+        child: CustomPaint(painter: _OpenAiKnotPainter()),
       ),
     ),
     AiModel(
@@ -98,7 +101,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
       badge: 'Aktif',
       accentColor: Color(0xFF4796E3),
       logo: Padding(
-        padding: EdgeInsets.all(4),
+        padding: EdgeInsets.all(2),
         child: CustomPaint(painter: _GeminiStarPainter()),
       ),
     ),
@@ -106,9 +109,10 @@ class _SolutionScreenState extends State<SolutionScreen> {
       name: 'Grok',
       subtitle: 'Anlık ve yaratıcı çözüm'.tr(),
       badge: 'Yakında',
-      accentColor: Color(0xFF9CA3AF),
-      logo: const Center(
-        child: Text('G', style: TextStyle(color: Color(0xFF9CA3AF), fontSize: 24, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic, height: 1.0)),
+      accentColor: Color(0xFF1D1D1D),
+      logo: Padding(
+        padding: EdgeInsets.all(2),
+        child: CustomPaint(painter: _GrokXPainter()),
       ),
     ),
     AiModel(
@@ -116,8 +120,10 @@ class _SolutionScreenState extends State<SolutionScreen> {
       subtitle: 'Derin analiz ve akıl yürütme'.tr(),
       badge: 'Aktif',
       accentColor: Color(0xFF4B8BF5),
-      logo: const Center(
-        child: Text('DS', style: TextStyle(color: Color(0xFF4B8BF5), fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
+      logo: Padding(
+        padding: EdgeInsets.all(1),
+        child: CustomPaint(
+            painter: _DeepseekWhalePainter(color: Color(0xFF4B8BF5))),
       ),
     ),
     AiModel(
@@ -125,23 +131,109 @@ class _SolutionScreenState extends State<SolutionScreen> {
       subtitle: 'Derin açıklama ve mantık yürütme'.tr(),
       badge: 'Yakında',
       accentColor: Color(0xFFD97706),
-      logo: const Center(
-        child: Text('C', style: TextStyle(color: Color(0xFFD97706), fontSize: 26, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic, height: 1.0)),
+      logo: Padding(
+        padding: EdgeInsets.all(2),
+        child: CustomPaint(
+            painter: _ClaudeBurstPainter(color: Color(0xFFD97706))),
       ),
     ),
   ];
+
+  // ── Renk özelleştirme — ai_result_screen ile ortak prefs anahtarı ────────
+  // Burada değiştirilen renkler çözüm ekranına da geçer (aynı prefs).
+  static const _resultColorsKey = 'ai_result_colors_v1';
+  static const _resultPalette = <Color>[
+    Color(0xFFFFFFFF), Color(0xFF000000),
+    Color(0xFFEF4444), Color(0xFFF97316), Color(0xFFF59E0B),
+    Color(0xFF22C55E), Color(0xFF10B981), Color(0xFF14B8A6),
+    Color(0xFF06B6D4), Color(0xFF0EA5E9), Color(0xFF3B82F6),
+    Color(0xFF6366F1), Color(0xFF8B5CF6), Color(0xFFD946EF),
+    Color(0xFFEC4899), Color(0xFFF43F5E),
+    Color(0xFFFEF3C7), Color(0xFFFCE7F3), Color(0xFFE0F2FE),
+    Color(0xFFDCFCE7), Color(0xFF1F2937),
+  ];
+  bool _showColorPicker = false;
+  String _colorMode   = 'frame'; // frame | text
+  String _colorTarget = 'bg';    // bg | photo | cards
+  final ValueNotifier<Color?> _pageBgN    = ValueNotifier(null);
+  final ValueNotifier<Color?> _photoBgN   = ValueNotifier(null);
+  final ValueNotifier<Color?> _cardsBgN   = ValueNotifier(null);
+  final ValueNotifier<Color?> _cardsTextN = ValueNotifier(null);
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
   @override
   void initState() {
     super.initState();
+    _loadResultColors();
   }
 
   @override
   void dispose() {
     _scrollCtrl.dispose();
+    _pageBgN.dispose();
+    _photoBgN.dispose();
+    _cardsBgN.dispose();
+    _cardsTextN.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadResultColors() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_resultColorsKey);
+      if (raw == null || raw.isEmpty) return;
+      final m = jsonDecode(raw) as Map<String, dynamic>;
+      if (!mounted) return;
+      Color? read(String k) {
+        final v = m[k];
+        return v is num ? Color(v.toInt()) : null;
+      }
+      _pageBgN.value    = read('bg');
+      _photoBgN.value   = read('photo');
+      _cardsBgN.value   = read('cards');
+      _cardsTextN.value = read('cardsText');
+    } catch (_) {}
+  }
+
+  Future<void> _saveResultColors() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final m = <String, int>{};
+      void put(String k, Color? c) {
+        if (c != null) m[k] = c.toARGB32();
+      }
+      put('bg',        _pageBgN.value);
+      put('photo',     _photoBgN.value);
+      put('cards',     _cardsBgN.value);
+      put('cardsText', _cardsTextN.value);
+      if (m.isEmpty) {
+        await prefs.remove(_resultColorsKey);
+      } else {
+        await prefs.setString(_resultColorsKey, jsonEncode(m));
+      }
+    } catch (_) {}
+  }
+
+  void _applyResultColor(String target, Color c) {
+    if (_colorMode == 'text') {
+      _cardsTextN.value = c;
+    } else if (target == 'bg') {
+      _pageBgN.value = c;
+    } else if (target == 'photo') {
+      _photoBgN.value = c;
+    } else {
+      _cardsBgN.value = c;
+    }
+    _saveResultColors();
+  }
+
+  void _resetResultColors() {
+    _pageBgN.value    = null;
+    _photoBgN.value   = null;
+    _cardsBgN.value   = null;
+    _cardsTextN.value = null;
+    _saveResultColors();
   }
 
   // ── Geri git ─────────────────────────────────────────────────────────────────
@@ -203,11 +295,13 @@ class _SolutionScreenState extends State<SolutionScreen> {
       _subjectKind = null;
     });
 
-    // Paralel: hızlı konu sınıflandırıcı — 1-2 sn'de döner, loader'ı geçer.
-    // Hata veya gecikme olursa sayısal loader ile devam eder (varsayılan).
-    GeminiService.classifySubjectQuick(widget.imagePath).then((kind) {
-      if (mounted && _isLoading) setState(() => _subjectKind = kind);
-    }).catchError((_) {});
+    // Not: Daha önce `classifySubjectQuick` paralel çağrısı yapılıyordu —
+    // her çözüm için 2 Gemini API isteği (sınıflandırıcı + çözüm) oluyordu
+    // ve free-tier kotayı çabuk doldurup "kota aşıldı" hatası veriyordu.
+    // Sınıflandırıcı yalnızca hangi loader animasyonunun (numeric/verbal)
+    // gösterileceğini seçiyordu (kozmetik). Asıl çözümü etkilemediği için
+    // kapatıldı — tek API isteğiyle doğrudan çözüme geçilir, varsayılan
+    // sayısal loader çalışır.
 
     // Sonuç değişkenleri finally dışına taşındı — finally her zaman çalışır
     String? result;
@@ -282,9 +376,13 @@ class _SolutionScreenState extends State<SolutionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F5),
-      body: SelectionArea(
+    return ValueListenableBuilder<Color?>(
+      valueListenable: _pageBgN,
+      builder: (_, pageBg, body) => Scaffold(
+        backgroundColor: pageBg ?? const Color(0xFFF0F2F5),
+        body: body,
+      ),
+      child: SelectionArea(
       child: Stack(
         children: [
           // ── 1 — Ana içerik ──────────────────────────────────────────────────
@@ -302,23 +400,23 @@ class _SolutionScreenState extends State<SolutionScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _buildPhotoCard(),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 22),
 
                         Center(
                           child: Text(
                             'Nasıl Çözelim?',
                             style: GoogleFonts.inter(
                               color: const Color(0xFF1A1A2E),
-                              fontSize: 15,
+                              fontSize: 22,
                               fontWeight: FontWeight.w800,
-                              letterSpacing: -0.3,
+                              letterSpacing: 1.2,
                             ),
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 14),
 
                         _buildModeButtons(),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 22),
 
                         Center(
                           child: Text(
@@ -331,7 +429,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 16),
 
                         _buildModelWheel(),
                       ],
@@ -391,14 +489,70 @@ class _SolutionScreenState extends State<SolutionScreen> {
     );
   }
 
-  // ── Geri butonu ───────────────────────────────────────────────────────────────
-
+  // ── Üst bar: geri + "Renk Seç" pill (en sağda, diğer sayfalardaki ile aynı)
   Widget _buildBackRow() {
     return Padding(
-      padding: const EdgeInsets.only(top: 4, left: 4, bottom: 4),
-      child: IconButton(
-        icon: const Icon(Icons.arrow_back_rounded, color: AppColors.cyan),
-        onPressed: () => Navigator.pop(context),
+      padding: const EdgeInsets.only(top: 4, left: 4, right: 12, bottom: 4),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back_rounded, color: AppColors.cyan),
+            onPressed: () => Navigator.pop(context),
+          ),
+          const Spacer(),
+          GestureDetector(
+            onTap: () =>
+                setState(() => _showColorPicker = !_showColorPicker),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFFFF6A00),
+                    Color(0xFFDB2777),
+                    Color(0xFF7C3AED),
+                    Color(0xFF2563EB),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(999),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _showColorPicker
+                        ? Icons.close_rounded
+                        : Icons.palette_rounded,
+                    size: 14,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    _showColorPicker
+                        ? 'Kapat'.tr()
+                        : 'Renk Seç'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -411,13 +565,17 @@ class _SolutionScreenState extends State<SolutionScreen> {
     // En fazla ekranın %55'i kadar yer kaplar.
     return Stack(
       children: [
-        AdaptivePhoto(
-          path: widget.imagePath,
-          maxHeightFactor: 0.55,
-          borderRadius: 14,
-          border: Border.all(color: Colors.black, width: 3),
-          background: const Color(0xFFF0F2F5),
+        ValueListenableBuilder<Color?>(
+          valueListenable: _photoBgN,
+          builder: (_, photoBg, __) => AdaptivePhoto(
+            path: widget.imagePath,
+            maxHeightFactor: 0.55,
+            borderRadius: 14,
+            border: Border.all(color: Colors.black, width: 3),
+            background: photoBg ?? const Color(0xFFF0F2F5),
+          ),
         ),
+        // Sağ üst: kapat (X) — fotoğrafın içinde
         Positioned(
           top: 10,
           right: 10,
@@ -437,79 +595,346 @@ class _SolutionScreenState extends State<SolutionScreen> {
             ),
           ),
         ),
+        // Renk paneli — palette butonuna basıldığında doğrudan fotoğrafın
+        // ÜZERİNE overlay olarak gelir.
+        if (_showColorPicker)
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: _buildResultColorPanel(),
+            ),
+          ),
       ],
     );
   }
 
-  // ── 3 mod butonu — yan yana, seçilince büyür + parlar ───────────────────────
 
+  // ── 3 mod butonu — her biri kendi oval beyaz çerçevesinde ─────────────────
+  //   Çerçeve hafif yuvarlak (10 px radius). İç tam beyaz; dış sayfa zemini
+  //   biraz daha soluk beyaz. Her kart: yuvarlak ikon + başlık + alt-açıklama.
   Widget _buildModeButtons() {
-    // Dış çerçeve yok — her buton kendi border'ıyla serbest duruyor.
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: _modes.asMap().entries.map((e) {
-            final i    = e.key;
-            final mode = e.value;
-            final sel  = _selectedOption == mode.label;
-            final c    = mode.color;
+    return SizedBox(
+      width: double.infinity,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: _modes.map((mode) {
+            final sel = _selectedOption == mode.label;
+            final c   = mode.color;
             return Expanded(
-              child: Padding(
-                padding: EdgeInsets.only(
-                  left:  i == 0 ? 0 : 6,
-                  right: i == _modes.length - 1 ? 0 : 6,
-                ),
-                child: GestureDetector(
-                  onTap: () => setState(() => _selectedOption = mode.label),
-                  child: AnimatedOpacity(
-                    opacity: _selectedOption != null && !sel ? 0.45 : 1.0,
-                    duration: const Duration(milliseconds: 200),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeOutCubic,
-                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-                      decoration: BoxDecoration(
+              child: GestureDetector(
+                onTap: () => setState(() => _selectedOption = mode.label),
+                behavior: HitTestBehavior.opaque,
+                child: AnimatedOpacity(
+                  opacity: _selectedOption != null && !sel ? 0.45 : 1.0,
+                  duration: const Duration(milliseconds: 200),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutCubic,
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 14, horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
                         color: sel
-                            ? c.withValues(alpha: 0.13)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: sel
-                              ? c.withValues(alpha: 0.75)
-                              : Colors.black,
-                          width: 1.5,
-                        ),
-                        boxShadow: sel
-                            ? [BoxShadow(color: c.withValues(alpha: 0.30), blurRadius: 16, spreadRadius: 1)]
-                            : [],
+                            ? c.withValues(alpha: 0.85)
+                            : Colors.black.withValues(alpha: 0.18),
+                        width: sel ? 1.6 : 1.0,
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(mode.icon, color: c, size: 20),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              mode.label,
-                              textAlign: TextAlign.center,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.inter(
-                                color: Colors.black,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                height: 1.25,
-                              ),
+                      boxShadow: sel
+                          ? [BoxShadow(
+                              color: c.withValues(alpha: 0.22),
+                              blurRadius: 12,
+                              spreadRadius: 0.5)]
+                          : [BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.04),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2))],
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Yuvarlak ikon — çok küçük
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 220),
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: c.withValues(alpha: sel ? 0.20 : 0.12),
+                            border: Border.all(
+                              color: c.withValues(alpha: sel ? 0.85 : 0.45),
+                              width: sel ? 1.4 : 1.0,
                             ),
+                            boxShadow: sel
+                                ? [BoxShadow(
+                                    color: c.withValues(alpha: 0.30),
+                                    blurRadius: 6,
+                                    spreadRadius: 0.3)]
+                                : const [],
                           ),
-                        ],
-                      ),
+                          child: Icon(mode.icon, color: c, size: 16),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          mode.label,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(
+                            color: Colors.black,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                            height: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          mode.subtitle,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(
+                            color: Colors.black.withValues(alpha: 0.62),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                            height: 1.25,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
             );
           }).toList(),
+        ),
+      ),
+    );
+  }
+
+  // ══════ Renk seçim paneli — fotoğraf üzerinde overlay ═══════════════════
+  Widget _buildResultColorPanel() {
+    final orange = const Color(0xFFFF6A00);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.black, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.palette_rounded,
+                  size: 16, color: Colors.black),
+              const SizedBox(width: 6),
+              Text('Renk'.tr(),
+                  style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.black)),
+              const SizedBox(width: 10),
+              Expanded(child: _resultModeToggle(orange)),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: _resetResultColors,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF3F4F6),
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(color: Colors.black12),
+                  ),
+                  child: Text('Sıfırla'.tr(),
+                      style: GoogleFonts.poppins(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.black54)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _resultTargetToggle(orange),
+          const SizedBox(height: 6),
+          Text(
+            'Renge bas ya da sürükleyip istediğin yere bırak.'.tr(),
+            style: GoogleFonts.poppins(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: Colors.black54,
+                height: 1.3),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 76,
+            child: GridView.builder(
+              scrollDirection: Axis.horizontal,
+              gridDelegate:
+                  const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 6,
+                crossAxisSpacing: 6,
+                childAspectRatio: 1.0,
+              ),
+              itemCount: _resultPalette.length,
+              itemBuilder: (_, i) =>
+                  _resultDraggableColor(_resultPalette[i]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _resultModeToggle(Color orange) {
+    Widget box(String id, IconData icon, String label) {
+      final active = _colorMode == id;
+      return Expanded(
+        child: GestureDetector(
+          onTap: () => setState(() => _colorMode = id),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            padding:
+                const EdgeInsets.symmetric(vertical: 7, horizontal: 6),
+            decoration: BoxDecoration(
+              color: active
+                  ? orange.withValues(alpha: 0.12)
+                  : const Color(0xFFF9FAFB),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: active ? orange : Colors.black,
+                width: active ? 1.6 : 1,
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon,
+                    size: 13, color: active ? orange : Colors.black),
+                const SizedBox(width: 5),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: active ? orange : Colors.black,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        box('text', Icons.text_fields_rounded, 'Yazı'.tr()),
+        const SizedBox(width: 8),
+        box('frame', Icons.crop_square_rounded, 'Çerçeve'.tr()),
+      ],
+    );
+  }
+
+  Widget _resultTargetToggle(Color orange) {
+    Widget chip(String id, String label) {
+      final active = _colorTarget == id;
+      return Expanded(
+        child: GestureDetector(
+          onTap: () => setState(() => _colorTarget = id),
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+            decoration: BoxDecoration(
+              color: active
+                  ? orange.withValues(alpha: 0.12)
+                  : const Color(0xFFF3F4F6),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: active ? orange : Colors.black12,
+                width: active ? 1.4 : 1,
+              ),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                  color: active ? orange : Colors.black),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 'photo' hedefi kaldırıldı — bu sayfada fotoğrafa renk uygulanmıyor.
+    return Row(
+      children: [
+        chip('bg', 'Arka plan'.tr()),
+        const SizedBox(width: 6),
+        chip('cards', 'Kartlar'.tr()),
+      ],
+    );
+  }
+
+  Widget _resultDraggableColor(Color c) {
+    return Draggable<Color>(
+      data: c,
+      dragAnchorStrategy: pointerDragAnchorStrategy,
+      feedback: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: c,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.3),
+              blurRadius: 10,
+            ),
+          ],
+        ),
+      ),
+      childWhenDragging: Opacity(opacity: 0.3, child: _resultDot(c)),
+      child: GestureDetector(
+        onTap: () => _applyResultColor(_colorTarget, c),
+        child: _resultDot(c),
+      ),
+    );
+  }
+
+  Widget _resultDot(Color c) {
+    return Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        color: c,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.black26, width: 1),
       ),
     );
   }
@@ -526,101 +951,113 @@ class _SolutionScreenState extends State<SolutionScreen> {
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: GridView.count(
-            crossAxisCount: 2,
+            // 3 sütun — yatayda 3 altıgen sığar; yaklaşık %50 küçük.
+            crossAxisCount: 3,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 6,
-            mainAxisSpacing: 6,
-            childAspectRatio: 2.2,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+            // Daha da daraltıldı — yatay-dominant, dikey kompakt.
+            childAspectRatio: 1.35,
             children: _models.asMap().entries.map((e) {
-            final idx      = e.key;
-            final model    = e.value;
-            final sel      = idx == _centeredModelIdx;
-            final c        = model.accentColor;
-            final isActive = model.badge == localeService.tr('recommended');
-            return GestureDetector(
-              onTap: () {
-                setState(() {
-                  _centeredModelIdx = idx;
-                  _modelSelected    = false;
-                });
-                _onSolveButtonTap();
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOutCubic,
-                padding: const EdgeInsets.fromLTRB(12, 8, 10, 8),
-                decoration: BoxDecoration(
-                  color: sel ? c.withValues(alpha: 0.10) : Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: sel ? c.withValues(alpha: 0.65) : Colors.black,
-                    width: 1.5,
+              final idx      = e.key;
+              final model    = e.value;
+              final sel      = idx == _centeredModelIdx;
+              final c        = model.accentColor;
+              final isActive = model.badge == localeService.tr('recommended');
+              final fillColor = sel ? c.withValues(alpha: 0.10) : Colors.white;
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _centeredModelIdx = idx;
+                    _modelSelected    = false;
+                  });
+                  _onSolveButtonTap();
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOutCubic,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 6, vertical: 2),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: fillColor,
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: sel
+                        ? [BoxShadow(
+                            color: c.withValues(alpha: 0.25),
+                            blurRadius: 10,
+                            spreadRadius: 0.5)]
+                        : [BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.04),
+                            blurRadius: 4,
+                            offset: const Offset(0, 1))],
                   ),
-                  boxShadow: sel
-                      ? [BoxShadow(color: c.withValues(alpha: 0.22), blurRadius: 10)]
-                      : [],
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Logo + isim — aynı hizada
-                    Row(
-                      children: [
-                        SizedBox(
-                          width: 22, height: 22,
-                          child: model.logo,
-                        ),
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: Text(
-                            model.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.inter(
-                              color: Colors.black,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      model.subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(
-                        color: Colors.black54,
-                        fontSize: 8,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: model.logo,
                       ),
-                    ),
-                    const SizedBox(height: 3),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: (isActive ? c : const Color(0xFF9CA3AF)).withValues(alpha: sel ? 0.15 : 0.08),
-                        borderRadius: BorderRadius.circular(5),
-                        border: Border.all(
-                          color: (isActive ? c : const Color(0xFF9CA3AF)).withValues(alpha: sel ? 0.45 : 0.25),
-                          width: 1.0,
-                        ),
-                      ),
-                      child: Text(
-                        model.badge,
+                      const SizedBox(height: 2),
+                      Text(
+                        model.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
                         style: GoogleFonts.inter(
                           color: Colors.black,
-                          fontSize: 7,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                          height: 1.05,
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 1),
+                      Text(
+                        model.subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.inter(
+                          color: Colors.black54,
+                          fontSize: 7,
+                          fontWeight: FontWeight.w500,
+                          height: 1.05,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: (isActive ? c : const Color(0xFF9CA3AF))
+                              .withValues(alpha: sel ? 0.15 : 0.08),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: (isActive ? c : const Color(0xFF9CA3AF))
+                                .withValues(alpha: sel ? 0.50 : 0.30),
+                            width: 0.6,
+                          ),
+                        ),
+                        child: Text(
+                          model.badge,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(
+                            color: Colors.black,
+                            fontSize: 6.5,
+                            fontWeight: FontWeight.w700,
+                            height: 1.0,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            );
+              );
             }).toList(),
           ),
         ),
@@ -1042,3 +1479,176 @@ class _GeminiStarPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _GeminiStarPainter oldDelegate) => false;
 }
+
+// ─── OpenAI / ChatGPT — siyah hexafoil knot (6-fold rotational symmetry) ────
+class _OpenAiKnotPainter extends CustomPainter {
+  const _OpenAiKnotPainter();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..isAntiAlias = true
+      ..color = Colors.black
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size.width * 0.11
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    // 3 örtüşen oval — 0°, 60°, 120° dönmeyle 6-fold simetri oluşturur.
+    for (int i = 0; i < 3; i++) {
+      canvas.save();
+      canvas.translate(cx, cy);
+      canvas.rotate(i * math.pi / 3);
+      final rect = Rect.fromCenter(
+        center: Offset.zero,
+        width: size.width * 0.78,
+        height: size.height * 0.36,
+      );
+      canvas.drawOval(rect, paint);
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _OpenAiKnotPainter oldDelegate) => false;
+}
+
+// ─── Grok / xAI — sert-italik X ─────────────────────────────────────────────
+class _GrokXPainter extends CustomPainter {
+  const _GrokXPainter();
+  Color get color => Colors.black;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..isAntiAlias = true
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size.width * 0.18
+      ..strokeCap = StrokeCap.square;
+    final m = size.width * 0.16;
+    // Hafif italik için üst-noktalar sağa kayık
+    final lean = size.width * 0.05;
+    canvas.drawLine(
+      Offset(m + lean, m),
+      Offset(size.width - m - lean, size.height - m),
+      paint,
+    );
+    canvas.drawLine(
+      Offset(size.width - m + lean, m),
+      Offset(m - lean, size.height - m),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _GrokXPainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
+// ─── Deepseek — stilize edilmiş yunus/balina silüeti ────────────────────────
+class _DeepseekWhalePainter extends CustomPainter {
+  final Color color;
+  const _DeepseekWhalePainter({required this.color});
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final paint = Paint()
+      ..isAntiAlias = true
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    // Gövde: curved teardrop facing right
+    final body = Path()
+      ..moveTo(w * 0.08, h * 0.56)
+      ..cubicTo(
+          w * 0.10, h * 0.35,
+          w * 0.40, h * 0.28,
+          w * 0.62, h * 0.36)
+      ..cubicTo(
+          w * 0.85, h * 0.42,
+          w * 0.95, h * 0.50,
+          w * 0.96, h * 0.58)
+      // Kuyruk üst kanat
+      ..lineTo(w * 0.86, h * 0.40)
+      ..lineTo(w * 0.94, h * 0.62)
+      // Kuyruk alt kanat
+      ..lineTo(w * 0.86, h * 0.78)
+      ..lineTo(w * 0.92, h * 0.62)
+      ..cubicTo(
+          w * 0.78, h * 0.78,
+          w * 0.40, h * 0.82,
+          w * 0.18, h * 0.74)
+      ..cubicTo(
+          w * 0.06, h * 0.68,
+          w * 0.04, h * 0.62,
+          w * 0.08, h * 0.56)
+      ..close();
+    canvas.drawPath(body, paint);
+
+    // Göz noktası (beyaz)
+    canvas.drawCircle(
+      Offset(w * 0.26, h * 0.50),
+      w * 0.045,
+      Paint()..color = Colors.white..isAntiAlias = true,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _DeepseekWhalePainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
+// ─── Claude / Anthropic — turuncu sunburst (4-noktalı asterisk) ────────────
+class _ClaudeBurstPainter extends CustomPainter {
+  final Color color;
+  const _ClaudeBurstPainter({required this.color});
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final r  = size.width * 0.42;
+    final paint = Paint()
+      ..isAntiAlias = true
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    // 4 sivri uçlu yıldız (sunburst): her ucu ince elmas
+    for (int i = 0; i < 4; i++) {
+      final angle = i * math.pi / 2;
+      canvas.save();
+      canvas.translate(cx, cy);
+      canvas.rotate(angle);
+      final path = Path()
+        ..moveTo(0, -r)
+        ..lineTo(r * 0.18, 0)
+        ..lineTo(0, r * 0.18)
+        ..lineTo(-r * 0.18, 0)
+        ..close();
+      canvas.drawPath(path, paint);
+      canvas.restore();
+    }
+
+    // Diyagonal ince ışınlar (45°, 135°, ...)
+    final raysPaint = Paint()
+      ..isAntiAlias = true
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size.width * 0.06
+      ..strokeCap = StrokeCap.round;
+    for (int i = 0; i < 4; i++) {
+      final angle = math.pi / 4 + i * math.pi / 2;
+      canvas.drawLine(
+        Offset(cx, cy),
+        Offset(cx + r * 0.65 * math.cos(angle),
+            cy + r * 0.65 * math.sin(angle)),
+        raysPaint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ClaudeBurstPainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+

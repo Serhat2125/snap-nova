@@ -71,7 +71,14 @@ List<CurriculumSubject> curriculumFor(EduProfile? profile) {
 List<String> _lookupKeys(EduProfile p) {
   final c = p.country.toLowerCase();
   final l = p.level;
-  final g = p.grade;
+  // Grade normalize: "9. Sınıf" / "11. Klasse" / "Grade 9" → "9".
+  // Onboarding grade'leri "X. Sınıf" formatında saklıyor; catalog ise
+  // sadece sayı kullanıyor. Bu mismatch yüzünden tr_high_9. Sınıf
+  // bulunamıyor, international fallback'e düşüp İngilizce konular
+  // geliyordu — bug: "Lise 9 → saçma sapan konular".
+  final rawGrade = p.grade;
+  final m = RegExp(r'(\d{1,2})').firstMatch(rawGrade);
+  final g = m != null ? m.group(1)! : rawGrade;
   final t = p.track;
   return [
     if (t != null) '${c}_${l}_${g}_$t',

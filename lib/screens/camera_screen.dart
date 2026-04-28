@@ -38,6 +38,11 @@ class _CameraScreenState extends State<CameraScreen>
   int  _navIndex      = 1;
   String? _errorMsg;
 
+  // Ortam ışığı algılama — preview stream Y/B plane'inden örnekle
+  bool _isLowLight     = false;
+  bool _lightStreaming = false;
+  int  _lastLightMs    = 0;
+
   // Dinamik çerçeve rect — ScanFrameOverlay'den beslenir
   final ValueNotifier<Rect> _frameNotifier = ValueNotifier(Rect.zero);
 
@@ -69,6 +74,7 @@ class _CameraScreenState extends State<CameraScreen>
     if (_controller == null || !_controller!.value.isInitialized) return;
     if (state == AppLifecycleState.inactive) {
       _controller?.dispose();
+      _lightStreaming = false;
     } else if (state == AppLifecycleState.resumed) {
       _initCamera();
     }
@@ -97,9 +103,11 @@ class _CameraScreenState extends State<CameraScreen>
       orElse: () => cams.first,
     );
 
+    // imageFormatGroup verme — varsayılan platform formatı (Android: yuv420,
+    // iOS: bgra8888) preview stream'i için gerekli. takePicture() zaten
+    // her iki platformda JPEG döner.
     final ctrl = CameraController(
       camera, ResolutionPreset.high, enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.jpeg,
     );
 
     try {
@@ -112,8 +120,59 @@ class _CameraScreenState extends State<CameraScreen>
         _currentZoom = _minZoom;
       } catch (_) {}
       setState(() { _isInitialized = true; _errorMsg = null; });
+      _startLightStream();
     } on CameraException catch (e) {
       if (mounted) setState(() => _errorMsg = e.description ?? localeService.tr('camera_error'));
+    }
+  }
+
+  // ── Ortam ışığı algılama ─────────────────────────────────────────────────
+  // Preview stream'den saniyede ~1 frame örnekleyip ilk plane'in (Android'de
+  // Y, iOS'ta B kanalı — her ikisi de parlaklıkla iyi korele) ortalamasını
+  // alır. Histerezis ile karanlık/aydınlık arasında geçiş kararlı kalır.
+  Future<void> _startLightStream() async {
+    if (_controller == null || _lightStreaming) return;
+    try {
+      await _controller!.startImageStream(_onPreviewFrame);
+      _lightStreaming = true;
+    } catch (_) {
+      // Bazı cihazlar stream + takePicture çakışması nedeniyle başlatamaz —
+      // bu durumda özellik sessizce kapanır, ikon sabit kalır.
+    }
+  }
+
+  Future<void> _stopLightStream() async {
+    if (!_lightStreaming || _controller == null) return;
+    try { await _controller!.stopImageStream(); } catch (_) {}
+    _lightStreaming = false;
+  }
+
+  void _onPreviewFrame(CameraImage image) {
+    if (!mounted) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (now - _lastLightMs < 1100) return; // ~0.9 Hz örnekleme
+    _lastLightMs = now;
+
+    final bytes = image.planes.isEmpty ? null : image.planes.first.bytes;
+    if (bytes == null || bytes.isEmpty) return;
+    int sum = 0, cnt = 0;
+    // Seyrek örnekleme — CPU yükü sıfıra yakın
+    for (int i = 0; i < bytes.length; i += 256) {
+      sum += bytes[i];
+      cnt++;
+    }
+    if (cnt == 0) return;
+    final avg = sum / cnt;
+
+    // Histerezis — girişte 55'in altı, çıkışta 75 üstü (0..255)
+    bool? next;
+    if (!_isLowLight && avg < 55) {
+      next = true;
+    } else if (_isLowLight && avg > 75) {
+      next = false;
+    }
+    if (next != null && next != _isLowLight) {
+      setState(() => _isLowLight = next!);
     }
   }
 
@@ -122,6 +181,9 @@ class _CameraScreenState extends State<CameraScreen>
   Future<void> _onCapture() async {
     if (_controller == null || !_controller!.value.isInitialized || _isCapturing) return;
     setState(() => _isCapturing = true);
+
+    // Bazı cihazlarda aktif image stream takePicture ile çakışıyor — durdur.
+    await _stopLightStream();
 
     try {
       final file = await _controller!.takePicture();
@@ -144,11 +206,14 @@ class _CameraScreenState extends State<CameraScreen>
         context,
         _slideUp(SolutionScreen(imagePath: path, isMultiCapture: _isMultiCapture)),
       );
+      // Kullanıcı geri döndü — ışık akışını yeniden başlat
+      if (mounted) _startLightStream();
     } on CameraException catch (e) {
       if (mounted) {
         setState(() => _isCapturing = false);
         _showSnack(e.description ?? localeService.tr('photo_failed'));
       }
+      if (mounted) _startLightStream();
     }
   }
 
@@ -373,8 +438,11 @@ class _CameraScreenState extends State<CameraScreen>
                     _BottomIconBtn(
                       icon: _isFlashOn ? Icons.flash_on_rounded : Icons.flash_off_rounded,
                       label: _isFlashOn ? localeService.tr('flash_on') : 'Flash',
-                      color: _isFlashOn ? Colors.amber : Colors.white70,
+                      color: _isFlashOn
+                          ? Colors.amber
+                          : (_isLowLight ? Colors.amber : Colors.white70),
                       onTap: _toggleFlash,
+                      pulse: !_isFlashOn && _isLowLight,
                     ),
                   ],
                 ),
@@ -471,40 +539,105 @@ class _CameraScreenState extends State<CameraScreen>
 
 // ─── Alt ikon butonu ──────────────────────────────────────────────────────────
 
-class _BottomIconBtn extends StatelessWidget {
+class _BottomIconBtn extends StatefulWidget {
   final IconData icon;
   final String   label;
   final Color    color;
   final VoidCallback onTap;
+  final bool     pulse;
 
   const _BottomIconBtn({
     required this.icon,
     required this.label,
     required this.color,
     required this.onTap,
+    this.pulse = false,
   });
+
+  @override
+  State<_BottomIconBtn> createState() => _BottomIconBtnState();
+}
+
+class _BottomIconBtnState extends State<_BottomIconBtn>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _blinkCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _blinkCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+    _syncAnim();
+  }
+
+  @override
+  void didUpdateWidget(_BottomIconBtn old) {
+    super.didUpdateWidget(old);
+    if (old.pulse != widget.pulse) _syncAnim();
+  }
+
+  void _syncAnim() {
+    if (widget.pulse) {
+      _blinkCtrl.repeat(reverse: true);
+    } else {
+      _blinkCtrl.stop();
+      _blinkCtrl.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _blinkCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: widget.onTap,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 42, height: 42,
-            decoration: BoxDecoration(
-              color: AppColors.surfaceElevated,
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Icon(icon, color: color, size: 20),
+          AnimatedBuilder(
+            animation: _blinkCtrl,
+            builder: (_, __) {
+              final t = Curves.easeInOut.transform(_blinkCtrl.value);
+              final iconOpacity = widget.pulse ? (1.0 - 0.70 * t) : 1.0;
+              final glow = widget.pulse ? (0.55 * (1 - t)) : 0.0;
+              return Container(
+                width: 42, height: 42,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceElevated,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: widget.pulse
+                        ? widget.color.withValues(alpha: 0.45 + 0.35 * (1 - t))
+                        : AppColors.border,
+                  ),
+                  boxShadow: widget.pulse
+                      ? [
+                          BoxShadow(
+                            color: widget.color.withValues(alpha: glow),
+                            blurRadius: 14,
+                            spreadRadius: 1,
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Opacity(
+                  opacity: iconOpacity,
+                  child: Icon(widget.icon, color: widget.color, size: 20),
+                ),
+              );
+            },
           ),
           const SizedBox(height: 5),
           Text(
-            label,
+            widget.label,
             textScaler: TextScaler.noScaling,
-            style: TextStyle(fontSize: 9, color: color.withValues(alpha: 0.85), fontWeight: FontWeight.w500),
+            style: TextStyle(fontSize: 9, color: widget.color.withValues(alpha: 0.85), fontWeight: FontWeight.w500),
           ),
         ],
       ),

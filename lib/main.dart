@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:camera/camera.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/camera_screen.dart';
 import 'screens/education_setup_screen.dart';
@@ -14,6 +15,8 @@ import 'screens/academic_planner.dart';
 import 'screens/premium_screen.dart';
 import 'screens/profile_screen.dart';
 import 'theme/app_theme.dart';
+import 'firebase_options.dart';
+import 'services/auth_service.dart';
 import 'services/locale_service.dart';
 import 'services/theme_service.dart';
 import 'services/connectivity_service.dart';
@@ -59,17 +62,28 @@ Future<void> main() async {
         [DeviceOrientation.portraitUp]);
 
     // ── Firebase ───────────────────────────────────────────────────────
+    //   `flutterfire configure` ile üretilen DefaultFirebaseOptions kullanılıyor.
+    //   Henüz üretilmediyse stub bir hata fırlatır → catch'te yakalanır,
+    //   uygulama Firebase olmadan açılmaya devam eder. FirebaseAuth (telefon)
+    //   gibi özellikler bu durumda kullanıcıya net bir mesaj gösterir.
     try {
-      await Firebase.initializeApp();
-      // Firestore offline cache — ağ kesikken son veriye erişim + yazma
-      // kuyruğu. Varsayılan etkin, yine de açık şekilde yapılandıralım.
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+      AuthService.firebaseReady = true;
+      // Firestore offline cache — ağ kesikken son veriye erişim + yazma kuyruğu.
       FirebaseFirestore.instance.settings = const Settings(
         persistenceEnabled: true,
         cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
       );
-    } catch (_) {
-      // Firebase henüz yapılandırılmamış — google-services.json eksik olabilir.
-      // Uygulama Firebase olmadan da çalışır; ilgili servisler sessizce atlanır.
+    } catch (e, st) {
+      AuthService.firebaseReady = false;
+      // ignore: avoid_print
+      print('[Firebase] init başarısız: $e\n'
+          'Çözüm: terminalde "flutterfire configure" çalıştırıp '
+          'firebase_options.dart\'ı üret. Sonra google-services.json (Android) '
+          've GoogleService-Info.plist (iOS) dosyalarının yerinde olduğundan '
+          'emin ol.\n$st');
     }
 
     // ── Hata toplayıcı (Firestore opsiyonel) ──────────────────────────
@@ -86,9 +100,21 @@ Future<void> main() async {
     await localeService.init();
     await themeService.init();
     await connectivityService.init();
+    // Saklı oturumu yükle — auth_user_v1 prefs key'inden.
+    await AuthService.init();
     // Runtime translator — kalıcı cache'i yükle + LocaleService'e hook bağla
     await RuntimeTranslator.instance.init();
+    // Açılışta TÜM TR kaynak string'lerini runtime translator'a kaydet —
+    // her dil değişiminde hepsi birden preload edilecek.
+    for (final src in LocaleService.allTrSourceStrings) {
+      RuntimeTranslator.instance.register(src);
+    }
+
     LocaleService.setLocaleChangeHook((lang) async {
+      // Her dil değişiminde önce tüm kaynakların kayıtlı olduğunu garanti et.
+      for (final src in LocaleService.allTrSourceStrings) {
+        RuntimeTranslator.instance.register(src);
+      }
       await RuntimeTranslator.instance.preloadAll(lang);
     });
     // LocaleService.tr() içinde bir key'in çevirisi yoksa Türkçe kaynağı
@@ -97,7 +123,7 @@ Future<void> main() async {
       RuntimeTranslator.instance.register(source);
       return RuntimeTranslator.instance.lookup(source);
     });
-    // Açılışta mevcut dil Türkçe değilse eksik çevirileri arka planda çek
+    // Açılışta mevcut dil Türkçe değilse eksik çevirileri arka planda çek.
     if (localeService.localeCode != 'tr') {
       unawaited(RuntimeTranslator.instance.preloadAll(localeService.localeCode));
     }
@@ -119,10 +145,21 @@ Future<void> main() async {
     // Müfredat kataloğu → education_profile'a bağla
     initCurriculumCatalog();
 
+    // İlk açılışsa cihaz locale'inden ülkeyi tespit et — onboarding'in ülke
+    // seçicisi bu pref'i varsayılan olarak alır (kullanıcı manuel
+    // değiştirebilir, ama pek çok kullanıcı için tek tıkla doğru ülke gelir).
+    await EduProfile.autoDetectCountryIfMissing();
+
     // Mevcut öğrenci profilini cache'e yükle (AI prompt'larında kullanılır)
     await EduProfile.load();
+    // AI'dan üretilmiş profil-özel müfredat varsa belleğe yükle (varsa).
+    await EduProfile.loadAiSubjectCache();
 
-    runApp(const QuAlsarApp());
+    // ProviderScope: Yeni feature katmanları (lib/features/...) Riverpod
+    // kullanır; eski ekranlar StatefulWidget+setState ile çalışmaya devam
+    // eder — wrapper sadece yeni provider'ları aktive eder, eski koda
+    // hiçbir etkisi yok.
+    runApp(const ProviderScope(child: QuAlsarApp()));
   }, (error, stack) {
     // Zone dışına sızan her şey
     ErrorLogger.instance.capture(
@@ -154,23 +191,14 @@ class _StartupRouterState extends State<_StartupRouter> {
   }
 
   Future<_StartupState> _resolve() async {
-    final prefs = await SharedPreferences.getInstance();
-    final onboardingDone = prefs.getBool(OnboardingScreen.prefKey) ?? false;
-    if (!onboardingDone) {
-      return _StartupState.onboarding;
-    }
-    // Uygulama açılış sayacını artır (deneme ilk 10 giriş için)
-    final prev = prefs.getInt('app_launch_count_v2') ?? 0;
-    final next = prev >= 999 ? 999 : prev + 1;
-    await prefs.setInt('app_launch_count_v2', next);
-    final profileSet = prefs.getBool('mini_test_edu_profile_set') ?? false;
-    final inTrial = next <= 20;
-    // İlk 20 giriş her seferinde eğitim profil ekranı (profil yoksa zorunlu).
-    // Uygulama yapım aşamasında olduğu için deneme penceresi genişletildi.
-    if (inTrial || !profileSet) {
-      return _StartupState.educationSetup;
-    }
-    return _StartupState.home;
+    // ── Yapım aşamasında: her açılışta onboarding'i göster. ─────────────
+    // 5 tanıtım sayfası swipe ile erişilebilir; son sayfadan "Öğrenmeye
+    // Başla" ile CameraScreen'e geçiş (oradan tüm uygulama gezilir).
+    // TODO(prod): buradaki mantık geri gelecek:
+    //   - 'onboarding_launch_count_v3' ile ilk 10 launch onboarding
+    //   - 'app_launch_count_v2' + 'mini_test_edu_profile_set' ile educationSetup
+    //   - aksi halde home
+    return _StartupState.onboarding;
   }
 
   void _onSetupSaved() {

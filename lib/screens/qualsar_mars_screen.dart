@@ -1,12 +1,13 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  QuAlsarMarsScreen — Gerçekçi Mars kolonisi pomodoro, 4 aşama:
+//  QuAlsarMarsScreen — Gerçekçi QuAlsar kolonisi pomodoro, 4 aşama:
 //    1) Starship inişi + 3 astronot + yaşam kubbesi
 //    2) Büyük sera (buğday / domates / marul / biber)
 //    3) Toprak sondajı + su/oksijen üretimi
@@ -41,8 +42,9 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
 
   // ── Sinyal kaybı ───────────────────────────────────────────────────────────
   bool _signalLost = false;
-  int _signalCountdown = 10;
+  int _signalCountdown = 7;
   Timer? _signalTimer;
+  Timer? _alarmTimer;
   bool _stormCollapsed = false;
 
   // ── Animasyonlar ───────────────────────────────────────────────────────────
@@ -157,6 +159,7 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
     WidgetsBinding.instance.removeObserver(this);
     _ticker?.cancel();
     _signalTimer?.cancel();
+    _alarmTimer?.cancel();
     WakelockPlus.disable();
     _starCtrl.dispose();
     _pulseCtrl.dispose();
@@ -287,23 +290,43 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
     _pause();
     setState(() {
       _signalLost = true;
-      _signalCountdown = 10;
+      _signalCountdown = 7;
     });
+    // Alarm — sistem sesi + haptic her saniyede bir.
+    _alarmTimer?.cancel();
+    _alarmTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      HapticFeedback.heavyImpact();
+      SystemSound.play(SystemSoundType.alert);
+    });
+    HapticFeedback.heavyImpact();
+    SystemSound.play(SystemSoundType.alert);
     _signalTimer?.cancel();
     _signalTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       setState(() => _signalCountdown--);
       if (_signalCountdown <= 0) {
         _signalTimer?.cancel();
+        _alarmTimer?.cancel();
         _collapseFromStorm();
       }
     });
   }
 
+  // Otomatik (app lifecycle) geri dönüş — sessizce yeniden başlat.
   void _recoverSignal() {
     if (!_signalLost) return;
     _signalTimer?.cancel();
+    _alarmTimer?.cancel();
     setState(() => _signalLost = false);
+  }
+
+  // Kullanıcı "Geldim" butonuna bastı — alarm durdur, kaldığı yerden devam.
+  void _imBack() {
+    if (!_signalLost) return;
+    _signalTimer?.cancel();
+    _alarmTimer?.cancel();
+    setState(() => _signalLost = false);
+    _toggle(); // duraklatılmış zamanı yeniden başlat.
   }
 
   void _collapseFromStorm() {
@@ -375,7 +398,7 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
       case _PhaseKind.break1:
         return 'Basınç eşitlendi. İlk güvenli bölge kuruldu.';
       case _PhaseKind.break2:
-        return 'İlk hasat yetişti. Mars artık nefes alıyor.';
+        return 'İlk hasat yetişti. QuAlsar artık nefes alıyor.';
       case _PhaseKind.break3:
         return 'Oksijen ve su stokları %100. Hayati risk atlatıldı.';
       case _PhaseKind.done:
@@ -435,16 +458,16 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
               ),
             ),
 
-            // Ay (sola yukarı)
+            // Ay — sağ üst (solda sayaç için yer açılıyor).
             const Positioned(
-              left: 22,
-              top: 24,
-              child: _Moon(size: 54),
-            ),
-            // Dünya (sağa yukarı, dönen bulutlu)
-            Positioned(
-              right: 22,
+              right: 24,
               top: 20,
+              child: _Moon(size: 48),
+            ),
+            // Dünya — ayın biraz altında, sağa yakın, tam görünür.
+            Positioned(
+              right: 18,
+              top: 78,
               child: AnimatedBuilder(
                 animation: _earthCtrl,
                 builder: (_, __) =>
@@ -459,10 +482,10 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
               ),
             ),
 
-            // Mars yüzeyi (zemin + kayalar + kraterler)
+            // QuAlsar yüzeyi (zemin + kayalar + kraterler + kanyonlar)
             Positioned.fill(
               child: CustomPaint(
-                painter: _MarsSurfacePainter(
+                painter: _QuAlsarSurfacePainter(
                   rocks: _rocks,
                   craters: _craters,
                 ),
@@ -602,29 +625,33 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
   }
 
   Widget _buildTimer() {
-    return Center(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.45),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-              color: const Color(0xFFFF9060).withValues(alpha: 0.45),
-              width: 1.2),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFFFF6A3C).withValues(alpha: 0.25),
-              blurRadius: 18,
+    return Padding(
+      padding: const EdgeInsets.only(left: 18),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.45),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+                color: const Color(0xFFFF9060).withValues(alpha: 0.45),
+                width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFF6A3C).withValues(alpha: 0.20),
+                blurRadius: 10,
+              ),
+            ],
+          ),
+          child: Text(
+            _format(_timeLeft),
+            style: GoogleFonts.orbitron(
+              color: Colors.white,
+              fontSize: 22,
+              letterSpacing: 2,
+              fontWeight: FontWeight.w800,
             ),
-          ],
-        ),
-        child: Text(
-          _format(_timeLeft),
-          style: GoogleFonts.orbitron(
-            color: Colors.white,
-            fontSize: 44,
-            letterSpacing: 3,
-            fontWeight: FontWeight.w800,
           ),
         ),
       ),
@@ -722,17 +749,37 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
                   letterSpacing: 2,
                 )),
             const SizedBox(height: 6),
-            Text('Koloni terk ediliyor!',
+            Text('7 saniye içinde dönmezsen koloni kum altında kalır!',
+                textAlign: TextAlign.center,
                 style: GoogleFonts.orbitron(
                     color: Colors.white.withValues(alpha: 0.8),
-                    fontSize: 12)),
+                    fontSize: 11)),
             const SizedBox(height: 18),
-            Text('$_signalCountdown sn içinde dön',
+            Text('$_signalCountdown',
                 style: GoogleFonts.orbitron(
                   color: Colors.white,
-                  fontSize: 34,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 56,
+                  fontWeight: FontWeight.w900,
                 )),
+            const SizedBox(height: 16),
+            // Geldim butonu — basınca alarm kapanır, kaldığı yerden devam.
+            ElevatedButton.icon(
+              onPressed: _imBack,
+              icon: const Icon(Icons.arrow_forward_rounded),
+              label: const Text('GELDİM'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF22C55E),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 26, vertical: 14),
+                textStyle: GoogleFonts.orbitron(
+                    fontSize: 14, fontWeight: FontWeight.w900,
+                    letterSpacing: 1.5),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+                elevation: 8,
+              ),
+            ),
           ],
         ),
       ),
@@ -990,6 +1037,58 @@ class _StarPainter extends CustomPainter {
             flareP);
       }
     }
+
+    // Kayan yıldız — her ~8 saniyede bir, rastgele yönde gökten geçer.
+    // starCtrl 4 sn turlu → t iki turda bir meteor.
+    _drawShootingStar(canvas, size, t, seed: 0);
+    _drawShootingStar(canvas, size, (t + 0.5) % 1.0, seed: 1);
+  }
+
+  void _drawShootingStar(
+      Canvas canvas, Size size, double phase, {required int seed}) {
+    // Her turda bir meteor: phase 0..0.22 arası görünür, sonra kaybolur.
+    if (phase > 0.22) return;
+    final rng = math.Random(seed * 997);
+    // Başlangıç noktası — üst kenarın rastgele x'inde (tur bazında)
+    final cycleId = (t * 2).floor() + seed;
+    final lineRng = math.Random(seed * 7331 + cycleId * 13);
+    final startX = lineRng.nextDouble() * size.width * 0.8 +
+        size.width * 0.1;
+    final startY = lineRng.nextDouble() * size.height * 0.30;
+    final angle = -math.pi / 4 + (lineRng.nextDouble() - 0.5) * 0.6;
+    final speed = size.width * 0.9;
+    final prog = (phase / 0.22).clamp(0.0, 1.0);
+    final cx = startX + math.cos(angle) * speed * prog;
+    final cy = startY + math.sin(angle) * speed * prog + speed * prog * 0.4;
+    // Parlaklık fade — girişte artar, sonunda söner.
+    final fade =
+        math.sin(prog * math.pi).clamp(0.0, 1.0) * (rng.nextDouble() * 0.4 + 0.6);
+    // Kuyruk
+    final tailLen = 42.0;
+    final tailEnd = Offset(
+      cx - math.cos(angle) * tailLen,
+      cy - math.sin(angle) * tailLen - tailLen * 0.4,
+    );
+    final shader = ui.Gradient.linear(
+      Offset(cx, cy),
+      tailEnd,
+      [
+        Colors.white.withValues(alpha: 0.95 * fade),
+        Colors.white.withValues(alpha: 0.0),
+      ],
+    );
+    final tailPaint = Paint()
+      ..shader = shader
+      ..strokeWidth = 2.2
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(Offset(cx, cy), tailEnd, tailPaint);
+    // Baş — parlak nokta + hafif glow
+    final headPaint = Paint()
+      ..color = Colors.white.withValues(alpha: fade)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
+    canvas.drawCircle(Offset(cx, cy), 2.0, headPaint);
+    final corePaint = Paint()..color = Colors.white.withValues(alpha: fade);
+    canvas.drawCircle(Offset(cx, cy), 1.1, corePaint);
   }
 
   @override
@@ -1306,13 +1405,13 @@ class _MountainPainter extends CustomPainter {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  Mars yüzeyi — gradyan + krater + kaya + toz
+//  QuAlsar yüzeyi — gradyan + krater + kaya + kanyon + toz
 // ═══════════════════════════════════════════════════════════════════════════════
 
-class _MarsSurfacePainter extends CustomPainter {
+class _QuAlsarSurfacePainter extends CustomPainter {
   final List<_Rock> rocks;
   final List<_Crater> craters;
-  _MarsSurfacePainter({required this.rocks, required this.craters});
+  _QuAlsarSurfacePainter({required this.rocks, required this.craters});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1377,11 +1476,102 @@ class _MarsSurfacePainter extends CustomPainter {
       );
     }
 
+    // Kanyonlar — birkaç dar, yatay eğimli yarık. Gerçekçi derinlik
+    // hissiyatı için koyu gölge + hafif kenar parıltısı.
+    _drawCanyons(canvas, size, horizonY);
+
     // Kayalar
     for (final r in rocks) {
       final cx = r.dx * size.width;
       final cy = horizonY + (r.dy - 0.5) / 0.5 * (size.height - horizonY);
       _drawRock(canvas, Offset(cx, cy), r.size, r.shade, r.jaggedSeed);
+    }
+  }
+
+  void _drawCanyons(Canvas canvas, Size size, double horizonY) {
+    // 3 kanyon — farklı derinliklerde. Deterministik seed (55) ile üretilir,
+    // tekrar render'da yerleri sabit kalır.
+    final rng = math.Random(7777);
+    final surfaceH = size.height - horizonY;
+    for (int i = 0; i < 3; i++) {
+      final baseY = horizonY + surfaceH * (0.25 + i * 0.22);
+      final startX = rng.nextDouble() * size.width * 0.3;
+      final endX = size.width * (0.6 + rng.nextDouble() * 0.4);
+      final mid1Y = baseY + (rng.nextDouble() - 0.5) * 16;
+      final mid2Y = baseY + (rng.nextDouble() - 0.5) * 20;
+      // Kanyon genişliği perspektif ile artar.
+      final widthNear = 18.0 + i * 6;
+      final widthFar = 6.0 + i * 2;
+      // Alt kenar (derin)
+      final lower = Path()
+        ..moveTo(startX, baseY + widthFar * 0.2)
+        ..cubicTo(
+          startX + (endX - startX) * 0.33,
+          mid1Y + widthNear * 0.5,
+          startX + (endX - startX) * 0.66,
+          mid2Y + widthNear * 0.35,
+          endX,
+          baseY + widthFar * 0.2,
+        );
+      // Üst kenar (ışıklı)
+      final upper = Path()
+        ..moveTo(startX, baseY - widthFar * 0.1)
+        ..cubicTo(
+          startX + (endX - startX) * 0.33,
+          mid1Y - widthNear * 0.1,
+          startX + (endX - startX) * 0.66,
+          mid2Y - widthNear * 0.05,
+          endX,
+          baseY - widthFar * 0.1,
+        );
+      // Kanyon iç (derin gölge) — iki eğri arasını doldur.
+      final fill = Path()
+        ..addPath(upper, Offset.zero)
+        ..extendWithPath(
+          Path()
+            ..moveTo(endX, baseY + widthFar * 0.2)
+            ..cubicTo(
+              startX + (endX - startX) * 0.66,
+              mid2Y + widthNear * 0.35,
+              startX + (endX - startX) * 0.33,
+              mid1Y + widthNear * 0.5,
+              startX,
+              baseY + widthFar * 0.2,
+            ),
+          Offset.zero,
+        )
+        ..close();
+      canvas.drawPath(
+        fill,
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              const Color(0xFF1A0804).withValues(alpha: 0.85),
+              const Color(0xFF3A160A).withValues(alpha: 0.55),
+            ],
+          ).createShader(Rect.fromLTWH(
+              startX, baseY - widthNear, endX - startX, widthNear * 2)),
+      );
+      // Üst kenar highlight — güneş tarafı.
+      canvas.drawPath(
+        upper,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.1
+          ..color =
+              const Color(0xFFE8976A).withValues(alpha: 0.45 - i * 0.08),
+      );
+      // Alt kenar koyu kontur
+      canvas.drawPath(
+        lower,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.8
+          ..color =
+              const Color(0xFF1A0804).withValues(alpha: 0.7),
+      );
     }
   }
 
@@ -1421,7 +1611,7 @@ class _MarsSurfacePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _MarsSurfacePainter oldDelegate) => false;
+  bool shouldRepaint(covariant _QuAlsarSurfacePainter oldDelegate) => false;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -2446,7 +2636,7 @@ class _VictoryDialog extends StatelessWidget {
                 )),
             const SizedBox(height: 12),
             Text(
-              '4 aşamalı Mars Protokolü\'nü tamamladın.\nDünya ile iletişim kuruldu.',
+              '4 aşamalı QuAlsar Protokolü\'nü tamamladın.\nDünya ile iletişim kuruldu.',
               textAlign: TextAlign.center,
               style: GoogleFonts.orbitron(
                 color: Colors.white.withValues(alpha: 0.85),

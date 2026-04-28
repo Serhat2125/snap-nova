@@ -6,6 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../main.dart' show localeService;
+import '../features/offline/domain/offline_subject_pack.dart';
+import '../features/offline/providers/offline_pack_provider.dart';
+import '../features/offline/widgets/offline_download_sheet.dart';
 import '../services/curriculum_catalog.dart';
 import '../services/education_profile.dart';
 import '../services/gemini_service.dart';
@@ -15,7 +18,6 @@ import 'test_page.dart';
 import 'green_colony_screen.dart';
 import 'qualsar_arena_screen.dart';
 import 'qualsar_mars_screen.dart';
-import 'study_buddy_screen.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  Kütüphane — Ders bazlı kart sistemi
@@ -204,6 +206,52 @@ class _StudyCalendarPageState extends State<StudyCalendarPage> {
     setState(() => _grouped = g);
   }
 
+  /// Sol üst seviye etiketi — diğer sayfalarla aynı format.
+  String? _profileBadgeText() {
+    final p = EduProfile.current;
+    if (p == null) return null;
+    String flag = '';
+    for (final c in kAllCountries) {
+      if (c.key == p.country) {
+        flag = c.flag;
+        break;
+      }
+    }
+    String text;
+    switch (p.level) {
+      case 'primary':
+        text = 'İlkokul ${p.grade}';
+        break;
+      case 'middle':
+        text = 'Ortaokul ${p.grade}';
+        break;
+      case 'high':
+        text = 'Lise ${p.grade}';
+        break;
+      case 'exam_prep':
+        text = p.grade.split(' (').first.trim();
+        break;
+      case 'university':
+        text = (p.faculty != null && p.faculty!.isNotEmpty)
+            ? '${p.faculty!} ${p.grade}'
+            : 'Üniversite ${p.grade}';
+        break;
+      case 'masters':
+        text = (p.faculty != null && p.faculty!.isNotEmpty)
+            ? '${p.faculty!} Yüksek Lisans'
+            : 'Yüksek Lisans';
+        break;
+      case 'doctorate':
+        text = (p.faculty != null && p.faculty!.isNotEmpty)
+            ? '${p.faculty!} Doktora'
+            : 'Doktora';
+        break;
+      default:
+        text = p.grade;
+    }
+    return [flag, text].where((s) => s.isNotEmpty).join(' ');
+  }
+
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
@@ -235,7 +283,8 @@ class _StudyCalendarPageState extends State<StudyCalendarPage> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
         children: [
-          // Üstte ortalanmış başlık — dış çerçevenin üstünde
+          // Ortalanmış başlık (etiket artık çerçeve üstünde değil, takvim
+          // çerçevesinin sol üstüne taşındı — kullanıcı ricası).
           Center(
             child: Text(
               localeService.tr('weekly_study_tracker'),
@@ -247,35 +296,71 @@ class _StudyCalendarPageState extends State<StudyCalendarPage> {
               ),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 22),
 
-          // Dış büyük çerçeve — 7 günü içeren
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: _indigo.withValues(alpha: 0.35), width: 1.4),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
+          // Takvim çerçevesi — Stack ile sarmalandı, sol üst köşeye seviye
+          // etiketi (çerçeve çizgisinin TAM ÜSTÜNDE).
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                      color: _indigo.withValues(alpha: 0.35), width: 1.4),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            child: GridView.count(
-              crossAxisCount: 3,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
-              childAspectRatio: 0.72,
-              children: [
-                for (var i = 0; i < 7; i++)
-                  _buildDayFrame(monday.add(Duration(days: i)), dayNames[i]),
-              ],
-            ),
+                child: GridView.count(
+                  crossAxisCount: 3,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  childAspectRatio: 0.72,
+                  children: [
+                    for (var i = 0; i < 7; i++)
+                      _buildDayFrame(
+                          monday.add(Duration(days: i)), dayNames[i]),
+                  ],
+                ),
+              ),
+              if (_profileBadgeText() != null)
+                Positioned(
+                  top: -14,
+                  left: 14,
+                  child: IgnorePointer(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _indigo.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(50),
+                        border: Border.all(
+                          color: _indigo.withValues(alpha: 0.55),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Text(
+                        _profileBadgeText()!,
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: _indigo,
+                          height: 1.1,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       ),
@@ -1634,22 +1719,6 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            // Çalışma Arkadaşım — en altta tek sıra.
-            _LandingCard(
-              icon: Icons.smart_toy_rounded,
-              title: localeService.tr('my_study_buddy'),
-              subtitle: localeService.tr('my_study_buddy_subtitle'),
-              color: const Color(0xFF7C3AED),
-              customBg: _cardsBgOverride,
-              customTextColor: _cardsTextOverride,
-              onColorAccept: (c) => _applyLibraryColor('cards', c),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const StudyBuddyScreen(),
-                ),
-              ),
-            ),
           ],
         ),
       ),
@@ -2184,6 +2253,54 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
       ? localeService.tr('create_summary_hint')
       : 'İstediğin konudan test oluştur'.tr();
 
+  /// Sayfanın çerçevesi dışında sol üstte gösterilecek seviye etiketi.
+  /// Ör. "🇹🇷 İlkokul 1. Sınıf" / "🇹🇷 Lise 11. Sınıf" / "🇹🇷 KPSS Lisans"
+  /// / "🇹🇷 İnşaat Mühendisliği 3. Sınıf".
+  String? _profileBadgeText() {
+    final p = EduProfile.current;
+    if (p == null) return null;
+    String flag = '';
+    for (final c in kAllCountries) {
+      if (c.key == p.country) {
+        flag = c.flag;
+        break;
+      }
+    }
+    String text;
+    switch (p.level) {
+      case 'primary':
+        text = 'İlkokul ${p.grade}';
+        break;
+      case 'middle':
+        text = 'Ortaokul ${p.grade}';
+        break;
+      case 'high':
+        text = 'Lise ${p.grade}';
+        break;
+      case 'exam_prep':
+        text = p.grade.split(' (').first.trim();
+        break;
+      case 'university':
+        text = (p.faculty != null && p.faculty!.isNotEmpty)
+            ? '${p.faculty!} ${p.grade}'
+            : 'Üniversite ${p.grade}';
+        break;
+      case 'masters':
+        text = (p.faculty != null && p.faculty!.isNotEmpty)
+            ? '${p.faculty!} Yüksek Lisans'
+            : 'Yüksek Lisans';
+        break;
+      case 'doctorate':
+        text = (p.faculty != null && p.faculty!.isNotEmpty)
+            ? '${p.faculty!} Doktora'
+            : 'Doktora';
+        break;
+      default:
+        text = p.grade;
+    }
+    return [flag, text].where((s) => s.isNotEmpty).join(' ');
+  }
+
   String _grade = '';
   int _monthUsed = 0;
   String _monthKey = '';
@@ -2714,6 +2831,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
   final _inlineCustomSubjectCtrl = TextEditingController();
 
 
+
   @override
   void initState() {
     super.initState();
@@ -2721,15 +2839,37 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
     _loadColorPrefs();
     _loadSummaryCardColors();
     // Inline panel profili hemen yükle
-    EduProfile.load().then((p) {
+    EduProfile.load().then((p) async {
+      if (!mounted) return;
+      // AI cache pref'ten yükle (uygulama yeniden başlatıldıysa olabilir).
+      await EduProfile.loadAiSubjectCache();
       if (!mounted) return;
       setState(() {
         _inlineProfile = p;
         _inlineEduSubjects = _subjectsForProfileAllTracks(p);
       });
-      // Profil + dersler hazır → kaydedilmiş sırayı uygula.
       _loadSubjectOrder();
+      // Cache yoksa AI'dan profile özel ders listesi çek + güncelle.
+      if (p != null && EduProfile.aiCachedSubjects(p) == null) {
+        unawaited(_fetchAiCurriculum(p));
+      }
     });
+  }
+
+  /// AI'dan o profilin müfredatını çek + cache'le + UI'yi yenile.
+  Future<void> _fetchAiCurriculum(EduProfile p) async {
+    try {
+      final subjects = await GeminiService.fetchProfileSubjects(p);
+      if (subjects.isEmpty) return;
+      await EduProfile.saveAiSubjectCache(p, subjects);
+      if (!mounted) return;
+      setState(() {
+        _inlineEduSubjects = _subjectsForProfileAllTracks(p);
+      });
+      _loadSubjectOrder();
+    } catch (_) {
+      // Sessizce başarısız — kullanıcı fallback listesini görür.
+    }
   }
 
   /// subjectsForProfile'ı tüm track varyasyonları üzerinde UNION'lar.
@@ -3551,7 +3691,7 @@ KATI KURALLAR (bozarsan cevap geçersiz):
   Widget build(BuildContext context) {
     // Root Stack: loader çıkınca AppBar + sayfayı komple kapatsın.
     // Arka plan varsayılanı — kullanıcı palet üzerinden override edebilir.
-    final pageBg = _pageBgOverride ?? const Color(0xFFE8EAEF);
+    final pageBg = _pageBgOverride ?? const Color(0xFFDDE1E9);
     return Stack(
       children: [
         Scaffold(
@@ -3944,6 +4084,10 @@ KATI KURALLAR (bozarsan cevap geçersiz):
         // ═══ Çerçeve: beyaz arka plan, ince siyah (kullanıcı renk
         //    seçerse _frameOverride uygulanır). DragTarget<Color> olduğu
         //    için renk paletinden sürükle-bırak ile de boyanabilir.
+        // Stack ile sarmalandı: çerçevenin DIŞINDA, sol üstte seviye etiketi.
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
         DragTarget<Color>(
           onWillAcceptWithDetails: (_) => _colorTarget == 'frame' || _showColorPicker,
           onAcceptWithDetails: (d) => _applyColorTo('frame', d.data),
@@ -4058,6 +4202,38 @@ KATI KURALLAR (bozarsan cevap geçersiz):
         );
           },
         ),
+            // Sol üstte seviye etiketi — çerçevenin TAMAMEN ÜSTÜNDE
+            // (çerçeve çizgisi altında temiz kalır, etiket çizgiyle binmez).
+            if (_profileBadgeText() != null)
+              Positioned(
+                top: -26,
+                left: 14,
+                child: IgnorePointer(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _orange.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(50),
+                      border: Border.all(
+                        color: _orange.withValues(alpha: 0.55),
+                        width: 1.2,
+                      ),
+                    ),
+                    child: Text(
+                      _profileBadgeText()!,
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: _orange,
+                        height: 1.1,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ],
     );
   }
@@ -4082,6 +4258,53 @@ KATI KURALLAR (bozarsan cevap geçersiz):
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Toplu offline indir bar — kullanıcının aktif profilindeki tüm
+        // dersleri AI'dan çekip cihaza kaydeder; çevrimdışı kullanım için.
+        if (_inlineProfile != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: GestureDetector(
+              onTap: () {
+                final p = _inlineProfile;
+                if (p == null || _inlineEduSubjects.isEmpty) return;
+                OfflineDownloadSheet.show(
+                  context,
+                  subjects: _inlineEduSubjects,
+                  profile: p,
+                );
+              },
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3B82F6).withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: const Color(0xFF3B82F6).withValues(alpha: 0.35),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.cloud_download_rounded,
+                        size: 16, color: Color(0xFF3B82F6)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Çevrimdışı için indir',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF1E40AF),
+                        ),
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right_rounded,
+                        size: 18, color: Color(0xFF3B82F6)),
+                  ],
+                ),
+              ),
+            ),
+          ),
         GridView.count(
           crossAxisCount: 4,
           mainAxisSpacing: 8,
@@ -4143,26 +4366,46 @@ KATI KURALLAR (bozarsan cevap geçersiz):
         decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: hovering ? _orange : Colors.black,
-            width: hovering ? 2.4 : 1,
-          ),
+          // Çerçeve çizgisi yok — yalnızca hover/drag'de turuncu vurgu.
+          // Normal durumda hafif gölgeyle zeminden ayrışır.
+          border: hovering
+              ? Border.all(color: _orange, width: 2.4)
+              : null,
+          boxShadow: hovering
+              ? null
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(s.emoji, style: const TextStyle(fontSize: 22)),
             const SizedBox(height: 3),
-            Text(
-              s.name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: fg,
-                height: 1.15,
+            // Uzun ders adlarında otomatik küçülerek kart içine sığar
+            // (örn. "Elektrik-Elektronik Mühendisliği"). Kısa adlar 10pt'te kalır.
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 90),
+                  child: Text(
+                    s.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: fg,
+                      height: 1.15,
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
@@ -4462,11 +4705,87 @@ KATI KURALLAR (bozarsan cevap geçersiz):
     // Dersi ülke+sınıf için TÜM alan (track) varyasyonlarından topla,
     // böylece profil 'eşit ağırlık' seçili olsa bile matematik/fizik/
     // biyoloji vb. hangi ders tıklandıysa o dersin konuları çıkar.
-    final topics = _topicsForSubjectAllTracks(
+    var topics = _topicsForSubjectAllTracks(
       profile: _inlineProfile,
       subjectKey: edu?.key,
       subjectName: subjectName,
     );
+
+    // Statik müfredat bu ders için konu vermediyse (örn. AI-generated bir
+    // bölüm dersi: Anatomi, Arkeoloji, Veri Bilimi vb.) → önce offline pack
+    // cache'i, sonra AI'ya canlı sor; konuları doldur.
+    if (topics.isEmpty && _inlineProfile != null && edu != null) {
+      final cached = await OfflineDownloadController.readPack(
+        profile: _inlineProfile!,
+        subjectKey: edu.key,
+      );
+      if (cached != null && cached.topics.isNotEmpty) {
+        topics = cached.topics.map((t) => t.name).toList();
+      } else {
+        // Yükleme overlay'i — dialog açıkken AI'dan getirebilirdik ama
+        // dialog daha açılmadığından küçük bir snackbar yeterli.
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(width: 10),
+                  Text('Konular hazırlanıyor…'),
+                ],
+              ),
+              duration: const Duration(seconds: 30),
+            ),
+          );
+        }
+        try {
+          final pairs = await GeminiService.fetchSubjectTopicPack(
+            subjectName: subjectName,
+            profile: _inlineProfile!,
+          );
+          topics = pairs
+              .map((m) => m['name'] ?? '')
+              .where((s) => s.isNotEmpty)
+              .toList();
+          // Pack'i cache'le → bir sonraki açılış anında olsun.
+          if (pairs.isNotEmpty) {
+            // OfflineDownloadController'ın savePack helper'ı yok; doğrudan
+            // SharedPreferences üzerinden offline pack key'ine yaz.
+            final pack = OfflineSubjectPack(
+              subjectKey: edu.key,
+              subjectName: subjectName,
+              emoji: edu.emoji,
+              topics: pairs
+                  .map((p) => OfflineTopic(
+                        name: p['name'] ?? '',
+                        summary: p['summary'] ?? '',
+                      ))
+                  .toList(),
+              cachedAt: DateTime.now(),
+            );
+            try {
+              final prefs = await SharedPreferences.getInstance();
+              final p = _inlineProfile!;
+              final key = 'offline_pack_v1::'
+                  '${p.country}_${p.level}_${p.grade}_'
+                  '${p.faculty ?? ""}_${p.track ?? ""}::${edu.key}';
+              await prefs.setString(key, pack.encode());
+            } catch (_) {}
+          }
+        } catch (_) {
+          // Sessizce başarısız → kullanıcı kendi konusunu yazabilir.
+        }
+        if (mounted) ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      }
+    }
 
     if (!mounted) return;
     await showDialog<void>(
@@ -4539,15 +4858,20 @@ KATI KURALLAR (bozarsan cevap geçersiz):
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    s.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: ink,
-                      height: 1.1,
+                  // Uzun ders adı taşmasın — auto-shrink + ellipsis.
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      s.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: ink,
+                        height: 1.1,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -4838,16 +5162,27 @@ class _NewSubjectSheetState extends State<_NewSubjectSheet> {
                 children: [
                   Text(s.emoji, style: const TextStyle(fontSize: 24)),
                   const SizedBox(height: 4),
-                  Text(
-                    s.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.poppins(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: _selectedSubject?.key == s.key ? s.color : Colors.black87,
-                      height: 1.15,
+                  // Uzun ders adı taşmasın — FittedBox ile auto-shrink.
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 90),
+                        child: Text(
+                          s.name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.poppins(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: _selectedSubject?.key == s.key
+                                ? s.color
+                                : Colors.black87,
+                            height: 1.15,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ],

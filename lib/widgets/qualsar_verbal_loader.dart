@@ -134,14 +134,16 @@ class _QuAlsarVerbalLoaderState extends State<QuAlsarVerbalLoader>
         ),
       ),
       child: SafeArea(
-        child: Center(
+        child: Align(
+          // Logo + disk birlikte ekranın üst kısmına çekildi
+          alignment: const Alignment(0, -0.35),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               _buildLogo(),
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
               _buildLoader(),
-              const SizedBox(height: 15),
+              const SizedBox(height: 18),
               _buildStageText(),
             ],
           ),
@@ -156,7 +158,6 @@ class _QuAlsarVerbalLoaderState extends State<QuAlsarVerbalLoader>
       builder: (_, __) {
         final t = _glowCtrl.value;
         final whiteGlow = 15.0 + 10.0 * t;
-        final redGlow = 30.0 + 20.0 * t;
         return Text.rich(
           TextSpan(
             children: [
@@ -174,14 +175,8 @@ class _QuAlsarVerbalLoaderState extends State<QuAlsarVerbalLoader>
               ),
               TextSpan(
                 text: 'Al',
-                style: _logoStyle(const Color(0xFFFF3333), [
-                  const Shadow(color: Color(0xFFFF3333), blurRadius: 15),
-                  Shadow(color: const Color(0xFFFF0000), blurRadius: redGlow),
-                  if (t > 0.3)
-                    Shadow(
-                        color: const Color(0xFFFF0000),
-                        blurRadius: redGlow * 1.4),
-                ]),
+                // "Al" net — blur yok, saf kırmızı
+                style: _logoStyle(const Color(0xFFFF0000), const []),
               ),
               TextSpan(
                 text: 'sar',
@@ -203,7 +198,7 @@ class _QuAlsarVerbalLoaderState extends State<QuAlsarVerbalLoader>
   }
 
   TextStyle _logoStyle(Color color, List<Shadow> shadows) => TextStyle(
-        fontSize: 32,
+        fontSize: 40,
         fontWeight: FontWeight.w900,
         letterSpacing: 3,
         color: color,
@@ -343,24 +338,36 @@ class _QuAlsarVerbalLoaderState extends State<QuAlsarVerbalLoader>
     final dotStr = '.' * _dots;
     final label =
         _solving ? 'Sorunuz Çözülüyor' : 'Sorunuz Analiz Ediliyor';
+    final textStyle = TextStyle(
+      color: Colors.white,
+      fontSize: 15,
+      letterSpacing: 1.2,
+      fontWeight: FontWeight.w700,
+      shadows: [
+        Shadow(
+            color: Colors.white.withValues(alpha: 0.4), blurRadius: 10),
+      ],
+    );
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 320),
       transitionBuilder: (child, anim) =>
           FadeTransition(opacity: anim, child: child),
-      child: Text(
-        '$label$dotStr',
+      // Row + sabit genişlikte nokta kutusu → metin ortalı konumu sabit kalır,
+      // sadece sondaki 3 nokta yanıp söner.
+      child: Row(
         key: ValueKey(_solving),
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 15,
-          letterSpacing: 1.2,
-          fontWeight: FontWeight.w700,
-          shadows: [
-            Shadow(
-                color: Colors.white.withValues(alpha: 0.4), blurRadius: 10),
-          ],
-        ),
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: textStyle),
+          SizedBox(
+            width: 18,
+            child: Text(
+              dotStr,
+              style: textStyle,
+              textAlign: TextAlign.left,
+            ),
+          ),
+        ],
       ),
     );
   }

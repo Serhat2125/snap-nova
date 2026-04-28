@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Snap Nova</string>
+	<string>QuAlsar</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -91,6 +91,17 @@
 		<string>pinterest</string>
 		<string>reddit</string>
 		<string>threads</string>
+	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.828607169326-f2j8au8cjoiuh8bp3c2l14qi61jfmd26</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist>

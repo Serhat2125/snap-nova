@@ -35,9 +35,32 @@ class ImageShareService {
 
     final cleanText = _cleanResourceLines(record.result);
 
-    // Soru sayfasında OCR metni DEĞİL, kullanıcının fotoğrafı gösterilir.
-    // OCR çağrısı tamamen kaldırıldı — hem tekrar yazım hem de 3-15 sn bekleme yok.
-    final pages = _buildPages(record.imagePath, cleanText);
+    // ── Soru görselini ÖNDEN belleğe al ve cache'le ─────────────────────────
+    //   Image.file asenkron yükleniyor; offscreen overlay sadece 2 frame
+    //   bekliyor. Eğer dosya çözümü o anda tamamlanmazsa fotoğraf 0×0
+    //   yakalanıyor → alıcıya soru görünmüyor. precacheImage ile decoder'ı
+    //   önceden çalıştırıp `Image(image: ...)` ilk frame'de senkron çiziliyor.
+    ImageProvider? questionImg;
+    try {
+      final f = File(record.imagePath);
+      if (await f.exists()) {
+        final bytes = await f.readAsBytes();
+        if (bytes.isNotEmpty) {
+          questionImg = MemoryImage(bytes);
+          if (context.mounted) {
+            await precacheImage(questionImg, context);
+          }
+          debugPrint('[ImgShare] question image precached: ${bytes.length}B');
+        }
+      } else {
+        debugPrint('[ImgShare] question image MISSING: ${record.imagePath}');
+      }
+    } catch (e) {
+      debugPrint('[ImgShare] question image preload failed: $e');
+      questionImg = null;
+    }
+
+    final pages = _buildPages(questionImg, cleanText);
     debugPrint('[ImgShare] ${pages.length} sayfa oluşturulacak');
 
     final keys = List.generate(pages.length, (_) => GlobalKey());
@@ -73,21 +96,19 @@ class ImageShareService {
     overlayState.insert(entry);
 
     try {
-      // Flutter'ın tüm sayfaları render etmesine izin ver — iki frame yeterli,
-      // 300 ms sabit beklemesi kaldırıldı (gereksizdi, çoğunlukla hazır oluyor).
+      // 3 frame bekle — precache yapılmış olsa da layout/paint zincirinin
+      // tüm sayfalar için tamamlanması garantilensin.
+      await WidgetsBinding.instance.endOfFrame;
       await WidgetsBinding.instance.endOfFrame;
       await WidgetsBinding.instance.endOfFrame;
 
       final dir = await getTemporaryDirectory();
       final ts = DateTime.now().millisecondsSinceEpoch;
 
-      // Tüm sayfaları PARALEL yakalamayı dene.
-      // Her sayfa aynı UI thread'ini kullandığı için tamamen eşzamanlı değil
-      // ama Future.wait dosya yazma I/O'sunu üst üste bindiriyor → net kazanç.
       final files = await Future.wait(List.generate(keys.length, (i) async {
         final bytes = await _capturePng(keys[i]);
         final f = File(
-            '${dir.path}/aurasnap_${ts}_${(i + 1).toString().padLeft(2, '0')}.png');
+            '${dir.path}/qualsar_${ts}_${(i + 1).toString().padLeft(2, '0')}.png');
         await f.writeAsBytes(bytes);
         debugPrint('[ImgShare] sayfa ${i + 1}/${keys.length} = ${bytes.length}b');
         return XFile(f.path, mimeType: 'image/png');
@@ -109,16 +130,19 @@ class ImageShareService {
   }
 
   // ── Sayfa bölme ─────────────────────────────────────────────────────────────
-  //  Not: questionImagePath, soru sayfasında gösterilecek fotoğrafın yolu.
+  //  Çözüm metni ekran-boyu sayfalara bölünür; her sayfa kendi PNG'i olarak
+  //  paylaşılır. Sayfa içi padding minimum tutuldu → görsel olarak bitişik
+  //  hissi verir.
+  //  Kısa çözüm (~900 karakter altı) → tek sayfa: foto + çözüm + footer.
+  //  Uzun çözüm → sayfa 1 = foto, sayfa 2+ = çözüm parçaları.
   static List<_PageContent> _buildPages(
-      String questionImagePath, String solution) {
-    // Çok kısa ise tek sayfa — foto + çözüm beraber.
+      ImageProvider? questionImg, String solution) {
     if (solution.length < 900) {
       return [
         _PageContent(
           pageNumber: 1,
           totalPages: 1,
-          questionImagePath: questionImagePath,
+          questionImage: questionImg,
           solutionText: solution,
           showHeader: true,
           showFooter: true,
@@ -126,38 +150,36 @@ class ImageShareService {
       ];
     }
 
-    final solutionChunks = _splitByParagraph(solution, charsPerPage: 750);
-
-    final total = solutionChunks.length + 1; // +1 soru sayfası için
+    final chunks = _splitByParagraph(solution, charsPerPage: 700);
+    final total = chunks.length + 1; // +1 soru sayfası
     final pages = <_PageContent>[
-      // Sayfa 1 — SORU FOTOĞRAFI + tam başlık (logo + chips), footer YOK
       _PageContent(
         pageNumber: 1,
         totalPages: total,
-        questionImagePath: questionImagePath,
+        questionImage: questionImg,
         solutionText: null,
         showHeader: true,
         showFooter: false,
       ),
     ];
-    for (var i = 0; i < solutionChunks.length; i++) {
-      final isLast = i == solutionChunks.length - 1;
+    for (var i = 0; i < chunks.length; i++) {
       pages.add(_PageContent(
         pageNumber: i + 2,
         totalPages: total,
-        questionImagePath: null,
-        solutionText: solutionChunks[i],
-        isSolutionContinuation: i > 0,
-        // Ara sayfalar başlıksız; sadece SON sayfada footer görünür.
+        questionImage: null,
+        solutionText: chunks[i],
         showHeader: false,
-        showFooter: isLast,
+        showFooter: i == chunks.length - 1,
+        // Sadece İLK çözüm sayfası "ÇÖZÜM" başlığını gösterir;
+        // sonrakiler düz devam metni (başlıksız).
+        isSolutionContinuation: i > 0,
       ));
     }
     return pages;
   }
 
-  // Metni \n\n sınırında parçalayıp her sayfanın ~charsPerPage altında kalmasını
-  // hedefleyerek gruplar. Tek bir paragraf çok uzunsa o kendi sayfasında kalır.
+  // Metni \n\n sınırında parçalayıp her sayfanın ~charsPerPage altında
+  // kalmasını hedefleyerek gruplar.
   static List<String> _splitByParagraph(String text,
       {required int charsPerPage}) {
     final blocks = text
@@ -196,10 +218,19 @@ class ImageShareService {
   }
 
   static String _cleanResourceLines(String full) {
-    final pattern = RegExp(r'^\[(VIDEO|WEB|TEST):\s*"(.+?)"\s*\|\s*(.+?)\]\s*$');
+    final resPattern = RegExp(r'^\[(VIDEO|WEB|TEST):\s*"(.+?)"\s*\|\s*(.+?)\]\s*$');
+    // Gemini CONTINUATION MODE bazen "Çözüm (devam)", "Çözüm devam",
+    // "(devam)" gibi satırlar bastırabiliyor — bunları süpür.
+    final contPattern = RegExp(
+        r'^(?:\*{0,2})\s*(?:çözüm\s*\(?devam(?:ı)?\)?|\(?\s*devam(?:ı)?\s*\)?)\s*[:：]?\s*(?:\*{0,2})\s*$',
+        caseSensitive: false);
     return full
         .split('\n')
-        .where((line) => pattern.firstMatch(line.trim()) == null)
+        .where((line) {
+          final t = line.trim();
+          return resPattern.firstMatch(t) == null &&
+              contPattern.firstMatch(t) == null;
+        })
         .join('\n');
   }
 }
@@ -305,7 +336,7 @@ class _PreviewCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'AuraSnap',
+                          'QuAlsar',
                           style: GoogleFonts.poppins(
                             color: Colors.white,
                             fontSize: 42,
@@ -363,7 +394,12 @@ class _PreviewCard extends StatelessWidget {
                         minHeight: 520,
                         maxHeight: 720,
                       ),
-                      child: _questionImage(record.imagePath, maxH: 720),
+                      child: File(record.imagePath).existsSync()
+                          ? Image.file(File(record.imagePath),
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) =>
+                                  _imagePlaceholder(560))
+                          : _imagePlaceholder(560),
                     ),
                   ),
                 ),
@@ -547,19 +583,22 @@ class _PreviewCard extends StatelessWidget {
 class _PageContent {
   final int pageNumber;
   final int totalPages;
-  final String? questionImagePath; // Soru sayfasında gösterilecek fotoğraf
+  // ÖNCEDEN belleğe alınmış (precached) görsel — Image.file lazy
+  // load'ından kaynaklanan "fotoğraf çıkmıyor" sorununu önler.
+  final ImageProvider? questionImage;
   final String? solutionText;
+  final bool showHeader; // Logo + QuAlsar + chip'ler
+  final bool showFooter; // "QuAlsar ile çözüldü" satırı
+  // True ise: çözümün devam sayfası — "ÇÖZÜM" başlığı YAZILMAZ.
   final bool isSolutionContinuation;
-  final bool showHeader; // Logo + AuraSnap + chip'ler
-  final bool showFooter; // "AuraSnap ile çözüldü" satırı
   const _PageContent({
     required this.pageNumber,
     required this.totalPages,
-    this.questionImagePath,
+    this.questionImage,
     this.solutionText,
-    this.isSolutionContinuation = false,
     this.showHeader = false,
     this.showFooter = false,
+    this.isSolutionContinuation = false,
   });
 }
 
@@ -572,12 +611,14 @@ class _PageCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Header varsa üstte 110 padding, yoksa çok az — sayfa numarası kadar boşluk
-    final topPad = content.showHeader ? 110.0 : 18.0;
+    // Sayfalar arası bitişik hissi — üst/alt padding minimuma çekildi.
+    // Header sayfası biraz daha pay ister; içerik sayfaları sıkışık.
+    final topPad = content.showHeader ? 36.0 : 8.0;
+    final bottomPad = content.showFooter ? 18.0 : 8.0;
     return Container(
       width: ImageShareService._cardWidth,
       color: const Color(0xFFF5F6F8),
-      padding: EdgeInsets.fromLTRB(12, topPad, 12, 40),
+      padding: EdgeInsets.fromLTRB(12, topPad, 12, bottomPad),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -602,12 +643,34 @@ class _PageCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 28),
-                  Text(
-                    'AuraSnap',
-                    style: GoogleFonts.poppins(
-                      color: Colors.black,
-                      fontSize: 56,
-                      fontWeight: FontWeight.w800,
+                  Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'Qu',
+                          style: GoogleFonts.poppins(
+                            color: Colors.black,
+                            fontSize: 56,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        TextSpan(
+                          text: 'Al',
+                          style: GoogleFonts.poppins(
+                            color: const Color(0xFFFF0000),
+                            fontSize: 56,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        TextSpan(
+                          text: 'sar',
+                          style: GoogleFonts.poppins(
+                            color: Colors.black,
+                            fontSize: 56,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const Spacer(),
@@ -620,36 +683,8 @@ class _PageCard extends StatelessWidget {
             const SizedBox(height: 28),
           ],
 
-          // Sayfa indicator (birden fazla sayfa varsa HER sayfada göster)
-          if (content.totalPages > 1) ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 22, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Text(
-                      'Sayfa ${content.pageNumber} / ${content.totalPages}',
-                      style: GoogleFonts.poppins(
-                        color: Colors.white,
-                        fontSize: 28,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Sayfa numarası kadar az boşluk
-            const SizedBox(height: 12),
-          ],
-
           // İçerik çerçevesi — overflow taşmasın diye hardEdge clip
+          // (sayfa numarası göstergesi kaldırıldı)
           Container(
             padding: const EdgeInsets.all(30),
             clipBehavior: Clip.hardEdge,
@@ -669,7 +704,7 @@ class _PageCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // SORU bölümü — artık OCR metni değil, fotoğraf
-                if (content.questionImagePath != null) ...[
+                if (content.questionImage != null) ...[
                   Row(
                     children: [
                       Container(
@@ -693,21 +728,30 @@ class _PageCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 30),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Image.file(
-                      File(content.questionImagePath!),
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => Container(
-                        height: 400,
-                        color: Colors.black12,
-                        alignment: Alignment.center,
-                        child: Text(
-                          'Fotoğraf açılamadı',
-                          style: GoogleFonts.poppins(
-                            color: Colors.black54,
-                            fontSize: 24,
-                          ),
+                  // Soru görseli — precached ImageProvider; senkron çizilir.
+                  Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.black.withValues(alpha: 0.12),
+                        width: 2,
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          minHeight: 520,
+                          maxHeight: 900,
+                        ),
+                        child: Image(
+                          image: content.questionImage!,
+                          fit: BoxFit.contain,
+                          width: double.infinity,
+                          gaplessPlayback: true,
+                          errorBuilder: (_, __, ___) =>
+                              _imagePlaceholder(560),
                         ),
                       ),
                     ),
@@ -715,30 +759,15 @@ class _PageCard extends StatelessWidget {
                 ],
 
                 // SORU + ÇÖZÜM aynı sayfadaysa ayraç
-                if (content.questionImagePath != null && content.solutionText != null) ...[
+                if (content.questionImage != null && content.solutionText != null) ...[
                   const SizedBox(height: 54),
                   Container(height: 3, color: Colors.black12),
                   const SizedBox(height: 40),
                 ],
 
-                // ÇÖZÜM bölümü (varsa)
+                // ÇÖZÜM bölümü — başlık SADECE ilk çözüm sayfasında.
                 if (content.solutionText != null) ...[
-                  if (content.isSolutionContinuation)
-                    // Devam sayfası — küçük metin, üstte, ikon yok
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: Text(
-                        'Çözüm (devam)',
-                        style: GoogleFonts.poppins(
-                          color: Colors.black87,
-                          fontSize: 45,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    )
-                  else ...[
-                    // İlk çözüm sayfası — büyük başlık
+                  if (!content.isSolutionContinuation) ...[
                     Row(
                       children: [
                         const Icon(Icons.check_circle_rounded,
@@ -774,7 +803,7 @@ class _PageCard extends StatelessWidget {
                       color: const Color(0xFFFF6A00), size: 40),
                   const SizedBox(width: 14),
                   Text(
-                    'AuraSnap ile saniyeler içinde çözüldü',
+                    'QuAlsar ile saniyeler içinde çözüldü',
                     style: GoogleFonts.poppins(
                       color: Colors.black54,
                       fontSize: 36,
@@ -808,19 +837,6 @@ class _PageCard extends StatelessWidget {
       ),
     );
   }
-}
-
-// ─── Paylaşılan yardımcı — soru görseli, yoksa placeholder ───────────────────
-Widget _questionImage(String path, {required double maxH}) {
-  final f = File(path);
-  if (f.existsSync()) {
-    return Image.file(
-      f,
-      fit: BoxFit.contain,
-      errorBuilder: (_, __, ___) => _imagePlaceholder(maxH),
-    );
-  }
-  return _imagePlaceholder(maxH);
 }
 
 Widget _imagePlaceholder(double h) {

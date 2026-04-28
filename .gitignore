@@ -12,6 +12,11 @@
 .swiftpm/
 migrate_working_dir/
 
+# Development tools — hardcoded API keys burada, ASLA commit edilmez.
+tool/
+*.backup
+*.bak
+
 # IntelliJ related
 *.iml
 *.ipr

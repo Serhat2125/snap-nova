@@ -48,14 +48,17 @@ class PdfService {
     ];
     final dateStr = '${dt.day} ${months[dt.month - 1]} ${dt.year}, $h:$min';
 
+    // ── Dinamik sayfa yüksekliği — içerik TEK uzun bir sayfada akar ────
+    final pageFormat = _computePageFormat(cleanText, hasImage: questionImage != null);
+
     // ── PDF sayfası — soru + çözüm TEK büyük çerçevede ───────────────────
     pdf.addPage(
       pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
+        pageFormat: pageFormat,
         margin: const pw.EdgeInsets.fromLTRB(32, 40, 32, 36),
         header: (ctx) =>
             ctx.pageNumber == 1 ? _buildHeader(ttfBold, ttf, record, dateStr) : pw.SizedBox(),
-        footer: (ctx) => _buildFooter(ttf, ctx),
+        footer: (ctx) => _buildFooter(ttf),
         build: (ctx) => [
           pw.SizedBox(height: 10),
 
@@ -106,7 +109,7 @@ class PdfService {
     // ── Kaydet ve paylaş ──────────────────────────────────────────────────────
     try {
       final dir  = await getTemporaryDirectory();
-      final file = File('${dir.path}/aurasnap_${record.id}.pdf');
+      final file = File('${dir.path}/qualsar_${record.id}.pdf');
       final bytes = await pdf.save();
       debugPrint('[PDF] built ${bytes.length} bytes → ${file.path}');
       await file.writeAsBytes(bytes);
@@ -114,7 +117,7 @@ class PdfService {
       await Share.shareXFiles(
         [XFile(file.path, mimeType: 'application/pdf')],
         text: _toLatin1Safe(
-            '${record.subject} — ${record.solutionType}\nAuraSnap ile cozuldu.'),
+            '${record.subject} — ${record.solutionType}\nQuAlsar ile cozuldu.'),
       );
       debugPrint('[PDF] share sheet opened');
     } catch (e, st) {
@@ -137,7 +140,7 @@ class PdfService {
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
           children: [
             pw.Text(
-              'AuraSnap',
+              'QuAlsar',
               style: pw.TextStyle(font: bold, fontSize: 18, color: PdfColors.blueGrey800),
             ),
             pw.Text(
@@ -175,20 +178,53 @@ class PdfService {
   }
 
   // ── Alt bilgi ────────────────────────────────────────────────────────────────
-  static pw.Widget _buildFooter(pw.Font regular, pw.Context ctx) {
-    return pw.Row(
-      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-      children: [
-        pw.Text(
-          'AuraSnap - AI Destekli Egitim',
-          style: pw.TextStyle(font: regular, fontSize: 8, color: PdfColors.blueGrey400),
-        ),
-        pw.Text(
-          '${ctx.pageNumber} / ${ctx.pagesCount}',
-          style: pw.TextStyle(font: regular, fontSize: 8, color: PdfColors.blueGrey400),
-        ),
-      ],
+  static pw.Widget _buildFooter(pw.Font regular) {
+    return pw.Align(
+      alignment: pw.Alignment.centerLeft,
+      child: pw.Text(
+        'QuAlsar - AI Destekli Egitim',
+        style: pw.TextStyle(font: regular, fontSize: 8, color: PdfColors.blueGrey400),
+      ),
     );
+  }
+
+  // ── Tek uzun sayfa için dinamik yükseklik hesabı ─────────────────────────
+  //   Amaç: PDF'nin sayfa sayfa bölünmemesi, tek bir akıcı sayfa olması.
+  //   Genişlik A4 sabit; yükseklik içerik kadar (minimum A4).
+  static PdfPageFormat _computePageFormat(String text, {required bool hasImage}) {
+    final pageWidth   = PdfPageFormat.a4.width;          // 595 pt
+    const horizMargin = 32.0;
+    const padding     = 14.0;
+    const fontSize    = 13.0;
+    const lineHeight  = fontSize + 3 + 2;                 // font + lineSpacing + leading
+    const avgCharPt   = 6.1;                              // helvetica ~13pt
+    final innerWidth  = pageWidth - 2 * horizMargin - 2 * padding;
+    final charsPerLine = (innerWidth / avgCharPt).floor().clamp(40, 200);
+
+    var textH = 0.0;
+    for (final line in text.split('\n')) {
+      if (line.trim().isEmpty) { textH += lineHeight * 0.6; continue; }
+      final wraps = (line.length / charsPerLine).ceil().clamp(1, 500);
+      textH += wraps * lineHeight;
+    }
+
+    const headerH     = 90.0;   // başlık + chip + divider
+    const footerH     = 30.0;
+    const containerPd = 28.0;   // 14*2 iç padding
+    const imageH      = 240.0;  // görsel + divider
+    const vMargins    = 40.0 + 36.0;
+    const buffer      = 90.0;   // emniyet payı (yuvarlamalar + satır sarma hatası)
+
+    final total = headerH
+        + (hasImage ? imageH : 0)
+        + containerPd
+        + textH
+        + footerH
+        + vMargins
+        + buffer;
+
+    final pageHeight = total.clamp(PdfPageFormat.a4.height, 30000.0).toDouble();
+    return PdfPageFormat(pageWidth, pageHeight);
   }
 
   // ── LaTeX / markdown temizleyici ──────────────────────────────────────────────

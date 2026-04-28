@@ -5,8 +5,16 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Firebase: google-services plugin'i SADECE google-services.json varsa uygula.
+// flutterfire configure çalıştırılmadıysa dosya yoktur — bu guard sayesinde
+// build düşmez (uygulama Firebase olmadan açılır, AuthService içindeki
+// firebaseReady flag'i false kalır → kullanıcıya net mesaj gösterilir).
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
-    namespace = "com.example.snap_nova"
+    namespace = "com.qualsar.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -21,13 +29,15 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.snap_nova"
+        applicationId = "com.qualsar.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // Firebase Auth Android için minSdk >= 23 gerektiriyor.
+        minSdk = maxOf(flutter.minSdkVersion, 23)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        multiDexEnabled = true
     }
 
     buildTypes {

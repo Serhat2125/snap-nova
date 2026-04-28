@@ -538,7 +538,7 @@ class GeminiService {
       'Basit Çöz'     => (4096,  0.15, 0),     // hız önce — ama tam cevap
       'Hızlı Çözüm'   => (3072,  0.15, 0),     // en hızlı
       'Adım Adım Çöz' => (16384, 0.2,  1024),  // muhakeme + uzun çözüm
-      'AI Öğretmen'   => (24576, 0.35, 2048),  // geniş muhakeme + tam anlatım
+      'AI Öğretmen' || 'AI Arkadaşım' => (24576, 0.35, 2048),  // geniş muhakeme + tam anlatım
       'Konu Anlatımı' => (32768, 0.3,  2048),
       'Benzer Sorular'=> (24576, 0.3,  2048),
       'Video Ders'    => (12288, 0.3,  1024),
@@ -716,7 +716,7 @@ class GeminiService {
       'Basit Çöz'     => (4096, 0),
       'Hızlı Çözüm'   => (3072, 0),
       'Adım Adım Çöz' => (16384, 1024),
-      'AI Öğretmen'   => (24576, 2048),
+      'AI Öğretmen' || 'AI Arkadaşım' => (24576, 2048),
       _               => (16384, 512),
     };
     final initial = await _callGeminiFull(
@@ -814,19 +814,45 @@ class GeminiService {
     } on SocketException { throw GeminiException.noInternet(); }
      on TimeoutException { throw GeminiException.noInternet(); }
 
+    final curriculumBlock = _buildCurriculumBlock();
     final systemPrompt = '''Sen bir eğitim içerik üreticisisin. Aşağıda bir öğrencinin sorduğu soruya ait çözüm verilmiştir. Bu çözümden sorunun konusunu, türünü ve kavramlarını analiz et. Tüm içeriği YALNIZCA bu soru ve bu sorunun gerektirdiği kavramlara göre üret — genel konu değil, bu soruya özel ol.
 
+$_sysLanguage
+
+$curriculumBlock
+
 KURAL: Yalnızca geçerli JSON döndür. Markdown kullanma, açıklama yazma, hiçbir şey ekleme. Sadece JSON.
+KURAL: TÜM JSON içeriği (soru metinleri, şıklar, açıklamalar, kart başlıkları, terim, tanım) KULLANICININ DİLİNDE olsun — uygulama dili neyse o. JSON anahtar adları (örn. "question", "term") İngilizce kalır; sadece DEĞERLER kullanıcı dilinde.
+KURAL: İçeriğin zorluğu ve dili öğrencinin EĞİTİM SEVİYESİNE göre olsun (ilkokul → sade + günlük dil; üniversite → teknik). JSON DEĞERLERİNDE ASCII art, emoji süs, markdown yıldız (*) yok.
 Ders / alan: $subject
 
 BENZER SORULAR KURALLARI:
 - Üretilen 5 soru, aşağıdaki çözümdeki soruyla AYNI kavram ve zorluk seviyesinde olmalı.
+- Soruları öğrencinin EĞİTİM SEVİYESİNE uygun zorlukta yaz: ilkokul ise basit sayılar/kavramlar, üniversite ise teknik derinlik.
 - Her soru bu sorudan farklı sayılar/değişkenler kullanarak özgün olmalı.
 - HER soru ÇOKTAN SEÇMELİ olmalı; tam olarak 4 şık (A, B, C, D) içermeli.
 - "question" alanına önce soru metni, sonra yeni satırda her şık ayrı satırda yazılacak.
   Format TAM OLARAK şöyle:
     "Soru metni burada.\\nA) birinci şık\\nB) ikinci şık\\nC) üçüncü şık\\nD) dördüncü şık"
 - "solution" alanında doğru şıkkı açıkla ve adım adım çöz.
+
+SAYISAL DERSLERDE LaTeX KULLANIMI (Matematik/Fizik/Kimya/Biyoloji hesap) — hem "question" hem "solution" için ZORUNLU:
+- Tüm matematiksel ifadeleri LaTeX ile yaz. Inline: \\( ... \\). Blok denklemler: \\[ ... \\].
+- ÜSLÜ ifadeler: x^{2}, e^{-kt}, 10^{-3}, 2^{n+1} — üssü MUTLAKA süslü paranteze al; x^2 YAZMA.
+- KÖKLER: \\sqrt{x}, \\sqrt[3]{x}, \\sqrt{a^{2}+b^{2}} — her zaman \\sqrt{...}.
+- KESİRLER: \\frac{a}{b}, \\dfrac{dy}{dx}; iç içe kesirler dahil her kesiri \\frac ile yaz.
+- TÜREV/İNTEGRAL: \\int_{a}^{b} f(x)\\,dx, \\frac{d}{dx}, \\frac{\\partial f}{\\partial x}.
+- LİMİT/TOPLAM/ÇARPIM: \\lim_{x\\to 0}, \\sum_{i=1}^{n}, \\prod_{k=1}^{m}.
+- DENKLEMLER: Tüm denklemler LaTeX içinde. "x^2 + 2x - 3 = 0" yerine \\(x^{2}+2x-3=0\\) yaz.
+- YUNAN HARFLERİ: \\alpha, \\beta, \\gamma, \\theta, \\pi, \\omega, \\Delta, \\Omega, \\lambda, \\mu, \\sigma ("alfa", "pi" diye YAZMA).
+- TRİG/LOG: \\sin, \\cos, \\tan, \\cot, \\log, \\ln, \\arcsin (ters eğik çizgi ZORUNLU).
+- VEKTÖR: \\vec{v}, \\vec{F}; matris: \\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}.
+- KİMYASAL FORMÜLLER: H_{2}O, CO_{2}, H_{2}SO_{4}, Ca(OH)_{2}, Fe^{3+}, SO_{4}^{2-} — alt ve üst indisler _{} ve ^{} ile.
+- KİMYASAL REAKSİYONLAR: ok için \\to, denge için \\rightleftharpoons. Örnek: \\(2H_{2}+O_{2}\\to 2H_{2}O\\).
+- OPERATÖRLER/SEMBOLLER: \\pm, \\mp, \\times, \\div, \\cdot, \\leq, \\geq, \\neq, \\approx, \\equiv, \\infty, \\in, \\notin, \\subset, \\subseteq, \\cap, \\cup, \\emptyset, \\forall, \\exists.
+- BİRİMLER: sayı ile birim arasına \\, (ince boşluk), birim \\text{...} içinde. Örnek: \\(9{,}81\\,\\text{m/s}^{2}\\), \\(0{,}5\\,\\text{mol/L}\\).
+- ONDALIK: virgül kullan ve LaTeX içinde {,} ile ayır: 3{,}14 (3.14 değil).
+- ŞIKLAR da LaTeX'li olabilir; örn. "A) \\(\\dfrac{3\\sqrt{2}}{2}\\)".
 
 BİLGİ KARTI KURALLARI:
 - 3 adet kısa bilgi kartı üret. Her kart bu sorunun konusuyla doğrudan ilgili olmalı.
@@ -869,22 +895,148 @@ Aşağıdaki çözümü analiz ederek içerik üret:
 $solution''';
 
     try {
+      // LaTeX-ağır JSON (her \sqrt → \\\\sqrt escape) + 5 soru + 3 kart + 6
+      // çift birikmesi 4 K token'ı aşıyordu → MAX_TOKENS truncation → parse
+      // fail. 16 K'a çıkarıldı; emniyet payı olarak finishReason de izleniyor.
       final res = await _callGeminiFull(
         systemPrompt: systemPrompt,
         userMessage: 'Yukarıdaki JSON şablonunu doldur.',
-        maxTokens: 4096,
+        maxTokens: 16384,
         temperature: 0.25,
         thinkingBudget: 0,
         responseMimeType: 'application/json',
-        timeout: const Duration(seconds: 60),
+        timeout: const Duration(seconds: 90),
       );
       var text = res.text
           .replaceAll(RegExp(r'```json\s*'), '')
           .replaceAll(RegExp(r'```\s*'), '')
           .trim();
+      if (res.finishReason == 'MAX_TOKENS') {
+        _log('[!] fetchStudySuite MAX_TOKENS — JSON yarıda kesildi.');
+      }
       _log('fetchStudySuite OK: ${text.length} karakter');
-      return jsonDecode(text) as Map<String, dynamic>;
+      try {
+        return jsonDecode(text) as Map<String, dynamic>;
+      } on FormatException {
+        // Yarım kapanmış JSON'u kurtarmaya çalış: eksik } ve ] ekle, deneme.
+        final repaired = _repairTruncatedJson(text);
+        return jsonDecode(repaired) as Map<String, dynamic>;
+      }
 
+    } on GeminiException { rethrow; }
+     on TimeoutException  { throw GeminiException.serverTimeout(); }
+     on SocketException   { throw GeminiException.noInternet(); }
+     on FormatException catch (e) { throw GeminiException.unknown('JSON parse: $e'); }
+     catch (e)            { throw GeminiException.unknown(e.toString()); }
+  }
+
+  // Yarım kalmış JSON'u son geçerli "}" / "]" yerinden kurtarmaya çalışır.
+  static String _repairTruncatedJson(String s) {
+    // Son tam kapanan "}" veya "]" indisini bul, oradan kes ve dengeli kapanış ekle.
+    var t = s.trim();
+    // Açılıp kapanmamış stringi sonlandır
+    final quoteCount = '"'.allMatches(t).length;
+    if (quoteCount.isOdd) t = '$t"';
+    // Açık parantezleri say ve kapat
+    int curly = 0, square = 0;
+    for (final ch in t.codeUnits) {
+      if (ch == 0x7B) {
+        curly++;        // {
+      } else if (ch == 0x7D) {
+        curly--;        // }
+      } else if (ch == 0x5B) {
+        square++;       // [
+      } else if (ch == 0x5D) {
+        square--;       // ]
+      }
+    }
+    // Olası sondaki virgülleri at
+    t = t.replaceAll(RegExp(r',\s*$'), '');
+    while (square > 0) { t = '$t]'; square--; }
+    while (curly  > 0) { t = '$t}'; curly--;  }
+    return t;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  fetchMatchPairs — Yarış için 6 terim/tanım çifti
+  //  StudySuite'in sadece match_pairs kısmı; ders + konu girdi.
+  // ══════════════════════════════════════════════════════════════════════════════
+  static Future<List<({String term, String definition})>> fetchMatchPairs({
+    required String subject,
+    required String topic,
+  }) async {
+    _log('fetchMatchPairs() — $subject / $topic');
+    try {
+      final dns = await InternetAddress.lookup('generativelanguage.googleapis.com')
+          .timeout(const Duration(seconds: 10));
+      if (dns.isEmpty || dns[0].rawAddress.isEmpty) throw GeminiException.noInternet();
+    } on SocketException { throw GeminiException.noInternet(); }
+     on TimeoutException { throw GeminiException.noInternet(); }
+
+    final curriculumBlock = _buildCurriculumBlock();
+    final systemPrompt = '''Sen bir eğitim içerik üreticisisin. Aşağıda bir DERS ve KONU verilmiştir; bu konuyla DOĞRUDAN ilgili 6 adet terim–tanım çifti üret. Hafıza eşleştirme oyunu için kullanılacak.
+
+$_sysLanguage
+
+$curriculumBlock
+
+KURAL: Sadece geçerli JSON döndür. Açıklama yazma, markdown kullanma.
+KURAL: term ve definition KULLANICININ DİLİNDE olsun — uygulama dili neyse o.
+KURAL: Tanımları öğrencinin EĞİTİM SEVİYESİNE uygun sadelikte yaz (ilkokul → günlük dilde; üniversite → teknik). JSON DEĞERLERİNDE ASCII art, emoji süs, markdown yıldız (*) yok.
+
+Ders: $subject
+Konu: $topic
+
+ÇİFT KURALLARI:
+- "term" 1-3 kelimelik kısa kavram (örn. "Hipotenüs", "Newton 2. Yasası", "Fotosentez").
+- "definition" maks 12 kelimelik tek cümlelik tanım. Tanımı öğrencinin EĞİTİM SEVİYESİNE göre sadeleştir.
+- Tüm 6 çift birbirinden NET ayırt edilebilir olmalı; aynı kavramı tekrarlamayın.
+- Çiftler bu konuyla doğrudan ilgili — başka konuya kaymayın.
+
+{
+  "match_pairs": [
+    {"term": "...", "definition": "..."},
+    {"term": "...", "definition": "..."},
+    {"term": "...", "definition": "..."},
+    {"term": "...", "definition": "..."},
+    {"term": "...", "definition": "..."},
+    {"term": "...", "definition": "..."}
+  ]
+}''';
+
+    try {
+      final res = await _callGeminiFull(
+        systemPrompt: systemPrompt,
+        userMessage: 'Yukarıdaki JSON şablonunu doldur.',
+        maxTokens: 4096,
+        temperature: 0.3,
+        thinkingBudget: 0,
+        responseMimeType: 'application/json',
+        timeout: const Duration(seconds: 45),
+      );
+      var text = res.text
+          .replaceAll(RegExp(r'```json\s*'), '')
+          .replaceAll(RegExp(r'```\s*'), '')
+          .trim();
+      Map<String, dynamic> parsed;
+      try {
+        parsed = jsonDecode(text) as Map<String, dynamic>;
+      } on FormatException {
+        parsed = jsonDecode(_repairTruncatedJson(text)) as Map<String, dynamic>;
+      }
+      final raw = parsed['match_pairs'];
+      if (raw is! List) throw GeminiException.unknown('match_pairs alanı eksik');
+      final out = <({String term, String definition})>[];
+      for (final m in raw) {
+        if (m is! Map) continue;
+        final term = (m['term'] ?? '').toString().trim();
+        final def = (m['definition'] ?? '').toString().trim();
+        if (term.isEmpty || def.isEmpty) continue;
+        out.add((term: term, definition: def));
+      }
+      if (out.length < 4) throw GeminiException.unknown('Yeterli eşleştirme çifti üretilemedi');
+      _log('fetchMatchPairs OK: ${out.length} çift');
+      return out;
     } on GeminiException { rethrow; }
      on TimeoutException  { throw GeminiException.serverTimeout(); }
      on SocketException   { throw GeminiException.noInternet(); }
@@ -948,6 +1100,348 @@ $existingSolution''';
   }
 
   // ══════════════════════════════════════════════════════════════════════════════
+  //  Profil Müfredatı — kullanıcının seçtiği bölüm/sınıf/sınav için derslerin
+  //  listesini AI'dan al. Hardcoded haritalar yetmediği yerde devreye girer.
+  // ══════════════════════════════════════════════════════════════════════════════
+  static Future<List<Map<String, String>>> fetchProfileSubjects(
+      EduProfile profile) async {
+    _log('fetchProfileSubjects() — ${profile.displayLabel()}');
+
+    try {
+      final dns =
+          await InternetAddress.lookup('generativelanguage.googleapis.com')
+              .timeout(const Duration(seconds: 10));
+      if (dns.isEmpty || dns[0].rawAddress.isEmpty) {
+        throw GeminiException.noInternet();
+      }
+    } on SocketException {
+      throw GeminiException.noInternet();
+    } on TimeoutException {
+      throw GeminiException.noInternet();
+    }
+
+    final ctx = educationContext(profile);
+    final systemPrompt = '''Sen bir eğitim müfredat uzmanısın. Aşağıdaki öğrenci profili için, bu öğrencinin O DÖNEMDE / SINIFTA / BÖLÜMDE / SINAVDA okumakta veya sorumlu olduğu DERSLERİN listesini ver.
+
+$ctx
+
+KURALLAR:
+- 6-14 ders arası.
+- Ülkenin resmi müfredatına göre ders adlarını yerel dilde (endonim) ver — örn. Almanya'da "Mathematik", Türkiye'de "Matematik", Japonya'da "数学".
+- Her ders için: kısa snake_case ASCII anahtar (örn. "math", "edebiyat_tarihi", "anatomy"), o dilde ad, mantıklı emoji.
+- Sınava hazırlık seviyesinde (YKS, ALES, TUS, SAT, JEE vb.): o sınavın resmi konularını ders olarak listele.
+- Üniversite bölümlerinde: o bölümün ÇEKİRDEK derslerini listele.
+- Sadece geçerli JSON döndür, açıklama yok.
+
+Format:
+{
+  "subjects": [
+    {"key": "matematik", "name": "Matematik", "emoji": "📐"},
+    {"key": "edebiyat", "name": "Edebiyat", "emoji": "📚"}
+  ]
+}''';
+
+    try {
+      final res = await _callGeminiFull(
+        systemPrompt: systemPrompt,
+        userMessage: 'Yukarıdaki şablonu doldur — sadece JSON.',
+        maxTokens: 2048,
+        temperature: 0.2,
+        thinkingBudget: 0,
+        responseMimeType: 'application/json',
+        timeout: const Duration(seconds: 30),
+      );
+      var text = res.text
+          .replaceAll(RegExp(r'```json\s*'), '')
+          .replaceAll(RegExp(r'```\s*'), '')
+          .trim();
+      Map<String, dynamic> parsed;
+      try {
+        parsed = jsonDecode(text) as Map<String, dynamic>;
+      } on FormatException {
+        parsed = jsonDecode(_repairTruncatedJson(text)) as Map<String, dynamic>;
+      }
+      final raw = parsed['subjects'];
+      if (raw is! List) {
+        throw GeminiException.unknown('subjects alanı eksik');
+      }
+      final out = <Map<String, String>>[];
+      for (final e in raw) {
+        if (e is! Map) continue;
+        final key = (e['key'] ?? 'custom').toString();
+        final name = (e['name'] ?? '').toString();
+        final emoji = (e['emoji'] ?? '📚').toString();
+        if (name.isEmpty) continue;
+        out.add({'key': key, 'name': name, 'emoji': emoji});
+      }
+      _log('fetchProfileSubjects OK: ${out.length} ders');
+      return out;
+    } on GeminiException {
+      rethrow;
+    } on TimeoutException {
+      throw GeminiException.serverTimeout();
+    } on SocketException {
+      throw GeminiException.noInternet();
+    } catch (e) {
+      throw GeminiException.unknown(e.toString());
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  Topic Names Only — bir dersin konu BAŞLIKLARINI al (özet yok, ucuz çağrı).
+  //  Kullanıcı sonra hangi konuyu istiyorsa o konunun özetini ayrı çağrıyla alır.
+  // ══════════════════════════════════════════════════════════════════════════════
+  static Future<List<String>> fetchTopicNames({
+    required String subjectName,
+    required EduProfile profile,
+  }) async {
+    _log('fetchTopicNames() — $subjectName · ${profile.displayLabel()}');
+
+    try {
+      final dns =
+          await InternetAddress.lookup('generativelanguage.googleapis.com')
+              .timeout(const Duration(seconds: 10));
+      if (dns.isEmpty || dns[0].rawAddress.isEmpty) {
+        throw GeminiException.noInternet();
+      }
+    } on SocketException {
+      throw GeminiException.noInternet();
+    } on TimeoutException {
+      throw GeminiException.noInternet();
+    }
+
+    final ctx = educationContext(profile);
+    final systemPrompt = '''Sen bir eğitim müfredat uzmanısın. Aşağıdaki öğrenci profili + ders için, o dersin müfredatındaki KONU BAŞLIKLARINI listele. Sadece adlar — açıklama yok.
+
+$ctx
+
+Ders: $subjectName
+
+KURALLAR:
+- 8-14 konu başlığı arası.
+- Sadece geçerli JSON döndür: {"topics": ["...", "..."]}.
+- Konular o ülkenin resmi müfredatına uygun, dersi-işleme sırasında.
+- Her başlık 2-6 kelimelik öz isim — paragraf YOK.
+- Tüm metin KULLANICININ DİLİNDE.''';
+
+    try {
+      final res = await _callGeminiFull(
+        systemPrompt: systemPrompt,
+        userMessage: 'Yukarıdaki şablonu doldur — sadece JSON.',
+        maxTokens: 1024,
+        temperature: 0.2,
+        thinkingBudget: 0,
+        responseMimeType: 'application/json',
+        timeout: const Duration(seconds: 30),
+      );
+      var text = res.text
+          .replaceAll(RegExp(r'```json\s*'), '')
+          .replaceAll(RegExp(r'```\s*'), '')
+          .trim();
+      // Esnek parser — Gemini bazen düz JSON array, bazen
+      // {"topics": [...]}, bazen string[] içinde objeler dönüyor.
+      dynamic parsed;
+      try {
+        parsed = jsonDecode(text);
+      } on FormatException {
+        parsed = jsonDecode(_repairTruncatedJson(text));
+      }
+      List<dynamic>? rawList;
+      if (parsed is List) {
+        rawList = parsed;
+      } else if (parsed is Map<String, dynamic>) {
+        final t = parsed['topics'];
+        if (t is List) rawList = t;
+      }
+      if (rawList == null) {
+        throw GeminiException.unknown(
+            'Beklenen format: {"topics": [...]}, gelen: ${text.substring(0, text.length.clamp(0, 200))}');
+      }
+      final out = <String>[];
+      for (final e in rawList) {
+        String? name;
+        if (e is String) {
+          name = e.trim();
+        } else if (e is Map) {
+          // Bazen modeller {"name": "..."} veya {"title": "..."} dönüyor.
+          name = (e['name'] ?? e['title'] ?? e['topic'])?.toString().trim();
+        }
+        if (name != null && name.isNotEmpty) out.add(name);
+      }
+      if (out.isEmpty) {
+        throw GeminiException.unknown('Boş konu listesi geldi.');
+      }
+      _log('fetchTopicNames OK: ${out.length} konu');
+      return out;
+    } on GeminiException {
+      rethrow;
+    } on TimeoutException {
+      throw GeminiException.serverTimeout();
+    } on SocketException {
+      throw GeminiException.noInternet();
+    } catch (e) {
+      throw GeminiException.unknown(e.toString());
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  Single Topic Summary — bir konunun (subject + topic) detaylı özetini al.
+  //  Kullanıcı "Oluştur" butonuna tıklayınca tek konuyu üretir.
+  // ══════════════════════════════════════════════════════════════════════════════
+  static Future<String> fetchSingleTopicSummary({
+    required String subjectName,
+    required String topicName,
+    required EduProfile profile,
+  }) async {
+    _log('fetchSingleTopicSummary() — $subjectName · $topicName');
+
+    try {
+      final dns =
+          await InternetAddress.lookup('generativelanguage.googleapis.com')
+              .timeout(const Duration(seconds: 10));
+      if (dns.isEmpty || dns[0].rawAddress.isEmpty) {
+        throw GeminiException.noInternet();
+      }
+    } on SocketException {
+      throw GeminiException.noInternet();
+    } on TimeoutException {
+      throw GeminiException.noInternet();
+    }
+
+    final ctx = educationContext(profile);
+    final systemPrompt = '''$_sysIdentity
+
+$_sysLatex
+
+$_sysLanguage
+
+$ctx
+
+[KONU ÖZETİ — TEK KONU]
+Aşağıdaki ders + konu için öğrenciye yönelik kısa, anlaşılır bir özet hazırla.
+Maksimum 250-350 kelime. Bölüm başlıklarını KULLANICININ DİLİNDE yaz.
+
+📚 KONU: [konunun adı]
+🔑 TEMEL KAVRAMLAR: [3-5 madde]
+📐 ANAHTAR FORMÜLLER: [varsa LaTeX ile]
+💡 HATIRLATICI: [1-2 cümle]
+
+Ders: $subjectName
+Konu: $topicName''';
+
+    try {
+      final text = await _callGemini(
+        systemPrompt: systemPrompt,
+        userMessage: 'Bu konunun özetini çıkar.',
+        maxTokens: 1200,
+        temperature: 0.2,
+        timeout: const Duration(seconds: 30),
+      );
+      _log('fetchSingleTopicSummary OK: ${text.length} kar');
+      return text;
+    } on GeminiException {
+      rethrow;
+    } on TimeoutException {
+      throw GeminiException.serverTimeout();
+    } on SocketException {
+      throw GeminiException.noInternet();
+    } catch (e) {
+      throw GeminiException.unknown(e.toString());
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  Subject Topic Pack — bir dersin TÜM konularını + kısa özetlerini al
+  //  (çevrimdışı indirme için tek seferlik). JSON döner.
+  // ══════════════════════════════════════════════════════════════════════════════
+  static Future<List<Map<String, String>>> fetchSubjectTopicPack({
+    required String subjectName,
+    required EduProfile profile,
+  }) async {
+    _log('fetchSubjectTopicPack() — $subjectName · ${profile.displayLabel()}');
+
+    try {
+      final dns =
+          await InternetAddress.lookup('generativelanguage.googleapis.com')
+              .timeout(const Duration(seconds: 10));
+      if (dns.isEmpty || dns[0].rawAddress.isEmpty) {
+        throw GeminiException.noInternet();
+      }
+    } on SocketException {
+      throw GeminiException.noInternet();
+    } on TimeoutException {
+      throw GeminiException.noInternet();
+    }
+
+    final ctx = educationContext(profile);
+    final systemPrompt = '''Sen bir eğitim müfredat uzmanısın. Aşağıdaki öğrenci profili ve seçilen dersin TÜM konu başlıklarını üret + her konu için 100-180 kelimelik kısa özet yaz.
+
+$ctx
+
+Ders: $subjectName
+
+KURALLAR:
+- 8-15 konu başlığı arası.
+- Her konu: { "name": "Konu Adı", "summary": "100-180 kelimelik öz açıklama" }.
+- Özetler öğrencinin EĞİTİM SEVİYESİNE uygun (ilkokul → sade; üniversite → teknik).
+- Tüm metin KULLANICININ DİLİNDE (uygulama dili neyse o).
+- Sade markdown YOK, dolar işareti YOK, yıldız (**) YOK. LaTeX gerekiyorsa \\( ... \\) kullan.
+- O ülkenin resmi müfredatına uygun ders işleme sırası.
+
+Format:
+{
+  "topics": [
+    {"name": "Konu 1", "summary": "..."},
+    {"name": "Konu 2", "summary": "..."}
+  ]
+}''';
+
+    try {
+      final res = await _callGeminiFull(
+        systemPrompt: systemPrompt,
+        userMessage: 'Yukarıdaki şablonu doldur — sadece JSON.',
+        maxTokens: 8192,
+        temperature: 0.3,
+        thinkingBudget: 0,
+        responseMimeType: 'application/json',
+        timeout: const Duration(seconds: 60),
+      );
+      var text = res.text
+          .replaceAll(RegExp(r'```json\s*'), '')
+          .replaceAll(RegExp(r'```\s*'), '')
+          .trim();
+      Map<String, dynamic> parsed;
+      try {
+        parsed = jsonDecode(text) as Map<String, dynamic>;
+      } on FormatException {
+        parsed = jsonDecode(_repairTruncatedJson(text)) as Map<String, dynamic>;
+      }
+      final raw = parsed['topics'];
+      if (raw is! List) {
+        throw GeminiException.unknown('topics alanı eksik');
+      }
+      final out = <Map<String, String>>[];
+      for (final e in raw) {
+        if (e is! Map) continue;
+        final name = (e['name'] ?? '').toString().trim();
+        final summary = (e['summary'] ?? '').toString().trim();
+        if (name.isEmpty) continue;
+        out.add({'name': name, 'summary': summary});
+      }
+      _log('fetchSubjectTopicPack OK: ${out.length} konu');
+      return out;
+    } on GeminiException {
+      rethrow;
+    } on TimeoutException {
+      throw GeminiException.serverTimeout();
+    } on SocketException {
+      throw GeminiException.noInternet();
+    } catch (e) {
+      throw GeminiException.unknown(e.toString());
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
   //  Konu Özeti — çözümden kısa konu özeti çıkar
   // ══════════════════════════════════════════════════════════════════════════════
   static Future<String> getTopicSummary({
@@ -963,13 +1457,21 @@ $existingSolution''';
     } on SocketException { throw GeminiException.noInternet(); }
      on TimeoutException { throw GeminiException.noInternet(); }
 
+    final curriculumBlock = _buildCurriculumBlock();
     final systemPrompt = '''$_sysIdentity
 
 $_sysLatex
 
+$_sysLanguage
+
+$_sysPedagogy
+
+$curriculumBlock
+
 [KONU ÖZETİ MODU]
 Aşağıdaki çözümde geçen konuyu öğrenciye yönelik kısa ve anlaşılır bir özet olarak sun.
-Maksimum 200-250 kelime. Şu bölümleri içer:
+Öğrencinin eğitim seviyesine UYGUN dil ve derinlik kullan; ilkokul öğrencisine farklı, üniversiteliye farklı yaz.
+Maksimum 200-250 kelime. Bölüm başlıklarını KULLANICININ DİLİNDE yaz (aşağıdakiler Türkçe örnek; siz dil neyse o dile çevirin):
 
 📚 KONU: [konunun adı]
 🔑 TEMEL KAVRAMLAR: [3-5 madde, her biri 1 cümle]
@@ -1017,13 +1519,12 @@ $existingSolution''';
       // BASİT ÇÖZ — spec: kısa öz, doğrudan sonuç
       'Basit Çöz' =>
           '[MOD: BASİT ÇÖZÜM]\n'
-          'HEDEF: Sorunun özünü en kısa ve anlaşılır şekilde ver.\n'
-          'TARZ: Gereksiz teknik detaydan kaç, doğrudan sonuca odaklan.\n'
+          'HEDEF: Soruyu adım adım, sade ve doğrudan çöz. Yorum yok, işlem var.\n'
           'YAPI:\n'
-          '1) Kısa bir mantık açıklaması (1-2 cümle).\n'
-          '2) LaTeX ile çözüm (formül → değerler → işlem arka arkaya).\n'
-          '3) "Sonuç: [net cevap]" satırıyla bitir.\n'
-          'KURAL: Konu anlatımı, süsleme, tavsiye KULLANMA. Maksimum 5-6 satır.',
+          '• "1. Adım:", "2. Adım:" ... numaralı adımlar (en fazla 4 adım).\n'
+          '• Her adım: kısa etiket (Formül: / Yerleştir: / Hesapla:) + LaTeX işlemi. Açıklama en fazla 1 kısa cümle.\n'
+          '• Son satır: "Sonuç: [net cevap]".\n'
+          'KURAL: Giriş cümlesi, konu anlatımı, "neden böyle", günlük hayat örneği, tavsiye, doğrulama bölümü YASAK. Adımlar kısa ve yalın.',
 
       // ADIM ADIM ÇÖZ — spec: profesyonel, mantıksal akış
       'Adım Adım Çöz' =>
@@ -1038,19 +1539,20 @@ $existingSolution''';
           '• "Sonuç ve Kontrol:" bölümü: kesin cevap + 1 cümlelik kısa doğrulama '
           '(boyut analizi, sağlama veya mantık kontrolü).',
 
-      // AI ÖĞRETMEN — spec: sıcak giriş + konu + çözüm + ipucu
-      'AI Öğretmen' =>
-          '[MOD: AI ÖĞRETMEN]\n'
-          'HEDEF: Öğrenciyi sıkmadan, sohbet eder gibi ama uzman otoritesiyle öğretmek.\n'
-          'TARZ: "Hadi gel bu problemi birlikte çözelim" gibi sıcak bir girişle '
-          'başla. Kavramların mantığını günlük hayattan kısa örneklerle bağlantıla.\n'
+      // AI ARKADAŞIM — yakın bir arkadaş gibi: samimi, içten ama KISA + sade.
+      'AI Öğretmen' || 'AI Arkadaşım' =>
+          '[MOD: AI ARKADAŞIM]\n'
+          'HEDEF: Yakın arkadaşın gibi soruyu çöz — içten, samimi ama KISA ve sade.\n'
+          'TARZ: "sen" diliyle, doğal bir arkadaş tonuyla yaz. "Hadi şuna birlikte bakalım", '
+          '"Bunu basitçe şöyle düşün" gibi kısa, sıcak bir girişle başla. Resmi olma; '
+          'jargon, akademik dil ve uzun analojiler KULLANMA.\n'
           'YAPI:\n'
-          '1) Kısa KONU ANLATIMI (2-3 cümle): sorunun dayandığı temel kavram + '
-          'günlük hayattan 1 analoji.\n'
-          '2) ÇÖZÜM: numaralı adımlar, her adımda formül LaTeX ile + kısa açıklama.\n'
+          '1) Kısa giriş — 1 cümle, samimi (örn. "Tamam, hızlıca şuna bakalım.").\n'
+          '2) ÇÖZÜM: 2-4 numaralı adım. Her adımda formülü LaTeX ile yaz + tek satır kısa açıklama.\n'
           '3) "Sonuç: [cevap]" satırı.\n'
-          '4) "İpucu: [bu tür sorularda hatırlanması gereken tek şey]" — 1 cümle.\n'
-          'KURAL: Retorik veya Sokratik soru KULLANMA. Samimi ama ciddi ol. Anchor ikonlarını [SYSTEM — ICON USAGE] kurallarına göre seçici kullan.',
+          '4) Son satır: kısa, samimi bir kapanış (örn. "İşte bu kadardı 🙂", "Kolaydı, değil mi?"). 1 cümle.\n'
+          'KURAL: Toplam 8-10 satırı GEÇME. Konu anlatımı, derin analojiler, retorik soru, '
+          '"İpucu:" kutusu YASAK. Sadelik ve samimiyet önce.',
 
       // KONU ÖZETİ — kullanıcı prompt'u (academic_planner._buildSummaryPrompt)
       // zaten tüm yapıyı ve kuralları içeriyor. Buraya Sonuç/Püf Nokta
@@ -1112,9 +1614,9 @@ Cevabı Türkçe ver.''';
 
     // Moda göre token bütçesi ve yaratıcılık
     final (maxTok, temp) = switch (solutionType) {
-      'Basit Çöz'     => (500,  0.1),
+      'Basit Çöz'     => (700,  0.1),
       'Adım Adım Çöz' => (1500, 0.2),
-      'AI Öğretmen'   => (2000, 0.35),
+      'AI Öğretmen' || 'AI Arkadaşım' => (2000, 0.35),
       'KonuÖzeti'     => (3500, 0.3), // zengin, numaralı yapı
       'TestSorulari'  => (8000, 0.4), // 10 soru + çözümler
       _               => (1500, 0.2),
@@ -1153,14 +1655,23 @@ Cevabı Türkçe ver.''';
     } on SocketException { throw GeminiException.noInternet(); }
      on TimeoutException { throw GeminiException.noInternet(); }
 
+    final curriculumBlock = _buildCurriculumBlock();
     final systemPrompt = '''$_sysIdentity
 
 $_sysLatex
 
+$_sysLanguage
+
+$_sysPedagogy
+
+$curriculumBlock
+
 [TAKIP SORUSU MODU]
 Aşağıda bir sorunun çözümü/cevabı verilmiştir. Kullanıcı belirli bir noktayı anlamadı.
-O noktayı kısa ve net açıkla. Konuya uygun yaz (sayısal ise LaTeX formülle, sözel ise açık cümleyle).
+O noktayı kısa ve net açıkla — öğrencinin EĞİTİM SEVİYESİNE uygun dilde, KULLANICININ DİLİNDE.
+Konuya uygun yaz (sayısal ise LaTeX formülle, sözel ise açık cümleyle).
 Adım gerekliyse "1. Adım:" formatını kullan. Son satırda "Sonuç:" ile özetle.
+Dolar işareti, markdown yıldızı, başlık (#) KULLANMA.
 
 ÇÖZÜM:
 $previousSolution''';
@@ -1381,10 +1892,21 @@ GEREKLİ FORMÜLÜ BULMA:
     if (base.isEmpty && detail.isEmpty) return '';
     return '[SYSTEM — STUDENT CURRICULUM]\n'
         '$base\n$detail\n'
-        'Use this curriculum to match the student\'s exact syllabus. '
-        'Example: if the student is Turkish 11th grade Sayısal, assume '
-        'MEB standards — trigonometry, derivatives, analytic geometry, '
-        'organic chem, genetics — and use those terms.';
+        'CRITICAL: Apply the official education system of the student\'s country '
+        'for their level/grade. Use that country\'s standard syllabus, terminology, '
+        'depth and difficulty expectations — regardless of which country it is.\n'
+        'Examples:\n'
+        '• Türkiye 11. Sınıf Sayısal → MEB müfredatı (türev, analitik geometri, '
+        'organik kimya, genetik)\n'
+        '• USA Grade 11 → Common Core (Algebra II, US History, AP Sciences)\n'
+        '• Brasil Ensino Médio → BNCC (funções, química orgânica, história do Brasil)\n'
+        '• 日本 高校2年 → 文部科学省 (微分, 化学基礎, 物理基礎)\n'
+        '• Россия 9 класс → ФГОС (алгебра, геометрия, история России)\n'
+        '• مصر الثانوية → المنهج المصري (رياضيات، فيزياء، تاريخ)\n'
+        '• ভারত কক্ষ ১০ → CBSE/ICSE\n'
+        'Match the same level of curricular precision for ANY country the student is in. '
+        'If the country is unfamiliar, infer the closest internationally recognized '
+        'syllabus for that grade level and use it.';
   }
 
   /// **Kullanıcının seçtiği ülkenin dilini** AI'ya dayatır. Soru hangi
@@ -1491,6 +2013,51 @@ KATI YASAKLAR:
 • LaTeX içine emoji sokma — \\( \\sin \\theta 🔺 \\) YASAK.
 • Sözel derslerde (Tarih/Edebiyat/Felsefe) sadece başlık satırlarında 1 ikon; paragraf içinde emoji yok.''';
 
+  // ── BLOK 5.7: Seviyeye Duyarlı Anlatım & Görsel Pedagoji ───────────────────
+  static const _sysPedagogy = '''
+[SYSTEM — LEVEL-AWARE PEDAGOGY]
+Çözümün dili, derinliği ve görsel zenginliği öğrencinin EĞİTİM SEVİYESİNE göre değişir.
+Curriculum bloğundaki seviyeyi (ilkokul / ortaokul / lise / sınava hazırlık / üniversite vb.) okuyup
+yanıtı şu kalıba uydur:
+
+— İLKOKUL (1-4. sınıf):
+  • Çok sade, günlük dil. Soyut formül yerine elma, top, kalem gibi günlük objelerle anlat.
+  • Görsel grupla göster — ASCII / emoji ile. Örn:
+        🍎 🍎 🍎  +  🍎 🍎  =  🍎 🍎 🍎 🍎 🍎  (3 + 2 = 5)
+        |---|---|---|---|---|
+         1   2   3   4   5
+    Kesirler için bar diyagramı:
+        [██░░░░] = 1/3
+    Toplama/çıkarma için sayı doğrusu çiz (ASCII tire ile).
+  • LaTeX olabildiğince az; sadece zorunlu sembollerde. "x üzeri 2" yerine "5 × 5".
+  • Adım sayısı 2-3 ile sınırlı, her adım 1 cümle.
+
+— ORTAOKUL (5-8. sınıf):
+  • Hâlâ görsel diyagramlar (kesir barı, sayı doğrusu, basit geometri ASCII).
+  • Formüller LaTeX ile ama kısa. Örn: \\( a^2 + b^2 = c^2 \\) eşliğinde 3-4-5 üçgeni ASCII.
+  • Kavramı önce somutla, sonra formülü göster.
+
+— LİSE & SINAVA HAZIRLIK:
+  • Standart akademik tarz. LaTeX yoğun, gerekçe-formül-yerleştirme-sonuç zinciri.
+  • Görsel ASCII opsiyonel, sadece geometri/grafik vb. açıkça yardımcı olduğunda.
+
+— ÜNİVERSİTE / YÜKSEK LİSANS / DOKTORA:
+  • Teknik terminoloji, ileri matematiksel notasyon, ispat tarzı titiz.
+  • Kavramları varsayılan bilgi olarak al; tanım vermeden ilerle.
+
+KATI YASAKLAR (her seviyede):
+• Dolar işareti (\$) çıktıda HİÇ yok — ne sınırlayıcı (\$x\$) ne para birimi olarak.
+• Markdown yıldızları (**, *) süs olarak yazma — kalın/italik için kullanma; UI render etmeyebilir.
+• Markdown başlıkları (#, ##, ###) yok — bizim UI kendi başlıklarını render ediyor.
+• Anlamsız semboller (~, |, ►, ✦, ※) süs olarak ASLA. Sadece geometrik diyagramda fonksiyonel olarak.
+• Backtick (`...`) ile inline kod sarmalama yok.
+• Tablolar markdown pipe (|) ile DEĞİL, doğrudan hizalı satırlarla.
+
+GÖRSEL ASCII NOTU:
+• Sadece monospace alanlarda (kod-bloğu olmayan, ama hizalı) güvenli kullan.
+• Diyagram amaçlı emoji (🍎, 🟦, ▲, ●) sade ve az; her şekli tek tip emoji ile temsil et.
+• İlkokulda görsellik öncelikli; ortaokulda dengeli; lise+ az.''';
+
   // ── BLOK 6: Çoklu Fotoğraf ───────────────────────────────────────────────────
   static const _sysMultiPhoto =
       '[SYSTEM — MULTI-QUESTION] Görselde birden fazla soru var. '
@@ -1520,22 +2087,21 @@ KATI YASAKLAR:
     // kimlik → kritik kurallar → ders tanımlama → LaTeX → matematik ustalığı → formül dağarcığı
     // → muhakeme → ikon → dil → müfredat → format → kaynaklar → fallback
     final base =
-        '$_sysIdentity\n\n$_sysCoreRules\n\n$_sysSubject\n\n$_sysLatex\n\n$_sysMathMastery\n\n$_sysFormulas\n\n$_sysReasoning\n\n$_sysIcons\n\n$_sysLanguage\n\n$curriculumBlock\n\n$_sysFormat\n\n$_sysResources\n\n$_sysFallback\n\n$multi';
+        '$_sysIdentity\n\n$_sysCoreRules\n\n$_sysSubject\n\n$_sysLatex\n\n$_sysMathMastery\n\n$_sysFormulas\n\n$_sysReasoning\n\n$_sysIcons\n\n$_sysPedagogy\n\n$_sysLanguage\n\n$curriculumBlock\n\n$_sysFormat\n\n$_sysResources\n\n$_sysFallback\n\n$multi';
 
     return switch (tab) {
 
       // ── BASİT ÇÖZÜM — spec: özet, doğrudan sonuç ───────────────────────────
       'Basit Çöz' => '''$base
 [MOD: BASİT ÇÖZÜM]
-HEDEF: Sorunun özünü en kısa ve anlaşılır şekilde ver.
-TARZ: Gereksiz teknik detaydan kaç, doğrudan sonuca odaklan.
+HEDEF: Soruyu adım adım, sade ve doğrudan çöz. Yorum yok, işlem var.
 
 YAPI:
-1) Kısa mantık açıklaması (1-2 cümle).
-2) LaTeX ile çözüm (formül → değer yerleştirme → işlem arka arkaya).
-3) "Sonuç: [net cevap]" ile bitir.
+• "1. Adım:", "2. Adım:" ... numaralı adımlar (en fazla 4 adım).
+• Her adım: kısa etiket (Formül: / Yerleştir: / Hesapla:) + LaTeX işlemi. Açıklama en fazla 1 kısa cümle.
+• Son satır: "Sonuç: [net cevap]".
 
-KURAL: Maksimum 5-6 satır; konu anlatımı, "neden böyle", tavsiye KULLANMA.''',
+KURAL: Giriş cümlesi, konu anlatımı, "neden böyle", günlük hayat örneği, tavsiye, doğrulama bölümü YASAK. Adımlar kısa ve yalın.''',
 
       // ── ADIM ADIM ÇÖZÜM — spec: profesyonel, mantıksal akış ────────────────
       'Adım Adım Çöz' => '''$base
@@ -1548,19 +2114,19 @@ YAPI:
 • "1. Adım:", "2. Adım:" ... numaralı adımlar. Her adımda ilgili formülü LaTeX ile göster, sonra değerleri yerleştir.
 • "Sonuç ve Kontrol:" bölümü: kesin cevap + 1 cümlelik kısa doğrulama (boyut analizi, sağlama veya mantık kontrolü).''',
 
-      // ── AI ÖĞRETMEN — spec: sıcak giriş + konu + çözüm + ipucu ─────────────
-      'AI Öğretmen' => '''$base
-[MOD: AI ÖĞRETMEN]
-HEDEF: Öğrenciyi sıkmadan, sohbet eder gibi ama uzman otoritesiyle öğretmek.
-TARZ: "Hadi gel bu problemi birlikte çözelim" gibi sıcak bir girişle başla. Kavramların mantığını günlük hayattan kısa örneklerle bağlantıla.
+      // ── AI ARKADAŞIM — yakın arkadaş tonuyla, sade ve KISA ──────────────────
+      'AI Öğretmen' || 'AI Arkadaşım' => '''$base
+[MOD: AI ARKADAŞIM]
+HEDEF: Yakın arkadaşın gibi soruyu çöz — içten, samimi ama KISA ve sade.
+TARZ: "sen" diliyle, doğal bir arkadaş tonu. "Hadi şuna birlikte bakalım", "Bunu basitçe şöyle düşün" gibi kısa, sıcak bir girişle başla. Resmi dil, akademik jargon ve uzun analojiler YOK.
 
 YAPI:
-1) KONU ANLATIMI (2-3 cümle): sorunun dayandığı temel kavram + günlük hayattan 1 analoji.
-2) ÇÖZÜM: numaralı adımlar, her adımda formül LaTeX ile + kısa açıklama.
+1) Kısa giriş — 1 cümle, samimi (örn. "Tamam, hızlıca şuna bakalım.").
+2) ÇÖZÜM: 2-4 numaralı adım. Her adımda formülü LaTeX ile yaz + tek satır kısa açıklama.
 3) "Sonuç: [cevap]" satırı.
-4) "İpucu: [bu tür sorularda hatırlanması gereken tek şey]" — 1 cümle.
+4) Son satır: kısa, samimi bir kapanış (örn. "İşte bu kadardı 🙂", "Kolaydı, değil mi?"). 1 cümle.
 
-KURAL: Retorik veya Sokratik soru KULLANMA. Samimi ama ciddi ol. Anchor ikonlarını [SYSTEM — ICON USAGE] kurallarına göre seçici kullan.''',
+KURAL: Toplam 8-10 satırı GEÇME. Konu anlatımı, derin analojiler, retorik soru, "İpucu:" kutusu YASAK. Sadelik ve samimiyet önce.''',
 
       // ── (eski) ADIM ADIM ÇÖZÜM — geriye uyumluluk ──────────────────────────
       'Adım Adım Çözüm' => '''$base
@@ -1672,19 +2238,19 @@ Gerçek ve bilinen test platformları seç (Khan Academy, TYT/AYT siteleri, Mate
 
 Tam olarak 3 adet [TEST: ...] kartı yaz; asla → veya metin listesi kullanma.''',
 
-      // ── AI ÖĞRETMEN (fallback) — sıcak giriş + konu + çözüm + ipucu ────────
-      _ when tab.contains('AI Öğretmen') => '''$base
-[MOD: AI ÖĞRETMEN]
-HEDEF: Öğrenciyi sıkmadan, sohbet eder gibi ama uzman otoritesiyle öğretmek.
-TARZ: "Hadi gel bu problemi birlikte çözelim" gibi sıcak bir girişle başla. Kavramların mantığını günlük hayattan kısa örneklerle bağlantıla.
+      // ── AI ARKADAŞIM (fallback) — samimi, sade, KISA ───────────────────────
+      _ when tab.contains('AI Öğretmen') || tab.contains('AI Arkadaşım') => '''$base
+[MOD: AI ARKADAŞIM]
+HEDEF: Yakın arkadaşın gibi soruyu çöz — içten, samimi ama KISA ve sade.
+TARZ: "sen" diliyle, doğal bir arkadaş tonu. Kısa, sıcak bir girişle başla. Resmi dil, jargon, uzun analoji YOK.
 
 YAPI:
-1) KONU ANLATIMI (2-3 cümle): sorunun dayandığı temel kavram + günlük hayattan 1 analoji.
-2) ÇÖZÜM: numaralı adımlar, her adımda formül LaTeX ile + kısa açıklama.
+1) Kısa giriş — 1 cümle, samimi.
+2) ÇÖZÜM: 2-4 numaralı adım. Her adımda formülü LaTeX ile yaz + tek satır açıklama.
 3) "Sonuç: [cevap]" satırı.
-4) "İpucu: [bu tür sorularda hatırlanması gereken tek şey]" — 1 cümle.
+4) Kısa samimi kapanış (1 cümle).
 
-KURAL: Retorik veya Sokratik soru KULLANMA. Samimi ama ciddi ol. Anchor ikonlarını [SYSTEM — ICON USAGE] kurallarına göre seçici kullan.''',
+KURAL: Toplam 8-10 satırı GEÇME. Konu anlatımı, derin analojiler, retorik soru, "İpucu:" kutusu YASAK.''',
 
       // ── Varsayılan — güvenli fallback ────────────────────────────────────────
       _ => '''$base
@@ -1788,7 +2354,9 @@ class GeminiException implements Exception {
 
   factory GeminiException.quotaExceeded() => const GeminiException._(
         userMessage:
-            'API kota sınırına ulaşıldı.\n\n1-2 dakika bekleyip tekrar dene.',
+            'Şu an yoğunluk var, biraz sonra tekrar dene.\n'
+            '(Gemini anahtarın günlük/dakikalık kullanım sınırını aştı — '
+            'genellikle 1-2 dakika içinde tekrar aktif olur.)',
         type: GeminiErrorType.quotaExceeded,
       );
 
@@ -1819,7 +2387,9 @@ class GeminiException implements Exception {
   // ── Internal factories (raw ile) ──────────────────────────────────────────
   factory GeminiException._quotaExceeded(String r) => GeminiException._(
         userMessage:
-            'API kota sınırına ulaşıldı.\n\n1-2 dakika bekleyip tekrar dene.',
+            'Şu an yoğunluk var, biraz sonra tekrar dene.\n'
+            '(Gemini anahtarın günlük/dakikalık kullanım sınırını aştı — '
+            'genellikle 1-2 dakika içinde tekrar aktif olur.)',
         type: GeminiErrorType.quotaExceeded, raw: r);
 
   factory GeminiException._imageTooLarge(String r) => GeminiException._(

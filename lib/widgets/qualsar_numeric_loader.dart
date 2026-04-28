@@ -180,16 +180,19 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
       child: SafeArea(
         child: Stack(
           children: [
-            // QuAlsar logosu — üstte ama biraz daha aşağıda
+            // QuAlsar logosu — ekranın üst kısmında
             Align(
-              alignment: const Alignment(0, -0.55),
+              alignment: const Alignment(0, -0.85),
               child: _buildLogo(),
             ),
-            // Dönen disk — ekranın tam ortasında
-            Center(child: _buildLoader()),
-            // Durum metni — spinner'ın hemen altında
+            // Dönen disk — merkezin biraz üstünde
             Align(
-              alignment: const Alignment(0, 0.35),
+              alignment: const Alignment(0, -0.18),
+              child: _buildLoader(),
+            ),
+            // Durum metni — spinner'ın altında
+            Align(
+              alignment: const Alignment(0, 0.28),
               child: _buildStageText(),
             ),
           ],
@@ -205,7 +208,6 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
       builder: (_, __) {
         final t = _glowCtrl.value; // 0..1
         final whiteGlow = 15.0 + 10.0 * t;
-        final redGlow = 30.0 + 20.0 * t;
         return Text.rich(
           TextSpan(
             children: [
@@ -219,10 +221,8 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
               ),
               TextSpan(
                 text: 'Al',
-                style: _logoStyle(const Color(0xFFFF3333), [
-                  const Shadow(color: Color(0xFFFF3333), blurRadius: 12),
-                  Shadow(color: const Color(0xFFFF0000), blurRadius: redGlow * 0.6),
-                ]),
+                // "Al" net — hiç blur yok, sadece saf kırmızı
+                style: _logoStyle(const Color(0xFFFF0000), const []),
               ),
               TextSpan(
                 text: 'sar',
@@ -240,7 +240,7 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
   }
 
   TextStyle _logoStyle(Color color, List<Shadow> shadows) => TextStyle(
-        fontSize: 32,
+        fontSize: 40,
         fontWeight: FontWeight.w900,
         letterSpacing: 3,
         color: color,
@@ -381,20 +381,32 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
     final primary = widget.primaryText ?? 'Sorunuz Analiz Ediliyor';
     final secondary = widget.secondaryText ?? 'Sorunuz Çözülüyor';
     final label = (widget.staticLabel || !_solving) ? primary : secondary;
+    const textStyle = TextStyle(
+      color: Colors.black,
+      fontSize: 15,
+      letterSpacing: 1.2,
+      fontWeight: FontWeight.w700,
+    );
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 320),
       transitionBuilder: (child, anim) =>
           FadeTransition(opacity: anim, child: child),
-      child: Text(
-        '$label$dotStr',
+      // Row + sabit genişlikte nokta kutusu → "..." ekleyip silmek
+      // metnin ortalı konumunu KAYDIRMAZ. Sadece sondaki 3 nokta yanıp söner.
+      child: Row(
         key: ValueKey(_solving),
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-          color: Colors.black,
-          fontSize: 15,
-          letterSpacing: 1.2,
-          fontWeight: FontWeight.w700,
-        ),
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: textStyle),
+          SizedBox(
+            width: 18, // 3 nokta için ayrılan sabit alan
+            child: Text(
+              dotStr,
+              style: textStyle,
+              textAlign: TextAlign.left,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -500,6 +512,115 @@ class _OrbitRing extends StatelessWidget {
       ),
     );
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  QuAlsarStaticBadge — küçük, sabit (animasyonsuz) logo rozeti.
+//  "Konuyu Pekiştir" gibi başlık satırlarında dönen loader'ın durağan bir
+//  özeti olarak kullanılır. Disk + 3 farklı yarıçaplı arc + merkez sembol.
+// ═══════════════════════════════════════════════════════════════════════════════
+class QuAlsarStaticBadge extends StatelessWidget {
+  final double size;
+  final QuAlsarLoaderVariant variant;
+  const QuAlsarStaticBadge({
+    super.key,
+    this.size = 52,
+    this.variant = QuAlsarLoaderVariant.numeric,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final center = variant == QuAlsarLoaderVariant.verbal ? 'A' : 'Σ';
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: const Color(0xFF0E0E10),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: CustomPaint(
+        painter: _StaticBadgePainter(),
+        child: Center(
+          child: Text(
+            center,
+            style: TextStyle(
+              fontSize: size * 0.32,
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF00FFFF),
+              shadows: const [
+                Shadow(color: Color(0xFF00FFFF), blurRadius: 8),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StaticBadgePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final center = Offset(w / 2, w / 2);
+    final arc = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round;
+    final dot = Paint()..style = PaintingStyle.fill;
+
+    // Dış halka — pembe/kırmızı, sağ üst yarısı
+    const pink = Color(0xFFFF3366);
+    arc.color = pink;
+    final rOuter = w / 2 - 2;
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: rOuter),
+      -math.pi * 3 / 4,
+      math.pi,
+      false,
+      arc,
+    );
+    dot.color = pink;
+    canvas.drawCircle(Offset(center.dx, center.dy - rOuter), w * 0.055, dot);
+
+    // Orta halka — cyan, sol üst yarısı
+    const cyan = Color(0xFF00FFFF);
+    arc.color = cyan;
+    final rMid = w * 0.36;
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: rMid),
+      math.pi / 4,
+      math.pi,
+      false,
+      arc,
+    );
+    dot.color = cyan;
+    canvas.drawCircle(Offset(center.dx + rMid, center.dy), w * 0.05, dot);
+
+    // İç halka — magenta, alt yarısı
+    const magenta = Color(0xFFFF00FF);
+    arc.color = magenta;
+    final rIn = w * 0.22;
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: rIn),
+      -math.pi / 4,
+      math.pi,
+      false,
+      arc,
+    );
+    dot.color = magenta;
+    canvas.drawCircle(Offset(center.dx, center.dy + rIn), w * 0.045, dot);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _ArcPainter extends CustomPainter {

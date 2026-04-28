@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "828607169326",
+    "project_id": "qualsar2-640f0",
+    "storage_bucket": "qualsar2-640f0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:828607169326:android:ffe38e85f1c1f0de50b0bf",
+        "android_client_info": {
+          "package_name": "com.qualsar.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "828607169326-ssnfbe3d936chabd011tpjraeg76dsfj.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.qualsar.app",
+            "certificate_hash": "8c73d1e470ab30c2bae22997606a5f6a069fa815"
+          }
+        },
+        {
+          "client_id": "828607169326-os08cs4ik9e8ki9m7enbfbju2vuf6b2u.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB--uWigFIMb8FX2Phe4foEjoCdvtplxSE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "828607169326-os08cs4ik9e8ki9m7enbfbju2vuf6b2u.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "828607169326-f2j8au8cjoiuh8bp3c2l14qi61jfmd26.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.qualsar.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

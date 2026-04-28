@@ -1,11 +1,13 @@
 import '../services/runtime_translator.dart';
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
@@ -81,6 +83,121 @@ class _AiResultScreenState extends State<AiResultScreen> {
   // ── Study Suite cache (Konuyu Pekiştir) ───────────────────────────────────
   Map<String, dynamic>? _cachedStudySuite;
 
+  // ── Renk özelleştirme — diğer sayfalardaki format ──────────────────────
+  // İki mod: 'frame' (zemin) · 'text' (yazı). Üç hedef: 'bg' (sayfa) ·
+  // 'cards' (çözüm + soru-cevap kartları) · 'photo' (fotoğraf kart çerçevesi).
+  // Renk değerleri ValueNotifier — değişimde tüm ekran yerine sadece
+  // tüketici Container'lar rebuild olsun (anlık tepki).
+  bool _showColorPicker = false;
+  String _colorMode = 'frame';
+  String _colorTarget = 'bg';
+  final ValueNotifier<Color?> _pageBgN   = ValueNotifier(null);
+  final ValueNotifier<Color?> _cardsBgN  = ValueNotifier(null);
+  final ValueNotifier<Color?> _photoBgN  = ValueNotifier(null);
+  final ValueNotifier<Color?> _cardsTextN = ValueNotifier(null);
+
+  Color? get _pageBgOverride    => _pageBgN.value;
+  Color? get _cardsBgOverride   => _cardsBgN.value;
+  Color? get _photoBgOverride   => _photoBgN.value;
+  Color? get _cardsTextOverride => _cardsTextN.value;
+
+  static const _resultPalette = <Color>[
+    Colors.white,
+    Color(0xFFF3F4F6),
+    Color(0xFFD1D5DB),
+    Color(0xFF9CA3AF),
+    Color(0xFF0F172A),
+    Color(0xFFFFEFD5),
+    Color(0xFFFFD1DC),
+    Color(0xFFFCA5A5),
+    Color(0xFFFF6A00),
+    Color(0xFFC8102E),
+    Color(0xFFDB2777),
+    Color(0xFFFBBF24),
+    Color(0xFFDCFCE7),
+    Color(0xFF86EFAC),
+    Color(0xFF10B981),
+    Color(0xFFE0F2FE),
+    Color(0xFF22D3EE),
+    Color(0xFF2563EB),
+    Color(0xFFE9D5FF),
+    Color(0xFFA855F7),
+    Color(0xFF7C3AED),
+    Color(0xFFF5F5DC),
+    Color(0xFFD4A373),
+    Color(0xFF92400E),
+  ];
+
+  // Kullanıcı tercihi — tüm çözüm sayfaları için tek global set.
+  static const _resultColorsKey = 'ai_result_colors_v1';
+
+  Future<void> _loadResultColors() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_resultColorsKey);
+      if (raw == null || raw.isEmpty) return;
+      final m = jsonDecode(raw) as Map<String, dynamic>;
+      if (!mounted) return;
+      Color? read(String k) {
+        final v = m[k];
+        return v is num ? Color(v.toInt()) : null;
+      }
+      // setState gerekmez — notifier'lar kendi tüketicilerini günceller.
+      _pageBgN.value    = read('bg');
+      _cardsBgN.value   = read('cards');
+      _photoBgN.value   = read('photo');
+      _cardsTextN.value = read('cardsText');
+    } catch (_) {}
+  }
+
+  Future<void> _saveResultColors() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final m = <String, int>{};
+      void put(String k, Color? c) {
+        if (c != null) m[k] = c.toARGB32();
+      }
+
+      put('bg', _pageBgOverride);
+      put('cards', _cardsBgOverride);
+      put('photo', _photoBgOverride);
+      put('cardsText', _cardsTextOverride);
+      if (m.isEmpty) {
+        await prefs.remove(_resultColorsKey);
+      } else {
+        await prefs.setString(_resultColorsKey, jsonEncode(m));
+      }
+    } catch (_) {}
+  }
+
+  void _applyResultColor(String target, Color c) {
+    // setState YOK — notifier set edilince yalnızca ilgili tüketici
+    // VLB rebuild olur. Sayfanın kalanı (LatexText, Q&A, butonlar) dokunulmaz.
+    if (_colorMode == 'text') {
+      _cardsTextN.value = c;
+    } else if (target == 'bg') {
+      _pageBgN.value = c;
+    } else if (target == 'photo') {
+      _photoBgN.value = c;
+    } else {
+      _cardsBgN.value = c;
+    }
+    _saveResultColors();
+  }
+
+  void _resetResultColors() {
+    _pageBgN.value    = null;
+    _cardsBgN.value   = null;
+    _photoBgN.value   = null;
+    _cardsTextN.value = null;
+    _saveResultColors();
+  }
+
+  bool _isDarkColor(Color c) {
+    final l = 0.299 * c.r + 0.587 * c.g + 0.114 * c.b;
+    return l < 0.55;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -90,6 +207,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
     _recordId  = widget.existingRecordId ?? _createdAt.millisecondsSinceEpoch.toString();
     _followFocus.addListener(() => setState(() {}));
     _followCtrl.addListener(() => setState(() {}));
+    _loadResultColors();
     if (widget.existingRecordId != null) {
       // Geçmişten açıldı — anında göster, tekrar kaydetme
       _displayed = _mainText;
@@ -232,6 +350,10 @@ class _AiResultScreenState extends State<AiResultScreen> {
     _scrollCtrl.dispose();
     _followCtrl.dispose();
     _followFocus.dispose();
+    _pageBgN.dispose();
+    _cardsBgN.dispose();
+    _photoBgN.dispose();
+    _cardsTextN.dispose();
     super.dispose();
   }
 
@@ -241,16 +363,21 @@ class _AiResultScreenState extends State<AiResultScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F5),
-      resizeToAvoidBottomInset: true,
-      body: SafeArea(
+    return ValueListenableBuilder<Color?>(
+      valueListenable: _pageBgN,
+      builder: (_, pageBgVal, body) => Scaffold(
+        backgroundColor: pageBgVal ?? const Color(0xFFF0F2F5),
+        resizeToAvoidBottomInset: true,
+        body: body,
+      ),
+      child: SafeArea(
         child: SelectionArea(
         child: Stack(
           children: [
             Column(
               children: [
             _buildTopBar(),
+            if (_showColorPicker) _buildResultColorPanel(),
 
             Expanded(
               child: SingleChildScrollView(
@@ -357,7 +484,286 @@ class _AiResultScreenState extends State<AiResultScreen> {
                     color: Color(0xFF22C55E), size: 20)
                 : const _PulseDot(key: ValueKey('pulse')),
           ),
+          const SizedBox(width: 8),
+          // Renk Seç pill — diğer sayfalardaki ile aynı.
+          GestureDetector(
+            onTap: () => setState(
+                () => _showColorPicker = !_showColorPicker),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFFFF6A00),
+                    Color(0xFFDB2777),
+                    Color(0xFF7C3AED),
+                    Color(0xFF2563EB),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(999),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _showColorPicker
+                        ? Icons.close_rounded
+                        : Icons.palette_rounded,
+                    size: 14,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    _showColorPicker
+                        ? 'Kapat'.tr()
+                        : 'Renk Seç'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  // ══════ Renk seçim paneli — diğer sayfalar ile aynı format ═══════════════
+  Widget _buildResultColorPanel() {
+    final orange = const Color(0xFFFF6A00);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.black, width: 1.1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.palette_rounded,
+                  size: 16, color: Colors.black),
+              const SizedBox(width: 6),
+              Text('Renk'.tr(),
+                  style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.black)),
+              const SizedBox(width: 10),
+              Expanded(child: _resultModeToggle(orange)),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: _resetResultColors,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF3F4F6),
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(color: Colors.black12),
+                  ),
+                  child: Text('Sıfırla'.tr(),
+                      style: GoogleFonts.poppins(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.black54)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _resultTargetToggle(orange),
+          const SizedBox(height: 6),
+          Text(
+            'Renge bas ya da sürükleyip istediğin yere bırak.'.tr(),
+            style: GoogleFonts.poppins(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: Colors.black54,
+                height: 1.3),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 76,
+            child: GridView.builder(
+              scrollDirection: Axis.horizontal,
+              gridDelegate:
+                  const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 6,
+                crossAxisSpacing: 6,
+                childAspectRatio: 1.0,
+              ),
+              itemCount: _resultPalette.length,
+              itemBuilder: (_, i) =>
+                  _resultDraggableColor(_resultPalette[i]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _resultModeToggle(Color orange) {
+    Widget box(String id, IconData icon, String label) {
+      final active = _colorMode == id;
+      return Expanded(
+        child: GestureDetector(
+          onTap: () => setState(() => _colorMode = id),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            padding:
+                const EdgeInsets.symmetric(vertical: 7, horizontal: 6),
+            decoration: BoxDecoration(
+              color: active
+                  ? orange.withValues(alpha: 0.12)
+                  : const Color(0xFFF9FAFB),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: active ? orange : Colors.black,
+                width: active ? 1.6 : 1,
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon,
+                    size: 13, color: active ? orange : Colors.black),
+                const SizedBox(width: 5),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: active ? orange : Colors.black,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        box('text', Icons.text_fields_rounded, 'Yazı'.tr()),
+        const SizedBox(width: 8),
+        box('frame', Icons.crop_square_rounded, 'Çerçeve'.tr()),
+      ],
+    );
+  }
+
+  Widget _resultTargetToggle(Color orange) {
+    Widget chip(String id, String label) {
+      final active = _colorTarget == id;
+      return Expanded(
+        child: GestureDetector(
+          onTap: () => setState(() => _colorTarget = id),
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+            decoration: BoxDecoration(
+              color: active
+                  ? orange.withValues(alpha: 0.12)
+                  : const Color(0xFFF3F4F6),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: active ? orange : Colors.black12,
+                width: active ? 1.4 : 1,
+              ),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                  color: active ? orange : Colors.black),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        chip('bg', 'Arka plan'.tr()),
+        const SizedBox(width: 6),
+        chip('photo', 'Fotoğraf'.tr()),
+        const SizedBox(width: 6),
+        chip('cards', 'Kartlar'.tr()),
+      ],
+    );
+  }
+
+  Widget _resultDraggableColor(Color c) {
+    return Draggable<Color>(
+      data: c,
+      dragAnchorStrategy: pointerDragAnchorStrategy,
+      feedback: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: c,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.3),
+              blurRadius: 10,
+            ),
+          ],
+        ),
+      ),
+      childWhenDragging: Opacity(opacity: 0.3, child: _resultDot(c)),
+      child: GestureDetector(
+        onTap: () => _applyResultColor(_colorTarget, c),
+        child: _resultDot(c),
+      ),
+    );
+  }
+
+  Widget _resultDot(Color c) {
+    return Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        color: c,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.black26, width: 1),
       ),
     );
   }
@@ -610,29 +1016,37 @@ class _AiResultScreenState extends State<AiResultScreen> {
 
   Widget _buildPhotoCard() {
     final subject = SolutionsStorage.detectSubjectSmart(widget.result);
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        // Fotoğraf artık sabit 250 px DEĞİL — kendi oranına göre uzar/kısar,
-        // dikey/yatay tüm görseller TAM gözükür (BoxFit.contain).
-        AdaptivePhoto(
-          path: widget.imagePath,
-          maxHeightFactor: 0.55,
-          borderRadius: 14,
-          border: Border.all(
-            color: Colors.black.withValues(alpha: 0.55),
-            width: 0.6,
+    return DragTarget<Color>(
+      onAcceptWithDetails: (d) => _applyResultColor('photo', d.data),
+      builder: (ctx, cand, _) => Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // Fotoğraf artık sabit 250 px DEĞİL — kendi oranına göre uzar/kısar,
+          // dikey/yatay tüm görseller TAM gözükür (BoxFit.contain).
+          ValueListenableBuilder<Color?>(
+            valueListenable: _photoBgN,
+            builder: (_, photoBg, __) => AdaptivePhoto(
+              path: widget.imagePath,
+              maxHeightFactor: 0.55,
+              borderRadius: 14,
+              border: Border.all(
+                color: cand.isNotEmpty
+                    ? const Color(0xFFFF6A00)
+                    : Colors.black.withValues(alpha: 0.55),
+                width: cand.isNotEmpty ? 2 : 0.6,
+              ),
+              background: photoBg ?? AppColors.surface,
+            ),
           ),
-          background: AppColors.surface,
-        ),
-        _frameLabel(top: -7, left: 14, text: subject.toUpperCase()),
-        _frameLabel(
-          bottom: -7,
-          right: 14,
-          text: _shortStamp(),
-          muted: true,
-        ),
-      ],
+          _frameLabel(top: -7, left: 14, text: subject.toUpperCase()),
+          _frameLabel(
+            bottom: -7,
+            right: 14,
+            text: _shortStamp(),
+            muted: true,
+          ),
+        ],
+      ),
     );
   }
 
@@ -650,6 +1064,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
     double? right,
     required String text,
     bool muted = false,
+    bool big = false,
   }) {
     return Positioned(
       top: top,
@@ -657,15 +1072,16 @@ class _AiResultScreenState extends State<AiResultScreen> {
       left: left,
       right: right,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+        padding: EdgeInsets.symmetric(
+            horizontal: big ? 10 : 6, vertical: big ? 3 : 1),
         color: const Color(0xFFF0F2F5),
         child: Text(
           text,
           style: TextStyle(
             color: muted ? Colors.black54 : Colors.black,
-            fontSize: 9,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.2,
+            fontSize: big ? 14 : 9,
+            fontWeight: FontWeight.w800,
+            letterSpacing: big ? 0.8 : 1.2,
           ),
         ),
       ),
@@ -675,51 +1091,112 @@ class _AiResultScreenState extends State<AiResultScreen> {
   // ── Çözüm kartı ─ ince çerçeve, üstte etiket ───────────────────────────────
 
   Widget _buildSolutionCard() {
-    final subject = SolutionsStorage.detectSubjectSmart(widget.result);
     final modelLabel = widget.modelName.isEmpty ? 'QuAlsar' : widget.modelName;
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          width: double.infinity,
-          padding: _done
-              ? const EdgeInsets.fromLTRB(14, 16, 14, 0)
-              : const EdgeInsets.fromLTRB(14, 16, 14, 16),
-          clipBehavior: Clip.hardEdge,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: Colors.black.withValues(alpha: 0.55),
-              width: 0.6,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              LatexText(_displayed),
-              if (!_done) ...[
-                const SizedBox(height: 6),
-                const _BlinkingCursor(),
-              ] else ...[
-                const SizedBox(height: 14),
-                _buildFeedbackCard(),
-              ],
+    return DragTarget<Color>(
+      onAcceptWithDetails: (d) => _applyResultColor('cards', d.data),
+      builder: (ctx, cand, _) {
+        // İçerik (LatexText vb.) AnimatedBuilder.child olarak geçiyor —
+        // renk değiştiğinde rebuild edilmez. Yalnızca dış Container'ın
+        // dekorasyonu ve DefaultTextStyle güncellenir → anlık tepki.
+        final innerColumn = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            LatexText(_displayed),
+            if (!_done) ...[
+              const SizedBox(height: 6),
+              const _BlinkingCursor(),
+            ] else ...[
+              const SizedBox(height: 14),
+              _buildFeedbackCard(),
             ],
-          ),
-        ),
-        _frameLabel(
-          top: -7,
-          left: 14,
-          text: '${localeService.tr('solution').toUpperCase()} · ${subject.toUpperCase()}',
-        ),
-        _frameLabel(
-          bottom: -7,
-          right: 14,
-          text: modelLabel.toUpperCase(),
-          muted: true,
-        ),
-      ],
+          ],
+        );
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            AnimatedBuilder(
+              animation: Listenable.merge([_cardsBgN, _cardsTextN]),
+              child: innerColumn,
+              builder: (_, child) {
+                final cardBg = _cardsBgN.value ?? Colors.white;
+                final cardInk = _cardsTextN.value ??
+                    (_isDarkColor(cardBg) ? Colors.white : Colors.black);
+                return Container(
+                  width: double.infinity,
+                  padding: _done
+                      ? const EdgeInsets.fromLTRB(14, 16, 14, 0)
+                      : const EdgeInsets.fromLTRB(14, 16, 14, 16),
+                  clipBehavior: Clip.hardEdge,
+                  decoration: BoxDecoration(
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: cand.isNotEmpty
+                          ? const Color(0xFFFF6A00)
+                          : Colors.black.withValues(alpha: 0.55),
+                      width: cand.isNotEmpty ? 2 : 0.6,
+                    ),
+                  ),
+                  child: DefaultTextStyle.merge(
+                    style: TextStyle(color: cardInk),
+                    child: child!,
+                  ),
+                );
+              },
+            ),
+            _frameLabel(
+              top: -11,
+              left: 14,
+              text: localeService.tr('solution').toUpperCase(),
+              big: true,
+            ),
+            // Marka etiketi — "QuAlsar" (Al kırmızı). Özel model adı varsa
+            // (Gemini, GPT vb.) eski stille düz yazılır.
+            Positioned(
+              bottom: -7,
+              right: 14,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                color: const Color(0xFFF0F2F5),
+                child: modelLabel == 'QuAlsar'
+                    ? const Text.rich(
+                        TextSpan(
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.4,
+                          ),
+                          children: [
+                            TextSpan(
+                              text: 'Qu',
+                              style: TextStyle(color: Colors.black),
+                            ),
+                            TextSpan(
+                              text: 'Al',
+                              style: TextStyle(color: Color(0xFFD81B1B)),
+                            ),
+                            TextSpan(
+                              text: 'sar',
+                              style: TextStyle(color: Colors.black),
+                            ),
+                          ],
+                        ),
+                      )
+                    : Text(
+                        modelLabel.toUpperCase(),
+                        style: const TextStyle(
+                          color: Colors.black54,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -754,16 +1231,23 @@ class _AiResultScreenState extends State<AiResultScreen> {
   }
 
   Widget _buildDoneRow() {
-    // Tek geniş "Arkadaşına Gönder" sekmesi — yatayda tam genişlik.
+    // Tek geniş "Arkadaşına Gönder" sekmesi — turuncu, yatayda tam genişlik.
+    const orange = Color(0xFFFF6A00);
     return GestureDetector(
       onTap: _sharing ? null : _shareSolutionAsPdf,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: orange,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.black, width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: orange.withValues(alpha: 0.35),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -774,7 +1258,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                 width: 20,
                 height: 20,
                 child: CircularProgressIndicator(
-                  color: AppColors.cyan,
+                  color: Colors.white,
                   strokeWidth: 2,
                 ),
               )
@@ -785,7 +1269,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: Colors.black,
+                    color: Colors.white,
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                   ),
@@ -796,7 +1280,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                 // +x yönü — saat 2 civarı: -45° (−π/4)
                 angle: -math.pi / 4,
                 child: const Icon(Icons.send_rounded,
-                    color: Color(0xFF0070FF), size: 22),
+                    color: Colors.white, size: 22),
               ),
             ],
           ],
@@ -1122,8 +1606,8 @@ class _AiResultScreenState extends State<AiResultScreen> {
                   child: Center(
                     child: Text(
                       localeService.tr('send_feedback'),
-                      style: TextStyle(
-                        color: AppColors.cyan,
+                      style: const TextStyle(
+                        color: Colors.black,
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                       ),
@@ -1170,7 +1654,9 @@ class _AiResultScreenState extends State<AiResultScreen> {
         );
       },
       pageBuilder: (ctx, _, __) => Dialog(
-        backgroundColor: Colors.white,
+        // Dış zemin: hafif gri-beyaz; içerideki beyaz çerçeveler bu tonun
+        // üzerinde belirgin şekilde "ada" gibi durur.
+        backgroundColor: const Color(0xFFEEF1F6),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
           side: BorderSide(
@@ -1179,109 +1665,145 @@ class _AiResultScreenState extends State<AiResultScreen> {
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // ── Üst beyaz çerçeve: ikon + teşekkür başlığı + küçük açıklama
               Container(
-                width: 52, height: 52,
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 18),
                 decoration: BoxDecoration(
-                  color: AppColors.cyan.withValues(alpha: 0.10),
-                  shape: BoxShape.circle,
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: AppColors.cyan.withValues(alpha: 0.35),
-                    width: 1.2,
+                    color: Colors.black.withValues(alpha: 0.10),
+                    width: 1.0,
                   ),
                 ),
-                child: const Icon(Icons.auto_fix_high_rounded,
-                    color: AppColors.cyan, size: 26),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                localeService.tr('feedback_thanks'),
-                style: const TextStyle(
-                  color: Colors.black,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                localeService.tr('ai_teacher_offer'),
-                style: TextStyle(
-                  color: Colors.black.withValues(alpha: 0.60),
-                  fontSize: 13,
-                  height: 1.5,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-
-              // Evet → AI Öğretmen
-              GestureDetector(
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _retryWithAITeacher();
-                },
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 13),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [AppColors.cyan, Color(0xFF0070FF)],
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.cyan.withValues(alpha: 0.30),
-                        blurRadius: 12,
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.school_rounded,
-                          color: Colors.white, size: 18),
-                      const SizedBox(width: 8),
-                      Text(
-                        localeService.tr('yes_ai_teacher'),
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 52, height: 52,
+                      decoration: BoxDecoration(
+                        color: AppColors.cyan.withValues(alpha: 0.10),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.cyan.withValues(alpha: 0.35),
+                          width: 1.2,
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-
-              // Hayır → kapat (beyaz arka plan, siyah kenar, siyah yazı)
-              GestureDetector(
-                onTap: () => Navigator.pop(ctx),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 11),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                        color: Colors.black.withValues(alpha: 0.30),
-                        width: 1.0),
-                  ),
-                  child: Center(
-                    child: Text(
-                      localeService.tr('no_thanks'),
+                      child: const Icon(Icons.auto_fix_high_rounded,
+                          color: AppColors.cyan, size: 26),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      localeService.tr('feedback_thanks'),
                       style: const TextStyle(
                         color: Colors.black,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      localeService.tr('ai_teacher_offer'),
+                      style: TextStyle(
+                        color: Colors.black.withValues(alpha: 0.60),
                         fontSize: 13,
-                        fontWeight: FontWeight.w600,
+                        height: 1.5,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // ── Alt beyaz çerçeve: iki buton birlikte
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Colors.black.withValues(alpha: 0.10),
+                    width: 1.0,
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Evet → AI Öğretmen
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _retryWithAITeacher();
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [AppColors.cyan, Color(0xFF0070FF)],
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.cyan.withValues(alpha: 0.30),
+                              blurRadius: 12,
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.school_rounded,
+                                color: Colors.white, size: 18),
+                            const SizedBox(width: 8),
+                            Text(
+                              localeService.tr('yes_ai_teacher'),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 10),
+
+                    // Hayır → kapat (beyaz arka plan, siyah kenar, siyah yazı)
+                    GestureDetector(
+                      onTap: () => Navigator.pop(ctx),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 11),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                              color: Colors.black.withValues(alpha: 0.30),
+                              width: 1.0),
+                        ),
+                        child: Center(
+                          child: Text(
+                            localeService.tr('no_thanks'),
+                            style: const TextStyle(
+                              color: Colors.black,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -1334,10 +1856,17 @@ class _AiResultScreenState extends State<AiResultScreen> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 4),
       decoration: BoxDecoration(
+        // Çerçeve mavi — Yes tıklandığında kısa bir yeşil parlaklık geçişi.
         color: _positiveGlow
-            ? const Color(0xFF22C55E).withValues(alpha: 0.06)
-            : Colors.transparent,
+            ? const Color(0xFF22C55E).withValues(alpha: 0.08)
+            : const Color(0xFF3B82F6).withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: _positiveGlow
+              ? const Color(0xFF22C55E).withValues(alpha: 0.45)
+              : const Color(0xFF3B82F6).withValues(alpha: 0.45),
+          width: 1.2,
+        ),
       ),
       child: _isRetrying
           ? Padding(
@@ -1572,6 +2101,8 @@ class _AiResultScreenState extends State<AiResultScreen> {
                 maxLines: 4,
                 minLines: 1,
                 style: const TextStyle(color: Colors.black, fontSize: 13),
+                cursorColor: Colors.black,
+                cursorWidth: 2.4,
                 decoration: InputDecoration(
                   hintText: localeService.tr('ask_anything'),
                   hintStyle: TextStyle(

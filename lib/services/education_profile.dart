@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -210,6 +213,85 @@ class EduProfile {
   /// Senkron erişim — gemini_service prompt inşasında kullanır.
   static EduProfile? current;
 
+  // ───────── AI tarafından üretilen müfredat cache'i ─────────────────────
+  // Hardcoded `_facultySubjectKeys` ve `_examSubjectKeys` haritalarında
+  // olmayan bölüm/sınav seçildiğinde AI runtime'da o profilin derslerini
+  // üretir; cache'lenir; library/arena bunu gösterir.
+  static final Map<String, List<EduSubject>> _aiSubjectCache = {};
+
+  /// Bir profil için unique key — country/level/grade/faculty/track.
+  static String _signature(EduProfile p) =>
+      '${p.country}|${p.level}|${p.grade}|${p.faculty ?? ''}|${p.track ?? ''}';
+
+  static String _aiPrefsKey(EduProfile p) =>
+      'ai_subjects_cache_v1::${_signature(p)}';
+
+  /// Mevcut profil için AI cache'i pref'ten yükler (senkron sonrası kullanım).
+  /// main.dart EduProfile.load sonrası bunu çağırır.
+  static Future<void> loadAiSubjectCache() async {
+    if (current == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_aiPrefsKey(current!));
+    if (raw == null) return;
+    try {
+      final list = jsonDecode(raw) as List;
+      _aiSubjectCache[_signature(current!)] = list
+          .map((e) => EduSubject(
+                (e['key'] ?? 'custom').toString(),
+                (e['emoji'] ?? '📚').toString(),
+                (e['name'] ?? 'Ders').toString(),
+                _blue,
+              ))
+          .toList();
+    } catch (_) {}
+  }
+
+  /// Mevcut profil için AI cache'i kaydet — fetcher (gemini_service) çağırır.
+  static Future<void> saveAiSubjectCache(
+      EduProfile p, List<Map<String, String>> subjects) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_aiPrefsKey(p), jsonEncode(subjects));
+    _aiSubjectCache[_signature(p)] = subjects
+        .map((e) => EduSubject(
+              e['key'] ?? 'custom',
+              e['emoji'] ?? '📚',
+              e['name'] ?? 'Ders',
+              _blue,
+            ))
+        .toList();
+  }
+
+  /// Profil için cache var mı?
+  static List<EduSubject>? aiCachedSubjects(EduProfile p) =>
+      _aiSubjectCache[_signature(p)];
+
+  /// Cihaz locale'ine göre ülkeyi otomatik tespit eder ve `mini_test_country`
+  /// pref'ine yazar (yalnızca pref boşsa). Onboarding ülke seçici bu pref'i
+  /// varsayılan olarak kullanır → kullanıcının ülkesi otomatik seçili gelir.
+  ///
+  /// `gb` → `uk` map'lenir; desteklenen ülkeler dışında ise `international`.
+  static Future<void> autoDetectCountryIfMissing() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getString('mini_test_country') != null) return;
+    String? raw;
+    try {
+      raw = ui.PlatformDispatcher.instance.locale.countryCode?.toLowerCase();
+    } catch (_) {}
+    String detected = 'international';
+    if (raw != null && raw.isNotEmpty) {
+      final mapped = raw == 'gb' ? 'uk' : raw;
+      if (_countriesWithDetailedCurriculum.contains(mapped)) {
+        detected = mapped;
+      } else {
+        // Detaylı müfredatı olmayan ülkeler için ham ülke kodunu da sakla;
+        // kAllCountries'te varsa picker bu kodu seçili gösterir.
+        final inAll = kAllCountries.any((c) => c.key == mapped);
+        if (inAll) detected = mapped;
+      }
+    }
+    await prefs.setString('mini_test_country', detected);
+  }
+
   static Future<EduProfile?> load() async {
     final prefs = await SharedPreferences.getInstance();
     final level = prefs.getString('mini_test_level');
@@ -229,9 +311,20 @@ class EduProfile {
     return p;
   }
 
-  /// Türkçe seviye etiketi (üst başlıklarda gösterilir)
+  /// Türkçe seviye etiketi (üst başlıklarda gösterilir).
+  /// Ülke adı: önce kısa map (TR/ABD/Almanya...), yoksa tüm ülke listesinden
+  /// (kAllCountries) bayrak + endonim ad alınır → 58 ülkenin tamamı için
+  /// "🇧🇷 Brasil · Lise 11" gibi anlamlı etiket çıkar.
   String displayLabel() {
-    final cn = _countryNames[country] ?? country;
+    String cn = _countryNames[country] ?? '';
+    if (cn.isEmpty) {
+      try {
+        final c = kAllCountries.firstWhere((c) => c.key == country);
+        cn = '${c.flag} ${c.name}';
+      } catch (_) {
+        cn = country;
+      }
+    }
     String label;
     switch (level) {
       case 'primary':
@@ -408,16 +501,336 @@ const Map<String, EduSubject> _allSubjects = {
   'business_studies': EduSubject('business_studies', '💼', 'Business Studies', _slate),
   'political_science': EduSubject('political_science', '🗳️', 'Political Science', _cyan),
   'computer_science': EduSubject('computer_science', '💻', 'Computer Science', _indigo),
-  // Üniversite generic
+  // Üniversite — Sağlık (Tıp / Diş / Eczacılık / Veterinerlik / Hemşirelik)
   'anatomi': EduSubject('anatomi', '🦴', 'Anatomi', _red),
   'fizyoloji': EduSubject('fizyoloji', '💓', 'Fizyoloji', _red),
+  'biyokimya': EduSubject('biyokimya', '🧪', 'Biyokimya', _green),
+  'histoloji': EduSubject('histoloji', '🔬', 'Histoloji', _purple),
+  'embriyoloji': EduSubject('embriyoloji', '🧬', 'Embriyoloji', _amber),
+  'mikrobiyoloji': EduSubject('mikrobiyoloji', '🦠', 'Mikrobiyoloji', _amber),
+  'patoloji': EduSubject('patoloji', '🩸', 'Patoloji', _red),
+  'farmakoloji': EduSubject('farmakoloji', '💊', 'Farmakoloji', _green),
+  'ic_hast': EduSubject('ic_hast', '🩺', 'İç Hastalıkları', _cyan),
+  'cerrahi': EduSubject('cerrahi', '⚕️', 'Cerrahi', _blue),
+  'pediatri': EduSubject('pediatri', '👶', 'Pediatri', _pink),
+  'kadin_dogum': EduSubject('kadin_dogum', '🤰', 'Kadın-Doğum', _pink),
+  'radyoloji': EduSubject('radyoloji', '☢️', 'Radyoloji', _slate),
+  'halk_sagligi': EduSubject('halk_sagligi', '🌐', 'Halk Sağlığı', _cyan),
+  'psikiyatri': EduSubject('psikiyatri', '🧠', 'Psikiyatri', _purple),
+  'noroloji': EduSubject('noroloji', '🧠', 'Nöroloji', _purple),
+  // Diş
+  'restoratif': EduSubject('restoratif', '🦷', 'Restoratif Diş', _blue),
+  'periodontoloji': EduSubject('periodontoloji', '🦷', 'Periodontoloji', _teal),
+  'oral_cerrahi': EduSubject('oral_cerrahi', '🦷', 'Oral Cerrahi', _red),
+  // Eczacılık
+  'farmasotik_kimya': EduSubject('farmasotik_kimya', '⚗️', 'Farmasötik Kimya', _green),
+  'farmakognozi': EduSubject('farmakognozi', '🌿', 'Farmakognozi', _success),
+  'farmasotik_tek': EduSubject('farmasotik_tek', '💊', 'Farmasötik Teknoloji', _purple),
+  // Hemşirelik / FZT / Beslenme
+  'klinik_hem': EduSubject('klinik_hem', '🩺', 'Klinik Hemşirelik', _cyan),
+  'biyomekanik': EduSubject('biyomekanik', '🦴', 'Biyomekanik', _teal),
+  'kinezyoloji': EduSubject('kinezyoloji', '🏃', 'Kinezyoloji', _success),
+  'klinik_fzt': EduSubject('klinik_fzt', '🤸', 'Klinik FZT', _success),
+  'beslenme': EduSubject('beslenme', '🥗', 'Beslenme', _green),
+  'klinik_beslenme': EduSubject('klinik_beslenme', '🍎', 'Klinik Beslenme', _green),
+
+  // Hukuk
+  'anayasa': EduSubject('anayasa', '📜', 'Anayasa Hukuku', _brown),
+  'medeni_hukuk': EduSubject('medeni_hukuk', '⚖️', 'Medeni Hukuk', _slate),
+  'borclar_hukuku': EduSubject('borclar_hukuku', '💼', 'Borçlar Hukuku', _slate),
+  'ticaret_hukuku': EduSubject('ticaret_hukuku', '🏢', 'Ticaret Hukuku', _gold),
+  'ceza_hukuku': EduSubject('ceza_hukuku', '🚓', 'Ceza Hukuku', _red),
+  'idare_hukuku': EduSubject('idare_hukuku', '🏛️', 'İdare Hukuku', _cyan),
+  'is_hukuku': EduSubject('is_hukuku', '👷', 'İş Hukuku', _amber),
+  'milletlerarasi': EduSubject('milletlerarasi', '🌍', 'Milletlerarası Hukuk', _blue),
+  'hukuk_tarihi': EduSubject('hukuk_tarihi', '📚', 'Hukuk Tarihi', _brown),
+
+  // İşletme / İktisat
+  'mikroekonomi': EduSubject('mikroekonomi', '📉', 'Mikroekonomi', _gold),
+  'makroekonomi': EduSubject('makroekonomi', '📈', 'Makroekonomi', _gold),
+  'muhasebe': EduSubject('muhasebe', '🧾', 'Muhasebe', _slate),
+  'finans': EduSubject('finans', '💰', 'Finans', _gold),
+  'pazarlama': EduSubject('pazarlama', '📣', 'Pazarlama', _pink),
+  'yonetim': EduSubject('yonetim', '👥', 'Yönetim ve Organizasyon', _slate),
+  'istatistik': EduSubject('istatistik', '📊', 'İstatistik', _indigo),
+  'ekonometri': EduSubject('ekonometri', '🧮', 'Ekonometri', _indigo),
+  'kamu_maliyesi': EduSubject('kamu_maliyesi', '🏦', 'Kamu Maliyesi', _gold),
+  'para_banka': EduSubject('para_banka', '💵', 'Para ve Banka', _gold),
+  'iktisat_tarihi': EduSubject('iktisat_tarihi', '📜', 'İktisat Tarihi', _brown),
+
+  // Mühendislik
+  'statik': EduSubject('statik', '⚖️', 'Statik', _teal),
+  'dinamik': EduSubject('dinamik', '🌀', 'Dinamik', _purple),
+  'mukavemet': EduSubject('mukavemet', '💪', 'Mukavemet', _cyan),
+  'termodinamik': EduSubject('termodinamik', '🔥', 'Termodinamik', _red),
+  'akiskan': EduSubject('akiskan', '🌊', 'Akışkanlar Mekaniği', _cyan),
+  'malzeme_bilimi': EduSubject('malzeme_bilimi', '⚙️', 'Malzeme Bilimi', _slate),
+  'topografya': EduSubject('topografya', '🗺️', 'Topografya', _brown),
+  'beton_tek': EduSubject('beton_tek', '🏗️', 'Beton Teknolojisi', _slate),
+  'yapi_statigi': EduSubject('yapi_statigi', '🏛️', 'Yapı Statiği', _teal),
+  'zemin_mek': EduSubject('zemin_mek', '⛰️', 'Zemin Mekaniği', _brown),
+  'hidrolik': EduSubject('hidrolik', '💧', 'Hidrolik', _cyan),
+  'devre_analizi': EduSubject('devre_analizi', '⚡', 'Devre Analizi', _amber),
+  'elektromag': EduSubject('elektromag', '🧲', 'Elektromanyetik', _purple),
+  'sinyal_isleme': EduSubject('sinyal_isleme', '📡', 'Sinyal İşleme', _indigo),
+  'elektronik': EduSubject('elektronik', '💡', 'Elektronik', _amber),
+  'kontrol': EduSubject('kontrol', '🎛️', 'Kontrol Sistemleri', _slate),
+  'mantik_devre': EduSubject('mantik_devre', '🔌', 'Mantıksal Devre', _indigo),
+  'isletim_sistemi': EduSubject('isletim_sistemi', '🖥️', 'İşletim Sistemi', _slate),
+  'veritabani': EduSubject('veritabani', '🗄️', 'Veritabanı', _purple),
+  'ag_iletisim': EduSubject('ag_iletisim', '🌐', 'Ağ ve İletişim', _cyan),
+  'yapay_zeka': EduSubject('yapay_zeka', '🤖', 'Yapay Zekâ', _indigo),
   'algoritma': EduSubject('algoritma', '🧮', 'Algoritmalar', _indigo),
   'veri_yapi': EduSubject('veri_yapi', '📊', 'Veri Yapıları', _purple),
-  'statik': EduSubject('statik', '⚖️', 'Statik', _teal),
-  'mukavemet': EduSubject('mukavemet', '💪', 'Mukavemet', _cyan),
+  'yazilim_muh_ders': EduSubject('yazilim_muh_ders', '🛠️', 'Yazılım Mühendisliği', _blue),
+  'yoneylem': EduSubject('yoneylem', '⚙️', 'Yöneylem', _slate),
+  'uretim': EduSubject('uretim', '🏭', 'Üretim Yönetimi', _amber),
+  'tedarik_zinciri': EduSubject('tedarik_zinciri', '🚚', 'Tedarik Zinciri', _gold),
+  'kalite_yonetimi': EduSubject('kalite_yonetimi', '✅', 'Kalite Yönetimi', _success),
+
+  // Mimarlık
+  'tasarim_studyo': EduSubject('tasarim_studyo', '🏛️', 'Tasarım Stüdyosu', _pink),
+  'yapi_bilgisi': EduSubject('yapi_bilgisi', '🏗️', 'Yapı Bilgisi', _slate),
+  'mimari_tarih': EduSubject('mimari_tarih', '🏰', 'Mimari Tarih', _brown),
+  'sehir_planlama': EduSubject('sehir_planlama', '🏙️', 'Şehir Planlama', _cyan),
+
+  // Psikoloji
+  'gelisim_psik': EduSubject('gelisim_psik', '👶', 'Gelişim Psikolojisi', _pink),
+  'sosyal_psik': EduSubject('sosyal_psik', '👥', 'Sosyal Psikoloji', _cyan),
+  'klinik_psik': EduSubject('klinik_psik', '🛋️', 'Klinik Psikoloji', _purple),
+  'arastirma_yontem': EduSubject('arastirma_yontem', '🔬', 'Araştırma Yöntemleri', _indigo),
+
+  // Eğitim
+  'matematik_ogretim': EduSubject('matematik_ogretim', '📐', 'Matematik Öğretimi', _blue),
+  'fen_bilg_ogretmen': EduSubject('fen_bilg_ogretmen', '🔬', 'Fen Bilgisi Öğretimi', _purple),
+  'sosyal_bilg_ogr': EduSubject('sosyal_bilg_ogr', '🌍', 'Sosyal Bilgiler Öğretimi', _brown),
+  'cocuk_psik': EduSubject('cocuk_psik', '🧒', 'Çocuk Psikolojisi', _pink),
+
   // Orange for custom
   'custom': EduSubject('custom', '📚', 'Diğer', _orange),
 };
+
+// ─── Üniversite bölüm bazlı müfredat ──────────────────────────────────────
+// Anahtar = onboarding'de saklanan faculty stringi (tıpatıp Türkçe ad).
+// Lookup: subjectsForProfile() önce country+faculty'i dener; bulamazsa
+// country+level fallback'ine düşer.
+final Map<String, List<String>> _facultySubjectKeys = {
+  // ─── Sağlık ─────────────────────────────────────────────────────────
+  'Tıp': [
+    'anatomi', 'fizyoloji', 'biyokimya', 'histoloji', 'embriyoloji',
+    'mikrobiyoloji', 'patoloji', 'farmakoloji',
+    'ic_hast', 'cerrahi', 'pediatri', 'kadin_dogum',
+    'radyoloji', 'halk_sagligi', 'psikiyatri', 'noroloji',
+  ],
+  'Diş Hekimliği': [
+    'anatomi', 'fizyoloji', 'biyokimya', 'histoloji',
+    'mikrobiyoloji', 'patoloji', 'farmakoloji',
+    'restoratif', 'periodontoloji', 'oral_cerrahi',
+  ],
+  'Eczacılık': [
+    'biyokimya', 'mikrobiyoloji', 'farmakoloji',
+    'farmasotik_kimya', 'farmakognozi', 'farmasotik_tek',
+  ],
+  'Veterinerlik': [
+    'anatomi', 'fizyoloji', 'biyokimya',
+    'mikrobiyoloji', 'patoloji', 'farmakoloji',
+    'cerrahi', 'ic_hast',
+  ],
+  'Hemşirelik': [
+    'anatomi', 'fizyoloji', 'biyokimya', 'farmakoloji',
+    'klinik_hem', 'halk_sagligi',
+  ],
+  'Fizyoterapi ve Rehabilitasyon': [
+    'anatomi', 'fizyoloji', 'biyomekanik', 'kinezyoloji', 'klinik_fzt',
+  ],
+  'Beslenme ve Diyetetik': [
+    'anatomi', 'fizyoloji', 'biyokimya', 'beslenme', 'klinik_beslenme',
+  ],
+
+  // ─── Hukuk ──────────────────────────────────────────────────────────
+  'Hukuk': [
+    'anayasa', 'medeni_hukuk', 'borclar_hukuku',
+    'ticaret_hukuku', 'ceza_hukuku', 'idare_hukuku',
+    'is_hukuku', 'milletlerarasi', 'hukuk_tarihi',
+  ],
+
+  // ─── İşletme / İktisat ──────────────────────────────────────────────
+  'İşletme': [
+    'mikroekonomi', 'makroekonomi', 'muhasebe', 'finans',
+    'pazarlama', 'yonetim', 'istatistik',
+  ],
+  'İktisat': [
+    'mikroekonomi', 'makroekonomi', 'ekonometri', 'istatistik',
+    'kamu_maliyesi', 'para_banka', 'iktisat_tarihi',
+  ],
+
+  // ─── Mühendislik ────────────────────────────────────────────────────
+  'Bilgisayar Mühendisliği': [
+    'math', 'physics', 'algoritma', 'veri_yapi',
+    'isletim_sistemi', 'veritabani', 'ag_iletisim',
+    'yapay_zeka', 'mantik_devre', 'yazilim_muh_ders',
+  ],
+  'Yazılım Mühendisliği': [
+    'math', 'algoritma', 'veri_yapi', 'yazilim_muh_ders',
+    'veritabani', 'ag_iletisim', 'yapay_zeka',
+  ],
+  'Elektrik-Elektronik Mühendisliği': [
+    'math', 'physics', 'devre_analizi', 'elektromag',
+    'sinyal_isleme', 'elektronik', 'kontrol', 'mantik_devre',
+  ],
+  'Makine Mühendisliği': [
+    'math', 'physics', 'statik', 'dinamik', 'mukavemet',
+    'termodinamik', 'akiskan', 'malzeme_bilimi',
+  ],
+  'İnşaat Mühendisliği': [
+    'math', 'physics', 'statik', 'mukavemet', 'malzeme_bilimi',
+    'topografya', 'akiskan', 'hidrolik',
+    'beton_tek', 'yapi_statigi', 'zemin_mek',
+  ],
+  'Endüstri Mühendisliği': [
+    'math', 'physics', 'istatistik', 'yoneylem',
+    'uretim', 'tedarik_zinciri', 'kalite_yonetimi',
+  ],
+  'Mimarlık': [
+    'math', 'tasarim_studyo', 'malzeme_bilimi', 'yapi_bilgisi',
+    'mimari_tarih', 'sehir_planlama',
+  ],
+
+  // ─── Sosyal Bilimler ────────────────────────────────────────────────
+  'Psikoloji': [
+    'gelisim_psik', 'sosyal_psik', 'klinik_psik',
+    'arastirma_yontem', 'istatistik',
+  ],
+
+  // ─── Eğitim ─────────────────────────────────────────────────────────
+  'Sınıf Öğretmenliği': [
+    'turkish', 'math', 'fen_bilg_ogretmen', 'sosyal_bilg_ogr',
+    'sanat_muzik', 'beden', 'cocuk_psik',
+  ],
+  'Matematik Öğretmenliği': [
+    'math', 'matematik_ogretim', 'istatistik', 'felsefe',
+  ],
+  'Fen Bilgisi Öğretmenliği': [
+    'physics', 'chem', 'bio', 'fen_bilg_ogretmen', 'matematik_ogretim',
+  ],
+  'İngilizce Öğretmenliği': [
+    'ingilizce', 'lit', 'felsefe', 'arastirma_yontem',
+  ],
+  'Türkçe Öğretmenliği': [
+    'turkish', 'lit', 'felsefe', 'arastirma_yontem',
+  ],
+};
+
+// ─── Sınava göre sorumlu dersler ──────────────────────────────────────────
+// EduProfile.level == 'exam_prep' iken EduProfile.grade sınav adıdır
+// (örn. "YKS (Yükseköğretim Kurumları Sınavı)"). Burası o sınavda sorumlu
+// derslerin listesini döndürür. Lookup substring-based — tam eşleşme şart değil.
+final Map<String, List<String>> _examSubjectKeys = {
+  // ─── Ortaokul sonrası ────────────────────────────────────────────────
+  'LGS': [
+    'turkish', 'math', 'physics', 'chem', 'bio',
+    'history', 'geo', 'din_kultur', 'ingilizce',
+  ],
+  // ─── Lise sonrası (uni_prep) ─────────────────────────────────────────
+  'YKS': [
+    // TYT + AYT toplu — sınava hazırlanan tüm dersler
+    'turkish', 'math', 'lit', 'physics', 'chem', 'bio',
+    'history', 'geo', 'felsefe', 'din_kultur', 'ingilizce', 'mantik',
+  ],
+  'MSÜ': [
+    'turkish', 'math', 'physics', 'chem', 'bio', 'history', 'geo',
+  ],
+  'KPSS_ORTA': [
+    'turkish', 'math', 'history', 'geo', 'demokrasi',
+  ],
+  'DGS': ['math', 'turkish'],
+  'YDS': ['ingilizce'],
+  'PMYO': [
+    'turkish', 'math', 'physics', 'chem', 'bio', 'history', 'geo',
+  ],
+
+  // ─── Üniversite sonrası (post_uni_exam) ──────────────────────────────
+  'ALES': ['math', 'turkish'],
+  'KPSS_LISANS': [
+    'turkish', 'math', 'history', 'geo', 'demokrasi', 'felsefe',
+    'mikroekonomi', 'makroekonomi',
+  ],
+  'KPSS_OABT': [
+    // ÖABT branş bazlı — burası genel öğretmenlik dersleri
+    'matematik_ogretim', 'fen_bilg_ogretmen', 'sosyal_bilg_ogr',
+    'gelisim_psik', 'cocuk_psik', 'turkish', 'math',
+  ],
+  'TUS': [
+    // TUS / DUS / EUS — tıp + diş + eczacılık merkez sınavları birlikte
+    'anatomi', 'fizyoloji', 'biyokimya', 'histoloji', 'embriyoloji',
+    'mikrobiyoloji', 'patoloji', 'farmakoloji',
+    'ic_hast', 'cerrahi', 'pediatri', 'kadin_dogum',
+    'psikiyatri', 'halk_sagligi', 'radyoloji',
+    'restoratif', 'periodontoloji', 'oral_cerrahi',
+    'farmasotik_kimya', 'farmakognozi', 'farmasotik_tek',
+  ],
+  'HAKIMLIK': [
+    'anayasa', 'medeni_hukuk', 'borclar_hukuku',
+    'ticaret_hukuku', 'ceza_hukuku', 'idare_hukuku',
+    'is_hukuku', 'milletlerarasi', 'hukuk_tarihi',
+  ],
+  'KAYMAKAM': [
+    'anayasa', 'idare_hukuku', 'ceza_hukuku',
+    'history', 'geo', 'demokrasi',
+    'mikroekonomi', 'makroekonomi', 'kamu_maliyesi',
+  ],
+  'SAYISTAY': [
+    'muhasebe', 'finans', 'kamu_maliyesi',
+    'anayasa', 'idare_hukuku', 'math', 'istatistik',
+  ],
+  'SMMM': [
+    'muhasebe', 'finans', 'kamu_maliyesi',
+    'ticaret_hukuku', 'is_hukuku', 'borclar_hukuku',
+    'mikroekonomi', 'makroekonomi', 'math',
+  ],
+  'ISG': [
+    'physics', 'chem', 'bio', 'is_hukuku', 'idare_hukuku', 'math',
+  ],
+};
+
+/// Onboarding'de `EduProfile.grade` olarak tutulan sınav adından (örn.
+/// "YKS (Yükseköğretim Kurumları Sınavı)") sorumlu ders anahtarlarını çıkarır.
+List<String>? _examSubjectsForGrade(String grade) {
+  // Türkçe karakter normalizasyonu (büyük harf + uppercase mapping).
+  final n = grade
+      .toUpperCase()
+      .replaceAll('İ', 'I')
+      .replaceAll('Ö', 'O')
+      .replaceAll('Ü', 'U')
+      .replaceAll('Ş', 'S')
+      .replaceAll('Ç', 'C')
+      .replaceAll('Ğ', 'G');
+  if (n.startsWith('LGS')) return _examSubjectKeys['LGS'];
+  if (n.startsWith('YKS')) return _examSubjectKeys['YKS'];
+  if (n.startsWith('MSU')) return _examSubjectKeys['MSÜ'];
+  if (n.startsWith('KPSS ORTAOGRETIM') || n.startsWith('KPSS ORTA')) {
+    return _examSubjectKeys['KPSS_ORTA'];
+  }
+  if (n.startsWith('DGS')) return _examSubjectKeys['DGS'];
+  if (n.startsWith('YDS') || n.contains('YOKDIL')) {
+    return _examSubjectKeys['YDS'];
+  }
+  if (n.startsWith('PMYO')) return _examSubjectKeys['PMYO'];
+  if (n.startsWith('ALES')) return _examSubjectKeys['ALES'];
+  if (n.startsWith('KPSS LISANS')) return _examSubjectKeys['KPSS_LISANS'];
+  if (n.startsWith('KPSS OABT')) return _examSubjectKeys['KPSS_OABT'];
+  if (n.startsWith('TUS') || n.startsWith('DUS') || n.startsWith('EUS')) {
+    return _examSubjectKeys['TUS'];
+  }
+  if (n.startsWith('HAKIM') || n.startsWith('SAVCI')) {
+    return _examSubjectKeys['HAKIMLIK'];
+  }
+  if (n.startsWith('KAYMAKAM')) return _examSubjectKeys['KAYMAKAM'];
+  if (n.startsWith('SAYISTAY')) return _examSubjectKeys['SAYISTAY'];
+  if (n.startsWith('SMMM')) return _examSubjectKeys['SMMM'];
+  if (n.startsWith('ISG')) return _examSubjectKeys['ISG'];
+  return null;
+}
 
 // Ülke × seviye × sınıf × alan → ders anahtarları
 // Türkiye müfredatı detaylı (sınıf+alan), diğer ülkeler seviye bazlı
@@ -566,8 +979,48 @@ final Map<String, List<String>> _subjectKeysByProfile = {
 
 const List<String> _fallbackKeys = ['math', 'physics', 'chem', 'bio', 'history', 'geo', 'lit', 'ingilizce'];
 
+/// "12. Sınıf" / "12" / "12th" gibi grade stringinden sayıyı çıkar.
+int? _extractGradeNumber(String grade) {
+  final m = RegExp(r'(\d{1,2})').firstMatch(grade);
+  if (m == null) return null;
+  return int.tryParse(m.group(1)!);
+}
+
 List<EduSubject> subjectsForProfile(EduProfile? profile) {
   if (profile == null) return _fallbackKeys.map((k) => _allSubjects[k]!).toList();
+
+  // ÖNCE: AI üretmiş cache varsa onu kullan (her profil için dinamik müfredat).
+  // Hardcoded haritalar yalnızca offline / fetch öncesi fallback rolü.
+  final aiCached = EduProfile.aiCachedSubjects(profile);
+  if (aiCached != null && aiCached.isNotEmpty) return aiCached;
+
+  // Üniversite/Lisansüstü → bölüm bazlı müfredat (varsa) — ülkeden bağımsız.
+  // Onboarding'de Türkçe bölüm adı saklanır (örn. "Tıp", "İnşaat Mühendisliği");
+  // ülkesi neresi olursa olsun bölüme uyan müfredatı çıkarırız.
+  if ((profile.level == 'university' ||
+          profile.level == 'masters' ||
+          profile.level == 'doctorate') &&
+      profile.faculty != null) {
+    final facultyKeys = _facultySubjectKeys[profile.faculty];
+    if (facultyKeys != null) {
+      return facultyKeys
+          .map((s) => _allSubjects[s])
+          .whereType<EduSubject>()
+          .toList();
+    }
+  }
+
+  // Sınava hazırlık → grade alanından sınav adını çıkar, sorumlu dersleri ver.
+  // Örn. "YKS (Yükseköğretim Kurumları Sınavı)" → TYT+AYT dersleri.
+  if (profile.level == 'exam_prep') {
+    final examKeys = _examSubjectsForGrade(profile.grade);
+    if (examKeys != null) {
+      return examKeys
+          .map((s) => _allSubjects[s])
+          .whereType<EduSubject>()
+          .toList();
+    }
+  }
 
   // Türkiye lise için sınıf+alan dene
   if (profile.country == 'tr' && profile.level == 'high') {
@@ -578,7 +1031,34 @@ List<EduSubject> subjectsForProfile(EduProfile? profile) {
         return list.map((s) => _allSubjects[s]).whereType<EduSubject>().toList();
       }
     }
-    // Alan yoksa 9. sınıf müfredatı
+    // 9. sınıfta alan yok — direkt 9. sınıf müfredatı.
+    if (profile.grade == '9' || profile.grade == '9. Sınıf') {
+      final g9 = _subjectKeysByProfile['tr_high_9'];
+      if (g9 != null) {
+        return g9.map((s) => _allSubjects[s]).whereType<EduSubject>().toList();
+      }
+    }
+    // 10/11/12 alansız: tüm alanların derslerini birleştir (kapsayıcı liste).
+    final gradeNum = _extractGradeNumber(profile.grade);
+    if (gradeNum != null && gradeNum >= 10 && gradeNum <= 12) {
+      final seen = <String>{};
+      final merged = <String>[];
+      const tracks = ['sayisal', 'esit_agirlik', 'sozel', 'dil'];
+      for (final t in tracks) {
+        final keys = _subjectKeysByProfile['tr_high_${gradeNum}_$t'];
+        if (keys == null) continue;
+        for (final k in keys) {
+          if (seen.add(k)) merged.add(k);
+        }
+      }
+      if (merged.isNotEmpty) {
+        return merged
+            .map((s) => _allSubjects[s])
+            .whereType<EduSubject>()
+            .toList();
+      }
+    }
+    // Hâlâ bulunamadıysa 9. sınıfa düş.
     final g9 = _subjectKeysByProfile['tr_high_9'];
     if (g9 != null) return g9.map((s) => _allSubjects[s]).whereType<EduSubject>().toList();
   }

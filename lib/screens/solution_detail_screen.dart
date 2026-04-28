@@ -412,88 +412,92 @@ class _SolutionDetailScreenState extends State<SolutionDetailScreen> {
           ),
         ),
       ),
-      child: ValueListenableBuilder<TextEditingValue>(
-        valueListenable: _inputCtrl,
-        builder: (_, val, __) {
-          final hasText = val.text.trim().isNotEmpty;
-          return Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _inputCtrl,
-                  style: const TextStyle(
-                      color: Colors.white, fontSize: 14),
-                  maxLines: null,
-                  keyboardType: TextInputType.multiline,
-                  textInputAction: TextInputAction.newline,
-                  decoration: InputDecoration(
-                    hintText: localeService.tr('ask_anything'),
-                    hintStyle: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.35),
-                      fontSize: 13,
-                    ),
-                    filled: true,
-                    fillColor: AppColors.surfaceElevated,
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(
-                          color: AppColors.cyan.withValues(alpha: 0.38)),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(
-                          color: AppColors.cyan.withValues(alpha: 0.38)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(
-                          color: AppColors.cyan.withValues(alpha: 0.70),
-                          width: 1.4),
-                    ),
+      // RepaintBoundary: input alanı parent ListView'in repaint'ini tetiklemez.
+      child: RepaintBoundary(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _inputCtrl,
+                cursorColor: Colors.black,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                // minLines 1, maxLines 4 — alan stabil yükseklikte kalır.
+                // maxLines: null iken her karakterde reflow oluyor ve
+                // parent ListView (LatexText + QA kartları) yeniden
+                // ölçülüyordu → silme sırasında donma. Sınırlandırınca
+                // ListView reflow tetiklenmez.
+                minLines: 1,
+                maxLines: 4,
+                keyboardType: TextInputType.multiline,
+                textInputAction: TextInputAction.newline,
+                decoration: InputDecoration(
+                  hintText: localeService.tr('ask_anything'),
+                  hintStyle: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.35),
+                    fontSize: 13,
+                  ),
+                  filled: true,
+                  fillColor: AppColors.surfaceElevated,
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(
+                        color: AppColors.cyan.withValues(alpha: 0.38)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(
+                        color: AppColors.cyan.withValues(alpha: 0.38)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(
+                        color: AppColors.cyan.withValues(alpha: 0.70),
+                        width: 1.4),
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: _sending ? null : _sendQuestion,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    color: hasText && !_sending
-                        ? AppColors.cyan.withValues(alpha: 0.18)
-                        : Colors.transparent,
-                    border: Border.all(
+            ),
+            const SizedBox(width: 8),
+            // Send button — sabit Container (AnimatedContainer kaldırıldı).
+            // Daha önce her keystroke'ta 180 ms transition başlıyor, hızlı
+            // silme/yazıda animasyon kuyruğu birikip CPU yükü yapıyordu.
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _inputCtrl,
+              builder: (_, val, __) {
+                final hasText = val.text.trim().isNotEmpty;
+                return GestureDetector(
+                  onTap: _sending ? null : _sendQuestion,
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
                       color: hasText && !_sending
-                          ? AppColors.cyan.withValues(alpha: 0.70)
-                          : AppColors.cyan.withValues(alpha: 0.30),
-                      width: 1.3,
+                          ? Colors.black
+                          : Colors.black.withValues(alpha: 0.55),
                     ),
-                  ),
-                  child: _sending
-                      ? Padding(
-                          padding: const EdgeInsets.all(11),
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.cyan.withValues(alpha: 0.70),
+                    child: _sending
+                        ? const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.4,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.arrow_upward_rounded,
+                            color: Colors.white,
+                            size: 26,
                           ),
-                        )
-                      : Icon(
-                          Icons.arrow_upward_rounded,
-                          color: hasText
-                              ? AppColors.cyan
-                              : AppColors.cyan.withValues(alpha: 0.40),
-                          size: 20,
-                        ),
-                ),
-              ),
-            ],
-          );
-        },
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

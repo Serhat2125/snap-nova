@@ -13,7 +13,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 //
 //  Kurulum için:
 //    1. Firebase Console'dan yeni proje oluştur
-//    2. Android uygulaması ekle (package: com.example.snap_nova)
+//    2. Android uygulaması ekle (package: com.qualsar.app)
 //    3. google-services.json dosyasını android/app/ klasörüne koy
 //    4. FlutterFire CLI: flutterfire configure
 //    5. main.dart'ta Firebase.initializeApp() zaten çağrılıyor

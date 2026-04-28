@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
 import '../services/gemini_service.dart';
 import 'latex_text.dart';
+import 'qualsar_numeric_loader.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  StudySuiteSheet — "Bu Soruyla İlgili" — 3 sekme tabanlı içerik merkezi
@@ -122,14 +123,21 @@ class _StudySuiteContentState extends State<_StudySuiteContent> {
   // Hangi sekme paneli açık: null | 'questions' | 'videos' | 'notes'
   String? _activeSection;
 
-  // ── Yükleme adım animasyonu ───────────────────────────────────────────────────
-  static const _loadingSteps = [
-    'Benzer sorular oluşturuluyor',
-    'Bilgi kartları hazırlanıyor',
-    'Eşleştirme kartları yükleniyor',
-  ];
-  int    _visibleCount = 0; // kaç satır göründüğü
-  Timer? _stepTimer;
+  // Dersin sayısal/sözel oluşuna göre loader varyantı.
+  QuAlsarLoaderVariant get _variant {
+    final s = widget.subject.toLowerCase();
+    final numeric = s.contains('matematik') ||
+        s.contains('math') ||
+        s.contains('geometri') || s.contains('geometry') ||
+        s.contains('fizik') || s.contains('physics') ||
+        s.contains('kimya') || s.contains('chem') ||
+        s.contains('biyoloji') || s.contains('biolog') ||
+        s.contains('istatistik') || s.contains('stats') ||
+        s.contains('bilişim') || s.contains('informatics');
+    return numeric
+        ? QuAlsarLoaderVariant.numeric
+        : QuAlsarLoaderVariant.verbal;
+  }
 
   @override
   void initState() {
@@ -138,46 +146,24 @@ class _StudySuiteContentState extends State<_StudySuiteContent> {
     if (widget.cached != null) {
       _data = _SuiteData.fromJson(widget.cached!);
       _loading = false;
-      _visibleCount = _loadingSteps.length;
       return;
     }
-    _startStepTimer();
     _fetch();
   }
 
-  void _startStepTimer() {
-    // İlk mesaj hemen görünsün, sonrakiler 700 ms aralıkla.
-    setState(() => _visibleCount = 1);
-    _stepTimer = Timer.periodic(const Duration(milliseconds: 700), (_) {
-      if (!mounted) return;
-      if (_visibleCount < _loadingSteps.length) {
-        setState(() => _visibleCount++);
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _stepTimer?.cancel();
-    super.dispose();
-  }
-
   Future<void> _fetch() async {
-    setState(() { _loading = true; _error = null; _activeSection = null; _visibleCount = 0; });
+    setState(() { _loading = true; _error = null; _activeSection = null; });
     try {
       final json = await GeminiService.fetchStudySuite(
         solution: widget.solution,
         subject:  widget.subject,
       );
-      _stepTimer?.cancel();
       // Yeni üretilen içeriği kalıcı saklaması için çağırana bildir.
       widget.onFetched?.call(json);
       if (mounted) setState(() { _data = _SuiteData.fromJson(json); _loading = false; });
     } on GeminiException catch (e) {
-      _stepTimer?.cancel();
       if (mounted) setState(() { _error = e.userMessage.replaceAll('\n', ' '); _loading = false; });
     } catch (_) {
-      _stepTimer?.cancel();
       if (mounted) setState(() { _error = 'Veriler yüklenemedi.'; _loading = false; });
     }
   }
@@ -197,7 +183,7 @@ class _StudySuiteContentState extends State<_StudySuiteContent> {
         filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: const Color(0xFFEEF1F6),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
             border: Border.all(
               color: Colors.black12,
@@ -205,8 +191,8 @@ class _StudySuiteContentState extends State<_StudySuiteContent> {
             ),
           ),
           child: DraggableScrollableSheet(
-            initialChildSize: 0.88,
-            minChildSize:     0.45,
+            initialChildSize: 0.97,
+            minChildSize:     0.70,
             maxChildSize:     0.97,
             expand: false,
             builder: (_, scroll) => Column(
@@ -243,26 +229,15 @@ class _StudySuiteContentState extends State<_StudySuiteContent> {
 
   // ── Başlık satırı ─────────────────────────────────────────────────────────────
   Widget _buildHeader() => Padding(
-    padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+    padding: const EdgeInsets.fromLTRB(8, 4, 8, 10),
     child: Stack(
       alignment: Alignment.center,
       children: [
         Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 34, height: 34,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF3B82F6), Color(0xFF0EA5E9)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(9),
-              ),
-              child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 17),
-            ),
-            const SizedBox(height: 6),
+            QuAlsarStaticBadge(size: 54, variant: _variant),
+            const SizedBox(height: 8),
             const Text(
               'Konuyu Pekiştir',
               style: TextStyle(
@@ -297,61 +272,12 @@ class _StudySuiteContentState extends State<_StudySuiteContent> {
     ),
   );
 
-  // ── Skeleton ──────────────────────────────────────────────────────────────────
+  // ── Yükleme — ders tipine göre sayısal/sözel dönen logo ─────────────────────
   Widget _buildSkeleton() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const Spacer(),
-        // İkon — biraz yukarıda
-        Container(
-          width: 56, height: 56,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF3B82F6), Color(0xFF0EA5E9)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF3B82F6).withValues(alpha: 0.35),
-                blurRadius: 20,
-                spreadRadius: 2,
-              ),
-            ],
-          ),
-          child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 26),
-        ),
-        const SizedBox(height: 28),
-        // Sıralı mesajlar — birer birer çıkar, kaybolmaz
-        Column(
-          children: [
-            for (int i = 0; i < _loadingSteps.length; i++)
-              AnimatedOpacity(
-                opacity: i < _visibleCount ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 350),
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Text(
-                    _loadingSteps[i],
-                    style: TextStyle(
-                      color: Colors.black.withValues(alpha: 0.75),
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 24),
-        const SizedBox(
-          width: 22, height: 22,
-          child: CircularProgressIndicator(color: AppColors.cyan, strokeWidth: 2),
-        ),
-        const Spacer(flex: 2),
-      ],
+    return QuAlsarNumericLoader(
+      variant: _variant,
+      primaryText: 'Konu Pekiştirme Hazırlanıyor',
+      staticLabel: true,
     );
   }
 
@@ -1081,23 +1007,27 @@ class _MatchCard {
   final int         pairId;
   final _MatchKind  kind;
   final String      text;
-  final bool        open;
-  final bool        matched;
+  final bool        selected;   // ilk tıklama → turuncu
+  final bool        matched;    // doğru eşleşme → yeşil
+  final int         matchOrder; // 0 = henüz yok, 1+ = kaçıncı doğru eşleşme
 
   const _MatchCard({
     required this.pairId,
     required this.kind,
     required this.text,
-    this.open    = false,
-    this.matched = false,
+    this.selected   = false,
+    this.matched    = false,
+    this.matchOrder = 0,
   });
 
-  _MatchCard copyWith({bool? open, bool? matched}) => _MatchCard(
-        pairId:  pairId,
-        kind:    kind,
-        text:    text,
-        open:    open    ?? this.open,
-        matched: matched ?? this.matched,
+  _MatchCard copyWith({bool? selected, bool? matched, int? matchOrder}) =>
+      _MatchCard(
+        pairId:     pairId,
+        kind:       kind,
+        text:       text,
+        selected:   selected   ?? this.selected,
+        matched:    matched    ?? this.matched,
+        matchOrder: matchOrder ?? this.matchOrder,
       );
 }
 
@@ -1145,10 +1075,10 @@ class _MatchCardsPanelState extends State<_MatchCardsPanel> {
   void _onTap(int idx) {
     if (_locked) return;
     final card = _cards[idx];
-    if (card.matched || card.open) return;
+    if (card.matched || card.selected) return;
 
     HapticFeedback.selectionClick();
-    setState(() => _cards[idx] = card.copyWith(open: true));
+    setState(() => _cards[idx] = card.copyWith(selected: true));
 
     if (_firstIdx == null) {
       _firstIdx = idx;
@@ -1163,18 +1093,26 @@ class _MatchCardsPanelState extends State<_MatchCardsPanel> {
     if (isMatch) {
       HapticFeedback.mediumImpact();
       setState(() {
-        _cards[_firstIdx!] = first.copyWith(matched: true, open: true);
-        _cards[idx]        = second.copyWith(matched: true, open: true);
         _matched++;
+        _cards[_firstIdx!] = first.copyWith(
+          matched: true,
+          selected: false,
+          matchOrder: _matched,
+        );
+        _cards[idx] = second.copyWith(
+          matched: true,
+          selected: false,
+          matchOrder: _matched,
+        );
         _firstIdx = null;
       });
     } else {
       _locked = true;
-      Future.delayed(const Duration(milliseconds: 900), () {
+      Future.delayed(const Duration(milliseconds: 700), () {
         if (!mounted) return;
         setState(() {
-          _cards[_firstIdx!] = _cards[_firstIdx!].copyWith(open: false);
-          _cards[idx]        = _cards[idx].copyWith(open: false);
+          _cards[_firstIdx!] = _cards[_firstIdx!].copyWith(selected: false);
+          _cards[idx]        = _cards[idx].copyWith(selected: false);
           _firstIdx = null;
           _locked = false;
         });
@@ -1291,7 +1229,7 @@ class _MatchCardsPanelState extends State<_MatchCardsPanel> {
             ),
           ),
 
-        // ── Kart ızgarası (4x3) ─────────────────────────────────────────────
+        // ── Kart ızgarası — yatayda 4 sütun, kartlar baştan açık. ─────────
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -1370,126 +1308,327 @@ class _MatchCardTile extends StatelessWidget {
 
   const _MatchCardTile({required this.card, required this.onTap});
 
+  void _openExpandedDialog(BuildContext context) {
+    showGeneralDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.55),
+      barrierDismissible: true,
+      barrierLabel: 'card',
+      transitionDuration: Duration.zero,
+      pageBuilder: (_, __, ___) => _ExpandedCardDialog(card: card),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: TweenAnimationBuilder<double>(
-        tween: Tween<double>(begin: 0, end: card.open ? 1 : 0),
-        duration: const Duration(milliseconds: 420),
-        curve: Curves.easeOutCubic,
-        builder: (context, t, _) {
-          final angle  = t * math.pi;
-          final isBack = angle < math.pi / 2;
-          return Transform(
-            alignment: Alignment.center,
-            transform: Matrix4.identity()
-              ..setEntry(3, 2, 0.001)
-              ..rotateY(angle),
-            child: isBack
-                ? _buildClosed()
-                : Transform(
-                    alignment: Alignment.center,
-                    transform: Matrix4.identity()..rotateY(math.pi),
-                    child: _buildOpen(),
-                  ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildClosed() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF8B5CF6), Color(0xFF3B82F6)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    final isTerm = card.kind == _MatchKind.term;
+    // Renk durumları: matched > selected > idle.
+    final Color bgColor;
+    final Color borderCol;
+    final List<BoxShadow> shadow;
+    if (card.matched) {
+      bgColor   = const Color(0xFFDCFCE7); // açık yeşil
+      borderCol = const Color(0xFF22C55E);
+      shadow = [
+        BoxShadow(
+          color: const Color(0xFF22C55E).withValues(alpha: 0.30),
+          blurRadius: 12,
+          spreadRadius: 1,
         ),
-        border: Border.all(color: Colors.black, width: 1.2),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF8B5CF6).withValues(alpha: 0.22),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: const Center(
-        child: Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 22),
-      ),
-    );
-  }
+      ];
+    } else if (card.selected) {
+      bgColor   = const Color(0xFFFFEDD5); // açık turuncu
+      borderCol = const Color(0xFFF97316);
+      shadow = [
+        BoxShadow(
+          color: const Color(0xFFF97316).withValues(alpha: 0.30),
+          blurRadius: 10,
+          spreadRadius: 1,
+        ),
+      ];
+    } else {
+      bgColor   = Colors.white;
+      borderCol = Colors.black;
+      shadow = [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.05),
+          blurRadius: 6,
+          offset: const Offset(0, 2),
+        ),
+      ];
+    }
+    final labelCol = isTerm ? const Color(0xFF8B5CF6) : const Color(0xFF3B82F6);
 
-  Widget _buildOpen() {
-    final isTerm    = card.kind == _MatchKind.term;
-    final bgColor   = card.matched ? const Color(0xFFDCFCE7) : Colors.white;
-    final borderCol = card.matched ? const Color(0xFF22C55E) : Colors.black;
-    final labelCol  = isTerm ? const Color(0xFF8B5CF6) : const Color(0xFF3B82F6);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borderCol, width: card.matched ? 1.6 : 1.2),
-        boxShadow: card.matched
-            ? [
-                BoxShadow(
-                  color: const Color(0xFF22C55E).withValues(alpha: 0.30),
-                  blurRadius: 12,
-                  spreadRadius: 1,
+    // Metin kart yüzüne sığmıyorsa tek tıkla da büyüt — kabaca uzunluk eşiği.
+    final textOverflows = card.text.length > 28;
+    return GestureDetector(
+      onTap: () {
+        onTap();
+        if (textOverflows && !card.matched) {
+          _openExpandedDialog(context);
+        }
+      },
+      onLongPress: () {
+        HapticFeedback.mediumImpact();
+        _openExpandedDialog(context);
+      },
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: borderCol,
+                width: (card.matched || card.selected) ? 1.8 : 1.2,
+              ),
+              boxShadow: shadow,
+            ),
+            padding: const EdgeInsets.all(7),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: labelCol.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(50),
+                  ),
+                  child: Text(
+                    isTerm ? 'TERİM' : 'TANIM',
+                    style: GoogleFonts.inter(
+                      color: labelCol,
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
                 ),
-              ]
-            : [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
+                const SizedBox(height: 5),
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      card.text,
+                      textAlign: TextAlign.center,
+                      maxLines: 5,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        color: Colors.black,
+                        fontSize: isTerm ? 11.5 : 10,
+                        fontWeight:
+                            isTerm ? FontWeight.w800 : FontWeight.w500,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
                 ),
               ],
-      ),
-      padding: const EdgeInsets.all(6),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-            decoration: BoxDecoration(
-              color: labelCol.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(50),
-            ),
-            child: Text(
-              isTerm ? 'TERİM' : 'TANIM',
-              style: GoogleFonts.inter(
-                color: labelCol,
-                fontSize: 7,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.6,
-              ),
             ),
           ),
-          const SizedBox(height: 4),
-          Expanded(
-            child: Center(
-              child: Text(
-                card.text,
-                textAlign: TextAlign.center,
-                maxLines: 5,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.inter(
-                  color: Colors.black,
-                  fontSize: isTerm ? 10 : 8,
-                  fontWeight: isTerm ? FontWeight.w800 : FontWeight.w500,
-                  height: 1.2,
+          // Eşleşme sıra numarası rozeti — sağ üstte (sadece eşleşmiş kartlarda)
+          if (card.matchOrder > 0)
+            Positioned(
+              top: -4,
+              right: -4,
+              child: Container(
+                width: 22,
+                height: 22,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF22C55E),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 1.6),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF22C55E).withValues(alpha: 0.45),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  '${card.matchOrder}',
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    height: 1,
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );
   }
 }
 
+// ─── Büyütülmüş kart dialog'u — basılı tutunca veya uzun metinde tek
+// tıkla açılır. Açılışta büyür, kapanışta küçülerek kaybolur.
+class _ExpandedCardDialog extends StatefulWidget {
+  final _MatchCard card;
+  const _ExpandedCardDialog({required this.card});
+
+  @override
+  State<_ExpandedCardDialog> createState() => _ExpandedCardDialogState();
+}
+
+class _ExpandedCardDialogState extends State<_ExpandedCardDialog>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 240),
+      reverseDuration: const Duration(milliseconds: 200),
+    );
+    _scale = CurvedAnimation(
+      parent: _ctrl,
+      curve: Curves.easeOutBack,
+      reverseCurve: Curves.easeInCubic,
+    );
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _close() async {
+    await _ctrl.reverse();
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final card = widget.card;
+    final isTerm = card.kind == _MatchKind.term;
+    final labelCol = isTerm ? const Color(0xFF8B5CF6) : const Color(0xFF3B82F6);
+    final Color bgColor;
+    final Color borderCol;
+    if (card.matched) {
+      bgColor   = const Color(0xFFDCFCE7);
+      borderCol = const Color(0xFF22C55E);
+    } else if (card.selected) {
+      bgColor   = const Color(0xFFFFEDD5);
+      borderCol = const Color(0xFFF97316);
+    } else {
+      bgColor   = Colors.white;
+      borderCol = Colors.black;
+    }
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _close();
+      },
+      child: ScaleTransition(
+        scale: _scale,
+        alignment: Alignment.center,
+        child: FadeTransition(
+          opacity: _ctrl,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 80),
+              child: Material(
+                color: Colors.transparent,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    // Kart gövdesi
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(20, 48, 20, 24),
+                      decoration: BoxDecoration(
+                        color: bgColor,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: borderCol, width: 1.8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.20),
+                            blurRadius: 24,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: labelCol.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(50),
+                            ),
+                            child: Text(
+                              isTerm ? 'TERİM' : 'TANIM',
+                              style: GoogleFonts.inter(
+                                color: labelCol,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            card.text,
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.inter(
+                              color: Colors.black,
+                              fontSize: isTerm ? 22 : 16,
+                              fontWeight: isTerm
+                                  ? FontWeight.w800
+                                  : FontWeight.w500,
+                              height: 1.45,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Sağ üst köşe — kapatma butonu (X)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Material(
+                        color: Colors.transparent,
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: _close,
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.08),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.close_rounded,
+                              size: 18,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

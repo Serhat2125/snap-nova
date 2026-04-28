@@ -131,27 +131,50 @@ class RuntimeTranslator extends ChangeNotifier {
         return;
       }
       _log('preload: $targetLang için ${todo.length} string çevriliyor…');
-      // Chunk'lara böl, sırayla Gemini'ye gönder
+      // Chunk'lara böl, sırayla Gemini'ye gönder — 503/429 gibi geçici
+      // hatalarda retry backoff ile tekrar dener; başarısız batch'leri
+      // sonunda küçük chunk'lara bölerek ikinci turda tamamlar.
+      final failedChunks = <List<String>>[];
       for (int i = 0; i < todo.length; i += _batchSize) {
         final end = (i + _batchSize).clamp(0, todo.length);
         final chunk = todo.sublist(i, end);
-        try {
-          final translated = await _translateBatch(chunk, targetLang);
-          byLang.addAll(translated);
-          // İnkremental kaydet ve UI tetikle (kullanıcı parça parça görsün)
-          await _persistLang(targetLang);
-          notifyListeners();
-        } catch (e) {
-          _log('chunk hatası [${i ~/ _batchSize}]: $e');
-          // devam et; kullanıcı tekrar denediğinde tamamlanır
+        final ok = await _processChunk(chunk, targetLang, byLang);
+        if (!ok) failedChunks.add(chunk);
+      }
+      // Başarısız batch'leri yarı boyda tekrar dene.
+      for (final failed in failedChunks) {
+        for (int i = 0; i < failed.length; i += 20) {
+          final sub = failed.sublist(i, (i + 20).clamp(0, failed.length));
+          await _processChunk(sub, targetLang, byLang);
         }
       }
-      _log('preload tamam: $targetLang (${byLang.length} total)');
+      _log('preload tamam: $targetLang (${byLang.length} total, '
+          '${todo.length - byLang.length + (todo.length - byLang.length)} eksik)');
     } finally {
       _pendingPreloads.remove(targetLang);
       _isPreloading = _pendingPreloads.isNotEmpty;
       if (!completer.isCompleted) completer.complete();
       notifyListeners();
+    }
+  }
+
+  /// Tek bir chunk'ı işle. Başarılı: cache'e ekler + persist + notify.
+  /// Başarısız (boş döndü): false döner (üst katman retry için işaretler).
+  Future<bool> _processChunk(
+    List<String> chunk,
+    String targetLang,
+    Map<String, String> byLang,
+  ) async {
+    try {
+      final translated = await _translateBatch(chunk, targetLang);
+      if (translated.isEmpty) return false;
+      byLang.addAll(translated);
+      await _persistLang(targetLang);
+      notifyListeners();
+      return translated.length == chunk.length;
+    } catch (e) {
+      _log('chunk hatası: $e');
+      return false;
     }
   }
 
@@ -204,47 +227,62 @@ Output (JSON array only):'''
     };
 
     final keys = _geminiKeys();
-    for (final key in keys) {
-      final url = Uri.parse(
-          'https://generativelanguage.googleapis.com/v1beta/models/'
-          'gemini-2.5-flash:generateContent?key=$key');
-      try {
-        final resp = await http
-            .post(
-              url,
-              headers: const {'Content-Type': 'application/json'},
-              body: jsonEncode(body),
-            )
-            .timeout(_timeout);
-        if (resp.statusCode == 200) {
-          final j = jsonDecode(utf8.decode(resp.bodyBytes))
-              as Map<String, dynamic>;
-          final text = (j['candidates']?[0]?['content']?['parts']?[0]?['text']
-                  as String?)
-              ?.trim();
-          if (text == null) return {};
-          final parsed = _extractJsonArray(text);
-          if (parsed == null || parsed.length != sources.length) {
-            _log('mismatch: input=${sources.length} output=${parsed?.length}');
-            return {};
+    // 503/UNAVAILABLE için backoff retry (paid tier'da da oluyor).
+    const retryDelaysMs = [2000, 5000, 10000];
+    for (int attempt = 0; attempt <= retryDelaysMs.length; attempt++) {
+      if (attempt > 0) {
+        await Future<void>.delayed(
+            Duration(milliseconds: retryDelaysMs[attempt - 1]));
+      }
+      for (final key in keys) {
+        final url = Uri.parse(
+            'https://generativelanguage.googleapis.com/v1beta/models/'
+            'gemini-2.5-flash-lite:generateContent?key=$key');
+        try {
+          final resp = await http
+              .post(
+                url,
+                headers: const {'Content-Type': 'application/json'},
+                body: jsonEncode(body),
+              )
+              .timeout(_timeout);
+          if (resp.statusCode == 200) {
+            final j = jsonDecode(utf8.decode(resp.bodyBytes))
+                as Map<String, dynamic>;
+            final text =
+                (j['candidates']?[0]?['content']?['parts']?[0]?['text']
+                        as String?)
+                    ?.trim();
+            if (text == null) break; // boş cevap → retry
+            final parsed = _extractJsonArray(text);
+            if (parsed == null || parsed.length != sources.length) {
+              _log('mismatch: input=${sources.length} '
+                  'output=${parsed?.length} (retry)');
+              break; // retry
+            }
+            final out = <String, String>{};
+            for (int i = 0; i < sources.length; i++) {
+              final t = parsed[i].trim();
+              if (t.isNotEmpty) out[sources[i]] = t;
+            }
+            return out;
           }
-          final out = <String, String>{};
-          for (int i = 0; i < sources.length; i++) {
-            final t = parsed[i].trim();
-            if (t.isNotEmpty) out[sources[i]] = t;
+          if (resp.statusCode == 401 ||
+              resp.statusCode == 403 ||
+              resp.statusCode == 429) {
+            _log('key hatası ${resp.statusCode}, sıradakini deniyor');
+            continue; // bir sonraki key'i dene
           }
-          return out;
-        }
-        if (resp.statusCode == 401 || resp.statusCode == 403 ||
-            resp.statusCode == 429) {
-          _log('key hatası ${resp.statusCode}, sıradakini deniyor');
+          if (resp.statusCode == 503 || resp.statusCode == 500) {
+            _log('HTTP ${resp.statusCode} (geçici) — backoff retry');
+            break; // retry loop'a geri dön
+          }
+          _log('HTTP ${resp.statusCode} — vazgeç');
+          return {};
+        } catch (e) {
+          _log('çağrı hatası: $e');
           continue;
         }
-        _log('HTTP ${resp.statusCode}');
-        return {};
-      } catch (e) {
-        _log('çağrı hatası: $e');
-        continue;
       }
     }
     return {};
