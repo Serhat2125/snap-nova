@@ -12,7 +12,7 @@ import '../widgets/capture_button.dart';
 import '../widgets/scan_frame_overlay.dart';
 import '../widgets/bottom_nav_bar.dart';
 import 'solution_screen.dart';
-import 'history_screen.dart';
+import 'live_analysis_screen.dart';
 import 'academic_planner.dart';
 import 'calculator_screen.dart';
 import 'profile_screen.dart';
@@ -71,11 +71,15 @@ class _CameraScreenState extends State<CameraScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (_controller == null || !_controller!.value.isInitialized) return;
     if (state == AppLifecycleState.inactive) {
-      _controller?.dispose();
+      // Controller'ı dispose et VE referansı temizle — yoksa bir sonraki
+      // build CameraPreview'i disposed instance'a çağırır → crash.
+      final old = _controller;
+      _controller = null;
       _lightStreaming = false;
-    } else if (state == AppLifecycleState.resumed) {
+      if (mounted) setState(() => _isInitialized = false);
+      old?.dispose();
+    } else if (state == AppLifecycleState.resumed && _controller == null) {
       _initCamera();
     }
   }
@@ -396,7 +400,13 @@ class _CameraScreenState extends State<CameraScreen>
   }
 
   Widget _buildPreview() {
-    if (_isInitialized && _controller != null) return CameraPreview(_controller!);
+    // Defensif: _isInitialized ile _controller arasında race condition olabilir
+    // (dispose sonrası setState gecikmesi). value.isInitialized kontrolü
+    // disposed/uninitalized durumda CameraPreview'i çağırmamamızı garanti eder.
+    final c = _controller;
+    if (_isInitialized && c != null && c.value.isInitialized) {
+      return CameraPreview(c);
+    }
     return ColoredBox(
       color: Colors.black,
       child: Center(
@@ -462,9 +472,17 @@ class _CameraScreenState extends State<CameraScreen>
                   onItemSelected: (i) {
                     if (i == 1) return; // Tara — zaten kameradayız
                     setState(() => _navIndex = i);
+                    // LiveAnalysisScreen alt sekmeler OLMADAN açılır —
+                    // tam ekran Gemini-style multimodal deneyim için.
+                    if (i == 0) {
+                      Navigator.push(
+                        context,
+                        _slideUp(const LiveAnalysisScreen()),
+                      ).then((_) => setState(() => _navIndex = 1));
+                      return;
+                    }
                     Widget child;
                     switch (i) {
-                      case 0: child = const HistoryScreen(); break;
                       case 2: child = const LibraryLanding(); break;
                       case 3: child = const ProfileScreen(); break;
                       default: return;
@@ -660,9 +678,20 @@ class _NavShell extends StatelessWidget {
       return;
     }
     if (i == selectedIndex) return;
+    // LiveAnalysisScreen alt sekmeler olmadan tam ekran açılır.
+    if (i == 0) {
+      Navigator.pushReplacement(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (_, __, ___) => const LiveAnalysisScreen(),
+          transitionsBuilder: (_, a, __, c) => FadeTransition(opacity: a, child: c),
+          transitionDuration: const Duration(milliseconds: 180),
+        ),
+      );
+      return;
+    }
     Widget newChild;
     switch (i) {
-      case 0: newChild = const HistoryScreen(); break;
       case 2: newChild = const LibraryLanding(); break;
       case 3: newChild = const ProfileScreen(); break;
       default: return;

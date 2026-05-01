@@ -32,12 +32,22 @@ class QuAlsarNumericLoader extends StatefulWidget {
   /// verbal = harfler, kelimeler, edebiyat/tarih odaklı simgeler.
   final QuAlsarLoaderVariant variant;
 
+  /// Birikimli aşamalar. Verildiğinde [primaryText]/[secondaryText] yok sayılır.
+  /// İlk satır t=0'da; her [stageInterval] kadar sonra altına bir yenisi
+  /// eklenir. Mevcut aşama yanıp sönen "..." ile, tamamlananlar yeşil ✓ ile.
+  final List<String>? stages;
+
+  /// Aşamalar arasındaki gecikme (varsayılan 3 sn).
+  final Duration stageInterval;
+
   const QuAlsarNumericLoader({
     super.key,
     this.primaryText,
     this.secondaryText,
     this.staticLabel = false,
     this.variant = QuAlsarLoaderVariant.numeric,
+    this.stages,
+    this.stageInterval = const Duration(seconds: 3),
   });
 
   @override
@@ -67,6 +77,10 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
   // Alt yazı — 2 aşamalı basit akış: ilk 3 sn "Analiz", sonrası "Çözüm"
   bool _solving = false;
   Timer? _stageTimer;
+
+  // Birikimli stage list — her [stageInterval] kadar sonra yeni satır eklenir.
+  int _stageIdx = 0;
+  Timer? _stageRevealTimer;
 
   // Noktalar
   int _dots = 0;
@@ -105,11 +119,24 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
       });
     });
 
-    // 3 sn sonra ikincil metne geç — sadece staticLabel false iken
-    if (!widget.staticLabel) {
+    // 3 sn sonra ikincil metne geç — sadece staticLabel false ve stages
+    // verilmediğinde (stages varken bu mod yok sayılır).
+    if (!widget.staticLabel && widget.stages == null) {
       _stageTimer = Timer(const Duration(seconds: 3), () {
         if (!mounted) return;
         setState(() => _solving = true);
+      });
+    }
+
+    // Stages verildiyse her interval'de bir yeni satır aç.
+    if (widget.stages != null && widget.stages!.length > 1) {
+      _stageRevealTimer = Timer.periodic(widget.stageInterval, (t) {
+        if (!mounted) return;
+        if (_stageIdx + 1 < widget.stages!.length) {
+          setState(() => _stageIdx++);
+        } else {
+          t.cancel();
+        }
       });
     }
 
@@ -127,6 +154,7 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
     _spawnTimer?.cancel();
     _centerTimer?.cancel();
     _stageTimer?.cancel();
+    _stageRevealTimer?.cancel();
     _dotTimer?.cancel();
     _orbit1.dispose();
     _orbit2.dispose();
@@ -375,8 +403,13 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
     );
   }
 
-  // ── Aşama metni (iki aşama: Analiz → Çözüm) ────────────────────────────────
+  // ── Aşama metni — iki mod ──────────────────────────────────────────────────
+  //   • stages verildi: birikimli liste, her satır 3 sn arayla altta belirir.
+  //   • stages null: klasik 2-aşama (analiz → çözüm) tek satır.
   Widget _buildStageText() {
+    if (widget.stages != null && widget.stages!.isNotEmpty) {
+      return _buildStagesColumn();
+    }
     final dotStr = '.' * _dots;
     final primary = widget.primaryText ?? 'Sorunuz Analiz Ediliyor';
     final secondary = widget.secondaryText ?? 'Sorunuz Çözülüyor';
@@ -391,21 +424,104 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
       duration: const Duration(milliseconds: 320),
       transitionBuilder: (child, anim) =>
           FadeTransition(opacity: anim, child: child),
-      // Row + sabit genişlikte nokta kutusu → "..." ekleyip silmek
-      // metnin ortalı konumunu KAYDIRMAZ. Sadece sondaki 3 nokta yanıp söner.
       child: Row(
         key: ValueKey(_solving),
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(label, style: textStyle),
           SizedBox(
-            width: 18, // 3 nokta için ayrılan sabit alan
+            width: 18,
             child: Text(
               dotStr,
               style: textStyle,
               textAlign: TextAlign.left,
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStagesColumn() {
+    final stages = widget.stages!;
+    final dotStr = '.' * _dots;
+    const activeStyle = TextStyle(
+      color: Colors.black,
+      fontSize: 14,
+      fontWeight: FontWeight.w800,
+      height: 1.25,
+    );
+    const doneStyle = TextStyle(
+      color: Colors.black54,
+      fontSize: 13,
+      fontWeight: FontWeight.w600,
+      height: 1.25,
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (int i = 0; i <= _stageIdx && i < stages.length; i++) ...[
+            if (i > 0) const SizedBox(height: 6),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 280),
+              transitionBuilder: (child, anim) => FadeTransition(
+                opacity: anim,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 0.2),
+                    end: Offset.zero,
+                  ).animate(anim),
+                  child: child,
+                ),
+              ),
+              child: Row(
+                key: ValueKey('stage_$i'),
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (i < _stageIdx)
+                    const Icon(
+                      Icons.check_circle_rounded,
+                      size: 14,
+                      color: Color(0xFF10B981),
+                    )
+                  else
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: Center(
+                        child: Container(
+                          width: 6,
+                          height: 6,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFC8102E),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      stages[i],
+                      style: i < _stageIdx ? doneStyle : activeStyle,
+                    ),
+                  ),
+                  if (i == _stageIdx)
+                    SizedBox(
+                      width: 18,
+                      child: Text(
+                        dotStr,
+                        style: activeStyle,
+                        textAlign: TextAlign.left,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

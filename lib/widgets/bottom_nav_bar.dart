@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import '../services/locale_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  CameraBottomNav — 4 sekme: Çözümler · Tara · Ödevlerim · Profil
-//  Neon turkuaz kalın kenarlık + cyan→mor→magenta gradient doku
+//  CameraBottomNav — 4 sekme: Sesli Komut · Tara · Akademik · Profil
+//  Çözümlerim sekmesi Library içine taşındı; Sesli Komut placeholder olarak
+//  yerini aldı. Neon turkuaz kalın kenarlık + cyan→mor→magenta gradient doku
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class CameraBottomNav extends StatelessWidget {
@@ -17,11 +18,13 @@ class CameraBottomNav extends StatelessWidget {
   });
 
   static const _items = [
+    // Sesli Komut — şimdilik placeholder (sadece sekme adı + ikon).
+    // Gerçek sesli giriş özelliği (speech_to_text) sonraki fazda eklenecek.
     _NavItem(
-      icon: Icons.check_circle_outline_rounded,
-      activeIcon: Icons.check_circle_rounded,
-      labelKey: 'solutions',
-      color: Color(0xFF3B82F6),
+      icon: Icons.mic_none_rounded,
+      activeIcon: Icons.mic_rounded,
+      labelKey: 'voice_command',
+      color: Color(0xFFEF4444),
     ),
     _NavItem(
       icon: Icons.center_focus_weak_rounded,

@@ -183,16 +183,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  /// Profil seçildikten sonra AI'dan o profile özel ders listesini çek
-  /// ve cache'le — kütüphane / arena bir sonraki yüklemede bunu gösterir.
+  /// Profil seçildikten sonra AI'dan o profile özel ders listesini + KONULARINI
+  /// çek ve cache'le — kütüphane / arena / konu özeti bunu gösterir.
+  /// 131 ülkenin her biri için ülke-spesifik müfredat (static catalog'da yoksa
+  /// AI üretir, lokal cache'lenir).
   static Future<void> _prefetchAiCurriculum(EduProfile p) async {
     try {
-      final subjects = await GeminiService.fetchProfileSubjects(p);
-      if (subjects.isNotEmpty) {
-        await EduProfile.saveAiSubjectCache(p, subjects);
+      final result = await GeminiService.fetchProfileCurriculum(p);
+      if (result.subjects.isNotEmpty) {
+        await EduProfile.saveAiSubjectCache(p, result.subjects);
+      }
+      if (result.topicsBySubject.isNotEmpty) {
+        await EduProfile.saveAiTopicsCache(p, result.topicsBySubject);
       }
     } catch (_) {
-      // Sessizce başarısız ol — fallback olarak hardcoded liste kullanılır.
+      // Sessizce başarısız ol — fallback olarak static + international kullanılır.
     }
   }
 
@@ -225,10 +230,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final isAuth  = _currentPage == _authPageIndex;
     final isLast = _currentPage == _totalPages - 1;
     final isHero = _currentPage == 0;
-    final canContinue = (!isGrade ||
-            _selectedProfiles.isNotEmpty ||
-            _selectedGrade != null) &&
-        (!isAuth || AuthService.isSignedIn);
+    // ── DEV MODU: Giriş zorunluluğu KALDIRILDI ──────────────────────────
+    // Yapım aşamasındayken giriş ekranı formalite olarak görünür ama
+    // kullanıcı kayıt olmadan da devam edebilir. Yayına alırken
+    // `(!isAuth || AuthService.isSignedIn)` kontrolünü geri ekle.
+    // Şimdilik isAuth değişkeni `_authPageIndex` ile referanslı kalsın
+    // (compiler unused warning vermesin).
+    final _ = isAuth;
+    final canContinue = !isGrade ||
+        _selectedProfiles.isNotEmpty ||
+        _selectedGrade != null;
     // Tüm onboarding beyaz zeminde — üst bar öğeleri koyu renkli.
     const onBg = Color(0xFF4B5563);
     final inactiveTrack = Colors.black.withValues(alpha: 0.10);
@@ -1473,9 +1484,9 @@ class _GradePageState extends State<_GradePage> {
     // Liseye Geçiş — sadece LGS hazırlığı için ayrı seviye.
     'lgs_prep': ['LGS (Liselere Geçiş Sınavı)'],
     'high':     ['9. Sınıf', '10. Sınıf', '11. Sınıf', '12. Sınıf'],
-    // Sınava hazırlık — ortaokul + lise sonrası Türkiye sınavları.
+    // Sınava hazırlık — lise sonrası Türkiye sınavları (LGS ayrı seviye
+    // olarak "Eğitim Seviyen" başlığında listelendiği için buradan çıkarıldı).
     'uni_prep': [
-      'LGS (Liselere Geçiş Sınavı)',
       'YKS (Yükseköğretim Kurumları Sınavı)',
       'MSÜ (Milli Savunma Üniversitesi Sınavı)',
       'KPSS Ortaöğretim',

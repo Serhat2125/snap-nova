@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show Platform;
 import 'dart:math' as math;
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:flutter/foundation.dart';
@@ -159,7 +160,19 @@ class AuthService {
           'Google sign-in provider\'ı aktive et.');
     }
     try {
-      final googleUser = await GoogleSignIn().signIn();
+      // iOS'ta plist eksikse veya bundle Id mismatch durumunda runtime
+      // fallback olarak clientId'i doğrudan geçiyoruz; plist varsa zaten
+      // override etmez. Android'de clientId default davranışı kullanır
+      // (google-services.json otomatik okunur).
+      final googleSignIn = (!kIsWeb && Platform.isIOS)
+          ? GoogleSignIn(
+              clientId:
+                  '828607169326-f2j8au8cjoiuh8bp3c2l14qi61jfmd26.apps.googleusercontent.com',
+              serverClientId:
+                  '828607169326-os08cs4ik9e8ki9m7enbfbju2vuf6b2u.apps.googleusercontent.com',
+            )
+          : GoogleSignIn();
+      final googleUser = await googleSignIn.signIn();
       if (googleUser == null) {
         throw const AuthException(
             'cancelled', 'Google girişi iptal edildi.');

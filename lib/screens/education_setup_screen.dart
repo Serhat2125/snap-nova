@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/education_profile.dart';
 import '../services/country_resolver.dart';
+import '../services/gemini_service.dart';
 import '../main.dart' show localeService;
 
 /// Ana sayfadan önce çıkan eğitim profili belirleme ekranı.
@@ -124,6 +126,9 @@ class _EducationSetupScreenState extends State<EducationSetupScreen> {
         return const [
           _LevelOpt('primary', '📚', 'İlkokul'),
           _LevelOpt('middle', '🎒', 'Ortaokul'),
+          // LGS Ortaokul'dan hemen sonra; seçilince exam_prep + grade=lgs
+          // olarak işlenir (bkz. _pickLevel).
+          _LevelOpt('lgs', '🏫', 'LGS (Liselere Geçiş Sınavı)'),
           _LevelOpt('high', '🎓', 'Lise'),
           _LevelOpt('exam_prep', '🎯', 'Sınava Hazırlık'),
           _LevelOpt('university', '🏛️', 'Üniversite'),
@@ -510,56 +515,188 @@ class _EducationSetupScreenState extends State<EducationSetupScreen> {
           _LevelOpt('other', '🧭', 'Autre'),
         ];
       default:
-        // Diğer ülkeler için Türkçe + İngilizce
+        // Ülkeye özel branş yoksa: 8 evrensel seviye (uluslararası standart
+        // İngilizce etiket). Her ülkede çalışır; lokal terminoloji yok ama
+        // kavramsal seviye doğru.
         return const [
-          _LevelOpt('primary', '📚', 'İlkokul / Primary'),
-          _LevelOpt('middle', '🎒', 'Ortaokul / Middle'),
-          _LevelOpt('high', '🎓', 'Lise / High'),
-          _LevelOpt('exam_prep', '🎯', 'Sınava Hazırlık'),
-          _LevelOpt('university', '🏛️', 'Üniversite / University'),
-          _LevelOpt('masters', '📘', "Yüksek Lisans / Master's"),
-          _LevelOpt('doctorate', '🔬', 'Doktora / PhD'),
-          _LevelOpt('other', '🧭', 'Diğer / Other'),
+          _LevelOpt('primary', '📚', 'Primary School'),
+          _LevelOpt('middle', '🎒', 'Middle / Lower Secondary'),
+          _LevelOpt('high', '🎓', 'High / Upper Secondary'),
+          _LevelOpt('exam_prep', '🎯', 'Exam Preparation'),
+          _LevelOpt('university', '🏛️', 'University (Bachelor)'),
+          _LevelOpt('masters', '📘', "Master's Degree"),
+          _LevelOpt('doctorate', '🔬', 'Doctorate / PhD'),
+          _LevelOpt('other', '🧭', 'Other'),
         ];
     }
   }
 
+  /// Country-aware sınıf etiketi: sayı verilince ülkenin terminolojisine
+  /// uygun "9. Sınıf" / "Grade 9" / "Year 9" / "Klasse 9" / "9年生" döner.
+  /// `_country` state'i okur. _gradesForLevel içinde kullanılır.
+  String _localizedGradeLabel(int n) {
+    switch (_country) {
+      case 'us':
+      case 'ca':
+      case 'au':
+      case 'ph':
+      case 'ng':
+      case 'ke':
+      case 'gh':
+      case 'za':
+      case 'in':
+        return 'Grade $n';
+      case 'uk':
+      case 'ie':
+        return 'Year $n';
+      case 'de':
+      case 'at':
+        return 'Klasse $n';
+      case 'fr':
+      case 'be':
+      case 'lu':
+      case 'mc':
+      case 'ch':
+      case 'ma':
+      case 'dz':
+      case 'tn':
+        return 'Classe $n';
+      case 'es':
+      case 'mx':
+      case 'ar':
+      case 'co':
+      case 'pe':
+      case 've':
+      case 'cl':
+      case 'cr':
+      case 'gt':
+      case 'do':
+      case 'ec':
+      case 'bo':
+      case 'sv':
+      case 'hn':
+      case 'pa':
+      case 'py':
+      case 'uy':
+        return 'Grado $n';
+      case 'br':
+      case 'pt':
+      case 'ao':
+      case 'mz':
+        return 'Ano $n';
+      case 'it':
+        return 'Classe $n';
+      case 'jp':
+        return '$n年生';
+      case 'cn':
+      case 'tw':
+      case 'hk':
+        return '$n年级';
+      case 'kr':
+        return '$n학년';
+      case 'ru':
+      case 'by':
+      case 'kz':
+        return '$n класс';
+      case 'ua':
+        return '$n клас';
+      case 'pl':
+        return 'Klasa $n';
+      case 'nl':
+        return 'Groep $n';
+      case 'th':
+        return 'ชั้น $n';
+      case 'vn':
+        return 'Lớp $n';
+      case 'id':
+      case 'my':
+        return 'Kelas $n';
+      case 'eg':
+      case 'sa':
+      case 'iq':
+      case 'jo':
+      case 'ae':
+      case 'kw':
+      case 'qa':
+      case 'lb':
+      case 'sy':
+      case 'ye':
+      case 'ly':
+        return 'الصف $n';
+      case 'ir':
+        return 'پایه $n';
+      case 'pk':
+        return 'Class $n';
+      case 'bd':
+        return 'শ্রেণি $n';
+      case 'gr':
+      case 'cy':
+        return 'Τάξη $n';
+      case 'tr':
+      default:
+        return '$n. Sınıf';
+    }
+  }
+
   List<_LevelOpt> _gradesForLevel() {
+    // Country-aware sınıf etiketi yardımcısı.
+    // Sayı (key) sabit (curriculum lookup için) — sadece UI etiketi yerelleşir.
+    String label(int n) => _localizedGradeLabel(n);
+    String hazirlikLabel() => switch (_country) {
+          'us' => 'Foundation Year',
+          'uk' => 'Foundation Year',
+          'de' => 'Vorbereitungskurs',
+          'fr' => 'Année préparatoire',
+          'jp' => '予備',
+          'kr' => '예비 과정',
+          'cn' => '预科',
+          _ => 'Hazırlık',
+        };
+    String mezunLabel() => switch (_country) {
+          'us' || 'uk' || 'au' || 'ca' => 'Graduate',
+          'de' => 'Absolvent',
+          'fr' => 'Diplômé',
+          'jp' => '卒業',
+          'kr' => '졸업',
+          'cn' => '毕业',
+          _ => 'Mezun',
+        };
+
     switch (_level) {
       case 'primary':
-        return const [
-          _LevelOpt('1', '1️⃣', '1. Sınıf'),
-          _LevelOpt('2', '2️⃣', '2. Sınıf'),
-          _LevelOpt('3', '3️⃣', '3. Sınıf'),
-          _LevelOpt('4', '4️⃣', '4. Sınıf'),
-          _LevelOpt('5', '5️⃣', '5. Sınıf'),
+        return [
+          _LevelOpt('1', '1️⃣', label(1)),
+          _LevelOpt('2', '2️⃣', label(2)),
+          _LevelOpt('3', '3️⃣', label(3)),
+          _LevelOpt('4', '4️⃣', label(4)),
+          _LevelOpt('5', '5️⃣', label(5)),
         ];
       case 'middle':
-        return const [
-          _LevelOpt('5', '5️⃣', '5. Sınıf'),
-          _LevelOpt('6', '6️⃣', '6. Sınıf'),
-          _LevelOpt('7', '7️⃣', '7. Sınıf'),
-          _LevelOpt('8', '8️⃣', '8. Sınıf'),
+        return [
+          _LevelOpt('5', '5️⃣', label(5)),
+          _LevelOpt('6', '6️⃣', label(6)),
+          _LevelOpt('7', '7️⃣', label(7)),
+          _LevelOpt('8', '8️⃣', label(8)),
         ];
       case 'high':
-        return const [
-          _LevelOpt('9', '9️⃣', '9. Sınıf'),
-          _LevelOpt('10', '🔟', '10. Sınıf'),
-          _LevelOpt('11', '1️⃣1️⃣', '11. Sınıf'),
-          _LevelOpt('12', '1️⃣2️⃣', '12. Sınıf'),
+        return [
+          _LevelOpt('9', '9️⃣', label(9)),
+          _LevelOpt('10', '🔟', label(10)),
+          _LevelOpt('11', '1️⃣1️⃣', label(11)),
+          _LevelOpt('12', '1️⃣2️⃣', label(12)),
         ];
       case 'exam_prep':
         return _examsForCountry();
       case 'university':
-        return const [
-          _LevelOpt('hazirlik', '🔤', 'Hazırlık'),
-          _LevelOpt('1', '1️⃣', '1. Sınıf'),
-          _LevelOpt('2', '2️⃣', '2. Sınıf'),
-          _LevelOpt('3', '3️⃣', '3. Sınıf'),
-          _LevelOpt('4', '4️⃣', '4. Sınıf'),
-          _LevelOpt('5', '5️⃣', '5. Sınıf'),
-          _LevelOpt('6', '6️⃣', '6. Sınıf'),
-          _LevelOpt('mezun', '🎓', 'Mezun'),
+        return [
+          _LevelOpt('hazirlik', '🔤', hazirlikLabel()),
+          _LevelOpt('1', '1️⃣', label(1)),
+          _LevelOpt('2', '2️⃣', label(2)),
+          _LevelOpt('3', '3️⃣', label(3)),
+          _LevelOpt('4', '4️⃣', label(4)),
+          _LevelOpt('5', '5️⃣', label(5)),
+          _LevelOpt('6', '6️⃣', label(6)),
+          _LevelOpt('mezun', '🎓', mezunLabel()),
         ];
       case 'masters':
         return const [
@@ -593,11 +730,16 @@ class _EducationSetupScreenState extends State<EducationSetupScreen> {
   List<_LevelOpt> _examsForCountry() {
     switch (_country) {
       case 'tr':
+        // LGS bu listeden çıkarıldı — artık ana eğitim seviyesi listesinde
+        // (Ortaokul'dan hemen sonra) "LGS (Liselere Geçiş Sınavı)" olarak yer alıyor.
         return const [
-          _LevelOpt('lgs', '🏫', 'LGS'),
           _LevelOpt('yks_tyt', '🎯', 'YKS · TYT'),
           _LevelOpt('yks_ayt', '🎯', 'YKS · AYT'),
-          _LevelOpt('kpss', '🏛️', 'KPSS'),
+          _LevelOpt('msu', '🛡️', 'MSÜ (Milli Savunma Üniv. Sınavı)'),
+          _LevelOpt('kpss', '🏛️', 'KPSS Lisans'),
+          _LevelOpt('kpss_ortaogretim', '🏛️', 'KPSS Ortaöğretim'),
+          _LevelOpt('dgs', '↗️', 'DGS (Dikey Geçiş Sınavı)'),
+          _LevelOpt('pmyo', '👮', 'PMYO (Polis Meslek Yüksekokulu)'),
           _LevelOpt('ales', '📋', 'ALES'),
           _LevelOpt('yds', '🗣️', 'YDS / YÖKDİL'),
           _LevelOpt('ielts', '🗣️', 'IELTS'),
@@ -1033,10 +1175,22 @@ class _EducationSetupScreenState extends State<EducationSetupScreen> {
           _LevelOpt('other', '🧭', 'Autre'),
         ];
       default:
+        // Universal exam set — ülkeye özel sınav listesi yoksa devreye girer.
+        // Uluslararası dil + akademik standart sınavlar; "national_exam"
+        // jeneriği ülkenin yerel sınavını AI'ya prompt'lamak için kullanılır.
         return const [
+          _LevelOpt('national_exam', '🎯', 'National School-Leaving Exam'),
+          _LevelOpt('university_entrance', '🎓', 'University Entrance Exam'),
+          _LevelOpt('sat', '📝', 'SAT'),
+          _LevelOpt('act', '📝', 'ACT'),
+          _LevelOpt('ib', '🌐', 'IB Diploma'),
+          _LevelOpt('alevel', '🎓', 'A-Level / Cambridge'),
           _LevelOpt('ielts', '🗣️', 'IELTS'),
           _LevelOpt('toefl', '🗣️', 'TOEFL'),
-          _LevelOpt('other', '🧭', 'Other / Diğer'),
+          _LevelOpt('duolingo', '🗣️', 'Duolingo English Test'),
+          _LevelOpt('gre', '🎓', 'GRE'),
+          _LevelOpt('gmat', '💼', 'GMAT'),
+          _LevelOpt('other', '🧭', 'Other'),
         ];
     }
   }
@@ -1326,7 +1480,29 @@ class _EducationSetupScreenState extends State<EducationSetupScreen> {
     await CountryResolver.instance.refresh(locale: localeService);
     // Profil cache'ini tazele — AI prompt'ları yeni müfredat bağlamını okusun.
     await EduProfile.load();
+    // 131 ülkenin tamamı için AI-driven müfredat: profil değişti → cache yoksa
+    // arka planda AI'dan ders + konuları çek. Static catalog'da varsa zaten
+    // hızlı cevap verir; yoksa AI fetch'i yapılana kadar international fallback
+    // gösterilir (UI bloklamaz — unawaited fire-and-forget).
+    final p = EduProfile.current;
+    if (p != null && EduProfile.aiCachedTopics(p) == null) {
+      unawaited(_prefetchProfileCurriculum(p));
+    }
     if (mounted) widget.onSaved();
+  }
+
+  Future<void> _prefetchProfileCurriculum(EduProfile p) async {
+    try {
+      final result = await GeminiService.fetchProfileCurriculum(p);
+      if (result.subjects.isNotEmpty) {
+        await EduProfile.saveAiSubjectCache(p, result.subjects);
+      }
+      if (result.topicsBySubject.isNotEmpty) {
+        await EduProfile.saveAiTopicsCache(p, result.topicsBySubject);
+      }
+    } catch (_) {
+      // Sessizce başarısız — fallback static + international.
+    }
   }
 
   // ─────────────────── Bottom sheet pickers ──────────────────────────────────
@@ -1358,16 +1534,27 @@ class _EducationSetupScreenState extends State<EducationSetupScreen> {
 
   Future<void> _pickLevel() async {
     final result = await _pickFromList(tui(_country, 'level_sheet_title'), _levels());
-    if (result != null && mounted) {
+    if (result == null || !mounted) return;
+    // LGS Ortaokul sonrası ana liste içinde gözüksün, ama kayıtta
+    // exam_prep + grade=lgs olarak işlensin → curriculum lookup'ı
+    // tr_exam_prep_lgs anahtarına eşleşsin, müfredat doğru çıksın.
+    if (result == 'lgs') {
       setState(() {
-        if (_level != result) {
-          _level = result;
-          _grade = null;
-          _track = null;
-          _faculty = null;
-        }
+        _level = 'exam_prep';
+        _grade = 'lgs';
+        _track = null;
+        _faculty = null;
       });
+      return;
     }
+    setState(() {
+      if (_level != result) {
+        _level = result;
+        _grade = null;
+        _track = null;
+        _faculty = null;
+      }
+    });
   }
 
   Future<void> _pickGrade() async {

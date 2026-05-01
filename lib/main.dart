@@ -16,9 +16,12 @@ import 'screens/premium_screen.dart';
 import 'screens/profile_screen.dart';
 import 'theme/app_theme.dart';
 import 'firebase_options.dart';
+import 'services/analytics.dart';
 import 'services/auth_service.dart';
 import 'services/locale_service.dart';
 import 'services/theme_service.dart';
+import 'services/tts_service.dart';
+import 'services/voice_input_service.dart';
 import 'services/connectivity_service.dart';
 import 'services/country_resolver.dart';
 import 'services/curriculum_catalog.dart';
@@ -76,6 +79,10 @@ Future<void> main() async {
         persistenceEnabled: true,
         cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
       );
+      // Analytics + Crashlytics — Firebase init başarılı olduktan SONRA.
+      // Hata atmaz; init başarısızsa no-op'a düşer.
+      await Analytics.init();
+      Analytics.registerFlutterErrorHandler();
     } catch (e, st) {
       AuthService.firebaseReady = false;
       // ignore: avoid_print
@@ -100,6 +107,9 @@ Future<void> main() async {
     await localeService.init();
     await themeService.init();
     await connectivityService.init();
+    // Voice & TTS — Sesli Komut için. Hata atmaz; başarısızsa no-op.
+    unawaited(VoiceInputService.init());
+    unawaited(TtsService.init());
     // Saklı oturumu yükle — auth_user_v1 prefs key'inden.
     await AuthService.init();
     // Runtime translator — kalıcı cache'i yükle + LocaleService'e hook bağla
@@ -153,7 +163,9 @@ Future<void> main() async {
     // Mevcut öğrenci profilini cache'e yükle (AI prompt'larında kullanılır)
     await EduProfile.load();
     // AI'dan üretilmiş profil-özel müfredat varsa belleğe yükle (varsa).
+    // Hem ders listesi (subjects) hem de konu haritası (topics) ayrı cache'lerde.
     await EduProfile.loadAiSubjectCache();
+    await EduProfile.loadAiTopicsCache();
 
     // ProviderScope: Yeni feature katmanları (lib/features/...) Riverpod
     // kullanır; eski ekranlar StatefulWidget+setState ile çalışmaya devam
@@ -161,13 +173,14 @@ Future<void> main() async {
     // hiçbir etkisi yok.
     runApp(const ProviderScope(child: QuAlsarApp()));
   }, (error, stack) {
-    // Zone dışına sızan her şey
+    // Zone dışına sızan her şey — hem ErrorLogger hem Crashlytics'e gönder.
     ErrorLogger.instance.capture(
       error,
       stack,
       context: 'root_zone',
       fatal: true,
     );
+    Analytics.recordError(error, stack, fatal: true, reason: 'root_zone');
   });
 }
 
@@ -191,14 +204,12 @@ class _StartupRouterState extends State<_StartupRouter> {
   }
 
   Future<_StartupState> _resolve() async {
-    // ── Yapım aşamasında: her açılışta onboarding'i göster. ─────────────
-    // 5 tanıtım sayfası swipe ile erişilebilir; son sayfadan "Öğrenmeye
-    // Başla" ile CameraScreen'e geçiş (oradan tüm uygulama gezilir).
-    // TODO(prod): buradaki mantık geri gelecek:
-    //   - 'onboarding_launch_count_v3' ile ilk 10 launch onboarding
-    //   - 'app_launch_count_v2' + 'mini_test_edu_profile_set' ile educationSetup
-    //   - aksi halde home
-    return _StartupState.onboarding;
+    // ── Geçici: onboarding + educationSetup atlandı, doğrudan ana ekran. ──
+    // Kullanıcı isteği üzerine giriş ve tanıtım yazıları şimdilik gizli.
+    // Geri getirmek için: aşağıdaki return'ü kaldırıp eski mantığı (her
+    // açılışta onboarding) yeniden aktive et, ya da
+    // 'onboarding_launch_count_v3' bazlı şartı geri tak.
+    return _StartupState.home;
   }
 
   void _onSetupSaved() {

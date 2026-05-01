@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../main.dart' show themeService;
+import '../services/auth_service.dart';
 import '../services/locale_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -253,6 +256,12 @@ class _ProfileCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Gerçek kullanıcıdan oku — yoksa "Misafir".
+    final user = AuthService.current;
+    final displayName = (user?.name?.trim().isNotEmpty == true)
+        ? user!.name!.trim().split(' ').first
+        : (user?.email?.split('@').first ?? 'Misafir');
+    final hasPhoto = (user?.photoUrl ?? '').isNotEmpty;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -285,15 +294,25 @@ class _ProfileCard extends StatelessWidget {
                     color: Colors.cyanAccent.withValues(alpha: 0.35),
                     blurRadius: 12)
               ],
+              image: hasPhoto
+                  ? DecorationImage(
+                      image: NetworkImage(user!.photoUrl!),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
             ),
-            child:
-                const Icon(Icons.person_rounded, color: Colors.white, size: 26),
+            child: hasPhoto
+                ? null
+                : const Icon(Icons.person_rounded,
+                    color: Colors.white, size: 26),
           ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Hoş geldin, Ayşe 👋',
-                  style: TextStyle(
+              Text('Hoş geldin, $displayName 👋',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
                       color: Colors.white,
                       fontSize: 14,
                       fontWeight: FontWeight.w700)),
@@ -444,12 +463,49 @@ class _PageHeader extends StatelessWidget {
 //  1. Profil Sayfası
 // ═══════════════════════════════════════════════════════════════════════════════
 
-class _ProfilePage extends StatelessWidget {
+class _ProfilePage extends StatefulWidget {
   const _ProfilePage();
+  @override
+  State<_ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<_ProfilePage> {
+  late final StreamSubscription<AppUser?> _sub;
+
+  @override
+  void initState() {
+    super.initState();
+    // AuthService.onChange yayını — login/logout'ta sayfa otomatik tazelenir.
+    _sub = AuthService.onChange.listen((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _sub.cancel();
+    super.dispose();
+  }
+
+  String _providerLabel(AuthProvider p) => switch (p) {
+        AuthProvider.google => 'Google',
+        AuthProvider.apple => 'Apple',
+        AuthProvider.phone => 'Telefon',
+        AuthProvider.email => 'E-posta',
+        AuthProvider.guest => 'Misafir',
+      };
 
   @override
   Widget build(BuildContext context) {
     final shell = context.findAncestorStateOfType<_SettingsDrawerState>()!;
+    final user = AuthService.current;
+    final isGuest = user == null || user.isGuest;
+    final name = (user?.name?.trim().isNotEmpty == true)
+        ? user!.name!.trim()
+        : (isGuest ? 'Misafir Kullanıcı' : 'İsimsiz');
+    final email = user?.email ?? (isGuest ? 'Giriş yapılmadı' : '—');
+    final photo = user?.photoUrl ?? '';
+
     return SafeArea(
       child: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
@@ -475,37 +531,90 @@ class _ProfilePage extends StatelessWidget {
                         color: Colors.cyanAccent.withValues(alpha: 0.40),
                         blurRadius: 20)
                   ],
+                  image: photo.isNotEmpty
+                      ? DecorationImage(
+                          image: NetworkImage(photo), fit: BoxFit.cover)
+                      : null,
                 ),
-                child: const Icon(Icons.person_rounded,
-                    color: Colors.white, size: 44),
+                child: photo.isEmpty
+                    ? const Icon(Icons.person_rounded,
+                        color: Colors.white, size: 44)
+                    : null,
               ),
               const SizedBox(height: 12),
-              const Text('Ayşe Yılmaz',
-                  style: TextStyle(
+              Text(name,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
                       color: Colors.white,
                       fontSize: 20,
                       fontWeight: FontWeight.w800)),
               const SizedBox(height: 4),
-              Text('ayse@qualsar.app',
+              Text(email,
+                  textAlign: TextAlign.center,
                   style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.50), fontSize: 13)),
+                      color: Colors.white.withValues(alpha: 0.50),
+                      fontSize: 13)),
+              if (user != null) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.cyanAccent.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(
+                        color: Colors.cyanAccent.withValues(alpha: 0.30)),
+                  ),
+                  child: Text(_providerLabel(user.provider),
+                      style: const TextStyle(
+                          color: Colors.cyanAccent,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700)),
+                ),
+              ],
             ]),
           ),
           const SizedBox(height: 28),
 
-          _neonField('Ad Soyad', 'Ayşe Yılmaz', Icons.person_outline),
+          _neonField('Ad Soyad', name, Icons.person_outline),
           const SizedBox(height: 12),
-          _neonField('E-posta', 'ayse@qualsar.app', Icons.email_outlined),
+          _neonField('E-posta', email, Icons.email_outlined),
           const SizedBox(height: 24),
 
           _neonBtn('Üyeliğim', Icons.workspace_premium_rounded,
               const Color(0xFFF59E0B)),
           const SizedBox(height: 10),
-          _neonBtn('Şifre Değiştir', Icons.lock_outline_rounded,
-              const Color(0xFF3B82F6)),
-          const SizedBox(height: 10),
-          _neonBtn('Hesap Ayarları', Icons.settings_outlined,
-              const Color(0xFF8B5CF6)),
+          if (!isGuest)
+            _neonBtn('Hesap Ayarları', Icons.settings_outlined,
+                const Color(0xFF8B5CF6)),
+          if (!isGuest) const SizedBox(height: 10),
+          // Çıkış / Giriş — gerçek auth durumuna göre.
+          GestureDetector(
+            onTap: () async {
+              if (isGuest) {
+                // Misafir kullanıcı: oturum açma akışını tetikle.
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text(
+                      'Giriş yapmak için Profilim > Üyeliğim > Giriş Yap yolunu kullan.'),
+                  backgroundColor: Colors.cyanAccent,
+                ));
+                return;
+              }
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (_) => const _LogoutDialog(),
+              );
+              if (confirm == true) {
+                await AuthService.signOut();
+                if (mounted) setState(() {});
+              }
+            },
+            child: _neonBtn(
+              isGuest ? 'Giriş Yap' : 'Çıkış Yap',
+              isGuest ? Icons.login_rounded : Icons.logout_rounded,
+              isGuest ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
+            ),
+          ),
           const SizedBox(height: 30),
         ]),
       ),
@@ -765,11 +874,27 @@ class _ThemePage extends StatefulWidget {
 }
 
 class _ThemePageState extends State<_ThemePage> {
-  int _selected = 0; // 0=koyu 1=açık 2=sistem
+  // ThemeService.notifyListeners() dinleyelim — başka yerden değişirse güncelle.
+  void _onThemeChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    themeService.addListener(_onThemeChanged);
+  }
+
+  @override
+  void dispose() {
+    themeService.removeListener(_onThemeChanged);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final shell = context.findAncestorStateOfType<_SettingsDrawerState>()!;
+    final selected = themeService.index; // 0=dark 1=light 2=system
     final options = [
       (Icons.dark_mode_rounded, 'Koyu Mod', const Color(0xFF8B5CF6)),
       (Icons.light_mode_rounded, 'Açık Mod', const Color(0xFFF59E0B)),
@@ -784,9 +909,9 @@ class _ThemePageState extends State<_ThemePage> {
           ...options.asMap().entries.map((e) {
             final i = e.key;
             final (icon, label, color) = e.value;
-            final sel = _selected == i;
+            final sel = selected == i;
             return GestureDetector(
-              onTap: () => setState(() => _selected = i),
+              onTap: () => themeService.setIndex(i),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
                 margin: const EdgeInsets.only(bottom: 10),
@@ -1134,11 +1259,17 @@ class _AboutPage extends StatelessWidget {
                   fontSize: 14,
                   fontWeight: FontWeight.w700)),
           const SizedBox(height: 10),
-          _socialBtn(Icons.language_rounded, 'qualsar.app', const Color(0xFF3B82F6)),
+          _socialBtn(
+              Icons.language_rounded, 'qualsar.app', const Color(0xFF3B82F6),
+              url: 'https://qualsar.app'),
           const SizedBox(height: 8),
-          _socialBtn(Icons.camera_alt_outlined, '@qualsar', const Color(0xFFEC4899)),
+          _socialBtn(
+              Icons.camera_alt_outlined, '@qualsar', const Color(0xFFEC4899),
+              url: 'https://instagram.com/qualsar'),
           const SizedBox(height: 8),
-          _socialBtn(Icons.email_outlined, 'serhatdsme@gmail.com', const Color(0xFF10B981)),
+          _socialBtn(Icons.email_outlined, 'serhatdsme@gmail.com',
+              const Color(0xFF10B981),
+              url: 'mailto:serhatdsme@gmail.com'),
           const SizedBox(height: 30),
         ]),
       ),
@@ -1159,21 +1290,37 @@ class _AboutPage extends StatelessWidget {
                 height: 1.6)),
       );
 
-  Widget _socialBtn(IconData icon, String label, Color color) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withValues(alpha: 0.30)),
-        ),
-        child: Row(children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(width: 12),
-          Text(label,
-              style: TextStyle(
-                  color: color, fontSize: 13, fontWeight: FontWeight.w600)),
-        ]),
-      );
+  Widget _socialBtn(IconData icon, String label, Color color, {String? url}) {
+    final btn = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.30)),
+      ),
+      child: Row(children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(width: 12),
+        Text(label,
+            style: TextStyle(
+                color: color, fontSize: 13, fontWeight: FontWeight.w600)),
+        const Spacer(),
+        if (url != null)
+          Icon(Icons.open_in_new_rounded,
+              color: color.withValues(alpha: 0.55), size: 14),
+      ]),
+    );
+    if (url == null) return btn;
+    return GestureDetector(
+      onTap: () async {
+        final uri = Uri.parse(url);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
+      },
+      child: btn,
+    );
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1296,7 +1443,7 @@ class _LogoutDialog extends StatelessWidget {
                 Row(children: [
                   Expanded(
                     child: GestureDetector(
-                      onTap: () => Navigator.pop(context),
+                      onTap: () => Navigator.pop(context, false),
                       child: Container(
                         height: 46,
                         decoration: BoxDecoration(
@@ -1317,7 +1464,7 @@ class _LogoutDialog extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: GestureDetector(
-                      onTap: () => Navigator.pop(context),
+                      onTap: () => Navigator.pop(context, true),
                       child: Container(
                         height: 46,
                         decoration: BoxDecoration(

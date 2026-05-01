@@ -9,6 +9,104 @@ import 'package:shared_preferences/shared_preferences.dart';
 //  QuAlsar Arena'da kaydedilen profili her sayfanın okuyabilmesi için paylaşılır
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/// Seçmeli ders anahtarları — bu derslerin grid'te ana 8 yerine "Diğer
+/// Dersler" sekmesinde görünmesi tercih edilir. UI'da sıralama:
+///   1) Çekirdek dersler — kullanım sıklığına göre azalan,
+///   2) Seçmeliler — kullanım sıklığına göre azalan; tümü overflow'a düşer.
+const Set<String> kElectiveSubjectKeys = {
+  // Türkiye lise seçmeli/tamamlayıcı
+  'beden', 'sanat_muzik', 'din_kultur', 'ikinci_dil',
+  'drama', 'yazarlik', 'kuran', 'temel_din', 'peygamber_hayat',
+  'girisimcilik', 'demokrasi',
+  // Diğer ülkeler benzeri
+  're', 'mfl', 'religion_ethik', 'sanskrit',
+  'electives',
+};
+
+bool isElectiveSubjectKey(String key) =>
+    kElectiveSubjectKeys.contains(key);
+
+/// Kullanıcının ders kullanım istatistiklerini birleştiren yardımcı.
+/// Kaynaklar:
+///   • `library_activity_log_v2` (özet + soru üretim olayları)
+///   • `arena_subject_play_counts_v1` (yarışma oturumları)
+/// Ders adı (lowercase trim) → toplam etkinlik sayısı.
+class SubjectUsageStats {
+  static const _activityKey = 'library_activity_log_v2';
+  static const _arenaKey = 'arena_subject_play_counts_v1';
+
+  static String _norm(String s) => s.trim().toLowerCase();
+
+  static Future<Map<String, int>> load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final out = <String, int>{};
+    final list = prefs.getStringList(_activityKey) ?? [];
+    for (final s in list) {
+      try {
+        final j = jsonDecode(s) as Map<String, dynamic>;
+        final subject = (j['subject'] as String?)?.trim() ?? '';
+        if (subject.isEmpty) continue;
+        final k = _norm(subject);
+        out[k] = (out[k] ?? 0) + 1;
+      } catch (_) {}
+    }
+    final arenaRaw = prefs.getString(_arenaKey);
+    if (arenaRaw != null) {
+      try {
+        final m = jsonDecode(arenaRaw) as Map<String, dynamic>;
+        m.forEach((k, v) {
+          if (v is num) {
+            final key = _norm(k);
+            out[key] = (out[key] ?? 0) + v.toInt();
+          }
+        });
+      } catch (_) {}
+    }
+    return out;
+  }
+
+  static Future<void> incrementArena(String subjectName) async {
+    final key = subjectName.trim();
+    if (key.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_arenaKey);
+    final m = <String, int>{};
+    if (raw != null) {
+      try {
+        final dec = jsonDecode(raw) as Map<String, dynamic>;
+        dec.forEach((k, v) {
+          if (v is num) m[k] = v.toInt();
+        });
+      } catch (_) {}
+    }
+    m[key] = (m[key] ?? 0) + 1;
+    await prefs.setString(_arenaKey, jsonEncode(m));
+  }
+}
+
+/// Çekirdek (kullanım azalan) → Seçmeli (kullanım azalan) sırasına dizer.
+/// `usageByName` anahtarları ders adının normalize hali (trim+lowercase).
+List<EduSubject> orderSubjectsByUsage(
+  List<EduSubject> subjects,
+  Map<String, int> usageByName,
+) {
+  String norm(String s) => s.trim().toLowerCase();
+  final core = <EduSubject>[];
+  final electives = <EduSubject>[];
+  for (final s in subjects) {
+    if (isElectiveSubjectKey(s.key)) {
+      electives.add(s);
+    } else {
+      core.add(s);
+    }
+  }
+  int u(EduSubject s) => usageByName[norm(s.name)] ?? 0;
+  // Stable sort: kullanım eşitse orijinal sıra korunur (Dart List.sort stable).
+  core.sort((a, b) => u(b).compareTo(u(a)));
+  electives.sort((a, b) => u(b).compareTo(u(a)));
+  return [...core, ...electives];
+}
+
 class EduSubject {
   final String key;
   final String emoji;
@@ -214,10 +312,13 @@ class EduProfile {
   static EduProfile? current;
 
   // ───────── AI tarafından üretilen müfredat cache'i ─────────────────────
-  // Hardcoded `_facultySubjectKeys` ve `_examSubjectKeys` haritalarında
-  // olmayan bölüm/sınav seçildiğinde AI runtime'da o profilin derslerini
-  // üretir; cache'lenir; library/arena bunu gösterir.
+  // Static `_curriculum` haritasında olmayan ülke/seviye/sınıf kombinasyonu
+  // seçildiğinde AI runtime'da o profilin derslerini + konularını üretir.
+  // Cache iki kademeli: subjects (görsel meta) + topics (konu listesi).
+  // Library / Arena / Konu Özeti bunu gösterir.
   static final Map<String, List<EduSubject>> _aiSubjectCache = {};
+  /// Profil imzası → ders_key → konu listesi. AI fetch'i tarafından doldurulur.
+  static final Map<String, Map<String, List<String>>> _aiTopicsCache = {};
 
   /// Bir profil için unique key — country/level/grade/faculty/track.
   static String _signature(EduProfile p) =>
@@ -247,6 +348,8 @@ class EduProfile {
   }
 
   /// Mevcut profil için AI cache'i kaydet — fetcher (gemini_service) çağırır.
+  /// `subjects` her elemanı: `{key, name, emoji, topics?: comma-separated}`.
+  /// Topics varsa `_aiTopicsCache`'e de yazılır.
   static Future<void> saveAiSubjectCache(
       EduProfile p, List<Map<String, String>> subjects) async {
     final prefs = await SharedPreferences.getInstance();
@@ -259,6 +362,40 @@ class EduProfile {
               _blue,
             ))
         .toList();
+  }
+
+  /// AI'dan gelen "ders_key → konular" haritasını cache'le.
+  /// curriculum_catalog `curriculumFor()` bu cache'i öncelikli okur.
+  static Future<void> saveAiTopicsCache(
+      EduProfile p, Map<String, List<String>> topicsBySubject) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      'ai_topics_cache_v1::${_signature(p)}',
+      jsonEncode(topicsBySubject),
+    );
+    _aiTopicsCache[_signature(p)] = topicsBySubject;
+  }
+
+  /// Profil için topics cache (in-memory). curriculum_catalog kullanır.
+  static Map<String, List<String>>? aiCachedTopics(EduProfile p) =>
+      _aiTopicsCache[_signature(p)];
+
+  /// AI topics cache'i pref'ten yükle (uygulama açılışında).
+  static Future<void> loadAiTopicsCache() async {
+    if (current == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('ai_topics_cache_v1::${_signature(current!)}');
+    if (raw == null) return;
+    try {
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      final out = <String, List<String>>{};
+      decoded.forEach((k, v) {
+        if (v is List) {
+          out[k] = v.map((e) => e.toString()).toList();
+        }
+      });
+      _aiTopicsCache[_signature(current!)] = out;
+    } catch (_) {}
   }
 
   /// Profil için cache var mı?
@@ -338,7 +475,48 @@ class EduProfile {
         if (track != null) label = '$label · ${_trackLabel(track!)}';
         break;
       case 'exam_prep':
-        label = 'Sınava Hazırlık: $grade';
+        // Sınav anahtarlarını insan-okur etikete çevir.
+        // TR + uluslararası sınavlar tek haritada.
+        const examLabels = {
+          // TR
+          'yks_tyt': 'YKS · TYT',
+          'yks_ayt': 'YKS · AYT',
+          'yks': 'YKS',
+          'lgs': 'LGS',
+          'msu': 'MSÜ',
+          'kpss': 'KPSS Lisans',
+          'kpss_ortaogretim': 'KPSS Ortaöğretim',
+          'dgs': 'DGS',
+          'pmyo': 'PMYO',
+          'ales': 'ALES',
+          'yds': 'YDS / YÖKDİL',
+          // Uluslararası
+          'sat': 'SAT',
+          'act': 'ACT',
+          'ib': 'IB Diploma',
+          'alevel': 'A-Level',
+          'gcse': 'GCSE',
+          'ielts': 'IELTS',
+          'toefl': 'TOEFL',
+          'duolingo': 'Duolingo English Test',
+          'gre': 'GRE',
+          'gmat': 'GMAT',
+          'national_exam': 'National School-Leaving Exam',
+          'university_entrance': 'University Entrance Exam',
+          // Diğer ülke önemli sınavlar
+          'gaokao': 'Gaokao 高考',
+          'jee_main': 'JEE Main',
+          'jee_adv': 'JEE Advanced',
+          'neet': 'NEET',
+          'suneung': '수능 (CSAT)',
+          'kyotsu': '共通テスト',
+          'abitur': 'Abitur',
+          'bac': 'Baccalauréat',
+          'matura': 'Matura',
+          'maturita': 'Maturità',
+        };
+        final pretty = examLabels[grade.toLowerCase()] ?? grade;
+        label = 'Sınava Hazırlık: $pretty';
         break;
       case 'university':
         final f = faculty != null ? _facultyNames[faculty!] ?? faculty! : 'Üniversite';
@@ -791,6 +969,35 @@ final Map<String, List<String>> _examSubjectKeys = {
   'ISG': [
     'physics', 'chem', 'bio', 'is_hukuku', 'idare_hukuku', 'math',
   ],
+
+  // ─── Uluslararası sınavlar (her ülkede çalışır) ──────────────────────
+  'SAT': ['math', 'english_lang', 'lit'],
+  'ACT': ['math', 'english_lang', 'physics', 'chem', 'bio', 'lit'],
+  'IB': [
+    'math', 'physics', 'chem', 'bio', 'english_lang', 'lit',
+    'history', 'geo', 'economics', 'felsefe', 'computer_science',
+  ],
+  'ALEVEL': [
+    'math', 'physics', 'chem', 'bio', 'english_lit', 'history',
+    'geo', 'economics', 'computer_science',
+  ],
+  'GCSE': [
+    'math', 'english_lang', 'english_lit', 'physics', 'chem', 'bio',
+    'history', 'geo', 're', 'mfl', 'computer_science',
+  ],
+  'IELTS': ['ingilizce'],
+  'TOEFL': ['ingilizce'],
+  'DUOLINGO': ['ingilizce'],
+  'GRE': ['math', 'english_lang'],
+  'GMAT': ['math', 'english_lang', 'economics'],
+  // Generic — herhangi bir ulusal sınav anahtarı için varsayılan
+  'NATIONAL_EXAM': [
+    'math', 'english_lang', 'physics', 'chem', 'bio',
+    'history', 'geo', 'lit',
+  ],
+  'UNIVERSITY_ENTRANCE': [
+    'math', 'english_lang', 'physics', 'chem', 'bio', 'lit',
+  ],
 };
 
 /// Onboarding'de `EduProfile.grade` olarak tutulan sınav adından (örn.
@@ -829,6 +1036,30 @@ List<String>? _examSubjectsForGrade(String grade) {
   if (n.startsWith('SAYISTAY')) return _examSubjectKeys['SAYISTAY'];
   if (n.startsWith('SMMM')) return _examSubjectKeys['SMMM'];
   if (n.startsWith('ISG')) return _examSubjectKeys['ISG'];
+
+  // ─── Uluslararası sınavlar (ülke-bağımsız) ───────────────────────────
+  if (n.startsWith('SAT')) return _examSubjectKeys['SAT'];
+  if (n.startsWith('ACT')) return _examSubjectKeys['ACT'];
+  if (n.startsWith('IB')) return _examSubjectKeys['IB'];
+  if (n.startsWith('ALEVEL') || n.startsWith('A-LEVEL') || n.startsWith('A_LEVEL')) {
+    return _examSubjectKeys['ALEVEL'];
+  }
+  if (n.startsWith('GCSE')) return _examSubjectKeys['GCSE'];
+  if (n.startsWith('IELTS')) return _examSubjectKeys['IELTS'];
+  if (n.startsWith('TOEFL')) return _examSubjectKeys['TOEFL'];
+  if (n.startsWith('DUOLINGO')) return _examSubjectKeys['DUOLINGO'];
+  if (n.startsWith('GRE')) return _examSubjectKeys['GRE'];
+  if (n.startsWith('GMAT')) return _examSubjectKeys['GMAT'];
+  if (n.startsWith('NATIONAL_EXAM') || n.startsWith('NATIONAL EXAM')) {
+    return _examSubjectKeys['NATIONAL_EXAM'];
+  }
+  if (n.startsWith('UNIVERSITY_ENTRANCE') ||
+      n.startsWith('UNIVERSITY ENTRANCE') ||
+      n.startsWith('GAOKAO') || n.startsWith('NEET') ||
+      n.startsWith('JEE') || n.startsWith('SUNEUNG') ||
+      n.startsWith('KYOTSU') || n.startsWith('NYUSHI')) {
+    return _examSubjectKeys['UNIVERSITY_ENTRANCE'];
+  }
   return null;
 }
 
@@ -966,7 +1197,8 @@ final Map<String, List<String>> _subjectKeysByProfile = {
   ],
   'in_university': ['math', 'physics', 'chem', 'bio', 'history', 'english_lang', 'felsefe'],
 
-  // 🌐 International (generic)
+  // 🌐 International (generic) — ülkeye özel anahtar yoksa devreye girer.
+  // subjectsForProfile() bu anahtarları otomatik dener.
   'international_primary': ['math', 'english_lang', 'sanat_muzik', 'beden', 'history'],
   'international_middle': ['math', 'english_lang', 'bio', 'history', 'geo', 'ingilizce', 'beden', 'sanat_muzik', 'computer_science'],
   'international_high': [
@@ -974,7 +1206,14 @@ final Map<String, List<String>> _subjectKeysByProfile = {
     'history', 'geo', 'felsefe', 'ingilizce', 'beden', 'sanat_muzik',
     'psikoloji_dersi', 'economics', 'computer_science',
   ],
+  'international_exam_prep': [
+    'math', 'english_lang', 'physics', 'chem', 'bio',
+    'history', 'geo', 'ingilizce',
+  ],
   'international_university': ['math', 'physics', 'chem', 'bio', 'history', 'english_lang', 'felsefe'],
+  'international_masters': ['math', 'english_lang', 'felsefe', 'computer_science', 'economics'],
+  'international_doctorate': ['english_lang', 'felsefe', 'computer_science'],
+  'international_other': ['math', 'english_lang', 'history', 'geo', 'sanat_muzik'],
 };
 
 const List<String> _fallbackKeys = ['math', 'physics', 'chem', 'bio', 'history', 'geo', 'lit', 'ingilizce'];
@@ -1022,23 +1261,17 @@ List<EduSubject> subjectsForProfile(EduProfile? profile) {
     }
   }
 
-  // Türkiye lise için sınıf+alan dene
+  // Türkiye lise — alandan (sayısal/sözel/eşit ağırlık/dil) bağımsız olarak
+  // o sınıfın TÜM alan derslerini birleştirip ver. Kullanıcı profilinde alan
+  // seçili olsa bile yine tam liste çıksın (özet/test/yarışma akışlarında
+  // hepsi tıklanabilir kalır).
   if (profile.country == 'tr' && profile.level == 'high') {
-    if (profile.track != null) {
-      final k = 'tr_high_${profile.grade}_${profile.track}';
-      final list = _subjectKeysByProfile[k];
-      if (list != null) {
-        return list.map((s) => _allSubjects[s]).whereType<EduSubject>().toList();
-      }
-    }
-    // 9. sınıfta alan yok — direkt 9. sınıf müfredatı.
     if (profile.grade == '9' || profile.grade == '9. Sınıf') {
       final g9 = _subjectKeysByProfile['tr_high_9'];
       if (g9 != null) {
         return g9.map((s) => _allSubjects[s]).whereType<EduSubject>().toList();
       }
     }
-    // 10/11/12 alansız: tüm alanların derslerini birleştir (kapsayıcı liste).
     final gradeNum = _extractGradeNumber(profile.grade);
     if (gradeNum != null && gradeNum >= 10 && gradeNum <= 12) {
       final seen = <String>{};
@@ -1058,17 +1291,27 @@ List<EduSubject> subjectsForProfile(EduProfile? profile) {
             .toList();
       }
     }
-    // Hâlâ bulunamadıysa 9. sınıfa düş.
     final g9 = _subjectKeysByProfile['tr_high_9'];
     if (g9 != null) return g9.map((s) => _allSubjects[s]).whereType<EduSubject>().toList();
   }
 
-  // Hindistan lise için alan bazlı
-  if (profile.country == 'in' && profile.level == 'high' && profile.track != null) {
-    final k = 'in_high_${profile.track}';
-    final list = _subjectKeysByProfile[k];
-    if (list != null) {
-      return list.map((s) => _allSubjects[s]).whereType<EduSubject>().toList();
+  // Hindistan lise — science/commerce/arts ayrımını kaldır, tümünü birleştir.
+  if (profile.country == 'in' && profile.level == 'high') {
+    final seen = <String>{};
+    final merged = <String>[];
+    const tracks = ['science', 'commerce', 'arts'];
+    for (final t in tracks) {
+      final keys = _subjectKeysByProfile['in_high_$t'];
+      if (keys == null) continue;
+      for (final k in keys) {
+        if (seen.add(k)) merged.add(k);
+      }
+    }
+    if (merged.isNotEmpty) {
+      return merged
+          .map((s) => _allSubjects[s])
+          .whereType<EduSubject>()
+          .toList();
     }
   }
 
@@ -1077,6 +1320,13 @@ List<EduSubject> subjectsForProfile(EduProfile? profile) {
   final list = _subjectKeysByProfile[k];
   if (list != null) {
     return list.map((s) => _allSubjects[s]).whereType<EduSubject>().toList();
+  }
+  // Country bazlı anahtar yoksa: international_${level} jenerik şablonu.
+  // Bu sayede branch'ı olmayan ülkelerde de seviyeye uygun zengin liste gelir
+  // (sadece 8'lik _fallbackKeys'e düşmez).
+  final intl = _subjectKeysByProfile['international_${profile.level}'];
+  if (intl != null) {
+    return intl.map((s) => _allSubjects[s]).whereType<EduSubject>().toList();
   }
   return _fallbackKeys.map((k) => _allSubjects[k]!).toList();
 }

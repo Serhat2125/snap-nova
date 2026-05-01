@@ -414,6 +414,7 @@ the same MANDATORY presence.''';
     // ─── Türkçe ──────────────────────────────────────────────────────────
     'tr': {
       'solutions': 'Çözümler',
+      'voice_command': 'Sesli Komut',
       'scan': 'Tara',
       'my_homework': 'Ödevlerim',
       'profile': 'Profil',
@@ -1008,7 +1009,7 @@ the same MANDATORY presence.''';
       'onb_grade_primary': 'İlkokul',
       'onb_grade_middle': 'Ortaokul',
       'onb_grade_high': 'Lise',
-      'onb_grade_lgs_prep': 'Liseye Geçiş',
+      'onb_grade_lgs_prep': 'LGS (Liselere Geçiş Sınavı)',
       'onb_grade_uni_prep': 'Sınavlara Hazırlık',
       'onb_grade_university': 'Üniversite',
       'onb_grade_post_uni_exam': 'Üniversite Sonrası Sınavlar',
@@ -1069,6 +1070,7 @@ the same MANDATORY presence.''';
     // ─── English ─────────────────────────────────────────────────────────
     'en': {
       'solutions': 'Solutions',
+      'voice_command': 'Voice',
       'scan': 'Scan',
       'my_homework': 'Homework',
       'profile': 'Profile',

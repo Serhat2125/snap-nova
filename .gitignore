@@ -15,6 +15,7 @@ migrate_working_dir/
 # Development tools — hardcoded API keys burada, ASLA commit edilmez.
 tool/
 *.backup
+*.backup-*
 *.bak
 
 # IntelliJ related
@@ -51,6 +52,13 @@ app.*.map.json
 
 # API keys / secrets — ASLA commit edilmez
 lib/services/secrets.dart
+
+# Firebase iOS plist — Firebase mobile key teknik olarak public-safe ama
+# paranoyak modunda lokal tutulur. Yeni cihaza Console'dan indirilir.
+ios/Runner/GoogleService-Info.plist
+
+# VS Code kişisel ayarları — launch.json/tasks.json yerel kalsın
+.vscode/
 
 # Claude Code / IDE yerel ayarları — anahtar sızdırabilir
 .claude/

@@ -13,8 +13,11 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../services/analytics.dart';
 import '../services/runtime_translator.dart';
+import '../services/curriculum_catalog.dart';
 import '../services/education_profile.dart';
+import '../services/usage_quota.dart';
 import '../services/gemini_service.dart';
 import '../services/duelo_matchmaking_service.dart';
 import '../widgets/qualsar_numeric_loader.dart';
@@ -273,6 +276,9 @@ class _QuAlsarArenaScreenState extends State<QuAlsarArenaScreen> {
 
   Future<void> _bootstrap() async {
     final prefs = await SharedPreferences.getInstance();
+
+    // Ders kullanım istatistiklerini yükle — arena ders sıralaması bunu okur.
+    _arenaUsageCache = await SubjectUsageStats.load();
 
     // Arena durumunu yükle (QP, ustalık, streak, power-up)
     await _arenaState.load();
@@ -2095,8 +2101,8 @@ class _ArenaHomeState extends State<_ArenaHome> {
 
   Widget _buildSubjectsGrid() {
     final visible = _allSubjects.where((s) => _visibleSubjectKeys.contains(s.key)).toList();
-    final top10 = visible.take(8).toList();
-    final hasMore = visible.length > 8;
+    final top10 = visible.take(12).toList();
+    final hasMore = visible.length > 12;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -3505,7 +3511,10 @@ final Map<String, List<_Subject>> _facultyGlobalSubjects = {
   ],
 };
 
-// Herhangi bir listede arayarak ders adını/rengini getirir (crash'leri önler)
+// Herhangi bir listede arayarak ders adını/rengini getirir (crash'leri önler).
+// Bulunamazsa _allSubjects.first (Matematik) DEĞİL — boş bir placeholder
+// döner; aksi takdirde EduProfile'daki tüm dersler için "math" konuları
+// gözüküyor (fallback bug'ı).
 _Subject _findSubjectByKey(String key) {
   for (final s in _allSubjects) {
     if (s.key == key) return s;
@@ -3521,7 +3530,8 @@ _Subject _findSubjectByKey(String key) {
       if (s.key == key) return s;
     }
   }
-  return _allSubjects.first;
+  // Bulunamayan key için boş placeholder — Matematik fallback'i kaldırıldı.
+  return _Subject(key, '📚', key, 0, _Palette.bg, const []);
 }
 
 // Kullanıcının profiline göre dünya dersleri (baz + fakülte + özel)
@@ -3529,40 +3539,140 @@ _Subject _findSubjectByKey(String key) {
 // "Dünyada yarış" modunda kullanıcı kendi profilindeki derslerle yarışır;
 // bu yüzden EduProfile.current → subjectsForProfile() çıktısını öncelik
 // veriyoruz. Boşsa eski statik liste devreye girer.
+// ═══════════════════════════════════════════════════════════════════════════
+// BİLGİ YARIŞI — DERS KAYNAĞI ŞEMASI
+// ───────────────────────────────────────────────────────────────────────────
+//                ┌─────────────────────────┐
+//   _scope ───── │  _availableSubjects()   │
+//                └────────────┬────────────┘
+//                             │
+//        ┌────────────────────┴───────────────────┐
+//        │                                        │
+//   'world'                                  'country'
+//        │                                        │
+//        ▼                                        ▼
+//  _worldSubjectsForUser()              _subjectsForGrade()
+//        │                                        │
+//        ▼                                        ▼
+//   _globalDueloSubjects                 EduProfile + curriculumFor(p)
+//        ∩                                        ∩
+//   _worldSubjectKeysForLevel[level]     _gradeSubjectKeys[grade] (TR)
+//        +                                        +
+//   _facultyGlobalSubjects[faculty]      _countrySubjects[country][level]
+//        +                                        +
+//   _customWorldSubjects                 (custom dersler ortak)
+//
+// Garanti: Her dönen _Subject objesinde .topics DOLU (boşsa fallback'lerle
+// doldurulur). _onSubjectTap önce s.topics'i kullandığı için statik lookup
+// boşluğa düşse de dialog mutlaka açılır.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Dünya çapında — eğitim seviyesine göre evrensel ders anahtarları.
+/// Bu dersler ülkeye bağımlı değil; her ülkenin o seviyesinde ortak verilir.
+/// Listeler `_globalDueloSubjects` içindeki key'lerle eşleşmeli.
+const Map<String, Set<String>> _worldSubjectKeysForLevel = {
+  'primary': {
+    'math', 'english', 'world_geo', 'visual_arts', 'music', 'pe',
+  },
+  'middle': {
+    'math', 'physics', 'chem', 'bio', 'english', 'world_history',
+    'world_geo', 'visual_arts', 'music', 'pe', 'tech_cs',
+  },
+  'high': {
+    'math', 'physics', 'chem', 'bio', 'english', 'philosophy',
+    'world_history', 'world_geo', 'visual_arts', 'music', 'tech_cs',
+    'coding', 'finance', 'entrepreneur', 'citizenship',
+  },
+  'exam_prep': {
+    'math', 'physics', 'chem', 'bio', 'english',
+    'world_history', 'world_geo',
+  },
+  'university': {
+    'math', 'physics', 'chem', 'bio', 'english', 'philosophy',
+    'world_history', 'tech_cs', 'coding', 'finance', 'entrepreneur',
+  },
+  'masters': {
+    'english', 'philosophy', 'tech_cs', 'coding', 'finance', 'entrepreneur',
+  },
+  'doctorate': {
+    'english', 'philosophy', 'tech_cs', 'coding',
+  },
+};
+
+/// Dünya scope'undaki dersler — kullanıcı seviyesine göre evrensel set.
+/// EduProfile'a değil, sabit `_worldSubjectKeysForLevel` haritasına bakılır;
+/// böylece "ülke-spesifik dersler dünya yarışında çıkmasın" kuralı korunur.
 List<_Subject> _worldSubjectsForUser() {
-  final fromEdu = _subjectsFromCurrentEduProfile();
-  if (fromEdu.isNotEmpty) {
-    final out = <_Subject>[...fromEdu];
-    out.addAll(_customWorldSubjects);
-    return out;
+  // 1) Seviye → evrensel ders key seti
+  final level = EduProfile.current?.level ?? _currentLevel ?? 'high';
+  final allowedKeys = _worldSubjectKeysForLevel[level] ??
+      _worldSubjectKeysForLevel['high']!;
+
+  // 2) _globalDueloSubjects'i bu sete göre filtrele (sıra korunur)
+  final out = <_Subject>[
+    for (final s in _globalDueloSubjects)
+      if (allowedKeys.contains(s.key)) s,
+  ];
+
+  // 3) Üniversite/yüksek lisans/doktora ise fakülteye özel dünya dersleri
+  //    eklenir (Tıp/Mühendislik vb. evrensel core dersleri).
+  if (level == 'university' || level == 'masters' || level == 'doctorate') {
+    final fac = _currentFaculty;
+    if (fac != null) {
+      final extra = _facultyGlobalSubjects[fac];
+      if (extra != null) out.addAll(extra);
+    }
   }
-  // Fallback: eski statik kataloglar
-  final out = <_Subject>[..._globalDueloSubjects];
-  final fac = _currentFaculty;
-  if (fac != null) {
-    final extra = _facultyGlobalSubjects[fac];
-    if (extra != null) out.addAll(extra);
-  }
+
+  // 4) Kullanıcının eklediği özel dünya dersleri (her seviyede görünür)
   out.addAll(_customWorldSubjects);
   return out;
 }
 
-// Dünya opponent havuzu — çeşitli ülkeler
+// ─── Mock rakip havuzu ──────────────────────────────────────────────────────
+// `_findMatch` gerçek matchmaking devre dışı olduğunda bu listelerden seçer.
+// "Dünya" havuzu evrensel; "Ülke" havuzu kullanıcının ülkesine göre dinamik
+// üretilir (eskiden hardcoded Türk listesiydi → İngiliz kullanıcı Türk
+// rakiple eşleşiyordu).
+
+// Geniş dünya havuzu — 30+ ülkeden plausible username + ELO.
 const List<_DueloOpponent> _worldOpponents = [
-  _DueloOpponent('hiroki_k', 'H', '🇯🇵', 'Japonya', 2458),
-  _DueloOpponent('lukas_m', 'L', '🇩🇪', 'Almanya', 2210),
-  _DueloOpponent('priya_s', 'P', '🇮🇳', 'Hindistan', 1980),
-  _DueloOpponent('alex_j', 'A', '🇺🇸', 'ABD', 1845),
-  _DueloOpponent('giulia_r', 'G', '🇮🇹', 'İtalya', 1672),
-  _DueloOpponent('chloe_l', 'C', '🇫🇷', 'Fransa', 1550),
-  _DueloOpponent('noah_v', 'N', '🇳🇱', 'Hollanda', 1490),
-  _DueloOpponent('sofia_g', 'S', '🇪🇸', 'İspanya', 1420),
-  _DueloOpponent('diego_m', 'D', '🇲🇽', 'Meksika', 1380),
-  _DueloOpponent('jisoo_p', 'J', '🇰🇷', 'Kore', 1820),
+  // İlkokul / ortaokul seviyesi (düşük ELO)
+  _DueloOpponent('mia_k', 'M', '🇺🇸', 'United States', 920),
+  _DueloOpponent('kenji_t', 'K', '🇯🇵', '日本', 1050),
+  _DueloOpponent('isla_b', 'I', '🇬🇧', 'United Kingdom', 1180),
+  _DueloOpponent('lucas_p', 'L', '🇧🇷', 'Brasil', 1240),
+  _DueloOpponent('amélie_d', 'A', '🇫🇷', 'France', 1310),
+  // Lise seviyesi
+  _DueloOpponent('chloe_l', 'C', '🇫🇷', 'France', 1550),
+  _DueloOpponent('diego_m', 'D', '🇲🇽', 'México', 1380),
+  _DueloOpponent('sofia_g', 'S', '🇪🇸', 'España', 1420),
+  _DueloOpponent('noah_v', 'N', '🇳🇱', 'Nederland', 1490),
+  _DueloOpponent('giulia_r', 'G', '🇮🇹', 'Italia', 1672),
+  _DueloOpponent('alex_j', 'A', '🇺🇸', 'United States', 1845),
+  _DueloOpponent('jisoo_p', 'J', '🇰🇷', '대한민국', 1820),
+  _DueloOpponent('priya_s', 'P', '🇮🇳', 'India', 1980),
+  _DueloOpponent('rafael_a', 'R', '🇧🇷', 'Brasil', 1820),
+  _DueloOpponent('emma_w', 'E', '🇦🇺', 'Australia', 1750),
+  _DueloOpponent('liu_w', 'L', '🇨🇳', '中国', 1700),
+  _DueloOpponent('mateo_r', 'M', '🇦🇷', 'Argentina', 1680),
+  _DueloOpponent('anna_k', 'A', '🇵🇱', 'Polska', 1620),
+  _DueloOpponent('omar_h', 'O', '🇪🇬', 'مصر', 1590),
+  // Sınava hazırlık / üniversite (yüksek ELO)
+  _DueloOpponent('lukas_m', 'L', '🇩🇪', 'Deutschland', 2210),
+  _DueloOpponent('hiroki_k', 'H', '🇯🇵', '日本', 2458),
+  _DueloOpponent('arjun_n', 'A', '🇮🇳', 'India', 2380),
+  _DueloOpponent('zhang_h', 'Z', '🇨🇳', '中国', 2540),
+  _DueloOpponent('seung_lee', 'S', '🇰🇷', '대한민국', 2280),
+  _DueloOpponent('thomas_h', 'T', '🇬🇧', 'United Kingdom', 2100),
+  _DueloOpponent('isabella_f', 'I', '🇮🇹', 'Italia', 2050),
+  _DueloOpponent('ahmet_s', 'A', '🇹🇷', 'Türkiye', 1960),
+  _DueloOpponent('layla_b', 'L', '🇸🇦', 'السعودية', 1880),
+  _DueloOpponent('viktor_p', 'V', '🇷🇺', 'Россия', 2020),
 ];
 
-// Ülke (Türkiye) havuzu
-const List<_DueloOpponent> _countryOpponents = [
+// Türkiye için tutarlı bir TR-bazlı havuz (ülke=tr ise kullanılır).
+const List<_DueloOpponent> _trCountryOpponents = [
   _DueloOpponent('zeynep_y', 'Z', '🇹🇷', 'Türkiye', 1680),
   _DueloOpponent('deniz.k', 'D', '🇹🇷', 'Türkiye', 1540),
   _DueloOpponent('arda_2010', 'A', '🇹🇷', 'Türkiye', 1420),
@@ -3572,6 +3682,84 @@ const List<_DueloOpponent> _countryOpponents = [
   _DueloOpponent('kaan.ak', 'K', '🇹🇷', 'Türkiye', 1140),
   _DueloOpponent('bahar_c', 'B', '🇹🇷', 'Türkiye', 1080),
 ];
+
+// Ülke kodundan bayrak emojisi — ana ülkeler için harita.
+const Map<String, String> _flagByCountryCode = {
+  'tr': '🇹🇷', 'us': '🇺🇸', 'uk': '🇬🇧', 'de': '🇩🇪', 'fr': '🇫🇷',
+  'jp': '🇯🇵', 'cn': '🇨🇳', 'kr': '🇰🇷', 'in': '🇮🇳', 'ru': '🇷🇺',
+  'br': '🇧🇷', 'mx': '🇲🇽', 'es': '🇪🇸', 'it': '🇮🇹', 'pl': '🇵🇱',
+  'nl': '🇳🇱', 'au': '🇦🇺', 'ca': '🇨🇦', 'eg': '🇪🇬', 'sa': '🇸🇦',
+  'id': '🇮🇩', 'th': '🇹🇭', 'vn': '🇻🇳', 'ng': '🇳🇬', 'ar': '🇦🇷',
+  'pe': '🇵🇪', 'co': '🇨🇴', 'cl': '🇨🇱', 've': '🇻🇪', 'pt': '🇵🇹',
+  'ua': '🇺🇦', 'gr': '🇬🇷', 'ir': '🇮🇷', 'iq': '🇮🇶', 'ae': '🇦🇪',
+  'pk': '🇵🇰', 'bd': '🇧🇩', 'ph': '🇵🇭', 'my': '🇲🇾', 'kz': '🇰🇿',
+};
+
+// Ülke kodundan endonim isim — ana ülkeler için harita.
+const Map<String, String> _nameByCountryCode = {
+  'tr': 'Türkiye', 'us': 'United States', 'uk': 'United Kingdom',
+  'de': 'Deutschland', 'fr': 'France', 'jp': '日本', 'cn': '中国',
+  'kr': '대한민국', 'in': 'India', 'ru': 'Россия', 'br': 'Brasil',
+  'mx': 'México', 'es': 'España', 'it': 'Italia', 'pl': 'Polska',
+  'nl': 'Nederland', 'au': 'Australia', 'ca': 'Canada',
+  'eg': 'مصر', 'sa': 'السعودية', 'id': 'Indonesia',
+  'th': 'ประเทศไทย', 'vn': 'Việt Nam', 'ng': 'Nigeria',
+  'ar': 'Argentina', 'pe': 'Perú', 'co': 'Colombia',
+  'cl': 'Chile', 've': 'Venezuela', 'pt': 'Portugal',
+  'ua': 'Україна', 'gr': 'Ελλάδα', 'ir': 'ایران',
+};
+
+/// Generic mock username üretici — country + index bazlı.
+String _genericUsername(String countryCode, int seed) {
+  // Anonim ama plausible: "user_42", "player_7", "qa_19".
+  final prefixes = ['user', 'player', 'qa', 'np', 'mate'];
+  return '${prefixes[seed % prefixes.length]}_${(seed * 17) % 9999}';
+}
+
+/// Kullanıcının ülkesine göre dinamik "Ülkem" havuzu.
+/// Ana ülkelerde (TR) önceden tanımlanmış havuz; diğerlerinde sentetik.
+List<_DueloOpponent> _countryOpponentsForUser() {
+  final country = EduProfile.current?.country.toLowerCase() ?? 'tr';
+  if (country == 'tr') return _trCountryOpponents;
+  // Önce world havuzunda o ülkeden olanları bul
+  final flag = _flagByCountryCode[country] ?? '🌍';
+  final name = _nameByCountryCode[country] ?? country.toUpperCase();
+  final fromWorld =
+      _worldOpponents.where((o) => o.flag == flag).toList();
+  if (fromWorld.length >= 4) return fromWorld;
+  // Sentetik 8 rakip — ELO 1100-1850 arası dağıtım
+  return List.generate(8, (i) {
+    final elo = 1100 + (i * 100) + (i % 3) * 30;
+    return _DueloOpponent(
+      _genericUsername(country, i + 1),
+      _genericUsername(country, i + 1)[0].toUpperCase(),
+      flag,
+      name,
+      elo,
+    );
+  });
+}
+
+/// Kullanıcının seviyesine göre dünya rakip havuzunu filtrele (ELO yakınlığı).
+/// 1. sınıf öğrencisinin karşısına 2500 ELO'lu üniversite öğrencisi çıkmasın.
+List<_DueloOpponent> _worldOpponentsForLevel(String? level) {
+  // Seviye → makul ELO bandı
+  final (lo, hi) = switch (level) {
+    'primary' => (700, 1300),
+    'middle' => (1100, 1700),
+    'high' => (1400, 2100),
+    'exam_prep' => (1700, 2500),
+    'university' => (1700, 2700),
+    'masters' => (1900, 2700),
+    'doctorate' => (2000, 2800),
+    _ => (1300, 2200),
+  };
+  final filtered =
+      _worldOpponents.where((o) => o.elo >= lo && o.elo <= hi).toList();
+  // En az 4 rakip kalsın; dar bantta yetersiz kalırsa tüm havuzu döndür.
+  if (filtered.length < 4) return _worldOpponents;
+  return filtered;
+}
 
 class _DueloOpponent {
   final String username;
@@ -4754,6 +4942,28 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> with SingleTickerPr
 
   Future<void> _findMatch({String raceType = 'test'}) async {
     if (!_canStart) return;
+
+    // Quota kontrolü — Bilgi Yarışı her oturum 5 soru veya 6 eşleştirme üretir.
+    // Free tier: 50/gün, 500/ay. Aşılırsa snackbar + Analytics event.
+    final quota = await UsageQuota.get(QuotaKind.arenaQuiz);
+    if (quota.isExhausted) {
+      Analytics.logQuotaExhausted(QuotaKind.arenaQuiz.name);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(quota.isDailyExhausted
+              ? 'Günlük yarışma sınırına ulaştın (${quota.dailyLimit}). Yarın tekrar dene.'
+              : 'Aylık yarışma sınırına ulaştın (${quota.monthlyLimit}). Ay başında sıfırlanır.'),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+      return;
+    }
+    await UsageQuota.increment(QuotaKind.arenaQuiz);
+    Analytics.logEvent('arena_match_started', params: {
+      'race_type': raceType,
+      'scope': _scope,
+    });
+
     setState(() => _matching = true);
 
     final subjectKey = _selectedSubject!;
@@ -4781,8 +4991,11 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> with SingleTickerPr
           oppCountry = match.opponentCountry;
           oppElo = match.opponentElo;
         } else {
-          final pool =
-              _scope == 'world' ? _worldOpponents : _countryOpponents;
+          // Pool dinamik: dünya scope'unda kullanıcı seviyesine yakın ELO bandı,
+          // ülke scope'unda kullanıcının ülkesine özel havuz.
+          final pool = _scope == 'world'
+              ? _worldOpponentsForLevel(_currentLevel)
+              : _countryOpponentsForUser();
           final opp = pool[rng.nextInt(pool.length)];
           oppName = opp.username;
           oppAvatar = opp.avatar;
@@ -4941,8 +5154,12 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> with SingleTickerPr
       oppElo = match.opponentElo;
       debugPrint('[Duelo] GERÇEK rakip: @$oppName ($oppCountry)');
     } else {
-      final pool =
-          _scope == 'world' ? _worldOpponents : _countryOpponents;
+      // Pool dinamik: dünya scope = seviyeye uygun ELO bandı, ülke scope =
+      // kullanıcının ülkesine özel havuz (ister TR'nin sabit listesi, ister
+      // diğer ülkelerin sentetik üretimi).
+      final pool = _scope == 'world'
+          ? _worldOpponentsForLevel(_currentLevel)
+          : _countryOpponentsForUser();
       final opp = pool[rng.nextInt(pool.length)];
       oppName = opp.username;
       oppAvatar = opp.avatar;
@@ -5100,19 +5317,17 @@ KURALLAR:
                 children: [
                   _CircleBtn(icon: Icons.arrow_back_rounded, onTap: () => Navigator.pop(context)),
                   const SizedBox(width: 10),
+                  // Sınıf bilgisi (10. Sınıf vb.) kaldırıldı; "Bilgi Yarışı"
+                  // başlığı tek satır halinde yatayda ortalandı.
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Bilgi Yarışı'.tr(),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: _serif(size: 20, weight: FontWeight.w700, letterSpacing: -0.02)),
-                        Text(_currentGrade,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: _sans(size: 11, color: _Palette.inkMute)),
-                      ],
+                    child: Center(
+                      child: Text('Bilgi Yarışı'.tr(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: _serif(
+                              size: 20,
+                              weight: FontWeight.w700,
+                              letterSpacing: -0.02)),
                     ),
                   ),
                   // Renk özelleştirme — diğer sayfalardaki gibi renkli
@@ -5221,7 +5436,7 @@ KURALLAR:
                               const SizedBox(height: 6),
                               Text(
                                 _scope == 'world'
-                                    ? '🌍 Dünyadan aynı seviyede (${_currentLevel == 'universite' && _currentFaculty != null ? _facultyLabels[_currentFaculty] : _currentGrade}) bir rakiple karşılaşırsın. Her iki taraf aynı evrensel dersi/konuyu seçer.'
+                                    ? '🌍 Dünyadan aynı seviyede bir rakiple karşılaşırsın. Her iki taraf aynı evrensel dersi/konuyu seçer.'
                                     : '🇹🇷 Ülkendeki aynı seviyede bir rakiple karşılaşırsın. Tüm derslerden yarışabilirsin.',
                                 style: _sans(
                                     size: 11,
@@ -5243,35 +5458,8 @@ KURALLAR:
                         );
                       },
                     ),
-                    if (_profileBadgeText() != null)
-                      Positioned(
-                        top: -26,
-                        left: 16,
-                        child: IgnorePointer(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFB800)
-                                  .withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(50),
-                              border: Border.all(
-                                color: const Color(0xFFFFB800),
-                                width: 1.2,
-                              ),
-                            ),
-                            child: Text(
-                              _profileBadgeText()!,
-                              style: GoogleFonts.poppins(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                color: const Color(0xFFB45309),
-                                height: 1.1,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
+                    // Eğitim seviyesi rozeti (Lise 11 vb.) kaldırıldı —
+                    // kullanıcı isteği: sayfa üst köşesinde seviye gözükmesin.
                       ],
                     ),
                     const SizedBox(height: 12),
@@ -5429,10 +5617,10 @@ KURALLAR:
         ),
       );
     }
-    // İlk 8 ders görünür (2x4); kullanıcı "Diğer Dersler"e basınca alttan
+    // İlk 12 ders görünür (3x4); kullanıcı "Diğer Dersler"e basınca alttan
     // yarım sayfa sheet açılır.
-    final visible = subjects.take(8).toList();
-    final hasMore = subjects.length > 8;
+    final visible = subjects.take(12).toList();
+    final hasMore = subjects.length > 12;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -5709,20 +5897,31 @@ KURALLAR:
       _selectedTopic = null;
     });
     // Ortaya küçük bir pencere (dialog) aç — konuları burada göster.
-    final topics = _availableTopics();
-    if (topics.isEmpty) return;
+    // ÖNCELİK: subject objesinin kendi .topics listesi (EduProfile / curriculum
+    // tarafından doldurulmuş). _availableTopics() statik _findSubjectByKey
+    // üzerinden gittiği için müfredat-bazlı derslerde boş dönebiliyordu →
+    // dialog açılmadan sessiz return = "tıklamaya yanıt vermiyor" bug'ı.
+    var topics = s.topics;
+    if (topics.isEmpty) topics = _availableTopics();
+    if (topics.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('${s.name} için konu listesi bulunamadı.'.tr()),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ));
+      }
+      return;
+    }
     final picked = await _showTopicsDialog(
       subjectName: s.name,
       topics: topics,
     );
     if (picked != null && mounted) {
       setState(() => _selectedTopic = picked);
-      // Konu seçildi → hemen Yarış Tipi dialog'u aç (Test / Eşleştirme).
-      final raceType = await _showRaceTypeDialog();
-      if (raceType != null && mounted) {
-        // Seçim yapıldı → doğrudan rakip aramaya geç.
-        _findMatch(raceType: raceType);
-      }
+      // Konuya basılır basılmaz yarışa başla — ara "Yarış Tipi" dialog'u
+      // kaldırıldı. Default test (5 çoktan seçmeli).
+      _findMatch(raceType: 'test');
     }
   }
 
@@ -8792,10 +8991,18 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
       final file = File(
           '${dir.path}/qualsar_duelo_${DateTime.now().millisecondsSinceEpoch}.png');
       await file.writeAsBytes(bytes.buffer.asUint8List(), flush: true);
+      // Friend mode: kişisel meydan okuma tonunda metin (skor + davet).
+      // Sosyal medya: genel davet metni (widget.caption).
+      final shareText = widget.friendMode
+          ? _buildFriendChallengeText()
+          : widget.caption;
+      final shareSubject = widget.friendMode
+          ? 'QuAlsar Yarış Daveti'
+          : 'QuAlsar Bilgi Yarışı';
       await Share.shareXFiles(
         [XFile(file.path, mimeType: 'image/png', name: 'qualsar_duelo.png')],
-        text: widget.caption,
-        subject: 'QuAlsar Bilgi Yarışı',
+        text: shareText,
+        subject: shareSubject,
         sharePositionOrigin: origin,
       );
     } catch (e, st) {
@@ -8813,6 +9020,27 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
   bool get _isBgDark {
     final l = (0.299 * _bg.r + 0.587 * _bg.g + 0.114 * _bg.b);
     return l < 0.6;
+  }
+
+  // Arkadaşa yollanan metin: kişisel meydan okuma — skor + davet linki.
+  // "Sosyal medyada paylaş" butonundan farklı bir akış olsun diye buradan
+  // farklı caption üretiyoruz (önceden ikisi de aynı metni paylaşıyordu).
+  String _buildFriendChallengeText() {
+    final score = '${widget.myCorrect}/${widget.totalQuestions}';
+    final outcomeEmoji = widget.winner == 1
+        ? '🏆'
+        : widget.winner == -1
+            ? '💪'
+            : '🤝';
+    final outcomeWord = widget.winner == 1
+        ? 'kazandım'
+        : widget.winner == -1
+            ? 'iyi savaştım'
+            : 'berabere kaldık';
+    return '$outcomeEmoji ${widget.subjectName} · ${widget.topicName} '
+        'yarışmasında $outcomeWord! Skorum: $score.\n'
+        'Sıra sende — beni geçebilir misin?\n'
+        'qualsar.app';
   }
 
   @override
@@ -9072,23 +9300,33 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
                   const SizedBox(height: 10),
                   _targetSegment(pickTarget),
                   const SizedBox(height: 14),
-                  GridView.count(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 6,
-                    mainAxisSpacing: 10,
-                    crossAxisSpacing: 10,
-                    childAspectRatio: 1.0,
-                    children: [
-                      for (final c in _palette)
-                        _sheetSwatch(c, onPick: () {
+                  // 2 satır × yatay scroll — kullanıcı sağa/sola kaydırarak
+                  // tüm renkleri görebilir. Sabit yükseklik (2 swatch + spacing)
+                  // ile sheet boyu büyümeden tüm palet gezilir.
+                  SizedBox(
+                    height: 120, // 2 satır × ~52px + 10px spacing + padding
+                    child: GridView.builder(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        mainAxisSpacing: 10,
+                        crossAxisSpacing: 10,
+                        childAspectRatio: 1.0,
+                      ),
+                      itemCount: _palette.length,
+                      itemBuilder: (_, i) => _sheetSwatch(
+                        _palette[i],
+                        onPick: () {
                           // Sheet KAPANMIYOR — kullanıcı istediği kadar
                           // farklı hedef + renk deneyebilsin. Kapatma
                           // sadece üstteki "Tamamla" butonu ile.
-                          _applyColor(c);
+                          _applyColor(_palette[i]);
                           setSheetState(() {});
-                        }),
-                    ],
+                        },
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -9314,15 +9552,28 @@ class _DueloShareCard extends StatelessWidget {
                           : const Color(0xFFC8102E),
                       fontSize: 12)),
               const SizedBox(width: 8),
-              Text(
-                'QuAlsar',
-                style: GoogleFonts.poppins(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  color: isBgDark
-                      ? Colors.white
-                      : const Color(0xFFC8102E),
-                  letterSpacing: 2.2,
+              // QuAlsar — "Al" hecesi kırmızı, "Qu" ve "sar" siyah.
+              // Koyu zeminde tüm harfler beyaz (okunaklılık).
+              Text.rich(
+                TextSpan(
+                  style: GoogleFonts.poppins(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 2.2,
+                    color: isBgDark ? Colors.white : Colors.black,
+                  ),
+                  children: [
+                    const TextSpan(text: 'Qu'),
+                    TextSpan(
+                      text: 'Al',
+                      style: TextStyle(
+                        color: isBgDark
+                            ? Colors.white
+                            : const Color(0xFFC8102E),
+                      ),
+                    ),
+                    const TextSpan(text: 'sar'),
+                  ],
                 ),
               ),
               const SizedBox(width: 8),
@@ -12535,21 +12786,31 @@ final Map<String, Map<String, List<String>>> _curriculum = {
 
 // Konu listesini müfredattan getir (yoksa genel _Subject.topics'e düş)
 List<String> _topicsForGrade(String subjectKey) {
-  // Tam eşleşme (sınıf + alan)
+  // 1) Önce arena'nın yerel hardcoded curriculum'unu (TR-yoğun) dene.
   var byGrade = _curriculum[_currentGrade];
   if (byGrade != null && byGrade[subjectKey] != null) {
     return byGrade[subjectKey]!;
   }
-  // Alan olmadan dene
   final baseGrade = _currentGrade.split(' · ').first;
   byGrade = _curriculum[baseGrade];
   if (byGrade != null && byGrade[subjectKey] != null) {
     return byGrade[subjectKey]!;
   }
-  // _allSubjects içinde bu key TAM eşleşiyorsa onun topics'ini ver.
-  // ÖNEMLİ: _findSubjectByKey() default olarak _allSubjects.first döndürür
-  // (genelde Matematik) — bu, "Arkeoloji seçtim ama Matematik konuları çıktı"
-  // bug'ına yol açar. Burada KESİN eşleşme aranır, yoksa boş liste döner.
+  // 2) Merkezi EduProfile müfredatını dene — kullanıcı profilinin tam
+  //    seviye+ülke kombinasyonu için curriculumFor() detaylı liste verir
+  //    (YKS, LGS, ABD/UK seviyeleri vs. dahil). Arena'nın hardcoded
+  //    listesi tüm sınıf/sınavları kapsamadığı için bu fallback kritik.
+  final profile = EduProfile.current;
+  if (profile != null) {
+    final list = curriculumFor(profile);
+    for (final c in list) {
+      if (c.key == subjectKey && c.topics.isNotEmpty) return c.topics;
+    }
+  }
+  // 3) _allSubjects/global/custom listelerinde KESİN eşleşmeli key arar.
+  //    ÖNEMLİ: _findSubjectByKey() default olarak _allSubjects.first
+  //    (Matematik) döndürür → tüm derslerde "math" konuları görünme bug'ı.
+  //    Burada hatalı fallback yok — bulunamazsa boş.
   for (final s in _allSubjects) {
     if (s.key == subjectKey) return s.topics;
   }
@@ -12564,7 +12825,7 @@ List<String> _topicsForGrade(String subjectKey) {
       if (s.key == subjectKey) return s.topics;
     }
   }
-  // Bulunamadı → boş liste (UI burada AI'dan topic fetch tetikleyebilir).
+  // 4) Bulunamadı → boş liste (UI burada AI'dan topic fetch tetikleyebilir).
   return const [];
 }
 
@@ -12595,27 +12856,48 @@ List<_Subject> _subjectsForGrade() {
   return List.of(_allSubjects);
 }
 
+/// Arena boot'ta `SubjectUsageStats.load()` ile doldurulur — ders adı
+/// (lowercase trim) → toplam etkinlik. Sync sıralama bu cache üzerinden
+/// yapılır; cache boşsa orijinal sıra korunur.
+Map<String, int> _arenaUsageCache = const {};
+
 /// EduProfile.current → arena için _Subject listesi.
 /// Merkezi `subjectsForProfile()` çağrılır (AI cache + faculty + exam dahil).
+/// Çekirdek dersler kullanım azalan; seçmeliler sona düşer (Diğer Dersler).
 List<_Subject> _subjectsFromCurrentEduProfile() {
   final p = EduProfile.current;
   if (p == null) return const [];
-  final eduList = subjectsForProfile(p);
+  var eduList = subjectsForProfile(p);
   if (eduList.isEmpty) return const [];
-  // EduSubject → _Subject — topicsCount ve topics boş, _topicsForGrade
-  // gerektiğinde dolduruyor (statik _curriculum veya AI ile).
+  if (_arenaUsageCache.isNotEmpty) {
+    eduList = orderSubjectsByUsage(eduList, _arenaUsageCache);
+  } else {
+    // Cache boş bile olsa seçmelileri sona it.
+    final core = <EduSubject>[];
+    final electives = <EduSubject>[];
+    for (final s in eduList) {
+      (isElectiveSubjectKey(s.key) ? electives : core).add(s);
+    }
+    eduList = [...core, ...electives];
+  }
+  // EduProfile'ın müfredat haritası — key → topics
+  final curriculumMap = <String, List<String>>{
+    for (final c in curriculumFor(p)) c.key: c.topics,
+  };
   final allSubjMap = {for (final s in _allSubjects) s.key: s};
   return eduList.map((e) {
-    // Eğer arena'nın _allSubjects haritasında bu key zaten varsa onun
-    // topics listesini de getir (statik soru bankası ile uyum).
+    final fromCurriculum = curriculumMap[e.key];
     final existing = allSubjMap[e.key];
+    final topics = (fromCurriculum != null && fromCurriculum.isNotEmpty)
+        ? fromCurriculum
+        : (existing?.topics ?? const <String>[]);
     return _Subject(
       e.key,
       e.emoji,
       e.name,
-      existing?.topicsCount ?? 0,
+      topics.length,
       e.color,
-      existing?.topics ?? const <String>[],
+      topics,
     );
   }).toList();
 }

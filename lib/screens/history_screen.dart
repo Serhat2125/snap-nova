@@ -1041,7 +1041,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   String _emojiFor(String subject) {
     return switch (subject) {
-      'Matematik' => '🔢',
+      'Matematik' => '🧮',
       'Fizik'     => '⚛️',
       'Kimya'     => '🧪',
       'Biyoloji'  => '🧬',

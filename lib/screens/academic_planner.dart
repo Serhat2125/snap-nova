@@ -6,17 +6,21 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../main.dart' show localeService;
+import '../services/analytics.dart';
+import '../services/usage_quota.dart';
 import '../features/offline/domain/offline_subject_pack.dart';
 import '../features/offline/providers/offline_pack_provider.dart';
-import '../features/offline/widgets/offline_download_sheet.dart';
 import '../services/curriculum_catalog.dart';
 import '../services/education_profile.dart';
 import '../services/gemini_service.dart';
 import '../widgets/latex_text.dart';
 import '../widgets/qualsar_numeric_loader.dart';
+import 'education_setup_screen.dart';
 import 'test_page.dart';
 import 'green_colony_screen.dart';
+import 'history_screen.dart';
 import 'qualsar_arena_screen.dart';
+import '../widgets/study_toolbar.dart';
 import 'qualsar_mars_screen.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -206,50 +210,39 @@ class _StudyCalendarPageState extends State<StudyCalendarPage> {
     setState(() => _grouped = g);
   }
 
-  /// Sol üst seviye etiketi — diğer sayfalarla aynı format.
-  String? _profileBadgeText() {
-    final p = EduProfile.current;
-    if (p == null) return null;
-    String flag = '';
-    for (final c in kAllCountries) {
-      if (c.key == p.country) {
-        flag = c.flag;
-        break;
+  /// Aktivite olan tamamlanmış geçmiş haftaların pazartesi günleri,
+  /// yeniden yeniye sıralı.
+  List<DateTime> _completedPastWeekMondays() {
+    final mondays = <DateTime>{};
+    for (final entries in _grouped.values) {
+      for (final e in entries) {
+        final w = e.when;
+        final m = DateTime(w.year, w.month, w.day)
+            .subtract(Duration(days: w.weekday - 1));
+        mondays.add(m);
       }
     }
-    String text;
-    switch (p.level) {
-      case 'primary':
-        text = 'İlkokul ${p.grade}';
-        break;
-      case 'middle':
-        text = 'Ortaokul ${p.grade}';
-        break;
-      case 'high':
-        text = 'Lise ${p.grade}';
-        break;
-      case 'exam_prep':
-        text = p.grade.split(' (').first.trim();
-        break;
-      case 'university':
-        text = (p.faculty != null && p.faculty!.isNotEmpty)
-            ? '${p.faculty!} ${p.grade}'
-            : 'Üniversite ${p.grade}';
-        break;
-      case 'masters':
-        text = (p.faculty != null && p.faculty!.isNotEmpty)
-            ? '${p.faculty!} Yüksek Lisans'
-            : 'Yüksek Lisans';
-        break;
-      case 'doctorate':
-        text = (p.faculty != null && p.faculty!.isNotEmpty)
-            ? '${p.faculty!} Doktora'
-            : 'Doktora';
-        break;
-      default:
-        text = p.grade;
+    final now = DateTime.now();
+    final thisMonday = DateTime(now.year, now.month, now.day)
+        .subtract(Duration(days: now.weekday - 1));
+    return mondays
+        .where((m) => m.isBefore(thisMonday))
+        .toList()
+      ..sort((a, b) => b.compareTo(a));
+  }
+
+  static const _monthShort = [
+    'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz',
+    'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara',
+  ];
+
+  String _weekRangeLabel(DateTime monday) {
+    final sunday = monday.add(const Duration(days: 6));
+    if (monday.month == sunday.month) {
+      return '${monday.day}-${sunday.day} ${_monthShort[monday.month - 1]}';
     }
-    return [flag, text].where((s) => s.isNotEmpty).join(' ');
+    return '${monday.day} ${_monthShort[monday.month - 1]} - '
+        '${sunday.day} ${_monthShort[sunday.month - 1]}';
   }
 
   @override
@@ -265,6 +258,7 @@ class _StudyCalendarPageState extends State<StudyCalendarPage> {
       localeService.tr('day_sat_full'),
       localeService.tr('day_sun_full'),
     ];
+    final pastMondays = _completedPastWeekMondays();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
@@ -283,11 +277,9 @@ class _StudyCalendarPageState extends State<StudyCalendarPage> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
         children: [
-          // Ortalanmış başlık (etiket artık çerçeve üstünde değil, takvim
-          // çerçevesinin sol üstüne taşındı — kullanıcı ricası).
           Center(
             child: Text(
-              localeService.tr('weekly_study_tracker'),
+              'Haftalık Performansın'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
@@ -296,73 +288,178 @@ class _StudyCalendarPageState extends State<StudyCalendarPage> {
               ),
             ),
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: 18),
+          // Takvim çerçevesi — bu haftanın 7 günü + sağ tarafa tamamlanmış
+          // geçmiş haftaların özet sekmeleri (en yeni en başta).
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.black, width: 1.4),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: GridView.count(
+              crossAxisCount: 3,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 0.72,
+              children: [
+                for (var i = 0; i < 7; i++)
+                  _buildDayFrame(
+                      monday.add(Duration(days: i)), dayNames[i]),
+                for (final m in pastMondays)
+                  _buildPastWeekCell(m),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-          // Takvim çerçevesi — Stack ile sarmalandı, sol üst köşeye seviye
-          // etiketi (çerçeve çizgisinin TAM ÜSTÜNDE).
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                      color: _indigo.withValues(alpha: 0.35), width: 1.4),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.04),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: GridView.count(
-                  crossAxisCount: 3,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: 10,
-                  crossAxisSpacing: 10,
-                  childAspectRatio: 0.72,
-                  children: [
-                    for (var i = 0; i < 7; i++)
-                      _buildDayFrame(
-                          monday.add(Duration(days: i)), dayNames[i]),
-                  ],
-                ),
+  Widget _buildPastWeekCell(DateTime monday) {
+    final label = _weekRangeLabel(monday);
+    int total = 0;
+    for (var i = 0; i < 7; i++) {
+      final d = monday.add(Duration(days: i));
+      total += (_grouped[_ActivityStore.dayKey(d)] ?? const []).length;
+    }
+    return GestureDetector(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => _PastWeekPage(
+            monday: monday,
+            entriesByDay: _grouped,
+          ),
+        ),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: _indigo.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: _indigo.withValues(alpha: 0.55),
+            width: 1.2,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                color: _indigo.withValues(alpha: 0.12),
+                borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(11)),
               ),
-              if (_profileBadgeText() != null)
-                Positioned(
-                  top: -14,
-                  left: 14,
-                  child: IgnorePointer(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _indigo.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(50),
-                        border: Border.all(
-                          color: _indigo.withValues(alpha: 0.55),
-                          width: 1.2,
-                        ),
-                      ),
-                      child: Text(
-                        _profileBadgeText()!,
-                        style: GoogleFonts.poppins(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: _indigo,
-                          height: 1.1,
-                        ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Geçen Hafta'.tr(),
+                      maxLines: 1,
+                      style: GoogleFonts.poppins(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w700,
+                        color: _indigo.withValues(alpha: 0.85),
+                        letterSpacing: 0.3,
                       ),
                     ),
                   ),
+                  const SizedBox(height: 2),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      style: GoogleFonts.poppins(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w900,
+                        color: _indigo,
+                        height: 1.1,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.history_rounded,
+                        size: 22,
+                        color: _indigo,
+                      ),
+                      const SizedBox(height: 4),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          total > 0
+                              ? '$total ${'aktivite'.tr()}'
+                              : '—',
+                          maxLines: 1,
+                          style: GoogleFonts.poppins(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-            ],
-          ),
-        ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(6, 0, 6, 8),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Aç'.tr(),
+                      maxLines: 1,
+                      style: GoogleFonts.poppins(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        color: _indigo,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      size: 14,
+                      color: _indigo,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -452,32 +549,39 @@ class _StudyCalendarPageState extends State<StudyCalendarPage> {
                   ),
                 ),
                 const SizedBox(height: 2),
-                Row(
-                  children: [
-                    const Icon(Icons.schedule_rounded,
-                        size: 10, color: Colors.black),
-                    const SizedBox(width: 3),
-                    Text(
-                      timeText,
-                      style: GoogleFonts.poppins(
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black,
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.schedule_rounded,
+                          size: 10, color: Colors.black),
+                      const SizedBox(width: 3),
+                      Text(
+                        timeText,
+                        maxLines: 1,
+                        style: GoogleFonts.poppins(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 6),
-                    const Icon(Icons.calendar_today_rounded,
-                        size: 9, color: Colors.black),
-                    const SizedBox(width: 3),
-                    Text(
-                      dateText,
-                      style: GoogleFonts.poppins(
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black,
+                      const SizedBox(width: 6),
+                      const Icon(Icons.calendar_today_rounded,
+                          size: 9, color: Colors.black),
+                      const SizedBox(width: 3),
+                      Text(
+                        dateText,
+                        maxLines: 1,
+                        style: GoogleFonts.poppins(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -559,6 +663,226 @@ class _StudyCalendarPageState extends State<StudyCalendarPage> {
     );
   }
 
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  _PastWeekPage — tamamlanmış geçmiş bir haftanın 7 günlük detay sayfası.
+//  Pazartesi..Pazar grid'i; her gün hücresine basınca o günün aktivite
+//  listesi (_DayDetailPage) açılır.
+// ═════════════════════════════════════════════════════════════════════════════
+class _PastWeekPage extends StatelessWidget {
+  final DateTime monday;
+  final Map<String, List<_ActivityEntry>> entriesByDay;
+  const _PastWeekPage({
+    required this.monday,
+    required this.entriesByDay,
+  });
+
+  static const _monthShort = [
+    'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz',
+    'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara',
+  ];
+
+  String _weekRangeLabel() {
+    final sunday = monday.add(const Duration(days: 6));
+    if (monday.month == sunday.month) {
+      return '${monday.day}-${sunday.day} ${_monthShort[monday.month - 1]}';
+    }
+    return '${monday.day} ${_monthShort[monday.month - 1]} - '
+        '${sunday.day} ${_monthShort[sunday.month - 1]}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dayNames = [
+      localeService.tr('day_mon_full'),
+      localeService.tr('day_tue_full'),
+      localeService.tr('day_wed_full'),
+      localeService.tr('day_thu_full'),
+      localeService.tr('day_fri_full'),
+      localeService.tr('day_sat_full'),
+      localeService.tr('day_sun_full'),
+    ];
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F6FA),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        foregroundColor: Colors.black87,
+        title: Text(
+          _weekRangeLabel(),
+          style: GoogleFonts.poppins(
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.black, width: 1.4),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: GridView.count(
+              crossAxisCount: 3,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 0.72,
+              children: [
+                for (var i = 0; i < 7; i++)
+                  _PastWeekDayCell(
+                    day: monday.add(Duration(days: i)),
+                    dayName: dayNames[i],
+                    entries: entriesByDay[
+                            _ActivityStore.dayKey(monday.add(Duration(days: i)))] ??
+                        const [],
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PastWeekDayCell extends StatelessWidget {
+  final DateTime day;
+  final String dayName;
+  final List<_ActivityEntry> entries;
+  const _PastWeekDayCell({
+    required this.day,
+    required this.dayName,
+    required this.entries,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final dateText =
+        '${day.day.toString().padLeft(2, '0')}.${day.month.toString().padLeft(2, '0')}';
+    return GestureDetector(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => _DayDetailPage(
+            day: day,
+            dayName: dayName,
+            entries: entries,
+          ),
+        ),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: const Color(0xFFE5E7EB),
+            width: 1,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                color: _indigo.withValues(alpha: 0.08),
+                borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(11)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    dayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.calendar_today_rounded,
+                            size: 9, color: Colors.black),
+                        const SizedBox(width: 3),
+                        Text(
+                          dateText,
+                          maxLines: 1,
+                          style: GoogleFonts.poppins(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        entries.isEmpty
+                            ? Icons.remove_circle_outline_rounded
+                            : Icons.check_circle_rounded,
+                        size: 22,
+                        color: entries.isEmpty
+                            ? Colors.black26
+                            : const Color(0xFF10B981),
+                      ),
+                      const SizedBox(height: 4),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          entries.isEmpty
+                              ? '—'
+                              : '${entries.length} ${'aktivite'.tr()}',
+                          maxLines: 1,
+                          style: GoogleFonts.poppins(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1607,6 +1931,10 @@ class _LibraryLandingState extends State<LibraryLanding> {
           children: [
             if (_showColorPicker) _buildLibraryColorPanel(),
             if (_showColorPicker) const SizedBox(height: 10),
+            // ── Üst satır: 2 ana sekme yatayda ───────────────────────
+            // Konu Özeti | Sınav Soruları
+            // Bilgi Yarışı bu satırdan ÇIKARILDI → altta tam genişlikte
+            // kendi banner kartı olarak duruyor.
             Row(
               children: [
                 Expanded(
@@ -1614,6 +1942,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
                     icon: Icons.auto_stories_rounded,
                     title: localeService.tr('create_topic_summary'),
                     color: _blue,
+                    compact: true,
                     customBg: _cardsBgOverride,
                     customTextColor: _cardsTextOverride,
                     onColorAccept: (c) => _applyLibraryColor('cards', c),
@@ -1625,12 +1954,13 @@ class _LibraryLandingState extends State<LibraryLanding> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Expanded(
                   child: _LandingCard(
                     icon: Icons.quiz_rounded,
                     title: localeService.tr('create_exam_questions'),
                     color: _orange,
+                    compact: true,
                     customBg: _cardsBgOverride,
                     customTextColor: _cardsTextOverride,
                     onColorAccept: (c) => _applyLibraryColor('cards', c),
@@ -1644,9 +1974,44 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 ),
               ],
             ),
+            const SizedBox(height: 8),
+            // ── Bilgi Yarışı — tam genişlik banner kart ──────────────
+            _LandingCard(
+              icon: Icons.sports_esports_rounded,
+              title: 'Bilgi Yarışı'.tr(),
+              color: const Color(0xFFFFB800),
+              compact: true,
+              customBg: _cardsBgOverride,
+              customTextColor: _cardsTextOverride,
+              onColorAccept: (c) => _applyLibraryColor('cards', c),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const DueloLobbyScreen(),
+                ),
+              ),
+            ),
             const SizedBox(height: 12),
+            // ── 2. satır: Çözümlerim (sol) | Çalışma Takvimi (sağ) ───
+            // Çözümlerim ana sayfadan TAŞINDI; Sesli Komut sekmesinin
+            // ana sayfayı işgal etmesi için yer açıldı.
             Row(
               children: [
+                Expanded(
+                  child: _LandingCard(
+                    icon: Icons.check_circle_rounded,
+                    title: 'Çözümlerim'.tr(),
+                    color: const Color(0xFF3B82F6),
+                    customBg: _cardsBgOverride,
+                    customTextColor: _cardsTextOverride,
+                    onColorAccept: (c) => _applyLibraryColor('cards', c),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const HistoryScreen(),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
                 Expanded(
                   child: _LandingCard(
                     icon: Icons.calendar_month_rounded,
@@ -1662,7 +2027,12 @@ class _LibraryLandingState extends State<LibraryLanding> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // ── 3. satır: Pomodoro | QuAlsar Arena ───────────────────
+            Row(
+              children: [
                 Expanded(
                   child: _LandingCard(
                     icon: Icons.timer_rounded,
@@ -1678,11 +2048,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
                     ),
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
+                const SizedBox(width: 10),
                 Expanded(
                   child: _LandingCard(
                     icon: Icons.stadium_rounded,
@@ -1694,25 +2060,6 @@ class _LibraryLandingState extends State<LibraryLanding> {
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => const QuAlsarArenaScreen(),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _LandingCard(
-                    icon: Icons.sports_esports_rounded,
-                    title: 'Bilgi Yarışı'.tr(),
-                    subtitle:
-                        'Ülkende ve dünyada rakiplerle 1v1 canlı yarış.'
-                            .tr(),
-                    color: const Color(0xFFFFB800),
-                    customBg: _cardsBgOverride,
-                    customTextColor: _cardsTextOverride,
-                    onColorAccept: (c) => _applyLibraryColor('cards', c),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const DueloLobbyScreen(),
                       ),
                     ),
                   ),
@@ -1951,6 +2298,8 @@ class _LandingCard extends StatelessWidget {
   final Color? customBg;
   final Color? customTextColor;
   final ValueChanged<Color>? onColorAccept;
+  /// 3'lü yatay sıralama için kompakt mod — kart yüksekliği + içerik küçülür.
+  final bool compact;
   const _LandingCard({
     required this.icon,
     required this.title,
@@ -1960,6 +2309,7 @@ class _LandingCard extends StatelessWidget {
     this.customBg,
     this.customTextColor,
     this.onColorAccept,
+    this.compact = false,
   });
 
   @override
@@ -1973,15 +2323,20 @@ class _LandingCard extends StatelessWidget {
     final subtitleColor = customTextColor ??
         (isDark ? Colors.white70 : Colors.black54);
 
+    final cardHeight = compact ? 102.0 : 128.0;
+    final iconBox = compact ? 38.0 : (hasSub ? 40.0 : 48.0);
+    final iconSize = compact ? 20.0 : (hasSub ? 22.0 : 26.0);
+    final titleFs = compact ? 11.0 : (hasSub ? 12.5 : 13.0);
+
     return DragTarget<Color>(
       onAcceptWithDetails: (d) => onColorAccept?.call(d.data),
       builder: (ctx, cand, _) => GestureDetector(
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
-          height: 128,
+          height: cardHeight,
           padding: EdgeInsets.symmetric(
-              horizontal: 10, vertical: hasSub ? 10 : 14),
+              horizontal: 8, vertical: hasSub ? 10 : (compact ? 10 : 14)),
           decoration: BoxDecoration(
             color: bgColor,
             borderRadius: BorderRadius.circular(16),
@@ -2000,29 +2355,30 @@ class _LandingCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                width: hasSub ? 40 : 48,
-                height: hasSub ? 40 : 48,
+                width: iconBox,
+                height: iconBox,
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(hasSub ? 12 : 14),
+                  borderRadius:
+                      BorderRadius.circular(compact ? 11 : (hasSub ? 12 : 14)),
                 ),
                 alignment: Alignment.center,
-                child: Icon(icon, color: color, size: hasSub ? 22 : 26),
+                child: Icon(icon, color: color, size: iconSize),
               ),
-              SizedBox(height: hasSub ? 6 : 10),
+              SizedBox(height: compact ? 8 : (hasSub ? 6 : 10)),
               Text(
                 title,
-                maxLines: 1,
+                maxLines: compact ? 2 : 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
-                  fontSize: hasSub ? 12.5 : 13,
+                  fontSize: titleFs,
                   fontWeight: FontWeight.w800,
                   color: titleColor,
                   height: 1.15,
                 ),
               ),
-              if (hasSub) ...[
+              if (hasSub && !compact) ...[
                 const SizedBox(height: 3),
                 Text(
                   subtitle!,
@@ -2122,7 +2478,9 @@ class _TestConfig {
 class _Summary {
   final String id;
   final String topic;
-  final String content;
+  // Streaming akışı sırasında parça parça doldurulduğu için `content`
+  // mutable. Stream tamamlandığında nihai metin atanır + persist edilir.
+  String content;
   final DateTime createdAt;
   // Questions mode için test denemeleri (max 3). Summary mode boş kalır.
   List<_TestAttempt> tests;
@@ -2235,7 +2593,17 @@ enum LibraryMode { summary, questions }
 
 class AcademicPlanner extends StatefulWidget {
   final LibraryMode mode;
-  const AcademicPlanner({super.key, this.mode = LibraryMode.summary});
+  // İlk açılışta otomatik açılması istenen ders+konu. Test sonuç sayfasındaki
+  // "Kısa bir tekrar" butonu kullanır: özet varsa direkt açılır; yoksa o
+  // konuda özet üretim akışı tetiklenir.
+  final String? autoOpenSubject;
+  final String? autoOpenTopic;
+  const AcademicPlanner({
+    super.key,
+    this.mode = LibraryMode.summary,
+    this.autoOpenSubject,
+    this.autoOpenTopic,
+  });
   @override
   State<AcademicPlanner> createState() => _AcademicPlannerState();
 }
@@ -2246,6 +2614,9 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
       : 'library_subjects_questions_v2';
   static const _usageKey = 'topic_summary_usage';
 
+  // _title artık AppBar'da kullanılmıyor (başlık kaldırıldı). Diğer
+  // ekranlarda tekrar gerekirse buradan üretilebilir.
+  // ignore: unused_element
   String get _title => widget.mode == LibraryMode.summary
       ? localeService.tr('topic_summaries')
       : localeService.tr('exam_questions');
@@ -2253,59 +2624,14 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
       ? localeService.tr('create_summary_hint')
       : 'İstediğin konudan test oluştur'.tr();
 
-  /// Sayfanın çerçevesi dışında sol üstte gösterilecek seviye etiketi.
-  /// Ör. "🇹🇷 İlkokul 1. Sınıf" / "🇹🇷 Lise 11. Sınıf" / "🇹🇷 KPSS Lisans"
-  /// / "🇹🇷 İnşaat Mühendisliği 3. Sınıf".
-  String? _profileBadgeText() {
-    final p = EduProfile.current;
-    if (p == null) return null;
-    String flag = '';
-    for (final c in kAllCountries) {
-      if (c.key == p.country) {
-        flag = c.flag;
-        break;
-      }
-    }
-    String text;
-    switch (p.level) {
-      case 'primary':
-        text = 'İlkokul ${p.grade}';
-        break;
-      case 'middle':
-        text = 'Ortaokul ${p.grade}';
-        break;
-      case 'high':
-        text = 'Lise ${p.grade}';
-        break;
-      case 'exam_prep':
-        text = p.grade.split(' (').first.trim();
-        break;
-      case 'university':
-        text = (p.faculty != null && p.faculty!.isNotEmpty)
-            ? '${p.faculty!} ${p.grade}'
-            : 'Üniversite ${p.grade}';
-        break;
-      case 'masters':
-        text = (p.faculty != null && p.faculty!.isNotEmpty)
-            ? '${p.faculty!} Yüksek Lisans'
-            : 'Yüksek Lisans';
-        break;
-      case 'doctorate':
-        text = (p.faculty != null && p.faculty!.isNotEmpty)
-            ? '${p.faculty!} Doktora'
-            : 'Doktora';
-        break;
-      default:
-        text = p.grade;
-    }
-    return [flag, text].where((s) => s.isNotEmpty).join(' ');
-  }
-
   String _grade = '';
   int _monthUsed = 0;
   String _monthKey = '';
   List<_Subject> _subjects = [];
   bool _generating = false;
+  // Loader stage list için aktif üretim bilgisi (ders + konu).
+  String _generatingSubject = '';
+  String _generatingTopic = '';
 
   // "Diğer Dersler" overlay sheet — modal değil, böylece arka plandaki
   // ilk 8 ders kareleri tıklanabilir/sürüklenebilir kalır.
@@ -2325,6 +2651,8 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
   Color? _pageBgOverride;
   Color? _frameOverride;
   Color? _frameTextOverride;
+  // Manuel eklenen dersler için ayrı çerçeve rengi (drag-drop ile uygulanır)
+  Color? _customFrameOverride;
   final Map<String, Color> _subjectTileColors = {};
   final Map<String, Color> _subjectTileTextColors = {};
   static const _planColorPalette = <Color>[
@@ -2370,6 +2698,8 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
       'planner_subject_order_${widget.mode.name}';
   String get _summaryCardColorsKey =>
       'planner_summary_card_colors_${widget.mode.name}';
+  String get _customFrameColorKey =>
+      'planner_custom_frame_color_${widget.mode.name}';
 
   // Alt kartların (oluşturulmuş özet/test ders kartları) ayrı renk map'i.
   final Map<String, Color> _summaryCardColors = {};
@@ -2405,6 +2735,42 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
   void _applyColorToSummaryCard(String subjectId, Color c) {
     setState(() => _summaryCardColors[subjectId] = c);
     _saveSummaryCardColors();
+  }
+
+  Future<void> _loadCustomSubjects() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_customSubjectsKey);
+      if (raw == null || raw.isEmpty) return;
+      final list = (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
+      final loaded = <EduSubject>[];
+      for (final m in list) {
+        final key = (m['key'] as String?) ?? '';
+        final name = (m['name'] as String?) ?? '';
+        final emoji = (m['emoji'] as String?) ?? '📚';
+        final colorVal = m['color'];
+        if (key.isEmpty || name.isEmpty) continue;
+        final color = colorVal is num ? Color(colorVal.toInt()) : _blue;
+        loaded.add(EduSubject(key, emoji, name, color));
+      }
+      if (!mounted) return;
+      setState(() => _customSubjects = loaded);
+    } catch (_) {}
+  }
+
+  Future<void> _saveCustomSubjects() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = _customSubjects
+          .map((s) => {
+                'key': s.key,
+                'name': s.name,
+                'emoji': s.emoji,
+                'color': s.color.toARGB32(),
+              })
+          .toList();
+      await prefs.setString(_customSubjectsKey, jsonEncode(list));
+    } catch (_) {}
   }
 
   Future<void> _loadSubjectOrder() async {
@@ -2460,6 +2826,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
       final bgInt = prefs.getInt(_bgColorKey);
       final frameInt = prefs.getInt(_frameColorKey);
       final frameTextInt = prefs.getInt(_frameTextColorKey);
+      final customFrameInt = prefs.getInt(_customFrameColorKey);
       final tilesRaw = prefs.getString(_tileColorsKey);
       final tilesTextRaw = prefs.getString(_tileTextColorsKey);
       if (!mounted) return;
@@ -2467,6 +2834,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
         if (bgInt != null) _pageBgOverride = Color(bgInt);
         if (frameInt != null) _frameOverride = Color(frameInt);
         if (frameTextInt != null) _frameTextOverride = Color(frameTextInt);
+        if (customFrameInt != null) _customFrameOverride = Color(customFrameInt);
         if (tilesRaw != null && tilesRaw.isNotEmpty) {
           try {
             final m = jsonDecode(tilesRaw) as Map<String, dynamic>;
@@ -2507,6 +2875,12 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
       } else {
         await prefs.setInt(
             _frameTextColorKey, _frameTextOverride!.toARGB32());
+      }
+      if (_customFrameOverride == null) {
+        await prefs.remove(_customFrameColorKey);
+      } else {
+        await prefs.setInt(
+            _customFrameColorKey, _customFrameOverride!.toARGB32());
       }
       if (_subjectTileColors.isEmpty) {
         await prefs.remove(_tileColorsKey);
@@ -2606,6 +2980,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
                     _pageBgOverride = null;
                     _frameOverride = null;
                     _frameTextOverride = null;
+                    _customFrameOverride = null;
                     _subjectTileColors.clear();
                     _subjectTileTextColors.clear();
                     _summaryCardColors.clear();
@@ -2827,8 +3202,11 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
   // Inline ders ekle paneli (sürekli açık, modal yok)
   EduProfile? _inlineProfile;
   List<EduSubject> _inlineEduSubjects = [];
-  bool _inlineCustomMode = false;
-  final _inlineCustomSubjectCtrl = TextEditingController();
+
+  // Kullanıcının kendi eklediği kalıcı dersler — modlar arası paylaşılır
+  // (özet ve test sayfasında aynı liste görünür).
+  static const _customSubjectsKey = 'planner_custom_subjects_v1';
+  List<EduSubject> _customSubjects = [];
 
 
 
@@ -2838,6 +3216,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
     _load();
     _loadColorPrefs();
     _loadSummaryCardColors();
+    _loadCustomSubjects();
     // Inline panel profili hemen yükle
     EduProfile.load().then((p) async {
       if (!mounted) return;
@@ -2848,6 +3227,9 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
         _inlineProfile = p;
         _inlineEduSubjects = _subjectsForProfileAllTracks(p);
       });
+      // Varsayılan sıra: çekirdek dersler kullanım azalan + seçmeliler sona.
+      // Kullanıcı manuel sürükle-bırak yapmışsa _loadSubjectOrder bunu ezer.
+      await _applyDefaultUsageOrder();
       _loadSubjectOrder();
       // Cache yoksa AI'dan profile özel ders listesi çek + güncelle.
       if (p != null && EduProfile.aiCachedSubjects(p) == null) {
@@ -2856,19 +3238,34 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
     });
   }
 
+  Future<void> _applyDefaultUsageOrder() async {
+    final usage = await SubjectUsageStats.load();
+    if (!mounted) return;
+    setState(() {
+      _inlineEduSubjects =
+          orderSubjectsByUsage(_inlineEduSubjects, usage);
+    });
+  }
+
   /// AI'dan o profilin müfredatını çek + cache'le + UI'yi yenile.
+  /// `fetchProfileCurriculum` ders + konuları beraber döndürür → 131 ülkenin
+  /// her biri için (static catalog'a bakmaksızın) ülke-spesifik müfredat üretir.
   Future<void> _fetchAiCurriculum(EduProfile p) async {
     try {
-      final subjects = await GeminiService.fetchProfileSubjects(p);
-      if (subjects.isEmpty) return;
-      await EduProfile.saveAiSubjectCache(p, subjects);
+      final result = await GeminiService.fetchProfileCurriculum(p);
+      if (result.subjects.isEmpty) return;
+      await EduProfile.saveAiSubjectCache(p, result.subjects);
+      if (result.topicsBySubject.isNotEmpty) {
+        await EduProfile.saveAiTopicsCache(p, result.topicsBySubject);
+      }
       if (!mounted) return;
       setState(() {
         _inlineEduSubjects = _subjectsForProfileAllTracks(p);
       });
+      await _applyDefaultUsageOrder();
       _loadSubjectOrder();
     } catch (_) {
-      // Sessizce başarısız — kullanıcı fallback listesini görür.
+      // Sessizce başarısız — kullanıcı static fallback listesini görür.
     }
   }
 
@@ -2907,7 +3304,6 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
 
   @override
   void dispose() {
-    _inlineCustomSubjectCtrl.dispose();
     super.dispose();
   }
 
@@ -2964,6 +3360,46 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
       _monthKey = mkey;
       _monthUsed = used;
       _subjects = list;
+    });
+    // Test sonuç sayfasından "Kısa bir tekrar" ile açıldıysa hedef konuyu
+    // otomatik aç (varsa özetini, yoksa üretim akışını).
+    _maybeAutoOpen();
+  }
+
+  bool _autoOpenHandled = false;
+
+  void _maybeAutoOpen() {
+    if (_autoOpenHandled) return;
+    final s = widget.autoOpenSubject;
+    final t = widget.autoOpenTopic;
+    if (s == null || s.trim().isEmpty || t == null || t.trim().isEmpty) {
+      return;
+    }
+    _autoOpenHandled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      _Subject? subjectRef;
+      final target = _normSubjectName(s);
+      for (final sb in _subjects) {
+        if (_normSubjectName(sb.name) == target) {
+          subjectRef = sb;
+          break;
+        }
+      }
+      _Summary? summary;
+      if (subjectRef != null) {
+        for (final sum in subjectRef.summaries) {
+          if (sum.topic.toLowerCase() == t.trim().toLowerCase()) {
+            summary = sum;
+            break;
+          }
+        }
+      }
+      if (summary != null) {
+        _openSummary(summary, subjectRef!.name);
+      } else {
+        await _runGenerateWithSetup(subjectName: s, topic: t);
+      }
     });
   }
 
@@ -3217,23 +3653,40 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
     _Subject? existingSubject,
     _TestConfig? config,
   }) async {
-    if (_monthUsed >= _monthlyLimit) {
-      _showSnack(localeService.tr('monthly_limit_reached'));
-      return;
-    }
     final isQuestions = widget.mode == LibraryMode.questions;
     final cfg = config ?? _TestConfig();
 
-    // Subject & (questions) existing topic summary bul
+    // Subject ref'i ÖNCE bul — sonraki check'lerin (per-subject limit, varolan
+    // summary lookup) buna ihtiyacı var. Türkçe karakterlere dayanıklı normalize.
     _Subject? subjectRef = existingSubject;
     if (subjectRef == null || subjectRef.id.isEmpty) {
+      final target = _normSubjectName(subjectName);
       for (final s in _subjects) {
-        if (s.name.toLowerCase() == subjectName.toLowerCase()) {
+        if (_normSubjectName(s.name) == target) {
           subjectRef = s;
           break;
         }
       }
     }
+
+    // ── LIMIT KADEMELERİ ────────────────────────────────────────────────
+    // 1) Yeni quota sistemi (UsageQuota): günlük + aylık global sınır.
+    //    Hem konu özeti (200/ay) hem test (300/ay) ayrı sayaçlar tutar.
+    //    Eski `_monthUsed` ve per-subject 4/ay limitleri KALDIRILDI —
+    //    UsageQuota tek doğru kaynak. (Önceden 3 katman çakışıyordu;
+    //    kullanıcı 4+ özet üretince "oluşturulamıyor" oluyordu.)
+    final kind = isQuestions ? QuotaKind.testQuestions : QuotaKind.topicSummary;
+    final quota = await UsageQuota.get(kind);
+    if (quota.isExhausted) {
+      Analytics.logQuotaExhausted(kind.name);
+      _showSnack(quota.isDailyExhausted
+          ? 'Günlük AI sınırına ulaştın (${quota.dailyLimit}). '
+              'Yarın tekrar dene veya Premium\'a geç.'
+          : 'Aylık AI sınırına ulaştın (${quota.monthlyLimit}). '
+              'Ay başında sıfırlanır.');
+      return;
+    }
+    // ── /LIMIT ───────────────────────────────────────────────────────────
     _Summary? existingSummary;
     if (isQuestions && subjectRef != null && subjectRef.id.isNotEmpty) {
       for (final s in subjectRef.summaries) {
@@ -3251,38 +3704,132 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
       return;
     }
 
-    setState(() => _generating = true);
+    // Tüm pre-check'ler geçti — şimdi quota counter'ı artır + Analytics event.
+    // Daha önce burada quota erkenden artırılıyordu; engellenen op'larda boşa
+    // sayaç tüketiyordu (kullanıcı limite çabuk takılıyordu).
+    await UsageQuota.increment(kind);
+    Analytics.logEvent(
+      isQuestions ? 'test_questions_generated' : 'topic_summary_generated',
+      params: {
+        'subject': subjectName,
+        'topic': topic,
+      },
+    );
 
-    try {
-      final profile = await EduProfile.load();
-      final baseCtx = _contextFromGrade(_grade);
-      final profileCtx = educationContext(profile);
-      final ctx = profileCtx.isEmpty ? baseCtx : '$baseCtx\n$profileCtx';
-      final exam = _examShort(_grade);
-      final prompt = isQuestions
-          ? _buildQuestionsPrompt(
-              subject: subjectName,
-              topic: topic,
-              ctx: ctx,
-              exam: exam,
-              count: cfg.count,
-              difficulty: cfg.difficulty,
-            )
-          : _buildSummaryPrompt(
-              subject: subjectName, topic: topic, ctx: ctx, exam: exam);
+    // KonuÖzeti modunda STREAMING kullanılır — sayfa anında açılır,
+    // AI yazdıkça içerik dolar. TestSorulari modunda JSON full yanıt
+    // bekleyen klasik akış.
+    final profile = await EduProfile.load();
+    final baseCtx = _contextFromGrade(_grade);
+    final profileCtx = educationContext(profile);
+    final ctx = profileCtx.isEmpty ? baseCtx : '$baseCtx\n$profileCtx';
+    final exam = _examShort(_grade);
+    final prompt = isQuestions
+        ? _buildQuestionsPrompt(
+            subject: subjectName,
+            topic: topic,
+            ctx: ctx,
+            exam: exam,
+            count: cfg.count,
+            difficulty: cfg.difficulty,
+          )
+        : _buildSummaryPrompt(
+            subject: subjectName, topic: topic, ctx: ctx, exam: exam);
 
-      final content = await GeminiService.solveHomework(
+    if (!isQuestions) {
+      // ── STREAMING AKIŞI (KonuÖzeti) ─────────────────────────────────
+      // 1) Boş özet oluştur, _subjects'e ekle, persist et.
+      // 2) Sayfayı HEMEN aç + stream'i ona ver.
+      // 3) Stream bitince summary.content güncellenir + persist edilir
+      //    (onStreamComplete callback'iyle).
+      final summary = _Summary(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        topic: topic,
+        content: '',
+        createdAt: DateTime.now(),
+      );
+      if (subjectRef != null && subjectRef.id.isNotEmpty) {
+        subjectRef.summaries.insert(0, summary);
+      } else {
+        _subjects.add(_Subject(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          name: subjectName,
+          summaries: [summary],
+        ));
+      }
+      _monthUsed += 1;
+      await _persistSubjects();
+      await _persistUsage();
+      await _ActivityStore.log(
+        subject: subjectName,
+        topic: topic,
+        type: 'özet',
+      );
+
+      if (!mounted) return;
+      setState(() {});
+
+      final stream = GeminiService.solveHomeworkStream(
         question: prompt,
-        solutionType: isQuestions ? 'TestSorulari' : 'KonuÖzeti',
+        solutionType: 'KonuÖzeti',
         subject: subjectName,
       );
 
-      final cleanContent = isQuestions ? content : _stripMarkdown(content);
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => _SummaryDetailPage(
+          summary: summary,
+          subjectName: subjectName,
+          stream: stream,
+          onStreamComplete: (finalContent) async {
+            summary.content = _stripMarkdown(finalContent);
+            await _persistSubjects();
+            if (mounted) setState(() {});
+          },
+        ),
+      )).then((_) {
+        if (mounted) setState(() {});
+      });
+      return;
+    }
 
-      _Summary targetSummary;
-      _TestAttempt? createdAttempt;
+    // ── KLASİK AKIŞ (TestSorulari) — JSON tam yanıt gerekir ──────────
+    setState(() {
+      _generating = true;
+      _generatingSubject = subjectName;
+      _generatingTopic = topic;
+    });
+    try {
+      final content = await GeminiService.solveHomework(
+        question: prompt,
+        solutionType: 'TestSorulari',
+        subject: subjectName,
+      );
 
-      if (isQuestions && existingSummary != null) {
+      // AI yanıtı boş veya çok kısa geldiyse — kaydetme, hata göster + retry
+      if (content.trim().length < 40) {
+        if (!mounted) return;
+        setState(() => _generating = false);
+        _showRetrySnack(
+          'AI yanıt veremedi. Tekrar denemek ister misin?',
+          () => _generate(
+            subjectName: subjectName,
+            topic: topic,
+            newSubject: newSubject,
+            existingSubject: existingSubject,
+            config: config,
+          ),
+        );
+        return;
+      }
+
+      final cleanContent = content;
+
+      // Bu noktaya yalnız TestSorulari modunda ulaşılır (KonuÖzeti yukarıda
+      // streaming akışıyla erken return etti).
+      final _Summary targetSummary;
+      final _TestAttempt createdAttempt;
+
+      if (existingSummary != null) {
         createdAttempt = _TestAttempt(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
           content: cleanContent,
@@ -3301,18 +3848,16 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
           content: cleanContent,
           createdAt: DateTime.now(),
         );
-        if (isQuestions) {
-          createdAttempt = _TestAttempt(
-            id: summary.id,
-            content: cleanContent,
-            answers: {},
-            completed: false,
-            createdAt: summary.createdAt,
-            timeLimit: cfg.timeLimitSeconds,
-            difficulty: cfg.difficulty,
-          );
-          summary.tests.add(createdAttempt);
-        }
+        createdAttempt = _TestAttempt(
+          id: summary.id,
+          content: cleanContent,
+          answers: {},
+          completed: false,
+          createdAt: summary.createdAt,
+          timeLimit: cfg.timeLimitSeconds,
+          difficulty: cfg.difficulty,
+        );
+        summary.tests.add(createdAttempt);
         if (subjectRef != null && subjectRef.id.isNotEmpty) {
           subjectRef.summaries.insert(0, summary);
         } else {
@@ -3331,24 +3876,38 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
       await _ActivityStore.log(
         subject: subjectName,
         topic: topic,
-        type: isQuestions ? 'soru' : 'özet',
+        type: 'soru',
       );
 
       if (!mounted) return;
       setState(() => _generating = false);
-      if (isQuestions && createdAttempt != null) {
-        _openTestAttempt(targetSummary, createdAttempt, subjectName);
-      } else {
-        _openSummary(targetSummary, subjectName);
-      }
+      _openTestAttempt(targetSummary, createdAttempt, subjectName);
     } on GeminiException catch (e) {
       if (!mounted) return;
       setState(() => _generating = false);
-      _showSnack(e.userMessage);
+      _showRetrySnack(
+        e.userMessage,
+        () => _generate(
+          subjectName: subjectName,
+          topic: topic,
+          newSubject: newSubject,
+          existingSubject: existingSubject,
+          config: config,
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _generating = false);
-      _showSnack('${localeService.tr('error_label')}: $e');
+      _showRetrySnack(
+        '${localeService.tr('error_label')}: $e',
+        () => _generate(
+          subjectName: subjectName,
+          topic: topic,
+          newSubject: newSubject,
+          existingSubject: existingSubject,
+          config: config,
+        ),
+      );
     }
   }
 
@@ -3382,6 +3941,20 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
     int count = 10,
     String difficulty = 'medium',
   }) {
+    final layer = _subjectLayer(subject);
+    final isNumeric = layer == 'numeric';
+    final isVerbal = layer == 'verbal';
+    final layerLine = isNumeric
+        ? '• Katman 1 (Sayısal): "sol" alanında formül + sembol/birim + işlem '
+            'basamakları (algoritma) sırasıyla yer alsın. Biyoloji ise genetik '
+            'çaprazlama (Aa × Aa) ve biyokimyasal formüller (\\( C_6H_{12}O_6 \\)) '
+            'kusursuz gösterilsin.'
+        : isVerbal
+            ? '• Katman 2 (Sözel): "sol" alanında akıcı bir profesör dili kullan; '
+                'tarihte kesin yıl/antlaşma, edebiyatta yazar-eser-dönem bağı, '
+                'felsefede argüman→sentez şeması bulunsun. LaTeX kullanma.'
+            : '• Konu sayısalsa formül+birim, sözelse kronolojik/kavramsal bağ '
+                'biçiminde "sol" alanını kur.';
     final diffLine = () {
       switch (difficulty) {
         case 'easy':
@@ -3402,9 +3975,12 @@ Ders: $subject
 Konu: $topic
 Bağlam: $ctx
 Zorluk: $difficulty
+Katman: ${isNumeric ? 'SAYISAL (formül + sembol + birim)' : isVerbal ? 'SÖZEL (anlatı + kronoloji + bağlam)' : 'KARMA'}
 
 GÖREVİN: Bu konu için $exam stiline uygun TAM OLARAK $count soru üret.
 Tüm sorular $difficulty zorluk seviyesinde olsun.
+QuAlsar Akademik İçerik Protokolü'nü uygula:
+$layerLine
 SADECE geçerli bir JSON array döndür — başka hiçbir metin, açıklama,
 markdown fence (```json), emoji başlık yok.
 
@@ -3431,6 +4007,15 @@ ZORUNLU KURALLAR:
   Cevabı açıkça söyleme; sadece yöntem veya anahtar kavram ver.
 • "sol" 2-3 cümle — sorunun çözüm mantığını kısa ver.
 $diffLine
+• ÇELDİRİCİLER (ÖSYM/LGS mantığı): Yanlış şıklar RASTGELE büyük sayı değil,
+  öğrencinin GERÇEKTEN yapabileceği hatalar olmalı:
+   – işaret hatası (artıyı eksiyle karıştırma)
+   – birim/ondalık karışıklığı
+   – formülün yanlış uygulanması (örn. yarıçap yerine çap, çevre yerine alan)
+   – paydanın sıfır olduğu özel durumu atlama
+   – eksik koşul (ör. \\( x \\neq 0 \\)) görmemek
+   – sık yapılan kavramsal karıştırma
+  En az 2 çeldirici bu tipte olmalı; yalnız bir doğru cevap.
 • Dolar işareti (\$) kullanma — LaTeX için \\\\( ... \\\\) ve \\\\[ ... \\\\].
 • Markdown yıldız (**) veya başlık (#) YAZMA.
 • Emoji başlık (📝 📖 🔑) EKLEME.
@@ -3441,6 +4026,51 @@ $diffLine
 ''';
   }
 
+  // ── Ders adı normalizasyonu — aynı ders altında özet birleştirme ────────
+  // "Coğrafya" / "coğrafya" / "  COĞRAFYA  " / "Cografya" gibi varyasyonlar
+  // tek kart altında birleşsin diye eşleştirme normalize anahtarla yapılır.
+  static String _normSubjectName(String s) {
+    var t = s.trim().toLowerCase();
+    // Türkçe ve yaygın aksanlı karakterleri ASCII karşılığına indir
+    const map = {
+      'ç': 'c', 'ğ': 'g', 'ı': 'i', 'i̇': 'i', 'ö': 'o', 'ş': 's', 'ü': 'u',
+      'â': 'a', 'î': 'i', 'û': 'u', 'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o',
+      'ú': 'u', 'ñ': 'n', 'ä': 'a', 'ë': 'e', 'ï': 'i',
+    };
+    map.forEach((k, v) => t = t.replaceAll(k, v));
+    // Birden fazla boşluk → tek boşluk
+    t = t.replaceAll(RegExp(r'\s+'), ' ');
+    return t;
+  }
+
+  // ── QuAlsar Akademik İçerik Protokolü — ders katmanı tespiti ───────────
+  // Sayısal: Matematik, Geometri, Fizik, Kimya, Biyoloji
+  // Sözel:   Tarih, Coğrafya, Edebiyat, Felsefe, Türkçe, Sanat Tarihi,
+  //          Din Kültürü, Mantık (+ İngilizce/Yabancı Dil)
+  static String _subjectLayer(String subject) {
+    final s = subject.toLowerCase();
+    bool any(List<String> ks) => ks.any(s.contains);
+    if (any([
+      'matematik', 'math', 'geometri', 'geometry',
+      'fizik', 'physics', 'kimya', 'chem',
+      'biyoloji', 'biology',
+      '数学', '物理', '化学', '生物', '几何',
+    ])) {
+      return 'numeric';
+    }
+    if (any([
+      'tarih', 'history', 'coğraf', 'cografya', 'geograph',
+      'edebiyat', 'literature', 'türk dili', 'türkçe', 'turkish',
+      'felsefe', 'philosoph', 'sanat tarihi', 'art history',
+      'din kült', 'religion', 'mantık', 'logic',
+      'ingiliz', 'english', 'yabancı dil',
+      '历史', '地理', '文学', '哲学',
+    ])) {
+      return 'verbal';
+    }
+    return 'mixed';
+  }
+
   // ── Prompt builder — paylaşılan ─────────────────────────────────────────
   static String _buildSummaryPrompt({
     required String subject,
@@ -3448,99 +4078,393 @@ $diffLine
     required String ctx,
     required String exam,
   }) {
-    // Sayısal ders (formül odaklı uzman stili)
-    final subjLower = subject.toLowerCase();
-    final isNumeric = subjLower.contains('matematik') ||
-        subjLower.contains('math') ||
-        subjLower.contains('fizik') ||
-        subjLower.contains('physics') ||
-        subjLower.contains('kimya') ||
-        subjLower.contains('chem') ||
-        subjLower.contains('数学') ||
-        subjLower.contains('物理') ||
-        subjLower.contains('化学');
+    final layer = _subjectLayer(subject);
+    final isNumeric = layer == 'numeric';
+    final isVerbal = layer == 'verbal';
+
+    // ─── KATMAN 1 — SAYISAL: Mantık, Sembol ve Formül Disiplini ─────────────
+    final numericProtocol = '''
+[QUALSAR — AKADEMİK DERİNLİK PROTOKOLÜ · KATMAN 1: SAYISAL BRANŞ]
+Bu dersin EN YETKİN UZMANI gibi yaz: profesyonel, akıcı, otoriter.
+Hedef: YKS derecesi yapacak öğrencinin başka kaynağa ihtiyaç duymayacağı
+"Nihai Özet". Anlatım mimarisi:
+  • ATOMİK ANALİZ: Konuyu en küçük yapı taşına kadar parçala
+    (örn. çarpanlara ayırma basamakları, kuvvet bileşenleri, mol-kütle dönüşümü).
+  • MANTIK TEMELİ: "Neden?" sorusuna bilimsel yanıt.
+  • GÖRSELLEŞTİRİLMİŞ FORMÜLLER: Her formül belirgin ve açıklamalı; her
+    sembolün anlamı + BİRİMİ açıkça verilsin.
+    Örn: \\( F = m \\cdot a \\)  →  F: kuvvet (N), m: kütle (kg), a: ivme (m/s²).
+  • HÜCRELİ ANLATIM: Her formül/kuralın HEMEN ALTINDA "🧪 Uygulama Örneği"
+    ile mini bir soru çöz; çözüm adım adım (algoritmik) gösterilsin.
+  • TAMLIK İLKESİ: Sadece ana bilgi DEĞİL — istisnalar (örn. \\( 0! = 1 \\)),
+    pozitif/negatif bölenler, uç durumlar, sınavda hata yaptıran ince
+    detaylar kapsansın. Sembol galerisi: \\( \\sum, \\int, \\Delta, \\Omega, \\nabla \\) bağlamında.
+  • BİYOLOJİK SEMBOLİZM: Genetik çaprazlama (Aa × Aa → 1 AA : 2 Aa : 1 aa)
+    ve biyokimyasal formüller (\\( C_6H_{12}O_6 \\), \\( CO_2 \\), \\( H_2O \\)) kusursuz.
+''';
+
+    // ─── KATMAN 2 — SÖZEL: Anlatı, Akıcılık, Derinlik ─────────────────────
+    final verbalProtocol = '''
+[QUALSAR — AKADEMİK DERİNLİK PROTOKOLÜ · KATMAN 2: SÖZEL BRANŞ]
+Bu dersin EN YETKİN UZMANI/profesörü gibi yaz: hitabet gücüyle, akıcı,
+büyüleyici. Hedef: YKS derecesi yapacak öğrencinin başka kaynağa ihtiyaç
+duymayacağı "Nihai Özet". Anlatım mimarisi:
+  • HİYERARŞİK YAPI: Ana başlıklar → alt başlıklar → maddeler; konuyu
+    mantıksal sıraya diz, karmaşayı önle.
+  • SEBEP-SONUÇ DETAYI: Olayları kuru ezber DEĞİL, "dönemin ruhu"yla
+    sebep→sonuç zincirine yedirerek anlat — ANA BAŞLIKLARIN İÇİNDE.
+  • ENTELEKTÜEL DERİNLİK: Felsefede kavramsal analiz, edebiyatta sanatsal
+    yorum, tarihte dönemsel analiz — profesyonel dilde harmanlı.
+  • LaTeX KULLANMA — düz, akıcı Türkçe paragraf/maddeler.
+''';
+
+    final protocolBlock = isNumeric
+        ? numericProtocol
+        : isVerbal
+            ? verbalProtocol
+            : '''
+[QUALSAR — AKADEMİK DERİNLİK PROTOKOLÜ · KARMA BRANŞ]
+Konu sayısal işlem gerektiriyorsa Katman 1 (atomik analiz, görselleştirilmiş
+formüller, hücreli anlatım, tamlık ilkesi) kurallarını; kavramsal/anlatı
+ağırlıklıysa Katman 2 (hiyerarşi + sebep-sonuç + derinlik) kurallarını
+uygula. "Nihai Özet" hedefini koru.
+''';
+
+    // Ortak format zenginlikleri — her iki katman için geçerli
+    const richFormatBlock = '''
+ZENGİN FORMAT (gerektiğinde KULLAN):
+  • TABLO: Karşılaştırma/sınıflandırma gerektiren bilgiler için sade
+    Markdown tablosu (örn. asit/baz, dönem akımları, formül-birim eşleşmesi).
+  • ÖNEMLİ BİLGİ KUTUSU: Tuzak/istisna/uzman içgörüsü varsa
+    "💡 Önemli Bilgi: …" satırı ekle (UI bunu vurgulu kutuda gösterir).
+  • AKIŞ ŞEMASI: Karmaşık süreçleri (Fotosentez, Fransız İhtilali aşamaları,
+    glikoliz vb.) → ok'lu maddelerle göster:  Adım 1 → Adım 2 → Adım 3.
+  • GÖRSEL/ŞEKİL/GRAFİK ANLATIMI: Konuda bir şekil, diyagram, grafik,
+    moleküler yapı, devre, harita ya da haritalanması gereken kavramsal
+    şema varsa, bunu MUTLAKA betimle: hangi eksende ne, hangi parça ne
+    işe yarar, hangi etiket nereye düşer — öğrenci görseli zihninde
+    canlandırabilsin. Yalnız "şu grafikte görülür" deyip geçme; tüm
+    parçaları açıkla.
+  • FORMÜL DETAYI: Bir formül veriliyorsa her sembolün anlamı + birimi
+    + tipik değer aralığı + ne durumda kullanılır mutlaka belirtilsin.
+''';
+
     final formulasBlock = isNumeric
         ? '''
-📐 FORMÜLLER
-Bu ders sayısal — FORMÜLLER ZORUNLU. Bir profesör gibi davran:
-  • En az 3 tane anahtar formülü LaTeX ile ver: \\( ... \\) veya \\[ ... \\].
-  • Her formül için bir satır altına her sembolün anlamı + birimi yaz.
-  • Türetilebilir formül varsa 1-2 kısa adımda türetimi göster.
-  • Birim analizi (boyutlar) en az bir formülde açıkça yapılsın.
-  • Ondalık: virgül (3{,}14), bilim notasyonu LaTeX içinde.
+📐 FORMÜL KARTI GALERİSİ + 🧪 UYGULAMA ÖRNEĞİ
+
+Her formül için ZORUNLU "FORMÜL KARTI" yapısı (bu yapıyı bozma):
+
+🟢 **FORMÜL ADI** (örn: Newton'un 2. Yasası)
+\\[ F = m \\cdot a \\]
+📌 **Sembol Çözümü:**
+| Sembol | Tanım | Birim | Tipik Değer |
+|--------|-------|-------|-------------|
+| F      | Kuvvet | N (Newton) | 1–10⁵ |
+| m      | Kütle | kg | nesne kütlesi |
+| a      | İvme | m/s² | g=9.81 (yer) |
+
+🧠 **Şöyle Düşün:** Bir cisme ne kadar kuvvet uygularsan o kadar hızlanır;
+   ama ağırsa daha az hızlanır. F doğru orantılı m'le, ters orantılı bu nedenle
+   a = F/m olarak da yazılabilir.
+
+🧪 **Uygulama Örneği:**
+   2 kg bir cisme 10 N kuvvet uygulanırsa ivmesi nedir?
+   ▸ Adım 1: F = 10 N, m = 2 kg → \\( a = F/m \\)
+   ▸ Adım 2: \\( a = 10\\,\\mathrm{N} / 2\\,\\mathrm{kg} \\)
+   ▸ Adım 3: \\( a = 5\\,\\mathrm{m/s^2} \\) ✓ (birim doğrulaması)
+
+⚡ **Kısa Yol:** F=ma'da m sabitse F ile a doğru orantılı; F→2F olursa a→2a.
+🔴 **Tuzak:** Sürtünme varsa "net kuvvet" hesaba kat: \\( F_{net} = F - F_s \\).
+
+═══════════════════════════════════════
+
+KURAL — Bu KART YAPISINI bozmadan en az 3 anahtar formül ver:
+  • LaTeX ZORUNLU: \\( ... \\) veya \\[ ... \\]
+  • Her sembol için **TABLO** (sembol/tanım/birim/tipik değer)
+  • 🧠 Şöyle Düşün satırı (sezgisel mantık — 1-2 cümle)
+  • 🧪 Uygulama Örneği (numaralı 2-4 adım, birim takibi)
+  • ⚡ Kısa Yol veya 🔴 Tuzak (en az birini ver)
+  • Türetilebilir formülde 1-2 adım türetim göster
+  • Birim/boyut analizi en az 1 formülde açıkça yapılır
+
+ÖZEL DURUMLAR:
+  • Genetik: Aa × Aa → tablo ile (Punnett karesi: 1 AA | 2 Aa | 1 aa)
+  • Biyokimya: \\( C_6H_{12}O_6 + 6O_2 \\to 6CO_2 + 6H_2O \\) tam denklemi
+  • TAMLIK: istisnalar (\\( 0! = 1 \\)), uç durumlar (n=0, payda=0)
+    mutlaka 🔴 veya ⚪ marker'ı ile vurgulanır
+  • Ondalık virgül (3{,}14), bilim notasyonu LaTeX içinde
 '''
-        : '''
-📐 FORMÜLLER (varsa)
-Bu konu sözel ağırlıklı — formül yoksa bu bölümü TAMAMEN ATLA.
-Formül/denklem varsa LaTeX: \\( ... \\) veya \\[ ... \\].
+        : isVerbal
+            ? '''
+DETAY VE SEBEP-SONUÇ AKIŞI (formüller yerine, ana başlık içinde)
+Sözel branş — kuru ezber YERİNE detaylı bağlam ver:
+  • Sebep → Sonuç zinciri (yıllarla, en az 4-6 ok'lu adım) — ana başlığın
+    gövdesinde, AYRI BÖLÜM AÇMA.
+  • Karmaşık süreçler için akış şeması mantığı:
+      Adım 1 → Adım 2 → Adım 3 → Sonuç
+    (örn. Fransız İhtilali aşamaları, Tanzimat süreci, fotosentez evreleri).
+  • Felsefe ise: Argüman → Karşı argüman → Sentez.
+  • Karşılaştırma/sınıflandırma için sade Markdown TABLO kullan
+    (örn. dönem-akım-temsilci-eser; antlaşma-yıl-taraflar).
+  • Görselle anlatılması daha verimli olan kavram (harita, kronolojik
+    çizgi, kavramsal şema) varsa METİNLE betimle: ne nereye düşer,
+    hangi öge neyi temsil eder.
+  • LaTeX kullanma; düz metin maddeler.
+'''
+            : '''
+📐 FORMÜLLER / DETAY (varsa)
+Konu sayısalsa "🧪 Uygulama Örneği" ile hücreli anlat; sözelse sebep→sonuç
+zinciri ver. Karşılaştırma için Markdown tablo serbest. Şekil/diyagram
+varsa metinle betimle.
 ''';
 
     return '''
-[KONU ÖZETİ — SINAV ODAKLI]
+[KONU ÖZETİ — DERSHANE KİTABI TARZI]
 Ders: $subject
 Konu: $topic
 Bağlam: $ctx
 
-GÖREVİN: Bir uzman sınav koçu gibi konuyu ÖZETLE. Konuyu baştan sona
-anlatma, uzun paragraflar kurma — doğrudan sınavda çıkabilecek bilgileri
-madde madde ver. Her madde tek satır, net ve ezberlenebilir olsun.
+[AKADEMİK EDİTÖR — KATI FORMAT PROTOKOLÜ]
+Sen bir akademik editörsün. Aşağıdaki 4 kural HARFİ HARFİNE uygulanır;
+herhangi biri ihlal edilirse çıktı GEÇERSİZDİR.
 
-YAPI (aşağıdaki emoji başlıklarını BİREBİR kullan — sırayla):
+1) GÖRSEL TEMİZLİK — HAM MARKDOWN YASAK:
+   • Asla satır başında çıplak "#", "##", "###" yazma. Başlıkları sadece bu
+     promptta tanımlı YAPI (📖, 📚, ▸ 1., 🟢 vb.) ile ver.
+     Yanlış: "### Tanım"  /  Doğru: "📖 Tanım"
+   • "**" sadece **anahtar terimleri** vurgulamak için kullan; süs olarak
+     paragrafta serpiştirme. UI bold render eder; ancak fazla * → kirli görünür.
+   • Tek "*" YASAK (italik render edilmiyor → metinde yıldız kalıyor).
+     Vurgulamak istediğin kelime varsa **çift yıldız** kullan veya hiç kullanma.
+   • "—" tek tireyle veya boşluksuz "-" KULLANMA; uzun tire (–) ya da
+     "—" olarak boşluklu yaz: "Sembol — Tanım".
+   • Satır başlarında "* maddeler" değil "• maddeler" kullan (kural format).
 
-📖 KONU NEDİR?
-[TEK cümle — konu neyi ifade eder? Tanımı ver, süsleme yapma.]
+2) GELİŞMİŞ FORMÜL YAPISI — LATEX ZORUNLU:
+   • Tüm matematiksel/fiziksel/kimyasal formüller LaTeX içinde verilir.
+   • SATIR İÇİ formül: \\( ... \\)  → "ivme \\( a = F/m \\) olarak yazılır"
+   • BAĞIMSIZ formül: \\[ ... \\]  → her zaman AYRI bir satırda, önce/sonra
+     boş satır bırakılarak. Birden fazla denklem aynı satıra YAZILMAZ.
+   • Birim/sayı LaTeX dışında değil İÇİNDE: \\( a = 5\\,\\mathrm{m/s^2} \\)
+   • Düz metin "E = mc^2" YASAK — \\( E = mc^2 \\) ya da \\[ E = mc^2 \\] olur.
+   • Kimyasal denklemler de LaTeX: \\( C_6H_{12}O_6 + 6O_2 \\to 6CO_2 + 6H_2O \\)
 
-🎯 SINAVDA ÇIKAN ANAHTAR BİLGİLER
-[10-14 madde. Her madde TEK cümle. Her cümle ya kritik bir kural, ya bir
- tanım, ya bir ilişki, ya bir sayı/değer, ya bir ayırt edici özellik.
- Her satır başında konuya UYGUN bir emoji/ikon/simge olsun. Örnekler:
-   ⚛️ (atom-madde), 🧪 (tepkime), 🔬 (hücre), 📐 (geometri),
-   ⚖️ (denge/kural), 🧲 (manyetik), 📊 (veri/grafik), 🌿 (biyoloji),
-   🧬 (genetik), ⚡ (elektrik), 🌡️ (sıcaklık), 💧 (akışkan),
-   🌀 (dalga/hareket), 🔺 (üçgen), 🔸 🔹 ✦ ▸ → ◆ (genel işaret),
-   🏛️ (tarih/devlet), 📜 (anlaşma), 🗡️ (savaş), 🧭 (ilke/yön),
-   🌍 (coğrafya), 📖 (edebiyat), 🧠 (kavram), 💡 (önemli fikir),
-   📌 (kritik nokta), ❗ (istisna), 🔑 (anahtar bilgi)
- ASLA "1. 2. 3." yazma. Emojiyi maddenin içeriğiyle uyumlu seç.
- Madde uzunluğu 6-16 kelime arası — net, tam cümle.]
+3) MANTIKSAL ÇÖZÜMLEME — ADIM 1 / ADIM 2 / ADIM 3 ZORUNLU:
+   • Bir problem ya da çıkarım anlatırken sadece sonucu verme — **adımlandır**:
+       Adım 1: [verilen / başlangıç durumu]
+       Adım 2: [hangi yasa/kural/formül uygulandı + neden]
+       Adım 3: [hesaplama veya çıkarım]
+       Sonuç: [birim doğrulamasıyla birlikte]
+   • Her adımda "neden" sorusunu da cevapla: "Newton'un 2. yasasını uyguluyoruz
+     çünkü cisme net kuvvet etki ediyor." → bağlam olmadan adım atlama.
+   • En az 1 örnek problem her sayısal konuda Adım 1-2-3 yapısıyla çözülür.
+   • Sözel konularda "neden → nasıl → sonuç" zinciri aynı zorunluluk taşır.
+
+4) ÇIKTI HEDEFİ — DERS KİTABI KALİTESİ:
+   • Çıktı bir ders kitabı sayfasıdır: temiz, hiyerarşik, formülleri teknik
+     olarak hatasız.
+   • Boyut/birim hatası YASAK (\\( F = ma \\) için F→N, m→kg, a→m/s²).
+   • Ondalık ayraç olarak Türkçe virgül LaTeX içinde "{,}" yazılır:
+     \\( \\pi \\approx 3{,}14 \\). Düz metinde "3.14" değil "3,14".
+   • Hiçbir bölümü "vb. detaylar..." gibi yarım bırakma; bilgi MUTLAKA
+     somut sayı/yıl/isim/formülle desteklenir.
+
+$protocolBlock
+$richFormatBlock
+GÖREVİN: Konuyu standart bir DERSHANE KİTABINDAKİ gibi işle. Önce kısa
+tanım, ardından konuyu mantıksal ana başlıklara böl ve her ana başlığın
+altında alt başlıkları/maddeleri ver — tıpkı bir ders kitabının
+"konu işlenişi" sayfası gibi. Hedef: "Nihai Özet" kalitesi.
+
+⚠️ ÇIKTI ZORUNLU OLARAK 4 BÖLÜMÜN HEPSİNİ İÇERİR (sırayla):
+   1) 📖 Tanım
+   2) 📚 Konu İşlenişi   ← ana başlıklar + alt maddeler (asla atlama)
+   3) ${isNumeric ? '📐 Formül Galerisi + 🧪 Uygulama Örneği' : isVerbal ? '(Konu İşlenişi içine yedirilen detaylı sebep-sonuç akışı yeterli)' : '📐 Formül / Akış (varsa)'}
+   4) ⭐ Özet — 5 Bilgi
+HERHANGİ BİR BÖLÜM EKSİK OLURSA cevap GEÇERSİZDİR — özellikle "Konu
+İşlenişi" sadece tanımdan sonra durup BİTİRME, mutlaka ana başlıklarla
+devam et.
+
+İlk satır "📖 Tanım" başlığı olmalıdır; öncesinde HİÇBİR selamlama
+("Harika!", "Tabii ki", "Hemen başlayalım", "Bu konuyu inceleyelim") YOK.
+Tanım satırından sonra DOĞRUDAN "📚 Konu İşlenişi" gelir, ardından diğer
+bölümler — TÜM bölümler tamamlanana dek bitirme.
+
+ÖZEL ÇERÇEVE YOK — "⚠️ KRİTİK UYARI / 🔬 QuAlsar Notu" diye AYRI bir bölüm
+açma. Tuzak/istisna/uzman içgörüsü gerekiyorsa Konu İşlenişi içinde
+"💡 Önemli Bilgi: ..." satırı olarak inline yedir (UI bunu kutuda gösterir).
+
+YAPI (aşağıdaki başlıkları BİREBİR kullan — sırayla):
+
+📖 Tanım
+[TEK kısa cümle. Süsleme YOK, dolambaç YOK.]
+
+📚 Konu İşlenişi
+[Konunun doğal mantığına göre ${isNumeric ? '4-6' : '5-7'} ANA BAŞLIK belirle ve
+ her ana başlığın altında ${isNumeric ? '4-7' : '5-8'} alt madde ver.
+ Yapı, ders kitaplarındaki bir ünitenin DETAYLI işlenişi gibidir —
+ yüzeysel kalmaz, ezberlenecek anahtar bilgileri spesifik isimler /
+ yıllar / formüller / örneklerle besler.
+
+   ▸ 1. {Konuyla uyumlu emoji} Başlık Adı
+     • {emoji} **Anahtar Terim** — açıklama (tek cümle, somut bilgi)
+     • {emoji} **Bir başka kavram** — yıl, isim, sayı veya formül içeren cümle
+     • ...
+
+   ▸ 2. {emoji} Başlık Adı
+     • ...
+
+ BAŞLIK FORMAT KURALLARI:
+ • ANA BAŞLIK: "▸ N. {emoji} Başlık Adı" — N=1,2,3...; başlık önünde
+   konuya uygun TEK emoji + Title Case başlık (sadece kelime başları
+   büyük, TÜMÜ BÜYÜK YAZMA YASAK).
+   Doğru: "▸ 1. 📍 Matematiksel ve Özel Konum"
+          "▸ 2. ⛰️ Yeryüzü Şekilleri"
+          "▸ 3. ⚔️ Savaşın Tarafları"
+   Yanlış: "▸ 1. MATEMATIKSEL KONUM" / "▸ 1. matematiksel konum"
+ • ALT MADDE: 2 boşluk girinti + "• {emoji} **Anahtar terim** — açıklama"
+   - Anahtar terim **çift yıldız** ile (UI bold render eder).
+   - Açıklamada SOMUT bilgi: yıl, sayı, isim, yer, formül, birim.
+   - Tek cümle (8-22 kelime arası — yüzeysel değil, dolu olsun).
+
+ ZENGİNLEŞTİRİCİ ÖGELER — TEMBELLİK YASAK, gerektiğinde MUTLAKA kullan:
+
+ ▶ TABLO (KARŞILAŞTIRMA/SINIFLAMA İÇİN ZORUNLU):
+   • Aşağıdaki durumlarda MUTLAKA Markdown tablosu kullan:
+     - 2+ kavramın özelliklerini karşılaştırırken (Asit vs Baz, mitoz vs mayoz)
+     - Sınıflandırma yaparken (canlı sınıflandırması, akım/dönem/temsilciler)
+     - Formül-birim-değer eşleşmeleri (her satır: sembol | tanım | birim)
+     - Tarihsel olaylar (yıl | olay | sonuç sütunları)
+     - Bileşik özellikleri (renk, çözünürlük, pH vb.)
+   • 2-4 sütun, 3-8 satır. İlk sütun KALIN (anahtar).
+   • Tablo başlığı çok değerli olduğunda 1 cümle bağlam ver, sonra tablo.
+
+ ▶ RENK KODLU SEKSİYON ROZETLERİ (her ana başlıkta TEK rozet):
+   🔵 = TANIM/KAVRAM      — yeni bilgi tanıtımı
+   🟢 = FORMÜL/KURAL       — sayısal ilişki, fizik yasası
+   🟡 = ÖRNEK/UYGULAMA     — somut örnek, problem
+   🟣 = TARİH/AKIM         — kronoloji, dönemsel bilgi
+   🔴 = TUZAK/UYARI        — sınavda hata yaptıran ince nokta
+   🟠 = SEBEP-SONUÇ        — neden→nasıl→sonuç zinciri
+   ⚪ = İSTİSNA/UÇ DURUM   — kuralın geçersiz olduğu hâl
+   Örn: "▸ 3. 🟢 Newton'un 2. Yasası" — F=ma'yı işliyorsa 🟢
+        "▸ 4. 🔴 Sınav Tuzakları" — sık yapılan hatalar 🔴
+
+ ▶ PEDAGOJİK İÇGÖRÜ MARKER'LARI (inline, paragraf ortasında):
+   💡 Önemli Bilgi: ...     → vurgulu kutu (uzman içgörüsü)
+   🎓 Püf Nokta: ...         → öğrencinin atlayacağı kritik detay
+   ⚡ Kısa Yol: ...          → sınavda zaman kazandıran shortcut
+   📦 Hatırlatma: ...        → mavi çerçeveli inline not
+   🧠 Şöyle Düşün: ...       → mantık temelini sezgisel açıklama
+   🔍 Dikkat: ...            → çeldirici / yanıltıcı seçenek uyarısı
+   Hepsi tek satır + bir tane "..." içerikle. Birden fazla marker'ı
+   üst üste KULLANMA — bilgi seyreltme yapar.
+
+ ▶ ŞEKİL/GRAFİK/DİYAGRAM BETİMLEMESİ:
+   Konuda diyagram, grafik, harita, moleküler yapı, devre vb. kavramsal
+   şema varsa, parça parça METİNLE betimle:
+     • Eksenler (x: zaman, y: hız)
+     • Etiketler (her noktada ne yazıyor)
+     • Renkli alanlar (mavi: katı, yeşil: gaz)
+     • Hangi parça ne işe yarar
+   Sadece "şu grafikte görülür" deyip GEÇME.
+
+ ▶ AKIŞ ŞEMASI (süreç/aşama için):
+   "Adım 1 → Adım 2 → Adım 3 → Sonuç" oklu zincir.
+   Karmaşık süreçlerde dallanma:
+     Reaktif → [hız belirleyen] → Aktif kompleks → Ürün
+                                     ↓
+                                 [yan ürün]
+
+ ${isNumeric ? 'SAYISAL ÖZEL: Her ana başlıkta mümkünse 1 formül kutusu \\\\[ ... \\\\] '
+        've altında "🧪 Uygulama Örneği:" ile 2-4 adımlık mini çözüm. Sembol+birim eksiksiz.' : ''}
+ ${isVerbal ? 'SÖZEL ÖZEL: Tarih kronolojik akış (yıl→yıl); edebiyat dönem→akım→'
+        'temsilci→eser→özellik silsilesi; felsefe kavram→argüman→eleştiri. '
+        'Her ana başlıkta en az 1 spesifik tarih/yer/isim geçsin.' : ''}
+ ${!isNumeric && !isVerbal ? 'KARMA: yapıyı konuya göre seç.' : ''}
+
+ KAPSAM: Yüzeysel listeleme YASAK. Bir öğrenci bu özeti okuduğunda
+ KONUYU TAMAMEN öğrenmiş olmalı; başka kaynağa ihtiyaç DUYMAMALI.]
 
 $formulasBlock
 
-⭐ EN ÖNEMLİ 5 BİLGİ
-[Yukarıdaki listeden EN kritik 5'ini bir daha, daha güçlü ve özlü
- formüle ederek ver. Her satırın başında emoji/ikon. Numara YAZMA.
- Örnek:
-   🔑 [kritik bilgi 1]
-   🔑 [kritik bilgi 2]
-   ...
- Bunlar olmadan sınavda başarı imkansız denecek kadar kritik bilgiler.]
+⭐ Özet — 5 Bilgi
+[Konunun en önemli 5 bilgisini DOĞRUDAN bilgi cümlesi olarak ver.
+ META YORUM YASAK: "bunu bilmen önemli", "sınavda işine yarar",
+ "akılda tut" gibi cümleler yazma. Sadece bilgi.
+
+ Format — her satır başında BİLGİ TÜRÜNE GÖRE ikon, sonra DOĞRUDAN bilgi:
+   🔑 = anahtar tanım/kavram
+   📐 = formül/sayısal değer
+   📅 = tarih/kronoloji
+   🧬 = bilimsel olgu/yasa
+   ⚖️ = ilke/kural
+   🎯 = sınav-kritik bilgi
+   🌍 = bağlam/yer/coğrafya
+
+ Örnekler (her madde tek cümle, 8-20 kelime):
+   📐 **Pisagor:** \\( a^2 + b^2 = c^2 \\), dik üçgenin hipotenüs ilişkisi.
+   🧬 **DNA** çift sarmal yapıdadır; iki zincir antiparalel uzanır.
+   📅 **Lozan Antlaşması** 24 Temmuz 1923'te imzalandı, 18 maddedir.
+   ⚖️ **Newton'un 3. Yasası:** her etkiye eşit ve zıt bir tepki vardır.
+   🎯 **YKS Tuzağı:** Mol kavramında Avogadro sayısı 6,022×10²³ — bunu unutma.
+
+ ${isNumeric ? 'Sayısal: formül / sayısal değer / sembol + birim; mümkünse LaTeX kutu.' : ''}
+ ${isVerbal ? 'Sözel: yıl / yazar-eser / kavram-tanım / sebep-sonuç çekirdeği.' : ''}
+ TAM 5 madde, ne eksik ne fazla. İkonlar ÇEŞİTLİ olsun — hepsi 🔑 olmasın.
+ Bu son bölümdür — sonrasına hiçbir şey yazma; "📌 Özetle" gibi kapanış
+ paragrafı, "Sonuç:" başlığı, ek yorum YOK.]
 
 ═══════════════════════════════════════════════════════
 KATI KURALLAR (bozarsan cevap geçersiz):
-• Paragraf yazma — her cümle ayrı madde olsun.
-• Örnek gösterme, dikkat/uyarı bölümü yazma, alt başlık (1️⃣ 2️⃣) KULLANMA.
-• ASLA markdown yıldız (**metin**, *metin*) kullanma.
-• Markdown başlık işareti (#) kullanma.
-• DOLAR işareti (\$) çıktıda HİÇ olmayacak — ne para ne sınırlayıcı.
+• ÇIKTI "📖 Tanım" satırıyla BAŞLAR. Öncesinde tek kelime selamlama,
+  "Harika", "Tabii", "Hemen başlayalım", "Bu konuya bakalım" YASAK.
+• "📚 Konu İşlenişi" bölümünde ana başlık → alt madde hiyerarşisi ZORUNLU.
+• ⭐ Özet bölümünde "bunu bilmen önemli", "sınavda çıkar", "akılda tut" gibi
+  meta yorum YASAK — sadece doğrudan bilgi cümleleri.
+• Markdown bold (**metin**) SERBEST — UI bold render eder; sadece
+  anahtar terimleri vurgulamak için kullan, paragraf süslemesi YOK.
+• Markdown italic tek yıldız (*metin*) KULLANMA.
+• Markdown başlık işareti (#) kullanma; tablo Markdown'u serbest.
+• DOLAR işareti (\$) çıktıda HİÇ olmayacak.
   LaTeX için SADECE \\( ... \\) ve \\[ ... \\] kullan.
 • Konu adını başlık olarak tekrar etme.
-• Madde listelerinde "1." "2." "(1)" YAZMA — her satır başı konuya uygun
-  emoji/ikon/simge: → ▸ ◆ ✦ 🔸 💡 📌 ⚛️ 🧪 📊 ⚙️ ⚖️ 🧲 🔑 vs.
-• ⭐ EN ÖNEMLİ 5 BİLGİ bölümü ZORUNLU — tam 5 madde, emoji başlı.
-• Toplam uzunluk 18-28 satır — kısa, yoğun, sınava odaklı.
-• Türkçe yaz. $exam mantığına uygun, sınav çıkma ihtimali yüksek bilgiler.
+• "⚠️ KRİTİK UYARI / 🔬 QuAlsar Notu" diye AYRI BAŞLIK AÇMA — yasak.
+  Tuzak/istisna/içgörü için sadece inline "💡 Önemli Bilgi: …" kullan.
+• ⭐ Özet — 5 Bilgi bölümü ZORUNLU — tam 5 madde, 🔑 başlı; çıktının
+  son bölümüdür, sonrasına hiçbir şey yazma.
+• "📌 Özetle" / kapanış paragrafı / "Sonuç:" YASAK — ekleme.
+• Toplam uzunluk ${isVerbal ? '70-110' : '60-95'} satır — derinlikli Nihai Özet, dolgu yok.
+• Türkçe yaz. $exam mantığına uygun, ders kitabı işlenişine sadık.
 • YouTube/Web/kaynak önerisi EKLEME. [VIDEO:] ve [WEB:] yok.
+${isNumeric ? '• Her sayısal tanımda sembol + BİRİM birlikte verilsin (boyut analizi).' : ''}
+${isVerbal ? '• Tarihte yıl, edebiyatta yazar/eser/dönem, felsefede filozof/akım adı eksiksiz.' : ''}
 ''';
   }
 
-  // Markdown yıldızlarını temizle
+  // Markdown yıldızlarını temizle + giriş paragrafını kırp
   String _stripMarkdown(String s) {
-    return s
-        .replaceAll(RegExp(r'\*\*([^*]+)\*\*'), r'$1')
-        .replaceAll(RegExp(r'\*([^*]+)\*'), r'$1')
+    // **bold** KORUNUR (UI inline bold render eder).
+    // Sadece tek-yıldız italic ve markdown başlıkları temizlenir.
+    var out = s.replaceAllMapped(
+      RegExp(r'(?<![\\\w*])\*([^*\n]+)\*(?!\w|\*)'),
+      (m) => m.group(1) ?? '',
+    );
+    out = out
         .replaceAll('###', '')
         .replaceAll('##', '')
         .replaceAll('# ', '');
+    // AI giriş cümlesi yazmışsa "📖 Tanım" / "📚" gibi ilk başlık satırından
+    // önceki giriş paragrafını kırp.
+    final firstHeader = RegExp(
+      r'(📖[^\n]*|📚[^\n]*|🎯[^\n]*|📐[^\n]*|🌊[^\n]*|⭐[^\n]*|📌[^\n]*)',
+    );
+    final m = firstHeader.firstMatch(out);
+    if (m != null && m.start > 0) {
+      out = out.substring(m.start);
+    }
+    return out.trimLeft();
   }
 
   Future<void> _deleteSubject(_Subject s) async {
@@ -3642,6 +4566,9 @@ KATI KURALLAR (bozarsan cevap geçersiz):
           builder: (_) => _SubjectDetailPage(
             subject: s,
             mode: widget.mode,
+            // Planner'da bu ders kartı renklendirilmişse, açılan sayfa da
+            // aynı zemin rengiyle başlasın — kayıtlı renk kalıcı kabul edilir.
+            pageBg: _summaryCardColors[s.id],
             onAddTopic: (topic) =>
                 _generateForExistingSubject(s, topic),
             onDelete: (sum) async {
@@ -3686,6 +4613,25 @@ KATI KURALLAR (bozarsan cevap geçersiz):
     ));
   }
 
+  // Hata mesajı + Tekrar Dene aksiyonu olan snack — AI çağrıları için.
+  // En fazla 5 saniye ekranda kalır, sonra otomatik kaybolur.
+  void _showRetrySnack(String msg, VoidCallback onRetry) {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(SnackBar(
+      content: Text(msg),
+      behavior: SnackBarBehavior.floating,
+      duration: const Duration(seconds: 5),
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      action: SnackBarAction(
+        label: 'Tekrar Dene'.tr(),
+        textColor: const Color(0xFFFFB74D),
+        onPressed: onRetry,
+      ),
+    ));
+  }
+
   // ── UI ───────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
@@ -3700,16 +4646,14 @@ KATI KURALLAR (bozarsan cevap geçersiz):
             backgroundColor: pageBg,
             elevation: 0,
             foregroundColor: Colors.black,
-            title: Text(
-              _title,
-              style: GoogleFonts.poppins(
-                  fontSize: 17, fontWeight: FontWeight.w800),
-            ),
+            // Sayfa başlığı kaldırıldı; sadece sağdaki Renk Seç + (?) kalır.
+            titleSpacing: 0,
+            title: const SizedBox.shrink(),
             actions: [
               // Renkli "🎨 Renk Seç" pill — sağ üstte belirgin.
               Padding(
-                padding: const EdgeInsets.symmetric(
-                    vertical: 8, horizontal: 12),
+                padding: const EdgeInsets.only(
+                    top: 8, bottom: 8, left: 12, right: 6),
                 child: GestureDetector(
                   onTap: () => setState(
                       () => _showColorPicker = !_showColorPicker),
@@ -3764,6 +4708,12 @@ KATI KURALLAR (bozarsan cevap geçersiz):
                   ),
                 ),
               ),
+              // Sayfa rehberi (?) — Renk Seç pill'inin sağında, aynı hizada.
+              Padding(
+                padding: const EdgeInsets.only(
+                    top: 8, bottom: 8, left: 0, right: 12),
+                child: Center(child: _buildHelpButton()),
+              ),
             ],
           ),
           body: Column(
@@ -3805,10 +4755,11 @@ KATI KURALLAR (bozarsan cevap geçersiz):
             child: Material(
               color: Colors.white,
               child: QuAlsarNumericLoader(
-                primaryText: widget.mode == LibraryMode.questions
-                    ? 'Test Sorularınız Oluşturuluyor'.tr()
-                    : 'Özet Oluşturuluyor'.tr(),
-                staticLabel: true,
+                stages: buildGenStages(
+                  subject: _generatingSubject,
+                  topic: _generatingTopic,
+                  isQuestions: widget.mode == LibraryMode.questions,
+                ),
               ),
             ),
           ),
@@ -3817,23 +4768,464 @@ KATI KURALLAR (bozarsan cevap geçersiz):
   }
 
   Widget _buildCardsRow() {
-    // Artık boş (+) kartlar yok — sadece oluşturulmuş dersler gösterilir
-    if (_subjects.isEmpty) return const SizedBox.shrink();
-    final cells = <Widget>[];
-    for (var i = 0; i < _subjects.length && i < _cardSlots; i++) {
-      cells.add(Expanded(child: _subjectCard(_subjects[i])));
-      if (i < _cardSlots - 1 && i < _subjects.length - 1) {
-        cells.add(const SizedBox(width: 10));
-      }
-    }
-    // 3'ten az ders varsa kalan alanı boş aspect ratio ile doldur (grid bozulmasın)
-    while (cells.length < (_cardSlots * 2 - 1)) {
-      if (cells.isNotEmpty && cells.last is! SizedBox) {
-        cells.add(const SizedBox(width: 10));
-      }
-      cells.add(const Expanded(child: SizedBox()));
-    }
-    return Row(children: cells);
+    // Her dersin kendi mini "sayfası" var — başlığın altında o dersin TÜM
+    // konu özetleri/testleri listelenir. Sayfalar 3 sütunda Wrap ile dizilir;
+    // 4+ ders olduğunda alt satıra (soldan başlayarak) sarar.
+    final shown = _subjects.where((s) => s.summaries.isNotEmpty).toList();
+    if (shown.isEmpty) return const SizedBox.shrink();
+    return LayoutBuilder(
+      builder: (ctx, constraints) {
+        const cols = _cardSlots; // 3
+        const spacing = 10.0;
+        final cellWidth =
+            (constraints.maxWidth - spacing * (cols - 1)) / cols;
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            for (final s in shown)
+              SizedBox(
+                width: cellWidth,
+                child: _subjectPageTile(s),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Bir dersin "sayfası" — başlık + alt alta tüm konu özetleri (testler).
+  // Çerçeve SABİT BOYUT: yatay 3 / dikey 5 oran (aspectRatio = 0.6) — kaç
+  // konu olursa olsun tüm sayfalar aynı görünür; içerik fazlaysa konu
+  // listesi tile içinde dikey kaydırılır.
+  Widget _subjectPageTile(_Subject s) {
+    final isQuestions = widget.mode == LibraryMode.questions;
+    final custom = _summaryCardColors[s.id];
+    final bg = custom ?? Colors.white;
+    final lum = (0.299 * bg.r + 0.587 * bg.g + 0.114 * bg.b);
+    final isDark = lum < 0.55;
+    final ink = isDark ? Colors.white : Colors.black;
+    final inkMute = isDark ? Colors.white70 : Colors.black54;
+    final divider = isDark ? Colors.white24 : Colors.black12;
+    return DragTarget<Color>(
+      onWillAcceptWithDetails: (_) => true,
+      onAcceptWithDetails: (d) =>
+          _applyColorToSummaryCard(s.id, d.data),
+      builder: (ctx, cand, _) {
+        final hovering = cand.isNotEmpty;
+        return AspectRatio(
+          aspectRatio: 3 / 5, // yatay 3 : dikey 5
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: hovering ? _orange : Colors.black12,
+                width: hovering ? 2 : 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            // TÜM tile tıklanabilir — header'a, divider'a, boş alana
+            // basılınca dersin liste detay sayfası açılır. Konu satırları
+            // kendi InkWell'lerini taşıdığı için inner tap onlara gider.
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () => _openSubject(s),
+                onLongPress: () => _deleteSubject(s),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 10, 8, 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              s.name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.poppins(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w800,
+                                color: ink,
+                                height: 1.1,
+                              ),
+                            ),
+                          ),
+                          Icon(Icons.chevron_right_rounded,
+                              size: 16,
+                              color: ink.withValues(alpha: 0.55)),
+                        ],
+                      ),
+                    ),
+                    Container(height: 1, color: divider),
+                    // ── Konu özetleri listesi — kalan alanı doldurur, fazla
+                    //    içerik kaydırılabilir. Tile her zaman aynı boyut.
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 6),
+                        physics: const ClampingScrollPhysics(),
+                        children: [
+                          for (final sum in s.summaries)
+                            _topicSummaryRow(
+                                s, sum, isQuestions, ink, inkMute),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Tek bir konu satırı — özet adına bas → o özet açılır
+  // (test modunda son denemeyi açar). Uzun bas → o özeti sil.
+  Widget _topicSummaryRow(
+    _Subject s,
+    _Summary sum,
+    bool isQuestions,
+    Color ink,
+    Color inkMute,
+  ) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () {
+          if (isQuestions) {
+            // Son attempt'ı aç — _openSummary mantığı zaten bu fallback'i yapıyor
+            _openSummary(sum, s.name);
+          } else {
+            _openSummary(sum, s.name);
+          }
+        },
+        onLongPress: () async {
+          final ok = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: Text(sum.topic,
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w800)),
+              content: Text(
+                isQuestions
+                    ? 'Bu test setini silmek ister misin?'.tr()
+                    : 'Bu özeti silmek ister misin?'.tr(),
+                style: GoogleFonts.poppins(),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: Text('İptal'.tr()),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  child: Text('Sil'.tr(),
+                      style: const TextStyle(color: Colors.red)),
+                ),
+              ],
+            ),
+          );
+          if (ok != true || !mounted) return;
+          setState(() {
+            s.summaries.removeWhere((x) => x.id == sum.id);
+          });
+          await _persistSubjects();
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+          child: Row(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 1, right: 4),
+                child: Text(
+                  '•',
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    color: ink,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  sum.topic,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: inkMute,
+                    height: 1.2,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ═══ Sayfa rehberi (?) — Renk Seç pill'inin altında küçük yuvarlak buton.
+  //   Basınca sayfanın nasıl çalıştığını anlatan dialog açılır.
+  Widget _buildHelpButton() {
+    return Material(
+      color: Colors.white,
+      shape: const CircleBorder(),
+      elevation: 1.5,
+      shadowColor: Colors.black.withValues(alpha: 0.18),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: _showHelpDialog,
+        child: Container(
+          width: 30,
+          height: 30,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.black, width: 1),
+          ),
+          child: const Icon(
+            Icons.question_mark_rounded,
+            size: 16,
+            color: Colors.black,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showHelpDialog() async {
+    final isQuestions = widget.mode == LibraryMode.questions;
+    final pageLabel = isQuestions
+        ? 'Sınav Soruları'.tr()
+        : 'Konu Özetleri'.tr();
+    final outputWord = isQuestions ? 'test sorularını' : 'özetini';
+    final limitLine = isQuestions
+        ? 'Her dersin her konusu için en fazla 3 test hakkın var. 3. denemen bittikten sonra aynı konudan yeni test üretemezsin; başka bir konu seçebilirsin.'
+        : 'Bir ay içinde aynı dersten en fazla 4 konu özeti çıkarabilirsin. Limit dolduğunda bekle, yeni ay başında sayaç sıfırlanır. İstediğin kadar farklı dersle çalışabilirsin — toplam ders sayısı sınırsız.';
+    final steps = <(String, String, String)>[
+      (
+        '1',
+        'Ders seç'.tr(),
+        'Üstteki çerçevede tüm derslerin listelenir. Bir derse basarak o dersin müfredat konuları açılır. İstediğin dersten ${outputWord.replaceAll('ını', 'ı')} çıkarabilirsin — ders sayısı limitsiz.'
+            .tr(),
+      ),
+      (
+        '2',
+        'Dersleri sıralarken sürükle-bırak'.tr(),
+        'Bir derse PARMAĞINI BASILI TUT, sürükleyip başka bir dersin üzerine bırak — iki dersin yeri yer değiştirir. Sıralaman cihazına kayıtlı kalır.'
+            .tr(),
+      ),
+      (
+        '3',
+        'Konu seç veya kendin yaz'.tr(),
+        'Açılan ekranda müfredat konuları listelenir. Bir konuya basınca AI o konunun ${isQuestions ? "test sorularını" : "özetini"} oluşturur. Konu listede yoksa, alttaki "Yeni Konu Ekle" alanına başlığı yazıp Kaydet\'e bas — kendi konunun $outputWord aynı kalitede üretilir.'
+            .tr(),
+      ),
+      (
+        '4',
+        '${isQuestions ? "Test" : "Özet"} kütüphanen — her dersin kendi sayfası'.tr(),
+        '${isQuestions ? "Test soruları" : "Özet"} oluşturduğun her ders, sayfanın altında KENDİ MİNİ SAYFASINI alır. Sayfalar 3\'lü grid hâlinde dizilir; 4. dersi eklediğinde yeni satıra (soldan başlayarak) sarar. Her sayfada ders adının altında o derse ait TÜM ${isQuestions ? "test denemeleri" : "konu özetleri"} alt alta listelenir. Bir konuya basınca doğrudan o ${isQuestions ? "test denemesine" : "özete"} gidersin; ders başlığına basarsan tüm liste detayını açan ders sayfasına ulaşırsın.'
+            .tr(),
+      ),
+      (
+        '5',
+        'Aylık limit'.tr(),
+        limitLine.tr(),
+      ),
+      (
+        '6',
+        'Renk Seç paleti — sayfayı kişiselleştir'.tr(),
+        'Sağ üstteki renkli "Renk Seç" pill\'ine bas — palet açılır. 3 hedef arasından seç (Arka plan / Çerçeve / Ders alanı) ve modu belirle (Yazı rengi mi, Çerçeve/zemin rengi mi). Sonra paletten bir rengi PARMAĞINLA SÜRÜKLEYİP istediğin alana bırak — anında uygulanır. Tek bir ders sayfasına ya da manuel ders çerçevesine renk sürükleyerek özel renk de verebilirsin.'
+            .tr(),
+      ),
+      (
+        '7',
+        'Uzun basma kısayolları'.tr(),
+        'Bir ders sayfasının BAŞLIĞINA uzun bas → o dersi tamamen silebilirsin. Sayfa içindeki bir ${isQuestions ? "test" : "özet"} satırına uzun bas → o ${isQuestions ? "testi" : "özeti"} silme onayı çıkar. Kendi eklediğin özel bir derse (üstteki ders ızgarasında) uzun bas → dersi listeden kaldırabilirsin.'
+            .tr(),
+      ),
+      if (!isQuestions)
+        (
+          '8',
+          'Özet ekranını da renklendirebilirsin'.tr(),
+          'Bir özete girince, içerideki ekran da kendi renk paletine sahip — başlık çerçevesi, kart zemini ve yazı rengini bağımsız değiştirebilirsin. Her özet kendi ayarlarını saklar.'
+              .tr(),
+        ),
+    ];
+    await showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.55),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 460,
+            maxHeight: MediaQuery.of(context).size.height * 0.82,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.black, width: 1),
+                      ),
+                      child: const Icon(
+                        Icons.question_mark_rounded,
+                        size: 18,
+                        color: Colors.black,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '$pageLabel — ${'Bu sayfa nasıl çalışır?'.tr()}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.black,
+                        ),
+                      ),
+                    ),
+                    Material(
+                      color: Colors.white,
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: () => Navigator.of(ctx).pop(),
+                        child: const Padding(
+                          padding: EdgeInsets.all(4),
+                          child: Icon(Icons.close_rounded,
+                              size: 18, color: Colors.black54),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Container(height: 1, color: Colors.black12),
+                const SizedBox(height: 14),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (var i = 0; i < steps.length; i++) ...[
+                          if (i > 0) const SizedBox(height: 12),
+                          _helpStep(steps[i].$1, steps[i].$2, steps[i].$3),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(ctx).pop(),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 9),
+                      decoration: BoxDecoration(
+                        color: Colors.black,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        'Anladım'.tr(),
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _helpStep(String n, String title, String body) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 24,
+          height: 24,
+          alignment: Alignment.center,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.black,
+          ),
+          child: Text(
+            n,
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.black,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                body,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black87,
+                  height: 1.35,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   // ignore: unused_element
@@ -4048,191 +5440,99 @@ KATI KURALLAR (bozarsan cevap geçersiz):
   }
 
 
+  // Loader için aşama listesi — konuyu cümleye yedirir, 3 satır birikimli.
+  // Test ve özet için ayrı şablon; konu boşsa "Bu konu" fallback'i.
+  static List<String> buildGenStages({
+    required String subject,
+    required String topic,
+    required bool isQuestions,
+  }) {
+    final t = topic.trim().isEmpty ? 'Konu' : topic.trim();
+    if (isQuestions) {
+      return [
+        '$t analiz ediliyor',
+        '$t için sorular hazırlanıyor',
+        'Neredeyse hazır',
+      ];
+    }
+    return [
+      '$t analiz ediliyor',
+      '$t konusu özetleniyor',
+      'Neredeyse hazır',
+    ];
+  }
+
+  // Her kelimenin baş harfini büyütür. Türkçe "i" → "İ", "ı" → "I" özel
+  // dönüşümü doğru çalışsın diye küçük "i"yi açıkça ele alır.
+  String _toTitleCase(String s) {
+    return s.split(RegExp(r'\s+')).map((w) {
+      if (w.isEmpty) return w;
+      final first = w[0];
+      String upper;
+      if (first == 'i') {
+        upper = 'İ';
+      } else if (first == 'ı') {
+        upper = 'I';
+      } else {
+        upper = first.toUpperCase();
+      }
+      return '$upper${w.substring(1)}';
+    }).join(' ');
+  }
+
   Widget _buildInlineAddPanel() {
-    final remaining = _monthlyLimit - _monthUsed;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ═══ Aylık kullanım rozeti — çok küçük, sağa yaslı ═══
-        if (_inlineProfile != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6, left: 4, right: 4),
-            child: Row(
-              children: [
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 6, vertical: 1.5),
-                  decoration: BoxDecoration(
-                    color: _orange.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(100),
-                    border: Border.all(color: _orange, width: 0.8),
-                  ),
-                  child: Text(
-                    '$remaining / $_monthlyLimit',
-                    style: GoogleFonts.poppins(
-                      fontSize: 8.5,
-                      fontWeight: FontWeight.w800,
-                      color: _orange,
-                      height: 1.1,
-                    ),
-                  ),
-                ),
-              ],
+        // ═══ Çerçevenin ÜSTÜ — yalnız başlık pill'i (Title Case, siyah).
+        //    Eğitim seviyesi ve hak sayacı kaldırıldı; başlık tam genişlikte
+        //    görünür, kırpılmaz.
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8, left: 4, right: 4),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(50),
+              border: Border.all(color: Colors.black, width: 1.2),
+            ),
+            child: Text(
+              _toTitleCase(_headline),
+              maxLines: 2,
+              softWrap: true,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: Colors.black,
+                height: 1.2,
+              ),
             ),
           ),
-        // ═══ Çerçeve: beyaz arka plan, ince siyah (kullanıcı renk
-        //    seçerse _frameOverride uygulanır). DragTarget<Color> olduğu
-        //    için renk paletinden sürükle-bırak ile de boyanabilir.
-        // Stack ile sarmalandı: çerçevenin DIŞINDA, sol üstte seviye etiketi.
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
+        ),
+        // ═══ Çerçeve — yalnız ders kareleri (iç başlık kaldırıldı) ═══
         DragTarget<Color>(
-          onWillAcceptWithDetails: (_) => _colorTarget == 'frame' || _showColorPicker,
+          onWillAcceptWithDetails: (_) =>
+              _colorTarget == 'frame' || _showColorPicker,
           onAcceptWithDetails: (d) => _applyColorTo('frame', d.data),
           builder: (ctx, cand, _) {
             final hovering = cand.isNotEmpty;
             return Container(
-          decoration: BoxDecoration(
-            color: _frameOverride ?? Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: hovering ? _orange : Colors.black,
-              width: hovering ? 2 : 1,
-            ),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // ═══ Başlık — ORTADA, BÜYÜK, TEK SATIR, altında dar çizgi ═══
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-                child: Center(
-                  child: IntrinsicWidth(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          _headline,
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          softWrap: false,
-                          overflow: TextOverflow.fade,
-                          style: GoogleFonts.poppins(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w800,
-                            color: _frameTextOverride ?? Colors.black,
-                            height: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        // Sadece yazının altında — ince siyah çizgi
-                        Container(
-                            height: 0.8,
-                            color: _frameTextOverride ?? Colors.black),
-                      ],
-                    ),
-                  ),
+              decoration: BoxDecoration(
+                color: _frameOverride ?? Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: hovering ? _orange : Colors.black,
+                  width: hovering ? 2 : 1,
                 ),
               ),
-              Padding(
+              clipBehavior: Clip.antiAlias,
+              child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // ═══ Ders seçimi ═══
-                    _buildInlineSubjectGrid(),
-          const SizedBox(height: 10),
-          // ═══ "Kendim yazayım" — özel ders adı (ister manuel, ister grid seçim) ═══
-          if (_inlineCustomMode) ...[
-            const SizedBox(height: 6),
-            TextField(
-              controller: _inlineCustomSubjectCtrl,
-              textCapitalization: TextCapitalization.sentences,
-              style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
-              cursorColor: Colors.black,
-              decoration: _inputDec(localeService.tr('subject_title_hint')),
-              onSubmitted: (val) {
-                final name = val.trim();
-                if (name.isEmpty) return;
-                _openSubjectTopicsDialog(
-                  customName: name,
-                  customEmoji: '📚',
-                );
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: () => setState(() => _inlineCustomMode = !_inlineCustomMode),
-              icon: Icon(
-                _inlineCustomMode ? Icons.grid_view_rounded : Icons.edit_rounded,
-                size: 14,
-                color: Colors.black,
+                child: _buildInlineSubjectGrid(),
               ),
-              label: Text(
-                _inlineCustomMode ? 'Listeden seç' : 'Kendim yazayım',
-                style: GoogleFonts.poppins(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.black,
-                ),
-              ),
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(999),
-                  side: const BorderSide(color: Colors.black, width: 1),
-                ),
-              ),
-            ),
-          ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
+            );
           },
-        ),
-            // Sol üstte seviye etiketi — çerçevenin TAMAMEN ÜSTÜNDE
-            // (çerçeve çizgisi altında temiz kalır, etiket çizgiyle binmez).
-            if (_profileBadgeText() != null)
-              Positioned(
-                top: -26,
-                left: 14,
-                child: IgnorePointer(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _orange.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(50),
-                      border: Border.all(
-                        color: _orange.withValues(alpha: 0.55),
-                        width: 1.2,
-                      ),
-                    ),
-                    child: Text(
-                      _profileBadgeText()!,
-                      style: GoogleFonts.poppins(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: _orange,
-                        height: 1.1,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
         ),
       ],
     );
@@ -4240,71 +5540,99 @@ KATI KURALLAR (bozarsan cevap geçersiz):
 
   Widget _buildInlineSubjectGrid() {
     if (_inlineEduSubjects.isEmpty) {
+      // Profile yoksa "Yükleniyor…" yerine kullanıcıyı yönlendir — eğitim
+      // profili olmadan müfredat üretilemiyor.
+      final hasProfile = _inlineProfile != null;
       return Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: Colors.grey.shade100,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Center(
-          child: Text('Yükleniyor…'.tr(),
-              style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade600)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (hasProfile)
+              Text('Yükleniyor…'.tr(),
+                  style: GoogleFonts.poppins(
+                      fontSize: 12, color: Colors.grey.shade600))
+            else ...[
+              const Icon(Icons.school_rounded,
+                  size: 28, color: Colors.black54),
+              const SizedBox(height: 8),
+              Text(
+                'Eğitim profilini ayarla'.tr(),
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.black,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Konu özeti üretmek için önce sınıf/seviye/alanını seçmen gerekir.'
+                    .tr(),
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  color: Colors.black54,
+                  height: 1.3,
+                ),
+              ),
+              const SizedBox(height: 10),
+              GestureDetector(
+                onTap: () async {
+                  await Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => EducationSetupScreen(
+                      trialEntryNumber: 1,
+                      onSaved: () => Navigator.of(context).maybePop(),
+                    ),
+                  ));
+                  // Profil set edildikten sonra inline grid'i yeniden yükle
+                  final p = await EduProfile.load();
+                  if (!mounted) return;
+                  setState(() {
+                    _inlineProfile = p;
+                    _inlineEduSubjects = _subjectsForProfileAllTracks(p);
+                  });
+                  _loadSubjectOrder();
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    'Profili Aç'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       );
     }
-    // Sadece ilk 8 ders burada; kalanlar alt "Diğer Dersler" sheet'inde
-    final visible = _inlineEduSubjects.take(8).toList();
-    final hasMore = _inlineEduSubjects.length > 8;
+    // İlk 12 ders burada (3x4 ızgara); kalanlar alt "Diğer Dersler" sheet'inde
+    final visible = _inlineEduSubjects.take(12).toList();
+    // "Diğer Dersler" sheet'ine geçiş koşulu: ister müfredat 13+, ister
+    // manuel ders 5+ olsun.
+    final hasMore = _inlineEduSubjects.length > 12 || _customSubjects.length > 4;
+    // Kullanıcının eklediği özel dersler her zaman görünür (en sonda).
+    // Manuel ders çerçevesinde sadece ilk 4 görünür; fazlası "Diğer
+    // Dersler" sheet'inde listelenir.
+    final customVisible = _customSubjects.take(4).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Toplu offline indir bar — kullanıcının aktif profilindeki tüm
-        // dersleri AI'dan çekip cihaza kaydeder; çevrimdışı kullanım için.
-        if (_inlineProfile != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: GestureDetector(
-              onTap: () {
-                final p = _inlineProfile;
-                if (p == null || _inlineEduSubjects.isEmpty) return;
-                OfflineDownloadSheet.show(
-                  context,
-                  subjects: _inlineEduSubjects,
-                  profile: p,
-                );
-              },
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF3B82F6).withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: const Color(0xFF3B82F6).withValues(alpha: 0.35),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.cloud_download_rounded,
-                        size: 16, color: Color(0xFF3B82F6)),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Çevrimdışı için indir',
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF1E40AF),
-                        ),
-                      ),
-                    ),
-                    const Icon(Icons.chevron_right_rounded,
-                        size: 18, color: Color(0xFF3B82F6)),
-                  ],
-                ),
-              ),
-            ),
-          ),
+        // ── Ders ızgarası — TAM 12 hücre (3 satır × 4) — son satırda yalnız
+        //    1 hücre kalmasın diye "+ Yeni Ders Ekle" grid'in DIŞINA alındı.
         GridView.count(
           crossAxisCount: 4,
           mainAxisSpacing: 8,
@@ -4316,6 +5644,13 @@ KATI KURALLAR (bozarsan cevap geçersiz):
             for (final s in visible) _subjectGridTile(s),
           ],
         ),
+        // ── "Yeni Ders Ekle" — tam genişlikte buton, grid altında.
+        const SizedBox(height: 10),
+        _wideAddSubjectButton(),
+        if (customVisible.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _customSubjectsFrame(customVisible),
+        ],
         if (hasMore) ...[
           const SizedBox(height: 10),
           GestureDetector(
@@ -4346,6 +5681,37 @@ KATI KURALLAR (bozarsan cevap geçersiz):
           ),
         ],
       ],
+    );
+  }
+
+  /// Tam genişlikte "+ Yeni Ders Ekle" butonu — grid'in altında.
+  /// `_addSubjectTile()` (kare grid hücresi) kaldırıldı; yerine bu kullanılır.
+  Widget _wideAddSubjectButton() {
+    return GestureDetector(
+      onTap: _openAddCustomSubjectDialog,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 11),
+        decoration: BoxDecoration(
+          color: _orange.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: _orange.withValues(alpha: 0.55), width: 1.4),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.add_rounded, size: 16, color: _orange),
+            const SizedBox(width: 6),
+            Text(
+              'Yeni Ders Ekle'.tr(),
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: _orange,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -4451,10 +5817,241 @@ KATI KURALLAR (bozarsan cevap geçersiz):
     );
   }
 
-  /// 8'in üstündeki dersleri listeleyen bottom sheet.
+  /// Kullanıcının eklediği özel ders kartı.
+  /// Tıklandığında o dersin konuları (statik/AI) gösterilir.
+  /// Uzun basıldığında silinir.
+  Widget _customSubjectGridTile(EduSubject s) {
+    final custom = _subjectTileColors[s.key];
+    final bgColor = custom ?? Colors.white;
+    final lum =
+        (0.299 * bgColor.r + 0.587 * bgColor.g + 0.114 * bgColor.b);
+    final isDark = lum < 0.55;
+    final customText = _subjectTileTextColors[s.key];
+    final fg = customText ?? (isDark ? Colors.white : Colors.black);
+    return GestureDetector(
+      onTap: _showColorPicker
+          ? null
+          : () => _openSubjectTopicsDialog(edu: s),
+      onLongPress: () => _confirmDeleteCustomSubject(s),
+      child: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(s.emoji, style: const TextStyle(fontSize: 22)),
+            const SizedBox(height: 3),
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 90),
+                  child: Text(
+                    s.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: fg,
+                      height: 1.15,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Manuel olarak eklenen ders kareleri için ayrı, fütüristik & renklendirilebilir
+  /// çerçeve. `DragTarget<Color>` — kullanıcı paletten istediği rengi sürükleyip
+  /// buraya bırakırsa çerçeve zemini o renge boyanır.
+  Widget _customSubjectsFrame(List<EduSubject> customs) {
+    return DragTarget<Color>(
+      onWillAcceptWithDetails: (_) => true,
+      onAcceptWithDetails: (d) {
+        setState(() => _customFrameOverride = d.data);
+        _saveColorPrefs();
+      },
+      builder: (ctx, cand, _) {
+        final hovering = cand.isNotEmpty;
+        final hasOverride = _customFrameOverride != null;
+        // Override yoksa fütüristik gradient kenarlık; varsa düz ince siyah
+        // kenarlık + override zemini.
+        final innerBg = _customFrameOverride ?? Colors.white;
+        final lum = 0.299 * innerBg.r + 0.587 * innerBg.g + 0.114 * innerBg.b;
+        final isDark = lum < 0.55;
+        final labelColor = isDark ? Colors.white : Colors.black87;
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF7C3AED)
+                    .withValues(alpha: hovering ? 0.30 : 0.14),
+                blurRadius: hovering ? 18 : 12,
+                offset: const Offset(0, 4),
+              ),
+              BoxShadow(
+                color: const Color(0xFF22D3EE).withValues(alpha: 0.08),
+                blurRadius: 18,
+                offset: const Offset(0, -2),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              padding: const EdgeInsets.all(1.3),
+              decoration: BoxDecoration(
+                gradient: hasOverride
+                    ? null
+                    : const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Color(0xFFFF6A00),
+                          Color(0xFFDB2777),
+                          Color(0xFF7C3AED),
+                          Color(0xFF22D3EE),
+                        ],
+                      ),
+                color: hasOverride ? Colors.black : null,
+              ),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                decoration: BoxDecoration(
+                  color: innerBg,
+                  borderRadius: BorderRadius.circular(14.7),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(left: 2, bottom: 6),
+                      child: Row(
+                        children: [
+                          Icon(Icons.auto_awesome_rounded,
+                              size: 12, color: labelColor),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Eklediğin Dersler'.tr(),
+                            style: GoogleFonts.poppins(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: labelColor,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    GridView.count(
+                      crossAxisCount: 4,
+                      mainAxisSpacing: 8,
+                      crossAxisSpacing: 8,
+                      childAspectRatio: 1.0,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      children: [
+                        for (final s in customs) _customSubjectGridTile(s),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// "+ Yeni Ders Ekle" karesi — grid'in en sonunda durur.
+  // _addSubjectTile() kaldırıldı — artık _wideAddSubjectButton tam genişlikte
+  // grid altında gösteriliyor. Kullanıcı "+ Yeni Ders Ekle"'ye basınca aynı
+  // _openAddCustomSubjectDialog akışı çalışır.
+
+  Future<void> _openAddCustomSubjectDialog() async {
+    final result = await showModalBottomSheet<_NewCustomSubjectResult>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _AddCustomSubjectSheet(
+        existingNames: [
+          ..._inlineEduSubjects.map((s) => s.name),
+          ..._customSubjects.map((s) => s.name),
+        ],
+      ),
+    );
+    if (!mounted || result == null) return;
+    final exists = [
+      ..._inlineEduSubjects,
+      ..._customSubjects,
+    ].any((s) => s.name.toLowerCase() == result.name.toLowerCase());
+    if (exists) {
+      _showSnack('Bu ders zaten listede.'.tr());
+      return;
+    }
+    final key = 'custom_${DateTime.now().millisecondsSinceEpoch}';
+    setState(() {
+      _customSubjects.add(EduSubject(key, result.emoji, result.name, _blue));
+    });
+    await _saveCustomSubjects();
+  }
+
+  Future<void> _confirmDeleteCustomSubject(EduSubject s) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${s.emoji} ${s.name}',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w800)),
+        content: Text(
+          'Bu dersi listeden kaldırmak ister misin?'.tr(),
+          style: GoogleFonts.poppins(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text('İptal'.tr()),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              'Sil'.tr(),
+              style: const TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() {
+      _customSubjects.removeWhere((x) => x.key == s.key);
+    });
+    _saveCustomSubjects();
+  }
+
+  /// 8'in üstündeki müfredat dersleri + 4'ün üstündeki manuel dersleri
+  /// listeleyen bottom sheet.
   Future<void> _openOtherSubjectsSheet() async {
-    final overflow = _inlineEduSubjects.skip(8).toList();
-    if (overflow.isEmpty) return;
+    final overflowCurr = _inlineEduSubjects.skip(8).toList();
+    final overflowCustom = _customSubjects.skip(4).toList();
+    if (overflowCurr.isEmpty && overflowCustom.isEmpty) return;
     setState(() => _showOtherSheet = true);
   }
 
@@ -4469,7 +6066,10 @@ KATI KURALLAR (bozarsan cevap geçersiz):
 
   // Overlay sheet — modal değil, arka plandaki top-8 grid tıklanabilir kalır.
   Widget _buildOtherSheetOverlay() {
-    final overflow = _inlineEduSubjects.skip(8).toList();
+    // Müfredat dersleri 9+ ve manuel dersler 5+ aynı sheet'te toplanır.
+    final overflowCurr = _inlineEduSubjects.skip(8).toList();
+    final overflowCustom = _customSubjects.skip(4).toList();
+    final overflow = [...overflowCurr, ...overflowCustom];
     if (overflow.isEmpty) return const SizedBox.shrink();
     final mq = MediaQuery.of(context);
     final sheetHeight = mq.size.height * 0.55;
@@ -4799,8 +6399,9 @@ KATI KURALLAR (bozarsan cevap geçersiz):
         curriculumTopics: topics,
         mode: widget.mode,
         getExistingSubject: () {
+          final target = _normSubjectName(subjectName);
           return _subjects.firstWhere(
-            (x) => x.name.toLowerCase() == subjectName.toLowerCase(),
+            (x) => _normSubjectName(x.name) == target,
             orElse: () => _Subject(
               id: '',
               name: subjectName,
@@ -4824,100 +6425,157 @@ KATI KURALLAR (bozarsan cevap geçersiz):
     );
   }
 
-  Widget _subjectCard(_Subject s) {
-    // Görünmeyen çerçeveli — her kart kendi DragTarget<Color>'ı; sürüklenen
-    // renk yalnız o karta uygulanır (ayrı ayrı renklendirme).
-    final custom = _summaryCardColors[s.id];
-    final bg = custom ?? Colors.white;
-    final lum = (0.299 * bg.r + 0.587 * bg.g + 0.114 * bg.b);
-    final isDark = lum < 0.55;
-    final ink = isDark ? Colors.white : Colors.black;
-    final inkMute = isDark ? Colors.white70 : Colors.black54;
-    return DragTarget<Color>(
-      onWillAcceptWithDetails: (_) => true,
-      onAcceptWithDetails: (d) =>
-          _applyColorToSummaryCard(s.id, d.data),
-      builder: (ctx, cand, _) {
-        final hovering = cand.isNotEmpty;
-        return GestureDetector(
-          onTap: () => _openSubject(s),
-          onLongPress: () => _deleteSubject(s),
-          child: AspectRatio(
-            aspectRatio: 0.85,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
-              decoration: BoxDecoration(
-                color: bg,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: hovering ? _orange : Colors.transparent,
-                  width: hovering ? 2 : 1,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Uzun ders adı taşmasın — auto-shrink + ellipsis.
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      s.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: ink,
-                        height: 1.1,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Expanded(
-                    child: ListView(
-                      padding: EdgeInsets.zero,
-                      physics: const NeverScrollableScrollPhysics(),
-                      children: s.summaries.take(3).map((sum) {
-                        return Padding(
-                          padding:
-                              const EdgeInsets.only(bottom: 2),
-                          child: Text(
-                            '• ${sum.topic}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.poppins(
-                              fontSize: 9.5,
-                              color: inkMute,
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                  if (s.summaries.length > 3)
-                    Text(
-                      '+${s.summaries.length - 3} ${localeService.tr('more_count_suffix')}',
-                      style: GoogleFonts.poppins(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600,
-                        color: inkMute,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  Bottom Sheet: Yeni Ders (ders + ilk konu)
+//  _AddCustomSubjectSheet — "Yeni Ders Ekle" modal sheet'i.
+//  Controller lifecycle bu sheet'in State'ine bağlı (parent rebuild olsa
+//  da dialog güvenli kalır). Klavye safe-aware (viewInsets).
+// ═══════════════════════════════════════════════════════════════════════════
+class _NewCustomSubjectResult {
+  final String name;
+  final String emoji;
+  const _NewCustomSubjectResult({required this.name, required this.emoji});
+}
+
+class _AddCustomSubjectSheet extends StatefulWidget {
+  final List<String> existingNames;
+  const _AddCustomSubjectSheet({required this.existingNames});
+
+  @override
+  State<_AddCustomSubjectSheet> createState() =>
+      _AddCustomSubjectSheetState();
+}
+
+class _AddCustomSubjectSheetState extends State<_AddCustomSubjectSheet> {
+  final _nameCtrl = TextEditingController();
+  final _emojiCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _emojiCtrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) return;
+    final emoji = _emojiCtrl.text.trim().isEmpty
+        ? '📚'
+        : _emojiCtrl.text.trim();
+    Navigator.of(context).pop(
+      _NewCustomSubjectResult(name: name, emoji: emoji),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.black12,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Yeni Ders Ekle'.tr(),
+                style: GoogleFonts.poppins(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.black,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _nameCtrl,
+                textCapitalization: TextCapitalization.sentences,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black,
+                ),
+                cursorColor: Colors.black,
+                decoration: _inputDec('Ders adı'.tr()),
+                onSubmitted: (_) => _submit(),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _emojiCtrl,
+                maxLength: 4,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black,
+                ),
+                cursorColor: Colors.black,
+                decoration: _inputDec('Emoji (opsiyonel, örn. 🧠)'.tr())
+                    .copyWith(counterText: ''),
+                onSubmitted: (_) => _submit(),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text(
+                      'İptal'.tr(),
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    onPressed: _submit,
+                    child: Text(
+                      'Ekle'.tr(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Bottom Sheet: Yeni Ders (ders + ilk konu) — eski tasarım, geriye uyum.
 // ═══════════════════════════════════════════════════════════════════════════
 class _NewSubjectRequest {
   final String subject;
@@ -5353,6 +7011,9 @@ class _SubjectDetailPage extends StatefulWidget {
   final Future<void> Function(_Summary summary, _TestConfig cfg)? onAddAttempt;
   // Questions mode — dolu slot: tamamlanmışsa sonuç, değilse devam.
   final void Function(_Summary summary, _TestAttempt attempt)? onOpenAttempt;
+  // Planner'da ders kartına uygulanan renk — buradaki sayfanın da arka
+  // planına yansır. null → varsayılan açık gri zemin.
+  final Color? pageBg;
   const _SubjectDetailPage({
     required this.subject,
     required this.mode,
@@ -5360,6 +7021,7 @@ class _SubjectDetailPage extends StatefulWidget {
     required this.onDelete,
     this.onAddAttempt,
     this.onOpenAttempt,
+    this.pageBg,
   });
   @override
   State<_SubjectDetailPage> createState() => _SubjectDetailPageState();
@@ -5367,6 +7029,7 @@ class _SubjectDetailPage extends StatefulWidget {
 
 class _SubjectDetailPageState extends State<_SubjectDetailPage> {
   bool _generating = false;
+  String _generatingTopic = '';
 
   /// Konu satırına basılı tutunca: [Yeniden Oluştur] + [Sil] seçenekleri.
   Future<void> _showTopicActions(_Summary sum) async {
@@ -5457,7 +7120,10 @@ class _SubjectDetailPageState extends State<_SubjectDetailPage> {
       // Önce mevcut özeti sil, sonra aynı konu için yeniden oluştur
       await widget.onDelete(sum);
       if (!mounted) return;
-      setState(() => _generating = true);
+      setState(() {
+        _generating = true;
+        _generatingTopic = topic;
+      });
       await widget.onAddTopic(topic);
       if (!mounted) return;
       setState(() => _generating = false);
@@ -5637,7 +7303,10 @@ class _SubjectDetailPageState extends State<_SubjectDetailPage> {
                 ),
               );
               if (cfg == null) return;
-              setState(() => _generating = true);
+              setState(() {
+                _generating = true;
+                _generatingTopic = summary.topic;
+              });
               await widget.onAddAttempt!(summary, cfg);
               if (!mounted) return;
               setState(() => _generating = false);
@@ -5689,19 +7358,24 @@ class _SubjectDetailPageState extends State<_SubjectDetailPage> {
     final fabLabel = isQuestions
         ? 'Yeni Test Soruları'.tr()
         : 'Yeni Konu Özeti'.tr();
-    // Çerçevelerin dışında kalan zemin belirgin şekilde daha az beyaz —
-    // özet kartları (saf beyaz) öne çıksın.
-    const pageBg = Color(0xFFE8EAEF);
+    // Sayfa zemini — planner'da ders kartına atanmış renk varsa onu kullan,
+    // yoksa nötr açık gri. Kart arka planının koyu/açık olmasına göre
+    // başlık ve geri ikonu rengi otomatik ayarlanır.
+    final pageBg = widget.pageBg ?? const Color(0xFFE8EAEF);
+    final lum = (0.299 * pageBg.r + 0.587 * pageBg.g + 0.114 * pageBg.b);
+    final isDark = lum < 0.55;
+    final fg = isDark ? Colors.white : Colors.black;
     return Scaffold(
       backgroundColor: pageBg,
       appBar: AppBar(
         backgroundColor: pageBg,
         elevation: 0,
-        foregroundColor: Colors.black,
+        foregroundColor: fg,
+        iconTheme: IconThemeData(color: fg),
         title: Text(
           s.name,
           style: GoogleFonts.poppins(
-              fontSize: 17, fontWeight: FontWeight.w800),
+              fontSize: 17, fontWeight: FontWeight.w800, color: fg),
         ),
       ),
       // Sağ alt: yeni özet/soru için bu dersin konular sayfasını açan buton.
@@ -5745,10 +7419,11 @@ class _SubjectDetailPageState extends State<_SubjectDetailPage> {
           if (_generating)
             Positioned.fill(
               child: QuAlsarNumericLoader(
-                primaryText: widget.mode == LibraryMode.questions
-                    ? 'Test Sorularınız Oluşturuluyor'.tr()
-                    : 'Özet Oluşturuluyor'.tr(),
-                staticLabel: true,
+                stages: _AcademicPlannerState.buildGenStages(
+                  subject: widget.subject.name,
+                  topic: _generatingTopic,
+                  isQuestions: widget.mode == LibraryMode.questions,
+                ),
               ),
             ),
         ],
@@ -5763,9 +7438,15 @@ class _SubjectDetailPageState extends State<_SubjectDetailPage> {
 class _SummaryDetailPage extends StatefulWidget {
   final _Summary summary;
   final String subjectName;
+  // Streaming desteği — null değilse sayfa boş açılır, AI yazdıkça
+  // içerik gelir; stream bitince onStreamComplete çağrılır (persist için).
+  final Stream<String>? stream;
+  final Future<void> Function(String finalContent)? onStreamComplete;
   const _SummaryDetailPage({
     required this.summary,
     required this.subjectName,
+    this.stream,
+    this.onStreamComplete,
   });
 
   @override
@@ -5816,10 +7497,131 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
   // Her özet kendi renk setine sahip — SharedPreferences anahtarı özet id'si.
   String get _prefKey => 'summary_colors_${widget.summary.id}';
 
+  // ── Streaming state ─────────────────────────────────────────────────────
+  // _streamedContent: stream geldikçe büyür. Stream bittiğinde
+  // widget.summary.content güncellenir + onStreamComplete persist eder.
+  String? _streamedContent;
+  bool _streaming = false;
+  bool _streamFailed = false;
+  /// Stream başarısız olunca kullanıcıya gösterilecek nedeni içerir.
+  /// noInternet/serverTimeout/safety/etc spesifik mesajları üstlenir.
+  String? _streamFailMessage;
+  StreamSubscription<String>? _streamSub;
+
+  /// StudyToolbarOverlay sticky highlights için — ListView ile overlay
+  /// Stack'te sibling olduğundan Scrollable.maybeOf(context) bulamıyor.
+  /// Controller'ı parent'ta tutup overlay'e inject ediyoruz.
+  final ScrollController _scrollController = ScrollController();
+
+  // ── Parse cache — sayfa açılışını anında yapmak için ───────────────────
+  // _clean() + _splitSections() pahalı; her build'de tekrar koşmasın.
+  // Ham içerik değişmediyse cache kullan, sadece içerik değişince yenile.
+  String? _cachedRaw;
+  String _cachedCleaned = '';
+  List<_Section> _cachedNormalSections = const [];
+  _Section? _cachedKeyFacts;
+
+  void _ensureParsed(String raw) {
+    if (raw == _cachedRaw) return;
+    _cachedRaw = raw;
+    _cachedCleaned = _clean(raw);
+    final sections = _splitSections(_cachedCleaned);
+    final normal = <_Section>[];
+    _Section? key;
+    for (final s in sections) {
+      // "📌 Özetle" kapanış paragrafı kaldırıldı — geçmişte üretilmiş
+      // özetlerde bu bölüm varsa render'da gizle.
+      if (_isClosingHeader(s.header)) continue;
+      if (_isKeyFactsHeader(s.header)) {
+        key = s;
+      } else {
+        normal.add(s);
+      }
+    }
+    _cachedNormalSections = normal;
+    _cachedKeyFacts = key;
+  }
+
+  bool _isClosingHeader(String h) {
+    final t = h.toLowerCase();
+    return t.contains('📌') || t.contains('özetle');
+  }
+
   @override
   void initState() {
     super.initState();
     _loadColors();
+    _attachStreamIfAny();
+    // Heavy parse'ı ilk frame'den SONRA yap — sayfa transition'ı anında
+    // açılsın, içerik bir tick sonra dolsun. Boş cache ile ilk build hızlı.
+    if (widget.stream == null && widget.summary.content.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _ensureParsed(widget.summary.content);
+        setState(() {});
+      });
+    }
+  }
+
+  void _attachStreamIfAny() {
+    final s = widget.stream;
+    if (s == null) return;
+    setState(() {
+      _streaming = true;
+      _streamedContent = '';
+    });
+    _streamSub = s.listen(
+      (acc) {
+        if (!mounted) return;
+        setState(() => _streamedContent = acc);
+      },
+      onError: (e) async {
+        if (!mounted) return;
+        // Stream hata verse bile o ana kadar gelmiş kısmi içeriği KAYDET —
+        // kullanıcı yarıda kalmış özeti görsün, ileride uzun-bas → "Yeniden
+        // Oluştur" ile tamamlayabilsin.
+        final partial = _streamedContent ?? '';
+        // Hata tipinden anlamlı kullanıcı mesajı çıkar.
+        String msg;
+        if (e is GeminiException) {
+          msg = e.userMessage;
+        } else {
+          msg = 'AI yanıt veremedi — özeti tekrar oluşturmak için satıra uzun bas.';
+        }
+        setState(() {
+          _streaming = false;
+          _streamFailed = true;
+          _streamFailMessage = msg;
+          if (partial.isNotEmpty) {
+            widget.summary.content = partial;
+          }
+        });
+        if (partial.isNotEmpty) {
+          try {
+            await widget.onStreamComplete?.call(partial);
+          } catch (_) {}
+        }
+      },
+      onDone: () async {
+        if (!mounted) return;
+        final finalContent = _streamedContent ?? '';
+        setState(() {
+          _streaming = false;
+          widget.summary.content = finalContent;
+        });
+        try {
+          await widget.onStreamComplete?.call(finalContent);
+        } catch (_) {}
+      },
+      cancelOnError: true,
+    );
+  }
+
+  @override
+  void dispose() {
+    _streamSub?.cancel();
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadColors() async {
@@ -5906,27 +7708,362 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
     return l < 0.55;
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // YouTube/Web önerilerini sök + markdown gürültüyü temizle
-    final cleaned = _clean(widget.summary.content);
-    final sections = _splitSections(cleaned);
+  // Üst başlık kartı — ders adı + konu adı; renk paletinden 'title' hedefi.
+  Widget _buildTitleCard() {
+    return DragTarget<Color>(
+      onAcceptWithDetails: (d) => _applyColorTo('title', d.data),
+      builder: (ctx, cand, _) {
+        final hovering = cand.isNotEmpty;
+        final bg = _titleBgOverride ?? const Color(0xFFFAFAFA);
+        final ink = _titleTextOverride ??
+            (_isDark(bg) ? Colors.white : Colors.black);
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: hovering ? const Color(0xFFFF6A00) : Colors.black,
+              width: hovering ? 2 : 1,
+            ),
+          ),
+          child: RichText(
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            text: TextSpan(
+              children: [
+                TextSpan(
+                  text: widget.subjectName,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: ink,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+                TextSpan(
+                  text: ' / ',
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: ink.withValues(alpha: 0.5),
+                  ),
+                ),
+                TextSpan(
+                  text: widget.summary.topic,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: ink.withValues(alpha: 0.85),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
-    // "En Önemli 5 Bilgi" bölümünü ayır (⭐ marker) — özel kart olarak render
-    _Section? keyFactsSection;
-    final normalSections = <_Section>[];
-    for (final s in sections) {
-      if (_isKeyFactsHeader(s.header)) {
-        keyFactsSection = s;
-      } else {
-        normalSections.add(s);
+  // ── Sağ alt FAB — "Test Sorularını Çöz" ─────────────────────────────
+  // Tıklanınca: questions kütüphanesinden bu konunun testi varsa direkt aç,
+  // yoksa AcademicPlanner(questions, autoOpen) ile yönlendir.
+  Widget _testQuestionsFab() {
+    // Küçük, kompakt pill — uzun extended FAB yerine.
+    return GestureDetector(
+      onTap: _onTestQuestionsTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFF6A00),
+          borderRadius: BorderRadius.circular(999),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFFF6A00).withValues(alpha: 0.40),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.quiz_rounded, color: Colors.white, size: 16),
+            const SizedBox(width: 6),
+            Text('Test Çöz'.tr(),
+                style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 11,
+                    color: Colors.white)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _onTestQuestionsTap() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getStringList('library_subjects_questions_v2') ?? const [];
+    final subjects = raw
+        .map((s) {
+          try {
+            return _Subject.fromJson(jsonDecode(s) as Map<String, dynamic>);
+          } catch (_) {
+            return null;
+          }
+        })
+        .whereType<_Subject>()
+        .toList();
+    final subjTarget = widget.subjectName.toLowerCase().trim();
+    final topicTarget = widget.summary.topic.toLowerCase().trim();
+    _Subject? subject;
+    for (final s in subjects) {
+      if (s.name.toLowerCase().trim() == subjTarget) {
+        subject = s;
+        break;
       }
     }
+    if (!mounted) return;
+
+    // Eğer dersin altında test varsa: önce konu listesi sheet'i göster
+    // (aktif konu vurgulu). Boşsa direkt eski akışa düş.
+    if (subject != null && subject.summaries.isNotEmpty) {
+      final picked = await _showTopicPickerSheet(subject, topicTarget);
+      if (picked == null) return; // kullanıcı kapattı
+      if (!mounted) return;
+      await _navigateToTest(subject, picked);
+      return;
+    }
+
+    _Summary? summary;
+    if (subject != null) {
+      for (final sum in subject.summaries) {
+        if (sum.topic.toLowerCase().trim() == topicTarget) {
+          summary = sum;
+          break;
+        }
+      }
+    }
+    // Test varsa: direkt en son denemeyi aç (tamamlanmışsa sonuç, değilse devam)
+    if (summary != null && summary.tests.isNotEmpty) {
+      final attempt = summary.tests.last;
+      if (attempt.completed) {
+        final qs = parseTestQuestions(attempt.content);
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => TestResultPage(
+            questions: qs,
+            answers: attempt.answers,
+            subjectName: subject!.name,
+            topic: summary!.topic,
+          ),
+        ));
+      } else {
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => TestPage(
+            rawContent: attempt.content,
+            subjectName: subject!.name,
+            topic: summary!.topic,
+            initialAnswers: attempt.answers,
+            timeLimit: attempt.timeLimit,
+            onFinish: (answers) async {
+              attempt.answers = Map<int, String?>.from(answers);
+              attempt.completed = true;
+            },
+          ),
+        ));
+      }
+      return;
+    }
+    // Test YOK: AcademicPlanner(questions) aç + autoOpen sinyali ile o
+    // konunun üzerine git. Açılan sayfada konu vurgulanır (snackbar
+    // ile yönlendirme + autoOpen mevcut akışı tetikler).
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => AcademicPlanner(
+        mode: LibraryMode.questions,
+        autoOpenSubject: widget.subjectName,
+        autoOpenTopic: widget.summary.topic,
+      ),
+    ));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('"${widget.summary.topic}" için test henüz yok — '
+            'üretmek için konuyu seç ↓'),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+      ));
+    }
+  }
+
+  /// Test FAB tıklanınca açılan sheet — dersin altındaki tüm konular
+  /// listelenir. Aktif konu (üzerinde olduğun özet) turuncu çerçeveyle
+  /// vurgulanır. Tıklayınca o konunun testine gidilir.
+  Future<_Summary?> _showTopicPickerSheet(
+      _Subject subject, String activeTopicLower) async {
+    return showModalBottomSheet<_Summary>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return _TestTopicPicker(
+          subject: subject,
+          activeTopicLower: activeTopicLower,
+        );
+      },
+    );
+  }
+
+  Future<void> _navigateToTest(_Subject subject, _Summary summary) async {
+    if (summary.tests.isNotEmpty) {
+      final attempt = summary.tests.last;
+      if (attempt.completed) {
+        final qs = parseTestQuestions(attempt.content);
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => TestResultPage(
+            questions: qs,
+            answers: attempt.answers,
+            subjectName: subject.name,
+            topic: summary.topic,
+          ),
+        ));
+      } else {
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => TestPage(
+            rawContent: attempt.content,
+            subjectName: subject.name,
+            topic: summary.topic,
+            initialAnswers: attempt.answers,
+            timeLimit: attempt.timeLimit,
+            onFinish: (answers) async {
+              attempt.answers = Map<int, String?>.from(answers);
+              attempt.completed = true;
+            },
+          ),
+        ));
+      }
+      return;
+    }
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => AcademicPlanner(
+        mode: LibraryMode.questions,
+        autoOpenSubject: subject.name,
+        autoOpenTopic: summary.topic,
+      ),
+    ));
+  }
+
+  // Sayfa açılır açılmaz görünen ince şerit — AI yazıyor / başarısız oldu.
+  Widget _buildStreamingBanner() {
+    final isFail = _streamFailed;
+    final color = isFail
+        ? const Color(0xFFEF4444)
+        : const Color(0xFF7C3AED);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.30), width: 1),
+      ),
+      child: Row(
+        children: [
+          if (!isFail)
+            const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Color(0xFF7C3AED),
+              ),
+            )
+          else
+            const Icon(Icons.error_outline_rounded,
+                size: 16, color: Color(0xFFEF4444)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              isFail
+                  ? (_streamFailMessage ??
+                      'AI yanıt veremedi — özeti tekrar oluşturmak için satıra uzun bas.')
+                  : 'AI özeti yazıyor… içerik geldikçe ekrana akacak.',
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Streaming aktifse o anki birikmiş içeriği göster; bittiğinde
+    // widget.summary.content nihai metni içeriyor.
+    final raw = _streamedContent ?? widget.summary.content;
+    // Streaming durumunda her chunk için parse et (cache'li, idempotent).
+    // Non-streaming durumda parse zaten initState'in postFrameCallback'inde
+    // arkaplanda yapılıyor; ilk build skeleton döner → sayfa anında açılır.
+    if (widget.stream != null) {
+      _ensureParsed(raw);
+    }
+    final cleaned = _cachedCleaned;
+    final keyFactsSection = _cachedKeyFacts;
+    final normalSections = _cachedNormalSections;
+    // Cache henüz dolmadıysa (postFrame öncesi) hafif skeleton döndür —
+    // sayfa transition'ı pürüzsüz başlar, içerik bir tick sonra dolar.
+    final notParsedYet =
+        _cachedRaw == null && raw.isNotEmpty && widget.stream == null;
 
     final pageBg = _pageBgOverride ?? const Color(0xFFFAFAFA);
 
+    // Streaming başladığında ama henüz anlamlı içerik gelmediğinde —
+    // QuAlsar küresi + 3 birikimli aşama (analiz / özetleniyor / hazır).
+    // İlk gerçek tokenlar gelene kadar gösterilir; sonrası içeriğe geçer.
+    if (widget.stream != null && _streaming && cleaned.trim().length < 40) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: QuAlsarNumericLoader(
+          stages: _AcademicPlannerState.buildGenStages(
+            subject: widget.subjectName,
+            topic: widget.summary.topic,
+            isQuestions: false,
+          ),
+        ),
+      );
+    }
+
+    if (notParsedYet) {
+      return Scaffold(
+        backgroundColor: pageBg,
+        appBar: AppBar(
+          backgroundColor: pageBg,
+          elevation: 0,
+          foregroundColor: Colors.black,
+          titleSpacing: 0,
+          title: const SizedBox.shrink(),
+        ),
+        body: const Center(
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2.4),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: pageBg,
+      // ── Sağ alt FAB: "Test Sorularını Çöz" ─────────────────────────
+      // Stream bittikten sonra (özet hazırsa) görünür; yoksa gizli.
+      floatingActionButton: (widget.stream == null || !_streaming)
+          ? _testQuestionsFab()
+          : null,
       appBar: AppBar(
         backgroundColor: pageBg,
         elevation: 0,
@@ -5993,9 +8130,16 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
           ),
         ],
       ),
-      body: Column(
+      // Klavye açıldığında layout otomatik kaysın (TextField sheet için kritik).
+      resizeToAvoidBottomInset: true,
+      body: Stack(
         children: [
+          // Asıl içerik (sayfa)
+          Column(children: [
           if (_showColorPicker) _buildColorPickerPanel(),
+          // Streaming şeridi sadece HATA durumunda gösterilir; üretim
+          // sırasında "AI özeti yazıyor…" yazısı kaldırıldı.
+          if (_streamFailed) _buildStreamingBanner(),
           Expanded(
             child: DragTarget<Color>(
               onAcceptWithDetails: (d) {
@@ -6003,83 +8147,41 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
                 setState(() => _pageBgOverride = d.data);
                 _saveColors();
               },
-              builder: (ctx, cand, _) => ListView(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
-                children: [
-                  // ── Üst başlık çerçevesi — DragTarget (title) ─────────
-                  DragTarget<Color>(
-                    onAcceptWithDetails: (d) =>
-                        _applyColorTo('title', d.data),
-                    builder: (ctx, cand, _) {
-                      final hovering = cand.isNotEmpty;
-                      final bg = _titleBgOverride ??
-                          const Color(0xFFFAFAFA);
-                      final ink = _titleTextOverride ??
-                          (_isDark(bg) ? Colors.white : Colors.black);
-                      return AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: bg,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: hovering
-                                ? const Color(0xFFFF6A00)
-                                : Colors.black,
-                            width: hovering ? 2 : 1,
+              builder: (ctx, cand, _) {
+                // Lazy section render — sadece ekrandaki kart inşa edilir.
+                // LaTeX widget'ları off-screen kartlarda compile edilmediği
+                // için sayfa anında açılır, scrollda parça parça dolar.
+                final hasFallback =
+                    normalSections.isEmpty && keyFactsSection == null;
+                final sectionCount = hasFallback ? 1 : normalSections.length;
+                final keyOffset = keyFactsSection != null ? 1 : 0;
+                // [0]=title, [1]=spacer14, [2..2+sectionCount-1]=sections,
+                // [last-1]=spacer6 (keyFacts varsa), [last]=keyFacts
+                final total =
+                    2 + sectionCount + (keyOffset == 0 ? 0 : 2);
+                return ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+                  itemCount: total,
+                  cacheExtent: 600,
+                  itemBuilder: (ctx, i) {
+                    if (i == 0) return _buildTitleCard();
+                    if (i == 1) return const SizedBox(height: 14);
+                    final sIdx = i - 2;
+                    if (sIdx < sectionCount) {
+                      if (hasFallback) {
+                        return RepaintBoundary(
+                          child: _wrappedCard(
+                            child: _card(
+                                header: '',
+                                headerColor: Colors.black,
+                                body: cleaned),
                           ),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                widget.subjectName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
-                                  color: ink,
-                                  letterSpacing: 0.1,
-                                ),
-                              ),
-                            ),
-                            Container(
-                              width: 1,
-                              height: 16,
-                              color: ink.withValues(alpha: 0.35),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                widget.summary.topic,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.right,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: ink.withValues(alpha: 0.85),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 14),
-                  // ── Normal alt başlık kartları ───────────────────────
-                  if (normalSections.isEmpty && keyFactsSection == null)
-                    _wrappedCard(
-                      child: _card(
-                          header: '',
-                          headerColor: Colors.black,
-                          body: cleaned),
-                    )
-                  else
-                    ...normalSections.map((s) => Padding(
+                        );
+                      }
+                      final s = normalSections[sIdx];
+                      return RepaintBoundary(
+                        child: Padding(
                           padding: const EdgeInsets.only(bottom: 10),
                           child: _wrappedCard(
                             child: _card(
@@ -6088,17 +8190,32 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
                               body: s.body,
                             ),
                           ),
-                        )),
-                  // ── EN ÖNEMLİ 5 BİLGİ — vurgulu kart ────────────────
-                  if (keyFactsSection != null) ...[
-                    const SizedBox(height: 6),
-                    _wrappedCard(
-                      child: _keyFactsCard(keyFactsSection),
-                    ),
-                  ],
-                ],
-              ),
+                        ),
+                      );
+                    }
+                    if (keyFactsSection != null) {
+                      if (sIdx == sectionCount) {
+                        return const SizedBox(height: 6);
+                      }
+                      return RepaintBoundary(
+                        child: _wrappedCard(
+                          child: _keyFactsCard(keyFactsSection),
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                );
+              },
             ),
+          ),
+          ]),
+          // Çalışma araç çubuğu — sol kenar; not + vurgulayıcı + kalem +
+          // silgi + kapat. Çizimler topicId bazlı kalıcı saklanır.
+          StudyToolbarOverlay(
+            topicId: 'note_${widget.summary.id}',
+            topicName: widget.summary.topic,
+            scrollController: _scrollController,
           ),
         ],
       ),
@@ -6116,23 +8233,36 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
   // ═════ İçerik temizleyici ═════
   String _clean(String content) {
     var out = content;
+    // İlk başlık satırından önceki giriş paragrafını ("Harika...", "Tabii ki",
+    // "Hemen başlayalım" vb.) kırp — özet doğrudan başlıkla başlasın.
+    final firstHeader = RegExp(
+      r'(📖[^\n]*|📚[^\n]*|🎯[^\n]*|📐[^\n]*|🌊[^\n]*|⭐[^\n]*)',
+    );
+    final fm = firstHeader.firstMatch(out);
+    if (fm != null && fm.start > 0) {
+      out = out.substring(fm.start);
+    }
     // YouTube / Web satırları
     out = out.replaceAll(
       RegExp(r'\[(VIDEO|WEB):\s*"[^"]+"\s*\|\s*[^\]]+\]\s*$',
           caseSensitive: false, multiLine: true),
       '',
     );
-    // Markdown bold/italik (** ve *)
+    // Markdown bold (**...**) KORUNUR — LatexText inline bold render eder.
+    // Tek yıldızlı italik (*...*) → metin (UI italic'i render etmiyor).
     out = out.replaceAllMapped(
-      RegExp(r'\*\*([^*\n]+)\*\*'),
+      RegExp(r'(?<![\\\w*])\*([^*\n]+)\*(?!\w|\*)'),
       (m) => m.group(1) ?? '',
     );
-    out = out.replaceAllMapped(
-      RegExp(r'(?<![\\\w])\*([^*\n]+)\*(?!\w)'),
-      (m) => m.group(1) ?? '',
-    );
-    // Markdown başlık işaretleri ### ## #
+    // İçi boş **...** → tamamen sil (AI bazen "** **" gibi süs bırakıyor)
+    out = out.replaceAll(RegExp(r'\*\*\s*\*\*'), '');
+    // Satır sonunda kalan tek "*" / "**" artıkları
+    out = out.replaceAll(RegExp(r'\s\*+\s*$', multiLine: true), '');
+    // Markdown başlık işaretleri ### ## # (satır başı + satır içi setext)
     out = out.replaceAll(RegExp(r'^#{1,6}\s*', multiLine: true), '');
+    // Setext başlık altçizgileri (=== veya ---) — başlık değil normal metin sandı
+    out = out.replaceAll(
+        RegExp(r'^[=\-]{3,}\s*$', multiLine: true), '');
     // Tek başına yıldız artıkları ("* metin" → "• metin")
     out = out.replaceAllMapped(
       RegExp(r'^\s*\*\s+', multiLine: true),
@@ -6179,6 +8309,7 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
   }
 
   // ═════ Normal alt başlık kartı — arka plan ve yazı renkleri state'ten ═════
+  //   Header bandı hafif farklı ton (gri-mavi) — gövdeden görsel olarak ayrılır.
   Widget _card({
     required String header,
     required Color headerColor,
@@ -6187,34 +8318,49 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
     final bg = _cardsBgOverride ?? Colors.white;
     final ink = _cardsTextOverride ??
         (_isDark(bg) ? Colors.white : Colors.black);
+    final headerBg = _cardsBgOverride == null
+        ? const Color(0xFFF3F6FB)
+        : bg;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.black, width: 1),
       ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (header.isNotEmpty) ...[
-            Text(
-              header,
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-                color: ink,
-                letterSpacing: 0.15,
+          if (header.isNotEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+              decoration: BoxDecoration(
+                color: headerBg,
+                border: Border(
+                  bottom: BorderSide(
+                    color: ink.withValues(alpha: 0.12),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: Text(
+                header,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: ink,
+                  letterSpacing: 0.15,
+                ),
               ),
             ),
-            const SizedBox(height: 6),
-            Container(height: 1, color: ink.withValues(alpha: 0.18)),
-            const SizedBox(height: 10),
-          ],
-          DefaultTextStyle.merge(
-            style: TextStyle(color: ink),
-            child: LatexText(body, fontSize: 14, lineHeight: 1.65),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+            child: DefaultTextStyle.merge(
+              style: TextStyle(color: ink),
+              child: LatexText(body, fontSize: 14, lineHeight: 1.65),
+            ),
           ),
         ],
       ),
@@ -6493,13 +8639,16 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
   // Emoji başlıklarına göre böl: 📚 🔑 📐 🎯 ⚠️ ⭐
   List<_Section> _splitSections(String content) {
     const markers = {
+      '📖': Color(0xFF0F766E), // Tanım — teal
       '📚': Color(0xFF2563EB),
       '🔑': Color(0xFF059669),
       '📐': Color(0xFF7C3AED),
+      '🌊': Color(0xFF0EA5E9),
       '🎯': Color(0xFFEA580C),
       '⚠️': Color(0xFFDC2626),
       '💡': Color(0xFFCA8A04),
       '⭐': Color(0xFFCA8A04),
+      '📌': Color(0xFF334155), // Özetle kapanış — slate
       '1️⃣': Color(0xFF2563EB),
       '2️⃣': Color(0xFF059669),
       '3️⃣': Color(0xFF7C3AED),
@@ -6927,24 +9076,34 @@ class _SubjectTopicsDialogState extends State<_SubjectTopicsDialog> {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(999),
                       ),
-                      child: TextField(
-                        controller: _newTopicCtrl,
-                        textCapitalization: TextCapitalization.sentences,
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.black,
-                        ),
-                        cursorColor: Colors.black,
-                        decoration: InputDecoration(
-                          hintText: 'Konu başlığı…'.tr(),
-                          hintStyle: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: Colors.black38,
+                      child: Theme(
+                        data: Theme.of(context).copyWith(
+                          textSelectionTheme: TextSelectionThemeData(
+                            cursorColor: Colors.black,
+                            selectionColor:
+                                Colors.black.withValues(alpha: 0.25),
+                            selectionHandleColor: Colors.black,
                           ),
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 10),
-                          border: InputBorder.none,
+                        ),
+                        child: TextField(
+                          controller: _newTopicCtrl,
+                          textCapitalization: TextCapitalization.sentences,
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black,
+                          ),
+                          cursorColor: Colors.black,
+                          decoration: InputDecoration(
+                            hintText: 'Konu başlığı…'.tr(),
+                            hintStyle: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: Colors.black38,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 10),
+                            border: InputBorder.none,
+                          ),
                         ),
                       ),
                     ),
@@ -7018,7 +9177,44 @@ class _SubjectTopicsDialogState extends State<_SubjectTopicsDialog> {
     final existing = _summaryForTopic(topic);
     final hasSummary = existing != null;
     final hasIcon = hasSummary || _savedCustomTopics.contains(topic);
-    // Çerçevesiz, saf beyaz pill. Uzun konu adı alt satıra dökülür.
+    final isQuestions = widget.mode == LibraryMode.questions;
+    // Questions mode'da sağdaki butonun davranışı:
+    //   • testCount < 3  → her tıklama yeni test üretir (eski sonuca gitmez)
+    //   • testCount == 3 → buton kilitli, dokununca uyarı snackbar'ı
+    final testCount =
+        isQuestions && existing != null ? existing.tests.length : 0;
+    final limitReached = isQuestions && testCount >= 3;
+
+    final IconData actionIcon;
+    final String actionLabel;
+    final Color actionBg;
+    final Color actionFg;
+    if (isQuestions) {
+      if (limitReached) {
+        actionIcon = Icons.lock_rounded;
+        actionLabel = '${'Limit'.tr()} · 3/3';
+        actionBg = const Color(0xFFE5E7EB);
+        actionFg = Colors.black54;
+      } else if (testCount > 0) {
+        actionIcon = Icons.add_rounded;
+        actionLabel = '${'Yeni Test'.tr()} · $testCount/3';
+        actionBg = const Color(0xFFEFF1F6);
+        actionFg = Colors.black;
+      } else {
+        actionIcon = Icons.auto_awesome_rounded;
+        actionLabel = widget._createLabel.tr();
+        actionBg = const Color(0xFFEFF1F6);
+        actionFg = Colors.black;
+      }
+    } else {
+      actionIcon = hasSummary
+          ? Icons.auto_stories_rounded
+          : Icons.auto_awesome_rounded;
+      actionLabel =
+          hasSummary ? widget._existingLabel.tr() : widget._createLabel.tr();
+      actionBg = const Color(0xFFEFF1F6);
+      actionFg = Colors.black;
+    }
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Container(
@@ -7042,7 +9238,6 @@ class _SubjectTopicsDialogState extends State<_SubjectTopicsDialog> {
             Expanded(
               child: Text(
                 topic,
-                // Konu adı uzunsa alt satıra devam etsin (3 satıra kadar).
                 maxLines: 3,
                 softWrap: true,
                 overflow: TextOverflow.ellipsis,
@@ -7060,14 +9255,33 @@ class _SubjectTopicsDialogState extends State<_SubjectTopicsDialog> {
                   size: 14, color: Colors.black),
             ],
             const SizedBox(width: 10),
-            // Sağ aksiyon — iç zemini hafif ton farklı, aksiyon belli olsun
             Material(
-              color: const Color(0xFFEFF1F6),
+              color: actionBg,
               borderRadius: BorderRadius.circular(999),
               child: InkWell(
                 borderRadius: BorderRadius.circular(999),
                 onTap: () {
-                  if (hasSummary) {
+                  if (limitReached) {
+                    // Limit dolu — diyaloğu kapat, planner sayfasında
+                    // (3 slot'un göründüğü konu satırının olduğu sayfa)
+                    // uyarı snackbar'ı göster.
+                    final messenger = ScaffoldMessenger.of(context);
+                    Navigator.of(context).pop();
+                    messenger.showSnackBar(SnackBar(
+                      content: Text(
+                        'Bu konudan zaten 3 test oluşturdun. Aynı konu için en fazla 3 test oluşturabilirsin.'
+                            .tr(),
+                      ),
+                      behavior: SnackBarBehavior.floating,
+                      duration: const Duration(seconds: 3),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ));
+                    return;
+                  }
+                  if (isQuestions) {
+                    widget.onGenerateTopic(topic);
+                  } else if (hasSummary) {
                     widget.onOpenExistingSummary(existing);
                   } else {
                     widget.onGenerateTopic(topic);
@@ -7079,22 +9293,14 @@ class _SubjectTopicsDialogState extends State<_SubjectTopicsDialog> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        hasSummary
-                            ? Icons.auto_stories_rounded
-                            : Icons.auto_awesome_rounded,
-                        size: 13,
-                        color: Colors.black,
-                      ),
+                      Icon(actionIcon, size: 13, color: actionFg),
                       const SizedBox(width: 5),
                       Text(
-                        hasSummary
-                            ? widget._existingLabel.tr()
-                            : widget._createLabel.tr(),
+                        actionLabel,
                         style: GoogleFonts.poppins(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          color: Colors.black,
+                          color: actionFg,
                         ),
                       ),
                     ],
@@ -7665,6 +9871,190 @@ class _IntroDialog extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+//  Test Topic Picker — Test FAB tıklanınca açılan sheet
+//  Aktif konu turuncu border + dolgu ile vurgulanır (active_topic_color).
+// ═════════════════════════════════════════════════════════════════════════
+class _TestTopicPicker extends StatelessWidget {
+  final _Subject subject;
+  final String activeTopicLower;
+  const _TestTopicPicker({
+    required this.subject,
+    required this.activeTopicLower,
+  });
+
+  static const _activeColor = Color(0xFFFF6A00);
+
+  @override
+  Widget build(BuildContext context) {
+    final summaries = subject.summaries;
+    return DraggableScrollableSheet(
+      initialChildSize: 0.55,
+      minChildSize: 0.35,
+      maxChildSize: 0.92,
+      expand: false,
+      builder: (ctx, scrollController) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 8, bottom: 4),
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.black26,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.quiz_rounded,
+                        color: _activeColor, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${subject.name} — Test Konuları',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.black,
+                        ),
+                      ),
+                    ),
+                    Text('${summaries.length}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black54,
+                        )),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView.separated(
+                  controller: scrollController,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 10),
+                  itemCount: summaries.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (_, i) {
+                    final s = summaries[i];
+                    final isActive =
+                        s.topic.toLowerCase().trim() == activeTopicLower;
+                    final hasTest = s.tests.isNotEmpty;
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () => Navigator.of(ctx).pop(s),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: isActive
+                                ? _activeColor.withValues(alpha: 0.10)
+                                : const Color(0xFFF7F7F9),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isActive
+                                  ? _activeColor
+                                  : Colors.transparent,
+                              width: isActive ? 2 : 0,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 30,
+                                height: 30,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: isActive
+                                      ? _activeColor
+                                      : Colors.black12,
+                                ),
+                                alignment: Alignment.center,
+                                child: Icon(
+                                  isActive
+                                      ? Icons.location_on_rounded
+                                      : (hasTest
+                                          ? Icons.task_alt_rounded
+                                          : Icons.add_rounded),
+                                  color: isActive
+                                      ? Colors.white
+                                      : Colors.black54,
+                                  size: 16,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      s.topic,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 13,
+                                        fontWeight: isActive
+                                            ? FontWeight.w800
+                                            : FontWeight.w700,
+                                        color: isActive
+                                            ? _activeColor
+                                            : Colors.black87,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      isActive
+                                          ? 'Şu anki konu'
+                                          : (hasTest
+                                              ? 'Test mevcut'
+                                              : 'Test oluştur'),
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: isActive
+                                            ? _activeColor.withValues(
+                                                alpha: 0.85)
+                                            : Colors.black45,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(Icons.chevron_right_rounded,
+                                  color: isActive
+                                      ? _activeColor
+                                      : Colors.black38),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

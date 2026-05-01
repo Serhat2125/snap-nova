@@ -60,25 +60,66 @@ class CurriculumSubject {
 ///   5) Son çare: generic primary/middle/high varsayılanı
 List<CurriculumSubject> curriculumFor(EduProfile? profile) {
   if (profile == null) return _fallbackByLevel(null);
+
+  // 0) AI tarafından bu profil için runtime'da üretilmiş ülke-spesifik
+  //    müfredat varsa onu kullan (static catalog 30 ülke; bu kademe
+  //    geri kalan 100+ ülkeyi AI ile karşılar).
+  final aiTopics = EduProfile.aiCachedTopics(profile);
+  final aiSubjects = EduProfile.aiCachedSubjects(profile);
+  if (aiTopics != null &&
+      aiTopics.isNotEmpty &&
+      aiSubjects != null &&
+      aiSubjects.isNotEmpty) {
+    final result = <CurriculumSubject>[];
+    for (final s in aiSubjects) {
+      final topics = aiTopics[s.key] ?? const <String>[];
+      result.add(CurriculumSubject(
+        key: s.key,
+        displayName: s.name,
+        emoji: s.emoji,
+        topics: topics,
+      ));
+    }
+    if (result.isNotEmpty) return result;
+  }
+
+  // 1-4) Static catalog lookup zinciri.
   final keys = _lookupKeys(profile);
   for (final k in keys) {
     final found = _curriculum[k];
     if (found != null) return _materialize(found, profile.country);
   }
+  // 5) Son çare: international_${level} ya da international_high.
   return _fallbackByLevel(profile.level);
 }
 
 List<String> _lookupKeys(EduProfile p) {
   final c = p.country.toLowerCase();
   final l = p.level;
-  // Grade normalize: "9. Sınıf" / "11. Klasse" / "Grade 9" → "9".
-  // Onboarding grade'leri "X. Sınıf" formatında saklıyor; catalog ise
-  // sadece sayı kullanıyor. Bu mismatch yüzünden tr_high_9. Sınıf
-  // bulunamıyor, international fallback'e düşüp İngilizce konular
-  // geliyordu — bug: "Lise 9 → saçma sapan konular".
   final rawGrade = p.grade;
+  // Grade normalize:
+  //  • Sayısal sınıf ("9. Sınıf" / "11. Klasse" / "Grade 9") → "9".
+  //  • Sınav adı ("YKS (Yükseköğretim...)" / "LGS" / "MSÜ") → ilk kelime
+  //    lower-cased ASCII (örn. "yks", "lgs", "msu"). Önceden katalog
+  //    "tr_exam_prep_yks" anahtarını arıyor ama g = "YKS (Yükse...)"
+  //    olduğundan eşleşmiyor; YKS profili boş konuya düşüyordu.
   final m = RegExp(r'(\d{1,2})').firstMatch(rawGrade);
-  final g = m != null ? m.group(1)! : rawGrade;
+  String g;
+  if (m != null) {
+    g = m.group(1)!;
+  } else {
+    final firstToken = rawGrade.trim().split(RegExp(r'\s+')).first;
+    g = firstToken
+        .toLowerCase()
+        .replaceAll('ı', 'i')
+        .replaceAll('ö', 'o')
+        .replaceAll('ü', 'u')
+        .replaceAll('ş', 's')
+        .replaceAll('ç', 'c')
+        .replaceAll('ğ', 'g')
+        .replaceAll(RegExp(r'[^a-z0-9_]'), '');
+    if (g.isEmpty) g = rawGrade; // emniyet
+  }
   final t = p.track;
   return [
     if (t != null) '${c}_${l}_${g}_$t',
@@ -657,6 +698,79 @@ const Map<String, Map<String, List<String>>> _curriculum = {
     'ingilizce': ['YKS YDT advanced', 'IELTS/TOEFL hazırlık'],
     'second_lang': ['YKS YDT II. dil advanced'],
   },
+  // YKS = TYT + AYT birleşik. Öğrenci profilde "YKS" seçtiğinde her iki
+  // sınava da hazırlanıyor demektir; tüm dersler ve konuları bu anahtar
+  // altında toplanır.
+  'tr_exam_prep_yks': {
+    'turkish': ['Sözcükte anlam', 'Cümlede anlam', 'Paragraf', 'Ses bilgisi', 'Yapı bilgisi', 'Sözcük türleri', 'Cümle ögeleri', 'Anlatım bozukluğu', 'Yazım-noktalama'],
+    'math': [
+      // TYT
+      'Temel kavramlar', 'Sayılar-işlemler', 'Rasyonel sayılar',
+      'Basit eşitsizlikler', 'Mutlak değer', 'Üslü-köklü sayılar',
+      'Oran-orantı', 'Denklem çözme',
+      'Problem çözme (hız, işçi, yaş)', 'Kümeler', 'Fonksiyonlar giriş',
+      'Geometri (açı, üçgen, dörtgen)',
+      // AYT
+      'Polinomlar', 'Fonksiyonlar', 'İkinci dereceden denklem-eşitsizlik',
+      'Logaritma', 'Trigonometri', 'Diziler-seriler', 'Limit', 'Türev',
+      'İntegral', 'Analitik geometri', 'Olasılık',
+      'Sayma (permütasyon-kombinasyon)',
+    ],
+    'physics': [
+      // TYT
+      'Fizik kavramları', 'Hareket', 'Kuvvet-denge', 'Enerji',
+      'Isı-sıcaklık',
+      // AYT
+      'Elektrik-manyetizma', 'Dalgalar', 'Optik', 'Modern fizik',
+      'Basit harmonik hareket', 'Dönme hareketi',
+    ],
+    'chem': [
+      // TYT
+      'Atom', 'Periyodik tablo', 'Kimyasal türler', 'Maddenin halleri',
+      'Asit-baz',
+      // AYT
+      'Mol-kimyasal hesaplamalar', 'Gazlar', 'Çözeltiler',
+      'Kimyasal denge', 'Asit-baz-tuz', 'Elektrokimya',
+      'Organik kimya komple',
+    ],
+    'bio': [
+      // TYT
+      'Hücre', 'Canlılar', 'Sistemler genel',
+      // AYT
+      'Sinir sistemi', 'Endokrin', 'Destek-hareket',
+      'Dolaşım-solunum', 'Boşaltım', 'Üreme',
+      'Kalıtım (Mendel, moleküler)', 'Biyoteknoloji', 'Evrim', 'Ekoloji',
+    ],
+    'lit': [
+      'Edebiyat tarihi (Divan, Tanzimat, Servet-i Fünun, Milli, Cumhuriyet)',
+      'Şiir bilgisi', 'Roman-öykü yazarları', 'Türlerin özellikleri',
+    ],
+    'history': [
+      // TYT
+      'İlk medeniyetler', 'İlk Türk devletleri', 'Osmanlı genel',
+      // AYT
+      'Tarih bilimi', 'İlk Türk-İslam', 'Selçuklular',
+      'Osmanlı (kuruluş, yükseliş, duraklama, gerileme)',
+      'Kurtuluş Savaşı', 'İnkılaplar', 'Atatürk ilkeleri',
+    ],
+    'geo': [
+      // TYT
+      'Türkiye coğrafyası temel', 'Harita bilgisi',
+      // AYT
+      'Doğal sistemler', 'Nüfus-yerleşme', 'Ekonomik faaliyet',
+      'Bölgesel-küresel ortam',
+    ],
+    'felsefe': [
+      'Felsefe giriş', 'Felsefe tarihi',
+      'Bilgi-bilim-ahlak-siyaset-sanat-din felsefesi',
+    ],
+    'din_kultur': ['Din kültürü genel', 'Çağdaş İslam düşüncesi'],
+    'mantik': ['Klasik mantık', 'Modern sembolik mantık', 'Argümantasyon'],
+    'ingilizce': [
+      'YKS YDT (grammar, reading, cloze test)', 'Paragraph completion',
+      'Sentence completion',
+    ],
+  },
   'tr_exam_prep_yks_tyt': {
     'math': ['Temel kavramlar', 'Sayılar-işlemler', 'Rasyonel sayılar', 'Basit eşitsizlikler', 'Mutlak değer', 'Üslü-köklü sayılar', 'Oran-orantı', 'Denklem çözme', 'Problem çözme (hız, işçi, yaş)', 'Kümeler', 'Fonksiyonlar giriş', 'Geometri (açı, üçgen, dörtgen)'],
     'turkish': ['Sözcükte anlam', 'Cümlede anlam', 'Paragraf', 'Ses bilgisi', 'Yapı bilgisi', 'Sözcük türleri', 'Cümle ögeleri', 'Anlatım bozukluğu', 'Yazım-noktalama'],
@@ -687,6 +801,78 @@ const Map<String, Map<String, List<String>>> _curriculum = {
     'history': ['T.C. İnkılap Tarihi (Atatürk)', 'Kurtuluş Savaşı', 'Cumhuriyet', 'İnkılaplar'],
     'religion': ['Kader-irade', 'Zekât-sadaka', 'Hz. Muhammed', 'İslam ve bilim'],
     'ingilizce': ['LGS soru tipleri: visual-based, word-based', 'Vocab yoğun tekrar', 'Tenses (past/present/future)'],
+  },
+
+  // MSÜ — Milli Savunma Üniversitesi Askeri Öğrenci Aday Belirleme Sınavı.
+  // TYT formatına çok yakın; ayrıca fiziksel yeterlilik aşamaları var ama
+  // burada akademik müfredat ele alınır.
+  'tr_exam_prep_msu': {
+    'math': ['Temel kavramlar', 'Sayılar', 'Bölünebilme', 'EBOB-EKOK', 'Rasyonel sayılar', 'Mutlak değer', 'Üslü-köklü ifadeler', 'Çarpanlara ayırma', 'Oran-orantı', 'Denklem-eşitsizlik', 'Sayı problemleri', 'Yaş-işçi-hız problemleri', 'Kümeler', 'Fonksiyonlar', 'Permütasyon-kombinasyon', 'Olasılık', 'İstatistik'],
+    'geometry': ['Doğruda açılar', 'Üçgenler ve özel üçgenler', 'Çokgenler', 'Dörtgenler', 'Çember-daire', 'Analitik geometri', 'Katı cisimler', 'Dönüşüm geometrisi'],
+    'turkish': ['Sözcükte anlam', 'Cümlede anlam', 'Paragraf', 'Anlatım biçimleri', 'Sözcük türleri', 'Cümle ögeleri', 'Anlatım bozuklukları', 'Yazım kuralları', 'Noktalama'],
+    'history': ['İlk uygarlıklar', 'İlk Türk devletleri', 'İslamiyet ve Türkler', 'Selçuklu', 'Osmanlı kuruluş-yükseliş-duraklama-gerileme', 'Çağdaş Türk ve Dünya tarihi', 'Kurtuluş Savaşı', 'Atatürk ilke ve inkılapları'],
+    'geo': ['Doğal sistemler', 'Türkiye coğrafyası', 'Beşeri sistemler', 'Çevre ve toplum', 'Mekansal sentez', 'Küresel ortam'],
+    'philosophy': ['Felsefenin alanı', 'Bilgi felsefesi', 'Bilim felsefesi', 'Ahlak felsefesi', 'Siyaset felsefesi', 'Din felsefesi', 'Sanat felsefesi'],
+    'religion': ['İnanç esasları', 'İbadetler', 'Hz. Muhammed', 'Kuran ve yorumu', 'Ahlak ve değerler', 'İslam medeniyeti'],
+  },
+
+  // KPSS Lisans — Genel Yetenek + Genel Kültür + Eğitim Bilimleri (öğretmenlik
+  // adayları) + Alan Bilgisi (kariyer meslekleri için ek oturum).
+  'tr_exam_prep_kpss': {
+    'math': ['Temel matematik (TYT seviyesi)', 'Sayı problemleri', 'Yüzde-kar-zarar', 'Hız-işçi-havuz', 'Karışım', 'Tablo-grafik', 'Mantık-akıl yürütme'],
+    'geometry': ['Açı', 'Üçgen', 'Dörtgen', 'Çember-daire', 'Analitik', 'Katı cisimler'],
+    'turkish': ['Sözcükte anlam', 'Cümlede anlam', 'Paragraf', 'Anlatım biçimleri', 'Sözcük türleri', 'Cümle ögeleri', 'Anlatım bozuklukları', 'Yazım kuralları', 'Noktalama'],
+    'history': ['İslamiyet öncesi Türk tarihi', 'Türk-İslam devletleri', 'Osmanlı', 'Kurtuluş Savaşı', 'Atatürk ilke ve inkılapları', 'Çağdaş Türk ve Dünya tarihi'],
+    'geo': ['Türkiye fiziki coğrafyası', 'Türkiye beşeri ve ekonomik coğrafyası', 'Bölgeler', 'Türkiye\'nin jeopolitiği'],
+    'civics': ['Anayasa', 'Temel hak ve özgürlükler', 'TBMM ve yasama', 'Yürütme', 'Yargı', 'İdari teşkilat', 'Güncel siyasi olaylar'],
+    'edu_sciences': ['Gelişim psikolojisi', 'Öğrenme psikolojisi', 'Rehberlik', 'Ölçme ve değerlendirme', 'Program geliştirme', 'Öğretim ilke ve yöntemleri', 'Sınıf yönetimi'],
+    'current_events': ['Güncel bilgi: bilim-teknoloji', 'Güncel bilgi: kültür-sanat', 'Güncel bilgi: ekonomi', 'Türkiye ve dünya gündemi'],
+  },
+
+  // KPSS Ortaöğretim — sadece lise mezunları için Genel Yetenek + Genel Kültür.
+  // Eğitim Bilimleri ve Alan Bilgisi YOK; sorular daha temel düzeyde.
+  'tr_exam_prep_kpss_ortaogretim': {
+    'math': ['Temel matematik (lise)', 'Sayılar', 'Rasyonel-mutlak değer', 'Üslü-köklü', 'Denklem-eşitsizlik', 'Problemler', 'Olasılık-istatistik'],
+    'geometry': ['Açı-üçgen', 'Dörtgen-çember', 'Katı cisimler'],
+    'turkish': ['Sözcük-cümle anlamı', 'Paragraf', 'Sözcük türleri', 'Cümle ögeleri', 'Anlatım bozuklukları', 'Yazım-noktalama'],
+    'history': ['Osmanlı', 'Kurtuluş Savaşı', 'Atatürk ilke ve inkılapları', 'Çağdaş Türkiye'],
+    'geo': ['Türkiye coğrafyası — fiziki', 'Türkiye coğrafyası — beşeri', 'Bölgeler'],
+    'civics': ['Anayasa temelleri', 'Temel haklar', 'Devlet teşkilatı'],
+    'current_events': ['Güncel bilgiler', 'Türkiye ve dünya gündemi'],
+  },
+
+  // DGS — Dikey Geçiş Sınavı; ön lisans (2 yıllık) mezunlarının lisansa geçişi.
+  // Sadece sayısal + sözel akıl yürütme; alan bilgisi YOK.
+  'tr_exam_prep_dgs': {
+    'math': ['Sayılar ve işlemler', 'Rasyonel ve ondalık sayılar', 'Üslü-köklü sayılar', 'Mutlak değer', 'Cebirsel ifadeler ve özdeşlikler', 'Denklemler ve eşitsizlikler', 'Oran-orantı', 'Yüzde-kar-zarar', 'Sayı-yaş-işçi-hız problemleri', 'Kümeler', 'Fonksiyonlar', 'Mantık', 'Permütasyon-kombinasyon-olasılık', 'İstatistik (tablo-grafik yorumu)'],
+    'turkish': ['Sözcükte anlam', 'Cümlede anlam', 'Paragrafta anlam', 'Anlatım biçimleri ve düşünceyi geliştirme yolları', 'Sözel mantık (öncül-sonuç akıl yürütme)', 'Anlatım bozuklukları', 'Yazım ve noktalama'],
+    'logic': ['Sayısal akıl yürütme', 'Şekil-örüntü', 'Sözel mantık problemleri', 'Tablo-grafik yorumu'],
+  },
+
+  // PMYO — Polis Meslek Yüksekokulu giriş; lise mezunlarına yönelik (YKS-puanı
+  // baz alındığı için TYT'ye çok yakın); ayrıca fizik testi + mülakat.
+  'tr_exam_prep_pmyo': {
+    'math': ['TYT matematik konuları (tüm)', 'Problemler', 'Olasılık-istatistik'],
+    'geometry': ['Üçgen', 'Dörtgen', 'Çember', 'Katı cisimler'],
+    'turkish': ['Sözcük-cümle-paragraf anlamı', 'Sözcük türleri', 'Cümle ögeleri', 'Anlatım bozuklukları', 'Yazım-noktalama'],
+    'history': ['T.C. İnkılap Tarihi', 'Atatürk ilke ve inkılapları', 'Yakın çağ Türk tarihi'],
+    'geo': ['Türkiye coğrafyası', 'Genel coğrafya temelleri'],
+    'civics': ['Anayasa', 'Temel hak ve özgürlükler', 'Devlet yapısı', 'Polis teşkilatı temelleri'],
+    'current_events': ['Güncel olaylar', 'Türkiye ve dünya gündemi'],
+  },
+
+  // ALES — Akademik Personel ve Lisansüstü Eğitimi giriş sınavı; sayısal +
+  // sözel iki bölüm; akademik personel/yüksek lisans giriş için.
+  'tr_exam_prep_ales': {
+    'math': ['Sayısal mantık', 'Sayılar', 'Cebir', 'Denklem-eşitsizlik', 'Problemler', 'Geometri (temel)', 'Olasılık-istatistik', 'Tablo-grafik yorumlama'],
+    'turkish': ['Sözcük-cümle-paragraf anlamı', 'Sözel mantık', 'Anlatım biçimleri', 'Anlatım bozuklukları'],
+    'logic': ['Sayısal akıl yürütme', 'Sözel akıl yürütme', 'Şekil-örüntü'],
+  },
+
+  // YDS / YÖKDİL — yabancı dil (İngilizce) sınavları; YDS akademik İngilizce,
+  // YÖKDİL alan bazlı (Sosyal/Fen/Sağlık).
+  'tr_exam_prep_yds': {
+    'ingilizce': ['Vocabulary (advanced academic)', 'Reading comprehension', 'Cloze test', 'Sentence completion', 'Translation (EN→TR, TR→EN)', 'Paragraph completion', 'Closest meaning', 'Irrelevant sentence', 'Dialogue completion'],
   },
 
   // ═════════════════════════════════════════════════════════════════════════
@@ -1704,6 +1890,629 @@ const Map<String, Map<String, List<String>>> _curriculum = {
   },
 
   // ═════════════════════════════════════════════════════════════════════════
+  //  🇦🇷 ARGENTINA — Educación Primaria + Secundaria + CBC universitario
+  // ═════════════════════════════════════════════════════════════════════════
+  'ar_primary_3': {
+    'math': ['Números naturales hasta 10000', 'Suma y resta con llevadas', 'Multiplicación', 'División entera', 'Geometría plana básica'],
+    'lang_native': ['Lectura comprensiva', 'Producción escrita', 'Ortografía básica', 'Sustantivos y verbos'],
+    'science': ['Seres vivos y ambiente', 'Materiales', 'El cuerpo humano'],
+    'social': ['Comunidades cercanas', 'Provincias argentinas', 'Símbolos patrios'],
+  },
+  'ar_primary_6': {
+    'math': ['Fracciones y decimales', 'Proporcionalidad', 'Áreas y perímetros', 'Medidas', 'Estadística básica'],
+    'lang_native': ['Análisis sintáctico', 'Géneros literarios', 'Texto argumentativo'],
+    'science': ['Sistema solar', 'Ecosistemas', 'Energía'],
+    'social': ['Historia argentina (1810-1880)', 'Geografía nacional'],
+    'english': ['Inglés básico — vocabulario, presente simple'],
+  },
+  'ar_middle_8': {
+    'math': ['Números racionales e irracionales', 'Ecuaciones lineales', 'Funciones', 'Geometría analítica básica', 'Probabilidad'],
+    'lang_native': ['Literatura latinoamericana', 'Producción de ensayos', 'Sintaxis avanzada'],
+    'physics': ['Cinemática', 'Fuerzas y energía'],
+    'chem': ['Estructura atómica', 'Tabla periódica', 'Reacciones químicas básicas'],
+    'bio': ['Genética introductoria', 'Sistemas del cuerpo humano'],
+    'history': ['Historia argentina siglo XX', 'Dictadura y democracia'],
+    'geo': ['Geografía física y humana de Argentina', 'América Latina'],
+    'english': ['Inglés intermedio — pretérito, futuro, presente continuo'],
+  },
+  'ar_high_10': {
+    'math': ['Funciones polinómicas y racionales', 'Trigonometría', 'Sucesiones', 'Probabilidad y combinatoria'],
+    'lang_native': ['Literatura argentina (Borges, Cortázar, Sabato)', 'Análisis literario'],
+    'physics': ['Mecánica avanzada', 'Termodinámica', 'Ondas'],
+    'chem': ['Estequiometría', 'Soluciones', 'Cinética química'],
+    'bio': ['Citología', 'Genética mendeliana', 'Evolución'],
+    'history': ['Historia mundial siglos XIX-XX'],
+    'geo': ['Geografía mundial', 'Geopolítica'],
+    'philosophy': ['Introducción a la filosofía'],
+    'english': ['Inglés avanzado'],
+  },
+  'ar_exam_prep_cbc': {
+    'math': ['Análisis matemático I (límites, derivadas)', 'Álgebra (vectores, matrices)', 'Cálculo integral introductorio'],
+    'lang_native': ['Comprensión y producción de textos académicos'],
+    'logic': ['Pensamiento crítico', 'Resolución de problemas'],
+    'science': ['Física CBC', 'Química CBC', 'Biología CBC'],
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  //  🇧🇷 BRAZIL — BNCC (Ensino Fundamental + Médio) + ENEM
+  // ═════════════════════════════════════════════════════════════════════════
+  'br_primary_3': {
+    'math': ['Números até 10.000', 'Adição e subtração', 'Multiplicação', 'Divisão básica', 'Formas geométricas'],
+    'lang_native': ['Leitura', 'Escrita', 'Ortografia', 'Substantivos e verbos'],
+    'science': ['Seres vivos', 'Ambiente', 'Corpo humano'],
+    'social': ['Comunidade', 'Estados brasileiros', 'Símbolos nacionais'],
+  },
+  'br_primary_5': {
+    'math': ['Frações e decimais', 'Proporção', 'Geometria (áreas e volumes)', 'Estatística introdutória'],
+    'lang_native': ['Análise textual', 'Gêneros textuais', 'Pontuação'],
+    'science': ['Sistema solar', 'Ecologia básica', 'Energia'],
+    'social': ['Brasil colônia e império', 'Geografia do Brasil'],
+    'english': ['Inglês básico'],
+  },
+  'br_middle_7': {
+    'math': ['Números inteiros e racionais', 'Equações de 1º grau', 'Razão e proporção', 'Geometria (ângulos, polígonos)'],
+    'lang_native': ['Literatura juvenil', 'Redação dissertativa'],
+    'science': ['Física: movimento, energia', 'Química: matéria', 'Biologia: célula'],
+    'history': ['História do Brasil — República', 'Primeira Guerra Mundial'],
+    'geo': ['Geografia do Brasil — regiões, climas'],
+    'english': ['Inglês intermediário'],
+  },
+  'br_middle_9': {
+    'math': ['Equações de 2º grau', 'Funções', 'Geometria analítica básica', 'Estatística'],
+    'lang_native': ['Literatura: romantismo brasileiro', 'Redação'],
+    'physics': ['Cinemática', 'Forças'],
+    'chem': ['Tabela periódica', 'Ligações químicas'],
+    'bio': ['Genética', 'Sistemas humanos'],
+    'history': ['Brasil século XX — Era Vargas, ditadura'],
+    'geo': ['Globalização', 'Países desenvolvidos vs subdesenvolvidos'],
+    'english': ['Inglês avançado'],
+  },
+  'br_high_10': {
+    'math': ['Funções (afim, quadrática, exponencial, logarítmica)', 'Trigonometria', 'Progressões'],
+    'lang_native': ['Literatura — Barroco, Arcadismo, Romantismo, Realismo, Modernismo'],
+    'physics': ['Mecânica completa', 'Termologia'],
+    'chem': ['Estequiometria', 'Soluções', 'Termoquímica'],
+    'bio': ['Citologia', 'Histologia', 'Embriologia'],
+    'history': ['História geral — Antiguidade ao século XIX'],
+    'geo': ['Cartografia', 'Geografia física do Brasil'],
+    'philosophy': ['Filosofia — Sócrates, Platão, Aristóteles'],
+    'sociology': ['Sociologia clássica — Durkheim, Weber, Marx'],
+    'english': ['Inglês avançado'],
+    'spanish': ['Espanhol intermediário'],
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  //  🇪🇸 SPAIN — Currículo LOMLOE (Primaria + ESO + Bachillerato)
+  // ═════════════════════════════════════════════════════════════════════════
+  'es_primary_3': {
+    'math': ['Números hasta 10000', 'Operaciones básicas', 'Geometría plana', 'Medidas'],
+    'lang_native': ['Lectura comprensiva', 'Ortografía', 'Vocabulario'],
+    'science': ['Ciencias naturales — seres vivos, materia', 'Ciencias sociales — comunidad'],
+    'english': ['Inglés A1'],
+  },
+  'es_primary_6': {
+    'math': ['Fracciones', 'Decimales', 'Porcentajes', 'Geometría (áreas, volúmenes)', 'Estadística'],
+    'lang_native': ['Tipos de textos', 'Sintaxis básica', 'Literatura infantil'],
+    'science': ['Cuerpo humano', 'Universo', 'Energía'],
+    'social': ['Historia de España — Edad Media', 'Geografía de España y Europa'],
+    'english': ['Inglés A2'],
+  },
+  'es_middle_8': {
+    'math': ['Álgebra (ecuaciones lineales)', 'Funciones', 'Geometría (Pitágoras, Tales)', 'Estadística', 'Probabilidad'],
+    'lang_native': ['Literatura medieval (El Cid, Mester de Clerecía)', 'Comentario de texto'],
+    'physics': ['Movimiento', 'Fuerzas', 'Energía'],
+    'chem': ['Estructura atómica', 'Tabla periódica'],
+    'bio': ['Célula', 'Genética básica', 'Ecosistemas'],
+    'history': ['Historia universal — Edad Moderna'],
+    'geo': ['Geografía física y humana'],
+    'english': ['Inglés B1'],
+    'second_lang': ['Francés/Alemán A1-A2'],
+  },
+  'es_high_9': {
+    'math': ['Funciones avanzadas', 'Trigonometría', 'Vectores'],
+    'lang_native': ['Literatura: Siglo de Oro (Cervantes, Lope, Quevedo)'],
+    'physics': ['Mecánica', 'Energía'],
+    'chem': ['Reacciones químicas', 'Estequiometría'],
+    'bio': ['Genética', 'Evolución', 'Anatomía'],
+    'history': ['Historia de España — siglo XIX y XX', 'Guerra Civil'],
+    'geo': ['Geopolítica', 'Geografía económica'],
+    'philosophy': ['Introducción a la filosofía'],
+    'english': ['Inglés B2'],
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  //  🇲🇽 MEXICO — SEP (Primaria + Secundaria + Bachillerato)
+  // ═════════════════════════════════════════════════════════════════════════
+  'mx_primary_3': {
+    'math': ['Números hasta 10000', 'Suma, resta, multiplicación', 'Geometría plana', 'Medidas'],
+    'lang_native': ['Lectura', 'Escritura', 'Ortografía', 'Vocabulario'],
+    'science': ['Ciencias naturales', 'Cuerpo humano'],
+    'social': ['Geografía de México', 'Historia local'],
+  },
+  'mx_primary_6': {
+    'math': ['Fracciones', 'Decimales', 'Geometría (perímetros, áreas)', 'Estadística básica'],
+    'lang_native': ['Análisis textual', 'Géneros literarios'],
+    'science': ['Sistemas del cuerpo humano', 'Ecosistemas mexicanos'],
+    'social': ['Historia de México — Independencia y Revolución', 'Geografía de México'],
+    'english': ['Inglés básico'],
+  },
+  'mx_middle_8': {
+    'math': ['Álgebra básica', 'Ecuaciones lineales', 'Funciones', 'Geometría analítica', 'Probabilidad'],
+    'lang_native': ['Literatura mexicana', 'Redacción'],
+    'physics': ['Mecánica', 'Energía'],
+    'chem': ['Estructura atómica', 'Reacciones'],
+    'bio': ['Célula', 'Genética', 'Salud'],
+    'history': ['Historia de México siglo XX', 'Historia universal moderna'],
+    'geo': ['Geografía mundial', 'Geopolítica de América Latina'],
+    'english': ['Inglés intermedio'],
+  },
+  'mx_high_10': {
+    'math': ['Funciones (lineales, cuadráticas, exponenciales)', 'Trigonometría', 'Geometría analítica'],
+    'lang_native': ['Literatura latinoamericana (Paz, Fuentes, Rulfo)'],
+    'physics': ['Mecánica avanzada', 'Termodinámica'],
+    'chem': ['Estequiometría', 'Soluciones'],
+    'bio': ['Citología', 'Genética mendeliana'],
+    'history': ['Historia universal contemporánea'],
+    'geo': ['Geografía económica'],
+    'philosophy': ['Introducción a la filosofía'],
+    'english': ['Inglés avanzado'],
+  },
+  'mx_exam_prep_unam': {
+    'math': ['Aritmética', 'Álgebra', 'Geometría', 'Trigonometría', 'Geometría analítica', 'Cálculo diferencial e integral', 'Probabilidad y estadística'],
+    'lang_native': ['Comprensión lectora', 'Gramática y ortografía', 'Literatura mexicana e iberoamericana'],
+    'physics': ['Mecánica', 'Termodinámica', 'Electromagnetismo', 'Óptica'],
+    'chem': ['Química general', 'Química orgánica'],
+    'bio': ['Biología celular', 'Genética', 'Evolución', 'Ecología'],
+    'history': ['Historia de México', 'Historia universal'],
+    'geo': ['Geografía de México', 'Geografía mundial'],
+    'philosophy': ['Filosofía', 'Lógica'],
+    'english': ['Comprensión de inglés'],
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  //  🇮🇹 ITALY — Indicazioni Nazionali (Primaria + Media + Liceo)
+  // ═════════════════════════════════════════════════════════════════════════
+  'it_primary_3': {
+    'math': ['Numeri fino a 10000', 'Operazioni', 'Geometria piana', 'Misurazioni'],
+    'lang_native': ['Lettura', 'Scrittura', 'Ortografia'],
+    'science': ['Scienze naturali', 'Corpo umano'],
+    'social': ['Storia locale', 'Geografia italiana'],
+  },
+  'it_middle_8': {
+    'math': ['Algebra elementare', 'Geometria euclidea', 'Statistica', 'Probabilità'],
+    'lang_native': ['Letteratura italiana — Dante, Petrarca, Boccaccio'],
+    'physics': ['Meccanica', 'Energia'],
+    'chem': ['Struttura atomica', 'Tavola periodica'],
+    'bio': ['Cellula', 'Genetica'],
+    'history': ['Storia d\'Italia', 'Storia europea'],
+    'geo': ['Geografia mondiale'],
+    'english': ['Inglese B1'],
+    'second_lang': ['Francese/Spagnolo/Tedesco A2'],
+  },
+  'it_high_10': {
+    'math': ['Funzioni', 'Trigonometria', 'Geometria analitica'],
+    'lang_native': ['Letteratura: Rinascimento, Barocco, Romanticismo'],
+    'lit': ['Latino — Cesare, Cicerone'],
+    'physics': ['Meccanica avanzata', 'Termodinamica'],
+    'chem': ['Reazioni chimiche', 'Stechiometria'],
+    'bio': ['Citologia', 'Anatomia'],
+    'history': ['Storia universale dal Medioevo'],
+    'philosophy': ['Filosofia — presocratici, Socrate, Platone, Aristotele'],
+    'english': ['Inglese B2'],
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  //  🇵🇱 POLAND — Podstawa Programowa (Szkoła podstawowa + Liceum)
+  // ═════════════════════════════════════════════════════════════════════════
+  'pl_primary_5': {
+    'math': ['Ułamki', 'Procenty', 'Geometria płaska', 'Pomiar'],
+    'lang_native': ['Czytanie ze zrozumieniem', 'Pisanie', 'Gramatyka'],
+    'science': ['Przyroda', 'Ciało człowieka'],
+    'history': ['Historia Polski — wczesna nowożytność'],
+    'english': ['Język angielski A1'],
+  },
+  'pl_middle_8': {
+    'math': ['Algebra elementarna', 'Funkcje liniowe', 'Geometria', 'Statystyka'],
+    'lang_native': ['Literatura polska — Mickiewicz, Słowacki', 'Esej'],
+    'physics': ['Mechanika', 'Energia'],
+    'chem': ['Atom', 'Układ okresowy'],
+    'bio': ['Komórka', 'Genetyka'],
+    'history': ['Historia Polski — XIX/XX wiek'],
+    'geo': ['Geografia Polski i świata'],
+    'english': ['Język angielski B1'],
+    'second_lang': ['Niemiecki/Francuski/Hiszpański A2'],
+  },
+  'pl_high_10': {
+    'math': ['Funkcje', 'Trygonometria', 'Geometria analityczna', 'Rachunek prawdopodobieństwa'],
+    'lang_native': ['Literatura — Pozytywizm, Młoda Polska, dwudziestolecie'],
+    'lit': ['Łacina (opcjonalna)'],
+    'physics': ['Mechanika', 'Termodynamika'],
+    'chem': ['Chemia organiczna podstawy'],
+    'bio': ['Genetyka molekularna', 'Ewolucja'],
+    'history': ['Historia powszechna XX wieku'],
+    'philosophy': ['Filozofia — wprowadzenie'],
+    'english': ['Język angielski B2'],
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  //  🇳🇱 NETHERLANDS — VWO/HAVO/VMBO (HAVO/VWO odaklı)
+  // ═════════════════════════════════════════════════════════════════════════
+  'nl_primary_5': {
+    'math': ['Breuken', 'Decimalen', 'Meetkunde', 'Statistiek basis'],
+    'lang_native': ['Lezen', 'Schrijven', 'Spelling'],
+    'science': ['Natuuronderwijs', 'Lichaam'],
+    'social': ['Geschiedenis van Nederland', 'Aardrijkskunde'],
+    'english': ['Engels A1'],
+  },
+  'nl_middle_8': {
+    'math': ['Algebra (lineaire vergelijkingen)', 'Functies', 'Meetkunde'],
+    'lang_native': ['Nederlandse literatuur', 'Stelopdrachten'],
+    'physics': ['Mechanica', 'Energie'],
+    'chem': ['Atoombouw', 'Periodiek systeem'],
+    'bio': ['Cel', 'Erfelijkheid'],
+    'history': ['Nederlandse geschiedenis — Gouden Eeuw, WO II'],
+    'geo': ['Aardrijkskunde Nederland en Europa'],
+    'english': ['Engels B1'],
+    'second_lang': ['Duits/Frans A2'],
+  },
+  'nl_high_10': {
+    'math': ['Wiskunde A/B/C/D — functies, statistiek, calculus intro'],
+    'lang_native': ['Literatuur — Renaissance tot heden'],
+    'physics': ['Mechanica', 'Elektromagnetisme'],
+    'chem': ['Reactievergelijkingen', 'Organische chemie'],
+    'bio': ['Genetica', 'Ecologie', 'Evolutie'],
+    'history': ['Wereldgeschiedenis 19e/20e eeuw'],
+    'philosophy': ['Filosofie (keuzevak)'],
+    'english': ['Engels B2/C1'],
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  //  🇦🇺 AUSTRALIA — primary/middle eklemeleri (high zaten var)
+  // ═════════════════════════════════════════════════════════════════════════
+  'au_primary_3': {
+    'math': ['Numbers to 10,000', 'Addition, subtraction', 'Multiplication', 'Money & time', 'Basic geometry'],
+    'lang_native': ['Reading', 'Writing', 'Spelling', 'Grammar'],
+    'science': ['Living things', 'Earth & space', 'Materials'],
+    'social': ['Australian history (Indigenous, settlement)', 'Geography of Australia'],
+  },
+  'au_primary_6': {
+    'math': ['Fractions, decimals', 'Percentages', 'Area, volume', 'Basic statistics'],
+    'lang_native': ['Reading comprehension', 'Persuasive writing'],
+    'science': ['Earth science', 'Forces', 'Living systems'],
+    'social': ['Australian government', 'World geography'],
+  },
+  'au_middle_8': {
+    'math': ['Algebra', 'Linear equations', 'Geometry (Pythagoras)', 'Statistics & probability'],
+    'lang_native': ['Literary analysis', 'Persuasive & narrative writing'],
+    'physics': ['Forces & energy'],
+    'chem': ['Chemical reactions'],
+    'bio': ['Cells, genetics intro'],
+    'history': ['Medieval & early modern world history'],
+    'geo': ['Landscapes, climate, urbanisation'],
+    'english': ['English language & literature'],
+  },
+  'au_high_9': {
+    'math': ['Linear & quadratic functions', 'Trigonometry', 'Statistics'],
+    'lang_native': ['Australian literature', 'Essay writing'],
+    'physics': ['Motion, waves'],
+    'chem': ['Atomic structure, periodic trends'],
+    'bio': ['Genetics, evolution, ecology'],
+    'history': ['Modern history (WWI, WWII)'],
+    'geo': ['Biomes, food security'],
+    'english': ['Advanced English'],
+  },
+  'au_high_10': {
+    'math': ['Algebra II, calculus intro', 'Probability'],
+    'lang_native': ['Shakespeare, modern Australian writers'],
+    'physics': ['Electricity, magnetism, energy transfer'],
+    'chem': ['Reactions, stoichiometry, organic chem intro'],
+    'bio': ['Evolution, biotechnology, immunology'],
+    'history': ['Civil rights, Cold War, global conflicts'],
+    'economics': ['Economics & business intro'],
+  },
+  'au_exam_prep_atar': {
+    'math': ['Mathematics Methods (calculus, statistics)', 'Mathematics Specialist (vectors, complex numbers)', 'Mathematics Standard'],
+    'english': ['English Standard / Advanced / Extension'],
+    'physics': ['Physics — motion, electromagnetism, quantum'],
+    'chem': ['Chemistry — equilibrium, organic, electrochem'],
+    'bio': ['Biology — genetics, evolution, ecosystems'],
+    'history': ['Modern History', 'Ancient History', 'Extension History'],
+    'geo': ['Geography — biophysical interactions, ecosystems at risk'],
+    'economics': ['Economics — markets, government, global'],
+    'business_studies': ['Business Studies'],
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  //  🇨🇦 CANADA — primary/middle eklemeleri (high 11/12 zaten var)
+  // ═════════════════════════════════════════════════════════════════════════
+  'ca_primary_3': {
+    'math': ['Numbers to 1000', 'Addition & subtraction with regrouping', 'Multiplication tables', 'Geometry, time, money'],
+    'lang_native': ['Reading fluency', 'Writing — narrative, descriptive', 'Spelling, grammar'],
+    'science': ['Living systems', 'Matter, materials', 'Forces'],
+    'social': ['Local & global communities', 'Indigenous peoples', 'Geography of Canada'],
+    'second_lang': ['Core French (mandatory in most provinces)'],
+  },
+  'ca_primary_6': {
+    'math': ['Fractions, decimals, percent', 'Patterns & algebra intro', 'Geometry — area, volume', 'Probability'],
+    'lang_native': ['Reading — informational & literary', 'Persuasive & narrative writing'],
+    'science': ['Earth & space systems', 'Diversity of living things', 'Energy'],
+    'social': ['Canadian history & government', 'World geography'],
+    'second_lang': ['Core French'],
+  },
+  'ca_middle_8': {
+    'math': ['Linear equations', 'Geometry (transformations, Pythagoras)', 'Statistics, probability'],
+    'lang_native': ['Literary analysis', 'Persuasive & expository writing'],
+    'science': ['Cells, fluid systems, water systems, mechanical systems'],
+    'history': ['Canadian history (Confederation to WWII)'],
+    'geo': ['World geography, sustainability'],
+    'second_lang': ['French / other'],
+  },
+  'ca_high_9': {
+    'math': ['Principles of Mathematics 9 — algebra, linear relations, geometry, measurement'],
+    'lang_native': ['English 9 — short stories, novels, essays'],
+    'science': ['Science 9 — biology (reproduction, ecology), chemistry (atoms), physics (electricity), space'],
+    'history': ['Canadian History to 1914'],
+    'geo': ['Geography of Canada'],
+    'second_lang': ['Core French'],
+  },
+  'ca_high_10': {
+    'math': ['Principles of Mathematics 10 — quadratics, trigonometry, polynomials'],
+    'lang_native': ['English 10 — Canadian & world literature'],
+    'science': ['Biology, chemistry, physics 10 (separate or combined)'],
+    'history': ['Canada in the 20th century'],
+    'civics': ['Civics & careers'],
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  //  🇪🇬 EGYPT — Wzara El-Tarbeya (Primary + Prep + Secondary) + Thanaweya Amma
+  // ═════════════════════════════════════════════════════════════════════════
+  'eg_primary_5': {
+    'math': ['Fractions, decimals', 'Multiplication, division', 'Geometry basics', 'Measurement'],
+    'lang_native': ['Arabic — reading, writing, grammar (nahw basics)'],
+    'science': ['Living things', 'Materials', 'Earth'],
+    'social': ['Egyptian history — ancient to Islamic period', 'Geography of Egypt'],
+    'religion': ['Islamic / Christian education'],
+    'english': ['English A1'],
+  },
+  'eg_middle_8': {
+    'math': ['Algebra', 'Linear equations', 'Geometry', 'Statistics intro'],
+    'lang_native': ['Arabic literature — classical poetry, modern prose'],
+    'physics': ['Motion, forces, energy'],
+    'chem': ['Atomic structure', 'Periodic table'],
+    'bio': ['Cells, genetics intro'],
+    'history': ['Egyptian & world history'],
+    'geo': ['Egypt geography, Arab world'],
+    'religion': ['Islamic / Christian education'],
+    'english': ['English B1'],
+  },
+  'eg_high_10': {
+    'math': ['Algebra II', 'Trigonometry', 'Geometry analytic'],
+    'lang_native': ['Classical Arabic literature, balagha (rhetoric)'],
+    'physics': ['Mechanics, waves'],
+    'chem': ['Chemical bonding, stoichiometry'],
+    'bio': ['Cell biology, genetics'],
+    'history': ['Modern Arab history'],
+    'geo': ['Physical & human geography'],
+    'philosophy': ['Logic & philosophy'],
+    'religion': ['Islamic / Christian education'],
+    'english': ['English B2'],
+  },
+  'eg_exam_prep_thanaweya': {
+    'math': ['Pure mathematics (algebra, calculus)', 'Applied mathematics (mechanics, statistics)'],
+    'lang_native': ['Arabic — literature, grammar (nahw, sarf), balagha, composition'],
+    'physics': ['Mechanics, waves, electromagnetism, modern physics'],
+    'chem': ['Inorganic, organic, physical chemistry'],
+    'bio': ['Cell biology, genetics, anatomy, ecology'],
+    'history': ['Egyptian & Arab modern history'],
+    'geo': ['Geography of Egypt & Arab world'],
+    'philosophy': ['Logic, philosophy, psychology'],
+    'religion': ['Religious education'],
+    'english': ['English C1'],
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  //  🇸🇦 SAUDI ARABIA — Curriculum genişletme (Tahşil + Qudurat)
+  // ═════════════════════════════════════════════════════════════════════════
+  'sa_primary_5': {
+    'math': ['Numbers, fractions', 'Operations', 'Geometry', 'Measurement'],
+    'lang_native': ['Arabic — reading, writing, nahw basics'],
+    'religion': ['Quran memorization', 'Tawheed', 'Fiqh basics', 'Hadith'],
+    'science': ['Living things', 'Materials'],
+    'social': ['Saudi history & geography'],
+    'english': ['English A1'],
+  },
+  'sa_middle_8': {
+    'math': ['Algebra', 'Linear equations', 'Geometry'],
+    'lang_native': ['Classical Arabic — poetry, prose'],
+    'religion': ['Quran & tafseer', 'Fiqh', 'Hadith', 'Aqeedah'],
+    'physics': ['Motion, forces'],
+    'chem': ['Atomic structure'],
+    'bio': ['Cells'],
+    'history': ['Islamic history', 'Saudi Arabia history'],
+    'geo': ['Geography of Arab world'],
+    'english': ['English B1'],
+  },
+  'sa_high_10': {
+    'math': ['Algebra II', 'Trigonometry'],
+    'lang_native': ['Arabic literature (ancient + modern)'],
+    'religion': ['Tafseer', 'Fiqh advanced', 'Aqeedah', 'Hadith'],
+    'physics': ['Mechanics, waves'],
+    'chem': ['Bonding, reactions'],
+    'bio': ['Cell biology, genetics'],
+    'history': ['Modern Islamic history'],
+    'english': ['English B2'],
+  },
+  'sa_exam_prep_qudurat': {
+    'math': ['Quantitative reasoning (arithmetic, algebra, geometry, word problems)'],
+    'lang_native': ['Verbal — analogies, sentence completion, reading comprehension, error detection (Arabic)'],
+    'logic': ['Logical reasoning', 'Pattern recognition'],
+  },
+  'sa_exam_prep_tahsili': {
+    'math': ['Pure mathematics (algebra, calculus, trig)'],
+    'physics': ['Mechanics, waves, electricity, modern physics'],
+    'chem': ['Inorganic, organic, physical chem'],
+    'bio': ['Cell biology, genetics, anatomy, ecology'],
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  //  🇮🇩 INDONESIA — primary/middle eklemeleri (high IPA zaten var)
+  // ═════════════════════════════════════════════════════════════════════════
+  'id_primary_3': {
+    'math': ['Bilangan sampai 10000', 'Operasi hitung', 'Geometri dasar'],
+    'lang_native': ['Bahasa Indonesia — membaca, menulis, tata bahasa'],
+    'science': ['IPA — makhluk hidup, materi'],
+    'social': ['Sejarah Indonesia, Pancasila'],
+    'religion': ['Pendidikan agama (Islam/Kristen/Hindu/Buddha sesuai siswa)'],
+  },
+  'id_primary_6': {
+    'math': ['Pecahan, desimal, persen', 'Geometri', 'Statistika dasar'],
+    'lang_native': ['Bahasa Indonesia — pemahaman teks, menulis'],
+    'science': ['IPA — sistem tubuh, energi, ekosistem'],
+    'social': ['Sejarah Indonesia abad 20', 'Geografi Indonesia'],
+    'english': ['Bahasa Inggris dasar'],
+  },
+  'id_middle_8': {
+    'math': ['Aljabar', 'Persamaan linear', 'Geometri', 'Statistika'],
+    'lang_native': ['Sastra Indonesia — Pujangga Baru, Angkatan 45'],
+    'physics': ['Gerak, gaya, energi'],
+    'chem': ['Atom, tabel periodik'],
+    'bio': ['Sel, genetika dasar'],
+    'history': ['Sejarah Indonesia & dunia'],
+    'geo': ['Geografi Indonesia & ASEAN'],
+    'religion': ['Pendidikan agama'],
+    'english': ['Bahasa Inggris menengah'],
+  },
+  'id_high_10': {
+    'math': ['Fungsi (linear, kuadrat, eksponen, logaritma)', 'Trigonometri'],
+    'lang_native': ['Sastra Indonesia kontemporer'],
+    'physics': ['Mekanika', 'Termodinamika'],
+    'chem': ['Stoikiometri', 'Larutan'],
+    'bio': ['Biologi sel, genetika'],
+    'history': ['Sejarah dunia kontemporer'],
+    'geo': ['Geografi fisik & manusia'],
+    'philosophy': ['Pancasila & filsafat'],
+    'english': ['Bahasa Inggris lanjut'],
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  //  🇹🇭 THAILAND — primary/middle eklemeleri (high 11 zaten var)
+  // ═════════════════════════════════════════════════════════════════════════
+  'th_primary_5': {
+    'math': ['เศษส่วน ทศนิยม ร้อยละ', 'เรขาคณิต', 'การวัด'],
+    'lang_native': ['ภาษาไทย — การอ่าน การเขียน ไวยากรณ์'],
+    'science': ['วิทยาศาสตร์ — สิ่งมีชีวิต พลังงาน'],
+    'social': ['ประวัติศาสตร์ไทย ภูมิศาสตร์'],
+    'english': ['ภาษาอังกฤษ A1'],
+  },
+  'th_middle_8': {
+    'math': ['พีชคณิต', 'สมการเชิงเส้น', 'เรขาคณิต', 'สถิติ'],
+    'lang_native': ['วรรณคดีไทย', 'การเขียนเรียงความ'],
+    'physics': ['การเคลื่อนที่ พลังงาน'],
+    'chem': ['อะตอม ตารางธาตุ'],
+    'bio': ['เซลล์ พันธุกรรม'],
+    'history': ['ประวัติศาสตร์ไทย ประวัติศาสตร์โลก'],
+    'geo': ['ภูมิศาสตร์'],
+    'english': ['ภาษาอังกฤษ B1'],
+  },
+  'th_high_10': {
+    'math': ['ฟังก์ชัน ตรีโกณมิติ', 'เรขาคณิตวิเคราะห์'],
+    'lang_native': ['วรรณคดีไทยร่วมสมัย'],
+    'physics': ['กลศาสตร์ขั้นสูง'],
+    'chem': ['ปฏิกิริยาเคมี สโตอิชิโอเมตรี'],
+    'bio': ['ชีววิทยาเซลล์ พันธุศาสตร์'],
+    'history': ['ประวัติศาสตร์โลกสมัยใหม่'],
+    'philosophy': ['ปรัชญาพุทธ'],
+    'english': ['ภาษาอังกฤษ B2'],
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  //  🇻🇳 VIETNAM — primary/middle eklemeleri (high 11/12 + thpt zaten var)
+  // ═════════════════════════════════════════════════════════════════════════
+  'vn_primary_5': {
+    'math': ['Phân số, số thập phân, tỷ lệ', 'Hình học cơ bản', 'Đo lường'],
+    'lang_native': ['Tiếng Việt — đọc hiểu, viết, ngữ pháp'],
+    'science': ['Khoa học tự nhiên — sinh vật, vật chất'],
+    'social': ['Lịch sử Việt Nam', 'Địa lý Việt Nam'],
+    'english': ['Tiếng Anh A1'],
+  },
+  'vn_middle_9': {
+    'math': ['Đại số (phương trình bậc 2)', 'Hình học (đường tròn, tam giác đồng dạng)', 'Thống kê'],
+    'lang_native': ['Văn học Việt Nam — văn học trung đại, hiện đại'],
+    'physics': ['Điện học, quang học, nhiệt học'],
+    'chem': ['Hóa học vô cơ cơ bản'],
+    'bio': ['Sinh học tế bào, di truyền'],
+    'history': ['Lịch sử Việt Nam — chiến tranh, đổi mới'],
+    'geo': ['Địa lý Việt Nam và thế giới'],
+    'civics': ['Giáo dục công dân'],
+    'english': ['Tiếng Anh B1'],
+  },
+  'vn_high_10': {
+    'math': ['Hàm số bậc nhất, bậc hai', 'Lượng giác', 'Hình học không gian'],
+    'lang_native': ['Văn học Việt Nam thời kỳ đổi mới', 'Văn học nước ngoài'],
+    'physics': ['Cơ học, động lực học'],
+    'chem': ['Cấu tạo nguyên tử', 'Bảng tuần hoàn'],
+    'bio': ['Sinh học tế bào, di truyền học'],
+    'history': ['Lịch sử thế giới hiện đại'],
+    'geo': ['Địa lý kinh tế xã hội'],
+    'philosophy': ['Triết học cơ bản'],
+    'english': ['Tiếng Anh B2'],
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  //  🇳🇬 NIGERIA — UBE (primary + JSS) + SSS (high) + WAEC/JAMB
+  // ═════════════════════════════════════════════════════════════════════════
+  'ng_primary_5': {
+    'math': ['Numbers, fractions, decimals', 'Operations', 'Geometry', 'Measurement'],
+    'lang_native': ['English — reading, writing, grammar', 'Nigerian languages (Yoruba/Igbo/Hausa)'],
+    'science': ['Basic science', 'Health education'],
+    'social': ['Nigerian history & culture', 'Geography of Nigeria'],
+    'religion': ['Christian / Islamic religious studies'],
+  },
+  'ng_middle_8': {
+    'math': ['Algebra', 'Geometry', 'Statistics intro'],
+    'lang_native': ['English literature & composition'],
+    'physics': ['Forces, energy, waves'],
+    'chem': ['Atomic structure, reactions'],
+    'bio': ['Cell biology, genetics'],
+    'history': ['Nigerian & African history'],
+    'geo': ['Physical & human geography'],
+    'religion': ['CRS / IRS'],
+    'civics': ['Civic education'],
+  },
+  'ng_high_10': {
+    'math': ['Algebra II, trigonometry, calculus intro'],
+    'lang_native': ['English language & literature (African writers — Achebe, Soyinka)'],
+    'physics': ['Mechanics, waves, electromagnetism'],
+    'chem': ['Bonding, stoichiometry, organic chem'],
+    'bio': ['Genetics, evolution, ecology'],
+    'history': ['Modern African & world history'],
+    'geo': ['Geography of West Africa'],
+    'economics': ['Economics — markets, government'],
+    'agriculture': ['Agricultural science'],
+  },
+  'ng_exam_prep_waec': {
+    'math': ['Number & numeration', 'Algebra', 'Geometry & trigonometry', 'Calculus intro', 'Statistics'],
+    'lang_native': ['English language — comprehension, summary, lexis, structure, oral'],
+    'lit': ['African literature (prose, poetry, drama)'],
+    'physics': ['Mechanics, waves, optics, electromagnetism, modern physics'],
+    'chem': ['Inorganic, organic, physical chemistry'],
+    'bio': ['Cell biology, genetics, ecology, evolution, anatomy'],
+    'history': ['West African & Nigerian history'],
+    'geo': ['Geography of Nigeria & Africa'],
+    'economics': ['Economics'],
+    'religion': ['Christian / Islamic religious studies'],
+  },
+  'ng_exam_prep_jamb': {
+    'math': ['Use of English + 3 subjects (math/physics/chem/bio/economics/government/lit/...)'],
+    'lang_native': ['Use of English (comprehension, lexis, structure)'],
+    'physics': ['JAMB physics syllabus'],
+    'chem': ['JAMB chemistry syllabus'],
+    'bio': ['JAMB biology syllabus'],
+    'economics': ['JAMB economics'],
+    'lit': ['JAMB literature'],
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
   //  ULUSLARARASI FALLBACK — IB / Cambridge tarzı
   // ═════════════════════════════════════════════════════════════════════════
   'international_primary': {
@@ -1736,6 +2545,15 @@ const Map<String, Map<String, List<String>>> _curriculum = {
     'second_lang': ['Second language — intermediate'],
     'economics': ['Introduction to Economics'],
     'computer_science': ['Computer Science basics — algorithms, programming'],
+  },
+  // Generic exam prep — herhangi bir ülke profilinde "exam_prep" seçilip
+  // ülkeye özel anahtar bulunamadığında devreye girer (ielts/toefl/sat/etc).
+  'international_exam_prep': {
+    'math': ['Quantitative reasoning', 'Algebra (linear, quadratic, polynomial)', 'Geometry & coordinate geometry', 'Functions & graphs', 'Trigonometry basics', 'Probability & statistics', 'Word problems'],
+    'english': ['Reading comprehension', 'Grammar (tenses, articles, prepositions, conditionals)', 'Vocabulary (academic word list)', 'Sentence completion', 'Essay writing & structure', 'Listening comprehension', 'Speaking fluency'],
+    'logic': ['Verbal reasoning', 'Critical thinking', 'Pattern recognition', 'Data interpretation (charts, tables)', 'Logical sequences'],
+    'science': ['Physics fundamentals (motion, energy, waves)', 'Chemistry fundamentals (atoms, bonds, reactions)', 'Biology fundamentals (cells, genetics, ecology)'],
+    'social': ['World history overview', 'World geography overview', 'Civics & current affairs'],
   },
   'international_university': {
     'math': ['Calculus I & II', 'Linear algebra', 'Discrete mathematics'],

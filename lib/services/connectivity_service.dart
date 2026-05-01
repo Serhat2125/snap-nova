@@ -6,11 +6,20 @@ import 'package:flutter/foundation.dart';
 ///
 /// - DNS araması (`InternetAddress.lookup`) ile gerçek çıkışı sınar
 ///   (WiFi'ye bağlı olmak ≠ internet olmak).
+/// - Birden fazla probe host kullanır: Google (default), Cloudflare DNS,
+///   Apple — tek host çalışmıyorsa diğerlerini dener (Çin, İran gibi
+///   bölgelerde bazıları bloklu).
 /// - Periyodik sağlık kontrolü yerine **talep üzerine** çalışır; pil
 ///   ve RAM etkisi ihmal edilebilir düzeydedir.
-/// - `onChange` akışı UI'da dinlenebilir (snackbar, offline rozeti vb).
 class ConnectivityService extends ChangeNotifier {
-  static const _probeHost = 'www.google.com';
+  /// Probe sırası — biri çalışırsa "online" kabul edilir.
+  /// Cloudflare 1.1.1.1 + Apple captive portal genellikle her yerde açık.
+  static const _probeHosts = [
+    'www.google.com',
+    'one.one.one.one', // Cloudflare 1.1.1.1
+    'captive.apple.com',
+    'generativelanguage.googleapis.com', // Gemini API'nin kendisi
+  ];
   static const _probeTimeout = Duration(seconds: 3);
 
   bool _online = true;
@@ -38,17 +47,23 @@ class ConnectivityService extends ChangeNotifier {
   }
 
   static Future<bool> _probe() async {
-    try {
-      final result = await InternetAddress.lookup(_probeHost)
-          .timeout(_probeTimeout);
-      return result.isNotEmpty && result.first.rawAddress.isNotEmpty;
-    } on SocketException {
-      return false;
-    } on TimeoutException {
-      return false;
-    } catch (_) {
-      return false;
+    // Sırayla dene — biri çalışırsa hemen true. Hepsi düşerse false.
+    for (final host in _probeHosts) {
+      try {
+        final result =
+            await InternetAddress.lookup(host).timeout(_probeTimeout);
+        if (result.isNotEmpty && result.first.rawAddress.isNotEmpty) {
+          return true;
+        }
+      } on SocketException {
+        continue;
+      } on TimeoutException {
+        continue;
+      } catch (_) {
+        continue;
+      }
     }
+    return false;
   }
 
   @override

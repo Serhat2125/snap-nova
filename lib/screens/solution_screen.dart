@@ -1,4 +1,5 @@
 import '../services/runtime_translator.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -8,6 +9,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme.dart';
 import '../main.dart' show localeService;
+import '../services/analytics.dart';
+import '../services/usage_quota.dart';
 import '../widgets/adaptive_photo.dart';
 import '../widgets/ai_model_card.dart';
 import '../widgets/qualsar_numeric_loader.dart';
@@ -290,6 +293,29 @@ class _SolutionScreenState extends State<SolutionScreen> {
       return;
     }
 
+    // Quota kontrolü — fotoğraf çözümü = Solution kategorisi.
+    // Free tier: 100/gün, 1500/ay. Aşılırsa snackbar + Analytics event.
+    final quota = await UsageQuota.get(QuotaKind.solution);
+    if (quota.isExhausted) {
+      Analytics.logQuotaExhausted(QuotaKind.solution.name);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(quota.isDailyExhausted
+              ? 'Günlük çözüm sınırına ulaştın (${quota.dailyLimit}). Yarın tekrar dene veya Premium\'a geç.'
+              : 'Aylık çözüm sınırına ulaştın (${quota.monthlyLimit}). Ay başında sıfırlanır.'),
+          backgroundColor: AppColors.surfaceElevated,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ));
+      }
+      return;
+    }
+    await UsageQuota.increment(QuotaKind.solution);
+    Analytics.logEvent('solution_started', params: {
+      'model': model.name,
+      'option': _selectedOption ?? 'unknown',
+    });
+
     setState(() {
       _isLoading = true;
       _subjectKind = null;
@@ -323,6 +349,13 @@ class _SolutionScreenState extends State<SolutionScreen> {
       }
     } on GeminiException catch (e) {
       geminiError = e;
+    } on SocketException {
+      geminiError = GeminiException.noInternet();
+    } on TimeoutException {
+      geminiError = GeminiException.serverTimeout();
+    } on HandshakeException {
+      // TLS handshake — proxy/cert sorunu, internet yok kabul et.
+      geminiError = GeminiException.noInternet();
     } catch (e) {
       geminiError = GeminiException.unknown(e.toString());
     } finally {
@@ -1302,6 +1335,8 @@ class _FuturisticErrorDialog extends StatelessWidget {
   IconData get _icon => switch (exception.type) {
         GeminiErrorType.noInternet    => Icons.wifi_off_rounded,
         GeminiErrorType.blurryImage   => Icons.blur_on_rounded,
+        GeminiErrorType.emptyResponse => Icons.refresh_rounded,
+        GeminiErrorType.safetyBlocked => Icons.shield_outlined,
         GeminiErrorType.quotaExceeded => Icons.hourglass_empty_rounded,
         GeminiErrorType.imageTooLarge => Icons.photo_size_select_large_rounded,
         GeminiErrorType.invalidKey    => Icons.vpn_key_off_rounded,
@@ -1312,6 +1347,8 @@ class _FuturisticErrorDialog extends StatelessWidget {
   Color get _color => switch (exception.type) {
         GeminiErrorType.noInternet    => const Color(0xFFEF4444),
         GeminiErrorType.blurryImage   => const Color(0xFFF59E0B),
+        GeminiErrorType.emptyResponse => const Color(0xFFF59E0B),
+        GeminiErrorType.safetyBlocked => const Color(0xFFEF4444),
         GeminiErrorType.quotaExceeded => const Color(0xFF8B5CF6),
         GeminiErrorType.imageTooLarge => const Color(0xFFEF4444),
         GeminiErrorType.invalidKey    => const Color(0xFF8B5CF6),

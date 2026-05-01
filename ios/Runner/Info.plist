@@ -73,7 +73,9 @@
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Çekilen fotoğrafları kaydetmek için galerinize erişim gerekiyor.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Kamera kullanımı için mikrofon erişimi gerekiyor.</string>
+	<string>Sesli soru sormak ve kamera kullanımı için mikrofon erişimi gerekiyor.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Sorularınızı sesli olarak sorabilmeniz için konuşma tanıma kullanılır.</string>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>whatsapp</string>
@@ -103,5 +105,9 @@
 			</array>
 		</dict>
 	</array>
+	<key>GIDClientID</key>
+	<string>828607169326-f2j8au8cjoiuh8bp3c2l14qi61jfmd26.apps.googleusercontent.com</string>
+	<key>GIDServerClientID</key>
+	<string>828607169326-os08cs4ik9e8ki9m7enbfbju2vuf6b2u.apps.googleusercontent.com</string>
 </dict>
 </plist>
