@@ -326,11 +326,11 @@ class _CameraScreenState extends State<CameraScreen>
   Route<void> _slideUp(Widget page) => PageRouteBuilder(
     pageBuilder: (_, a, __) => page,
     transitionsBuilder: (_, a, __, child) => SlideTransition(
-      position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
+      position: Tween<Offset>(begin: Offset(0, 1), end: Offset.zero)
           .animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)),
       child: child,
     ),
-    transitionDuration: const Duration(milliseconds: 380),
+    transitionDuration: Duration(milliseconds: 380),
   );
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -365,7 +365,7 @@ class _CameraScreenState extends State<CameraScreen>
             child: GestureDetector(
               onTap: () => Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const CalculatorScreen()),
+                MaterialPageRoute(builder: (_) => CalculatorScreen()),
               ),
               child: Container(
                 width: 48,
@@ -385,7 +385,7 @@ class _CameraScreenState extends State<CameraScreen>
                     ),
                   ],
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.calculate_rounded,
                   color: AppColors.cyan,
                   size: 24,
@@ -408,11 +408,11 @@ class _CameraScreenState extends State<CameraScreen>
       return CameraPreview(c);
     }
     return ColoredBox(
-      color: Colors.black,
+      color: AppPalette.textPrimary(context),
       child: Center(
         child: _errorMsg != null
             ? _ErrorView(message: _errorMsg!, onRetry: _initCamera)
-            : const CircularProgressIndicator(color: AppColors.cyan, strokeWidth: 2),
+            : CircularProgressIndicator(color: AppColors.cyan, strokeWidth: 2),
       ),
     );
   }
@@ -432,19 +432,19 @@ class _CameraScreenState extends State<CameraScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Center(child: _buildCaptureTabBar()),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     _BottomIconBtn(
                       icon: Icons.photo_library_rounded,
                       label: localeService.tr('gallery'),
-                      color: const Color(0xFF22C55E),
+                      color: Color(0xFF22C55E),
                       onTap: _openGallery,
                     ),
-                    const SizedBox(width: 28),
+                    SizedBox(width: 28),
                     CaptureButton(onPressed: _onCapture, isCapturing: _isCapturing),
-                    const SizedBox(width: 28),
+                    SizedBox(width: 28),
                     _BottomIconBtn(
                       icon: _isFlashOn ? Icons.flash_on_rounded : Icons.flash_off_rounded,
                       label: _isFlashOn ? localeService.tr('flash_on') : 'Flash',
@@ -460,9 +460,9 @@ class _CameraScreenState extends State<CameraScreen>
             ),
           ),
 
-          // ── Nav bar — beyaz arka plan ──────────────────────────────────
+          // ── Nav bar — temaya bağlı arka plan ───────────────────────────
           Container(
-            color: Colors.white,
+            color: AppPalette.bg(context),
             child: SafeArea(
               top: false,
               child: Padding(
@@ -477,14 +477,14 @@ class _CameraScreenState extends State<CameraScreen>
                     if (i == 0) {
                       Navigator.push(
                         context,
-                        _slideUp(const LiveAnalysisScreen()),
+                        _slideUp(LiveAnalysisScreen()),
                       ).then((_) => setState(() => _navIndex = 1));
                       return;
                     }
                     Widget child;
                     switch (i) {
-                      case 2: child = const LibraryLanding(); break;
-                      case 3: child = const ProfileScreen(); break;
+                      case 2: child = LibraryLanding(); break;
+                      case 3: child = ProfileScreen(); break;
                       default: return;
                     }
                     Navigator.push(
@@ -533,7 +533,7 @@ class _CameraScreenState extends State<CameraScreen>
       child: GestureDetector(
         onTap: onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
+          duration: Duration(milliseconds: 200),
           curve: Curves.easeOutCubic,
           padding: const EdgeInsets.symmetric(vertical: 5),
           decoration: BoxDecoration(
@@ -585,7 +585,7 @@ class _BottomIconBtnState extends State<_BottomIconBtn>
     super.initState();
     _blinkCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 700),
+      duration: Duration(milliseconds: 700),
     );
     _syncAnim();
   }
@@ -651,7 +651,7 @@ class _BottomIconBtnState extends State<_BottomIconBtn>
               );
             },
           ),
-          const SizedBox(height: 5),
+          SizedBox(height: 5),
           Text(
             widget.label,
             textScaler: TextScaler.noScaling,
@@ -683,17 +683,17 @@ class _NavShell extends StatelessWidget {
       Navigator.pushReplacement(
         context,
         PageRouteBuilder(
-          pageBuilder: (_, __, ___) => const LiveAnalysisScreen(),
+          pageBuilder: (_, __, ___) => LiveAnalysisScreen(),
           transitionsBuilder: (_, a, __, c) => FadeTransition(opacity: a, child: c),
-          transitionDuration: const Duration(milliseconds: 180),
+          transitionDuration: Duration(milliseconds: 180),
         ),
       );
       return;
     }
     Widget newChild;
     switch (i) {
-      case 2: newChild = const LibraryLanding(); break;
-      case 3: newChild = const ProfileScreen(); break;
+      case 2: newChild = LibraryLanding(); break;
+      case 3: newChild = ProfileScreen(); break;
       default: return;
     }
     Navigator.pushReplacement(
@@ -701,7 +701,7 @@ class _NavShell extends StatelessWidget {
       PageRouteBuilder(
         pageBuilder: (_, __, ___) => _NavShell(selectedIndex: i, child: newChild),
         transitionsBuilder: (_, a, __, c) => FadeTransition(opacity: a, child: c),
-        transitionDuration: const Duration(milliseconds: 180),
+        transitionDuration: Duration(milliseconds: 180),
       ),
     );
   }
@@ -713,8 +713,7 @@ class _NavShell extends StatelessWidget {
         child,
         Positioned(
           left: 0, right: 0, bottom: 0,
-          child: Container(
-            color: Colors.white,
+          child: Container(color: AppPalette.card(context),
             child: SafeArea(
               top: false,
               child: MediaQuery(
@@ -747,11 +746,11 @@ class _ErrorView extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(Icons.no_photography_outlined, color: AppColors.textMuted, size: 52),
-        const SizedBox(height: 12),
-        Text(message, style: const TextStyle(color: AppColors.textSecondary, fontSize: 14), textAlign: TextAlign.center),
-        const SizedBox(height: 20),
-        TextButton(onPressed: onRetry, child: Text(localeService.tr('try_again'), style: const TextStyle(color: AppColors.cyan))),
+        Icon(Icons.no_photography_outlined, color: AppColors.textMuted, size: 52),
+        SizedBox(height: 12),
+        Text(message, style: TextStyle(color: AppColors.textSecondary, fontSize: 14), textAlign: TextAlign.center),
+        SizedBox(height: 20),
+        TextButton(onPressed: onRetry, child: Text(localeService.tr('try_again'), style: TextStyle(color: AppColors.cyan))),
       ],
     );
   }

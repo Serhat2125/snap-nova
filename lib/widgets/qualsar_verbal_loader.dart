@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
 // ═══════════════════════════════════════════════════════════════════════════════
 //  QuAlsarVerbalLoader — Sözel (Türkçe / Edebiyat / Tarih / Felsefe / Dil)
 //  yükleme animasyonu. HTML referansından birebir Flutter'a port edilmiştir.
@@ -42,41 +43,41 @@ class _QuAlsarVerbalLoaderState extends State<QuAlsarVerbalLoader>
   void initState() {
     super.initState();
     _orbit1 = AnimationController(
-        vsync: this, duration: const Duration(seconds: 2))
+        vsync: this, duration: Duration(seconds: 2))
       ..repeat();
     _orbit2 = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 1500))
+        vsync: this, duration: Duration(milliseconds: 1500))
       ..repeat();
     _orbit3 = AnimationController(
-        vsync: this, duration: const Duration(seconds: 1))
+        vsync: this, duration: Duration(seconds: 1))
       ..repeat();
     _glowCtrl = AnimationController(
-        vsync: this, duration: const Duration(seconds: 2))
+        vsync: this, duration: Duration(seconds: 2))
       ..repeat(reverse: true);
     _ticker = AnimationController(
-        vsync: this, duration: const Duration(seconds: 2))
+        vsync: this, duration: Duration(seconds: 2))
       ..repeat();
 
     // Sözelde 75 ms doğum aralığı (sayısalda 80 ms)
-    _spawnTimer = Timer.periodic(const Duration(milliseconds: 75), (_) {
+    _spawnTimer = Timer.periodic(Duration(milliseconds: 75), (_) {
       if (!mounted) return;
       _spawnLetter();
     });
 
     // Merkez harf 200 ms aralık
-    _centerTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+    _centerTimer = Timer.periodic(Duration(milliseconds: 200), (_) {
       if (!mounted) return;
       setState(() {
         _centerIdx = (_centerIdx + 1) % _centerLetters.length;
       });
     });
 
-    _stageTimer = Timer(const Duration(seconds: 3), () {
+    _stageTimer = Timer(Duration(seconds: 3), () {
       if (!mounted) return;
       setState(() => _solving = true);
     });
 
-    _dotTimer = Timer.periodic(const Duration(milliseconds: 300), (_) {
+    _dotTimer = Timer.periodic(Duration(milliseconds: 300), (_) {
       if (!mounted) return;
       setState(() {
         _dots = (_dots + 1) % 4;
@@ -126,7 +127,7 @@ class _QuAlsarVerbalLoaderState extends State<QuAlsarVerbalLoader>
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: RadialGradient(
           center: Alignment.center,
           radius: 1.0,
@@ -136,14 +137,14 @@ class _QuAlsarVerbalLoaderState extends State<QuAlsarVerbalLoader>
       child: SafeArea(
         child: Align(
           // Logo + disk birlikte ekranın üst kısmına çekildi
-          alignment: const Alignment(0, -0.35),
+          alignment: Alignment(0, -0.35),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               _buildLogo(),
-              const SizedBox(height: 24),
+              SizedBox(height: 24),
               _buildLoader(),
-              const SizedBox(height: 18),
+              SizedBox(height: 18),
               _buildStageText(),
             ],
           ),
@@ -167,8 +168,8 @@ class _QuAlsarVerbalLoaderState extends State<QuAlsarVerbalLoader>
                   Shadow(
                       color: Colors.white.withValues(alpha: 0.5 + 0.3 * t),
                       blurRadius: whiteGlow),
-                  const Shadow(
-                      color: Colors.black54,
+                  Shadow(
+                      color: AppPalette.textSecondary(context),
                       offset: Offset(0, 2),
                       blurRadius: 6),
                 ]),
@@ -176,7 +177,7 @@ class _QuAlsarVerbalLoaderState extends State<QuAlsarVerbalLoader>
               TextSpan(
                 text: 'Al',
                 // "Al" net — blur yok, saf kırmızı
-                style: _logoStyle(const Color(0xFFFF0000), const []),
+                style: _logoStyle(Color(0xFFFF0000), const []),
               ),
               TextSpan(
                 text: 'sar',
@@ -184,8 +185,8 @@ class _QuAlsarVerbalLoaderState extends State<QuAlsarVerbalLoader>
                   Shadow(
                       color: Colors.white.withValues(alpha: 0.5 + 0.3 * t),
                       blurRadius: whiteGlow),
-                  const Shadow(
-                      color: Colors.black54,
+                  Shadow(
+                      color: AppPalette.textSecondary(context),
                       offset: Offset(0, 2),
                       blurRadius: 6),
                 ]),
@@ -212,7 +213,7 @@ class _QuAlsarVerbalLoaderState extends State<QuAlsarVerbalLoader>
       height: 180,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: Colors.black,
+        color: AppPalette.textPrimary(context),
         boxShadow: [
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.8), blurRadius: 30),
@@ -276,7 +277,7 @@ class _QuAlsarVerbalLoaderState extends State<QuAlsarVerbalLoader>
             turns: _orbit1,
             child: _OrbitRing(
               size: 180,
-              color: const Color(0xFFB8B8C8),
+              color: Color(0xFFB8B8C8),
               sides: const [_Side.top, _Side.right],
               dotAlign: Alignment.topCenter,
             ),
@@ -286,7 +287,7 @@ class _QuAlsarVerbalLoaderState extends State<QuAlsarVerbalLoader>
             turns: ReverseAnimation(_orbit2),
             child: _OrbitRing(
               size: 130,
-              color: const Color(0xFFD0D0DC),
+              color: Color(0xFFD0D0DC),
               sides: const [_Side.top, _Side.left],
               dotAlign: Alignment.centerRight,
             ),
@@ -296,7 +297,7 @@ class _QuAlsarVerbalLoaderState extends State<QuAlsarVerbalLoader>
             turns: _orbit3,
             child: _OrbitRing(
               size: 80,
-              color: const Color(0xFFA0A0B0),
+              color: Color(0xFFA0A0B0),
               sides: const [_Side.top, _Side.bottom],
               dotAlign: Alignment.bottomCenter,
             ),
@@ -310,7 +311,7 @@ class _QuAlsarVerbalLoaderState extends State<QuAlsarVerbalLoader>
   Widget _buildCenterLetter() {
     final letter = _centerLetters[_centerIdx];
     return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 140),
+      duration: Duration(milliseconds: 140),
       child: SizedBox(
         key: ValueKey(_centerIdx),
         width: 50,
@@ -318,7 +319,7 @@ class _QuAlsarVerbalLoaderState extends State<QuAlsarVerbalLoader>
         child: Center(
           child: Text(
             letter,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 30,
               fontWeight: FontWeight.bold,
               color: Colors.white,
@@ -349,7 +350,7 @@ class _QuAlsarVerbalLoaderState extends State<QuAlsarVerbalLoader>
       ],
     );
     return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 320),
+      duration: Duration(milliseconds: 320),
       transitionBuilder: (child, anim) =>
           FadeTransition(opacity: anim, child: child),
       // Row + sabit genişlikte nokta kutusu → metin ortalı konumu sabit kalır,

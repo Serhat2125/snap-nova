@@ -19,6 +19,7 @@ import '../domain/curriculum_node.dart';
 import '../providers/curriculum_controller.dart';
 import '../providers/matchmaking_provider.dart';
 
+import '../../../theme/app_theme.dart';
 // ────────────────────────────────────────────────────────────────────────────
 // 1) SUMMARY PANEL — sol ders, sağ alt konular, "Özet Oluştur"
 // ────────────────────────────────────────────────────────────────────────────
@@ -67,7 +68,7 @@ class _CurriculumSummaryPanelState
           child: ListView.separated(
             padding: const EdgeInsets.all(8),
             itemCount: state.subjects.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 6),
+            separatorBuilder: (_, __) => SizedBox(height: 6),
             itemBuilder: (_, i) {
               final s = state.subjects[i];
               final selected = s.key == _activeSubjectKey;
@@ -81,19 +82,19 @@ class _CurriculumSummaryPanelState
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
                   decoration: BoxDecoration(
                     color: selected
-                        ? const Color(0xFF7C3AED).withValues(alpha: 0.10)
+                        ? Color(0xFF7C3AED).withValues(alpha: 0.10)
                         : Colors.white,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: selected
-                          ? const Color(0xFF7C3AED)
+                          ? Color(0xFF7C3AED)
                           : Colors.black12,
                     ),
                   ),
                   child: Row(
                     children: [
-                      Text(s.emoji, style: const TextStyle(fontSize: 18)),
-                      const SizedBox(width: 6),
+                      Text(s.emoji, style: TextStyle(fontSize: 18)),
+                      SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           s.name,
@@ -103,7 +104,7 @@ class _CurriculumSummaryPanelState
                             fontSize: 11,
                             fontWeight: FontWeight.w800,
                             color: selected
-                                ? const Color(0xFF7C3AED)
+                                ? Color(0xFF7C3AED)
                                 : Colors.black87,
                           ),
                         ),
@@ -129,7 +130,7 @@ class _CurriculumSummaryPanelState
                         style: GoogleFonts.inter(
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
-                          color: Colors.black87,
+                          color: AppPalette.textPrimary(context),
                         ),
                       ),
                     ),
@@ -138,7 +139,7 @@ class _CurriculumSummaryPanelState
                         padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
                         itemCount: allSubtopics.length,
                         separatorBuilder: (_, __) =>
-                            const SizedBox(height: 4),
+                            SizedBox(height: 4),
                         itemBuilder: (_, i) {
                           final st = allSubtopics[i];
                           final selected = _activeSubtopic?.id == st.id;
@@ -150,12 +151,12 @@ class _CurriculumSummaryPanelState
                                   horizontal: 10, vertical: 8),
                               decoration: BoxDecoration(
                                 color: selected
-                                    ? const Color(0xFF7C3AED)
+                                    ? Color(0xFF7C3AED)
                                     : Colors.white,
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
                                   color: selected
-                                      ? const Color(0xFF7C3AED)
+                                      ? Color(0xFF7C3AED)
                                       : Colors.black12,
                                 ),
                               ),
@@ -180,7 +181,7 @@ class _CurriculumSummaryPanelState
                         width: double.infinity,
                         child: FilledButton(
                           style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF7C3AED),
+                            backgroundColor: Color(0xFF7C3AED),
                             foregroundColor: Colors.white,
                           ),
                           onPressed: _activeSubtopic == null
@@ -281,17 +282,17 @@ class _CurriculumExamCreatorState
               _checkedIds.clear();
             }),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           if (activeSubject != null) ...[
             Text(
               'Konuları işaretle:',
               style: GoogleFonts.inter(
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
-                color: Colors.black54,
+                color: AppPalette.textSecondary(context),
               ),
             ),
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             Expanded(
               child: ListView(
                 children: [
@@ -321,7 +322,7 @@ class _CurriculumExamCreatorState
             ),
             FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFF59E0B),
+                backgroundColor: Color(0xFFF59E0B),
                 foregroundColor: Colors.white,
               ),
               onPressed: _checkedIds.isEmpty
@@ -380,47 +381,47 @@ class CurriculumQuizModule extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFFFEF3C7),
+              color: Color(0xFFFEF3C7),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFFFB800)),
+              border: Border.all(color: Color(0xFFFFB800)),
             ),
             child: Row(
               children: [
-                const Icon(Icons.lock_outline_rounded,
+                Icon(Icons.lock_outline_rounded,
                     size: 18, color: Color(0xFF92400E)),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Bilgi Yarışı seviye-kilitli — sadece "${pref.levelKey} ${pref.gradeKey}" düzeyindeki sorular gelir.',
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      color: const Color(0xFF92400E),
+                      color: Color(0xFF92400E),
                     ),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           Text(
             'Quiz havuzu (${allTopics.length} konu)',
             style: GoogleFonts.inter(
               fontSize: 11,
               fontWeight: FontWeight.w800,
-              color: Colors.black54,
+              color: AppPalette.textSecondary(context),
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Expanded(
             child: ListView.separated(
               itemCount: allTopics.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 4),
+              separatorBuilder: (_, __) => SizedBox(height: 4),
               itemBuilder: (_, i) => Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+            color: AppPalette.card(context),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.black12),
                 ),
@@ -460,26 +461,28 @@ class CurriculumArenaPrep extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _matchCard(
+            context: context,
             title: 'Ülke İçi Eşleşme',
             subtitle:
                 'Sadece aynı ülke + sınıf + bölüm. Firestore: where("countryMatchKey", isEqualTo: ...)',
             keyValue: countryKey ?? '—',
-            color: const Color(0xFF22C55E),
+            color: Color(0xFF22C55E),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           _matchCard(
+            context: context,
             title: 'Dünya Eşdeğer',
             subtitle:
                 'Aynı seviye + sınıf, farklı ülkeler. Sınava hazırlık modunda devre dışı.',
             keyValue: worldKey ?? '— (sınav modu)',
-            color: const Color(0xFF3B82F6),
+            color: Color(0xFF3B82F6),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           Text(
             'Bu anahtarlar Firebase Firestore matchmaking koleksiyonunda where() filter olarak kullanılır.',
             style: GoogleFonts.inter(
               fontSize: 11,
-              color: Colors.black54,
+              color: AppPalette.textSecondary(context),
               height: 1.5,
             ),
           ),
@@ -489,6 +492,7 @@ class CurriculumArenaPrep extends ConsumerWidget {
   }
 
   Widget _matchCard({
+    required BuildContext context,
     required String title,
     required String subtitle,
     required String keyValue,
@@ -512,18 +516,18 @@ class CurriculumArenaPrep extends ConsumerWidget {
               color: color,
             ),
           ),
-          const SizedBox(height: 3),
+          SizedBox(height: 3),
           Text(
             subtitle,
             style: GoogleFonts.inter(
-                fontSize: 10.5, color: Colors.black54, height: 1.4),
+                fontSize: 10.5, color: AppPalette.textSecondary(context), height: 1.4),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Container(
             padding:
                 const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.white,
+            color: AppPalette.card(context),
               borderRadius: BorderRadius.circular(6),
               border: Border.all(color: color.withValues(alpha: 0.3)),
             ),
@@ -555,7 +559,7 @@ Widget _emptyMsg(String text) {
         textAlign: TextAlign.center,
         style: GoogleFonts.inter(
           fontSize: 12.5,
-          color: Colors.black54,
+          color: Color(0xFF707380),
           height: 1.5,
         ),
       ),

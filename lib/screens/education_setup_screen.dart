@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/education_profile.dart';
 import '../services/country_resolver.dart';
 import '../services/gemini_service.dart';
+import '../theme/app_theme.dart';
 import '../main.dart' show localeService;
 
 /// Ana sayfadan önce çıkan eğitim profili belirleme ekranı.
@@ -32,8 +33,8 @@ class _EducationSetupScreenState extends State<EducationSetupScreen> {
   static const _inkMute = Colors.black;
   // İnce siyah çerçeve
   static const _line = Colors.black;
-  // Arka plan hafif gri (beyaz sekmeyle ton farkı için)
-  static const _bg = Color(0xFFFAFAFA);
+  // Arka plan — runtime'da AppPalette.bg(context) ile override edilir.
+  static const _bg = Color(0xFFEEEEEE);
   // Sekmelerin içi tam beyaz
   static const _surface = Colors.white;
   static const _accent = Color(0xFF2D5BFF);
@@ -1672,8 +1673,8 @@ class _EducationSetupScreenState extends State<EducationSetupScreen> {
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
               child: Row(
                 children: [
-                  const Text('🎓', style: TextStyle(fontSize: 28)),
-                  const SizedBox(width: 10),
+                  Text('🎓', style: TextStyle(fontSize: 28)),
+                  SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1683,9 +1684,9 @@ class _EducationSetupScreenState extends State<EducationSetupScreen> {
                               fontSize: 24,
                               fontWeight: FontWeight.w700,
                               letterSpacing: -0.03,
-                              color: Colors.black,
+                              color: AppPalette.textPrimary(context),
                             )),
-                        const SizedBox(height: 2),
+                        SizedBox(height: 2),
                         Text(
                           tui(_country, 'subtitle'),
                           style: GoogleFonts.inter(
@@ -1712,8 +1713,8 @@ class _EducationSetupScreenState extends State<EducationSetupScreen> {
                   ),
                   child: Row(
                     children: [
-                      const Text('🧪', style: TextStyle(fontSize: 14)),
-                      const SizedBox(width: 8),
+                      Text('🧪', style: TextStyle(fontSize: 14)),
+                      SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           tui(_country, 'trial_text').replaceAll('{n}', '${widget.trialEntryNumber}'),
@@ -1728,7 +1729,7 @@ class _EducationSetupScreenState extends State<EducationSetupScreen> {
                   ),
                 ),
               ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             // Fields
             Expanded(
               child: ListView(
@@ -1773,7 +1774,7 @@ class _EducationSetupScreenState extends State<EducationSetupScreen> {
                       value: track.label.isEmpty ? null : track.label,
                       onTap: _pickTrack,
                     ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
                   // Bilgilendirme kutusu
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -1784,8 +1785,8 @@ class _EducationSetupScreenState extends State<EducationSetupScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Text('✨', style: TextStyle(fontSize: 16)),
-                        const SizedBox(width: 10),
+                        Text('✨', style: TextStyle(fontSize: 16)),
+                        SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             tui(_country, 'info'),
@@ -1799,7 +1800,7 @@ class _EducationSetupScreenState extends State<EducationSetupScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 30),
+                  SizedBox(height: 30),
                 ],
               ),
             ),
@@ -1839,7 +1840,7 @@ class _EducationSetupScreenState extends State<EducationSetupScreen> {
                 color: _inkMute,
                 letterSpacing: 0.08,
               )),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           GestureDetector(
             onTap: onTap,
             child: Container(
@@ -1848,18 +1849,18 @@ class _EducationSetupScreenState extends State<EducationSetupScreen> {
                 color: _surface,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                  color: Colors.black,
+                  color: AppPalette.textPrimary(context),
                   width: filled ? 1.5 : 1,
                 ),
               ),
               child: Row(
                 children: [
                   if (emoji != null) ...[
-                    Text(emoji, style: const TextStyle(fontSize: 20)),
-                    const SizedBox(width: 10),
+                    Text(emoji, style: TextStyle(fontSize: 20)),
+                    SizedBox(width: 10),
                   ] else ...[
                     Icon(Icons.expand_more_rounded, size: 20, color: _inkMute),
-                    const SizedBox(width: 10),
+                    SizedBox(width: 10),
                   ],
                   Expanded(
                     child: Text(
@@ -1892,7 +1893,7 @@ class _EducationSetupScreenState extends State<EducationSetupScreen> {
     return GestureDetector(
       onTap: enabled ? onTap : null,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
+        duration: Duration(milliseconds: 150),
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 17),
         decoration: BoxDecoration(
@@ -1903,7 +1904,7 @@ class _EducationSetupScreenState extends State<EducationSetupScreen> {
                   BoxShadow(
                     color: _brand.withValues(alpha: 0.3),
                     blurRadius: 14,
-                    offset: const Offset(0, 5),
+                    offset: Offset(0, 5),
                   ),
                 ]
               : null,
@@ -1914,8 +1915,8 @@ class _EducationSetupScreenState extends State<EducationSetupScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (!enabled) ...[
-              const Icon(Icons.lock_rounded, size: 16, color: Colors.white),
-              const SizedBox(width: 8),
+              Icon(Icons.lock_rounded, size: 16, color: Colors.white),
+              SizedBox(width: 8),
             ],
             Text(label,
                 style: GoogleFonts.inter(
@@ -2820,6 +2821,21 @@ class _LevelOpt {
   const _LevelOpt(this.value, this.emoji, this.label);
 }
 
+/// Public wrapper — ülke seçim bottom sheet'ini başka ekranlardan
+/// (onboarding gibi) çağırabilmek için. Geri dönüş: seçilen ülke kodu
+/// veya null (kullanıcı kapattıysa).
+Future<String?> showAppCountryPicker(
+  BuildContext context, {
+  String? currentCountry,
+}) {
+  return showModalBottomSheet<String>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (_) => _CountryPickerSheet(currentCountry: currentCountry),
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 //  Ülke picker sheet — arama destekli tüm dünya ülkeleri listesi
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -2867,13 +2883,13 @@ class _CountryPickerSheetState extends State<_CountryPickerSheet> {
       maxChildSize: 0.95,
       expand: false,
       builder: (_, scroll) => Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: _EducationSetupScreenState._bg,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
           children: [
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Container(
               width: 40,
               height: 4,
@@ -2882,20 +2898,20 @@ class _CountryPickerSheetState extends State<_CountryPickerSheet> {
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
                 children: [
-                  const Text('🌍', style: TextStyle(fontSize: 22)),
-                  const SizedBox(width: 8),
+                  Text('🌍', style: TextStyle(fontSize: 22)),
+                  SizedBox(width: 8),
                   Expanded(
                     child: Text(tui(widget.currentCountry, 'country_sheet_title'),
                         style: GoogleFonts.fraunces(
                           fontSize: 22,
                           fontWeight: FontWeight.w600,
                           letterSpacing: -0.02,
-                          color: Colors.black,
+                          color: AppPalette.textPrimary(context),
                         )),
                   ),
                   Text(tui(widget.currentCountry, 'countries_count').replaceAll('{n}', '${kAllCountries.length}'),
@@ -2907,7 +2923,7 @@ class _CountryPickerSheetState extends State<_CountryPickerSheet> {
                 ],
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Container(
@@ -2919,9 +2935,9 @@ class _CountryPickerSheetState extends State<_CountryPickerSheet> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.search_rounded,
+                    Icon(Icons.search_rounded,
                         size: 18, color: _EducationSetupScreenState._inkMute),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Expanded(
                       child: TextField(
                         controller: _searchCtrl,
@@ -2942,14 +2958,14 @@ class _CountryPickerSheetState extends State<_CountryPickerSheet> {
                     if (_searchCtrl.text.isNotEmpty)
                       GestureDetector(
                         onTap: () => setState(() => _searchCtrl.clear()),
-                        child: const Icon(Icons.close_rounded,
+                        child: Icon(Icons.close_rounded,
                             size: 16, color: _EducationSetupScreenState._inkMute),
                       ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Expanded(
               child: filtered.isEmpty
                   ? Center(
@@ -2966,11 +2982,10 @@ class _CountryPickerSheetState extends State<_CountryPickerSheet> {
                       controller: scroll,
                       padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                       itemCount: filtered.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      separatorBuilder: (_, __) => SizedBox(height: 10),
                       itemBuilder: (_, i) {
                         final c = filtered[i];
-                        return Material(
-                          color: Colors.white,
+                        return Material(color: AppPalette.card(context),
                           borderRadius: BorderRadius.circular(999),
                           child: InkWell(
                             borderRadius: BorderRadius.circular(999),
@@ -2978,7 +2993,7 @@ class _CountryPickerSheetState extends State<_CountryPickerSheet> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
                               decoration: BoxDecoration(
-                                color: Colors.white,
+            color: AppPalette.card(context),
                                 borderRadius: BorderRadius.circular(999),
                                 border: Border.all(
                                   color: _EducationSetupScreenState._line,
@@ -2987,8 +3002,8 @@ class _CountryPickerSheetState extends State<_CountryPickerSheet> {
                               ),
                               child: Row(
                                 children: [
-                                  Text(c.flag, style: const TextStyle(fontSize: 22)),
-                                  const SizedBox(width: 12),
+                                  Text(c.flag, style: TextStyle(fontSize: 22)),
+                                  SizedBox(width: 12),
                                   Expanded(
                                     child: Text(c.name,
                                         maxLines: 1,
@@ -2996,7 +3011,7 @@ class _CountryPickerSheetState extends State<_CountryPickerSheet> {
                                         style: GoogleFonts.inter(
                                           fontSize: 14,
                                           fontWeight: FontWeight.w600,
-                                          color: Colors.black,
+                                          color: AppPalette.textPrimary(context),
                                         )),
                                   ),
                                 ],
@@ -3059,13 +3074,13 @@ class _OptionPickerSheetState extends State<_OptionPickerSheet> {
       maxChildSize: 0.92,
       expand: false,
       builder: (_, scroll) => Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: _EducationSetupScreenState._bg,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
           children: [
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Container(
               width: 40,
               height: 4,
@@ -3074,7 +3089,7 @@ class _OptionPickerSheetState extends State<_OptionPickerSheet> {
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Text(widget.title,
@@ -3082,11 +3097,11 @@ class _OptionPickerSheetState extends State<_OptionPickerSheet> {
                     fontSize: 22,
                     fontWeight: FontWeight.w600,
                     letterSpacing: -0.02,
-                    color: Colors.black,
+                    color: AppPalette.textPrimary(context),
                   )),
             ),
             if (widget.searchable) ...[
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Container(
@@ -3098,9 +3113,9 @@ class _OptionPickerSheetState extends State<_OptionPickerSheet> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.search_rounded,
+                      Icon(Icons.search_rounded,
                           size: 18, color: _EducationSetupScreenState._inkMute),
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8),
                       Expanded(
                         child: TextField(
                           controller: _searchCtrl,
@@ -3123,17 +3138,16 @@ class _OptionPickerSheetState extends State<_OptionPickerSheet> {
                 ),
               ),
             ],
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Expanded(
               child: ListView.separated(
                 controller: scroll,
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                 itemCount: filtered.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                separatorBuilder: (_, __) => SizedBox(height: 10),
                 itemBuilder: (_, i) {
                   final o = filtered[i];
-                  return Material(
-                    color: Colors.white,
+                  return Material(color: AppPalette.card(context),
                     borderRadius: BorderRadius.circular(999),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(999),
@@ -3141,7 +3155,7 @@ class _OptionPickerSheetState extends State<_OptionPickerSheet> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+            color: AppPalette.card(context),
                           borderRadius: BorderRadius.circular(999),
                           border: Border.all(
                             color: _EducationSetupScreenState._line,
@@ -3150,8 +3164,8 @@ class _OptionPickerSheetState extends State<_OptionPickerSheet> {
                         ),
                         child: Row(
                           children: [
-                            Text(o.emoji, style: const TextStyle(fontSize: 20)),
-                            const SizedBox(width: 12),
+                            Text(o.emoji, style: TextStyle(fontSize: 20)),
+                            SizedBox(width: 12),
                             Expanded(
                               child: Text(o.label,
                                   maxLines: 1,
@@ -3159,7 +3173,7 @@ class _OptionPickerSheetState extends State<_OptionPickerSheet> {
                                   style: GoogleFonts.inter(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,
-                                    color: Colors.black,
+                                    color: AppPalette.textPrimary(context),
                                   )),
                             ),
                           ],

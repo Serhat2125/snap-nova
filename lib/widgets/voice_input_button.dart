@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/voice_input_service.dart';
 
+import '../theme/app_theme.dart';
 class VoiceInputButton extends StatefulWidget {
   /// `LocaleService.localeCode` ('tr', 'en', 'jp'...) — cihaz tanıma diline çevrilir.
   final String localeCode;
@@ -55,7 +56,7 @@ class _VoiceInputButtonState extends State<VoiceInputButton>
     super.initState();
     _pulse = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1100),
+      duration: Duration(milliseconds: 1100),
     )..repeat(reverse: true);
     _initOnce();
   }
@@ -177,7 +178,7 @@ class _VoiceInputButtonState extends State<VoiceInputButton>
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.06),
                           blurRadius: 8,
-                          offset: const Offset(0, 2),
+                          offset: Offset(0, 2),
                         ),
                       ],
               ),
@@ -215,18 +216,18 @@ class VoiceTranscriptView extends StatelessWidget {
         GoogleFonts.poppins(
           fontSize: 16,
           fontWeight: FontWeight.w600,
-          color: Colors.black87,
+          color: AppPalette.textPrimary(context),
           height: 1.4,
         );
     if (text.isEmpty) {
       return Text(
         isListening ? 'Dinleniyor…' : 'Konuşmaya başlamak için mikrofona bas.',
         style: s.copyWith(
-            color: Colors.black45, fontStyle: FontStyle.italic),
+            color: AppPalette.textSecondary(context), fontStyle: FontStyle.italic),
       );
     }
     return AnimatedDefaultTextStyle(
-      duration: const Duration(milliseconds: 180),
+      duration: Duration(milliseconds: 180),
       style: s.copyWith(
         color: isFinal ? Colors.black : Colors.black87,
         fontWeight: isFinal ? FontWeight.w700 : FontWeight.w500,

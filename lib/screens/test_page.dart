@@ -16,6 +16,7 @@ import '../services/runtime_translator.dart';
 import '../widgets/latex_text.dart';
 import 'academic_planner.dart';
 
+import '../theme/app_theme.dart';
 // Primary CTA color for the test flow (matches _orange in academic_planner.dart).
 const _testOrange = Color(0xFFFF6A00);
 
@@ -32,7 +33,7 @@ class TestQuestion {
   final String hint;
   final String sol;
   final String d;
-  const TestQuestion({
+  TestQuestion({
     required this.q,
     required this.opts,
     required this.ans,
@@ -131,11 +132,18 @@ class _TestPageState extends State<TestPage> {
     for (var i = 0; i < _questions.length; i++) {
       _answers[i] = widget.initialAnswers?[i];
     }
+    // Test sayfası süresi → "soru" kategorisinde StudySessionTracker'a yaz.
+    StudySessionTracker.instance.start(
+      subject: widget.subjectName,
+      topic: widget.topic,
+      type: 'soru',
+    );
     _startTimerForCurrent();
   }
 
   @override
   void dispose() {
+    StudySessionTracker.instance.end();
     _ticker?.cancel();
     super.dispose();
   }
@@ -144,7 +152,7 @@ class _TestPageState extends State<TestPage> {
     _ticker?.cancel();
     if (widget.timeLimit <= 0 || _questions.isEmpty) return;
     _remaining = widget.timeLimit;
-    _ticker = Timer.periodic(const Duration(seconds: 1), (t) {
+    _ticker = Timer.periodic(Duration(seconds: 1), (t) {
       if (!mounted) {
         t.cancel();
         return;
@@ -239,14 +247,14 @@ class _TestPageState extends State<TestPage> {
 
   @override
   Widget build(BuildContext context) {
-    const pageBg = Color(0xFFE8EAEF);
+    final pageBg = AppPalette.bg(context);
     if (_questions.isEmpty) {
       return Scaffold(
         backgroundColor: pageBg,
         appBar: AppBar(
           backgroundColor: pageBg,
           elevation: 0,
-          foregroundColor: Colors.black,
+          foregroundColor: AppPalette.textPrimary(context),
           title: Text(
             widget.topic,
             style: GoogleFonts.poppins(
@@ -278,7 +286,7 @@ class _TestPageState extends State<TestPage> {
       appBar: AppBar(
         backgroundColor: pageBg,
         elevation: 0,
-        foregroundColor: Colors.black,
+        foregroundColor: AppPalette.textPrimary(context),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -287,7 +295,7 @@ class _TestPageState extends State<TestPage> {
               style: GoogleFonts.poppins(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
-                color: Colors.black54,
+                color: AppPalette.textSecondary(context),
               ),
             ),
             Text(
@@ -309,7 +317,7 @@ class _TestPageState extends State<TestPage> {
                     horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: timerLow
-                      ? const Color(0xFFDC2626)
+                      ? Color(0xFFDC2626)
                       : _testOrange,
                   borderRadius: BorderRadius.circular(999),
                 ),
@@ -317,9 +325,9 @@ class _TestPageState extends State<TestPage> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.timer_rounded,
+                    Icon(Icons.timer_rounded,
                         color: Colors.white, size: 12),
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4),
                     Text(
                       _formatSeconds(_remaining),
                       style: GoogleFonts.poppins(
@@ -342,7 +350,7 @@ class _TestPageState extends State<TestPage> {
               child: LinearProgressIndicator(
                 value: progress,
                 backgroundColor: Colors.black12,
-                color: Colors.black,
+                color: AppPalette.textPrimary(context),
                 minHeight: 4,
               ),
             ),
@@ -359,7 +367,7 @@ class _TestPageState extends State<TestPage> {
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
               decoration: BoxDecoration(
-                color: Colors.white,
+            color: AppPalette.card(context),
                 borderRadius: BorderRadius.circular(18),
               ),
               child: Column(
@@ -372,6 +380,8 @@ class _TestPageState extends State<TestPage> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
+                          // Sabit koyu zemin + beyaz yazı — her iki modda
+                          // okunur kontrast (oval pill kontrast garanti).
                           color: Colors.black,
                           borderRadius: BorderRadius.circular(999),
                         ),
@@ -389,18 +399,18 @@ class _TestPageState extends State<TestPage> {
                         style: GoogleFonts.poppins(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
-                          color: Colors.black54,
+                          color: AppPalette.textSecondary(context),
                           letterSpacing: 0.1,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                  SizedBox(height: 14),
                   LatexText(q.q, fontSize: 15, lineHeight: 1.45),
                 ],
               ),
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             // ── Şıklar ──────────────────────────────────────────────
             for (final entry in q.opts.entries)
               _optionTile(
@@ -410,27 +420,30 @@ class _TestPageState extends State<TestPage> {
               ),
             // ── İpucu (açıkken gösterilir) ──────────────────────────
             if (_showHint && q.hint.isNotEmpty) ...[
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFFAE8),
+                  color: Color(0xFFFFFAE8),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("💡", style: TextStyle(fontSize: 16)),
-                    const SizedBox(width: 8),
+                    Text("💡", style: TextStyle(fontSize: 16)),
+                    SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        q.hint,
-                        style: GoogleFonts.poppins(
-                          fontSize: 12.5,
+                      // İpucu metninde formül/sembol olabilir → LatexText.
+                      child: DefaultTextStyle.merge(
+                        style: TextStyle(
+                          color: AppPalette.textPrimary(context),
                           fontWeight: FontWeight.w600,
-                          color: Colors.black,
-                          height: 1.4,
+                        ),
+                        child: LatexText(
+                          q.hint,
+                          fontSize: 12.5,
+                          lineHeight: 1.4,
                         ),
                       ),
                     ),
@@ -461,14 +474,14 @@ class _TestPageState extends State<TestPage> {
                         : () => setState(() => _showHint = !_showHint),
                     dense: true,
                   ),
-                  const Spacer(),
+                  Spacer(),
                   _chipButton(
                     icon: Icons.arrow_back_rounded,
                     label: 'Geri'.tr(),
                     onTap: _idx == 0 ? null : _goPrev,
                     dense: true,
                   ),
-                  const SizedBox(width: 6),
+                  SizedBox(width: 6),
                   _chipButton(
                     icon: Icons.redo_rounded,
                     label: 'Atla'.tr(),
@@ -477,7 +490,7 @@ class _TestPageState extends State<TestPage> {
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               // Ana ilerleme butonu — şık seçilince turuncu, değilse soluk
               GestureDetector(
                 onTap: selected == null ? null : _goNext,
@@ -495,7 +508,7 @@ class _TestPageState extends State<TestPage> {
                             BoxShadow(
                               color: _testOrange.withValues(alpha: 0.35),
                               blurRadius: 12,
-                              offset: const Offset(0, 4),
+                              offset: Offset(0, 4),
                             ),
                           ],
                   ),
@@ -510,7 +523,7 @@ class _TestPageState extends State<TestPage> {
                         color: Colors.white,
                         size: 18,
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8),
                       Text(
                         isLast
                             ? 'Testi Bitir'.tr()
@@ -561,7 +574,7 @@ class _TestPageState extends State<TestPage> {
     final disabled = onTap == null;
     return Material(
       color: disabled
-          ? const Color(0xFFEFF1F6)
+          ? Color(0xFFEFF1F6)
           : Colors.white,
       borderRadius: BorderRadius.circular(999),
       child: InkWell(
@@ -576,7 +589,7 @@ class _TestPageState extends State<TestPage> {
               Icon(icon,
                   size: 14,
                   color: disabled ? Colors.black38 : Colors.black),
-              const SizedBox(width: 5),
+              SizedBox(width: 5),
               Text(
                 label,
                 style: GoogleFonts.poppins(
@@ -597,50 +610,73 @@ class _TestPageState extends State<TestPage> {
     required String text,
     required bool selected,
   }) {
+    final isDark = AppPalette.isDark(context);
+    // Şık zemin: koyu modda her zaman koyu (selected için cardMuted vurgu);
+    // aydınlık modda eski selected siyah / değilse beyaz.
+    final tileBg = isDark
+        ? (selected ? AppPalette.cardMuted(context) : AppPalette.card(context))
+        : (selected ? Colors.black : Colors.white);
+    // Yazı: koyu modda her zaman beyaz tonu; aydınlıkta selected beyaz / değilse siyah.
+    final tileInk = isDark
+        ? AppPalette.textPrimary(context)
+        : (selected ? Colors.white : Colors.black);
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
-        color: selected ? Colors.black : Colors.white,
+        color: tileBg,
         borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: () => _pick(letter),
-          child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-            child: Row(
-              children: [
-                Container(
-                  width: 28,
-                  height: 28,
-                  alignment: Alignment.center,
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    letter,
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.black,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected
+                  ? (isDark ? Colors.white : Colors.black)
+                  : AppPalette.border(context),
+              width: selected ? 1.4 : 1,
+            ),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () => _pick(letter),
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+              child: Row(
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? AppPalette.bg(context)
+                          : (selected ? Colors.white : const Color(0xFFF3F4F6)),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      letter,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: tileInk,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    text,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(
-                      fontSize: 13.5,
-                      height: 1.4,
-                      color: selected ? Colors.white : Colors.black,
+                  SizedBox(width: 12),
+                  Expanded(
+                    // Şık metninde LaTeX formül / matematik sembolü olabilir;
+                    // LatexText ile render edilmezse \( ... \) bozuk gözükür.
+                    child: DefaultTextStyle.merge(
+                      style: TextStyle(color: tileInk),
+                      child: LatexText(
+                        text,
+                        fontSize: 13.5,
+                        lineHeight: 1.4,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -802,13 +838,13 @@ class _TestResultPageState extends State<TestResultPage> {
 
   @override
   Widget build(BuildContext context) {
-    const pageBg = Color(0xFFE8EAEF);
+    final pageBg = AppPalette.bg(context);
     return Scaffold(
       backgroundColor: pageBg,
       appBar: AppBar(
         backgroundColor: pageBg,
         elevation: 0,
-        foregroundColor: Colors.black,
+        foregroundColor: AppPalette.textPrimary(context),
         titleSpacing: 0,
         title: const SizedBox.shrink(),
       ),
@@ -832,7 +868,7 @@ class _TestResultPageState extends State<TestResultPage> {
               bgColor: Colors.white,
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           // ══ TÜM SEKMELER TEK ÇERÇEVEDE ══════════════════════════════
           //   Etrafı + boşluklar soluk beyaz; her sekme (action row) tam
           //   beyaz. Sıra: Sosyal medya → Arkadaşına gönder → Özetine
@@ -846,26 +882,26 @@ class _TestResultPageState extends State<TestResultPage> {
                 fg: Colors.black,
                 onTap: () => _openShareMode(onFriend: false),
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               _actionRow(
                 icon: Icons.send_rounded,
                 label: "Arkadaşına gönder".tr(),
                 color: Colors.white,
                 fg: Colors.black,
-                iconColor: const Color(0xFF22C55E), // canlı yeşil
+                iconColor: Color(0xFF22C55E), // canlı yeşil
                 iconRotation: -math.pi / 4, // 45° CCW → +X & +Y (NE)
                 onTap: () => _openShareMode(onFriend: true),
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               _actionRow(
                 icon: Icons.menu_book_rounded,
-                iconColor: const Color(0xFF2563EB),
+                iconColor: Color(0xFF2563EB),
                 label: 'Konunun özetine bak'.tr(),
                 color: Colors.white,
                 fg: Colors.black,
                 onTap: _openShortReview,
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               _actionRow(
                 icon: _showWrong
                     ? Icons.keyboard_arrow_up_rounded
@@ -876,7 +912,7 @@ class _TestResultPageState extends State<TestResultPage> {
                         ? "Çözümleri gizle".tr()
                         : "Yanlış yaptığın sorulara bak".tr(),
                 color: _unsolved == 0
-                    ? const Color(0xFFEFF1F6)
+                    ? Color(0xFFEFF1F6)
                     : Colors.white,
                 fg: _unsolved == 0 ? Colors.black54 : Colors.black,
                 iconColor: _unsolved == 0
@@ -905,7 +941,7 @@ class _TestResultPageState extends State<TestResultPage> {
                     : () => setState(() => _showWrong = !_showWrong),
               ),
               if (_showWrong && _unsolved > 0) ...[
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 ..._unsolvedAnswerCards(),
               ],
             ],
@@ -924,9 +960,9 @@ class _TestResultPageState extends State<TestResultPage> {
       width: double.infinity,
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: bgColor ?? const Color(0xFFF5F7FB),
+        color: bgColor ?? AppPalette.bg(context),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.black12, width: 1),
+        border: Border.all(color: AppPalette.border(context), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -996,7 +1032,7 @@ class _TestResultPageState extends State<TestResultPage> {
         child: Row(
           children: [
             iconWidget,
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Expanded(
               child: Text(
                 label,
@@ -1022,7 +1058,7 @@ class _TestResultPageState extends State<TestResultPage> {
       if (a != null && a == q.ans) continue;
       final isEmpty = a == null;
       final badgeColor =
-          isEmpty ? const Color(0xFF6B7280) : const Color(0xFFDC2626);
+          isEmpty ? Color(0xFF6B7280) : Color(0xFFDC2626);
       final badgeLabel = isEmpty ? "Boş".tr() : "Yanlış".tr();
       // Şıkları sabit harf sırasıyla diz (A, B, C, D, E) — q.opts Map<String,
       // String> olduğu için key sırası garantili değil; sıralayıp listeliyoruz.
@@ -1031,9 +1067,9 @@ class _TestResultPageState extends State<TestResultPage> {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
         decoration: BoxDecoration(
-          color: Colors.white,
+            color: AppPalette.card(context),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.black12, width: 1),
+          border: Border.all(color: AppPalette.border(context), width: 1),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1057,37 +1093,37 @@ class _TestResultPageState extends State<TestResultPage> {
                   ),
                 ),
                 if (isEmpty) ...[
-                  const SizedBox(width: 6),
+                  SizedBox(width: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF3F4F6),
+                      color: AppPalette.cardMuted(context),
                       borderRadius: BorderRadius.circular(999),
                       border: Border.all(
-                          color: const Color(0xFFD1D5DB), width: 1),
+                          color: AppPalette.border(context), width: 1),
                     ),
                     child: Text(
                       "Boş bıraktın".tr(),
                       style: GoogleFonts.poppins(
                         fontSize: 10,
                         fontWeight: FontWeight.w800,
-                        color: const Color(0xFF374151),
+                        color: AppPalette.textPrimary(context),
                       ),
                     ),
                   ),
                 ],
               ],
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             // Sorunun tamamı
             LatexText(q.q, fontSize: 13, lineHeight: 1.45),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             // TÜM ŞIKLAR — kullanıcının seçtiği kırmızı, doğru olan yeşil,
             // diğerleri nötr. Hem soru bütünü görünür hem hangi şıkkın
             // doğru/yanlış olduğu net.
             for (int j = 0; j < optionKeys.length; j++) ...[
-              if (j > 0) const SizedBox(height: 6),
+              if (j > 0) SizedBox(height: 6),
               _optionTile(
                 letter: optionKeys[j],
                 text: q.opts[optionKeys[j]] ?? '',
@@ -1095,20 +1131,20 @@ class _TestResultPageState extends State<TestResultPage> {
                 isCorrect: optionKeys[j] == q.ans,
               ),
             ],
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Container(
                 height: 1, color: Colors.black.withValues(alpha: 0.08)),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             Text(
               "Çözüm".tr(),
               style: GoogleFonts.poppins(
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
-                color: Colors.black54,
+                color: AppPalette.textSecondary(context),
                 letterSpacing: 0.2,
               ),
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             LatexText(q.sol, fontSize: 12.5, lineHeight: 1.5),
           ],
         ),
@@ -1128,22 +1164,22 @@ class _TestResultPageState extends State<TestResultPage> {
     Color bg, border, letterBg, ink;
     String? badge;
     if (isCorrect) {
-      bg = const Color(0xFFDCFCE7);
-      border = const Color(0xFF86EFAC);
-      letterBg = const Color(0xFF059669);
-      ink = const Color(0xFF064E3B);
+      bg = Color(0xFFDCFCE7);
+      border = Color(0xFF86EFAC);
+      letterBg = Color(0xFF059669);
+      ink = Color(0xFF064E3B);
       badge = "Doğru".tr();
     } else if (isUser) {
-      bg = const Color(0xFFFEE2E2);
-      border = const Color(0xFFFCA5A5);
-      letterBg = const Color(0xFFDC2626);
-      ink = const Color(0xFF7F1D1D);
+      bg = Color(0xFFFEE2E2);
+      border = Color(0xFFFCA5A5);
+      letterBg = Color(0xFFDC2626);
+      ink = Color(0xFF7F1D1D);
       badge = "Senin cevabın".tr();
     } else {
       bg = Colors.white;
-      border = const Color(0xFFE5E7EB);
-      letterBg = const Color(0xFFF3F4F6);
-      ink = const Color(0xFF374151);
+      border = Color(0xFFE5E7EB);
+      letterBg = Color(0xFFF3F4F6);
+      ink = Color(0xFF374151);
       badge = null;
     }
     return Container(
@@ -1172,11 +1208,11 @@ class _TestResultPageState extends State<TestResultPage> {
                 fontWeight: FontWeight.w900,
                 color: (isCorrect || isUser)
                     ? Colors.white
-                    : const Color(0xFF374151),
+                    : Color(0xFF374151),
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Expanded(
             child: text.trim().isEmpty
                 ? Text(
@@ -1190,7 +1226,7 @@ class _TestResultPageState extends State<TestResultPage> {
                 : LatexText(text, fontSize: 12.5, lineHeight: 1.4),
           ),
           if (badge != null) ...[
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             Container(
               padding:
                   const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -1484,7 +1520,7 @@ class _ResultCard extends StatelessWidget {
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 22,
-            offset: const Offset(0, 8),
+            offset: Offset(0, 8),
           ),
         ],
       ),
@@ -1521,7 +1557,7 @@ class _ResultCard extends StatelessWidget {
                               children: [
                                 TextSpan(
                                   text: '${_eduIcon()} ',
-                                  style: const TextStyle(fontSize: 11),
+                                  style: TextStyle(fontSize: 11),
                                 ),
                                 TextSpan(
                                   text: eduLabel,
@@ -1536,7 +1572,7 @@ class _ResultCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        SizedBox(height: 6),
                       ] else if (grade.isNotEmpty) ...[
                         // Profil okunamadıysa eski grade rozetine düş.
                         Container(
@@ -1560,14 +1596,14 @@ class _ResultCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        SizedBox(height: 6),
                       ],
                       _labeledLine(
                         label: 'Ders'.tr(),
                         value: subjectName,
                         icon: _subjectIcon(),
                       ),
-                      const SizedBox(height: 5),
+                      SizedBox(height: 5),
                       _labeledLine(
                         label: 'Konu'.tr(),
                         value: topic,
@@ -1577,14 +1613,14 @@ class _ResultCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(width: 22),
+                SizedBox(width: 22),
                 _centeredUserBlock(),
               ],
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             // ══ Donut grafiği + sağda lejant ════════════════════════
             _donutStats(),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             // ══ Motivasyon kutusu — kullanıcı özel mesaj yazdıysa onu
             //    göster, yoksa varsayılan motivasyon. Yazı rengi override
             //    edilebilir.
@@ -1593,15 +1629,15 @@ class _ResultCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(
                   horizontal: 14, vertical: 11),
               decoration: BoxDecoration(
-                color: Colors.white,
+            color: AppPalette.card(context),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.black12, width: 1),
+                border: Border.all(color: AppPalette.border(context), width: 1),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(_subjectEmoji(), style: const TextStyle(fontSize: 18)),
-                  const SizedBox(width: 10),
+                  Text(_subjectEmoji(), style: TextStyle(fontSize: 18)),
+                  SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       (customMotivation != null &&
@@ -1619,7 +1655,7 @@ class _ResultCard extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 13),
+            SizedBox(height: 13),
             // ══ Footer: SOL stacked marka, SAĞ QR + "Uygulamayı indir" ══
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -1640,7 +1676,7 @@ class _ResultCard extends StatelessWidget {
                           letterSpacing: 0.3,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      SizedBox(height: 2),
                       Text(
                         'qualsar.app',
                         style: GoogleFonts.poppins(
@@ -1653,7 +1689,7 @@ class _ResultCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(width: 10),
+                SizedBox(width: 10),
                 // Sağ: QR biraz sola çekili, "Uygulamayı indir" QR'ı
                 //      yatayda tam ortalayacak şekilde üstünde.
                 Padding(
@@ -1670,27 +1706,27 @@ class _ResultCard extends StatelessWidget {
                           letterSpacing: 0.3,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                       Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+            color: AppPalette.card(context),
                           borderRadius: BorderRadius.circular(8),
                           border:
-                              Border.all(color: Colors.black12, width: 1),
+                              Border.all(color: AppPalette.border(context), width: 1),
                         ),
                         child: QrImageView(
                           data: 'https://qualsar.app',
                           version: QrVersions.auto,
                           size: 56,
-                          backgroundColor: Colors.white,
-                          eyeStyle: const QrEyeStyle(
+                          backgroundColor: AppPalette.card(context),
+                          eyeStyle: QrEyeStyle(
                             eyeShape: QrEyeShape.square,
-                            color: Colors.black,
+                            color: AppPalette.textPrimary(context),
                           ),
-                          dataModuleStyle: const QrDataModuleStyle(
+                          dataModuleStyle: QrDataModuleStyle(
                             dataModuleShape: QrDataModuleShape.square,
-                            color: Colors.black,
+                            color: AppPalette.textPrimary(context),
                           ),
                           padding: EdgeInsets.zero,
                         ),
@@ -1726,7 +1762,7 @@ class _ResultCard extends StatelessWidget {
               BoxShadow(
                 color: _alKirmizi.withValues(alpha: 0.3),
                 blurRadius: 10,
-                offset: const Offset(0, 3),
+                offset: Offset(0, 3),
               ),
             ],
           ),
@@ -1742,7 +1778,7 @@ class _ResultCard extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 6),
+        SizedBox(height: 6),
         Text(
           userName.isEmpty ? 'Siz'.tr() : userName,
           maxLines: 1,
@@ -1754,7 +1790,7 @@ class _ResultCard extends StatelessWidget {
             height: 1.1,
           ),
         ),
-        const SizedBox(height: 2),
+        SizedBox(height: 2),
         Text(
           _userHandle.isEmpty ? '@sen' : '@$_userHandle',
           style: GoogleFonts.poppins(
@@ -1781,7 +1817,7 @@ class _ResultCard extends StatelessWidget {
           if (icon != null && icon.isNotEmpty) ...[
             TextSpan(
               text: '$icon ',
-              style: const TextStyle(fontSize: 14),
+              style: TextStyle(fontSize: 14),
             ),
           ],
           TextSpan(
@@ -1997,7 +2033,7 @@ class _ResultCard extends StatelessWidget {
                         height: 1.0,
                       ),
                     ),
-                    const SizedBox(height: 1),
+                    SizedBox(height: 1),
                     Text(
                       'Başarı'.tr().toUpperCase(),
                       style: GoogleFonts.poppins(
@@ -2012,7 +2048,7 @@ class _ResultCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           // ── Sağ: lejant (sayı + yüzde) ───────────────────────
           Expanded(
             child: Column(
@@ -2025,7 +2061,7 @@ class _ResultCard extends StatelessWidget {
                   children: [
                     Icon(Icons.timer_rounded,
                         size: 12, color: _inkMute),
-                    const SizedBox(width: 5),
+                    SizedBox(width: 5),
                     Text(
                       'Süre'.tr(),
                       style: GoogleFonts.poppins(
@@ -2034,7 +2070,7 @@ class _ResultCard extends StatelessWidget {
                         color: _inkMute,
                       ),
                     ),
-                    const Spacer(),
+                    Spacer(),
                     Text(
                       _formatDurationLong(elapsedSeconds),
                       style: GoogleFonts.poppins(
@@ -2045,42 +2081,42 @@ class _ResultCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: 6),
                 Container(
                   height: 1,
                   color: (_dark ? Colors.white : Colors.black)
                       .withValues(alpha: 0.12),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 _legendItem(
                     color: green,
                     label: 'Doğru'.tr(),
                     count: correct,
                     pct: pctOf(correct)),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 _legendItem(
                     color: red,
                     label: 'Yanlış'.tr(),
                     count: wrong,
                     pct: pctOf(wrong)),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 _legendItem(
                     color: gray,
                     label: 'Boş'.tr(),
                     count: empty,
                     pct: pctOf(empty)),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Container(
                   height: 1,
                   color: (_dark ? Colors.white : Colors.black)
                       .withValues(alpha: 0.12),
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: 6),
                 Row(
                   children: [
                     Icon(Icons.quiz_rounded,
                         size: 12, color: _inkMute),
-                    const SizedBox(width: 5),
+                    SizedBox(width: 5),
                     Text(
                       'Toplam'.tr(),
                       style: GoogleFonts.poppins(
@@ -2089,7 +2125,7 @@ class _ResultCard extends StatelessWidget {
                         color: _inkMute,
                       ),
                     ),
-                    const Spacer(),
+                    Spacer(),
                     Text(
                       '$total',
                       style: GoogleFonts.poppins(
@@ -2124,7 +2160,7 @@ class _ResultCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(3),
           ),
         ),
-        const SizedBox(width: 7),
+        SizedBox(width: 7),
         Expanded(
           child: Text(
             label,
@@ -2143,7 +2179,7 @@ class _ResultCard extends StatelessWidget {
             color: _ink,
           ),
         ),
-        const SizedBox(width: 6),
+        SizedBox(width: 6),
         Container(
           padding:
               const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -2319,7 +2355,7 @@ class _ShareModePageState extends State<_ShareModePage> {
 
       // 2) Henüz ilk paint yapılmadıysa needsPaint true olur; bir frame daha bekle.
       if (boundary.debugNeedsPaint) {
-        await Future.delayed(const Duration(milliseconds: 50));
+        await Future.delayed(Duration(milliseconds: 50));
       }
 
       final image = await boundary.toImage(pixelRatio: 2.5);
@@ -2362,7 +2398,7 @@ class _ShareModePageState extends State<_ShareModePage> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Paylaşılamadı: $e'),
         behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 4),
+        duration: Duration(seconds: 4),
       ));
     } finally {
       if (mounted) setState(() => _sharing = false);
@@ -2371,13 +2407,13 @@ class _ShareModePageState extends State<_ShareModePage> {
 
   @override
   Widget build(BuildContext context) {
-    const pageBg = Color(0xFFE8EAEF);
+    final pageBg = AppPalette.bg(context);
     return Scaffold(
       backgroundColor: pageBg,
       appBar: AppBar(
         backgroundColor: pageBg,
         elevation: 0,
-        foregroundColor: Colors.black,
+        foregroundColor: AppPalette.textPrimary(context),
         centerTitle: true,
         title: Text(
           widget.friendMode
@@ -2435,10 +2471,10 @@ class _ShareModePageState extends State<_ShareModePage> {
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               // Panel açıkken tam palet, kapalıyken küçük "Renk Seç" pill'i.
               if (_panelOpen) _colorPanel() else _colorOpenPill(),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               GestureDetector(
                 onTap: _sharing ? null : _share,
                 child: Container(
@@ -2453,7 +2489,7 @@ class _ShareModePageState extends State<_ShareModePage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       if (_sharing)
-                        const SizedBox(
+                        SizedBox(
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(
@@ -2462,9 +2498,9 @@ class _ShareModePageState extends State<_ShareModePage> {
                           ),
                         )
                       else
-                        const Icon(Icons.ios_share_rounded,
+                        Icon(Icons.ios_share_rounded,
                             color: Colors.white, size: 18),
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8),
                       Text(
                         _sharing
                             ? 'Hazırlanıyor…'.tr()
@@ -2495,16 +2531,16 @@ class _ShareModePageState extends State<_ShareModePage> {
           padding:
               const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppPalette.card(context),
             borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: Colors.black, width: 1),
+            border: Border.all(color: AppPalette.textPrimary(context), width: 1),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.palette_rounded,
+              Icon(Icons.palette_rounded,
                   size: 14, color: Colors.black87),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Text(
                 'Renk Seç'.tr(),
                 style: GoogleFonts.poppins(
@@ -2512,8 +2548,8 @@ class _ShareModePageState extends State<_ShareModePage> {
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              const SizedBox(width: 4),
-              const Icon(Icons.expand_more_rounded,
+              SizedBox(width: 4),
+              Icon(Icons.expand_more_rounded,
                   size: 16, color: Colors.black54),
             ],
           ),
@@ -2527,18 +2563,18 @@ class _ShareModePageState extends State<_ShareModePage> {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+            color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black, width: 1),
+        border: Border.all(color: AppPalette.textPrimary(context), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              const Icon(Icons.palette_rounded,
+              Icon(Icons.palette_rounded,
                   size: 16, color: Colors.black),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Text(
                 'Renk Seç'.tr(),
                 style: GoogleFonts.poppins(
@@ -2546,7 +2582,7 @@ class _ShareModePageState extends State<_ShareModePage> {
                   fontWeight: FontWeight.w900,
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               // Kullanım ipucu — "Renk Seç"in hemen sağında küçük italik
               // metin: paletten bir rengi sürükleyip kart üzerinde
               // istenen alana bırakma davranışını anlatır.
@@ -2560,12 +2596,12 @@ class _ShareModePageState extends State<_ShareModePage> {
                     fontSize: 10,
                     fontStyle: FontStyle.italic,
                     fontWeight: FontWeight.w500,
-                    color: Colors.black54,
+                    color: AppPalette.textSecondary(context),
                     letterSpacing: 0.1,
                   ),
                 ),
               ),
-              const Spacer(),
+              Spacer(),
               // Sıfırla — biraz solda dursun (sağ kenara dayanmasın)
               GestureDetector(
                 onTap: _resetColor,
@@ -2573,7 +2609,7 @@ class _ShareModePageState extends State<_ShareModePage> {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF3F4F6),
+                    color: AppPalette.cardMuted(context),
                     borderRadius: BorderRadius.circular(999),
                     border: Border.all(color: Colors.black12),
                   ),
@@ -2582,12 +2618,12 @@ class _ShareModePageState extends State<_ShareModePage> {
                     style: GoogleFonts.poppins(
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
-                      color: Colors.black54,
+                      color: AppPalette.textSecondary(context),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               // ✕ paneli kapat — Sıfırla ile aynı hizada
               GestureDetector(
                 onTap: () => setState(() => _panelOpen = false),
@@ -2596,37 +2632,37 @@ class _ShareModePageState extends State<_ShareModePage> {
                   height: 26,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF3F4F6),
+                    color: AppPalette.cardMuted(context),
                     shape: BoxShape.circle,
                     border: Border.all(color: Colors.black12),
                   ),
-                  child: const Icon(Icons.close_rounded,
+                  child: Icon(Icons.close_rounded,
                       size: 14, color: Colors.black54),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           // ── Hedef seçici (4 chip) ─────────────────────────────────
           Row(
             children: [
               _targetChip('bg', 'Arka Plan'.tr()),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               _targetChip('donut', 'Çerçeve'.tr()),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               _targetChip('text', 'Yazı'.tr()),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               _targetChip('motivation', 'Motivasyon'.tr()),
             ],
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           // ── 2-sıra yatay scroll palet ─────────────────────────────
           SizedBox(
             height: 64,
             child: GridView.builder(
               scrollDirection: Axis.horizontal,
               gridDelegate:
-                  const SliverGridDelegateWithFixedCrossAxisCount(
+                  SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
                 mainAxisSpacing: 6,
                 crossAxisSpacing: 6,
@@ -2647,7 +2683,7 @@ class _ShareModePageState extends State<_ShareModePage> {
                         color: c,
                         shape: BoxShape.circle,
                         border:
-                            Border.all(color: Colors.black, width: 1),
+                            Border.all(color: AppPalette.textPrimary(context), width: 1),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.3),
@@ -2665,7 +2701,7 @@ class _ShareModePageState extends State<_ShareModePage> {
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
                           color: selected
-                              ? const Color(0xFFFF6A00)
+                              ? Color(0xFFFF6A00)
                               : Colors.black38,
                           width: selected ? 2.4 : 1,
                         ),

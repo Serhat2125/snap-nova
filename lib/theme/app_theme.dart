@@ -1,5 +1,53 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../services/theme_service.dart';
+
+/// Theme-aware color tokens — Akıllı Karanlık Mod spec'i.
+class AppPalette {
+  static bool isDark(BuildContext context) {
+    final mode = ThemeInherited.of(context).themeMode;
+    if (mode == ThemeMode.dark) return true;
+    if (mode == ThemeMode.light) return false;
+    return MediaQuery.platformBrightnessOf(context) == Brightness.dark;
+  }
+
+  static Color bg(BuildContext c) =>
+      isDark(c) ? const Color(0xFF121212) : const Color(0xFFF5F5F5);
+  static Color card(BuildContext c) =>
+      isDark(c) ? const Color(0xFF1E1E1E) : Colors.white;
+  static Color cardMuted(BuildContext c) =>
+      isDark(c) ? const Color(0xFF2A2A2A) : const Color(0xFFF3F4F6);
+  static Color textPrimary(BuildContext c) =>
+      isDark(c) ? const Color(0xFFE0E0E0) : const Color(0xFF111111);
+  static Color textSecondary(BuildContext c) =>
+      isDark(c) ? const Color(0xFFB0B0B0) : const Color(0xFF6B7280);
+  static Color border(BuildContext c) =>
+      isDark(c) ? const Color(0xFF2E2E2E) : const Color(0xFFE5E7EB);
+  static Color shadow(BuildContext c) =>
+      isDark(c) ? Colors.black.withValues(alpha: 0.35) : Colors.black.withValues(alpha: 0.06);
+  static Color frostedOverlay(BuildContext c) => isDark(c)
+      ? Colors.black.withValues(alpha: 0.60)
+      : Colors.white.withValues(alpha: 0.70);
+
+  // Renk Seç (Theme Customization) — kullanıcı seçimi her iki modda öncelikli.
+  static Color resolvePageBg(BuildContext c, Color? userOverride) {
+    return userOverride ?? bg(c);
+  }
+  static Color resolveCardBg(BuildContext c, Color? userOverride) {
+    return userOverride ?? card(c);
+  }
+  static Color resolveInnerBg(BuildContext c, Color? userOverride) {
+    if (userOverride != null) return userOverride;
+    return isDark(c) ? cardMuted(c) : card(c);
+  }
+
+  // Blackout — kullanıcı override yoksa koyu modda saf siyah, aydınlıkta
+  // beyaz. "Konu Özeti / Sınav Soruları" sayfalarında tam karartma için.
+  static Color resolveBlackoutBg(BuildContext c, Color? userOverride) {
+    if (userOverride != null) return userOverride;
+    return isDark(c) ? Colors.black : Colors.white;
+  }
+}
 
 class AppColors {
   static const Color background = Color(0xFF08080F);
@@ -39,11 +87,14 @@ class AppTheme {
 
   static ThemeData get dark => ThemeData(
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: AppColors.background,
+        scaffoldBackgroundColor: const Color(0xFF121212),
         colorScheme: const ColorScheme.dark(
           primary: AppColors.cyan,
-          surface: AppColors.surface,
+          surface: Color(0xFF1E1E1E),
+          onSurface: Color(0xFFE0E0E0),
         ),
+        // Default Text widget color (style.color belirtilmediğinde) — beyaz tonu.
+        primaryTextTheme: Typography.whiteMountainView,
         fontFamily: 'Roboto',
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.transparent,

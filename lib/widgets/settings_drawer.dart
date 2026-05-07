@@ -6,6 +6,7 @@ import '../main.dart' show themeService;
 import '../services/auth_service.dart';
 import '../services/locale_service.dart';
 
+import '../theme/app_theme.dart';
 // ═══════════════════════════════════════════════════════════════════════════════
 //  SettingsDrawer — sağdan kayan panel + iç sayfa navigasyonu
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -35,7 +36,7 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
+            gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [Color(0xEE08081A), Color(0xF00C0C22)],
@@ -55,12 +56,12 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
 
               // ── Alt sayfalar (sağdan kayarak gelir) ─────────────────
               AnimatedSlide(
-                offset: _activePage != null ? Offset.zero : const Offset(1, 0),
-                duration: const Duration(milliseconds: 320),
+                offset: _activePage != null ? Offset.zero : Offset(1, 0),
+                duration: Duration(milliseconds: 320),
                 curve: Curves.easeOutCubic,
                 child: AnimatedOpacity(
                   opacity: _activePage != null ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 220),
+                  duration: Duration(milliseconds: 220),
                   child: _activePage != null
                       ? _SubPageShell(
                           onBack: _closePage,
@@ -127,14 +128,14 @@ class _MainMenu extends StatelessWidget {
             child: Row(children: [
               Expanded(
                 child: Text(tr('settings'),
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: Colors.white,
                         fontSize: 20,
                         fontWeight: FontWeight.w800)),
               ),
               IconButton(
                 onPressed: onClose,
-                icon: const Icon(Icons.close_rounded,
+                icon: Icon(Icons.close_rounded,
                     color: Colors.white54, size: 22),
               ),
             ]),
@@ -142,74 +143,74 @@ class _MainMenu extends StatelessWidget {
 
           Expanded(
             child: ListView(
-              physics: const BouncingScrollPhysics(),
+              physics: BouncingScrollPhysics(),
               padding: const EdgeInsets.symmetric(horizontal: 14),
               children: [
                 // Profil kartı
                 _ProfileCard(onTap: () => onOpenPage('profile')),
-                const SizedBox(height: 16),
+                SizedBox(height: 16),
 
                 _label(tr('preferences')),
-                const SizedBox(height: 6),
+                SizedBox(height: 6),
                 _Item(
                     icon: Icons.language_rounded,
-                    color: const Color(0xFF3B82F6),
+                    color: Color(0xFF3B82F6),
                     title: tr('language_options'),
                     subtitle: currentLangName,
                     onTap: () => onOpenPage('language')),
                 _Item(
                     icon: Icons.dark_mode_rounded,
-                    color: const Color(0xFF8B5CF6),
+                    color: Color(0xFF8B5CF6),
                     title: tr('theme_appearance'),
                     subtitle: tr('dark_mode'),
                     onTap: () => onOpenPage('theme')),
 
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 _divider(),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 _label(tr('support')),
-                const SizedBox(height: 6),
+                SizedBox(height: 6),
 
                 _Item(
                     icon: Icons.chat_bubble_outline_rounded,
-                    color: const Color(0xFF10B981),
+                    color: Color(0xFF10B981),
                     title: tr('feedback'),
                     onTap: () => onOpenPage('feedback')),
                 _Item(
                     icon: Icons.help_outline_rounded,
-                    color: const Color(0xFF0EA5E9),
+                    color: Color(0xFF0EA5E9),
                     title: tr('help_faq'),
                     onTap: () => onOpenPage('faq')),
                 _Item(
                     icon: Icons.info_outline_rounded,
-                    color: const Color(0xFF6366F1),
+                    color: Color(0xFF6366F1),
                     title: tr('about_us'),
                     onTap: () => onOpenPage('about')),
 
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 _divider(),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 _label(tr('legal')),
-                const SizedBox(height: 6),
+                SizedBox(height: 6),
 
                 _Item(
                     icon: Icons.description_outlined,
-                    color: const Color(0xFF94A3B8),
+                    color: Color(0xFF94A3B8),
                     title: tr('terms_of_use'),
                     onTap: () => onOpenPage('terms')),
 
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 _divider(),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
 
                 _Item(
                     icon: Icons.logout_rounded,
-                    color: const Color(0xFFEF4444),
+                    color: Color(0xFFEF4444),
                     title: tr('sign_out'),
-                    titleColor: const Color(0xFFEF4444),
+                    titleColor: Color(0xFFEF4444),
                     onTap: () => _showLogout(context)),
 
-                const SizedBox(height: 24),
+                SizedBox(height: 24),
               ],
             ),
           ),
@@ -270,7 +271,7 @@ class _ProfileCard extends StatelessWidget {
           gradient: LinearGradient(
             colors: [
               Colors.cyanAccent.withValues(alpha: 0.10),
-              const Color(0xFF0070FF).withValues(alpha: 0.08),
+              Color(0xFF0070FF).withValues(alpha: 0.08),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -285,7 +286,7 @@ class _ProfileCard extends StatelessWidget {
             height: 50,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: const LinearGradient(
+              gradient: LinearGradient(
                   colors: [Color(0xFF00E5FF), Color(0xFF0070FF)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight),
@@ -303,20 +304,20 @@ class _ProfileCard extends StatelessWidget {
             ),
             child: hasPhoto
                 ? null
-                : const Icon(Icons.person_rounded,
+                : Icon(Icons.person_rounded,
                     color: Colors.white, size: 26),
           ),
-          const SizedBox(width: 14),
+          SizedBox(width: 14),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Hoş geldin, $displayName 👋',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: Colors.white,
                       fontSize: 14,
                       fontWeight: FontWeight.w700)),
-              const SizedBox(height: 3),
+              SizedBox(height: 3),
               Text('Profilimi Görüntüle',
                   style: TextStyle(
                       fontSize: 11,
@@ -366,7 +367,7 @@ class _ItemState extends State<_Item> {
       },
       onTapCancel: () => setState(() => _p = false),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 140),
+        duration: Duration(milliseconds: 140),
         margin: const EdgeInsets.only(bottom: 4),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         decoration: BoxDecoration(
@@ -388,7 +389,7 @@ class _ItemState extends State<_Item> {
             ),
             child: Icon(widget.icon, color: widget.color, size: 18),
           ),
-          const SizedBox(width: 14),
+          SizedBox(width: 14),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(widget.title,
@@ -424,7 +425,7 @@ class _SubPageShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFF08081A),
+      color: Color(0xFF08081A),
       child: child,
     );
   }
@@ -446,11 +447,11 @@ class _PageHeader extends StatelessWidget {
       child: Row(children: [
         IconButton(
           onPressed: onBack,
-          icon: const Icon(Icons.arrow_back_ios_rounded,
+          icon: Icon(Icons.arrow_back_ios_rounded,
               color: Colors.cyanAccent, size: 20),
         ),
         Text(title,
-            style: const TextStyle(
+            style: TextStyle(
                 color: Colors.white,
                 fontSize: 18,
                 fontWeight: FontWeight.w800)),
@@ -508,11 +509,11 @@ class _ProfilePageState extends State<_ProfilePage> {
 
     return SafeArea(
       child: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
+        physics: BouncingScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 18),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           _PageHeader(title: 'Profilim', onBack: shell._closePage),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
 
           // Avatar + isim
           Center(
@@ -522,7 +523,7 @@ class _ProfilePageState extends State<_ProfilePage> {
                 height: 80,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: const LinearGradient(
+                  gradient: LinearGradient(
                       colors: [Color(0xFF00E5FF), Color(0xFF0070FF)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight),
@@ -537,25 +538,25 @@ class _ProfilePageState extends State<_ProfilePage> {
                       : null,
                 ),
                 child: photo.isEmpty
-                    ? const Icon(Icons.person_rounded,
+                    ? Icon(Icons.person_rounded,
                         color: Colors.white, size: 44)
                     : null,
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               Text(name,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: Colors.white,
                       fontSize: 20,
                       fontWeight: FontWeight.w800)),
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               Text(email,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.50),
                       fontSize: 13)),
               if (user != null) ...[
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 10, vertical: 4),
@@ -566,7 +567,7 @@ class _ProfilePageState extends State<_ProfilePage> {
                         color: Colors.cyanAccent.withValues(alpha: 0.30)),
                   ),
                   child: Text(_providerLabel(user.provider),
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: Colors.cyanAccent,
                           fontSize: 10,
                           fontWeight: FontWeight.w700)),
@@ -574,26 +575,26 @@ class _ProfilePageState extends State<_ProfilePage> {
               ],
             ]),
           ),
-          const SizedBox(height: 28),
+          SizedBox(height: 28),
 
           _neonField('Ad Soyad', name, Icons.person_outline),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           _neonField('E-posta', email, Icons.email_outlined),
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
 
           _neonBtn('Üyeliğim', Icons.workspace_premium_rounded,
-              const Color(0xFFF59E0B)),
-          const SizedBox(height: 10),
+              Color(0xFFF59E0B)),
+          SizedBox(height: 10),
           if (!isGuest)
             _neonBtn('Hesap Ayarları', Icons.settings_outlined,
-                const Color(0xFF8B5CF6)),
-          if (!isGuest) const SizedBox(height: 10),
+                Color(0xFF8B5CF6)),
+          if (!isGuest) SizedBox(height: 10),
           // Çıkış / Giriş — gerçek auth durumuna göre.
           GestureDetector(
             onTap: () async {
               if (isGuest) {
                 // Misafir kullanıcı: oturum açma akışını tetikle.
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                   content: Text(
                       'Giriş yapmak için Profilim > Üyeliğim > Giriş Yap yolunu kullan.'),
                   backgroundColor: Colors.cyanAccent,
@@ -612,10 +613,10 @@ class _ProfilePageState extends State<_ProfilePage> {
             child: _neonBtn(
               isGuest ? 'Giriş Yap' : 'Çıkış Yap',
               isGuest ? Icons.login_rounded : Icons.logout_rounded,
-              isGuest ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
+              isGuest ? Color(0xFF22C55E) : Color(0xFFEF4444),
             ),
           ),
-          const SizedBox(height: 30),
+          SizedBox(height: 30),
         ]),
       ),
     );
@@ -628,7 +629,7 @@ class _ProfilePageState extends State<_ProfilePage> {
               color: Colors.white.withValues(alpha: 0.45),
               fontSize: 11,
               fontWeight: FontWeight.w600)),
-      const SizedBox(height: 6),
+      SizedBox(height: 6),
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         decoration: BoxDecoration(
@@ -639,9 +640,9 @@ class _ProfilePageState extends State<_ProfilePage> {
         ),
         child: Row(children: [
           Icon(icon, color: Colors.cyanAccent.withValues(alpha: 0.60), size: 18),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Text(value,
-              style: const TextStyle(color: Colors.white, fontSize: 14)),
+              style: TextStyle(color: Colors.white, fontSize: 14)),
         ]),
       ),
     ]);
@@ -661,11 +662,11 @@ class _ProfilePageState extends State<_ProfilePage> {
       ),
       child: Row(children: [
         Icon(icon, color: color, size: 20),
-        const SizedBox(width: 14),
+        SizedBox(width: 14),
         Text(label,
             style: TextStyle(
                 color: color, fontSize: 14, fontWeight: FontWeight.w700)),
-        const Spacer(),
+        Spacer(),
         Icon(Icons.chevron_right_rounded,
             color: color.withValues(alpha: 0.50), size: 18),
       ]),
@@ -745,7 +746,7 @@ class _LanguagePageState extends State<_LanguagePage> {
               controller: _searchController,
               focusNode: _focusNode,
               onChanged: (val) => setState(() => _search = val),
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              style: TextStyle(color: Colors.white, fontSize: 14),
               cursorColor: Colors.cyanAccent,
               decoration: InputDecoration(
                 hintText: locale.tr('search_language'),
@@ -795,7 +796,7 @@ class _LanguagePageState extends State<_LanguagePage> {
                   ),
                 )
               : ListView.builder(
-                  physics: const BouncingScrollPhysics(),
+                  physics: BouncingScrollPhysics(),
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   itemCount: sortedLangs.length,
@@ -808,7 +809,7 @@ class _LanguagePageState extends State<_LanguagePage> {
                         setState(() {});
                       },
                       child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 160),
+                        duration: Duration(milliseconds: 160),
                         margin: const EdgeInsets.only(bottom: 6),
                         padding: const EdgeInsets.symmetric(
                             horizontal: 14, vertical: 12),
@@ -824,8 +825,8 @@ class _LanguagePageState extends State<_LanguagePage> {
                               width: sel ? 1.4 : 1.0),
                         ),
                         child: Row(children: [
-                          Text(flag, style: const TextStyle(fontSize: 22)),
-                          const SizedBox(width: 14),
+                          Text(flag, style: TextStyle(fontSize: 22)),
+                          SizedBox(width: 14),
                           Expanded(
                             child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -845,10 +846,10 @@ class _LanguagePageState extends State<_LanguagePage> {
                                 ]),
                           ),
                           Text(culture,
-                              style: const TextStyle(fontSize: 18)),
+                              style: TextStyle(fontSize: 18)),
                           if (sel) ...[
-                            const SizedBox(width: 8),
-                            const Icon(Icons.check_circle_rounded,
+                            SizedBox(width: 8),
+                            Icon(Icons.check_circle_rounded,
                                 color: Colors.cyanAccent, size: 20),
                           ],
                         ]),
@@ -896,16 +897,16 @@ class _ThemePageState extends State<_ThemePage> {
     final shell = context.findAncestorStateOfType<_SettingsDrawerState>()!;
     final selected = themeService.index; // 0=dark 1=light 2=system
     final options = [
-      (Icons.dark_mode_rounded, 'Koyu Mod', const Color(0xFF8B5CF6)),
-      (Icons.light_mode_rounded, 'Açık Mod', const Color(0xFFF59E0B)),
-      (Icons.brightness_auto_rounded, 'Sistem Teması', const Color(0xFF3B82F6)),
+      (Icons.dark_mode_rounded, 'Koyu Mod', Color(0xFF8B5CF6)),
+      (Icons.light_mode_rounded, 'Açık Mod', Color(0xFFF59E0B)),
+      (Icons.brightness_auto_rounded, 'Sistem Teması', Color(0xFF3B82F6)),
     ];
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           _PageHeader(title: 'Tema Görünümü', onBack: shell._closePage),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           ...options.asMap().entries.map((e) {
             final i = e.key;
             final (icon, label, color) = e.value;
@@ -913,7 +914,7 @@ class _ThemePageState extends State<_ThemePage> {
             return GestureDetector(
               onTap: () => themeService.setIndex(i),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
+                duration: Duration(milliseconds: 180),
                 margin: const EdgeInsets.only(bottom: 10),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -944,7 +945,7 @@ class _ThemePageState extends State<_ThemePage> {
                     ),
                     child: Icon(icon, color: color, size: 24),
                   ),
-                  const SizedBox(width: 16),
+                  SizedBox(width: 16),
                   Expanded(
                       child: Text(label,
                           style: TextStyle(
@@ -989,15 +990,15 @@ class _FeedbackPageState extends State<_FeedbackPage> {
     final shell = context.findAncestorStateOfType<_SettingsDrawerState>()!;
     return SafeArea(
       child: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
+        physics: BouncingScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 18),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           _PageHeader(title: 'Geri Bildirim', onBack: shell._closePage),
-          const SizedBox(height: 12),
-          const Text('Deneyiminizi puanlayın',
+          SizedBox(height: 12),
+          Text('Deneyiminizi puanlayın',
               style: TextStyle(
                   color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(5, (i) {
@@ -1005,7 +1006,7 @@ class _FeedbackPageState extends State<_FeedbackPage> {
                 onTap: () => setState(() => _stars = i + 1),
                 child: AnimatedScale(
                   scale: _stars >= i + 1 ? 1.2 : 1.0,
-                  duration: const Duration(milliseconds: 180),
+                  duration: Duration(milliseconds: 180),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 6),
                     child: Icon(
@@ -1013,7 +1014,7 @@ class _FeedbackPageState extends State<_FeedbackPage> {
                           ? Icons.star_rounded
                           : Icons.star_outline_rounded,
                       color: _stars >= i + 1
-                          ? const Color(0xFFF59E0B)
+                          ? Color(0xFFF59E0B)
                           : Colors.white.withValues(alpha: 0.25),
                       size: 40,
                     ),
@@ -1022,13 +1023,13 @@ class _FeedbackPageState extends State<_FeedbackPage> {
               );
             }),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
           Text('Mesajınız',
               style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.50),
                   fontSize: 12,
                   fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.04),
@@ -1039,7 +1040,7 @@ class _FeedbackPageState extends State<_FeedbackPage> {
             child: TextField(
               controller: _ctrl,
               maxLines: 5,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              style: TextStyle(color: Colors.white, fontSize: 14),
               decoration: InputDecoration(
                 hintText: 'Görüşlerinizi yazın...',
                 hintStyle: TextStyle(
@@ -1049,7 +1050,7 @@ class _FeedbackPageState extends State<_FeedbackPage> {
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           GestureDetector(
             onTap: () async {
               final body = '⭐ $_stars/5\n\n${_ctrl.text}';
@@ -1065,7 +1066,7 @@ class _FeedbackPageState extends State<_FeedbackPage> {
                 await launchUrl(uri);
               } else {
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                     content: Text('serhatdsme@gmail.com'),
                     backgroundColor: Colors.cyanAccent,
                   ));
@@ -1076,7 +1077,7 @@ class _FeedbackPageState extends State<_FeedbackPage> {
               width: double.infinity,
               height: 52,
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
+                gradient: LinearGradient(
                     colors: [Colors.cyanAccent, Color(0xFF0070FF)]),
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
@@ -1085,16 +1086,16 @@ class _FeedbackPageState extends State<_FeedbackPage> {
                       blurRadius: 18)
                 ],
               ),
-              child: const Center(
+              child: Center(
                 child: Text('Gönder',
                     style: TextStyle(
-                        color: Colors.black87,
+                        color: AppPalette.textPrimary(context),
                         fontSize: 15,
                         fontWeight: FontWeight.w800)),
               ),
             ),
           ),
-          const SizedBox(height: 30),
+          SizedBox(height: 30),
         ]),
       ),
     );
@@ -1138,7 +1139,7 @@ class _FaqPageState extends State<_FaqPage> {
         _PageHeader(title: 'Yardım / SSS', onBack: shell._closePage),
         Expanded(
           child: ListView.builder(
-            physics: const BouncingScrollPhysics(),
+            physics: BouncingScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 16),
             itemCount: _items.length,
             itemBuilder: (_, i) {
@@ -1147,7 +1148,7 @@ class _FaqPageState extends State<_FaqPage> {
               return GestureDetector(
                 onTap: () => setState(() => _open = open ? null : i),
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
+                  duration: Duration(milliseconds: 220),
                   margin: const EdgeInsets.only(bottom: 8),
                   decoration: BoxDecoration(
                     color: open
@@ -1216,7 +1217,7 @@ class _AboutPage extends StatelessWidget {
     final shell = context.findAncestorStateOfType<_SettingsDrawerState>()!;
     return SafeArea(
       child: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
+        physics: BouncingScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 18),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           _PageHeader(title: 'Hakkımızda', onBack: shell._closePage),
@@ -1227,50 +1228,50 @@ class _AboutPage extends StatelessWidget {
                 height: 72,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
-                  gradient: const LinearGradient(
+                  gradient: LinearGradient(
                       colors: [Color(0xFF00E5FF), Color(0xFF0070FF)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight),
                 ),
-                child: const Icon(Icons.auto_awesome_rounded,
+                child: Icon(Icons.auto_awesome_rounded,
                     color: Colors.white, size: 38),
               ),
-              const SizedBox(height: 12),
-              const Text('QuAlsar',
+              SizedBox(height: 12),
+              Text('QuAlsar',
                   style: TextStyle(
                       color: Colors.cyanAccent,
                       fontSize: 24,
                       fontWeight: FontWeight.w900)),
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               Text('v1.0.0 — Beta',
                   style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.40), fontSize: 13)),
             ]),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
           _card(
               'Her derste, her konuda yapay zeka destekli çözüm. '
               'QuAlsar öğrencilerin öğrenme sürecini kişiselleştirerek '
               'daha hızlı ve daha etkili bir eğitim deneyimi sunar.'),
-          const SizedBox(height: 16),
-          const Text('Sosyal Medya',
+          SizedBox(height: 16),
+          Text('Sosyal Medya',
               style: TextStyle(
                   color: Colors.white,
                   fontSize: 14,
                   fontWeight: FontWeight.w700)),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           _socialBtn(
-              Icons.language_rounded, 'qualsar.app', const Color(0xFF3B82F6),
+              Icons.language_rounded, 'qualsar.app', Color(0xFF3B82F6),
               url: 'https://qualsar.app'),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           _socialBtn(
-              Icons.camera_alt_outlined, '@qualsar', const Color(0xFFEC4899),
+              Icons.camera_alt_outlined, '@qualsar', Color(0xFFEC4899),
               url: 'https://instagram.com/qualsar'),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           _socialBtn(Icons.email_outlined, 'serhatdsme@gmail.com',
-              const Color(0xFF10B981),
+              Color(0xFF10B981),
               url: 'mailto:serhatdsme@gmail.com'),
-          const SizedBox(height: 30),
+          SizedBox(height: 30),
         ]),
       ),
     );
@@ -1300,11 +1301,11 @@ class _AboutPage extends StatelessWidget {
       ),
       child: Row(children: [
         Icon(icon, color: color, size: 20),
-        const SizedBox(width: 12),
+        SizedBox(width: 12),
         Text(label,
             style: TextStyle(
                 color: color, fontSize: 13, fontWeight: FontWeight.w600)),
-        const Spacer(),
+        Spacer(),
         if (url != null)
           Icon(Icons.open_in_new_rounded,
               color: color.withValues(alpha: 0.55), size: 14),
@@ -1338,7 +1339,7 @@ class _TermsPage extends StatelessWidget {
         _PageHeader(title: 'Kullanım Koşulları', onBack: shell._closePage),
         Expanded(
           child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
+            physics: BouncingScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(18, 0, 18, 30),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1358,7 +1359,7 @@ class _TermsPage extends StatelessWidget {
                 _section('5. Değişiklikler',
                     'QuAlsar bu koşulları önceden bildirmeksizin değiştirme hakkını '
                     'saklı tutar.'),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Text('Son güncelleme: Nisan 2026',
                     style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.30),
@@ -1375,11 +1376,11 @@ class _TermsPage extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: 20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(title,
-              style: const TextStyle(
+              style: TextStyle(
                   color: Colors.white,
                   fontSize: 14,
                   fontWeight: FontWeight.w700)),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Text(body,
               style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.55),
@@ -1407,10 +1408,10 @@ class _LogoutDialog extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.all(28),
             decoration: BoxDecoration(
-              color: const Color(0xEE0C0C22),
+              color: Color(0xEE0C0C22),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
-                  color: const Color(0xFFEF4444).withValues(alpha: 0.40),
+                  color: Color(0xFFEF4444).withValues(alpha: 0.40),
                   width: 1.4),
             ),
             child: Builder(builder: (ctx) {
@@ -1421,25 +1422,25 @@ class _LogoutDialog extends StatelessWidget {
                   height: 56,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: const Color(0xFFEF4444).withValues(alpha: 0.14),
+                    color: Color(0xFFEF4444).withValues(alpha: 0.14),
                   ),
-                  child: const Icon(Icons.logout_rounded,
+                  child: Icon(Icons.logout_rounded,
                       color: Color(0xFFEF4444), size: 28),
                 ),
-                const SizedBox(height: 18),
+                SizedBox(height: 18),
                 Text(locale.tr('sign_out'),
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: Colors.white,
                         fontSize: 20,
                         fontWeight: FontWeight.w800)),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Text(locale.tr('logout_confirm'),
                     textAlign: TextAlign.center,
                     style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.55),
                         fontSize: 13,
                         height: 1.5)),
-                const SizedBox(height: 24),
+                SizedBox(height: 24),
                 Row(children: [
                   Expanded(
                     child: GestureDetector(
@@ -1454,29 +1455,29 @@ class _LogoutDialog extends StatelessWidget {
                         ),
                         child: Center(
                           child: Text(locale.tr('cancel'),
-                              style: const TextStyle(
+                              style: TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w600)),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: GestureDetector(
                       onTap: () => Navigator.pop(context, true),
                       child: Container(
                         height: 46,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFEF4444).withValues(alpha: 0.18),
+                          color: Color(0xFFEF4444).withValues(alpha: 0.18),
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
-                              color: const Color(0xFFEF4444)
+                              color: Color(0xFFEF4444)
                                   .withValues(alpha: 0.50)),
                         ),
                         child: Center(
                           child: Text(locale.tr('sign_out'),
-                              style: const TextStyle(
+                              style: TextStyle(
                                   color: Color(0xFFEF4444),
                                   fontWeight: FontWeight.w700)),
                         ),

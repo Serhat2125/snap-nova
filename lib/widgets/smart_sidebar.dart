@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../theme/app_theme.dart';
 // ═══════════════════════════════════════════════════════════════════════════
 //  SmartSidebar
 //
@@ -28,7 +29,7 @@ class SidebarItem {
   final List<SidebarItem> children;
   final Color color;
 
-  const SidebarItem({
+  SidebarItem({
     required this.title,
     this.pageBuilder,
     this.openFullscreen,
@@ -64,11 +65,11 @@ class _SmartSidebarState extends State<SmartSidebar>
     super.initState();
     _drawerCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 220),
+      duration: Duration(milliseconds: 220),
     );
     _previewCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 200),
+      duration: Duration(milliseconds: 200),
     );
   }
 
@@ -155,7 +156,7 @@ class _SmartSidebarState extends State<SmartSidebar>
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.18),
                 blurRadius: 6,
-                offset: const Offset(-1, 1),
+                offset: Offset(-1, 1),
               ),
             ],
           ),
@@ -198,7 +199,7 @@ class _SmartSidebarState extends State<SmartSidebar>
             bottomLeft: Radius.circular(26),
           ),
           child: Container(
-            color: const Color(0xFFE5E7EB), // açık gri arka plan
+            color: AppPalette.border(context), // açık gri arka plan
             child: ListView(
               padding: const EdgeInsets.fromLTRB(8, 10, 14, 14),
               children: widget.items
@@ -265,8 +266,7 @@ class _SmartSidebarState extends State<SmartSidebar>
     required VoidCallback onTap,
     bool showExpand = false,
   }) {
-    return Material(
-      color: Colors.white,
+    return Material(color: AppPalette.card(context),
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
@@ -275,7 +275,7 @@ class _SmartSidebarState extends State<SmartSidebar>
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+            border: Border.all(color: AppPalette.border(context), width: 1),
           ),
           child: Row(
             children: [
@@ -287,7 +287,7 @@ class _SmartSidebarState extends State<SmartSidebar>
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Expanded(
                 child: Text(
                   title,
@@ -392,14 +392,14 @@ class _SmartSidebarState extends State<SmartSidebar>
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
-                  color: Colors.black87,
+                  color: AppPalette.textPrimary(context),
                 ),
               ),
             ),
             GestureDetector(
               onTap: _closePreview,
               behavior: HitTestBehavior.opaque,
-              child: const Padding(
+              child: Padding(
                 padding: EdgeInsets.all(8),
                 child: Icon(Icons.close_rounded,
                     size: 16, color: Colors.black54),

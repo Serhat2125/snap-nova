@@ -53,7 +53,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
 
     // Simüle edilmiş AI yanıtı
-    Future.delayed(const Duration(milliseconds: 900), () {
+    Future.delayed(Duration(milliseconds: 900), () {
       if (!mounted) return;
       setState(() {
         _messages.add(_Message(
@@ -80,11 +80,11 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _scrollToBottom() {
-    Future.delayed(const Duration(milliseconds: 100), () {
+    Future.delayed(Duration(milliseconds: 100), () {
       if (_scrollCtrl.hasClients) {
         _scrollCtrl.animateTo(
           _scrollCtrl.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
+          duration: Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
       }
@@ -107,7 +107,7 @@ class _ChatScreenState extends State<ChatScreen> {
             Expanded(
               child: ListView.builder(
                 controller: _scrollCtrl,
-                physics: const BouncingScrollPhysics(),
+                physics: BouncingScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                 itemCount: _messages.length + (_isSending ? 1 : 0),
                 itemBuilder: (_, i) {
@@ -142,7 +142,7 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back_rounded, color: AppColors.cyan),
+            icon: Icon(Icons.arrow_back_rounded, color: AppColors.cyan),
             onPressed: () => Navigator.pop(context),
           ),
           // AI avatar
@@ -151,7 +151,7 @@ class _ChatScreenState extends State<ChatScreen> {
             height: 36,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: const LinearGradient(
+              gradient: LinearGradient(
                 colors: [Color(0xFF00E5FF), Color(0xFF0070FF)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -162,14 +162,14 @@ class _ChatScreenState extends State<ChatScreen> {
                     blurRadius: 10)
               ],
             ),
-            child: const Icon(Icons.auto_awesome_rounded,
+            child: Icon(Icons.auto_awesome_rounded,
                 color: Colors.white, size: 18),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('QuAlsar AI',
+              Text('QuAlsar AI',
                   style: TextStyle(
                       color: Colors.white,
                       fontSize: 15,
@@ -179,12 +179,12 @@ class _ChatScreenState extends State<ChatScreen> {
                   Container(
                     width: 6,
                     height: 6,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       color: Color(0xFF22C55E),
                       shape: BoxShape.circle,
                     ),
                   ),
-                  const SizedBox(width: 4),
+                  SizedBox(width: 4),
                   Text(localeService.tr('online'),
                       style: TextStyle(
                           color: Color(0xFF22C55E),
@@ -210,7 +210,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   color: AppColors.textMuted,
                   fontSize: 10,
                   fontWeight: FontWeight.w600)),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Wrap(
             spacing: 8,
             runSpacing: 6,
@@ -230,7 +230,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               Border.all(color: AppColors.cyan.withValues(alpha: 0.25)),
                         ),
                         child: Text(s,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 color: AppColors.cyan,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w500)),
@@ -266,7 +266,7 @@ class _ChatScreenState extends State<ChatScreen> {
               child: TextField(
                 controller: _textCtrl,
                 focusNode: _focusNode,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
+                style: TextStyle(color: Colors.white, fontSize: 14),
                 maxLines: 4,
                 minLines: 1,
                 textInputAction: TextInputAction.send,
@@ -283,15 +283,15 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           GestureDetector(
             onTap: _send,
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
+              duration: Duration(milliseconds: 180),
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
+                gradient: LinearGradient(
                   colors: [AppColors.cyan, Color(0xFF0070FF)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -303,8 +303,8 @@ class _ChatScreenState extends State<ChatScreen> {
                       blurRadius: 10)
                 ],
               ),
-              child: const Icon(Icons.send_rounded,
-                  color: Colors.black87, size: 20),
+              child: Icon(Icons.send_rounded,
+                  color: AppPalette.textPrimary(context), size: 20),
             ),
           ),
         ],
@@ -332,7 +332,7 @@ class _MessageBubble extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: msg.isAI
               ? null
-              : const LinearGradient(
+              : LinearGradient(
                   colors: [AppColors.cyan, Color(0xFF0070FF)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -377,7 +377,7 @@ class _TypingIndicatorState extends State<_TypingIndicator>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 900))
+        vsync: this, duration: Duration(milliseconds: 900))
       ..repeat(reverse: true);
   }
 
@@ -420,7 +420,7 @@ class _TypingIndicatorState extends State<_TypingIndicator>
                   child: Container(
                     width: 6,
                     height: 6,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       color: AppColors.cyan,
                       shape: BoxShape.circle,
                     ),

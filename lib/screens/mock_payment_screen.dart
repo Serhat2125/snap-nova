@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../theme/app_theme.dart';
 import '../main.dart' show localeService;
 
 class MockPaymentScreen extends StatelessWidget {
@@ -26,8 +27,7 @@ class MockPaymentScreen extends StatelessWidget {
             topLeft: Radius.circular(20),
             topRight: Radius.circular(20),
           ),
-          child: Container(
-            color: Colors.white,
+          child: Container(color: AppPalette.card(context),
             child: _MockPaymentContent(
               scrollController: scrollController,
               planLabel: planLabel,
@@ -42,8 +42,8 @@ class MockPaymentScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Colors.white,
+    return Scaffold(
+      backgroundColor: AppPalette.card(context),
       body: SafeArea(
         child: _MockPaymentContent(),
       ),
@@ -77,7 +77,7 @@ class _MockPaymentContent extends StatelessWidget {
         ),
         content: Text(
           'Ödeme sistemi çok yakında aktif edilecektir.',
-          style: GoogleFonts.poppins(fontSize: 13, color: const Color(0xFF333333)),
+          style: GoogleFonts.poppins(fontSize: 13, color: AppPalette.textPrimary(context)),
         ),
         actions: [
           TextButton(
@@ -87,7 +87,7 @@ class _MockPaymentContent extends StatelessWidget {
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: const Color(0xFF1A73E8),
+                color: Color(0xFF1A73E8),
               ),
             ),
           ),
@@ -107,7 +107,7 @@ class _MockPaymentContent extends StatelessWidget {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: const Color(0xFFD1D5DB),
+              color: AppPalette.border(context),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -117,10 +117,10 @@ class _MockPaymentContent extends StatelessWidget {
           child: Row(
             children: [
               IconButton(
-                icon: const Icon(Icons.arrow_back, color: Color(0xFF202124)),
+                icon: Icon(Icons.arrow_back, color: Color(0xFF202124)),
                 onPressed: () => Navigator.pop(context),
               ),
-              const SizedBox(width: 4),
+              SizedBox(width: 4),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -130,14 +130,14 @@ class _MockPaymentContent extends StatelessWidget {
                       style: GoogleFonts.poppins(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
-                        color: const Color(0xFF202124),
+                        color: AppPalette.textPrimary(context),
                       ),
                     ),
                     Text(
                       'serhatdsme@gmail.com',
                       style: GoogleFonts.poppins(
                         fontSize: 12,
-                        color: const Color(0xFF5F6368),
+                        color: Color(0xFF5F6368),
                       ),
                     ),
                   ],
@@ -146,13 +146,13 @@ class _MockPaymentContent extends StatelessWidget {
             ],
           ),
         ),
-        const Divider(height: 1, color: Color(0xFFE5E7EB)),
+        Divider(height: 1, color: AppPalette.border(context)),
         Expanded(
           child: ListView(
             controller: scrollController,
             padding: EdgeInsets.zero,
             children: [
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               // Kayıtlı kartlar
               _cardTile(
                 context,
@@ -172,8 +172,8 @@ class _MockPaymentContent extends StatelessWidget {
                 brandColors: const [Color(0xFF1A1F71), Color(0xFF1A1F71)],
                 label: 'Visa-8827',
               ),
-              const SizedBox(height: 8),
-              const Divider(height: 1, color: Color(0xFFE5E7EB)),
+              SizedBox(height: 8),
+              Divider(height: 1, color: AppPalette.border(context)),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
                 child: Text(
@@ -181,7 +181,7 @@ class _MockPaymentContent extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFF202124),
+                    color: AppPalette.textPrimary(context),
                   ),
                 ),
               ),
@@ -198,16 +198,16 @@ class _MockPaymentContent extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _miniMastercard(),
-                    const SizedBox(width: 6),
+                    SizedBox(width: 6),
                     _miniVisa(),
-                    const SizedBox(width: 6),
+                    SizedBox(width: 6),
                     _miniTroy(),
-                    const SizedBox(width: 6),
+                    SizedBox(width: 6),
                     Text(
                       'diğerleri',
                       style: GoogleFonts.poppins(
                         fontSize: 11,
-                        color: const Color(0xFF5F6368),
+                        color: Color(0xFF5F6368),
                       ),
                     ),
                   ],
@@ -218,7 +218,7 @@ class _MockPaymentContent extends StatelessWidget {
                 icon: Icons.confirmation_number,
                 title: localeService.tr('use_code'),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
             ],
           ),
         ),
@@ -243,8 +243,8 @@ class _MockPaymentContent extends StatelessWidget {
               height: 26,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(4),
-                color: brand == 'VISA' ? const Color(0xFF1A1F71) : Colors.white,
-                border: Border.all(color: const Color(0xFFE5E7EB), width: 0.5),
+                color: brand == 'VISA' ? Color(0xFF1A1F71) : Colors.white,
+                border: Border.all(color: AppPalette.border(context), width: 0.5),
               ),
               child: Center(
                 child: brand == 'MC'
@@ -256,7 +256,7 @@ class _MockPaymentContent extends StatelessWidget {
                             child: Container(
                               width: 14,
                               height: 14,
-                              decoration: const BoxDecoration(
+                              decoration: BoxDecoration(
                                 color: Color(0xFFEB001B),
                                 shape: BoxShape.circle,
                               ),
@@ -268,7 +268,7 @@ class _MockPaymentContent extends StatelessWidget {
                               width: 14,
                               height: 14,
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF79E1B).withValues(alpha: 0.9),
+                                color: Color(0xFFF79E1B).withValues(alpha: 0.9),
                                 shape: BoxShape.circle,
                               ),
                             ),
@@ -286,13 +286,13 @@ class _MockPaymentContent extends StatelessWidget {
                       ),
               ),
             ),
-            const SizedBox(width: 16),
+            SizedBox(width: 16),
             Expanded(
               child: Text(
                 label,
                 style: GoogleFonts.poppins(
                   fontSize: 14,
-                  color: const Color(0xFF202124),
+                  color: AppPalette.textPrimary(context),
                 ),
               ),
             ),
@@ -305,7 +305,7 @@ class _MockPaymentContent extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFF1A73E8),
+                    color: Color(0xFF1A73E8),
                   ),
                 ),
               ),
@@ -328,14 +328,14 @@ class _MockPaymentContent extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         child: Row(
           children: [
-            Icon(icon, size: 22, color: const Color(0xFF5F6368)),
-            const SizedBox(width: 20),
+            Icon(icon, size: 22, color: Color(0xFF5F6368)),
+            SizedBox(width: 20),
             Expanded(
               child: Text(
                 title,
                 style: GoogleFonts.poppins(
                   fontSize: 14,
-                  color: const Color(0xFF202124),
+                  color: AppPalette.textPrimary(context),
                 ),
               ),
             ),
@@ -365,8 +365,8 @@ class _MockPaymentContent extends StatelessWidget {
           builder: (c, scrollController) {
             return StatefulBuilder(
               builder: (ctx2, setSheetState) => Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
+                decoration: BoxDecoration(
+            color: AppPalette.card(context),
                   borderRadius: BorderRadius.only(
                     topLeft: Radius.circular(20),
                     topRight: Radius.circular(20),
@@ -379,7 +379,7 @@ class _MockPaymentContent extends StatelessWidget {
                       width: 40,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFD1D5DB),
+                        color: AppPalette.border(context),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -402,11 +402,11 @@ class _MockPaymentContent extends StatelessWidget {
                                 style: GoogleFonts.poppins(
                                   fontSize: 18,
                                   fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF202124),
+                                  color: AppPalette.textPrimary(context),
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 24),
+                            SizedBox(height: 24),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -421,7 +421,7 @@ class _MockPaymentContent extends StatelessWidget {
                                     inputFormatters: [_ExpiryFormatter()],
                                   ),
                                 ),
-                                const SizedBox(width: 12),
+                                SizedBox(width: 12),
                                 SizedBox(
                                   width: 90,
                                   child: _centerLabeledField(
@@ -437,21 +437,21 @@ class _MockPaymentContent extends StatelessWidget {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 48),
+                            SizedBox(height: 48),
                             _leftLabeledField(
                               label: localeService.tr('cardholder_name'),
                               controller: nameCtrl,
                               errorText: nameErr,
                               textCapitalization: TextCapitalization.words,
                             ),
-                            const SizedBox(height: 20),
+                            SizedBox(height: 20),
                             _countryField(
                               context: ctx2,
                               value: country,
                               onChanged: (v) =>
                                   setSheetState(() => country = v),
                             ),
-                            const SizedBox(height: 20),
+                            SizedBox(height: 20),
                             _paymentDisclaimer(context),
                           ],
                         ),
@@ -459,11 +459,11 @@ class _MockPaymentContent extends StatelessWidget {
                     ),
                     // Alt sabit "Devam Et" butonu
                     Container(
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
+                      decoration: BoxDecoration(
+                        color: AppPalette.card(context),
                         border: Border(
                           top: BorderSide(
-                              color: Color(0xFFE5E7EB), width: 0.5),
+                              color: AppPalette.border(context), width: 0.5),
                         ),
                       ),
                       padding: EdgeInsets.fromLTRB(
@@ -477,7 +477,7 @@ class _MockPaymentContent extends StatelessWidget {
                         height: 48,
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF1A73E8),
+                            backgroundColor: Color(0xFF1A73E8),
                             foregroundColor: Colors.white,
                             elevation: 0,
                             shape: RoundedRectangleBorder(
@@ -566,9 +566,9 @@ class _MockPaymentContent extends StatelessWidget {
                   cursorColor: blue,
                   style: GoogleFonts.poppins(
                     fontSize: 14,
-                    color: const Color(0xFF202124),
+                    color: Color(0xFF202125),
                   ),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     border: InputBorder.none,
                     isDense: true,
                     contentPadding:
@@ -581,8 +581,7 @@ class _MockPaymentContent extends StatelessWidget {
                 left: 0,
                 right: 0,
                 child: Center(
-                  child: Container(
-                    color: Colors.white,
+                  child: Container(color: Color(0xFFFEFEFE),
                     padding: const EdgeInsets.symmetric(horizontal: 6),
                     child: Text(
                       label,
@@ -643,9 +642,9 @@ class _MockPaymentContent extends StatelessWidget {
                   textCapitalization: textCapitalization,
                   style: GoogleFonts.poppins(
                     fontSize: 14,
-                    color: const Color(0xFF202124),
+                    color: Color(0xFF202125),
                   ),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     border: InputBorder.none,
                     isDense: true,
                     contentPadding: EdgeInsets.zero,
@@ -655,8 +654,7 @@ class _MockPaymentContent extends StatelessWidget {
               Positioned(
                 top: -9,
                 left: 10,
-                child: Container(
-                  color: Colors.white,
+                child: Container(color: Color(0xFFFEFEFE),
                   padding: const EdgeInsets.symmetric(horizontal: 6),
                   child: Text(
                     label,
@@ -713,11 +711,11 @@ class _MockPaymentContent extends StatelessWidget {
                       value,
                       style: GoogleFonts.poppins(
                         fontSize: 14,
-                        color: const Color(0xFF202124),
+                        color: AppPalette.textPrimary(context),
                       ),
                     ),
                   ),
-                  const Icon(Icons.arrow_drop_down,
+                  Icon(Icons.arrow_drop_down,
                       color: Color(0xFF5F6368), size: 26),
                 ],
               ),
@@ -726,8 +724,7 @@ class _MockPaymentContent extends StatelessWidget {
           Positioned(
             top: -9,
             left: 10,
-            child: Container(
-              color: Colors.white,
+            child: Container(color: AppPalette.card(context),
               padding: const EdgeInsets.symmetric(horizontal: 6),
               child: Text(
                 'Ülke',
@@ -752,13 +749,13 @@ class _MockPaymentContent extends StatelessWidget {
     );
     final linkStyle = GoogleFonts.poppins(
       fontSize: 12,
-      color: const Color(0xFF1A73E8),
+      color: Color(0xFF1A73E8),
       fontWeight: FontWeight.w500,
       height: 1.5,
     );
     final normal = GoogleFonts.poppins().copyWith(
       fontSize: 12,
-      color: const Color(0xFF5F6368),
+      color: Color(0xFF5F6368),
       height: 1.5,
     );
     return RichText(
@@ -870,8 +867,8 @@ class _MockPaymentContent extends StatelessWidget {
               maxChildSize: 0.95,
               expand: false,
               builder: (_, sc) => Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
+                decoration: BoxDecoration(
+            color: AppPalette.card(context),
                   borderRadius: BorderRadius.only(
                     topLeft: Radius.circular(20),
                     topRight: Radius.circular(20),
@@ -884,7 +881,7 @@ class _MockPaymentContent extends StatelessWidget {
                       width: 40,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFD1D5DB),
+                        color: AppPalette.border(context),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -898,12 +895,12 @@ class _MockPaymentContent extends StatelessWidget {
                               style: GoogleFonts.poppins(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
-                                color: const Color(0xFF202124),
+                                color: AppPalette.textPrimary(context),
                               ),
                             ),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.close,
+                            icon: Icon(Icons.close,
                                 color: Color(0xFF5F6368)),
                             onPressed: () => Navigator.pop(ctx),
                           ),
@@ -918,31 +915,31 @@ class _MockPaymentContent extends StatelessWidget {
                         decoration: InputDecoration(
                           hintText: 'Ara...',
                           hintStyle: GoogleFonts.poppins(
-                              fontSize: 14, color: const Color(0xFF9AA0A6)),
-                          prefixIcon: const Icon(Icons.search,
+                              fontSize: 14, color: Color(0xFF9AA0A6)),
+                          prefixIcon: Icon(Icons.search,
                               color: Color(0xFF5F6368)),
                           isDense: true,
                           contentPadding:
                               const EdgeInsets.symmetric(vertical: 12),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
-                            borderSide: const BorderSide(
-                                color: Color(0xFFE5E7EB)),
+                            borderSide: BorderSide(
+                                color: AppPalette.border(context)),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
-                            borderSide: const BorderSide(
-                                color: Color(0xFFE5E7EB)),
+                            borderSide: BorderSide(
+                                color: AppPalette.border(context)),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
-                            borderSide: const BorderSide(
+                            borderSide: BorderSide(
                                 color: Color(0xFF1A73E8), width: 1.4),
                           ),
                         ),
                       ),
                     ),
-                    const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                    Divider(height: 1, color: AppPalette.border(context)),
                     Expanded(
                       child: ListView.builder(
                         controller: sc,
@@ -966,13 +963,13 @@ class _MockPaymentContent extends StatelessWidget {
                                             ? FontWeight.w600
                                             : FontWeight.w400,
                                         color: selected
-                                            ? const Color(0xFF1A73E8)
-                                            : const Color(0xFF202124),
+                                            ? Color(0xFF1A73E8)
+                                            : Color(0xFF202124),
                                       ),
                                     ),
                                   ),
                                   if (selected)
-                                    const Icon(Icons.check,
+                                    Icon(Icons.check,
                                         color: Color(0xFF1A73E8), size: 20),
                                 ],
                               ),
@@ -1003,7 +1000,7 @@ class _MockPaymentContent extends StatelessWidget {
             child: Container(
               width: 12,
               height: 12,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: Color(0xFFEB001B),
                 shape: BoxShape.circle,
               ),
@@ -1015,7 +1012,7 @@ class _MockPaymentContent extends StatelessWidget {
               width: 12,
               height: 12,
               decoration: BoxDecoration(
-                color: const Color(0xFFF79E1B).withValues(alpha: 0.9),
+                color: Color(0xFFF79E1B).withValues(alpha: 0.9),
                 shape: BoxShape.circle,
               ),
             ),
@@ -1029,7 +1026,7 @@ class _MockPaymentContent extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1F71),
+        color: Color(0xFF1A1F71),
         borderRadius: BorderRadius.circular(2),
       ),
       child: Text(
@@ -1048,7 +1045,7 @@ class _MockPaymentContent extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       decoration: BoxDecoration(
-        color: const Color(0xFFE30613),
+        color: Color(0xFFE30613),
         borderRadius: BorderRadius.circular(2),
       ),
       child: Text(
@@ -1127,7 +1124,7 @@ class _LegalTextPage extends StatelessWidget {
       final trimmed = line.trim();
 
       if (trimmed.isEmpty) {
-        widgets.add(const SizedBox(height: 10));
+        widgets.add(SizedBox(height: 10));
         continue;
       }
 
@@ -1141,7 +1138,7 @@ class _LegalTextPage extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 22,
               fontWeight: FontWeight.w900,
-              color: Colors.black,
+              color: AppPalette.textPrimary(context),
               height: 1.25,
             ),
           ),
@@ -1174,7 +1171,7 @@ class _LegalTextPage extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 17,
               fontWeight: FontWeight.w900,
-              color: Colors.black,
+              color: AppPalette.textPrimary(context),
               height: 1.3,
             ),
           ),
@@ -1191,7 +1188,7 @@ class _LegalTextPage extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 14.5,
               fontWeight: FontWeight.w800,
-              color: Colors.black,
+              color: AppPalette.textPrimary(context),
               height: 1.35,
             ),
           ),
@@ -1214,17 +1211,17 @@ class _LegalTextPage extends StatelessWidget {
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppPalette.card(context),
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        backgroundColor: AppPalette.card(context),
+        foregroundColor: AppPalette.textPrimary(context),
         elevation: 0.5,
         title: Text(
           title,
           style: GoogleFonts.poppins(
             fontSize: 16,
             fontWeight: FontWeight.w700,
-            color: Colors.black,
+            color: AppPalette.textPrimary(context),
           ),
         ),
       ),
@@ -1508,7 +1505,7 @@ class _PaymentProcessingPageState extends State<_PaymentProcessingPage> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 2200), () {
+    Future.delayed(Duration(milliseconds: 2200), () {
       if (mounted) setState(() => _done = true);
     });
   }
@@ -1518,10 +1515,10 @@ class _PaymentProcessingPageState extends State<_PaymentProcessingPage> {
     return PopScope(
       canPop: _done, // işlem sırasında geri alınamaz
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: AppPalette.card(context),
         body: SafeArea(
           child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 350),
+            duration: Duration(milliseconds: 350),
             child: _done ? _buildSuccess(context) : _buildLoading(),
           ),
         ),
@@ -1531,11 +1528,11 @@ class _PaymentProcessingPageState extends State<_PaymentProcessingPage> {
 
   Widget _buildLoading() {
     return Center(
-      key: const ValueKey('loading'),
+      key: ValueKey('loading'),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const SizedBox(
+          SizedBox(
             width: 56,
             height: 56,
             child: CircularProgressIndicator(
@@ -1544,21 +1541,21 @@ class _PaymentProcessingPageState extends State<_PaymentProcessingPage> {
                   AlwaysStoppedAnimation<Color>(Color(0xFF1A73E8)),
             ),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
           Text(
             'Ödeme işleniyor…',
             style: GoogleFonts.poppins(
               fontSize: 15,
               fontWeight: FontWeight.w600,
-              color: const Color(0xFF202124),
+              color: AppPalette.textPrimary(context),
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Text(
             'Lütfen bu ekrandan ayrılma',
             style: GoogleFonts.poppins(
               fontSize: 12,
-              color: const Color(0xFF5F6368),
+              color: Color(0xFF5F6368),
             ),
           ),
         ],
@@ -1568,78 +1565,78 @@ class _PaymentProcessingPageState extends State<_PaymentProcessingPage> {
 
   Widget _buildSuccess(BuildContext context) {
     return Padding(
-      key: const ValueKey('success'),
+      key: ValueKey('success'),
       padding: const EdgeInsets.fromLTRB(24, 40, 24, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Spacer(),
+          Spacer(),
           // Büyük yeşil tik
           Center(
             child: Container(
               width: 96,
               height: 96,
               decoration: BoxDecoration(
-                color: const Color(0xFF22C55E).withValues(alpha: 0.12),
+                color: Color(0xFF22C55E).withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.check_circle_rounded,
                 size: 72,
                 color: Color(0xFF22C55E),
               ),
             ),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
           Text(
             'Ödemen alındı',
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(
               fontSize: 22,
               fontWeight: FontWeight.w800,
-              color: Colors.black,
+              color: AppPalette.textPrimary(context),
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Text(
             'Premium üyeliğin aktif edildi.\nTüm özelliklerin keyfini çıkar!',
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(
               fontSize: 13,
               height: 1.5,
-              color: const Color(0xFF5F6368),
+              color: Color(0xFF5F6368),
             ),
           ),
-          const SizedBox(height: 28),
+          SizedBox(height: 28),
           // Plan özeti kartı
           Container(
             decoration: BoxDecoration(
-              color: const Color(0xFFFAFAFB),
+              color: Color(0xFFFAFAFB),
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                  color: const Color(0xFFE5E7EB), width: 0.5),
+                  color: AppPalette.border(context), width: 0.5),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: Column(
               children: [
                 _summaryRow('Plan', widget.planLabel),
-                const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                Divider(height: 1, color: AppPalette.border(context)),
                 if (widget.amount.isNotEmpty) ...[
                   _summaryRow('Ödenen tutar', widget.amount),
-                  const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                  Divider(height: 1, color: AppPalette.border(context)),
                 ],
                 if (widget.renewalDate.isNotEmpty)
                   _summaryRow('Sonraki yenileme', widget.renewalDate),
               ],
             ),
           ),
-          const Spacer(),
+          Spacer(),
           // Ana buton
           SizedBox(
             height: 52,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1A73E8),
+                backgroundColor: Color(0xFF1A73E8),
                 foregroundColor: Colors.white,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
@@ -1656,7 +1653,7 @@ class _PaymentProcessingPageState extends State<_PaymentProcessingPage> {
               ),
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
         ],
       ),
     );
@@ -1672,7 +1669,7 @@ class _PaymentProcessingPageState extends State<_PaymentProcessingPage> {
             label,
             style: GoogleFonts.poppins(
               fontSize: 12.5,
-              color: const Color(0xFF6B7280),
+              color: AppPalette.textSecondary(context),
             ),
           ),
           Flexible(
@@ -1682,7 +1679,7 @@ class _PaymentProcessingPageState extends State<_PaymentProcessingPage> {
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: const Color(0xFF202124),
+                color: AppPalette.textPrimary(context),
               ),
             ),
           ),

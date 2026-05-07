@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
+import '../services/wiki_image_service.dart';
+import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
 import 'media_cards.dart';
 
@@ -27,6 +30,41 @@ import 'media_cards.dart';
 // sözdizimlerini kabul ediyoruz; burada mevcut akışa uygun biçime çeviriyoruz.
 String _normalizeLatex(String input) {
   var s = input;
+  // Soru başlığında ders adı temizliği — AI prompt'a uymadığında defansif.
+  // "SORU 4: Coğrafya" / "4. Coğrafya — Aşağıdakilerden..." / "4. Coğrafya:"
+  // gibi başlıkları "SORU 4:" ya da "4." ile sınırla; ders adı, kategori
+  // veya "—/-/:" ile sonlanan tek kelimelik takıntıyı düşür. Konu cümlesi
+  // (5+ kelime) varsa elleme — sadece tek-kelimelik ders adı ekini temizle.
+  const subjects = [
+    'Matematik','Fizik','Kimya','Biyoloji','Coğrafya','Cografya','Tarih',
+    'Edebiyat','Felsefe','Türkçe','Turkce','İngilizce','Ingilizce',
+    'Geometri','Sosyal','Din','Mantık','Mantik','Almanca','Fransızca',
+    'Fransizca','Sanat','Müzik','Muzik',
+  ];
+  final subjAlt = subjects.join('|');
+  // "SORU N: <DersAdı>" → "SORU N:" (satır sonunda veya — / - / : öncesi)
+  s = s.replaceAllMapped(
+    RegExp(r'^(SORU\s*\d+\s*:)\s*(' + subjAlt + r')\s*([—–\-:]?)\s*$',
+        multiLine: true),
+    (m) => m.group(1)!,
+  );
+  // "SORU N: Coğrafya — Aşağıdakilerden..." → "SORU N: Aşağıdakilerden..."
+  s = s.replaceAllMapped(
+    RegExp(r'^(SORU\s*\d+\s*:)\s*(' + subjAlt + r')\s*[—–\-:]\s*',
+        multiLine: true),
+    (m) => '${m.group(1)!} ',
+  );
+  // "4. Coğrafya — Aşağıdakilerden..." → "4. Aşağıdakilerden..."
+  s = s.replaceAllMapped(
+    RegExp(r'^(\d+\.)\s*(' + subjAlt + r')\s*[—–\-:]\s*', multiLine: true),
+    (m) => '${m.group(1)!} ',
+  );
+  // "4. Coğrafya" tek başına (satır sonu) → "4."
+  s = s.replaceAllMapped(
+    RegExp(r'^(\d+\.)\s*(' + subjAlt + r')\s*$', multiLine: true),
+    (m) => m.group(1)!,
+  );
+
   // AI bazen çift escape'lenmiş yazıyor: \\( ... \\) → tek escape'e indir.
   s = s.replaceAll(r'\\(', r'\(').replaceAll(r'\\)', r'\)');
   s = s.replaceAll(r'\\[', r'\[').replaceAll(r'\\]', r'\]');
@@ -46,39 +84,110 @@ String _normalizeLatex(String input) {
   return s;
 }
 
-// ─── Yardımcı: inline $...$ + **bold** parçacıklarını InlineSpan'e çevirir.
-//   Önce metni **...** ile bölüp her parçada $...$ math'ı işliyoruz.
+// ─── Yardımcı: inline math + **bold** + ==highlight== + __underline__ ──────
+//   Üç markdown markeri tek geçişte parse edilir; her segment kendi flag'lerini
+//   taşır. Bold dışı düz parçalarda kalmış serseri *italic* / *** kalıntıları
+//   _stripStrayAsterisks ile temizlenir (matematiğe dokunmadan).
 List<InlineSpan> _inlineMath(String text, TextStyle base) {
-  // 1) İlk geçiş: **bold** segmentlerini ayır.
-  final boldRe = RegExp(r'\*\*([^*\n]+)\*\*');
+  // 0) Üçlü asteriks'i ikiliye düşür: ***x*** → **x**. Aksi halde iç ikili
+  //    eşleşince dışta tek asteriks kalır ve render'da görünür.
+  var src = text.replaceAllMapped(
+    RegExp(r'\*\*\*([^*\n]+?)\*\*\*'),
+    (m) => '**${m.group(1)}**',
+  );
+
+  // 1) Tek pass'te tüm markerleri ayrıştır.
+  //    ** → bold (group 1) | == → highlight (group 2) | __ → underline (group 3)
+  final markerRe = RegExp(
+    r'\*\*([^*\n]+)\*\*|==([^=\n]+)==|__([^_\n]+)__',
+  );
   final segments = <_MdSeg>[];
   int last = 0;
-  for (final m in boldRe.allMatches(text)) {
+  for (final m in markerRe.allMatches(src)) {
     if (m.start > last) {
-      segments.add(_MdSeg(text.substring(last, m.start), false));
+      segments.add(_MdSeg(text: src.substring(last, m.start)));
     }
-    segments.add(_MdSeg(m.group(1)!, true));
+    if (m.group(1) != null) {
+      segments.add(_MdSeg(text: m.group(1)!, bold: true));
+    } else if (m.group(2) != null) {
+      segments.add(_MdSeg(text: m.group(2)!, highlight: true));
+    } else if (m.group(3) != null) {
+      segments.add(_MdSeg(text: m.group(3)!, underline: true));
+    }
     last = m.end;
   }
-  if (last < text.length) {
-    segments.add(_MdSeg(text.substring(last), false));
+  if (last < src.length) {
+    segments.add(_MdSeg(text: src.substring(last)));
   }
 
-  // 2) Her segmentte $...$ math işle.
+  // 2) Her segmentte $...$ math işle. Düz parçalarda asteriks kalıntılarını
+  //    temizle (matematik bloklarının içine dokunmadan).
   final out = <InlineSpan>[];
   for (final seg in segments) {
-    final segStyle = seg.bold
-        ? base.copyWith(fontWeight: FontWeight.w800)
-        : base;
-    out.addAll(_mathSpans(seg.text, segStyle));
+    var segStyle = base;
+    if (seg.bold) {
+      segStyle = segStyle.copyWith(fontWeight: FontWeight.w800);
+    }
+    if (seg.underline) {
+      segStyle = segStyle.copyWith(
+        decoration: TextDecoration.underline,
+        decorationColor: Color(0xFFEF4444), // kırmızı kalem
+        decorationThickness: 2,
+      );
+    }
+    if (seg.highlight) {
+      segStyle = segStyle.copyWith(
+        background: Paint()..color = Color(0xFFFEF08A), // sarı fosforlu kalem
+      );
+    }
+    final isPlain = !seg.bold && !seg.highlight && !seg.underline;
+    final segText = isPlain ? _stripStrayAsterisks(seg.text) : seg.text;
+    out.addAll(_mathSpans(segText, segStyle));
   }
   return out;
+}
+
+// ─── Math dışı serseri asteriks temizliği ──────────────────────────────────
+//   *italic* → italic (sadece içerik), tek başına kalan * → kaldır.
+//   $...$ math blokları olduğu gibi korunur.
+String _stripStrayAsterisks(String text) {
+  if (!text.contains('*')) return text;
+  // $...$ math bloklarını koru; sadece dış parçaları temizle.
+  final mathRe = RegExp(r'\$[^\$\n]*\$');
+  final buf = StringBuffer();
+  int idx = 0;
+  for (final m in mathRe.allMatches(text)) {
+    if (m.start > idx) buf.write(_cleanStarsOutsideMath(text.substring(idx, m.start)));
+    buf.write(m.group(0));
+    idx = m.end;
+  }
+  if (idx < text.length) buf.write(_cleanStarsOutsideMath(text.substring(idx)));
+  return buf.toString();
+}
+
+String _cleanStarsOutsideMath(String s) {
+  // *italic* → italic (içerik). Word-sınırına dikkat: 2*3 gibi math benzeri
+  // kalıpları korumak için lookaround kullanıyoruz.
+  var t = s.replaceAllMapped(
+    RegExp(r'(?<![\w*])\*([^\*\n]+?)\*(?![\w*])'),
+    (m) => m.group(1)!,
+  );
+  // Tek başına kalan * (eşleşmeyen, dengesiz markdown) → sil.
+  t = t.replaceAll('*', '');
+  return t;
 }
 
 class _MdSeg {
   final String text;
   final bool bold;
-  const _MdSeg(this.text, this.bold);
+  final bool highlight;
+  final bool underline;
+  const _MdSeg({
+    required this.text,
+    this.bold = false,
+    this.highlight = false,
+    this.underline = false,
+  });
 }
 
 List<InlineSpan> _mathSpans(String text, TextStyle style) {
@@ -147,6 +256,13 @@ class LatexText extends StatelessWidget {
     r'⚠️\s*(?:KRİTİK\s*UYARI|UYARI)|🔬\s*(?:QuAlsar\s*Notu|Not))\s*:\s*(.+)',
     caseSensitive: false,
   );
+
+  // Görsel Betimlemesi: [Görsel Betimlemesi: ... şeması ...] — placeholder
+  // kart olarak render edilir; gelecekte AI görsel üretimine parse edilebilir.
+  static final _reVisualDesc = RegExp(
+    r'^\[\s*(?:Görsel\s*Betimlemesi|Visual\s*Description)\s*:\s*(.+?)\s*\]\s*$',
+    caseSensitive: false,
+  );
   // Bullet satırı: "• ..." — hanging indent (devam satırı ilk metnin
   // başlangıç hizasına gelir, bullet'ın ALTINA değil).
   static final _reBullet = RegExp(r'^(•)\s+(.+)');
@@ -185,7 +301,7 @@ class LatexText extends StatelessWidget {
         continue;
       }
       if (i > 0 && children.isNotEmpty) children.add(SizedBox(height: gap));
-      final w = _buildLine(lines[i]);
+      final w = _buildLine(lines[i], context);
       if (w != null) children.add(w);
       i++;
     }
@@ -221,12 +337,12 @@ class LatexText extends StatelessWidget {
   }
 
   // ── Satır ayırt edici ───────────────────────────────────────────────────────
-  Widget? _buildLine(String line) {
+  Widget? _buildLine(String line, BuildContext context) {
     final trimmed = line.trim();
-    if (trimmed.isEmpty) return const SizedBox(height: 3);
+    if (trimmed.isEmpty) return SizedBox(height: 3);
 
     final base = TextStyle(
-      color: Colors.black,
+      color: AppPalette.textPrimary(context),
       fontSize: fontSize,
       height: lineHeight,
       letterSpacing: 0.1,
@@ -290,7 +406,7 @@ class LatexText extends StatelessWidget {
       return _BoxedCallout(
         label: bxm.group(1)!.toUpperCase(),
         body: bxm.group(2)!.trim(),
-        accent: const Color(0xFF0EA5E9), // sky blue
+        accent: Color(0xFF0EA5E9), // sky blue
         icon: '📦',
         fontSize: fontSize,
       );
@@ -303,8 +419,19 @@ class LatexText extends StatelessWidget {
       return _BoxedCallout(
         label: 'Önemli Bilgi',
         body: note.group(1)!.trim(),
-        accent: const Color(0xFFD97706), // amber-600
+        accent: Color(0xFFD97706), // amber-600
         icon: '💡',
+        fontSize: fontSize,
+      );
+    }
+
+    // 6.4 [Görsel Betimlemesi: ...] — Wikipedia'dan görsel çekip kart olarak
+    // render eder. Format: "Konu Adı — kısa açıklama" (— ayraç). "—" yoksa
+    // tüm metin hem arama sorgusu hem caption olarak kullanılır.
+    final visual = _reVisualDesc.firstMatch(trimmed);
+    if (visual != null) {
+      return _VisualImageCard(
+        description: visual.group(1)!.trim(),
         fontSize: fontSize,
       );
     }
@@ -339,7 +466,7 @@ class LatexText extends StatelessWidget {
       return _LabelRow(
         label: som.group(1)!,
         rest: line.substring(som.end),
-        color: const Color(0xFF22C55E),
+        color: Color(0xFF22C55E),
         bold: true,
         fontSize: fontSize,
         base: base,
@@ -378,7 +505,7 @@ class LatexText extends StatelessWidget {
       return _LabelRow(
         label: pm.group(1)!,
         rest: line.substring(pm.end),
-        color: const Color(0xFFF59E0B),
+        color: Color(0xFFF59E0B),
         bold: true,
         fontSize: fontSize,
         base: base,
@@ -422,18 +549,18 @@ class _BlockMath extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       decoration: BoxDecoration(
         // Beyaza yakın, çok hafif gri-mavi tint — formüller için ayırıcı.
-        color: const Color(0xFFF5F7FA),
+        color: Color(0xFFF5F7FA),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+        border: Border.all(color: AppPalette.border(context), width: 1),
       ),
       child: Center(
         child: Math.tex(
           formula,
-          textStyle: TextStyle(color: Colors.black, fontSize: fontSize + 2),
+          textStyle: TextStyle(color: AppPalette.textPrimary(context), fontSize: fontSize + 2),
           onErrorFallback: (_) => Text(
             '\$\$$formula\$\$',
             style: TextStyle(
-              color: Colors.black54,
+              color: AppPalette.textSecondary(context),
               fontSize: fontSize - 1,
               fontFamily: 'monospace',
             ),
@@ -459,6 +586,7 @@ class _SectionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cleanRest = _stripStrayAsterisks(rest);
     return Padding(
       padding: const EdgeInsets.only(top: 16, bottom: 4),
       child: Row(
@@ -472,7 +600,7 @@ class _SectionRow extends StatelessWidget {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Expanded(
             child: RichText(
               text: TextSpan(
@@ -483,11 +611,11 @@ class _SectionRow extends StatelessWidget {
                   letterSpacing: 0.1,
                 ),
                 children: [
-                  TextSpan(text: label, style: const TextStyle(color: _color)),
-                  if (rest.isNotEmpty)
+                  TextSpan(text: label, style: TextStyle(color: _color)),
+                  if (cleanRest.isNotEmpty)
                     TextSpan(
-                      text: ' $rest',
-                      style: const TextStyle(
+                      text: ' $cleanRest',
+                      style: TextStyle(
                           color: Colors.black),
                     ),
                 ],
@@ -591,61 +719,18 @@ class _SubHeadingRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const accent = Color(0xFF2563EB);
+    // Alt başlık — ana başlık çerçevesinden ayrışsın diye renkli accent.
+    // **Başlık** gibi markdown asteriksleri → temizle (zaten bold render).
     return Padding(
       padding: const EdgeInsets.only(top: 12, bottom: 4),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(0, 6, 8, 6),
-        decoration: BoxDecoration(
-          // Alt başlık zemini — kart zemininden hafif farklı bir ton
-          // (görsel hiyerarşi için yumuşak gri-mavi tint).
-          color: const Color(0xFFF3F6FB),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Sol dikey renk şeridi — başlığı görsel olarak vurgular.
-              Container(
-                width: 3,
-                decoration: BoxDecoration(
-                  color: accent,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  number,
-                  style: TextStyle(
-                    color: accent,
-                    fontWeight: FontWeight.w800,
-                    fontSize: fontSize - 1,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    color: const Color(0xFF111827),
-                    fontWeight: FontWeight.w800,
-                    fontSize: fontSize + 1,
-                    height: 1.25,
-                    letterSpacing: 0.1,
-                  ),
-                ),
-              ),
-            ],
-          ),
+      child: Text(
+        _stripStrayAsterisks(title),
+        style: TextStyle(
+          color: Color(0xFF2563EB),
+          fontWeight: FontWeight.w800,
+          fontSize: fontSize + 1,
+          height: 1.25,
+          letterSpacing: 0.1,
         ),
       ),
     );
@@ -669,31 +754,11 @@ class _BulletRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Bullet karakteri (•) kaldırıldı — sade satır olarak render et.
     return Padding(
       padding: const EdgeInsets.only(left: 2, top: 1, bottom: 1),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Sabit kutu — sağındaki metin Expanded olduğundan wrap olunca
-          // devam satırı bunun ALTINA gelmez, metnin başlangıç hizasına gelir.
-          SizedBox(
-            width: fontSize * 0.95,
-            child: Text(
-              bullet,
-              style: base.copyWith(
-                color: const Color(0xFF6B7280),
-                fontWeight: FontWeight.w900,
-                height: lineHeight,
-              ),
-            ),
-          ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: RichText(
-              text: TextSpan(style: base, children: _inlineMath(rest, base)),
-            ),
-          ),
-        ],
+      child: RichText(
+        text: TextSpan(style: base, children: _inlineMath(rest, base)),
       ),
     );
   }
@@ -733,14 +798,14 @@ class _BoxedCallout extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(icon, style: TextStyle(fontSize: fontSize)),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Expanded(
             child: RichText(
               text: TextSpan(
                 style: TextStyle(
                   fontSize: fontSize - 0.5,
                   height: 1.35,
-                  color: Colors.black,
+                  color: AppPalette.textPrimary(context),
                 ),
                 children: [
                   TextSpan(
@@ -772,7 +837,7 @@ class _TableBlock extends StatelessWidget {
   const _TableBlock({required this.lines, required this.fontSize});
 
   /// "| a | b | c |" → ['a', 'b', 'c']
-  List<String> _parseRow(String line) {
+  static List<String> _parseRow(String line) {
     var t = line.trim();
     if (t.startsWith('|')) t = t.substring(1);
     if (t.endsWith('|')) t = t.substring(0, t.length - 1);
@@ -782,6 +847,37 @@ class _TableBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (lines.length < 2) return const SizedBox.shrink();
+    // Buton tablonun DIŞINDA, hemen üstünde sağa yaslı; çerçeveler örtüşmez.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4, right: 2),
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: _FullscreenTableButton(
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    fullscreenDialog: true,
+                    builder: (_) => _FullscreenTablePage(
+                      lines: lines,
+                      fontSize: fontSize,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        _buildTableContent(context, fullscreen: false),
+      ],
+    );
+  }
+
+  Widget _buildTableContent(BuildContext context,
+      {required bool fullscreen}) {
     final header = _parseRow(lines[0]);
     final dataRows = lines.skip(2).map(_parseRow).toList();
     final colCount = header.length;
@@ -795,15 +891,22 @@ class _TableBlock extends StatelessWidget {
       return row.sublist(0, colCount);
     }
 
+    final isDark = AppPalette.isDark(context);
     const accent = Color(0xFF7C3AED);
-    final borderColor = Colors.black.withValues(alpha: 0.18);
-    const stripeColor = Color(0xFFF8FAFC);
+    // Karanlık modda "negatif film" tablo: zemin saf siyah, ızgara/yazı beyaz.
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.85)
+        : Colors.black.withValues(alpha: 0.18);
+    final cellBg = isDark ? Colors.black : Colors.white;
+    final cellBgAlt = isDark ? Colors.black : const Color(0xFFF8FAFC);
 
     Widget cell(String content, {required bool isHeader}) {
       final base = TextStyle(
         fontSize: fontSize - 1,
         height: 1.4,
-        color: isHeader ? Colors.white : Colors.black87,
+        color: isHeader
+            ? Colors.white
+            : (isDark ? Colors.white : Colors.black87),
         fontWeight: isHeader ? FontWeight.w800 : FontWeight.w500,
         letterSpacing: 0.05,
       );
@@ -812,6 +915,51 @@ class _TableBlock extends StatelessWidget {
         child: Text.rich(
           TextSpan(children: _inlineMath(content, base)),
         ),
+      );
+    }
+
+    final tableWidget = Table(
+      defaultColumnWidth: IntrinsicColumnWidth(),
+      border: TableBorder.symmetric(
+        inside: BorderSide(color: borderColor, width: 0.6),
+        outside: BorderSide(color: borderColor, width: 0.8),
+      ),
+      children: [
+        TableRow(
+          decoration: BoxDecoration(color: isDark ? Colors.black : accent),
+          children: [
+            for (final h in normalize(header)) cell(h, isHeader: true),
+          ],
+        ),
+        for (var r = 0; r < dataRows.length; r++)
+          TableRow(
+            decoration: BoxDecoration(
+              color: r.isOdd ? cellBgAlt : cellBg,
+            ),
+            children: [
+              for (final c in normalize(dataRows[r]))
+                cell(c, isHeader: false),
+            ],
+          ),
+      ],
+    );
+
+    final scrollable = SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          minWidth: MediaQuery.of(context).size.width - 40,
+        ),
+        child: tableWidget,
+      ),
+    );
+
+    // Fullscreen modunda: dikey scroll da gerekir; container görünümü kalkar
+    // (sayfanın AppBar/padding'i çerçeve görevi görür).
+    if (fullscreen) {
+      return SingleChildScrollView(
+        scrollDirection: Axis.vertical,
+        child: scrollable,
       );
     }
 
@@ -824,42 +972,419 @@ class _TableBlock extends StatelessWidget {
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 6,
-            offset: const Offset(0, 2),
+            offset: Offset(0, 2),
           ),
         ],
       ),
       clipBehavior: Clip.antiAlias,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            minWidth: MediaQuery.of(context).size.width - 40,
-          ),
-          child: Table(
-            defaultColumnWidth: const IntrinsicColumnWidth(),
-            border: TableBorder.symmetric(
-              inside: BorderSide(color: borderColor, width: 0.6),
-            ),
-            children: [
-              TableRow(
-                decoration: const BoxDecoration(color: accent),
-                children: [
-                  for (final h in normalize(header)) cell(h, isHeader: true),
-                ],
+      child: scrollable,
+    );
+  }
+}
+
+// ─── Tam Ekran butonu — tablonun sağ üst köşesinde küçük cyan pill ───────────
+class _FullscreenTableButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _FullscreenTableButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(100),
+        child: Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+          decoration: BoxDecoration(
+            color: AppPalette.card(context),
+            borderRadius: BorderRadius.circular(100),
+            border: Border.all(
+                color: Colors.black.withValues(alpha: 0.25), width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 6,
+                offset: Offset(0, 2),
               ),
-              for (var r = 0; r < dataRows.length; r++)
-                TableRow(
-                  decoration: BoxDecoration(
-                    color: r.isOdd ? stripeColor : Colors.white,
-                  ),
-                  children: [
-                    for (final c in normalize(dataRows[r]))
-                      cell(c, isHeader: false),
-                  ],
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.open_in_full_rounded,
+                  size: 13, color: Colors.black),
+              SizedBox(width: 5),
+              Text(
+                'Tam Ekran Yap'.tr(),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: AppPalette.textPrimary(context),
+                  letterSpacing: 0.2,
                 ),
+              ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ─── Tam ekran tablo sayfası — açılırken yatay, kapanırken dikey moda dön. ──
+class _FullscreenTablePage extends StatefulWidget {
+  final List<String> lines;
+  final double fontSize;
+  const _FullscreenTablePage({
+    required this.lines,
+    required this.fontSize,
+  });
+
+  @override
+  State<_FullscreenTablePage> createState() => _FullscreenTablePageState();
+}
+
+class _FullscreenTablePageState extends State<_FullscreenTablePage> {
+  @override
+  void initState() {
+    super.initState();
+    SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+  }
+
+  @override
+  void dispose() {
+    // Uygulamanın varsayılan moduna geri dön (main.dart portraitUp).
+    SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.portraitUp,
+    ]);
+    super.dispose();
+  }
+
+  Future<void> _close() async {
+    // Önce orientation'ı tetikleyip sonra pop — geri dönüşte rebuild
+    // kararsızlığı oluşmasın diye.
+    await SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.portraitUp,
+    ]);
+    if (!mounted) return;
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final block = _TableBlock(lines: widget.lines, fontSize: widget.fontSize);
+    return Scaffold(
+      backgroundColor: AppPalette.card(context),
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 52, 16, 16),
+              child: block._buildTableContent(context, fullscreen: true),
+            ),
+            // Kapat (X) — sağ üst.
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _close,
+                  borderRadius: BorderRadius.circular(100),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                    child: Icon(
+                      Icons.close_rounded,
+                      size: 22,
+                      color: AppPalette.textPrimary(context),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Görsel kartı: Wikipedia API'sinden konuyla ilgili thumbnail çekip
+// üstte resim, altta açıklama metnini gösterir. Hata/yokluk durumunda
+// metin-only placeholder'a düşer (mor accent + 🖼️ ikon).
+class _VisualImageCard extends StatefulWidget {
+  final String description;
+  final double fontSize;
+  const _VisualImageCard({
+    required this.description,
+    required this.fontSize,
+  });
+
+  @override
+  State<_VisualImageCard> createState() => _VisualImageCardState();
+}
+
+class _VisualImageCardState extends State<_VisualImageCard> {
+  static const _accent = Color(0xFF7C3AED);
+  String? _url;
+  bool _loading = true;
+
+  String get _query {
+    // "Konu Adı — açıklama" formatında ise sadece konu adı arama sorgusu.
+    // Yoksa ilk birkaç anlamlı kelimeyi sorgu yap, açıklama ise tamamı.
+    final desc = widget.description;
+    final dashIdx = desc.indexOf(RegExp(r'[—–-]'));
+    if (dashIdx > 0 && dashIdx < 80) {
+      return desc.substring(0, dashIdx).trim();
+    }
+    final words = desc.split(RegExp(r'\s+'));
+    if (words.length <= 6) return desc;
+    return words.take(6).join(' ');
+  }
+
+  String get _caption {
+    final desc = widget.description;
+    final dashIdx = desc.indexOf(RegExp(r'[—–-]'));
+    if (dashIdx > 0 && dashIdx < 80) {
+      return desc.substring(dashIdx + 1).trim();
+    }
+    return desc;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch() async {
+    final lang = WidgetsBinding.instance.platformDispatcher.locale.languageCode;
+    final useLang = lang.isEmpty ? 'tr' : lang;
+    final url = await WikiImageService.fetchImageUrl(_query, lang: useLang);
+    if (!mounted) return;
+    setState(() {
+      _url = url;
+      _loading = false;
+    });
+  }
+
+  // Wikipedia eşleşmesi yoksa veya yüklerken hata olursa: diyagram çerçevesi.
+  // Köşe parantezleri + merkez ikon + konu adı + "Diyagram Çerçevesi" etiketi
+  // → kullanıcı boş kart yerine teknik bir placeholder görür.
+  Widget _buildDiagramFrame() {
+    return Container(
+      height: 132,
+      decoration: BoxDecoration(
+        color: _accent.withValues(alpha: 0.05),
+        border: Border(
+          bottom: BorderSide(
+              color: _accent.withValues(alpha: 0.3), width: 1),
+        ),
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // 4 köşe parantezi — diyagram çerçevesi havası
+          for (int i = 0; i < 4; i++)
+            Positioned(
+              top: i < 2 ? 8 : null,
+              bottom: i >= 2 ? 8 : null,
+              left: i.isEven ? 10 : null,
+              right: i.isOdd ? 10 : null,
+              child: SizedBox(
+                width: 14,
+                height: 14,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    border: Border(
+                      top: i < 2
+                          ? BorderSide(
+                              color: _accent.withValues(alpha: 0.7),
+                              width: 2)
+                          : BorderSide.none,
+                      bottom: i >= 2
+                          ? BorderSide(
+                              color: _accent.withValues(alpha: 0.7),
+                              width: 2)
+                          : BorderSide.none,
+                      left: i.isEven
+                          ? BorderSide(
+                              color: _accent.withValues(alpha: 0.7),
+                              width: 2)
+                          : BorderSide.none,
+                      right: i.isOdd
+                          ? BorderSide(
+                              color: _accent.withValues(alpha: 0.7),
+                              width: 2)
+                          : BorderSide.none,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          // Merkez içerik
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.schema_rounded,
+                size: 30,
+                color: _accent,
+              ),
+              SizedBox(height: 6),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                child: Text(
+                  _query,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: widget.fontSize - 1,
+                    fontWeight: FontWeight.w800,
+                    color: _accent,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
+              SizedBox(height: 2),
+              Text(
+                'Diyagram Çerçevesi',
+                style: TextStyle(
+                  fontSize: widget.fontSize - 4,
+                  fontStyle: FontStyle.italic,
+                  color: _accent.withValues(alpha: 0.75),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: _accent.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _accent.withValues(alpha: 0.30), width: 1),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Üst kısım: görsel veya yükleniyor / yok placeholder.
+          if (_loading)
+            Container(
+              height: 70,
+              color: _accent.withValues(alpha: 0.04),
+              alignment: Alignment.center,
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.2,
+                  color: _accent,
+                ),
+              ),
+            )
+          else if (_url != null)
+            // BoxFit.contain → görsel kırpılmaz, numaralı diyagramların
+            // tüm parçaları görünür. maxHeight 280'e çıkarıldı ki dikey
+            // diyagramlar da rahat sığsın. Yumuşak gri zemin letterbox'ı
+            // ders kitabı stilinde gösterir.
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: 140,
+                maxHeight: 280,
+              ),
+              child: Container(
+                width: double.infinity,
+                color: Color(0xFFF8FAFC),
+                alignment: Alignment.center,
+                child: Image.network(
+                _url!,
+                fit: BoxFit.contain,
+                width: double.infinity,
+                errorBuilder: (_, __, ___) => _buildDiagramFrame(),
+                loadingBuilder: (_, child, prog) {
+                  if (prog == null) return child;
+                  return Container(
+                    height: 120,
+                    color: _accent.withValues(alpha: 0.04),
+                    alignment: Alignment.center,
+                    child: SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        color: _accent,
+                        value: prog.expectedTotalBytes == null
+                            ? null
+                            : prog.cumulativeBytesLoaded /
+                                prog.expectedTotalBytes!,
+                      ),
+                    ),
+                  );
+                },
+                ),
+              ),
+            )
+          else
+            // Wikipedia'dan görsel çekilemedi → Diyagram Çerçevesi placeholder.
+            // AI'ın yazdığı caption teknik bir diyagram tarifi olarak görünür.
+            _buildDiagramFrame(),
+          // Alt kısım: açıklama metni + 🖼️ ikon, kaynak notu.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('🖼️', style: TextStyle(fontSize: 14)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _caption,
+                        style: TextStyle(
+                          fontSize: widget.fontSize - 1,
+                          color: AppPalette.textPrimary(context),
+                          height: 1.4,
+                        ),
+                      ),
+                      if (_url != null) ...[
+                        SizedBox(height: 4),
+                        Text(
+                          'Görsel: Wikipedia',
+                          style: TextStyle(
+                            fontSize: widget.fontSize - 4,
+                            color: AppPalette.textSecondary(context),
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

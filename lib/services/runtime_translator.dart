@@ -51,6 +51,19 @@ class RuntimeTranslator extends ChangeNotifier {
   bool _isPreloading = false;
   bool get isPreloading => _isPreloading;
 
+  // notifyListeners debounce — preload sırasında her chunk için ayrı ayrı
+  // bildirim göndermek tüm uygulamayı (AnimatedBuilder MaterialApp'ı
+  // sarıyor) rebuild ediyor. Çoklu bildirimleri tek bir frame'e topla.
+  Timer? _notifyDebounce;
+  void _scheduleNotify(
+      {Duration delay = const Duration(milliseconds: 1500)}) {
+    _notifyDebounce?.cancel();
+    _notifyDebounce = Timer(delay, () {
+      _notifyDebounce = null;
+      notifyListeners();
+    });
+  }
+
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
     // Görüldü setini yükle
@@ -80,6 +93,23 @@ class RuntimeTranslator extends ChangeNotifier {
     if (source.trim().isEmpty) return;
     if (source.length > 500) return; // çok uzun = muhtemelen dinamik metin
     if (_seen.add(source)) {
+      _dirty = true;
+      _scheduleFlush();
+      _scheduleAutoPreload();
+    }
+  }
+
+  /// Toplu kayıt — startup'ta 5000+ string register edildiğinde her birinde
+  /// timer reset/restart yapılmasın diye. Tek seferde set'e ekler, son anda
+  /// flush + autoPreload tetikler.
+  void bulkRegister(Iterable<String> sources) {
+    bool anyAdded = false;
+    for (final source in sources) {
+      if (source.trim().isEmpty) continue;
+      if (source.length > 500) continue;
+      if (_seen.add(source)) anyAdded = true;
+    }
+    if (anyAdded) {
       _dirty = true;
       _scheduleFlush();
       _scheduleAutoPreload();
@@ -121,7 +151,9 @@ class RuntimeTranslator extends ChangeNotifier {
     final completer = Completer<void>();
     _pendingPreloads[targetLang] = completer.future;
     _isPreloading = true;
-    notifyListeners();
+    // Preload başlangıcında küçük gecikmeli notify — anında rebuild yerine
+    // bir sonraki frame'de.
+    _scheduleNotify(delay: const Duration(milliseconds: 100));
     try {
       final byLang = _cache.putIfAbsent(targetLang, () => {});
       final todo =
@@ -154,6 +186,9 @@ class RuntimeTranslator extends ChangeNotifier {
       _pendingPreloads.remove(targetLang);
       _isPreloading = _pendingPreloads.isNotEmpty;
       if (!completer.isCompleted) completer.complete();
+      // Preload sonu — mevcut debounce'u iptal edip son rebuild'i hemen tetikle.
+      _notifyDebounce?.cancel();
+      _notifyDebounce = null;
       notifyListeners();
     }
   }
@@ -170,7 +205,9 @@ class RuntimeTranslator extends ChangeNotifier {
       if (translated.isEmpty) return false;
       byLang.addAll(translated);
       await _persistLang(targetLang);
-      notifyListeners();
+      // Çoklu chunk biten her seferinde notifyListeners çağırmak yerine
+      // 1.5sn'lik debounce ile birleştir — tek bir frame'de UI güncellenir.
+      _scheduleNotify();
       return translated.length == chunk.length;
     } catch (e) {
       _log('chunk hatası: $e');

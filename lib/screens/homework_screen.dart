@@ -24,7 +24,7 @@ class HomeworkRecord {
   final String?  aiSolution;    // null → henüz AI çözümü yok
   final String?  solutionType;  // 'Hızlı Çözüm' | 'Adım Adım Çöz' | 'AI Öğretmen'
 
-  const HomeworkRecord({
+  HomeworkRecord({
     required this.id,
     required this.title,
     required this.subject,
@@ -113,26 +113,26 @@ IconData _iconFor(String s) => switch (s) {
 };
 
 Color _colorFor(String s) => switch (s) {
-  'Fizik'     => const Color(0xFFF59E0B),
-  'Kimya'     => const Color(0xFF10B981),
-  'Biyoloji'  => const Color(0xFF8B5CF6),
-  'Coğrafya'  => const Color(0xFF06B6D4),
-  'Tarih'     => const Color(0xFFEF4444),
-  'Edebiyat'  => const Color(0xFFF97316),
-  'Felsefe'   => const Color(0xFFA855F7),
-  'İngilizce' => const Color(0xFF22C55E),
-  'Diğer'     => const Color(0xFF6B7280),
-  _           => const Color(0xFF3B82F6),
+  'Fizik'     => Color(0xFFF59E0B),
+  'Kimya'     => Color(0xFF10B981),
+  'Biyoloji'  => Color(0xFF8B5CF6),
+  'Coğrafya'  => Color(0xFF06B6D4),
+  'Tarih'     => Color(0xFFEF4444),
+  'Edebiyat'  => Color(0xFFF97316),
+  'Felsefe'   => Color(0xFFA855F7),
+  'İngilizce' => Color(0xFF22C55E),
+  'Diğer'     => Color(0xFF6B7280),
+  _           => Color(0xFF3B82F6),
 };
 
 ({Color color, String label, IconData icon}) _urgency(DateTime due, bool isDone) {
-  if (isDone) return (color: const Color(0xFF34D399), label: localeService.tr('completed'), icon: Icons.check_circle_rounded);
+  if (isDone) return (color: Color(0xFF34D399), label: localeService.tr('completed'), icon: Icons.check_circle_rounded);
   final d = due.difference(DateTime.now());
-  if (d.isNegative)  return (color: const Color(0xFFEF4444), label: localeService.tr('overdue'),   icon: Icons.warning_rounded);
-  if (d.inHours < 24) return (color: const Color(0xFFF97316), label: localeService.tr('today'),    icon: Icons.timer_rounded);
-  if (d.inDays == 1)  return (color: const Color(0xFFF59E0B), label: localeService.tr('tomorrow'), icon: Icons.schedule_rounded);
-  if (d.inDays <= 7)  return (color: const Color(0xFF60A5FA), label: '${d.inDays} ${localeService.tr("days")}', icon: Icons.event_rounded);
-  return                     (color: const Color(0xFF6B7280), label: _fd(due),           icon: Icons.calendar_today_rounded);
+  if (d.isNegative)  return (color: Color(0xFFEF4444), label: localeService.tr('overdue'),   icon: Icons.warning_rounded);
+  if (d.inHours < 24) return (color: Color(0xFFF97316), label: localeService.tr('today'),    icon: Icons.timer_rounded);
+  if (d.inDays == 1)  return (color: Color(0xFFF59E0B), label: localeService.tr('tomorrow'), icon: Icons.schedule_rounded);
+  if (d.inDays <= 7)  return (color: Color(0xFF60A5FA), label: '${d.inDays} ${localeService.tr("days")}', icon: Icons.event_rounded);
+  return                     (color: Color(0xFF707380), label: _fd(due),           icon: Icons.calendar_today_rounded);
 }
 
 String _fd(DateTime d) {
@@ -213,7 +213,7 @@ class _HomeworkScreenState extends State<HomeworkScreen>
                 children: [
                   Text(localeService.tr('my_homework'), style: GoogleFonts.inter(
                     color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 2),
+                  SizedBox(height: 2),
                   Text(
                     _pending == 0 ? localeService.tr('all_homework_done')
                                   : '$_pending ${localeService.tr("pending")} • $_solved ${localeService.tr("ai_solved")}',
@@ -227,34 +227,34 @@ class _HomeworkScreenState extends State<HomeworkScreen>
                 child: Container(
                   width: 42, height: 42,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
+                    gradient: LinearGradient(
                       colors: [Color(0xFF00C2D4), Color(0xFF6B21F2)],
                       begin: Alignment.topLeft, end: Alignment.bottomRight,
                     ),
                     borderRadius: BorderRadius.circular(14),
                     boxShadow: [BoxShadow(color: AppColors.cyan.withValues(alpha: 0.30), blurRadius: 12)],
                   ),
-                  child: const Icon(Icons.add_rounded, color: Colors.white, size: 24),
+                  child: Icon(Icons.add_rounded, color: Colors.white, size: 24),
                 ),
               ),
             ]),
           ),
 
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
 
           // ── İstatistikler ────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(children: [
-              _stat(localeService.tr('pending'), _pending, Icons.hourglass_top_rounded, const Color(0xFF60A5FA)),
-              const SizedBox(width: 8),
+              _stat(localeService.tr('pending'), _pending, Icons.hourglass_top_rounded, Color(0xFF60A5FA)),
+              SizedBox(width: 8),
               _stat(localeService.tr('ai_solved'), _solved, Icons.auto_awesome_rounded, AppColors.cyan),
-              const SizedBox(width: 8),
-              _stat(localeService.tr('ok'), _done, Icons.check_circle_rounded, const Color(0xFF34D399)),
+              SizedBox(width: 8),
+              _stat(localeService.tr('ok'), _done, Icons.check_circle_rounded, Color(0xFF34D399)),
             ]),
           ),
 
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
 
           // ── Tab bar ──────────────────────────────────────────────────────
           Padding(
@@ -262,14 +262,14 @@ class _HomeworkScreenState extends State<HomeworkScreen>
             child: Container(
               height: 38,
               decoration: BoxDecoration(
-                color: const Color(0xFF0D1526),
+                color: AppPalette.textPrimary(context),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
               ),
               child: TabBar(
                 controller: _tab,
                 indicator: BoxDecoration(
-                  gradient: const LinearGradient(colors: [Color(0xFF00C2D4), Color(0xFF6B21F2)]),
+                  gradient: LinearGradient(colors: [Color(0xFF00C2D4), Color(0xFF6B21F2)]),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 indicatorSize: TabBarIndicatorSize.tab,
@@ -283,7 +283,7 @@ class _HomeworkScreenState extends State<HomeworkScreen>
             ),
           ),
 
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
 
           // ── Liste ────────────────────────────────────────────────────────
           Expanded(
@@ -291,9 +291,9 @@ class _HomeworkScreenState extends State<HomeworkScreen>
                 ? _empty()
                 : ListView.separated(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-                    physics: const BouncingScrollPhysics(),
+                    physics: BouncingScrollPhysics(),
                     itemCount: list.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    separatorBuilder: (_, __) => SizedBox(height: 10),
                     itemBuilder: (_, i) => _HWCard(
                       record: list[i],
                       onToggleDone: () => _update(list[i].copyWith(isDone: !list[i].isDone)),
@@ -320,7 +320,7 @@ class _HomeworkScreenState extends State<HomeworkScreen>
       ),
       child: Row(children: [
         Icon(icon, color: color, size: 18),
-        const SizedBox(width: 6),
+        SizedBox(width: 6),
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('$count', style: GoogleFonts.inter(
             color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800, height: 1)),
@@ -342,8 +342,8 @@ class _HomeworkScreenState extends State<HomeworkScreen>
         padding: const EdgeInsets.all(32),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Icon(Icons.menu_book_rounded, size: 52,
-              color: const Color(0xFF34D399).withValues(alpha: 0.30)),
-          const SizedBox(height: 16),
+              color: Color(0xFF34D399).withValues(alpha: 0.30)),
+          SizedBox(height: 16),
           Text(msgs[_tab.index],
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 13, height: 1.6)),
@@ -423,39 +423,39 @@ class _HWCard extends StatelessWidget {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
-          color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+          color: Color(0xFFEF4444).withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.35)),
+          border: Border.all(color: Color(0xFFEF4444).withValues(alpha: 0.35)),
         ),
-        child: const Icon(Icons.delete_rounded, color: Color(0xFFEF4444), size: 22),
+        child: Icon(Icons.delete_rounded, color: Color(0xFFEF4444), size: 22),
       ),
       confirmDismiss: (_) async => await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          backgroundColor: const Color(0xFF0D1520),
+          backgroundColor: Color(0xFF0D1520),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: const Color(0xFFEF4444).withValues(alpha: 0.35)),
+            side: BorderSide(color: Color(0xFFEF4444).withValues(alpha: 0.35)),
           ),
           title: Text('Ödevi Sil'.tr(), style: TextStyle(color: Colors.white, fontSize: 15)),
           content: Text('"${record.title}" silinsin mi?',
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false),
-                child: Text(localeService.tr('cancel'), style: const TextStyle(color: AppColors.textSecondary))),
+                child: Text(localeService.tr('cancel'), style: TextStyle(color: AppColors.textSecondary))),
             TextButton(onPressed: () => Navigator.pop(ctx, true),
-                child: Text(localeService.tr('delete'), style: const TextStyle(color: Color(0xFFEF4444)))),
+                child: Text(localeService.tr('delete'), style: TextStyle(color: Color(0xFFEF4444)))),
           ],
         ),
       ) ?? false,
       onDismissed: (_) => onDelete(),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF0D1526),
+          color: AppPalette.textPrimary(context),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: record.isDone
-                ? const Color(0xFF34D399).withValues(alpha: 0.20)
+                ? Color(0xFF34D399).withValues(alpha: 0.20)
                 : record.isSolved
                     ? AppColors.cyan.withValues(alpha: 0.28)
                     : urg.color.withValues(alpha: 0.25),
@@ -475,25 +475,25 @@ class _HWCard extends StatelessWidget {
               GestureDetector(
                 onTap: onToggleDone,
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
+                  duration: Duration(milliseconds: 200),
                   width: 24, height: 24,
                   margin: const EdgeInsets.only(top: 1),
                   decoration: BoxDecoration(
                     color: record.isDone
-                        ? const Color(0xFF34D399).withValues(alpha: 0.18)
+                        ? Color(0xFF34D399).withValues(alpha: 0.18)
                         : Colors.transparent,
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: record.isDone ? const Color(0xFF34D399) : Colors.white.withValues(alpha: 0.22),
+                      color: record.isDone ? Color(0xFF34D399) : Colors.white.withValues(alpha: 0.22),
                       width: 1.8,
                     ),
                   ),
                   child: record.isDone
-                      ? const Icon(Icons.check_rounded, color: Color(0xFF34D399), size: 14)
+                      ? Icon(Icons.check_rounded, color: Color(0xFF34D399), size: 14)
                       : null,
                 ),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               // Ders ikonu
               Container(
                 width: 34, height: 34,
@@ -504,7 +504,7 @@ class _HWCard extends StatelessWidget {
                 ),
                 child: Icon(_iconFor(record.subject), color: sc, size: 17),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               // Başlık + ders adı
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(record.title,
@@ -517,11 +517,11 @@ class _HWCard extends StatelessWidget {
                     decoration: record.isDone ? TextDecoration.lineThrough : null,
                     decorationColor: Colors.white.withValues(alpha: 0.25),
                   )),
-                const SizedBox(height: 3),
+                SizedBox(height: 3),
                 Row(children: [
                   Text(record.subject, style: GoogleFonts.inter(
                     color: sc.withValues(alpha: 0.80), fontSize: 10, fontWeight: FontWeight.w600)),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   // Aciliyet rozeti
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -532,14 +532,14 @@ class _HWCard extends StatelessWidget {
                     ),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
                       Icon(urg.icon, color: urg.color, size: 10),
-                      const SizedBox(width: 3),
+                      SizedBox(width: 3),
                       Text(urg.label, style: GoogleFonts.inter(
                         color: urg.color, fontSize: 9, fontWeight: FontWeight.w700)),
                     ]),
                   ),
                 ]),
               ])),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               // AI rozeti (çözüldüyse)
               if (record.isSolved)
                 Container(
@@ -550,8 +550,8 @@ class _HWCard extends StatelessWidget {
                     border: Border.all(color: AppColors.cyan.withValues(alpha: 0.35)),
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.auto_awesome_rounded, color: AppColors.cyan, size: 10),
-                    const SizedBox(width: 3),
+                    Icon(Icons.auto_awesome_rounded, color: AppColors.cyan, size: 10),
+                    SizedBox(width: 3),
                     Text('AI', style: GoogleFonts.inter(
                       color: AppColors.cyan, fontSize: 9, fontWeight: FontWeight.w800)),
                   ]),
@@ -575,8 +575,8 @@ class _HWCard extends StatelessWidget {
                           border: Border.all(color: AppColors.cyan.withValues(alpha: 0.30)),
                         ),
                         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                          const Icon(Icons.visibility_rounded, color: AppColors.cyan, size: 14),
-                          const SizedBox(width: 6),
+                          Icon(Icons.visibility_rounded, color: AppColors.cyan, size: 14),
+                          SizedBox(width: 6),
                           Text(localeService.tr('view_ai_solution'), style: GoogleFonts.inter(
                             color: AppColors.cyan, fontSize: 11, fontWeight: FontWeight.w700)),
                         ]),
@@ -589,15 +589,15 @@ class _HWCard extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         decoration: BoxDecoration(
                           gradient: LinearGradient(colors: [
-                            const Color(0xFF00C2D4).withValues(alpha: 0.15),
-                            const Color(0xFF6B21F2).withValues(alpha: 0.15),
+                            Color(0xFF00C2D4).withValues(alpha: 0.15),
+                            Color(0xFF6B21F2).withValues(alpha: 0.15),
                           ]),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(color: AppColors.cyan.withValues(alpha: 0.35)),
                         ),
                         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                          const Icon(Icons.auto_awesome_rounded, color: AppColors.cyan, size: 14),
-                          const SizedBox(width: 6),
+                          Icon(Icons.auto_awesome_rounded, color: AppColors.cyan, size: 14),
+                          SizedBox(width: 6),
                           Text(localeService.tr('solve_with_ai'), style: GoogleFonts.inter(
                             color: AppColors.cyan, fontSize: 11, fontWeight: FontWeight.w700)),
                         ]),
@@ -624,7 +624,7 @@ class _AddSheet extends StatefulWidget {
 class _AddSheetState extends State<_AddSheet> {
   final _ctrl = TextEditingController();
   String   _subject  = 'Matematik';
-  DateTime _due      = DateTime.now().add(const Duration(days: 1));
+  DateTime _due      = DateTime.now().add(Duration(days: 1));
 
   @override void dispose() { _ctrl.dispose(); super.dispose(); }
 
@@ -641,7 +641,7 @@ class _AddSheetState extends State<_AddSheet> {
       context: context,
       initialDate: _due,
       firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      lastDate: DateTime.now().add(Duration(days: 365)),
       builder: (ctx, child) => Theme(
         data: ThemeData.dark().copyWith(
           colorScheme: const ColorScheme.dark(primary: AppColors.cyan, surface: Color(0xFF0D1526))),
@@ -662,7 +662,7 @@ class _AddSheetState extends State<_AddSheet> {
         margin: const EdgeInsets.all(12),
         padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
         decoration: BoxDecoration(
-          color: const Color(0xFF0D1526),
+          color: AppPalette.textPrimary(context),
           borderRadius: BorderRadius.circular(24),
           border: Border.all(color: AppColors.cyan.withValues(alpha: 0.22)),
         ),
@@ -676,7 +676,7 @@ class _AddSheetState extends State<_AddSheet> {
 
           Text('Ödev Ekle'.tr(), style: GoogleFonts.inter(
             color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
 
           // Başlık
           TextField(
@@ -694,25 +694,25 @@ class _AddSheetState extends State<_AddSheet> {
               enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.10))),
               focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.cyan, width: 1.4)),
+                  borderSide: BorderSide(color: AppColors.cyan, width: 1.4)),
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
 
           // Ders seçimi
           Text(localeService.tr('subject_label'), style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           SizedBox(height: 34, child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: _subjects.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 5),
+            separatorBuilder: (_, __) => SizedBox(width: 5),
             itemBuilder: (_, i) {
               final s = _subjects[i]; final sel = s == _subject; final c = _colorFor(s);
               return GestureDetector(
                 onTap: () => setState(() => _subject = s),
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 160),
+                  duration: Duration(milliseconds: 160),
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     color: sel ? c.withValues(alpha: 0.14) : Colors.white.withValues(alpha: 0.04),
@@ -724,7 +724,7 @@ class _AddSheetState extends State<_AddSheet> {
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     Icon(_iconFor(s), color: sel ? c : Colors.white.withValues(alpha: 0.35), size: 11),
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4),
                     Text(s, style: GoogleFonts.inter(
                       color: sel ? c : Colors.white.withValues(alpha: 0.45),
                       fontSize: 10, fontWeight: sel ? FontWeight.w700 : FontWeight.w500)),
@@ -733,7 +733,7 @@ class _AddSheetState extends State<_AddSheet> {
               );
             },
           )),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
 
           // Teslim tarihi
           GestureDetector(
@@ -747,7 +747,7 @@ class _AddSheetState extends State<_AddSheet> {
               ),
               child: Row(children: [
                 Icon(urg.icon, color: urg.color, size: 15),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 Expanded(child: Text(
                   '${_due.day} ${['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'][_due.month-1]} ${_due.year}',
                   style: GoogleFonts.inter(color: urg.color, fontSize: 12, fontWeight: FontWeight.w600))),
@@ -755,12 +755,12 @@ class _AddSheetState extends State<_AddSheet> {
               ]),
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
 
           // ── Aksiyon butonları ────────────────────────────────────────────
           Text(localeService.tr('how_to_continue'), style: GoogleFonts.inter(
             color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
 
           Row(children: [
             // Sadece kaydet
@@ -774,11 +774,11 @@ class _AddSheetState extends State<_AddSheet> {
                 icon: Icons.bookmark_add_rounded,
                 label: localeService.tr('save'),
                 sub: localeService.tr('reminder'),
-                color: const Color(0xFF6B7280),
+                color: AppPalette.textSecondary(context),
                 active: valid,
               ),
             )),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             // AI ile çöz
             Expanded(child: GestureDetector(
               onTap: valid ? () async {
@@ -788,7 +788,7 @@ class _AddSheetState extends State<_AddSheet> {
                 if (mounted) {
                   nav.pop();
                   // AI çözüm sheet'i ana ekrandan açılır
-                  await Future.delayed(const Duration(milliseconds: 300));
+                  await Future.delayed(Duration(milliseconds: 300));
                 }
               } : null,
               child: _actionBtn(
@@ -815,13 +815,13 @@ class _AddSheetState extends State<_AddSheet> {
     bool gradient = false,
   }) {
     return AnimatedOpacity(
-      duration: const Duration(milliseconds: 180),
+      duration: Duration(milliseconds: 180),
       opacity: active ? 1.0 : 0.35,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
           gradient: gradient && active
-              ? const LinearGradient(colors: [Color(0xFF00C2D4), Color(0xFF6B21F2)],
+              ? LinearGradient(colors: [Color(0xFF00C2D4), Color(0xFF6B21F2)],
                   begin: Alignment.topLeft, end: Alignment.bottomRight)
               : null,
           color: gradient ? null : color.withValues(alpha: 0.10),
@@ -831,7 +831,7 @@ class _AddSheetState extends State<_AddSheet> {
         ),
         child: Column(children: [
           Icon(icon, color: gradient ? Colors.white : color, size: 20),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Text(label, style: GoogleFonts.inter(
             color: gradient ? Colors.white : color, fontSize: 12, fontWeight: FontWeight.w800)),
           Text(sub, style: GoogleFonts.inter(
@@ -903,7 +903,7 @@ class _SolveSheetState extends State<_SolveSheet> {
       builder: (_, scrollCtrl) => Container(
         margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
         decoration: BoxDecoration(
-          color: const Color(0xFF0D1526),
+          color: AppPalette.textPrimary(context),
           borderRadius: BorderRadius.circular(24),
           border: Border.all(color: AppColors.cyan.withValues(alpha: 0.22)),
         ),
@@ -928,7 +928,7 @@ class _SolveSheetState extends State<_SolveSheet> {
                   ),
                   child: Icon(_iconFor(widget.record.subject), color: sc, size: 16),
                 ),
-                const SizedBox(width: 10),
+                SizedBox(width: 10),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(localeService.tr('solve_with_ai'), style: GoogleFonts.inter(
                     color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
@@ -955,29 +955,29 @@ class _SolveSheetState extends State<_SolveSheet> {
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         margin: const EdgeInsets.only(bottom: 14),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF34D399).withValues(alpha: 0.08),
+                          color: Color(0xFF34D399).withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFF34D399).withValues(alpha: 0.30)),
+                          border: Border.all(color: Color(0xFF34D399).withValues(alpha: 0.30)),
                         ),
                         child: Row(children: [
-                          const Icon(Icons.check_circle_rounded, color: Color(0xFF34D399), size: 16),
-                          const SizedBox(width: 8),
+                          Icon(Icons.check_circle_rounded, color: Color(0xFF34D399), size: 16),
+                          SizedBox(width: 8),
                           Text(localeService.tr('ai_solution_ready'), style: GoogleFonts.inter(
-                            color: const Color(0xFF34D399), fontSize: 12, fontWeight: FontWeight.w700)),
-                          const Spacer(),
+                            color: Color(0xFF34D399), fontSize: 12, fontWeight: FontWeight.w700)),
+                          Spacer(),
                           Text(_mode, style: GoogleFonts.inter(
-                            color: const Color(0xFF34D399).withValues(alpha: 0.65), fontSize: 10)),
+                            color: Color(0xFF34D399).withValues(alpha: 0.65), fontSize: 10)),
                         ]),
                       ),
                       LatexText(_result!),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
                       GestureDetector(
                         onTap: () => Navigator.pop(context),
                         child: Container(
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
+                            gradient: LinearGradient(
                               colors: [Color(0xFF00C2D4), Color(0xFF6B21F2)]),
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -995,7 +995,7 @@ class _SolveSheetState extends State<_SolveSheet> {
                       // Soru alanı
                       Text(localeService.tr('question_label'), style: GoogleFonts.inter(
                         color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 6),
+                      SizedBox(height: 6),
                       TextField(
                         controller: _ctrl,
                         maxLines: 4,
@@ -1010,16 +1010,16 @@ class _SolveSheetState extends State<_SolveSheet> {
                           enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
                               borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.10))),
                           focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: AppColors.cyan, width: 1.4)),
+                              borderSide: BorderSide(color: AppColors.cyan, width: 1.4)),
                           contentPadding: const EdgeInsets.all(12),
                         ),
                       ),
-                      const SizedBox(height: 14),
+                      SizedBox(height: 14),
 
                       // Çözüm tipi
                       Text(localeService.tr('solution_method'), style: GoogleFonts.inter(
                         color: AppColors.textSecondary, fontSize: 10, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 8),
+                      SizedBox(height: 8),
                       Row(children: _modes.map((m) {
                         final sel = _mode == m.label;
                         return Expanded(child: Padding(
@@ -1027,7 +1027,7 @@ class _SolveSheetState extends State<_SolveSheet> {
                           child: GestureDetector(
                             onTap: () => setState(() => _mode = m.label),
                             child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 180),
+                              duration: Duration(milliseconds: 180),
                               padding: const EdgeInsets.symmetric(vertical: 10),
                               decoration: BoxDecoration(
                                 color: sel ? m.color.withValues(alpha: 0.14) : Colors.white.withValues(alpha: 0.04),
@@ -1039,7 +1039,7 @@ class _SolveSheetState extends State<_SolveSheet> {
                               ),
                               child: Column(children: [
                                 Icon(m.icon, color: sel ? m.color : Colors.white.withValues(alpha: 0.35), size: 18),
-                                const SizedBox(height: 4),
+                                SizedBox(height: 4),
                                 Text(m.label, textAlign: TextAlign.center, maxLines: 2,
                                   style: GoogleFonts.inter(
                                     color: sel ? m.color : Colors.white.withValues(alpha: 0.45),
@@ -1050,7 +1050,7 @@ class _SolveSheetState extends State<_SolveSheet> {
                           ),
                         ));
                       }).toList()),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
 
                       // Hata
                       if (_error != null)
@@ -1058,12 +1058,12 @@ class _SolveSheetState extends State<_SolveSheet> {
                           margin: const EdgeInsets.only(bottom: 10),
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFEF4444).withValues(alpha: 0.08),
+                            color: Color(0xFFEF4444).withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.30)),
+                            border: Border.all(color: Color(0xFFEF4444).withValues(alpha: 0.30)),
                           ),
                           child: Text(_error!, style: GoogleFonts.inter(
-                            color: const Color(0xFFEF4444), fontSize: 11)),
+                            color: Color(0xFFEF4444), fontSize: 11)),
                         ),
 
                       // Çöz butonu
@@ -1073,18 +1073,18 @@ class _SolveSheetState extends State<_SolveSheet> {
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
+                            gradient: LinearGradient(
                               colors: [Color(0xFF00C2D4), Color(0xFF6B21F2)],
                               begin: Alignment.centerLeft, end: Alignment.centerRight),
                             borderRadius: BorderRadius.circular(14),
                             boxShadow: [BoxShadow(color: AppColors.cyan.withValues(alpha: 0.25), blurRadius: 12)],
                           ),
                           child: Center(child: _loading
-                              ? const SizedBox(width: 20, height: 20,
+                              ? SizedBox(width: 20, height: 20,
                                   child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                               : Row(mainAxisSize: MainAxisSize.min, children: [
-                                  const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 16),
-                                  const SizedBox(width: 8),
+                                  Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 16),
+                                  SizedBox(width: 8),
                                   Text(localeService.tr('solve_with_ai'), style: GoogleFonts.inter(
                                     color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800)),
                                 ])),
@@ -1120,7 +1120,7 @@ class _SolutionView extends StatelessWidget {
       builder: (_, ctrl) => Container(
         margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
         decoration: BoxDecoration(
-          color: const Color(0xFF0D1526),
+          color: AppPalette.textPrimary(context),
           borderRadius: BorderRadius.circular(24),
           border: Border.all(color: AppColors.cyan.withValues(alpha: 0.22)),
         ),
@@ -1142,14 +1142,14 @@ class _SolutionView extends StatelessWidget {
                     border: Border.all(color: sc.withValues(alpha: 0.28))),
                   child: Icon(_iconFor(record.subject), color: sc, size: 16),
                 ),
-                const SizedBox(width: 10),
+                SizedBox(width: 10),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(record.title, maxLines: 1, overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
                   Row(children: [
                     Text(record.subject, style: GoogleFonts.inter(
                       color: sc.withValues(alpha: 0.75), fontSize: 10, fontWeight: FontWeight.w600)),
-                    const SizedBox(width: 6),
+                    SizedBox(width: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                       decoration: BoxDecoration(
@@ -1184,8 +1184,8 @@ class _SolutionView extends StatelessWidget {
                       border: Border.all(color: AppColors.cyan.withValues(alpha: 0.22)),
                     ),
                     child: Row(children: [
-                      const Icon(Icons.auto_awesome_rounded, color: AppColors.cyan, size: 13),
-                      const SizedBox(width: 6),
+                      Icon(Icons.auto_awesome_rounded, color: AppColors.cyan, size: 13),
+                      SizedBox(width: 6),
                       Text('${record.solutionType} • ${localeService.tr('ai_solution_suffix')}', style: GoogleFonts.inter(
                         color: AppColors.cyan, fontSize: 10, fontWeight: FontWeight.w700)),
                     ]),

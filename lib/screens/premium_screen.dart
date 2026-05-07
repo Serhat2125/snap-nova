@@ -5,6 +5,7 @@ import '../services/pricing_service.dart';
 import '../main.dart' show localeService;
 import 'mock_payment_screen.dart';
 
+import '../theme/app_theme.dart';
 // ═══════════════════════════════════════════════════════════════════════════════
 //  PremiumScreen — Abonelik & Avantajlar (Ülke Bazlı Fiyatlandırma)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -68,301 +69,259 @@ class _PremiumScreenState extends State<PremiumScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F5),
+      backgroundColor: AppPalette.bg(context),
       body: SafeArea(
         child: Column(
           children: [
-            // Üst içerik — scroll edilebilir
+            // Üst içerik — slider sabit yükseklik, tablo ile birlikte tüm
+            // bölge SingleChildScrollView içinde dikey scroll olur.
             Expanded(
               child: Stack(
                 children: [
                   SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                child: Column(
-                  children: [
-                    // ═══════════════════════════════════════════════════════
-                    //  Banner Görseli + Geri butonu üstünde
-                    // ═══════════════════════════════════════════════════════
-                    // Banner + Slogan — tek parça beyaz alan
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.all(Radius.circular(20)),
+                    physics: BouncingScrollPhysics(),
+                    child: Column(
+                    children: [
+                      // 10-madde dikey slider — 4. madde tam görünecek
+                      // şekilde sabit yükseklik (~440px). Başlık sabit;
+                      // içinde dikey scroll. Tüm sayfa dış scroll ile kayar.
+                      SizedBox(
+                        height: 415,
+                        child: _PremiumFeaturesSlider(),
                       ),
-                      child: Column(
-                        children: [
-                          // Banner görseli
-                          Stack(
+
+                      SizedBox(height: 10),
+
+                      // Fiyat Kartları — 1 Ay | 3 Ay | 12 Ay
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: IntrinsicHeight(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              ClipRRect(
-                                borderRadius: const BorderRadius.only(
-                                  topLeft: Radius.circular(20),
-                                  topRight: Radius.circular(20),
-                                ),
-                                child: Image.asset(
-                                  'lib/assets/9ejrn (1).jpg',
-                                  width: double.infinity,
-                                  fit: BoxFit.cover,
+                              Expanded(
+                                child: _buildPlanCard(
+                                  index: 0,
+                                  title:
+                                      '1 ${localeService.tr("month_unit")}',
+                                  price: _plan.monthly,
+                                  priceSuffix:
+                                      '/${localeService.tr("month_unit")}',
+                                  total: _plan.monthly,
+                                  oldPrice: _plan.monthlyOld,
+                                  discount: null,
                                 ),
                               ),
-                              // Geri butonu
-                              Positioned(
-                                top: 8,
-                                left: 10,
-                                child: GestureDetector(
-                                  onTap: () => Navigator.pop(context),
-                                  child: Container(
-                                    width: 36,
-                                    height: 36,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.9),
-                                      shape: BoxShape.circle,
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withValues(alpha: 0.08),
-                                          blurRadius: 8,
-                                        ),
-                                      ],
-                                    ),
-                                    child: const Icon(
-                                        Icons.arrow_back_ios_rounded,
-                                        size: 16,
-                                        color: Color(0xFF333333)),
-                                  ),
+                              SizedBox(width: 10),
+                              Expanded(
+                                child: _buildPlanCard(
+                                  index: 1,
+                                  title:
+                                      '3 ${localeService.tr("month_unit")}',
+                                  price: _plan.quarterlyPerMonth,
+                                  priceSuffix:
+                                      '/${localeService.tr("month_unit")}',
+                                  total: _plan.quarterly,
+                                  oldPrice: null,
+                                  discount: null,
+                                ),
+                              ),
+                              SizedBox(width: 10),
+                              Expanded(
+                                child: _buildPlanCard(
+                                  index: 2,
+                                  title:
+                                      '12 ${localeService.tr("month_unit")}',
+                                  price: _plan.yearlyPerMonth,
+                                  priceSuffix:
+                                      '/${localeService.tr("month_unit")}',
+                                  total: _plan.yearly,
+                                  oldPrice: null,
+                                  discount: '%50',
+                                  tickKey: _tickKey12Ay,
                                 ),
                               ),
                             ],
                           ),
-                          // Slogan — aynı beyaz alan, arada boşluk/çizgi yok
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-                            child: Text(
-                              localeService.tr('premium_slogan'),
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.poppins(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF111111),
-                                height: 1.4,
-                                letterSpacing: -0.3,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    // ═══════════════════════════════════════════════════════
-                    //  Fiyat Kartları — 1 Ay | 3 Ay | 12 Ay
-                    // ═══════════════════════════════════════════════════════
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: IntrinsicHeight(
-                        child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Expanded(
-                            child: _buildPlanCard(
-                              index: 0,
-                              title: '1 ${localeService.tr("month_unit")}',
-                              price: _plan.monthly,
-                              priceSuffix: '/${localeService.tr("month_unit")}',
-                              total: _plan.monthly,
-                              oldPrice: _plan.monthlyOld,
-                              discount: null,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _buildPlanCard(
-                              index: 1,
-                              title: '3 ${localeService.tr("month_unit")}',
-                              price: _plan.quarterlyPerMonth,
-                              priceSuffix: '/${localeService.tr("month_unit")}',
-                              total: _plan.quarterly,
-                              oldPrice: null,
-                              discount: null,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _buildPlanCard(
-                              index: 2,
-                              title: '12 ${localeService.tr("month_unit")}',
-                              price: _plan.yearlyPerMonth,
-                              priceSuffix: '/${localeService.tr("month_unit")}',
-                              total: _plan.yearly,
-                              oldPrice: null,
-                              discount: '%50',
-                              tickKey: _tickKey12Ay,
-                            ),
-                          ),
-                        ],
-                      ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    // Günlük fiyat + footer bilgisi
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 28),
-                      child: Column(
-                        children: [
-                          Text(
-                            _dailyText(),
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.poppins(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w400,
-                              fontStyle: FontStyle.italic,
-                              color: const Color(0xFF555555),
-                              letterSpacing: -0.2,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _footerText(),
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.poppins(
-                              fontSize: 10,
-                              color: const Color(0xFF9CA3AF),
-                              height: 1.4,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 14),
-
-                    // ═══════════════════════════════════════════════════════
-                    //  Avantajlar başlığı
-                    // ═══════════════════════════════════════════════════════
-                    Padding(
-                      padding: const EdgeInsets.only(left: 36, right: 24),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          localeService.tr('advantages'),
-                          style: GoogleFonts.poppins(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFF333333),
-                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 10),
 
-                    // Özellikler tablosu — turuncu→beyaz gradient
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Color(0xFFFFCC80), // koyu turuncu ton
-                              Color(0xFFFFDDA6), // orta-koyu turuncu
-                              Color(0xFFFFECC8), // orta turuncu
-                              Color(0xFFFFF6E6), // açık turuncu
-                              Colors.white,       // beyaz
-                            ],
-                            stops: [0.0, 0.2, 0.45, 0.7, 1.0],
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.06),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
+                      SizedBox(height: 8),
+
+                      // Günlük fiyat + footer bilgisi
+                      Padding(
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 28),
                         child: Column(
                           children: [
-                            Padding(
-                              padding:
-                                  const EdgeInsets.fromLTRB(20, 18, 20, 12),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    flex: 5,
-                                    child: Text(
-                                      localeService.tr('features'),
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w700,
-                                        color: const Color(0xFF6B7280),
-                                      ),
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    width: 56,
-                                    child: Text(
-                                      localeService.tr('free'),
-                                      textAlign: TextAlign.center,
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                        color: const Color(0xFF9CA3AF),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 14),
-                                  Container(
-                                    width: 72,
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 5),
-                                    decoration: BoxDecoration(
-                                      gradient: const LinearGradient(
-                                        colors: [_gold, _pink],
-                                      ),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      'Premium',
-                                      textAlign: TextAlign.center,
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                            Text(
+                              _dailyText(),
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.poppins(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w400,
+                                fontStyle: FontStyle.italic,
+                                color: Color(0xFF555555),
+                                letterSpacing: -0.2,
                               ),
                             ),
-                            Container(
-                              margin:
-                                  const EdgeInsets.symmetric(horizontal: 20),
-                              height: 1,
-                              color: const Color(0xFFE5E7EB),
+                            SizedBox(height: 4),
+                            Text(
+                              _footerText(),
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.poppins(
+                                fontSize: 10,
+                                color: AppPalette.textSecondary(context),
+                                height: 1.4,
+                              ),
                             ),
-                            const SizedBox(height: 8),
-                            _featureRow(localeService.tr('unlimited_models')),
-                            _featureRow(localeService.tr('max_accuracy')),
-                            _featureRow(localeService.tr('ad_free')),
-                            _featureRowSub(localeService.tr('similar_q'),
-                                localeService.tr('similar_q_desc')),
-                            _featureRowSub(localeService.tr('match_cards'),
-                                localeService.tr('match_cards_desc')),
-                            _featureRowSub(
-                                localeService.tr('info_cards'), localeService.tr('info_cards_desc')),
-                            const SizedBox(height: 14),
                           ],
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-                ),
-              ),
+
+                      SizedBox(height: 12),
+
+                      // ═══════════════════════════════════════════════════════
+                      //  Avantajlar — Ücretsiz vs Premium karşılaştırma tablosu
+                      // ═══════════════════════════════════════════════════════
+                      Padding(
+                        padding:
+                            const EdgeInsets.only(left: 36, right: 24),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            localeService.tr('advantages'),
+                            style: GoogleFonts.poppins(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: AppPalette.textPrimary(context),
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: 10),
+                      Padding(
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 20),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Color(0xFFFFCC80),
+                                Color(0xFFFFDDA6),
+                                Color(0xFFFFECC8),
+                                Color(0xFFFFF6E6),
+                                Colors.white,
+                              ],
+                              stops: [0.0, 0.2, 0.45, 0.7, 1.0],
+                            ),
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color:
+                                    Colors.black.withValues(alpha: 0.06),
+                                blurRadius: 12,
+                                offset: Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                    20, 16, 20, 10),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      flex: 5,
+                                      child: Text(
+                                        localeService.tr('features'),
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppPalette.textSecondary(context),
+                                        ),
+                                      ),
+                                    ),
+                                    SizedBox(
+                                      width: 56,
+                                      child: Text(
+                                        localeService.tr('free'),
+                                        textAlign: TextAlign.center,
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppPalette.textPrimary(context),
+                                        ),
+                                      ),
+                                    ),
+                                    SizedBox(width: 14),
+                                    Container(
+                                      width: 72,
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 5),
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [_gold, _pink],
+                                        ),
+                                        borderRadius:
+                                            BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        'Premium',
+                                        textAlign: TextAlign.center,
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                margin: const EdgeInsets.symmetric(
+                                    horizontal: 20),
+                                height: 1,
+                                color: AppPalette.border(context),
+                              ),
+                              SizedBox(height: 6),
+                              _featureRow(
+                                  localeService.tr('unlimited_models')),
+                              _featureRow(localeService.tr('max_accuracy')),
+                              _featureRow(localeService.tr('ad_free')),
+                              _featureRow('Dünyada ve ülkende yarış'),
+                              _featureRow('Konu özetleri'),
+                              _featureRow('Test soruları oluşturma'),
+                              _featureRowSub(
+                                  localeService.tr('similar_q'),
+                                  localeService.tr('similar_q_desc')),
+                              _featureRowSub(
+                                  localeService.tr('match_cards'),
+                                  localeService.tr('match_cards_desc')),
+                              _featureRowSub(
+                                  localeService.tr('info_cards'),
+                                  localeService.tr('info_cards_desc')),
+                              SizedBox(height: 12),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      SizedBox(height: 18),
+
+                      // ═══════════════════════════════════════════════════════
+                      //  Kullanım Koşulları — sayfanın en altında
+                      // ═══════════════════════════════════════════════════════
+                      const _TermsSection(),
+
+                      SizedBox(height: 12),
+                    ],
+                  ),
+                  ),
                   // Blur overlay — balon açıkken
                   if (_balloonVisible)
                     Positioned.fill(
@@ -385,12 +344,12 @@ class _PremiumScreenState extends State<PremiumScreen> {
             Container(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
               decoration: BoxDecoration(
-                color: const Color(0xFFF0F2F5),
+                color: AppPalette.bg(context),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.04),
                     blurRadius: 8,
-                    offset: const Offset(0, -2),
+                    offset: Offset(0, -2),
                   ),
                 ],
               ),
@@ -404,22 +363,22 @@ class _PremiumScreenState extends State<PremiumScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
+                        gradient: LinearGradient(
                           colors: [Color(0xFFF59E0B), Color(0xFFE8850C)],
                         ),
                         borderRadius: BorderRadius.circular(50),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFFF59E0B).withValues(alpha: 0.35),
+                            color: Color(0xFFF59E0B).withValues(alpha: 0.35),
                             blurRadius: 16,
-                            offset: const Offset(0, 4),
+                            offset: Offset(0, 4),
                           ),
                         ],
                       ),
                       child: Center(
                         child: Text(
                           _selectedPlan == 2
-                              ? localeService.tr('free_trial_3day')
+                              ? '7 Günlük Ücretsiz Denemeye Başla'
                               : localeService.tr('continue_btn'),
                           style: GoogleFonts.poppins(
                             fontSize: _selectedPlan == 2 ? 15 : 18,
@@ -430,7 +389,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  SizedBox(height: 6),
                 ],
               ),
             ),
@@ -451,8 +410,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(
+            color: AppPalette.card(context),
             borderRadius: BorderRadius.only(
               topLeft: Radius.circular(20),
               topRight: Radius.circular(20),
@@ -470,7 +429,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFD1D5DB),
+                    color: AppPalette.border(context),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -482,12 +441,12 @@ class _PremiumScreenState extends State<PremiumScreen> {
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: const Color(0xFF333333),
+                  color: AppPalette.textPrimary(context),
                 ),
               ),
-              const SizedBox(height: 10),
-              Container(height: 0.5, color: const Color(0xFFE5E7EB)),
-              const SizedBox(height: 14),
+              SizedBox(height: 10),
+              Container(height: 0.5, color: AppPalette.border(context)),
+              SizedBox(height: 14),
 
               // Uygulama adı + açıklama
               Text(
@@ -495,32 +454,32 @@ class _PremiumScreenState extends State<PremiumScreen> {
                 style: GoogleFonts.poppins(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
-                  color: const Color(0xFF111111),
+                  color: AppPalette.textPrimary(context),
                 ),
               ),
-              const SizedBox(height: 2),
+              SizedBox(height: 2),
               Text(
                 'QuAlsar - ${localeService.tr("all_lessons")}',
                 style: GoogleFonts.poppins(
                   fontSize: 12,
-                  color: const Color(0xFF6B7280),
+                  color: AppPalette.textSecondary(context),
                 ),
               ),
 
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
 
               // Ayırıcı
-              Container(height: 0.5, color: const Color(0xFFE5E7EB)),
+              Container(height: 0.5, color: AppPalette.border(context)),
 
-              const SizedBox(height: 14),
+              SizedBox(height: 14),
 
               // Fiyat çerçevesi
               Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFAFAFB),
+                  color: Color(0xFFFAFAFB),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE5E7EB), width: 0.5),
+                  border: Border.all(color: AppPalette.border(context), width: 0.5),
                 ),
                 child: Column(
                   children: [
@@ -534,7 +493,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                             '${localeService.tr("today")} · ${_selectedPlan == 0 ? "1 ${localeService.tr("month_unit")}" : _selectedPlan == 1 ? localeService.tr("three_months_unit") : "12 ${localeService.tr("month_unit")}"} ${localeService.tr("period")}',
                             style: GoogleFonts.poppins(
                               fontSize: 13,
-                              color: const Color(0xFF333333),
+                              color: AppPalette.textPrimary(context),
                             ),
                           ),
                           Text(
@@ -542,7 +501,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                             style: GoogleFonts.poppins(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
-                              color: const Color(0xFF111111),
+                              color: AppPalette.textPrimary(context),
                             ),
                           ),
                         ],
@@ -558,14 +517,14 @@ class _PremiumScreenState extends State<PremiumScreen> {
                             '${localeService.tr("start_date")}: 12 May 2026',
                             style: GoogleFonts.poppins(
                               fontSize: 12,
-                              color: const Color(0xFF6B7280),
+                              color: AppPalette.textSecondary(context),
                             ),
                           ),
                           Text(
                             '${_plan.monthlyOld}/${_selectedPlan == 0 ? localeService.tr("month_unit") : _selectedPlan == 1 ? localeService.tr("three_months_unit") : localeService.tr("year_unit")}',
                             style: GoogleFonts.poppins(
                               fontSize: 12,
-                              color: const Color(0xFF6B7280),
+                              color: AppPalette.textSecondary(context),
                             ),
                           ),
                         ],
@@ -575,19 +534,19 @@ class _PremiumScreenState extends State<PremiumScreen> {
                 ),
               ),
 
-              const SizedBox(height: 14),
+              SizedBox(height: 14),
 
               // Bilgi maddeleri
               _infoBullet(localeService.tr('cancel_anytime_info')),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               _infoBullet(localeService.tr('promo_reminder')),
 
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
 
               // Ayırıcı
-              Container(height: 0.5, color: const Color(0xFFE5E7EB)),
+              Container(height: 0.5, color: AppPalette.border(context)),
 
-              const SizedBox(height: 14),
+              SizedBox(height: 14),
 
               // Ödeme yöntemi
               Row(
@@ -596,7 +555,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1A1A1A),
+                      color: AppPalette.textPrimary(context),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
@@ -608,18 +567,18 @@ class _PremiumScreenState extends State<PremiumScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Text(
                     '····4051',
                     style: GoogleFonts.poppins(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
-                      color: const Color(0xFF333333),
+                      color: AppPalette.textPrimary(context),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 6),
+              SizedBox(height: 6),
               GestureDetector(
                 onTap: () {
                   Navigator.pop(ctx);
@@ -629,13 +588,13 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   localeService.tr('update_address'),
                   style: GoogleFonts.poppins(
                     fontSize: 12,
-                    color: const Color(0xFF3B82F6),
+                    color: Color(0xFF3B82F6),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
 
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
 
               // Devam et butonu
               GestureDetector(
@@ -647,7 +606,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 15),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
+                    gradient: LinearGradient(
                       colors: [Color(0xFFF59E0B), Color(0xFFE8850C)],
                     ),
                     borderRadius: BorderRadius.circular(50),
@@ -682,8 +641,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
             bottom: MediaQuery.of(ctx).viewInsets.bottom,
           ),
           child: Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
+            decoration: BoxDecoration(
+            color: AppPalette.card(context),
               borderRadius: BorderRadius.only(
                 topLeft: Radius.circular(20),
                 topRight: Radius.circular(20),
@@ -700,7 +659,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFD1D5DB),
+                      color: AppPalette.border(context),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -710,39 +669,39 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   style: GoogleFonts.poppins(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFF111111),
+                    color: AppPalette.textPrimary(context),
                   ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   localeService.tr('update_billing_address'),
                   style: GoogleFonts.poppins(
                     fontSize: 12,
-                    color: const Color(0xFF6B7280),
+                    color: AppPalette.textSecondary(context),
                   ),
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: 16),
                 _addressField(localeService.tr('full_name')),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 _addressField(localeService.tr('address_hint')),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 Row(
                   children: [
                     Expanded(child: _addressField(localeService.tr('city_hint'))),
-                    const SizedBox(width: 10),
+                    SizedBox(width: 10),
                     Expanded(child: _addressField(localeService.tr('postal_code_hint'))),
                   ],
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 _addressField(localeService.tr('country_hint')),
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
                 GestureDetector(
                   onTap: () => Navigator.pop(ctx),
                   child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 15),
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
+                      gradient: LinearGradient(
                         colors: [Color(0xFFF59E0B), Color(0xFFE8850C)],
                       ),
                       borderRadius: BorderRadius.circular(50),
@@ -769,28 +728,28 @@ class _PremiumScreenState extends State<PremiumScreen> {
 
   Widget _addressField(String hint) {
     return TextField(
-      style: GoogleFonts.poppins(fontSize: 13, color: const Color(0xFF111111)),
+      style: GoogleFonts.poppins(fontSize: 13, color: Color(0xFF111111)),
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: GoogleFonts.poppins(
           fontSize: 13,
-          color: const Color(0xFF9CA3AF),
+          color: AppPalette.textSecondary(context),
         ),
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         filled: true,
-        fillColor: const Color(0xFFFAFAFB),
+        fillColor: Color(0xFFFAFAFB),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 0.5),
+          borderSide: BorderSide(color: AppPalette.border(context), width: 0.5),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 0.5),
+          borderSide: BorderSide(color: AppPalette.border(context), width: 0.5),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFFF59E0B), width: 1),
+          borderSide: BorderSide(color: Color(0xFFF59E0B), width: 1),
         ),
       ),
     );
@@ -848,8 +807,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(
+            color: AppPalette.card(context),
             borderRadius: BorderRadius.only(
               topLeft: Radius.circular(20),
               topRight: Radius.circular(20),
@@ -866,7 +825,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFD1D5DB),
+                    color: AppPalette.border(context),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -877,49 +836,49 @@ class _PremiumScreenState extends State<PremiumScreen> {
                 width: 64,
                 height: 64,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF22C55E).withValues(alpha: 0.1),
+                  color: Color(0xFF22C55E).withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.check_circle_rounded,
                   size: 40,
                   color: Color(0xFF22C55E),
                 ),
               ),
 
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
 
               Text(
                 localeService.tr('payment_success'),
                 style: GoogleFonts.poppins(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
-                  color: const Color(0xFF111111),
+                  color: AppPalette.textPrimary(context),
                 ),
               ),
 
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
 
               Text(
                 localeService.tr('premium_activated'),
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
                   fontSize: 12,
-                  color: const Color(0xFF6B7280),
+                  color: AppPalette.textSecondary(context),
                   height: 1.5,
                 ),
               ),
 
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
 
               // Detaylar çerçevesi
               Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFAFAFB),
+                  color: Color(0xFFFAFAFB),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                      color: const Color(0xFFE5E7EB), width: 0.5),
+                      color: AppPalette.border(context), width: 0.5),
                 ),
                 child: Column(
                   children: [
@@ -933,7 +892,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                             localeService.tr('plan_label'),
                             style: GoogleFonts.poppins(
                               fontSize: 12,
-                              color: const Color(0xFF6B7280),
+                              color: AppPalette.textSecondary(context),
                             ),
                           ),
                           Text(
@@ -941,7 +900,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                             style: GoogleFonts.poppins(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
-                              color: const Color(0xFF333333),
+                              color: AppPalette.textPrimary(context),
                             ),
                           ),
                         ],
@@ -950,7 +909,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                     Container(
                       margin: const EdgeInsets.symmetric(horizontal: 14),
                       height: 0.5,
-                      color: const Color(0xFFE5E7EB),
+                      color: AppPalette.border(context),
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(
@@ -962,7 +921,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                             localeService.tr('amount_paid'),
                             style: GoogleFonts.poppins(
                               fontSize: 12,
-                              color: const Color(0xFF6B7280),
+                              color: AppPalette.textSecondary(context),
                             ),
                           ),
                           Text(
@@ -970,7 +929,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                             style: GoogleFonts.poppins(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
-                              color: const Color(0xFF333333),
+                              color: AppPalette.textPrimary(context),
                             ),
                           ),
                         ],
@@ -979,7 +938,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                     Container(
                       margin: const EdgeInsets.symmetric(horizontal: 14),
                       height: 0.5,
-                      color: const Color(0xFFE5E7EB),
+                      color: AppPalette.border(context),
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(
@@ -991,7 +950,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                             localeService.tr('next_renewal'),
                             style: GoogleFonts.poppins(
                               fontSize: 12,
-                              color: const Color(0xFF6B7280),
+                              color: AppPalette.textSecondary(context),
                             ),
                           ),
                           Text(
@@ -999,7 +958,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                             style: GoogleFonts.poppins(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
-                              color: const Color(0xFF333333),
+                              color: AppPalette.textPrimary(context),
                             ),
                           ),
                         ],
@@ -1009,7 +968,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                 ),
               ),
 
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
 
               // Tamam butonu
               GestureDetector(
@@ -1021,7 +980,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 15),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
+                    gradient: LinearGradient(
                       colors: [Color(0xFF22C55E), Color(0xFF16A34A)],
                     ),
                     borderRadius: BorderRadius.circular(50),
@@ -1054,19 +1013,19 @@ class _PremiumScreenState extends State<PremiumScreen> {
           child: Container(
             width: 5,
             height: 5,
-            decoration: const BoxDecoration(
-              color: Color(0xFF9CA3AF),
+            decoration: BoxDecoration(
+              color: AppPalette.textSecondary(context),
               shape: BoxShape.circle,
             ),
           ),
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: 10),
         Expanded(
           child: Text(
             text,
             style: GoogleFonts.poppins(
               fontSize: 11,
-              color: const Color(0xFF6B7280),
+              color: AppPalette.textSecondary(context),
               height: 1.4,
             ),
           ),
@@ -1133,7 +1092,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
     setState(() => _balloonVisible = true);
 
     // 4 saniye sonra kapat
-    Future.delayed(const Duration(seconds: 4), () {
+    Future.delayed(Duration(seconds: 4), () {
       if (_balloonVisible) {
         _balloonEntry?.remove();
         _balloonEntry = null;
@@ -1157,6 +1116,13 @@ class _PremiumScreenState extends State<PremiumScreen> {
     Key? tickKey,
   }) {
     final selected = _selectedPlan == index;
+    final dark = AppPalette.isDark(context);
+    final tabBg = dark
+        ? Colors.black
+        : (selected ? Color(0xFFF0FFF4) : Color(0xFFF3F4F6));
+    final tabBorder = selected
+        ? Color(0xFF22C55E)
+        : (dark ? Color(0xFF2E2E2E) : Color(0xFFE8E8EE));
 
     return GestureDetector(
       onTap: () {
@@ -1164,28 +1130,28 @@ class _PremiumScreenState extends State<PremiumScreen> {
         if (index == 2) _showDiscountBalloon(context);
       },
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: Duration(milliseconds: 200),
         padding: const EdgeInsets.fromLTRB(6, 8, 6, 16),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFFF0FFF4) : Colors.white,
+          color: tabBg,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: selected ? const Color(0xFF22C55E) : const Color(0xFFE8E8EE),
+            color: tabBorder,
             width: selected ? 2.5 : 1,
           ),
           boxShadow: [
             BoxShadow(
               color: selected
-                  ? const Color(0xFF22C55E).withValues(alpha: 0.15)
-                  : const Color(0xFF9CA3AF).withValues(alpha: 0.10),
+                  ? Color(0xFF22C55E).withValues(alpha: 0.15)
+                  : Color(0xFF9CA3AF).withValues(alpha: 0.10),
               blurRadius: selected ? 18 : 10,
               spreadRadius: selected ? 1 : 0,
-              offset: const Offset(0, 4),
+              offset: Offset(0, 4),
             ),
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.03),
               blurRadius: 4,
-              offset: const Offset(0, 1),
+              offset: Offset(0, 1),
             ),
           ],
         ),
@@ -1200,7 +1166,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
+                    gradient: LinearGradient(
                       colors: [Color(0xFFFF6B35), Color(0xFFEF4444)],
                     ),
                     borderRadius: BorderRadius.circular(12),
@@ -1217,9 +1183,9 @@ class _PremiumScreenState extends State<PremiumScreen> {
                 ),
               )
             else
-              const SizedBox(height: 22),
+              SizedBox(height: 22),
 
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
 
             // Süre — rakam ve Ay ayrı satır
             Text(
@@ -1227,7 +1193,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
               style: GoogleFonts.poppins(
                 fontSize: 22,
                 fontWeight: FontWeight.w800,
-                color: const Color(0xFF333333),
+                color: dark ? Colors.white : AppPalette.textPrimary(context),
                 height: 1.1,
               ),
             ),
@@ -1236,11 +1202,11 @@ class _PremiumScreenState extends State<PremiumScreen> {
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: const Color(0xFF777777),
+                color: dark ? Colors.white : Color(0xFF777777),
               ),
             ),
 
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
 
             // Fiyat + süre etiketi
             FittedBox(
@@ -1255,7 +1221,9 @@ class _PremiumScreenState extends State<PremiumScreen> {
                     style: GoogleFonts.poppins(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
-                      color: selected ? const Color(0xFF22C55E) : const Color(0xFF444444),
+                      color: selected
+                          ? Color(0xFF22C55E)
+                          : (dark ? Colors.white : Color(0xFF444444)),
                       height: 1.1,
                     ),
                   ),
@@ -1264,23 +1232,23 @@ class _PremiumScreenState extends State<PremiumScreen> {
                     style: GoogleFonts.poppins(
                       fontSize: 9,
                       fontWeight: FontWeight.w400,
-                      color: const Color(0xFFAAAAAA),
+                      color: dark ? Colors.white : Color(0xFFAAAAAA),
                     ),
                   ),
                 ],
               ),
             ),
 
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
 
             // İnce ayırıcı çizgi
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 10),
               height: 0.5,
-              color: const Color(0xFFE0E0E0),
+              color: dark ? Color(0xFF2E2E2E) : Color(0xFFE0E0E0),
             ),
 
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
 
             // Alt bilgi — toplam fiyat (çizgi altı)
             if (total != null)
@@ -1291,14 +1259,14 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   style: GoogleFonts.poppins(
                     fontSize: 9,
                     fontWeight: FontWeight.w500,
-                    color: const Color(0xFF6B7280),
+                    color: dark ? Colors.white : AppPalette.textSecondary(context),
                   ),
                 ),
               )
             else
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
 
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
 
             // Seçim göstergesi + confetti ikonu
             Row(
@@ -1307,33 +1275,33 @@ class _PremiumScreenState extends State<PremiumScreen> {
               children: [
                 AnimatedContainer(
                   key: tickKey,
-                  duration: const Duration(milliseconds: 200),
+                  duration: Duration(milliseconds: 200),
                   width: 18,
                   height: 18,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
                       color: selected
-                          ? const Color(0xFF22C55E)
-                          : const Color(0xFFD1D5DB),
+                          ? Color(0xFF22C55E)
+                          : Color(0xFFD1D5DB),
                       width: 2,
                     ),
                     color: selected
-                        ? const Color(0xFF22C55E)
+                        ? Color(0xFF22C55E)
                         : Colors.transparent,
                   ),
                   child: selected
-                      ? const Icon(Icons.check_rounded,
+                      ? Icon(Icons.check_rounded,
                           size: 11, color: Colors.white)
                       : null,
                 ),
                 // Confetti ikonu — tik ile sağ çerçeve çizgisi arasında
                 if (index == 2) ...[
-                  const SizedBox(width: 4),
+                  SizedBox(width: 4),
                   GestureDetector(
                     key: _confettiKey,
                     onTap: () => _showDiscountBalloon(context),
-                    child: const Text(
+                    child: Text(
                       '🎉',
                       style: TextStyle(fontSize: 14),
                     ),
@@ -1348,31 +1316,31 @@ class _PremiumScreenState extends State<PremiumScreen> {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  //  Özellik Satırları
+  //  Avantajlar tablosu satırları — Ücretsiz vs Premium karşılaştırma
   // ═══════════════════════════════════════════════════════════════════════════
 
   Widget _featureRow(String title) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
       child: Row(
         children: [
           Expanded(
             flex: 5,
             child: Text(title,
                 style: GoogleFonts.poppins(
-                    fontSize: 14,
+                    fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFF111111))),
+                    color: Color(0xFF111111))),
           ),
           SizedBox(
               width: 52,
               child:
-                  Icon(Icons.close_rounded, size: 20, color: _crossColor)),
-          const SizedBox(width: 8),
+                  Icon(Icons.close_rounded, size: 18, color: _crossColor)),
+          SizedBox(width: 8),
           SizedBox(
               width: 72,
-              child:
-                  Icon(Icons.check_circle_rounded, size: 24, color: _checkColor)),
+              child: Icon(Icons.check_circle_rounded,
+                  size: 22, color: _checkColor)),
         ],
       ),
     );
@@ -1380,7 +1348,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
 
   Widget _featureRowSub(String title, String sub) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
       child: Row(
         children: [
           Expanded(
@@ -1390,14 +1358,14 @@ class _PremiumScreenState extends State<PremiumScreen> {
               children: [
                 Text(title,
                     style: GoogleFonts.poppins(
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: FontWeight.w500,
-                        color: const Color(0xFF333333))),
+                        color: AppPalette.textPrimary(context))),
                 Text(sub,
                     style: GoogleFonts.poppins(
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
-                        color: const Color(0xFF555555),
+                        color: Color(0xFF555555),
                         height: 1.3)),
               ],
             ),
@@ -1405,12 +1373,12 @@ class _PremiumScreenState extends State<PremiumScreen> {
           SizedBox(
               width: 52,
               child:
-                  Icon(Icons.close_rounded, size: 20, color: _crossColor)),
-          const SizedBox(width: 8),
+                  Icon(Icons.close_rounded, size: 18, color: _crossColor)),
+          SizedBox(width: 8),
           SizedBox(
               width: 72,
-              child:
-                  Icon(Icons.check_circle_rounded, size: 24, color: _checkColor)),
+              child: Icon(Icons.check_circle_rounded,
+                  size: 22, color: _checkColor)),
         ],
       ),
     );
@@ -1441,7 +1409,7 @@ class _DiscountBalloonState extends State<_DiscountBalloon>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 350),
+      duration: Duration(milliseconds: 350),
     );
     _scale = CurvedAnimation(
       parent: _controller,
@@ -1482,17 +1450,17 @@ class _DiscountBalloonState extends State<_DiscountBalloon>
                   padding: const EdgeInsets.symmetric(
                       horizontal: 20, vertical: 24),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+            color: AppPalette.card(context),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: const Color(0xFF222222),
+                      color: AppPalette.textPrimary(context),
                       width: 2,
                     ),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.15),
                         blurRadius: 24,
-                        offset: const Offset(0, 10),
+                        offset: Offset(0, 10),
                       ),
                     ],
                   ),
@@ -1503,23 +1471,23 @@ class _DiscountBalloonState extends State<_DiscountBalloon>
                         '🎉',
                         style: GoogleFonts.poppins(fontSize: 28),
                       ),
-                      const SizedBox(height: 10),
+                      SizedBox(height: 10),
                       Text(
                         localeService.tr('discount_50'),
                         textAlign: TextAlign.center,
                         style: GoogleFonts.poppins(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
-                          color: const Color(0xFFEF6C00),
+                          color: Color(0xFFEF6C00),
                           height: 1.3,
                         ),
                       ),
-                      const SizedBox(height: 14),
+                      SizedBox(height: 14),
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFF8E1),
+                          color: Color(0xFFFFF8E1),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
@@ -1528,7 +1496,7 @@ class _DiscountBalloonState extends State<_DiscountBalloon>
                           style: GoogleFonts.poppins(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
-                            color: const Color(0xFF333333),
+                            color: AppPalette.textPrimary(context),
                             height: 1.5,
                           ),
                         ),
@@ -1538,6 +1506,407 @@ class _DiscountBalloonState extends State<_DiscountBalloon>
                 ),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  _PremiumFeaturesSlider — dikey 10-madde scroll listesi.
+//  Premium ödeme sayfasında üst kısımda Expanded ile fiyat sekmelerine kadar
+//  yer kaplar. Çerçeve içinde dikey scroll; alttaki maddeler kaydırılarak
+//  görünür. Her madde bir premium avantajını "değer odaklı" anlatır.
+// ═══════════════════════════════════════════════════════════════════════════
+class _PremiumFeaturesSlider extends StatelessWidget {
+  const _PremiumFeaturesSlider();
+
+  static const _items = <_FeatureItem>[
+    _FeatureItem(
+      n: '01',
+      title: 'Dünyanın en güçlü AI modelleri tek uygulamada',
+      body:
+          'QuAlsar yanında ChatGPT-5.5, Gemini 3.1, Claude 4.7 Opus, DeepSeek-V4 Pro ve Grok 4.3 — hangisini istersen seç, sorunu o çözsün.',
+    ),
+    _FeatureItem(
+      n: '02',
+      title: 'Sana uygun çözüm modu',
+      body:
+          'İstediğin sorunun fotoğrafını çek; sade çözüm, adım adım çözüm veya AI arkadaşın sohbet havasında çözsün.',
+    ),
+    _FeatureItem(
+      n: '03',
+      title: 'Kişiselleştirilmiş konu özetleri',
+      body:
+          'İstediğin dersten istediğin konudan kendi seviyene göre özet oluştur. Özetin içinde sesli ve yazılı not oluştur.',
+    ),
+    _FeatureItem(
+      n: '04',
+      title: 'Sana özel test soruları',
+      body:
+          'İstediğin dersten istediğin konudan kendi seviyene göre test soruları oluştur.',
+    ),
+    _FeatureItem(
+      n: '05',
+      title: 'Her soruyu kalıcı öğren',
+      body:
+          'Çözdüğün her sorunun ardından 5 benzer soru, bilgi kartları ve eşleştirme kartları ile pekiştir.',
+    ),
+    _FeatureItem(
+      n: '06',
+      title: 'QuAlsar Arena: yarış ve sırala',
+      body:
+          'Şehrinde, ülkende ve dünyada kendi seviyendeki öğrencilerle 1v1 yarış. Günlük, haftalık, aylık ve genel sıralamanı gör.',
+    ),
+    _FeatureItem(
+      n: '07',
+      title: 'Hatanı anla, ezberlemeden öğren',
+      body:
+          'QuAlsar doğru cevabın yanında neyi neden yanlış yaptığını gösterir.',
+    ),
+    _FeatureItem(
+      n: '08',
+      title: 'Sesli komut + canlı kamera',
+      body:
+          'Kamerayı aç sesinle komut ver. QuAlsar anında cevap versin.',
+    ),
+    _FeatureItem(
+      n: '09',
+      title: '55 dil, 131 ülke',
+      body:
+          'Kendi dilini ve ülkeni seç — müfredat sana göre özelleşsin.',
+    ),
+    _FeatureItem(
+      n: '10',
+      title: 'Ebeveyn destek modu (isteğe bağlı)',
+      body:
+          'Sen açarsan ailen sadece çalışma süreni ve başarını görür. Detaylar gizli, kontrol sende.',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppPalette.isDark(context)
+              ? Colors.black
+              : Color(0xFFF3F4F6),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 12,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Column(
+            children: [
+              // Sabit başlık — turuncu pill, 4 köşesi yuvarlak. Çerçeve
+              // içinde "kart" gibi durur; sol üstte geri butonu overlay.
+              Padding(
+                padding:
+                    const EdgeInsets.fromLTRB(8, 8, 8, 6),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Color(0xFFFFCC80), // turuncu
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      padding:
+                          const EdgeInsets.fromLTRB(50, 12, 12, 10),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: Image.asset('assets/app_icon.png',
+                                width: 22, height: 22),
+                          ),
+                          SizedBox(width: 14),
+                          Flexible(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                'Premium Avantajları',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w800,
+                                  color: const Color(0xFF111111),
+                                  letterSpacing: -0.2,
+                                ),
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 14),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: Image.asset('assets/app_icon.png',
+                                width: 22, height: 22),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Geri butonu — sol üstte overlay
+                    Positioned(
+                      left: 6,
+                      child: Builder(
+                        builder: (ctx) => GestureDetector(
+                          onTap: () => Navigator.pop(ctx),
+                          child: Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+            color: AppPalette.card(context),
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black
+                                      .withValues(alpha: 0.08),
+                                  blurRadius: 8,
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.arrow_back_ios_rounded,
+                              size: 15,
+                              color: AppPalette.textPrimary(context),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: AppPalette.isDark(context)
+                      ? Color(0xFF2E2E2E)
+                      : Color(0xFFEEF0F3)),
+              // Dikey scroll listesi — başlık altta sabit kalır
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
+                  physics: BouncingScrollPhysics(),
+                  itemCount: _items.length,
+                  separatorBuilder: (_, __) => Divider(
+                    height: 18,
+                    thickness: 1,
+                    color: AppPalette.isDark(context)
+                        ? Color(0xFF2E2E2E)
+                        : Color(0xFFEEF0F3),
+                  ),
+                  itemBuilder: (_, i) => _PremiumRow(item: _items[i]),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FeatureItem {
+  final String n;
+  final String title;
+  final String body;
+  const _FeatureItem({
+    required this.n,
+    required this.title,
+    required this.body,
+  });
+}
+
+class _PremiumRow extends StatelessWidget {
+  final _FeatureItem item;
+  const _PremiumRow({required this.item});
+  @override
+  Widget build(BuildContext context) {
+    final dark = AppPalette.isDark(context);
+    final titleColor = dark ? Colors.white : const Color(0xFF111111);
+    final bodyColor = dark ? Colors.white : const Color(0xFF555555);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Sıra numarası — sol kenarda, turuncu
+        SizedBox(
+          width: 38,
+          child: Text(
+            item.n,
+            style: GoogleFonts.poppins(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFFE8850C),
+              height: 1.0,
+              letterSpacing: -0.4,
+            ),
+          ),
+        ),
+        SizedBox(width: 8),
+        // Başlık + açıklama
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                item.title,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: titleColor,
+                  height: 1.25,
+                  letterSpacing: -0.2,
+                ),
+              ),
+              SizedBox(height: 4),
+              Text(
+                item.body,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: bodyColor,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  _TermsSection — QuAlsar Premium Kullanım Koşulları metni.
+//  Avantajlar tablosunun altında; ortalı ana başlık + 10 alt başlık paragrafı.
+// ═══════════════════════════════════════════════════════════════════════════
+class _TermsSection extends StatelessWidget {
+  const _TermsSection();
+
+  static const _items = <(String, String)>[
+    (
+      'QuAlsar Premium Üyeliği',
+      'Premium paketimiz; sınırsız Yapay Zeka destekli arama, yüksek performanslı çözümleme algoritmaları ve tamamen reklamsız bir deneyim sunar.',
+    ),
+    (
+      'Ücretsiz Deneme Hakkı',
+      'Deneme süresi her hesap ve cihaz için bir defaya mahsus 7 gündür. Deneme süresi bitiminde, kayıtlı ödeme yönteminiz üzerinden abonelik ücreti otomatik olarak tahsil edilecektir.',
+    ),
+    (
+      'Fiyatlandırma ve KDV',
+      'Belirtilen tüm ücretlere KDV dahildir. QuAlsar, fiyatlar üzerinde önceden haber vermeksizin değişiklik yapma hakkını saklı tutar; ancak mevcut aktif aboneler, yenileme dönemlerinde kendi başlangıç fiyatlarını koruyacaklardır.',
+    ),
+    (
+      'Abonelik Süresi',
+      'Satın alınan veya yenilenen abonelikler, işlem tarihinden itibaren 30 gün boyunca geçerlidir.',
+    ),
+    (
+      'Otomatik Yenileme',
+      'Üyeliğiniz her ay otomatik olarak yenilenir. Aylık abonelik bedeli, yenileme tarihinde kayıtlı kartınızdan çekilir.',
+    ),
+    (
+      'İptal İşlemi',
+      'Üyeliğinizi dilediğiniz zaman "Menü > Aboneliğim" adımlarını takip ederek iptal edebilirsiniz. İptal durumunda mevcut süreniz dolana kadar Premium özelliklere erişiminiz devam eder ve yeni bir ücret alınmaz.',
+    ),
+    (
+      'İade Politikası',
+      'İade talepleri, ödeme yapıldıktan sonraki ilk 7 gün içinde "Bize Ulaşın" sekmesinden veya support@qualsar.com adresinden iletilebilir. İadeler, yalnızca Premium özellikler henüz kullanılmamışsa ve 7 günlük süre aşılmamışsa değerlendirmeye alınır.',
+    ),
+    (
+      'İade Yöntemi',
+      'Onaylanan iadeler, satın alma sırasında kullanılan orijinal ödeme yöntemine geri aktarılır.',
+    ),
+    (
+      'Hesap Güvenliği ve Kullanım',
+      'QuAlsar içeriğine yalnızca kendi hesabınızla giriş yaparak erişebilirsiniz. Hesapların devredilmesi, kiralanması veya üçüncü şahıslara satılması kesinlikle yasaktır.',
+    ),
+    (
+      'Telif Hakları',
+      'İçeriğin kopyalanması, dağıtılması veya izinsiz satılması gibi yetkisiz faaliyetler; hesabın kalıcı olarak askıya alınmasına ve yasal süreç başlatılmasına neden olabilir.',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+            color: AppPalette.card(context),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 12,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Ana başlık — çerçeve içinde, ortalı; "Al" hecesi kırmızı.
+            Center(
+              child: Text.rich(
+                TextSpan(
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: AppPalette.textPrimary(context),
+                    letterSpacing: -0.2,
+                  ),
+                  children: const [
+                    TextSpan(text: 'Qu'),
+                    TextSpan(
+                      text: 'Al',
+                      style: TextStyle(color: Color(0xFFE53935)),
+                    ),
+                    TextSpan(text: 'sar Premium Kullanım Koşulları'),
+                  ],
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            SizedBox(height: 14),
+            // Alt başlıklar + açıklama paragrafları
+            for (final item in _items) ...[
+              Text(
+                item.$1,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: AppPalette.textPrimary(context),
+                  letterSpacing: -0.1,
+                ),
+              ),
+              SizedBox(height: 4),
+              Text(
+                item.$2,
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w400,
+                  color: Color(0xFF555555),
+                  height: 1.5,
+                ),
+              ),
+              SizedBox(height: 12),
+            ],
           ],
         ),
       ),

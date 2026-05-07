@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/locale_service.dart';
 
+import '../theme/app_theme.dart';
 // ═══════════════════════════════════════════════════════════════════════════════
 //  CameraBottomNav — 4 sekme: Sesli Komut · Tara · Akademik · Profil
 //  Çözümlerim sekmesi Library içine taşındı; Sesli Komut placeholder olarak
@@ -52,7 +53,7 @@ class CameraBottomNav extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 28),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
+            color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(28),
         border: Border.all(
           color: Colors.black.withValues(alpha: 0.12),
@@ -62,7 +63,7 @@ class CameraBottomNav extends StatelessWidget {
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 18,
-            offset: const Offset(0, 6),
+            offset: Offset(0, 6),
           ),
         ],
       ),
@@ -100,6 +101,10 @@ class _NavButton extends StatelessWidget {
     final color = item.color;
     final locale = LocaleInherited.of(context);
     final label = locale.tr(item.labelKey);
+    // Karanlık zeminde sabit siyah idle rengi okunmuyor — temaya göre değiş.
+    final idleColor = AppPalette.isDark(context)
+        ? Colors.white.withValues(alpha: 0.55)
+        : Colors.black.withValues(alpha: 0.38);
 
     return GestureDetector(
       onTap: onTap,
@@ -111,7 +116,7 @@ class _NavButton extends StatelessWidget {
           children: [
             // İkon — seçiliyse pill arka plan
             AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
+              duration: Duration(milliseconds: 220),
               curve: Curves.easeOutCubic,
               padding: EdgeInsets.symmetric(
                 horizontal: isSelected ? 18 : 12,
@@ -126,23 +131,19 @@ class _NavButton extends StatelessWidget {
               child: Icon(
                 isSelected ? item.activeIcon : item.icon,
                 size: 22,
-                color: isSelected
-                    ? color
-                    : Colors.black.withValues(alpha: 0.38),
+                color: isSelected ? color : idleColor,
               ),
             ),
-            const SizedBox(height: 2),
+            SizedBox(height: 2),
             // Etiket — seçiliyse renkli, değilse soluk
             if (label.isNotEmpty)
               AnimatedDefaultTextStyle(
-                duration: const Duration(milliseconds: 220),
+                duration: Duration(milliseconds: 220),
                 style: TextStyle(
                   fontSize: 9,
                   fontWeight:
                       isSelected ? FontWeight.w700 : FontWeight.w400,
-                  color: isSelected
-                      ? color
-                      : Colors.black.withValues(alpha: 0.38),
+                  color: isSelected ? color : idleColor,
                   letterSpacing: 0.1,
                 ),
                 child: Text(

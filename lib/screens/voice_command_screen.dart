@@ -12,6 +12,7 @@ import '../services/usage_quota.dart';
 import '../widgets/latex_text.dart';
 import '../widgets/voice_input_button.dart';
 
+import '../theme/app_theme.dart';
 class VoiceCommandScreen extends StatefulWidget {
   const VoiceCommandScreen({super.key});
 
@@ -103,10 +104,10 @@ class _VoiceCommandScreenState extends State<VoiceCommandScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FB),
+      backgroundColor: AppPalette.bg(context),
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        backgroundColor: AppPalette.card(context),
+        foregroundColor: AppPalette.textPrimary(context),
         elevation: 0,
         title: Text(
           localeService.tr('voice_command'),
@@ -119,7 +120,7 @@ class _VoiceCommandScreenState extends State<VoiceCommandScreen> {
         actions: [
           if (_transcript.isNotEmpty || _aiAnswer != null)
             IconButton(
-              icon: const Icon(Icons.refresh_rounded),
+              icon: Icon(Icons.refresh_rounded),
               tooltip: 'Sıfırla'.tr(),
               onPressed: _reset,
             ),
@@ -135,7 +136,7 @@ class _VoiceCommandScreenState extends State<VoiceCommandScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+            color: AppPalette.card(context),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: Colors.black.withValues(alpha: 0.08),
@@ -146,7 +147,7 @@ class _VoiceCommandScreenState extends State<VoiceCommandScreen> {
                   isFinal: _transcriptFinal,
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
 
               // ── Mikrofon butonu ──────────────────────────────────────
               VoiceInputButton(
@@ -156,18 +157,18 @@ class _VoiceCommandScreenState extends State<VoiceCommandScreen> {
                 onComplete: _onComplete,
                 onError: _onError,
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               Text(
                 'Mikrofona bas, sorunu sor.\nKonuşman bittiğinde otomatik çözülecek.'
                     .tr(),
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
                   fontSize: 11,
-                  color: Colors.black54,
+                  color: AppPalette.textSecondary(context),
                   height: 1.4,
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
 
               // ── AI cevabı / hata / loading ────────────────────────────
               Expanded(
@@ -187,17 +188,17 @@ class _VoiceCommandScreenState extends State<VoiceCommandScreen> {
       return Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: const Color(0xFFFEF3C7),
+          color: Color(0xFFFEF3C7),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Row(
           children: [
-            const SizedBox(
+            SizedBox(
               width: 18,
               height: 18,
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
-            const SizedBox(width: 14),
+            SizedBox(width: 14),
             Expanded(
               child: Text(
                 'AI çözüm üretiyor…'.tr(),
@@ -215,16 +216,16 @@ class _VoiceCommandScreenState extends State<VoiceCommandScreen> {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFFFEE2E2),
+          color: Color(0xFFFEE2E2),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFEF4444)),
+          border: Border.all(color: Color(0xFFEF4444)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.error_outline_rounded,
+            Icon(Icons.error_outline_rounded,
                 color: Color(0xFFEF4444)),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(
               child: Text(
                 _error!.userMessage,
@@ -240,7 +241,7 @@ class _VoiceCommandScreenState extends State<VoiceCommandScreen> {
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+            color: AppPalette.card(context),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: Colors.black.withValues(alpha: 0.08)),
         ),
@@ -253,7 +254,7 @@ class _VoiceCommandScreenState extends State<VoiceCommandScreen> {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
+                    gradient: LinearGradient(
                       colors: [Color(0xFF7C3AED), Color(0xFF2563EB)],
                     ),
                     borderRadius: BorderRadius.circular(100),
@@ -267,12 +268,12 @@ class _VoiceCommandScreenState extends State<VoiceCommandScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                const Icon(Icons.check_circle_rounded,
+                SizedBox(width: 8),
+                Icon(Icons.check_circle_rounded,
                     color: Color(0xFF22C55E), size: 16),
               ],
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             LatexText(_aiAnswer!, fontSize: 14, lineHeight: 1.6),
           ],
         ),

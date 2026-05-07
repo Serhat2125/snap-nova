@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
 // ═══════════════════════════════════════════════════════════════════════════════
 //  QuAlsarNumericLoader — Sayısal (Matematik / Fizik / Kimya) soru yükleme
 //  animasyonu. HTML referansından birebir Flutter'a port edilmiştir.
@@ -86,33 +87,53 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
   int _dots = 0;
   Timer? _dotTimer;
 
+  // Tip kartları — alt kısımda dönen "Biliyor muydunuz?" kartları
+  int _tipIdx = 0;
+  Timer? _tipTimer;
+
+  // Uzun süreli istek için "lütfen ayrılmayın" göstergesi
+  bool _longRunning = false;
+  Timer? _longRunningTimer;
+
+  static const _tips = [
+    'Biliyor muydunuz? Düzenli özet çıkarmak, öğrenmeyi %30 hızlandırır.',
+    'Biliyor muydunuz? 25 dakikalık odak + 5 dakikalık mola en verimli ritimdir.',
+    'Anahtar kavramları farklı renklerle vurgulamak hatırlamayı güçlendirir.',
+    'Bir konuyu kendi cümlelerinizle özetlemek, ezberden 3 kat etkilidir.',
+    'Etik değerler, toplumsal huzurun temelidir — Sokrates.',
+    'Öğrenmek, beynin yeni nöral bağlantılar kurmasıdır.',
+    'Kendi kendine sınav yapmak, en güçlü öğrenme tekniklerinden biridir.',
+    'Uyku, öğrenilen bilginin kalıcılığa geçtiği süreçtir.',
+    'Karmaşık konularda küçük zaferler kutlamak motivasyonu artırır.',
+  ];
+
   @override
   void initState() {
     super.initState();
     _orbit1 = AnimationController(
-        vsync: this, duration: const Duration(seconds: 2))
+        vsync: this, duration: Duration(seconds: 2))
       ..repeat();
     _orbit2 = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 1500))
+        vsync: this, duration: Duration(milliseconds: 1500))
       ..repeat();
     _orbit3 = AnimationController(
-        vsync: this, duration: const Duration(seconds: 1))
+        vsync: this, duration: Duration(seconds: 1))
       ..repeat();
     _glowCtrl = AnimationController(
-        vsync: this, duration: const Duration(seconds: 2))
+        vsync: this, duration: Duration(seconds: 2))
       ..repeat(reverse: true);
     _ticker = AnimationController(
-        vsync: this, duration: const Duration(seconds: 2))
+        vsync: this, duration: Duration(seconds: 2))
       ..repeat();
 
     // Sembol doğum (80 ms aralık)
-    _spawnTimer = Timer.periodic(const Duration(milliseconds: 80), (_) {
+    _spawnTimer = Timer.periodic(Duration(milliseconds: 80), (_) {
       if (!mounted) return;
       _spawnSymbol();
     });
 
     // Merkez sembol (180 ms aralık)
-    _centerTimer = Timer.periodic(const Duration(milliseconds: 180), (_) {
+    _centerTimer = Timer.periodic(Duration(milliseconds: 180), (_) {
       if (!mounted) return;
       setState(() {
         _centerIdx = (_centerIdx + 1) % _centerPool.length;
@@ -122,7 +143,7 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
     // 3 sn sonra ikincil metne geç — sadece staticLabel false ve stages
     // verilmediğinde (stages varken bu mod yok sayılır).
     if (!widget.staticLabel && widget.stages == null) {
-      _stageTimer = Timer(const Duration(seconds: 3), () {
+      _stageTimer = Timer(Duration(seconds: 3), () {
         if (!mounted) return;
         setState(() => _solving = true);
       });
@@ -141,11 +162,23 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
     }
 
     // Nokta animasyonu (300 ms aralık)
-    _dotTimer = Timer.periodic(const Duration(milliseconds: 300), (_) {
+    _dotTimer = Timer.periodic(Duration(milliseconds: 300), (_) {
       if (!mounted) return;
       setState(() {
         _dots = (_dots + 1) % 4;
       });
+    });
+
+    // Tip kartları — her 5 saniyede yeni "Biliyor muydunuz?" göster.
+    _tipTimer = Timer.periodic(Duration(seconds: 5), (_) {
+      if (!mounted) return;
+      setState(() => _tipIdx = (_tipIdx + 1) % _tips.length);
+    });
+
+    // 20 saniye sonra "lütfen ayrılmayın" mesajı.
+    _longRunningTimer = Timer(Duration(seconds: 20), () {
+      if (!mounted) return;
+      setState(() => _longRunning = true);
     });
   }
 
@@ -156,6 +189,8 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
     _stageTimer?.cancel();
     _stageRevealTimer?.cancel();
     _dotTimer?.cancel();
+    _tipTimer?.cancel();
+    _longRunningTimer?.cancel();
     _orbit1.dispose();
     _orbit2.dispose();
     _orbit3.dispose();
@@ -201,27 +236,58 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
 
   @override
   Widget build(BuildContext context) {
-    // Arka plan saf beyaz. Dönen disk ekranın tam ortasında, QuAlsar logosu
-    // biraz daha aşağıda (önceki üst SafeArea 72 → şimdi ~%20 aşağı).
-    return Container(
-      color: Colors.white,
+    // Arka plan saf beyaz.
+    // STAGES modu: tek Column içinde dikey akış (logo → disk → metinler →
+    // motivasyon). Sabit gap'lerle birbirine yakın, ekran yüksekliği değişse
+    // bile tutarlı. Alt çerçeveli kart kaldırıldı.
+    // KLASIK mod (stages yok): eski Align temelli yerleşim korunur.
+    final bool stagesMode =
+        widget.stages != null && widget.stages!.isNotEmpty;
+    if (stagesMode) {
+      return Container(color: AppPalette.card(context),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 64, 16, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Center(child: _buildLogo()),
+                  SizedBox(height: 56),
+                  Center(child: _buildLoader()),
+                  SizedBox(height: 22),
+                  _buildStageText(),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    return Container(color: AppPalette.card(context),
       child: SafeArea(
         child: Stack(
           children: [
             // QuAlsar logosu — ekranın üst kısmında
             Align(
-              alignment: const Alignment(0, -0.85),
+              alignment: Alignment(0, -0.85),
               child: _buildLogo(),
             ),
-            // Dönen disk — merkezin biraz üstünde
+            // Dönen disk — biraz daha yukarı (eskiden -0.18 → -0.38)
             Align(
-              alignment: const Alignment(0, -0.18),
+              alignment: Alignment(0, -0.38),
               child: _buildLoader(),
             ),
-            // Durum metni — spinner'ın altında
+            // Durum metni — disk altı
             Align(
-              alignment: const Alignment(0, 0.28),
+              alignment: Alignment(0, 0.10),
               child: _buildStageText(),
+            ),
+            // Tip kartı + uzun-süre mesajı (klasik mod için tutuluyor)
+            Align(
+              alignment: Alignment(0, 0.78),
+              child: _buildBottomInfo(),
             ),
           ],
         ),
@@ -236,28 +302,31 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
       builder: (_, __) {
         final t = _glowCtrl.value; // 0..1
         final whiteGlow = 15.0 + 10.0 * t;
+        // Karanlık modda "Qu" ve "sar" beyaz, aydınlıkta siyah; "Al" her
+        // zaman canlı kırmızı (marka kimliği).
+        final dark = AppPalette.isDark(context);
+        final letterColor = dark ? Colors.white : Colors.black;
+        final glowColor = dark
+            ? Colors.white.withValues(alpha: 0.18 + 0.15 * t)
+            : Colors.black.withValues(alpha: 0.15 + 0.15 * t);
         return Text.rich(
           TextSpan(
             children: [
               TextSpan(
                 text: 'Qu',
-                style: _logoStyle(Colors.black, [
-                  Shadow(
-                      color: Colors.black.withValues(alpha: 0.15 + 0.15 * t),
-                      blurRadius: whiteGlow),
+                style: _logoStyle(letterColor, [
+                  Shadow(color: glowColor, blurRadius: whiteGlow),
                 ]),
               ),
               TextSpan(
                 text: 'Al',
-                // "Al" net — hiç blur yok, sadece saf kırmızı
+                // "Al" net — hiç blur yok, sadece saf kırmızı (marka)
                 style: _logoStyle(const Color(0xFFFF0000), const []),
               ),
               TextSpan(
                 text: 'sar',
-                style: _logoStyle(Colors.black, [
-                  Shadow(
-                      color: Colors.black.withValues(alpha: 0.15 + 0.15 * t),
-                      blurRadius: whiteGlow),
+                style: _logoStyle(letterColor, [
+                  Shadow(color: glowColor, blurRadius: whiteGlow),
                 ]),
               ),
             ],
@@ -285,12 +354,12 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
       height: disc,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: const Color(0xFF0E0E10),
+        color: AppPalette.textPrimary(context),
         boxShadow: [
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.25),
               blurRadius: 28,
-              offset: const Offset(0, 8)),
+              offset: Offset(0, 8)),
         ],
       ),
       child: Stack(
@@ -345,7 +414,7 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
             turns: _orbit1,
             child: _OrbitRing(
               size: disc,
-              color: const Color(0xFFFF3366),
+              color: Color(0xFFFF3366),
               sides: const [_Side.top, _Side.right],
               dotAlign: Alignment.topCenter,
             ),
@@ -355,7 +424,7 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
             turns: ReverseAnimation(_orbit2),
             child: _OrbitRing(
               size: 145,
-              color: const Color(0xFF00FFFF),
+              color: Color(0xFF00FFFF),
               sides: const [_Side.top, _Side.left],
               dotAlign: Alignment.centerRight,
             ),
@@ -365,7 +434,7 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
             turns: _orbit3,
             child: _OrbitRing(
               size: 88,
-              color: const Color(0xFFFF00FF),
+              color: Color(0xFFFF00FF),
               sides: const [_Side.top, _Side.bottom],
               dotAlign: Alignment.bottomCenter,
             ),
@@ -381,7 +450,7 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
     final sym = _centerPool[_centerIdx];
     final isLong = sym.length > 3;
     return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 140),
+      duration: Duration(milliseconds: 140),
       child: SizedBox(
         key: ValueKey(_centerIdx),
         width: 50,
@@ -392,7 +461,7 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
             style: TextStyle(
               fontSize: isLong ? 16 : 28,
               fontWeight: FontWeight.bold,
-              color: const Color(0xFF00FFFF),
+              color: Color(0xFF00FFFF),
               shadows: const [
                 Shadow(color: Color(0xFF00FFFF), blurRadius: 20),
               ],
@@ -414,14 +483,14 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
     final primary = widget.primaryText ?? 'Sorunuz Analiz Ediliyor';
     final secondary = widget.secondaryText ?? 'Sorunuz Çözülüyor';
     final label = (widget.staticLabel || !_solving) ? primary : secondary;
-    const textStyle = TextStyle(
-      color: Colors.black,
+    final textStyle = TextStyle(
+      color: AppPalette.textPrimary(context),
       fontSize: 15,
       letterSpacing: 1.2,
       fontWeight: FontWeight.w700,
     );
     return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 320),
+      duration: Duration(milliseconds: 320),
       transitionBuilder: (child, anim) =>
           FadeTransition(opacity: anim, child: child),
       child: Row(
@@ -445,33 +514,35 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
   Widget _buildStagesColumn() {
     final stages = widget.stages!;
     final dotStr = '.' * _dots;
-    const activeStyle = TextStyle(
-      color: Colors.black,
+    final activeStyle = TextStyle(
+      color: AppPalette.textPrimary(context),
       fontSize: 14,
       fontWeight: FontWeight.w800,
       height: 1.25,
     );
-    const doneStyle = TextStyle(
-      color: Colors.black54,
+    final doneStyle = TextStyle(
+      color: AppPalette.textSecondary(context),
       fontSize: 13,
       fontWeight: FontWeight.w600,
       height: 1.25,
     );
+    // Dış Column zaten 16 yatay padding veriyor; burada ekstra 8 yeter
+    // (toplam 24). Stages metinleri uzunsa Flexible Text alıp wrap eder.
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           for (int i = 0; i <= _stageIdx && i < stages.length; i++) ...[
-            if (i > 0) const SizedBox(height: 6),
+            if (i > 0) SizedBox(height: 8),
             AnimatedSwitcher(
-              duration: const Duration(milliseconds: 280),
+              duration: Duration(milliseconds: 280),
               transitionBuilder: (child, anim) => FadeTransition(
                 opacity: anim,
                 child: SlideTransition(
                   position: Tween<Offset>(
-                    begin: const Offset(0, 0.2),
+                    begin: Offset(0, 0.2),
                     end: Offset.zero,
                   ).animate(anim),
                   child: child,
@@ -482,10 +553,18 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (i < _stageIdx)
-                    const Icon(
-                      Icons.check_circle_rounded,
-                      size: 14,
-                      color: Color(0xFF10B981),
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0.4, end: 1.0),
+                      duration: Duration(milliseconds: 380),
+                      curve: Curves.easeOutBack,
+                      builder: (_, v, __) => Transform.scale(
+                        scale: v,
+                        child: Icon(
+                          Icons.check_circle_rounded,
+                          size: 14,
+                          color: Color(0xFF2563EB),
+                        ),
+                      ),
                     )
                   else
                     SizedBox(
@@ -495,14 +574,14 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
                         child: Container(
                           width: 6,
                           height: 6,
-                          decoration: const BoxDecoration(
+                          decoration: BoxDecoration(
                             color: Color(0xFFC8102E),
                             shape: BoxShape.circle,
                           ),
                         ),
                       ),
                     ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Flexible(
                     child: Text(
                       stages[i],
@@ -522,6 +601,99 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  /// Alt bilgi: rotasyonel "Biliyor muydunuz?" kartı + 20sn'den sonra
+  /// "lütfen ayrılmayın" uyarısı.
+  Widget _buildBottomInfo() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_longRunning) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Color(0xFFFFF7ED),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: Color(0xFFFB923C).withValues(alpha: 0.45),
+                  width: 0.8,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.access_time_rounded,
+                      size: 13, color: Color(0xFFFB923C)),
+                  SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      'İşlem normalden uzun sürüyor, lütfen ayrılmayın.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF9A3412),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 8),
+          ],
+          AnimatedSwitcher(
+            duration: Duration(milliseconds: 320),
+            transitionBuilder: (child, anim) => FadeTransition(
+              opacity: anim,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: Offset(0, 0.15),
+                  end: Offset.zero,
+                ).animate(anim),
+                child: child,
+              ),
+            ),
+            child: Container(
+              key: ValueKey('tip_$_tipIdx'),
+              constraints: BoxConstraints(maxWidth: 320),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: Color(0xFFF5F3FF),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Color(0xFF7C3AED).withValues(alpha: 0.20),
+                  width: 0.6,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.lightbulb_rounded,
+                      size: 14, color: Color(0xFF7C3AED)),
+                  SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      _tips[_tipIdx],
+                      textAlign: TextAlign.start,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        height: 1.4,
+                        color: Color(0xFF1F1F2E),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -652,12 +824,12 @@ class QuAlsarStaticBadge extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: const Color(0xFF0E0E10),
+        color: AppPalette.textPrimary(context),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.25),
             blurRadius: 12,
-            offset: const Offset(0, 3),
+            offset: Offset(0, 3),
           ),
         ],
       ),
@@ -669,7 +841,7 @@ class QuAlsarStaticBadge extends StatelessWidget {
             style: TextStyle(
               fontSize: size * 0.32,
               fontWeight: FontWeight.bold,
-              color: const Color(0xFF00FFFF),
+              color: Color(0xFF00FFFF),
               shadows: const [
                 Shadow(color: Color(0xFF00FFFF), blurRadius: 8),
               ],
@@ -829,6 +1001,14 @@ const List<String> _centerSymbols = [
 // ═════════════════════════════════════════════════════════════════════════════
 
 const List<String> _verbalStreamChars = [
+  // İkonografik sözel semboller — açık kitap, kalem, dünya, sütun vb.
+  // Akışta sık çıksın diye birden fazla geçer; logoyu kapatmasınlar diye
+  // yumuşak boyutta render edilirler (zaten size çok küçük).
+  '📖','📖','📖','📚','📚','📜','📜',
+  '🖋️','🖋️','✍️','✍️','✒️','🪶',
+  '🌍','🌍','🌐','🌐','🗺️','🗺️',
+  '🏛️','🏛️','🏺','🎭','🎼','🎶',
+  '⚖️','🪔','🕯️','🗝️',
   // Türk alfabesi (büyük)
   'A','B','C','Ç','D','E','F','G','Ğ','H','I','İ','J','K','L',
   'M','N','O','Ö','P','R','S','Ş','T','U','Ü','V','Y','Z',
@@ -862,11 +1042,13 @@ const List<String> _verbalStreamChars = [
 ];
 
 const List<String> _verbalCenterSymbols = [
+  // Merkezde dönen sembol — sözel ikonlar başta gelir.
+  '📖','📚','🖋️','✍️','✒️','🪶',
+  '🌍','🌐','🗺️','🏛️','🏺','🎭',
   'A','B','Ç','E','İ','M','N','S','Z',
   '«','»','…','¶','§',
   'Şiir','Tarih','Roman','Kıta','Çağ','Fiil','Dize',
   'The','Le','Der','Я',
   '1453','1923','M.Ö.',
-  '✍️','📜','📖','🗺️',
 ];
 

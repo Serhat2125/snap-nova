@@ -1,3 +1,5 @@
+// ignore_for_file: unused_element
+
 import '../services/runtime_translator.dart';
 import 'dart:io';
 import 'dart:math';
@@ -11,8 +13,10 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/locale_service.dart';
+import '../theme/app_theme.dart';
 import '../main.dart' show themeService, localeService;
 import 'premium_screen.dart';
+import 'academic_planner.dart' show askParentGate, ParentReportPage;
 
 // ── Kullanıcı ID yardımcısı (ilk açılışta üret, kalıcı sakla) ──────────────
 Future<String> loadOrCreateUserId() async {
@@ -102,13 +106,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final tr = locale.tr;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F5),
+      backgroundColor: AppPalette.bg(context),
       body: SafeArea(
         child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
+          physics: BouncingScrollPhysics(),
           child: Column(
             children: [
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
 
               // ═════════════════════════════════════════════════════════════
               //  1. Profil Üst Bilgisi (Header) — Tıklanabilir Avatar
@@ -123,7 +127,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         await Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const ProfileEditPage(),
+                            builder: (_) => ProfileEditPage(),
                           ),
                         );
                         await _loadProfile();
@@ -140,7 +144,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 height: 80,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  gradient: const LinearGradient(
+                                  gradient: LinearGradient(
                                     colors: [
                                       Color(0xFF00E5FF),
                                       Color(0xFF6B21F2)
@@ -150,7 +154,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: const Color(0xFF00E5FF)
+                                      color: Color(0xFF00E5FF)
                                           .withValues(alpha: 0.3),
                                       blurRadius: 20,
                                       spreadRadius: 2,
@@ -165,11 +169,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                             FileImage(File(_profileImagePath!)),
                                       )
                                     : Container(
-                                        decoration: const BoxDecoration(
-                                          color: Colors.white,
+                                        decoration: BoxDecoration(
+            color: AppPalette.card(context),
                                           shape: BoxShape.circle,
                                         ),
-                                        child: const Icon(
+                                        child: Icon(
                                           Icons.person_rounded,
                                           size: 40,
                                           color: Color(0xFF00C2D4),
@@ -185,22 +189,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 width: 26,
                                 height: 26,
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
+            color: AppPalette.card(context),
                                   shape: BoxShape.circle,
                                   boxShadow: [
                                     BoxShadow(
                                       color: Colors.black.withValues(alpha: 0.12),
                                       blurRadius: 6,
-                                      offset: const Offset(0, 2),
+                                      offset: Offset(0, 2),
                                     ),
                                   ],
                                   border: Border.all(
-                                    color: const Color(0xFF00E5FF)
+                                    color: Color(0xFF00E5FF)
                                         .withValues(alpha: 0.4),
                                     width: 1.5,
                                   ),
                                 ),
-                                child: const Icon(
+                                child: Icon(
                                   Icons.edit_rounded,
                                   size: 14,
                                   color: Color(0xFF00C2D4),
@@ -211,25 +215,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     // İsim — controller'dan okur, boşsa placeholder
                     Text(
                       _nameCtrl.text.isEmpty ? tr('username') : _nameCtrl.text,
                       style: GoogleFonts.poppins(
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
-                        color: const Color(0xFF333333),
+                        color: AppPalette.textPrimary(context),
                         letterSpacing: -0.5,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12),
                     // Premium'a Yükselt — animasyonlu shimmer + büyük vurgulu
                     _PremiumBanner(
                       onTap: () {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const PremiumScreen(),
+                            builder: (_) => PremiumScreen(),
                           ),
                         );
                       },
@@ -238,7 +242,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
 
-              const SizedBox(height: 24),
+              SizedBox(height: 24),
 
               // ═════════════════════════════════════════════════════════════
               //  2. Davet
@@ -251,7 +255,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const InvitePage(),
+                        builder: (_) => InvitePage(),
                       ),
                     );
                   },
@@ -259,21 +263,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
+                      gradient: LinearGradient(
                         colors: [Color(0xFFFF9A4D), Color(0xFFFF6A00)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
                       borderRadius: BorderRadius.circular(22),
                       border: Border.all(
-                        color: const Color(0xFFFFD9B8),
+                        color: Color(0xFFFFD9B8),
                         width: 2,
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFFFF6A00).withValues(alpha: 0.28),
+                          color: Color(0xFFFF6A00).withValues(alpha: 0.28),
                           blurRadius: 18,
-                          offset: const Offset(0, 6),
+                          offset: Offset(0, 6),
                         ),
                       ],
                     ),
@@ -315,7 +319,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               child: Text('🎁'.tr(),
                                   style: TextStyle(fontSize: 26)),
                             ),
-                            const SizedBox(width: 14),
+                            SizedBox(width: 14),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -325,24 +329,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     style: GoogleFonts.poppins(
                                       fontSize: 15,
                                       fontWeight: FontWeight.w800,
-                                      color: Colors.black,
+                                      color: AppPalette.textPrimary(context),
                                       letterSpacing: 0.2,
                                     ),
                                   ),
-                                  const SizedBox(height: 4),
+                                  SizedBox(height: 4),
                                   Text(
                                     localeService.tr('invite_card_subtitle'),
                                     style: GoogleFonts.poppins(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w600,
-                                      color: Colors.black,
+                                      color: AppPalette.textPrimary(context),
                                       height: 1.35,
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                            const SizedBox(width: 8),
+                            SizedBox(width: 8),
                             Icon(
                               Icons.arrow_forward_ios_rounded,
                               size: 16,
@@ -356,7 +360,114 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
 
-              const SizedBox(height: 24),
+              SizedBox(height: 12),
+
+              // ═════════════════════════════════════════════════════════════
+              //  Ebeveyn Paneli — Davet kartının hemen altında.
+              //  PIN/matematik doğrulamasından sonra ParentReportPage açılır.
+              // ═════════════════════════════════════════════════════════════
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: GestureDetector(
+                  onTap: () async {
+                    final nav = Navigator.of(context);
+                    final ok = await askParentGate(context);
+                    if (!ok || !mounted) return;
+                    nav.push(MaterialPageRoute(
+                      builder: (_) => const ParentReportPage(),
+                    ));
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+                    decoration: BoxDecoration(
+                      color: AppPalette.card(context),
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                        color: Color(0xFF1E3A8A).withValues(alpha: 0.30),
+                        width: 1.2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 12,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            color: Color(0xFF1E3A8A).withValues(alpha: 0.08),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Color(0xFF1E3A8A).withValues(alpha: 0.30),
+                              width: 1.2,
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: ShaderMask(
+                            blendMode: BlendMode.srcIn,
+                            shaderCallback: (rect) => LinearGradient(
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
+                              colors: [
+                                Color(0xFFEF4444),
+                                Color(0xFFFBBF24),
+                                Color(0xFF10B981),
+                                Color(0xFF2563EB),
+                              ],
+                            ).createShader(rect),
+                            child: Icon(
+                              Icons.family_restroom_rounded,
+                              size: 28,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Ebeveyn Paneli'.tr(),
+                                style: GoogleFonts.poppins(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppPalette.textPrimary(context),
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'Çocuğunun çalışma raporunu gör'.tr(),
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppPalette.textSecondary(context),
+                                  height: 1.35,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 16,
+                          color: AppPalette.textSecondary(context),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              SizedBox(height: 24),
 
               // ═════════════════════════════════════════════════════════════
               //  3. Uygulama Tercihleri
@@ -368,7 +479,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 trailing: _buildCurrentLanguageChip(locale),
                 onTap: () => _showLanguageBottomSheet(context),
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               _buildOvalMenuItem(
                 emoji: '🌗',
                 title: tr('appearance'),
@@ -376,7 +487,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onTap: () => _showThemeBottomSheet(context),
               ),
 
-              const SizedBox(height: 24),
+              SizedBox(height: 24),
 
               // ═════════════════════════════════════════════════════════════
               //  4. Destek ve İletişim
@@ -387,14 +498,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 title: tr('send_feedback'),
                 onTap: () => _showFeedbackBottomSheet(context),
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               _buildOvalMenuItem(
                 emoji: '✉️',
                 title: tr('contact_us'),
                 onTap: () => _showContactBottomSheet(context),
               ),
 
-              const SizedBox(height: 24),
+              SizedBox(height: 24),
 
               // ═════════════════════════════════════════════════════════════
               //  4. Bilgi
@@ -405,14 +516,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 title: tr('about_us'),
                 onTap: () => _showAboutDialog(),
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               _buildOvalMenuItem(
                 emoji: '📄',
                 title: tr('terms_privacy'),
                 onTap: () => _showTermsPrivacySheet(context),
               ),
 
-              const SizedBox(height: 32),
+              SizedBox(height: 32),
 
               // ═════════════════════════════════════════════════════════════
               //  5. Oturumu Kapat
@@ -426,13 +537,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     padding: const EdgeInsets.symmetric(
                         vertical: 14, horizontal: 20),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: AppPalette.card(context),
                       borderRadius: BorderRadius.circular(50),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.06),
+                          color: AppPalette.shadow(context),
                           blurRadius: 8,
-                          offset: const Offset(0, 2),
+                          offset: Offset(0, 2),
                         ),
                       ],
                     ),
@@ -440,11 +551,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text('🚪'.tr(), style: TextStyle(fontSize: 20)),
-                        const SizedBox(width: 12),
+                        SizedBox(width: 12),
                         Text(
                           tr('logout'),
                           style: GoogleFonts.poppins(
-                            color: const Color(0xFFEF4444),
+                            color: Color(0xFFEF4444),
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
                           ),
@@ -455,7 +566,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
 
-              const SizedBox(height: 32),
+              SizedBox(height: 32),
             ],
           ),
         ),
@@ -477,7 +588,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           style: GoogleFonts.poppins(
             fontSize: 13,
             fontWeight: FontWeight.w800,
-            color: const Color(0xFF6B7280),
+            color: AppPalette.textSecondary(context),
             letterSpacing: 0.5,
           ),
         ),
@@ -496,39 +607,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: GestureDetector(
         onTap: onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
+          duration: Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppPalette.card(context),
             borderRadius: BorderRadius.circular(50),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
+                color: AppPalette.shadow(context),
                 blurRadius: 8,
-                offset: const Offset(0, 2),
+                offset: Offset(0, 2),
               ),
             ],
           ),
           child: Row(
             children: [
-              Text(emoji, style: const TextStyle(fontSize: 24)),
-              const SizedBox(width: 16),
+              Text(emoji, style: TextStyle(fontSize: 24)),
+              SizedBox(width: 16),
               Expanded(
                 child: Text(
                   title,
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFF333333),
+                    color: AppPalette.textPrimary(context),
                   ),
                 ),
               ),
               if (trailing != null)
                 trailing
               else
-                const Icon(
+                Icon(
                   Icons.chevron_right_rounded,
-                  color: Color(0xFF9CA3AF),
+                  color: AppPalette.textSecondary(context),
                   size: 24,
                 ),
             ],
@@ -542,7 +653,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   //  1) Profil Bottom Sheet — Düzenlenebilir Alanlar + Şifre + Kaydet
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // ignore: unused_element
   void _showProfileBottomSheet(BuildContext context) {
     final locale = LocaleInherited.of(context);
 
@@ -560,15 +670,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             child: Container(
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 28),
-              decoration: const BoxDecoration(
-                color: Colors.white,
+              decoration: BoxDecoration(
+            color: AppPalette.card(context),
                 borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(24),
                   topRight: Radius.circular(24),
                 ),
               ),
               child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
+                physics: BouncingScrollPhysics(),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -577,11 +687,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       width: 40,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFD1D5DB),
+                        color: AppPalette.border(context),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20),
 
                     // Mini avatar (tıklanabilir — galeri)
                     GestureDetector(
@@ -596,12 +706,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             height: 72,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              gradient: const LinearGradient(
+                              gradient: LinearGradient(
                                 colors: [Color(0xFF00E5FF), Color(0xFF6B21F2)],
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFF00E5FF).withValues(alpha: 0.25),
+                                  color: Color(0xFF00E5FF).withValues(alpha: 0.25),
                                   blurRadius: 16,
                                 ),
                               ],
@@ -614,11 +724,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                         FileImage(File(_profileImagePath!)),
                                   )
                                 : Container(
-                                    decoration: const BoxDecoration(
-                                      color: Colors.white,
+                                    decoration: BoxDecoration(
+            color: AppPalette.card(context),
                                       shape: BoxShape.circle,
                                     ),
-                                    child: const Icon(Icons.person_rounded,
+                                    child: Icon(Icons.person_rounded,
                                         size: 36, color: Color(0xFF00C2D4)),
                                   ),
                           ),
@@ -629,18 +739,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               width: 24,
                               height: 24,
                               decoration: BoxDecoration(
-                                color: const Color(0xFF00E5FF),
+                                color: Color(0xFF00E5FF),
                                 shape: BoxShape.circle,
                                 border: Border.all(color: Colors.white, width: 2),
                               ),
-                              child: const Icon(Icons.camera_alt_rounded,
+                              child: Icon(Icons.camera_alt_rounded,
                                   size: 12, color: Colors.white),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20),
 
                     // Ad Soyad
                     _editableField(
@@ -648,7 +758,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       icon: Icons.person_outline_rounded,
                       label: locale.tr('full_name'),
                     ),
-                    const SizedBox(height: 10),
+                    SizedBox(height: 10),
 
                     // E-posta
                     _editableField(
@@ -657,7 +767,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       label: locale.tr('email'),
                       keyboardType: TextInputType.emailAddress,
                     ),
-                    const SizedBox(height: 10),
+                    SizedBox(height: 10),
 
                     // Üyeliğim
                     _editableField(
@@ -667,7 +777,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       readOnly: true,
                     ),
 
-                    const SizedBox(height: 18),
+                    SizedBox(height: 18),
 
                     // Şifre Değiştir
                     GestureDetector(
@@ -679,24 +789,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF3B82F6).withValues(alpha: 0.08),
+                          color: Color(0xFF3B82F6).withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(50),
                           border: Border.all(
-                            color: const Color(0xFF3B82F6).withValues(alpha: 0.3),
+                            color: Color(0xFF3B82F6).withValues(alpha: 0.3),
                           ),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.lock_outline_rounded,
+                            Icon(Icons.lock_outline_rounded,
                                 color: Color(0xFF3B82F6), size: 18),
-                            const SizedBox(width: 8),
+                            SizedBox(width: 8),
                             Text(
                               locale.tr('change_password'),
                               style: GoogleFonts.poppins(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
-                                color: const Color(0xFF3B82F6),
+                                color: Color(0xFF3B82F6),
                               ),
                             ),
                           ],
@@ -704,7 +814,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
 
-                    const SizedBox(height: 10),
+                    SizedBox(height: 10),
 
                     // Kaydet butonu
                     GestureDetector(
@@ -720,13 +830,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
+                          gradient: LinearGradient(
                             colors: [Color(0xFF00E5FF), Color(0xFF6B21F2)],
                           ),
                           borderRadius: BorderRadius.circular(50),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF00E5FF).withValues(alpha: 0.25),
+                              color: Color(0xFF00E5FF).withValues(alpha: 0.25),
                               blurRadius: 12,
                             ),
                           ],
@@ -734,9 +844,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.save_rounded,
+                            Icon(Icons.save_rounded,
                                 color: Colors.white, size: 18),
-                            const SizedBox(width: 8),
+                            SizedBox(width: 8),
                             Text(
                               locale.tr('save'),
                               style: GoogleFonts.poppins(
@@ -769,14 +879,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFFF7F8FA),
+        color: Color(0xFFF7F8FA),
         borderRadius: BorderRadius.circular(50),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: AppPalette.border(context)),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: const Color(0xFF9CA3AF)),
-          const SizedBox(width: 12),
+          Icon(icon, size: 20, color: AppPalette.textSecondary(context)),
+          SizedBox(width: 12),
           Expanded(
             child: TextField(
               controller: controller,
@@ -786,8 +896,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: readOnly
-                    ? const Color(0xFFF59E0B)
-                    : const Color(0xFF333333),
+                    ? Color(0xFFF59E0B)
+                    : Color(0xFF333333),
               ),
               decoration: InputDecoration(
                 border: InputBorder.none,
@@ -796,7 +906,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 hintText: label,
                 hintStyle: GoogleFonts.poppins(
                   fontSize: 13,
-                  color: const Color(0xFFBBBBCC),
+                  color: Color(0xFFBBBBCC),
                   fontWeight: FontWeight.w400,
                 ),
               ),
@@ -832,8 +942,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             child: Container(
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 28),
-              decoration: const BoxDecoration(
-                color: Colors.white,
+              decoration: BoxDecoration(
+            color: AppPalette.card(context),
                 borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(24),
                   topRight: Radius.circular(24),
@@ -842,7 +952,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Form(
                 key: formKey,
                 child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
+                  physics: BouncingScrollPhysics(),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -851,7 +961,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         width: 40,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFD1D5DB),
+                          color: AppPalette.border(context),
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
@@ -860,20 +970,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: Row(
                           children: [
                             Text('🔒'.tr(), style: TextStyle(fontSize: 22)),
-                            const SizedBox(width: 10),
+                            SizedBox(width: 10),
                             Text(
                               locale.tr('change_password'),
                               style: GoogleFonts.poppins(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w800,
-                                color: const Color(0xFF333333),
+                                color: AppPalette.textPrimary(context),
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const Divider(height: 1, color: Color(0xFFE5E7EB)),
-                      const SizedBox(height: 16),
+                      Divider(height: 1, color: AppPalette.border(context)),
+                      SizedBox(height: 16),
 
                       // Eski Şifre
                       _passwordField(
@@ -886,7 +996,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           return null;
                         },
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
 
                       // Yeni Şifre
                       _passwordField(
@@ -903,7 +1013,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           return null;
                         },
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
 
                       // Yeni Şifre Tekrar
                       _passwordField(
@@ -919,7 +1029,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           return null;
                         },
                       ),
-                      const SizedBox(height: 20),
+                      SizedBox(height: 20),
 
                       // Şifreyi Güncelle butonu
                       GestureDetector(
@@ -933,13 +1043,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
+                            gradient: LinearGradient(
                               colors: [Color(0xFF3B82F6), Color(0xFF6B21F2)],
                             ),
                             borderRadius: BorderRadius.circular(50),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF3B82F6).withValues(alpha: 0.25),
+                                color: Color(0xFF3B82F6).withValues(alpha: 0.25),
                                 blurRadius: 12,
                               ),
                             ],
@@ -947,9 +1057,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Icon(Icons.lock_rounded,
+                              Icon(Icons.lock_rounded,
                                   color: Colors.white, size: 18),
-                              const SizedBox(width: 8),
+                              SizedBox(width: 8),
                               Text(
                                 locale.tr('update_password'),
                                 style: GoogleFonts.poppins(
@@ -988,49 +1098,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
       validator: validator,
       style: GoogleFonts.poppins(
         fontSize: 14,
-        color: const Color(0xFF333333),
+        color: AppPalette.textPrimary(context),
       ),
       decoration: InputDecoration(
         labelText: label,
         labelStyle: GoogleFonts.poppins(
           fontSize: 13,
-          color: const Color(0xFF9CA3AF),
+          color: AppPalette.textSecondary(context),
         ),
         filled: true,
-        fillColor: const Color(0xFFF7F8FA),
+        fillColor: Color(0xFFF7F8FA),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(50),
-          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+          borderSide: BorderSide(color: AppPalette.border(context)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(50),
-          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+          borderSide: BorderSide(color: AppPalette.border(context)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(50),
-          borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 1.5),
+          borderSide: BorderSide(color: Color(0xFF3B82F6), width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(50),
-          borderSide: const BorderSide(color: Color(0xFFEF4444)),
+          borderSide: BorderSide(color: Color(0xFFEF4444)),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(50),
-          borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
+          borderSide: BorderSide(color: Color(0xFFEF4444), width: 1.5),
         ),
         errorStyle: GoogleFonts.poppins(
           fontSize: 11,
-          color: const Color(0xFFEF4444),
+          color: Color(0xFFEF4444),
         ),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        prefixIcon: const Padding(
-          padding: EdgeInsets.only(left: 16, right: 8),
+        prefixIcon: Padding(
+          padding: const EdgeInsets.only(left: 16, right: 8),
           child: Icon(Icons.lock_outline_rounded,
-              size: 20, color: Color(0xFF9CA3AF)),
+              size: 20, color: AppPalette.textSecondary(context)),
         ),
         prefixIconConstraints:
-            const BoxConstraints(minWidth: 0, minHeight: 0),
+            BoxConstraints(minWidth: 0, minHeight: 0),
       ),
     );
   }
@@ -1047,25 +1157,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+        color: Color(0xFF3B82F6).withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF3B82F6), width: 1.5),
+        border: Border.all(color: Color(0xFF3B82F6), width: 1.5),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(current.$1, style: const TextStyle(fontSize: 16)),
-          const SizedBox(width: 4),
+          Text(current.$1, style: TextStyle(fontSize: 16)),
+          SizedBox(width: 4),
           Text(
             current.$4.toUpperCase(),
             style: GoogleFonts.poppins(
               fontSize: 10,
               fontWeight: FontWeight.w700,
-              color: const Color(0xFF3B82F6),
+              color: Color(0xFF3B82F6),
             ),
           ),
-          const SizedBox(width: 4),
-          const Icon(Icons.chevron_right_rounded,
+          SizedBox(width: 4),
+          Icon(Icons.chevron_right_rounded,
               color: Color(0xFF3B82F6), size: 16),
         ],
       ),
@@ -1114,8 +1224,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               return Container(
                 height: MediaQuery.of(context).size.height * 0.75,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF3F4F6),
+                decoration: BoxDecoration(
+                  color: AppPalette.cardMuted(context),
                   borderRadius: BorderRadius.only(
                     topLeft: Radius.circular(24),
                     topRight: Radius.circular(24),
@@ -1128,7 +1238,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       width: 40,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFD1D5DB),
+                        color: AppPalette.border(context),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -1138,13 +1248,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         children: [
                           Text('🌐'.tr(),
                               style: TextStyle(fontSize: 22)),
-                          const SizedBox(width: 10),
+                          SizedBox(width: 10),
                           Text(
                             locale.tr('select_language'),
                             style: GoogleFonts.poppins(
                               fontSize: 18,
                               fontWeight: FontWeight.w800,
-                              color: const Color(0xFF333333),
+                              color: AppPalette.textPrimary(context),
                             ),
                           ),
                         ],
@@ -1156,7 +1266,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                       child: Container(
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF3F4F6),
+                          color: AppPalette.cardMuted(context),
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: TextField(
@@ -1165,18 +1275,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               setSheetState(() => searchQuery = val),
                           style: GoogleFonts.poppins(
                             fontSize: 14,
-                            color: const Color(0xFF333333),
+                            color: AppPalette.textPrimary(context),
                           ),
-                          cursorColor: const Color(0xFF3B82F6),
+                          cursorColor: Color(0xFF3B82F6),
                           decoration: InputDecoration(
                             hintText: locale.tr('search_language'),
                             hintStyle: GoogleFonts.poppins(
                               fontSize: 14,
-                              color: const Color(0xFF9CA3AF),
+                              color: AppPalette.textSecondary(context),
                             ),
-                            prefixIcon: const Icon(
+                            prefixIcon: Icon(
                               Icons.search_rounded,
-                              color: Color(0xFF9CA3AF),
+                              color: AppPalette.textSecondary(context),
                               size: 20,
                             ),
                             suffixIcon: searchQuery.isNotEmpty
@@ -1186,9 +1296,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       setSheetState(
                                           () => searchQuery = '');
                                     },
-                                    child: const Icon(
+                                    child: Icon(
                                       Icons.close_rounded,
-                                      color: Color(0xFF9CA3AF),
+                                      color: AppPalette.textSecondary(context),
                                       size: 18,
                                     ),
                                   )
@@ -1201,7 +1311,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
 
-                    const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                    Divider(height: 1, color: AppPalette.border(context)),
 
                     // ── Dil listesi ───────────────────────────────────
                     Expanded(
@@ -1213,13 +1323,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   locale.tr('no_results'),
                                   style: GoogleFonts.poppins(
                                     fontSize: 14,
-                                    color: const Color(0xFF9CA3AF),
+                                    color: AppPalette.textSecondary(context),
                                   ),
                                 ),
                               ),
                             )
                           : ListView.builder(
-                              physics: const BouncingScrollPhysics(),
+                              physics: BouncingScrollPhysics(),
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 16, vertical: 8),
                               itemCount: sortedLangs.length,
@@ -1237,31 +1347,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   },
                                   child: AnimatedContainer(
                                     duration:
-                                        const Duration(milliseconds: 200),
+                                        Duration(milliseconds: 200),
                                     margin:
                                         const EdgeInsets.only(bottom: 6),
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 16, vertical: 14),
                                     decoration: BoxDecoration(
                                       color: isSelected
-                                          ? const Color(0xFF3B82F6)
+                                          ? Color(0xFF3B82F6)
                                               .withValues(alpha: 0.08)
                                           : Colors.transparent,
                                       borderRadius:
                                           BorderRadius.circular(24),
                                       border: Border.all(
                                         color: isSelected
-                                            ? const Color(0xFF3B82F6)
-                                            : const Color(0xFFE5E7EB),
+                                            ? Color(0xFF3B82F6)
+                                            : Color(0xFFE5E7EB),
                                         width: isSelected ? 1.5 : 1,
                                       ),
                                     ),
                                     child: Row(
                                       children: [
                                         Text(flag,
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                                 fontSize: 26)),
-                                        const SizedBox(width: 14),
+                                        SizedBox(width: 14),
                                         Expanded(
                                           child: Column(
                                             crossAxisAlignment:
@@ -1274,9 +1384,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                   fontWeight:
                                                       FontWeight.w600,
                                                   color: isSelected
-                                                      ? const Color(
+                                                      ? Color(
                                                           0xFF3B82F6)
-                                                      : const Color(
+                                                      : Color(
                                                           0xFF333333),
                                                 ),
                                               ),
@@ -1284,7 +1394,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                                 englishName,
                                                 style: GoogleFonts.poppins(
                                                   fontSize: 11,
-                                                  color: const Color(
+                                                  color: Color(
                                                       0xFF9CA3AF),
                                                 ),
                                               ),
@@ -1292,11 +1402,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                           ),
                                         ),
                                         Text(culture,
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                                 fontSize: 22)),
                                         if (isSelected) ...[
-                                          const SizedBox(width: 10),
-                                          const Icon(
+                                          SizedBox(width: 10),
+                                          Icon(
                                             Icons.check_circle_rounded,
                                             color: Color(0xFF3B82F6),
                                             size: 24,
@@ -1337,26 +1447,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+        color: Color(0xFF8B5CF6).withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF8B5CF6), width: 1.5),
+        border: Border.all(color: Color(0xFF8B5CF6), width: 1.5),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icons[_themeMode],
-              size: 14, color: const Color(0xFF8B5CF6)),
-          const SizedBox(width: 4),
+              size: 14, color: Color(0xFF8B5CF6)),
+          SizedBox(width: 4),
           Text(
             labels[_themeMode],
             style: GoogleFonts.poppins(
               fontSize: 10,
               fontWeight: FontWeight.w700,
-              color: const Color(0xFF8B5CF6),
+              color: Color(0xFF8B5CF6),
             ),
           ),
-          const SizedBox(width: 4),
-          const Icon(Icons.chevron_right_rounded,
+          SizedBox(width: 4),
+          Icon(Icons.chevron_right_rounded,
               color: Color(0xFF8B5CF6), size: 16),
         ],
       ),
@@ -1368,11 +1478,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final options = [
       (Icons.dark_mode_rounded, locale.tr('dark_mode'),
-          const Color(0xFF8B5CF6)),
+          Color(0xFF8B5CF6)),
       (Icons.light_mode_rounded, locale.tr('light_mode'),
-          const Color(0xFFF59E0B)),
+          Color(0xFFF59E0B)),
       (Icons.brightness_auto_rounded, locale.tr('system_default'),
-          const Color(0xFF3B82F6)),
+          Color(0xFF3B82F6)),
     ];
 
     showModalBottomSheet(
@@ -1387,9 +1497,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             builder: (ctx, setSheetState) {
               return Container(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
+                decoration: BoxDecoration(
+                  color: AppPalette.card(context),
+                  borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(24),
                     topRight: Radius.circular(24),
                   ),
@@ -1402,7 +1512,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       width: 40,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFD1D5DB),
+                        color: AppPalette.border(context),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -1412,20 +1522,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         children: [
                           Text('🌗'.tr(),
                               style: TextStyle(fontSize: 22)),
-                          const SizedBox(width: 10),
+                          SizedBox(width: 10),
                           Text(
                             locale.tr('select_theme'),
                             style: GoogleFonts.poppins(
                               fontSize: 18,
                               fontWeight: FontWeight.w800,
-                              color: const Color(0xFF333333),
+                              color: AppPalette.textPrimary(context),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const Divider(height: 1, color: Color(0xFFE5E7EB)),
-                    const SizedBox(height: 12),
+                    Divider(height: 1, color: AppPalette.border(context)),
+                    SizedBox(height: 12),
                     ...List.generate(options.length, (i) {
                       final (icon, label, color) = options[i];
                       final isSelected = _themeMode == i;
@@ -1436,7 +1546,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           setSheetState(() {});
                         },
                         child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
+                          duration: Duration(milliseconds: 200),
                           margin: const EdgeInsets.only(bottom: 8),
                           padding: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 16),
@@ -1448,7 +1558,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             border: Border.all(
                               color: isSelected
                                   ? color
-                                  : const Color(0xFFE5E7EB),
+                                  : AppPalette.border(context),
                               width: isSelected ? 1.5 : 1,
                             ),
                           ),
@@ -1465,7 +1575,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 child:
                                     Icon(icon, color: color, size: 24),
                               ),
-                              const SizedBox(width: 14),
+                              SizedBox(width: 14),
                               Expanded(
                                 child: Text(
                                   label,
@@ -1474,7 +1584,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     fontWeight: FontWeight.w600,
                                     color: isSelected
                                         ? color
-                                        : const Color(0xFF333333),
+                                        : AppPalette.textPrimary(context),
                                   ),
                                 ),
                               ),
@@ -1521,8 +1631,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 child: Container(
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
+                  decoration: BoxDecoration(
+            color: AppPalette.card(context),
                     borderRadius: BorderRadius.only(
                       topLeft: Radius.circular(24),
                       topRight: Radius.circular(24),
@@ -1539,7 +1649,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           width: 40,
                           height: 4,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFD1D5DB),
+                            color: AppPalette.border(context),
                             borderRadius: BorderRadius.circular(2),
                           ),
                         ),
@@ -1548,28 +1658,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         padding: const EdgeInsets.fromLTRB(0, 18, 0, 12),
                         child: Row(
                           children: [
-                            const Text('⭐', style: TextStyle(fontSize: 22)),
-                            const SizedBox(width: 10),
+                            Text('⭐', style: TextStyle(fontSize: 22)),
+                            SizedBox(width: 10),
                             Text(
                               locale.tr('send_feedback'),
                               style: GoogleFonts.poppins(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w800,
-                                color: const Color(0xFF333333),
+                                color: AppPalette.textPrimary(context),
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const Divider(height: 1, color: Color(0xFFE5E7EB)),
-                      const SizedBox(height: 16),
+                      Divider(height: 1, color: AppPalette.border(context)),
+                      SizedBox(height: 16),
 
                       // Yazı yazma alanı
                       Container(
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF7F8FA),
+                          color: Color(0xFFF7F8FA),
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFFE5E7EB)),
+                          border: Border.all(color: AppPalette.border(context)),
                         ),
                         child: TextField(
                           controller: controller,
@@ -1577,14 +1687,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           minLines: 4,
                           style: GoogleFonts.poppins(
                             fontSize: 14,
-                            color: const Color(0xFF333333),
+                            color: AppPalette.textPrimary(context),
                           ),
-                          cursorColor: const Color(0xFF00C2D4),
+                          cursorColor: Color(0xFF00C2D4),
                           decoration: InputDecoration(
                             hintText: locale.tr('feedback_desc'),
                             hintStyle: GoogleFonts.poppins(
                               fontSize: 13,
-                              color: const Color(0xFFB0B7C3),
+                              color: Color(0xFFB0B7C3),
                             ),
                             hintMaxLines: 4,
                             border: InputBorder.none,
@@ -1593,7 +1703,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
 
-                      const SizedBox(height: 20),
+                      SizedBox(height: 20),
 
                       // Gönder butonu
                       GestureDetector(
@@ -1604,7 +1714,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             body: controller.text.trim(),
                           );
                           setSheetState(() => sent = true);
-                          Future.delayed(const Duration(milliseconds: 1200), () {
+                          Future.delayed(Duration(milliseconds: 1200), () {
                             if (ctx.mounted) Navigator.pop(ctx);
                           });
                         },
@@ -1614,8 +1724,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: sent
-                                  ? [const Color(0xFF22C55E), const Color(0xFF16A34A)]
-                                  : [const Color(0xFF00E5FF), const Color(0xFF6B21F2)],
+                                  ? [Color(0xFF22C55E), Color(0xFF16A34A)]
+                                  : [Color(0xFF00E5FF), Color(0xFF6B21F2)],
                             ),
                             borderRadius: BorderRadius.circular(50),
                           ),
@@ -1627,7 +1737,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 color: Colors.white,
                                 size: 18,
                               ),
-                              const SizedBox(width: 8),
+                              SizedBox(width: 8),
                               Text(
                                 sent ? locale.tr('feedback_thanks') : locale.tr('send'),
                                 style: GoogleFonts.poppins(
@@ -1668,8 +1778,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
           child: Container(
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
-            decoration: const BoxDecoration(
-              color: Colors.white,
+            decoration: BoxDecoration(
+            color: AppPalette.card(context),
               borderRadius: BorderRadius.only(
                 topLeft: Radius.circular(24),
                 topRight: Radius.circular(24),
@@ -1685,7 +1795,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFD1D5DB),
+                      color: AppPalette.border(context),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -1695,32 +1805,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: Row(
                     children: [
                       Text('✉️'.tr(), style: TextStyle(fontSize: 22)),
-                      const SizedBox(width: 10),
+                      SizedBox(width: 10),
                       Text(
                         locale.tr('contact_us'),
                         style: GoogleFonts.poppins(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
-                          color: const Color(0xFF333333),
+                          color: AppPalette.textPrimary(context),
                         ),
                       ),
                     ],
                   ),
                 ),
-                const Divider(height: 1, color: Color(0xFFE5E7EB)),
-                const SizedBox(height: 16),
+                Divider(height: 1, color: AppPalette.border(context)),
+                SizedBox(height: 16),
 
                 // Açıklama metni — basılı tutarak kopyalanabilir
                 SelectableText(
                   locale.tr('contact_desc'),
                   style: GoogleFonts.poppins(
                     fontSize: 13,
-                    color: const Color(0xFF6B7280),
+                    color: AppPalette.textSecondary(context),
                     height: 1.6,
                   ),
                 ),
 
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
 
                 // E-posta satırı
                 GestureDetector(
@@ -1732,28 +1842,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 16, vertical: 14),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF00C2D4).withValues(alpha: 0.08),
+                      color: Color(0xFF00C2D4).withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(50),
                       border: Border.all(
-                        color: const Color(0xFF00C2D4).withValues(alpha: 0.3),
+                        color: Color(0xFF00C2D4).withValues(alpha: 0.3),
                       ),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.email_outlined,
+                        Icon(Icons.email_outlined,
                             size: 20, color: Color(0xFF00C2D4)),
-                        const SizedBox(width: 12),
+                        SizedBox(width: 12),
                         Expanded(
                           child: SelectableText(
                             locale.tr('contact_email'),
                             style: GoogleFonts.poppins(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: const Color(0xFF00C2D4),
+                              color: Color(0xFF00C2D4),
                             ),
                           ),
                         ),
-                        const Icon(Icons.open_in_new_rounded,
+                        Icon(Icons.open_in_new_rounded,
                             size: 16, color: Color(0xFF00C2D4)),
                       ],
                     ),
@@ -1783,7 +1893,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (ok) return;
     } catch (_) {}
 
-    await Clipboard.setData(const ClipboardData(text: email));
+    await Clipboard.setData(ClipboardData(text: email));
     if (mounted) _showSnack('$email kopyalandı');
   }
 
@@ -1794,14 +1904,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           msg,
           style: GoogleFonts.poppins(
             fontSize: 13,
-            color: const Color(0xFF333333),
+            color: AppPalette.textPrimary(context),
           ),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: AppPalette.card(context),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(50)),
-        duration: const Duration(seconds: 2),
+        duration: Duration(seconds: 2),
       ),
     );
   }
@@ -1821,8 +1931,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
           child: Container(
             height: MediaQuery.of(context).size.height * 0.85,
-            decoration: const BoxDecoration(
-              color: Color(0xFFEEEFF3),
+            decoration: BoxDecoration(
+              color: AppPalette.bg(context),
               borderRadius: BorderRadius.only(
                 topLeft: Radius.circular(24),
                 topRight: Radius.circular(24),
@@ -1837,7 +1947,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFD1D5DB),
+                      color: AppPalette.border(context),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -1845,7 +1955,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 // İçerik
                 Expanded(
                   child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
+                    physics: BouncingScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1858,7 +1968,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 width: 72,
                                 height: 72,
                                 decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
+                                  gradient: LinearGradient(
                                     colors: [Color(0xFF00E5FF), Color(0xFF6B21F2)],
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
@@ -1866,31 +1976,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   borderRadius: BorderRadius.circular(20),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: const Color(0xFF00E5FF).withValues(alpha: 0.3),
+                                      color: Color(0xFF00E5FF).withValues(alpha: 0.3),
                                       blurRadius: 20,
-                                      offset: const Offset(0, 6),
+                                      offset: Offset(0, 6),
                                     ),
                                   ],
                                 ),
-                                child: const Icon(Icons.auto_awesome_rounded,
+                                child: Icon(Icons.auto_awesome_rounded,
                                     size: 36, color: Colors.white),
                               ),
-                              const SizedBox(height: 16),
+                              SizedBox(height: 16),
                               Text(
                                 'QuAlsar',
                                 style: GoogleFonts.poppins(
                                   fontSize: 28,
                                   fontWeight: FontWeight.w900,
-                                  color: const Color(0xFF1A1A2E),
+                                  color: AppPalette.textPrimary(context),
                                   letterSpacing: -0.5,
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              SizedBox(height: 4),
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 14, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
+                                  color: Color(0xFF3B82F6).withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Text(
@@ -1898,67 +2008,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   style: GoogleFonts.poppins(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF3B82F6),
+                                    color: Color(0xFF3B82F6),
                                   ),
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 24),
+                        SizedBox(height: 24),
 
                         // ── Vizyon Açıklaması ────────────────────────────
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(18),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+            color: AppPalette.card(context),
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Text(
                             localeService.tr('about_vision_desc'),
                             style: GoogleFonts.poppins(
                               fontSize: 15,
-                              color: const Color(0xFF6B7280),
+                              color: AppPalette.textSecondary(context),
                               height: 1.7,
                             ),
                           ),
                         ),
-                        const SizedBox(height: 24),
+                        SizedBox(height: 24),
 
                         // ── Esnek Çözüm Metodolojileri ───────────────────
                         _aboutSectionTitle('⚡', localeService.tr('flexible_solutions')),
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12),
                         _aboutFeatureCard(
                           icon: Icons.bolt_rounded,
-                          color: const Color(0xFFF59E0B),
+                          color: Color(0xFFF59E0B),
                           title: localeService.tr('quick_solve_mode'),
                           desc: localeService.tr('quick_solve_mode_desc'),
                         ),
-                        const SizedBox(height: 10),
+                        SizedBox(height: 10),
                         _aboutFeatureCard(
                           icon: Icons.list_alt_rounded,
-                          color: const Color(0xFF3B82F6),
+                          color: Color(0xFF3B82F6),
                           title: localeService.tr('step_analysis'),
                           desc: localeService.tr('step_analysis_desc'),
                         ),
-                        const SizedBox(height: 10),
+                        SizedBox(height: 10),
                         _aboutFeatureCard(
                           icon: Icons.school_rounded,
-                          color: const Color(0xFFEC4899),
+                          color: Color(0xFFEC4899),
                           title: localeService.tr('ai_teacher'),
                           desc: localeService.tr('ai_teacher_desc'),
                         ),
-                        const SizedBox(height: 20),
+                        SizedBox(height: 20),
 
                         // ── Dünyanın En Güçlü Zekaları ──────────────────
                         _aboutSectionTitle('🧠', localeService.tr('worlds_strongest_ai')),
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12),
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(18),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+            color: AppPalette.card(context),
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Column(
@@ -1969,55 +2079,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 style: GoogleFonts.poppins(
                                   fontSize: 17,
                                   fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF1A1A2E),
+                                  color: AppPalette.textPrimary(context),
                                   height: 1.6,
                                 ),
                               ),
-                              const SizedBox(height: 10),
+                              SizedBox(height: 10),
                               Text(
                                 localeService.tr('worlds_strongest_ai_desc'),
                                 style: GoogleFonts.poppins(
                                   fontSize: 14,
-                                  color: const Color(0xFF6B7280),
+                                  color: AppPalette.textSecondary(context),
                                   height: 1.6,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 20),
+                        SizedBox(height: 20),
 
                         // ── Aktif Öğrenme ve Pekiştirme ──────────────────
                         _aboutSectionTitle('🎯', localeService.tr('active_learning')),
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12),
                         _aboutFeatureCard(
                           icon: Icons.shuffle_rounded,
-                          color: const Color(0xFF8B5CF6),
+                          color: Color(0xFF8B5CF6),
                           title: localeService.tr('similar_q'),
                           desc: localeService.tr('active_learning_desc'),
                         ),
-                        const SizedBox(height: 10),
+                        SizedBox(height: 10),
                         _aboutFeatureCard(
                           icon: Icons.style_rounded,
-                          color: const Color(0xFF06B6D4),
+                          color: Color(0xFF06B6D4),
                           title: localeService.tr('smart_info_cards'),
                           desc: localeService.tr('smart_info_cards_desc'),
                         ),
-                        const SizedBox(height: 10),
+                        SizedBox(height: 10),
                         _aboutFeatureCard(
                           icon: Icons.emoji_events_rounded,
-                          color: const Color(0xFF10B981),
+                          color: Color(0xFF10B981),
                           title: localeService.tr('gamified_learning'),
                           desc: localeService.tr('gamified_learning_desc'),
                         ),
-                        const SizedBox(height: 24),
+                        SizedBox(height: 24),
 
                         // ── Bilgi satırları ──────────────────────────────
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+            color: AppPalette.card(context),
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Column(
@@ -2043,15 +2153,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _aboutSectionTitle(String emoji, String title) {
     return Row(
       children: [
-        Text(emoji, style: const TextStyle(fontSize: 26)),
-        const SizedBox(width: 10),
+        Text(emoji, style: TextStyle(fontSize: 26)),
+        SizedBox(width: 10),
         Expanded(
           child: Text(
             title,
             style: GoogleFonts.poppins(
               fontSize: 20,
               fontWeight: FontWeight.w800,
-              color: const Color(0xFF1A1A2E),
+              color: AppPalette.textPrimary(context),
             ),
           ),
         ),
@@ -2069,7 +2179,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+            color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -2084,7 +2194,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             child: Icon(icon, size: 24, color: color),
           ),
-          const SizedBox(width: 14),
+          SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2094,15 +2204,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: GoogleFonts.poppins(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFF333333),
+                    color: AppPalette.textPrimary(context),
                   ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   desc,
                   style: GoogleFonts.poppins(
                     fontSize: 14,
-                    color: const Color(0xFF6B7280),
+                    color: AppPalette.textSecondary(context),
                     height: 1.6,
                   ),
                 ),
@@ -2124,7 +2234,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             label,
             style: GoogleFonts.poppins(
               fontSize: 12,
-              color: const Color(0xFF9CA3AF),
+              color: AppPalette.textSecondary(context),
             ),
           ),
           Text(
@@ -2132,7 +2242,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             style: GoogleFonts.poppins(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: const Color(0xFF333333),
+              color: AppPalette.textPrimary(context),
             ),
           ),
         ],
@@ -2155,8 +2265,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
           child: Container(
             height: MediaQuery.of(context).size.height * 0.88,
-            decoration: const BoxDecoration(
-              color: Color(0xFFEEEFF3),
+            decoration: BoxDecoration(
+              color: AppPalette.bg(context),
               borderRadius: BorderRadius.only(
                 topLeft: Radius.circular(24),
                 topRight: Radius.circular(24),
@@ -2171,7 +2281,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFD1D5DB),
+                      color: AppPalette.border(context),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -2179,7 +2289,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 // İçerik
                 Expanded(
                   child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
+                    physics: BouncingScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2192,7 +2302,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 16, vertical: 6),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
+                              color: Color(0xFF3B82F6).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(
@@ -2200,34 +2310,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               style: GoogleFonts.poppins(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
-                                color: const Color(0xFF3B82F6),
+                                color: Color(0xFF3B82F6),
                               ),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        SizedBox(height: 16),
 
                         // Giriş
                         _termsCard(localeService.tr('terms_intro')),
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12),
 
                         // 1. Hizmet Kapsamı
                         _termsSectionTitle('1', localeService.tr('service_scope_title')),
-                        const SizedBox(height: 8),
+                        SizedBox(height: 8),
                         _termsCard(localeService.tr('service_scope_body')),
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12),
 
                         // 2. Kullanım Amacı
                         _termsSectionTitle('2', localeService.tr('usage_purpose_title')),
-                        const SizedBox(height: 8),
+                        SizedBox(height: 8),
                         _termsCard(localeService.tr('usage_purpose_body')),
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12),
 
                         // 3. Abonelik ve Ödemeler
                         _termsSectionTitle('3', localeService.tr('subscription_title')),
-                        const SizedBox(height: 8),
+                        SizedBox(height: 8),
                         _termsCard(localeService.tr('subscription_body')),
-                        const SizedBox(height: 28),
+                        SizedBox(height: 28),
 
                         // ══════════════════════════════════════════════════
                         //  GİZLİLİK POLİTİKASI
@@ -2237,7 +2347,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 16, vertical: 6),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                              color: Color(0xFF10B981).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(
@@ -2245,34 +2355,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               style: GoogleFonts.poppins(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
-                                color: const Color(0xFF10B981),
+                                color: Color(0xFF10B981),
                               ),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        SizedBox(height: 16),
 
                         // Giriş
                         _termsCard(localeService.tr('privacy_intro')),
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12),
 
                         // 1. Toplanan Veriler
                         _termsSectionTitle('1', localeService.tr('data_collection_title')),
-                        const SizedBox(height: 8),
+                        SizedBox(height: 8),
                         _termsCard(localeService.tr('privacy_data_types')),
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12),
 
                         // 2. Veri Paylaşımı
                         _termsSectionTitle('2', localeService.tr('data_sharing_title')),
-                        const SizedBox(height: 8),
+                        SizedBox(height: 8),
                         _termsCard(localeService.tr('data_sharing_body')),
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12),
 
                         // 3. Kullanıcı Hakları
                         _termsSectionTitle('3', localeService.tr('user_rights_title')),
-                        const SizedBox(height: 8),
+                        SizedBox(height: 8),
                         _termsCard(localeService.tr('user_rights_body')),
-                        const SizedBox(height: 24),
+                        SizedBox(height: 24),
 
                         // Alt bilgi
                         Center(
@@ -2280,7 +2390,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             localeService.tr('copyright_footer'),
                             style: GoogleFonts.poppins(
                               fontSize: 11,
-                              color: const Color(0xFF9CA3AF),
+                              color: AppPalette.textSecondary(context),
                             ),
                           ),
                         ),
@@ -2303,7 +2413,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           width: 28,
           height: 28,
           decoration: BoxDecoration(
-            color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
+            color: Color(0xFF3B82F6).withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Center(
@@ -2312,19 +2422,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 fontWeight: FontWeight.w800,
-                color: const Color(0xFF3B82F6),
+                color: Color(0xFF3B82F6),
               ),
             ),
           ),
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: 10),
         Expanded(
           child: Text(
             title,
             style: GoogleFonts.poppins(
               fontSize: 16,
               fontWeight: FontWeight.w700,
-              color: const Color(0xFF1A1A2E),
+              color: AppPalette.textPrimary(context),
             ),
           ),
         ),
@@ -2337,14 +2447,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+            color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Text(
         text,
         style: GoogleFonts.poppins(
           fontSize: 14,
-          color: const Color(0xFF6B7280),
+          color: AppPalette.textSecondary(context),
           height: 1.7,
         ),
       ),
@@ -2356,7 +2466,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: AppPalette.card(context),
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20)),
         title: Row(
@@ -2365,22 +2475,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                color: Color(0xFFEF4444).withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.logout_rounded,
                 color: Color(0xFFEF4444),
                 size: 20,
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Text(
               locale.tr('logout'),
               style: GoogleFonts.poppins(
                 fontSize: 17,
                 fontWeight: FontWeight.w700,
-                color: const Color(0xFF333333),
+                color: AppPalette.textPrimary(context),
               ),
             ),
           ],
@@ -2389,7 +2499,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           locale.tr('logout_confirm'),
           style: GoogleFonts.poppins(
             fontSize: 13,
-            color: const Color(0xFF6B7280),
+            color: AppPalette.textSecondary(context),
           ),
         ),
         actions: [
@@ -2398,7 +2508,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Text(
               locale.tr('cancel'),
               style: GoogleFonts.poppins(
-                color: const Color(0xFF9CA3AF),
+                color: AppPalette.textSecondary(context),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -2411,7 +2521,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Text(
               locale.tr('sign_out'),
               style: GoogleFonts.poppins(
-                color: const Color(0xFFEF4444),
+                color: Color(0xFFEF4444),
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -2443,7 +2553,7 @@ class _PremiumBannerState extends State<_PremiumBanner>
     super.initState();
     // Yumuşak nefes alma döngüsü (~3.5sn)
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 3500),
+      duration: Duration(milliseconds: 3500),
       vsync: this,
     )..repeat();
   }
@@ -2461,7 +2571,7 @@ class _PremiumBannerState extends State<_PremiumBanner>
       child: Container(
         width: double.infinity,
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
+          gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
@@ -2474,9 +2584,9 @@ class _PremiumBannerState extends State<_PremiumBanner>
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFFDB2777).withValues(alpha: 0.35),
+              color: Color(0xFFDB2777).withValues(alpha: 0.35),
               blurRadius: 22,
-              offset: const Offset(0, 6),
+              offset: Offset(0, 6),
             ),
           ],
         ),
@@ -2532,12 +2642,12 @@ class _PremiumBannerState extends State<_PremiumBanner>
                       child: DecoratedBox(
                         decoration: BoxDecoration(
                           gradient: RadialGradient(
-                            center: const Alignment(0.6, -0.4),
+                            center: Alignment(0.6, -0.4),
                             radius: 1.1,
                             colors: [
-                              const Color(0xFFFFC4A0)
+                              Color(0xFFFFC4A0)
                                   .withValues(alpha: intensity),
-                              const Color(0xFFDB2777)
+                              Color(0xFFDB2777)
                                   .withValues(alpha: intensity * 0.5),
                               Colors.transparent,
                             ],
@@ -2559,11 +2669,11 @@ class _PremiumBannerState extends State<_PremiumBanner>
                     Row(
                       children: [
                         _proBadge(),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         _limitedChip(),
                       ],
                     ),
-                    const SizedBox(height: 14),
+                    SizedBox(height: 14),
                     // Büyük başlık
                     Text(
                       localeService.tr('unlimited_power_title'),
@@ -2575,7 +2685,7 @@ class _PremiumBannerState extends State<_PremiumBanner>
                         height: 1.1,
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    SizedBox(height: 6),
                     // Punch subtitle
                     Text(
                       localeService.tr('unlimited_power_subtitle'),
@@ -2586,20 +2696,20 @@ class _PremiumBannerState extends State<_PremiumBanner>
                         height: 1.4,
                       ),
                     ),
-                    const SizedBox(height: 18),
+                    SizedBox(height: 18),
                     // CTA — Ücretsiz deneme vurgusu
                     Container(
                       width: double.infinity,
                       padding:
                           const EdgeInsets.symmetric(vertical: 13),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+            color: AppPalette.card(context),
                         borderRadius: BorderRadius.circular(14),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.12),
                             blurRadius: 8,
-                            offset: const Offset(0, 2),
+                            offset: Offset(0, 2),
                           ),
                         ],
                       ),
@@ -2607,7 +2717,7 @@ class _PremiumBannerState extends State<_PremiumBanner>
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           ShaderMask(
-                            shaderCallback: (r) => const LinearGradient(
+                            shaderCallback: (r) => LinearGradient(
                               colors: [
                                 Color(0xFF4C1D95),
                                 Color(0xFFDB2777),
@@ -2623,8 +2733,8 @@ class _PremiumBannerState extends State<_PremiumBanner>
                               ),
                             ),
                           ),
-                          const SizedBox(width: 6),
-                          const Icon(
+                          SizedBox(width: 6),
+                          Icon(
                             Icons.arrow_forward_rounded,
                             color: Color(0xFF4C1D95),
                             size: 17,
@@ -2656,9 +2766,9 @@ class _PremiumBannerState extends State<_PremiumBanner>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.bolt_rounded,
+          Icon(Icons.bolt_rounded,
               color: Color(0xFFFFE44D), size: 13),
-          const SizedBox(width: 4),
+          SizedBox(width: 4),
           Text(
             'PRO',
             style: GoogleFonts.poppins(
@@ -2677,19 +2787,19 @@ class _PremiumBannerState extends State<_PremiumBanner>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFE44D).withValues(alpha: 0.22),
+        color: Color(0xFFFFE44D).withValues(alpha: 0.22),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: const Color(0xFFFFE44D).withValues(alpha: 0.45),
+          color: Color(0xFFFFE44D).withValues(alpha: 0.45),
           width: 0.8,
         ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.local_fire_department_rounded,
+          Icon(Icons.local_fire_department_rounded,
               color: Color(0xFFFFE44D), size: 13),
-          const SizedBox(width: 4),
+          SizedBox(width: 4),
           Text(
             localeService.tr('limited_offer'),
             style: GoogleFonts.poppins(
@@ -2776,13 +2886,13 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F5),
+      backgroundColor: AppPalette.bg(context),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF0F2F5),
+        backgroundColor: AppPalette.bg(context),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded,
-              color: Color(0xFF333333), size: 20),
+          icon: Icon(Icons.arrow_back_ios_rounded,
+              color: AppPalette.textPrimary(context), size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -2790,13 +2900,13 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
           style: GoogleFonts.poppins(
             fontSize: 17,
             fontWeight: FontWeight.w700,
-            color: const Color(0xFF333333),
+            color: AppPalette.textPrimary(context),
           ),
         ),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
+        physics: BouncingScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2812,14 +2922,14 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                       height: 120,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        gradient: const LinearGradient(
+                        gradient: LinearGradient(
                           colors: [Color(0xFF00E5FF), Color(0xFF6B21F2)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF00E5FF).withValues(alpha: 0.25),
+                            color: Color(0xFF00E5FF).withValues(alpha: 0.25),
                             blurRadius: 22,
                             spreadRadius: 2,
                           ),
@@ -2833,12 +2943,12 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                                   FileImage(File(_profileImagePath!)),
                             )
                           : Container(
-                              decoration: const BoxDecoration(
+                              decoration: BoxDecoration(
                                 color: Color(0xFFEAF6FF),
                                 shape: BoxShape.circle,
                               ),
                               alignment: Alignment.center,
-                              child: const Text(
+                              child: Text(
                                 '🐱',
                                 style: TextStyle(fontSize: 64),
                               ),
@@ -2851,17 +2961,17 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         width: 32,
                         height: 32,
                         decoration: BoxDecoration(
-                          color: Colors.white,
+            color: AppPalette.card(context),
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withValues(alpha: 0.12),
                               blurRadius: 6,
-                              offset: const Offset(0, 2),
+                              offset: Offset(0, 2),
                             ),
                           ],
                         ),
-                        child: const Icon(Icons.camera_alt_rounded,
+                        child: Icon(Icons.camera_alt_rounded,
                             color: Color(0xFF00C2D4), size: 18),
                       ),
                     ),
@@ -2869,7 +2979,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 ),
               ),
             ),
-            const SizedBox(height: 28),
+            SizedBox(height: 28),
 
             // Sekme 1 — Kullanıcı Adı
             _LabeledCard(
@@ -2882,12 +2992,12 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                     style: GoogleFonts.poppins(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: const Color(0xFF1F2937),
+                      color: AppPalette.textPrimary(context),
                     ),
                     decoration: InputDecoration(
                       hintText: localeService.tr('your_name_hint'),
                       hintStyle: GoogleFonts.poppins(
-                        color: const Color(0xFF9CA3AF),
+                        color: AppPalette.textSecondary(context),
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
@@ -2897,7 +3007,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                     ),
                     onChanged: (_) => _saveName(),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   GestureDetector(
                     onTap: () async {
                       if (_userId.isEmpty) return;
@@ -2906,12 +3016,12 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           behavior: SnackBarBehavior.floating,
-                          backgroundColor: const Color(0xFF1F2937),
+                          backgroundColor: Color(0xFF1F2937),
                           content: Text(
                             localeService.tr('id_copied'),
                             style: GoogleFonts.poppins(fontSize: 13),
                           ),
-                          duration: const Duration(seconds: 1),
+                          duration: Duration(seconds: 1),
                         ),
                       );
                     },
@@ -2920,7 +3030,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         Icon(Icons.badge_outlined,
                             size: 14,
                             color: Colors.grey.shade500),
-                        const SizedBox(width: 4),
+                        SizedBox(width: 4),
                         Text(
                           'ID: $_userId',
                           style: GoogleFonts.poppins(
@@ -2930,7 +3040,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                             letterSpacing: 0.5,
                           ),
                         ),
-                        const SizedBox(width: 4),
+                        SizedBox(width: 4),
                         Icon(Icons.copy_rounded,
                             size: 12, color: Colors.grey.shade400),
                       ],
@@ -2939,7 +3049,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 ],
               ),
             ),
-            const SizedBox(height: 18),
+            SizedBox(height: 18),
 
             // Sekme 2 — Durum Mesajı
             _LabeledCard(
@@ -2949,12 +3059,12 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 style: GoogleFonts.poppins(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: const Color(0xFF1F2937),
+                  color: AppPalette.textPrimary(context),
                 ),
                 decoration: InputDecoration(
                   hintText: localeService.tr('write_something_hint'),
                   hintStyle: GoogleFonts.poppins(
-                    color: const Color(0xFF9CA3AF),
+                    color: AppPalette.textSecondary(context),
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
@@ -2965,7 +3075,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 onChanged: (_) => _saveStatus(),
               ),
             ),
-            const SizedBox(height: 18),
+            SizedBox(height: 18),
 
             // Sekme 3 — Öğrenci Bilgileri
             _LabeledCard(
@@ -2974,7 +3084,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const StudentInfoPage(),
+                    builder: (_) => StudentInfoPage(),
                   ),
                 );
                 await _load();
@@ -2988,17 +3098,17 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                         color: _educationLevel == null
-                            ? const Color(0xFF9CA3AF)
-                            : const Color(0xFF1F2937),
+                            ? Color(0xFF9CA3AF)
+                            : Color(0xFF1F2937),
                       ),
                     ),
                   ),
-                  const Icon(Icons.chevron_right_rounded,
-                      color: Color(0xFF9CA3AF), size: 22),
+                  Icon(Icons.chevron_right_rounded,
+                      color: AppPalette.textSecondary(context), size: 22),
                 ],
               ),
             ),
-            const SizedBox(height: 28),
+            SizedBox(height: 28),
 
             // Kaydet butonu — turuncu, basınca önceki sayfaya dön
             GestureDetector(
@@ -3012,7 +3122,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
+                  gradient: LinearGradient(
                     colors: [Color(0xFFFF8A3D), Color(0xFFFF6A00)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -3020,9 +3130,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                   borderRadius: BorderRadius.circular(18),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFFF6A00).withValues(alpha: 0.32),
+                      color: Color(0xFFFF6A00).withValues(alpha: 0.32),
                       blurRadius: 16,
-                      offset: const Offset(0, 4),
+                      offset: Offset(0, 4),
                     ),
                   ],
                 ),
@@ -3069,7 +3179,7 @@ class _LabeledCard extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: const Color(0xFF6B7280),
+              color: AppPalette.textSecondary(context),
               letterSpacing: 0.2,
             ),
           ),
@@ -3079,13 +3189,13 @@ class _LabeledCard extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
             decoration: BoxDecoration(
-              color: Colors.white,
+            color: AppPalette.card(context),
               borderRadius: BorderRadius.circular(18),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 10,
-                  offset: const Offset(0, 2),
+                  offset: Offset(0, 2),
                 ),
               ],
             ),
@@ -3140,13 +3250,13 @@ class _StudentInfoPageState extends State<StudentInfoPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F5),
+      backgroundColor: AppPalette.bg(context),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF0F2F5),
+        backgroundColor: AppPalette.bg(context),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded,
-              color: Color(0xFF333333), size: 20),
+          icon: Icon(Icons.arrow_back_ios_rounded,
+              color: AppPalette.textPrimary(context), size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -3154,13 +3264,13 @@ class _StudentInfoPageState extends State<StudentInfoPage> {
           style: GoogleFonts.poppins(
             fontSize: 17,
             fontWeight: FontWeight.w700,
-            color: const Color(0xFF333333),
+            color: AppPalette.textPrimary(context),
           ),
         ),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
+        physics: BouncingScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -3170,21 +3280,21 @@ class _StudentInfoPageState extends State<StudentInfoPage> {
               style: GoogleFonts.poppins(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
-                color: const Color(0xFF1F2937),
+                color: AppPalette.textPrimary(context),
                 letterSpacing: -0.3,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               localeService.tr('edu_info_helper'),
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
-                color: const Color(0xFF9CA3AF),
+                color: AppPalette.textSecondary(context),
                 height: 1.4,
               ),
             ),
-            const SizedBox(height: 22),
+            SizedBox(height: 22),
             ..._levels().map((lvl) => Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: _LevelTile(
@@ -3193,28 +3303,28 @@ class _StudentInfoPageState extends State<StudentInfoPage> {
                     onTap: () => _save(lvl),
                   ),
                 )),
-            const SizedBox(height: 18),
+            SizedBox(height: 18),
             GestureDetector(
               onTap: _selected == null ? null : () => Navigator.pop(context),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
+                duration: Duration(milliseconds: 180),
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: _selected == null
-                        ? [const Color(0xFFFFB380), const Color(0xFFFFCFAE)]
-                        : [const Color(0xFFFF8A3D), const Color(0xFFFF6A00)],
+                        ? [Color(0xFFFFB380), Color(0xFFFFCFAE)]
+                        : [Color(0xFFFF8A3D), Color(0xFFFF6A00)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(18),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFFF6A00).withValues(
+                      color: Color(0xFFFF6A00).withValues(
                           alpha: _selected == null ? 0.12 : 0.32),
                       blurRadius: 16,
-                      offset: const Offset(0, 4),
+                      offset: Offset(0, 4),
                     ),
                   ],
                 ),
@@ -3267,7 +3377,7 @@ class _InvitePageState extends State<InvitePage> {
     var unlocked = prefs.getBool('invite_premium_unlocked') ?? false;
 
     if (count >= _maxInvites && !unlocked) {
-      final until = DateTime.now().add(const Duration(days: 30));
+      final until = DateTime.now().add(Duration(days: 30));
       await prefs.setBool('is_premium', true);
       await prefs.setString('premium_until', until.toIso8601String());
       await prefs.setBool('invite_premium_unlocked', true);
@@ -3297,13 +3407,13 @@ class _InvitePageState extends State<InvitePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F5),
+      backgroundColor: AppPalette.bg(context),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF0F2F5),
+        backgroundColor: AppPalette.bg(context),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded,
-              color: Color(0xFF333333), size: 20),
+          icon: Icon(Icons.arrow_back_ios_rounded,
+              color: AppPalette.textPrimary(context), size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -3311,7 +3421,7 @@ class _InvitePageState extends State<InvitePage> {
           style: GoogleFonts.poppins(
             fontSize: 17,
             fontWeight: FontWeight.w700,
-            color: const Color(0xFF333333),
+            color: AppPalette.textPrimary(context),
           ),
         ),
         centerTitle: true,
@@ -3320,7 +3430,7 @@ class _InvitePageState extends State<InvitePage> {
         children: [
           Expanded(
             child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
+              physics: BouncingScrollPhysics(),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -3347,24 +3457,24 @@ class _InvitePageState extends State<InvitePage> {
               style: GoogleFonts.poppins(
                 fontSize: 18,
                 fontWeight: FontWeight.w900,
-                color: const Color(0xFF1F2937),
+                color: AppPalette.textPrimary(context),
                 height: 1.2,
                 letterSpacing: -0.3,
               ),
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text(
               localeService.tr('invite_both_premium'),
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(
                 fontSize: 18,
                 fontWeight: FontWeight.w900,
-                color: const Color(0xFF1F2937),
+                color: AppPalette.textPrimary(context),
                 height: 1.2,
                 letterSpacing: -0.3,
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
 
             // Davetlerim başlık — ortalı
             Text(
@@ -3373,11 +3483,11 @@ class _InvitePageState extends State<InvitePage> {
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 fontWeight: FontWeight.w800,
-                color: const Color(0xFF1F2937),
+                color: AppPalette.textPrimary(context),
                 letterSpacing: 0.2,
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Row(
               children: List.generate(_maxInvites, (i) {
                 final filled = i < _invitedCount;
@@ -3391,7 +3501,7 @@ class _InvitePageState extends State<InvitePage> {
                 );
               }),
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
 
             // Görev tamamlama çizgisi — %33 / %66 / %100
             LayoutBuilder(
@@ -3402,17 +3512,17 @@ class _InvitePageState extends State<InvitePage> {
                     Container(
                       height: 10,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFE5E7EB),
+                        color: AppPalette.border(context),
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
                     AnimatedContainer(
-                      duration: const Duration(milliseconds: 600),
+                      duration: Duration(milliseconds: 600),
                       curve: Curves.easeOutCubic,
                       height: 10,
                       width: c.maxWidth * progress,
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
+                        gradient: LinearGradient(
                           colors: [
                             Color(0xFF10B981),
                             Color(0xFF3B82F6),
@@ -3423,10 +3533,10 @@ class _InvitePageState extends State<InvitePage> {
                         boxShadow: progress > 0
                             ? [
                                 BoxShadow(
-                                  color: const Color(0xFF8B5CF6)
+                                  color: Color(0xFF8B5CF6)
                                       .withValues(alpha: 0.35),
                                   blurRadius: 8,
-                                  offset: const Offset(0, 2),
+                                  offset: Offset(0, 2),
                                 )
                               ]
                             : [],
@@ -3436,38 +3546,38 @@ class _InvitePageState extends State<InvitePage> {
                 );
               },
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               '%${(_invitedCount * 100 / _maxInvites).round()} ${localeService.tr('percent_completed_suffix')}',
               style: GoogleFonts.poppins(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: const Color(0xFF6B7280),
+                color: AppPalette.textSecondary(context),
               ),
             ),
-            const SizedBox(height: 22),
+            SizedBox(height: 22),
 
             // Ödül durumu
             if (_premiumUnlocked)
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
+                  gradient: LinearGradient(
                     colors: [Color(0xFFFFD700), Color(0xFFFF8A3D)],
                   ),
                   borderRadius: BorderRadius.circular(18),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFFF8A3D).withValues(alpha: 0.3),
+                      color: Color(0xFFFF8A3D).withValues(alpha: 0.3),
                       blurRadius: 14,
-                      offset: const Offset(0, 4),
+                      offset: Offset(0, 4),
                     ),
                   ],
                 ),
                 child: Row(
                   children: [
                     Text('🎉'.tr(), style: TextStyle(fontSize: 32)),
-                    const SizedBox(width: 12),
+                    SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3480,7 +3590,7 @@ class _InvitePageState extends State<InvitePage> {
                               color: Colors.white,
                             ),
                           ),
-                          const SizedBox(height: 2),
+                          SizedBox(height: 2),
                           Text(
                             localeService.tr('reward_1month_body'),
                             style: GoogleFonts.poppins(
@@ -3502,21 +3612,21 @@ class _InvitePageState extends State<InvitePage> {
                   Container(
                     padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
+                      gradient: LinearGradient(
                         colors: [Color(0xFFFFB26B), Color(0xFFFF6A00)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
                       borderRadius: BorderRadius.circular(22),
                       border: Border.all(
-                        color: const Color(0xFFFFE4B5),
+                        color: Color(0xFFFFE4B5),
                         width: 2,
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFFFF6A00).withValues(alpha: 0.35),
+                          color: Color(0xFFFF6A00).withValues(alpha: 0.35),
                           blurRadius: 18,
-                          offset: const Offset(0, 6),
+                          offset: Offset(0, 6),
                         ),
                       ],
                     ),
@@ -3537,7 +3647,7 @@ class _InvitePageState extends State<InvitePage> {
                           child: Text('🎁'.tr(),
                               style: TextStyle(fontSize: 30)),
                         ),
-                        const SizedBox(width: 14),
+                        SizedBox(width: 14),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -3551,7 +3661,7 @@ class _InvitePageState extends State<InvitePage> {
                                   letterSpacing: 1.4,
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              SizedBox(height: 4),
                               Text(
                                 localeService.tr('offer_1month_body'),
                                 style: GoogleFonts.poppins(
@@ -3581,7 +3691,7 @@ class _InvitePageState extends State<InvitePage> {
                     left: 18,
                     child: Transform.rotate(
                       angle: -0.3,
-                      child: const Text('⭐',
+                      child: Text('⭐',
                           style: TextStyle(fontSize: 18)),
                     ),
                   ),
@@ -3592,11 +3702,11 @@ class _InvitePageState extends State<InvitePage> {
                       width: 12,
                       height: 12,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFE44D),
+                        color: Color(0xFFFFE44D),
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFFFFE44D)
+                            color: Color(0xFFFFE44D)
                                 .withValues(alpha: 0.6),
                             blurRadius: 8,
                           ),
@@ -3606,7 +3716,7 @@ class _InvitePageState extends State<InvitePage> {
                   ),
                 ],
               ),
-                      const SizedBox(height: 26),
+                      SizedBox(height: 26),
 
                       // ══════════════════════════════════════════════════════
                       //  SİSTEM NASIL ÇALIŞIR?
@@ -3616,10 +3726,10 @@ class _InvitePageState extends State<InvitePage> {
                         style: GoogleFonts.poppins(
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
-                          color: const Color(0xFF1F2937),
+                          color: AppPalette.textPrimary(context),
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
                       _HowItWorksStep(
                         index: 1,
                         title: localeService.tr('share_invite_code'),
@@ -3642,7 +3752,7 @@ class _InvitePageState extends State<InvitePage> {
                         isLast: true,
                       ),
 
-                      const SizedBox(height: 26),
+                      SizedBox(height: 26),
 
                       // ══════════════════════════════════════════════════════
                       //  ÖNEMLİ NOTLAR
@@ -3651,10 +3761,10 @@ class _InvitePageState extends State<InvitePage> {
                         width: double.infinity,
                         padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+            color: AppPalette.card(context),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: const Color(0xFFE5E7EB),
+                            color: AppPalette.border(context),
                           ),
                         ),
                         child: Column(
@@ -3664,10 +3774,10 @@ class _InvitePageState extends State<InvitePage> {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 12, vertical: 6),
                               decoration: BoxDecoration(
-                                color: Colors.white,
+            color: AppPalette.card(context),
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
-                                  color: const Color(0xFFE5E7EB),
+                                  color: AppPalette.border(context),
                                 ),
                               ),
                               child: Text(
@@ -3675,11 +3785,11 @@ class _InvitePageState extends State<InvitePage> {
                                 style: GoogleFonts.poppins(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w800,
-                                  color: const Color(0xFF1F2937),
+                                  color: AppPalette.textPrimary(context),
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 12),
+                            SizedBox(height: 12),
                             _NoteItem(text: localeService.tr('invite_note_1')),
                             _NoteItem(text: localeService.tr('invite_note_2')),
                             _NoteItem(text: localeService.tr('invite_note_3')),
@@ -3693,7 +3803,7 @@ class _InvitePageState extends State<InvitePage> {
                     ],
                   ),
                   ),
-                  const SizedBox(height: 20),
+                  SizedBox(height: 20),
                 ],
               ),
             ),
@@ -3711,7 +3821,7 @@ class _InvitePageState extends State<InvitePage> {
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
+                    gradient: LinearGradient(
                       colors: [Color(0xFFFF8A3D), Color(0xFFFF6A00)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
@@ -3719,18 +3829,18 @@ class _InvitePageState extends State<InvitePage> {
                     borderRadius: BorderRadius.circular(18),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFFFF6A00).withValues(alpha: 0.32),
+                        color: Color(0xFFFF6A00).withValues(alpha: 0.32),
                         blurRadius: 16,
-                        offset: const Offset(0, 4),
+                        offset: Offset(0, 4),
                       ),
                     ],
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.share_rounded,
+                      Icon(Icons.share_rounded,
                           color: Colors.white, size: 20),
-                      const SizedBox(width: 10),
+                      SizedBox(width: 10),
                       Text(
                         localeService.tr('share_with_friends'),
                         style: GoogleFonts.poppins(
@@ -3823,8 +3933,7 @@ class _InviteHero extends StatelessWidget {
                 top: screenTop,
                 width: screenW,
                 height: screenH,
-                child: Container(
-                  color: Colors.white,
+                child: Container(color: AppPalette.card(context),
                   padding: EdgeInsets.symmetric(
                     horizontal: screenW * 0.08,
                     vertical: screenH * 0.08,
@@ -3839,7 +3948,7 @@ class _InviteHero extends StatelessWidget {
                             style: GoogleFonts.poppins(
                               fontSize: screenW * 0.19,
                               fontWeight: FontWeight.w900,
-                              color: const Color(0xFF111827),
+                              color: AppPalette.textPrimary(context),
                               height: 1.0,
                               letterSpacing: -0.3,
                             ),
@@ -3862,7 +3971,7 @@ class _InviteHero extends StatelessWidget {
                           style: GoogleFonts.poppins(
                             fontSize: screenW * 0.14,
                             fontWeight: FontWeight.w800,
-                            color: const Color(0xFFFF6A00),
+                            color: Color(0xFFFF6A00),
                             height: 1.0,
                           ),
                         ),
@@ -3876,7 +3985,7 @@ class _InviteHero extends StatelessWidget {
                           style: GoogleFonts.poppins(
                             fontSize: screenW * 0.11,
                             fontWeight: FontWeight.w700,
-                            color: const Color(0xFF374151),
+                            color: AppPalette.textPrimary(context),
                             height: 1.15,
                           ),
                         ),
@@ -3909,7 +4018,7 @@ class _NoteItem extends StatelessWidget {
         style: GoogleFonts.poppins(
           fontSize: 12.5,
           fontWeight: FontWeight.w500,
-          color: const Color(0xFF6B7280),
+          color: AppPalette.textSecondary(context),
           height: 1.5,
         ),
       ),
@@ -3938,17 +4047,17 @@ class _HowItWorksStep extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 14, 16, 14),
         decoration: BoxDecoration(
-          color: Colors.white,
+            color: AppPalette.card(context),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: const Color(0xFFE5E7EB),
+            color: AppPalette.border(context),
             width: 1.2,
           ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 8,
-              offset: const Offset(0, 2),
+              offset: Offset(0, 2),
             ),
           ],
         ),
@@ -3960,15 +4069,15 @@ class _HowItWorksStep extends StatelessWidget {
               height: 30,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
+                gradient: LinearGradient(
                   colors: [Color(0xFFFF8A3D), Color(0xFFFF6A00)],
                 ),
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFFF6A00).withValues(alpha: 0.3),
+                    color: Color(0xFFFF6A00).withValues(alpha: 0.3),
                     blurRadius: 6,
-                    offset: const Offset(0, 2),
+                    offset: Offset(0, 2),
                   ),
                 ],
               ),
@@ -3981,7 +4090,7 @@ class _HowItWorksStep extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -3991,17 +4100,17 @@ class _HowItWorksStep extends StatelessWidget {
                     style: GoogleFonts.poppins(
                       fontSize: 13.5,
                       fontWeight: FontWeight.w800,
-                      color: const Color(0xFF1F2937),
+                      color: AppPalette.textPrimary(context),
                       height: 1.25,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     body,
                     style: GoogleFonts.poppins(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w500,
-                      color: const Color(0xFF6B7280),
+                      color: AppPalette.textSecondary(context),
                       height: 1.45,
                     ),
                   ),
@@ -4034,10 +4143,10 @@ class _InviteSlot extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.symmetric(vertical: 20),
         decoration: BoxDecoration(
-          color: Colors.white,
+            color: AppPalette.card(context),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: const Color(0xFFE5E7EB),
+            color: AppPalette.border(context),
             width: 1.2,
           ),
         ),
@@ -4048,13 +4157,13 @@ class _InviteSlot extends StatelessWidget {
               color: Colors.grey.shade400,
               size: 26,
             ),
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             Text(
               '${localeService.tr('friend_slot_label')} ${index + 1}',
               style: GoogleFonts.poppins(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
-                color: const Color(0xFF9CA3AF),
+                color: AppPalette.textSecondary(context),
               ),
             ),
           ],
@@ -4076,18 +4185,18 @@ class _InviteSlot extends StatelessWidget {
           BoxShadow(
             color: colors.first.withValues(alpha: 0.32),
             blurRadius: 12,
-            offset: const Offset(0, 4),
+            offset: Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         children: [
-          const Icon(
+          Icon(
             Icons.verified_rounded,
             color: Colors.white,
             size: 28,
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Text(
             localeService.tr('joined'),
             style: GoogleFonts.poppins(
@@ -4119,24 +4228,24 @@ class _LevelTile extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
+        duration: Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         decoration: BoxDecoration(
-          color: Colors.white,
+            color: AppPalette.card(context),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: selected
-                ? const Color(0xFF00C2D4)
+                ? Color(0xFF00C2D4)
                 : Colors.transparent,
             width: 1.6,
           ),
           boxShadow: [
             BoxShadow(
               color: selected
-                  ? const Color(0xFF00E5FF).withValues(alpha: 0.18)
+                  ? Color(0xFF00E5FF).withValues(alpha: 0.18)
                   : Colors.black.withValues(alpha: 0.05),
               blurRadius: selected ? 14 : 8,
-              offset: const Offset(0, 2),
+              offset: Offset(0, 2),
             ),
           ],
         ),
@@ -4148,25 +4257,25 @@ class _LevelTile extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 14.5,
                   fontWeight: FontWeight.w600,
-                  color: const Color(0xFF1F2937),
+                  color: AppPalette.textPrimary(context),
                 ),
               ),
             ),
             AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
+              duration: Duration(milliseconds: 180),
               width: 26,
               height: 26,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: selected
-                    ? const LinearGradient(
+                    ? LinearGradient(
                         colors: [Color(0xFF00E5FF), Color(0xFF6B21F2)],
                       )
                     : null,
-                color: selected ? null : const Color(0xFFE5E7EB),
+                color: selected ? null : Color(0xFFE5E7EB),
               ),
               child: selected
-                  ? const Icon(Icons.check_rounded,
+                  ? Icon(Icons.check_rounded,
                       color: Colors.white, size: 18)
                   : null,
             ),

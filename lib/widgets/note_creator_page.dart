@@ -25,6 +25,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../theme/app_theme.dart';
 class NoteCreatorPage extends StatefulWidget {
   final String topicId;
   final String topicName;
@@ -213,7 +214,7 @@ class _NoteCreatorPageState extends State<NoteCreatorPage> {
   Future<void> _toggleRecord() async {
     if (!_recorderReady) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Kayıt cihazı hazırlanıyor…')),
+        SnackBar(content: Text('Kayıt cihazı hazırlanıyor…')),
       );
       return;
     }
@@ -230,7 +231,7 @@ class _NoteCreatorPageState extends State<NoteCreatorPage> {
     if (!status.isGranted) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Mikrofon izni reddedildi.')),
+          SnackBar(content: Text('Mikrofon izni reddedildi.')),
         );
       }
       return;
@@ -334,7 +335,7 @@ class _NoteCreatorPageState extends State<NoteCreatorPage> {
                 ),
               ),
             ),
-            const SizedBox(width: 6),
+            SizedBox(width: 6),
             Text(
               'Notları',
               style: GoogleFonts.poppins(
@@ -351,8 +352,9 @@ class _NoteCreatorPageState extends State<NoteCreatorPage> {
             icon: Icon(Icons.check_rounded, color: theme.fgColor),
             tooltip: 'Kaydet',
             onPressed: () async {
+              final navigator = Navigator.of(context);
               await _save();
-              if (mounted) Navigator.of(context).pop();
+              if (mounted) navigator.pop();
             },
           ),
         ],
@@ -365,7 +367,7 @@ class _NoteCreatorPageState extends State<NoteCreatorPage> {
             children: [
               // Başlık alanı kaldırıldı — AppBar'da zaten "${topic} Notları"
               // gözüküyor; ikinci satır başlık kafa karıştırıyordu.
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               // Ses kayıtları (varsa)
               if (_audioPaths.isNotEmpty)
                 _AudioCardsRow(
@@ -510,7 +512,7 @@ class _BottomToolbar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+            color: AppPalette.card(context),
         border: Border(
           top: BorderSide(color: Colors.black.withValues(alpha: 0.08)),
         ),
@@ -518,17 +520,17 @@ class _BottomToolbar extends StatelessWidget {
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
-            offset: const Offset(0, -2),
+            offset: Offset(0, -2),
           ),
         ],
       ),
       padding: EdgeInsets.fromLTRB(
           12, 8, 12, 8 + MediaQuery.of(context).padding.bottom * 0.5),
       child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 180),
+        duration: Duration(milliseconds: 180),
         child: mode == 'default'
             ? Row(
-                key: const ValueKey('default'),
+                key: ValueKey('default'),
                 children: [
                   _Bbtn(
                     icon: recording
@@ -537,42 +539,42 @@ class _BottomToolbar extends StatelessWidget {
                     label: recording ? 'Kayıt…' : 'Ses',
                     onTap: onMic,
                     color: recording
-                        ? const Color(0xFFEF4444)
-                        : const Color(0xFFEF4444),
+                        ? Color(0xFFEF4444)
+                        : Color(0xFFEF4444),
                     pulse: recording,
                   ),
-                  const SizedBox(width: 6),
+                  SizedBox(width: 6),
                   _Bbtn(
                     icon: Icons.image_rounded,
                     label: 'Galeri',
                     onTap: onPhoto,
-                    color: const Color(0xFF22C55E),
+                    color: Color(0xFF22C55E),
                   ),
-                  const SizedBox(width: 6),
+                  SizedBox(width: 6),
                   // Tema butonu — galerinin sağında, basınca alt panel açılır.
                   _Bbtn(
                     icon: Icons.palette_rounded,
                     label: 'Renk',
                     onTap: onColorTheme,
-                    color: const Color(0xFFA855F7),
+                    color: Color(0xFFA855F7),
                   ),
-                  const Spacer(),
+                  Spacer(),
                   _TButton(onTap: onTextMode),
                 ],
               )
             : Row(
-                key: const ValueKey('text'),
+                key: ValueKey('text'),
                 children: [
                   _Hbtn(label: 'H1', size: 12, weight: FontWeight.w400, onTap: onH1),
                   _Hbtn(label: 'H2', size: 14, weight: FontWeight.w600, onTap: onH2),
                   _Hbtn(label: 'H3', size: 16, weight: FontWeight.w800, onTap: onH3),
                   _Hbtn(label: 'B', size: 18, weight: FontWeight.w900, onTap: onBold),
-                  const Spacer(),
+                  Spacer(),
                   _Bbtn(
                     icon: Icons.close_rounded,
                     label: 'Kapat',
                     onTap: onCloseTextMode,
-                    color: Colors.black54,
+                    color: AppPalette.textSecondary(context),
                   ),
                 ],
               ),
@@ -600,7 +602,7 @@ class _Bbtn extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 240),
+        duration: Duration(milliseconds: 240),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: pulse
@@ -615,7 +617,7 @@ class _Bbtn extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, color: color, size: 18),
-            const SizedBox(width: 6),
+            SizedBox(width: 6),
             Text(label,
                 style: GoogleFonts.poppins(
                     fontSize: 11,
@@ -686,7 +688,7 @@ class _Hbtn extends StatelessWidget {
           style: GoogleFonts.poppins(
             fontSize: size,
             fontWeight: weight,
-            color: Colors.black87,
+            color: AppPalette.textPrimary(context),
           ),
         ),
       ),
@@ -719,17 +721,17 @@ class _AudioCardsRow extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: paths.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (_, __) => SizedBox(width: 8),
         itemBuilder: (_, i) {
           final p = paths[i];
           final isPlaying = p == playing;
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: const Color(0xFFEF4444).withValues(alpha: 0.10),
+              color: Color(0xFFEF4444).withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                  color: const Color(0xFFEF4444).withValues(alpha: 0.40)),
+                  color: Color(0xFFEF4444).withValues(alpha: 0.40)),
             ),
             child: Row(
               children: [
@@ -737,18 +739,18 @@ class _AudioCardsRow extends StatelessWidget {
                   onTap: () => onPlayPause(p),
                   child: Icon(
                     isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                    color: const Color(0xFFEF4444),
+                    color: Color(0xFFEF4444),
                   ),
                 ),
-                const SizedBox(width: 6),
+                SizedBox(width: 6),
                 Text(
                   'Ses ${i + 1}',
                   style: GoogleFonts.poppins(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
-                      color: const Color(0xFFEF4444)),
+                      color: Color(0xFFEF4444)),
                 ),
-                const SizedBox(width: 6),
+                SizedBox(width: 6),
                 GestureDetector(
                   onTap: () => onDelete(p),
                   child: Icon(Icons.close_rounded,
@@ -779,7 +781,7 @@ class _ImageCardsRow extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: paths.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (_, __) => SizedBox(width: 8),
         itemBuilder: (_, i) {
           final p = paths[i];
           return GestureDetector(
@@ -796,9 +798,9 @@ class _ImageCardsRow extends StatelessWidget {
                     errorBuilder: (_, __, ___) => Container(
                       width: 80,
                       height: 80,
-                      color: Colors.black12,
+                      color: AppPalette.border(context),
                       alignment: Alignment.center,
-                      child: const Icon(Icons.broken_image_rounded,
+                      child: Icon(Icons.broken_image_rounded,
                           color: Colors.black38),
                     ),
                   ),
@@ -815,7 +817,7 @@ class _ImageCardsRow extends StatelessWidget {
                         shape: BoxShape.circle,
                         color: Colors.black.withValues(alpha: 0.6),
                       ),
-                      child: const Icon(Icons.close_rounded,
+                      child: Icon(Icons.close_rounded,
                           color: Colors.white, size: 14),
                     ),
                   ),
@@ -866,9 +868,11 @@ class _BgPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Konu özetlerindeki çoklu vurgulayıcıyla AYNI 16 temel renk.
-    // Ayırt edilebilir, canlı, doygun palet.
+    // 18 renkli palet — 16 doygun renk + 2 beyaz/açık ton.
+    // Beyaz tonlar nötr-açık zemin için, defter sayfası hissi.
     const palette = <Color>[
+      Color(0xFFFFFFFF), // saf beyaz (yeni)
+      Color(0xFFFFF8E1), // krem / vanilya (yeni — beyaza yakın)
       Color(0xFFFFEB3B), // sarı
       Color(0xFFFFC107), // amber
       Color(0xFFFF9800), // turuncu
@@ -893,15 +897,13 @@ class _BgPicker extends StatelessWidget {
               fg: _isDark(c) ? Colors.white : Colors.black,
             ))
         .toList();
-    // Her swatch'ı themes listesine "en yakın" eşleştir — render için lazım.
-    // Pratikte themes listesi boş bg'ler içeriyor; eşleşme zor olunca
-    // sadece ilk theme'i kullan + custom override (selected==null gibi).
-    final firstRow = swatches.take(8).toList();
-    final secondRow = swatches.skip(8).take(8).toList();
+    // 2 sıra × 9 swatch
+    final firstRow = swatches.take(9).toList();
+    final secondRow = swatches.skip(9).take(9).toList();
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: Color(0xF0111122),
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -910,24 +912,24 @@ class _BgPicker extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.palette_rounded, color: Colors.white, size: 18),
-              const SizedBox(width: 8),
+              Icon(Icons.palette_rounded, color: Colors.white, size: 18),
+              SizedBox(width: 8),
               Text('Renk',
                   style: GoogleFonts.poppins(
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
                       color: Colors.white)),
-              const Spacer(),
+              Spacer(),
               IconButton(
-                icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                icon: Icon(Icons.close_rounded, color: Colors.white70),
                 onPressed: onClose,
               ),
             ],
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           // 2 satır × 8 yuvarlak
           _swatchRow(firstRow),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           _swatchRow(secondRow),
         ],
       ),
@@ -953,22 +955,22 @@ class _BgPicker extends StatelessWidget {
               // yapıyorduk → yanlış renk uygulanıyordu.
               onTap: () => onSelectColor(s.bg),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                width: 34,
-                height: 34,
+                duration: Duration(milliseconds: 180),
+                width: 30, // 9 swatch tek satıra sığsın (34 → 30)
+                height: 30,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: s.bg,
                   border: Border.all(
                     color: isActive
-                        ? const Color(0xFFFFB800)
+                        ? Color(0xFFFFB800)
                         : Colors.white.withValues(alpha: 0.30),
                     width: isActive ? 2.5 : 1.2,
                   ),
                   boxShadow: isActive
                       ? [
                           BoxShadow(
-                            color: const Color(0xFFFFB800)
+                            color: Color(0xFFFFB800)
                                 .withValues(alpha: 0.55),
                             blurRadius: 12,
                             spreadRadius: 1,
@@ -1023,35 +1025,35 @@ final List<_BgTheme> _bgThemes = [
   // Klasik desenler
   _BgTheme(
     bgColor: Colors.white,
-    fgColor: const Color(0xFF1F2937),
+    fgColor: Color(0xFF1F2937),
     pattern: _LinedPaperPainter(),
   ),
   _BgTheme(
-    bgColor: const Color(0xFFFFFAF0),
-    fgColor: const Color(0xFF422006),
+    bgColor: Color(0xFFFFFAF0),
+    fgColor: Color(0xFF422006),
     pattern: _DotPaperPainter(),
   ),
   _BgTheme(
     bgColor: Colors.white,
-    fgColor: const Color(0xFF1F2937),
+    fgColor: Color(0xFF1F2937),
     pattern: _GridPaperPainter(),
   ),
   // Çiçekli (modern/whimsical)
   _BgTheme(
-    bgColor: const Color(0xFFFFF5F7),
-    fgColor: const Color(0xFF500724),
+    bgColor: Color(0xFFFFF5F7),
+    fgColor: Color(0xFF500724),
     pattern: _FlowerPainter(),
   ),
   // Futüristik / cyber
   _BgTheme(
-    bgColor: const Color(0xFF0A0E27),
-    fgColor: const Color(0xFFE0E7FF),
+    bgColor: Color(0xFF0A0E27),
+    fgColor: Color(0xFFE0E7FF),
     pattern: _CyberGridPainter(),
   ),
   // Dalga / abstract modern
   _BgTheme(
-    bgColor: const Color(0xFFEFF6FF),
-    fgColor: const Color(0xFF0C4A6E),
+    bgColor: Color(0xFFEFF6FF),
+    fgColor: Color(0xFF0C4A6E),
     pattern: _WavePainter(),
   ),
 ];
@@ -1061,7 +1063,7 @@ class _LinedPaperPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFF93C5FD).withValues(alpha: 0.55)
+      ..color = Color(0xFF93C5FD).withValues(alpha: 0.55)
       ..strokeWidth = 0.8;
     const sp = 28.0;
     for (double y = 80; y < size.height; y += sp) {
@@ -1076,7 +1078,7 @@ class _LinedPaperPainter extends CustomPainter {
 class _DotPaperPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = const Color(0xFFD4A373).withValues(alpha: 0.40);
+    final paint = Paint()..color = Color(0xFFD4A373).withValues(alpha: 0.40);
     const sp = 22.0;
     for (double y = sp; y < size.height; y += sp) {
       for (double x = sp; x < size.width; x += sp) {
@@ -1093,7 +1095,7 @@ class _GridPaperPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFFC7D2FE).withValues(alpha: 0.55)
+      ..color = Color(0xFFC7D2FE).withValues(alpha: 0.55)
       ..strokeWidth = 0.6;
     const sp = 24.0;
     for (double x = sp; x < size.width; x += sp) {
@@ -1113,9 +1115,9 @@ class _FlowerPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final petalPaint = Paint()
-      ..color = const Color(0xFFEC4899).withValues(alpha: 0.18);
+      ..color = Color(0xFFEC4899).withValues(alpha: 0.18);
     final centerPaint = Paint()
-      ..color = const Color(0xFFFBBF24).withValues(alpha: 0.40);
+      ..color = Color(0xFFFBBF24).withValues(alpha: 0.40);
     const sp = 60.0;
     for (double y = 30; y < size.height; y += sp) {
       for (double x = 30; x < size.width; x += sp) {
@@ -1140,10 +1142,10 @@ class _CyberGridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFF22D3EE).withValues(alpha: 0.18)
+      ..color = Color(0xFF22D3EE).withValues(alpha: 0.18)
       ..strokeWidth = 0.7;
     final glowPaint = Paint()
-      ..color = const Color(0xFF8B5CF6).withValues(alpha: 0.10)
+      ..color = Color(0xFF8B5CF6).withValues(alpha: 0.10)
       ..strokeWidth = 1.2;
     const sp = 36.0;
     // İnce grid
@@ -1168,7 +1170,7 @@ class _WavePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFF60A5FA).withValues(alpha: 0.20)
+      ..color = Color(0xFF60A5FA).withValues(alpha: 0.20)
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
     const sp = 40.0;
@@ -1284,10 +1286,10 @@ class _MarkdownEditingController extends TextEditingController {
     TextStyle? style,
     required bool withComposing,
   }) {
-    final base = style ?? const TextStyle();
+    final base = style ?? TextStyle();
     final baseFs = base.fontSize ?? 15;
     final hidden = base.copyWith(
-      color: const Color(0x00000000),
+      color: Color(0x00000000),
       fontSize: 0.01,
     );
     TextStyle styleFor(String key) {

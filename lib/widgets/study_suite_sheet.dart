@@ -183,10 +183,10 @@ class _StudySuiteContentState extends State<_StudySuiteContent> {
         filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
         child: Container(
           decoration: BoxDecoration(
-            color: const Color(0xFFEEF1F6),
+            color: AppPalette.bg(context),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
             border: Border.all(
-              color: Colors.black12,
+              color: AppPalette.border(context),
               width: 1.2,
             ),
           ),
@@ -237,11 +237,11 @@ class _StudySuiteContentState extends State<_StudySuiteContent> {
           mainAxisSize: MainAxisSize.min,
           children: [
             QuAlsarStaticBadge(size: 54, variant: _variant),
-            const SizedBox(height: 8),
-            const Text(
+            SizedBox(height: 8),
+            Text(
               'Konuyu Pekiştir',
               style: TextStyle(
-                color: Colors.black,
+                color: AppPalette.textPrimary(context),
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
                 letterSpacing: -0.3,
@@ -290,7 +290,7 @@ class _StudySuiteContentState extends State<_StudySuiteContent> {
         children: [
           Icon(Icons.wifi_off_rounded,
               color: Colors.black.withValues(alpha: 0.40), size: 42),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           Text(
             _error ?? 'Bir hata oluştu.',
             textAlign: TextAlign.center,
@@ -299,7 +299,7 @@ class _StudySuiteContentState extends State<_StudySuiteContent> {
                 fontSize: 13,
                 height: 1.5),
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           GestureDetector(
             onTap: _fetch,
             child: Container(
@@ -309,7 +309,7 @@ class _StudySuiteContentState extends State<_StudySuiteContent> {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppColors.cyan.withValues(alpha: 0.40)),
               ),
-              child: const Text(
+              child: Text(
                 'Tekrar Dene',
                 style: TextStyle(color: AppColors.cyan, fontSize: 13, fontWeight: FontWeight.w600),
               ),
@@ -325,14 +325,14 @@ class _StudySuiteContentState extends State<_StudySuiteContent> {
     final d = _data!;
     return ListView(
       controller: scroll,
-      physics: const BouncingScrollPhysics(),
+      physics: BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 48),
       children: [
 
         // ── SEKME 1: Benzer Sorular ───────────────────────────────────────────
         _SectionTab(
           icon:     Icons.quiz_rounded,
-          color:    const Color(0xFF60A5FA),
+          color:    Color(0xFF60A5FA),
           label:    'Benzer Soruları Çöz',
           count:    '${d.questions.length} soru',
           active:   _activeSection == 'questions',
@@ -340,18 +340,18 @@ class _StudySuiteContentState extends State<_StudySuiteContent> {
         ),
         _SectionPanel(
           active:   _activeSection == 'questions',
-          color:    const Color(0xFF60A5FA),
+          color:    Color(0xFF60A5FA),
           title:    'Benzer Soruları Çöz',
           onClose:  _closeSection,
           child:    _buildQuestionsContent(d.questions),
         ),
 
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
 
         // ── SEKME 2: Bilgi Kartları ───────────────────────────────────────────
         _SectionTab(
           icon:   Icons.lightbulb_outline_rounded,
-          color:  const Color(0xFFF59E0B),
+          color:  Color(0xFFF59E0B),
           label:  'Bilgi Kartları',
           count:  '${d.infoCards.length} kart',
           active: _activeSection == 'info',
@@ -359,18 +359,18 @@ class _StudySuiteContentState extends State<_StudySuiteContent> {
         ),
         _SectionPanel(
           active:  _activeSection == 'info',
-          color:   const Color(0xFFF59E0B),
+          color:   Color(0xFFF59E0B),
           title:   'Bilgi Kartları',
           onClose: _closeSection,
           child:   _buildInfoCardsContent(d.infoCards),
         ),
 
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
 
         // ── SEKME 3: Eşleştirme Kartları 🧠 ──────────────────────────────────
         _SectionTab(
           icon:   Icons.style_rounded,
-          color:  const Color(0xFF8B5CF6),
+          color:  Color(0xFF8B5CF6),
           label:  'Eşleştirme Kartları',
           count:  '${d.matchPairs.length} çift',
           active: _activeSection == 'match',
@@ -378,7 +378,7 @@ class _StudySuiteContentState extends State<_StudySuiteContent> {
         ),
         _SectionPanel(
           active:  _activeSection == 'match',
-          color:   const Color(0xFF8B5CF6),
+          color:   Color(0xFF8B5CF6),
           title:   'Eşleştirme Kartları',
           onClose: _closeSection,
           child:   _MatchCardsPanel(
@@ -445,7 +445,7 @@ class _SectionTab extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
+        duration: Duration(milliseconds: 220),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         decoration: BoxDecoration(
           color: active
@@ -466,7 +466,7 @@ class _SectionTab extends StatelessWidget {
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 8,
-                    offset: const Offset(0, 2),
+                    offset: Offset(0, 2),
                   ),
                 ],
         ),
@@ -480,7 +480,7 @@ class _SectionTab extends StatelessWidget {
               ),
               child: Icon(icon, color: color, size: 17),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -493,7 +493,7 @@ class _SectionTab extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 1),
+                  SizedBox(height: 1),
                   Text(
                     count,
                     style: TextStyle(
@@ -507,7 +507,7 @@ class _SectionTab extends StatelessWidget {
             ),
             AnimatedRotation(
               turns: active ? 0.25 : 0,
-              duration: const Duration(milliseconds: 220),
+              duration: Duration(milliseconds: 220),
               child: Icon(
                 Icons.chevron_right_rounded,
                 color: active ? color : Colors.black.withValues(alpha: 0.40),
@@ -542,12 +542,12 @@ class _SectionPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnimatedSize(
-      duration: const Duration(milliseconds: 300),
+      duration: Duration(milliseconds: 300),
       curve: Curves.easeInOut,
       alignment: Alignment.topCenter,
       child: active
           ? AnimatedOpacity(
-              duration: const Duration(milliseconds: 220),
+              duration: Duration(milliseconds: 220),
               opacity: active ? 1.0 : 0.0,
               child: Container(
                 width: double.infinity,
@@ -572,7 +572,7 @@ class _SectionPanel extends StatelessWidget {
                       children: [
                         Icon(Icons.expand_less_rounded,
                             color: color.withValues(alpha: 0.60), size: 16),
-                        const SizedBox(width: 5),
+                        SizedBox(width: 5),
                         Text(
                           title,
                           style: TextStyle(
@@ -582,7 +582,7 @@ class _SectionPanel extends StatelessWidget {
                             letterSpacing: 0.4,
                           ),
                         ),
-                        const Spacer(),
+                        Spacer(),
                         // X butonu
                         GestureDetector(
                           onTap: onClose,
@@ -600,7 +600,7 @@ class _SectionPanel extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12),
                     child,
                   ],
                 ),
@@ -638,7 +638,7 @@ class _SimilarQuestionCardState extends State<_SimilarQuestionCard>
   @override
   void initState() {
     super.initState();
-    _ctrl   = AnimationController(vsync: this, duration: const Duration(milliseconds: 260));
+    _ctrl   = AnimationController(vsync: this, duration: Duration(milliseconds: 260));
     _fade   = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
     _rotate = Tween<double>(begin: 0.0, end: 0.5).animate(_fade);
   }
@@ -672,7 +672,7 @@ class _SimilarQuestionCardState extends State<_SimilarQuestionCard>
   Widget build(BuildContext context) {
     const accent = Color(0xFF60A5FA);
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
+      duration: Duration(milliseconds: 200),
       decoration: BoxDecoration(
         color: _expanded
             ? accent.withValues(alpha: 0.06)
@@ -690,7 +690,7 @@ class _SimilarQuestionCardState extends State<_SimilarQuestionCard>
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 8,
-                  offset: const Offset(0, 2),
+                  offset: Offset(0, 2),
                 ),
               ],
       ),
@@ -718,14 +718,14 @@ class _SimilarQuestionCardState extends State<_SimilarQuestionCard>
                       child: Center(
                         child: Text(
                           '${widget.index}',
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: accent,
                               fontSize: 10,
                               fontWeight: FontWeight.w800),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 9),
+                    SizedBox(width: 9),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -733,22 +733,22 @@ class _SimilarQuestionCardState extends State<_SimilarQuestionCard>
                           // Soru metni (ilk satır) + şıklar (sonraki satırlar)
                           Text(
                             _questionStem,
-                            style: const TextStyle(
-                              color: Colors.black,
+                            style: TextStyle(
+                              color: AppPalette.textPrimary(context),
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                               height: 1.45,
                             ),
                           ),
                           if (_options.isNotEmpty) ...[
-                            const SizedBox(height: 6),
+                            SizedBox(height: 6),
                             for (final opt in _options)
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 2),
                                 child: Text(
                                   opt,
-                                  style: const TextStyle(
-                                    color: Colors.black87,
+                                  style: TextStyle(
+                                    color: AppPalette.textPrimary(context),
                                     fontSize: 12,
                                     fontWeight: FontWeight.w500,
                                     height: 1.45,
@@ -759,7 +759,7 @@ class _SimilarQuestionCardState extends State<_SimilarQuestionCard>
                         ],
                       ),
                     ),
-                    const SizedBox(width: 6),
+                    SizedBox(width: 6),
                     Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.end,
@@ -775,12 +775,12 @@ class _SimilarQuestionCardState extends State<_SimilarQuestionCard>
                           ),
                         ),
                         if (!_expanded)
-                          const Padding(
+                          Padding(
                             padding: EdgeInsets.only(top: 3),
                             child: Text(
                               'Çözümü Göster',
                               style: TextStyle(
-                                color: Colors.black,
+                                color: AppPalette.textPrimary(context),
                                 fontSize: 9,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -800,14 +800,14 @@ class _SimilarQuestionCardState extends State<_SimilarQuestionCard>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12),
                         Container(height: 1, color: accent.withValues(alpha: 0.20)),
-                        const SizedBox(height: 10),
+                        SizedBox(height: 10),
                         Row(
                           children: [
-                            const Icon(Icons.lightbulb_outline_rounded,
+                            Icon(Icons.lightbulb_outline_rounded,
                                 color: accent, size: 12),
-                            const SizedBox(width: 4),
+                            SizedBox(width: 4),
                             Text(
                               'Çözüm',
                               style: TextStyle(
@@ -819,7 +819,7 @@ class _SimilarQuestionCardState extends State<_SimilarQuestionCard>
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        SizedBox(height: 8),
                         LatexText(widget.solution, fontSize: 13, lineHeight: 1.60),
                       ],
                     ),
@@ -855,7 +855,7 @@ class _InfoCardState extends State<_InfoCard>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 240));
+        vsync: this, duration: Duration(milliseconds: 240));
     _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
   }
 
@@ -874,7 +874,7 @@ class _InfoCardState extends State<_InfoCard>
   Widget build(BuildContext context) {
     const accent = Color(0xFFF59E0B);
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
+      duration: Duration(milliseconds: 200),
       decoration: BoxDecoration(
         color: _expanded ? accent.withValues(alpha: 0.06) : Colors.white,
         borderRadius: BorderRadius.circular(14),
@@ -890,7 +890,7 @@ class _InfoCardState extends State<_InfoCard>
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 8,
-                  offset: const Offset(0, 2),
+                  offset: Offset(0, 2),
                 ),
               ],
       ),
@@ -912,15 +912,15 @@ class _InfoCardState extends State<_InfoCard>
                         color: accent.withValues(alpha: 0.14),
                         borderRadius: BorderRadius.circular(9),
                       ),
-                      child: const Icon(Icons.lightbulb_outline_rounded,
+                      child: Icon(Icons.lightbulb_outline_rounded,
                           color: accent, size: 17),
                     ),
-                    const SizedBox(width: 10),
+                    SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         widget.item.title,
-                        style: const TextStyle(
-                          color: Colors.black,
+                        style: TextStyle(
+                          color: AppPalette.textPrimary(context),
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
                           height: 1.3,
@@ -944,9 +944,9 @@ class _InfoCardState extends State<_InfoCard>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const SizedBox(height: 10),
+                        SizedBox(height: 10),
                         Container(height: 1, color: accent.withValues(alpha: 0.22)),
-                        const SizedBox(height: 10),
+                        SizedBox(height: 10),
                         // LatexText: formülleri render eder, • maddeleri düz gösterir
                         LatexText(widget.item.content, fontSize: 13, lineHeight: 1.6),
                       ],
@@ -981,7 +981,7 @@ class _ShimmerState extends State<_Shimmer> with SingleTickerProviderStateMixin 
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 900))
+        vsync: this, duration: Duration(milliseconds: 900))
       ..repeat(reverse: true);
     _anim = Tween<double>(begin: 0.50, end: 1.0)
         .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
@@ -1108,7 +1108,7 @@ class _MatchCardsPanelState extends State<_MatchCardsPanel> {
       });
     } else {
       _locked = true;
-      Future.delayed(const Duration(milliseconds: 700), () {
+      Future.delayed(Duration(milliseconds: 700), () {
         if (!mounted) return;
         setState(() {
           _cards[_firstIdx!] = _cards[_firstIdx!].copyWith(selected: false);
@@ -1151,39 +1151,39 @@ class _MatchCardsPanelState extends State<_MatchCardsPanel> {
               icon:  Icons.swap_horiz_rounded,
               label: 'Hamle',
               value: '$_moves',
-              color: const Color(0xFF3B82F6),
+              color: Color(0xFF3B82F6),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             _StatChip(
               icon:  Icons.check_circle_rounded,
               label: 'Eşleşme',
               value: '$_matched / $total',
-              color: const Color(0xFF22C55E),
+              color: Color(0xFF22C55E),
             ),
-            const Spacer(),
+            Spacer(),
             if (_moves > 0)
               GestureDetector(
                 onTap: _restart,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF8B5CF6).withValues(alpha: 0.10),
+                    color: Color(0xFF8B5CF6).withValues(alpha: 0.10),
                     borderRadius: BorderRadius.circular(50),
                     border: Border.all(
-                      color: const Color(0xFF8B5CF6).withValues(alpha: 0.40),
+                      color: Color(0xFF8B5CF6).withValues(alpha: 0.40),
                       width: 1.0,
                     ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.replay_rounded,
+                      Icon(Icons.replay_rounded,
                           color: Color(0xFF8B5CF6), size: 13),
-                      const SizedBox(width: 4),
+                      SizedBox(width: 4),
                       Text(
                         'Sıfırla',
                         style: GoogleFonts.inter(
-                          color: const Color(0xFF8B5CF6),
+                          color: Color(0xFF8B5CF6),
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
                         ),
@@ -1194,7 +1194,7 @@ class _MatchCardsPanelState extends State<_MatchCardsPanel> {
               ),
           ],
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
 
         // ── Kazandın mesajı ────────────────────────────────────────────────
         if (completed)
@@ -1203,23 +1203,23 @@ class _MatchCardsPanelState extends State<_MatchCardsPanel> {
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
             decoration: BoxDecoration(
-              color: const Color(0xFF22C55E).withValues(alpha: 0.10),
+              color: Color(0xFF22C55E).withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: const Color(0xFF22C55E).withValues(alpha: 0.50),
+                color: Color(0xFF22C55E).withValues(alpha: 0.50),
                 width: 1.2,
               ),
             ),
             child: Row(
               children: [
-                const Icon(Icons.emoji_events_rounded,
+                Icon(Icons.emoji_events_rounded,
                     color: Color(0xFF22C55E), size: 18),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Tebrikler! Tüm çiftleri $_moves hamlede eşleştirdin 🎉',
                     style: GoogleFonts.inter(
-                      color: Colors.black,
+                      color: AppPalette.textPrimary(context),
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),
@@ -1232,8 +1232,8 @@ class _MatchCardsPanelState extends State<_MatchCardsPanel> {
         // ── Kart ızgarası — yatayda 4 sütun, kartlar baştan açık. ─────────
         GridView.builder(
           shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          physics: NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 4,
             childAspectRatio: 0.78,
             crossAxisSpacing: 8,
@@ -1269,7 +1269,7 @@ class _StatChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
+            color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(50),
         border: Border.all(color: Colors.black.withValues(alpha: 0.14), width: 1),
       ),
@@ -1277,20 +1277,20 @@ class _StatChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, color: color, size: 13),
-          const SizedBox(width: 5),
+          SizedBox(width: 5),
           Text(
             label,
             style: GoogleFonts.inter(
-              color: Colors.black54,
+              color: AppPalette.textSecondary(context),
               fontSize: 10,
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(width: 4),
+          SizedBox(width: 4),
           Text(
             value,
             style: GoogleFonts.inter(
-              color: Colors.black,
+              color: AppPalette.textPrimary(context),
               fontSize: 11,
               fontWeight: FontWeight.w900,
             ),
@@ -1327,21 +1327,21 @@ class _MatchCardTile extends StatelessWidget {
     final Color borderCol;
     final List<BoxShadow> shadow;
     if (card.matched) {
-      bgColor   = const Color(0xFFDCFCE7); // açık yeşil
-      borderCol = const Color(0xFF22C55E);
+      bgColor   = Color(0xFFDCFCE7); // açık yeşil
+      borderCol = Color(0xFF22C55E);
       shadow = [
         BoxShadow(
-          color: const Color(0xFF22C55E).withValues(alpha: 0.30),
+          color: Color(0xFF22C55E).withValues(alpha: 0.30),
           blurRadius: 12,
           spreadRadius: 1,
         ),
       ];
     } else if (card.selected) {
-      bgColor   = const Color(0xFFFFEDD5); // açık turuncu
-      borderCol = const Color(0xFFF97316);
+      bgColor   = Color(0xFFFFEDD5); // açık turuncu
+      borderCol = Color(0xFFF97316);
       shadow = [
         BoxShadow(
-          color: const Color(0xFFF97316).withValues(alpha: 0.30),
+          color: Color(0xFFF97316).withValues(alpha: 0.30),
           blurRadius: 10,
           spreadRadius: 1,
         ),
@@ -1353,11 +1353,11 @@ class _MatchCardTile extends StatelessWidget {
         BoxShadow(
           color: Colors.black.withValues(alpha: 0.05),
           blurRadius: 6,
-          offset: const Offset(0, 2),
+          offset: Offset(0, 2),
         ),
       ];
     }
-    final labelCol = isTerm ? const Color(0xFF8B5CF6) : const Color(0xFF3B82F6);
+    final labelCol = isTerm ? Color(0xFF8B5CF6) : Color(0xFF3B82F6);
 
     // Metin kart yüzüne sığmıyorsa tek tıkla da büyüt — kabaca uzunluk eşiği.
     final textOverflows = card.text.length > 28;
@@ -1376,7 +1376,7 @@ class _MatchCardTile extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
+            duration: Duration(milliseconds: 200),
             curve: Curves.easeOut,
             decoration: BoxDecoration(
               color: bgColor,
@@ -1408,7 +1408,7 @@ class _MatchCardTile extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(height: 5),
+                SizedBox(height: 5),
                 Expanded(
                   child: Center(
                     child: Text(
@@ -1417,7 +1417,7 @@ class _MatchCardTile extends StatelessWidget {
                       maxLines: 5,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.inter(
-                        color: Colors.black,
+                        color: AppPalette.textPrimary(context),
                         fontSize: isTerm ? 11.5 : 10,
                         fontWeight:
                             isTerm ? FontWeight.w800 : FontWeight.w500,
@@ -1439,14 +1439,14 @@ class _MatchCardTile extends StatelessWidget {
                 height: 22,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF22C55E),
+                  color: Color(0xFF22C55E),
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white, width: 1.6),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF22C55E).withValues(alpha: 0.45),
+                      color: Color(0xFF22C55E).withValues(alpha: 0.45),
                       blurRadius: 6,
-                      offset: const Offset(0, 2),
+                      offset: Offset(0, 2),
                     ),
                   ],
                 ),
@@ -1487,8 +1487,8 @@ class _ExpandedCardDialogState extends State<_ExpandedCardDialog>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 240),
-      reverseDuration: const Duration(milliseconds: 200),
+      duration: Duration(milliseconds: 240),
+      reverseDuration: Duration(milliseconds: 200),
     );
     _scale = CurvedAnimation(
       parent: _ctrl,
@@ -1513,15 +1513,15 @@ class _ExpandedCardDialogState extends State<_ExpandedCardDialog>
   Widget build(BuildContext context) {
     final card = widget.card;
     final isTerm = card.kind == _MatchKind.term;
-    final labelCol = isTerm ? const Color(0xFF8B5CF6) : const Color(0xFF3B82F6);
+    final labelCol = isTerm ? Color(0xFF8B5CF6) : Color(0xFF3B82F6);
     final Color bgColor;
     final Color borderCol;
     if (card.matched) {
-      bgColor   = const Color(0xFFDCFCE7);
-      borderCol = const Color(0xFF22C55E);
+      bgColor   = Color(0xFFDCFCE7);
+      borderCol = Color(0xFF22C55E);
     } else if (card.selected) {
-      bgColor   = const Color(0xFFFFEDD5);
-      borderCol = const Color(0xFFF97316);
+      bgColor   = Color(0xFFFFEDD5);
+      borderCol = Color(0xFFF97316);
     } else {
       bgColor   = Colors.white;
       borderCol = Colors.black;
@@ -1556,7 +1556,7 @@ class _ExpandedCardDialogState extends State<_ExpandedCardDialog>
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.20),
                             blurRadius: 24,
-                            offset: const Offset(0, 8),
+                            offset: Offset(0, 8),
                           ),
                         ],
                       ),
@@ -1580,12 +1580,12 @@ class _ExpandedCardDialogState extends State<_ExpandedCardDialog>
                               ),
                             ),
                           ),
-                          const SizedBox(height: 14),
+                          SizedBox(height: 14),
                           Text(
                             card.text,
                             textAlign: TextAlign.center,
                             style: GoogleFonts.inter(
-                              color: Colors.black,
+                              color: AppPalette.textPrimary(context),
                               fontSize: isTerm ? 22 : 16,
                               fontWeight: isTerm
                                   ? FontWeight.w800
@@ -1602,9 +1602,9 @@ class _ExpandedCardDialogState extends State<_ExpandedCardDialog>
                       right: 8,
                       child: Material(
                         color: Colors.transparent,
-                        shape: const CircleBorder(),
+                        shape: CircleBorder(),
                         child: InkWell(
-                          customBorder: const CircleBorder(),
+                          customBorder: CircleBorder(),
                           onTap: _close,
                           child: Container(
                             width: 32,
@@ -1613,10 +1613,10 @@ class _ExpandedCardDialogState extends State<_ExpandedCardDialog>
                               color: Colors.black.withValues(alpha: 0.08),
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.close_rounded,
                               size: 18,
-                              color: Colors.black87,
+                              color: AppPalette.textPrimary(context),
                             ),
                           ),
                         ),

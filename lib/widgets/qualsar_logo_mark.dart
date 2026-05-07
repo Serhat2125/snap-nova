@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
 // ═══════════════════════════════════════════════════════════════════════════════
 //  QuAlsarLogoMark — Marka işareti.
 //  Matematik + kimya + fizik sembolleri ile 5 dilde (EN, ZH, HI, JA, AR)
@@ -47,30 +48,30 @@ class _QuAlsarLogoMarkState extends State<QuAlsarLogoMark>
   void initState() {
     super.initState();
     _orbit1 = AnimationController(
-        vsync: this, duration: const Duration(seconds: 2))
+        vsync: this, duration: Duration(seconds: 2))
       ..repeat();
     _orbit2 = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 1500))
+        vsync: this, duration: Duration(milliseconds: 1500))
       ..addListener(_onOrbit2Tick)
       ..repeat();
     _orbit3 = AnimationController(
-        vsync: this, duration: const Duration(seconds: 1))
+        vsync: this, duration: Duration(seconds: 1))
       ..addListener(_onOrbit3Tick)
       ..repeat();
     _ticker = AnimationController(
-        vsync: this, duration: const Duration(seconds: 2))
+        vsync: this, duration: Duration(seconds: 2))
       ..repeat();
 
     // Sembol akışı — setState yok; AnimatedBuilder(_ticker) her karede
     // yeniden çizdiği için mutasyon yeterli (kare atlama önler).
-    _spawnTimer = Timer.periodic(const Duration(milliseconds: 220), (_) {
+    _spawnTimer = Timer.periodic(Duration(milliseconds: 220), (_) {
       if (!mounted) return;
       _spawnSymbol();
     });
 
     // Merkez kelime akışı — sadece showCenterWord=true ise çalışır.
     if (widget.showCenterWord) {
-      _centerTimer = Timer.periodic(const Duration(milliseconds: 1100), (_) {
+      _centerTimer = Timer.periodic(Duration(milliseconds: 1100), (_) {
         if (!mounted) return;
         setState(() {
           _centerIdx = (_centerIdx + 1) % _centerSymbols.length;
@@ -140,17 +141,17 @@ class _QuAlsarLogoMarkState extends State<QuAlsarLogoMark>
       height: disc,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: const Color(0xFF0E0E10),
+        color: AppPalette.textPrimary(context),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF00E5FF).withValues(alpha: 0.25),
+            color: Color(0xFF00E5FF).withValues(alpha: 0.25),
             blurRadius: 34,
             spreadRadius: 2,
           ),
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.35),
             blurRadius: 28,
-            offset: const Offset(0, 10),
+            offset: Offset(0, 10),
           ),
         ],
       ),
@@ -207,7 +208,7 @@ class _QuAlsarLogoMarkState extends State<QuAlsarLogoMark>
             turns: _orbit1,
             child: _OrbitRing(
               size: disc,
-              color: const Color(0xFFE11D2E),
+              color: Color(0xFFE11D2E),
               sides: const [_Side.top, _Side.right],
               dotAlign: Alignment.topCenter,
             ),
@@ -235,7 +236,7 @@ class _QuAlsarLogoMarkState extends State<QuAlsarLogoMark>
           // Merkez kelime — 10 dilde ders adları (opsiyonel)
           if (widget.showCenterWord)
             AnimatedSwitcher(
-              duration: const Duration(milliseconds: 380),
+              duration: Duration(milliseconds: 380),
               switchInCurve: Curves.easeOut,
               switchOutCurve: Curves.easeIn,
               transitionBuilder: (child, anim) => FadeTransition(
@@ -262,7 +263,7 @@ class _QuAlsarLogoMarkState extends State<QuAlsarLogoMark>
                         style: TextStyle(
                           fontSize: disc * 0.15,
                           fontWeight: FontWeight.w900,
-                          color: const Color(0xFF00FFFF),
+                          color: Color(0xFF00FFFF),
                           letterSpacing: -0.2,
                           shadows: const [
                             Shadow(color: Color(0xFF00FFFF), blurRadius: 22),

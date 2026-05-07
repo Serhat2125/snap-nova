@@ -1,3 +1,5 @@
+// ignore_for_file: unused_element, prefer_const_constructors_in_immutables
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -20,8 +22,12 @@ import '../services/education_profile.dart';
 import '../services/usage_quota.dart';
 import '../services/gemini_service.dart';
 import '../services/duelo_matchmaking_service.dart';
+import '../features/leaderboard/providers/location_controller.dart';
+import '../features/leaderboard/widgets/location_selection_sheet.dart';
 import '../widgets/qualsar_numeric_loader.dart';
+import '../widgets/qualsar_loading_widget.dart';
 
+import '../theme/app_theme.dart';
 // ═══════════════════════════════════════════════════════════════════════════════
 //  QuAlsar Arena — Premium soru çözme ve sıralama arenası
 //  Akış: Kurulum (ilk giriş) → Anasayfa → Sihirbaz → Yükleme → Quiz → Sonuç → Paylaş
@@ -29,7 +35,7 @@ import '../widgets/qualsar_numeric_loader.dart';
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class _Palette {
-  static const bg = Color(0xFFFAF7F2);
+  static const bg = Color(0xFFECEEF2);
   static const ink = Color(0xFF0E0E10);
   static const inkSoft = Color(0xFF47474D);
   static const inkMute = Color(0xFF8B8B93);
@@ -55,7 +61,7 @@ TextStyle _serif({double size = 16, FontWeight weight = FontWeight.w600, Color? 
   return GoogleFonts.fraunces(
     fontSize: size,
     fontWeight: weight,
-    color: color ?? _Palette.ink,
+    color: color,
     letterSpacing: letterSpacing,
     height: height,
   );
@@ -65,7 +71,7 @@ TextStyle _sans({double size = 14, FontWeight weight = FontWeight.w500, Color? c
   return GoogleFonts.inter(
     fontSize: size,
     fontWeight: weight,
-    color: color ?? _Palette.ink,
+    color: color,
     letterSpacing: letterSpacing,
     height: height,
   );
@@ -75,7 +81,7 @@ TextStyle _mono({double size = 12, FontWeight weight = FontWeight.w600, Color? c
   return GoogleFonts.jetBrainsMono(
     fontSize: size,
     fontWeight: weight,
-    color: color ?? _Palette.ink,
+    color: color,
   );
 }
 
@@ -258,7 +264,7 @@ const List<_LeagueInfo> _leagues = [
 ];
 
 class QuAlsarArenaScreen extends StatefulWidget {
-  const QuAlsarArenaScreen({super.key});
+  QuAlsarArenaScreen({super.key});
 
   @override
   State<QuAlsarArenaScreen> createState() => _QuAlsarArenaScreenState();
@@ -390,9 +396,9 @@ class _QuAlsarArenaScreenState extends State<QuAlsarArenaScreen> {
   @override
   Widget build(BuildContext context) {
     return Theme(
-      data: Theme.of(context).copyWith(scaffoldBackgroundColor: _Palette.bg),
+      data: Theme.of(context).copyWith(scaffoldBackgroundColor: AppPalette.bg(context)),
       child: !_loaded || !_hasProfile
-          ? const Scaffold(backgroundColor: _Palette.bg, body: SizedBox.shrink())
+          ? Scaffold(backgroundColor: AppPalette.bg(context), body: SizedBox.shrink())
           : const _ArenaHome(),
     );
   }
@@ -1380,7 +1386,7 @@ class _EducationSetupDialogState extends State<_EducationSetupDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: _Palette.bg,
+      backgroundColor: AppPalette.bg(context),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 40),
       child: Padding(
@@ -1393,7 +1399,7 @@ class _EducationSetupDialogState extends State<_EducationSetupDialog> {
               Row(
                 children: [
                   Text('🎓'.tr(), style: TextStyle(fontSize: 24)),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Eğitim seviyeni seç',
@@ -1404,13 +1410,13 @@ class _EducationSetupDialogState extends State<_EducationSetupDialog> {
                   ),
                 ],
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               Text(
                 'Sana uygun dersler ve konular otomatik olarak hazırlanır.',
-                style: _sans(size: 11, color: _Palette.inkMute, height: 1.3),
+                style: _sans(size: 11, color: AppPalette.textSecondary(context), height: 1.3),
               ),
               if (widget.trialEntryNumber > 0) ...[
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
@@ -1422,7 +1428,7 @@ class _EducationSetupDialogState extends State<_EducationSetupDialog> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text('🧪'.tr(), style: TextStyle(fontSize: 13)),
-                      const SizedBox(width: 6),
+                      SizedBox(width: 6),
                       Flexible(
                         child: Text(
                           'Deneme sürümü · ${widget.trialEntryNumber}/10 giriş',
@@ -1435,7 +1441,7 @@ class _EducationSetupDialogState extends State<_EducationSetupDialog> {
                   ),
                 ),
               ],
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
 
               // Ülke seçici (en üstte, eğitim sistemini belirler)
               _ExpandablePicker(
@@ -1460,7 +1466,7 @@ class _EducationSetupDialogState extends State<_EducationSetupDialog> {
                   });
                 },
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               // Seviye seçici — ülkeye göre (İlkokul/Elementary/Grundschule vb.)
               _ExpandablePicker(
                 label: 'EĞİTİM SEVİYESİ'.tr(),
@@ -1483,7 +1489,7 @@ class _EducationSetupDialogState extends State<_EducationSetupDialog> {
               ),
               // Fakülte/Bölüm seçici — Üniversite, Yüksek Lisans, Doktora için
               if (_needsFaculty) ...[
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 _ExpandablePicker(
                   label: _level == 'university' ? 'FAKÜLTEN / BÖLÜMÜN' : 'PROGRAM ALANI',
                   placeholder: _level == 'university' ? 'Bölümünü seç' : 'Program alanını seç',
@@ -1502,7 +1508,7 @@ class _EducationSetupDialogState extends State<_EducationSetupDialog> {
               ],
               // Sınıf/Dönem seçici — ülkeye göre (örn. Grade 10, Year 11, Klasse 10)
               if (_level != null && (!_needsFaculty || _faculty != null)) ...[
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 _ExpandablePicker(
                   label: 'SINIFIN',
                   placeholder: 'Sınıfını seç',
@@ -1518,7 +1524,7 @@ class _EducationSetupDialogState extends State<_EducationSetupDialog> {
               ],
               // Alan/Track seçici — ülkeye göre (Sayısal/Sözel vs. AP/Honors vs. Leistungskurse)
               if (_needsTrack && _grade != null) ...[
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 _ExpandablePicker(
                   label: 'ALANIN',
                   placeholder: 'Alanını seç',
@@ -1533,7 +1539,7 @@ class _EducationSetupDialogState extends State<_EducationSetupDialog> {
                 ),
               ],
 
-              const SizedBox(height: 18),
+              SizedBox(height: 18),
               _PrimaryButton(
                 label: '✓ Kaydet ve Başla'.tr(),
                 brand: true,
@@ -1549,12 +1555,12 @@ class _EducationSetupDialogState extends State<_EducationSetupDialog> {
                       }
                     : null,
               ),
-              const SizedBox(height: 6),
+              SizedBox(height: 6),
               Center(
                 child: TextButton(
                   onPressed: () => Navigator.of(context).pop(),
                   child: Text('Vazgeç'.tr(),
-                      style: _sans(size: 12, weight: FontWeight.w600, color: _Palette.inkMute)),
+                      style: _sans(size: 12, weight: FontWeight.w600, color: AppPalette.textSecondary(context))),
                 ),
               ),
             ],
@@ -1660,28 +1666,28 @@ class _ExpandablePickerState extends State<_ExpandablePicker> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(widget.label,
-            style: _sans(size: 10, weight: FontWeight.w700, color: _Palette.inkMute, letterSpacing: 0.08)),
-        const SizedBox(height: 6),
+            style: _sans(size: 10, weight: FontWeight.w700, color: AppPalette.textSecondary(context), letterSpacing: 0.08)),
+        SizedBox(height: 6),
         GestureDetector(
           onTap: widget.onExpand,
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
+            duration: Duration(milliseconds: 180),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             decoration: BoxDecoration(
-              color: _Palette.surface,
+              color: AppPalette.card(context),
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: widget.expanded ? _Palette.brand : _Palette.line,
+                color: widget.expanded ? _Palette.brand : AppPalette.border(context),
                 width: widget.expanded ? 1.5 : 1,
               ),
             ),
             child: Row(
               children: [
                 if (sel != null)
-                  Text(sel.emoji, style: const TextStyle(fontSize: 18))
+                  Text(sel.emoji, style: TextStyle(fontSize: 18))
                 else
-                  Icon(Icons.expand_more_rounded, size: 18, color: _Palette.inkMute),
-                const SizedBox(width: 10),
+                  Icon(Icons.expand_more_rounded, size: 18, color: AppPalette.textSecondary(context)),
+                SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     sel?.label ?? widget.placeholder,
@@ -1690,22 +1696,22 @@ class _ExpandablePickerState extends State<_ExpandablePicker> {
                     style: _sans(
                       size: 14,
                       weight: sel != null ? FontWeight.w700 : FontWeight.w500,
-                      color: sel != null ? _Palette.ink : _Palette.inkMute,
+                      color: sel != null ? AppPalette.textPrimary(context) : AppPalette.textSecondary(context),
                     ),
                   ),
                 ),
                 AnimatedRotation(
                   turns: widget.expanded ? 0.5 : 0,
-                  duration: const Duration(milliseconds: 200),
+                  duration: Duration(milliseconds: 200),
                   child: Icon(Icons.keyboard_arrow_down_rounded,
-                      size: 20, color: widget.expanded ? _Palette.brand : _Palette.inkMute),
+                      size: 20, color: widget.expanded ? _Palette.brand : AppPalette.textSecondary(context)),
                 ),
               ],
             ),
           ),
         ),
         AnimatedSize(
-          duration: const Duration(milliseconds: 200),
+          duration: Duration(milliseconds: 200),
           curve: Curves.easeOutCubic,
           child: widget.expanded
               ? Container(
@@ -1714,9 +1720,9 @@ class _ExpandablePickerState extends State<_ExpandablePicker> {
                       ? BoxConstraints(maxHeight: widget.listMaxHeight!)
                       : null,
                   decoration: BoxDecoration(
-                    color: _Palette.surface,
+                    color: AppPalette.card(context),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: _Palette.line),
+                    border: Border.all(color: AppPalette.border(context)),
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -1730,10 +1736,10 @@ class _ExpandablePickerState extends State<_ExpandablePicker> {
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     Text('🔍'.tr(), style: TextStyle(fontSize: 18)),
-                                    const SizedBox(width: 8),
+                                    SizedBox(width: 8),
                                     Text(
                                       'Sonuç bulunamadı',
-                                      style: _sans(size: 13, color: _Palette.inkMute),
+                                      style: _sans(size: 13, color: AppPalette.textSecondary(context)),
                                     ),
                                   ],
                                 ),
@@ -1741,12 +1747,12 @@ class _ExpandablePickerState extends State<_ExpandablePicker> {
                             : ListView.separated(
                                 shrinkWrap: true,
                                 physics: widget.listMaxHeight != null
-                                    ? const ClampingScrollPhysics()
-                                    : const NeverScrollableScrollPhysics(),
+                                    ? ClampingScrollPhysics()
+                                    : NeverScrollableScrollPhysics(),
                                 padding: const EdgeInsets.symmetric(vertical: 4),
                                 itemCount: filtered.length,
                                 separatorBuilder: (_, __) =>
-                                    Divider(height: 1, color: _Palette.line.withValues(alpha: 0.5)),
+                                    Divider(height: 1, color: AppPalette.border(context).withValues(alpha: 0.5)),
                                 itemBuilder: (_, i) {
                                   final o = filtered[i];
                                   final isSel = o.value == widget.selectedValue;
@@ -1756,8 +1762,8 @@ class _ExpandablePickerState extends State<_ExpandablePicker> {
                                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                                       child: Row(
                                         children: [
-                                          Text(o.emoji, style: const TextStyle(fontSize: 18)),
-                                          const SizedBox(width: 10),
+                                          Text(o.emoji, style: TextStyle(fontSize: 18)),
+                                          SizedBox(width: 10),
                                           Expanded(
                                             child: Text(
                                               o.label,
@@ -1766,12 +1772,12 @@ class _ExpandablePickerState extends State<_ExpandablePicker> {
                                               style: _sans(
                                                 size: 14,
                                                 weight: isSel ? FontWeight.w700 : FontWeight.w500,
-                                                color: isSel ? _Palette.brand : _Palette.ink,
+                                                color: isSel ? _Palette.brand : AppPalette.textPrimary(context),
                                               ),
                                             ),
                                           ),
                                           if (isSel)
-                                            const Icon(Icons.check_rounded, size: 18, color: _Palette.brand),
+                                            Icon(Icons.check_rounded, size: 18, color: _Palette.brand),
                                         ],
                                       ),
                                     ),
@@ -1792,7 +1798,7 @@ class _ExpandablePickerState extends State<_ExpandablePicker> {
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: _Palette.line.withValues(alpha: 0.5))),
+        border: Border(bottom: BorderSide(color: AppPalette.border(context).withValues(alpha: 0.5))),
       ),
       child: Row(
         children: [
@@ -1800,13 +1806,13 @@ class _ExpandablePickerState extends State<_ExpandablePicker> {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: _Palette.bg,
+              color: AppPalette.bg(context),
               borderRadius: BorderRadius.circular(8),
             ),
             alignment: Alignment.center,
-            child: const Icon(Icons.search_rounded, size: 16, color: _Palette.inkMute),
+            child: Icon(Icons.search_rounded, size: 16, color: AppPalette.textSecondary(context)),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Expanded(
             child: TextField(
               controller: _searchCtrl,
@@ -1815,7 +1821,7 @@ class _ExpandablePickerState extends State<_ExpandablePicker> {
               style: _sans(size: 13, weight: FontWeight.w500),
               decoration: InputDecoration(
                 hintText: widget.searchPlaceholder,
-                hintStyle: _sans(size: 13, color: _Palette.inkMute),
+                hintStyle: _sans(size: 13, color: AppPalette.textSecondary(context)),
                 isDense: true,
                 contentPadding: EdgeInsets.zero,
                 border: InputBorder.none,
@@ -1827,7 +1833,7 @@ class _ExpandablePickerState extends State<_ExpandablePicker> {
               onTap: () => setState(() => _searchCtrl.clear()),
               child: Padding(
                 padding: const EdgeInsets.all(4),
-                child: Icon(Icons.close_rounded, size: 16, color: _Palette.inkMute),
+                child: Icon(Icons.close_rounded, size: 16, color: AppPalette.textSecondary(context)),
               ),
             ),
         ],
@@ -1886,12 +1892,12 @@ class _ArenaHomeState extends State<_ArenaHome> {
         title: Text('Bu dersi kaldır?'.tr(), style: _serif(size: 18, weight: FontWeight.w600)),
         content: Text(
           '${subject.emoji} ${subject.name} kütüphanenden kaldırılacak. İstediğin zaman tekrar ekleyebilirsin.',
-          style: _sans(size: 13, color: _Palette.inkSoft, height: 1.4),
+          style: _sans(size: 13, color: AppPalette.textSecondary(context), height: 1.4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Vazgeç'.tr(), style: _sans(size: 13, weight: FontWeight.w600, color: _Palette.inkMute)),
+            child: Text('Vazgeç'.tr(), style: _sans(size: 13, weight: FontWeight.w600, color: AppPalette.textSecondary(context))),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
@@ -1938,7 +1944,7 @@ class _ArenaHomeState extends State<_ArenaHome> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _Palette.bg,
+      backgroundColor: AppPalette.bg(context),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.only(bottom: 30),
@@ -1953,13 +1959,13 @@ class _ArenaHomeState extends State<_ArenaHome> {
                       icon: Icons.arrow_back_rounded,
                       onTap: () => Navigator.of(context).pop(),
                     ),
-                    const SizedBox(width: 10),
+                    SizedBox(width: 10),
                     Container(
                       width: 42,
                       height: 42,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        gradient: const LinearGradient(
+                        gradient: LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [_Palette.brand, Color(0xFFFF8F4C)],
@@ -1968,7 +1974,7 @@ class _ArenaHomeState extends State<_ArenaHome> {
                       alignment: Alignment.center,
                       child: Text('A', style: _sans(size: 16, weight: FontWeight.w700, color: Colors.white)),
                     ),
-                    const SizedBox(width: 10),
+                    SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1977,8 +1983,8 @@ class _ArenaHomeState extends State<_ArenaHome> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: _serif(size: 19, weight: FontWeight.w700, letterSpacing: -0.03)),
-                          const SizedBox(height: 1),
-                          Text('Merhaba Ahmet, yarış başlasın!'.tr(), style: _sans(size: 12, color: _Palette.inkMute)),
+                          SizedBox(height: 1),
+                          Text('Merhaba Ahmet, yarış başlasın!'.tr(), style: _sans(size: 12, color: AppPalette.textSecondary(context))),
                         ],
                       ),
                     ),
@@ -1986,25 +1992,26 @@ class _ArenaHomeState extends State<_ArenaHome> {
                   ],
                 ),
               ),
-              const SizedBox(height: 18),
+              SizedBox(height: 18),
               _buildSubjectsCard(),
-              const SizedBox(height: 14),
+              SizedBox(height: 14),
               const _DueloCard(),
-              const SizedBox(height: 18),
-              const _FriendsSection(),
-              const SizedBox(height: 18),
+              SizedBox(height: 18),
+              _FriendsSection(
+                onRankingsTap: () => _showRankingsSheet(context),
+              ),
+              SizedBox(height: 18),
               const _MasterySection(),
               _BadgesSectionTitle(
                 onInfoTap: () => _showBadgesInfoSheet(context),
-                onRankingsTap: () => _showRankingsSheet(context),
               ),
               const _BadgesScroll(),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               const _WrappedCard(),
-              const SizedBox(height: 18),
+              SizedBox(height: 18),
               // QP / Seri / Lig en alta
               const _StatsRow(),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
             ],
           ),
         ),
@@ -2017,11 +2024,11 @@ class _ArenaHomeState extends State<_ArenaHome> {
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       decoration: BoxDecoration(
-        color: _Palette.surface,
+        color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _Palette.line),
+        border: Border.all(color: AppPalette.border(context)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: Offset(0, 4)),
         ],
       ),
       child: Column(
@@ -2038,7 +2045,7 @@ class _ArenaHomeState extends State<_ArenaHome> {
                 ),
               ),
               if (_selectedSubjects.isNotEmpty) ...[
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
@@ -2053,7 +2060,7 @@ class _ArenaHomeState extends State<_ArenaHome> {
               ],
             ],
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Row(
             children: [
               Container(
@@ -2066,7 +2073,7 @@ class _ArenaHomeState extends State<_ArenaHome> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text('🎓'.tr(), style: TextStyle(fontSize: 10)),
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4),
                     Text(
                       _currentGrade,
                       style: _sans(size: 10, weight: FontWeight.w700, color: _Palette.accent),
@@ -2074,20 +2081,20 @@ class _ArenaHomeState extends State<_ArenaHome> {
                   ],
                 ),
               ),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Flexible(
                 child: Text(
                   'seviyesine göre dersler ve konular hazır.',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: _sans(size: 11, color: _Palette.inkMute),
+                  style: _sans(size: 11, color: AppPalette.textSecondary(context)),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           _buildSubjectsGrid(),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           _PrimaryButton(
             label: 'Devam Et',
             brand: true,
@@ -2113,7 +2120,7 @@ class _ArenaHomeState extends State<_ArenaHome> {
           crossAxisSpacing: 8,
           childAspectRatio: 1.0,
           shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
+          physics: NeverScrollableScrollPhysics(),
           children: [
             for (final s in top10)
               _MiniSubjectTile(
@@ -2124,7 +2131,7 @@ class _ArenaHomeState extends State<_ArenaHome> {
               ),
           ],
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         Row(
           children: [
             Expanded(
@@ -2133,7 +2140,7 @@ class _ArenaHomeState extends State<_ArenaHome> {
                 highlight: hasMore || _hasHiddenSubjects(),
               ),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             Expanded(
               child: _AddSubjectInlineButton(onTap: _addSubjectSheet),
             ),
@@ -2213,17 +2220,20 @@ class _MiniSubjectTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dark = AppPalette.isDark(context);
+    final tileBg = dark ? Colors.black : Colors.white;
+    final tileFg = dark ? Colors.white : AppPalette.textPrimary(context);
     return GestureDetector(
       onTap: onTap,
       onLongPress: onLongPress,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
+        duration: Duration(milliseconds: 150),
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
-          color: selected ? _Palette.bg : _Palette.surface,
+          color: tileBg,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: selected ? _Palette.ink : _Palette.line,
+            color: selected ? AppPalette.textPrimary(context) : AppPalette.border(context),
             width: selected ? 2 : 1,
           ),
         ),
@@ -2240,9 +2250,9 @@ class _MiniSubjectTile extends StatelessWidget {
                       _isLanguagePickerSubject(subject.key) && _chosenLanguage[subject.key] != null
                           ? _chosenLanguage[subject.key]!.emoji
                           : subject.emoji,
-                      style: const TextStyle(fontSize: 24),
+                      style: TextStyle(fontSize: 24),
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Text(
                       _isLanguagePickerSubject(subject.key) && _chosenLanguage[subject.key] != null
                           ? _chosenLanguage[subject.key]!.label
@@ -2250,7 +2260,7 @@ class _MiniSubjectTile extends StatelessWidget {
                       textAlign: TextAlign.center,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: _sans(size: 11, weight: FontWeight.w600, height: 1.15),
+                      style: _sans(size: 11, weight: FontWeight.w600, height: 1.15, color: tileFg),
                     ),
                   ],
                 ),
@@ -2263,12 +2273,12 @@ class _MiniSubjectTile extends StatelessWidget {
                 child: Container(
                   width: 16,
                   height: 16,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: _Palette.ink,
+                    color: AppPalette.textPrimary(context),
                   ),
                   alignment: Alignment.center,
-                  child: const Icon(Icons.check_rounded, size: 10, color: Colors.white),
+                  child: Icon(Icons.check_rounded, size: 10, color: Colors.white),
                 ),
               ),
           ],
@@ -2291,15 +2301,15 @@ class _OtherSubjectsButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
-          color: _Palette.surface,
+          color: AppPalette.card(context),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _Palette.line),
+          border: Border.all(color: AppPalette.border(context)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text('📚'.tr(), style: TextStyle(fontSize: 16)),
-            const SizedBox(width: 6),
+            SizedBox(width: 6),
             Flexible(
               child: Text(
                 'Diğer Dersler',
@@ -2309,11 +2319,11 @@ class _OtherSubjectsButton extends StatelessWidget {
               ),
             ),
             if (highlight) ...[
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Container(
                 width: 7,
                 height: 7,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: _Palette.brand,
                   shape: BoxShape.circle,
                 ),
@@ -2345,8 +2355,8 @@ class _AddSubjectInlineButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.add_rounded, size: 16, color: _Palette.brand),
-            const SizedBox(width: 4),
+            Icon(Icons.add_rounded, size: 16, color: _Palette.brand),
+            SizedBox(width: 4),
             Flexible(
               child: Text(
                 'Ders Ekle',
@@ -2395,8 +2405,8 @@ class _OtherSubjectsSheetState extends State<_OtherSubjectsSheet> {
       maxChildSize: 0.92,
       expand: false,
       builder: (_, scroll) => Container(
-        decoration: const BoxDecoration(
-          color: _Palette.bg,
+        decoration: BoxDecoration(
+          color: AppPalette.bg(context),
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: ListView(
@@ -2407,22 +2417,22 @@ class _OtherSubjectsSheetState extends State<_OtherSubjectsSheet> {
               child: Container(
                 width: 40,
                 height: 4,
-                decoration: BoxDecoration(color: _Palette.inkMute, borderRadius: BorderRadius.circular(10)),
+                decoration: BoxDecoration(color: AppPalette.textSecondary(context), borderRadius: BorderRadius.circular(10)),
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Text('Diğer Dersler'.tr(),
                 style: _serif(size: 22, weight: FontWeight.w600, letterSpacing: -0.02)),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text(
               'Başlangıçta gösterilmeyen dersler. Tıkla seç, basılı tut kaldır, + ile ana listene al.',
-              style: _sans(size: 12, color: _Palette.inkMute, height: 1.4),
+              style: _sans(size: 12, color: AppPalette.textSecondary(context), height: 1.4),
             ),
             if (widget.overflow.isNotEmpty) ...[
-              const SizedBox(height: 18),
+              SizedBox(height: 18),
               Text('KÜTÜPHANENDE'.tr(),
-                  style: _sans(size: 10, weight: FontWeight.w700, color: _Palette.inkMute, letterSpacing: 0.08)),
-              const SizedBox(height: 8),
+                  style: _sans(size: 10, weight: FontWeight.w700, color: AppPalette.textSecondary(context), letterSpacing: 0.08)),
+              SizedBox(height: 8),
               for (final s in widget.overflow)
                 _otherRow(
                   s,
@@ -2431,10 +2441,10 @@ class _OtherSubjectsSheetState extends State<_OtherSubjectsSheet> {
                 ),
             ],
             if (widget.hidden.isNotEmpty) ...[
-              const SizedBox(height: 18),
+              SizedBox(height: 18),
               Text('EKLENMEMİŞ DERSLER'.tr(),
-                  style: _sans(size: 10, weight: FontWeight.w700, color: _Palette.inkMute, letterSpacing: 0.08)),
-              const SizedBox(height: 8),
+                  style: _sans(size: 10, weight: FontWeight.w700, color: AppPalette.textSecondary(context), letterSpacing: 0.08)),
+              SizedBox(height: 8),
               for (final s in widget.hidden)
                 _otherRow(
                   s,
@@ -2447,7 +2457,7 @@ class _OtherSubjectsSheetState extends State<_OtherSubjectsSheet> {
                 padding: const EdgeInsets.symmetric(vertical: 20),
                 child: Center(
                   child: Text('Tüm dersler ana listende görünüyor 🎉'.tr(),
-                      style: _sans(size: 13, color: _Palette.inkMute)),
+                      style: _sans(size: 13, color: AppPalette.textSecondary(context))),
                 ),
               ),
           ],
@@ -2479,17 +2489,17 @@ class _OtherSubjectsSheetState extends State<_OtherSubjectsSheet> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: _Palette.surface,
+            color: AppPalette.card(context),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: isSelected ? _Palette.ink : _Palette.line,
+              color: isSelected ? AppPalette.textPrimary(context) : AppPalette.border(context),
               width: isSelected ? 2 : 1,
             ),
           ),
           child: Row(
             children: [
-              Text(s.emoji, style: const TextStyle(fontSize: 22)),
-              const SizedBox(width: 12),
+              Text(s.emoji, style: TextStyle(fontSize: 22)),
+              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -2498,7 +2508,7 @@ class _OtherSubjectsSheetState extends State<_OtherSubjectsSheet> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: _sans(size: 14, weight: FontWeight.w700)),
-                    const SizedBox(height: 2),
+                    SizedBox(height: 2),
                     Text(
                       isVisible
                           ? (isSelected
@@ -2507,17 +2517,17 @@ class _OtherSubjectsSheetState extends State<_OtherSubjectsSheet> {
                           : 'Tıkla: ana sayfaya ekle'.tr(),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: _sans(size: 10, color: _Palette.inkMute),
+                      style: _sans(size: 10, color: AppPalette.textSecondary(context)),
                     ),
                   ],
                 ),
               ),
               if (!isVisible)
-                const Icon(Icons.north_east_rounded,
-                    size: 18, color: _Palette.ink)
+                Icon(Icons.north_east_rounded,
+                    size: 18, color: AppPalette.textPrimary(context))
               else if (isSelected)
-                const Icon(Icons.check_rounded,
-                    size: 18, color: _Palette.ink),
+                Icon(Icons.check_rounded,
+                    size: 18, color: AppPalette.textPrimary(context)),
             ],
           ),
         ),
@@ -2529,7 +2539,7 @@ class _OtherSubjectsSheetState extends State<_OtherSubjectsSheet> {
 
 class DottedBorderBox extends StatelessWidget {
   final Widget child;
-  const DottedBorderBox({super.key, required this.child});
+  DottedBorderBox({super.key, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -2649,8 +2659,8 @@ class _AddSubjectSheetState extends State<_AddSubjectSheet> {
       padding: EdgeInsets.only(bottom: bottomInset),
       child: Container(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-        decoration: const BoxDecoration(
-          color: _Palette.bg,
+        decoration: BoxDecoration(
+          color: AppPalette.bg(context),
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
@@ -2661,21 +2671,21 @@ class _AddSubjectSheetState extends State<_AddSubjectSheet> {
               child: Container(
                 width: 40,
                 height: 4,
-                decoration: BoxDecoration(color: _Palette.inkMute, borderRadius: BorderRadius.circular(10)),
+                decoration: BoxDecoration(color: AppPalette.textSecondary(context), borderRadius: BorderRadius.circular(10)),
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Text('Yeni Bir Ders Ekle',
                 style: _serif(size: 20, weight: FontWeight.w600, letterSpacing: -0.02)),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text('Hazır listeden seç ya da kendi ders adını yaz.'.tr(),
-                style: _sans(size: 12, color: _Palette.inkMute)),
-            const SizedBox(height: 18),
+                style: _sans(size: 12, color: AppPalette.textSecondary(context))),
+            SizedBox(height: 18),
 
             // Kendi dersini yaz
             Text('KENDİN YAZ'.tr(),
-                style: _sans(size: 10, weight: FontWeight.w700, color: _Palette.inkMute, letterSpacing: 0.08)),
-            const SizedBox(height: 8),
+                style: _sans(size: 10, weight: FontWeight.w700, color: AppPalette.textSecondary(context), letterSpacing: 0.08)),
+            SizedBox(height: 8),
             Row(
               children: [
                 GestureDetector(
@@ -2691,15 +2701,15 @@ class _AddSubjectSheetState extends State<_AddSubjectSheet> {
                     width: 50,
                     height: 50,
                     decoration: BoxDecoration(
-                      color: _Palette.surface,
+                      color: AppPalette.card(context),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _Palette.line),
+                      border: Border.all(color: AppPalette.border(context)),
                     ),
                     alignment: Alignment.center,
-                    child: Text(_selectedEmoji, style: const TextStyle(fontSize: 24)),
+                    child: Text(_selectedEmoji, style: TextStyle(fontSize: 24)),
                   ),
                 ),
-                const SizedBox(width: 10),
+                SizedBox(width: 10),
                 Expanded(
                   child: TextField(
                     controller: _ctrl,
@@ -2708,18 +2718,18 @@ class _AddSubjectSheetState extends State<_AddSubjectSheet> {
                     style: _sans(size: 14, weight: FontWeight.w600),
                     decoration: InputDecoration(
                       hintText: 'Örn: Felsefe'.tr(),
-                      hintStyle: _sans(size: 13, color: _Palette.inkMute),
+                      hintStyle: _sans(size: 13, color: AppPalette.textSecondary(context)),
                       filled: true,
-                      fillColor: _Palette.surface,
+                      fillColor: AppPalette.card(context),
                       counterText: '',
                       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: _Palette.line),
+                        borderSide: BorderSide(color: AppPalette.border(context)),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: _Palette.line),
+                        borderSide: BorderSide(color: AppPalette.border(context)),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -2732,7 +2742,7 @@ class _AddSubjectSheetState extends State<_AddSubjectSheet> {
                 ),
               ],
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             _PrimaryButton(
               label: 'Kaydet',
               brand: true,
@@ -2740,10 +2750,10 @@ class _AddSubjectSheetState extends State<_AddSubjectSheet> {
             ),
 
             if (widget.available.isNotEmpty) ...[
-              const SizedBox(height: 22),
+              SizedBox(height: 22),
               Text('HAZIR LİSTE'.tr(),
-                  style: _sans(size: 10, weight: FontWeight.w700, color: _Palette.inkMute, letterSpacing: 0.08)),
-              const SizedBox(height: 8),
+                  style: _sans(size: 10, weight: FontWeight.w700, color: AppPalette.textSecondary(context), letterSpacing: 0.08)),
+              SizedBox(height: 8),
               for (final s in widget.available)
                 InkWell(
                   borderRadius: BorderRadius.circular(14),
@@ -2752,14 +2762,14 @@ class _AddSubjectSheetState extends State<_AddSubjectSheet> {
                     margin: const EdgeInsets.only(bottom: 8),
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
-                      color: _Palette.surface,
+                      color: AppPalette.card(context),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: _Palette.line),
+                      border: Border.all(color: AppPalette.border(context)),
                     ),
                     child: Row(
                       children: [
-                        Text(s.emoji, style: const TextStyle(fontSize: 22)),
-                        const SizedBox(width: 12),
+                        Text(s.emoji, style: TextStyle(fontSize: 22)),
+                        SizedBox(width: 12),
                         Expanded(
                           child: Text(s.name,
                               maxLines: 1,
@@ -2788,8 +2798,8 @@ class _EmojiPickerSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-      decoration: const BoxDecoration(
-        color: _Palette.bg,
+      decoration: BoxDecoration(
+        color: AppPalette.bg(context),
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
@@ -2800,13 +2810,13 @@ class _EmojiPickerSheet extends StatelessWidget {
             child: Container(
               width: 40,
               height: 4,
-              decoration: BoxDecoration(color: _Palette.inkMute, borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: AppPalette.textSecondary(context), borderRadius: BorderRadius.circular(10)),
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           Text('Bir ikon seç'.tr(),
               style: _serif(size: 18, weight: FontWeight.w600, letterSpacing: -0.02)),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           Wrap(
             spacing: 10,
             runSpacing: 10,
@@ -2818,15 +2828,15 @@ class _EmojiPickerSheet extends StatelessWidget {
                     width: 50,
                     height: 50,
                     decoration: BoxDecoration(
-                      color: _Palette.surface,
+                      color: AppPalette.card(context),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: e == selected ? _Palette.ink : _Palette.line,
+                        color: e == selected ? AppPalette.textPrimary(context) : AppPalette.border(context),
                         width: e == selected ? 2 : 1,
                       ),
                     ),
                     alignment: Alignment.center,
-                    child: Text(e, style: const TextStyle(fontSize: 24)),
+                    child: Text(e, style: TextStyle(fontSize: 24)),
                   ),
                 ),
             ],
@@ -2853,11 +2863,11 @@ class _BellButton extends StatelessWidget {
             height: 42,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: _Palette.surface,
-              border: Border.all(color: _Palette.line),
+              color: AppPalette.card(context),
+              border: Border.all(color: AppPalette.border(context)),
             ),
             alignment: Alignment.center,
-            child: const Icon(Icons.notifications_none_rounded, size: 20, color: _Palette.ink),
+            child: Icon(Icons.notifications_none_rounded, size: 20, color: AppPalette.textPrimary(context)),
           ),
           Positioned(
             top: 8,
@@ -2868,7 +2878,7 @@ class _BellButton extends StatelessWidget {
               decoration: BoxDecoration(
                 color: _Palette.brand,
                 shape: BoxShape.circle,
-                border: Border.all(color: _Palette.surface, width: 2),
+                border: Border.all(color: AppPalette.card(context), width: 2),
               ),
             ),
           ),
@@ -2890,8 +2900,8 @@ void _showNotificationsSheet(BuildContext context) {
       maxChildSize: 0.92,
       expand: false,
       builder: (_, scroll) => Container(
-        decoration: const BoxDecoration(
-          color: _Palette.bg,
+        decoration: BoxDecoration(
+          color: AppPalette.bg(context),
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: ListView(
@@ -2902,14 +2912,14 @@ void _showNotificationsSheet(BuildContext context) {
               child: Container(
                 width: 40,
                 height: 4,
-                decoration: BoxDecoration(color: _Palette.inkMute, borderRadius: BorderRadius.circular(10)),
+                decoration: BoxDecoration(color: AppPalette.textSecondary(context), borderRadius: BorderRadius.circular(10)),
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Row(
               children: [
                 Text('🔔'.tr(), style: TextStyle(fontSize: 24)),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 Expanded(
                   child: Text('Bildirimler',
                       style: _serif(size: 22, weight: FontWeight.w600, letterSpacing: -0.02)),
@@ -2925,29 +2935,29 @@ void _showNotificationsSheet(BuildContext context) {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             _notifItem('🏆', '@deniz.k seni haftalık sıralamada geçti', '12 dk önce', true),
             _notifItem('🎯', 'Yeni yarışma daveti — @elif_m', '1 saat önce', true),
             _notifItem('🔥', 'Serini koru! Bugün hiç test çözmedin', '3 saat önce', true),
             _notifItem('🎁', 'Haftalık Wrapped kartın hazır', 'Dün'),
             _notifItem('👑', '1 hafta önce Bilgi Ustası rozeti kazandın', '1 hafta önce'),
             _notifItem("🎯", "Türev'de 3 test üst üste %90+ yaptın", '2 hafta önce'),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: _Palette.surface,
+                color: AppPalette.card(context),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _Palette.line),
+                border: Border.all(color: AppPalette.border(context)),
               ),
               child: Row(
                 children: [
-                  const Text('⚙️', style: TextStyle(fontSize: 16)),
-                  const SizedBox(width: 10),
+                  Text('⚙️', style: TextStyle(fontSize: 16)),
+                  SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       'Bildirim tercihlerini ayarlar menüsünden belirleyebilirsin.',
-                      style: _sans(size: 11, color: _Palette.inkSoft, height: 1.4),
+                      style: _sans(size: 11, color: AppPalette.textSecondary(context), height: 1.4),
                     ),
                   ),
                 ],
@@ -2984,9 +2994,9 @@ Widget _notifItem(String emoji, String text, String time, [bool unread = false])
               border: Border.all(color: _Palette.line),
             ),
             alignment: Alignment.center,
-            child: Text(emoji, style: const TextStyle(fontSize: 16)),
+            child: Text(emoji, style: TextStyle(fontSize: 16)),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2995,17 +3005,17 @@ Widget _notifItem(String emoji, String text, String time, [bool unread = false])
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: _sans(size: 13, weight: FontWeight.w600, height: 1.3)),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(time, style: _sans(size: 10, color: _Palette.inkMute)),
               ],
             ),
           ),
           if (unread) ...[
-            const SizedBox(width: 6),
+            SizedBox(width: 6),
             Container(
               width: 8,
               height: 8,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: _Palette.brand,
                 shape: BoxShape.circle,
               ),
@@ -3031,11 +3041,11 @@ class _CircleBtn extends StatelessWidget {
         height: 40,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: _Palette.surface,
-          border: Border.all(color: _Palette.line),
+          color: AppPalette.card(context),
+          border: Border.all(color: AppPalette.border(context)),
         ),
         alignment: Alignment.center,
-        child: Icon(icon, size: 18, color: _Palette.ink),
+        child: Icon(icon, size: 18, color: AppPalette.textPrimary(context)),
       ),
     );
   }
@@ -3073,22 +3083,22 @@ class _StatsRow extends StatelessWidget {
       child: Row(
         children: [
           for (int i = 0; i < stats.length; i++) ...[
-            if (i > 0) const SizedBox(width: 10),
+            if (i > 0) SizedBox(width: 10),
             Expanded(
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                 decoration: BoxDecoration(
-                  color: _Palette.surface,
+                  color: AppPalette.card(context),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _Palette.line),
+                  border: Border.all(color: AppPalette.border(context)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        Text(stats[i].$3, style: const TextStyle(fontSize: 14)),
-                        const SizedBox(width: 4),
+                        Text(stats[i].$3, style: TextStyle(fontSize: 14)),
+                        SizedBox(width: 4),
                         Flexible(
                           child: Text(
                             stats[i].$1,
@@ -3105,12 +3115,12 @@ class _StatsRow extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Text(
                       stats[i].$2,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: _sans(size: 10, weight: FontWeight.w600, color: _Palette.inkMute),
+                      style: _sans(size: 10, weight: FontWeight.w600, color: AppPalette.textSecondary(context)),
                     ),
                   ],
                 ),
@@ -3136,15 +3146,15 @@ class _DueloCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: GestureDetector(
         onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const DueloLobbyScreen()),
+          MaterialPageRoute(builder: (_) => DueloLobbyScreen()),
         ),
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: _Palette.ink,
+            color: AppPalette.textPrimary(context),
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
-              BoxShadow(color: _Palette.ink.withValues(alpha: 0.18), blurRadius: 18, offset: const Offset(0, 8)),
+              BoxShadow(color: AppPalette.textPrimary(context).withValues(alpha: 0.18), blurRadius: 18, offset: Offset(0, 8)),
             ],
           ),
           child: Row(
@@ -3154,23 +3164,23 @@ class _DueloCard extends StatelessWidget {
                 height: 64,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: const LinearGradient(
+                  gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [Color(0xFFFFB800), Color(0xFFFF5B2E)],
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFFFB800).withValues(alpha: 0.35),
+                      color: Color(0xFFFFB800).withValues(alpha: 0.35),
                       blurRadius: 14,
-                      offset: const Offset(0, 4),
+                      offset: Offset(0, 4),
                     ),
                   ],
                 ),
                 alignment: Alignment.center,
                 child: Text('🏆'.tr(), style: TextStyle(fontSize: 34)),
               ),
-              const SizedBox(width: 14),
+              SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -3180,7 +3190,7 @@ class _DueloCard extends StatelessWidget {
                       children: [
                         Text('Bilgi Yarışı'.tr(),
                             style: _sans(size: 16, weight: FontWeight.w800, color: Colors.white, letterSpacing: -0.01)),
-                        const SizedBox(width: 6),
+                        SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
@@ -3193,12 +3203,12 @@ class _DueloCard extends StatelessWidget {
                               Container(
                                 width: 5,
                                 height: 5,
-                                decoration: const BoxDecoration(
-                                  color: Colors.white,
+                                decoration: BoxDecoration(
+            color: AppPalette.card(context),
                                   shape: BoxShape.circle,
                                 ),
                               ),
-                              const SizedBox(width: 3),
+                              SizedBox(width: 3),
                               Text('CANLI',
                                   style: _sans(size: 8, weight: FontWeight.w800, color: Colors.white, letterSpacing: 0.1)),
                             ],
@@ -3206,7 +3216,7 @@ class _DueloCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
+                    SizedBox(height: 6),
                     Text(
                       'Ülkende ve dünyada kendi seviyendeki öğrencilerle canlı bilgi yarışına katıl. Aynı soruları aynı anda çöz, kim daha hızlı?',
                       maxLines: 3,
@@ -3216,8 +3226,8 @@ class _DueloCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              const Icon(Icons.chevron_right_rounded, color: Colors.white, size: 22),
+              SizedBox(width: 8),
+              Icon(Icons.chevron_right_rounded, color: Colors.white, size: 22),
             ],
           ),
         ),
@@ -3346,8 +3356,8 @@ Future<_PickerOption?> _showLanguagePickerSheet(BuildContext context) {
       maxChildSize: 0.92,
       expand: false,
       builder: (_, scroll) => Container(
-        decoration: const BoxDecoration(
-          color: _Palette.bg,
+        decoration: BoxDecoration(
+          color: AppPalette.bg(context),
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: ListView(
@@ -3359,28 +3369,28 @@ Future<_PickerOption?> _showLanguagePickerSheet(BuildContext context) {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: _Palette.inkMute,
+                  color: AppPalette.textSecondary(context),
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Row(
               children: [
                 Text('🗣️'.tr(), style: TextStyle(fontSize: 24)),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 Expanded(
                   child: Text('Hangi Dil?',
                       style: _serif(size: 22, weight: FontWeight.w600, letterSpacing: -0.02)),
                 ),
               ],
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text(
               'Dünyada en çok konuşulan 20 dil arasından seç. Seçtiğin dil bu derste gözükecek.',
-              style: _sans(size: 12, color: _Palette.inkMute, height: 1.4),
+              style: _sans(size: 12, color: AppPalette.textSecondary(context), height: 1.4),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             for (final lang in _topLanguages)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -3390,21 +3400,21 @@ Future<_PickerOption?> _showLanguagePickerSheet(BuildContext context) {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
-                      color: _Palette.surface,
+                      color: AppPalette.card(context),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: _Palette.line),
+                      border: Border.all(color: AppPalette.border(context)),
                     ),
                     child: Row(
                       children: [
-                        Text(lang.emoji, style: const TextStyle(fontSize: 22)),
-                        const SizedBox(width: 12),
+                        Text(lang.emoji, style: TextStyle(fontSize: 22)),
+                        SizedBox(width: 12),
                         Expanded(
                           child: Text(lang.label,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: _sans(size: 14, weight: FontWeight.w600)),
                         ),
-                        const Icon(Icons.chevron_right_rounded, size: 18, color: _Palette.inkMute),
+                        Icon(Icons.chevron_right_rounded, size: 18, color: AppPalette.textSecondary(context)),
                       ],
                     ),
                   ),
@@ -4033,7 +4043,7 @@ class _DueloRecordsPageState extends State<_DueloRecordsPage> {
     // Aynı ders+konu ile yeni bir lobi aç — kullanıcı istediğinde direkt
     // "Rakip Bul" diyebilir.
     Navigator.of(ctx).pushReplacement(
-      MaterialPageRoute(builder: (_) => const DueloLobbyScreen()),
+      MaterialPageRoute(builder: (_) => DueloLobbyScreen()),
     );
   }
 
@@ -4076,7 +4086,7 @@ class _DueloRecordsPageState extends State<_DueloRecordsPage> {
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.45),
       builder: (dialogCtx) => Dialog(
-        backgroundColor: Colors.white,
+        backgroundColor: AppPalette.card(context),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
         ),
@@ -4085,14 +4095,14 @@ class _DueloRecordsPageState extends State<_DueloRecordsPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('🗑️', style: TextStyle(fontSize: 32)),
-              const SizedBox(height: 10),
+              Text('🗑️', style: TextStyle(fontSize: 32)),
+              SizedBox(height: 10),
               Text(
                 'Kaydı Sil'.tr(),
                 style: _serif(
                     size: 18, weight: FontWeight.w700),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Text(
                 r.topicName.isEmpty
                     ? (r.subjectName.isEmpty
@@ -4103,10 +4113,10 @@ class _DueloRecordsPageState extends State<_DueloRecordsPage> {
                 style: _sans(
                     size: 13,
                     weight: FontWeight.w500,
-                    color: _Palette.inkSoft,
+                    color: AppPalette.textSecondary(context),
                     height: 1.4),
               ),
-              const SizedBox(height: 18),
+              SizedBox(height: 18),
               Row(
                 children: [
                   Expanded(
@@ -4117,9 +4127,9 @@ class _DueloRecordsPageState extends State<_DueloRecordsPage> {
                         padding:
                             const EdgeInsets.symmetric(vertical: 13),
                         decoration: BoxDecoration(
-                          color: _Palette.surface,
+                          color: AppPalette.card(context),
                           borderRadius: BorderRadius.circular(100),
-                          border: Border.all(color: _Palette.line),
+                          border: Border.all(color: AppPalette.border(context)),
                         ),
                         alignment: Alignment.center,
                         child: Text('Vazgeç'.tr(),
@@ -4128,7 +4138,7 @@ class _DueloRecordsPageState extends State<_DueloRecordsPage> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   Expanded(
                     child: GestureDetector(
                       onTap: () => Navigator.of(dialogCtx).pop(true),
@@ -4172,11 +4182,11 @@ class _DueloRecordsPageState extends State<_DueloRecordsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _Palette.bg,
+      backgroundColor: AppPalette.bg(context),
       appBar: AppBar(
-        backgroundColor: _Palette.bg,
+        backgroundColor: AppPalette.bg(context),
         elevation: 0,
-        foregroundColor: _Palette.ink,
+        foregroundColor: AppPalette.textPrimary(context),
         title: Text(
           _pageTitle(),
           maxLines: 1,
@@ -4192,15 +4202,15 @@ class _DueloRecordsPageState extends State<_DueloRecordsPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('🏁', style: TextStyle(fontSize: 48)),
-                    const SizedBox(height: 10),
+                    Text('🏁', style: TextStyle(fontSize: 48)),
+                    SizedBox(height: 10),
                     Text(
                       'Henüz kayıtlı yarışın yok.'.tr(),
                       textAlign: TextAlign.center,
                       style: _sans(
                           size: 14,
                           weight: FontWeight.w700,
-                          color: _Palette.inkSoft),
+                          color: AppPalette.textSecondary(context)),
                     ),
                   ],
                 ),
@@ -4209,7 +4219,7 @@ class _DueloRecordsPageState extends State<_DueloRecordsPage> {
           : ListView.separated(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
               itemCount: _items.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              separatorBuilder: (_, __) => SizedBox(height: 12),
               itemBuilder: (_, i) {
                 final r = _items[i];
                 return _DueloRecordFullCard(
@@ -4265,7 +4275,7 @@ class _DueloRecordFullCard extends StatelessWidget {
         : (win == 0 ? 'Berabere'.tr() : 'Kaybettin'.tr());
     final accent = win == 1
         ? _Palette.success
-        : (win == 0 ? _Palette.ink : _Palette.error);
+        : (win == 0 ? AppPalette.textPrimary(context) : _Palette.error);
     final scopeTxt = record.scope == 'world'
         ? '🌍 ${"Dünya".tr()}'
         : '🇹🇷 ${"Ülke".tr()}';
@@ -4275,7 +4285,7 @@ class _DueloRecordFullCard extends StatelessWidget {
       child: Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+            color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
             color: accent.withValues(alpha: 0.55), width: 1.4),
@@ -4300,24 +4310,24 @@ class _DueloRecordFullCard extends StatelessWidget {
                         color: Colors.white,
                         letterSpacing: 0.3)),
               ),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Container(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: _Palette.surface,
+                  color: AppPalette.card(context),
                   borderRadius: BorderRadius.circular(100),
-                  border: Border.all(color: _Palette.line),
+                  border: Border.all(color: AppPalette.border(context)),
                 ),
                 child: Text(scopeTxt,
                     style: _sans(
                         size: 10,
                         weight: FontWeight.w800,
-                        color: _Palette.ink)),
+                        color: AppPalette.textPrimary(context))),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           // Ders + Konu
           Text(
             record.subjectName.isEmpty
@@ -4327,36 +4337,36 @@ class _DueloRecordFullCard extends StatelessWidget {
                 size: 18,
                 weight: FontWeight.w800,
                 letterSpacing: -0.02,
-                color: _Palette.ink),
+                color: AppPalette.textPrimary(context)),
           ),
           if (record.topicName.isNotEmpty) ...[
-            const SizedBox(height: 2),
+            SizedBox(height: 2),
             Text(
               record.topicName,
               style: _sans(
                   size: 13,
                   weight: FontWeight.w600,
-                  color: _Palette.inkMute),
+                  color: AppPalette.textSecondary(context)),
             ),
           ],
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Row(
             children: [
-              const Icon(Icons.event_rounded,
-                  size: 13, color: _Palette.inkMute),
-              const SizedBox(width: 5),
+              Icon(Icons.event_rounded,
+                  size: 13, color: AppPalette.textSecondary(context)),
+              SizedBox(width: 5),
               Expanded(
                 child: Text(
                   _fmtFullDate(record.createdAt),
                   style: _sans(
                       size: 11,
                       weight: FontWeight.w700,
-                      color: _Palette.inkMute),
+                      color: AppPalette.textSecondary(context)),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           // Skor özeti — yan yana iki pill
           Row(
             children: [
@@ -4371,7 +4381,7 @@ class _DueloRecordFullCard extends StatelessWidget {
                   isWinner: win == 1,
                 ),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               Expanded(
                 child: _scoreBox(
                   label: 'Rakip'.tr(),
@@ -4385,7 +4395,7 @@ class _DueloRecordFullCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           // Aksiyon butonları — 2x2 grid.
           // Üst satır: [Yeniden Yarış] [Yanlışlarım]
           // Alt satır: [Sosyal medyada paylaş] [Arkadaşınla paylaş]
@@ -4399,7 +4409,7 @@ class _DueloRecordFullCard extends StatelessWidget {
                   onTap: onRematch,
                 ),
               ),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Expanded(
                 child: _actionBtn(
                   icon: Icons.auto_stories_rounded,
@@ -4409,7 +4419,7 @@ class _DueloRecordFullCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Row(
             children: [
               Expanded(
@@ -4419,7 +4429,7 @@ class _DueloRecordFullCard extends StatelessWidget {
                   onTap: onShareSocial,
                 ),
               ),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Expanded(
                 child: _actionBtn(
                   icon: Icons.send_rounded,
@@ -4429,14 +4439,14 @@ class _DueloRecordFullCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Center(
             child: Text(
               'Uzun basınca sil'.tr(),
               style: _sans(
                   size: 9,
                   weight: FontWeight.w700,
-                  color: _Palette.inkMute,
+                  color: AppPalette.textSecondary(context),
                   letterSpacing: 0.3),
             ),
           ),
@@ -4480,16 +4490,16 @@ class _DueloRecordFullCard extends StatelessWidget {
                       color: _Palette.inkMute,
                       letterSpacing: 0.5)),
               if (isWinner) ...[
-                const SizedBox(width: 4),
-                const Text('🏆', style: TextStyle(fontSize: 10)),
+                SizedBox(width: 4),
+                Text('🏆', style: TextStyle(fontSize: 10)),
               ],
             ],
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Row(
             children: [
-              Text(flag, style: const TextStyle(fontSize: 18)),
-              const SizedBox(width: 5),
+              Text(flag, style: TextStyle(fontSize: 18)),
+              SizedBox(width: 5),
               Expanded(
                 child: Text(
                   country,
@@ -4512,7 +4522,7 @@ class _DueloRecordFullCard extends StatelessWidget {
                 weight: FontWeight.w700,
                 color: _Palette.inkMute),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Text(
             score,
             style: _serif(
@@ -4538,7 +4548,7 @@ class _DueloRecordFullCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
         decoration: BoxDecoration(
-          color: Colors.white,
+            color: Color(0xFFFEFEFE),
           borderRadius: BorderRadius.circular(100),
           border: Border.all(color: fg.withValues(alpha: 0.5), width: 1),
         ),
@@ -4546,7 +4556,7 @@ class _DueloRecordFullCard extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, size: 14, color: fg),
-            const SizedBox(width: 5),
+            SizedBox(width: 5),
             Flexible(
               child: Text(
                 label,
@@ -4564,13 +4574,12 @@ class _DueloRecordFullCard extends StatelessWidget {
 }
 
 class DueloLobbyScreen extends StatefulWidget {
-  const DueloLobbyScreen({super.key});
+  DueloLobbyScreen({super.key});
   @override
   State<DueloLobbyScreen> createState() => _DueloLobbyScreenState();
 }
 
-class _DueloLobbyScreenState extends State<DueloLobbyScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _pulse;
+class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
   Timer? _matchTimer;
   bool _matching = false;
   String _scope = 'world'; // world | country
@@ -4832,7 +4841,6 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> with SingleTickerPr
   @override
   void initState() {
     super.initState();
-    _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..repeat(reverse: true);
     _loadRecords();
     _loadDuelColorPrefs();
     _loadDuelOrder();
@@ -4846,7 +4854,6 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> with SingleTickerPr
 
   @override
   void dispose() {
-    _pulse.dispose();
     _matchTimer?.cancel();
     super.dispose();
   }
@@ -4907,13 +4914,12 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> with SingleTickerPr
 
   // Dev modu: kısa delay sonrası her zaman null (= mock rakibe düş).
   Future<DueloMatchResult?> _fakeMatchmakingDelay() async {
-    await Future<void>.delayed(const Duration(seconds: 2));
+    await Future<void>.delayed(Duration(seconds: 2));
     return null;
   }
 
   // Prod: gerçek Firebase matchmaking akışı. Şu an dev modda çağrılmıyor;
   // yayına alırken _findMatch içinde bu fonksiyona geçiş yapın.
-  // ignore: unused_element
   Future<DueloMatchResult?> _runRealMatchmaking({
     required String subjectKey,
     String? topic,
@@ -4936,7 +4942,7 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> with SingleTickerPr
     );
     return DueloMatchmakingService.findMatch(
       criteria,
-      timeout: const Duration(seconds: 12),
+      timeout: Duration(seconds: 12),
     );
   }
 
@@ -5305,7 +5311,7 @@ KURALLAR:
     if (_matching) return _buildMatchingOverlay();
     final subjects = _orderedSubjects(_availableSubjects());
     return Scaffold(
-      backgroundColor: _pageBgOverride ?? _Palette.bg,
+      backgroundColor: _pageBgOverride ?? AppPalette.bg(context),
       body: Stack(
         children: [
           SafeArea(
@@ -5316,7 +5322,7 @@ KURALLAR:
               child: Row(
                 children: [
                   _CircleBtn(icon: Icons.arrow_back_rounded, onTap: () => Navigator.pop(context)),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   // Sınıf bilgisi (10. Sınıf vb.) kaldırıldı; "Bilgi Yarışı"
                   // başlığı tek satır halinde yatayda ortalandı.
                   Expanded(
@@ -5327,6 +5333,7 @@ KURALLAR:
                           style: _serif(
                               size: 20,
                               weight: FontWeight.w700,
+                              color: AppPalette.textPrimary(context),
                               letterSpacing: -0.02)),
                     ),
                   ),
@@ -5339,7 +5346,7 @@ KURALLAR:
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
+                        gradient: LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [
@@ -5354,7 +5361,7 @@ KURALLAR:
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.12),
                             blurRadius: 8,
-                            offset: const Offset(0, 2),
+                            offset: Offset(0, 2),
                           ),
                         ],
                       ),
@@ -5368,7 +5375,7 @@ KURALLAR:
                             size: 16,
                             color: Colors.white,
                           ),
-                          const SizedBox(width: 6),
+                          SizedBox(width: 6),
                           Text(
                             _showColorPicker
                                 ? 'Kapat'.tr()
@@ -5415,43 +5422,46 @@ KURALLAR:
                       builder: (ctx, fcand, _) {
                         final fhover = fcand.isNotEmpty;
                         return AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
+                          duration: Duration(milliseconds: 150),
+                          // Üst padding 0 → Dünya/Ülke sekmeleri çerçevenin
+                          // üst çizgisine bitişik durur.
                           padding: const EdgeInsets.fromLTRB(
-                              8, 12, 8, 12),
+                              8, 0, 8, 12),
                           decoration: BoxDecoration(
-                            color: _frameOverride ?? Colors.white,
+                            color: AppPalette.resolveCardBg(context, _frameOverride),
                             borderRadius: BorderRadius.circular(18),
                             border: Border.all(
                               color: fhover
-                                  ? const Color(0xFFFF6A00)
-                                  : _Palette.ink,
+                                  ? Color(0xFFFF6A00)
+                                  : AppPalette.border(context),
                               width: fhover ? 2 : 1,
                             ),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              // Kapsam seçici (Dünya / Ülkem)
+                              // Kapsam seçici (Dünya / Ülkem) — çerçevenin
+                              // üst kenarına bitişik.
                               _buildScopeTabs(),
-                              const SizedBox(height: 6),
+                              SizedBox(height: 6),
                               Text(
                                 _scope == 'world'
                                     ? '🌍 Dünyadan aynı seviyede bir rakiple karşılaşırsın. Her iki taraf aynı evrensel dersi/konuyu seçer.'
                                     : '🇹🇷 Ülkendeki aynı seviyede bir rakiple karşılaşırsın. Tüm derslerden yarışabilirsin.',
                                 style: _sans(
                                     size: 11,
-                                    color: _Palette.inkMute,
+                                    color: AppPalette.textSecondary(context),
                                     height: 1.4),
                               ),
-                              const SizedBox(height: 16),
+                              SizedBox(height: 16),
                               // Ders seçimi
                               Text('HANGİ DERSTE YARIŞACAKSIN?'.tr(),
                                   style: _sans(
                                       size: 10,
                                       weight: FontWeight.w700,
-                                      color: _Palette.inkMute,
+                                      color: AppPalette.textSecondary(context),
                                       letterSpacing: 0.08)),
-                              const SizedBox(height: 10),
+                              SizedBox(height: 10),
                               _buildSubjectGrid(subjects),
                             ],
                           ),
@@ -5462,28 +5472,28 @@ KURALLAR:
                     // kullanıcı isteği: sayfa üst köşesinde seviye gözükmesin.
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12),
                     // Kayıtlı yarış kartları — diğer dersler / yeni ders ekle
                     // satırının hemen altında duruyor.
                     _buildRecordsSection(),
                   // Seçili konu varsa alt önizleme rozeti (rahat bakılsın).
                   if (_selectedTopic != null) ...[
-                    const SizedBox(height: 14),
+                    SizedBox(height: 14),
                     Align(
                       alignment: Alignment.centerLeft,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: _Palette.ink,
+                          color: AppPalette.textPrimary(context),
                           borderRadius: BorderRadius.circular(100),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.check_rounded,
+                            Icon(Icons.check_rounded,
                                 size: 12, color: Colors.white),
-                            const SizedBox(width: 5),
+                            SizedBox(width: 5),
                             Text(
                               _selectedTopic!,
                               style: _sans(
@@ -5496,7 +5506,34 @@ KURALLAR:
                       ),
                     ),
                   ],
-                  const SizedBox(height: 10),
+                  SizedBox(height: 10),
+                  // ── QuAlsar Arena'dan birebir port: Arkadaşlar + Hakimiyet
+                  //    + Rozetler + Wrapped + İstatistikler. Sayfanın en
+                  //    sonuna kullanıcı isteğiyle taşındı; tüm yardımcı
+                  //    widget'lar (info sheet, ekleme sheet, sıralama vb.)
+                  //    aynı dosyada olduğundan ek import gerekmez.
+                  // ListView sayfa yan-padding'i (16) zaten var; bu sınıfların
+                  // kendi iç padding'leri var, Padding sarmalı yok.
+                  // ─────────────────────────────────────────────────────────
+                  // ListView'in 16 padding'i bu widget'lara ekstra dolgu
+                  // verir; orijinal QuAlsar Arena'da scroll padding 0 idi.
+                  // O görsel hizayı korumak için negatif margin kullanmıyoruz
+                  // — küçük 16 px sap kalır, sorun teşkil etmez.
+                  SizedBox(height: 18),
+                  _FriendsSection(
+                    onRankingsTap: () => _showRankingsSheet(context),
+                  ),
+                  SizedBox(height: 18),
+                  const _MasterySection(),
+                  _BadgesSectionTitle(
+                    onInfoTap: () => _showBadgesInfoSheet(context),
+                  ),
+                  const _BadgesScroll(),
+                  SizedBox(height: 16),
+                  const _WrappedCard(),
+                  SizedBox(height: 18),
+                  const _StatsRow(),
+                  SizedBox(height: 20),
                   ],
                 ),
               ),
@@ -5517,7 +5554,7 @@ KURALLAR:
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 17, horizontal: 20),
                   decoration: BoxDecoration(
-                    color: _Palette.line.withValues(alpha: 0.5),
+                    color: AppPalette.border(context).withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(100),
                   ),
                   alignment: Alignment.center,
@@ -5525,7 +5562,7 @@ KURALLAR:
                     _selectedSubject == null
                         ? 'Önce bir ders seç'
                         : 'Şimdi bir konu seç',
-                    style: _sans(size: 14, weight: FontWeight.w600, color: _Palette.inkMute),
+                    style: _sans(size: 14, weight: FontWeight.w600, color: AppPalette.textSecondary(context)),
                   ),
                 ),
               ),
@@ -5546,7 +5583,7 @@ KURALLAR:
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: _Palette.line.withValues(alpha: 0.5),
+        color: AppPalette.border(context).withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
@@ -5560,20 +5597,20 @@ KURALLAR:
                   _selectedTopic = null;
                 }),
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
+                  duration: Duration(milliseconds: 200),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   decoration: BoxDecoration(
-                    color: _scope == t.$1 ? _Palette.surface : Colors.transparent,
+                    color: _scope == t.$1 ? AppPalette.card(context) : Colors.transparent,
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: _scope == t.$1
-                        ? [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 6, offset: const Offset(0, 2))]
+                        ? [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 6, offset: Offset(0, 2))]
                         : null,
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(t.$2, style: const TextStyle(fontSize: 15)),
-                      const SizedBox(width: 6),
+                      Text(t.$2, style: TextStyle(fontSize: 15)),
+                      SizedBox(width: 6),
                       Flexible(
                         child: Text(
                           t.$3,
@@ -5582,7 +5619,7 @@ KURALLAR:
                           style: _sans(
                             size: 12,
                             weight: FontWeight.w800,
-                            color: _scope == t.$1 ? _Palette.ink : _Palette.inkMute,
+                            color: _scope == t.$1 ? AppPalette.textPrimary(context) : AppPalette.textSecondary(context),
                           ),
                         ),
                       ),
@@ -5601,26 +5638,26 @@ KURALLAR:
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: _Palette.surface,
+          color: AppPalette.card(context),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _Palette.line),
+          border: Border.all(color: AppPalette.border(context)),
         ),
         child: Row(
           children: [
             Text('🤷'.tr(), style: TextStyle(fontSize: 24)),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Expanded(
               child: Text('Bu modda uygun ders yok',
-                  style: _sans(size: 12, color: _Palette.inkMute)),
+                  style: _sans(size: 12, color: AppPalette.textSecondary(context))),
             ),
           ],
         ),
       );
     }
-    // İlk 12 ders görünür (3x4); kullanıcı "Diğer Dersler"e basınca alttan
-    // yarım sayfa sheet açılır.
-    final visible = subjects.take(12).toList();
-    final hasMore = subjects.length > 12;
+    // İlk 8 ders görünür (2x4); kalan dersler "Diğer Dersler" sheet'inde
+    // listelenir. Yatayda 2 satır halinde 4'er ders.
+    final visible = subjects.take(8).toList();
+    final hasMore = subjects.length > 8;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -5631,12 +5668,12 @@ KURALLAR:
           crossAxisSpacing: 8,
           childAspectRatio: 1.0,
           shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
+          physics: NeverScrollableScrollPhysics(),
           children: [
             for (final s in visible) _subjectTile(s),
           ],
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         // Altta yan yana: Diğer Dersler (varsa) + Yeni Bir Ders Ekle
         Row(
           children: [
@@ -5650,7 +5687,7 @@ KURALLAR:
                     )
                   : const SizedBox.shrink(),
             ),
-            if (hasMore) const SizedBox(width: 8),
+            if (hasMore) SizedBox(width: 8),
             Expanded(
               child: _wideActionButton(
                 icon: Icons.add_rounded,
@@ -5697,15 +5734,15 @@ KURALLAR:
           bottom: 0,
           child: AnimatedOpacity(
             opacity: _draggingFromSheet ? 0.30 : 1.0,
-            duration: const Duration(milliseconds: 180),
+            duration: Duration(milliseconds: 180),
             // Material sarmalı: Text widget'larındaki sarı debug alt
             // çizgilerini önler (Material context sağlar).
             child: Material(
               type: MaterialType.transparency,
               child: Container(
                 height: sheetHeight,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFAFAFA),
+                decoration: BoxDecoration(
+                  color: AppPalette.bg(context),
                   borderRadius: BorderRadius.vertical(
                       top: Radius.circular(24)),
                   boxShadow: [
@@ -5721,14 +5758,14 @@ KURALLAR:
                   children: [
                     Row(
                       children: [
-                        const SizedBox(width: 30),
+                        SizedBox(width: 30),
                         Expanded(
                           child: Center(
                             child: Container(
                               width: 40,
                               height: 4,
                               decoration: BoxDecoration(
-                                color: Colors.black54,
+                                color: AppPalette.textSecondary(context),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                             ),
@@ -5741,17 +5778,18 @@ KURALLAR:
                             height: 30,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: Colors.white,
+                              color: AppPalette.card(context),
                               border: Border.all(
-                                  color: Colors.black12),
+                                  color: AppPalette.border(context)),
                             ),
-                            child: const Icon(Icons.close_rounded,
-                                size: 16, color: Colors.black),
+                            child: Icon(Icons.close_rounded,
+                                size: 16,
+                                color: AppPalette.textPrimary(context)),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12),
                     // Başlık + sağ üstte soluk ipucu
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -5762,12 +5800,12 @@ KURALLAR:
                             style: _sans(
                                 size: 18,
                                 weight: FontWeight.w800,
-                                color: _Palette.ink),
+                                color: AppPalette.textPrimary(context)),
                           ),
                         ),
                         ConstrainedBox(
                           constraints:
-                              const BoxConstraints(maxWidth: 130),
+                              BoxConstraints(maxWidth: 130),
                           child: Opacity(
                             opacity: 0.85,
                             child: Text(
@@ -5779,7 +5817,7 @@ KURALLAR:
                               style: _sans(
                                 size: 9,
                                 weight: FontWeight.w600,
-                                color: _Palette.ink,
+                                color: AppPalette.textPrimary(context),
                                 height: 1.2,
                               ),
                             ),
@@ -5787,7 +5825,7 @@ KURALLAR:
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12),
                     Expanded(
                       child: GridView.count(
                         crossAxisCount: 4,
@@ -5841,10 +5879,10 @@ KURALLAR:
         decoration: BoxDecoration(
           color: filled
               ? _Palette.brand.withValues(alpha: 0.1)
-              : _Palette.surface,
+              : AppPalette.card(context),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: filled ? _Palette.brand : _Palette.line,
+            color: filled ? _Palette.brand : AppPalette.border(context),
             width: filled ? 1.4 : 1,
           ),
         ),
@@ -5854,8 +5892,8 @@ KURALLAR:
           children: [
             Icon(icon,
                 size: 16,
-                color: filled ? _Palette.brand : _Palette.ink),
-            const SizedBox(width: 6),
+                color: filled ? _Palette.brand : AppPalette.textPrimary(context)),
+            SizedBox(width: 6),
             Flexible(
               child: Text(
                 label,
@@ -5864,7 +5902,7 @@ KURALLAR:
                 style: _sans(
                   size: 12,
                   weight: FontWeight.w800,
-                  color: filled ? _Palette.brand : _Palette.ink,
+                  color: filled ? _Palette.brand : AppPalette.textPrimary(context),
                 ),
               ),
             ),
@@ -5908,7 +5946,7 @@ KURALLAR:
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('${s.name} için konu listesi bulunamadı.'.tr()),
           behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
+          duration: Duration(seconds: 2),
         ));
       }
       return;
@@ -5932,11 +5970,11 @@ KURALLAR:
       barrierDismissible: true,
       barrierLabel: 'dismiss',
       barrierColor: Colors.black.withValues(alpha: 0.25),
-      transitionDuration: const Duration(milliseconds: 200),
+      transitionDuration: Duration(milliseconds: 200),
       pageBuilder: (ctx, _, __) => BackdropFilter(
         filter: ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6),
         child: Dialog(
-          backgroundColor: Colors.white,
+          backgroundColor: AppPalette.card(context),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
@@ -5963,23 +6001,25 @@ KURALLAR:
                         height: 30,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: _Palette.surface,
-                          border: Border.all(color: _Palette.line),
+                          color: AppPalette.card(context),
+                          border: Border.all(color: AppPalette.border(context)),
                         ),
-                        child: const Icon(Icons.close_rounded, size: 14),
+                        child: Icon(Icons.close_rounded,
+                            size: 14,
+                            color: AppPalette.textPrimary(context)),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   'Hangisinde yarışmak istersin?'.tr(),
                   style: _sans(
                       size: 12,
                       weight: FontWeight.w600,
-                      color: _Palette.inkMute),
+                      color: AppPalette.textSecondary(context)),
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
@@ -5987,18 +6027,18 @@ KURALLAR:
                         ctx: ctx,
                         type: 'test',
                         icon: Icons.quiz_rounded,
-                        accent: const Color(0xFF60A5FA),
+                        accent: Color(0xFF60A5FA),
                         title: 'Test Soruları'.tr(),
                         subtitle: '5 çoktan seçmeli'.tr(),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    SizedBox(width: 10),
                     Expanded(
                       child: _raceTypeCard(
                         ctx: ctx,
                         type: 'match',
                         icon: Icons.style_rounded,
-                        accent: const Color(0xFF8B5CF6),
+                        accent: Color(0xFF8B5CF6),
                         title: 'Eşleştirme Kartları'.tr(),
                         subtitle: '6 terim–tanım'.tr(),
                       ),
@@ -6026,14 +6066,14 @@ KURALLAR:
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
         decoration: BoxDecoration(
-          color: Colors.white,
+            color: AppPalette.card(context),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: accent.withValues(alpha: 0.55), width: 1.4),
           boxShadow: [
             BoxShadow(
               color: accent.withValues(alpha: 0.12),
               blurRadius: 14,
-              offset: const Offset(0, 4),
+              offset: Offset(0, 4),
             ),
           ],
         ),
@@ -6050,7 +6090,7 @@ KURALLAR:
               ),
               child: Icon(icon, color: accent, size: 22),
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             Text(
               title,
               maxLines: 1,
@@ -6059,9 +6099,9 @@ KURALLAR:
               style: _sans(
                   size: 13,
                   weight: FontWeight.w800,
-                  color: _Palette.ink),
+                  color: AppPalette.textPrimary(context)),
             ),
-            const SizedBox(height: 3),
+            SizedBox(height: 3),
             Text(
               subtitle,
               maxLines: 1,
@@ -6070,7 +6110,7 @@ KURALLAR:
               style: _sans(
                   size: 10.5,
                   weight: FontWeight.w500,
-                  color: _Palette.inkMute),
+                  color: AppPalette.textSecondary(context)),
             ),
           ],
         ),
@@ -6089,11 +6129,11 @@ KURALLAR:
       barrierDismissible: true,
       barrierLabel: 'dismiss',
       barrierColor: Colors.black.withValues(alpha: 0.2),
-      transitionDuration: const Duration(milliseconds: 200),
+      transitionDuration: Duration(milliseconds: 200),
       pageBuilder: (ctx, a1, a2) => BackdropFilter(
         filter: ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6),
         child: Dialog(
-          backgroundColor: Colors.white,
+          backgroundColor: AppPalette.card(context),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
@@ -6118,9 +6158,10 @@ KURALLAR:
                           style: _serif(
                               size: 18,
                               weight: FontWeight.w700,
+                              color: AppPalette.textPrimary(context),
                               letterSpacing: -0.01),
                         ),
-                        const SizedBox(height: 2),
+                        SizedBox(height: 2),
                         Text(
                           subjectName,
                           maxLines: 1,
@@ -6128,7 +6169,7 @@ KURALLAR:
                           style: _sans(
                               size: 12,
                               weight: FontWeight.w600,
-                              color: _Palette.inkMute),
+                              color: AppPalette.textSecondary(context)),
                         ),
                       ],
                     ),
@@ -6140,15 +6181,17 @@ KURALLAR:
                       height: 30,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: _Palette.surface,
-                        border: Border.all(color: _Palette.line),
+                        color: AppPalette.card(context),
+                        border: Border.all(color: AppPalette.border(context)),
                       ),
-                      child: const Icon(Icons.close_rounded, size: 14),
+                      child: Icon(Icons.close_rounded,
+                          size: 14,
+                          color: AppPalette.textPrimary(context)),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               Flexible(
                 child: SingleChildScrollView(
                   child: Wrap(
@@ -6162,15 +6205,18 @@ KURALLAR:
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 12, vertical: 8),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF5F1EA),
+                              color: AppPalette.cardMuted(context),
                               borderRadius: BorderRadius.circular(100),
+                              border: Border.all(
+                                  color: AppPalette.border(context),
+                                  width: 0.6),
                             ),
                             child: Text(
                               t,
                               style: _sans(
                                   size: 12.5,
                                   weight: FontWeight.w600,
-                                  color: _Palette.ink),
+                                  color: AppPalette.textPrimary(context)),
                             ),
                           ),
                         ),
@@ -6190,26 +6236,26 @@ KURALLAR:
   Widget _subjectTile(_Subject s) {
     final custom = _subjectColors[s.key];
     final selected = _selectedSubject == s.key;
-    final baseColor = selected ? _Palette.bg : _Palette.surface;
+    final baseColor = selected ? AppPalette.bg(context) : AppPalette.card(context);
     final bgColor = custom ?? baseColor;
     final darkBg = (() {
       final l = (0.299 * bgColor.r + 0.587 * bgColor.g + 0.114 * bgColor.b);
       return l < 0.55;
     })();
     final customText = _subjectTextColors[s.key];
-    final fg = customText ?? (darkBg ? Colors.white : _Palette.ink);
+    final fg = customText ?? (darkBg ? Colors.white : AppPalette.textPrimary(context));
 
     Widget tile(bool hovering) {
       return AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
+        duration: Duration(milliseconds: 150),
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: hovering
-                ? const Color(0xFFFF6A00)
-                : (selected ? _Palette.ink : _Palette.line),
+                ? Color(0xFFFF6A00)
+                : (selected ? AppPalette.textPrimary(context) : AppPalette.border(context)),
             width: hovering ? 2.4 : (selected ? 2 : 1),
           ),
         ),
@@ -6223,9 +6269,9 @@ KURALLAR:
                         _chosenLanguage[s.key] != null
                     ? _chosenLanguage[s.key]!.emoji
                     : s.emoji,
-                style: const TextStyle(fontSize: 24),
+                style: TextStyle(fontSize: 24),
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               Text(
                 _isLanguagePickerSubject(s.key) &&
                         _chosenLanguage[s.key] != null
@@ -6292,14 +6338,14 @@ KURALLAR:
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 6),
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+            color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _Palette.ink, width: 1.1),
+        border: Border.all(color: AppPalette.textPrimary(context), width: 1.1),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 18,
-            offset: const Offset(0, 6),
+            offset: Offset(0, 6),
           ),
         ],
       ),
@@ -6308,19 +6354,19 @@ KURALLAR:
         children: [
           Row(
             children: [
-              const Icon(Icons.palette_rounded,
-                  size: 16, color: _Palette.ink),
-              const SizedBox(width: 6),
+              Icon(Icons.palette_rounded,
+                  size: 16, color: AppPalette.textPrimary(context)),
+              SizedBox(width: 6),
               Text(
                 'Renk'.tr(),
                 style: _sans(
                     size: 13,
                     weight: FontWeight.w900,
-                    color: _Palette.ink),
+                    color: AppPalette.textPrimary(context)),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               Expanded(child: _modeToggle()),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               GestureDetector(
                 onTap: () {
                   setState(() {
@@ -6335,16 +6381,16 @@ KURALLAR:
                   padding: const EdgeInsets.symmetric(
                       horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _Palette.surface,
+                    color: AppPalette.card(context),
                     borderRadius: BorderRadius.circular(100),
-                    border: Border.all(color: _Palette.line),
+                    border: Border.all(color: AppPalette.border(context)),
                   ),
                   child: Text(
                     'Sıfırla'.tr(),
                     style: _sans(
                         size: 10,
                         weight: FontWeight.w800,
-                        color: _Palette.inkMute),
+                        color: AppPalette.textSecondary(context)),
                   ),
                 ),
               ),
@@ -6353,25 +6399,25 @@ KURALLAR:
           // Hedef chip'leri — "Arka plan / Ders Çerçeveleri". Tam genişlikte
           // tek satır; altındaki açıklama yazısı ve palet "Arka plan"
           // çerçevesinin sol kenarıyla aynı hizadan başlar.
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           _targetToggle(),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Text(
             'Renge bas ya da sürükleyip istediğin kareye veya arka plana bırak.'.tr(),
             style: _sans(
                 size: 10,
                 weight: FontWeight.w600,
-                color: _Palette.inkMute,
+                color: AppPalette.textSecondary(context),
                 height: 1.3),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           // Çift sıra, yatay kaydırılır renk paleti.
           SizedBox(
             height: 76,
             child: GridView.builder(
               scrollDirection: Axis.horizontal,
               gridDelegate:
-                  const SliverGridDelegateWithFixedCrossAxisCount(
+                  SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
                 mainAxisSpacing: 6,
                 crossAxisSpacing: 6,
@@ -6394,16 +6440,16 @@ KURALLAR:
         child: GestureDetector(
           onTap: () => setState(() => _colorMode = id),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 140),
+            duration: Duration(milliseconds: 140),
             padding: const EdgeInsets.symmetric(
                 vertical: 7, horizontal: 6),
             decoration: BoxDecoration(
               color: active
-                  ? const Color(0xFFFF6A00).withValues(alpha: 0.12)
-                  : _Palette.surface,
+                  ? Color(0xFFFF6A00).withValues(alpha: 0.12)
+                  : AppPalette.card(context),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: active ? const Color(0xFFFF6A00) : _Palette.ink,
+                color: active ? Color(0xFFFF6A00) : AppPalette.textPrimary(context),
                 width: active ? 1.6 : 1,
               ),
             ),
@@ -6414,9 +6460,9 @@ KURALLAR:
                 Icon(icon,
                     size: 13,
                     color: active
-                        ? const Color(0xFFFF6A00)
-                        : _Palette.ink),
-                const SizedBox(width: 5),
+                        ? Color(0xFFFF6A00)
+                        : AppPalette.textPrimary(context)),
+                SizedBox(width: 5),
                 Flexible(
                   child: Text(
                     label,
@@ -6426,8 +6472,8 @@ KURALLAR:
                       size: 11,
                       weight: FontWeight.w800,
                       color: active
-                          ? const Color(0xFFFF6A00)
-                          : _Palette.ink,
+                          ? Color(0xFFFF6A00)
+                          : AppPalette.textPrimary(context),
                     ),
                   ),
                 ),
@@ -6441,7 +6487,7 @@ KURALLAR:
     return Row(
       children: [
         box('text', Icons.text_fields_rounded, 'Yazı'.tr()),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         box('frame', Icons.crop_square_rounded, 'Çerçeve'.tr()),
       ],
     );
@@ -6458,12 +6504,12 @@ KURALLAR:
                 const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
             decoration: BoxDecoration(
               color: active
-                  ? const Color(0xFFFF6A00).withValues(alpha: 0.12)
-                  : _Palette.surface,
+                  ? Color(0xFFFF6A00).withValues(alpha: 0.12)
+                  : AppPalette.card(context),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color:
-                    active ? const Color(0xFFFF6A00) : _Palette.line,
+                    active ? Color(0xFFFF6A00) : AppPalette.border(context),
                 width: active ? 1.4 : 1,
               ),
             ),
@@ -6476,8 +6522,8 @@ KURALLAR:
                   size: 10.5,
                   weight: FontWeight.w800,
                   color: active
-                      ? const Color(0xFFFF6A00)
-                      : _Palette.ink),
+                      ? Color(0xFFFF6A00)
+                      : AppPalette.textPrimary(context)),
             ),
           ),
         ),
@@ -6487,9 +6533,9 @@ KURALLAR:
     return Row(
       children: [
         chip('bg', 'Arka plan'.tr()),
-        const SizedBox(width: 6),
+        SizedBox(width: 6),
         chip('frame', 'Çerçeve'.tr()),
-        const SizedBox(width: 6),
+        SizedBox(width: 6),
         chip('subjects', 'Ders Çerçeveleri'.tr()),
       ],
     );
@@ -6531,7 +6577,7 @@ KURALLAR:
         decoration: BoxDecoration(
           color: c,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.black26, width: 1),
+          border: Border.all(color: AppPalette.border(context), width: 1),
         ),
       ),
     );
@@ -6556,24 +6602,23 @@ KURALLAR:
     }
   }
 
-  // ignore: unused_element
   Widget _buildTopicChips(List<String> topics) {
     if (topics.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+            color: AppPalette.card(context),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _Palette.line),
+          border: Border.all(color: AppPalette.border(context)),
         ),
         child: Row(
           children: [
             Text('🤷'.tr(), style: TextStyle(fontSize: 18)),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             Expanded(
               child: Text(
                 'Bu ders için hazır konu yok.',
-                style: _sans(size: 12, color: _Palette.inkMute),
+                style: _sans(size: 12, color: AppPalette.textSecondary(context)),
               ),
             ),
           ],
@@ -6585,9 +6630,9 @@ KURALLAR:
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+            color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _Palette.line),
+        border: Border.all(color: AppPalette.border(context)),
       ),
       child: Wrap(
         spacing: 6,
@@ -6599,20 +6644,20 @@ KURALLAR:
                 _selectedTopic = (_selectedTopic == t) ? null : t;
               }),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
+                duration: Duration(milliseconds: 150),
                 padding: const EdgeInsets.symmetric(
                     horizontal: 12, vertical: 7),
                 decoration: BoxDecoration(
                   color: _selectedTopic == t
-                      ? _Palette.ink
-                      : const Color(0xFFF5F1EA),
+                      ? AppPalette.textPrimary(context)
+                      : Color(0xFFF5F1EA),
                   borderRadius: BorderRadius.circular(100),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (_selectedTopic == t)
-                      const Padding(
+                      Padding(
                         padding: EdgeInsets.only(right: 4),
                         child: Icon(Icons.check_rounded,
                             size: 12, color: Colors.white),
@@ -6624,7 +6669,7 @@ KURALLAR:
                         weight: FontWeight.w500,
                         color: _selectedTopic == t
                             ? Colors.white
-                            : _Palette.ink,
+                            : AppPalette.textPrimary(context),
                       ),
                     ),
                   ],
@@ -6658,7 +6703,7 @@ KURALLAR:
               onTap: () => _openRecordsPage(scope: 'world'),
             ),
           if (worldCount > 0 && countryCount > 0)
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
           if (countryCount > 0)
             _recordsTab(
               icon: '🇹🇷',
@@ -6683,9 +6728,9 @@ KURALLAR:
         padding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: _Palette.surface,
+          color: AppPalette.card(context),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _Palette.line, width: 1),
+          border: Border.all(color: AppPalette.border(context), width: 1),
         ),
         child: Row(
           children: [
@@ -6697,9 +6742,9 @@ KURALLAR:
                 borderRadius: BorderRadius.circular(10),
               ),
               alignment: Alignment.center,
-              child: Text(icon, style: const TextStyle(fontSize: 18)),
+              child: Text(icon, style: TextStyle(fontSize: 18)),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -6712,21 +6757,21 @@ KURALLAR:
                     style: _sans(
                         size: 14,
                         weight: FontWeight.w800,
-                        color: _Palette.ink),
+                        color: AppPalette.textPrimary(context)),
                   ),
-                  const SizedBox(height: 1),
+                  SizedBox(height: 1),
                   Text(
                     '$count ${"kayıt".tr()}',
                     style: _sans(
                         size: 11,
                         weight: FontWeight.w600,
-                        color: _Palette.inkMute),
+                        color: AppPalette.textSecondary(context)),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded,
-                color: _Palette.inkMute, size: 22),
+            Icon(Icons.chevron_right_rounded,
+                color: AppPalette.textSecondary(context), size: 22),
           ],
         ),
       ),
@@ -6805,7 +6850,7 @@ KURALLAR:
         ? QuAlsarLoaderVariant.numeric
         : QuAlsarLoaderVariant.verbal;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppPalette.card(context),
       body: QuAlsarNumericLoader(
         primaryText: label.tr(),
         staticLabel: true,
@@ -6944,8 +6989,8 @@ class _AddDueloSubjectSheetState extends State<_AddDueloSubjectSheet> {
         maxChildSize: 0.95,
         expand: false,
         builder: (_, scroll) => Container(
-          decoration: const BoxDecoration(
-            color: _Palette.bg,
+          decoration: BoxDecoration(
+            color: AppPalette.bg(context),
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: ListView(
@@ -6956,30 +7001,30 @@ class _AddDueloSubjectSheetState extends State<_AddDueloSubjectSheet> {
                 child: Container(
                   width: 40,
                   height: 4,
-                  decoration: BoxDecoration(color: _Palette.inkMute, borderRadius: BorderRadius.circular(10)),
+                  decoration: BoxDecoration(color: AppPalette.textSecondary(context), borderRadius: BorderRadius.circular(10)),
                 ),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               Row(
                 children: [
                   Text('➕'.tr(), style: TextStyle(fontSize: 22)),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Expanded(
                     child: Text('Yeni Ders Ekle',
                         style: _serif(size: 20, weight: FontWeight.w600, letterSpacing: -0.02)),
                   ),
                 ],
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               Text(
                 'Kendi konun için ders oluştur — düelloda seçmek için listende görünecek.',
-                style: _sans(size: 12, color: _Palette.inkMute, height: 1.4),
+                style: _sans(size: 12, color: AppPalette.textSecondary(context), height: 1.4),
               ),
-              const SizedBox(height: 18),
+              SizedBox(height: 18),
               // İkon + ad
               Text('DERS ADI',
-                  style: _sans(size: 10, weight: FontWeight.w700, color: _Palette.inkMute, letterSpacing: 0.08)),
-              const SizedBox(height: 8),
+                  style: _sans(size: 10, weight: FontWeight.w700, color: AppPalette.textSecondary(context), letterSpacing: 0.08)),
+              SizedBox(height: 8),
               Row(
                 children: [
                   GestureDetector(
@@ -6988,15 +7033,15 @@ class _AddDueloSubjectSheetState extends State<_AddDueloSubjectSheet> {
                       width: 56,
                       height: 56,
                       decoration: BoxDecoration(
-                        color: _Palette.surface,
+                        color: AppPalette.card(context),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: _Palette.line),
+                        border: Border.all(color: AppPalette.border(context)),
                       ),
                       alignment: Alignment.center,
-                      child: Text(_selectedEmoji, style: const TextStyle(fontSize: 26)),
+                      child: Text(_selectedEmoji, style: TextStyle(fontSize: 26)),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   Expanded(
                     child: TextField(
                       controller: _nameCtrl,
@@ -7006,18 +7051,18 @@ class _AddDueloSubjectSheetState extends State<_AddDueloSubjectSheet> {
                       onChanged: (_) => setState(() {}),
                       decoration: InputDecoration(
                         hintText: 'Örn: Astronomi'.tr(),
-                        hintStyle: _sans(size: 13, color: _Palette.inkMute),
+                        hintStyle: _sans(size: 13, color: AppPalette.textSecondary(context)),
                         filled: true,
-                        fillColor: _Palette.surface,
+                        fillColor: AppPalette.card(context),
                         counterText: '',
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14),
-                          borderSide: BorderSide(color: _Palette.line),
+                          borderSide: BorderSide(color: AppPalette.border(context)),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14),
-                          borderSide: BorderSide(color: _Palette.line),
+                          borderSide: BorderSide(color: AppPalette.border(context)),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14),
@@ -7028,17 +7073,17 @@ class _AddDueloSubjectSheetState extends State<_AddDueloSubjectSheet> {
                   ),
                 ],
               ),
-              const SizedBox(height: 18),
+              SizedBox(height: 18),
               Row(
                 children: [
                   Text('KONULAR',
-                      style: _sans(size: 10, weight: FontWeight.w700, color: _Palette.inkMute, letterSpacing: 0.08)),
-                  const SizedBox(width: 6),
+                      style: _sans(size: 10, weight: FontWeight.w700, color: AppPalette.textSecondary(context), letterSpacing: 0.08)),
+                  SizedBox(width: 6),
                   Text('(opsiyonel, virgülle ayır)'.tr(),
-                      style: _sans(size: 9, color: _Palette.inkMute)),
+                      style: _sans(size: 9, color: AppPalette.textSecondary(context))),
                 ],
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               TextField(
                 controller: _topicsCtrl,
                 maxLines: 3,
@@ -7046,17 +7091,17 @@ class _AddDueloSubjectSheetState extends State<_AddDueloSubjectSheet> {
                 style: _sans(size: 13),
                 decoration: InputDecoration(
                   hintText: 'Örn: Gezegenler, Yıldızlar, Galaksiler'.tr(),
-                  hintStyle: _sans(size: 12, color: _Palette.inkMute),
+                  hintStyle: _sans(size: 12, color: AppPalette.textSecondary(context)),
                   filled: true,
-                  fillColor: _Palette.surface,
+                  fillColor: AppPalette.card(context),
                   contentPadding: const EdgeInsets.all(14),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(color: _Palette.line),
+                    borderSide: BorderSide(color: AppPalette.border(context)),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(color: _Palette.line),
+                    borderSide: BorderSide(color: AppPalette.border(context)),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
@@ -7064,7 +7109,7 @@ class _AddDueloSubjectSheetState extends State<_AddDueloSubjectSheet> {
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
               _PrimaryButton(
                 label: '✓ Ekle'.tr(),
                 brand: true,
@@ -7083,8 +7128,8 @@ class _AddDueloSubjectSheetState extends State<_AddDueloSubjectSheet> {
       backgroundColor: Colors.transparent,
       builder: (_) => Container(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-        decoration: const BoxDecoration(
-          color: _Palette.bg,
+        decoration: BoxDecoration(
+          color: AppPalette.bg(context),
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
@@ -7095,13 +7140,13 @@ class _AddDueloSubjectSheetState extends State<_AddDueloSubjectSheet> {
               child: Container(
                 width: 40,
                 height: 4,
-                decoration: BoxDecoration(color: _Palette.inkMute, borderRadius: BorderRadius.circular(10)),
+                decoration: BoxDecoration(color: AppPalette.textSecondary(context), borderRadius: BorderRadius.circular(10)),
               ),
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             Text('Bir ikon seç'.tr(),
                 style: _serif(size: 18, weight: FontWeight.w600, letterSpacing: -0.02)),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             Wrap(
               spacing: 10,
               runSpacing: 10,
@@ -7113,15 +7158,15 @@ class _AddDueloSubjectSheetState extends State<_AddDueloSubjectSheet> {
                       width: 50,
                       height: 50,
                       decoration: BoxDecoration(
-                        color: _Palette.surface,
+                        color: AppPalette.card(context),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: e == _selectedEmoji ? _Palette.ink : _Palette.line,
+                          color: e == _selectedEmoji ? AppPalette.textPrimary(context) : AppPalette.border(context),
                           width: e == _selectedEmoji ? 2 : 1,
                         ),
                       ),
                       alignment: Alignment.center,
-                      child: Text(e, style: const TextStyle(fontSize: 24)),
+                      child: Text(e, style: TextStyle(fontSize: 24)),
                     ),
                   ),
               ],
@@ -7251,7 +7296,7 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.45),
       builder: (ctx) => Dialog(
-        backgroundColor: Colors.white,
+        backgroundColor: AppPalette.card(context),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
         ),
@@ -7260,14 +7305,14 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('⏳', style: TextStyle(fontSize: 36)),
-              const SizedBox(height: 10),
+              Text('⏳', style: TextStyle(fontSize: 36)),
+              SizedBox(height: 10),
               Text(
                 'Rakip Hâlâ Çözüyor'.tr(),
                 style: _serif(
                     size: 18, weight: FontWeight.w700),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Text(
                 '@${widget.opponentName} cevaplamaya devam ediyor '
                         '($remaining ${"soru kaldı".tr()}). '
@@ -7277,10 +7322,10 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
                 style: _sans(
                     size: 13,
                     weight: FontWeight.w500,
-                    color: _Palette.inkSoft,
+                    color: AppPalette.textSecondary(context),
                     height: 1.45),
               ),
-              const SizedBox(height: 18),
+              SizedBox(height: 18),
               Row(
                 children: [
                   Expanded(
@@ -7290,7 +7335,7 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
                         padding: const EdgeInsets.symmetric(
                             vertical: 13),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFED7AA),
+                          color: Color(0xFFFED7AA),
                           borderRadius: BorderRadius.circular(100),
                         ),
                         alignment: Alignment.center,
@@ -7299,12 +7344,12 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
                           style: _sans(
                               size: 13,
                               weight: FontWeight.w800,
-                              color: const Color(0xFFC2410C)),
+                              color: Color(0xFFC2410C)),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   Expanded(
                     child: GestureDetector(
                       onTap: () => Navigator.of(ctx).pop(true),
@@ -7312,7 +7357,7 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
                         padding: const EdgeInsets.symmetric(
                             vertical: 13),
                         decoration: BoxDecoration(
-                          color: _Palette.ink,
+                          color: AppPalette.textPrimary(context),
                           borderRadius: BorderRadius.circular(100),
                         ),
                         alignment: Alignment.center,
@@ -7339,7 +7384,7 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
   void _tryShowResults() {
     if (!_iFinished || !_opponentFinished) return;
     // Küçük gecikme — "bekliyor" animasyonundan hemen sonra geçiş.
-    Future.delayed(const Duration(milliseconds: 600), () {
+    Future.delayed(Duration(milliseconds: 600), () {
       if (!mounted) return;
       final total = widget.questions.length;
       final myWrong = (_myAnswered - _myCorrect).clamp(0, total);
@@ -7428,7 +7473,7 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _Palette.bg,
+      backgroundColor: AppPalette.bg(context),
       body: Column(
         children: [
           SafeArea(
@@ -7463,9 +7508,9 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
                           children: [
                             Text(
                               widget.scope == 'world' ? '🌍' : '🇹🇷',
-                              style: const TextStyle(fontSize: 16),
+                              style: TextStyle(fontSize: 16),
                             ),
-                            const SizedBox(width: 6),
+                            SizedBox(width: 6),
                             Text(
                               widget.scope == 'world'
                                   ? 'Dünya'.tr()
@@ -7482,7 +7527,7 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
                           ],
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      SizedBox(width: 10),
                       // Ders + Konu — tek satırda yan yana, aynı hizada.
                       if (widget.subjectName != null)
                         Expanded(
@@ -7499,7 +7544,7 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
                                     size: 17,
                                     weight: FontWeight.w800,
                                     letterSpacing: -0.02,
-                                    color: _Palette.ink,
+                                    color: AppPalette.textPrimary(context),
                                     height: 1.1,
                                   ),
                                 ),
@@ -7513,7 +7558,7 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
                                     style: _sans(
                                       size: 17,
                                       weight: FontWeight.w700,
-                                      color: _Palette.inkMute,
+                                      color: AppPalette.textSecondary(context),
                                     ),
                                   ),
                                 ),
@@ -7526,7 +7571,7 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
                                       size: 17,
                                       weight: FontWeight.w600,
                                       letterSpacing: -0.02,
-                                      color: _Palette.inkSoft,
+                                      color: AppPalette.textSecondary(context),
                                       height: 1.1,
                                     ),
                                   ),
@@ -7537,28 +7582,28 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
                         ),
                     ],
                   ),
-                  const SizedBox(height: 10),
+                  SizedBox(height: 10),
                   // İnce ayırıcı — başlık ile rakip kutusu arası
                   Container(
                     height: 1,
-                    color: _Palette.line,
+                    color: AppPalette.border(context),
                   ),
-                  const SizedBox(height: 10),
+                  SizedBox(height: 10),
                   // Rakibin ülkesi satırı (dünya modunda belirgin)
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(
                         horizontal: 12, vertical: 9),
                     decoration: BoxDecoration(
-                      color: _Palette.surface,
+                      color: AppPalette.card(context),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _Palette.line),
+                      border: Border.all(color: AppPalette.border(context)),
                     ),
                     child: Row(
                       children: [
                         Text(widget.opponentFlag,
-                            style: const TextStyle(fontSize: 18)),
-                        const SizedBox(width: 8),
+                            style: TextStyle(fontSize: 18)),
+                        SizedBox(width: 8),
                         Flexible(
                           child: RichText(
                             maxLines: 1,
@@ -7567,23 +7612,23 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
                               style: _sans(
                                   size: 14,
                                   weight: FontWeight.w600,
-                                  color: _Palette.inkSoft),
+                                  color: AppPalette.textSecondary(context)),
                               children: [
                                 TextSpan(
                                   text: 'Rakibin: '.tr(),
                                   style: _sans(
                                       size: 14,
                                       weight: FontWeight.w700,
-                                      color: _Palette.inkSoft),
+                                      color: AppPalette.textSecondary(context)),
                                 ),
                                 TextSpan(
                                   text: widget.opponentCountry,
                                   style: _sans(
                                       size: 14,
                                       weight: FontWeight.w900,
-                                      color: _Palette.ink),
+                                      color: AppPalette.textPrimary(context)),
                                 ),
-                                const TextSpan(text: '\'dan '),
+                                TextSpan(text: '\'dan '),
                                 TextSpan(
                                   text: '@${widget.opponentName}',
                                   style: _sans(
@@ -7596,7 +7641,7 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
                                   style: _sans(
                                       size: 12,
                                       weight: FontWeight.w600,
-                                      color: _Palette.inkMute),
+                                      color: AppPalette.textSecondary(context)),
                                 ),
                               ],
                             ),
@@ -7605,7 +7650,7 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  SizedBox(height: 10),
                   // VS satırı — simetrik: sol avatar, ortada VS, sağ avatar
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -7617,24 +7662,24 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
                         color: _Palette.brand,
                         flag: '🇹🇷',
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: 12),
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: _Palette.surface,
+                          color: AppPalette.card(context),
                           borderRadius: BorderRadius.circular(100),
-                          border: Border.all(color: _Palette.line),
+                          border: Border.all(color: AppPalette.border(context)),
                         ),
                         child: Text(
                           'VS',
                           style: _serif(
                               size: 14,
                               weight: FontWeight.w800,
-                              color: _Palette.inkMute),
+                              color: AppPalette.textSecondary(context)),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: 12),
                       _DueloAvatar(
                         name: widget.opponentName,
                         avatar: widget.opponentAvatar,
@@ -7721,8 +7766,8 @@ class _DueloWaitingOverlay extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('⏳', style: TextStyle(fontSize: 56)),
-            const SizedBox(height: 18),
+            Text('⏳', style: TextStyle(fontSize: 56)),
+            SizedBox(height: 18),
             Text(
               'Rakibini Bekliyoruz'.tr(),
               style: _serif(
@@ -7732,13 +7777,13 @@ class _DueloWaitingOverlay extends StatelessWidget {
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             Text.rich(
               TextSpan(
                 style: _sans(
                     size: 14,
                     weight: FontWeight.w500,
-                    color: _Palette.inkSoft,
+                    color: AppPalette.textSecondary(context),
                     height: 1.5),
                 children: [
                   TextSpan(text: '$opponentFlag '),
@@ -7755,12 +7800,12 @@ class _DueloWaitingOverlay extends StatelessWidget {
                       style: _sans(
                           size: 14,
                           weight: FontWeight.w700,
-                          color: _Palette.ink)),
+                          color: AppPalette.textPrimary(context))),
                 ],
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             SizedBox(
               width: 180,
               child: ClipRRect(
@@ -7768,19 +7813,19 @@ class _DueloWaitingOverlay extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: total == 0 ? 0 : opponentProgress / total,
                   minHeight: 6,
-                  backgroundColor: _Palette.line,
+                  backgroundColor: AppPalette.border(context),
                   valueColor:
-                      const AlwaysStoppedAnimation(_Palette.accent),
+                      AlwaysStoppedAnimation(_Palette.accent),
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               '$opponentProgress / $total',
               style: _sans(
                   size: 12,
                   weight: FontWeight.w700,
-                  color: _Palette.inkMute),
+                  color: AppPalette.textSecondary(context)),
             ),
           ],
         ),
@@ -7862,7 +7907,7 @@ class _DueloResultsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final win = _winner;
     return Scaffold(
-      backgroundColor: _Palette.bg,
+      backgroundColor: AppPalette.bg(context),
       body: SafeArea(
         child: Column(
           children: [
@@ -7871,7 +7916,7 @@ class _DueloResultsScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
               child: Row(
                 children: [
-                  const Spacer(),
+                  Spacer(),
                   _CircleBtn(
                     icon: Icons.close_rounded,
                     onTap: () {
@@ -7916,8 +7961,8 @@ class _DueloResultsScreen extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(scope == 'world' ? '🌍' : '🇹🇷',
-                                  style: const TextStyle(fontSize: 12)),
-                              const SizedBox(width: 5),
+                                  style: TextStyle(fontSize: 12)),
+                              SizedBox(width: 5),
                               Text(
                                 scope == 'world'
                                     ? 'Dünya'.tr()
@@ -7942,14 +7987,14 @@ class _DueloResultsScreen extends StatelessWidget {
                                   style: _sans(
                                       size: 13,
                                       weight: FontWeight.w700,
-                                      color: _Palette.inkMute),
+                                      color: AppPalette.textSecondary(context)),
                                 ),
                                 TextSpan(
                                   text: subjectName,
                                   style: _sans(
                                       size: 13,
                                       weight: FontWeight.w900,
-                                      color: _Palette.ink),
+                                      color: AppPalette.textPrimary(context)),
                                 ),
                               ],
                             ),
@@ -7963,21 +8008,21 @@ class _DueloResultsScreen extends StatelessWidget {
                                   style: _sans(
                                       size: 13,
                                       weight: FontWeight.w700,
-                                      color: _Palette.inkMute),
+                                      color: AppPalette.textSecondary(context)),
                                 ),
                                 TextSpan(
                                   text: topicName,
                                   style: _sans(
                                       size: 13,
                                       weight: FontWeight.w900,
-                                      color: _Palette.ink),
+                                      color: AppPalette.textPrimary(context)),
                                 ),
                               ],
                             ),
                           ),
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16),
                     // ── Skor kartı karşılaştırması (soru/doğru/yanlış/boş/süre içerir) ──
                     Builder(builder: (_) {
                       // Doğru sayıları eşitse hız belirleyici olmuş demektir.
@@ -8026,7 +8071,7 @@ class _DueloResultsScreen extends StatelessWidget {
                               eloDelta: myDelta,
                             ),
                           ),
-                          const SizedBox(width: 10),
+                          SizedBox(width: 10),
                           Expanded(
                             child: _DueloPlayerCard(
                               isWinner: win == -1,
@@ -8069,7 +8114,7 @@ class _DueloResultsScreen extends StatelessWidget {
                           onTap: () => _newOpponent(context),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8),
                       Expanded(
                         child: _bottomAction(
                           icon: Icons.sports_mma_rounded,
@@ -8080,7 +8125,7 @@ class _DueloResultsScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   _bottomAction(
                     icon: Icons.ios_share_rounded,
                     label: 'Sosyal medyada paylaş'.tr(),
@@ -8088,7 +8133,7 @@ class _DueloResultsScreen extends StatelessWidget {
                     onTap: () =>
                         _openShareMode(context, friendMode: false),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   _bottomAction(
                     icon: Icons.send_rounded,
                     label: 'Arkadaşınla paylaş'.tr(),
@@ -8096,7 +8141,7 @@ class _DueloResultsScreen extends StatelessWidget {
                     onTap: () =>
                         _openShareMode(context, friendMode: true),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   _bottomAction(
                     icon: Icons.auto_stories_rounded,
                     label: 'Yanlış yaptığın sorulara bak'.tr(),
@@ -8135,7 +8180,7 @@ class _DueloResultsScreen extends StatelessWidget {
             Icon(icon,
                 size: 16,
                 color: filled ? Colors.white : _Palette.ink),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Expanded(
               child: Text(
                 label,
@@ -8203,7 +8248,7 @@ class _DueloResultsScreen extends StatelessWidget {
   // Yeni rakibe git — sonuç ekranını kapatıp taze bir lobi aç.
   void _newOpponent(BuildContext context) {
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const DueloLobbyScreen()),
+      MaterialPageRoute(builder: (_) => DueloLobbyScreen()),
     );
   }
 
@@ -8229,10 +8274,10 @@ class _DueloResultsScreen extends StatelessWidget {
       behavior: SnackBarBehavior.floating,
     ));
     if (!context.mounted) return;
-    await Future<void>.delayed(const Duration(milliseconds: 900));
+    await Future<void>.delayed(Duration(milliseconds: 900));
     if (!context.mounted) return;
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const DueloLobbyScreen()),
+      MaterialPageRoute(builder: (_) => DueloLobbyScreen()),
     );
   }
 }
@@ -8254,11 +8299,11 @@ class _DueloMistakesScreen extends StatelessWidget {
       if (a == null || a != questions[i].correctIndex) wrongIdx.add(i);
     }
     return Scaffold(
-      backgroundColor: _Palette.bg,
+      backgroundColor: AppPalette.bg(context),
       appBar: AppBar(
-        backgroundColor: _Palette.bg,
+        backgroundColor: AppPalette.bg(context),
         elevation: 0,
-        foregroundColor: _Palette.ink,
+        foregroundColor: AppPalette.textPrimary(context),
         title: Text(
           'Yanlışlarım'.tr(),
           style: _serif(
@@ -8274,15 +8319,15 @@ class _DueloMistakesScreen extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('🎉', style: TextStyle(fontSize: 48)),
-                    const SizedBox(height: 10),
+                    Text('🎉', style: TextStyle(fontSize: 48)),
+                    SizedBox(height: 10),
                     Text(
                       'Hiç yanlışın yok, tebrikler!'.tr(),
                       textAlign: TextAlign.center,
                       style: _sans(
                           size: 14,
                           weight: FontWeight.w700,
-                          color: _Palette.inkSoft),
+                          color: AppPalette.textSecondary(context)),
                     ),
                   ],
                 ),
@@ -8291,7 +8336,7 @@ class _DueloMistakesScreen extends StatelessWidget {
           : ListView.separated(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
               itemCount: wrongIdx.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              separatorBuilder: (_, __) => SizedBox(height: 10),
               itemBuilder: (_, i) {
                 final idx = wrongIdx[i];
                 final q = questions[idx];
@@ -8305,9 +8350,9 @@ class _DueloMistakesScreen extends StatelessWidget {
                 return Container(
                   padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+            color: AppPalette.card(context),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: _Palette.line),
+                    border: Border.all(color: AppPalette.border(context)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -8319,7 +8364,7 @@ class _DueloMistakesScreen extends StatelessWidget {
                                 horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
                               color: isEmpty
-                                  ? _Palette.inkMute
+                                  ? AppPalette.textSecondary(context)
                                   : _Palette.error,
                               borderRadius: BorderRadius.circular(100),
                             ),
@@ -8331,7 +8376,7 @@ class _DueloMistakesScreen extends StatelessWidget {
                                   color: Colors.white),
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          SizedBox(width: 8),
                           Text(
                             isEmpty
                                 ? '${"Boş".tr()} · ${"Doğru".tr()}: $correctLetter'
@@ -8339,11 +8384,11 @@ class _DueloMistakesScreen extends StatelessWidget {
                             style: _sans(
                                 size: 11,
                                 weight: FontWeight.w700,
-                                color: _Palette.inkMute),
+                                color: AppPalette.textSecondary(context)),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
+                      SizedBox(height: 10),
                       Text(
                         q.text,
                         style: _serif(
@@ -8352,26 +8397,26 @@ class _DueloMistakesScreen extends StatelessWidget {
                             height: 1.35),
                       ),
                       if (q.explanation.isNotEmpty) ...[
-                        const SizedBox(height: 10),
+                        SizedBox(height: 10),
                         Container(
                             height: 1,
-                            color: _Palette.line),
-                        const SizedBox(height: 10),
+                            color: AppPalette.border(context)),
+                        SizedBox(height: 10),
                         Text(
                           'Çözüm'.tr(),
                           style: _sans(
                               size: 11,
                               weight: FontWeight.w900,
-                              color: _Palette.inkMute,
+                              color: AppPalette.textSecondary(context),
                               letterSpacing: 0.3),
                         ),
-                        const SizedBox(height: 4),
+                        SizedBox(height: 4),
                         Text(
                           q.explanation,
                           style: _sans(
                               size: 13,
                               weight: FontWeight.w500,
-                              color: _Palette.ink,
+                              color: AppPalette.textPrimary(context),
                               height: 1.5),
                         ),
                       ],
@@ -8431,11 +8476,11 @@ class _DueloPlayerCard extends StatelessWidget {
     // altın kenar rengi + rozet + bayrak konfetisi ile ayırt ediliyor.
     final borderColor = isWinner
         ? _goldMid
-        : (isTie ? _Palette.ink : _Palette.line);
+        : (isTie ? AppPalette.textPrimary(context) : AppPalette.border(context));
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+            color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: borderColor, width: 1),
       ),
@@ -8446,7 +8491,7 @@ class _DueloPlayerCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(
                   horizontal: 12, vertical: 5),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
+                gradient: LinearGradient(
                   colors: [_goldTop, _goldMid, _goldDeep],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -8456,15 +8501,15 @@ class _DueloPlayerCard extends StatelessWidget {
                   BoxShadow(
                     color: _goldMid.withValues(alpha: 0.5),
                     blurRadius: 8,
-                    offset: const Offset(0, 2),
+                    offset: Offset(0, 2),
                   ),
                 ],
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('🏆', style: TextStyle(fontSize: 12)),
-                  const SizedBox(width: 4),
+                  Text('🏆', style: TextStyle(fontSize: 12)),
+                  SizedBox(width: 4),
                   Text(
                     'KAZANAN'.tr(),
                     style: _sans(
@@ -8477,26 +8522,26 @@ class _DueloPlayerCard extends StatelessWidget {
               ),
             )
           else
-            const SizedBox(height: 21),
-          const SizedBox(height: 6),
+            SizedBox(height: 21),
+          SizedBox(height: 6),
           // Kimlik bloğu — bayrak (kazananın yanlarında konfeti).
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (isWinner)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.only(right: 6),
                   child: Text('🎉', style: TextStyle(fontSize: 20)),
                 ),
-              Text(flag, style: const TextStyle(fontSize: 34)),
+              Text(flag, style: TextStyle(fontSize: 34)),
               if (isWinner)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.only(left: 6),
                   child: Text('🎊', style: TextStyle(fontSize: 20)),
                 ),
             ],
           ),
-          const SizedBox(height: 3),
+          SizedBox(height: 3),
           Text(
             country,
             maxLines: 1,
@@ -8505,10 +8550,10 @@ class _DueloPlayerCard extends StatelessWidget {
             style: _sans(
                 size: 13.5,
                 weight: FontWeight.w800,
-                color: _Palette.ink,
+                color: AppPalette.textPrimary(context),
                 letterSpacing: 0.1),
           ),
-          const SizedBox(height: 1),
+          SizedBox(height: 1),
           Text(
             '@$name',
             maxLines: 1,
@@ -8517,9 +8562,9 @@ class _DueloPlayerCard extends StatelessWidget {
             style: _sans(
                 size: 13,
                 weight: FontWeight.w700,
-                color: _Palette.inkMute),
+                color: AppPalette.textSecondary(context)),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -8527,7 +8572,7 @@ class _DueloPlayerCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(
                     horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: _Palette.surface,
+                  color: AppPalette.card(context),
                   borderRadius: BorderRadius.circular(100),
                 ),
                 child: Text(
@@ -8535,17 +8580,17 @@ class _DueloPlayerCard extends StatelessWidget {
                   style: _sans(
                       size: 10,
                       weight: FontWeight.w800,
-                      color: _Palette.inkMute,
+                      color: AppPalette.textSecondary(context),
                       letterSpacing: 0.2),
                 ),
               ),
               if (eloDelta != 0) ...[
-                const SizedBox(width: 4),
+                SizedBox(width: 4),
                 _DeltaPill(delta: eloDelta),
               ],
             ],
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           // ══ Donut grafik (ortalanmış) + altında stat tablosu ══
           _StatsDonutBlock(
             correct: correct,
@@ -8574,10 +8619,10 @@ class _DeltaPill extends StatelessWidget {
     final positive = delta > 0;
     final zero = delta == 0;
     final color = zero
-        ? _Palette.inkMute
+        ? AppPalette.textSecondary(context)
         : (positive
-            ? const Color(0xFF059669)
-            : const Color(0xFFDC2626));
+            ? Color(0xFF059669)
+            : Color(0xFFDC2626));
     final label = zero
         ? '0'
         : (positive ? '+$delta' : '$delta');
@@ -8599,7 +8644,7 @@ class _DeltaPill extends StatelessWidget {
             size: 10,
             color: color,
           ),
-          const SizedBox(width: 2),
+          SizedBox(width: 2),
           Text(
             label,
             style: GoogleFonts.poppins(
@@ -8691,14 +8736,14 @@ class _StatsDonutBlock extends StatelessWidget {
                         size: 16,
                         weight: FontWeight.w900,
                         letterSpacing: -0.02,
-                        color: _Palette.ink),
+                        color: AppPalette.textPrimary(context)),
                   ),
                   Text(
                     'Başarı'.tr(),
                     style: _sans(
                         size: 7,
                         weight: FontWeight.w800,
-                        color: _Palette.inkMute,
+                        color: AppPalette.textSecondary(context),
                         letterSpacing: 0.6),
                   ),
                 ],
@@ -8706,15 +8751,15 @@ class _StatsDonutBlock extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         // ── Altta küçük çerçeveli stat kutusu ────────────────────
         Container(
           padding: const EdgeInsets.fromLTRB(8, 7, 8, 7),
           decoration: BoxDecoration(
-            color: const Color(0xFFF5F1EA),
+            color: Color(0xFFF5F1EA),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-                color: _Palette.line.withValues(alpha: 0.7), width: 1),
+                color: AppPalette.border(context).withValues(alpha: 0.7), width: 1),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -8739,9 +8784,9 @@ class _StatsDonutBlock extends StatelessWidget {
     final int diff = speedAdvantageSeconds.abs();
     // Sadece eşit doğru ve bu taraf kazanan + >0 diff iken vurgu belirgin.
     final bool highlight = isWinner && diff > 0;
-    final Color color = highlight ? const Color(0xFFB45309) : _Palette.ink;
+    final Color color = highlight ? Color(0xFFB45309) : _Palette.ink;
     final Color bg = highlight
-        ? const Color(0xFFFFD24D).withValues(alpha: 0.22)
+        ? Color(0xFFFFD24D).withValues(alpha: 0.22)
         : Colors.transparent;
     return Container(
       padding: highlight
@@ -8758,7 +8803,7 @@ class _StatsDonutBlock extends StatelessWidget {
           Row(
             children: [
               Icon(Icons.timer_rounded, size: 13, color: color),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Text(
                 'Süre'.tr(),
                 style: _sans(
@@ -8766,7 +8811,7 @@ class _StatsDonutBlock extends StatelessWidget {
                     weight: FontWeight.w800,
                     color: color),
               ),
-              const Spacer(),
+              Spacer(),
               Text(
                 elapsed,
                 style: _sans(
@@ -8777,19 +8822,19 @@ class _StatsDonutBlock extends StatelessWidget {
             ],
           ),
           if (highlight) ...[
-            const SizedBox(height: 3),
+            SizedBox(height: 3),
             Row(
               children: [
-                const Icon(Icons.bolt_rounded,
+                Icon(Icons.bolt_rounded,
                     size: 12, color: Color(0xFFB45309)),
-                const SizedBox(width: 4),
+                SizedBox(width: 4),
                 Expanded(
                   child: Text(
                     '$diff ${"sn daha hızlı".tr()}',
                     style: _sans(
                         size: 10.5,
                         weight: FontWeight.w800,
-                        color: const Color(0xFFB45309),
+                        color: Color(0xFFB45309),
                         letterSpacing: 0.1),
                   ),
                 ),
@@ -8809,7 +8854,7 @@ class _StatsDonutBlock extends StatelessWidget {
       child: Row(
         children: [
           Icon(icon, size: 13, color: valueColor),
-          const SizedBox(width: 6),
+          SizedBox(width: 6),
           Text(
             label,
             style: _sans(
@@ -8817,7 +8862,7 @@ class _StatsDonutBlock extends StatelessWidget {
                 weight: FontWeight.w800,
                 color: valueColor),
           ),
-          const Spacer(),
+          Spacer(),
           Text(
             value,
             style: _sans(
@@ -8981,7 +9026,7 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
           as RenderRepaintBoundary?;
       if (boundary == null) throw StateError('Kart hazır değil.');
       if (boundary.debugNeedsPaint) {
-        await Future.delayed(const Duration(milliseconds: 50));
+        await Future.delayed(Duration(milliseconds: 50));
       }
       final image = await boundary.toImage(pixelRatio: 2.5);
       final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
@@ -9051,7 +9096,7 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
       appBar: AppBar(
         backgroundColor: pageBg,
         elevation: 0,
-        foregroundColor: _Palette.ink,
+        foregroundColor: AppPalette.textPrimary(context),
         centerTitle: true,
         title: Text(
           widget.friendMode
@@ -9106,9 +9151,9 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               Center(child: _colorPickerButton()),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               GestureDetector(
                 onTap: _sharing ? null : _share,
                 child: Container(
@@ -9117,7 +9162,7 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
                   decoration: BoxDecoration(
                     color: _sharing
                         ? Colors.black38
-                        : const Color(0xFFFF6A00),
+                        : Color(0xFFFF6A00),
                     borderRadius: BorderRadius.circular(100),
                   ),
                   alignment: Alignment.center,
@@ -9125,7 +9170,7 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       if (_sharing)
-                        const SizedBox(
+                        SizedBox(
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(
@@ -9134,9 +9179,9 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
                           ),
                         )
                       else
-                        const Icon(Icons.ios_share_rounded,
+                        Icon(Icons.ios_share_rounded,
                             color: Colors.white, size: 18),
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8),
                       Text(
                         _sharing
                             ? 'Hazırlanıyor…'.tr()
@@ -9164,9 +9209,9 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
         padding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.white,
+            color: AppPalette.card(context),
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: _Palette.ink, width: 1),
+          border: Border.all(color: AppPalette.textPrimary(context), width: 1),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -9177,13 +9222,13 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
               decoration: BoxDecoration(
                 color: _currentTargetColor(),
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: Colors.black26, width: 1),
+                border: Border.all(color: AppPalette.border(context), width: 1),
               ),
             ),
-            const SizedBox(width: 9),
-            const Icon(Icons.palette_rounded,
-                size: 15, color: _Palette.ink),
-            const SizedBox(width: 6),
+            SizedBox(width: 9),
+            Icon(Icons.palette_rounded,
+                size: 15, color: AppPalette.textPrimary(context)),
+            SizedBox(width: 6),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -9193,21 +9238,21 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
                   style: _sans(
                       size: 12.5,
                       weight: FontWeight.w900,
-                      color: _Palette.ink),
+                      color: AppPalette.textPrimary(context)),
                 ),
                 Text(
                   _targetLabel(),
                   style: _sans(
                       size: 9.5,
                       weight: FontWeight.w700,
-                      color: const Color(0xFFFF6A00),
+                      color: Color(0xFFFF6A00),
                       letterSpacing: 0.2),
                 ),
               ],
             ),
-            const SizedBox(width: 6),
-            const Icon(Icons.arrow_drop_down_rounded,
-                size: 20, color: _Palette.ink),
+            SizedBox(width: 6),
+            Icon(Icons.arrow_drop_down_rounded,
+                size: 20, color: AppPalette.textPrimary(context)),
           ],
         ),
       ),
@@ -9233,9 +9278,9 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
               margin: const EdgeInsets.fromLTRB(12, 0, 12, 14),
               padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
               decoration: BoxDecoration(
-                color: Colors.white,
+            color: AppPalette.card(context),
                 borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: Colors.black, width: 1),
+                border: Border.all(color: AppPalette.textPrimary(context), width: 1),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -9246,44 +9291,44 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
                       width: 40,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: Colors.black26,
+                        color: AppPalette.border(context),
                         borderRadius: BorderRadius.circular(999),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   // Başlık satırı: sol "Kart Rengini Seç", sağda TAMAMLA
                   // butonu — renk seçimleri sheet kapanmadan yapılabilir,
                   // kullanıcı "Tamamla" dediğinde sheet kapanır.
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      const Icon(Icons.palette_rounded,
-                          size: 18, color: _Palette.ink),
-                      const SizedBox(width: 8),
+                      Icon(Icons.palette_rounded,
+                          size: 18, color: AppPalette.textPrimary(context)),
+                      SizedBox(width: 8),
                       Text(
                         'Kart Rengini Seç'.tr(),
                         style: _sans(
                             size: 15,
                             weight: FontWeight.w900,
-                            color: _Palette.ink),
+                            color: AppPalette.textPrimary(context)),
                       ),
-                      const Spacer(),
+                      Spacer(),
                       GestureDetector(
                         onTap: () => Navigator.of(sheetCtx).pop(),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 14, vertical: 7),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFF6A00),
+                            color: Color(0xFFFF6A00),
                             borderRadius: BorderRadius.circular(100),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.check_rounded,
+                              Icon(Icons.check_rounded,
                                   size: 14, color: Colors.white),
-                              const SizedBox(width: 4),
+                              SizedBox(width: 4),
                               Text(
                                 'Tamamla'.tr(),
                                 style: _sans(
@@ -9297,9 +9342,9 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
+                  SizedBox(height: 10),
                   _targetSegment(pickTarget),
-                  const SizedBox(height: 14),
+                  SizedBox(height: 14),
                   // 2 satır × yatay scroll — kullanıcı sağa/sola kaydırarak
                   // tüm renkleri görebilir. Sabit yükseklik (2 swatch + spacing)
                   // ile sheet boyu büyümeden tüm palet gezilir.
@@ -9307,9 +9352,9 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
                     height: 120, // 2 satır × ~52px + 10px spacing + padding
                     child: GridView.builder(
                       scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(),
+                      physics: BouncingScrollPhysics(),
                       gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
+                          SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 2,
                         mainAxisSpacing: 10,
                         crossAxisSpacing: 10,
@@ -9356,12 +9401,12 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
                 const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
             decoration: BoxDecoration(
               color: active
-                  ? const Color(0xFFFF6A00).withValues(alpha: 0.12)
-                  : _Palette.surface,
+                  ? Color(0xFFFF6A00).withValues(alpha: 0.12)
+                  : AppPalette.card(context),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color:
-                    active ? const Color(0xFFFF6A00) : _Palette.line,
+                    active ? Color(0xFFFF6A00) : AppPalette.border(context),
                 width: active ? 1.6 : 1,
               ),
             ),
@@ -9374,9 +9419,9 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
                     Icon(icon,
                         size: 14,
                         color: active
-                            ? const Color(0xFFFF6A00)
-                            : _Palette.ink),
-                    const SizedBox(width: 5),
+                            ? Color(0xFFFF6A00)
+                            : AppPalette.textPrimary(context)),
+                    SizedBox(width: 5),
                     Container(
                       width: 10,
                       height: 10,
@@ -9384,12 +9429,12 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
                         color: previewColor,
                         borderRadius: BorderRadius.circular(3),
                         border: Border.all(
-                            color: Colors.black26, width: 0.8),
+                            color: AppPalette.border(context), width: 0.8),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   label,
                   maxLines: 1,
@@ -9399,8 +9444,8 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
                       size: 10.5,
                       weight: FontWeight.w800,
                       color: active
-                          ? const Color(0xFFFF6A00)
-                          : _Palette.ink),
+                          ? Color(0xFFFF6A00)
+                          : AppPalette.textPrimary(context)),
                 ),
               ],
             ),
@@ -9416,13 +9461,13 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
           icon: Icons.crop_square_rounded,
           label: 'Büyük Çerçeve'.tr(),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         chip(
           id: 'me',
           icon: Icons.person_rounded,
           label: 'Kendi Çerçeven'.tr(),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         chip(
           id: 'opp',
           icon: Icons.people_rounded,
@@ -9444,7 +9489,7 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: selected
-                ? const Color(0xFFFF6A00)
+                ? Color(0xFFFF6A00)
                 : Colors.black26,
             width: selected ? 3 : 1,
           ),
@@ -9549,9 +9594,9 @@ class _DueloShareCard extends StatelessWidget {
                   style: TextStyle(
                       color: isBgDark
                           ? Colors.white
-                          : const Color(0xFFC8102E),
+                          : Color(0xFFC8102E),
                       fontSize: 12)),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               // QuAlsar — "Al" hecesi kırmızı, "Qu" ve "sar" siyah.
               // Koyu zeminde tüm harfler beyaz (okunaklılık).
               Text.rich(
@@ -9563,29 +9608,29 @@ class _DueloShareCard extends StatelessWidget {
                     color: isBgDark ? Colors.white : Colors.black,
                   ),
                   children: [
-                    const TextSpan(text: 'Qu'),
+                    TextSpan(text: 'Qu'),
                     TextSpan(
                       text: 'Al',
                       style: TextStyle(
                         color: isBgDark
                             ? Colors.white
-                            : const Color(0xFFC8102E),
+                            : Color(0xFFC8102E),
                       ),
                     ),
-                    const TextSpan(text: 'sar'),
+                    TextSpan(text: 'sar'),
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Text('✦',
                   style: TextStyle(
                       color: isBgDark
                           ? Colors.white
-                          : const Color(0xFFC8102E),
+                          : Color(0xFFC8102E),
                       fontSize: 12)),
             ],
           ),
-          const SizedBox(height: 2),
+          SizedBox(height: 2),
           Text(
             'Bilgi Yarışı'.tr().toUpperCase(),
             style: _sans(
@@ -9594,7 +9639,7 @@ class _DueloShareCard extends StatelessWidget {
                 color: _inkMute,
                 letterSpacing: 1.6),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           // ── Header: scope + ders + konu ────────────────────────
           Wrap(
             alignment: WrapAlignment.center,
@@ -9635,7 +9680,7 @@ class _DueloShareCard extends StatelessWidget {
                 ])),
             ],
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           // ── İki oyuncu kutusu, her biri donut + stats ──────────
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -9654,11 +9699,11 @@ class _DueloShareCard extends StatelessWidget {
                   total: totalQuestions,
                   elapsed: _fmtTime(myElapsed),
                   isBgDark: isBgDark,
-                  accent: const Color(0xFFFF6A00),
+                  accent: Color(0xFFFF6A00),
                   boxBg: myBoxBg,
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Expanded(
                 child: _DueloShareUserBox(
                   isWinner: winner == -1,
@@ -9673,13 +9718,13 @@ class _DueloShareCard extends StatelessWidget {
                   total: totalQuestions,
                   elapsed: _fmtTime(opponentElapsed),
                   isBgDark: isBgDark,
-                  accent: const Color(0xFF2563EB),
+                  accent: Color(0xFF2563EB),
                   boxBg: oppBoxBg,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           // ── Footer: marka (sol) + "Uygulamayı indir" + QR (sağ) ─
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -9696,7 +9741,7 @@ class _DueloShareCard extends StatelessWidget {
                           color: _ink,
                           letterSpacing: 0.3),
                     ),
-                    const SizedBox(height: 2),
+                    SizedBox(height: 2),
                     Text(
                       'qualsar.app',
                       style: _sans(
@@ -9704,7 +9749,7 @@ class _DueloShareCard extends StatelessWidget {
                           weight: FontWeight.w900,
                           color: isBgDark
                               ? Colors.white
-                              : const Color(0xFFC8102E),
+                              : Color(0xFFC8102E),
                           letterSpacing: 0.5),
                     ),
                   ],
@@ -9723,20 +9768,20 @@ class _DueloShareCard extends StatelessWidget {
                           color: _ink,
                           letterSpacing: 0.3),
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+            color: AppPalette.card(context),
                         borderRadius: BorderRadius.circular(8),
                         border:
-                            Border.all(color: Colors.black12, width: 1),
+                            Border.all(color: AppPalette.border(context), width: 1),
                       ),
                       child: QrImageView(
                         data: 'https://qualsar.app',
                         version: QrVersions.auto,
                         size: 54,
-                        backgroundColor: Colors.white,
+                        backgroundColor: AppPalette.card(context),
                         padding: EdgeInsets.zero,
                       ),
                     ),
@@ -9878,25 +9923,25 @@ class _DueloShareUserBox extends StatelessWidget {
                       letterSpacing: 0.5)),
             )
           else
-            const SizedBox(height: 14),
-          const SizedBox(height: 3),
+            SizedBox(height: 14),
+          SizedBox(height: 3),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (isWinner)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.only(right: 5),
                   child: Text('🎉', style: TextStyle(fontSize: 17)),
                 ),
-              Text(flag, style: const TextStyle(fontSize: 30)),
+              Text(flag, style: TextStyle(fontSize: 30)),
               if (isWinner)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.only(left: 5),
                   child: Text('🎊', style: TextStyle(fontSize: 17)),
                 ),
             ],
           ),
-          const SizedBox(height: 2),
+          SizedBox(height: 2),
           Text(
             country,
             maxLines: 1,
@@ -9917,7 +9962,7 @@ class _DueloShareUserBox extends StatelessWidget {
                 weight: FontWeight.w700,
                 color: _boxInkMute),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           // ══ Ortalanmış donut — kullanıcı adının altında ═════════
           SizedBox(
             width: 80,
@@ -9957,14 +10002,14 @@ class _DueloShareUserBox extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           // ══ Küçük çerçeveli stat kutusu — etiket ve değer eş renk ══
           Container(
             padding: const EdgeInsets.fromLTRB(8, 7, 8, 7),
             decoration: BoxDecoration(
               color: _darkBox
                   ? Colors.white.withValues(alpha: 0.12)
-                  : const Color(0xFFF5F1EA),
+                  : Color(0xFFF5F1EA),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: (_darkBox ? Colors.white : Colors.black)
@@ -9982,14 +10027,14 @@ class _DueloShareUserBox extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Container(
             padding:
                 const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
             decoration: BoxDecoration(
               color: _darkBox
                   ? Colors.white.withValues(alpha: 0.16)
-                  : _Palette.surface,
+                  : AppPalette.card(context),
               borderRadius: BorderRadius.circular(100),
             ),
             child: Text(
@@ -10018,7 +10063,7 @@ class _DueloShareUserBox extends StatelessWidget {
                 weight: FontWeight.w800,
                 color: valueColor),
           ),
-          const Spacer(),
+          Spacer(),
           Text(value,
               style: _sans(
                   size: 12,
@@ -10061,7 +10106,7 @@ class _DueloAvatar extends StatelessWidget {
       child: Text(avatar,
           style: _sans(size: 11, weight: FontWeight.w800, color: Colors.white)),
     );
-    final flagText = Text(flag, style: const TextStyle(fontSize: 11));
+    final flagText = Text(flag, style: TextStyle(fontSize: 11));
     final nameText = Flexible(
       child: Text(
         '@$name',
@@ -10075,16 +10120,16 @@ class _DueloAvatar extends StatelessWidget {
     final children = mirror
         ? <Widget>[
             nameText,
-            const SizedBox(width: 4),
+            SizedBox(width: 4),
             flagText,
-            const SizedBox(width: 6),
+            SizedBox(width: 6),
             avatarCircle,
           ]
         : <Widget>[
             avatarCircle,
-            const SizedBox(width: 6),
+            SizedBox(width: 6),
             flagText,
-            const SizedBox(width: 4),
+            SizedBox(width: 4),
             nameText,
           ];
 
@@ -10098,13 +10143,13 @@ class _DueloAvatar extends StatelessWidget {
                 mirror ? MainAxisAlignment.end : MainAxisAlignment.start,
             children: children,
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: LinearProgressIndicator(
               value: progress.clamp(0.0, 1.0),
               minHeight: 5,
-              backgroundColor: _Palette.line,
+              backgroundColor: AppPalette.border(context),
               valueColor: AlwaysStoppedAnimation(color),
             ),
           ),
@@ -10118,7 +10163,10 @@ class _DueloAvatar extends StatelessWidget {
 //  ARKADAŞLAR — mock feed (gerçek backend sonrası dolacak)
 // ═══════════════════════════════════════════════════════════════════════════════
 class _FriendsSection extends StatelessWidget {
-  const _FriendsSection();
+  /// Sıralama butonu callback'i — Rozetler bölümünden buraya taşındı.
+  /// null verilirse buton gösterilmez (geriye uyum).
+  final VoidCallback? onRankingsTap;
+  const _FriendsSection({this.onRankingsTap});
 
   @override
   Widget build(BuildContext context) {
@@ -10136,8 +10184,8 @@ class _FriendsSection extends StatelessWidget {
           child: Row(
             children: [
               Text('Arkadaşların'.tr(),
-                  style: _serif(size: 20, weight: FontWeight.w600, letterSpacing: -0.02)),
-              const SizedBox(width: 6),
+                  style: _serif(size: 20, weight: FontWeight.w600, color: AppPalette.textPrimary(context), letterSpacing: -0.02)),
+              SizedBox(width: 6),
               GestureDetector(
                 onTap: () => _showFriendsInfoSheet(context),
                 child: Container(
@@ -10151,6 +10199,39 @@ class _FriendsSection extends StatelessWidget {
                   child: Icon(Icons.question_mark_rounded, size: 13, color: _Palette.brand),
                 ),
               ),
+              if (onRankingsTap != null) ...[
+                Spacer(),
+                GestureDetector(
+                  onTap: onRankingsTap,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      // Buton zemini her iki modda da kontrast yapsın:
+                      // aydınlıkta koyu+beyaz yazı, karanlıkta açık+koyu yazı.
+                      color: AppPalette.isDark(context)
+                          ? Colors.white
+                          : Colors.black,
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('🏆'.tr(),
+                            style: TextStyle(fontSize: 11)),
+                        SizedBox(width: 5),
+                        Text('Sıralama'.tr(),
+                            style: _sans(
+                                size: 12,
+                                weight: FontWeight.w700,
+                                color: AppPalette.isDark(context)
+                                    ? Colors.black
+                                    : Colors.white)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -10163,7 +10244,7 @@ class _FriendsSection extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
+                gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [_Palette.brand, _Palette.brandDeep],
@@ -10173,7 +10254,7 @@ class _FriendsSection extends StatelessWidget {
                   BoxShadow(
                     color: _Palette.brand.withValues(alpha: 0.3),
                     blurRadius: 14,
-                    offset: const Offset(0, 5),
+                    offset: Offset(0, 5),
                   ),
                 ],
               ),
@@ -10187,16 +10268,16 @@ class _FriendsSection extends StatelessWidget {
                       color: Colors.white.withValues(alpha: 0.22),
                     ),
                     alignment: Alignment.center,
-                    child: const Icon(Icons.person_add_rounded, size: 20, color: Colors.white),
+                    child: Icon(Icons.person_add_rounded, size: 20, color: Colors.white),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Arkadaş Ekle'.tr(),
                             style: _sans(size: 15, weight: FontWeight.w800, color: Colors.white, letterSpacing: -0.01)),
-                        const SizedBox(height: 2),
+                        SizedBox(height: 2),
                         Text('QR, rehber veya davet linkiyle',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -10204,7 +10285,7 @@ class _FriendsSection extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const Icon(Icons.chevron_right_rounded, color: Colors.white, size: 22),
+                  Icon(Icons.chevron_right_rounded, color: Colors.white, size: 22),
                 ],
               ),
             ),
@@ -10216,9 +10297,9 @@ class _FriendsSection extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: _Palette.surface,
+                color: AppPalette.card(context),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: _Palette.line),
+                border: Border.all(color: AppPalette.border(context)),
               ),
               child: Row(
                 children: [
@@ -10233,36 +10314,36 @@ class _FriendsSection extends StatelessWidget {
                     child: Text(feed[i].$2,
                         style: _sans(size: 13, weight: FontWeight.w800, color: Colors.white)),
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            Text(feed[i].$3, style: const TextStyle(fontSize: 11)),
-                            const SizedBox(width: 4),
+                            Text(feed[i].$3, style: TextStyle(fontSize: 11)),
+                            SizedBox(width: 4),
                             Flexible(
                               child: Text('@${feed[i].$1}',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: _sans(size: 12, weight: FontWeight.w700)),
+                                  style: _sans(size: 12, weight: FontWeight.w700, color: AppPalette.textPrimary(context))),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 2),
+                        SizedBox(height: 2),
                         Text(feed[i].$4,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: _sans(size: 11, color: _Palette.inkSoft)),
+                            style: _sans(size: 11, color: AppPalette.textSecondary(context))),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  Text(feed[i].$6, style: const TextStyle(fontSize: 16)),
-                  const SizedBox(width: 4),
+                  SizedBox(width: 6),
+                  Text(feed[i].$6, style: TextStyle(fontSize: 16)),
+                  SizedBox(width: 4),
                   Text(feed[i].$5.split(' ').first,
-                      style: _sans(size: 10, color: _Palette.inkMute)),
+                      style: _sans(size: 10, color: AppPalette.textSecondary(context))),
                 ],
               ),
             ),
@@ -10278,8 +10359,8 @@ void _showFriendsInfoSheet(BuildContext context) {
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
     builder: (_) => Container(
-      decoration: const BoxDecoration(
-        color: _Palette.bg,
+      decoration: BoxDecoration(
+        color: AppPalette.bg(context),
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
@@ -10291,63 +10372,42 @@ void _showFriendsInfoSheet(BuildContext context) {
             child: Container(
               width: 40,
               height: 4,
-              decoration: BoxDecoration(color: _Palette.inkMute, borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: AppPalette.textSecondary(context), borderRadius: BorderRadius.circular(10)),
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           Row(
             children: [
               Text('👥'.tr(), style: TextStyle(fontSize: 26)),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Expanded(
-                child: Text('Arkadaşlar Nasıl Çalışır?'.tr(),
+                child: Text('Bu Sayfa Nasıl Çalışır?'.tr(),
                     style: _serif(size: 22, weight: FontWeight.w600, letterSpacing: -0.02)),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: _Palette.accent.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _Palette.accent.withValues(alpha: 0.2)),
-            ),
-            child: Row(
-              children: [
-                Text('💬'.tr(), style: TextStyle(fontSize: 18)),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Mesajlaşma yok — sadece birlikte öğrenme ve yarışma.',
-                    style: _sans(size: 12, color: _Palette.accent, weight: FontWeight.w700, height: 1.4),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          _friendsRule('🏆', 'Bilgi yarışı yap', 'Arkadaşını yarışmaya davet et, aynı 5 soruyu aynı anda çözün. Kim daha hızlı?'),
+          SizedBox(height: 18),
+          _friendsRule('🏆', 'Bilgi yarışı yap', 'Arkadaşını yarışmaya davet et, aynı soruları aynı anda çözün. Bakalım kim daha hızlı?'),
           _friendsRule('📊', 'Karşılaştır', 'Ders-ders kim daha iyi? QP, seri, lig karşılaştırması profilde.'),
           _friendsRule('📰', 'Aktivite feed\'i', 'Arkadaşın test çözdüğünde, lig atladığında, rozet kazandığında anasayfada görürsün.'),
           _friendsRule('🏆', 'Arkadaş sıralaması', 'Sıralama sayfasında "Arkadaşlar" sekmesi → sadece eklediklerin.'),
           _friendsRule('🎁', 'Davet = ödül', 'Arkadaş ekle, kabul ederse ikiniz de +50 QP kazanın.'),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: _Palette.surface,
+              color: AppPalette.card(context),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _Palette.line),
+              border: Border.all(color: AppPalette.border(context)),
             ),
             child: Row(
               children: [
                 Text('🔒'.tr(), style: TextStyle(fontSize: 16)),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Sadece eklediğin kişiler seni görür. Kullanıcı adın profilinde gizli de olabilir.',
-                    style: _sans(size: 11, color: _Palette.inkSoft, height: 1.4),
+                    style: _sans(size: 11, color: AppPalette.textSecondary(context), height: 1.4),
                   ),
                 ),
               ],
@@ -10374,16 +10434,16 @@ Widget _friendsRule(String emoji, String title, String desc) {
             border: Border.all(color: _Palette.line),
           ),
           alignment: Alignment.center,
-          child: Text(emoji, style: const TextStyle(fontSize: 16)),
+          child: Text(emoji, style: TextStyle(fontSize: 16)),
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(title, style: _sans(size: 13, weight: FontWeight.w800)),
-              const SizedBox(height: 2),
-              Text(desc, style: _sans(size: 12, color: _Palette.inkSoft, height: 1.35)),
+              SizedBox(height: 2),
+              Text(desc, style: _sans(size: 12, color: _Palette.inkMute, height: 1.35)),
             ],
           ),
         ),
@@ -10436,13 +10496,13 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
         content: Row(
           children: [
             Text('📨'.tr(), style: TextStyle(fontSize: 16)),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             Expanded(child: Text('@$username\'a istek gönderildi')),
           ],
         ),
-        backgroundColor: _Palette.ink,
+        backgroundColor: AppPalette.textPrimary(context),
         behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
+        duration: Duration(seconds: 2),
       ),
     );
   }
@@ -10459,8 +10519,8 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
         maxChildSize: 0.95,
         expand: false,
         builder: (_, scroll) => Container(
-          decoration: const BoxDecoration(
-            color: _Palette.bg,
+          decoration: BoxDecoration(
+            color: AppPalette.bg(context),
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: ListView(
@@ -10472,27 +10532,27 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: _Palette.inkMute,
+                    color: AppPalette.textSecondary(context),
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               Text('Arkadaş Ekle'.tr(),
                   style: _serif(size: 22, weight: FontWeight.w600, letterSpacing: -0.02)),
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               Text(
                 'Birini ekle → düello yapabilirsiniz, karşılaştırabilirsiniz. Mesajlaşma yok.',
-                style: _sans(size: 12, color: _Palette.inkMute, height: 1.4),
+                style: _sans(size: 12, color: AppPalette.textSecondary(context), height: 1.4),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               // Arama
               _buildSearchField(),
-              const SizedBox(height: 18),
+              SizedBox(height: 18),
               // Hızlı yöntemler
               Text('HIZLI YÖNTEMLER'.tr(),
-                  style: _sans(size: 10, weight: FontWeight.w700, color: _Palette.inkMute, letterSpacing: 0.08)),
-              const SizedBox(height: 10),
+                  style: _sans(size: 10, weight: FontWeight.w700, color: AppPalette.textSecondary(context), letterSpacing: 0.08)),
+              SizedBox(height: 10),
               Row(
                 children: [
                   Expanded(
@@ -10503,7 +10563,7 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                       onTap: () => _showQRSheet(context),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Expanded(
                     child: _QuickMethod(
                       emoji: '🔗',
@@ -10520,7 +10580,7 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                       },
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Expanded(
                     child: _QuickMethod(
                       emoji: '📞',
@@ -10539,26 +10599,26 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                   ),
                 ],
               ),
-              const SizedBox(height: 22),
+              SizedBox(height: 22),
               // Öneriler
               Text(_searchCtrl.text.isEmpty ? 'ÖNERİLEN KİŞİLER' : 'ARAMA SONUÇLARI',
-                  style: _sans(size: 10, weight: FontWeight.w700, color: _Palette.inkMute, letterSpacing: 0.08)),
-              const SizedBox(height: 10),
+                  style: _sans(size: 10, weight: FontWeight.w700, color: AppPalette.textSecondary(context), letterSpacing: 0.08)),
+              SizedBox(height: 10),
               if (suggestions.isEmpty)
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: _Palette.surface,
+                    color: AppPalette.card(context),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: _Palette.line),
+                    border: Border.all(color: AppPalette.border(context)),
                   ),
                   child: Row(
                     children: [
                       Text('🔍'.tr(), style: TextStyle(fontSize: 18)),
-                      const SizedBox(width: 10),
+                      SizedBox(width: 10),
                       Expanded(
                         child: Text('Kullanıcı bulunamadı. Davet linki gönderebilirsin.'.tr(),
-                            style: _sans(size: 12, color: _Palette.inkMute)),
+                            style: _sans(size: 12, color: AppPalette.textSecondary(context))),
                       ),
                     ],
                   ),
@@ -10587,14 +10647,14 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: _Palette.surface,
+        color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _Palette.line),
+        border: Border.all(color: AppPalette.border(context)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.search_rounded, size: 18, color: _Palette.inkMute),
-          const SizedBox(width: 8),
+          Icon(Icons.search_rounded, size: 18, color: AppPalette.textSecondary(context)),
+          SizedBox(width: 8),
           Expanded(
             child: TextField(
               controller: _searchCtrl,
@@ -10602,7 +10662,7 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
               style: _sans(size: 14, weight: FontWeight.w500),
               decoration: InputDecoration(
                 hintText: '@kullanıcı adı ara'.tr(),
-                hintStyle: _sans(size: 13, color: _Palette.inkMute),
+                hintStyle: _sans(size: 13, color: AppPalette.textSecondary(context)),
                 border: InputBorder.none,
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(vertical: 14),
@@ -10612,7 +10672,7 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
           if (_searchCtrl.text.isNotEmpty)
             GestureDetector(
               onTap: () => setState(() => _searchCtrl.clear()),
-              child: Icon(Icons.close_rounded, size: 16, color: _Palette.inkMute),
+              child: Icon(Icons.close_rounded, size: 16, color: AppPalette.textSecondary(context)),
             ),
         ],
       ),
@@ -10626,8 +10686,8 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (_) => Container(
-        decoration: const BoxDecoration(
-          color: _Palette.bg,
+        decoration: BoxDecoration(
+          color: AppPalette.bg(context),
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
@@ -10637,30 +10697,30 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
             Container(
               width: 40,
               height: 4,
-              decoration: BoxDecoration(color: _Palette.inkMute, borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: AppPalette.textSecondary(context), borderRadius: BorderRadius.circular(10)),
             ),
-            const SizedBox(height: 18),
+            SizedBox(height: 18),
             Text('Senin QR Kodun',
                 style: _serif(size: 20, weight: FontWeight.w600, letterSpacing: -0.02)),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text('Arkadaşın okutsun, ekleme isteği gelsin'.tr(),
-                style: _sans(size: 11, color: _Palette.inkMute)),
-            const SizedBox(height: 18),
+                style: _sans(size: 11, color: AppPalette.textSecondary(context))),
+            SizedBox(height: 18),
             Container(
               width: 200,
               height: 200,
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: Colors.white,
+            color: AppPalette.card(context),
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: _Palette.line),
+                border: Border.all(color: AppPalette.border(context)),
               ),
               child: CustomPaint(painter: _QrPainter()),
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             Text('@$_currentUsername',
                 style: _sans(size: 16, weight: FontWeight.w800)),
-            const SizedBox(height: 18),
+            SizedBox(height: 18),
             _PrimaryButton(
               label: '📷 Arkadaşının QR Kodunu Tara'.tr(),
               brand: true,
@@ -10672,7 +10732,7 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                 );
               },
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             _SecondaryButton(
               label: '🔗 QR Yerine Linki Paylaş'.tr(),
               onTap: () async {
@@ -10726,7 +10786,7 @@ class _ContactsSheetState extends State<_ContactsSheet> {
   Future<void> _requestPermission() async {
     // Gerçek sürüm: permission_handler ile Permission.contacts.request()
     setState(() => _permissionAsked = true);
-    await Future.delayed(const Duration(milliseconds: 800));
+    await Future.delayed(Duration(milliseconds: 800));
     if (mounted) setState(() => _permissionGranted = true);
   }
 
@@ -10744,8 +10804,8 @@ class _ContactsSheetState extends State<_ContactsSheet> {
       maxChildSize: 0.95,
       expand: false,
       builder: (_, scroll) => Container(
-        decoration: const BoxDecoration(
-          color: _Palette.bg,
+        decoration: BoxDecoration(
+          color: AppPalette.bg(context),
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: _permissionGranted ? _buildContactList(scroll) : _buildPermissionPrompt(),
@@ -10763,10 +10823,10 @@ class _ContactsSheetState extends State<_ContactsSheet> {
             child: Container(
               width: 40,
               height: 4,
-              decoration: BoxDecoration(color: _Palette.inkMute, borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: AppPalette.textSecondary(context), borderRadius: BorderRadius.circular(10)),
             ),
           ),
-          const SizedBox(height: 28),
+          SizedBox(height: 28),
           Container(
             width: 80,
             height: 80,
@@ -10777,20 +10837,20 @@ class _ContactsSheetState extends State<_ContactsSheet> {
             alignment: Alignment.center,
             child: Text('📞'.tr(), style: TextStyle(fontSize: 40)),
           ),
-          const SizedBox(height: 18),
+          SizedBox(height: 18),
           Text('Rehbere Erişim'.tr(),
               style: _serif(size: 22, weight: FontWeight.w600, letterSpacing: -0.02)),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Text(
               'Telefon rehberini tarayarak QuAlsar\'ı kullanan arkadaşlarını bulalım. '
               'Eşleşme sadece telefon numarası hash\'i ile yapılır, numara sunucuya gönderilmez.',
               textAlign: TextAlign.center,
-              style: _sans(size: 13, color: _Palette.inkSoft, height: 1.5),
+              style: _sans(size: 13, color: AppPalette.textSecondary(context), height: 1.5),
             ),
           ),
-          const SizedBox(height: 18),
+          SizedBox(height: 18),
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -10801,7 +10861,7 @@ class _ContactsSheetState extends State<_ContactsSheet> {
             child: Row(
               children: [
                 Text('🔒'.tr(), style: TextStyle(fontSize: 16)),
-                const SizedBox(width: 10),
+                SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'Kayıt olurken verdiğin telefonunu kullanır. Kimseye gösterilmez.',
@@ -10811,17 +10871,17 @@ class _ContactsSheetState extends State<_ContactsSheet> {
               ],
             ),
           ),
-          const SizedBox(height: 22),
+          SizedBox(height: 22),
           _PrimaryButton(
             label: _permissionAsked ? 'İzin isteniyor…' : '✓ İzin Ver ve Tara',
             brand: true,
             onTap: _permissionAsked ? null : _requestPermission,
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text('Vazgeç'.tr(),
-                style: _sans(size: 12, weight: FontWeight.w600, color: _Palette.inkMute)),
+                style: _sans(size: 12, weight: FontWeight.w600, color: AppPalette.textSecondary(context))),
           ),
         ],
       ),
@@ -10838,27 +10898,27 @@ class _ContactsSheetState extends State<_ContactsSheet> {
           child: Container(
             width: 40,
             height: 4,
-            decoration: BoxDecoration(color: _Palette.inkMute, borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(color: AppPalette.textSecondary(context), borderRadius: BorderRadius.circular(10)),
           ),
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: 16),
         Text('Rehberden Ekle',
             style: _serif(size: 22, weight: FontWeight.w600, letterSpacing: -0.02)),
-        const SizedBox(height: 4),
+        SizedBox(height: 4),
         Text('QuAlsar kullanan kontaktların burada. Kullanmayanlar davet edilebilir.'.tr(),
-            style: _sans(size: 12, color: _Palette.inkMute, height: 1.4)),
-        const SizedBox(height: 14),
+            style: _sans(size: 12, color: AppPalette.textSecondary(context), height: 1.4)),
+        SizedBox(height: 14),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
-            color: _Palette.surface,
+            color: AppPalette.card(context),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: _Palette.line),
+            border: Border.all(color: AppPalette.border(context)),
           ),
           child: Row(
             children: [
-              const Icon(Icons.search_rounded, size: 18, color: _Palette.inkMute),
-              const SizedBox(width: 8),
+              Icon(Icons.search_rounded, size: 18, color: AppPalette.textSecondary(context)),
+              SizedBox(width: 8),
               Expanded(
                 child: TextField(
                   controller: _searchCtrl,
@@ -10866,7 +10926,7 @@ class _ContactsSheetState extends State<_ContactsSheet> {
                   style: _sans(size: 14, weight: FontWeight.w500),
                   decoration: InputDecoration(
                     hintText: 'Kontakt ara',
-                    hintStyle: _sans(size: 13, color: _Palette.inkMute),
+                    hintStyle: _sans(size: 13, color: AppPalette.textSecondary(context)),
                     border: InputBorder.none,
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(vertical: 14),
@@ -10876,12 +10936,12 @@ class _ContactsSheetState extends State<_ContactsSheet> {
               if (_searchCtrl.text.isNotEmpty)
                 GestureDetector(
                   onTap: () => setState(() => _searchCtrl.clear()),
-                  child: const Icon(Icons.close_rounded, size: 16, color: _Palette.inkMute),
+                  child: Icon(Icons.close_rounded, size: 16, color: AppPalette.textSecondary(context)),
                 ),
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: 16),
         for (final c in filtered)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
@@ -10897,9 +10957,9 @@ class _ContactsSheetState extends State<_ContactsSheet> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('${c.$4}\'a arkadaş isteği gönderildi 📨'),
-                      backgroundColor: _Palette.ink,
+                      backgroundColor: AppPalette.textPrimary(context),
                       behavior: SnackBarBehavior.floating,
-                      duration: const Duration(seconds: 2),
+                      duration: Duration(seconds: 2),
                     ),
                   );
                 } else {
@@ -10937,9 +10997,9 @@ class _ContactRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: _Palette.surface,
+        color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _Palette.line),
+        border: Border.all(color: AppPalette.border(context)),
       ),
       child: Row(
         children: [
@@ -10948,13 +11008,13 @@ class _ContactRow extends StatelessWidget {
             height: 40,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: onQuAlsar ? color : _Palette.inkMute,
+              color: onQuAlsar ? color : AppPalette.textSecondary(context),
             ),
             alignment: Alignment.center,
             child: Text(initial,
                 style: _sans(size: 14, weight: FontWeight.w800, color: Colors.white)),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -10968,7 +11028,7 @@ class _ContactRow extends StatelessWidget {
                           style: _sans(size: 13, weight: FontWeight.w700)),
                     ),
                     if (onQuAlsar) ...[
-                      const SizedBox(width: 4),
+                      SizedBox(width: 4),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                         decoration: BoxDecoration(
@@ -10979,7 +11039,7 @@ class _ContactRow extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text('🏆'.tr(), style: TextStyle(fontSize: 9)),
-                            const SizedBox(width: 3),
+                            SizedBox(width: 3),
                             Text('QuAlsar',
                                 style: _sans(size: 9, weight: FontWeight.w800, color: _Palette.success)),
                           ],
@@ -10988,30 +11048,30 @@ class _ContactRow extends StatelessWidget {
                     ],
                   ],
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(
                   onQuAlsar && username != null ? username! : phone,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: _sans(size: 11, color: _Palette.inkMute),
+                  style: _sans(size: 11, color: AppPalette.textSecondary(context)),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           GestureDetector(
             onTap: onAction,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: onQuAlsar ? _Palette.brand : _Palette.ink,
+                color: onQuAlsar ? _Palette.brand : AppPalette.textPrimary(context),
                 borderRadius: BorderRadius.circular(100),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(onQuAlsar ? Icons.person_add_rounded : Icons.send_rounded, size: 11, color: Colors.white),
-                  const SizedBox(width: 4),
+                  SizedBox(width: 4),
                   Text(onQuAlsar ? 'Ekle' : 'Davet',
                       style: _sans(size: 11, weight: FontWeight.w800, color: Colors.white)),
                 ],
@@ -11039,22 +11099,22 @@ class _QrScanDialog extends StatelessWidget {
             Row(
               children: [
                 Text('📷'.tr(), style: TextStyle(fontSize: 20)),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 Text('QR Kod Tara',
                     style: _sans(size: 16, weight: FontWeight.w700, color: Colors.white)),
-                const Spacer(),
+                Spacer(),
                 GestureDetector(
                   onTap: () => Navigator.pop(context),
-                  child: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
+                  child: Icon(Icons.close_rounded, color: Colors.white, size: 20),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             AspectRatio(
               aspectRatio: 1,
               child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.black,
+                  color: AppPalette.textPrimary(context),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
                 ),
@@ -11073,13 +11133,13 @@ class _QrScanDialog extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Text(
               'Arkadaşının QR kodunu bu çerçeveye hizala',
               textAlign: TextAlign.center,
               style: _sans(size: 12, color: Colors.white.withValues(alpha: 0.7)),
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             _PrimaryButton(
               label: 'Kamerayı Aç'.tr(),
               brand: true,
@@ -11088,9 +11148,9 @@ class _QrScanDialog extends StatelessWidget {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('Kamera izni istenecek · gerçek sürümde mobile_scanner ile açılır'.tr()),
-                    backgroundColor: _Palette.ink,
+                    backgroundColor: AppPalette.textPrimary(context),
                     behavior: SnackBarBehavior.floating,
-                    duration: const Duration(seconds: 3),
+                    duration: Duration(seconds: 3),
                   ),
                 );
               },
@@ -11112,10 +11172,10 @@ class _QrScanDialog extends StatelessWidget {
       height: 28,
       decoration: BoxDecoration(
         border: Border(
-          top: (topLeft || topRight) ? const BorderSide(color: _Palette.brand, width: 3) : BorderSide.none,
-          bottom: (bottomLeft || bottomRight) ? const BorderSide(color: _Palette.brand, width: 3) : BorderSide.none,
-          left: (topLeft || bottomLeft) ? const BorderSide(color: _Palette.brand, width: 3) : BorderSide.none,
-          right: (topRight || bottomRight) ? const BorderSide(color: _Palette.brand, width: 3) : BorderSide.none,
+          top: (topLeft || topRight) ? BorderSide(color: _Palette.brand, width: 3) : BorderSide.none,
+          bottom: (bottomLeft || bottomRight) ? BorderSide(color: _Palette.brand, width: 3) : BorderSide.none,
+          left: (topLeft || bottomLeft) ? BorderSide(color: _Palette.brand, width: 3) : BorderSide.none,
+          right: (topRight || bottomRight) ? BorderSide(color: _Palette.brand, width: 3) : BorderSide.none,
         ),
       ),
     );
@@ -11175,24 +11235,24 @@ class _QuickMethod extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
         decoration: BoxDecoration(
-          color: _Palette.surface,
+          color: AppPalette.card(context),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _Palette.line),
+          border: Border.all(color: AppPalette.border(context)),
         ),
         child: Column(
           children: [
-            Text(emoji, style: const TextStyle(fontSize: 22)),
-            const SizedBox(height: 4),
+            Text(emoji, style: TextStyle(fontSize: 22)),
+            SizedBox(height: 4),
             Text(label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: _sans(size: 11, weight: FontWeight.w700)),
-            const SizedBox(height: 2),
+            SizedBox(height: 2),
             Text(sub,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: _sans(size: 9, color: _Palette.inkMute)),
+                style: _sans(size: 9, color: AppPalette.textSecondary(context))),
           ],
         ),
       ),
@@ -11222,9 +11282,9 @@ class _SuggestionRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: _Palette.surface,
+        color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _Palette.line),
+        border: Border.all(color: AppPalette.border(context)),
       ),
       child: Row(
         children: [
@@ -11239,35 +11299,35 @@ class _SuggestionRow extends StatelessWidget {
             child: Text(avatar,
                 style: _sans(size: 14, weight: FontWeight.w800, color: Colors.white)),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Text(flag, style: const TextStyle(fontSize: 11)),
-                    const SizedBox(width: 4),
+                    Text(flag, style: TextStyle(fontSize: 11)),
+                    SizedBox(width: 4),
                     Flexible(
                       child: Text('@$username',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: _sans(size: 13, weight: FontWeight.w700)),
+                          style: _sans(size: 13, weight: FontWeight.w700, color: AppPalette.textPrimary(context))),
                     ),
-                    const SizedBox(width: 6),
+                    SizedBox(width: 6),
                     Text('· $grade',
-                        style: _sans(size: 10, color: _Palette.inkMute)),
+                        style: _sans(size: 10, color: AppPalette.textSecondary(context))),
                   ],
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(reason,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: _sans(size: 11, color: _Palette.inkMute)),
+                    style: _sans(size: 11, color: AppPalette.textSecondary(context))),
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           GestureDetector(
             onTap: onAdd,
             child: Container(
@@ -11279,8 +11339,8 @@ class _SuggestionRow extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.person_add_rounded, size: 12, color: Colors.white),
-                  const SizedBox(width: 4),
+                  Icon(Icons.person_add_rounded, size: 12, color: Colors.white),
+                  SizedBox(width: 4),
                   Text('Ekle',
                       style: _sans(size: 11, weight: FontWeight.w800, color: Colors.white)),
                 ],
@@ -11316,30 +11376,30 @@ class _WrappedCard extends StatelessWidget {
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
-            gradient: const LinearGradient(
+            gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [Color(0xFFEC4899), Color(0xFF8B5CF6), Color(0xFF2D5BFF)],
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFEC4899).withValues(alpha: 0.3),
+                color: Color(0xFFEC4899).withValues(alpha: 0.3),
                 blurRadius: 20,
-                offset: const Offset(0, 8),
+                offset: Offset(0, 8),
               ),
             ],
           ),
           child: Row(
             children: [
               Text('🎁'.tr(), style: TextStyle(fontSize: 32)),
-              const SizedBox(width: 14),
+              SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Arena Wrapped',
                         style: _serif(size: 18, weight: FontWeight.w800, color: Colors.white, letterSpacing: -0.02)),
-                    const SizedBox(height: 2),
+                    SizedBox(height: 2),
                     Text('Bu haftanın özetini gör ve paylaş'.tr(),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -11347,7 +11407,7 @@ class _WrappedCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded, color: Colors.white, size: 22),
+              Icon(Icons.chevron_right_rounded, color: Colors.white, size: 22),
             ],
           ),
         ),
@@ -11374,8 +11434,8 @@ class _WrappedSheet extends StatelessWidget {
       maxChildSize: 0.95,
       expand: false,
       builder: (_, scroll) => Container(
-        decoration: const BoxDecoration(
-          color: _Palette.bg,
+        decoration: BoxDecoration(
+          color: AppPalette.bg(context),
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: ListView(
@@ -11386,10 +11446,10 @@ class _WrappedSheet extends StatelessWidget {
               child: Container(
                 width: 40,
                 height: 4,
-                decoration: BoxDecoration(color: _Palette.inkMute, borderRadius: BorderRadius.circular(10)),
+                decoration: BoxDecoration(color: AppPalette.textSecondary(context), borderRadius: BorderRadius.circular(10)),
               ),
             ),
-            const SizedBox(height: 18),
+            SizedBox(height: 18),
             // Ana Wrapped kartı (paylaşılabilir)
             Center(
               child: Container(
@@ -11397,13 +11457,13 @@ class _WrappedSheet extends StatelessWidget {
                 padding: const EdgeInsets.all(22),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(22),
-                  gradient: const LinearGradient(
+                  gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [Color(0xFFEC4899), Color(0xFF8B5CF6), Color(0xFF2D5BFF)],
                   ),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 20, offset: const Offset(0, 10)),
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 20, offset: Offset(0, 10)),
                   ],
                 ),
                 child: Column(
@@ -11413,29 +11473,29 @@ class _WrappedSheet extends StatelessWidget {
                       children: [
                         Text('QuAlsar',
                             style: _serif(size: 18, weight: FontWeight.w800, color: Colors.white)),
-                        const Spacer(),
+                        Spacer(),
                         Text('🎁'.tr(), style: TextStyle(fontSize: 20)),
                       ],
                     ),
-                    const SizedBox(height: 2),
+                    SizedBox(height: 2),
                     Text('Bu Haftan',
                         style: _sans(size: 11, weight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.75), letterSpacing: 0.06)),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20),
                     _wrappedStat('⚡', '${_arenaState.qp} QP', 'Toplam skor'),
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12),
                     _wrappedStat('🔥', '${_arenaState.streak} gün', 'Aktif seri'),
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12),
                     _wrappedStat('👑', topTopic, 'En ustalaştığın konu'),
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12),
                     _wrappedStat('🏆', _leagues[_arenaState.league].name, 'Aktif lig'),
-                    const SizedBox(height: 18),
+                    SizedBox(height: 18),
                     Text('Sıra sende! @$_currentUsername · qualsar.app'.tr(),
                         style: _sans(size: 11, weight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.85))),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             _PrimaryButton(
               label: '📤 Paylaş'.tr(),
               brand: true,
@@ -11460,8 +11520,8 @@ class _WrappedSheet extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(emoji, style: const TextStyle(fontSize: 24)),
-        const SizedBox(width: 12),
+        Text(emoji, style: TextStyle(fontSize: 24)),
+        SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -11506,9 +11566,9 @@ class _MasterySection extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: _Palette.surface,
+          color: AppPalette.card(context),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: _Palette.line),
+          border: Border.all(color: AppPalette.border(context)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -11516,7 +11576,7 @@ class _MasterySection extends StatelessWidget {
             Row(
               children: [
                 Text('📈'.tr(), style: TextStyle(fontSize: 18)),
-                const SizedBox(width: 6),
+                SizedBox(width: 6),
                 Expanded(
                   child: Text('Konu Ustalığın'.tr(),
                       style: _serif(size: 17, weight: FontWeight.w600, letterSpacing: -0.02)),
@@ -11525,20 +11585,20 @@ class _MasterySection extends StatelessWidget {
                     style: _sans(size: 12, weight: FontWeight.w700, color: _Palette.accent)),
               ],
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text(
               'Her doğru cevap ustalığını artırır, uzun süre çözmezsen azalır.',
-              style: _sans(size: 11, color: _Palette.inkMute),
+              style: _sans(size: 11, color: AppPalette.textSecondary(context)),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             for (final e in top) _masteryRow(e.key, e.value, false),
             if (weakest.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Divider(color: _Palette.line.withValues(alpha: 0.6), height: 1),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
+              Divider(color: AppPalette.border(context).withValues(alpha: 0.6), height: 1),
+              SizedBox(height: 10),
               Text('⚠️ EN ZAYIF KONULAR',
                   style: _sans(size: 10, weight: FontWeight.w700, color: _Palette.error, letterSpacing: 0.06)),
-              const SizedBox(height: 6),
+              SizedBox(height: 6),
               for (final e in weakest) _masteryRow(e.key, e.value, true),
             ],
           ],
@@ -11553,23 +11613,23 @@ class _MasterySection extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: _Palette.surface,
+          color: AppPalette.card(context),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: _Palette.line, style: BorderStyle.solid),
+          border: Border.all(color: AppPalette.border(context), style: BorderStyle.solid),
         ),
         child: Row(
           children: [
             Text('📈'.tr(), style: TextStyle(fontSize: 22)),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Konu Ustalığı'.tr(),
                       style: _sans(size: 13, weight: FontWeight.w700)),
-                  const SizedBox(height: 2),
+                  SizedBox(height: 2),
                   Text('İlk testini çöz, konu ustalığın burada görünsün.'.tr(),
-                      style: _sans(size: 11, color: _Palette.inkMute)),
+                      style: _sans(size: 11, color: AppPalette.textSecondary(context))),
                 ],
               ),
             ),
@@ -11606,8 +11666,8 @@ class _MasterySection extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 6),
       child: Row(
         children: [
-          Text(subj.emoji, style: const TextStyle(fontSize: 14)),
-          const SizedBox(width: 8),
+          Text(subj.emoji, style: TextStyle(fontSize: 14)),
+          SizedBox(width: 8),
           SizedBox(
             width: 100,
             child: Text(
@@ -11621,7 +11681,7 @@ class _MasterySection extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Expanded(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(10),
@@ -11633,7 +11693,7 @@ class _MasterySection extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           SizedBox(
             width: 40,
             child: Text(
@@ -11642,8 +11702,8 @@ class _MasterySection extends StatelessWidget {
               style: _sans(size: 11, weight: FontWeight.w700, color: barColor),
             ),
           ),
-          const SizedBox(width: 4),
-          Text(level.split(' ').first, style: const TextStyle(fontSize: 11)),
+          SizedBox(width: 4),
+          Text(level.split(' ').first, style: TextStyle(fontSize: 11)),
         ],
       ),
     );
@@ -11722,8 +11782,9 @@ const List<_BadgeInfo> _allBadges = [
 
 class _BadgesSectionTitle extends StatelessWidget {
   final VoidCallback onInfoTap;
-  final VoidCallback onRankingsTap;
-  const _BadgesSectionTitle({required this.onInfoTap, required this.onRankingsTap});
+  // Sıralama butonu Arkadaşların satırına taşındı; bu sınıfta artık
+  // sadece "Rozetlerim" başlığı + ⓘ ikonu kalıyor.
+  const _BadgesSectionTitle({required this.onInfoTap});
 
   @override
   Widget build(BuildContext context) {
@@ -11732,7 +11793,7 @@ class _BadgesSectionTitle extends StatelessWidget {
       child: Row(
         children: [
           Text('Rozetlerim', style: _serif(size: 20, weight: FontWeight.w600, letterSpacing: -0.02)),
-          const SizedBox(width: 6),
+          SizedBox(width: 6),
           GestureDetector(
             onTap: onInfoTap,
             child: Container(
@@ -11744,26 +11805,6 @@ class _BadgesSectionTitle extends StatelessWidget {
               ),
               alignment: Alignment.center,
               child: Icon(Icons.question_mark_rounded, size: 13, color: _Palette.brand),
-            ),
-          ),
-          const Spacer(),
-          GestureDetector(
-            onTap: onRankingsTap,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: _Palette.ink,
-                borderRadius: BorderRadius.circular(100),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('🏆'.tr(), style: TextStyle(fontSize: 11)),
-                  const SizedBox(width: 5),
-                  Text('Sıralama'.tr(),
-                      style: _sans(size: 12, weight: FontWeight.w700, color: Colors.white)),
-                ],
-              ),
             ),
           ),
         ],
@@ -11783,8 +11824,8 @@ void _showBadgesInfoSheet(BuildContext context) {
       maxChildSize: 0.92,
       expand: false,
       builder: (_, scroll) => Container(
-        decoration: const BoxDecoration(
-          color: _Palette.bg,
+        decoration: BoxDecoration(
+          color: AppPalette.bg(context),
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
@@ -11795,21 +11836,21 @@ void _showBadgesInfoSheet(BuildContext context) {
               child: Container(
                 width: 40,
                 height: 4,
-                decoration: BoxDecoration(color: _Palette.inkMute, borderRadius: BorderRadius.circular(10)),
+                decoration: BoxDecoration(color: AppPalette.textSecondary(context), borderRadius: BorderRadius.circular(10)),
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Text('Rozetler Nasıl Çalışır?'.tr(),
                 style: _serif(size: 22, weight: FontWeight.w600, letterSpacing: -0.02)),
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             Text(
               'Rozetler çalışma alışkanlıklarını ödüllendirir. Her rozet farklı bir hedefi temsil eder; tamamlayınca otomatik kilitlenir açılır.',
-              style: _sans(size: 13, color: _Palette.inkSoft, height: 1.5),
+              style: _sans(size: 13, color: AppPalette.textSecondary(context), height: 1.5),
             ),
-            const SizedBox(height: 18),
+            SizedBox(height: 18),
             for (final b in _allBadges) ...[
               _BadgeRuleCard(badge: b),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
             ],
           ],
         ),
@@ -11824,8 +11865,8 @@ void _showSingleBadgeSheet(BuildContext context, _BadgeInfo badge) {
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
     builder: (_) => Container(
-      decoration: const BoxDecoration(
-        color: _Palette.bg,
+      decoration: BoxDecoration(
+        color: AppPalette.bg(context),
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
@@ -11835,19 +11876,19 @@ void _showSingleBadgeSheet(BuildContext context, _BadgeInfo badge) {
           Container(
             width: 40,
             height: 4,
-            decoration: BoxDecoration(color: _Palette.inkMute, borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(color: AppPalette.textSecondary(context), borderRadius: BorderRadius.circular(10)),
           ),
-          const SizedBox(height: 18),
+          SizedBox(height: 18),
           Text(badge.emoji, style: TextStyle(fontSize: 68, color: badge.unlocked ? null : Colors.grey)),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           Text(badge.name, style: _serif(size: 22, weight: FontWeight.w600, letterSpacing: -0.02)),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: badge.unlocked
                   ? _Palette.success.withValues(alpha: 0.12)
-                  : _Palette.line,
+                  : AppPalette.border(context),
               borderRadius: BorderRadius.circular(100),
             ),
             child: Text(
@@ -11855,26 +11896,26 @@ void _showSingleBadgeSheet(BuildContext context, _BadgeInfo badge) {
               style: _sans(
                 size: 11,
                 weight: FontWeight.w700,
-                color: badge.unlocked ? _Palette.success : _Palette.inkMute,
+                color: badge.unlocked ? _Palette.success : AppPalette.textSecondary(context),
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: _Palette.surface,
+              color: AppPalette.card(context),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _Palette.line),
+              border: Border.all(color: AppPalette.border(context)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('NASIL KAZANILIR?',
-                    style: _sans(size: 10, weight: FontWeight.w700, color: _Palette.inkMute, letterSpacing: 0.08)),
-                const SizedBox(height: 6),
-                Text(badge.rule, style: _sans(size: 14, color: _Palette.ink, height: 1.4)),
+                    style: _sans(size: 10, weight: FontWeight.w700, color: AppPalette.textSecondary(context), letterSpacing: 0.08)),
+                SizedBox(height: 6),
+                Text(badge.rule, style: _sans(size: 14, color: AppPalette.textPrimary(context), height: 1.4)),
               ],
             ),
           ),
@@ -11968,12 +12009,26 @@ final Map<String, List<_RankEntry>> _rankingsData = {
   ],
 };
 
-void _showRankingsSheet(BuildContext context) {
-  showModalBottomSheet(
-    context: context,
-    backgroundColor: Colors.transparent,
-    isScrollControlled: true,
-    builder: (_) => const _RankingsSheet(),
+void _showRankingsSheet(BuildContext context) async {
+  // Konum onaylanmamışsa önce LocationSelectionSheet aç — leaderboard
+  // ülke + şehir bazlı segmentlendiği için bu kritik bir ön adım.
+  final nav = Navigator.of(context);
+  final alreadySet = await isUserLocationSet();
+  if (!alreadySet) {
+    if (!context.mounted) return;
+    await LocationSelectionSheet.show(
+      context,
+      onConfirm: (_) {
+        // Konum kaydedildi — devam akışı; LocationSelectionSheet kendi
+        // içinde maybePop yapar, biz aşağıda rankings'e geçeriz.
+      },
+    );
+  }
+  if (!context.mounted) return;
+  // Tam sayfa route — Modal sheet yerine Navigator.push ile açılır;
+  // başlık AppBar'da ortalanır, geri butonu sistemden gelir.
+  nav.push(
+    MaterialPageRoute(builder: (_) => const _RankingsSheet()),
   );
 }
 
@@ -11985,7 +12040,9 @@ class _RankingsSheet extends StatefulWidget {
 }
 
 class _RankingsSheetState extends State<_RankingsSheet> {
-  String _period = 'weekly';
+  // İki bağımsız boyut: SCOPE (kapsam) + PERIOD (zaman dilimi).
+  String _scope = 'country'; // 'country' | 'world'
+  String _period = 'weekly'; // 'daily' | 'weekly' | 'monthly' | 'alltime'
 
   String _countryFlag(String country) {
     if (country == 'Türkiye') return '🇹🇷';
@@ -11993,149 +12050,237 @@ class _RankingsSheetState extends State<_RankingsSheet> {
     return '🌍';
   }
 
+  /// "Lise 12" → "Lise 12. Sınıf Öğrencileri" (ilkokul/ortaokul/lise için);
+  /// "TYT Hazırlık" gibi sınıf-numara'sız seviyelerde sade "X Öğrencileri".
+  String _formatLevelLine() {
+    final g = _currentGrade.trim();
+    final m = RegExp(r'^(.+?)\s+(\d+)$').firstMatch(g);
+    if (m != null) {
+      return '${m.group(1)} ${m.group(2)}. Sınıf Öğrencileri';
+    }
+    return '$g Öğrencileri';
+  }
+
+  /// Scope + period kombinasyonuna göre veri seç. Daily verisi yoksa
+  /// weekly'ye düş; world iken period bağımsızdır (tek dünya listesi).
+  List<_RankEntry> _entriesFor() {
+    if (_scope == 'world') {
+      return _rankingsData['world'] ?? const <_RankEntry>[];
+    }
+    return _rankingsData[_period] ??
+        _rankingsData['weekly'] ??
+        const <_RankEntry>[];
+  }
+
   @override
   Widget build(BuildContext context) {
-    final entries = _rankingsData[_period] ?? const <_RankEntry>[];
-    return DraggableScrollableSheet(
-      initialChildSize: 0.88,
-      minChildSize: 0.5,
-      maxChildSize: 0.95,
-      expand: false,
-      builder: (_, scroll) => Container(
-        decoration: const BoxDecoration(
-          color: _Palette.bg,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: ListView(
-          controller: scroll,
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
+    final entries = _entriesFor();
+    // Tam sayfa Scaffold — soluk beyaz zemin, AppBar'da ortalı başlık.
+    return Scaffold(
+      backgroundColor: AppPalette.bg(context),
+      appBar: AppBar(
+        backgroundColor: AppPalette.bg(context),
+        elevation: 0,
+        foregroundColor: AppPalette.textPrimary(context),
+        centerTitle: true,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(color: _Palette.inkMute, borderRadius: BorderRadius.circular(10)),
-              ),
+            Text('🏆', style: TextStyle(fontSize: 22)),
+            SizedBox(width: 6),
+            Text(
+              'Arena Sıralaması'.tr(),
+              style: _serif(
+                  size: 18,
+                  weight: FontWeight.w700,
+                  letterSpacing: -0.02),
             ),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                Text('🏆'.tr(), style: TextStyle(fontSize: 26)),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text('Arena Sıralaması'.tr(),
-                      style: _serif(size: 22, weight: FontWeight.w600, letterSpacing: -0.02)),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Text(
-                  _period == 'world' ? '🌍' : _countryFlag(_currentCountry),
-                  style: const TextStyle(fontSize: 14),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  _period == 'world' ? 'Dünya geneli' : _currentCountry,
-                  style: _sans(size: 13, weight: FontWeight.w600, color: _Palette.inkSoft),
-                ),
-                if (_period != 'world') ...[
-                  const SizedBox(width: 6),
-                  Text('·', style: _sans(size: 13, color: _Palette.inkMute)),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text('$_currentGrade öğrencileri'.tr(),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: _sans(size: 12, color: _Palette.inkMute)),
-                  ),
-                ] else ...[
-                  const SizedBox(width: 6),
-                  Text('·', style: _sans(size: 13, color: _Palette.inkMute)),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text('Tüm ülkeler, tüm seviyeler'.tr(),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: _sans(size: 12, color: _Palette.inkMute)),
-                  ),
-                ],
-              ],
-            ),
-            const SizedBox(height: 16),
-            _RankTabBar(
-              current: _period,
-              onChanged: (p) => setState(() => _period = p),
-            ),
-            const SizedBox(height: 14),
-            for (int i = 0; i < entries.length; i++) ...[
-              // Şu anki kullanıcı 10. sıradan sonra geliyorsa araya ayraç koy
-              if (i > 0 && entries[i].rank - entries[i - 1].rank > 1)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Row(
-                    children: [
-                      Expanded(child: Divider(color: _Palette.line, thickness: 1)),
-                      const SizedBox(width: 8),
-                      Text('⋯',
-                          style: _sans(size: 14, color: _Palette.inkMute, weight: FontWeight.w700)),
-                      const SizedBox(width: 8),
-                      Expanded(child: Divider(color: _Palette.line, thickness: 1)),
-                    ],
-                  ),
-                ),
-              _RankRow(entry: entries[i], showFlag: _period == 'world'),
-              if (i != entries.length - 1) const SizedBox(height: 8),
-            ],
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: _Palette.surface,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: _Palette.line),
-              ),
+          ],
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(0, 8, 0, 30),
+        children: [
+          SizedBox(height: 6),
+            // Bayrak + eğitim seviyesi
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
                 children: [
-                  const Text('ℹ️', style: TextStyle(fontSize: 18)),
-                  const SizedBox(width: 10),
+                  Text(
+                    _scope == 'world' ? '🌍' : _countryFlag(_currentCountry),
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  SizedBox(width: 6),
                   Expanded(
-                    child: Text(
-                      _period == 'world'
-                          ? 'Dünya sıralaması müfredattan bağımsızdır: başarı oranı ve aktivite skorundan hesaplanır. Ülkeler ve sınıflar karışık yarışır.'
-                          : 'Sıralama çözdüğün test sayısı ve başarı oranından hesaplanır. Her test bir sonraki puanlamana dahil olur.',
-                      style: _sans(size: 12, color: _Palette.inkSoft, height: 1.4),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        _scope == 'world'
+                            ? 'Tüm ülkeler, ${_formatLevelLine()}'
+                            : _formatLevelLine(),
+                        maxLines: 1,
+                        softWrap: false,
+                        style: _sans(
+                            size: 13,
+                            weight: FontWeight.w600,
+                            color: AppPalette.textSecondary(context)),
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-          ],
-        ),
+            SizedBox(height: 16),
+            // 1. SEKME: Ülke Çapında | Dünya Çapında
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _PillTabBar(
+                current: _scope,
+                tabs: const [
+                  ('country', 'Ülke Çapında'),
+                  ('world', 'Dünya Çapında'),
+                ],
+                onChanged: (v) => setState(() => _scope = v),
+              ),
+            ),
+            SizedBox(height: 10),
+            // 2. SEKME: Günlük | Haftalık | Aylık | Genel
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _PillTabBar(
+                current: _period,
+                tabs: const [
+                  ('daily', 'Günlük'),
+                  ('weekly', 'Haftalık'),
+                  ('monthly', 'Aylık'),
+                  ('alltime', 'Genel'),
+                ],
+                onChanged: (v) => setState(() => _period = v),
+              ),
+            ),
+            SizedBox(height: 14),
+            // ───── Sıralama TABLOSU ─────
+            // Tüm rank satırları tek bir çerçeve (rounded border) içinde.
+            // Çerçeve sayfa kenarından 20 px içeride; satırlar arası
+            // ince çizgiler çerçevenin iç genişliğince uzanır.
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Container(
+                decoration: BoxDecoration(
+            color: AppPalette.card(context),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: AppPalette.border(context).withValues(alpha: 0.7),
+                    width: 1,
+                  ),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  children: [
+                    for (int i = 0; i < entries.length; i++) ...[
+                      // 10. sıradan sonra büyük atlama varsa "..." ayracı
+                      if (i > 0 &&
+                          entries[i].rank - entries[i - 1].rank > 1)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                  child: Divider(
+                                      color: AppPalette.border(context), thickness: 1)),
+                              SizedBox(width: 8),
+                              Text('⋯',
+                                  style: _sans(
+                                      size: 14,
+                                      color: AppPalette.textSecondary(context),
+                                      weight: FontWeight.w700)),
+                              SizedBox(width: 8),
+                              Expanded(
+                                  child: Divider(
+                                      color: AppPalette.border(context), thickness: 1)),
+                            ],
+                          ),
+                        ),
+                      Padding(
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 8),
+                        child: _RankRow(
+                            entry: entries[i],
+                            showFlag: _scope == 'world'),
+                      ),
+                      if (i != entries.length - 1)
+                        Container(
+                          height: 1,
+                          color: AppPalette.border(context).withValues(alpha: 0.6),
+                        ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(height: 14),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppPalette.card(context),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppPalette.border(context)),
+                ),
+                child: Row(
+                  children: [
+                    Text('ℹ️', style: TextStyle(fontSize: 18)),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _scope == 'world'
+                            ? 'Dünya sıralaması müfredattan bağımsızdır: başarı oranı ve aktivite skorundan hesaplanır. Ülkeler ve sınıflar karışık yarışır.'
+                            : 'Sıralama çözdüğün test sayısı ve başarı oranından hesaplanır. Her test bir sonraki puanlamana dahil olur.',
+                        style: _sans(
+                            size: 12,
+                            color: AppPalette.textSecondary(context),
+                            height: 1.4),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
 }
 
-class _RankTabBar extends StatelessWidget {
+/// 2 veya 4 sekmeli pill formunda jenerik tab bar — id ↔ label çiftleri
+/// alır, basıldığında onChanged callback'i tetiklenir.
+class _PillTabBar extends StatelessWidget {
   final String current;
+  final List<(String, String)> tabs;
   final ValueChanged<String> onChanged;
-  const _RankTabBar({required this.current, required this.onChanged});
+  const _PillTabBar({
+    required this.current,
+    required this.tabs,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final tabs = const [
-      ('weekly', '📅', 'Hafta'),
-      ('monthly', '🗓️', 'Ay'),
-      ('alltime', '🏅', 'Tümü'),
-      ('world', '🌍', 'Dünya'),
-    ];
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: _Palette.line.withValues(alpha: 0.5),
+        // Track tam beyaz — sayfa zemini ile birleşir, ayrımı sadece
+        // ince çerçeve sağlar. Aktif sekme gölge ile öne çıkar.
+        color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(100),
+        border: Border.all(
+          color: AppPalette.border(context).withValues(alpha: 0.6),
+          width: 1,
+        ),
       ),
       child: Row(
         children: [
@@ -12144,33 +12289,45 @@ class _RankTabBar extends StatelessWidget {
               child: GestureDetector(
                 onTap: () => onChanged(tab.$1),
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(vertical: 9),
+                  duration: Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 6, vertical: 9),
                   decoration: BoxDecoration(
-                    color: current == tab.$1 ? _Palette.surface : Colors.transparent,
+                    // Aktif sekme: hafif accent (mavi) tinted; inaktif tam
+                    // beyaz/saydam. Aktif sekme gölge + tint ile ayırt edilir.
+                    color: current == tab.$1
+                        ? _Palette.accent.withValues(alpha: 0.10)
+                        : Colors.transparent,
                     borderRadius: BorderRadius.circular(100),
                     boxShadow: current == tab.$1
-                        ? [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 6, offset: const Offset(0, 2))]
+                        ? [
+                            BoxShadow(
+                                color:
+                                    Colors.black.withValues(alpha: 0.06),
+                                blurRadius: 5,
+                                offset: Offset(0, 1))
+                          ]
                         : null,
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(tab.$2, style: const TextStyle(fontSize: 12)),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          tab.$3,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: _sans(
-                            size: 11,
-                            weight: FontWeight.w700,
-                            color: current == tab.$1 ? _Palette.ink : _Palette.inkMute,
-                          ),
-                        ),
+                  alignment: Alignment.center,
+                  // FittedBox + scaleDown → uzun çeviriler (Almanca,
+                  // Fransızca vb.) sığmayınca otomatik küçülür, ellipsis
+                  // YOK; metin tam görünür ama daha küçük puntoyla.
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.center,
+                    child: Text(
+                      tab.$2,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: _sans(
+                        size: 11.5,
+                        weight: FontWeight.w700,
+                        color: current == tab.$1
+                            ? AppPalette.textPrimary(context)
+                            : AppPalette.textSecondary(context),
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -12186,8 +12343,9 @@ class _RankRow extends StatelessWidget {
   final bool showFlag;
   const _RankRow({required this.entry, this.showFlag = false});
 
-  String _rankEmoji() {
-    switch (entry.rank) {
+  /// İlk 3 sıra için kupa/madalya emoji'si; 4 ve sonrası için sade rakam.
+  String? _medalFor(int rank) {
+    switch (rank) {
       case 1:
         return '🥇';
       case 2:
@@ -12195,148 +12353,132 @@ class _RankRow extends StatelessWidget {
       case 3:
         return '🥉';
       default:
-        return '';
+        return null;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final highlighted = entry.isCurrentUser;
-    final rankEmoji = _rankEmoji();
-    final hasMedal = rankEmoji.isNotEmpty;
-    final avatarColor = _avatarColors[entry.username.hashCode.abs() % _avatarColors.length];
+    final avatarColor =
+        _avatarColors[entry.username.hashCode.abs() % _avatarColors.length];
+    final medal = _medalFor(entry.rank);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: highlighted
-            ? _Palette.brand.withValues(alpha: 0.08)
-            : _Palette.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: highlighted ? _Palette.brand : _Palette.line,
-          width: highlighted ? 1.5 : 1,
-        ),
-      ),
+    // Çerçeve YOK — satırlar dış container'sız, sade Padding ile alt alta
+    // dizilir. Sıralama göstergesi: 1-3 → kupa, 4+ → sade rakam.
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       child: Row(
         children: [
-          // Sıra + madalya
+          // Sıralama göstergesi — ilk 3 için kupa, gerisi için rakam.
           SizedBox(
-            width: 42,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (hasMedal) Text(rankEmoji, style: const TextStyle(fontSize: 18)),
-                if (!hasMedal)
-                  Text(
-                    '#${entry.rank}',
+            width: 36,
+            child: medal != null
+                ? Text(medal, style: TextStyle(fontSize: 20))
+                : Text(
+                    '${entry.rank}',
                     style: _sans(
                       size: 13,
                       weight: FontWeight.w800,
-                      color: highlighted ? _Palette.brand : _Palette.inkSoft,
+                      color:
+                          highlighted ? _Palette.brand : AppPalette.textSecondary(context),
                     ),
                   ),
-              ],
-            ),
           ),
-          const SizedBox(width: 8),
-          // Avatar (ülke bayrağı rozeti ile dünya modunda)
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [avatarColor, avatarColor.withValues(alpha: 0.7)],
-                  ),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  entry.avatar ?? entry.username.substring(0, 1).toUpperCase(),
-                  style: _sans(size: 14, weight: FontWeight.w800, color: Colors.white),
-                ),
-              ),
-              if (showFlag)
-                Positioned(
-                  right: -4,
-                  bottom: -2,
-                  child: Container(
-                    padding: const EdgeInsets.all(1.5),
-                    decoration: BoxDecoration(
-                      color: _Palette.surface,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: _Palette.line, width: 0.5),
-                    ),
-                    child: Text(entry.countryFlag, style: const TextStyle(fontSize: 11)),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(width: 10),
-          // İsim + test sayısı
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        '@${entry.username}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: _sans(
-                          size: 13,
-                          weight: FontWeight.w700,
-                          color: highlighted ? _Palette.brand : _Palette.ink,
-                        ),
-                      ),
-                    ),
-                    if (highlighted) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: _Palette.brand,
-                          borderRadius: BorderRadius.circular(100),
-                        ),
-                        child: Text('SEN',
-                            style: _sans(
-                              size: 9,
-                              weight: FontWeight.w800,
-                              color: Colors.white,
-                              letterSpacing: 0.06,
-                            )),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${entry.tests} test · %${entry.successPct} başarı',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: _sans(size: 11, color: _Palette.inkMute),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          // Skor/puan göstergesi
+          // Sıralama ile kullanıcı profili arasında dikey ince çizgi.
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            width: 1,
+            height: 28,
+            margin: const EdgeInsets.symmetric(horizontal: 8),
+            color: AppPalette.border(context).withValues(alpha: 0.7),
+          ),
+          // Avatar (gradient daire) — saf, badge'siz.
+          Container(
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
-              color: highlighted ? _Palette.brand : _Palette.ink,
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [avatarColor, avatarColor.withValues(alpha: 0.7)],
+              ),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              entry.avatar ??
+                  entry.username.substring(0, 1).toUpperCase(),
+              style: _sans(
+                  size: 14, weight: FontWeight.w800, color: Colors.white),
+            ),
+          ),
+          // Avatar ↔ Bayrak arası boşluk — kullanıcı isteğiyle artırıldı.
+          SizedBox(width: 14),
+          // Bayrak — kullanıcı adının HEMEN SOLUNDA. Dünya modunda her
+          // satır için ülke bayrağı; aksi halde gizli.
+          if (showFlag) ...[
+            Text(entry.countryFlag, style: TextStyle(fontSize: 16)),
+            SizedBox(width: 12),
+          ] else
+            // Tutarlı hizalama için boş slot — bayrak yokken kullanıcı adı
+            // yaklaşık aynı pozisyonda kalır.
+            SizedBox(width: 10),
+          // Kullanıcı adı + (varsa) "SEN" rozeti. Uzun isim/çeviri
+          // taşmasın diye FittedBox.scaleDown — küçülür ama tam görünür.
+          Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '@${entry.username}',
+                    maxLines: 1,
+                    softWrap: false,
+                    style: _sans(
+                      size: 13,
+                      weight: FontWeight.w700,
+                      color:
+                          highlighted ? _Palette.brand : AppPalette.textPrimary(context),
+                    ),
+                  ),
+                  if (highlighted) ...[
+                    SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: _Palette.brand,
+                        borderRadius: BorderRadius.circular(100),
+                      ),
+                      child: Text('SEN'.tr(),
+                          style: _sans(
+                            size: 9,
+                            weight: FontWeight.w800,
+                            color: Colors.white,
+                            letterSpacing: 0.06,
+                          )),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          SizedBox(width: 8),
+          // Başarı yüzdesi pill'i — arka plan mavi (siyah yerine).
+          // Kullanıcının kendi satırında turuncu vurgu korunuyor.
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: highlighted ? _Palette.brand : _Palette.accent,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
               '%${entry.successPct}',
-              style: _sans(size: 12, weight: FontWeight.w800, color: Colors.white),
+              style: _sans(
+                  size: 12, weight: FontWeight.w800, color: Colors.white),
             ),
           ),
         ],
@@ -12365,18 +12507,18 @@ class _BadgeRuleCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _Palette.surface,
+        color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _Palette.line),
+        border: Border.all(color: AppPalette.border(context)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Opacity(
             opacity: badge.unlocked ? 1 : 0.4,
-            child: Text(badge.emoji, style: const TextStyle(fontSize: 32)),
+            child: Text(badge.emoji, style: TextStyle(fontSize: 32)),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -12391,14 +12533,14 @@ class _BadgeRuleCard extends StatelessWidget {
                         style: _sans(size: 14, weight: FontWeight.w700),
                       ),
                     ),
-                    const SizedBox(width: 6),
+                    SizedBox(width: 6),
                     if (!badge.unlocked)
-                      Icon(Icons.lock_outline_rounded, size: 13, color: _Palette.inkMute),
+                      Icon(Icons.lock_outline_rounded, size: 13, color: AppPalette.textSecondary(context)),
                   ],
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(badge.rule,
-                    style: _sans(size: 12, color: _Palette.inkSoft, height: 1.4)),
+                    style: _sans(size: 12, color: AppPalette.textSecondary(context), height: 1.4)),
               ],
             ),
           ),
@@ -12419,7 +12561,7 @@ class _BadgesScroll extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: _allBadges.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        separatorBuilder: (_, __) => SizedBox(width: 10),
         itemBuilder: (_, i) {
           final b = _allBadges[i];
           return GestureDetector(
@@ -12430,15 +12572,15 @@ class _BadgesScroll extends StatelessWidget {
                 width: 104,
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                 decoration: BoxDecoration(
-                  color: _Palette.surface,
+                  color: AppPalette.card(context),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: _Palette.line),
+                  border: Border.all(color: AppPalette.border(context)),
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(b.emoji, style: const TextStyle(fontSize: 30)),
-                    const SizedBox(height: 4),
+                    Text(b.emoji, style: TextStyle(fontSize: 30)),
+                    SizedBox(height: 4),
                     Text(
                       b.name,
                       maxLines: 1,
@@ -12446,13 +12588,13 @@ class _BadgesScroll extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: _sans(size: 11, weight: FontWeight.w600),
                     ),
-                    const SizedBox(height: 2),
+                    SizedBox(height: 2),
                     Text(
                       b.earnedStatus,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
-                      style: _sans(size: 9, color: _Palette.inkMute),
+                      style: _sans(size: 9, color: AppPalette.textSecondary(context)),
                     ),
                   ],
                 ),
@@ -12503,30 +12645,31 @@ class _DueloOverflowSubjectTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = customColor ?? Colors.white;
+    final dark = AppPalette.isDark(context);
+    final bg = customColor ?? (dark ? Colors.black : Colors.white);
     final darkBg = (0.299 * bg.r + 0.587 * bg.g + 0.114 * bg.b) < 0.55;
-    final fg = customTextColor ?? (darkBg ? Colors.white : _Palette.ink);
+    final fg = customTextColor ?? (darkBg ? Colors.white : AppPalette.textPrimary(context));
     return DragTarget<String>(
       onWillAcceptWithDetails: (d) => d.data != subject.key,
       onAcceptWithDetails: (d) => onAcceptSwap?.call(d.data),
       builder: (ctx, cand, _) {
         final hovering = cand.isNotEmpty;
         final tile = AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
+          duration: Duration(milliseconds: 150),
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
             color: bg,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: hovering ? const Color(0xFFFF6A00) : _Palette.line,
+              color: hovering ? Color(0xFFFF6A00) : AppPalette.border(context),
               width: hovering ? 2.4 : 1,
             ),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(subject.emoji, style: const TextStyle(fontSize: 22)),
-              const SizedBox(height: 3),
+              Text(subject.emoji, style: TextStyle(fontSize: 22)),
+              SizedBox(height: 3),
               Text(
                 subject.name,
                 maxLines: 2,
@@ -12946,7 +13089,7 @@ class _CreateWizardState extends State<_CreateWizard> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _Palette.bg,
+      backgroundColor: AppPalette.bg(context),
       body: SafeArea(
         child: Column(
           children: [
@@ -12975,11 +13118,11 @@ class _CreateWizardState extends State<_CreateWizard> {
     final String label = _step == 0 ? 'Devam Et' : '🚀 Testi Oluştur';
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Colors.transparent, _Palette.bg],
+          colors: [Colors.transparent, AppPalette.bg(context)],
           stops: [0, 0.3],
         ),
       ),
@@ -13010,7 +13153,7 @@ class _WizardTopbar extends StatelessWidget {
               child: Text(title, style: _serif(size: 18, weight: FontWeight.w600, letterSpacing: -0.02)),
             ),
           ),
-          const SizedBox(width: 40),
+          SizedBox(width: 40),
         ],
       ),
     );
@@ -13034,7 +13177,7 @@ class _WizardProgress extends StatelessWidget {
               child: Container(
                 height: 4,
                 decoration: BoxDecoration(
-                  color: i <= activeIndex ? _Palette.ink : _Palette.line,
+                  color: i <= activeIndex ? AppPalette.textPrimary(context) : AppPalette.border(context),
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
@@ -13059,8 +13202,8 @@ class _WizTitleBlock extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title, style: _serif(size: 28, weight: FontWeight.w600, letterSpacing: -0.03, height: 1.1)),
-          const SizedBox(height: 6),
-          Text(subtitle, style: _sans(size: 13, color: _Palette.inkMute)),
+          SizedBox(height: 6),
+          Text(subtitle, style: _sans(size: 13, color: AppPalette.textSecondary(context))),
         ],
       ),
     );
@@ -13106,7 +13249,7 @@ class _StepTopicsState extends State<_StepTopics> {
               padding: const EdgeInsets.all(14),
               margin: const EdgeInsets.only(bottom: 12),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
+                gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [Color(0xFFFFF0E8), Color(0xFFFFE0D1)],
@@ -13121,20 +13264,20 @@ class _StepTopicsState extends State<_StepTopics> {
               child: Row(
                 children: [
                   Text('🎲'.tr(), style: TextStyle(fontSize: 24)),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Karışık / Sürpriz beni'.tr(), style: _sans(size: 13, weight: FontWeight.w600)),
-                        const SizedBox(height: 2),
+                        SizedBox(height: 2),
                         Text('AI tüm konulardan sana özel bir test hazırlasın'.tr(),
-                            style: _sans(size: 11, color: _Palette.inkMute)),
+                            style: _sans(size: 11, color: AppPalette.textSecondary(context))),
                       ],
                     ),
                   ),
                   if (widget.cfg.mixer)
-                    const Icon(Icons.check_circle_rounded, color: _Palette.brand, size: 22),
+                    Icon(Icons.check_circle_rounded, color: _Palette.brand, size: 22),
                 ],
               ),
             ),
@@ -13191,9 +13334,9 @@ class _TopicAccordion extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: Container(
         decoration: BoxDecoration(
-          color: _Palette.surface,
+          color: AppPalette.card(context),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: _Palette.line),
+          border: Border.all(color: AppPalette.border(context)),
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
@@ -13205,8 +13348,8 @@ class _TopicAccordion extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
                 child: Row(
                   children: [
-                    Text(subject.emoji, style: const TextStyle(fontSize: 22)),
-                    const SizedBox(width: 10),
+                    Text(subject.emoji, style: TextStyle(fontSize: 22)),
+                    SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -13219,7 +13362,7 @@ class _TopicAccordion extends StatelessWidget {
                             '📚 $_currentGrade müfredatı',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: _sans(size: 10, color: _Palette.inkMute, weight: FontWeight.w500),
+                            style: _sans(size: 10, color: AppPalette.textSecondary(context), weight: FontWeight.w500),
                           ),
                         ],
                       ),
@@ -13228,25 +13371,25 @@ class _TopicAccordion extends StatelessWidget {
                       '${selectedTopics.length}/${_topicsForGrade(subject.key).length}',
                       style: _sans(size: 12, color: subject.color, weight: FontWeight.w600),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     AnimatedRotation(
                       turns: open ? 0.5 : 0,
-                      duration: const Duration(milliseconds: 300),
-                      child: const Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: _Palette.inkSoft),
+                      duration: Duration(milliseconds: 300),
+                      child: Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: AppPalette.textSecondary(context)),
                     ),
                   ],
                 ),
               ),
             ),
             AnimatedCrossFade(
-              duration: const Duration(milliseconds: 250),
+              duration: Duration(milliseconds: 250),
               crossFadeState: open ? CrossFadeState.showSecond : CrossFadeState.showFirst,
-              firstChild: const SizedBox(width: double.infinity),
+              firstChild: SizedBox(width: double.infinity),
               secondChild: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
-                decoration: const BoxDecoration(
-                  border: Border(top: BorderSide(color: _Palette.line)),
+                decoration: BoxDecoration(
+                  border: Border(top: BorderSide(color: AppPalette.border(context))),
                 ),
                 child: Wrap(
                   spacing: 6,
@@ -13256,13 +13399,13 @@ class _TopicAccordion extends StatelessWidget {
                       GestureDetector(
                         onTap: () => onToggleTopic(t),
                         child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
+                          duration: Duration(milliseconds: 150),
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                           decoration: BoxDecoration(
-                            color: selectedTopics.contains(t) ? _Palette.ink : const Color(0xFFF5F1EA),
+                            color: selectedTopics.contains(t) ? AppPalette.textPrimary(context) : Color(0xFFF5F1EA),
                             borderRadius: BorderRadius.circular(100),
                             border: Border.all(
-                              color: selectedTopics.contains(t) ? _Palette.ink : Colors.transparent,
+                              color: selectedTopics.contains(t) ? AppPalette.textPrimary(context) : Colors.transparent,
                               width: 1.5,
                             ),
                           ),
@@ -13270,7 +13413,7 @@ class _TopicAccordion extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               if (selectedTopics.contains(t))
-                                const Padding(
+                                Padding(
                                   padding: EdgeInsets.only(right: 4),
                                   child: Icon(Icons.check_rounded, size: 14, color: Colors.white),
                                 ),
@@ -13279,7 +13422,7 @@ class _TopicAccordion extends StatelessWidget {
                                 style: _sans(
                                   size: 12,
                                   weight: FontWeight.w500,
-                                  color: selectedTopics.contains(t) ? Colors.white : _Palette.ink,
+                                  color: selectedTopics.contains(t) ? Colors.white : AppPalette.textPrimary(context),
                                 ),
                               ),
                             ],
@@ -13382,12 +13525,12 @@ class _PillGroup extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: _sans(size: 11, weight: FontWeight.w700, color: _Palette.inkMute, letterSpacing: 0.08)),
-          const SizedBox(height: 10),
+          Text(label, style: _sans(size: 11, weight: FontWeight.w700, color: AppPalette.textSecondary(context), letterSpacing: 0.08)),
+          SizedBox(height: 10),
           Row(
             children: [
               for (int i = 0; i < options.length; i++) ...[
-                if (i > 0) const SizedBox(width: 8),
+                if (i > 0) SizedBox(width: 8),
                 Expanded(
                   child: GestureDetector(
                     onTap: () => onSelect(options[i].value),
@@ -13395,23 +13538,23 @@ class _PillGroup extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
                       decoration: BoxDecoration(
                         color: selected == options[i].value
-                            ? (options[i].toneBg ?? _Palette.surface)
-                            : _Palette.surface,
+                            ? (options[i].toneBg ?? AppPalette.card(context))
+                            : AppPalette.card(context),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
                           color: selected == options[i].value
-                              ? (options[i].tone ?? _Palette.ink)
-                              : _Palette.line,
+                              ? (options[i].tone ?? AppPalette.textPrimary(context))
+                              : AppPalette.border(context),
                           width: 2,
                         ),
                       ),
                       child: Column(
                         children: [
-                          Text(options[i].emoji, style: const TextStyle(fontSize: 22)),
-                          const SizedBox(height: 4),
+                          Text(options[i].emoji, style: TextStyle(fontSize: 22)),
+                          SizedBox(height: 4),
                           Text(options[i].title, style: _sans(size: 13, weight: FontWeight.w600)),
-                          const SizedBox(height: 2),
-                          Text(options[i].hint, style: _sans(size: 10, color: _Palette.inkMute)),
+                          SizedBox(height: 2),
+                          Text(options[i].hint, style: _sans(size: 10, color: AppPalette.textSecondary(context))),
                         ],
                       ),
                     ),
@@ -13437,8 +13580,7 @@ class _LoadingScreen extends StatefulWidget {
   State<_LoadingScreen> createState() => _LoadingScreenState();
 }
 
-class _LoadingScreenState extends State<_LoadingScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _spin;
+class _LoadingScreenState extends State<_LoadingScreen> {
   int _msgIdx = 0;
   Timer? _tick;
   late final List<_QuizQuestion> _questions;
@@ -13494,12 +13636,11 @@ class _LoadingScreenState extends State<_LoadingScreen> with SingleTickerProvide
       ('Sorular oluşturuluyor...', 'Senin seviyene özel'),
       ('Son kontroller...', 'Kalite onayı yapılıyor'),
     ];
-    _spin = AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat();
-    _tick = Timer.periodic(const Duration(milliseconds: 900), (t) {
+    _tick = Timer.periodic(Duration(milliseconds: 900), (t) {
       if (!mounted) return;
       if (_msgIdx >= _messages.length - 1) {
         t.cancel();
-        Future.delayed(const Duration(milliseconds: 300), () {
+        Future.delayed(Duration(milliseconds: 300), () {
           if (!mounted) return;
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
@@ -13515,19 +13656,40 @@ class _LoadingScreenState extends State<_LoadingScreen> with SingleTickerProvide
 
   @override
   void dispose() {
-    _spin.dispose();
     _tick?.cancel();
     super.dispose();
   }
 
+  // Sayısal ders anahtarı seti — domain belirlerken kullanılır (matching
+  // overlay'deki _isNumericSubjectKey ile aynı kapsam).
+  static const _numericKeys = <String>{
+    'math', 'matematik', 'geometry', 'geometri',
+    'physics', 'fizik', 'chem', 'chemistry', 'kimya',
+    'bio', 'biology', 'biyoloji',
+    'stats', 'istatistik', 'informatics', 'bilisim',
+  };
+
   @override
   Widget build(BuildContext context) {
-    // Kamera akışıyla aynı loader — sabit etiket: "Test Sorularınız Oluşturuluyor"
+    // Birleşik standart loader — type=test → 3 aşama, mavi tikler, motivasyon.
+    // Topic varsa ilk seçili konuyu kullan; yoksa ilk derse düş.
+    // Domain: seçili derslerden en az biri sayısal ise numeric; aksi halde
+    // verbal (karışık seçimde sayısal sembol akışı varsayılır).
+    final topicSample = _selectedTopicSample();
+    final subjNames = _selectedSubjectNames();
+    final topic = topicSample.isNotEmpty
+        ? topicSample.first
+        : (subjNames.isNotEmpty ? subjNames.first : '');
+    final hasNumeric = widget.cfg.selectedSubjects
+        .any((k) => _numericKeys.contains(k.toLowerCase()));
+    final domain =
+        hasNumeric ? SubjectDomain.numeric : SubjectDomain.verbal;
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: QuAlsarNumericLoader(
-        primaryText: 'Test Sorularınız Oluşturuluyor'.tr(),
-        staticLabel: true,
+      backgroundColor: AppPalette.card(context),
+      body: QuAlsarLoadingWidget(
+        type: QuAlsarLoadingType.test,
+        topic: topic,
+        domain: domain,
       ),
     );
   }
@@ -14199,7 +14361,7 @@ class _QuizScreenState extends State<_QuizScreen> {
   void initState() {
     super.initState();
     _qSecondsLeft = _perQuestionLimit();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+    _timer = Timer.periodic(Duration(seconds: 1), (_) {
       if (!mounted) return;
       setState(() {
         _seconds += 1;
@@ -14241,7 +14403,7 @@ class _QuizScreenState extends State<_QuizScreen> {
       if (_combo > _comboMax) _comboMax = _combo;
       if (_combo >= 3) {
         _showComboBurst = true;
-        Future.delayed(const Duration(milliseconds: 900), () {
+        Future.delayed(Duration(milliseconds: 900), () {
           if (mounted) setState(() => _showComboBurst = false);
         });
       }
@@ -14250,7 +14412,7 @@ class _QuizScreenState extends State<_QuizScreen> {
       // Survival / Perfect modunda yanlış cevap → anında bitir
       final mode = widget.cfg.challengeMode;
       if (mode == 'survival' || mode == 'perfect') {
-        Future.delayed(const Duration(milliseconds: 600), () {
+        Future.delayed(Duration(milliseconds: 600), () {
           if (mounted) _finishToResults();
         });
       }
@@ -14395,7 +14557,7 @@ class _QuizScreenState extends State<_QuizScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: Text('Testten çıkmak istiyor musun?'.tr(), style: _sans(size: 15, weight: FontWeight.w600)),
-        content: Text('İlerlemen kaydedilmeyecek.'.tr(), style: _sans(size: 13, color: _Palette.inkSoft)),
+        content: Text('İlerlemen kaydedilmeyecek.'.tr(), style: _sans(size: 13, color: AppPalette.textSecondary(context))),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: Text('Vazgeç'.tr())),
           TextButton(onPressed: () => Navigator.pop(context, true), child: Text('Çık'.tr())),
@@ -14415,7 +14577,7 @@ class _QuizScreenState extends State<_QuizScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('İpucu hakkını bu testte zaten kullandın.'.tr()),
         behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
+        duration: Duration(seconds: 2),
       ));
       return;
     }
@@ -14427,7 +14589,7 @@ class _QuizScreenState extends State<_QuizScreen> {
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.45),
       builder: (ctx) => Dialog(
-        backgroundColor: Colors.white,
+        backgroundColor: AppPalette.card(context),
         surfaceTintColor: Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
@@ -14441,13 +14603,13 @@ class _QuizScreenState extends State<_QuizScreen> {
                 width: 56,
                 height: 56,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF4E5),
+                  color: Color(0xFFFFF4E5),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 alignment: Alignment.center,
-                child: const Text('💡', style: TextStyle(fontSize: 28)),
+                child: Text('💡', style: TextStyle(fontSize: 28)),
               ),
-              const SizedBox(height: 14),
+              SizedBox(height: 14),
               Text(
                 'İpucu Hakkı'.tr(),
                 style: _serif(
@@ -14456,7 +14618,7 @@ class _QuizScreenState extends State<_QuizScreen> {
                   letterSpacing: -0.01,
                 ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Text(
                 'Bu test için sadece bir defa kullanacaksın.\n'
                         'Bu soru için açmak ister misin, yoksa başka soruya saklamak mı?'
@@ -14465,11 +14627,11 @@ class _QuizScreenState extends State<_QuizScreen> {
                 style: _sans(
                   size: 13,
                   weight: FontWeight.w500,
-                  color: _Palette.inkSoft,
+                  color: AppPalette.textSecondary(context),
                   height: 1.45,
                 ),
               ),
-              const SizedBox(height: 18),
+              SizedBox(height: 18),
               Row(
                 children: [
                   Expanded(
@@ -14494,7 +14656,7 @@ class _QuizScreenState extends State<_QuizScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   Expanded(
                     child: GestureDetector(
                       onTap: () => Navigator.of(ctx).pop(true),
@@ -14544,7 +14706,7 @@ class _QuizScreenState extends State<_QuizScreen> {
     final q = widget.questions[_index];
     final progress = (_index + 1) / _total;
     return Scaffold(
-      backgroundColor: _Palette.bg,
+      backgroundColor: AppPalette.bg(context),
       body: SafeArea(
         child: Column(
           children: [
@@ -14561,29 +14723,31 @@ class _QuizScreenState extends State<_QuizScreen> {
                           height: 36,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: _Palette.surface,
-                            border: Border.all(color: _Palette.line),
+                            color: AppPalette.card(context),
+                            border: Border.all(color: AppPalette.border(context)),
                           ),
-                          child: const Icon(Icons.close_rounded, size: 16),
+                          child: Icon(Icons.close_rounded,
+                              size: 16,
+                              color: AppPalette.textPrimary(context)),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: 12),
                       RichText(
                         text: TextSpan(
                           style: _sans(size: 13, weight: FontWeight.w600),
                           children: [
                             TextSpan(text: '${_index + 1}'),
-                            TextSpan(text: '/$_total', style: _sans(size: 13, color: _Palette.inkMute, weight: FontWeight.w500)),
+                            TextSpan(text: '/$_total', style: _sans(size: 13, color: AppPalette.textSecondary(context), weight: FontWeight.w500)),
                           ],
                         ),
                       ),
-                      const Spacer(),
+                      Spacer(),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                         decoration: BoxDecoration(
                           color: _countdownActive && _qSecondsLeft <= 10
                               ? _Palette.error
-                              : _Palette.ink,
+                              : AppPalette.textPrimary(context),
                           borderRadius: BorderRadius.circular(100),
                         ),
                         child: Row(
@@ -14593,25 +14757,25 @@ class _QuizScreenState extends State<_QuizScreen> {
                               size: 12,
                               color: Colors.white,
                             ),
-                            const SizedBox(width: 5),
+                            SizedBox(width: 5),
                             Text(_timerText(), style: _mono(size: 12, color: Colors.white)),
                           ],
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                  SizedBox(height: 14),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(10),
                     child: LinearProgressIndicator(
                       value: progress,
                       minHeight: 5,
-                      backgroundColor: _Palette.line,
-                      valueColor: const AlwaysStoppedAnimation(_Palette.brand),
+                      backgroundColor: AppPalette.border(context),
+                      valueColor: AlwaysStoppedAnimation(_Palette.brand),
                     ),
                   ),
                   if (_combo >= 2) ...[
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     _ComboBadge(combo: _combo, burst: _showComboBurst),
                   ],
                 ],
@@ -14628,41 +14792,41 @@ class _QuizScreenState extends State<_QuizScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
-                          color: _Palette.surface,
+                          color: AppPalette.card(context),
                           borderRadius: BorderRadius.circular(100),
-                          border: Border.all(color: _Palette.line),
+                          border: Border.all(color: AppPalette.border(context)),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Container(width: 7, height: 7, decoration: BoxDecoration(color: q.subjectColor, shape: BoxShape.circle)),
-                            const SizedBox(width: 6),
+                            SizedBox(width: 6),
                             Flexible(
                               child: Text(
                                 q.subjectTag,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: _sans(size: 11, weight: FontWeight.w600, color: _Palette.inkSoft),
+                                style: _sans(size: 11, weight: FontWeight.w600, color: AppPalette.textSecondary(context)),
                               ),
                             ),
                           ],
                         ),
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    SizedBox(height: 14),
                     // ── Soru metni beyaz çerçeve içinde ──────────────
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+            color: AppPalette.card(context),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: _Palette.line, width: 1),
+                        border: Border.all(color: AppPalette.border(context), width: 1),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.03),
                             blurRadius: 8,
-                            offset: const Offset(0, 2),
+                            offset: Offset(0, 2),
                           ),
                         ],
                       ),
@@ -14679,13 +14843,13 @@ class _QuizScreenState extends State<_QuizScreen> {
                             ),
                           ),
                           if (q.formula != null) ...[
-                            const SizedBox(height: 14),
+                            SizedBox(height: 14),
                             Container(
                               width: double.infinity,
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 16, vertical: 14),
                               decoration: BoxDecoration(
-                                color: _Palette.ink,
+                                color: AppPalette.textPrimary(context),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
@@ -14698,7 +14862,7 @@ class _QuizScreenState extends State<_QuizScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    SizedBox(height: 14),
                     for (int i = 0; i < q.options.length; i++)
                       if (!_hiddenOptions.contains(i))
                         Padding(
@@ -14726,16 +14890,16 @@ class _QuizScreenState extends State<_QuizScreen> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 14),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFF4E5),
+                          color: Color(0xFFFFF4E5),
                           borderRadius: BorderRadius.circular(100),
                           border: Border.all(
-                              color: const Color(0xFFFFE0B8), width: 1.5),
+                              color: Color(0xFFFFE0B8), width: 1.5),
                         ),
                         child: Row(
                           children: [
                             Text(_hintUsed > 0 ? '✅' : '💡',
-                                style: const TextStyle(fontSize: 14)),
-                            const SizedBox(width: 6),
+                                style: TextStyle(fontSize: 14)),
+                            SizedBox(width: 6),
                             Text(
                               _hintUsed > 0
                                   ? 'Kullanıldı'.tr()
@@ -14743,14 +14907,14 @@ class _QuizScreenState extends State<_QuizScreen> {
                               style: _sans(
                                   size: 13,
                                   weight: FontWeight.w600,
-                                  color: const Color(0xFFB45309)),
+                                  color: Color(0xFFB45309)),
                             ),
                           ],
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   Expanded(
                     child: _PrimaryButton(
                       label: _index >= _total - 1 ? 'Testi Bitir' : 'Sonraki Soru',
@@ -14794,10 +14958,10 @@ class _PowerUpButton extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
           decoration: BoxDecoration(
-            color: active ? _Palette.brand : _Palette.surface,
+            color: active ? _Palette.brand : AppPalette.card(context),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: active ? _Palette.brand : _Palette.line,
+              color: active ? _Palette.brand : AppPalette.border(context),
               width: active ? 2 : 1,
             ),
           ),
@@ -14807,7 +14971,7 @@ class _PowerUpButton extends StatelessWidget {
               Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  Text(emoji, style: const TextStyle(fontSize: 18)),
+                  Text(emoji, style: TextStyle(fontSize: 18)),
                   if (count > 0)
                     Positioned(
                       top: -4,
@@ -14815,7 +14979,7 @@ class _PowerUpButton extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                         decoration: BoxDecoration(
-                          color: active ? Colors.white : _Palette.ink,
+                          color: active ? Colors.white : AppPalette.textPrimary(context),
                           borderRadius: BorderRadius.circular(100),
                         ),
                         child: Text(
@@ -14830,7 +14994,7 @@ class _PowerUpButton extends StatelessWidget {
                     ),
                 ],
               ),
-              const SizedBox(height: 2),
+              SizedBox(height: 2),
               Text(
                 label,
                 maxLines: 1,
@@ -14838,7 +15002,7 @@ class _PowerUpButton extends StatelessWidget {
                 style: _sans(
                   size: 9,
                   weight: FontWeight.w700,
-                  color: active ? Colors.white : _Palette.inkSoft,
+                  color: active ? Colors.white : AppPalette.textSecondary(context),
                 ),
               ),
             ],
@@ -14865,7 +15029,7 @@ class _ComboBadge extends StatelessWidget {
     final mult = _mult;
     return AnimatedScale(
       scale: burst ? 1.08 : 1.0,
-      duration: const Duration(milliseconds: 250),
+      duration: Duration(milliseconds: 250),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
@@ -14878,24 +15042,24 @@ class _ComboBadge extends StatelessWidget {
                     : [Colors.white, Colors.white],
           ),
           border: Border.all(
-            color: mult >= 2 ? Colors.transparent : _Palette.line,
+            color: mult >= 2 ? Colors.transparent : AppPalette.border(context),
             width: 1,
           ),
           boxShadow: mult >= 2
-              ? [BoxShadow(color: _Palette.brand.withValues(alpha: 0.35), blurRadius: 14, offset: const Offset(0, 4))]
+              ? [BoxShadow(color: _Palette.brand.withValues(alpha: 0.35), blurRadius: 14, offset: Offset(0, 4))]
               : null,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(combo >= 5 ? '🚀' : '🔥', style: const TextStyle(fontSize: 13)),
-            const SizedBox(width: 5),
+            Text(combo >= 5 ? '🚀' : '🔥', style: TextStyle(fontSize: 13)),
+            SizedBox(width: 5),
             Text(
               '$combo\'lı COMBO · ${mult}x puan',
               style: _sans(
                 size: 11,
                 weight: FontWeight.w800,
-                color: mult >= 2 ? Colors.white : _Palette.ink,
+                color: mult >= 2 ? Colors.white : AppPalette.textPrimary(context),
                 letterSpacing: 0.04,
               ),
             ),
@@ -14918,12 +15082,12 @@ class _OptionTile extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
+        duration: Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: _Palette.surface,
+          color: AppPalette.card(context),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: selected ? _Palette.ink : _Palette.line, width: 1.5),
+          border: Border.all(color: selected ? AppPalette.textPrimary(context) : AppPalette.border(context), width: 1.5),
         ),
         child: Row(
           children: [
@@ -14932,13 +15096,13 @@ class _OptionTile extends StatelessWidget {
               height: 26,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: selected ? _Palette.ink : Colors.transparent,
-                border: Border.all(color: selected ? _Palette.ink : _Palette.inkMute, width: 1.5),
+                color: selected ? AppPalette.textPrimary(context) : Colors.transparent,
+                border: Border.all(color: selected ? AppPalette.textPrimary(context) : AppPalette.textSecondary(context), width: 1.5),
               ),
               alignment: Alignment.center,
-              child: Text(letter, style: _sans(size: 12, weight: FontWeight.w700, color: selected ? Colors.white : _Palette.ink)),
+              child: Text(letter, style: _sans(size: 12, weight: FontWeight.w700, color: selected ? Colors.white : AppPalette.textPrimary(context))),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(child: Text(text, style: _sans(size: 14, height: 1.4))),
           ],
         ),
@@ -14962,8 +15126,8 @@ class _HintSheetState extends State<_HintSheet> {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
-      decoration: const BoxDecoration(
-        color: _Palette.bg,
+      decoration: BoxDecoration(
+        color: AppPalette.bg(context),
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
@@ -14974,20 +15138,20 @@ class _HintSheetState extends State<_HintSheet> {
             child: Container(
               width: 40,
               height: 4,
-              decoration: BoxDecoration(color: _Palette.inkMute, borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: AppPalette.textSecondary(context), borderRadius: BorderRadius.circular(10)),
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           Text('💡 İpucu'.tr(), style: _serif(size: 20, weight: FontWeight.w600, letterSpacing: -0.02)),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Text('İpucu puanını etkilemez, sadece yönlendirir.'.tr(),
-              style: _sans(size: 12, color: _Palette.inkMute)),
-          const SizedBox(height: 14),
+              style: _sans(size: 12, color: AppPalette.textSecondary(context))),
+          SizedBox(height: 14),
           _hintCard(
             title: '${widget.q.subjectName.toUpperCase()} · ${widget.q.topic.toUpperCase()}',
             body: widget.q.hint,
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           if (!_level2Open)
             GestureDetector(
               onTap: () => setState(() => _level2Open = true),
@@ -14995,13 +15159,13 @@ class _HintSheetState extends State<_HintSheet> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF5F1EA),
+                  color: Color(0xFFF5F1EA),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _Palette.line),
+                  border: Border.all(color: AppPalette.border(context)),
                 ),
                 alignment: Alignment.center,
                 child: Text("🔒 Kademe 2'yi göster — Çözüme yaklaş",
-                    style: _sans(size: 14, color: _Palette.inkMute)),
+                    style: _sans(size: 14, color: AppPalette.textSecondary(context))),
               ),
             )
           else
@@ -15018,16 +15182,16 @@ class _HintSheetState extends State<_HintSheet> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _Palette.surface,
+        color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _Palette.line),
+        border: Border.all(color: AppPalette.border(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title, style: _sans(size: 12, weight: FontWeight.w700, color: _Palette.brand, letterSpacing: 0.06)),
-          const SizedBox(height: 6),
-          Text(body, style: _sans(size: 14, color: _Palette.inkSoft, height: 1.5)),
+          SizedBox(height: 6),
+          Text(body, style: _sans(size: 14, color: AppPalette.textSecondary(context), height: 1.5)),
         ],
       ),
     );
@@ -15124,9 +15288,9 @@ class _ResultsScreenState extends State<_ResultsScreen> with TickerProviderState
   @override
   void initState() {
     super.initState();
-    _scoreCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500));
+    _scoreCtrl = AnimationController(vsync: this, duration: Duration(milliseconds: 1500));
     _scoreAnim = CurvedAnimation(parent: _scoreCtrl, curve: Curves.easeOutCubic);
-    Future.delayed(const Duration(milliseconds: 200), () {
+    Future.delayed(Duration(milliseconds: 200), () {
       if (mounted) _scoreCtrl.forward();
     });
   }
@@ -15148,7 +15312,7 @@ class _ResultsScreenState extends State<_ResultsScreen> with TickerProviderState
     final pct = (_percent * 100).round();
     final badgeWon = pct >= 70;
     return Scaffold(
-      backgroundColor: _Palette.bg,
+      backgroundColor: AppPalette.bg(context),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.only(bottom: 30),
@@ -15156,12 +15320,12 @@ class _ResultsScreenState extends State<_ResultsScreen> with TickerProviderState
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _hero(pct: pct, badgeWon: badgeWon),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               _statsRow(),
               _rewardCard(),
               _perfCard(),
               _weakCard(),
-              const SizedBox(height: 24),
+              SizedBox(height: 24),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: _ShareCTA(onTap: () {
@@ -15176,7 +15340,7 @@ class _ResultsScreenState extends State<_ResultsScreen> with TickerProviderState
                   );
                 }),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
@@ -15194,7 +15358,7 @@ class _ResultsScreenState extends State<_ResultsScreen> with TickerProviderState
                         },
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    SizedBox(width: 10),
                     Expanded(
                       child: _SecondaryButton(
                         label: '🔄 Tekrar Çöz'.tr(),
@@ -15217,11 +15381,11 @@ class _ResultsScreenState extends State<_ResultsScreen> with TickerProviderState
       children: [
         Container(
           padding: const EdgeInsets.fromLTRB(16, 20, 16, 30),
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: RadialGradient(
               center: Alignment.topCenter,
               radius: 1.4,
-              colors: [Color(0x1FFF5B2E), _Palette.bg],
+              colors: [Color(0x1FFF5B2E), AppPalette.bg(context)],
               stops: [0, 0.5],
             ),
           ),
@@ -15229,7 +15393,7 @@ class _ResultsScreenState extends State<_ResultsScreen> with TickerProviderState
             children: [
               Text('🎉 TAMAMLANDI'.tr(),
                   style: _sans(size: 11, weight: FontWeight.w700, color: _Palette.brand, letterSpacing: 0.1)),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               SizedBox(
                 width: 200,
                 height: 200,
@@ -15242,7 +15406,7 @@ class _ResultsScreenState extends State<_ResultsScreen> with TickerProviderState
                       alignment: Alignment.center,
                       children: [
                         CustomPaint(
-                          size: const Size(200, 200),
+                          size: Size(200, 200),
                           painter: _ScoreRingPainter(progress: anim),
                         ),
                         Column(
@@ -15255,14 +15419,14 @@ class _ResultsScreenState extends State<_ResultsScreen> with TickerProviderState
                                 children: [
                                   TextSpan(
                                     text: '/$_total',
-                                    style: _serif(size: 26, weight: FontWeight.w700, color: _Palette.inkMute),
+                                    style: _serif(size: 26, weight: FontWeight.w700, color: AppPalette.textSecondary(context)),
                                   ),
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 2),
+                            SizedBox(height: 2),
                             Text('%${(anim * 100).round()} başarı'.tr(),
-                                style: _sans(size: 14, color: _Palette.inkMute, weight: FontWeight.w500)),
+                                style: _sans(size: 14, color: AppPalette.textSecondary(context), weight: FontWeight.w500)),
                           ],
                         ),
                       ],
@@ -15271,19 +15435,19 @@ class _ResultsScreenState extends State<_ResultsScreen> with TickerProviderState
                 ),
               ),
               if (badgeWon) ...[
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 ScaleTransition(
                   scale: CurvedAnimation(
                     parent: _scoreCtrl,
-                    curve: const Interval(0.5, 1.0, curve: Curves.elasticOut),
+                    curve: Interval(0.5, 1.0, curve: Curves.elasticOut),
                   ),
                   child: Column(
                     children: [
                       Text('🏆'.tr(), style: TextStyle(fontSize: 44)),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                       Text('Bilgi Ustası'.tr(), style: _serif(size: 20, weight: FontWeight.w600, letterSpacing: -0.01)),
-                      const SizedBox(height: 2),
-                      Text('Harika iş çıkardın!'.tr(), style: _sans(size: 12, color: _Palette.inkMute)),
+                      SizedBox(height: 2),
+                      Text('Harika iş çıkardın!'.tr(), style: _sans(size: 12, color: AppPalette.textSecondary(context))),
                     ],
                   ),
                 ),
@@ -15307,19 +15471,19 @@ class _ResultsScreenState extends State<_ResultsScreen> with TickerProviderState
       child: Row(
         children: [
           for (int i = 0; i < cells.length; i++) ...[
-            if (i > 0) const SizedBox(width: 8),
+            if (i > 0) SizedBox(width: 8),
             Expanded(
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
                 decoration: BoxDecoration(
-                  color: _Palette.surface,
+                  color: AppPalette.card(context),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: _Palette.line),
+                  border: Border.all(color: AppPalette.border(context)),
                 ),
                 child: Column(
                   children: [
-                    Text(cells[i].$1, style: const TextStyle(fontSize: 18)),
-                    const SizedBox(height: 2),
+                    Text(cells[i].$1, style: TextStyle(fontSize: 18)),
+                    SizedBox(height: 2),
                     FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(cells[i].$2,
@@ -15327,11 +15491,11 @@ class _ResultsScreenState extends State<_ResultsScreen> with TickerProviderState
                           overflow: TextOverflow.ellipsis,
                           style: _serif(size: 18, weight: FontWeight.w600)),
                     ),
-                    const SizedBox(height: 2),
+                    SizedBox(height: 2),
                     Text(cells[i].$3,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: _sans(size: 10, color: _Palette.inkMute)),
+                        style: _sans(size: 10, color: AppPalette.textSecondary(context))),
                   ],
                 ),
               ),
@@ -15351,20 +15515,20 @@ class _ResultsScreenState extends State<_ResultsScreen> with TickerProviderState
       margin: const EdgeInsets.fromLTRB(16, 24, 16, 0),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _Palette.surface,
+        color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _Palette.line),
+        border: Border.all(color: AppPalette.border(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Ders Performansın'.tr(), style: _serif(size: 16, weight: FontWeight.w600, letterSpacing: -0.01)),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Text('Bu testte çözdüğün ${entries.length} derste nasıl gittin'.tr(),
-              style: _sans(size: 11, color: _Palette.inkMute)),
-          const SizedBox(height: 14),
+              style: _sans(size: 11, color: AppPalette.textSecondary(context))),
+          SizedBox(height: 14),
           for (int i = 0; i < entries.length; i++) ...[
-            if (i > 0) const SizedBox(height: 12),
+            if (i > 0) SizedBox(height: 12),
             _perfRow(
               '${entries[i].emoji} ${entries[i].name}',
               entries[i].total == 0 ? 0 : entries[i].correct / entries[i].total,
@@ -15381,19 +15545,19 @@ class _ResultsScreenState extends State<_ResultsScreen> with TickerProviderState
     return Row(
       children: [
         SizedBox(width: 110, child: Text(name, style: _sans(size: 13, weight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis)),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         Expanded(
           child: ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: LinearProgressIndicator(
               value: value,
               minHeight: 8,
-              backgroundColor: _Palette.line,
+              backgroundColor: AppPalette.border(context),
               valueColor: AlwaysStoppedAnimation(color),
             ),
           ),
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: 10),
         SizedBox(width: 36, child: Text(score, textAlign: TextAlign.right, style: _sans(size: 12, weight: FontWeight.w600))),
       ],
     );
@@ -15411,20 +15575,20 @@ class _ResultsScreenState extends State<_ResultsScreen> with TickerProviderState
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [Color(0xFFFFF8E1), Color(0xFFFFE0B2)],
         ),
-        border: Border.all(color: const Color(0xFFFFD180)),
+        border: Border.all(color: Color(0xFFFFD180)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Text('⚡', style: TextStyle(fontSize: 22)),
-              const SizedBox(width: 8),
+              Text('⚡', style: TextStyle(fontSize: 22)),
+              SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Kazandığın QP',
@@ -15437,15 +15601,15 @@ class _ResultsScreenState extends State<_ResultsScreen> with TickerProviderState
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           _rewardBreakdown('🎯 Doğru cevaplar', '$correct × 15', '+$baseQP'),
           if (widget.comboMax >= 2)
             _rewardBreakdown('🔥 En uzun combo', '${widget.comboMax} × 5', '+$comboBonus'),
           _rewardBreakdown('✅ Test bitirme', 'sabit', '+$finishBonus'),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Text(
             'Yeni bakiye: ${_arenaState.qp} QP',
-            style: _sans(size: 11, color: _Palette.inkSoft, weight: FontWeight.w600),
+            style: _sans(size: 11, color: AppPalette.textSecondary(context), weight: FontWeight.w600),
           ),
         ],
       ),
@@ -15462,17 +15626,17 @@ class _ResultsScreenState extends State<_ResultsScreen> with TickerProviderState
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: _sans(size: 12, color: const Color(0xFF78350F)),
+              style: _sans(size: 12, color: Color(0xFF78350F)),
             ),
           ),
           Text(
             calc,
-            style: _sans(size: 10, color: const Color(0xFF9A3412)),
+            style: _sans(size: 10, color: Color(0xFF9A3412)),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Text(
             val,
-            style: _sans(size: 12, weight: FontWeight.w700, color: const Color(0xFFB45309)),
+            style: _sans(size: 12, weight: FontWeight.w700, color: Color(0xFFB45309)),
           ),
         ],
       ),
@@ -15489,21 +15653,21 @@ class _ResultsScreenState extends State<_ResultsScreen> with TickerProviderState
         margin: const EdgeInsets.fromLTRB(16, 14, 16, 0),
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: const Color(0xFFECFDF5),
+          color: Color(0xFFECFDF5),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFFA7F3D0)),
+          border: Border.all(color: Color(0xFFA7F3D0)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('🎉 HARİKA SONUÇ'.tr(),
-                style: _sans(size: 12, weight: FontWeight.w700, color: const Color(0xFF047857), letterSpacing: 0.06)),
-            const SizedBox(height: 6),
+                style: _sans(size: 12, weight: FontWeight.w700, color: Color(0xFF047857), letterSpacing: 0.06)),
+            SizedBox(height: 6),
             Text(
               'Tüm soruları doğru yanıtladın! ${sample.subjectName} alanında kendini geliştirmeye devam etmek ister misin?',
-              style: _sans(size: 14, color: _Palette.ink, height: 1.4),
+              style: _sans(size: 14, color: AppPalette.textPrimary(context), height: 1.4),
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -15511,8 +15675,8 @@ class _ResultsScreenState extends State<_ResultsScreen> with TickerProviderState
                 _weakBtn(
                   '🚀 Daha zor seviye dene',
                   bg: Colors.white,
-                  border: const Color(0xFFA7F3D0),
-                  color: const Color(0xFF047857),
+                  border: Color(0xFFA7F3D0),
+                  color: Color(0xFF047857),
                 ),
               ],
             ),
@@ -15525,23 +15689,23 @@ class _ResultsScreenState extends State<_ResultsScreen> with TickerProviderState
       margin: const EdgeInsets.fromLTRB(16, 14, 16, 0),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF4E5),
+        color: Color(0xFFFFF4E5),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFFFE0B8)),
+        border: Border.all(color: Color(0xFFFFE0B8)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('💡 GELİŞİM ÖNERİSİ'.tr(),
-              style: _sans(size: 12, weight: FontWeight.w700, color: const Color(0xFFB45309), letterSpacing: 0.06)),
-          const SizedBox(height: 6),
+              style: _sans(size: 12, weight: FontWeight.w700, color: Color(0xFFB45309), letterSpacing: 0.06)),
+          SizedBox(height: 6),
           RichText(
             text: TextSpan(
-              style: _sans(size: 14, color: _Palette.ink, height: 1.4),
+              style: _sans(size: 14, color: AppPalette.textPrimary(context), height: 1.4),
               children: [
                 TextSpan(
                   text: '${weak.subjectName} · ${weak.topic}',
-                  style: _sans(size: 14, weight: FontWeight.w700, color: _Palette.ink),
+                  style: _sans(size: 14, weight: FontWeight.w700, color: AppPalette.textPrimary(context)),
                 ),
                 TextSpan(
                   text: " konusunda ${weak.total} sorudan ${weak.wrong}'i yanlış. Bu konuyu pekiştirmeni öneriyorum.",
@@ -15549,7 +15713,7 @@ class _ResultsScreenState extends State<_ResultsScreen> with TickerProviderState
               ],
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -15569,9 +15733,9 @@ class _ResultsScreenState extends State<_ResultsScreen> with TickerProviderState
       decoration: BoxDecoration(
         color: bg ?? Colors.white,
         borderRadius: BorderRadius.circular(100),
-        border: Border.all(color: border ?? const Color(0xFFFFE0B8)),
+        border: Border.all(color: border ?? Color(0xFFFFE0B8)),
       ),
-      child: Text(text, style: _sans(size: 12, weight: FontWeight.w600, color: color ?? const Color(0xFFB45309))),
+      child: Text(text, style: _sans(size: 12, weight: FontWeight.w600, color: color ?? Color(0xFFB45309))),
     );
   }
 }
@@ -15589,7 +15753,7 @@ class _EmptyQuizPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _Palette.bg,
+      backgroundColor: AppPalette.bg(context),
       body: SafeArea(
         child: Center(
           child: Padding(
@@ -15598,19 +15762,19 @@ class _EmptyQuizPlaceholder extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text('🔍'.tr(), style: TextStyle(fontSize: 60)),
-                const SizedBox(height: 16),
+                SizedBox(height: 16),
                 Text(
                   'Seçilen konu için soru bulunamadı',
                   textAlign: TextAlign.center,
                   style: _serif(size: 20, weight: FontWeight.w600),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Text(
                   'Lütfen geri dönüp farklı bir ders veya konu seç.',
                   textAlign: TextAlign.center,
-                  style: _sans(size: 13, color: _Palette.inkMute),
+                  style: _sans(size: 13, color: AppPalette.textSecondary(context)),
                 ),
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
                 _PrimaryButton(
                   label: 'Geri dön'.tr(),
                   onTap: () => Navigator.of(context).popUntil((r) => r.isFirst),
@@ -15676,20 +15840,20 @@ class _ShareCTA extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
-          gradient: const LinearGradient(
+          gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [_Palette.brand, _Palette.brandDeep],
           ),
           boxShadow: [
-            BoxShadow(color: _Palette.brand.withValues(alpha: 0.35), blurRadius: 20, offset: const Offset(0, 8)),
+            BoxShadow(color: _Palette.brand.withValues(alpha: 0.35), blurRadius: 20, offset: Offset(0, 8)),
           ],
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.share_rounded, color: Colors.white, size: 20),
-            const SizedBox(width: 10),
+            Icon(Icons.share_rounded, color: Colors.white, size: 20),
+            SizedBox(width: 10),
             Flexible(
               child: Text(
                 'Sosyal Medya Hesaplarında Paylaş',
@@ -15716,9 +15880,9 @@ class _ReviewScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _Palette.bg,
+      backgroundColor: AppPalette.bg(context),
       appBar: AppBar(
-        backgroundColor: _Palette.bg,
+        backgroundColor: AppPalette.bg(context),
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
@@ -15727,7 +15891,7 @@ class _ReviewScreen extends StatelessWidget {
           child: _CircleBtn(icon: Icons.arrow_back_rounded, onTap: () => Navigator.of(context).pop()),
         ),
         title: Text('Cevap İnceleme'.tr(), style: _serif(size: 18, weight: FontWeight.w600, letterSpacing: -0.02)),
-        shape: const Border(bottom: BorderSide(color: _Palette.line)),
+        shape: Border(bottom: BorderSide(color: AppPalette.border(context))),
       ),
       body: ListView.builder(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 30),
@@ -15757,8 +15921,8 @@ class _ReviewItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = correct ? const Color(0xFFF0FDF4) : const Color(0xFFFEF2F2);
-    final border = correct ? const Color(0xFFA7F3D0) : const Color(0xFFFECACA);
+    final bg = correct ? Color(0xFFF0FDF4) : Color(0xFFFEF2F2);
+    final border = correct ? Color(0xFFA7F3D0) : Color(0xFFFECACA);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(16),
@@ -15781,35 +15945,35 @@ class _ReviewItem extends StatelessWidget {
                 child: Text(correct ? '✓ Doğru' : '✗ Yanlış',
                     style: _sans(size: 11, weight: FontWeight.w700, color: Colors.white)),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Expanded(
                 child: Text('Soru $index • ${question.subjectTag.split('•').last.trim()}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: _sans(size: 11, color: _Palette.inkMute, weight: FontWeight.w600)),
+                    style: _sans(size: 11, color: AppPalette.textSecondary(context), weight: FontWeight.w600)),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           Text(question.text, style: _sans(size: 14, weight: FontWeight.w500, height: 1.5)),
           if (question.formula != null) ...[
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(color: _Palette.ink, borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: AppPalette.textPrimary(context), borderRadius: BorderRadius.circular(8)),
               child: Text(question.formula!, style: _mono(size: 13, color: Colors.white)),
             ),
           ],
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: correct ? Colors.white.withValues(alpha: .6) : const Color(0xFFFEE2E2),
+              color: correct ? Colors.white.withValues(alpha: .6) : Color(0xFFFEE2E2),
               borderRadius: BorderRadius.circular(10),
             ),
             child: RichText(
               text: TextSpan(
-                style: _sans(size: 12, color: _Palette.ink, height: 1.5),
+                style: _sans(size: 12, color: AppPalette.textPrimary(context), height: 1.5),
                 children: [
                   TextSpan(text: 'Senin cevabın: ', style: _sans(size: 12, weight: FontWeight.w700)),
                   TextSpan(
@@ -15822,13 +15986,13 @@ class _ReviewItem extends StatelessWidget {
             ),
           ),
           if (!correct) ...[
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(color: const Color(0xFFD1FAE5), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: Color(0xFFD1FAE5), borderRadius: BorderRadius.circular(10)),
               child: RichText(
                 text: TextSpan(
-                  style: _sans(size: 12, color: _Palette.ink, height: 1.5),
+                  style: _sans(size: 12, color: AppPalette.textPrimary(context), height: 1.5),
                   children: [
                     TextSpan(text: 'Doğru cevap: ', style: _sans(size: 12, weight: FontWeight.w700)),
                     TextSpan(
@@ -15839,17 +16003,17 @@ class _ReviewItem extends StatelessWidget {
               ),
             ),
           ],
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.only(top: 10),
-            decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: _Palette.line, style: BorderStyle.solid)),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: AppPalette.border(context), style: BorderStyle.solid)),
             ),
             child: RichText(
               text: TextSpan(
-                style: _sans(size: 12, color: _Palette.inkSoft, height: 1.5),
+                style: _sans(size: 12, color: AppPalette.textSecondary(context), height: 1.5),
                 children: [
-                  TextSpan(text: 'Çözüm: ', style: _sans(size: 12, weight: FontWeight.w700, color: _Palette.ink)),
+                  TextSpan(text: 'Çözüm: ', style: _sans(size: 12, weight: FontWeight.w700, color: AppPalette.textPrimary(context))),
                   TextSpan(text: question.explanation),
                 ],
               ),
@@ -15889,7 +16053,7 @@ List<_SocialApp> _allSocialApps = [
   _SocialApp(
     key: 'whatsapp',
     name: 'WhatsApp',
-    color: const Color(0xFF25D366),
+    color: Color(0xFF25D366),
     logo: const _BrandLogo(icon: Icons.chat_rounded),
     iosDetectScheme: 'whatsapp://send?text=test',
     shareUrl: (t) => 'whatsapp://send?text=$t',
@@ -15897,8 +16061,8 @@ List<_SocialApp> _allSocialApps = [
   _SocialApp(
     key: 'instagram',
     name: 'Instagram',
-    color: const Color(0xFFE1306C),
-    gradient: const LinearGradient(
+    color: Color(0xFFE1306C),
+    gradient: LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [Color(0xFF833AB4), Color(0xFFE1306C), Color(0xFFFD1D1D), Color(0xFFFCB045)],
@@ -15910,7 +16074,7 @@ List<_SocialApp> _allSocialApps = [
   _SocialApp(
     key: 'tiktok',
     name: 'TikTok',
-    color: const Color(0xFF000000),
+    color: Color(0xFF010101),
     logo: const _BrandLogo(icon: Icons.music_note_rounded),
     iosDetectScheme: 'snssdk1233://',
     shareUrl: (t) => 'snssdk1233://',
@@ -15918,7 +16082,7 @@ List<_SocialApp> _allSocialApps = [
   _SocialApp(
     key: 'x',
     name: 'X',
-    color: const Color(0xFF000000),
+    color: Color(0xFF010101),
     logo: const _BrandLogo(icon: Icons.close_rounded),
     iosDetectScheme: 'twitter://',
     shareUrl: (t) => 'twitter://post?message=$t',
@@ -15926,7 +16090,7 @@ List<_SocialApp> _allSocialApps = [
   _SocialApp(
     key: 'telegram',
     name: 'Telegram',
-    color: const Color(0xFF26A5E4),
+    color: Color(0xFF26A5E4),
     logo: const _BrandLogo(icon: Icons.send_rounded),
     iosDetectScheme: 'tg://msg?text=hi',
     shareUrl: (t) => 'tg://msg?text=$t',
@@ -15934,7 +16098,7 @@ List<_SocialApp> _allSocialApps = [
   _SocialApp(
     key: 'threads',
     name: 'Threads',
-    color: const Color(0xFF000000),
+    color: Color(0xFF010101),
     logo: const _BrandLogo(icon: Icons.alternate_email_rounded),
     iosDetectScheme: 'barcelona://',
     shareUrl: (t) => 'barcelona://',
@@ -15942,8 +16106,8 @@ List<_SocialApp> _allSocialApps = [
   _SocialApp(
     key: 'messenger',
     name: 'Messenger',
-    color: const Color(0xFF006AFF),
-    gradient: const LinearGradient(
+    color: Color(0xFF006AFF),
+    gradient: LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [Color(0xFF0084FF), Color(0xFFA033FF), Color(0xFFFF5E3A)],
@@ -15955,7 +16119,7 @@ List<_SocialApp> _allSocialApps = [
   _SocialApp(
     key: 'facebook',
     name: 'Facebook',
-    color: const Color(0xFF1877F2),
+    color: Color(0xFF1877F2),
     logo: const _BrandLogo(icon: Icons.facebook_rounded),
     iosDetectScheme: 'fb://',
     shareUrl: (t) => 'fb://facewebmodal/f?href=https%3A%2F%2Fsnapans.app',
@@ -15963,7 +16127,7 @@ List<_SocialApp> _allSocialApps = [
   _SocialApp(
     key: 'snapchat',
     name: 'Snapchat',
-    color: const Color(0xFFFFFC00),
+    color: Color(0xFFFFFC00),
     logo: const _BrandLogo(icon: Icons.photo_camera_back_rounded, iconColor: Colors.black87),
     iosDetectScheme: 'snapchat://',
     shareUrl: (t) => 'snapchat://',
@@ -15971,7 +16135,7 @@ List<_SocialApp> _allSocialApps = [
   _SocialApp(
     key: 'linkedin',
     name: 'LinkedIn',
-    color: const Color(0xFF0A66C2),
+    color: Color(0xFF0A66C2),
     logo: const _BrandLogo(icon: Icons.business_center_rounded),
     iosDetectScheme: 'linkedin://',
     shareUrl: (t) => 'linkedin://shareArticle?mini=true&url=https%3A%2F%2Fsnapans.app',
@@ -15979,7 +16143,7 @@ List<_SocialApp> _allSocialApps = [
   _SocialApp(
     key: 'pinterest',
     name: 'Pinterest',
-    color: const Color(0xFFE60023),
+    color: Color(0xFFE60023),
     logo: const _BrandLogo(icon: Icons.push_pin_rounded),
     iosDetectScheme: 'pinterest://',
     shareUrl: (t) => 'pinterest://',
@@ -15987,7 +16151,7 @@ List<_SocialApp> _allSocialApps = [
   _SocialApp(
     key: 'discord',
     name: 'Discord',
-    color: const Color(0xFF5865F2),
+    color: Color(0xFF5865F2),
     logo: const _BrandLogo(icon: Icons.gamepad_rounded),
     iosDetectScheme: 'discord://',
     shareUrl: (t) => 'discord://',
@@ -15995,7 +16159,7 @@ List<_SocialApp> _allSocialApps = [
   _SocialApp(
     key: 'reddit',
     name: 'Reddit',
-    color: const Color(0xFFFF4500),
+    color: Color(0xFFFF4500),
     logo: const _BrandLogo(icon: Icons.forum_outlined),
     iosDetectScheme: 'reddit://',
     shareUrl: (t) => 'reddit://',
@@ -16057,7 +16221,7 @@ final List<_ShareTemplate> _shareTemplates = [
   _ShareTemplate(
     solidColor: Colors.white,
     textColor: _Palette.ink,
-    mutedColor: _Palette.inkSoft,
+    mutedColor: _Palette.inkMute,
     brandColor: _alRed,
     cardBadgeBg: Color(0x140E0E10),
   ),
@@ -16069,7 +16233,7 @@ final List<_ShareTemplate> _shareTemplates = [
       colors: [Color(0xFFFFF8F0), Color(0xFFFAE4D0)],
     ),
     textColor: _Palette.ink,
-    mutedColor: _Palette.inkSoft,
+    mutedColor: _Palette.inkMute,
     brandColor: _alRed,
     cardBadgeBg: Color(0x140E0E10),
   ),
@@ -16203,9 +16367,9 @@ class _SocialShareSheetState extends State<_SocialShareSheet> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Metin kopyalandı ✓'.tr()),
-        backgroundColor: _Palette.ink,
+        backgroundColor: AppPalette.textPrimary(context),
         behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
+        duration: Duration(seconds: 2),
       ),
     );
     if (mounted) Navigator.of(context).pop();
@@ -16224,8 +16388,8 @@ class _SocialShareSheetState extends State<_SocialShareSheet> {
       maxChildSize: 0.95,
       expand: false,
       builder: (_, scroll) => Container(
-        decoration: const BoxDecoration(
-          color: _Palette.bg,
+        decoration: BoxDecoration(
+          color: AppPalette.bg(context),
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: ListView(
@@ -16237,18 +16401,18 @@ class _SocialShareSheetState extends State<_SocialShareSheet> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: _Palette.inkMute,
+                  color: AppPalette.textSecondary(context),
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
             ),
-            const SizedBox(height: 18),
+            SizedBox(height: 18),
             Text('Başarını Paylaş'.tr(),
                 style: _serif(size: 22, weight: FontWeight.w600, letterSpacing: -0.02)),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text('Renk seç, sosyal medyada arkadaşlarına göster.'.tr(),
-                style: _sans(size: 12, color: _Palette.inkMute)),
-            const SizedBox(height: 18),
+                style: _sans(size: 12, color: AppPalette.textSecondary(context))),
+            SizedBox(height: 18),
             // Önizleme kartı
             Center(
               child: _ShareCardPreview(
@@ -16262,17 +16426,17 @@ class _SocialShareSheetState extends State<_SocialShareSheet> {
                 pct: _pct,
               ),
             ),
-            const SizedBox(height: 18),
+            SizedBox(height: 18),
             // 6 renk seçici
             _TemplatePickerRow(
               templates: _shareTemplates,
               selected: _templateIdx,
               onSelect: (i) => setState(() => _templateIdx = i),
             ),
-            const SizedBox(height: 22),
+            SizedBox(height: 22),
             Text('TELEFONDA YÜKLÜ UYGULAMALAR'.tr(),
-                style: _sans(size: 11, weight: FontWeight.w700, color: _Palette.inkMute, letterSpacing: 0.08)),
-            const SizedBox(height: 12),
+                style: _sans(size: 11, weight: FontWeight.w700, color: AppPalette.textSecondary(context), letterSpacing: 0.08)),
+            SizedBox(height: 12),
             FutureBuilder<List<_SocialApp>>(
               future: _future,
               builder: (_, snap) {
@@ -16300,15 +16464,15 @@ class _SocialShareSheetState extends State<_SocialShareSheet> {
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: installed.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                    separatorBuilder: (_, __) => SizedBox(width: 12),
                     itemBuilder: (_, i) => _appTile(installed[i]),
                   ),
                 );
               },
             ),
-            const SizedBox(height: 20),
-            const Divider(height: 1, color: _Palette.line),
-            const SizedBox(height: 14),
+            SizedBox(height: 20),
+            Divider(height: 1, color: AppPalette.border(context)),
+            SizedBox(height: 14),
             Row(
               children: [
                 Expanded(
@@ -16319,11 +16483,11 @@ class _SocialShareSheetState extends State<_SocialShareSheet> {
                     _copyLink,
                   ),
                 ),
-                const SizedBox(width: 10),
+                SizedBox(width: 10),
                 Expanded(
                   child: _secondaryTile(
                     Icons.ios_share_rounded,
-                    _Palette.ink,
+                    AppPalette.textPrimary(context),
                     'Diğer…',
                     _systemShare,
                   ),
@@ -16354,14 +16518,14 @@ class _SocialShareSheetState extends State<_SocialShareSheet> {
                   BoxShadow(
                     color: app.color.withValues(alpha: 0.25),
                     blurRadius: 10,
-                    offset: const Offset(0, 4),
+                    offset: Offset(0, 4),
                   ),
                 ],
               ),
               alignment: Alignment.center,
               child: app.logo,
             ),
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             Text(
               app.name,
               style: _sans(size: 11, weight: FontWeight.w600),
@@ -16378,23 +16542,23 @@ class _SocialShareSheetState extends State<_SocialShareSheet> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _Palette.surface,
+        color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _Palette.line),
+        border: Border.all(color: AppPalette.border(context)),
       ),
       child: Row(
         children: [
           Text('📱'.tr(), style: TextStyle(fontSize: 28)),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Yüklü sosyal medya hesabı bulunamadı'.tr(),
                     style: _sans(size: 13, weight: FontWeight.w600)),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text('Sistem paylaşım menüsünü açmayı deneyebilirsin.'.tr(),
-                    style: _sans(size: 11, color: _Palette.inkMute)),
+                    style: _sans(size: 11, color: AppPalette.textSecondary(context))),
               ],
             ),
           ),
@@ -16413,9 +16577,9 @@ class _SocialShareSheetState extends State<_SocialShareSheet> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
         decoration: BoxDecoration(
-          color: _Palette.surface,
+          color: AppPalette.card(context),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _Palette.line),
+          border: Border.all(color: AppPalette.border(context)),
         ),
         child: Row(
           children: [
@@ -16429,7 +16593,7 @@ class _SocialShareSheetState extends State<_SocialShareSheet> {
               alignment: Alignment.center,
               child: Icon(icon, size: 18, color: Colors.white),
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Expanded(
               child: Text(label, style: _sans(size: 13, weight: FontWeight.w600)),
             ),
@@ -16466,7 +16630,7 @@ class _TemplatePickerRow extends StatelessWidget {
           child: GestureDetector(
             onTap: () => onSelect(i),
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
+              duration: Duration(milliseconds: 180),
               width: 36,
               height: 56,
               decoration: BoxDecoration(
@@ -16474,11 +16638,11 @@ class _TemplatePickerRow extends StatelessWidget {
                 color: t.solidColor,
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color: active ? _Palette.ink : _Palette.line,
+                  color: active ? AppPalette.textPrimary(context) : AppPalette.border(context),
                   width: active ? 2.5 : 1,
                 ),
                 boxShadow: active
-                    ? [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 3))]
+                    ? [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: Offset(0, 3))]
                     : null,
               ),
               transform: active ? (Matrix4.identity()..scaleByDouble(1.08, 1.08, 1.0, 1.0)) : Matrix4.identity(),
@@ -16522,19 +16686,19 @@ class _ShareCardPreview extends StatelessWidget {
     final cardWidth = math.min(340.0, math.max(280.0, screenWidth - 60));
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
+      duration: Duration(milliseconds: 300),
       width: cardWidth,
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
       decoration: BoxDecoration(
         gradient: template.gradient,
         color: template.solidColor,
         borderRadius: BorderRadius.circular(22),
-        border: template.solidColor == Colors.white ? Border.all(color: _Palette.line) : null,
+        border: template.solidColor == Colors.white ? Border.all(color: AppPalette.border(context)) : null,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.18),
             blurRadius: 24,
-            offset: const Offset(0, 10),
+            offset: Offset(0, 10),
           ),
         ],
       ),
@@ -16557,7 +16721,7 @@ class _ShareCardPreview extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
 
           // Row: DERS (sol) · KONU (sağ)
           Row(
@@ -16568,7 +16732,7 @@ class _ShareCardPreview extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('DERS', style: _miniLabel(template)),
-                    const SizedBox(height: 2),
+                    SizedBox(height: 2),
                     Text(
                       subjText,
                       maxLines: 2,
@@ -16585,13 +16749,13 @@ class _ShareCardPreview extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('KONU', style: _miniLabel(template)),
-                    const SizedBox(height: 2),
+                    SizedBox(height: 2),
                     Text(
                       topicText,
                       maxLines: 2,
@@ -16610,7 +16774,7 @@ class _ShareCardPreview extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
 
           // Row: SORU SAYISI (sol) · çerçeveli sayaç (sağ)
           Row(
@@ -16621,7 +16785,7 @@ class _ShareCardPreview extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('SORU SAYISI', style: _miniLabel(template)),
-                    const SizedBox(height: 2),
+                    SizedBox(height: 2),
                     Text(
                       'Toplam $total soru',
                       maxLines: 1,
@@ -16635,7 +16799,7 @@ class _ShareCardPreview extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                 decoration: BoxDecoration(
@@ -16660,7 +16824,7 @@ class _ShareCardPreview extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
 
           // Başarı oranı — büyük
           Container(
@@ -16674,7 +16838,7 @@ class _ShareCardPreview extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('BAŞARI ORANI'.tr(), style: _miniLabel(template)),
-                const SizedBox(height: 1),
+                SizedBox(height: 1),
                 FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
@@ -16705,13 +16869,13 @@ class _ShareCardPreview extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
 
           // Kullanıcı ismi (sol hizalı)
           Row(
             children: [
               Icon(Icons.account_circle_rounded, size: 14, color: template.mutedColor),
-              const SizedBox(width: 4),
+              SizedBox(width: 4),
               Flexible(
                 child: Text(
                   '@$_currentUsername',
@@ -16726,7 +16890,7 @@ class _ShareCardPreview extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
 
           // "QuAlsar ile neler yapabilirsin?" — al kırmızı
           Text(
@@ -16740,7 +16904,7 @@ class _ShareCardPreview extends StatelessWidget {
               letterSpacing: -0.01,
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
 
           // Bilgi kartları (pill şeklinde yan yana)
           Wrap(
@@ -16770,8 +16934,8 @@ class _ShareCardPreview extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(emoji, style: const TextStyle(fontSize: 11)),
-        const SizedBox(width: 3),
+        Text(emoji, style: TextStyle(fontSize: 11)),
+        SizedBox(width: 3),
         Text(
           '$value',
           style: _sans(
@@ -16804,8 +16968,8 @@ class _ShareCardPreview extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 10)),
-          const SizedBox(width: 4),
+          Text(emoji, style: TextStyle(fontSize: 10)),
+          SizedBox(width: 4),
           Text(
             text,
             maxLines: 1,
@@ -16839,11 +17003,11 @@ class _PrimaryButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
+        duration: Duration(milliseconds: 150),
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 17),
         decoration: BoxDecoration(
-          color: !enabled ? _Palette.line : (brand ? _Palette.brand : _Palette.ink),
+          color: !enabled ? AppPalette.border(context) : (brand ? _Palette.brand : AppPalette.textPrimary(context)),
           borderRadius: BorderRadius.circular(100),
         ),
         child: Row(
@@ -16854,12 +17018,12 @@ class _PrimaryButton extends StatelessWidget {
               style: _sans(
                 size: 15,
                 weight: FontWeight.w600,
-                color: !enabled ? _Palette.inkMute : Colors.white,
+                color: !enabled ? AppPalette.textSecondary(context) : Colors.white,
               ),
             ),
             if (trailingIcon != null) ...[
-              const SizedBox(width: 8),
-              Icon(trailingIcon, size: 16, color: !enabled ? _Palette.inkMute : Colors.white),
+              SizedBox(width: 8),
+              Icon(trailingIcon, size: 16, color: !enabled ? AppPalette.textSecondary(context) : Colors.white),
             ],
           ],
         ),
@@ -16881,9 +17045,9 @@ class _SecondaryButton extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 15),
         decoration: BoxDecoration(
-          color: _Palette.surface,
+          color: AppPalette.card(context),
           borderRadius: BorderRadius.circular(100),
-          border: Border.all(color: _Palette.line, width: 1.5),
+          border: Border.all(color: AppPalette.border(context), width: 1.5),
         ),
         alignment: Alignment.center,
         child: Text(label, style: _sans(size: 14, weight: FontWeight.w600)),
@@ -16977,14 +17141,14 @@ class _DueloMatchingScreenState extends State<_DueloMatchingScreen> {
     _setupCards();
     _planOpponent();
     _watch.start();
-    _ticker = Timer.periodic(const Duration(milliseconds: 250), (_) {
+    _ticker = Timer.periodic(Duration(milliseconds: 250), (_) {
       if (!mounted) return;
       _stepOpponent();
       setState(() {});
       if (_myFinishedAtMs != null && _oppFinished) {
         _ticker?.cancel();
         _watch.stop();
-        Future.delayed(const Duration(milliseconds: 600), _goResults);
+        Future.delayed(Duration(milliseconds: 600), _goResults);
       }
     });
   }
@@ -17069,7 +17233,7 @@ class _DueloMatchingScreenState extends State<_DueloMatchingScreen> {
       }
     } else {
       _locked = true;
-      Future.delayed(const Duration(milliseconds: 850), () {
+      Future.delayed(Duration(milliseconds: 850), () {
         if (!mounted) return;
         setState(() {
           _cards[_firstIdx!] = _cards[_firstIdx!].copyWith(open: false);
@@ -17116,7 +17280,7 @@ class _DueloMatchingScreenState extends State<_DueloMatchingScreen> {
   Widget build(BuildContext context) {
     final completed = _myFinishedAtMs != null;
     return Scaffold(
-      backgroundColor: _Palette.bg,
+      backgroundColor: AppPalette.bg(context),
       body: SafeArea(
         child: Column(
           children: [
@@ -17131,7 +17295,7 @@ class _DueloMatchingScreenState extends State<_DueloMatchingScreen> {
                     flag: widget.myFlag,
                     matched: _myMatched,
                     moves: _myMoves,
-                    accent: const Color(0xFF22C55E),
+                    accent: Color(0xFF22C55E),
                     finished: completed,
                   )),
                   Padding(
@@ -17140,7 +17304,7 @@ class _DueloMatchingScreenState extends State<_DueloMatchingScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
-                        color: Colors.black,
+                        color: AppPalette.textPrimary(context),
                         borderRadius: BorderRadius.circular(50),
                       ),
                       child: Text(
@@ -17159,7 +17323,7 @@ class _DueloMatchingScreenState extends State<_DueloMatchingScreen> {
                     flag: widget.opponentFlag,
                     matched: _oppMatched,
                     moves: _oppMoves,
-                    accent: const Color(0xFFF43F5E),
+                    accent: Color(0xFFF43F5E),
                     finished: _oppFinished,
                     isRight: true,
                   )),
@@ -17171,9 +17335,9 @@ class _DueloMatchingScreenState extends State<_DueloMatchingScreen> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
                 child: GridView.builder(
-                  physics: const NeverScrollableScrollPhysics(),
+                  physics: NeverScrollableScrollPhysics(),
                   gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
+                      SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 3,
                     childAspectRatio: 0.85,
                     crossAxisSpacing: 8,
@@ -17193,15 +17357,15 @@ class _DueloMatchingScreenState extends State<_DueloMatchingScreen> {
                 padding: const EdgeInsets.symmetric(
                     horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFEF3C7),
+                  color: Color(0xFFFEF3C7),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFF59E0B)),
+                  border: Border.all(color: Color(0xFFF59E0B)),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.flag_rounded,
+                    Icon(Icons.flag_rounded,
                         color: Color(0xFFF59E0B), size: 18),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Rakip bitirdi! Sen tamamlayınca sonuçlar açılır.'
@@ -17231,7 +17395,7 @@ class _DueloMatchingScreenState extends State<_DueloMatchingScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+            color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
             color: finished ? accent : Colors.black12, width: finished ? 1.4 : 1),
@@ -17244,8 +17408,8 @@ class _DueloMatchingScreenState extends State<_DueloMatchingScreen> {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (!isRight) Text(flag, style: const TextStyle(fontSize: 14)),
-              if (!isRight) const SizedBox(width: 6),
+              if (!isRight) Text(flag, style: TextStyle(fontSize: 14)),
+              if (!isRight) SizedBox(width: 6),
               Flexible(
                 child: Text(
                   name,
@@ -17254,11 +17418,11 @@ class _DueloMatchingScreenState extends State<_DueloMatchingScreen> {
                   style: _sans(size: 12, weight: FontWeight.w800),
                 ),
               ),
-              if (isRight) const SizedBox(width: 6),
-              if (isRight) Text(flag, style: const TextStyle(fontSize: 14)),
+              if (isRight) SizedBox(width: 6),
+              if (isRight) Text(flag, style: TextStyle(fontSize: 14)),
             ],
           ),
-          const SizedBox(height: 3),
+          SizedBox(height: 3),
           Text(
             '$matched/$_totalPairs · $moves hamle',
             style: _sans(
@@ -17284,7 +17448,7 @@ class _MatchTileRace extends StatelessWidget {
       onTap: onTap,
       child: TweenAnimationBuilder<double>(
         tween: Tween<double>(begin: 0, end: card.open ? 1 : 0),
-        duration: const Duration(milliseconds: 380),
+        duration: Duration(milliseconds: 380),
         curve: Curves.easeOutCubic,
         builder: (_, t, __) {
           final angle = t * math.pi;
@@ -17311,21 +17475,21 @@ class _MatchTileRace extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           colors: [Color(0xFF8B5CF6), Color(0xFF3B82F6)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        border: Border.all(color: Colors.black, width: 1.2),
+        border: Border.all(color: Color(0xFF010101), width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF8B5CF6).withValues(alpha: 0.22),
+            color: Color(0xFF8B5CF6).withValues(alpha: 0.22),
             blurRadius: 10,
-            offset: const Offset(0, 3),
+            offset: Offset(0, 3),
           ),
         ],
       ),
-      child: const Center(
+      child: Center(
         child: Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 22),
       ),
     );
@@ -17333,9 +17497,9 @@ class _MatchTileRace extends StatelessWidget {
 
   Widget _open() {
     final isTerm = card.kind == _MatchKind2.term;
-    final bg = card.matched ? const Color(0xFFDCFCE7) : Colors.white;
-    final border = card.matched ? const Color(0xFF22C55E) : Colors.black;
-    final labelCol = isTerm ? const Color(0xFF8B5CF6) : const Color(0xFF3B82F6);
+    final bg = card.matched ? Color(0xFFDCFCE7) : Colors.white;
+    final border = card.matched ? Color(0xFF22C55E) : Colors.black;
+    final labelCol = isTerm ? Color(0xFF8B5CF6) : Color(0xFF3B82F6);
     return Container(
       decoration: BoxDecoration(
         color: bg,
@@ -17361,7 +17525,7 @@ class _MatchTileRace extends StatelessWidget {
                   letterSpacing: 0.6),
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Expanded(
             child: Center(
               child: Text(
@@ -17433,7 +17597,7 @@ class _DueloMatchingResultsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final win = _winner;
     return Scaffold(
-      backgroundColor: _Palette.bg,
+      backgroundColor: AppPalette.bg(context),
       body: SafeArea(
         child: Column(
           children: [
@@ -17441,7 +17605,7 @@ class _DueloMatchingResultsScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
               child: Row(
                 children: [
-                  const Spacer(),
+                  Spacer(),
                   _CircleBtn(
                     icon: Icons.close_rounded,
                     onTap: () {
@@ -17481,8 +17645,8 @@ class _DueloMatchingResultsScreen extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(scope == 'world' ? '🌍' : '🇹🇷',
-                                  style: const TextStyle(fontSize: 12)),
-                              const SizedBox(width: 5),
+                                  style: TextStyle(fontSize: 12)),
+                              SizedBox(width: 5),
                               Text(
                                 scope == 'world' ? 'Dünya'.tr() : 'Ülke'.tr(),
                                 style: _sans(
@@ -17504,23 +17668,23 @@ class _DueloMatchingResultsScreen extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 5),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF8B5CF6)
+                            color: Color(0xFF8B5CF6)
                                 .withValues(alpha: 0.10),
                             borderRadius: BorderRadius.circular(100),
                             border: Border.all(
-                                color: const Color(0xFF8B5CF6), width: 1),
+                                color: Color(0xFF8B5CF6), width: 1),
                           ),
                           child: Text(
                             'Eşleştirme'.tr(),
                             style: _sans(
                                 size: 12,
                                 weight: FontWeight.w900,
-                                color: const Color(0xFF8B5CF6)),
+                                color: Color(0xFF8B5CF6)),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 18),
+                    SizedBox(height: 18),
                     // ── İki kart yan yana ─────────────────────────────────
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -17533,10 +17697,10 @@ class _DueloMatchingResultsScreen extends StatelessWidget {
                           elapsedMs: myElapsedMs,
                           totalPairs: totalPairs,
                           winState: win == 1 ? 'win' : (win == 0 ? 'tie' : 'lose'),
-                          accent: const Color(0xFF22C55E),
+                          accent: Color(0xFF22C55E),
                           isMe: true,
                         )),
-                        const SizedBox(width: 10),
+                        SizedBox(width: 10),
                         Expanded(child: _resultCard(
                           name: opponentName,
                           flag: opponentFlag,
@@ -17545,29 +17709,29 @@ class _DueloMatchingResultsScreen extends StatelessWidget {
                           elapsedMs: opponentElapsedMs,
                           totalPairs: totalPairs,
                           winState: win == -1 ? 'win' : (win == 0 ? 'tie' : 'lose'),
-                          accent: const Color(0xFFF43F5E),
+                          accent: Color(0xFFF43F5E),
                           isMe: false,
                           eloLabel: 'ELO $opponentElo',
                         )),
                       ],
                     ),
-                    const SizedBox(height: 18),
+                    SizedBox(height: 18),
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       decoration: BoxDecoration(
                         color: win == 1
-                            ? const Color(0xFFDCFCE7)
+                            ? Color(0xFFDCFCE7)
                             : (win == 0
-                                ? const Color(0xFFFEF3C7)
-                                : const Color(0xFFFEE2E2)),
+                                ? Color(0xFFFEF3C7)
+                                : Color(0xFFFEE2E2)),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
                             color: win == 1
-                                ? const Color(0xFF22C55E)
+                                ? Color(0xFF22C55E)
                                 : (win == 0
-                                    ? const Color(0xFFF59E0B)
-                                    : const Color(0xFFEF4444))),
+                                    ? Color(0xFFF59E0B)
+                                    : Color(0xFFEF4444))),
                       ),
                       child: Center(
                         child: Text(
@@ -17579,7 +17743,7 @@ class _DueloMatchingResultsScreen extends StatelessWidget {
                           style: _sans(
                               size: 16,
                               weight: FontWeight.w900,
-                              color: Colors.black,
+                              color: AppPalette.textPrimary(context),
                               letterSpacing: 0.3),
                         ),
                       ),
@@ -17635,7 +17799,7 @@ class _DueloMatchingResultsScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+            color: Color(0xFFFEFEFE),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
             color: winState == 'win' ? accent : Colors.black12,
@@ -17644,15 +17808,15 @@ class _DueloMatchingResultsScreen extends StatelessWidget {
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
-            offset: const Offset(0, 3),
+            offset: Offset(0, 3),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Text(flag, style: const TextStyle(fontSize: 26)),
-          const SizedBox(height: 6),
+          Text(flag, style: TextStyle(fontSize: 26)),
+          SizedBox(height: 6),
           Text(
             isMe ? 'Sen'.tr() : name,
             maxLines: 1,
@@ -17661,7 +17825,7 @@ class _DueloMatchingResultsScreen extends StatelessWidget {
             style: _sans(
                 size: 14, weight: FontWeight.w900, color: _Palette.ink),
           ),
-          const SizedBox(height: 1),
+          SizedBox(height: 1),
           Text(
             isMe ? country : (eloLabel ?? country),
             maxLines: 1,
@@ -17672,15 +17836,15 @@ class _DueloMatchingResultsScreen extends StatelessWidget {
                 weight: FontWeight.w600,
                 color: _Palette.inkMute),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           _statRow(Icons.swap_horiz_rounded, 'Hamle'.tr(), '$moves'),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           _statRow(Icons.timer_outlined, 'Süre'.tr(), _fmtMs(elapsedMs)),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           _statRow(Icons.check_circle_rounded, 'Eşleşme'.tr(),
               '$totalPairs/$totalPairs'),
           if (badge.isNotEmpty) ...[
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.symmetric(
                   horizontal: 8, vertical: 4),
@@ -17712,7 +17876,7 @@ class _DueloMatchingResultsScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, size: 13, color: _Palette.inkMute),
-            const SizedBox(width: 5),
+            SizedBox(width: 5),
             Text(k,
                 style: _sans(
                     size: 11,

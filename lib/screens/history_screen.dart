@@ -12,6 +12,7 @@ import '../main.dart' show localeService;
 import 'ai_result_screen.dart';
 import 'solution_screen.dart';
 
+import '../theme/app_theme.dart';
 // ═══════════════════════════════════════════════════════════════════════════════
 //  HistoryScreen — Çözümler (Modern Soft Design)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -31,6 +32,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
   String _loadingMessage  = '';
   bool _isSelecting       = false;
   final Set<String> _selectedIds = {};
+
+  // "Tümü" sekmesinde ders gruplarından hangisi "yanık" — yani başlığa
+  // basılarak vurgulanmış. Aynı anda en fazla bir tane yanık olabilir.
+  String? _litSubject;
 
   // ── Renk özelleştirme — diğer sayfalardakiyle aynı format ─────────────
   bool _showColorPicker = false;
@@ -241,13 +246,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
         margin: const EdgeInsets.all(12),
         padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.white,
+            color: AppPalette.card(context),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.08),
               blurRadius: 20,
-              offset: const Offset(0, 4),
+              offset: Offset(0, 4),
             ),
           ],
         ),
@@ -260,7 +265,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 width: 36, height: 4,
                 margin: const EdgeInsets.only(bottom: 8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE0E0E0),
+                  color: Color(0xFFE0E0E0),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -268,7 +273,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               _optionTile(
                 ctx: ctx,
                 icon: rec.isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
-                iconColor: const Color(0xFFF59E0B),
+                iconColor: Color(0xFFF59E0B),
                 label: rec.isFavorite ? localeService.tr('remove_favorite') : localeService.tr('add_favorite'),
                 subtitle: null,
                 onTap: () {
@@ -282,7 +287,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               _optionTile(
                 ctx: ctx,
                 icon: Icons.share_rounded,
-                iconColor: const Color(0xFF3B82F6),
+                iconColor: Color(0xFF3B82F6),
                 label: localeService.tr('share'),
                 subtitle: null,
                 onTap: () {
@@ -296,7 +301,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               _optionTile(
                 ctx: ctx,
                 icon: Icons.picture_as_pdf_rounded,
-                iconColor: const Color(0xFFEC4899),
+                iconColor: Color(0xFFEC4899),
                 label: localeService.tr('get_pdf'),
                 subtitle: null,
                 onTap: () {
@@ -310,7 +315,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               _optionTile(
                 ctx: ctx,
                 icon: Icons.replay_rounded,
-                iconColor: const Color(0xFF10B981),
+                iconColor: Color(0xFF10B981),
                 label: localeService.tr('resolve'),
                 subtitle: null,
                 onTap: () {
@@ -329,7 +334,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               _optionTile(
                 ctx: ctx,
                 icon: Icons.delete_rounded,
-                iconColor: const Color(0xFFEF4444),
+                iconColor: Color(0xFFEF4444),
                 label: localeService.tr('delete'),
                 subtitle: null,
                 onTap: () {
@@ -343,7 +348,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               _optionTile(
                 ctx: ctx,
                 icon: Icons.checklist_rounded,
-                iconColor: const Color(0xFF8B5CF6),
+                iconColor: Color(0xFF8B5CF6),
                 label: localeService.tr('bulk_delete'),
                 subtitle: null,
                 onTap: () {
@@ -352,7 +357,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 },
               ),
 
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
             ],
           ),
         ),
@@ -378,16 +383,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
         ),
         child: Icon(icon, color: iconColor, size: 18),
       ),
-      title: Text(label, style: const TextStyle(color: Color(0xFF333333), fontSize: 13, fontWeight: FontWeight.w600)),
+      title: Text(label, style: TextStyle(color: AppPalette.textPrimary(context), fontSize: 13, fontWeight: FontWeight.w600)),
       subtitle: subtitle != null
-          ? Text(subtitle, style: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 10))
+          ? Text(subtitle, style: TextStyle(color: AppPalette.textSecondary(context), fontSize: 10))
           : null,
       onTap: onTap,
     );
   }
 
   Widget _divider() => Divider(
-    color: const Color(0xFFF0F0F0),
+    color: Color(0xFFF0F0F0),
     height: 1,
     indent: 16,
     endIndent: 16,
@@ -413,23 +418,23 @@ class _HistoryScreenState extends State<HistoryScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: AppPalette.card(context),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
-        title: Text(localeService.tr('delete'), style: const TextStyle(color: Color(0xFF333333), fontSize: 16)),
+        title: Text(localeService.tr('delete'), style: TextStyle(color: AppPalette.textPrimary(context), fontSize: 16)),
         content: Text(
           localeService.tr('confirm_delete_solution'),
-          style: const TextStyle(color: Color(0xFF6B7280), fontSize: 13),
+          style: TextStyle(color: AppPalette.textSecondary(context), fontSize: 13),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text(localeService.tr('cancel'), style: const TextStyle(color: Color(0xFF9CA3AF))),
+            child: Text(localeService.tr('cancel'), style: TextStyle(color: AppPalette.textSecondary(context))),
           ),
           TextButton(
             onPressed: () { Navigator.pop(ctx); _delete(id); },
-            child: Text(localeService.tr('delete'), style: const TextStyle(color: Color(0xFFEF4444))),
+            child: Text(localeService.tr('delete'), style: TextStyle(color: Color(0xFFEF4444))),
           ),
         ],
       ),
@@ -448,8 +453,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
         maxChildSize: 0.92,
         expand: false,
         builder: (_, scrollCtrl) => Container(
-          decoration: const BoxDecoration(
-            color: Color(0xFFF7F7F9),
+          decoration: BoxDecoration(
+            color: AppPalette.bg(context),
             borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
           ),
           child: Column(
@@ -459,7 +464,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 width: 44, height: 4,
                 margin: const EdgeInsets.only(top: 10, bottom: 8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFD1D5DB),
+                  color: AppPalette.border(context),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -468,13 +473,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 padding: const EdgeInsets.fromLTRB(22, 6, 22, 4),
                 child: Row(
                   children: [
-                    const Icon(Icons.auto_awesome_rounded, color: Colors.black, size: 20),
-                    const SizedBox(width: 8),
+                    Icon(Icons.auto_awesome_rounded, color: AppPalette.textPrimary(context), size: 20),
+                    SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         localeService.tr('help_title'),
-                        style: const TextStyle(
-                          color: Colors.black,
+                        style: TextStyle(
+                          color: AppPalette.textPrimary(context),
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
                           letterSpacing: -0.3,
@@ -488,7 +493,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 padding: const EdgeInsets.fromLTRB(22, 0, 22, 10),
                 child: Text(
                   localeService.tr('help_subtitle'),
-                  style: const TextStyle(color: Colors.black54, fontSize: 12, height: 1.45),
+                  style: TextStyle(color: AppPalette.textSecondary(context), fontSize: 12, height: 1.45),
                 ),
               ),
 
@@ -499,43 +504,43 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   children: [
                     _HelpTile(
                       icon: Icons.auto_awesome_rounded,
-                      color: const Color(0xFF3B82F6),
+                      color: Color(0xFF3B82F6),
                       title: localeService.tr('help_auto_category_title'),
                       body: localeService.tr('help_auto_category_body'),
                     ),
                     _HelpTile(
                       icon: Icons.filter_list_rounded,
-                      color: const Color(0xFF8B5CF6),
+                      color: Color(0xFF8B5CF6),
                       title: localeService.tr('help_subject_filters_title'),
                       body: localeService.tr('help_subject_filters_body'),
                     ),
                     _HelpTile(
                       icon: Icons.image_rounded,
-                      color: const Color(0xFF10B981),
+                      color: Color(0xFF10B981),
                       title: localeService.tr('help_full_photo_title'),
                       body: localeService.tr('help_full_photo_body'),
                     ),
                     _HelpTile(
                       icon: Icons.star_rounded,
-                      color: const Color(0xFFF59E0B),
+                      color: Color(0xFFF59E0B),
                       title: localeService.tr('help_favorites_title'),
                       body: localeService.tr('help_favorites_body'),
                     ),
                     _HelpTile(
                       icon: Icons.touch_app_rounded,
-                      color: const Color(0xFFEC4899),
+                      color: Color(0xFFEC4899),
                       title: localeService.tr('help_long_press_title'),
                       body: localeService.tr('help_long_press_body'),
                     ),
                     _HelpTile(
                       icon: Icons.replay_rounded,
-                      color: const Color(0xFF06B6D4),
+                      color: Color(0xFF06B6D4),
                       title: localeService.tr('help_resolve_title'),
                       body: localeService.tr('help_resolve_body'),
                     ),
                     _HelpTile(
                       icon: Icons.lock_outline_rounded,
-                      color: const Color(0xFF64748B),
+                      color: Color(0xFF64748B),
                       title: localeService.tr('help_privacy_title'),
                       body: localeService.tr('help_privacy_body'),
                     ),
@@ -553,8 +558,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(msg, style: const TextStyle(color: Color(0xFF333333))),
-        backgroundColor: Colors.white,
+        content: Text(msg, style: TextStyle(color: AppPalette.textPrimary(context))),
+        backgroundColor: AppPalette.card(context),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
@@ -566,7 +571,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final subjects = _orderedSubjects;
 
     return Scaffold(
-      backgroundColor: _pageBgOverride ?? const Color(0xFFF0F2F5),
+      backgroundColor: _pageBgOverride ?? AppPalette.bg(context),
       body: SafeArea(
         child: SelectionArea(
         child: Stack(
@@ -583,7 +588,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       Align(
                         alignment: Alignment.centerLeft,
                         child: IconButton(
-                          icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF333333)),
+                          icon: Icon(Icons.arrow_back_rounded, color: AppPalette.textPrimary(context)),
                           onPressed: () {
                             if (_showFavoritesOnly) {
                               setState(() => _showFavoritesOnly = false);
@@ -596,7 +601,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       Text(
                         _showFavoritesOnly ? localeService.tr('my_favorites') : localeService.tr('solutions'),
                         style: GoogleFonts.inter(
-                          color: Colors.black,
+                          color: AppPalette.textPrimary(context),
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
                           letterSpacing: -0.3,
@@ -612,7 +617,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 10, vertical: 5),
                             decoration: BoxDecoration(
-                              gradient: const LinearGradient(
+                              gradient: LinearGradient(
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                                 colors: [
@@ -628,7 +633,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   color: Colors.black
                                       .withValues(alpha: 0.12),
                                   blurRadius: 8,
-                                  offset: const Offset(0, 2),
+                                  offset: Offset(0, 2),
                                 ),
                               ],
                             ),
@@ -642,7 +647,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   size: 14,
                                   color: Colors.white,
                                 ),
-                                const SizedBox(width: 5),
+                                SizedBox(width: 5),
                                 Text(
                                   _showColorPicker
                                       ? localeService.tr('close')
@@ -664,7 +669,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
                 if (_showColorPicker) _buildHistoryColorPanel(),
 
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
 
                 // ── Tümü pill (ortalı)  +  sağda (?) yardım + ⭐ favori ─────
                 Padding(
@@ -679,18 +684,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           GestureDetector(
                             onTap: () => setState(() => _selectedFilter = 'Tümü'),
                             child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
+                              duration: Duration(milliseconds: 200),
                               height: 44,
                               padding: const EdgeInsets.symmetric(horizontal: 26),
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
-                                color: Colors.white,
+            color: AppPalette.card(context),
                                 borderRadius: BorderRadius.circular(50),
                                 boxShadow: [
                                   BoxShadow(
                                     color: Colors.black.withValues(alpha: 0.06),
                                     blurRadius: 8,
-                                    offset: const Offset(0, 2),
+                                    offset: Offset(0, 2),
                                   ),
                                 ],
                               ),
@@ -699,7 +704,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 style: GoogleFonts.inter(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w700,
-                                  color: Colors.black,
+                                  color: AppPalette.textPrimary(context),
                                 ),
                               ),
                             ),
@@ -714,16 +719,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               GestureDetector(
                                 onTap: _showHelpSheet,
                                 behavior: HitTestBehavior.opaque,
-                                child: const SizedBox(
+                                child: SizedBox(
                                   width: 40, height: 44,
                                   child: Icon(
                                     Icons.help_outline_rounded,
-                                    color: Colors.black,
+                                    color: AppPalette.textPrimary(context),
                                     size: 26,
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 4),
+                              SizedBox(width: 4),
                               GestureDetector(
                                 onTap: () => setState(() {
                                   _showFavoritesOnly = !_showFavoritesOnly;
@@ -747,7 +752,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ),
                 ),
 
-                if (!_showFavoritesOnly) const SizedBox(height: 6),
+                if (!_showFavoritesOnly) SizedBox(height: 6),
 
                 // ── Ders filtreleri (Oval Beyaz Yapı) ─────────────────────────────────────────
                 if (!_showFavoritesOnly)
@@ -757,7 +762,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       itemCount: subjects.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 10),
+                      separatorBuilder: (_, __) => SizedBox(width: 10),
                       itemBuilder: (_, i) {
                         final f   = subjects[i];
                         final sel = _selectedFilter == f;
@@ -765,30 +770,30 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         return GestureDetector(
                           onTap: () => setState(() => _selectedFilter = f),
                           child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
+                            duration: Duration(milliseconds: 200),
                             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+            color: AppPalette.card(context),
                               borderRadius: BorderRadius.circular(50),
                               boxShadow: [
                                 BoxShadow(
                                   color: Colors.black.withValues(alpha: sel ? 0.10 : 0.06),
                                   blurRadius: sel ? 12 : 8,
-                                  offset: const Offset(0, 2),
+                                  offset: Offset(0, 2),
                                 ),
                               ],
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(_emojiFor(f), style: const TextStyle(fontSize: 16)),
-                                const SizedBox(width: 8),
+                                Text(_emojiFor(f), style: TextStyle(fontSize: 16)),
+                                SizedBox(width: 8),
                                 Text(
                                   cnt > 0 ? '${_trSubject(f)}  $cnt' : _trSubject(f),
                                   style: GoogleFonts.inter(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
-                                    color: sel ? Colors.black : const Color(0xFF6B7280),
+                                    color: sel ? Colors.black : Color(0xFF6B7280),
                                   ),
                                 ),
                               ],
@@ -799,8 +804,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     ),
                   ),
 
-                if (!_showFavoritesOnly) const SizedBox(height: 6),
-                if (_showFavoritesOnly) const SizedBox(height: 6),
+                if (!_showFavoritesOnly) SizedBox(height: 6),
+                if (_showFavoritesOnly) SizedBox(height: 6),
 
                 // ── Toplu seçim banner ──────────────────────────────────────
                 if (_isSelecting)
@@ -809,26 +814,26 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEF4444).withValues(alpha: 0.10),
+                        color: Color(0xFFEF4444).withValues(alpha: 0.10),
                         borderRadius: BorderRadius.circular(50),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.06),
                             blurRadius: 8,
-                            offset: const Offset(0, 2),
+                            offset: Offset(0, 2),
                           ),
                         ],
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.checklist_rounded, color: Color(0xFFEF4444), size: 18),
-                          const SizedBox(width: 8),
+                          Icon(Icons.checklist_rounded, color: Color(0xFFEF4444), size: 18),
+                          SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               _selectedIds.isEmpty
                                   ? localeService.tr('select_to_delete')
                                   : '${_selectedIds.length} ${localeService.tr('selected')}',
-                              style: const TextStyle(color: Color(0xFF333333), fontSize: 13, fontWeight: FontWeight.w600),
+                              style: TextStyle(color: AppPalette.textPrimary(context), fontSize: 13, fontWeight: FontWeight.w600),
                             ),
                           ),
                           if (_selectedIds.isNotEmpty)
@@ -836,32 +841,32 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               onTap: () => showDialog(
                                 context: context,
                                 builder: (ctx) => AlertDialog(
-                                  backgroundColor: Colors.white,
+                                  backgroundColor: AppPalette.card(context),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                  title: Text(localeService.tr('bulk_delete'), style: const TextStyle(color: Color(0xFF333333), fontSize: 16)),
+                                  title: Text(localeService.tr('bulk_delete'), style: TextStyle(color: AppPalette.textPrimary(context), fontSize: 16)),
                                   content: Text(
                                     '${_selectedIds.length} ${localeService.tr('confirm_bulk_delete')}',
-                                    style: const TextStyle(color: Color(0xFF6B7280), fontSize: 13),
+                                    style: TextStyle(color: AppPalette.textSecondary(context), fontSize: 13),
                                   ),
                                   actions: [
-                                    TextButton(onPressed: () => Navigator.pop(ctx), child: Text(localeService.tr('cancel'), style: const TextStyle(color: Color(0xFF9CA3AF)))),
-                                    TextButton(onPressed: () { Navigator.pop(ctx); _deleteSelected(); }, child: Text(localeService.tr('delete'), style: const TextStyle(color: Color(0xFFEF4444)))),
+                                    TextButton(onPressed: () => Navigator.pop(ctx), child: Text(localeService.tr('cancel'), style: TextStyle(color: AppPalette.textSecondary(context)))),
+                                    TextButton(onPressed: () { Navigator.pop(ctx); _deleteSelected(); }, child: Text(localeService.tr('delete'), style: TextStyle(color: Color(0xFFEF4444)))),
                                   ],
                                 ),
                               ),
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                                  color: Color(0xFFEF4444).withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(20),
                                 ),
-                                child: Text(localeService.tr('delete'), style: const TextStyle(color: Color(0xFFEF4444), fontSize: 12, fontWeight: FontWeight.w700)),
+                                child: Text(localeService.tr('delete'), style: TextStyle(color: Color(0xFFEF4444), fontSize: 12, fontWeight: FontWeight.w700)),
                               ),
                             ),
-                          const SizedBox(width: 8),
+                          SizedBox(width: 8),
                           GestureDetector(
                             onTap: _exitSelectMode,
-                            child: const Icon(Icons.close_rounded, color: Color(0xFF9CA3AF), size: 18),
+                            child: Icon(Icons.close_rounded, color: AppPalette.textSecondary(context), size: 18),
                           ),
                         ],
                       ),
@@ -888,7 +893,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+            color: AppPalette.card(context),
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
@@ -900,11 +905,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const CircularProgressIndicator(color: Color(0xFF3B82F6), strokeWidth: 2.5),
-                            const SizedBox(height: 16),
+                            CircularProgressIndicator(color: Color(0xFF3B82F6), strokeWidth: 2.5),
+                            SizedBox(height: 16),
                             Text(
                               _loadingMessage,
-                              style: const TextStyle(color: Color(0xFF333333), fontSize: 13, fontWeight: FontWeight.w500),
+                              style: TextStyle(color: AppPalette.textPrimary(context), fontSize: 13, fontWeight: FontWeight.w500),
                             ),
                           ],
                         ),
@@ -925,10 +930,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
     // Filtre spesifik bir ders seçmişse düz liste göster.
     if (_selectedFilter != 'Tümü' || _showFavoritesOnly) {
       return ListView.separated(
-        physics: const BouncingScrollPhysics(),
+        physics: BouncingScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(0, 0, 0, 24),
         itemCount: _filtered.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        separatorBuilder: (_, __) => SizedBox(height: 12),
         itemBuilder: (_, i) => _cardFor(_filtered[i]),
       );
     }
@@ -943,15 +948,22 @@ class _HistoryScreenState extends State<HistoryScreen> {
       ..sort((a, b) => groups[b]!.length.compareTo(groups[a]!.length));
 
     return ListView(
-      physics: const BouncingScrollPhysics(),
+      physics: BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(0, 0, 0, 24),
       children: [
         for (final subject in keys)
           _SubjectGroup(
             subject: _trSubject(subject),
+            rawSubject: subject,
             emoji: _emojiFor(subject),
             records: groups[subject]!,
             cardBuilder: _cardFor,
+            isLit: _litSubject == subject,
+            onHeaderTap: () => setState(() {
+              // Aynı sekmeye tekrar basıldığında yanık halini kaldır
+              // (toggle); başkasına basılırsa onu yak, eskisini söndür.
+              _litSubject = (_litSubject == subject) ? null : subject;
+            }),
           ),
       ],
     );
@@ -1000,35 +1012,35 @@ class _HistoryScreenState extends State<HistoryScreen> {
           Icon(
             isFavorites ? Icons.star_border_rounded : Icons.inbox_rounded,
             size: 52,
-            color: const Color(0xFF9CA3AF).withValues(alpha: 0.50),
+            color: AppPalette.textSecondary(context).withValues(alpha: 0.50),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           Text(
             isFavorites
                 ? localeService.tr('empty_favorites')
                 : isFiltered
                     ? localeService.tr('empty_category')
                     : localeService.tr('empty_solutions'),
-            style: const TextStyle(color: Color(0xFF6B7280), fontSize: 14),
+            style: TextStyle(color: AppPalette.textSecondary(context), fontSize: 14),
           ),
           if (isFavorites) ...[
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             Text(
               localeService.tr('empty_favorites_hint'),
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Color(0xFF9CA3AF),
+              style: TextStyle(
+                color: AppPalette.textSecondary(context),
                 fontSize: 12,
                 height: 1.5,
               ),
             ),
           ] else if (!isFiltered) ...[
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             Text(
               localeService.tr('empty_solutions_hint'),
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Color(0xFF9CA3AF),
+              style: TextStyle(
+                color: AppPalette.textSecondary(context),
                 fontSize: 12,
                 height: 1.5,
               ),
@@ -1061,14 +1073,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
       margin: const EdgeInsets.fromLTRB(16, 6, 16, 6),
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+            color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black, width: 1.1),
+        border: Border.all(color: AppPalette.textPrimary(context), width: 1.1),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 14,
-            offset: const Offset(0, 4),
+            offset: Offset(0, 4),
           ),
         ],
       ),
@@ -1077,23 +1089,23 @@ class _HistoryScreenState extends State<HistoryScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.palette_rounded, size: 16, color: Colors.black),
-              const SizedBox(width: 6),
+              Icon(Icons.palette_rounded, size: 16, color: Colors.black),
+              SizedBox(width: 6),
               Text('Renk',
                   style: GoogleFonts.poppins(
                       fontSize: 13,
                       fontWeight: FontWeight.w900,
                       color: Colors.black)),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               Expanded(child: _historyModeToggle(orange)),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               GestureDetector(
                 onTap: _resetHistoryColors,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF3F4F6),
+                    color: AppPalette.cardMuted(context),
                     borderRadius: BorderRadius.circular(100),
                     border: Border.all(color: Colors.black12),
                   ),
@@ -1106,24 +1118,24 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           _historyTargetToggle(orange),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Text(
             'Renge bas ya da sürükleyip istediğin yere bırak.',
             style: GoogleFonts.poppins(
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
-                color: Colors.black54,
+                color: AppPalette.textSecondary(context),
                 height: 1.3),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           SizedBox(
             height: 76,
             child: GridView.builder(
               scrollDirection: Axis.horizontal,
               gridDelegate:
-                  const SliverGridDelegateWithFixedCrossAxisCount(
+                  SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
                 mainAxisSpacing: 6,
                 crossAxisSpacing: 6,
@@ -1146,12 +1158,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
         child: GestureDetector(
           onTap: () => setState(() => _colorMode = id),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 140),
+            duration: Duration(milliseconds: 140),
             padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 6),
             decoration: BoxDecoration(
               color: active
                   ? orange.withValues(alpha: 0.12)
-                  : const Color(0xFFF9FAFB),
+                  : Color(0xFFF9FAFB),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: active ? orange : Colors.black,
@@ -1165,7 +1177,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 if (icon != null) ...[
                   Icon(icon,
                       size: 13, color: active ? orange : Colors.black),
-                  const SizedBox(width: 5),
+                  SizedBox(width: 5),
                 ],
                 Flexible(
                   child: Text(
@@ -1189,7 +1201,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return Row(
       children: [
         box('text', null, 'Yazı'),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         box('frame', Icons.crop_square_rounded, 'Çerçeve'),
       ],
     );
@@ -1207,7 +1219,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             decoration: BoxDecoration(
               color: active
                   ? orange.withValues(alpha: 0.12)
-                  : const Color(0xFFF3F4F6),
+                  : Color(0xFFF3F4F6),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: active ? orange : Colors.black12,
@@ -1232,7 +1244,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return Row(
       children: [
         chip('bg', 'Arka plan'),
-        const SizedBox(width: 6),
+        SizedBox(width: 6),
         chip('cards', 'Kartlar'),
       ],
     );
@@ -1272,7 +1284,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       decoration: BoxDecoration(
         color: c,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.black26, width: 1),
+        border: Border.all(color: AppPalette.border(context), width: 1),
       ),
     );
   }
@@ -1303,9 +1315,9 @@ class _HistoryCard extends StatelessWidget {
 
   static ({IconData icon, Color color, String label}) _modeInfo(String type) {
     return switch (type) {
-      'Adım Adım Çöz'  => (icon: Icons.stairs_rounded,  color: const Color(0xFF3B82F6), label: localeService.tr('mode_step_by_step')),
-      'AI Öğretmen' || 'AI Arkadaşım' => (icon: Icons.school_rounded, color: const Color(0xFF8B5CF6), label: localeService.tr('mode_ai_teacher')),
-      _                => (icon: Icons.bolt_rounded,     color: const Color(0xFFF59E0B), label: localeService.tr('mode_quick_solve')),
+      'Adım Adım Çöz'  => (icon: Icons.stairs_rounded,  color: Color(0xFF3B82F6), label: localeService.tr('mode_step_by_step')),
+      'AI Öğretmen' || 'AI Arkadaşım' => (icon: Icons.school_rounded, color: Color(0xFF8B5CF6), label: localeService.tr('mode_ai_teacher')),
+      _                => (icon: Icons.bolt_rounded,     color: Color(0xFFF59E0B), label: localeService.tr('mode_quick_solve')),
     };
   }
 
@@ -1317,7 +1329,7 @@ class _HistoryCard extends StatelessWidget {
     final dateStr = _formatDate(record.timestamp);
     final model   = record.modelName.isEmpty ? 'QuAlsar' : record.modelName;
 
-    final bgColor = customBg ?? const Color(0xFFE9ECEF);
+    final bgColor = customBg ?? Color(0xFFE9ECEF);
     final lum = 0.299 * bgColor.r + 0.587 * bgColor.g + 0.114 * bgColor.b;
     final isDark = lum < 0.55;
     final textColor =
@@ -1329,7 +1341,7 @@ class _HistoryCard extends StatelessWidget {
       onLongPress: onLongPress,
       child: AnimatedContainer(
         // Renk değişimi anlık hissetsin diye animasyon süresi kısa.
-        duration: const Duration(milliseconds: 60),
+        duration: Duration(milliseconds: 60),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           // Soft gri kart arka planı (varsayılan) veya kullanıcı özelleştirmesi.
@@ -1339,7 +1351,7 @@ class _HistoryCard extends StatelessWidget {
             BoxShadow(
               color: Colors.black.withValues(alpha: isSelected ? 0.14 : 0.06),
               blurRadius: isSelected ? 14 : 8,
-              offset: const Offset(0, 3),
+              offset: Offset(0, 3),
             ),
           ],
         ),
@@ -1366,7 +1378,7 @@ class _HistoryCard extends StatelessWidget {
 
                 // Favori yıldız — sağ üst (kart içinde)
                 if (record.isFavorite)
-                  const Positioned(
+                  Positioned(
                     top: 10,
                     right: 10,
                     child: Icon(Icons.star_rounded, color: Colors.yellow, size: 22),
@@ -1378,22 +1390,22 @@ class _HistoryCard extends StatelessWidget {
                     bottom: 10,
                     right: 10,
                     child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
+                      duration: Duration(milliseconds: 180),
                       width: 26, height: 26,
                       decoration: BoxDecoration(
-                        color: isSelected ? const Color(0xFFEF4444) : Colors.black.withValues(alpha: 0.55),
+                        color: isSelected ? Color(0xFFEF4444) : Colors.black.withValues(alpha: 0.55),
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 2),
                       ),
                       child: isSelected
-                          ? const Icon(Icons.check, color: Colors.white, size: 14)
+                          ? Icon(Icons.check, color: Colors.white, size: 14)
                           : null,
                     ),
                   ),
               ],
             ),
 
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
 
             // ── Mikro bilgi satırı — ders · yöntem · AI · saat ───────
             // Wrap kullanıyoruz; dar ekranda 4 atom tek satıra sığmazsa
@@ -1463,16 +1475,16 @@ String _formatDate(DateTime dt) {
 
 Color _colorFor(String subject) {
   return switch (subject) {
-    'Matematik' => const Color(0xFF3B82F6),
-    'Fizik'     => const Color(0xFF8B5CF6),
-    'Kimya'     => const Color(0xFFEC4899),
-    'Biyoloji'  => const Color(0xFF10B981),
-    'Coğrafya'  => const Color(0xFF06B6D4),
-    'Tarih'     => const Color(0xFFF59E0B),
-    'Edebiyat'  => const Color(0xFFEF4444),
-    'Felsefe'   => const Color(0xFF6366F1),
-    'İngilizce' => const Color(0xFF14B8A6),
-    _           => const Color(0xFF9CA3AF),
+    'Matematik' => Color(0xFF3B82F6),
+    'Fizik'     => Color(0xFF8B5CF6),
+    'Kimya'     => Color(0xFFEC4899),
+    'Biyoloji'  => Color(0xFF10B981),
+    'Coğrafya'  => Color(0xFF06B6D4),
+    'Tarih'     => Color(0xFFF59E0B),
+    'Edebiyat'  => Color(0xFFEF4444),
+    'Felsefe'   => Color(0xFF6366F1),
+    'İngilizce' => Color(0xFF14B8A6),
+    _           => Color(0xFF9CA3AF),
   };
 }
 
@@ -1511,7 +1523,7 @@ class _InfoAtom extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, color: color, size: 12),
-          const SizedBox(width: 3),
+          SizedBox(width: 3),
           Flexible(
             child: Text(
               label,
@@ -1539,8 +1551,8 @@ class _InfoDot extends StatelessWidget {
     return Container(
       width: 3, height: 3,
       margin: const EdgeInsets.symmetric(horizontal: 6),
-      decoration: const BoxDecoration(
-        color: Colors.black45,
+      decoration: BoxDecoration(
+        color: AppPalette.textSecondary(context),
         shape: BoxShape.circle,
       ),
     );
@@ -1551,30 +1563,53 @@ class _InfoDot extends StatelessWidget {
 
 class _SubjectGroup extends StatelessWidget {
   final String subject;
+  // Renk + çeviri anahtarı eşlemeleri için ham (çevrilmemiş) ders adı
+  // — "subject" UI'da görünen çevrilmiş etikettir.
+  final String rawSubject;
   final String emoji;
   final List<SolutionRecord> records;
   final Widget Function(SolutionRecord) cardBuilder;
+  // Bu grup şu anda "yanık" — başlığa basılarak vurgulanmış mı.
+  // Yanıkken: ders rengi belirgin çerçeve + glow gölgesi + soft tinted bg.
+  final bool isLit;
+  // Başlığa (leading + title alanı) tek dokunuşla yanık-söndür toggle.
+  final VoidCallback? onHeaderTap;
 
   const _SubjectGroup({
     required this.subject,
+    required this.rawSubject,
     required this.emoji,
     required this.records,
     required this.cardBuilder,
+    this.isLit = false,
+    this.onHeaderTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final color = _colorFor(subject);
-    return Container(
+    final color = _colorFor(rawSubject);
+    return AnimatedContainer(
+      duration: Duration(milliseconds: 220),
+      curve: Curves.easeOut,
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        // Yanık iken hafifçe ders renginin tonu çıksın.
+        color: isLit
+            ? Color.alphaBlend(color.withValues(alpha: 0.06), Colors.white)
+            : Colors.white,
         borderRadius: BorderRadius.circular(8),
+        // Yanık → ders rengiyle 1.6 px belirgin çerçeve. Söndük → çerçevesiz.
+        border: isLit
+            ? Border.all(color: color, width: 1.6)
+            : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+            color: isLit
+                ? color.withValues(alpha: 0.32)
+                : Colors.black.withValues(alpha: 0.05),
+            blurRadius: isLit ? 18 : 10,
+            spreadRadius: isLit ? 0.5 : 0,
+            offset: Offset(0, 2),
           ),
         ],
       ),
@@ -1587,29 +1622,33 @@ class _SubjectGroup extends StatelessWidget {
         ),
         child: ExpansionTile(
           initiallyExpanded: true,
-          tilePadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
-          childrenPadding: const EdgeInsets.only(bottom: 12),
-          iconColor: Colors.black,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+          childrenPadding: const EdgeInsets.only(bottom: 10),
+          iconColor: isLit ? color : Colors.black,
           collapsedIconColor: Colors.black54,
+          // Açma/kapamada da yanık halini güncelle — kullanıcı başlığa
+          // bastığında ExpansionTile genişler, bu callback ile aynı anda
+          // yanık state'i toggle eder.
+          onExpansionChanged: (_) => onHeaderTap?.call(),
           leading: Container(
-            width: 40,
-            height: 40,
+            width: 32,
+            height: 32,
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(12),
+              color: color.withValues(alpha: isLit ? 0.22 : 0.14),
+              borderRadius: BorderRadius.circular(10),
             ),
             alignment: Alignment.center,
-            child: Text(emoji, style: const TextStyle(fontSize: 20)),
+            child: Text(emoji, style: TextStyle(fontSize: 16)),
           ),
           title: Text(
-            _HistoryScreenState._subjectKeys.containsKey(subject)
-                ? localeService.tr(_HistoryScreenState._subjectKeys[subject]!)
+            _HistoryScreenState._subjectKeys.containsKey(rawSubject)
+                ? localeService.tr(_HistoryScreenState._subjectKeys[rawSubject]!)
                 : subject,
             style: GoogleFonts.inter(
-              color: Colors.black87,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              letterSpacing: 0.1,
+              color: isLit ? color : Colors.black87,
+              fontSize: 12.5,
+              fontWeight: isLit ? FontWeight.w700 : FontWeight.w500,
+              letterSpacing: 0,
             ),
           ),
           subtitle: Padding(
@@ -1617,8 +1656,8 @@ class _SubjectGroup extends StatelessWidget {
             child: Text(
               '${records.length} ${localeService.tr('solution_count')}',
               style: GoogleFonts.inter(
-                color: Colors.black38,
-                fontSize: 10,
+                color: AppPalette.textSecondary(context),
+                fontSize: 9.5,
                 fontWeight: FontWeight.w400,
               ),
             ),
@@ -1653,13 +1692,13 @@ class _HelpTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+            color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
-            offset: const Offset(0, 2),
+            offset: Offset(0, 2),
           ),
         ],
       ),
@@ -1674,24 +1713,24 @@ class _HelpTile extends StatelessWidget {
             ),
             child: Icon(icon, color: color, size: 20),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    color: Colors.black,
+                  style: TextStyle(
+                    color: AppPalette.textPrimary(context),
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                const SizedBox(height: 3),
+                SizedBox(height: 3),
                 Text(
                   body,
-                  style: const TextStyle(
-                    color: Colors.black54,
+                  style: TextStyle(
+                    color: AppPalette.textSecondary(context),
                     fontSize: 12,
                     height: 1.4,
                     fontWeight: FontWeight.w500,

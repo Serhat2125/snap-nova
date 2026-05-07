@@ -31,6 +31,7 @@ import '../services/usage_quota.dart';
 import '../services/voice_input_service.dart';
 import '../widgets/latex_text.dart';
 
+import '../theme/app_theme.dart';
 // ─── Const renkler (build içinde Color allocation yapmamak için) ──────────
 const _kBlue1 = Color(0xFF1E90FF);
 const _kBlue2 = Color(0xFF00BFFF);
@@ -72,6 +73,8 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
   bool _listening = false;
   final ValueNotifier<double> _voiceLevel = ValueNotifier(0);
   final ValueNotifier<String> _liveTranscript = ValueNotifier('');
+  // Voice level throttling — STT 30Hz veriyor, biz 10Hz'e indiriyoruz.
+  int _lastVoiceLevelEmit = 0;
 
   // Conversation
   bool _thinking = false;
@@ -97,15 +100,15 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
     super.initState();
     _wave = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 6),
+      duration: Duration(seconds: 6),
     );
     _pulse = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1100),
+      duration: Duration(milliseconds: 1100),
     );
     _logoRot = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 22), // yavaş, premium
+      duration: Duration(seconds: 22), // yavaş, premium
     );
     // Servis init + animasyonları async başlat — initState bloklanmasın.
     Future.microtask(() async {
@@ -113,6 +116,7 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
       _wave.repeat();
       _pulse.repeat(reverse: true);
       _logoRot.repeat();
+      // VoiceInputService callback API kaldırıldı; init yeterli.
       await VoiceInputService.init();
       await TtsService.init();
     });
@@ -127,12 +131,20 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
         _cam = null;
         _camReady = false;
         _camActive = false;
+        // Mod değişimi: önceki moddan kalan mesajlar yeni moda taşmasın.
+        _messages.clear();
+        _liveTranscript.value = '';
       });
       // dispose'u arka planda yap → UI bloklanmasın.
       unawaited(Future(() async => await old?.dispose()));
       return;
     }
-    setState(() => _camOpening = true);
+    // Kamera açılıyor → varsa eski sesli mod mesajlarını da temizle.
+    setState(() {
+      _camOpening = true;
+      _messages.clear();
+      _liveTranscript.value = '';
+    });
     try {
       List<CameraDescription> cams = globalCameras;
       if (cams.isEmpty) {
@@ -214,8 +226,10 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
     // girince hızla algılar, gereksiz bekleme yapmaz.
     final started = await VoiceInputService.start(
       localeId: localeId,
-      pauseFor: const Duration(milliseconds: 2500),
-      listenFor: const Duration(seconds: 90),
+      // pauseFor 2500 → 1500 ms: kullanıcı konuşmayı bitirir bitirmez
+      // ~1.5 sn'de final algılanır, AI çağrısı daha erken tetiklenir.
+      pauseFor: Duration(milliseconds: 1500),
+      listenFor: Duration(seconds: 90),
       onResult: (text, isFinal) {
         if (!mounted) return;
         _liveTranscript.value = text;
@@ -225,6 +239,13 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
       },
       onLevel: (lvl) {
         if (!mounted) return;
+        // Throttle: 30Hz STT callback'lerini ~10Hz'e indir → animasyon
+        // hâlâ akıcı, ama notifyListeners 3 kat azalır.
+        final now = DateTime.now().millisecondsSinceEpoch;
+        if (now - _lastVoiceLevelEmit < 100) return;
+        _lastVoiceLevelEmit = now;
+        // Sadece anlamlı değişimde yay (smoothing).
+        if ((lvl - _voiceLevel.value).abs() < 0.02) return;
         _voiceLevel.value = lvl;
       },
     );
@@ -241,8 +262,17 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
     setState(() => _listening = false);
     _voiceLevel.value = 0;
     _liveTranscript.value = '';
-    if (sendIfText && liveText.trim().isNotEmpty) {
-      _onSpeechFinished(liveText);
+    if (sendIfText) {
+      if (liveText.trim().isNotEmpty) {
+        _onSpeechFinished(liveText);
+      } else {
+        // Kullanıcı mic'e bastı durdurdu ama hiçbir şey transkript edilemedi
+        // — STT konuşmayı yakalayamadığı için kullanıcı "çalışmıyor" hissetir.
+        // Görünür uyarı: sebebi söyle, manuel olarak yeniden denemesini iste.
+        _showSnack(
+            'Konuşman algılanamadı. Tekrar dene — biraz yüksek sesle ve mikrofon yakınında konuş.'
+                .tr());
+      }
     }
   }
 
@@ -258,8 +288,8 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
     final text = _textCtrl.text.trim();
     if (text.isEmpty) return;
     _textCtrl.clear();
-    setState(() => _chatPanelOpen = false);
-    FocusScope.of(context).unfocus();
+    // Sohbet paneli AÇIK kalır + KLAVYE de açık kalır — kullanıcı arka
+    // arkaya yazabilsin. Klavye sadece geri tuşuna basınca kapatılır.
     await _sendUserMessage(text);
   }
 
@@ -287,7 +317,7 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
 
     // 5sn'den uzun sürerse yavaş bağlantı bildirimi göster.
     _slowConnTimer?.cancel();
-    _slowConnTimer = Timer(const Duration(seconds: 5), () {
+    _slowConnTimer = Timer(Duration(seconds: 5), () {
       if (mounted && _thinking) {
         setState(() => _slowConnection = true);
       }
@@ -352,7 +382,29 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
       }
       // Final flush
       if (!mounted) return;
-      final cleaned = _stripMediaSuggestions(buffer.toString());
+      _slowConnTimer?.cancel();
+      final raw = buffer.toString().trim();
+      // Stream hiç chunk vermeden kapandı → Gemini "boş response" döndü.
+      // Sessiz kalmak yerine kullanıcıya açık bir mesaj göster ki AI'nın
+      // yanıt vermediğini anlasın (ağ/quota/key sorunu vb.).
+      if (raw.isEmpty) {
+        setState(() {
+          _thinking = false;
+          _slowConnection = false;
+          if (_messages.isNotEmpty && _messages.last.pending) {
+            _messages.removeLast();
+          }
+          _messages.add(_ChatMsg(
+            role: 'ai',
+            text:
+                'Şu an cevap üretilemedi. İnternet bağlantını ve günlük çözüm sınırını kontrol et, sonra tekrar dene.'
+                    .tr(),
+          ));
+        });
+        _scrollToBottom();
+        return;
+      }
+      final cleaned = _stripMediaSuggestions(raw);
       setState(() {
         _thinking = false;
         _slowConnection = false;
@@ -363,31 +415,46 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
       });
       _scrollToBottom();
 
-      // TTS — TÜM cevabı oku, kesme yok. Strip arka planda.
-      final ttsRaw = await compute(_stripForTtsCompute, cleaned);
-      await TtsService.speak(ttsRaw, langCode: localeService.localeCode);
+      // TTS — sohbet (yazılı) modunda sesli anlatım YOK; yalnız sesli/
+      // kamera modunda AI cevabı sesli okunur.
+      if (!_chatPanelOpen) {
+        final ttsRaw = await compute(_stripForTtsCompute, cleaned);
+        await TtsService.speak(ttsRaw, langCode: localeService.localeCode);
+      }
     } on GeminiException catch (e) {
       if (!mounted) return;
       _slowConnTimer?.cancel();
+      // Hata mesajı + (varsa) ham HTTP detayı — debug için kullanıcı sebebi
+      // görebilsin. Ham detay yoksa sadece userMessage gösterilir.
+      final detail = e.rawError;
+      final fullMsg = detail.isEmpty
+          ? e.userMessage
+          : '${e.userMessage}\n\nDetay: $detail';
       setState(() {
         _thinking = false;
         _slowConnection = false;
         if (_messages.isNotEmpty && _messages.last.pending) {
           _messages.removeLast();
         }
-        _messages.add(_ChatMsg(role: 'ai', text: e.userMessage));
+        _messages.add(_ChatMsg(role: 'ai', text: fullMsg));
       });
       _scrollToBottom();
-    } catch (e) {
+    } catch (e, stack) {
       if (!mounted) return;
       _slowConnTimer?.cancel();
+      // Yakalanmamış istisna — stack trace'in ilk satırını da göster
+      // (debug yardımı). Production'da stack kırpılabilir.
+      final stackHead = stack.toString().split('\n').take(2).join('\n');
       setState(() {
         _thinking = false;
         _slowConnection = false;
         if (_messages.isNotEmpty && _messages.last.pending) {
           _messages.removeLast();
         }
-        _messages.add(_ChatMsg(role: 'ai', text: e.toString()));
+        _messages.add(_ChatMsg(
+          role: 'ai',
+          text: 'Hata: $e\n\n$stackHead',
+        ));
       });
       _scrollToBottom();
     }
@@ -398,7 +465,7 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
       if (!_chatScroll.hasClients) return;
       _chatScroll.animateTo(
         _chatScroll.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 240),
+        duration: Duration(milliseconds: 240),
         curve: Curves.easeOut,
       );
     });
@@ -426,7 +493,7 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
-      duration: const Duration(seconds: 2),
+      duration: Duration(seconds: 2),
     ));
   }
 
@@ -460,44 +527,37 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
   @override
   Widget build(BuildContext context) {
     final chatMode = _chatPanelOpen;
+    final dark = AppPalette.isDark(context);
     return Scaffold(
-      // Sohbet: dış kirli beyaz #F5F5F5, içerideki çerçeve parlak beyaz.
-      // Diğer mod: siyah (kamera/dalga arka plan).
-      backgroundColor: chatMode ? const Color(0xFFF5F5F5) : Colors.black,
+      // Sohbet (chat panel): aydınlık modda kirli beyaz #F5F5F5; karanlık
+      // modda saf siyah (blackout). Diğer mod: zaten siyah.
+      backgroundColor: chatMode
+          ? (dark ? Colors.black : const Color(0xFFF5F5F5))
+          : Colors.black,
       resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
-          // 1. Kamera arka plan — sohbet açıkken HİÇ render etme.
-          if (!chatMode && _camActive && _camReady && _cam != null)
-            Positioned.fill(
-              child: RepaintBoundary(
-                child: _CameraBackground(controller: _cam!),
-              ),
-            )
-          else if (!chatMode)
-            const Positioned.fill(child: ColoredBox(color: Colors.black)),
-
-          // 2. Karartma — sadece kamera açık + sohbet kapalı.
-          if (!chatMode && _camActive)
+          // 1. Arka plan — kamera modunda saf siyah (kamera artık centerArea
+          // içinde yuvarlak kart olarak render ediliyor, full-bleed değil).
+          if (!chatMode && !_camActive)
             const Positioned.fill(
-              child: ColoredBox(color: Color(0x26000000)),
+              child: RepaintBoundary(child: _GalaxyBackground()),
             ),
 
-          // 3. Dalga — sohbet açıkken render etme (CPU tasarrufu).
-          if (!chatMode)
+          // 2. Dalga — kamera modunda gizli (üst+alt siyah kalsın).
+          //    Sohbet veya kamera kapalı modda render edilir.
+          if (!chatMode && !_camActive)
             Positioned(
               left: 0,
               right: 0,
               bottom: 0,
-              height: _camActive
-                  ? 110
-                  : MediaQuery.of(context).size.height * 0.42,
+              height: MediaQuery.of(context).size.height * 0.42,
               child: RepaintBoundary(
                 child: _WaveLayer(
                   wave: _wave,
                   voiceLevel: _voiceLevel,
                   thinking: _thinking,
-                  compact: _camActive,
+                  compact: false,
                 ),
               ),
             ),
@@ -545,18 +605,46 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
     if (chatMode) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(8, 12, 8, 8),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Stack(
+          alignment: Alignment.center,
           children: [
-            const Icon(Icons.auto_awesome_rounded,
-                color: Color(0xFFFFB800), size: 20),
-            const SizedBox(width: 8),
+            // Sol üstte geri tuşu — basınca sohbet panelini kapatır,
+            // kullanıcıyı kamera/ses/mesaj butonlarının olduğu sesli moda
+            // döndürür.
+            Align(
+              alignment: Alignment.centerLeft,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  FocusScope.of(context).unfocus();
+                  setState(() {
+                    _chatPanelOpen = false;
+                    _messages.clear();
+                    _liveTranscript.value = '';
+                  });
+                },
+                child: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppPalette.card(context),
+                    border: Border.all(
+                        color: AppPalette.border(context), width: 0.6),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(Icons.arrow_back_rounded,
+                      size: 20,
+                      color: AppPalette.textPrimary(context)),
+                ),
+              ),
+            ),
             RichText(
               text: TextSpan(
                 style: GoogleFonts.poppins(
                   fontSize: 22,
                   fontWeight: FontWeight.w800,
-                  color: Colors.black,
+                  color: AppPalette.textPrimary(context),
                   letterSpacing: 0.5,
                 ),
                 children: const [
@@ -575,18 +663,10 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
     }
 
     // Normal mod: pause + dönen logo + transkript toggle.
-    // Kamera açıkken header'a hafif karartma → metinler okunaklı.
+    // Üst bar arka planı her zaman saf siyah (Scaffold bg'den geliyor) —
+    // kamera artık full-bleed değil, gradient'e gerek yok.
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
-      decoration: _camActive
-          ? const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0x99000000), Color(0x00000000)],
-              ),
-            )
-          : null,
       child: Row(
         children: [
           _topIconButton(
@@ -594,7 +674,7 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
             onTap: _togglePause,
             active: _paused,
           ),
-          const Spacer(),
+          Spacer(),
           // Sade header: sadece QuAlsar yazısı (Al kırmızı). Ekstra
           // ikon/logo yok — pause solda, transkript toggle sağda.
           RichText(
@@ -615,7 +695,7 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
               ],
             ),
           ),
-          const Spacer(),
+          Spacer(),
           _topIconButton(
             icon: _showTranscript
                 ? Icons.subtitles_rounded
@@ -644,12 +724,12 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
         height: 38,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: active ? const Color(0x2EFFFFFF) : const Color(0x0FFFFFFF),
+          color: active ? Color(0x2EFFFFFF) : Color(0x0FFFFFFF),
         ),
         alignment: Alignment.center,
         child: Icon(
           icon,
-          color: active ? Colors.white : const Color(0xD9FFFFFF),
+          color: active ? Colors.white : Color(0xD9FFFFFF),
           size: 20,
         ),
       ),
@@ -657,6 +737,91 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
   }
 
   Widget _centerArea() {
+    final cameraOn = _camActive;
+    // Kamera modu: kamera kartı her zaman görünür; transkript butonu
+    // şeffaf yuvarlak paneli kameranın altında, butonların hemen üstünde
+    // gösterir/gizler.
+    if (cameraOn) {
+      final screenH = MediaQuery.of(context).size.height;
+      final cameraCard = Padding(
+        padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              (_camReady && _cam != null)
+                  ? _CameraBackground(controller: _cam!)
+                  : const ColoredBox(color: Colors.black),
+              // Dinleniyor göstergesi — sağ üstte, transkript kapalı olsa bile
+              // mikrofonun çalıştığını kullanıcıya bildirir.
+              if (_listening)
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: _ListeningBadge(
+                      voiceLevel: _voiceLevel, pulse: _pulse),
+                ),
+            ],
+          ),
+        ),
+      );
+      if (!_showTranscript) {
+        if (_paused) {
+          return Stack(
+            children: [
+              cameraCard,
+              Center(
+                child: Text(
+                  'Duraklatıldı'.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: Colors.white54,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
+        return cameraCard;
+      }
+      // Transkript açık → şeffaf-koyu yuvarlak panel, kameranın alt
+      // kenarına oturur (alt butonların hemen üstünde).
+      return Stack(
+        children: [
+          cameraCard,
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 12,
+            child: ConstrainedBox(
+              constraints:
+                  BoxConstraints(maxHeight: screenH * 0.22),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: BackdropFilter(
+                  filter:
+                      ui.ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.45),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        width: 0.6,
+                      ),
+                    ),
+                    child: _camTranscriptPanel(transparent: true),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     if (!_showTranscript) {
       if (_paused) {
         return Center(
@@ -674,29 +839,39 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
     }
 
     // ── Yazışma kartı renkleri ──────────────────────────────────────────
-    // Otomatik kontrast: zemin AÇIK ise yazı SİYAH, KOYU ise yazı BEYAZ.
-    // whiteMode = sohbet panel veya kamera açık (her ikisinde de zemin
-    // beyaz/açık). Aksi halde dark transparent kart → beyaz yazı.
-    final cameraOn = _camActive;
-    final whiteMode = _chatPanelOpen || cameraOn;
-    final cardBg = whiteMode
-        ? (cameraOn
-            ? Colors.white.withValues(alpha: 0.70) // kamera arkası görünür
-            : Colors.white) // sohbet panel
-        // Kamera kapalı: derin siyah (eskiden 0.50 → çok soluk → 0.90)
-        : const Color(0xE6000000);
-    final textColor = whiteMode ? Colors.black : Colors.white;
-    final labelColor = whiteMode ? Colors.black : Colors.white;
-    final dimColor = whiteMode
-        ? Colors.black.withValues(alpha: 0.55)
-        : Colors.white.withValues(alpha: 0.65);
+    // 3 mod var:
+    //   • Sesli mod (kamera yok, chat panel yok) → BEYAZ kart, siyah yazı
+    //   • Kamera modu → frosted dark over camera, beyaz yazı
+    //   • Chat panel → ayrı yola gidiyor (yukarıda return), beyaz card.
+    final voiceMode = !cameraOn && !_chatPanelOpen;
+    final Color cardBg;
+    final Color textColor;
+    final Color labelColor;
+    final Color dimColor;
+    if (cameraOn) {
+      cardBg = Colors.black.withValues(alpha: 0.30);
+      textColor = Colors.white;
+      labelColor = Colors.white;
+      dimColor = Colors.white.withValues(alpha: 0.65);
+    } else if (voiceMode) {
+      cardBg = Colors.white;
+      textColor = Colors.black87;
+      labelColor = Colors.black87;
+      dimColor = Colors.black.withValues(alpha: 0.55);
+    } else {
+      // Fallback (chatPanel akışı zaten yukarıda return etti) — koyu.
+      cardBg = Color(0xE6000000);
+      textColor = Colors.white;
+      labelColor = Colors.white;
+      dimColor = Colors.white.withValues(alpha: 0.65);
+    }
 
     final screenH = MediaQuery.of(context).size.height;
 
     final items = <Widget>[];
     for (final m in _messages) {
       items.add(_msgBlock(m, textColor: textColor, labelColor: labelColor));
-      items.add(const SizedBox(height: 10));
+      items.add(SizedBox(height: 10));
     }
     if (_listening) {
       items.add(ValueListenableBuilder<String>(
@@ -705,7 +880,7 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
             ? const SizedBox.shrink()
             : _liveBlock(v, textColor: textColor, labelColor: labelColor),
       ));
-      items.add(const SizedBox(height: 10));
+      items.add(SizedBox(height: 10));
     }
 
     Widget body;
@@ -751,15 +926,23 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
       body = list;
     }
 
-    // Sohbet AÇIK ise: dış #F5F5F5 + iç çerçeve parlak beyaz card.
+    // Sohbet AÇIK ise: aydınlık modda soluk beyaz (#F5F5F5) çerçeve;
+    // koyu modda TAM SİYAH çerçeve. Balonlar da koyu modda siyah, yazılar
+    // tam beyaz.
     if (_chatPanelOpen) {
+      final dark = AppPalette.isDark(context);
       return Padding(
         padding: const EdgeInsets.fromLTRB(10, 4, 10, 10),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: dark ? Colors.black : const Color(0xFFF5F5F5),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0x14000000), width: 0.6),
+            border: Border.all(
+              color: dark
+                  ? Colors.white.withValues(alpha: 0.10)
+                  : const Color(0x14000000),
+              width: 0.6,
+            ),
             boxShadow: const [
               BoxShadow(
                 color: Color(0x0F000000),
@@ -774,53 +957,48 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
       );
     }
 
-    // Frosted card — kamera AÇIKKEN white 70% + blur(10), KAPALIYKEN dark
-    // transparent + blur(12). Her iki durumda da BackdropFilter uygulanır
-    // çünkü yarı saydam zemin arkasını gösterir.
-    final card = ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      // İç içeriğin köşeleri taşmasın diye hardEdge clip
-      clipBehavior: Clip.hardEdge,
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(
-          sigmaX: cameraOn ? 10 : 12,
-          sigmaY: cameraOn ? 10 : 12,
-        ),
-        child: Container(
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: cameraOn
-                  ? Colors.black.withValues(alpha: 0.10)
-                  : Colors.white.withValues(alpha: 0.12),
-              width: 0.6,
-            ),
-          ),
-          // ListView içindeki yazılar kart sınırı dışına çıkmasın
-          clipBehavior: Clip.hardEdge,
-          child: body,
-        ),
-      ),
+    // Sesli mod (beyaz kart) → BackdropFilter atlanır; opak beyaz zeminde
+    // blur etkisiz + bazı cihazlarda rendering hatası yapabiliyor.
+    // Kamera/dark modda yarı saydam kart üzerinde blur uygulanır.
+    final cardBorder = Border.all(
+      color: voiceMode
+          ? Colors.black.withValues(alpha: 0.10)
+          : (cameraOn
+              ? Colors.black.withValues(alpha: 0.10)
+              : Colors.white.withValues(alpha: 0.12)),
+      width: 0.6,
     );
-
-    // Kamera AÇIK: kart EKRAN ALT YARISINDA (header'ın altında değil,
-    // ortada/aşağıda). Üst yarı boş kalır → kamera görünür.
-    // Kamera KAPALI: kart üst yarıda (dalga arkasında).
-    if (cameraOn) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-        child: Column(
-          children: [
-            const Spacer(flex: 1), // üst yarı boş — kamera görünür
-            SizedBox(
-              height: screenH * 0.45, // alt yarı yazışma alanı
-              child: card,
+    final Widget card = voiceMode
+        ? Container(
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(20),
+              border: cardBorder,
             ),
-          ],
-        ),
-      );
-    }
+            clipBehavior: Clip.hardEdge,
+            child: body,
+          )
+        : ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            clipBehavior: Clip.hardEdge,
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(
+                sigmaX: cameraOn ? 10 : 12,
+                sigmaY: cameraOn ? 10 : 12,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: cardBg,
+                  borderRadius: BorderRadius.circular(20),
+                  border: cardBorder,
+                ),
+                clipBehavior: Clip.hardEdge,
+                child: body,
+              ),
+            ),
+          );
+
+    // Kamera AÇIK akışı _centerArea'nın başında ele alınıyor (early return).
 
     return Align(
       alignment: Alignment.topCenter,
@@ -834,6 +1012,138 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
     );
   }
 
+  /// Kamera modunda alt panelde gösterilen düz transkript akışı.
+  /// `transparent: true` → şeffaf-koyu zeminde beyaz/açık tonlar; aksi
+  /// halde beyaz panel (siyah/gri yazı). "Sen: ..." / "AI: ..." satırları
+  /// balon DEĞİL — düzenli akış.
+  Widget _camTranscriptPanel({bool transparent = false}) {
+    final empty = _messages.isEmpty && !_listening;
+    final emptyColor = transparent
+        ? Colors.white.withValues(alpha: 0.75)
+        : AppPalette.textSecondary(context);
+    final bodyColor = transparent
+        ? Colors.white
+        : AppPalette.textPrimary(context);
+    final dimColor = transparent
+        ? Colors.white.withValues(alpha: 0.75)
+        : AppPalette.textSecondary(context);
+    final senLabelColor =
+        transparent ? Color(0xFF93C5FD) : Color(0xFF1E3A8A);
+    final aiLabelColor =
+        transparent ? Color(0xFFC4B5FD) : Color(0xFF7C3AED);
+    final pendingDotColor =
+        transparent ? Colors.white70 : Colors.black54;
+
+    if (empty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          child: Text(
+            'Henüz konuşma yok — mikrofona bas veya yaz.'.tr(),
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              color: emptyColor,
+              fontWeight: FontWeight.w500,
+              height: 1.4,
+            ),
+          ),
+        ),
+      );
+    }
+    return ListView(
+      controller: _chatScroll,
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+      children: [
+        for (final m in _messages)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3),
+            // Pending + boş AI mesajı için "düşünüyor" göstergesi —
+            // kullanıcı stream gelene kadar AI'nın çalıştığını görsün.
+            child: (m.pending && m.text.isEmpty)
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${'AI'.tr()}: ',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w800,
+                          color: aiLabelColor,
+                          height: 1.4,
+                        ),
+                      ),
+                      _PendingDots(color: pendingDotColor),
+                      if (_slowConnection) ...[
+                        SizedBox(width: 8),
+                        Text(
+                          'Bağlantı kontrol ediliyor…'.tr(),
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            fontStyle: FontStyle.italic,
+                            color: dimColor,
+                          ),
+                        ),
+                      ],
+                    ],
+                  )
+                : RichText(
+                    text: TextSpan(
+                      style: GoogleFonts.poppins(
+                        fontSize: 12.5,
+                        color: bodyColor,
+                        height: 1.4,
+                      ),
+                      children: [
+                        TextSpan(
+                          text: m.role == 'user'
+                              ? '${'Sen'.tr()}: '
+                              : '${'AI'.tr()}: ',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: m.role == 'user'
+                                ? senLabelColor
+                                : aiLabelColor,
+                          ),
+                        ),
+                        TextSpan(text: m.text),
+                      ],
+                    ),
+                  ),
+          ),
+        if (_listening)
+          ValueListenableBuilder<String>(
+            valueListenable: _liveTranscript,
+            builder: (_, v, __) => v.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: Text(
+                      'Dinleniyor…'.tr(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: dimColor,
+                        fontStyle: FontStyle.italic,
+                        height: 1.4,
+                      ),
+                    ),
+                  )
+                : Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: Text(
+                      v,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: dimColor,
+                        fontStyle: FontStyle.italic,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+          ),
+      ],
+    );
+  }
+
   /// WhatsApp tipi mesaj balonu. Kullanıcı SAĞDA, asistan SOLDA.
   /// Sohbet modunda beyaz arka + siyah yazı, balon arkası nazik gri/mavi.
   Widget _msgBlock(_ChatMsg m,
@@ -841,25 +1151,34 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
     final isUser = m.role == 'user';
     final chatMode = _chatPanelOpen;
     final cameraOn = _camActive;
+    final voiceMode = !cameraOn && !chatMode;
     // Bubble bg seçimi:
-    //  • Sohbet panel: WhatsApp palette (kullanıcı mavi, AI gri)
-    //  • Kamera açık (frosted card): kullanıcı rgba(255,255,255,0.10),
-    //                                AI siyah-soluk (rgba(0,0,0,0.04))
-    //  • Kamera kapalı dark: yarı saydam balonlar
+    //  • Sohbet panel: aydınlık mod → balonlar TAM BEYAZ + TAM SİYAH yazı
+    //                   koyu mod    → balonlar TAM SİYAH + TAM BEYAZ yazı
+    //  • Sesli mod (beyaz kart): WhatsApp tarzı açık mavi/gri palet
+    //  • Kamera açık (frosted card): yarı saydam balonlar → beyaz yazı
+    final dark = AppPalette.isDark(context);
     final Color bubbleBg;
     if (chatMode) {
+      bubbleBg = dark ? Colors.black : Colors.white;
+    } else if (voiceMode) {
       bubbleBg = isUser
-          ? const Color(0xFFE7F4FF)
-          : const Color(0xFFF1F1F2);
-    } else if (cameraOn) {
-      bubbleBg = isUser
-          ? const Color(0x1AFFFFFF) // beyaz %10 (spec)
-          : const Color(0x14000000); // siyah %8 (kontrast için)
+          ? Color(0xFFE7F4FF)
+          : Color(0xFFF1F1F2);
     } else {
+      // cameraOn → frosted bubble
       bubbleBg = isUser
-          ? const Color(0x331E90FF)
-          : const Color(0x1AFFFFFF);
+          ? Color(0x1AFFFFFF) // beyaz %10 (spec)
+          : Color(0x14000000); // siyah %8 (kontrast için)
     }
+    // Sohbet panel → tam siyah/beyaz (mod'a göre); sesli mod → black87;
+    // kamera → white.
+    final effectiveTextColor = chatMode
+        ? (dark ? Colors.white : Colors.black)
+        : (voiceMode ? Colors.black87 : textColor);
+    final effectiveLabelColor = chatMode
+        ? (dark ? Colors.white : Colors.black)
+        : (voiceMode ? Colors.black87 : labelColor);
     final screenW = MediaQuery.of(context).size.width;
 
     final bubble = Container(
@@ -873,6 +1192,14 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
           bottomLeft: Radius.circular(isUser ? 16 : 4),
           bottomRight: Radius.circular(isUser ? 4 : 16),
         ),
+        // Koyu mod sohbet → siyah balonlar siyah panelde ayrılsın diye
+        // ince beyaz çerçeve.
+        border: (chatMode && dark)
+            ? Border.all(
+                color: Colors.white.withValues(alpha: 0.18),
+                width: 0.6,
+              )
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -881,15 +1208,17 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _PendingDots(color: textColor),
-                if (_slowConnection) ...[
-                  const SizedBox(width: 8),
+                _PendingDots(color: effectiveTextColor),
+                // Sohbet modunda yalnız 3 nokta yanıp söner; "Bağlantı
+                // kontrol ediliyor…" yazısı sadece sesli/kamera modunda.
+                if (_slowConnection && !chatMode) ...[
+                  SizedBox(width: 8),
                   Text(
                     'Bağlantı kontrol ediliyor…'.tr(),
                     style: GoogleFonts.poppins(
                       fontSize: 11,
                       fontStyle: FontStyle.italic,
-                      color: textColor.withValues(alpha: 0.55),
+                      color: effectiveTextColor.withValues(alpha: 0.55),
                     ),
                   ),
                 ],
@@ -899,12 +1228,12 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
             DefaultTextStyle(
               style: GoogleFonts.poppins(
                 fontSize: 14,
-                color: textColor,
+                color: effectiveTextColor,
                 height: 1.45,
               ),
               child: LatexText(m.text, fontSize: 14, lineHeight: 1.45),
             ),
-          const SizedBox(height: 3),
+          SizedBox(height: 3),
           Align(
             alignment: Alignment.bottomRight,
             child: Text(
@@ -912,7 +1241,7 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
               style: GoogleFonts.poppins(
                 fontSize: 9.5,
                 fontWeight: FontWeight.w500,
-                color: textColor.withValues(alpha: 0.50),
+                color: effectiveLabelColor.withValues(alpha: 0.50),
               ),
             ),
           ),
@@ -934,9 +1263,15 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
   Widget _liveBlock(String text,
       {required Color textColor, required Color labelColor}) {
     final chatMode = _chatPanelOpen;
-    final bubbleBg = chatMode
-        ? const Color(0xFFE7F4FF).withValues(alpha: 0.55)
-        : const Color(0x221E90FF);
+    final cameraOn = _camActive;
+    final voiceMode = !cameraOn && !chatMode;
+    // Chat panel veya Sesli mod (beyaz kart) → açık mavi balon, siyah
+    // italik metin. Kamera → mavi tinted, beyaz italik.
+    final bubbleBg = (chatMode || voiceMode)
+        ? Color(0xFFE7F4FF).withValues(alpha: 0.55)
+        : Color(0x221E90FF);
+    final effectiveTextColor =
+        (chatMode || voiceMode) ? Colors.black87 : textColor;
     final screenW = MediaQuery.of(context).size.width;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
@@ -955,7 +1290,7 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
                 bottomRight: Radius.circular(4),
               ),
               border: Border.all(
-                color: textColor.withValues(alpha: 0.20),
+                color: effectiveTextColor.withValues(alpha: 0.20),
                 width: 0.6,
               ),
             ),
@@ -963,7 +1298,7 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
               text,
               style: GoogleFonts.poppins(
                 fontSize: 14,
-                color: textColor.withValues(alpha: 0.70),
+                color: effectiveTextColor.withValues(alpha: 0.70),
                 fontStyle: FontStyle.italic,
                 height: 1.4,
               ),
@@ -978,12 +1313,20 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
   /// HEMEN ÜSTÜNDE. resizeToAvoidBottomInset:true sayesinde klavye
   /// açıldığında otomatik yukarı kayar.
   Widget _chatInputBar(Color textColor) {
+    // Sesli mod / chat panel "blackout" — koyu modda zemin saf siyah, beyaz
+    // metin ve cursor; aydınlık modda eski açık tasarım korunur.
+    final dark = AppPalette.isDark(context);
+    final barBg = dark ? Colors.black : const Color(0xFFF5F5F5);
+    final fieldBg = dark ? Colors.black : Colors.white;
+    final ink = dark ? Colors.white : textColor;
+    final divider =
+        dark ? Colors.white.withValues(alpha: 0.18) : const Color(0x14000000);
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-      decoration: const BoxDecoration(
-        color: Color(0xFFF5F5F5), // dış zeminle aynı, çerçeve hissi yumuşak
+      decoration: BoxDecoration(
+        color: barBg,
         border: Border(
-          top: BorderSide(color: Color(0x14000000), width: 0.6),
+          top: BorderSide(color: divider, width: 0.6),
         ),
       ),
       child: Row(
@@ -994,41 +1337,40 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
               controller: _textCtrl,
               minLines: 1,
               maxLines: 4,
-              style: GoogleFonts.poppins(color: textColor, fontSize: 14),
+              cursorColor: ink,
+              style: GoogleFonts.poppins(color: ink, fontSize: 14),
               decoration: InputDecoration(
                 hintText: 'QuAlsar\'a sor…'.tr(),
                 hintStyle: GoogleFonts.poppins(
-                    color: textColor.withValues(alpha: 0.45),
+                    color: ink.withValues(alpha: 0.45),
                     fontSize: 13),
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: fieldBg,
                 contentPadding: const EdgeInsets.symmetric(
                     horizontal: 14, vertical: 10),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(22),
-                  borderSide: const BorderSide(
-                      color: Color(0x14000000), width: 0.6),
+                  borderSide: BorderSide(color: divider, width: 0.6),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(22),
-                  borderSide: const BorderSide(
-                      color: Color(0x14000000), width: 0.6),
+                  borderSide: BorderSide(color: divider, width: 0.6),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(22),
-                  borderSide: const BorderSide(color: _kBlue1, width: 0.8),
+                  borderSide: BorderSide(color: _kBlue1, width: 0.8),
                 ),
               ),
               onSubmitted: (_) => _sendTypedMessage(),
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           GestureDetector(
             onTap: _sendTypedMessage,
             child: Container(
               width: 44,
               height: 44,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: LinearGradient(
                   colors: [_kBlue1, _kBlue2],
@@ -1037,10 +1379,10 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
                 ),
               ),
               alignment: Alignment.center,
-              // 14:00 yönüne çevir: send ikon doğal sağ (3 yönü) → -30° CCW
+              // Yukarı bak: send ikon doğal sağa bakar → -90° CCW ile yukarı.
               child: Transform.rotate(
-                angle: -math.pi / 6,
-                child: const Icon(Icons.send_rounded,
+                angle: -math.pi / 2,
+                child: Icon(Icons.send_rounded,
                     color: Colors.white, size: 20),
               ),
             ),
@@ -1054,55 +1396,17 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
     final cameraOn = _camActive;
     final chatMode = _chatPanelOpen;
 
-    // Sohbet modunda: SİYAH BAR YOK, 3 buton bağımsız dairesel.
+    // Sohbet modunda: kamera + X butonları kaldırıldı (kullanıcı isteği) —
+    // sadece chatInputBar'daki gönder oku kalır. Boş alt boşluk: SafeArea
+    // padding'i kadar.
     if (chatMode) {
-      return Padding(
-        padding: EdgeInsets.fromLTRB(
-          18,
-          8,
-          18,
-          10 + MediaQuery.of(context).padding.bottom * 0.4,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _BottomCircleButton(
-              icon: Icons.videocam_outlined,
-              onTap: () async {
-                setState(() => _chatPanelOpen = false);
-                FocusScope.of(context).unfocus();
-                await _toggleCamera();
-                if (_camActive && !_listening && !_thinking && !_paused) {
-                  await _startListening();
-                }
-              },
-              lightMode: true,
-            ),
-            _BottomMicButton(
-              listening: _listening,
-              pulse: _pulse,
-              voiceLevel: _voiceLevel,
-              lightMode: true,
-              onTap: () {
-                if (_listening) {
-                  _stopListening(sendIfText: true);
-                } else {
-                  _startListening();
-                }
-              },
-            ),
-            _BottomCircleButton(
-              icon: Icons.close_rounded,
-              onTap: () => Navigator.of(context).maybePop(),
-              danger: true,
-            ),
-          ],
-        ),
+      return SizedBox(
+        height: MediaQuery.of(context).padding.bottom * 0.4,
       );
     }
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 280),
+      duration: Duration(milliseconds: 280),
       curve: Curves.easeOutCubic,
       padding: EdgeInsets.fromLTRB(
         18,
@@ -1123,9 +1427,20 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
                 ? Icons.videocam_rounded
                 : Icons.videocam_outlined,
             onTap: () async {
+              // Kamera AÇILIRKEN STT'yi geçici durdur — bazı Android cihazlarda
+              // CameraController.initialize() audio session'ı kısa süre
+              // kilitleyebiliyor; STT'nin sonradan temiz başlaması için.
+              final wasListening = _listening;
+              if (!_camActive && wasListening) {
+                await _stopListening();
+              }
               await _toggleCamera();
-              if (_camActive && !_listening && !_thinking && !_paused) {
-                await _startListening();
+              if (_camActive && !_thinking && !_paused) {
+                // Audio session'ın oturmasına izin ver, sonra dinlemeyi başlat.
+                await Future.delayed(const Duration(milliseconds: 250));
+                if (mounted && _camActive && !_listening) {
+                  await _startListening();
+                }
               }
             },
             highlight: cameraOn,
@@ -1148,6 +1463,11 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
               }
               setState(() {
                 _chatPanelOpen = !_chatPanelOpen;
+                // Mod değişimi: sohbet panel toggle'ında önceki moddan
+                // (sesli/kamera) kalan mesajlar yeni moda taşmasın —
+                // kullanıcı her modda sıfırdan başlamış hissetsin.
+                _messages.clear();
+                _liveTranscript.value = '';
                 if (_chatPanelOpen) {
                   _showTranscript = true;
                   _scrollToBottom();
@@ -1164,6 +1484,7 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
             pulse: _pulse,
             voiceLevel: _voiceLevel,
             frosted: cameraOn,
+            lightMode: !cameraOn,
             onTap: () {
               if (_listening) {
                 _stopListening(sendIfText: true);
@@ -1276,14 +1597,16 @@ class _WavePainter extends CustomPainter {
     final w = size.width;
     final h = size.height;
 
+    // Galaksi zemini üzerinde dalga DAHA TRANSPARAN — alt katman olarak
+    // kalır, galaksi yıldızları/sis bandı görünür kalır.
     final bgPaint = Paint()
       ..shader = ui.Gradient.linear(
-        const Offset(0, 0),
+        Offset(0, 0),
         Offset(0, h),
         [
           Colors.transparent,
-          _kBlue1.withValues(alpha: compact ? 0.18 : 0.20),
-          _kBlue2.withValues(alpha: compact ? 0.45 : 0.55),
+          _kBlue1.withValues(alpha: compact ? 0.10 : 0.12),
+          _kBlue2.withValues(alpha: compact ? 0.25 : 0.32),
         ],
         const [0.0, 0.55, 1.0],
       );
@@ -1318,8 +1641,8 @@ class _WavePainter extends CustomPainter {
           Offset(0, yBase - amp),
           Offset(0, h),
           [
-            _kBlue1.withValues(alpha: compact ? 0.28 : 0.18),
-            _kBlue2.withValues(alpha: compact ? 0.85 : 0.65),
+            _kBlue1.withValues(alpha: compact ? 0.16 : 0.10),
+            _kBlue2.withValues(alpha: compact ? 0.50 : 0.38),
           ],
         );
       canvas.drawPath(p, paint);
@@ -1378,17 +1701,17 @@ class _BottomCircleButton extends StatelessWidget {
       fg = Colors.white;
     } else if (lightMode) {
       // Sohbet ekranı (beyaz zemin) — açık ton minimalist
-      bg = const Color(0xFFF5F5F5);
+      bg = Color(0xFFF5F5F5);
       fg = Colors.black87;
     } else if (highlight) {
       bg = Colors.white;
       fg = Colors.black;
     } else if (frosted) {
-      bg = const Color(0x33FFFFFF);
+      bg = Color(0x33FFFFFF);
       fg = Colors.white;
     } else {
       bg = _kBtnBg;
-      fg = const Color(0xEAFFFFFF);
+      fg = Color(0xEAFFFFFF);
     }
 
     final core = Container(
@@ -1401,10 +1724,10 @@ class _BottomCircleButton extends StatelessWidget {
           color: danger
               ? Colors.transparent
               : lightMode
-                  ? const Color(0x14000000)
+                  ? Color(0x14000000)
                   : frosted
-                      ? const Color(0x40FFFFFF)
-                      : const Color(0x0FFFFFFF),
+                      ? Color(0x40FFFFFF)
+                      : Color(0x0FFFFFFF),
           width: 0.8,
         ),
       ),
@@ -1471,14 +1794,14 @@ class _BottomMicButton extends StatelessWidget {
                   bg = lightMode ? _kBlue1 : Colors.white;
                   fg = lightMode ? Colors.white : Colors.black;
                 } else if (lightMode) {
-                  bg = const Color(0xFFF5F5F5);
+                  bg = Color(0xFFF5F5F5);
                   fg = Colors.black87;
                 } else if (frosted) {
-                  bg = const Color(0x33FFFFFF);
+                  bg = Color(0x33FFFFFF);
                   fg = Colors.white;
                 } else {
                   bg = _kBtnBg;
-                  fg = const Color(0xEAFFFFFF);
+                  fg = Color(0xEAFFFFFF);
                 }
                 final core = Container(
                   decoration: BoxDecoration(
@@ -1486,10 +1809,10 @@ class _BottomMicButton extends StatelessWidget {
                     color: bg,
                     border: Border.all(
                       color: lightMode
-                          ? const Color(0x14000000)
+                          ? Color(0x14000000)
                           : frosted
-                              ? const Color(0x40FFFFFF)
-                              : const Color(0x0FFFFFFF),
+                              ? Color(0x40FFFFFF)
+                              : Color(0x0FFFFFFF),
                       width: 0.8,
                     ),
                   ),
@@ -1522,6 +1845,68 @@ class _BottomMicButton extends StatelessWidget {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
+//  Kamera modunda "Dinleniyor…" rozeti — mikrofonun çalıştığını kullanıcıya
+//  sürekli görsel olarak bildirir; ses seviyesine göre nokta nabız atar.
+// ═════════════════════════════════════════════════════════════════════════
+class _ListeningBadge extends StatelessWidget {
+  final ValueListenable<double> voiceLevel;
+  final AnimationController pulse;
+  const _ListeningBadge({required this.voiceLevel, required this.pulse});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(100),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.18),
+          width: 0.6,
+        ),
+      ),
+      child: AnimatedBuilder(
+        animation: pulse,
+        builder: (_, __) {
+          return ValueListenableBuilder<double>(
+            valueListenable: voiceLevel,
+            builder: (_, lvl, ___) {
+              final s = 1.0 + 0.25 * pulse.value + 0.50 * lvl;
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Transform.scale(
+                    scale: s,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Color(0xFFFF3B30),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 7),
+                  Text(
+                    'Dinleniyor…'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
 //  Üç noktalı "düşünüyor" loader
 // ═════════════════════════════════════════════════════════════════════════
 class _PendingDots extends StatefulWidget {
@@ -1534,7 +1919,7 @@ class _PendingDots extends StatefulWidget {
 class _PendingDotsState extends State<_PendingDots>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ac =
-      AnimationController(vsync: this, duration: const Duration(seconds: 1))
+      AnimationController(vsync: this, duration: Duration(seconds: 1))
         ..repeat();
 
   @override
@@ -1568,4 +1953,113 @@ class _PendingDotsState extends State<_PendingDots>
       },
     );
   }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  _GalaxyBackground — siyah arka plan yerine kullanılan prosedürel
+//  "Samanyolu" efekti. CustomPainter ile:
+//    • Derin koyu lacivert/mor radyal gradient (galaksi merkezi)
+//    • Rastgele yıldız noktaları (3 farklı boy + parlaklık)
+//    • Yatay sis bandı (galaksi düzlemi)
+//  Gerçek HD asset (assets/images/milky_way.jpg) eklendiğinde bu widget
+//  Image.asset(..., fit: BoxFit.cover) ile değiştirilebilir; pubspec.yaml
+//  assets bloğuna kayıt yeterli olur.
+// ═════════════════════════════════════════════════════════════════════════════
+class _GalaxyBackground extends StatelessWidget {
+  const _GalaxyBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _GalaxyPainter(),
+      size: Size.infinite,
+    );
+  }
+}
+
+class _GalaxyPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Katman 1: derin uzay — radial gradient (merkez biraz mor, kenar siyah)
+    final rect = Offset.zero & size;
+    final radial = Paint()
+      ..shader = RadialGradient(
+        center: Alignment(0, -0.2),
+        radius: 1.2,
+        colors: const [
+          Color(0xFF1A0F2E), // koyu mor
+          Color(0xFF0A0518), // çok koyu lacivert
+          Color(0xFF000000), // siyah kenar
+        ],
+        stops: const [0.0, 0.55, 1.0],
+      ).createShader(rect);
+    canvas.drawRect(rect, radial);
+
+    // Katman 2: galaksi düzlemi — yatay yumuşak sis bandı
+    final bandRect = Rect.fromCenter(
+      center: Offset(size.width * 0.5, size.height * 0.42),
+      width: size.width * 1.2,
+      height: size.height * 0.55,
+    );
+    final band = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          Colors.transparent,
+          Color(0xFF3B2156).withValues(alpha: 0.35),
+          Color(0xFF6B4F8E).withValues(alpha: 0.15),
+          Color(0xFF3B2156).withValues(alpha: 0.35),
+          Colors.transparent,
+        ],
+        stops: const [0.0, 0.3, 0.5, 0.7, 1.0],
+      ).createShader(bandRect)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 28);
+    canvas.drawRect(bandRect, band);
+
+    // Katman 3: yıldızlar — sabit seed ile reproducible
+    // 3 boy: küçük (~%80), orta (~%18), parlak (~%2)
+    final rng = math.Random(42);
+    final starPaint = Paint();
+    final glowPaint = Paint()
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.6);
+    const starCount = 220;
+    for (int i = 0; i < starCount; i++) {
+      final dx = rng.nextDouble() * size.width;
+      final dy = rng.nextDouble() * size.height;
+      final r = rng.nextDouble();
+      double radius;
+      double alpha;
+      if (r < 0.80) {
+        radius = 0.5 + rng.nextDouble() * 0.6;
+        alpha = 0.35 + rng.nextDouble() * 0.30;
+      } else if (r < 0.98) {
+        radius = 1.0 + rng.nextDouble() * 0.8;
+        alpha = 0.55 + rng.nextDouble() * 0.30;
+      } else {
+        radius = 1.6 + rng.nextDouble() * 1.0;
+        alpha = 0.85 + rng.nextDouble() * 0.15;
+      }
+      // Hafif renk varyasyonu (beyaz / soğuk mavi / sıcak amber)
+      final tint = rng.nextDouble();
+      Color c;
+      if (tint < 0.65) {
+        c = Colors.white;
+      } else if (tint < 0.88) {
+        c = Color(0xFFB8D4FF); // soğuk mavi
+      } else {
+        c = Color(0xFFFFD9A6); // sıcak amber
+      }
+      starPaint.color = c.withValues(alpha: alpha);
+      canvas.drawCircle(Offset(dx, dy), radius, starPaint);
+      // En parlaklarda hafif glow
+      if (radius > 1.4) {
+        glowPaint.color = c.withValues(alpha: alpha * 0.45);
+        canvas.drawCircle(Offset(dx, dy), radius * 2.2, glowPaint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _GalaxyPainter oldDelegate) => false;
 }

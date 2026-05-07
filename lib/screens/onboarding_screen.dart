@@ -14,6 +14,7 @@ import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
 import '../widgets/qualsar_logo_mark.dart';
 import 'camera_screen.dart';
+import 'education_setup_screen.dart' show showAppCountryPicker;
 
 // ═════════════════════════════════════════════════════════════════════════════
 //  QuAlsar Onboarding — 4 tanıtım + 1 giriş (seviye seçimi)
@@ -85,7 +86,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Future<void> _goNext() async {
     if (_currentPage < _totalPages - 1) {
       await _pageController.nextPage(
-        duration: const Duration(milliseconds: 420),
+        duration: Duration(milliseconds: 420),
         curve: Curves.easeInOutCubic,
       );
     } else {
@@ -96,7 +97,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Future<void> _goBack() async {
     if (_currentPage == 0) return;
     await _pageController.previousPage(
-      duration: const Duration(milliseconds: 420),
+      duration: Duration(milliseconds: 420),
       curve: Curves.easeInOutCubic,
     );
   }
@@ -179,7 +180,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => const CameraScreen()),
+      MaterialPageRoute(builder: (_) => CameraScreen()),
     );
   }
 
@@ -252,7 +253,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return Scaffold(
       // Hero → pür beyaz; feature/grade sayfaları → soluk beyaz, böylece
       // beyaz kartlar ve çerçeveler bu zemin üzerinde öne çıkar.
-      backgroundColor: isHero ? Colors.white : const Color(0xFFF2F3F5),
+      backgroundColor: isHero ? Colors.white : Color(0xFFF2F3F5),
       body: SafeArea(
         child: Column(
           children: [
@@ -285,7 +286,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     ],
                   ),
                   if (isHero) ...[
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     // Dil chip'i — yalnızca ilk (hero) sayfada, üstünde seçili
                     // dildeki "Dil Seçimi" etiketi ile sağa hizalı.
                     Align(
@@ -303,7 +304,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               letterSpacing: -0.1,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          SizedBox(height: 4),
                           _LanguageChip(
                             flag: currentFlag,
                             isHero: isHero,
@@ -326,7 +327,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: PageView(
                 key: ValueKey('onb_pages_${locale.localeCode}'),
                 controller: _pageController,
-                physics: const BouncingScrollPhysics(),
+                physics: BouncingScrollPhysics(),
                 onPageChanged: (i) => setState(() => _currentPage = i),
                 children: [
                   const _HeroPage(),
@@ -336,7 +337,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       if (!mounted) return;
                       setState(() {});
                       await Future<void>.delayed(
-                          const Duration(milliseconds: 350));
+                          Duration(milliseconds: 350));
                       if (mounted && _currentPage == _authPageIndex) {
                         await _goNext();
                       }
@@ -404,7 +405,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 label: _ctaLabel(),
                 // Son sayfa ("Ülkende ve Dünyada Yarış") → yeşil "Öğrenmeye
                 // Başla". Diğer sayfalarda sayfaya özel accent kalır.
-                accent: isLast ? const Color(0xFF22C55E) : accent,
+                accent: isLast ? Color(0xFF22C55E) : accent,
                 enabled: canContinue,
                 onTap: () async {
                   if (!canContinue) return;
@@ -487,8 +488,8 @@ class _LanguageChip extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(flag, style: const TextStyle(fontSize: 20, height: 1.0)),
-            const SizedBox(width: 4),
+            Text(flag, style: TextStyle(fontSize: 20, height: 1.0)),
+            SizedBox(width: 4),
             Icon(Icons.keyboard_arrow_down_rounded, color: onBg, size: 18),
           ],
         ),
@@ -586,7 +587,7 @@ class _LanguagePickerSheetState extends State<_LanguagePickerSheet> {
       maxChildSize: 0.95,
       expand: false,
       builder: (_, scrollCtrl) => Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: sheetBg,
           borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
         ),
@@ -633,7 +634,7 @@ class _LanguagePickerSheetState extends State<_LanguagePickerSheet> {
                 children: [
                   Icon(Icons.language_rounded,
                       color: accent, size: 22),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       localeService.tr('language_options'),
@@ -660,7 +661,7 @@ class _LanguagePickerSheetState extends State<_LanguagePickerSheet> {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
               child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.white,
+            color: AppPalette.card(context),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: subtleBorder),
                 ),
@@ -714,7 +715,7 @@ class _LanguagePickerSheetState extends State<_LanguagePickerSheet> {
                     )
                   : ListView.builder(
                       controller: scrollCtrl,
-                      physics: const BouncingScrollPhysics(),
+                      physics: BouncingScrollPhysics(),
                       padding: const EdgeInsets.fromLTRB(14, 4, 14, 24),
                       itemCount: sorted.length,
                       itemBuilder: (_, i) {
@@ -724,12 +725,12 @@ class _LanguagePickerSheetState extends State<_LanguagePickerSheet> {
                           builder: (itemCtx) => GestureDetector(
                             onTap: () => _selectLanguage(itemCtx, locale, code),
                             child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 160),
+                              duration: Duration(milliseconds: 160),
                               margin: const EdgeInsets.only(bottom: 6),
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 14, vertical: 12),
                               decoration: BoxDecoration(
-                                color: Colors.white,
+            color: AppPalette.card(context),
                                 borderRadius: BorderRadius.circular(14),
                                 border: Border.all(
                                   color: isSel ? accent : subtleBorder,
@@ -739,8 +740,8 @@ class _LanguagePickerSheetState extends State<_LanguagePickerSheet> {
                               child: Row(
                                 children: [
                                   Text(flag,
-                                      style: const TextStyle(fontSize: 22)),
-                                  const SizedBox(width: 14),
+                                      style: TextStyle(fontSize: 22)),
+                                  SizedBox(width: 14),
                                   Expanded(
                                     child: Column(
                                       crossAxisAlignment:
@@ -813,8 +814,7 @@ class _HeroPage extends StatelessWidget {
         // Ülke etiketlerinin başlayacağı y (logonun alt kenarı + küçük pay).
         final labelsMinY = logoBottom + 8;
 
-        return Container(
-          color: Colors.white,
+        return Container(color: AppPalette.card(context),
           child: Stack(
             children: [
               // Arkaplan — logonun altından itibaren rastgele konumlarda ülke
@@ -832,7 +832,7 @@ class _HeroPage extends StatelessWidget {
                 top: quAlsarTop,
                 left: 0,
                 right: 0,
-                child: const Center(
+                child: Center(
                   child: Text.rich(
                     TextSpan(
                       style: TextStyle(
@@ -929,7 +929,7 @@ class _CountryFlagStreamState extends State<_CountryFlagStream>
     // çizer — setState'e ihtiyaç yok. Kare atlama/kasma riski düşer.
     _ticker = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1000),
+      duration: Duration(milliseconds: 1000),
     )..repeat();
   }
 
@@ -998,7 +998,7 @@ class _CountryFlagStreamState extends State<_CountryFlagStream>
       left: laneX,
       top: top,
       child: FractionalTranslation(
-        translation: const Offset(-0.5, 0),
+        translation: Offset(-0.5, 0),
         child: IgnorePointer(
           child: Opacity(
             opacity: opacity.clamp(0.0, 1.0),
@@ -1007,18 +1007,18 @@ class _CountryFlagStreamState extends State<_CountryFlagStream>
               children: [
                 CountryFlag.fromCountryCode(
                   item.code,
-                  theme: const ImageTheme(
+                  theme: ImageTheme(
                     width: 18,
                     height: 12,
                     shape: RoundedRectangle(2),
                   ),
                 ),
-                const SizedBox(width: 5),
+                SizedBox(width: 5),
                 Text(
                   item.name,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: Colors.black,
+                    color: AppPalette.textPrimary(context),
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.1,
                   ),
@@ -1154,7 +1154,7 @@ class _FeaturePage extends StatelessWidget {
           // Üst boşluk yok → logo ve yazısı üst bar'ın hemen altında dursun.
           headerGraphic ?? _SectionIconBadge(icon: icon!, color: accent),
           // Başlık ve altı carousel/ikona yakın dursun — daha yukarıda.
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           // FittedBox: uzun çevirilerde başlığı tek satıra sığdırmak için
           // otomatik küçültür; kısa başlıklar 34'te kalır.
           FittedBox(
@@ -1164,34 +1164,34 @@ class _FeaturePage extends StatelessWidget {
               textAlign: TextAlign.center,
               maxLines: 1,
               softWrap: false,
-              style: const TextStyle(
-                color: Colors.black,
+              style: TextStyle(
+                color: AppPalette.textPrimary(context),
                 fontSize: 34,
                 fontWeight: FontWeight.w800,
                 letterSpacing: -0.5,
               ),
             ),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           Text(
             localeService.tr(subtitleKey),
             textAlign: TextAlign.center,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
-              color: Colors.black,
+              color: AppPalette.textPrimary(context),
               height: 1.5,
               fontWeight: FontWeight.w500,
             ),
           ),
-          const SizedBox(height: 22),
+          SizedBox(height: 22),
           // Her madde kendi beyaz kartı — başlığa basınca açıklama açılıp
           // kapanır. Uzun çevirilerde kaydırılabilir olarak kalır; sayfa
           // alt bar'a taşmaz.
           Expanded(
             child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
+              physics: BouncingScrollPhysics(),
               padding: const EdgeInsets.only(bottom: 12),
               child: Column(
                 children: [
@@ -1205,7 +1205,7 @@ class _FeaturePage extends StatelessWidget {
                       color: accent,
                     ),
                     if (i != bulletKeys.length - 1)
-                      const SizedBox(height: 10),
+                      SizedBox(height: 10),
                   ],
                 ],
               ),
@@ -1245,13 +1245,13 @@ class _ExpandableBulletState extends State<_ExpandableBullet> {
       behavior: HitTestBehavior.opaque,
       onTap: hasDesc ? () => setState(() => _open = !_open) : null,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
+        duration: Duration(milliseconds: 180),
         curve: Curves.easeOut,
         width: double.infinity,
         padding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: Colors.white,
+            color: AppPalette.card(context),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: _open
@@ -1263,7 +1263,7 @@ class _ExpandableBulletState extends State<_ExpandableBullet> {
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 8,
-              offset: const Offset(0, 2),
+              offset: Offset(0, 2),
             ),
           ],
         ),
@@ -1277,28 +1277,28 @@ class _ExpandableBulletState extends State<_ExpandableBullet> {
                 Container(
                   width: 30,
                   height: 30,
-                  decoration: const BoxDecoration(
-                    color: Colors.black,
+                  decoration: BoxDecoration(
+                    color: AppPalette.textPrimary(context),
                     shape: BoxShape.circle,
                   ),
                   alignment: Alignment.center,
                   child: Text(
                     '${widget.number}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Colors.white,
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                 ),
-                const SizedBox(width: 14),
+                SizedBox(width: 14),
                 Expanded(
                   child: Text(
                     widget.title,
                     softWrap: true,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
-                      color: Colors.black,
+                      color: AppPalette.textPrimary(context),
                       fontWeight: FontWeight.w700,
                       height: 1.3,
                       letterSpacing: -0.1,
@@ -1308,7 +1308,7 @@ class _ExpandableBulletState extends State<_ExpandableBullet> {
                 if (hasDesc)
                   AnimatedRotation(
                     turns: _open ? 0.5 : 0,
-                    duration: const Duration(milliseconds: 180),
+                    duration: Duration(milliseconds: 180),
                     child: Icon(
                       Icons.expand_more_rounded,
                       color: Colors.black.withValues(alpha: 0.55),
@@ -1319,7 +1319,7 @@ class _ExpandableBulletState extends State<_ExpandableBullet> {
             ),
             // Açıklama — açıkken görünür; sekmenin içine sığması için küçük.
             AnimatedSize(
-              duration: const Duration(milliseconds: 200),
+              duration: Duration(milliseconds: 200),
               curve: Curves.easeOut,
               alignment: Alignment.topCenter,
               child: (hasDesc && _open)
@@ -1381,6 +1381,11 @@ class _GradePageState extends State<_GradePage> {
   // listelerini ülkeye göre filtrelemek için. initState'te yüklenir.
   String _country = 'tr';
 
+  /// true → kullanıcı tespit edilen/seçilen ülkeyi onayladı.
+  /// Onaylanmadıysa grade sayfasının üstünde "Sistem sizi X'de tespit etti,
+  /// devam edelim mi?" bannerı gösterilir. Pref: 'country_auto_confirmed'.
+  bool _countryConfirmed = false;
+
   /// Uyumluluk hatası — sayfa ortasında kırmızı uyarı olarak gösterilir.
   /// Snackbar yerine kullanılır; daha belirgin geri bildirim sağlar.
   String? _errorMessage;
@@ -1389,7 +1394,7 @@ class _GradePageState extends State<_GradePage> {
   void _showIncompatibilityError(String msg) {
     _errorTimer?.cancel();
     setState(() => _errorMessage = msg);
-    _errorTimer = Timer(const Duration(seconds: 4), () {
+    _errorTimer = Timer(Duration(seconds: 4), () {
       if (!mounted) return;
       setState(() => _errorMessage = null);
     });
@@ -1407,10 +1412,179 @@ class _GradePageState extends State<_GradePage> {
     SharedPreferences.getInstance().then((p) {
       if (!mounted) return;
       final code = p.getString('mini_test_country');
-      if (code != null && code.isNotEmpty) {
-        setState(() => _country = code);
-      }
+      final confirmed = p.getBool('country_auto_confirmed') ?? false;
+      setState(() {
+        if (code != null && code.isNotEmpty) _country = code;
+        _countryConfirmed = confirmed;
+      });
     });
+  }
+
+  /// "Evet, devam et" — tespit edilen ülke onaylandı.
+  Future<void> _confirmDetectedCountry() async {
+    final p = await SharedPreferences.getInstance();
+    await p.setBool('country_auto_confirmed', true);
+    // Cihazın algıladığı ülke daha önce 'mini_test_country' olarak set edildi
+    // (autoDetectCountryIfMissing); burada sadece onay flag'i yeterli.
+    if (!mounted) return;
+    setState(() => _countryConfirmed = true);
+  }
+
+  /// "Başka müfredat seç" — public picker'ı aç, kullanıcı yeni ülke seçerse
+  /// pref güncellenir + onaylanmış sayılır.
+  Future<void> _changeDetectedCountry() async {
+    final picked =
+        await showAppCountryPicker(context, currentCountry: _country);
+    if (picked == null || !mounted) return;
+    final p = await SharedPreferences.getInstance();
+    await p.setString('mini_test_country', picked);
+    await p.setBool('country_auto_confirmed', true);
+    // Uygulama dilini de bu ülkeye uyarla.
+    await localeService.setLocaleForCountry(picked);
+    if (!mounted) return;
+    setState(() {
+      _country = picked;
+      _countryConfirmed = true;
+    });
+  }
+
+  Widget _countryConfirmCard(Color accent) {
+    final entry = kAllCountries.firstWhere(
+      (c) => c.key == _country,
+      orElse: () => Country('international', 'International', '🌐'),
+    );
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            accent.withValues(alpha: 0.10),
+            accent.withValues(alpha: 0.04),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: accent.withValues(alpha: 0.35), width: 1.2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+            color: AppPalette.card(context),
+                  borderRadius: BorderRadius.circular(10),
+                  border:
+                      Border.all(color: accent.withValues(alpha: 0.3), width: 1),
+                ),
+                alignment: Alignment.center,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: CountryFlag.fromCountryCode(
+                    _country == 'uk' ? 'gb' : _country,
+                    theme: ImageTheme(
+                      width: 24,
+                      height: 16,
+                      shape: RoundedRectangle(2),
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Sistem sizi ${entry.name}\'de tespit etti',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: AppPalette.textPrimary(context),
+                        height: 1.25,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      '${entry.name} müfredatı ile devam edelim mi?',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: Colors.black.withValues(alpha: 0.62),
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: _confirmDetectedCountry,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 9),
+                    decoration: BoxDecoration(
+                      color: accent,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.check_rounded,
+                            size: 16, color: Colors.white),
+                        SizedBox(width: 5),
+                        Text('Evet, devam et',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            )),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(width: 8),
+              Expanded(
+                child: GestureDetector(
+                  onTap: _changeDetectedCountry,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 9),
+                    decoration: BoxDecoration(
+            color: AppPalette.card(context),
+                      borderRadius: BorderRadius.circular(10),
+                      border:
+                          Border.all(color: accent.withValues(alpha: 0.55), width: 1.2),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.public_rounded, size: 16, color: accent),
+                        SizedBox(width: 5),
+                        Text('Başka müfredat',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: accent,
+                            )),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   // Eğitim düzeyleri (üst sekme)
@@ -2413,20 +2587,20 @@ class _GradePageState extends State<_GradePage> {
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         children: [
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           _SectionIconBadge(icon: Icons.tune_rounded, color: widget.accent),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           Text(
             localeService.tr('onb_grade_title'),
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.black,
+            style: TextStyle(
+              color: AppPalette.textPrimary(context),
               fontSize: 26,
               fontWeight: FontWeight.w800,
               letterSpacing: -0.3,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Text(
             localeService.tr('onb_grade_subtitle'),
             textAlign: TextAlign.center,
@@ -2436,14 +2610,16 @@ class _GradePageState extends State<_GradePage> {
               height: 1.5,
             ),
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           Expanded(
             child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
+              physics: BouncingScrollPhysics(),
               // Üstte 20px boşluk: Positioned(top:-16) etiketleri kırpmasın.
               padding: const EdgeInsets.only(top: 20),
               child: Column(
                 children: [
+                  // ── Ülke onay kartı: tespit edilen müfredatla devam mı?
+                  if (!_countryConfirmed) _countryConfirmCard(widget.accent),
                   // ── Multi-select: eklenen profillerin chip listesi ────────
                   if (_picked.isNotEmpty) ...[
                     Wrap(
@@ -2459,7 +2635,7 @@ class _GradePageState extends State<_GradePage> {
                           ),
                       ],
                     ),
-                    const SizedBox(height: 14),
+                    SizedBox(height: 14),
                     // Yeni seviye eklemek için picker'ı sıfırla.
                     Center(
                       child: GestureDetector(
@@ -2480,7 +2656,7 @@ class _GradePageState extends State<_GradePage> {
                             children: [
                               Icon(Icons.add_rounded,
                                   size: 16, color: widget.accent),
-                              const SizedBox(width: 4),
+                              SizedBox(width: 4),
                               Text(
                                 localeService.tr('onb_add_more_level'),
                                 style: TextStyle(
@@ -2494,7 +2670,7 @@ class _GradePageState extends State<_GradePage> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 18),
+                    SizedBox(height: 18),
                   ],
                   // ── Sekme 1: Eğitim Düzeyi ───────────────────────────────
                   _ExpandableSelect(
@@ -2530,7 +2706,7 @@ class _GradePageState extends State<_GradePage> {
                   ),
                   // Tab'lar arası boşluk: 28px — etiketin (top:-16) açıklığı +
                   // göze rahat ayrım.
-                  const SizedBox(height: 28),
+                  SizedBox(height: 28),
                   // ── (Üniv/Y.Lis/Doktora) Sekme: Bölüm — arama destekli ───
                   if (needsDept) ...[
                     _DeptExpandable(
@@ -2544,7 +2720,7 @@ class _GradePageState extends State<_GradePage> {
                       departments: _departments,
                       onPick: _pickDept,
                     ),
-                    const SizedBox(height: 28),
+                    SizedBox(height: 28),
                   ],
                   // ── Sekme: Sınıf / (sınav hazırlık seviyelerinde) Sınav  ──
                   _ExpandableSelect(
@@ -2596,7 +2772,7 @@ class _GradePageState extends State<_GradePage> {
                         ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
                 ],
               ),
             ),
@@ -2610,7 +2786,7 @@ class _GradePageState extends State<_GradePage> {
             child: IgnorePointer(
               child: Center(
                 child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 220),
+                  duration: Duration(milliseconds: 220),
                   opacity: 1,
                   child: Container(
                     margin:
@@ -2618,10 +2794,10 @@ class _GradePageState extends State<_GradePage> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 18, vertical: 14),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+            color: AppPalette.card(context),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: const Color(0xFFDC2626),
+                        color: Color(0xFFDC2626),
                         width: 1.6,
                       ),
                       boxShadow: [
@@ -2629,21 +2805,21 @@ class _GradePageState extends State<_GradePage> {
                           color:
                               Colors.black.withValues(alpha: 0.18),
                           blurRadius: 18,
-                          offset: const Offset(0, 6),
+                          offset: Offset(0, 6),
                         ),
                       ],
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.error_outline_rounded,
+                        Icon(Icons.error_outline_rounded,
                             color: Color(0xFFDC2626), size: 22),
-                        const SizedBox(width: 10),
+                        SizedBox(width: 10),
                         Flexible(
                           child: Text(
                             _errorMessage!,
                             textAlign: TextAlign.center,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: Color(0xFFDC2626),
                               fontSize: 13,
                               fontWeight: FontWeight.w800,
@@ -2699,12 +2875,12 @@ class _PickedProfileChip extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 4),
+          SizedBox(width: 4),
           Material(
             color: Colors.transparent,
-            shape: const CircleBorder(),
+            shape: CircleBorder(),
             child: InkWell(
-              customBorder: const CircleBorder(),
+              customBorder: CircleBorder(),
               onTap: onRemove,
               child: Padding(
                 padding: const EdgeInsets.all(2),
@@ -2775,12 +2951,12 @@ class _DeptExpandableState extends State<_DeptExpandable> {
       clipBehavior: Clip.none,
       children: [
       AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
+        duration: Duration(milliseconds: 220),
         curve: Curves.easeOut,
         width: double.infinity,
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          color: Colors.white,
+            color: AppPalette.card(context),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: widget.isOpen
@@ -2818,7 +2994,7 @@ class _DeptExpandableState extends State<_DeptExpandable> {
                             color: widget.accent,
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        SizedBox(width: 10),
                       ],
                       Expanded(
                         child: Text(
@@ -2836,11 +3012,11 @@ class _DeptExpandableState extends State<_DeptExpandable> {
                       ),
                       AnimatedRotation(
                         turns: widget.isOpen ? 0.5 : 0,
-                        duration: const Duration(milliseconds: 220),
-                        child: const Icon(
+                        duration: Duration(milliseconds: 220),
+                        child: Icon(
                           Icons.keyboard_arrow_down_rounded,
                           size: 22,
-                          color: Colors.black54,
+                          color: AppPalette.textSecondary(context),
                         ),
                       ),
                     ],
@@ -2850,7 +3026,7 @@ class _DeptExpandableState extends State<_DeptExpandable> {
             ),
           // İçerik: arama + liste
           AnimatedSize(
-            duration: const Duration(milliseconds: 220),
+            duration: Duration(milliseconds: 220),
             curve: Curves.easeOut,
             alignment: Alignment.topCenter,
             child: !widget.isOpen
@@ -2864,7 +3040,7 @@ class _DeptExpandableState extends State<_DeptExpandable> {
                           color: Colors.black.withValues(alpha: 0.06),
                           margin: const EdgeInsets.symmetric(horizontal: 6),
                         ),
-                        const SizedBox(height: 8),
+                        SizedBox(height: 8),
                         Padding(
                           padding:
                               const EdgeInsets.symmetric(horizontal: 6),
@@ -2873,27 +3049,27 @@ class _DeptExpandableState extends State<_DeptExpandable> {
                             onChanged: (_) => setState(() {}),
                             cursorColor: Colors.black,
                             cursorWidth: 2.2,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: Colors.black,
+                              color: AppPalette.textPrimary(context),
                             ),
                             decoration: InputDecoration(
                               hintText: localeService
                                   .tr('onb_dept_search_hint'),
-                              hintStyle: const TextStyle(
+                              hintStyle: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,
-                                color: Colors.black38,
+                                color: AppPalette.textSecondary(context),
                               ),
-                              prefixIcon: const Icon(
+                              prefixIcon: Icon(
                                   Icons.search_rounded,
                                   size: 18,
                                   color: Colors.black45),
                               suffixIcon: _search.text.isEmpty
                                   ? null
                                   : IconButton(
-                                      icon: const Icon(
+                                      icon: Icon(
                                           Icons.close_rounded,
                                           size: 16,
                                           color: Colors.black45),
@@ -2906,7 +3082,7 @@ class _DeptExpandableState extends State<_DeptExpandable> {
                               contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 8, vertical: 10),
                               filled: true,
-                              fillColor: const Color(0xFFF6F7F9),
+                              fillColor: Color(0xFFF6F7F9),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide.none,
@@ -2914,10 +3090,10 @@ class _DeptExpandableState extends State<_DeptExpandable> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        SizedBox(height: 8),
                         ConstrainedBox(
                           constraints:
-                              const BoxConstraints(maxHeight: 280),
+                              BoxConstraints(maxHeight: 280),
                           child: filtered.isEmpty
                               ? Padding(
                                   padding: const EdgeInsets.symmetric(
@@ -2925,9 +3101,9 @@ class _DeptExpandableState extends State<_DeptExpandable> {
                                   child: Text(
                                     localeService
                                         .tr('onb_dept_no_results'),
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 12.5,
-                                      color: Colors.black54,
+                                      color: AppPalette.textSecondary(context),
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
@@ -2935,7 +3111,7 @@ class _DeptExpandableState extends State<_DeptExpandable> {
                               : ListView.builder(
                                   shrinkWrap: true,
                                   physics:
-                                      const ClampingScrollPhysics(),
+                                      ClampingScrollPhysics(),
                                   itemCount: filtered.length,
                                   itemBuilder: (_, i) => _SelectRow(
                                     icon: Icons.school_outlined,
@@ -2962,7 +3138,7 @@ class _DeptExpandableState extends State<_DeptExpandable> {
         child: IgnorePointer(
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            color: const Color(0xFFF2F3F5),
+            color: Color(0xFFF2F3F5),
             child: Text(
               widget.title,
               style: TextStyle(
@@ -3027,14 +3203,14 @@ class _ExpandableSelect extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
+          duration: Duration(milliseconds: 220),
           curve: Curves.easeOut,
           width: double.infinity,
           // Clip — InkWell splash'ı yuvarlatılmış kenarın dışına taşmasın
           // (etiket alanına sızmasın).
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
-            color: enabled ? Colors.white : const Color(0xFFF6F7F9),
+            color: enabled ? Colors.white : Color(0xFFF6F7F9),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: borderColor,
@@ -3073,7 +3249,7 @@ class _ExpandableSelect extends StatelessWidget {
                                   : Colors.black26,
                             ),
                           ),
-                          const SizedBox(width: 10),
+                          SizedBox(width: 10),
                         ],
                         Expanded(
                           child: Text(
@@ -3091,7 +3267,7 @@ class _ExpandableSelect extends StatelessWidget {
                         ),
                         AnimatedRotation(
                           turns: isOpen ? 0.5 : 0,
-                          duration: const Duration(milliseconds: 220),
+                          duration: Duration(milliseconds: 220),
                           child: Icon(
                             Icons.keyboard_arrow_down_rounded,
                             size: 22,
@@ -3107,7 +3283,7 @@ class _ExpandableSelect extends StatelessWidget {
               ),
           // Liste
           AnimatedSize(
-            duration: const Duration(milliseconds: 220),
+            duration: Duration(milliseconds: 220),
             curve: Curves.easeOut,
             alignment: Alignment.topCenter,
             child: !isOpen
@@ -3122,7 +3298,7 @@ class _ExpandableSelect extends StatelessWidget {
                           margin:
                               const EdgeInsets.symmetric(horizontal: 6),
                         ),
-                        const SizedBox(height: 6),
+                        SizedBox(height: 6),
                         for (final c in children) c,
                       ],
                     ),
@@ -3140,7 +3316,7 @@ class _ExpandableSelect extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               // Sayfa zemini ile aynı renk → border çizgisinin üstüne oturur.
-              color: const Color(0xFFF2F3F5),
+              color: Color(0xFFF2F3F5),
               child: Text(
                 title,
                 style: TextStyle(
@@ -3206,7 +3382,7 @@ class _SelectRow extends StatelessWidget {
                 ),
                 child: Icon(icon, size: 16, color: iconColor),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               Expanded(
                 child: Text(
                   label,
@@ -3220,8 +3396,8 @@ class _SelectRow extends StatelessWidget {
                 ),
               ),
               if (!enabled)
-                const Icon(Icons.lock_outline_rounded,
-                    color: Colors.black26, size: 16)
+                Icon(Icons.lock_outline_rounded,
+                    color: AppPalette.border(context), size: 16)
               else if (selected)
                 Icon(Icons.check_circle_rounded, color: color, size: 18),
             ],
@@ -3257,7 +3433,7 @@ class _ProgressBar extends StatelessWidget {
           child: Padding(
             padding: EdgeInsets.only(right: i == total - 1 ? 0 : 5),
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 320),
+              duration: Duration(milliseconds: 320),
               height: 4,
               decoration: BoxDecoration(
                 color: done ? color : inactiveColor,
@@ -3365,7 +3541,7 @@ class _SubjectCarouselState extends State<_SubjectCarousel>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: _cycleMs),
+      duration: Duration(milliseconds: _cycleMs),
     )..addStatusListener((s) {
         if (s == AnimationStatus.completed) {
           if (!mounted) return;
@@ -3469,10 +3645,10 @@ class _SubjectCarouselState extends State<_SubjectCarousel>
                           child: Text(
                             localeService.tr(nextGroup[i].key),
                             maxLines: 1,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
-                              color: Colors.black,
+                              color: AppPalette.textPrimary(context),
                               letterSpacing: -0.1,
                             ),
                           ),
@@ -3512,7 +3688,7 @@ class _SubjectCarouselState extends State<_SubjectCarousel>
                   logoCY: logoCY,
                 ),
               // QuAlsar yazısı + dönen logo — yatayda ortalı, en üstte.
-              const Positioned(
+              Positioned(
                 top: 0,
                 left: 0,
                 right: 0,
@@ -3589,10 +3765,10 @@ class _SubjectCarouselState extends State<_SubjectCarousel>
                   child: Text(
                     localeService.tr(subject.key),
                     maxLines: 1,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: Colors.black,
+                      color: AppPalette.textPrimary(context),
                       letterSpacing: -0.1,
                     ),
                   ),
@@ -3616,10 +3792,10 @@ class _PillFrame extends StatelessWidget {
       width: _SubjectCarouselState._pillW,
       height: _SubjectCarouselState._pillH,
       decoration: BoxDecoration(
-        color: Colors.white,
+            color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: Colors.black,
+          color: AppPalette.textPrimary(context),
           width: 0.8,
         ),
       ),
@@ -3645,10 +3821,10 @@ class _CtaButton extends StatelessWidget {
     return GestureDetector(
       onTap: enabled ? onTap : null,
       child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 200),
+        duration: Duration(milliseconds: 200),
         opacity: enabled ? 1 : 0.4,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
+          duration: Duration(milliseconds: 220),
           width: double.infinity,
           height: 54,
           decoration: BoxDecoration(
@@ -3670,7 +3846,7 @@ class _CtaButton extends StatelessWidget {
           alignment: Alignment.center,
           child: Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w800,
               color: Colors.white,
@@ -3758,7 +3934,7 @@ class _CompeteGlobeHeaderState extends State<_CompeteGlobeHeader>
     super.initState();
     _cycle = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: _cycleMs),
+      duration: Duration(milliseconds: _cycleMs),
     )..addStatusListener((s) {
         if (s == AnimationStatus.completed && mounted) {
           setState(() {
@@ -3955,14 +4131,14 @@ class _RivalPill extends StatelessWidget {
       width: width,
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 9),
       decoration: BoxDecoration(
-        color: Colors.white,
+            color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.black.withValues(alpha: 0.08)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 14,
-            offset: const Offset(0, 4),
+            offset: Offset(0, 4),
           ),
         ],
       ),
@@ -3975,24 +4151,24 @@ class _RivalPill extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(user.flag, style: const TextStyle(fontSize: 18)),
-              const SizedBox(width: 6),
+              Text(user.flag, style: TextStyle(fontSize: 18)),
+              SizedBox(width: 6),
               Flexible(
                 child: Text(
                   user.country,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w800,
-                    color: Colors.black,
+                    color: AppPalette.textPrimary(context),
                     height: 1.1,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 3),
+          SizedBox(height: 3),
           // Kullanıcı adı
           Text(
             user.user,
@@ -4005,20 +4181,20 @@ class _RivalPill extends StatelessWidget {
               height: 1.1,
             ),
           ),
-          const SizedBox(height: 5),
+          SizedBox(height: 5),
           // Ayraç çizgi
           Container(
             width: 24,
             height: 1,
             color: Colors.black.withValues(alpha: 0.1),
           ),
-          const SizedBox(height: 5),
+          SizedBox(height: 5),
           // Ders adı (iki kullanıcı için AYNI — yarışılan ortak konu)
           Text(
             match.subject,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w800,
               color: Color(0xFFEAB308),
@@ -4026,7 +4202,7 @@ class _RivalPill extends StatelessWidget {
               letterSpacing: 0.1,
             ),
           ),
-          const SizedBox(height: 2),
+          SizedBox(height: 2),
           // Yarışılan konu (iki kullanıcı için AYNI)
           Text(
             match.topic,
@@ -4114,8 +4290,8 @@ class _AuthPageState extends State<_AuthPage> {
 
   void _snack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg, style: const TextStyle(fontSize: 13)),
-      backgroundColor: const Color(0xFFEF4444),
+      content: Text(msg, style: TextStyle(fontSize: 13)),
+      backgroundColor: Color(0xFFEF4444),
       behavior: SnackBarBehavior.floating,
     ));
   }
@@ -4129,22 +4305,22 @@ class _AuthPageState extends State<_AuthPage> {
       context: context,
       barrierDismissible: true,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: AppPalette.card(context),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
         title: Row(
           children: [
-            const Icon(Icons.error_outline_rounded,
+            Icon(Icons.error_outline_rounded,
                 color: Color(0xFFEF4444), size: 22),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w800,
-                  color: Colors.black,
+                  color: AppPalette.textPrimary(context),
                 ),
               ),
             ),
@@ -4152,20 +4328,20 @@ class _AuthPageState extends State<_AuthPage> {
         ),
         content: Text(
           body,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 13,
-            color: Colors.black87,
+            color: AppPalette.textPrimary(context),
             height: 1.5,
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text(
+            child: Text(
               'Tamam',
               style: TextStyle(
                 fontWeight: FontWeight.w800,
-                color: Colors.black,
+                color: AppPalette.textPrimary(context),
               ),
             ),
           ),
@@ -4180,7 +4356,7 @@ class _AuthPageState extends State<_AuthPage> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetCtx) => AnimatedPadding(
-        duration: const Duration(milliseconds: 180),
+        duration: Duration(milliseconds: 180),
         curve: Curves.easeOut,
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
@@ -4197,7 +4373,7 @@ class _AuthPageState extends State<_AuthPage> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetCtx) => AnimatedPadding(
-        duration: const Duration(milliseconds: 180),
+        duration: Duration(milliseconds: 180),
         curve: Curves.easeOut,
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
@@ -4212,7 +4388,7 @@ class _AuthPageState extends State<_AuthPage> {
   Widget build(BuildContext context) {
     final user = AuthService.current;
     return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
+      physics: BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
       child: Column(
         children: [
@@ -4237,24 +4413,24 @@ class _AuthPageState extends State<_AuthPage> {
                 ),
               ],
             ),
-            child: const Icon(
+            child: Icon(
               Icons.account_circle_rounded,
               color: Colors.white,
               size: 52,
             ),
           ),
-          const SizedBox(height: 18),
+          SizedBox(height: 18),
           Text(
             localeService.tr('auth_title'),
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.black,
+            style: TextStyle(
+              color: AppPalette.textPrimary(context),
               fontSize: 26,
               fontWeight: FontWeight.w800,
               letterSpacing: -0.3,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Text(
             localeService.tr('auth_subtitle'),
             textAlign: TextAlign.center,
@@ -4264,21 +4440,21 @@ class _AuthPageState extends State<_AuthPage> {
               height: 1.5,
             ),
           ),
-          const SizedBox(height: 22),
+          SizedBox(height: 22),
           if (user != null) ...[
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: const Color(0xFFDCFCE7),
+                color: Color(0xFFDCFCE7),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFF22C55E)),
+                border: Border.all(color: Color(0xFF22C55E)),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.check_circle_rounded,
+                  Icon(Icons.check_circle_rounded,
                       color: Color(0xFF22C55E), size: 22),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -4286,19 +4462,19 @@ class _AuthPageState extends State<_AuthPage> {
                       children: [
                         Text(
                           localeService.tr('auth_signed_in'),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
                             color: Color(0xFF166534),
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        SizedBox(height: 2),
                         Text(
                           user.email ?? user.name ?? user.provider.id,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
-                            color: Colors.black,
+                            color: AppPalette.textPrimary(context),
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -4313,7 +4489,7 @@ class _AuthPageState extends State<_AuthPage> {
                     },
                     child: Text(
                       localeService.tr('auth_sign_out'),
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Color(0xFF166534),
                         fontWeight: FontWeight.w800,
                       ),
@@ -4322,7 +4498,7 @@ class _AuthPageState extends State<_AuthPage> {
                 ],
               ),
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
           ],
           _AuthBigButton(
             label: localeService.tr('auth_with_google'),
@@ -4333,27 +4509,27 @@ class _AuthPageState extends State<_AuthPage> {
             busy: _busy && _activeProvider == 'google',
             onTap: () => _run('google', () => AuthService.signInWithGoogle()),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           _AuthBigButton(
             label: localeService.tr('auth_with_apple'),
             background: Colors.white,
             foreground: Colors.black,
             border: Border.all(color: Colors.black.withValues(alpha: 0.18)),
-            iconBuilder: (_) => const Icon(
+            iconBuilder: (_) => Icon(
               Icons.apple,
-              color: Colors.black,
+              color: AppPalette.textPrimary(context),
               size: 24,
             ),
             busy: _busy && _activeProvider == 'apple',
             onTap: () => _run('apple', () => AuthService.signInWithApple()),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           _AuthBigButton(
             label: localeService.tr('auth_with_phone'),
             background: Colors.white,
             foreground: Colors.black,
             border: Border.all(color: Colors.black.withValues(alpha: 0.18)),
-            iconBuilder: (_) => const Icon(
+            iconBuilder: (_) => Icon(
               Icons.phone_iphone_rounded,
               color: Color(0xFF22C55E),
               size: 24,
@@ -4361,12 +4537,12 @@ class _AuthPageState extends State<_AuthPage> {
             busy: false,
             onTap: _openPhoneSheet,
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           _OrDivider(label: localeService.tr('auth_or')),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           _AuthBigButton(
             label: localeService.tr('auth_with_email'),
-            background: const Color(0xFFF6F7F9),
+            background: Color(0xFFF6F7F9),
             foreground: Colors.black,
             border: Border.all(color: Colors.black.withValues(alpha: 0.10)),
             iconBuilder: (_) => Icon(
@@ -4377,7 +4553,7 @@ class _AuthPageState extends State<_AuthPage> {
             busy: false,
             onTap: _openEmailSheet,
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           TextButton(
             onPressed: _busy
                 ? null
@@ -4392,7 +4568,7 @@ class _AuthPageState extends State<_AuthPage> {
               ),
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Text(
             localeService.tr('auth_terms_hint'),
             textAlign: TextAlign.center,
@@ -4460,7 +4636,7 @@ class _AuthBigButton extends StatelessWidget {
                       : iconBuilder(context),
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: Text(
                   label,
@@ -4519,7 +4695,7 @@ class _GoogleGlyph extends StatelessWidget {
       width: size,
       height: size,
       alignment: Alignment.center,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: SweepGradient(
           colors: [
@@ -4535,16 +4711,16 @@ class _GoogleGlyph extends StatelessWidget {
         width: size - 4,
         height: size - 4,
         alignment: Alignment.center,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: Colors.white,
+          color: AppPalette.card(context),
         ),
         child: Text(
           'G',
           style: TextStyle(
             fontSize: size * 0.62,
             fontWeight: FontWeight.w900,
-            color: const Color(0xFF4285F4),
+            color: Color(0xFF4285F4),
             height: 1.0,
           ),
         ),
@@ -4608,8 +4784,8 @@ class _EmailSignUpSheetState extends State<_EmailSignUpSheet> {
 
   InputDecoration _dec(String hint, IconData icon) => InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(
-          color: Colors.black38,
+        hintStyle: TextStyle(
+          color: AppPalette.textSecondary(context),
           fontSize: 13,
           fontWeight: FontWeight.w500,
         ),
@@ -4618,7 +4794,7 @@ class _EmailSignUpSheetState extends State<_EmailSignUpSheet> {
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         filled: true,
-        fillColor: const Color(0xFFF6F7F9),
+        fillColor: Color(0xFFF6F7F9),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
@@ -4628,8 +4804,8 @@ class _EmailSignUpSheetState extends State<_EmailSignUpSheet> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(
+            color: AppPalette.card(context),
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 22),
@@ -4644,58 +4820,58 @@ class _EmailSignUpSheetState extends State<_EmailSignUpSheet> {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           Text(
             _isLogin
                 ? localeService.tr('auth_email_login_title')
                 : localeService.tr('auth_email_signup_title'),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
-              color: Colors.black,
+              color: AppPalette.textPrimary(context),
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           if (!_isLogin) ...[
             TextField(
               controller: _name,
               textCapitalization: TextCapitalization.words,
               cursorColor: widget.accent,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
-                color: Colors.black,
+                color: AppPalette.textPrimary(context),
               ),
               decoration: _dec(
                 localeService.tr('auth_name_hint'),
                 Icons.person_rounded,
               ),
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
           ],
           TextField(
             controller: _email,
             keyboardType: TextInputType.emailAddress,
             cursorColor: widget.accent,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w700,
-              color: Colors.black,
+              color: AppPalette.textPrimary(context),
             ),
             decoration: _dec(
               localeService.tr('auth_email_hint'),
               Icons.alternate_email_rounded,
             ),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           TextField(
             controller: _pass,
             obscureText: _obscure,
             cursorColor: widget.accent,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w700,
-              color: Colors.black,
+              color: AppPalette.textPrimary(context),
             ),
             decoration: _dec(
               localeService.tr('auth_password_hint'),
@@ -4707,24 +4883,24 @@ class _EmailSignUpSheetState extends State<_EmailSignUpSheet> {
                       ? Icons.visibility_outlined
                       : Icons.visibility_off_outlined,
                   size: 18,
-                  color: Colors.black54,
+                  color: AppPalette.textSecondary(context),
                 ),
                 onPressed: () => setState(() => _obscure = !_obscure),
               ),
             ),
           ),
           if (_error != null) ...[
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               _error!,
-              style: const TextStyle(
+              style: TextStyle(
                 color: Color(0xFFEF4444),
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
             ),
           ],
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           SizedBox(
             width: double.infinity,
             child: Material(
@@ -4737,7 +4913,7 @@ class _EmailSignUpSheetState extends State<_EmailSignUpSheet> {
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   child: Center(
                     child: _busy
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 18,
                             height: 18,
                             child: CircularProgressIndicator(
@@ -4749,7 +4925,7 @@ class _EmailSignUpSheetState extends State<_EmailSignUpSheet> {
                             _isLogin
                                 ? localeService.tr('auth_sign_in')
                                 : localeService.tr('auth_sign_up'),
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: Colors.white,
                               fontSize: 14.5,
                               fontWeight: FontWeight.w800,
@@ -4761,17 +4937,17 @@ class _EmailSignUpSheetState extends State<_EmailSignUpSheet> {
               ),
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           TextButton(
             onPressed: _busy ? null : () => setState(() => _isLogin = !_isLogin),
             child: Text(
               _isLogin
                   ? localeService.tr('auth_no_account')
                   : localeService.tr('auth_have_account'),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w700,
-                color: Colors.black87,
+                color: AppPalette.textPrimary(context),
               ),
             ),
           ),
@@ -4867,7 +5043,7 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
       _phoneFocus.requestFocus();
       // Bazı platformlar focus alındığında metni "select-all" yapabilir;
       // 50 ms sonra imleci yine sona koyuyoruz ki ülke kodu silinmesin.
-      Future<void>.delayed(const Duration(milliseconds: 60), () {
+      Future<void>.delayed(Duration(milliseconds: 60), () {
         if (!mounted) return;
         _phone.selection =
             TextSelection.collapsed(offset: _phone.text.length);
@@ -4888,7 +5064,7 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
   void _startResendTimer() {
     setState(() => _resendIn = 30);
     _resendTimer?.cancel();
-    _resendTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+    _resendTimer = Timer.periodic(Duration(seconds: 1), (t) {
       if (!mounted) return;
       if (_resendIn <= 0) {
         t.cancel();
@@ -4961,22 +5137,22 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
       context: context,
       barrierDismissible: true,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
+        backgroundColor: AppPalette.card(context),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
         title: Row(
           children: [
-            const Icon(Icons.error_outline_rounded,
+            Icon(Icons.error_outline_rounded,
                 color: Color(0xFFEF4444), size: 22),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w800,
-                  color: Colors.black,
+                  color: AppPalette.textPrimary(context),
                 ),
               ),
             ),
@@ -4984,20 +5160,20 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
         ),
         content: Text(
           body,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 13,
-            color: Colors.black87,
+            color: AppPalette.textPrimary(context),
             height: 1.5,
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text(
+            child: Text(
               'Tamam',
               style: TextStyle(
                 fontWeight: FontWeight.w800,
-                color: Colors.black,
+                color: AppPalette.textPrimary(context),
               ),
             ),
           ),
@@ -5031,8 +5207,8 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
 
   InputDecoration _dec(String hint, IconData icon) => InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(
-          color: Colors.black38,
+        hintStyle: TextStyle(
+          color: AppPalette.textSecondary(context),
           fontSize: 13,
           fontWeight: FontWeight.w500,
         ),
@@ -5041,7 +5217,7 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         filled: true,
-        fillColor: const Color(0xFFF6F7F9),
+        fillColor: Color(0xFFF6F7F9),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
@@ -5052,8 +5228,8 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
   Widget build(BuildContext context) {
     final hasSession = _sessionId != null;
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(
+            color: AppPalette.card(context),
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 22),
@@ -5068,18 +5244,18 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           Text(
             hasSession
                 ? localeService.tr('auth_phone_code_title')
                 : localeService.tr('auth_phone_title'),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
-              color: Colors.black,
+              color: AppPalette.textPrimary(context),
             ),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Text(
             hasSession
                 ? localeService
@@ -5093,17 +5269,17 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
               height: 1.4,
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           if (!hasSession)
             TextField(
               controller: _phone,
               focusNode: _phoneFocus,
               keyboardType: TextInputType.phone,
               cursorColor: widget.accent,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
-                color: Colors.black,
+                color: AppPalette.textPrimary(context),
               ),
               decoration: _dec(
                 localeService.tr('auth_phone_field_hint'),
@@ -5119,11 +5295,11 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
               cursorColor: widget.accent,
               maxLength: 6,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 8,
-                color: Colors.black,
+                color: AppPalette.textPrimary(context),
               ),
               decoration: _dec(
                 '••••••',
@@ -5134,17 +5310,17 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
               },
             ),
           if (_error != null) ...[
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               _error!,
-              style: const TextStyle(
+              style: TextStyle(
                 color: Color(0xFFEF4444),
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
             ),
           ],
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           SizedBox(
             width: double.infinity,
             child: Material(
@@ -5159,7 +5335,7 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   child: Center(
                     child: _busy
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 18,
                             height: 18,
                             child: CircularProgressIndicator(
@@ -5171,7 +5347,7 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
                             hasSession
                                 ? localeService.tr('auth_phone_verify')
                                 : localeService.tr('auth_phone_send_code'),
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: Colors.white,
                               fontSize: 14.5,
                               fontWeight: FontWeight.w800,
@@ -5184,7 +5360,7 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
             ),
           ),
           if (hasSession) ...[
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             TextButton(
               onPressed: (_busy || _resendIn > 0) ? null : _requestCode,
               child: Text(
@@ -5202,7 +5378,7 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
                 ),
               ),
             ),
-            const SizedBox(height: 2),
+            SizedBox(height: 2),
             TextButton(
               onPressed: _busy
                   ? null
@@ -5217,10 +5393,10 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
                     },
               child: Text(
                 localeService.tr('auth_phone_change_number'),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: Colors.black54,
+                  color: AppPalette.textSecondary(context),
                 ),
               ),
             ),

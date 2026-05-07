@@ -6,6 +6,8 @@ import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image/image.dart' as img;
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme.dart';
 import '../main.dart' show localeService;
@@ -13,8 +15,7 @@ import '../services/analytics.dart';
 import '../services/usage_quota.dart';
 import '../widgets/adaptive_photo.dart';
 import '../widgets/ai_model_card.dart';
-import '../widgets/qualsar_numeric_loader.dart';
-import '../widgets/qualsar_verbal_loader.dart';
+import '../widgets/qualsar_loading_widget.dart';
 import '../services/gemini_service.dart';
 import 'ai_result_screen.dart';
 
@@ -54,20 +55,56 @@ class _SolutionScreenState extends State<SolutionScreen> {
     _ModeOption(
       label: 'Basit Çöz'.tr(),
       subtitle: 'Basit ve pratik çözer'.tr(),
-      icon:     Icons.bolt_rounded,
-      color:    const Color(0xFFF59E0B),
+      icon: Icons.diamond_rounded,
+      color: Color(0xFFF59E0B),
+      // Parlayan karat: diamond + sağ üst köşesinde küçük sparkle.
+      iconBuilder: (c) => Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          Icon(Icons.diamond_rounded, color: c, size: 22),
+          Positioned(
+            top: -2,
+            right: -2,
+            child: Icon(Icons.auto_awesome_rounded,
+                color: c.withValues(alpha: 0.85), size: 8),
+          ),
+        ],
+      ),
     ),
     _ModeOption(
       label: 'Adım Adım Çöz'.tr(),
       subtitle: 'Detaylı adım adım çözer'.tr(),
-      icon:     Icons.list_alt_rounded,
-      color:    const Color(0xFF3B82F6),
+      icon: Icons.pets_rounded,
+      color: Color(0xFF3B82F6),
+      // 4 panda ayak izi — aynı yatay hizada, izler yatay (yan yatık) baksın.
+      // Transform.rotate ile paw 90° yatık → yürüyüş yönünde uzanmış izler.
+      iconBuilder: (c) => SizedBox(
+        width: 40,
+        height: 22,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: List.generate(4, (_) {
+            return Transform.rotate(
+              angle: math.pi / 2, // 90° → yatay
+              child: Icon(Icons.pets_rounded, color: c, size: 9),
+            );
+          }),
+        ),
+      ),
     ),
     _ModeOption(
       label: 'AI Arkadaşım'.tr(),
       subtitle: 'Bir arkadaş gibi çözer'.tr(),
-      icon:     Icons.school_rounded,
-      color:    const Color(0xFFEC4899),
+      icon: Icons.smart_toy_rounded,
+      color: Color(0xFFEC4899),
+      // Detaylı robot — anten + kafa + LED gözler + ağız.
+      iconBuilder: (c) => SizedBox(
+        width: 26,
+        height: 26,
+        child: CustomPaint(painter: _RobotPainter(c)),
+      ),
     ),
   ];
 
@@ -80,12 +117,12 @@ class _SolutionScreenState extends State<SolutionScreen> {
       badge: localeService.tr('recommended'),
       accentColor: AppColors.cyan,
       logo: ShaderMask(
-        shaderCallback: (b) => const LinearGradient(
+        shaderCallback: (b) => LinearGradient(
           colors: [Color(0xFF00E5FF), Color(0xFF6B21F2)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ).createShader(b),
-        child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 22),
+        child: Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 22),
       ),
     ),
     AiModel(
@@ -163,6 +200,12 @@ class _SolutionScreenState extends State<SolutionScreen> {
   final ValueNotifier<Color?> _cardsBgN   = ValueNotifier(null);
   final ValueNotifier<Color?> _cardsTextN = ValueNotifier(null);
 
+  // ── Yeniden kırpma (re-crop) ──────────────────────────────────────────────
+  // Normalize edilmiş 0..1 koordinatlarda kullanıcının seçtiği alan.
+  // Başlangıç: tüm görsel — kullanıcı dokunmazsa orijinal yollanır.
+  final ValueNotifier<Rect> _cropRectN =
+      ValueNotifier(const Rect.fromLTRB(0, 0, 1, 1));
+
   // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
   @override
@@ -178,7 +221,45 @@ class _SolutionScreenState extends State<SolutionScreen> {
     _photoBgN.dispose();
     _cardsBgN.dispose();
     _cardsTextN.dispose();
+    _cropRectN.dispose();
     super.dispose();
+  }
+
+  /// Kullanıcı kırpma çerçevesini daralttıysa yeni bir temp JPG yarat ve
+  /// onun yolunu döndür; daraltılmamışsa orijinal yolu döndür.
+  /// Hata durumunda (decode/IO) sessizce orijinal yola düş — analiz akışı
+  /// kesilmesin.
+  Future<String> _applyCropIfNeeded() async {
+    final r = _cropRectN.value;
+    // Tam alan ya da neredeyse tam (1 px tolerans) → kırpma yok.
+    const eps = 0.005;
+    final isFull = r.left <= eps &&
+        r.top <= eps &&
+        r.right >= 1 - eps &&
+        r.bottom >= 1 - eps;
+    if (isFull) return widget.imagePath;
+    try {
+      final bytes = await File(widget.imagePath).readAsBytes();
+      var im = img.decodeImage(bytes);
+      if (im == null) return widget.imagePath;
+      im = img.bakeOrientation(im);
+      final sx = (r.left * im.width).round().clamp(0, im.width - 1);
+      final sy = (r.top * im.height).round().clamp(0, im.height - 1);
+      final sw =
+          (r.width * im.width).round().clamp(1, im.width - sx);
+      final sh =
+          (r.height * im.height).round().clamp(1, im.height - sy);
+      final cropped =
+          img.copyCrop(im, x: sx, y: sy, width: sw, height: sh);
+      final encoded = img.encodeJpg(cropped, quality: 92);
+      final dir = await getTemporaryDirectory();
+      final out = File(
+          '${dir.path}/recrop_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      await out.writeAsBytes(encoded);
+      return out.path;
+    } catch (_) {
+      return widget.imagePath;
+    }
   }
 
   Future<void> _loadResultColors() async {
@@ -258,12 +339,12 @@ class _SolutionScreenState extends State<SolutionScreen> {
         SnackBar(
           content: Text(
             localeService.tr('select_method_first'),
-            style: const TextStyle(fontWeight: FontWeight.w600),
+            style: TextStyle(fontWeight: FontWeight.w600),
           ),
           backgroundColor: AppColors.surfaceElevated,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          duration: const Duration(seconds: 2),
+          duration: Duration(seconds: 2),
         ),
       );
       return;
@@ -333,16 +414,20 @@ class _SolutionScreenState extends State<SolutionScreen> {
     String? result;
     GeminiException? geminiError;
 
+    // Kullanıcı kırpma çerçevesini daraltmışsa görseli o alana göre yeniden
+    // kırpıp temp dosya yarat; AI'a yalnızca seçilmiş bölge gider.
+    final pathForAI = await _applyCropIfNeeded();
+
     try {
       if (model.name == 'Deepseek') {
         result = await GeminiService.analyzeImageWithDeepseek(
-          widget.imagePath,
+          pathForAI,
           _selectedOption!,
           isMulti: widget.isMultiCapture,
         );
       } else {
         result = await GeminiService.analyzeImage(
-          widget.imagePath,
+          pathForAI,
           _selectedOption!,
           isMulti: widget.isMultiCapture,
         );
@@ -382,12 +467,12 @@ class _SolutionScreenState extends State<SolutionScreen> {
           ),
           transitionsBuilder: (_, a, __, child) => SlideTransition(
             position: Tween<Offset>(
-              begin: const Offset(0, 1),
+              begin: Offset(0, 1),
               end: Offset.zero,
             ).animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)),
             child: child,
           ),
-          transitionDuration: const Duration(milliseconds: 380),
+          transitionDuration: Duration(milliseconds: 380),
         ),
       );
     }
@@ -412,7 +497,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
     return ValueListenableBuilder<Color?>(
       valueListenable: _pageBgN,
       builder: (_, pageBg, body) => Scaffold(
-        backgroundColor: pageBg ?? const Color(0xFFF0F2F5),
+        backgroundColor: pageBg ?? AppPalette.bg(context),
         body: body,
       ),
       child: SelectionArea(
@@ -427,42 +512,58 @@ class _SolutionScreenState extends State<SolutionScreen> {
                 Expanded(
                   child: SingleChildScrollView(
                     controller: _scrollCtrl,
-                    physics: const BouncingScrollPhysics(),
+                    physics: BouncingScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _buildPhotoCard(),
-                        const SizedBox(height: 22),
+                        SizedBox(height: 22),
 
                         Center(
-                          child: Text(
-                            'Nasıl Çözelim?',
-                            style: GoogleFonts.inter(
-                              color: const Color(0xFF1A1A2E),
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.2,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 22, vertical: 8),
+                            decoration: BoxDecoration(
+            color: AppPalette.card(context),
+                              borderRadius: BorderRadius.circular(999),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black
+                                      .withValues(alpha: 0.05),
+                                  blurRadius: 8,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Text(
+                              'Nasıl Çözelim?',
+                              style: GoogleFonts.inter(
+                                color: AppPalette.textPrimary(context),
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.2,
+                              ),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 14),
+                        SizedBox(height: 14),
 
                         _buildModeButtons(),
-                        const SizedBox(height: 22),
+                        SizedBox(height: 22),
 
                         Center(
                           child: Text(
                             'Hangisiyle çözmek istersin?',
                             style: GoogleFonts.inter(
-                              color: Colors.black,
+                              color: AppPalette.textPrimary(context),
                               fontSize: 16,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 0.4,
                             ),
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        SizedBox(height: 16),
 
                         _buildModelWheel(),
                       ],
@@ -502,19 +603,24 @@ class _SolutionScreenState extends State<SolutionScreen> {
               top: MediaQuery.of(context).padding.top + 4,
               left: 4,
               child: IconButton(
-                icon: const Icon(Icons.arrow_back_rounded, color: AppColors.cyan),
+                icon: Icon(Icons.arrow_back_rounded, color: AppColors.cyan),
                 onPressed: () => Navigator.pop(context),
               ),
             ),
 
-          // ── 3 — Yükleme overlay (sayısal / sözel) ─────────────────────────
-          // classifySubjectQuick paralel çalışır; hazır olana kadar sayısal
-          // gösterilir, sonuç gelince sözel ise switch edilir.
+          // ── 3 — Yükleme overlay (birleşik standart loader) ───────────────
+          // Tüm modüller (özet/çözüm/test) aynı görsel kimliği kullanır;
+          // QuAlsarLoadingWidget içte stages + mavi tik + motivasyon yönetir.
+          // Konu fotoğraftan gelmediği için topic=''; "Sorunuz analiz
+          // ediliyor" fallback'ine düşer.
           if (_isLoading)
             Positioned.fill(
-              child: _subjectKind == 'verbal'
-                  ? const QuAlsarVerbalLoader()
-                  : const QuAlsarNumericLoader(),
+              child: QuAlsarLoadingWidget(
+                type: QuAlsarLoadingType.solution,
+                domain: _subjectKind == 'verbal'
+                    ? SubjectDomain.verbal
+                    : SubjectDomain.numeric,
+              ),
             ),
         ],
       ),
@@ -529,10 +635,10 @@ class _SolutionScreenState extends State<SolutionScreen> {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back_rounded, color: AppColors.cyan),
+            icon: Icon(Icons.arrow_back_rounded, color: AppColors.cyan),
             onPressed: () => Navigator.pop(context),
           ),
-          const Spacer(),
+          Spacer(),
           GestureDetector(
             onTap: () =>
                 setState(() => _showColorPicker = !_showColorPicker),
@@ -540,7 +646,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
               padding: const EdgeInsets.symmetric(
                   horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
+                gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
@@ -555,7 +661,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.12),
                     blurRadius: 8,
-                    offset: const Offset(0, 2),
+                    offset: Offset(0, 2),
                   ),
                 ],
               ),
@@ -569,7 +675,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
                     size: 14,
                     color: Colors.white,
                   ),
-                  const SizedBox(width: 5),
+                  SizedBox(width: 5),
                   Text(
                     _showColorPicker
                         ? 'Kapat'.tr()
@@ -596,47 +702,84 @@ class _SolutionScreenState extends State<SolutionScreen> {
     // Çerçeve artık sabit 4:3 DEĞİL — fotoğrafın gerçek en-boy oranına göre
     // uzar/kısalır, böylece dikey/yatay her görsel TAM gözükür (BoxFit.contain).
     // En fazla ekranın %55'i kadar yer kaplar.
-    return Stack(
+    // Üzerinde ayarlanabilir bir kırpma çerçevesi var; "Alanı Belirle" altyazısı
+    // kullanıcıya kenarlardan tutup daraltıp/genişletebileceğini hatırlatır.
+    return Column(
       children: [
-        ValueListenableBuilder<Color?>(
-          valueListenable: _photoBgN,
-          builder: (_, photoBg, __) => AdaptivePhoto(
-            path: widget.imagePath,
-            maxHeightFactor: 0.55,
-            borderRadius: 14,
-            border: Border.all(color: Colors.black, width: 3),
-            background: photoBg ?? const Color(0xFFF0F2F5),
-          ),
-        ),
-        // Sağ üst: kapat (X) — fotoğrafın içinde
-        Positioned(
-          top: 10,
-          right: 10,
-          child: GestureDetector(
-            onTap: _deleteAndGoBack,
-            child: Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.65),
-                shape: BoxShape.circle,
-                border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.30), width: 1),
+        // Talimat şeridi: "Alanı Belirle"
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.crop_free_rounded,
+                  size: 14, color: AppColors.cyan),
+              SizedBox(width: 6),
+              Text(
+                'Alanı Belirle'.tr(),
+                style: GoogleFonts.poppins(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppPalette.textPrimary(context),
+                  letterSpacing: 0.2,
+                ),
               ),
-              child: const Icon(Icons.close_rounded,
-                  color: Colors.white, size: 18),
-            ),
+              SizedBox(width: 6),
+              Text(
+                'Kenarlardan tutarak daralt'.tr(),
+                style: GoogleFonts.poppins(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w500,
+                  color: AppPalette.textSecondary(context),
+                ),
+              ),
+            ],
           ),
         ),
-        // Renk paneli — palette butonuna basıldığında doğrudan fotoğrafın
-        // ÜZERİNE overlay olarak gelir.
-        if (_showColorPicker)
-          Positioned.fill(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: _buildResultColorPanel(),
+        Stack(
+          children: [
+            ValueListenableBuilder<Color?>(
+              valueListenable: _photoBgN,
+              builder: (_, photoBg, __) => AdaptivePhoto(
+                path: widget.imagePath,
+                maxHeightFactor: 0.55,
+                borderRadius: 14,
+                border: Border.all(color: AppPalette.textPrimary(context), width: 3),
+                background: photoBg ?? AppPalette.bg(context),
+                overlay: _PhotoCropOverlay(rectN: _cropRectN),
+              ),
             ),
-          ),
+            // Sağ üst: kapat (X) — fotoğrafın içinde
+            Positioned(
+              top: 10,
+              right: 10,
+              child: GestureDetector(
+                onTap: _deleteAndGoBack,
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.65),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.30), width: 1),
+                  ),
+                  child: Icon(Icons.close_rounded,
+                      color: Colors.white, size: 18),
+                ),
+              ),
+            ),
+            // Renk paneli — palette butonuna basıldığında doğrudan fotoğrafın
+            // ÜZERİNE overlay olarak gelir.
+            if (_showColorPicker)
+              Positioned.fill(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: _buildResultColorPanel(),
+                ),
+              ),
+          ],
+        ),
       ],
     );
   }
@@ -648,121 +791,115 @@ class _SolutionScreenState extends State<SolutionScreen> {
   Widget _buildModeButtons() {
     return SizedBox(
       width: double.infinity,
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: _modes.map((mode) {
-            final sel = _selectedOption == mode.label;
-            final c   = mode.color;
-            return Expanded(
-              child: GestureDetector(
-                onTap: () => setState(() => _selectedOption = mode.label),
-                behavior: HitTestBehavior.opaque,
-                child: AnimatedOpacity(
-                  opacity: _selectedOption != null && !sel ? 0.45 : 1.0,
-                  duration: const Duration(milliseconds: 200),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeOutCubic,
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 14, horizontal: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: sel
-                            ? c.withValues(alpha: 0.85)
-                            : Colors.black.withValues(alpha: 0.18),
-                        width: sel ? 1.6 : 1.0,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: _modes.map((mode) {
+          final sel = _selectedOption == mode.label;
+          final c = mode.color;
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _selectedOption = mode.label),
+              behavior: HitTestBehavior.opaque,
+              child: AnimatedOpacity(
+                opacity: _selectedOption != null && !sel ? 0.45 : 1.0,
+                duration: Duration(milliseconds: 200),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: AnimatedContainer(
+                      duration: Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        // Saf beyaz zemin
+                        color: AppPalette.card(context),
+                        border: Border.all(
+                          color: sel ? c : Color(0xFFD0D0D0),
+                          width: sel ? 2.4 : 1.0,
+                        ),
+                        boxShadow: sel
+                            ? [
+                                BoxShadow(
+                                  color: c.withValues(alpha: 0.35),
+                                  blurRadius: 14,
+                                  spreadRadius: 2,
+                                ),
+                              ]
+                            : [
+                                BoxShadow(
+                                  color: Colors.black
+                                      .withValues(alpha: 0.04),
+                                  blurRadius: 4,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
                       ),
-                      boxShadow: sel
-                          ? [BoxShadow(
-                              color: c.withValues(alpha: 0.22),
-                              blurRadius: 12,
-                              spreadRadius: 0.5)]
-                          : [BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.04),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2))],
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Yuvarlak ikon — çok küçük
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 220),
-                          width: 30,
-                          height: 30,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: c.withValues(alpha: sel ? 0.20 : 0.12),
-                            border: Border.all(
-                              color: c.withValues(alpha: sel ? 0.85 : 0.45),
-                              width: sel ? 1.4 : 1.0,
+                      alignment: Alignment.center,
+                      child: Padding(
+                        padding: const EdgeInsets.all(10),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            mode.iconBuilder?.call(c) ??
+                                Icon(mode.icon, color: c, size: 22),
+                            SizedBox(height: 3),
+                            Text(
+                              mode.label,
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.inter(
+                                color: sel ? c : Colors.black,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w800,
+                                height: 1.15,
+                              ),
                             ),
-                            boxShadow: sel
-                                ? [BoxShadow(
-                                    color: c.withValues(alpha: 0.30),
-                                    blurRadius: 6,
-                                    spreadRadius: 0.3)]
-                                : const [],
-                          ),
-                          child: Icon(mode.icon, color: c, size: 16),
+                            SizedBox(height: 2),
+                            Text(
+                              mode.subtitle,
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.inter(
+                                color: Colors.black
+                                    .withValues(alpha: 0.55),
+                                fontSize: 8.2,
+                                fontWeight: FontWeight.w500,
+                                height: 1.15,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          mode.label,
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.inter(
-                            color: Colors.black,
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w800,
-                            height: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          mode.subtitle,
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.inter(
-                            color: Colors.black.withValues(alpha: 0.62),
-                            fontSize: 10,
-                            fontWeight: FontWeight.w500,
-                            height: 1.25,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
               ),
-            );
-          }).toList(),
-        ),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
 
   // ══════ Renk seçim paneli — fotoğraf üzerinde overlay ═══════════════════
   Widget _buildResultColorPanel() {
-    final orange = const Color(0xFFFF6A00);
+    final orange = Color(0xFFFF6A00);
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+            color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.black, width: 1.5),
+        border: Border.all(color: AppPalette.textPrimary(context), width: 1.5),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 14,
-            offset: const Offset(0, 4),
+            offset: Offset(0, 4),
           ),
         ],
       ),
@@ -771,24 +908,24 @@ class _SolutionScreenState extends State<SolutionScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.palette_rounded,
+              Icon(Icons.palette_rounded,
                   size: 16, color: Colors.black),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Text('Renk'.tr(),
                   style: GoogleFonts.poppins(
                       fontSize: 13,
                       fontWeight: FontWeight.w900,
                       color: Colors.black)),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               Expanded(child: _resultModeToggle(orange)),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               GestureDetector(
                 onTap: _resetResultColors,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF3F4F6),
+                    color: AppPalette.cardMuted(context),
                     borderRadius: BorderRadius.circular(100),
                     border: Border.all(color: Colors.black12),
                   ),
@@ -801,24 +938,24 @@ class _SolutionScreenState extends State<SolutionScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           _resultTargetToggle(orange),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Text(
             'Renge bas ya da sürükleyip istediğin yere bırak.'.tr(),
             style: GoogleFonts.poppins(
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
-                color: Colors.black54,
+                color: AppPalette.textSecondary(context),
                 height: 1.3),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           SizedBox(
             height: 76,
             child: GridView.builder(
               scrollDirection: Axis.horizontal,
               gridDelegate:
-                  const SliverGridDelegateWithFixedCrossAxisCount(
+                  SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
                 mainAxisSpacing: 6,
                 crossAxisSpacing: 6,
@@ -841,13 +978,13 @@ class _SolutionScreenState extends State<SolutionScreen> {
         child: GestureDetector(
           onTap: () => setState(() => _colorMode = id),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 140),
+            duration: Duration(milliseconds: 140),
             padding:
                 const EdgeInsets.symmetric(vertical: 7, horizontal: 6),
             decoration: BoxDecoration(
               color: active
                   ? orange.withValues(alpha: 0.12)
-                  : const Color(0xFFF9FAFB),
+                  : Color(0xFFF9FAFB),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: active ? orange : Colors.black,
@@ -860,7 +997,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
               children: [
                 Icon(icon,
                     size: 13, color: active ? orange : Colors.black),
-                const SizedBox(width: 5),
+                SizedBox(width: 5),
                 Flexible(
                   child: Text(
                     label,
@@ -883,7 +1020,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
     return Row(
       children: [
         box('text', Icons.text_fields_rounded, 'Yazı'.tr()),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         box('frame', Icons.crop_square_rounded, 'Çerçeve'.tr()),
       ],
     );
@@ -901,7 +1038,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
             decoration: BoxDecoration(
               color: active
                   ? orange.withValues(alpha: 0.12)
-                  : const Color(0xFFF3F4F6),
+                  : Color(0xFFF3F4F6),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: active ? orange : Colors.black12,
@@ -927,7 +1064,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
     return Row(
       children: [
         chip('bg', 'Arka plan'.tr()),
-        const SizedBox(width: 6),
+        SizedBox(width: 6),
         chip('cards', 'Kartlar'.tr()),
       ],
     );
@@ -967,7 +1104,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
       decoration: BoxDecoration(
         color: c,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.black26, width: 1),
+        border: Border.all(color: AppPalette.border(context), width: 1),
       ),
     );
   }
@@ -977,7 +1114,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
   Widget _buildModelWheel() {
     final modeChosen = _selectedOption != null;
     return AnimatedOpacity(
-      duration: const Duration(milliseconds: 250),
+      duration: Duration(milliseconds: 250),
       opacity: modeChosen ? 1.0 : 0.35,
       child: IgnorePointer(
         ignoring: !modeChosen,
@@ -987,7 +1124,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
             // 3 sütun — yatayda 3 altıgen sığar; yaklaşık %50 küçük.
             crossAxisCount: 3,
             shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
+            physics: NeverScrollableScrollPhysics(),
             crossAxisSpacing: 8,
             mainAxisSpacing: 8,
             // Daha da daraltıldı — yatay-dominant, dikey kompakt.
@@ -1008,7 +1145,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
                   _onSolveButtonTap();
                 },
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
+                  duration: Duration(milliseconds: 200),
                   curve: Curves.easeOutCubic,
                   padding: const EdgeInsets.symmetric(
                       horizontal: 6, vertical: 2),
@@ -1024,7 +1161,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
                         : [BoxShadow(
                             color: Colors.black.withValues(alpha: 0.04),
                             blurRadius: 4,
-                            offset: const Offset(0, 1))],
+                            offset: Offset(0, 1))],
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -1035,42 +1172,42 @@ class _SolutionScreenState extends State<SolutionScreen> {
                         height: 20,
                         child: model.logo,
                       ),
-                      const SizedBox(height: 2),
+                      SizedBox(height: 2),
                       Text(
                         model.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.center,
                         style: GoogleFonts.inter(
-                          color: Colors.black,
+                          color: AppPalette.textPrimary(context),
                           fontSize: 10.5,
                           fontWeight: FontWeight.w800,
                           height: 1.05,
                         ),
                       ),
-                      const SizedBox(height: 1),
+                      SizedBox(height: 1),
                       Text(
                         model.subtitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.center,
                         style: GoogleFonts.inter(
-                          color: Colors.black54,
+                          color: AppPalette.textSecondary(context),
                           fontSize: 7,
                           fontWeight: FontWeight.w500,
                           height: 1.05,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      SizedBox(height: 2),
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 4, vertical: 1),
                         decoration: BoxDecoration(
-                          color: (isActive ? c : const Color(0xFF9CA3AF))
+                          color: (isActive ? c : Color(0xFF9CA3AF))
                               .withValues(alpha: sel ? 0.15 : 0.08),
                           borderRadius: BorderRadius.circular(4),
                           border: Border.all(
-                            color: (isActive ? c : const Color(0xFF9CA3AF))
+                            color: (isActive ? c : Color(0xFF9CA3AF))
                                 .withValues(alpha: sel ? 0.50 : 0.30),
                             width: 0.6,
                           ),
@@ -1080,7 +1217,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.inter(
-                            color: Colors.black,
+                            color: AppPalette.textPrimary(context),
                             fontSize: 6.5,
                             fontWeight: FontWeight.w700,
                             height: 1.0,
@@ -1110,7 +1247,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
     return GestureDetector(
       onTap: _onSolveButtonTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 260),
+        duration: Duration(milliseconds: 260),
         curve: Curves.easeOutCubic,
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 12),
@@ -1128,7 +1265,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
               ? null
               : Border.all(color: color.withValues(alpha: 0.45)),
           boxShadow: isActive
-              ? [BoxShadow(color: color.withValues(alpha: 0.25), blurRadius: 16, spreadRadius: 0, offset: const Offset(0, 3))]
+              ? [BoxShadow(color: color.withValues(alpha: 0.25), blurRadius: 16, spreadRadius: 0, offset: Offset(0, 3))]
               : [],
         ),
         child: Row(
@@ -1141,7 +1278,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
               ),
               child: Icon(Icons.auto_awesome_rounded, size: 18, color: isActive ? Colors.white : color),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1194,7 +1331,7 @@ class _AuraLoadingOverlayState extends State<_AuraLoadingOverlay>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 1600))
+        vsync: this, duration: Duration(milliseconds: 1600))
       ..repeat();
   }
 
@@ -1224,12 +1361,12 @@ class _AuraLoadingOverlayState extends State<_AuraLoadingOverlay>
                   ),
                 ),
               ),
-              const SizedBox(height: 28),
+              SizedBox(height: 28),
               ShaderMask(
-                shaderCallback: (b) => const LinearGradient(
+                shaderCallback: (b) => LinearGradient(
                   colors: [Color(0xFF00E5FF), Color(0xFFAA44FF)],
                 ).createShader(b),
-                child: const Text(
+                child: Text(
                   'Sorunuz Analiz Ediliyor',
                   style: TextStyle(
                     color: Colors.white,
@@ -1239,7 +1376,7 @@ class _AuraLoadingOverlayState extends State<_AuraLoadingOverlay>
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Text(
                 'Yapay zeka sorunuzu inceliyor',
                 style: TextStyle(
@@ -1276,8 +1413,8 @@ class _AuraPainter extends CustomPainter {
         radius,
         Paint()
           ..color = (isEven
-                  ? const Color(0xFF00E5FF)
-                  : const Color(0xFFAA44FF))
+                  ? Color(0xFF00E5FF)
+                  : Color(0xFFAA44FF))
               .withValues(alpha: alpha * 0.55)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.8,
@@ -1291,8 +1428,8 @@ class _AuraPainter extends CustomPainter {
       Paint()
         ..shader = RadialGradient(
           colors: [
-            const Color(0xFF00E5FF).withValues(alpha: 0.9),
-            const Color(0xFF00E5FF).withValues(alpha: 0.0),
+            Color(0xFF00E5FF).withValues(alpha: 0.9),
+            Color(0xFF00E5FF).withValues(alpha: 0.0),
           ],
         ).createShader(Rect.fromCircle(center: center, radius: 26)),
     );
@@ -1345,14 +1482,14 @@ class _FuturisticErrorDialog extends StatelessWidget {
       };
 
   Color get _color => switch (exception.type) {
-        GeminiErrorType.noInternet    => const Color(0xFFEF4444),
-        GeminiErrorType.blurryImage   => const Color(0xFFF59E0B),
-        GeminiErrorType.emptyResponse => const Color(0xFFF59E0B),
-        GeminiErrorType.safetyBlocked => const Color(0xFFEF4444),
-        GeminiErrorType.quotaExceeded => const Color(0xFF8B5CF6),
-        GeminiErrorType.imageTooLarge => const Color(0xFFEF4444),
-        GeminiErrorType.invalidKey    => const Color(0xFF8B5CF6),
-        GeminiErrorType.serverTimeout => const Color(0xFFF59E0B),
+        GeminiErrorType.noInternet    => Color(0xFFEF4444),
+        GeminiErrorType.blurryImage   => Color(0xFFF59E0B),
+        GeminiErrorType.emptyResponse => Color(0xFFF59E0B),
+        GeminiErrorType.safetyBlocked => Color(0xFFEF4444),
+        GeminiErrorType.quotaExceeded => Color(0xFF8B5CF6),
+        GeminiErrorType.imageTooLarge => Color(0xFFEF4444),
+        GeminiErrorType.invalidKey    => Color(0xFF8B5CF6),
+        GeminiErrorType.serverTimeout => Color(0xFFF59E0B),
         GeminiErrorType.unknown       => AppColors.cyan,
       };
 
@@ -1368,7 +1505,7 @@ class _FuturisticErrorDialog extends StatelessWidget {
       child: Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF0A0818),
+        color: Color(0xFF0A0818),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: c.withValues(alpha: 0.50), width: 1.5),
         boxShadow: [
@@ -1400,12 +1537,12 @@ class _FuturisticErrorDialog extends StatelessWidget {
             ),
             child: Icon(_icon, color: c, size: 32),
           ),
-          const SizedBox(height: 18),
+          SizedBox(height: 18),
           // Mesaj
           Text(
             exception.userMessage,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white,
               fontSize: 14,
               height: 1.55,
@@ -1414,17 +1551,17 @@ class _FuturisticErrorDialog extends StatelessWidget {
           ),
           // Ham hata — debug için geçici
           if (exception.rawError.isNotEmpty) ...[
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.black45,
+                color: AppPalette.textSecondary(context),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
                 rawTrimmed,
                 textAlign: TextAlign.left,
-                style: const TextStyle(
+                style: TextStyle(
                   color: Colors.white54,
                   fontSize: 10,
                   fontFamily: 'monospace',
@@ -1432,7 +1569,7 @@ class _FuturisticErrorDialog extends StatelessWidget {
               ),
             ),
           ],
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
           // Kapat butonu
           GestureDetector(
             onTap: () => Navigator.pop(context),
@@ -1466,15 +1603,19 @@ class _FuturisticErrorDialog extends StatelessWidget {
 // ─── Sabit veri modeli ────────────────────────────────────────────────────────
 
 class _ModeOption {
-  final String   label;
-  final String   subtitle;
+  final String label;
+  final String subtitle;
   final IconData icon;
-  final Color    color;
+  final Color color;
+  /// Opsiyonel custom widget — null ise [icon] kullanılır.
+  /// Color parametresi mode renginde geçer (icon tint için).
+  final Widget Function(Color color)? iconBuilder;
   const _ModeOption({
     required this.label,
     required this.subtitle,
     required this.icon,
     required this.color,
+    this.iconBuilder,
   });
 }
 
@@ -1500,7 +1641,7 @@ class _GeminiStarPainter extends CustomPainter {
 
     final paint = Paint()
       ..isAntiAlias = true
-      ..shader = const LinearGradient(
+      ..shader = LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: [
@@ -1689,3 +1830,348 @@ class _ClaudeBurstPainter extends CustomPainter {
       oldDelegate.color != color;
 }
 
+// ─── Detaylı Robot ikonu (CustomPainter) ──────────────────────────────────────
+// Anten (top) + ışıklı bulb + rounded kafa + 2 LED göz + ağız.
+// 26x26 alanda mükemmel oturur, vector — her boyuta scale olur.
+class _RobotPainter extends CustomPainter {
+  final Color color;
+  const _RobotPainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final fill = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
+    final stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..strokeCap = StrokeCap.round
+      ..isAntiAlias = true;
+
+    // Antenna çizgisi (top center)
+    canvas.drawLine(
+      Offset(w / 2, h * 0.16),
+      Offset(w / 2, h * 0.27),
+      stroke,
+    );
+    // Antenna bulb — küçük dolu daire + dış glow halkası (parlama)
+    final glow = Paint()
+      ..color = color.withValues(alpha: 0.30)
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
+    canvas.drawCircle(Offset(w / 2, h * 0.12), w * 0.12, glow);
+    canvas.drawCircle(Offset(w / 2, h * 0.12), w * 0.07, fill);
+
+    // Kafa — rounded rectangle stroke
+    final headRect = RRect.fromRectAndRadius(
+      Rect.fromLTRB(w * 0.16, h * 0.30, w * 0.84, h * 0.84),
+      Radius.circular(w * 0.16),
+    );
+    canvas.drawRRect(headRect, stroke);
+
+    // 2 LED göz — büyük dolu daireler (ışık ver)
+    canvas.drawCircle(Offset(w * 0.37, h * 0.52), w * 0.085, fill);
+    canvas.drawCircle(Offset(w * 0.63, h * 0.52), w * 0.085, fill);
+
+    // Göz parıltısı (highlight) — sağ üst köşelerde küçük beyaz nokta
+    final highlight = Paint()
+      ..color = Colors.white.withValues(alpha: 0.80)
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
+    canvas.drawCircle(Offset(w * 0.395, h * 0.50), w * 0.022, highlight);
+    canvas.drawCircle(Offset(w * 0.655, h * 0.50), w * 0.022, highlight);
+
+    // Ağız — yatay küçük çizgi (smile/neutral)
+    canvas.drawLine(
+      Offset(w * 0.40, h * 0.72),
+      Offset(w * 0.60, h * 0.72),
+      stroke,
+    );
+
+    // Kulaklar — yan taraftan minik oval çıkıntılar (anten soketleri)
+    final earL = Rect.fromCenter(
+      center: Offset(w * 0.14, h * 0.55),
+      width: w * 0.07,
+      height: h * 0.16,
+    );
+    final earR = Rect.fromCenter(
+      center: Offset(w * 0.86, h * 0.55),
+      width: w * 0.07,
+      height: h * 0.16,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(earL, Radius.circular(w * 0.04)),
+      fill,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(earR, Radius.circular(w * 0.04)),
+      fill,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _RobotPainter old) => old.color != color;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  _PhotoCropOverlay — Fotoğraf üzerinde ayarlanabilir kırpma çerçevesi.
+//  • Çerçevenin DIŞI hafif karartılır (donut clipper); içi tam görünür.
+//  • 4 kenarda dokunma kolu — yatay/dikey ok ikonu ile.
+//  • Çerçeve değiştikçe parent'a normalize edilmiş Rect (0..1) yollar.
+//  • Başlangıç: tam alan; kullanıcı daraltıp/genişletebilir.
+// ═══════════════════════════════════════════════════════════════════════════════
+class _PhotoCropOverlay extends StatefulWidget {
+  final ValueNotifier<Rect> rectN;
+  const _PhotoCropOverlay({required this.rectN});
+
+  @override
+  State<_PhotoCropOverlay> createState() => _PhotoCropOverlayState();
+}
+
+class _PhotoCropOverlayState extends State<_PhotoCropOverlay> {
+  // Çerçeve pixel-cinsinden — LayoutBuilder size'ı baz alır.
+  Rect? _frame;
+  Size? _lastSize;
+
+  // Min boyut (piksel cinsinden) — çok küçülmesin.
+  static const double _minW = 60;
+  static const double _minH = 60;
+
+  Rect _initial(Size s) =>
+      Rect.fromLTRB(0, 0, s.width, s.height);
+
+  Rect _currentFrame(Size s) {
+    if (_frame == null || _lastSize != s) {
+      // Notifier'da kayıtlı normalize rect → pixel'e çevir.
+      final n = widget.rectN.value;
+      _frame = Rect.fromLTRB(
+        n.left * s.width,
+        n.top * s.height,
+        n.right * s.width,
+        n.bottom * s.height,
+      );
+      _lastSize = s;
+    }
+    return _frame!;
+  }
+
+  void _commit(Rect f, Size s) {
+    setState(() {
+      _frame = f;
+      _lastSize = s;
+    });
+    widget.rectN.value = Rect.fromLTRB(
+      (f.left / s.width).clamp(0.0, 1.0),
+      (f.top / s.height).clamp(0.0, 1.0),
+      (f.right / s.width).clamp(0.0, 1.0),
+      (f.bottom / s.height).clamp(0.0, 1.0),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (ctx, c) {
+        final size = Size(c.maxWidth, c.maxHeight);
+        // İlk çağrıda full alan
+        if (_frame == null) {
+          _frame = _initial(size);
+          _lastSize = size;
+        }
+        final frame = _currentFrame(size);
+        return Stack(
+          clipBehavior: Clip.hardEdge,
+          children: [
+            // Dış karartma — çerçeve içi şeffaf
+            IgnorePointer(
+              child: ClipPath(
+                clipper: _CropDonutClipper(frame: frame, radius: 6),
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.32),
+                ),
+              ),
+            ),
+            // Cyan çerçeve kenarlığı
+            Positioned(
+              left: frame.left,
+              top: frame.top,
+              width: frame.width,
+              height: frame.height,
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: AppColors.cyan.withValues(alpha: 0.85),
+                      width: 1.6,
+                    ),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+              ),
+            ),
+            // Köşe parantezleri (CustomPaint)
+            Positioned(
+              left: frame.left,
+              top: frame.top,
+              width: frame.width,
+              height: frame.height,
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: _CropBracketPainter(),
+                ),
+              ),
+            ),
+            // 4 kenar kolu
+            _edge(
+              frame,
+              size,
+              Axis.horizontal,
+              isStart: true,
+            ),
+            _edge(
+              frame,
+              size,
+              Axis.horizontal,
+              isStart: false,
+            ),
+            _edge(
+              frame,
+              size,
+              Axis.vertical,
+              isStart: true,
+            ),
+            _edge(
+              frame,
+              size,
+              Axis.vertical,
+              isStart: false,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // axis = horizontal → sol/sağ; vertical → üst/alt.
+  Widget _edge(Rect f, Size s, Axis axis,
+      {required bool isStart}) {
+    const tw = 44.0;
+    const th = 36.0;
+    final isHorizontal = axis == Axis.horizontal;
+    final left = isHorizontal
+        ? (isStart ? f.left - tw / 2 : f.right - tw / 2)
+        : f.center.dx - th / 2;
+    final top = isHorizontal
+        ? f.center.dy - th / 2
+        : (isStart ? f.top - tw / 2 : f.bottom - tw / 2);
+    final w = isHorizontal ? tw : th;
+    final h = isHorizontal ? th : tw;
+    return Positioned(
+      left: left,
+      top: top,
+      width: w,
+      height: h,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onPanUpdate: (d) {
+          var nf = f;
+          if (axis == Axis.horizontal) {
+            if (isStart) {
+              final newLeft = (f.left + d.delta.dx)
+                  .clamp(0.0, f.right - _minW);
+              nf = Rect.fromLTRB(newLeft, f.top, f.right, f.bottom);
+            } else {
+              final newRight = (f.right + d.delta.dx)
+                  .clamp(f.left + _minW, s.width);
+              nf = Rect.fromLTRB(f.left, f.top, newRight, f.bottom);
+            }
+          } else {
+            if (isStart) {
+              final newTop = (f.top + d.delta.dy)
+                  .clamp(0.0, f.bottom - _minH);
+              nf = Rect.fromLTRB(f.left, newTop, f.right, f.bottom);
+            } else {
+              final newBottom = (f.bottom + d.delta.dy)
+                  .clamp(f.top + _minH, s.height);
+              nf = Rect.fromLTRB(f.left, f.top, f.right, newBottom);
+            }
+          }
+          _commit(nf, s);
+        },
+        child: Center(
+          child: Container(
+            padding: isHorizontal
+                ? const EdgeInsets.symmetric(horizontal: 4, vertical: 3)
+                : const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(
+                color: AppColors.cyan.withValues(alpha: 0.7),
+                width: 1.1,
+              ),
+            ),
+            child: Icon(
+              isHorizontal
+                  ? Icons.swap_horiz_rounded
+                  : Icons.swap_vert_rounded,
+              color: AppColors.cyan,
+              size: 13,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CropDonutClipper extends CustomClipper<Path> {
+  final Rect frame;
+  final double radius;
+  const _CropDonutClipper({required this.frame, required this.radius});
+
+  @override
+  Path getClip(Size size) => Path()
+    ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
+    ..addRRect(RRect.fromRectAndRadius(frame, Radius.circular(radius)))
+    ..fillType = PathFillType.evenOdd;
+
+  @override
+  bool shouldReclip(covariant _CropDonutClipper old) =>
+      old.frame != frame || old.radius != radius;
+}
+
+class _CropBracketPainter extends CustomPainter {
+  const _CropBracketPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()
+      ..color = AppColors.cyan
+      ..strokeWidth = 2.4
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+    const l = 14.0;
+    final w = size.width;
+    final h = size.height;
+    // Sol üst
+    canvas.drawLine(Offset(0, 0), Offset(l, 0), p);
+    canvas.drawLine(Offset(0, 0), Offset(0, l), p);
+    // Sağ üst
+    canvas.drawLine(Offset(w - l, 0), Offset(w, 0), p);
+    canvas.drawLine(Offset(w, 0), Offset(w, l), p);
+    // Sol alt
+    canvas.drawLine(Offset(0, h - l), Offset(0, h), p);
+    canvas.drawLine(Offset(0, h), Offset(l, h), p);
+    // Sağ alt
+    canvas.drawLine(Offset(w - l, h), Offset(w, h), p);
+    canvas.drawLine(Offset(w, h - l), Offset(w, h), p);
+  }
+
+  @override
+  bool shouldRepaint(covariant _CropBracketPainter old) => false;
+}

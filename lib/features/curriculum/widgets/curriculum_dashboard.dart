@@ -19,6 +19,7 @@ import '../providers/curriculum_controller.dart';
 import '../providers/curriculum_manager.dart';
 import 'module_demos.dart';
 
+import '../../../theme/app_theme.dart';
 class CurriculumDashboard extends ConsumerWidget {
   const CurriculumDashboard({super.key});
 
@@ -58,15 +59,15 @@ class CurriculumDashboard extends ConsumerWidget {
     final manager = ref.read(curriculumManagerProvider);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
+      backgroundColor: AppPalette.bg(context),
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppPalette.card(context),
         elevation: 0,
         title: Text(
           'Curriculum Dashboard',
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.w800,
-            color: Colors.black,
+            color: AppPalette.textPrimary(context),
             fontSize: 16,
           ),
         ),
@@ -82,25 +83,25 @@ class CurriculumDashboard extends ConsumerWidget {
               children: [
                 _ProfileButton(
                   label: 'TR · YKS',
-                  color: const Color(0xFF7C3AED),
+                  color: Color(0xFF7C3AED),
                   active: state.preference == _liseYks,
                   onTap: () => manager.onChangeLevel(_liseYks),
                 ),
                 _ProfileButton(
                   label: 'TR · İnşaat 3',
-                  color: const Color(0xFFF59E0B),
+                  color: Color(0xFFF59E0B),
                   active: state.preference == _insaat3,
                   onTap: () => manager.onChangeLevel(_insaat3),
                 ),
                 _ProfileButton(
                   label: 'TR · Lise 10',
-                  color: const Color(0xFF22C55E),
+                  color: Color(0xFF22C55E),
                   active: state.preference == _trLise10,
                   onTap: () => manager.onChangeLevel(_trLise10),
                 ),
                 _ProfileButton(
                   label: 'DE · Klasse 11',
-                  color: const Color(0xFF3B82F6),
+                  color: Color(0xFF3B82F6),
                   active: state.preference == _gymnasium11,
                   onTap: () => manager.onChangeLevel(_gymnasium11),
                 ),
@@ -116,7 +117,7 @@ class CurriculumDashboard extends ConsumerWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+            color: AppPalette.card(context),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: Colors.black12),
                 ),
@@ -124,14 +125,14 @@ class CurriculumDashboard extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _kvRow('Bağlam Kilidi',
-                        state.preference!.signature, const Color(0xFF7C3AED)),
-                    const SizedBox(height: 3),
+                        state.preference!.signature, Color(0xFF7C3AED)),
+                    SizedBox(height: 3),
                     _kvRow('Dil', state.preference!.languageCode,
-                        const Color(0xFF22C55E)),
-                    const SizedBox(height: 3),
+                        Color(0xFF22C55E)),
+                    SizedBox(height: 3),
                     _kvRow('Ülke İçi Eşleşme',
                         state.preference!.countryMatchKey, Colors.black54),
-                    const SizedBox(height: 3),
+                    SizedBox(height: 3),
                     _kvRow(
                       'Dünya Eşdeğer',
                       (state.preference!.levelKey == 'exam_prep' ||
@@ -144,21 +145,20 @@ class CurriculumDashboard extends ConsumerWidget {
                 ),
               ),
             ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           // 4 modül — tab'lı senkronize görünüm.
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Expanded(
             child: DefaultTabController(
               length: 5,
               child: Column(
                 children: [
-                  Material(
-                    color: Colors.white,
+                  Material(color: AppPalette.card(context),
                     child: TabBar(
                       isScrollable: true,
-                      labelColor: const Color(0xFF7C3AED),
+                      labelColor: Color(0xFF7C3AED),
                       unselectedLabelColor: Colors.black54,
-                      indicatorColor: const Color(0xFF7C3AED),
+                      indicatorColor: Color(0xFF7C3AED),
                       labelStyle: GoogleFonts.inter(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w800,
@@ -182,7 +182,7 @@ class CurriculumDashboard extends ConsumerWidget {
                                   'Profil seç → ders ağacı yüklensin',
                                   style: GoogleFonts.inter(
                                     fontSize: 13,
-                                    color: Colors.black54,
+                                    color: AppPalette.textSecondary(context),
                                   ),
                                 ),
                               )
@@ -191,14 +191,14 @@ class CurriculumDashboard extends ConsumerWidget {
                                     16, 8, 16, 24),
                                 itemCount: state.subjects.length,
                                 separatorBuilder: (_, __) =>
-                                    const SizedBox(height: 8),
+                                    SizedBox(height: 8),
                                 itemBuilder: (_, i) => _SubjectCard(
                                     subject: state.subjects[i]),
                               ),
-                        const CurriculumSummaryPanel(),
-                        const CurriculumExamCreator(),
-                        const CurriculumQuizModule(),
-                        const CurriculumArenaPrep(),
+                        CurriculumSummaryPanel(),
+                        CurriculumExamCreator(),
+                        CurriculumQuizModule(),
+                        CurriculumArenaPrep(),
                       ],
                     ),
                   ),
@@ -224,7 +224,7 @@ Widget _kvRow(String k, String v, Color valueColor) {
           style: GoogleFonts.inter(
             fontSize: 10.5,
             fontWeight: FontWeight.w700,
-            color: Colors.black54,
+            color: Color(0xFF707380),
           ),
         ),
       ),
@@ -303,7 +303,7 @@ class _SubjectCardState extends ConsumerState<_SubjectCard> {
     final s = widget.subject;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+            color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.black12),
       ),
@@ -311,7 +311,7 @@ class _SubjectCardState extends ConsumerState<_SubjectCard> {
         children: [
           // Level 1: Ders satırı
           ListTile(
-            leading: Text(s.emoji, style: const TextStyle(fontSize: 22)),
+            leading: Text(s.emoji, style: TextStyle(fontSize: 22)),
             title: Text(
               s.name,
               style: GoogleFonts.inter(
@@ -321,8 +321,8 @@ class _SubjectCardState extends ConsumerState<_SubjectCard> {
             ),
             trailing: AnimatedRotation(
               turns: _expanded ? 0.5 : 0,
-              duration: const Duration(milliseconds: 180),
-              child: const Icon(Icons.keyboard_arrow_down_rounded),
+              duration: Duration(milliseconds: 180),
+              child: Icon(Icons.keyboard_arrow_down_rounded),
             ),
             onTap: () => setState(() {
               _expanded = !_expanded;
@@ -369,7 +369,7 @@ class _TopicRow extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 3),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8F9FB),
+        color: AppPalette.bg(context),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -403,10 +403,10 @@ class _TopicRow extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 9, vertical: 5),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF7C3AED).withValues(alpha: 0.10),
+                        color: Color(0xFF7C3AED).withValues(alpha: 0.10),
                         borderRadius: BorderRadius.circular(50),
                         border: Border.all(
-                          color: const Color(0xFF7C3AED).withValues(alpha: 0.40),
+                          color: Color(0xFF7C3AED).withValues(alpha: 0.40),
                         ),
                       ),
                       child: Text(
@@ -414,7 +414,7 @@ class _TopicRow extends StatelessWidget {
                         style: GoogleFonts.inter(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          color: const Color(0xFF5B21B6),
+                          color: Color(0xFF5B21B6),
                         ),
                       ),
                     ),

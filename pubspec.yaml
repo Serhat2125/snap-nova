@@ -83,9 +83,24 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  # Launcher icon: tool/generate_app_icon.dart ile üretilen PNG'leri
+  # Android mipmap + iOS AppIcon.appiconset'e otomatik kurar.
+  flutter_launcher_icons: ^0.14.1
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/app_icon.png"
+  min_sdk_android: 21
+  remove_alpha_ios: true
+  # NOT: adaptive_icon_* parametreleri kaldırıldı — adaptive icon
+  # foreground'u sadece merkez %66 safe area'yı kullanıyor; kanatlar
+  # (dünya/kitap/sütun + π/atom/Σ) ve alt "QuAlsar" metni kırpılıyor.
+  # Bu nedenle tek bir PNG (full design) kullanılıyor.
 
 flutter:
   uses-material-design: true
   assets:
     - lib/assets/9ejrn (1).jpg
     - lib/assets/invite_hero.jpeg
+    - assets/app_icon.png

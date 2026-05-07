@@ -74,7 +74,7 @@ class _SolutionDetailScreenState extends State<SolutionDetailScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(e.userMessage,
-              style: const TextStyle(fontSize: 13)),
+              style: TextStyle(fontSize: 13)),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
         ),
@@ -98,7 +98,7 @@ class _SolutionDetailScreenState extends State<SolutionDetailScreen> {
       if (_scrollCtrl.hasClients) {
         _scrollCtrl.animateTo(
           _scrollCtrl.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 350),
+          duration: Duration(milliseconds: 350),
           curve: Curves.easeOut,
         );
       }
@@ -122,13 +122,13 @@ class _SolutionDetailScreenState extends State<SolutionDetailScreen> {
             Expanded(
               child: ListView(
                 controller: _scrollCtrl,
-                physics: const BouncingScrollPhysics(),
+                physics: BouncingScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                 children: [
                   _buildPhotoCard(),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
 
-                  const Text(
+                  Text(
                     'Çözüm',
                     style: TextStyle(
                       color: AppColors.cyan,
@@ -137,12 +137,12 @@ class _SolutionDetailScreenState extends State<SolutionDetailScreen> {
                       letterSpacing: -0.3,
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  SizedBox(height: 10),
 
                   _buildSolutionCard(),
 
                   if (_qaList.isNotEmpty) ...[
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20),
                     Text(
                       'Sorular & Cevaplar',
                       style: TextStyle(
@@ -152,20 +152,20 @@ class _SolutionDetailScreenState extends State<SolutionDetailScreen> {
                         letterSpacing: 0.5,
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    SizedBox(height: 10),
                     for (final qa in _qaList) ...[
                       _buildQACard(context, qa),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
                     ],
                   ],
 
                   // Yazıyor göstergesi için boşluk
                   if (_sending) ...[
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12),
                     _buildTypingIndicator(),
                   ],
 
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                 ],
               ),
             ),
@@ -191,7 +191,7 @@ class _SolutionDetailScreenState extends State<SolutionDetailScreen> {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back_rounded, color: AppColors.cyan),
+            icon: Icon(Icons.arrow_back_rounded, color: AppColors.cyan),
             onPressed: () => Navigator.pop(context),
           ),
           Expanded(
@@ -206,7 +206,7 @@ class _SolutionDetailScreenState extends State<SolutionDetailScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(icon, color: color, size: 13),
-                  const SizedBox(width: 6),
+                  SizedBox(width: 6),
                   Flexible(
                     child: Text(
                       '${widget.record.subject}  •  ${widget.record.solutionType}',
@@ -223,8 +223,8 @@ class _SolutionDetailScreenState extends State<SolutionDetailScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          const Icon(Icons.check_circle_rounded,
+          SizedBox(width: 8),
+          Icon(Icons.check_circle_rounded,
               color: Color(0xFF22C55E), size: 20),
         ],
       ),
@@ -266,7 +266,7 @@ class _SolutionDetailScreenState extends State<SolutionDetailScreen> {
                 width: double.infinity,
                 height: 250,
                 color: AppColors.surface,
-                child: const Icon(Icons.image_not_supported_outlined,
+                child: Icon(Icons.image_not_supported_outlined,
                     color: AppColors.textMuted, size: 36),
               ),
             ),
@@ -297,7 +297,7 @@ class _SolutionDetailScreenState extends State<SolutionDetailScreen> {
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.30),
             blurRadius: 12,
-            offset: const Offset(0, 4),
+            offset: Offset(0, 4),
           ),
         ],
       ),
@@ -318,7 +318,7 @@ class _SolutionDetailScreenState extends State<SolutionDetailScreen> {
             ),
             padding:
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [Color(0xFF00E5FF), Color(0xFF0070FF)],
                 begin: Alignment.topLeft,
@@ -333,14 +333,14 @@ class _SolutionDetailScreenState extends State<SolutionDetailScreen> {
             ),
             child: Text(
               qa.question,
-              style: const TextStyle(
-                  color: Colors.black87,
+              style: TextStyle(
+                  color: AppPalette.textPrimary(context),
                   fontSize: 13,
                   fontWeight: FontWeight.w600),
             ),
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(14),
@@ -358,7 +358,7 @@ class _SolutionDetailScreenState extends State<SolutionDetailScreen> {
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.20),
                 blurRadius: 8,
-                offset: const Offset(0, 2),
+                offset: Offset(0, 2),
               ),
             ],
           ),
@@ -388,9 +388,9 @@ class _SolutionDetailScreenState extends State<SolutionDetailScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             _Dot(delay: 0),
-            const SizedBox(width: 4),
+            SizedBox(width: 4),
             _Dot(delay: 200),
-            const SizedBox(width: 4),
+            SizedBox(width: 4),
             _Dot(delay: 400),
           ],
         ),
@@ -421,7 +421,7 @@ class _SolutionDetailScreenState extends State<SolutionDetailScreen> {
               child: TextField(
                 controller: _inputCtrl,
                 cursorColor: Colors.black,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
+                style: TextStyle(color: Colors.white, fontSize: 14),
                 // minLines 1, maxLines 4 — alan stabil yükseklikte kalır.
                 // maxLines: null iken her karakterde reflow oluyor ve
                 // parent ListView (LatexText + QA kartları) yeniden
@@ -460,7 +460,7 @@ class _SolutionDetailScreenState extends State<SolutionDetailScreen> {
                 ),
               ),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             // Send button — sabit Container (AnimatedContainer kaldırıldı).
             // Daha önce her keystroke'ta 180 ms transition başlıyor, hızlı
             // silme/yazıda animasyon kuyruğu birikip CPU yükü yapıyordu.
@@ -480,14 +480,14 @@ class _SolutionDetailScreenState extends State<SolutionDetailScreen> {
                           : Colors.black.withValues(alpha: 0.55),
                     ),
                     child: _sending
-                        ? const Padding(
+                        ? Padding(
                             padding: EdgeInsets.all(12),
                             child: CircularProgressIndicator(
                               strokeWidth: 2.4,
                               color: Colors.white,
                             ),
                           )
-                        : const Icon(
+                        : Icon(
                             Icons.arrow_upward_rounded,
                             color: Colors.white,
                             size: 26,
@@ -523,7 +523,7 @@ class _DotState extends State<_Dot>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 600),
+      duration: Duration(milliseconds: 600),
     );
     Future.delayed(Duration(milliseconds: widget.delay), () {
       if (mounted) _ctrl.repeat(reverse: true);
@@ -548,7 +548,7 @@ class _DotState extends State<_Dot>
         child: Container(
           width: 7,
           height: 7,
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: AppColors.cyan,
             shape: BoxShape.circle,
           ),
@@ -574,15 +574,15 @@ IconData _iconFor(String subject) => switch (subject) {
     };
 
 Color _colorFor(String subject) => switch (subject) {
-      'Fizik'     => const Color(0xFFF59E0B),
-      'Kimya'     => const Color(0xFF10B981),
-      'Biyoloji'  => const Color(0xFF8B5CF6),
-      'Coğrafya'  => const Color(0xFF06B6D4),
-      'Tarih'     => const Color(0xFFEF4444),
-      'Edebiyat'  => const Color(0xFFF97316),
-      'Felsefe'   => const Color(0xFFA855F7),
-      'İngilizce' => const Color(0xFF22C55E),
-      'Diğer'     => const Color(0xFF6B7280),
-      _           => const Color(0xFF3B82F6),
+      'Fizik'     => Color(0xFFF59E0B),
+      'Kimya'     => Color(0xFF10B981),
+      'Biyoloji'  => Color(0xFF8B5CF6),
+      'Coğrafya'  => Color(0xFF06B6D4),
+      'Tarih'     => Color(0xFFEF4444),
+      'Edebiyat'  => Color(0xFFF97316),
+      'Felsefe'   => Color(0xFFA855F7),
+      'İngilizce' => Color(0xFF22C55E),
+      'Diğer'     => Color(0xFF6B7280),
+      _           => Color(0xFF3B82F6),
     };
 

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
 // ═══════════════════════════════════════════════════════════════════════════════
 //  AdaptivePhoto — Fotoğrafı kendi en-boy oranına göre çerçeveler.
 //  • Sabit yükseklik/AspectRatio YOK; görsel TAM görünür (BoxFit.contain).
@@ -23,7 +24,7 @@ class AdaptivePhoto extends StatefulWidget {
     this.maxHeightFactor = 0.55,
     this.borderRadius = 14,
     this.border,
-    this.background = const Color(0xFFF0F2F5),
+    this.background = const Color(0xFFEEEEEE),
     this.overlay,
   });
 
@@ -93,9 +94,9 @@ class _AdaptivePhotoState extends State<AdaptivePhoto> {
               errorBuilder: (_, __, ___) => Container(
                 color: widget.background,
                 alignment: Alignment.center,
-                child: const Icon(
+                child: Icon(
                   Icons.image_not_supported_outlined,
-                  color: Colors.black26,
+                  color: AppPalette.border(context),
                   size: 36,
                 ),
               ),

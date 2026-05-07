@@ -235,7 +235,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
   }
 
   void _startTypewriter() {
-    _typeTimer = Timer.periodic(const Duration(milliseconds: 14), (t) {
+    _typeTimer = Timer.periodic(Duration(milliseconds: 14), (t) {
       if (_charIdx >= _mainText.length) {
         t.cancel();
         if (mounted) {
@@ -299,36 +299,46 @@ class _AiResultScreenState extends State<AiResultScreen> {
     final q = _followCtrl.text.trim();
     if (q.isEmpty || _isAsking) return;
     _followFocus.unfocus();
-    setState(() => _isAsking = true);
+
+    // Boş cevaplı QA'yı HEMEN listeye ekle → kullanıcı bekleme yerine
+    // typewriter görür. Streaming ile token token doldurulacak.
+    final qa = _QA(question: q, answer: '');
+    setState(() {
+      _isAsking = true;
+      _qaList.add(qa);
+      _followCtrl.clear();
+    });
+
+    // Yeni soru görünür olsun
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = qa.key.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+          alignment: 0.0,
+        );
+      }
+    });
 
     try {
+      // askFollowUpStream tanımlı değil; senkron askFollowUp kullanılıyor.
       final answer = await GeminiService.askFollowUp(
         previousSolution: widget.result,
         userQuestion: q,
       );
       if (!mounted) return;
-      final qa = _QA(question: q, answer: answer);
-      setState(() {
-        _qaList.add(qa);
-        _followCtrl.clear();
-      });
-      _saveRecord(); // Q&A eklendikten sonra güncelle
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final ctx = qa.key.currentContext;
-        if (ctx != null) {
-          Scrollable.ensureVisible(
-            ctx,
-            duration: const Duration(milliseconds: 400),
-            curve: Curves.easeOut,
-            alignment: 0.0, // öğeyi görünür alanın üstüne hizala
-          );
-        }
-      });
+      setState(() => qa.answer = answer);
+      _saveRecord();
     } on GeminiException catch (e) {
       if (!mounted) return;
+      // Hata olursa boş QA'yı temizle
+      setState(() => _qaList.remove(qa));
       _showSnack(e.userMessage.replaceAll('\n', ' '));
     } catch (_) {
       if (!mounted) return;
+      setState(() => _qaList.remove(qa));
       _showSnack(localeService.tr('error_retry'));
     } finally {
       if (mounted) setState(() => _isAsking = false);
@@ -366,7 +376,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
     return ValueListenableBuilder<Color?>(
       valueListenable: _pageBgN,
       builder: (_, pageBgVal, body) => Scaffold(
-        backgroundColor: pageBgVal ?? const Color(0xFFF0F2F5),
+        backgroundColor: pageBgVal ?? AppPalette.bg(context),
         resizeToAvoidBottomInset: true,
         body: body,
       ),
@@ -382,37 +392,37 @@ class _AiResultScreenState extends State<AiResultScreen> {
             Expanded(
               child: SingleChildScrollView(
                 controller: _scrollCtrl,
-                physics: const BouncingScrollPhysics(),
+                physics: BouncingScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(6, 18, 6, 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildPhotoCard(),
-                    const SizedBox(height: 26),
+                    SizedBox(height: 26),
 
                     _buildSolutionCard(),
 
                     if (!_done) ...[
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
                       _buildSkipButton(),
                     ] else ...[
-                      const SizedBox(height: 10),
+                      SizedBox(height: 10),
                       _buildDoneRow(),
                     ],
 
                     for (final qa in _qaList) ...[
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
                       _buildQACard(qa),
                     ],
 
                     if (_done) ...[
-                      const SizedBox(height: 24),
+                      SizedBox(height: 24),
                       _buildStudySuiteButton(),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
                       _buildScanAgainButton(),
                     ],
 
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                   ],
                 ),
               ),
@@ -444,29 +454,29 @@ class _AiResultScreenState extends State<AiResultScreen> {
   Widget _buildTopBar() {
     return Container(
       padding: const EdgeInsets.fromLTRB(4, 4, 16, 8),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: Colors.black12, width: 1),
+          bottom: BorderSide(color: AppPalette.border(context), width: 1),
         ),
       ),
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back_rounded, color: Colors.black),
+            icon: Icon(Icons.arrow_back_rounded, color: Colors.black),
             onPressed: () => Navigator.pop(context),
           ),
           Expanded(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: Colors.white,
+            color: AppPalette.card(context),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.black, width: 1.2),
+                border: Border.all(color: AppPalette.textPrimary(context), width: 1.2),
               ),
               child: Text(
                 widget.solutionType.replaceAll('\n', ' '),
-                style: const TextStyle(
-                  color: Colors.black,
+                style: TextStyle(
+                  color: AppPalette.textPrimary(context),
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.2,
@@ -475,16 +485,16 @@ class _AiResultScreenState extends State<AiResultScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
+            duration: Duration(milliseconds: 300),
             child: _done
-                ? const Icon(Icons.check_circle_rounded,
+                ? Icon(Icons.check_circle_rounded,
                     key: ValueKey('done'),
                     color: Color(0xFF22C55E), size: 20)
                 : const _PulseDot(key: ValueKey('pulse')),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           // Renk Seç pill — diğer sayfalardaki ile aynı.
           GestureDetector(
             onTap: () => setState(
@@ -493,7 +503,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
               padding: const EdgeInsets.symmetric(
                   horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
+                gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
@@ -508,7 +518,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.12),
                     blurRadius: 8,
-                    offset: const Offset(0, 2),
+                    offset: Offset(0, 2),
                   ),
                 ],
               ),
@@ -522,7 +532,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                     size: 14,
                     color: Colors.white,
                   ),
-                  const SizedBox(width: 5),
+                  SizedBox(width: 5),
                   Text(
                     _showColorPicker
                         ? 'Kapat'.tr()
@@ -545,19 +555,19 @@ class _AiResultScreenState extends State<AiResultScreen> {
 
   // ══════ Renk seçim paneli — diğer sayfalar ile aynı format ═══════════════
   Widget _buildResultColorPanel() {
-    final orange = const Color(0xFFFF6A00);
+    final orange = Color(0xFFFF6A00);
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 10, 16, 4),
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+            color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black, width: 1.1),
+        border: Border.all(color: AppPalette.textPrimary(context), width: 1.1),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 14,
-            offset: const Offset(0, 4),
+            offset: Offset(0, 4),
           ),
         ],
       ),
@@ -566,24 +576,24 @@ class _AiResultScreenState extends State<AiResultScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.palette_rounded,
+              Icon(Icons.palette_rounded,
                   size: 16, color: Colors.black),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Text('Renk'.tr(),
                   style: GoogleFonts.poppins(
                       fontSize: 13,
                       fontWeight: FontWeight.w900,
                       color: Colors.black)),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               Expanded(child: _resultModeToggle(orange)),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               GestureDetector(
                 onTap: _resetResultColors,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF3F4F6),
+                    color: AppPalette.cardMuted(context),
                     borderRadius: BorderRadius.circular(100),
                     border: Border.all(color: Colors.black12),
                   ),
@@ -596,24 +606,24 @@ class _AiResultScreenState extends State<AiResultScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           _resultTargetToggle(orange),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Text(
             'Renge bas ya da sürükleyip istediğin yere bırak.'.tr(),
             style: GoogleFonts.poppins(
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
-                color: Colors.black54,
+                color: AppPalette.textSecondary(context),
                 height: 1.3),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           SizedBox(
             height: 76,
             child: GridView.builder(
               scrollDirection: Axis.horizontal,
               gridDelegate:
-                  const SliverGridDelegateWithFixedCrossAxisCount(
+                  SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
                 mainAxisSpacing: 6,
                 crossAxisSpacing: 6,
@@ -636,13 +646,13 @@ class _AiResultScreenState extends State<AiResultScreen> {
         child: GestureDetector(
           onTap: () => setState(() => _colorMode = id),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 140),
+            duration: Duration(milliseconds: 140),
             padding:
                 const EdgeInsets.symmetric(vertical: 7, horizontal: 6),
             decoration: BoxDecoration(
               color: active
                   ? orange.withValues(alpha: 0.12)
-                  : const Color(0xFFF9FAFB),
+                  : Color(0xFFF9FAFB),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: active ? orange : Colors.black,
@@ -655,7 +665,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
               children: [
                 Icon(icon,
                     size: 13, color: active ? orange : Colors.black),
-                const SizedBox(width: 5),
+                SizedBox(width: 5),
                 Flexible(
                   child: Text(
                     label,
@@ -678,7 +688,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
     return Row(
       children: [
         box('text', Icons.text_fields_rounded, 'Yazı'.tr()),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         box('frame', Icons.crop_square_rounded, 'Çerçeve'.tr()),
       ],
     );
@@ -696,7 +706,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
             decoration: BoxDecoration(
               color: active
                   ? orange.withValues(alpha: 0.12)
-                  : const Color(0xFFF3F4F6),
+                  : Color(0xFFF3F4F6),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: active ? orange : Colors.black12,
@@ -721,9 +731,9 @@ class _AiResultScreenState extends State<AiResultScreen> {
     return Row(
       children: [
         chip('bg', 'Arka plan'.tr()),
-        const SizedBox(width: 6),
+        SizedBox(width: 6),
         chip('photo', 'Fotoğraf'.tr()),
-        const SizedBox(width: 6),
+        SizedBox(width: 6),
         chip('cards', 'Kartlar'.tr()),
       ],
     );
@@ -763,7 +773,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
       decoration: BoxDecoration(
         color: c,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.black26, width: 1),
+        border: Border.all(color: AppPalette.border(context), width: 1),
       ),
     );
   }
@@ -791,7 +801,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
@@ -799,12 +809,12 @@ class _AiResultScreenState extends State<AiResultScreen> {
                         onPressed: () => Navigator.pop(sheetCtx),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: Colors.white,
-                          side: const BorderSide(color: Colors.white54),
+                          side: BorderSide(color: Colors.white54),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14)),
                         ),
-                        icon: const Icon(Icons.close_rounded),
+                        icon: Icon(Icons.close_rounded),
                         label: Text(
                           'İptal',
                           style: GoogleFonts.poppins(
@@ -812,7 +822,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: 12),
                     Expanded(
                       flex: 2,
                       child: StatefulBuilder(
@@ -830,13 +840,13 @@ class _AiResultScreenState extends State<AiResultScreen> {
                                   }
                                 },
                           style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFFFF6A00),
+                            backgroundColor: Color(0xFFFF6A00),
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(14)),
                           ),
                           icon: _sharing
-                              ? const SizedBox(
+                              ? SizedBox(
                                   width: 18,
                                   height: 18,
                                   child: CircularProgressIndicator(
@@ -844,7 +854,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                                     color: Colors.white,
                                   ),
                                 )
-                              : const Icon(Icons.share_rounded),
+                              : Icon(Icons.share_rounded),
                           label: Text(
                             _sharing ? 'Hazırlanıyor…'.tr() : 'Paylaş'.tr(),
                             style: GoogleFonts.poppins(
@@ -874,12 +884,12 @@ class _AiResultScreenState extends State<AiResultScreen> {
       padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(22),
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           colors: [Color(0xFFFFF7EE), Color(0xFFFFE7D0)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        border: Border.all(color: const Color(0xFFFFB380), width: 1.5),
+        border: Border.all(color: Color(0xFFFFB380), width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -890,46 +900,46 @@ class _AiResultScreenState extends State<AiResultScreen> {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
+                  gradient: LinearGradient(
                     colors: [Color(0xFFFF8A3D), Color(0xFFFF6A00)],
                   ),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 alignment: Alignment.center,
-                child: const Icon(Icons.auto_awesome_rounded,
+                child: Icon(Icons.auto_awesome_rounded,
                     color: Colors.white, size: 20),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               Text(
                 'QuAlsar',
                 style: GoogleFonts.poppins(
                   fontSize: 18,
                   fontWeight: FontWeight.w900,
-                  color: const Color(0xFF1F2937),
+                  color: AppPalette.textPrimary(context),
                   letterSpacing: -0.3,
                 ),
               ),
-              const Spacer(),
+              Spacer(),
               Container(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+            color: AppPalette.card(context),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFFFF6A00)),
+                  border: Border.all(color: Color(0xFFFF6A00)),
                 ),
                 child: Text(
                   widget.solutionType.replaceAll('\n', ' '),
                   style: GoogleFonts.poppins(
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
-                    color: const Color(0xFFFF6A00),
+                    color: Color(0xFFFF6A00),
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           if (widget.imagePath.isNotEmpty && File(widget.imagePath).existsSync())
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -946,32 +956,32 @@ class _AiResultScreenState extends State<AiResultScreen> {
           Container(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
             decoration: BoxDecoration(
-              color: Colors.white,
+            color: AppPalette.card(context),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFFFE2C7)),
+              border: Border.all(color: Color(0xFFFFE2C7)),
             ),
             child: Text(
               preview,
               style: GoogleFonts.poppins(
                 fontSize: 12.5,
                 height: 1.55,
-                color: const Color(0xFF1F2937),
+                color: AppPalette.textPrimary(context),
               ),
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Row(
             children: [
-              const Icon(Icons.bolt_rounded,
+              Icon(Icons.bolt_rounded,
                   size: 14, color: Color(0xFFFF6A00)),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Flexible(
                 child: Text(
                   'QuAlsar ile saniyeler içinde çözüldü',
                   style: GoogleFonts.poppins(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFFFF6A00),
+                    color: Color(0xFFFF6A00),
                   ),
                 ),
               ),
@@ -1031,7 +1041,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
               borderRadius: 14,
               border: Border.all(
                 color: cand.isNotEmpty
-                    ? const Color(0xFFFF6A00)
+                    ? Color(0xFFFF6A00)
                     : Colors.black.withValues(alpha: 0.55),
                 width: cand.isNotEmpty ? 2 : 0.6,
               ),
@@ -1074,7 +1084,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
       child: Container(
         padding: EdgeInsets.symmetric(
             horizontal: big ? 10 : 6, vertical: big ? 3 : 1),
-        color: const Color(0xFFF0F2F5),
+        color: AppPalette.bg(context),
         child: Text(
           text,
           style: TextStyle(
@@ -1098,16 +1108,23 @@ class _AiResultScreenState extends State<AiResultScreen> {
         // İçerik (LatexText vb.) AnimatedBuilder.child olarak geçiyor —
         // renk değiştiğinde rebuild edilmez. Yalnızca dış Container'ın
         // dekorasyonu ve DefaultTextStyle güncellenir → anlık tepki.
+        // _done=true ise feedback card kenardan kenara (full width) olsun.
+        // LatexText kendi 14px L/R padding'ini koruyor, feedback dış
+        // çerçeveye yapışıyor.
         final innerColumn = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            LatexText(_displayed),
-            if (!_done) ...[
-              const SizedBox(height: 6),
-              const _BlinkingCursor(),
+            if (_done) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: LatexText(_displayed),
+              ),
+              SizedBox(height: 14),
+              _buildFeedbackCard(), // edge-to-edge
             ] else ...[
-              const SizedBox(height: 14),
-              _buildFeedbackCard(),
+              LatexText(_displayed),
+              SizedBox(height: 6),
+              const _BlinkingCursor(),
             ],
           ],
         );
@@ -1123,8 +1140,10 @@ class _AiResultScreenState extends State<AiResultScreen> {
                     (_isDarkColor(cardBg) ? Colors.white : Colors.black);
                 return Container(
                   width: double.infinity,
+                  // _done iken L/R 0 → feedback card edge-to-edge yerleşsin.
+                  // LatexText kendi padding'ini içerde alıyor.
                   padding: _done
-                      ? const EdgeInsets.fromLTRB(14, 16, 14, 0)
+                      ? const EdgeInsets.fromLTRB(0, 16, 0, 0)
                       : const EdgeInsets.fromLTRB(14, 16, 14, 16),
                   clipBehavior: Clip.hardEdge,
                   decoration: BoxDecoration(
@@ -1132,7 +1151,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
                       color: cand.isNotEmpty
-                          ? const Color(0xFFFF6A00)
+                          ? Color(0xFFFF6A00)
                           : Colors.black.withValues(alpha: 0.55),
                       width: cand.isNotEmpty ? 2 : 0.6,
                     ),
@@ -1158,7 +1177,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
               child: Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                color: const Color(0xFFF0F2F5),
+                color: AppPalette.bg(context),
                 child: modelLabel == 'QuAlsar'
                     ? const Text.rich(
                         TextSpan(
@@ -1185,8 +1204,8 @@ class _AiResultScreenState extends State<AiResultScreen> {
                       )
                     : Text(
                         modelLabel.toUpperCase(),
-                        style: const TextStyle(
-                          color: Colors.black54,
+                        style: TextStyle(
+                          color: AppPalette.textSecondary(context),
                           fontSize: 9,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 1.2,
@@ -1215,9 +1234,9 @@ class _AiResultScreenState extends State<AiResultScreen> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.fast_forward_rounded,
+              Icon(Icons.fast_forward_rounded,
                   color: AppColors.textMuted, size: 13),
-              const SizedBox(width: 5),
+              SizedBox(width: 5),
               Text(localeService.tr('show_all'),
                   style: TextStyle(
                       color: AppColors.textMuted,
@@ -1245,7 +1264,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
             BoxShadow(
               color: orange.withValues(alpha: 0.35),
               blurRadius: 14,
-              offset: const Offset(0, 4),
+              offset: Offset(0, 4),
             ),
           ],
         ),
@@ -1254,7 +1273,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (_sharing)
-              const SizedBox(
+              SizedBox(
                 width: 20,
                 height: 20,
                 child: CircularProgressIndicator(
@@ -1268,18 +1287,18 @@ class _AiResultScreenState extends State<AiResultScreen> {
                   localeService.tr('share_with_friend'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.white,
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               Transform.rotate(
                 // +x yönü — saat 2 civarı: -45° (−π/4)
                 angle: -math.pi / 4,
-                child: const Icon(Icons.send_rounded,
+                child: Icon(Icons.send_rounded,
                     color: Colors.white, size: 22),
               ),
             ],
@@ -1366,7 +1385,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
             ),
             padding:
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [Color(0xFF00E5FF), Color(0xFF0070FF)],
                 begin: Alignment.topLeft,
@@ -1381,21 +1400,21 @@ class _AiResultScreenState extends State<AiResultScreen> {
             ),
             child: Text(
               qa.question,
-              style: const TextStyle(
-                  color: Colors.black87,
+              style: TextStyle(
+                  color: AppPalette.textPrimary(context),
                   fontSize: 13,
                   fontWeight: FontWeight.w600),
             ),
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
 
         // AI cevabı (solda) — adım etiketleri renkli
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppPalette.card(context),
             borderRadius: const BorderRadius.only(
               topLeft: Radius.circular(4),
               topRight: Radius.circular(16),
@@ -1405,7 +1424,12 @@ class _AiResultScreenState extends State<AiResultScreen> {
             border: Border.all(
                 color: Colors.black.withValues(alpha: 0.55), width: 0.6),
           ),
-          child: LatexText(qa.answer, fontSize: 13, lineHeight: 1.65),
+          child: qa.answer.isEmpty
+              ? Padding(
+                  padding: EdgeInsets.symmetric(vertical: 4),
+                  child: _TypingDots(),
+                )
+              : LatexText(qa.answer, fontSize: 13, lineHeight: 1.65),
         ),
       ],
     );
@@ -1422,7 +1446,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
       questionSummary: widget.result,
     );
     // Parlama animasyonunu 800ms sonra kapat
-    Future.delayed(const Duration(milliseconds: 800), () {
+    Future.delayed(Duration(milliseconds: 800), () {
       if (mounted) setState(() => _positiveGlow = false);
     });
   }
@@ -1453,14 +1477,14 @@ class _AiResultScreenState extends State<AiResultScreen> {
       context: context,
       backgroundColor: Colors.transparent,  // container'ın border'ı görünsün
       barrierColor: Colors.transparent,      // blur overlay biz yönetiyoruz
-      shape: const RoundedRectangleBorder(
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheet) => Container(
           // ── Tüm sheet alanı beyaz, siyah ince çerçeve ───────────────────
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppPalette.card(context),
             borderRadius:
                 const BorderRadius.vertical(top: Radius.circular(24)),
             border: Border.all(
@@ -1483,20 +1507,20 @@ class _AiResultScreenState extends State<AiResultScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
 
               Center(
                 child: Text(
                   localeService.tr('what_to_improve'),
-                  style: const TextStyle(
-                    color: Colors.black,
+                  style: TextStyle(
+                    color: AppPalette.textPrimary(context),
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.2,
                   ),
                 ),
               ),
-              const SizedBox(height: 5),
+              SizedBox(height: 5),
               Center(
                 child: Text(
                   'Geri bildirimin sistemi daha iyi hale getirecek.',
@@ -1506,13 +1530,13 @@ class _AiResultScreenState extends State<AiResultScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
 
               // ── Neden seçenekleri — 2 sütun grid ─────────────────────────
               GridView.count(
                 crossAxisCount: 2,
                 shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
+                physics: NeverScrollableScrollPhysics(),
                 crossAxisSpacing: 10,
                 mainAxisSpacing: 10,
                 childAspectRatio: 2.6,
@@ -1522,7 +1546,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                     onTap: () => setSheet(() =>
                         sel ? selected.remove(r) : selected.add(r)),
                     child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
+                      duration: Duration(milliseconds: 180),
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                       decoration: BoxDecoration(
                         // İç çerçeve de beyaz; seçiliyken hafif cyan tint
@@ -1543,7 +1567,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                       child: Row(
                         children: [
                           AnimatedContainer(
-                            duration: const Duration(milliseconds: 180),
+                            duration: Duration(milliseconds: 180),
                             width: 16, height: 16,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
@@ -1554,17 +1578,17 @@ class _AiResultScreenState extends State<AiResultScreen> {
                               ),
                             ),
                             child: sel
-                                ? const Icon(Icons.check, color: Colors.white, size: 10)
+                                ? Icon(Icons.check, color: Colors.white, size: 10)
                                 : null,
                           ),
-                          const SizedBox(width: 8),
+                          SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               r,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                color: Colors.black,
+                                color: AppPalette.textPrimary(context),
                                 fontSize: 11.5,
                                 fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
                               ),
@@ -1577,7 +1601,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                 }).toList(),
               ),
 
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
 
               // ── Gönder butonu — beyaz arka plan, cyan kenar ───────────
               GestureDetector(
@@ -1596,7 +1620,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+            color: AppPalette.card(context),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
                       color: AppColors.cyan.withValues(alpha: 0.70),
@@ -1606,8 +1630,8 @@ class _AiResultScreenState extends State<AiResultScreen> {
                   child: Center(
                     child: Text(
                       localeService.tr('send_feedback'),
-                      style: const TextStyle(
-                        color: Colors.black,
+                      style: TextStyle(
+                        color: AppPalette.textPrimary(context),
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                       ),
@@ -1634,7 +1658,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
       context: context,
       barrierDismissible: false,
       barrierColor: Colors.transparent,
-      transitionDuration: const Duration(milliseconds: 280),
+      transitionDuration: Duration(milliseconds: 280),
       transitionBuilder: (ctx, anim, _, child) {
         return BackdropFilter(
           filter: ImageFilter.blur(
@@ -1656,7 +1680,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
       pageBuilder: (ctx, _, __) => Dialog(
         // Dış zemin: hafif gri-beyaz; içerideki beyaz çerçeveler bu tonun
         // üzerinde belirgin şekilde "ada" gibi durur.
-        backgroundColor: const Color(0xFFEEF1F6),
+        backgroundColor: AppPalette.bg(context),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
           side: BorderSide(
@@ -1674,7 +1698,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.fromLTRB(16, 20, 16, 18),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+            color: AppPalette.card(context),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: Colors.black.withValues(alpha: 0.10),
@@ -1694,20 +1718,20 @@ class _AiResultScreenState extends State<AiResultScreen> {
                           width: 1.2,
                         ),
                       ),
-                      child: const Icon(Icons.auto_fix_high_rounded,
+                      child: Icon(Icons.auto_fix_high_rounded,
                           color: AppColors.cyan, size: 26),
                     ),
-                    const SizedBox(height: 14),
+                    SizedBox(height: 14),
                     Text(
                       localeService.tr('feedback_thanks'),
-                      style: const TextStyle(
-                        color: Colors.black,
+                      style: TextStyle(
+                        color: AppPalette.textPrimary(context),
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     Text(
                       localeService.tr('ai_teacher_offer'),
                       style: TextStyle(
@@ -1720,14 +1744,14 @@ class _AiResultScreenState extends State<AiResultScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 14),
+              SizedBox(height: 14),
 
               // ── Alt beyaz çerçeve: iki buton birlikte
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+            color: AppPalette.card(context),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: Colors.black.withValues(alpha: 0.10),
@@ -1747,7 +1771,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(vertical: 13),
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
+                          gradient: LinearGradient(
                             colors: [AppColors.cyan, Color(0xFF0070FF)],
                           ),
                           borderRadius: BorderRadius.circular(14),
@@ -1761,12 +1785,12 @@ class _AiResultScreenState extends State<AiResultScreen> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.school_rounded,
+                            Icon(Icons.school_rounded,
                                 color: Colors.white, size: 18),
-                            const SizedBox(width: 8),
+                            SizedBox(width: 8),
                             Text(
                               localeService.tr('yes_ai_teacher'),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
@@ -1776,7 +1800,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    SizedBox(height: 10),
 
                     // Hayır → kapat (beyaz arka plan, siyah kenar, siyah yazı)
                     GestureDetector(
@@ -1785,7 +1809,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(vertical: 11),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+            color: AppPalette.card(context),
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
                               color: Colors.black.withValues(alpha: 0.30),
@@ -1794,8 +1818,8 @@ class _AiResultScreenState extends State<AiResultScreen> {
                         child: Center(
                           child: Text(
                             localeService.tr('no_thanks'),
-                            style: const TextStyle(
-                              color: Colors.black,
+                            style: TextStyle(
+                              color: AppPalette.textPrimary(context),
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                             ),
@@ -1852,20 +1876,26 @@ class _AiResultScreenState extends State<AiResultScreen> {
 
   Widget _buildFeedbackCard() {
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
+      duration: Duration(milliseconds: 300),
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 4),
+      padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 14),
       decoration: BoxDecoration(
-        // Çerçeve mavi — Yes tıklandığında kısa bir yeşil parlaklık geçişi.
         color: _positiveGlow
-            ? const Color(0xFF22C55E).withValues(alpha: 0.08)
-            : const Color(0xFF3B82F6).withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: _positiveGlow
-              ? const Color(0xFF22C55E).withValues(alpha: 0.45)
-              : const Color(0xFF3B82F6).withValues(alpha: 0.45),
-          width: 1.2,
+            ? Color(0xFF22C55E).withValues(alpha: 0.08)
+            : Color(0xFF3B82F6).withValues(alpha: 0.06),
+        // Üst kenar düz (LatexText'le ayrım); alt köşeler dış çerçeveye
+        // uyum için 14px (outer card ile uyumlu).
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(13),
+          bottomRight: Radius.circular(13),
+        ),
+        border: Border(
+          top: BorderSide(
+            color: _positiveGlow
+                ? Color(0xFF22C55E).withValues(alpha: 0.45)
+                : Color(0xFF3B82F6).withValues(alpha: 0.45),
+            width: 1.2,
+          ),
         ),
       ),
       child: _isRetrying
@@ -1874,12 +1904,12 @@ class _AiResultScreenState extends State<AiResultScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const SizedBox(
+                  SizedBox(
                     width: 14, height: 14,
                     child: CircularProgressIndicator(
                       color: AppColors.cyan, strokeWidth: 2),
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   Text(
                     localeService.tr('ai_teacher_loading'),
                     style: TextStyle(
@@ -1903,7 +1933,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: _liked == true
-                          ? const Color(0xFF22C55E)
+                          ? Color(0xFF22C55E)
                           : Colors.black,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
@@ -1911,20 +1941,20 @@ class _AiResultScreenState extends State<AiResultScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 6),
+                SizedBox(width: 6),
                 _FeedbackButton(
                   emoji: '👍',
                   label: localeService.tr('yes'),
                   selected: _liked == true,
-                  activeColor: const Color(0xFF22C55E),
+                  activeColor: Color(0xFF22C55E),
                   onTap: _onPositiveTapped,
                 ),
-                const SizedBox(width: 5),
+                SizedBox(width: 5),
                 _FeedbackButton(
                   emoji: '👎',
                   label: localeService.tr('no'),
                   selected: _liked == false,
-                  activeColor: const Color(0xFFEF4444),
+                  activeColor: Color(0xFFEF4444),
                   onTap: _onNegativeTapped,
                 ),
               ],
@@ -1954,17 +1984,17 @@ class _AiResultScreenState extends State<AiResultScreen> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: Colors.white,
+            color: AppPalette.card(context),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: Colors.black,
+            color: AppPalette.textPrimary(context),
             width: 2.0,
           ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 8,
-              offset: const Offset(0, 2),
+              offset: Offset(0, 2),
             ),
           ],
         ),
@@ -1974,7 +2004,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
             Container(
               width: 26, height: 26,
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
+                gradient: LinearGradient(
                   colors: [AppColors.cyan, Color(0xFF0070FF)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -1989,22 +2019,22 @@ class _AiResultScreenState extends State<AiResultScreen> {
                 size: 14,
               ),
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Flexible(
               child: Text(
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.black,
+                style: TextStyle(
+                  color: AppPalette.textPrimary(context),
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.2,
                 ),
               ),
             ),
-            const SizedBox(width: 6),
-            const Icon(Icons.chevron_right_rounded, color: Colors.black, size: 18),
+            SizedBox(width: 6),
+            Icon(Icons.chevron_right_rounded, color: AppPalette.textPrimary(context), size: 18),
           ],
         ),
       ),
@@ -2020,7 +2050,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
+          gradient: LinearGradient(
             colors: [AppColors.cyan, Color(0xFF0070FF)],
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
@@ -2030,15 +2060,15 @@ class _AiResultScreenState extends State<AiResultScreen> {
             BoxShadow(
               color: AppColors.cyan.withValues(alpha: 0.30),
               blurRadius: 14,
-              offset: const Offset(0, 4),
+              offset: Offset(0, 4),
             ),
           ],
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 20),
-            const SizedBox(width: 10),
+            Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 20),
+            SizedBox(width: 10),
             Text(
               localeService.tr('scan_another'),
               style: TextStyle(
@@ -2064,7 +2094,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
     return Container(
       decoration: BoxDecoration(
         // Dış kabuk — soluk beyaz
-        color: const Color(0xFFF5F5F5),
+        color: Color(0xFFF5F5F5),
         border: Border(
           top: BorderSide(
               color: Colors.black.withValues(alpha: 0.10), width: 1),
@@ -2078,7 +2108,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
           Expanded(
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+            color: AppPalette.card(context),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: focused
@@ -2100,7 +2130,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                 focusNode: _followFocus,
                 maxLines: 4,
                 minLines: 1,
-                style: const TextStyle(color: Colors.black, fontSize: 13),
+                style: TextStyle(color: AppPalette.textPrimary(context), fontSize: 13),
                 cursorColor: Colors.black,
                 cursorWidth: 2.4,
                 decoration: InputDecoration(
@@ -2118,7 +2148,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
 
           // Gönder butonu — her zaman cyan tonlu
           GestureDetector(
@@ -2129,7 +2159,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
               decoration: BoxDecoration(
                 gradient: inactive
                     ? null
-                    : const LinearGradient(
+                    : LinearGradient(
                         colors: [AppColors.cyan, Color(0xFF0070FF)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
@@ -2151,7 +2181,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                       ],
               ),
               child: _isAsking
-                  ? const Center(
+                  ? Center(
                       child: SizedBox(
                         width: 18,
                         height: 18,
@@ -2198,10 +2228,10 @@ class _FeedbackButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: Colors.white,
+            color: AppPalette.card(context),
           borderRadius: BorderRadius.circular(50),
           border: Border.all(
             color: selected ? activeColor : Colors.black,
@@ -2219,8 +2249,8 @@ class _FeedbackButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(emoji, style: const TextStyle(fontSize: 12)),
-            const SizedBox(width: 4),
+            Text(emoji, style: TextStyle(fontSize: 12)),
+            SizedBox(width: 4),
             Text(
               label,
               style: TextStyle(
@@ -2240,7 +2270,7 @@ class _FeedbackButton extends StatelessWidget {
 
 class _QA {
   final String question;
-  final String answer;
+  String answer; // streaming için mutable
   final GlobalKey key;
   _QA({required this.question, required this.answer}) : key = GlobalKey();
 }
@@ -2263,7 +2293,7 @@ class _BlinkingCursorState extends State<_BlinkingCursor>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 530))
+        vsync: this, duration: Duration(milliseconds: 530))
       ..repeat(reverse: true);
   }
 
@@ -2301,7 +2331,7 @@ class _PulseDotState extends State<_PulseDot>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 900))
+        vsync: this, duration: Duration(milliseconds: 900))
       ..repeat(reverse: true);
   }
 
@@ -2325,6 +2355,51 @@ class _PulseDotState extends State<_PulseDot>
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Q&A streaming sırasında 3 nokta yazıyor animasyonu.
+/// Boş cevap geldiğinde "yazıyor" hissi verir.
+class _TypingDots extends StatefulWidget {
+  const _TypingDots();
+  @override
+  State<_TypingDots> createState() => _TypingDotsState();
+}
+
+class _TypingDotsState extends State<_TypingDots>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ac =
+      AnimationController(vsync: this, duration: Duration(seconds: 1))
+        ..repeat();
+
+  @override
+  void dispose() {
+    _ac.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ac,
+      builder: (_, __) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: List.generate(3, (i) {
+          final phase = ((_ac.value * 3) - i).clamp(0.0, 1.0);
+          final opacity =
+              (phase < 0.5 ? phase * 2 : (1 - phase) * 2).clamp(0.25, 1.0);
+          return Container(
+            margin: const EdgeInsets.only(right: 6),
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.black.withValues(alpha: opacity),
+            ),
+          );
+        }),
       ),
     );
   }

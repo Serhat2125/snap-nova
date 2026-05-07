@@ -57,7 +57,7 @@ Future<void> main() async {
   runZonedGuarded<Future<void>>(() async {
     WidgetsFlutterBinding.ensureInitialized();
 
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.light,
     ));
@@ -75,7 +75,7 @@ Future<void> main() async {
       );
       AuthService.firebaseReady = true;
       // Firestore offline cache — ağ kesikken son veriye erişim + yazma kuyruğu.
-      FirebaseFirestore.instance.settings = const Settings(
+      FirebaseFirestore.instance.settings = Settings(
         persistenceEnabled: true,
         cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
       );
@@ -116,15 +116,14 @@ Future<void> main() async {
     await RuntimeTranslator.instance.init();
     // Açılışta TÜM TR kaynak string'lerini runtime translator'a kaydet —
     // her dil değişiminde hepsi birden preload edilecek.
-    for (final src in LocaleService.allTrSourceStrings) {
-      RuntimeTranslator.instance.register(src);
-    }
+    // bulkRegister: timer reset/restart per-item önlenir, startup hızlanır.
+    RuntimeTranslator.instance
+        .bulkRegister(LocaleService.allTrSourceStrings);
 
     LocaleService.setLocaleChangeHook((lang) async {
       // Her dil değişiminde önce tüm kaynakların kayıtlı olduğunu garanti et.
-      for (final src in LocaleService.allTrSourceStrings) {
-        RuntimeTranslator.instance.register(src);
-      }
+      RuntimeTranslator.instance
+          .bulkRegister(LocaleService.allTrSourceStrings);
       await RuntimeTranslator.instance.preloadAll(lang);
     });
     // LocaleService.tr() içinde bir key'in çevirisi yoksa Türkçe kaynağı
@@ -171,7 +170,7 @@ Future<void> main() async {
     // kullanır; eski ekranlar StatefulWidget+setState ile çalışmaya devam
     // eder — wrapper sadece yeni provider'ları aktive eder, eski koda
     // hiçbir etkisi yok.
-    runApp(const ProviderScope(child: QuAlsarApp()));
+    runApp(ProviderScope(child: QuAlsarApp()));
   }, (error, stack) {
     // Zone dışına sızan her şey — hem ErrorLogger hem Crashlytics'e gönder.
     ErrorLogger.instance.capture(
@@ -229,14 +228,14 @@ class _StartupRouterState extends State<_StartupRouter> {
       future: _future,
       builder: (context, snap) {
         if (!snap.hasData) {
-          return const Scaffold(
+          return Scaffold(
             backgroundColor: AppColors.background,
             body: SizedBox.shrink(),
           );
         }
         switch (snap.data!) {
           case _StartupState.onboarding:
-            return const OnboardingScreen();
+            return OnboardingScreen();
           case _StartupState.educationSetup:
             return FutureBuilder<int>(
               future: _currentTrialEntry(),
@@ -246,7 +245,7 @@ class _StartupRouterState extends State<_StartupRouter> {
               ),
             );
           case _StartupState.home:
-            return const CameraScreen();
+            return CameraScreen();
         }
       },
     );
@@ -288,9 +287,21 @@ class _GlobalSidebarOverlayState extends State<_GlobalSidebarOverlay>
     super.dispose();
   }
 
+  // Resume'da reload'u throttle et — kullanıcı hızlıca app'e girip çıkarsa
+  // her seferinde 100+ JSON parse + tüm sidebar setState yapma.
+  DateTime? _lastResumeReload;
+  String? _lastSummaryHash;
+  String? _lastQuestionHash;
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      final now = DateTime.now();
+      if (_lastResumeReload != null &&
+          now.difference(_lastResumeReload!) < const Duration(seconds: 30)) {
+        return;
+      }
+      _lastResumeReload = now;
       _loadSubjects();
     }
   }
@@ -299,6 +310,19 @@ class _GlobalSidebarOverlayState extends State<_GlobalSidebarOverlay>
     final prefs = await SharedPreferences.getInstance();
     final summaryRaw = prefs.getStringList('library_subjects_v2') ?? [];
     final qRaw = prefs.getStringList('library_subjects_questions_v2') ?? [];
+
+    // İçerik aynıysa parse + setState yapma — gereksiz rebuild önlenir.
+    final summaryHash = summaryRaw.length.toString() +
+        '|' +
+        (summaryRaw.isNotEmpty ? summaryRaw.last.length.toString() : '0');
+    final qHash = qRaw.length.toString() +
+        '|' +
+        (qRaw.isNotEmpty ? qRaw.last.length.toString() : '0');
+    if (summaryHash == _lastSummaryHash && qHash == _lastQuestionHash) {
+      return;
+    }
+    _lastSummaryHash = summaryHash;
+    _lastQuestionHash = qHash;
 
     if (!mounted) return;
     setState(() {
@@ -359,32 +383,32 @@ class _GlobalSidebarOverlayState extends State<_GlobalSidebarOverlay>
         SidebarItem(
           title: localeService.tr('my_profile'),
           color: _kBlue,
-          pageBuilder: (_) => const ProfileScreen(),
-          openFullscreen: () => _push(const ProfileScreen()),
+          pageBuilder: (_) => ProfileScreen(),
+          openFullscreen: () => _push(ProfileScreen()),
           children: [
             SidebarItem(
               title: localeService.tr('upgrade_unlimited'),
               color: _kPurple,
-              pageBuilder: (_) => const PremiumScreen(),
-              openFullscreen: () => _push(const PremiumScreen()),
+              pageBuilder: (_) => PremiumScreen(),
+              openFullscreen: () => _push(PremiumScreen()),
             ),
             SidebarItem(
               title: localeService.tr('invite_friends_short'),
               color: _kPink,
-              pageBuilder: (_) => const InvitePage(),
-              openFullscreen: () => _push(const InvitePage()),
+              pageBuilder: (_) => InvitePage(),
+              openFullscreen: () => _push(InvitePage()),
             ),
             SidebarItem(
               title: localeService.tr('language_selection'),
               color: _kBlue,
-              pageBuilder: (_) => const ProfileScreen(),
-              openFullscreen: () => _push(const ProfileScreen()),
+              pageBuilder: (_) => ProfileScreen(),
+              openFullscreen: () => _push(ProfileScreen()),
             ),
             SidebarItem(
               title: localeService.tr('appearance'),
               color: _kPurple,
-              pageBuilder: (_) => const ProfileScreen(),
-              openFullscreen: () => _push(const ProfileScreen()),
+              pageBuilder: (_) => ProfileScreen(),
+              openFullscreen: () => _push(ProfileScreen()),
             ),
           ],
         ),
@@ -393,32 +417,32 @@ class _GlobalSidebarOverlayState extends State<_GlobalSidebarOverlay>
         SidebarItem(
           title: localeService.tr('my_library'),
           color: _kBlue,
-          pageBuilder: (_) => const LibraryLanding(),
-          openFullscreen: () => _push(const LibraryLanding()),
+          pageBuilder: (_) => LibraryLanding(),
+          openFullscreen: () => _push(LibraryLanding()),
           children: [
             SidebarItem(
               title: localeService.tr('create_topic_summary'),
               color: _kBlue,
               pageBuilder: (_) =>
-                  const AcademicPlanner(mode: LibraryMode.summary),
+                  AcademicPlanner(mode: LibraryMode.summary),
               openFullscreen: () => _push(
-                  const AcademicPlanner(mode: LibraryMode.summary)),
+                  AcademicPlanner(mode: LibraryMode.summary)),
               children: _summarySubjects,
             ),
             SidebarItem(
               title: localeService.tr('create_exam_questions'),
               color: _kOrange,
               pageBuilder: (_) =>
-                  const AcademicPlanner(mode: LibraryMode.questions),
+                  AcademicPlanner(mode: LibraryMode.questions),
               openFullscreen: () => _push(
-                  const AcademicPlanner(mode: LibraryMode.questions)),
+                  AcademicPlanner(mode: LibraryMode.questions)),
               children: _questionSubjects,
             ),
             SidebarItem(
               title: localeService.tr('my_study_calendar'),
               color: _kPurple,
-              pageBuilder: (_) => const StudyCalendarPage(),
-              openFullscreen: () => _push(const StudyCalendarPage()),
+              pageBuilder: (_) => StudyCalendarPage(),
+              openFullscreen: () => _push(StudyCalendarPage()),
             ),
           ],
         ),
@@ -443,7 +467,7 @@ class _SimplePreviewPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
+      backgroundColor: Color(0xFFF5F6FA),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -456,7 +480,7 @@ class _SimplePreviewPage extends StatelessWidget {
               title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 16, fontWeight: FontWeight.w800),
             ),
             Text(
@@ -474,11 +498,11 @@ class _SimplePreviewPage extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
+            border: Border.all(color: Color(0xFFE5E7EB)),
           ),
           child: Text(
             content,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
               height: 1.6,
               color: Color(0xFF1F2937),
@@ -524,7 +548,7 @@ class QuAlsarApp extends StatelessWidget {
                     if (s.languageCode == device.languageCode) return s;
                   }
                 }
-                return const Locale('en');
+                return Locale('en');
               },
               localizationsDelegates: const [
                 GlobalMaterialLocalizations.delegate,

@@ -25,7 +25,7 @@ class _CaptureButtonState extends State<CaptureButton>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 120),
+      duration: Duration(milliseconds: 120),
       lowerBound: 0.0,
       upperBound: 1.0,
     );
@@ -67,17 +67,17 @@ class _CaptureButtonState extends State<CaptureButton>
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: Colors.transparent,
-            border: Border.all(color: Colors.white, width: 3.5),
+            border: Border.all(color: AppPalette.card(context), width: 3.5),
           ),
           child: Padding(
             padding: const EdgeInsets.all(5),
             child: Container(
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white,
+                color: AppPalette.card(context),
               ),
               child: widget.isCapturing
-                  ? const Center(
+                  ? Center(
                       child: SizedBox(
                         width: 24,
                         height: 24,

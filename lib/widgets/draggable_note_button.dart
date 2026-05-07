@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../theme/app_theme.dart';
 /// Notu aç/düzenle bottom sheet'i — hem floating button hem toolbar tarafından
 /// kullanılır. Tek kaynak / single source of truth.
 Future<void> openTopicNoteSheet({
@@ -37,8 +38,8 @@ Future<void> openTopicNoteSheet({
           constraints: BoxConstraints(
             maxHeight: MediaQuery.of(sheetCtx).size.height * 0.85,
           ),
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(
+            color: AppPalette.card(context),
             borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
           ),
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
@@ -49,11 +50,11 @@ Future<void> openTopicNoteSheet({
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.black26,
+                  color: AppPalette.border(context),
                   borderRadius: BorderRadius.circular(99),
                 ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               Row(
                 children: [
                   Container(
@@ -67,7 +68,7 @@ Future<void> openTopicNoteSheet({
                     child: Icon(Icons.sticky_note_2_rounded,
                         color: color, size: 18),
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   Expanded(
                     child: Text('$topicName Notları',
                         maxLines: 1,
@@ -76,12 +77,12 @@ Future<void> openTopicNoteSheet({
                             fontSize: 16, fontWeight: FontWeight.w900)),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close_rounded),
+                    icon: Icon(Icons.close_rounded),
                     onPressed: () => Navigator.of(sheetCtx).pop(),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Flexible(
                 child: TextField(
                   controller: ctrl,
@@ -95,7 +96,7 @@ Future<void> openTopicNoteSheet({
                     hintStyle: GoogleFonts.poppins(
                         fontSize: 13, color: Colors.black38),
                     filled: true,
-                    fillColor: const Color(0xFFFFFBEA),
+                    fillColor: Color(0xFFFFFBEA),
                     contentPadding: const EdgeInsets.all(14),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
@@ -109,17 +110,17 @@ Future<void> openTopicNoteSheet({
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               Row(
                 children: [
                   TextButton.icon(
                     onPressed: () => ctrl.clear(),
-                    icon: const Icon(Icons.cleaning_services_rounded, size: 16),
-                    label: const Text('Temizle'),
+                    icon: Icon(Icons.cleaning_services_rounded, size: 16),
+                    label: Text('Temizle'),
                     style: TextButton.styleFrom(
                         foregroundColor: Colors.black54),
                   ),
-                  const Spacer(),
+                  Spacer(),
                   ElevatedButton.icon(
                     onPressed: () async {
                       if (ctrl.text.trim().isEmpty) {
@@ -130,8 +131,8 @@ Future<void> openTopicNoteSheet({
                       }
                       if (sheetCtx.mounted) Navigator.of(sheetCtx).pop();
                     },
-                    icon: const Icon(Icons.check_rounded, size: 18),
-                    label: const Text('Kaydet'),
+                    icon: Icon(Icons.check_rounded, size: 18),
+                    label: Text('Kaydet'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: color,
                       foregroundColor: Colors.white,
@@ -242,8 +243,8 @@ class _DraggableNoteOverlayState extends State<DraggableNoteOverlay> {
             constraints: BoxConstraints(
               maxHeight: MediaQuery.of(sheetCtx).size.height * 0.85,
             ),
-            decoration: const BoxDecoration(
-              color: Colors.white,
+            decoration: BoxDecoration(
+            color: AppPalette.card(context),
               borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
             ),
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
@@ -255,11 +256,11 @@ class _DraggableNoteOverlayState extends State<DraggableNoteOverlay> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.black26,
+                    color: AppPalette.border(context),
                     borderRadius: BorderRadius.circular(99),
                   ),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 // Başlık + kapat
                 Row(
                   children: [
@@ -274,7 +275,7 @@ class _DraggableNoteOverlayState extends State<DraggableNoteOverlay> {
                       child: Icon(Icons.sticky_note_2_rounded,
                           color: widget.color, size: 18),
                     ),
-                    const SizedBox(width: 10),
+                    SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         '${widget.topicName} Notları',
@@ -287,12 +288,12 @@ class _DraggableNoteOverlayState extends State<DraggableNoteOverlay> {
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close_rounded),
+                      icon: Icon(Icons.close_rounded),
                       onPressed: () => Navigator.of(sheetCtx).pop(),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 // Notes alanı — geniş + okunaklı
                 Flexible(
                   child: TextField(
@@ -304,17 +305,17 @@ class _DraggableNoteOverlayState extends State<DraggableNoteOverlay> {
                     style: GoogleFonts.poppins(
                       fontSize: 14.5,
                       height: 1.55,
-                      color: Colors.black,
+                      color: AppPalette.textPrimary(context),
                     ),
                     decoration: InputDecoration(
                       hintText:
                           'Bu konu için kişisel notlarını buraya yaz…',
                       hintStyle: GoogleFonts.poppins(
                         fontSize: 13,
-                        color: Colors.black38,
+                        color: AppPalette.textSecondary(context),
                       ),
                       filled: true,
-                      fillColor: const Color(0xFFFFFBEA),
+                      fillColor: Color(0xFFFFFBEA),
                       contentPadding: const EdgeInsets.all(14),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
@@ -333,7 +334,7 @@ class _DraggableNoteOverlayState extends State<DraggableNoteOverlay> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 // Aksiyon butonları: temizle + kaydet
                 Row(
                   children: [
@@ -341,14 +342,14 @@ class _DraggableNoteOverlayState extends State<DraggableNoteOverlay> {
                       onPressed: () {
                         ctrl.clear();
                       },
-                      icon: const Icon(Icons.cleaning_services_rounded,
+                      icon: Icon(Icons.cleaning_services_rounded,
                           size: 16),
-                      label: const Text('Temizle'),
+                      label: Text('Temizle'),
                       style: TextButton.styleFrom(
-                        foregroundColor: Colors.black54,
+                        foregroundColor: AppPalette.textSecondary(context),
                       ),
                     ),
-                    const Spacer(),
+                    Spacer(),
                     ElevatedButton.icon(
                       onPressed: () async {
                         await _saveText(ctrl.text);
@@ -362,13 +363,13 @@ class _DraggableNoteOverlayState extends State<DraggableNoteOverlay> {
                                   ? 'Not silindi'
                                   : 'Not kaydedildi'),
                               behavior: SnackBarBehavior.floating,
-                              duration: const Duration(seconds: 2),
+                              duration: Duration(seconds: 2),
                             ),
                           );
                         }
                       },
-                      icon: const Icon(Icons.check_rounded, size: 18),
-                      label: const Text('Kaydet'),
+                      icon: Icon(Icons.check_rounded, size: 18),
+                      label: Text('Kaydet'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: widget.color,
                         foregroundColor: Colors.white,
@@ -453,14 +454,14 @@ class _NoteFab extends StatelessWidget {
           BoxShadow(
             color: color.withValues(alpha: 0.40),
             blurRadius: 16,
-            offset: const Offset(0, 4),
+            offset: Offset(0, 4),
           ),
         ],
       ),
       child: Stack(
         alignment: Alignment.center,
         children: [
-          const Icon(Icons.sticky_note_2_rounded,
+          Icon(Icons.sticky_note_2_rounded,
               color: Colors.white, size: 26),
           if (hasNote)
             Positioned(
@@ -470,7 +471,7 @@ class _NoteFab extends StatelessWidget {
                 width: 10,
                 height: 10,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEF4444),
+                  color: Color(0xFFEF4444),
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white, width: 1.5),
                 ),

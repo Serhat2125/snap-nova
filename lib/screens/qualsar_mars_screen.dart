@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../theme/app_theme.dart';
 // ═══════════════════════════════════════════════════════════════════════════════
 //  QuAlsarMarsScreen — Gerçekçi QuAlsar kolonisi pomodoro, 4 aşama:
 //    1) Starship inişi + 3 astronot + yaşam kubbesi
@@ -1958,7 +1959,7 @@ class _ColonyPainter extends CustomPainter {
       text: TextSpan(
         text: 'QUALSAR',
         style: GoogleFonts.orbitron(
-          color: const Color(0xFF303840),
+          color: const Color(0xFFFEFEFE),
           fontSize: 5,
           fontWeight: FontWeight.w900,
           letterSpacing: 0.6,

@@ -6,6 +6,7 @@ import '../main.dart' show localeService;
 import '../services/gemini_service.dart';
 import 'ai_result_screen.dart';
 
+import '../theme/app_theme.dart';
 // ═══════════════════════════════════════════════════════════════════════════════
 //  CalculatorScreen — Yeni tasarım (Qanda tarzı)
 //  • Üst: problem girişi (dotted underline)
@@ -151,8 +152,8 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
   void _showHistory() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
+      backgroundColor: AppPalette.card(context),
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
@@ -184,18 +185,18 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                           fontWeight: FontWeight.w800,
                         ),
                       ),
-                      const Spacer(),
+                      Spacer(),
                       if (_history.isNotEmpty)
                         TextButton(
                           onPressed: () {
                             setState(_history.clear);
                             Navigator.pop(ctx);
                           },
-                          child: const Text('Temizle'),
+                          child: Text('Temizle'),
                         ),
                     ],
                   ),
-                  const Divider(),
+                  Divider(),
                   Expanded(
                     child: _history.isEmpty
                         ? Center(
@@ -208,7 +209,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                         : ListView.separated(
                             itemCount: _history.length,
                             separatorBuilder: (_, __) =>
-                                const Divider(height: 10),
+                                Divider(height: 10),
                             itemBuilder: (_, i) {
                               final h = _history[i];
                               return ListTile(
@@ -451,14 +452,14 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppPalette.card(context),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF7F7F9),
+        backgroundColor: AppPalette.bg(context),
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded,
-              color: Colors.black87, size: 24),
+          icon: Icon(Icons.arrow_back_rounded,
+              color: AppPalette.textPrimary(context), size: 24),
           onPressed: () => Navigator.pop(context),
         ),
         centerTitle: true,
@@ -467,7 +468,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
           style: GoogleFonts.poppins(
             fontSize: 17,
             fontWeight: FontWeight.w700,
-            color: Colors.black87,
+            color: AppPalette.textPrimary(context),
           ),
         ),
       ),
@@ -480,7 +481,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                 children: [
                   _buildLatexPreview(),
                   if (_result.isNotEmpty) _buildResultPill(),
-                  const Spacer(),
+                  Spacer(),
                   if (_ctrl.text.isNotEmpty) _buildActionRow(),
                 ],
               ),
@@ -522,7 +523,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.fromLTRB(22, 20, 22, 8),
-        constraints: const BoxConstraints(minHeight: 56),
+        constraints: BoxConstraints(minHeight: 56),
         alignment: Alignment.centerLeft,
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -547,7 +548,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                   child: _renderLatexSegment(afterText),
                 ),
               if (isEmpty) ...[
-                const SizedBox(width: 6),
+                SizedBox(width: 6),
                 Text(
                   'Bir sayısal soru girin...',
                   style: GoogleFonts.poppins(
@@ -569,15 +570,15 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
     final latex = _toLatex(segment);
     return Math.tex(
       latex,
-      textStyle: const TextStyle(
+      textStyle: TextStyle(
         fontSize: 28,
-        color: Color(0xFF1F2937),
+        color: AppPalette.textPrimary(context),
       ),
       onErrorFallback: (_) => Text(
         segment,
         style: GoogleFonts.poppins(
           fontSize: 24,
-          color: const Color(0xFF1F2937),
+          color: AppPalette.textPrimary(context),
         ),
       ),
     );
@@ -607,9 +608,9 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.check_rounded,
+              Icon(Icons.check_rounded,
                   color: _cursorGreen, size: 16),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Text(
                 display,
                 style: GoogleFonts.poppins(
@@ -640,7 +641,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
           _pillButton(
             label: _solving ? localeService.tr('solving') : localeService.tr('show_solution_btn'),
             onTap: _solving ? null : _solveWithAi,
-            color: const Color(0xFFFF6A00),
+            color: Color(0xFFFF6A00),
             filled: true,
           ),
         ],
@@ -688,8 +689,8 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
   // ── Alt klavye paneli ──────────────────────────────────────────────────────
   Widget _buildKeyboardPanel() {
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(
+            color: AppPalette.card(context),
         border: Border(
           top: BorderSide(color: _borderColor, width: 1),
         ),
@@ -699,9 +700,9 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           _topNavRow(),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           _categoryPills(),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           _tabContent(),
         ],
       ),
@@ -731,14 +732,14 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFFE5E7EB),
+          color: AppPalette.border(context),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFFD1D5DB)),
+          border: Border.all(color: AppPalette.border(context)),
         ),
-        child: const Icon(
+        child: Icon(
           Icons.backspace_outlined,
           size: 26,
-          color: Colors.black87,
+          color: AppPalette.textPrimary(context),
         ),
       ),
     );
@@ -790,7 +791,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
             bottomRight: '÷',
           ),
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: 10),
         Expanded(
           child: _pill(
             tab: _Tab.funcs,
@@ -800,7 +801,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
             bottomRight: 'ln',
           ),
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: 10),
         Expanded(
           child: _pill(
             tab: _Tab.trig,
@@ -810,7 +811,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
             bottomRight: 'cot',
           ),
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: 10),
         Expanded(
           child: _pill(
             tab: _Tab.calc,
@@ -851,7 +852,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 _pillText(topLeft, fg),
-                const SizedBox(width: 5),
+                SizedBox(width: 5),
                 _pillText(topRight, fg),
               ],
             ),
@@ -859,7 +860,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 _pillText(bottomLeft, fg),
-                const SizedBox(width: 5),
+                SizedBox(width: 5),
                 _pillText(bottomRight, fg),
               ],
             ),
@@ -914,7 +915,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 3),
                               child: k.isEmpty
-                                  ? const SizedBox(height: 56)
+                                  ? SizedBox(height: 56)
                                   : _gridKey(k),
                             ),
                           ))
@@ -944,7 +945,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
             style: GoogleFonts.poppins(
               fontSize: 22,
               fontWeight: FontWeight.w500,
-              color: Colors.black87,
+              color: AppPalette.textPrimary(context),
             ),
           ),
         ),
@@ -1022,7 +1023,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
     Color bg;
     switch (c.kind) {
       case _OpKind.num:
-        bg = const Color(0xFFF1F3F7);
+        bg = Color(0xFFF1F3F7);
         break;
       case _OpKind.op:
       case _OpKind.tpl:
@@ -1059,7 +1060,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                     style: GoogleFonts.poppins(
                       fontSize: 22,
                       fontWeight: FontWeight.w500,
-                      color: Colors.black87,
+                      color: AppPalette.textPrimary(context),
                     ),
                   ),
             ),
@@ -1077,7 +1078,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                     style: GoogleFonts.poppins(
                       fontSize: 9,
                       fontWeight: FontWeight.w600,
-                      color: const Color(0xFFE11D48),
+                      color: Color(0xFFE11D48),
                       letterSpacing: 0.1,
                     ),
                   ),
@@ -1149,7 +1150,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                           style: GoogleFonts.poppins(
                             fontSize: 20,
                             fontWeight: FontWeight.w500,
-                            color: Colors.black87,
+                            color: AppPalette.textPrimary(context),
                           ),
                         ),
                       ),
@@ -1236,7 +1237,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
       child: Container(
         height: 60,
         decoration: BoxDecoration(
-          color: Colors.white,
+            color: AppPalette.card(context),
           border: Border.all(color: _borderColor, width: 0.6),
         ),
         alignment: Alignment.center,
@@ -1257,7 +1258,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
             style: GoogleFonts.poppins(
               fontSize: 15,
               fontWeight: FontWeight.w500,
-              color: Colors.black87,
+              color: AppPalette.textPrimary(context),
             ),
           ),
         ),
@@ -1445,15 +1446,15 @@ class _SqrtGlyph extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Text(
+        Text(
           '√',
           style: TextStyle(
             fontSize: 26,
-            color: Colors.black87,
+            color: AppPalette.textPrimary(context),
             fontWeight: FontWeight.w400,
           ),
         ),
-        const SizedBox(width: 2),
+        SizedBox(width: 2),
         _DottedBox(width: 16, height: 16),
       ],
     );
@@ -1469,14 +1470,14 @@ class _SquareGlyph extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _DottedBox(width: 18, height: 18),
-        const SizedBox(width: 2),
-        const Padding(
+        SizedBox(width: 2),
+        Padding(
           padding: EdgeInsets.only(top: 2),
           child: Text(
             '2',
             style: TextStyle(
               fontSize: 13,
-              color: Colors.black87,
+              color: AppPalette.textPrimary(context),
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -1496,9 +1497,9 @@ class _AbsGlyph extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         const _Bar(),
-        const SizedBox(width: 2),
+        SizedBox(width: 2),
         _DottedBox(width: 16, height: 16),
-        const SizedBox(width: 2),
+        SizedBox(width: 2),
         const _Bar(),
       ],
     );
@@ -1524,12 +1525,12 @@ class _NRootGlyph extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 10),
           child: _DottedBox(width: 10, height: 10),
         ),
-        const Text(
+        Text(
           '√',
           style: TextStyle(
-              fontSize: 22, color: Colors.black87, fontWeight: FontWeight.w400),
+              fontSize: 22, color: AppPalette.textPrimary(context), fontWeight: FontWeight.w400),
         ),
-        const SizedBox(width: 1),
+        SizedBox(width: 1),
         _DottedBox(width: 14, height: 14),
       ],
     );
@@ -1545,10 +1546,10 @@ class _ListGlyph extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         _DottedBox(width: 10, height: 12),
-        const Text(',',
+        Text(',',
             style: TextStyle(fontSize: 18, color: Colors.black87)),
         _DottedBox(width: 10, height: 12),
-        const Text(',',
+        Text(',',
             style: TextStyle(fontSize: 18, color: Colors.black87)),
         _DottedBox(width: 10, height: 12),
       ],
@@ -1565,7 +1566,7 @@ class _SubGlyph extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _DottedBox(width: 16, height: 16),
-        const SizedBox(width: 2),
+        SizedBox(width: 2),
         Padding(
           padding: const EdgeInsets.only(top: 10),
           child: _DottedBox(width: 10, height: 10),
@@ -1584,10 +1585,10 @@ class _FxCallGlyph extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         _DottedBox(width: 14, height: 16),
-        const Text('(',
+        Text('(',
             style: TextStyle(fontSize: 22, color: Colors.black87)),
         _DottedBox(width: 12, height: 14),
-        const Text(')',
+        Text(')',
             style: TextStyle(fontSize: 22, color: Colors.black87)),
       ],
     );
@@ -1603,12 +1604,12 @@ class _NPrGlyph extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         _DottedBox(width: 12, height: 14),
-        const Padding(
+        Padding(
           padding: EdgeInsets.symmetric(horizontal: 2),
           child: Text('P',
               style: TextStyle(
                   fontSize: 20,
-                  color: Colors.black87,
+                  color: AppPalette.textPrimary(context),
                   fontWeight: FontWeight.w500)),
         ),
         _DottedBox(width: 12, height: 14),
@@ -1626,12 +1627,12 @@ class _NCrGlyph extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         _DottedBox(width: 12, height: 14),
-        const Padding(
+        Padding(
           padding: EdgeInsets.symmetric(horizontal: 2),
           child: Text('C',
               style: TextStyle(
                   fontSize: 20,
-                  color: Colors.black87,
+                  color: AppPalette.textPrimary(context),
                   fontWeight: FontWeight.w500)),
         ),
         _DottedBox(width: 12, height: 14),
@@ -1648,9 +1649,9 @@ class _LogBaseGlyph extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        const Text('log',
+        Text('log',
             style: TextStyle(fontSize: 17, color: Colors.black87)),
-        const SizedBox(width: 2),
+        SizedBox(width: 2),
         Padding(
           padding: const EdgeInsets.only(bottom: 2),
           child: _DottedBox(width: 9, height: 9),
@@ -1668,12 +1669,12 @@ class _ConjGlyph extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(width: 16, height: 1.2, color: Colors.black87),
-        const Padding(
+        Padding(
           padding: EdgeInsets.only(top: 1),
           child: Text('Z',
               style: TextStyle(
                   fontSize: 18,
-                  color: Colors.black87,
+                  color: AppPalette.textPrimary(context),
                   fontWeight: FontWeight.w500)),
         ),
       ],
@@ -1689,13 +1690,13 @@ class _MatrixGlyph extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        const Text('[',
+        Text('[',
             style: TextStyle(
                 fontSize: 30,
-                color: Colors.black87,
+                color: AppPalette.textPrimary(context),
                 fontWeight: FontWeight.w300,
                 height: 1)),
-        const SizedBox(width: 2),
+        SizedBox(width: 2),
         Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1703,26 +1704,26 @@ class _MatrixGlyph extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 _DottedBox(width: 8, height: 8),
-                const SizedBox(width: 2),
+                SizedBox(width: 2),
                 _DottedBox(width: 8, height: 8),
               ],
             ),
-            const SizedBox(height: 2),
+            SizedBox(height: 2),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 _DottedBox(width: 8, height: 8),
-                const SizedBox(width: 2),
+                SizedBox(width: 2),
                 _DottedBox(width: 8, height: 8),
               ],
             ),
           ],
         ),
-        const SizedBox(width: 2),
-        const Text(']',
+        SizedBox(width: 2),
+        Text(']',
             style: TextStyle(
                 fontSize: 30,
-                color: Colors.black87,
+                color: AppPalette.textPrimary(context),
                 fontWeight: FontWeight.w300,
                 height: 1)),
       ],
@@ -1739,7 +1740,7 @@ class _DetGlyph extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         const _Bar(),
-        const SizedBox(width: 2),
+        SizedBox(width: 2),
         Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1747,22 +1748,22 @@ class _DetGlyph extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 _DottedBox(width: 7, height: 7),
-                const SizedBox(width: 2),
+                SizedBox(width: 2),
                 _DottedBox(width: 7, height: 7),
               ],
             ),
-            const SizedBox(height: 2),
+            SizedBox(height: 2),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 _DottedBox(width: 7, height: 7),
-                const SizedBox(width: 2),
+                SizedBox(width: 2),
                 _DottedBox(width: 7, height: 7),
               ],
             ),
           ],
         ),
-        const SizedBox(width: 2),
+        SizedBox(width: 2),
         const _Bar(),
       ],
     );
@@ -1778,13 +1779,13 @@ class _TwoArgGlyph extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         _DottedBox(width: 12, height: 14),
-        const Text('(',
+        Text('(',
             style: TextStyle(fontSize: 22, color: Colors.black87)),
         _DottedBox(width: 10, height: 12),
-        const Text(',',
+        Text(',',
             style: TextStyle(fontSize: 18, color: Colors.black87)),
         _DottedBox(width: 10, height: 12),
-        const Text(')',
+        Text(')',
             style: TextStyle(fontSize: 22, color: Colors.black87)),
       ],
     );
@@ -1799,22 +1800,22 @@ class _BinomGlyph extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        const Text('(',
+        Text('(',
             style: TextStyle(
-                fontSize: 30, color: Colors.black87, height: 1)),
-        const SizedBox(width: 2),
+                fontSize: 30, color: AppPalette.textPrimary(context), height: 1)),
+        SizedBox(width: 2),
         Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             _DottedBox(width: 12, height: 10),
-            const SizedBox(height: 2),
+            SizedBox(height: 2),
             _DottedBox(width: 12, height: 10),
           ],
         ),
-        const SizedBox(width: 2),
-        const Text(')',
+        SizedBox(width: 2),
+        Text(')',
             style: TextStyle(
-                fontSize: 30, color: Colors.black87, height: 1)),
+                fontSize: 30, color: AppPalette.textPrimary(context), height: 1)),
       ],
     );
   }
@@ -1828,19 +1829,19 @@ class _LimGlyph extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Text('lim',
+        Text('lim',
             style: TextStyle(
                 fontSize: 17,
-                color: Colors.black87,
+                color: AppPalette.textPrimary(context),
                 fontWeight: FontWeight.w500)),
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             _DottedBox(width: 8, height: 8),
-            const SizedBox(width: 2),
-            const Text('→',
+            SizedBox(width: 2),
+            Text('→',
                 style: TextStyle(fontSize: 10, color: Colors.black87)),
-            const SizedBox(width: 2),
+            SizedBox(width: 2),
             _DottedBox(width: 8, height: 8),
           ],
         ),
@@ -1856,19 +1857,19 @@ class _LimPlusGlyph extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Text('lim +',
+        Text('lim +',
             style: TextStyle(
                 fontSize: 17,
-                color: Colors.black87,
+                color: AppPalette.textPrimary(context),
                 fontWeight: FontWeight.w500)),
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             _DottedBox(width: 8, height: 8),
-            const SizedBox(width: 2),
-            const Text('→',
+            SizedBox(width: 2),
+            Text('→',
                 style: TextStyle(fontSize: 10, color: Colors.black87)),
-            const SizedBox(width: 2),
+            SizedBox(width: 2),
             _DottedBox(width: 8, height: 8),
           ],
         ),
@@ -1884,19 +1885,19 @@ class _LimMinusGlyph extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Text('lim −',
+        Text('lim −',
             style: TextStyle(
                 fontSize: 17,
-                color: Colors.black87,
+                color: AppPalette.textPrimary(context),
                 fontWeight: FontWeight.w500)),
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             _DottedBox(width: 8, height: 8),
-            const SizedBox(width: 2),
-            const Text('→',
+            SizedBox(width: 2),
+            Text('→',
                 style: TextStyle(fontSize: 10, color: Colors.black87)),
-            const SizedBox(width: 2),
+            SizedBox(width: 2),
             _DottedBox(width: 8, height: 8),
           ],
         ),
@@ -1916,20 +1917,20 @@ class _DdxGlyph extends StatelessWidget {
         Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('d',
+            Text('d',
                 style: TextStyle(
                     fontSize: 14,
-                    color: Colors.black87,
+                    color: AppPalette.textPrimary(context),
                     fontWeight: FontWeight.w500)),
             Container(width: 22, height: 1, color: Colors.black87),
-            const Text('dx',
+            Text('dx',
                 style: TextStyle(
                     fontSize: 14,
-                    color: Colors.black87,
+                    color: AppPalette.textPrimary(context),
                     fontWeight: FontWeight.w500)),
           ],
         ),
-        const SizedBox(width: 4),
+        SizedBox(width: 4),
         _DottedBox(width: 10, height: 12),
       ],
     );
@@ -1947,26 +1948,26 @@ class _DdnGlyph extends StatelessWidget {
         Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('d',
+            Text('d',
                 style: TextStyle(
                     fontSize: 14,
-                    color: Colors.black87,
+                    color: AppPalette.textPrimary(context),
                     fontWeight: FontWeight.w500)),
             Container(width: 22, height: 1, color: Colors.black87),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('d',
+                Text('d',
                     style: TextStyle(
                         fontSize: 14,
-                        color: Colors.black87,
+                        color: AppPalette.textPrimary(context),
                         fontWeight: FontWeight.w500)),
                 _DottedBox(width: 8, height: 8),
               ],
             ),
           ],
         ),
-        const SizedBox(width: 4),
+        SizedBox(width: 4),
         _DottedBox(width: 10, height: 12),
       ],
     );
@@ -1984,23 +1985,23 @@ class _DdnNthGlyph extends StatelessWidget {
         Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('d',
+            Text('d',
                 style: TextStyle(
                     fontSize: 14,
-                    color: Colors.black87,
+                    color: AppPalette.textPrimary(context),
                     fontWeight: FontWeight.w500)),
             Container(width: 26, height: 1, color: Colors.black87),
             Row(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('d',
+                Text('d',
                     style: TextStyle(
                         fontSize: 14,
-                        color: Colors.black87,
+                        color: AppPalette.textPrimary(context),
                         fontWeight: FontWeight.w500)),
                 _DottedBox(width: 7, height: 7),
-                const Padding(
+                Padding(
                   padding: EdgeInsets.only(top: 2),
                   child: Text('N',
                       style: TextStyle(
@@ -2010,7 +2011,7 @@ class _DdnNthGlyph extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(width: 4),
+        SizedBox(width: 4),
         _DottedBox(width: 10, height: 12),
       ],
     );
@@ -2025,19 +2026,19 @@ class _IntDxGlyph extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        const Text('∫',
+        Text('∫',
             style: TextStyle(
                 fontSize: 28,
-                color: Colors.black87,
+                color: AppPalette.textPrimary(context),
                 fontWeight: FontWeight.w300,
                 height: 1)),
-        const SizedBox(width: 1),
+        SizedBox(width: 1),
         _DottedBox(width: 10, height: 12),
-        const SizedBox(width: 2),
-        const Text('dx',
+        SizedBox(width: 2),
+        Text('dx',
             style: TextStyle(
                 fontSize: 15,
-                color: Colors.black87,
+                color: AppPalette.textPrimary(context),
                 fontWeight: FontWeight.w500)),
       ],
     );
@@ -2052,19 +2053,19 @@ class _IntDnGlyph extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        const Text('∫',
+        Text('∫',
             style: TextStyle(
                 fontSize: 28,
-                color: Colors.black87,
+                color: AppPalette.textPrimary(context),
                 fontWeight: FontWeight.w300,
                 height: 1)),
-        const SizedBox(width: 1),
+        SizedBox(width: 1),
         _DottedBox(width: 10, height: 12),
-        const SizedBox(width: 2),
-        const Text('d',
+        SizedBox(width: 2),
+        Text('d',
             style: TextStyle(
                 fontSize: 15,
-                color: Colors.black87,
+                color: AppPalette.textPrimary(context),
                 fontWeight: FontWeight.w500)),
         _DottedBox(width: 9, height: 9),
       ],
@@ -2084,24 +2085,24 @@ class _IntDefGlyph extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             _DottedBox(width: 7, height: 7),
-            const SizedBox(height: 2),
-            const Text('∫',
+            SizedBox(height: 2),
+            Text('∫',
                 style: TextStyle(
                     fontSize: 22,
-                    color: Colors.black87,
+                    color: AppPalette.textPrimary(context),
                     height: 1,
                     fontWeight: FontWeight.w300)),
-            const SizedBox(height: 2),
+            SizedBox(height: 2),
             _DottedBox(width: 7, height: 7),
           ],
         ),
-        const SizedBox(width: 2),
+        SizedBox(width: 2),
         _DottedBox(width: 10, height: 10),
-        const SizedBox(width: 2),
-        const Text('d',
+        SizedBox(width: 2),
+        Text('d',
             style: TextStyle(
                 fontSize: 14,
-                color: Colors.black87,
+                color: AppPalette.textPrimary(context),
                 fontWeight: FontWeight.w500)),
         _DottedBox(width: 8, height: 8),
       ],
@@ -2117,19 +2118,19 @@ class _SumGlyph extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         _DottedBox(width: 10, height: 10),
-        const SizedBox(height: 1),
-        const Text('Σ',
+        SizedBox(height: 1),
+        Text('Σ',
             style: TextStyle(
                 fontSize: 22,
-                color: Colors.black87,
+                color: AppPalette.textPrimary(context),
                 fontWeight: FontWeight.w400,
                 height: 1)),
-        const SizedBox(height: 1),
+        SizedBox(height: 1),
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             _DottedBox(width: 7, height: 7),
-            const Text('=',
+            Text('=',
                 style: TextStyle(
                     fontSize: 10, color: Colors.black87)),
             _DottedBox(width: 7, height: 7),
@@ -2147,16 +2148,16 @@ class _DyDxGlyph extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Text('dy',
+        Text('dy',
             style: TextStyle(
                 fontSize: 15,
-                color: Colors.black87,
+                color: AppPalette.textPrimary(context),
                 fontWeight: FontWeight.w500)),
         Container(width: 22, height: 1, color: Colors.black87),
-        const Text('dx',
+        Text('dx',
             style: TextStyle(
                 fontSize: 15,
-                color: Colors.black87,
+                color: AppPalette.textPrimary(context),
                 fontWeight: FontWeight.w500)),
       ],
     );
@@ -2171,17 +2172,17 @@ class _SeqGlyph extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        const Text('a',
+        Text('a',
             style: TextStyle(
                 fontSize: 22,
-                color: Colors.black87,
+                color: AppPalette.textPrimary(context),
                 fontWeight: FontWeight.w400)),
-        const Padding(
+        Padding(
           padding: EdgeInsets.only(bottom: 3),
           child: Text('n',
               style: TextStyle(
                   fontSize: 13,
-                  color: Colors.black87,
+                  color: AppPalette.textPrimary(context),
                   fontWeight: FontWeight.w400)),
         ),
       ],
@@ -2198,15 +2199,15 @@ class _ListEllipsisGlyph extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         _DottedBox(width: 8, height: 10),
-        const Text(',',
+        Text(',',
             style: TextStyle(fontSize: 14, color: Colors.black87)),
         _DottedBox(width: 8, height: 10),
-        const Text(',',
+        Text(',',
             style: TextStyle(fontSize: 14, color: Colors.black87)),
         _DottedBox(width: 8, height: 10),
-        const Text(',',
+        Text(',',
             style: TextStyle(fontSize: 14, color: Colors.black87)),
-        const Text('...',
+        Text('...',
             style: TextStyle(fontSize: 13, color: Colors.black87)),
       ],
     );
@@ -2217,10 +2218,10 @@ class _PrimeGlyph extends StatelessWidget {
   const _PrimeGlyph();
   @override
   Widget build(BuildContext context) {
-    return const Text("y'",
+    return Text("y'",
         style: TextStyle(
             fontSize: 22,
-            color: Colors.black87,
+            color: AppPalette.textPrimary(context),
             fontWeight: FontWeight.w400));
   }
 }
@@ -2251,7 +2252,7 @@ class _BlinkingCursorState extends State<_BlinkingCursor>
     super.initState();
     _ac = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 500),
+      duration: Duration(milliseconds: 500),
     )..repeat(reverse: true);
   }
 
@@ -2381,7 +2382,7 @@ class _SimpleEval {
   }
 
   double _atom() {
-    if (_i >= _s.length) throw const FormatException('eof');
+    if (_i >= _s.length) throw FormatException('eof');
     final c = _s[_i];
     if (c == '(') {
       _i++;
@@ -2568,10 +2569,10 @@ class _Deg1Glyph extends StatelessWidget {
           padding: const EdgeInsets.only(top: 8),
           child: _DottedBox(width: 14, height: 14),
         ),
-        const Text('°',
+        Text('°',
             style: TextStyle(
                 fontSize: 14,
-                color: Colors.black87,
+                color: AppPalette.textPrimary(context),
                 fontWeight: FontWeight.w500)),
       ],
     );
@@ -2590,14 +2591,14 @@ class _Deg2Glyph extends StatelessWidget {
           padding: const EdgeInsets.only(top: 8),
           child: _DottedBox(width: 10, height: 10),
         ),
-        const Text('°',
+        Text('°',
             style: TextStyle(fontSize: 12, color: Colors.black87)),
-        const SizedBox(width: 2),
+        SizedBox(width: 2),
         Padding(
           padding: const EdgeInsets.only(top: 8),
           child: _DottedBox(width: 10, height: 10),
         ),
-        const Text("'",
+        Text("'",
             style: TextStyle(fontSize: 14, color: Colors.black87)),
       ],
     );
@@ -2616,21 +2617,21 @@ class _Deg3Glyph extends StatelessWidget {
           padding: const EdgeInsets.only(top: 8),
           child: _DottedBox(width: 8, height: 8),
         ),
-        const Text('°',
+        Text('°',
             style: TextStyle(fontSize: 11, color: Colors.black87)),
-        const SizedBox(width: 1),
+        SizedBox(width: 1),
         Padding(
           padding: const EdgeInsets.only(top: 8),
           child: _DottedBox(width: 8, height: 8),
         ),
-        const Text("'",
+        Text("'",
             style: TextStyle(fontSize: 12, color: Colors.black87)),
-        const SizedBox(width: 1),
+        SizedBox(width: 1),
         Padding(
           padding: const EdgeInsets.only(top: 8),
           child: _DottedBox(width: 8, height: 8),
         ),
-        const Text('"',
+        Text('"',
             style: TextStyle(fontSize: 12, color: Colors.black87)),
       ],
     );

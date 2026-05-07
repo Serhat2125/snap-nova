@@ -136,7 +136,7 @@ class _WriteQuestionScreenState extends State<WriteQuestionScreen> {
     _ctrl.clear();
     _scrollDown();
 
-    Future.delayed(const Duration(milliseconds: 700), () {
+    Future.delayed(Duration(milliseconds: 700), () {
       if (!mounted) return;
       setState(() {
         _messages.add(_Msg(text: _getResponse(text), isAI: true));
@@ -166,11 +166,11 @@ class _WriteQuestionScreenState extends State<WriteQuestionScreen> {
   }
 
   void _scrollDown() {
-    Future.delayed(const Duration(milliseconds: 120), () {
+    Future.delayed(Duration(milliseconds: 120), () {
       if (_scrollCtrl.hasClients) {
         _scrollCtrl.animateTo(
           _scrollCtrl.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 280),
+          duration: Duration(milliseconds: 280),
           curve: Curves.easeOut,
         );
       }
@@ -214,37 +214,37 @@ class _WriteQuestionScreenState extends State<WriteQuestionScreen> {
         ),
         child: Row(children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back_rounded, color: AppColors.cyan),
+            icon: Icon(Icons.arrow_back_rounded, color: AppColors.cyan),
             onPressed: () => Navigator.pop(context),
           ),
           Container(
             width: 34, height: 34,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: const LinearGradient(
+              gradient: LinearGradient(
                   colors: [Color(0xFF00E5FF), Color(0xFF0070FF)]),
               boxShadow: [BoxShadow(
                   color: AppColors.cyan.withValues(alpha: 0.30), blurRadius: 8)],
             ),
-            child: const Icon(Icons.psychology_rounded,
+            child: Icon(Icons.psychology_rounded,
                 color: Colors.white, size: 18),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Soruyu Yaz',
+            Text('Soruyu Yaz',
                 style: TextStyle(
                     color: Colors.white,
                     fontSize: 15,
                     fontWeight: FontWeight.w700)),
             Text(localeService.tr('voice_question_ai'),
-                style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+                style: TextStyle(color: AppColors.textMuted, fontSize: 10)),
           ]),
         ]),
       );
 
   Widget _buildMessages() => ListView.builder(
         controller: _scrollCtrl,
-        physics: const BouncingScrollPhysics(),
+        physics: BouncingScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
         itemCount: _messages.length + (_isSending ? 1 : 0),
         itemBuilder: (_, i) {
@@ -255,14 +255,14 @@ class _WriteQuestionScreenState extends State<WriteQuestionScreen> {
 
   Widget _buildInputRow() => Container(
         padding: const EdgeInsets.fromLTRB(12, 6, 12, 4),
-        color: const Color(0xFF111118),
+        color: Color(0xFF111118),
         child: Row(children: [
           Expanded(
             child: Container(
-              constraints: const BoxConstraints(minHeight: 38, maxHeight: 90),
+              constraints: BoxConstraints(minHeight: 38, maxHeight: 90),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                color: const Color(0xFF1C1C28),
+                color: Color(0xFF1C1C28),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
                     color: AppColors.cyan.withValues(alpha: 0.28)),
@@ -272,10 +272,10 @@ class _WriteQuestionScreenState extends State<WriteQuestionScreen> {
                 readOnly: true,   // sistem klavye açılmıyor
                 showCursor: true,
                 maxLines: null,
-                style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.4),
+                style: TextStyle(color: Colors.white, fontSize: 14, height: 1.4),
                 decoration: InputDecoration(
                   hintText: localeService.tr('type_question'),
-                  hintStyle: const TextStyle(
+                  hintStyle: TextStyle(
                       color: Color(0xFF4A4A68), fontSize: 13),
                   border: InputBorder.none,
                   isDense: true,
@@ -284,21 +284,21 @@ class _WriteQuestionScreenState extends State<WriteQuestionScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           GestureDetector(
             onTap: _send,
             child: Container(
               width: 40, height: 40,
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
+                gradient: LinearGradient(
                     colors: [AppColors.cyan, Color(0xFF0070FF)]),
                 shape: BoxShape.circle,
                 boxShadow: [BoxShadow(
                     color: AppColors.cyan.withValues(alpha: 0.30),
                     blurRadius: 8)],
               ),
-              child: const Icon(Icons.send_rounded,
-                  color: Colors.black87, size: 18),
+              child: Icon(Icons.send_rounded,
+                  color: AppPalette.textPrimary(context), size: 18),
             ),
           ),
         ]),
@@ -343,7 +343,7 @@ class _MsgBubble extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: msg.isAI
               ? null
-              : const LinearGradient(
+              : LinearGradient(
                   colors: [AppColors.cyan, Color(0xFF0070FF)]),
           color: msg.isAI ? AppColors.surface : null,
           borderRadius: BorderRadius.only(
@@ -383,7 +383,7 @@ class _DotState extends State<_Dot> with SingleTickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 600))
+    _c = AnimationController(vsync: this, duration: Duration(milliseconds: 600))
       ..repeat(reverse: true);
     Future.delayed(widget.delay, () { if (mounted) _c.forward(); });
   }
@@ -398,7 +398,7 @@ class _DotState extends State<_Dot> with SingleTickerProviderStateMixin {
             opacity: 0.3 + _c.value * 0.7,
             child: Container(
               width: 6, height: 6,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                   color: AppColors.cyan, shape: BoxShape.circle),
             ),
           ),
@@ -506,12 +506,12 @@ class _MiuiKeyboardState extends State<_MiuiKeyboard> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFF191922),
+      color: Color(0xFF191922),
       padding: const EdgeInsets.fromLTRB(4, 6, 4, 8),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         // Türkçe karakter barı
         _trCharBar(),
-        const SizedBox(height: 4),
+        SizedBox(height: 4),
         if (_numMode) ...[
           _numKeyRow(_num1),
           _numKeyRow(_num2),
@@ -521,7 +521,7 @@ class _MiuiKeyboardState extends State<_MiuiKeyboard> {
           _letterRow(_row2, center: true),
           _row3WithSpecials(),
         ],
-        const SizedBox(height: 4),
+        SizedBox(height: 4),
         _bottomRow(),
       ]),
     );
@@ -536,7 +536,7 @@ class _MiuiKeyboardState extends State<_MiuiKeyboard> {
                   char: _effectiveShift && !_numMode ? c.toUpperCase() : c,
                   onTap: () => _tapLetter(c),
                 )),
-            const Spacer(),
+            Spacer(),
             _TrChar(char: '↑', onTap: () {}, isAction: true),
           ],
         ),
@@ -554,9 +554,9 @@ class _MiuiKeyboardState extends State<_MiuiKeyboard> {
         mainAxisAlignment:
             center ? MainAxisAlignment.center : MainAxisAlignment.start,
         children: [
-          if (center) const SizedBox(width: 20),
+          if (center) SizedBox(width: 20),
           ...widgets,
-          if (center) const SizedBox(width: 20),
+          if (center) SizedBox(width: 20),
         ],
       ),
     );
@@ -580,13 +580,13 @@ class _MiuiKeyboardState extends State<_MiuiKeyboard> {
               size: 18,
             ),
           ),
-          const SizedBox(width: 4),
+          SizedBox(width: 4),
           ..._row3.map((k) => _KeyBtn(
                 label: _effectiveShift ? k.toUpperCase() : k,
                 onTap: () => _tapLetter(k),
                 flex: 1,
               )),
-          const SizedBox(width: 4),
+          SizedBox(width: 4),
           // Backspace
           _SpecialBtn(
             width: 42,
@@ -596,7 +596,7 @@ class _MiuiKeyboardState extends State<_MiuiKeyboard> {
               widget.controller.clear();
               widget.onChanged('');
             },
-            child: const Icon(Icons.backspace_outlined,
+            child: Icon(Icons.backspace_outlined,
                 color: Colors.white70, size: 18),
           ),
         ]),
@@ -618,11 +618,11 @@ class _MiuiKeyboardState extends State<_MiuiKeyboard> {
           onTap: () => setState(() => _numMode = !_numMode),
           child: Text(
             _numMode ? 'ABC' : '?123',
-            style: const TextStyle(
+            style: TextStyle(
                 color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
           ),
         ),
-        const SizedBox(width: 4),
+        SizedBox(width: 4),
         // Boşluk
         Expanded(
           child: GestureDetector(
@@ -630,13 +630,13 @@ class _MiuiKeyboardState extends State<_MiuiKeyboard> {
             child: Container(
               height: 42,
               decoration: BoxDecoration(
-                color: const Color(0xFF2E2E3E),
+                color: Color(0xFF2E2E3E),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
               ),
               child: Center(
                 child: Text(localeService.tr('space_key'),
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: Color(0xFF888899),
                         fontSize: 12,
                         fontWeight: FontWeight.w500)),
@@ -644,14 +644,14 @@ class _MiuiKeyboardState extends State<_MiuiKeyboard> {
             ),
           ),
         ),
-        const SizedBox(width: 4),
+        SizedBox(width: 4),
         // Gönder
         _SpecialBtn(
           width: 58,
           onTap: widget.onSend,
           color: AppColors.cyan.withValues(alpha: 0.18),
           borderColor: AppColors.cyan.withValues(alpha: 0.45),
-          child: const Icon(Icons.send_rounded, color: AppColors.cyan, size: 18),
+          child: Icon(Icons.send_rounded, color: AppColors.cyan, size: 18),
         ),
       ]);
 }
@@ -681,16 +681,16 @@ class _KeyBtnState extends State<_KeyBtn> {
         onTapUp: (_) { setState(() => _pressed = false); widget.onTap(); },
         onTapCancel: () => setState(() => _pressed = false),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 60),
+          duration: Duration(milliseconds: 60),
           height: 42,
           margin: const EdgeInsets.symmetric(horizontal: 2.5),
           decoration: BoxDecoration(
-            color: _pressed ? const Color(0xFF464658) : const Color(0xFF2B2B3A),
+            color: _pressed ? Color(0xFF464658) : Color(0xFF2B2B3A),
             borderRadius: BorderRadius.circular(7),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.45),
-                offset: const Offset(0, 1),
+                offset: Offset(0, 1),
                 blurRadius: 1,
               ),
             ],
@@ -698,7 +698,7 @@ class _KeyBtnState extends State<_KeyBtn> {
           child: Center(
             child: Text(
               widget.label,
-              style: const TextStyle(
+              style: TextStyle(
                 color: Colors.white,
                 fontSize: 15,
                 fontWeight: FontWeight.w400,
@@ -746,13 +746,13 @@ class _SpecialBtnState extends State<_SpecialBtn> {
       onLongPress: widget.onLongPress,
       onDoubleTap: widget.onDoubleTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 60),
+        duration: Duration(milliseconds: 60),
         width: widget.width,
         height: 42,
         decoration: BoxDecoration(
           color: _pressed
-              ? const Color(0xFF3A3A4C)
-              : widget.color ?? const Color(0xFF222230),
+              ? Color(0xFF3A3A4C)
+              : widget.color ?? Color(0xFF222230),
           borderRadius: BorderRadius.circular(7),
           border: widget.borderColor != null
               ? Border.all(color: widget.borderColor!)
@@ -760,7 +760,7 @@ class _SpecialBtnState extends State<_SpecialBtn> {
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.45),
-              offset: const Offset(0, 1),
+              offset: Offset(0, 1),
               blurRadius: 1,
             ),
           ],
@@ -787,8 +787,8 @@ class _TrChar extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
         decoration: BoxDecoration(
           color: isAction
-              ? const Color(0xFF222230)
-              : const Color(0xFF252533),
+              ? Color(0xFF222230)
+              : Color(0xFF252533),
           borderRadius: BorderRadius.circular(6),
           border:
               Border.all(color: Colors.white.withValues(alpha: 0.08)),

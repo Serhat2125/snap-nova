@@ -16,6 +16,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../services/education_profile.dart';
 import '../providers/offline_pack_provider.dart';
 
+import '../../../theme/app_theme.dart';
 class OfflineDownloadSheet extends ConsumerWidget {
   final List<EduSubject> subjects;
   final EduProfile profile;
@@ -51,46 +52,46 @@ class OfflineDownloadSheet extends ConsumerWidget {
       maxChildSize: 0.97,
       expand: false,
       builder: (_, scroll) => Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFFF5F7FB),
+        decoration: BoxDecoration(
+          color: AppPalette.bg(context),
           borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
         ),
         child: Column(
           children: [
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             Container(
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.black26,
+                color: AppPalette.border(context),
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
                 children: [
-                  const Icon(Icons.auto_awesome_rounded,
+                  Icon(Icons.auto_awesome_rounded,
                       color: Color(0xFF7C3AED), size: 22),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Konu Özeti Oluştur',
                       style: GoogleFonts.inter(
                         fontSize: 17,
                         fontWeight: FontWeight.w800,
-                        color: Colors.black,
+                        color: AppPalette.textPrimary(context),
                       ),
                     ),
                   ),
                   Material(
                     color: Colors.transparent,
-                    shape: const CircleBorder(),
+                    shape: CircleBorder(),
                     child: InkWell(
-                      customBorder: const CircleBorder(),
+                      customBorder: CircleBorder(),
                       onTap: () => Navigator.of(context).maybePop(),
-                      child: const Padding(
+                      child: Padding(
                         padding: EdgeInsets.all(6),
                         child: Icon(Icons.close_rounded,
                             size: 20, color: Colors.black54),
@@ -100,7 +101,7 @@ class OfflineDownloadSheet extends ConsumerWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Text(
@@ -118,25 +119,25 @@ class OfflineDownloadSheet extends ConsumerWidget {
                     const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFEF3C7),
+                  color: Color(0xFFFEF3C7),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFF59E0B)),
+                  border: Border.all(color: Color(0xFFF59E0B)),
                 ),
                 child: Text(
                   status.errorMessage!,
                   style: GoogleFonts.inter(
                     fontSize: 11,
-                    color: const Color(0xFF92400E),
+                    color: Color(0xFF92400E),
                   ),
                 ),
               ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Expanded(
               child: ListView.separated(
                 controller: scroll,
                 padding: const EdgeInsets.fromLTRB(16, 6, 16, 24),
                 itemCount: subjects.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 6),
+                separatorBuilder: (_, __) => SizedBox(height: 6),
                 itemBuilder: (_, i) => _SubjectExpandable(
                   subject: subjects[i],
                   profile: profile,
@@ -236,17 +237,17 @@ class _SubjectExpandableState extends ConsumerState<_SubjectExpandable> {
     if (res.success) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          backgroundColor: const Color(0xFF166534),
+          backgroundColor: Color(0xFF166534),
           content: Text('"$topicName" özeti oluşturuldu ✓'),
-          duration: const Duration(seconds: 2),
+          duration: Duration(seconds: 2),
         ),
       );
     } else if (res.errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          backgroundColor: const Color(0xFFDC2626),
+          backgroundColor: Color(0xFFDC2626),
           content: Text(res.errorMessage!),
-          duration: const Duration(seconds: 4),
+          duration: Duration(seconds: 4),
         ),
       );
     }
@@ -259,7 +260,7 @@ class _SubjectExpandableState extends ConsumerState<_SubjectExpandable> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+            color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.black12),
       ),
@@ -276,8 +277,8 @@ class _SubjectExpandableState extends ConsumerState<_SubjectExpandable> {
                 child: Row(
                   children: [
                     Text(widget.subject.emoji,
-                        style: const TextStyle(fontSize: 20)),
-                    const SizedBox(width: 10),
+                        style: TextStyle(fontSize: 20)),
+                    SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         widget.subject.name,
@@ -286,7 +287,7 @@ class _SubjectExpandableState extends ConsumerState<_SubjectExpandable> {
                         style: GoogleFonts.inter(
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
-                          color: Colors.black,
+                          color: AppPalette.textPrimary(context),
                         ),
                       ),
                     ),
@@ -297,19 +298,19 @@ class _SubjectExpandableState extends ConsumerState<_SubjectExpandable> {
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                           color: quotaFull
-                              ? const Color(0xFFDC2626)
+                              ? Color(0xFFDC2626)
                               : Colors.black54,
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8),
                     ],
                     AnimatedRotation(
                       turns: _expanded ? 0.5 : 0,
-                      duration: const Duration(milliseconds: 180),
-                      child: const Icon(
+                      duration: Duration(milliseconds: 180),
+                      child: Icon(
                         Icons.keyboard_arrow_down_rounded,
                         size: 22,
-                        color: Colors.black54,
+                        color: AppPalette.textSecondary(context),
                       ),
                     ),
                   ],
@@ -324,7 +325,7 @@ class _SubjectExpandableState extends ConsumerState<_SubjectExpandable> {
               color: Colors.black.withValues(alpha: 0.05),
             ),
             if (_loadingTopics)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.all(20),
                 child: Center(
                   child: SizedBox(
@@ -341,7 +342,7 @@ class _SubjectExpandableState extends ConsumerState<_SubjectExpandable> {
                   _loadError!,
                   style: GoogleFonts.inter(
                     fontSize: 12,
-                    color: const Color(0xFFDC2626),
+                    color: Color(0xFFDC2626),
                   ),
                 ),
               )
@@ -352,7 +353,7 @@ class _SubjectExpandableState extends ConsumerState<_SubjectExpandable> {
                   'Bu ders için konu bulunamadı.',
                   style: GoogleFonts.inter(
                     fontSize: 12,
-                    color: Colors.black54,
+                    color: AppPalette.textSecondary(context),
                   ),
                 ),
               )
@@ -409,40 +410,40 @@ class _TopicRow extends StatelessWidget {
               style: GoogleFonts.inter(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w600,
-                color: Colors.black,
+                color: AppPalette.textPrimary(context),
                 height: 1.3,
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           if (isGenerated)
             Container(
               padding:
                   const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: const Color(0xFFDCFCE7),
+                color: Color(0xFFDCFCE7),
                 borderRadius: BorderRadius.circular(50),
-                border: Border.all(color: const Color(0xFF22C55E)),
+                border: Border.all(color: Color(0xFF22C55E)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.check_rounded,
+                  Icon(Icons.check_rounded,
                       size: 13, color: Color(0xFF166534)),
-                  const SizedBox(width: 3),
+                  SizedBox(width: 3),
                   Text(
                     'Hazır',
                     style: GoogleFonts.inter(
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
-                      color: const Color(0xFF166534),
+                      color: Color(0xFF166534),
                     ),
                   ),
                 ],
               ),
             )
           else if (isGenerating)
-            const SizedBox(
+            SizedBox(
               width: 18,
               height: 18,
               child: CircularProgressIndicator(strokeWidth: 2),
@@ -451,7 +452,7 @@ class _TopicRow extends StatelessWidget {
             FilledButton(
               style: FilledButton.styleFrom(
                 backgroundColor: canGenerate
-                    ? const Color(0xFF7C3AED)
+                    ? Color(0xFF7C3AED)
                     : Colors.black12,
                 foregroundColor: canGenerate ? Colors.white : Colors.black38,
                 padding: const EdgeInsets.symmetric(
@@ -467,7 +468,7 @@ class _TopicRow extends StatelessWidget {
                 ),
               ),
               onPressed: canGenerate ? onGenerate : null,
-              child: const Text('Oluştur'),
+              child: Text('Oluştur'),
             ),
         ],
       ),
