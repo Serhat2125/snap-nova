@@ -534,6 +534,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 title: 'Bildirim Ayarları'.tr(),
                 onTap: () => _showNotificationsBottomSheet(context),
               ),
+              SizedBox(height: 10),
+              _buildOvalMenuItem(
+                emoji: '⚙️',
+                title: 'Uygulama Ayarları'.tr(),
+                onTap: () => _showAppSettingsBottomSheet(context),
+              ),
 
               SizedBox(height: 24),
 
@@ -778,6 +784,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => _NotificationsSettingsSheet(),
+    );
+  }
+
+  void _showAppSettingsBottomSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => const _AppSettingsSheet(),
     );
   }
 
@@ -5167,6 +5182,236 @@ class _PremiumActiveCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  Uygulama Ayarları Sheet — uygulama açılış davranışı + diğer tercihler
+//  SharedPreferences key: `startup_screen` → 'camera' (varsayılan) | 'library'
+// ═══════════════════════════════════════════════════════════════════════════════
+class _AppSettingsSheet extends StatefulWidget {
+  const _AppSettingsSheet();
+
+  @override
+  State<_AppSettingsSheet> createState() => _AppSettingsSheetState();
+}
+
+class _AppSettingsSheetState extends State<_AppSettingsSheet> {
+  String _startupScreen = 'camera';
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _startupScreen = prefs.getString('startup_screen') ?? 'camera';
+      _loaded = true;
+    });
+  }
+
+  Future<void> _setStartupScreen(String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('startup_screen', value);
+    if (!mounted) return;
+    setState(() => _startupScreen = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.55,
+      minChildSize: 0.35,
+      maxChildSize: 0.85,
+      expand: false,
+      builder: (_, sc) => Container(
+        decoration: BoxDecoration(
+          color: AppPalette.card(context),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        child: !_loaded
+            ? const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(32),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            : ListView(
+                controller: sc,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppPalette.border(context),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Uygulamayı Kişiselleştir'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: AppPalette.textPrimary(context),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Uygulamayı her açtığında hangi sayfa önce çıksın?'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      color: AppPalette.textSecondary(context),
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  _StartupOptionRow(
+                    emoji: '📷',
+                    title: 'Kamera ekranı'.tr(),
+                    subtitle: 'Soru tarama doğrudan açılır'.tr(),
+                    selected: _startupScreen == 'camera',
+                    color: const Color(0xFFFF6A00),
+                    onTap: () => _setStartupScreen('camera'),
+                  ),
+                  const SizedBox(height: 10),
+                  _StartupOptionRow(
+                    emoji: '📚',
+                    title: 'Kütüphanem ekranı'.tr(),
+                    subtitle: 'Dersler, testler, özetler açılır'.tr(),
+                    selected: _startupScreen == 'library',
+                    color: const Color(0xFF8B5CF6),
+                    onTap: () => _setStartupScreen('library'),
+                  ),
+                  const SizedBox(height: 20),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppPalette.border(context).withValues(alpha: 0.20),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(children: [
+                      Icon(Icons.info_outline_rounded,
+                          size: 18,
+                          color: AppPalette.textSecondary(context)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Bu ayar uygulamayı bir sonraki açışında devreye girer.'
+                              .tr(),
+                          style: GoogleFonts.poppins(
+                            fontSize: 11.5,
+                            height: 1.35,
+                            color: AppPalette.textSecondary(context),
+                          ),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+/// Uygulama açılış seçeneği satırı — sol: emoji + başlık/altyazı,
+/// sağ: radio benzeri seçim göstergesi. Tüm satır tıklanabilir.
+class _StartupOptionRow extends StatelessWidget {
+  final String emoji;
+  final String title;
+  final String subtitle;
+  final bool selected;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _StartupOptionRow({
+    required this.emoji,
+    required this.title,
+    required this.subtitle,
+    required this.selected,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: selected
+              ? color.withValues(alpha: 0.10)
+              : AppPalette.cardMuted(context),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected
+                ? color.withValues(alpha: 0.65)
+                : AppPalette.border(context),
+            width: selected ? 1.6 : 1.0,
+          ),
+        ),
+        child: Row(children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: selected ? 0.20 : 0.10),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Center(child: Text(emoji, style: const TextStyle(fontSize: 22))),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppPalette.textPrimary(context))),
+                const SizedBox(height: 2),
+                Text(subtitle,
+                    style: GoogleFonts.poppins(
+                        fontSize: 11.5,
+                        color: AppPalette.textSecondary(context))),
+              ],
+            ),
+          ),
+          // Radio benzeri seçim göstergesi (sağ)
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: selected
+                    ? color
+                    : AppPalette.border(context),
+                width: 2,
+              ),
+              color: selected ? color : Colors.transparent,
+            ),
+            child: selected
+                ? const Icon(Icons.check_rounded, color: Colors.white, size: 16)
+                : null,
+          ),
+        ]),
       ),
     );
   }
