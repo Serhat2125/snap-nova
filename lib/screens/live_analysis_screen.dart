@@ -21,6 +21,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 import '../main.dart' show globalCameras, localeService;
 import '../services/analytics.dart';
@@ -35,6 +36,10 @@ import '../theme/app_theme.dart';
 // ─── Const renkler (build içinde Color allocation yapmamak için) ──────────
 const _kBlue1 = Color(0xFF1E90FF);
 const _kBlue2 = Color(0xFF00BFFF);
+// Asistan cevap üretirken / konuşurken kullanılan canlı ton — kullanıcı
+// "düşünme spinner'ı" yerine dalga renginin değiştiğini hemen görür.
+const _kReply1 = Color(0xFF00E5FF);
+const _kReply2 = Color(0xFFB5F5FF);
 const _kBtnBg = Color(0xFF202024);
 const _kDangerBg = Color(0xFFE83D3D);
 
@@ -196,11 +201,25 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
     if (ctrl == null || !ctrl.value.isInitialized) return null;
     try {
       final XFile xf = await ctrl.takePicture();
+      final raw = await xf.readAsBytes();
+      // ── EDGE COMPRESSION ────────────────────────────────────────────────
+      // Tam çözünürlüklü kareler 2-6 MB; Gemini içerik analizine 720p
+      // çoğu zaman fazlasıyla yeterli (yazılı problem, formül, sahne).
+      // Isolate (compute) → ana thread bloklanmaz, JPEG encode 50-150ms.
+      // Sonuç ~80-220 KB → upload süresi 1-2 sn → bant TTS'e kalır.
+      Uint8List bytes;
+      try {
+        bytes = await compute(_compressFrameForLive, raw);
+      } catch (e) {
+        // image paketi başarısızsa orijinali kullan — analiz bozulmasın.
+        debugPrint('[LiveAnalysis] frame compression failed: $e');
+        bytes = raw;
+      }
       final dir = await getTemporaryDirectory();
       final dest =
           '${dir.path}/qa_live_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final f = File(dest);
-      await f.writeAsBytes(await xf.readAsBytes(), flush: true);
+      await f.writeAsBytes(bytes, flush: true);
       return f;
     } catch (e) {
       return null;
@@ -226,9 +245,9 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
     // girince hızla algılar, gereksiz bekleme yapmaz.
     final started = await VoiceInputService.start(
       localeId: localeId,
-      // pauseFor 2500 → 1500 ms: kullanıcı konuşmayı bitirir bitirmez
-      // ~1.5 sn'de final algılanır, AI çağrısı daha erken tetiklenir.
-      pauseFor: Duration(milliseconds: 1500),
+      // pauseFor 3500 ms — kullanıcı düşünüp konuşmaya başlama süresi.
+      // Çok kısa olursa konuşmaya başlamadan kapanır, "algılanmadı" hatası.
+      pauseFor: Duration(milliseconds: 3500),
       listenFor: Duration(seconds: 90),
       onResult: (text, isFinal) {
         if (!mounted) return;
@@ -266,11 +285,12 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
       if (liveText.trim().isNotEmpty) {
         _onSpeechFinished(liveText);
       } else {
-        // Kullanıcı mic'e bastı durdurdu ama hiçbir şey transkript edilemedi
-        // — STT konuşmayı yakalayamadığı için kullanıcı "çalışmıyor" hissetir.
-        // Görünür uyarı: sebebi söyle, manuel olarak yeniden denemesini iste.
+        // STT durumunu da göster — debug için kritik (mic izni / locale / engine).
+        final status = VoiceInputService.lastStatus;
+        final err = VoiceInputService.lastError;
+        final detail = err.isNotEmpty ? '[$err]' : '[$status]';
         _showSnack(
-            'Konuşman algılanamadı. Tekrar dene — biraz yüksek sesle ve mikrofon yakınında konuş.'
+            'Konuşman algılanamadı. $detail Tekrar dene — yüksek sesle ve mikrofona yakın konuş.'
                 .tr());
       }
     }
@@ -354,6 +374,12 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
       final buffer = StringBuffer();
       DateTime lastTick = DateTime.now();
       bool firstChunk = true;
+      // STREAM-FIRST TTS — buffer içinde "ne kadarı seslendirildi" cursor'u.
+      // Yeni chunk gelince bu cursor'dan sonraki tamamlanmış cümleler
+      // anında TTS kuyruğuna basılır → ilk kelime gecikmesi ~0.
+      int ttsCursor = 0;
+      final isVoiceMode = !_chatPanelOpen;
+      final langCode = localeService.localeCode;
 
       await for (final chunk in stream) {
         if (!mounted) return;
@@ -368,6 +394,11 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
               _messages.last.pending = false;
             }
           });
+        }
+        // STREAM-FIRST TTS: yeni tamamlanan cümle(ler)i seslendirme kuyruğuna at.
+        if (isVoiceMode) {
+          ttsCursor = _emitSentencesToTts(
+              buffer.toString(), ttsCursor, langCode);
         }
         // Throttle: her 120ms bir setState (jank engelle).
         final now = DateTime.now();
@@ -405,8 +436,9 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
         return;
       }
       final cleaned = _stripMediaSuggestions(raw);
+      // _thinking bilerek henüz `false` DEĞİL — TTS hâlâ konuşuyor olabilir,
+      // wave rengi "asistan cevap veriyor" tonunda kalsın.
       setState(() {
-        _thinking = false;
         _slowConnection = false;
         if (_messages.isNotEmpty && _messages.last.role == 'ai') {
           _messages.last.text = cleaned;
@@ -415,11 +447,31 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
       });
       _scrollToBottom();
 
-      // TTS — sohbet (yazılı) modunda sesli anlatım YOK; yalnız sesli/
-      // kamera modunda AI cevabı sesli okunur.
-      if (!_chatPanelOpen) {
-        final ttsRaw = await compute(_stripForTtsCompute, cleaned);
-        await TtsService.speak(ttsRaw, langCode: localeService.localeCode);
+      if (isVoiceMode) {
+        // Stream bitti — tail (terminator yoksa) cümlesini de kuyruğa at.
+        _emitSentencesToTts(buffer.toString(), ttsCursor, langCode,
+            force: true);
+        // TTS kuyruğu boşalana kadar bekle → wave rengi & auto-relisten
+        // tam bu noktadan tetiklenir.
+        await TtsService.waitUntilDone();
+      }
+      if (!mounted) return;
+      setState(() => _thinking = false);
+
+      // KAMERA + SES SÜREKLİ DİYALOG MODU:
+      // AI cevabı bittikten sonra, kamera ya da sesli mod aktifse mikrofonu
+      // OTOMATİK tekrar aç. Kullanıcı manuel mic'e basmadan sohbete devam
+      // eder — gerçek "asistanla konuşma" hissi.
+      if (mounted &&
+          !_chatPanelOpen &&
+          !_paused &&
+          !_listening &&
+          !_thinking) {
+        // Audio session'ın TTS'ten STT'ye geçişi için kısa pencere.
+        await Future.delayed(const Duration(milliseconds: 250));
+        if (mounted && !_listening && !_chatPanelOpen && !_paused) {
+          await _startListening();
+        }
       }
     } on GeminiException catch (e) {
       if (!mounted) return;
@@ -458,6 +510,125 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
       });
       _scrollToBottom();
     }
+  }
+
+  // ─── STREAM-FIRST TTS yardımcısı ────────────────────────────────────────
+  // `full`: o ana kadar buffer'a yazılmış tüm cevap.
+  // `cursor`: en son seslendirilen char index'i.
+  // `force`: stream bittikten sonra tail (sentence terminator olmadan
+  //          kalan parça) için true → kalan her şeyi tek cümle gibi at.
+  // RETURN: yeni cursor.
+  //
+  // İLK SEGMENT için KLAUZ MODU: cursor == 0 ise `.!?` yanında `,;:` de
+  // ayraç sayılır. Bu sayede uzun ilk cümle de orta noktasından kesilip
+  // hemen seslendirilebilir → "ilk kelime" gecikmesi 1-2sn düşer. Çok kısa
+  // klauzlar (< 12 char, ör. "Tabii,") yutulur, sonraki ayracı dener.
+  int _emitSentencesToTts(String full, int cursor, String langCode,
+      {bool force = false}) {
+    if (cursor >= full.length) return cursor;
+    bool clauseMode = (cursor == 0) && !force;
+    const int kClauseMinChars = 12;
+    int searchFrom = cursor;
+    while (searchFrom < full.length) {
+      final end = clauseMode
+          ? _findClauseEnd(full, searchFrom)
+          : _findSentenceEnd(full, searchFrom);
+      if (end == -1) break;
+      final raw = full.substring(cursor, end + 1);
+      final clean = _stripForTtsLite(raw);
+      // Klauz modunda çok kısa segmenti yutma; sonraki ayraca git.
+      if (clauseMode && clean.length < kClauseMinChars) {
+        searchFrom = end + 1;
+        continue;
+      }
+      if (clean.isNotEmpty) {
+        TtsService.enqueue(clean, langCode: langCode);
+      }
+      cursor = end + 1;
+      searchFrom = cursor;
+      clauseMode = false; // sonraki segmentler için tam cümle ayracı
+    }
+    if (force && cursor < full.length) {
+      final raw = full.substring(cursor).trim();
+      if (raw.isNotEmpty) {
+        final clean = _stripForTtsLite(raw);
+        if (clean.isNotEmpty) {
+          TtsService.enqueue(clean, langCode: langCode);
+        }
+      }
+      cursor = full.length;
+    }
+    return cursor;
+  }
+
+  // Cümle ayracını bul: `.`, `!`, `?` (ondalık "3.14"i ayraç sayma).
+  // Newline (`\n`) de cümle sınırı sayılır — model kısa paragraflar
+  // veriyorsa ilk cümleyi hızlıca patlatır.
+  int _findSentenceEnd(String s, int from) {
+    for (int i = from; i < s.length; i++) {
+      final c = s.codeUnitAt(i);
+      // '\n'
+      if (c == 0x0A) return i;
+      // '.', '!', '?'
+      if (c == 0x2E || c == 0x21 || c == 0x3F) {
+        // Ondalık ayraç ("3.14") — sonraki karakter rakamsa atla
+        if (i + 1 < s.length) {
+          final n = s.codeUnitAt(i + 1);
+          if (n >= 0x30 && n <= 0x39) continue;
+        }
+        // Son karakter veya whitespace ardından gelmeli
+        if (i + 1 == s.length) return i;
+        final n = s.codeUnitAt(i + 1);
+        if (n == 0x20 || n == 0x0A || n == 0x09 || n == 0x0D) return i;
+      }
+    }
+    return -1;
+  }
+
+  // Klauz ayracı: cümle ayraçları + `,`, `;`, `:`. Sadece ilk segment
+  // için kullanılır — sonraki segmentler tam cümle bazlı kalsın ki
+  // prosodi bozulmasın.
+  int _findClauseEnd(String s, int from) {
+    for (int i = from; i < s.length; i++) {
+      final c = s.codeUnitAt(i);
+      // '\n'
+      if (c == 0x0A) return i;
+      // '.', '!', '?', ',', ';', ':'
+      final isSent = c == 0x2E || c == 0x21 || c == 0x3F;
+      final isClause = c == 0x2C || c == 0x3B || c == 0x3A;
+      if (!isSent && !isClause) continue;
+      // Ondalık ayraç ("3.14")
+      if (c == 0x2E && i + 1 < s.length) {
+        final n = s.codeUnitAt(i + 1);
+        if (n >= 0x30 && n <= 0x39) continue;
+      }
+      // Sayı içinde ":" (saat 09:30) ve "," (1,5) ayraç sayma
+      if ((c == 0x3A || c == 0x2C) && i > 0 && i + 1 < s.length) {
+        final p = s.codeUnitAt(i - 1);
+        final n = s.codeUnitAt(i + 1);
+        final prevDigit = p >= 0x30 && p <= 0x39;
+        final nextDigit = n >= 0x30 && n <= 0x39;
+        if (prevDigit && nextDigit) continue;
+      }
+      if (i + 1 == s.length) return i;
+      final n = s.codeUnitAt(i + 1);
+      if (n == 0x20 || n == 0x0A || n == 0x09 || n == 0x0D) return i;
+    }
+    return -1;
+  }
+
+  // Hızlı (in-line) TTS markdown/sembol stripleme. _stripForTtsCompute
+  // tam sürümü; bu hot-path'ta isolate gerekmiyor (cümle ortalama 40-120 char).
+  String _stripForTtsLite(String s) {
+    return s
+        .replaceAll(RegExp(r'\\\([\s\S]*?\\\)'), '')
+        .replaceAll(RegExp(r'\\\[[\s\S]*?\\\]'), '')
+        .replaceAll('**', '')
+        .replaceAll(
+            RegExp(r'[🔵🟢🟡🟣🔴🟠⚪🔑🧠🧪⚡💡🎓📦🔍📐📅🧬⚖️🎯🌍📖📚⭐📌]'), '')
+        .replaceAll('|', ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 
   void _scrollToBottom() {
@@ -1437,6 +1608,7 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
               await _toggleCamera();
               if (_camActive && !_thinking && !_paused) {
                 // Audio session'ın oturmasına izin ver, sonra dinlemeyi başlat.
+                // Otomatik konuşma YOK — kullanıcı komut verene kadar AI sessiz.
                 await Future.delayed(const Duration(milliseconds: 250));
                 if (mounted && _camActive && !_listening) {
                   await _startListening();
@@ -1506,17 +1678,23 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-//  Background isolate: TTS metni stripleme — ana thread'i bloklamasın.
+//  Background isolate: kamera karesi sıkıştırma — 720px max + JPEG q70.
+//  Live modda gönderilen kareler analiz için yeterli, fakat upload
+//  süresini 5-10× kısaltır → asistanın "ilk kelime" gecikmesi düşer.
 // ═════════════════════════════════════════════════════════════════════════
-String _stripForTtsCompute(String s) {
-  return s
-      .replaceAll(RegExp(r'\\\([\s\S]*?\\\)'), '')
-      .replaceAll(RegExp(r'\\\[[\s\S]*?\\\]'), '')
-      .replaceAll(RegExp(r'\*\*'), '')
-      .replaceAll(
-          RegExp(r'[🔵🟢🟡🟣🔴🟠⚪🔑🧠🧪⚡💡🎓📦🔍📐📅🧬⚖️🎯🌍📖📚⭐📌]'), '')
-      .replaceAll(RegExp(r'\|[-:\s|]+\|'), '')
-      .replaceAll('|', ' ');
+Uint8List _compressFrameForLive(Uint8List input) {
+  final decoded = img.decodeImage(input);
+  if (decoded == null) return input;
+  const maxSide = 720;
+  img.Image resized = decoded;
+  if (decoded.width > maxSide || decoded.height > maxSide) {
+    if (decoded.width >= decoded.height) {
+      resized = img.copyResize(decoded, width: maxSide, interpolation: img.Interpolation.linear);
+    } else {
+      resized = img.copyResize(decoded, height: maxSide, interpolation: img.Interpolation.linear);
+    }
+  }
+  return Uint8List.fromList(img.encodeJpg(resized, quality: 70));
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -1597,6 +1775,11 @@ class _WavePainter extends CustomPainter {
     final w = size.width;
     final h = size.height;
 
+    // Asistan cevap üretirken/konuşurken canlı cyan tona geç — kullanıcı
+    // VAD final olur olmaz dalga renginin değiştiğini anında görür.
+    final Color c1 = thinking ? _kReply1 : _kBlue1;
+    final Color c2 = thinking ? _kReply2 : _kBlue2;
+
     // Galaksi zemini üzerinde dalga DAHA TRANSPARAN — alt katman olarak
     // kalır, galaksi yıldızları/sis bandı görünür kalır.
     final bgPaint = Paint()
@@ -1605,8 +1788,8 @@ class _WavePainter extends CustomPainter {
         Offset(0, h),
         [
           Colors.transparent,
-          _kBlue1.withValues(alpha: compact ? 0.10 : 0.12),
-          _kBlue2.withValues(alpha: compact ? 0.25 : 0.32),
+          c1.withValues(alpha: compact ? 0.10 : 0.12),
+          c2.withValues(alpha: compact ? 0.25 : 0.32),
         ],
         const [0.0, 0.55, 1.0],
       );
@@ -1641,8 +1824,8 @@ class _WavePainter extends CustomPainter {
           Offset(0, yBase - amp),
           Offset(0, h),
           [
-            _kBlue1.withValues(alpha: compact ? 0.16 : 0.10),
-            _kBlue2.withValues(alpha: compact ? 0.50 : 0.38),
+            c1.withValues(alpha: compact ? 0.16 : 0.10),
+            c2.withValues(alpha: compact ? 0.50 : 0.38),
           ],
         );
       canvas.drawPath(p, paint);
@@ -1655,7 +1838,7 @@ class _WavePainter extends CustomPainter {
           Offset(0, h * 0.60),
           [
             Colors.transparent,
-            _kBlue2.withValues(alpha: 0.55),
+            c2.withValues(alpha: 0.55),
             Colors.transparent,
           ],
           const [0.0, 0.5, 1.0],
@@ -1689,6 +1872,7 @@ class _BottomCircleButton extends StatelessWidget {
     this.highlight = false,
     this.danger = false,
     this.frosted = false,
+    // ignore: unused_element_parameter
     this.lightMode = false,
   });
 

@@ -417,7 +417,7 @@ class LatexText extends StatelessWidget {
     final note = _reInlineNote.firstMatch(trimmed);
     if (note != null) {
       return _BoxedCallout(
-        label: 'Önemli Bilgi',
+        label: 'Önemli Bilgi'.tr(),
         body: note.group(1)!.trim(),
         accent: Color(0xFFD97706), // amber-600
         icon: '💡',

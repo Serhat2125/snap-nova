@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Splash arka plan rengi — TAM BEYAZ. Flutter splash da beyaz
+         olduğu için geçiş kesintisiz. -->
+    <color name="qualsar_splash_bg">#FFFFFF</color>
+</resources>

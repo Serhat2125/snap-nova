@@ -27,10 +27,13 @@ class ConnectivityService extends ChangeNotifier {
 
   Timer? _timer;
 
-  /// İlk kontrol + 30 saniyede bir periyodik tazelenme.
+  /// İlk kontrol arka planda + 5 dakikada bir periyodik tazelenme.
+  /// (Sık DNS probe startup'ı bloke ediyor ve UI rebuild'lere yol açıyordu.)
   Future<void> init() async {
-    await checkNow();
-    _timer = Timer.periodic(const Duration(seconds: 30), (_) => checkNow());
+    // İlk probe arka planda — startup'ı 0-12sn DNS lookup'a yatırma.
+    unawaited(checkNow());
+    _timer =
+        Timer.periodic(const Duration(minutes: 5), (_) => checkNow());
   }
 
   /// Anlık kontrol (login, API çağrısından önce).

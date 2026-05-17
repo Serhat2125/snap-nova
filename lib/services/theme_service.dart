@@ -4,7 +4,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ThemeService extends ChangeNotifier {
   static const _prefsKey = 'theme_mode_index';
 
-  int _index = 0;
+  // Index varsayılanı 1 = Light. Kullanıcı bir kez seçim yapınca pref'te
+  // saklanır ve sonraki açılışlarda korunur (aydınlıktan koyuya geçtiyse
+  // koyu kalır). İlk kurulum / temiz install → aydınlık.
+  int _index = 1;
 
   int get index => _index;
 
@@ -16,7 +19,7 @@ class ThemeService extends ChangeNotifier {
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
-    _index = prefs.getInt(_prefsKey) ?? 0;
+    _index = prefs.getInt(_prefsKey) ?? 1;
     notifyListeners();
   }
 

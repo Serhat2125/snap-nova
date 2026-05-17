@@ -663,28 +663,244 @@ class _EducationSetupScreenState extends State<EducationSetupScreen> {
           _ => 'Mezun',
         };
 
+    // Ülkeye özel sınıf aralıkları — eğitim sistemine göre.
+    // (primary[start..end], middle[start..end], high[start..end])
+    List<int> rangePrimary;
+    List<int> rangeMiddle;
+    List<int> rangeHigh;
+    switch (_country) {
+      // ── Türkiye: ilkokul 1-4, ortaokul 5-8, lise 9-12 ──
+      case 'tr':
+        rangePrimary = [1, 2, 3, 4];
+        rangeMiddle = [5, 6, 7, 8];
+        rangeHigh = [9, 10, 11, 12];
+        break;
+      // ── ABD/Kanada/Filipinler: primary 1-5, middle 6-8, high 9-12 ──
+      case 'us':
+      case 'ca':
+      case 'ph':
+      case 'au':
+        rangePrimary = [1, 2, 3, 4, 5];
+        rangeMiddle = [6, 7, 8];
+        rangeHigh = [9, 10, 11, 12];
+        break;
+      // ── İngiltere: Primary Y1-Y6, Secondary Y7-Y11, Sixth Form Y12-Y13 ──
+      case 'uk':
+      case 'ie':
+        rangePrimary = [1, 2, 3, 4, 5, 6];
+        rangeMiddle = [7, 8, 9, 10, 11];
+        rangeHigh = [12, 13];
+        break;
+      // ── Almanya/Avusturya: Grundschule 1-4, Sek I 5-10, Sek II 11-13 ──
+      case 'de':
+      case 'at':
+        rangePrimary = [1, 2, 3, 4];
+        rangeMiddle = [5, 6, 7, 8, 9, 10];
+        rangeHigh = [11, 12, 13];
+        break;
+      // ── Fransa: École 1-5, Collège 6-9, Lycée 10-12 ──
+      case 'fr':
+      case 'be':
+      case 'lu':
+      case 'ch':
+      case 'mc':
+        rangePrimary = [1, 2, 3, 4, 5];
+        rangeMiddle = [6, 7, 8, 9];
+        rangeHigh = [10, 11, 12];
+        break;
+      // ── Japonya: 小 1-6, 中 1-3, 高 1-3 (sayısal: 1-6/7-9/10-12) ──
+      case 'jp':
+        rangePrimary = [1, 2, 3, 4, 5, 6];
+        rangeMiddle = [7, 8, 9];
+        rangeHigh = [10, 11, 12];
+        break;
+      // ── Çin: 小学 1-6, 初中 7-9, 高中 10-12 ──
+      case 'cn':
+        rangePrimary = [1, 2, 3, 4, 5, 6];
+        rangeMiddle = [7, 8, 9];
+        rangeHigh = [10, 11, 12];
+        break;
+      // ── Kore: 초 1-6, 중 1-3, 고 1-3 ──
+      case 'kr':
+        rangePrimary = [1, 2, 3, 4, 5, 6];
+        rangeMiddle = [7, 8, 9];
+        rangeHigh = [10, 11, 12];
+        break;
+      // ── Hindistan: Primary 1-5, Middle 6-8, High 9-10, Higher Sec 11-12 ──
+      case 'in':
+      case 'pk':
+      case 'bd':
+      case 'np':
+      case 'lk':
+        rangePrimary = [1, 2, 3, 4, 5];
+        rangeMiddle = [6, 7, 8];
+        rangeHigh = [9, 10, 11, 12];
+        break;
+      // ── İtalya/İspanya/Brezilya: Primary 1-5, Middle 6-8, High 9-13 ──
+      case 'it':
+      case 'es':
+      case 'pt':
+      case 'br':
+        rangePrimary = [1, 2, 3, 4, 5];
+        rangeMiddle = [6, 7, 8];
+        rangeHigh = [9, 10, 11, 12, 13];
+        break;
+      // ── Rusya/Ukrayna/Kazakistan: Nachal'noe 1-4, Sredneye 5-9, Starshee 10-11 ──
+      case 'ru':
+      case 'ua':
+      case 'kk':
+      case 'kz':
+      case 'uz':
+      case 'az':
+      case 'ge':
+      case 'kg':
+        rangePrimary = [1, 2, 3, 4];
+        rangeMiddle = [5, 6, 7, 8, 9];
+        rangeHigh = [10, 11];
+        break;
+      // ── İran: Dabestan 1-6, Doreh Aval 7-9, Doreh Dovom 10-12 ──
+      case 'ir':
+        rangePrimary = [1, 2, 3, 4, 5, 6];
+        rangeMiddle = [7, 8, 9];
+        rangeHigh = [10, 11, 12];
+        break;
+      // ── Arap dünyası: ibtidaiyah 1-6, mutawassita 7-9, thanawiyah 10-12 ──
+      case 'sa':
+      case 'eg':
+      case 'ae':
+      case 'qa':
+      case 'kw':
+      case 'om':
+      case 'bh':
+      case 'jo':
+      case 'lb':
+      case 'sy':
+      case 'iq':
+      case 'ye':
+      case 'sd':
+      case 'ly':
+      case 'tn':
+      case 'dz':
+      case 'ma':
+      case 'ps':
+        rangePrimary = [1, 2, 3, 4, 5, 6];
+        rangeMiddle = [7, 8, 9];
+        rangeHigh = [10, 11, 12];
+        break;
+      // ── Endonezya/Malezya: SD 1-6, SMP 7-9, SMA 10-12 ──
+      case 'id':
+      case 'my':
+      case 'th':
+      case 'vn':
+      case 'mm':
+      case 'kh':
+      case 'la':
+      case 'tl':
+      case 'bn':
+        rangePrimary = [1, 2, 3, 4, 5, 6];
+        rangeMiddle = [7, 8, 9];
+        rangeHigh = [10, 11, 12];
+        break;
+      // ── Afrika çoğunluğu: 6-3-3 yapı (Nijerya, Kenya, Gana, GA, vs.) ──
+      case 'ng':
+      case 'gh':
+      case 'ke':
+      case 'tz':
+      case 'ug':
+      case 'rw':
+      case 'za':
+      case 'et':
+      case 'sn':
+      case 'ml':
+      case 'bf':
+      case 'mg':
+      case 'cd':
+      case 'cm':
+      case 'ci':
+        rangePrimary = [1, 2, 3, 4, 5, 6];
+        rangeMiddle = [7, 8, 9];
+        rangeHigh = [10, 11, 12];
+        break;
+      // ── Latin Amerika: Primaria 1-6, Secundaria 7-9, Media/Bachi 10-12 ──
+      case 'mx':
+      case 'co':
+      case 'ar':
+      case 'cl':
+      case 'pe':
+      case 've':
+      case 'ec':
+      case 'bo':
+      case 'py':
+      case 'uy':
+      case 'gt':
+      case 'do':
+      case 'cu':
+      case 'cr':
+      case 'pa':
+      case 'hn':
+      case 'sv':
+      case 'ni':
+        rangePrimary = [1, 2, 3, 4, 5, 6];
+        rangeMiddle = [7, 8, 9];
+        rangeHigh = [10, 11, 12];
+        break;
+      // ── Polonya/Çek/Slovak/Macar: Podstawowa 1-8, Liceum 9-12 ──
+      case 'pl':
+      case 'cz':
+      case 'sk':
+      case 'hu':
+      case 'ro':
+      case 'bg':
+      case 'rs':
+      case 'hr':
+      case 'si':
+      case 'ba':
+      case 'mk':
+      case 'al':
+      case 'me':
+        rangePrimary = [1, 2, 3, 4];
+        rangeMiddle = [5, 6, 7, 8];
+        rangeHigh = [9, 10, 11, 12];
+        break;
+      // ── İskandinavya: Grundskola 1-9, Gymnasium 10-12 ──
+      case 'se':
+      case 'no':
+      case 'fi':
+      case 'dk':
+      case 'is':
+      case 'nl':
+        rangePrimary = [1, 2, 3, 4, 5, 6];
+        rangeMiddle = [7, 8, 9];
+        rangeHigh = [10, 11, 12];
+        break;
+      // ── Default: TR yapısı (en yaygın) ──
+      default:
+        rangePrimary = [1, 2, 3, 4];
+        rangeMiddle = [5, 6, 7, 8];
+        rangeHigh = [9, 10, 11, 12];
+    }
+
+    String emoji(int n) {
+      const map = {
+        1: '1️⃣', 2: '2️⃣', 3: '3️⃣', 4: '4️⃣', 5: '5️⃣',
+        6: '6️⃣', 7: '7️⃣', 8: '8️⃣', 9: '9️⃣', 10: '🔟',
+        11: '1️⃣1️⃣', 12: '1️⃣2️⃣', 13: '1️⃣3️⃣',
+      };
+      return map[n] ?? '$n';
+    }
+
     switch (_level) {
       case 'primary':
         return [
-          _LevelOpt('1', '1️⃣', label(1)),
-          _LevelOpt('2', '2️⃣', label(2)),
-          _LevelOpt('3', '3️⃣', label(3)),
-          _LevelOpt('4', '4️⃣', label(4)),
-          _LevelOpt('5', '5️⃣', label(5)),
+          for (final n in rangePrimary) _LevelOpt('$n', emoji(n), label(n)),
         ];
       case 'middle':
         return [
-          _LevelOpt('5', '5️⃣', label(5)),
-          _LevelOpt('6', '6️⃣', label(6)),
-          _LevelOpt('7', '7️⃣', label(7)),
-          _LevelOpt('8', '8️⃣', label(8)),
+          for (final n in rangeMiddle) _LevelOpt('$n', emoji(n), label(n)),
         ];
       case 'high':
         return [
-          _LevelOpt('9', '9️⃣', label(9)),
-          _LevelOpt('10', '🔟', label(10)),
-          _LevelOpt('11', '1️⃣1️⃣', label(11)),
-          _LevelOpt('12', '1️⃣2️⃣', label(12)),
+          for (final n in rangeHigh) _LevelOpt('$n', emoji(n), label(n)),
         ];
       case 'exam_prep':
         return _examsForCountry();

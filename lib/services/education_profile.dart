@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'error_logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -48,7 +49,7 @@ class SubjectUsageStats {
         if (subject.isEmpty) continue;
         final k = _norm(subject);
         out[k] = (out[k] ?? 0) + 1;
-      } catch (_) {}
+      } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'education_profile'); }
     }
     final arenaRaw = prefs.getString(_arenaKey);
     if (arenaRaw != null) {
@@ -60,7 +61,7 @@ class SubjectUsageStats {
             out[key] = (out[key] ?? 0) + v.toInt();
           }
         });
-      } catch (_) {}
+      } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'education_profile'); }
     }
     return out;
   }
@@ -77,7 +78,7 @@ class SubjectUsageStats {
         dec.forEach((k, v) {
           if (v is num) m[k] = v.toInt();
         });
-      } catch (_) {}
+      } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'education_profile'); }
     }
     m[key] = (m[key] ?? 0) + 1;
     await prefs.setString(_arenaKey, jsonEncode(m));
@@ -325,7 +326,7 @@ class EduProfile {
       '${p.country}|${p.level}|${p.grade}|${p.faculty ?? ''}|${p.track ?? ''}';
 
   static String _aiPrefsKey(EduProfile p) =>
-      'ai_subjects_cache_v1::${_signature(p)}';
+      'ai_subjects_cache_v2::${_signature(p)}';
 
   /// Mevcut profil için AI cache'i pref'ten yükler (senkron sonrası kullanım).
   /// main.dart EduProfile.load sonrası bunu çağırır.
@@ -344,7 +345,7 @@ class EduProfile {
                 _blue,
               ))
           .toList();
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'education_profile'); }
   }
 
   /// Mevcut profil için AI cache'i kaydet — fetcher (gemini_service) çağırır.
@@ -370,7 +371,7 @@ class EduProfile {
       EduProfile p, Map<String, List<String>> topicsBySubject) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
-      'ai_topics_cache_v1::${_signature(p)}',
+      'ai_topics_cache_v2::${_signature(p)}',
       jsonEncode(topicsBySubject),
     );
     _aiTopicsCache[_signature(p)] = topicsBySubject;
@@ -384,7 +385,7 @@ class EduProfile {
   static Future<void> loadAiTopicsCache() async {
     if (current == null) return;
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString('ai_topics_cache_v1::${_signature(current!)}');
+    final raw = prefs.getString('ai_topics_cache_v2::${_signature(current!)}');
     if (raw == null) return;
     try {
       final decoded = jsonDecode(raw) as Map<String, dynamic>;
@@ -395,7 +396,7 @@ class EduProfile {
         }
       });
       _aiTopicsCache[_signature(current!)] = out;
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'education_profile'); }
   }
 
   /// Profil için cache var mı?
@@ -413,7 +414,7 @@ class EduProfile {
     String? raw;
     try {
       raw = ui.PlatformDispatcher.instance.locale.countryCode?.toLowerCase();
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'education_profile'); }
     String detected = 'international';
     if (raw != null && raw.isNotEmpty) {
       final mapped = raw == 'gb' ? 'uk' : raw;
@@ -1275,21 +1276,25 @@ List<EduSubject> subjectsForProfile(EduProfile? profile) {
     final gradeNum = _extractGradeNumber(profile.grade);
     if (gradeNum != null && gradeNum >= 10 && gradeNum <= 12) {
       final seen = <String>{};
-      final merged = <String>[];
+      final seenNames = <String>{};
+      final merged = <EduSubject>[];
       const tracks = ['sayisal', 'esit_agirlik', 'sozel', 'dil'];
       for (final t in tracks) {
         final keys = _subjectKeysByProfile['tr_high_${gradeNum}_$t'];
         if (keys == null) continue;
         for (final k in keys) {
-          if (seen.add(k)) merged.add(k);
+          final subj = _allSubjects[k];
+          if (subj == null) continue;
+          final nameKey = subj.name.trim().toLowerCase();
+          // Hem key hem displayName ile dedup et — farklı track'lerde aynı
+          // ders adı (örn. "Coğrafya") farklı key ile gelebilir → 2x görünürdü.
+          if (seen.contains(k) || seenNames.contains(nameKey)) continue;
+          seen.add(k);
+          seenNames.add(nameKey);
+          merged.add(subj);
         }
       }
-      if (merged.isNotEmpty) {
-        return merged
-            .map((s) => _allSubjects[s])
-            .whereType<EduSubject>()
-            .toList();
-      }
+      if (merged.isNotEmpty) return merged;
     }
     final g9 = _subjectKeysByProfile['tr_high_9'];
     if (g9 != null) return g9.map((s) => _allSubjects[s]).whereType<EduSubject>().toList();
@@ -1298,20 +1303,24 @@ List<EduSubject> subjectsForProfile(EduProfile? profile) {
   // Hindistan lise — science/commerce/arts ayrımını kaldır, tümünü birleştir.
   if (profile.country == 'in' && profile.level == 'high') {
     final seen = <String>{};
-    final merged = <String>[];
+    final seenNames = <String>{};
+    final merged = <EduSubject>[];
     const tracks = ['science', 'commerce', 'arts'];
     for (final t in tracks) {
       final keys = _subjectKeysByProfile['in_high_$t'];
       if (keys == null) continue;
       for (final k in keys) {
-        if (seen.add(k)) merged.add(k);
+        final subj = _allSubjects[k];
+        if (subj == null) continue;
+        final nameKey = subj.name.trim().toLowerCase();
+        if (seen.contains(k) || seenNames.contains(nameKey)) continue;
+        seen.add(k);
+        seenNames.add(nameKey);
+        merged.add(subj);
       }
     }
     if (merged.isNotEmpty) {
-      return merged
-          .map((s) => _allSubjects[s])
-          .whereType<EduSubject>()
-          .toList();
+      return merged;
     }
   }
 
@@ -1321,6 +1330,21 @@ List<EduSubject> subjectsForProfile(EduProfile? profile) {
   if (list != null) {
     return list.map((s) => _allSubjects[s]).whereType<EduSubject>().toList();
   }
+
+  // CURRICULUM CATALOG fallback — _subjectKeysByProfile'da bu sınıf için
+  // hazır key listesi yoksa, curriculum_catalog.dart'taki tam müfredat
+  // ağacından (ülke+seviye+sınıf hassas) dersleri çek.
+  // Örn. TR ilkokul 1 → curriculum_catalog'taki 'tr_primary_1' dersleri.
+  // _subjectKeysByProfile'da 'tr_primary_*' anahtarları yok ama
+  // curriculum_catalog'da var. Bu fallback olmadan TR ilkokul kullanıcısı
+  // uluslararası fallback'e düşüyordu (yanlış dersler).
+  try {
+    final fromCatalog = _curriculumSubjectsBuilder?.call(profile);
+    if (fromCatalog != null && fromCatalog.isNotEmpty) {
+      return fromCatalog;
+    }
+  } catch (_) {/* yok say — bir alttaki international fallback'e düş */}
+
   // Country bazlı anahtar yoksa: international_${level} jenerik şablonu.
   // Bu sayede branch'ı olmayan ülkelerde de seviyeye uygun zengin liste gelir
   // (sadece 8'lik _fallbackKeys'e düşmez).
@@ -1329,6 +1353,14 @@ List<EduSubject> subjectsForProfile(EduProfile? profile) {
     return intl.map((s) => _allSubjects[s]).whereType<EduSubject>().toList();
   }
   return _fallbackKeys.map((k) => _allSubjects[k]!).toList();
+}
+
+/// curriculum_catalog.dart başlangıçta kendini buraya kaydeder; subject list
+/// için. Döngüsel import'u önler.
+List<EduSubject> Function(EduProfile)? _curriculumSubjectsBuilder;
+void registerCurriculumSubjectsBuilder(
+    List<EduSubject> Function(EduProfile) fn) {
+  _curriculumSubjectsBuilder = fn;
 }
 
 /// AI prompt'una eklenecek bağlam metni.
@@ -1343,7 +1375,7 @@ String educationContext(EduProfile? p) {
     // ignore: unused_import, avoid_dynamic_calls
     final detailed = _detailedCurriculumContext(p);
     if (detailed.isNotEmpty) return '$base\n$detailed';
-  } catch (_) {}
+  } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'education_profile'); }
   return base;
 }
 

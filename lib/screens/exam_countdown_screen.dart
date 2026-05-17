@@ -7,6 +7,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import 'dart:async';
+import '../services/error_logger.dart';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -49,7 +50,7 @@ class _ExamCountdownScreenState extends State<ExamCountdownScreen> {
       code = (fromProfile?.isNotEmpty == true)
           ? fromProfile!
           : (fromGeo?.isNotEmpty == true ? fromGeo! : 'tr');
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'exam_countdown_screen'); }
     if (!mounted) return;
     setState(() {
       _country = code.toLowerCase();

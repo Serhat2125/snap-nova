@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'error_logger.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'curriculum_catalog.dart';
 import 'education_profile.dart';
 import 'locale_service.dart';
 import 'secrets.dart';
+import 'summary_cache_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  GeminiService — Google Generative Language API (gemini-2.5-flash)
@@ -19,6 +22,21 @@ class GeminiService {
   static const _model   = 'gemini-2.5-flash';
   static const _baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
   static const _tag     = '🤖 [GeminiService]';
+
+  // ── PROXY MODU ─────────────────────────────────────────────────────────────
+  // Play Store yüklemeden ÖNCE bu sabiti `true` yap. Tüm Gemini çağrıları
+  // Firebase Cloud Function üzerinden gider; anahtar APK içinde olmaz.
+  // Cloud Function tarafı: functions/src/gemini_proxy.ts (deploy edilmiş olmalı).
+  // Bkz: release/KEYSTORE_AND_BUILD_GUIDE.md → "Proxy'yi aç" bölümü.
+  static const bool kUseProxy = true;
+  static const String _proxyUrl =
+      'https://geminiproxy-6magalwdpa-uc.a.run.app';
+
+  // Persistent HTTP client — keep-alive ile TCP+TLS handshake'i her istekte
+  // tekrarlama. Aynı host (generativelanguage.googleapis.com) çağrıları
+  // arasında bağlantıyı yeniden kullan → per-istek 150-300ms tasarruf.
+  // Stream çağrıları + tek-shot post'lar bu client'tan akar.
+  static final http.Client _http = http.Client();
 
   // ── OpenAI son yedek (Gemini + fallback key'ler de başarısızsa) ──────────
   static String get _openaiKey => Secrets.openai;
@@ -39,6 +57,323 @@ class GeminiService {
   static bool _isKeyFailure(int status) =>
       status == 401 || status == 403 || status == 429 || status == 400;
 
+  // ── EĞİTİM FORMATI + SEVİYE DIRECTIVE — TÜM Gemini çağrılarına eklenir ────
+  //
+  // Her system prompt'un başına otomatik enjekte edilir. Anahtar/proxy/model
+  // ne olursa olsun bu kural kodda gömülü; her çağrıda aktif.
+  //
+  // İçerik 3 katmanlı:
+  //   1) Evrensel format kuralları (Unicode, LaTeX yasağı, ondalık ayraç)
+  //   2) Tüm konular için notasyon rehberi (mat/fiz/kim/biy + dil/tarih/coğ/
+  //      hukuk/tıp/CS/müzik/iktisat/felsefe/sanat vb.)
+  //   3) Seviye bilinçli ton (ilkokul → doktora) + EduProfile.current'tan
+  //      ülke/sınıf/branş bilgisi enjekte eder.
+  static String _injectFormatDirective(String userPrompt) {
+    final code = LocaleService.global?.localeCode ?? 'tr';
+    const commaLocales = <String>{
+      'tr','de','fr','es','it','pt','nl','ro','sv','no','da','fi','pl',
+      'cs','hu','ru','el','bg','hr','sr','sk','sl','lt','lv','et','uk',
+      'be','ka','az','kk','ky','uz','tg','mk','is','sq','bs',
+    };
+    final decimalRule = commaLocales.contains(code)
+        ? 'Decimal separator: COMMA (e.g. 3,14 — not 3.14).'
+        : 'Decimal separator: PERIOD (e.g. 3.14).';
+
+    // ── Kullanıcının eğitim profilini oku ────────────────────────────────────
+    final profile = EduProfile.current;
+    final levelBlock = _levelDirective(profile);
+
+    const directive = r'''
+=== UNIVERSAL FORMATTING REQUIREMENTS (ALWAYS FOLLOW · NEVER VIOLATE) ===
+You are an expert teacher AND academic typesetter — for EVERY school subject:
+mathematics, physics, chemistry, biology, Turkish/foreign languages, literature,
+history, geography, social studies, philosophy, religion & ethics, law, economics,
+psychology, sociology, medicine, biology, computer science, engineering, music,
+art history, physical education theory, environmental science, statistics — ALL.
+
+Your output must match a top educational publisher's textbook quality, while
+being warm and tailored to the user's level (see LEVEL ADAPTATION below).
+
+CHARACTER & SYMBOL CLEANLINESS (applies to ALL subjects):
+- NEVER output raw LaTeX delimiters: NO $...$, NO \(...\), NO \[...\], NO \frac{}{}, NO \sqrt{}, NO \cdot.
+- NEVER output backslash escape sequences (\pi, \alpha, \times, \le, \ge, \approx, \pm, \to, \rightarrow, \infty, \int, \sum, \sqrt — all FORBIDDEN).
+- Use Unicode directly:
+  · Superscripts: ² ³ ⁴ ⁵ ⁶ ⁷ ⁸ ⁹ ⁰ ¹ ⁺ ⁻ ⁽ ⁾ ⁿ
+  · Subscripts: ₀ ₁ ₂ ₃ ₄ ₅ ₆ ₇ ₈ ₉ ₊ ₋
+  · Greek: π α β γ δ ε ζ η θ ι κ λ μ ν ξ ο ρ σ τ υ φ χ ψ ω Α Β Γ Δ Θ Λ Π Σ Φ Ω
+  · Operators: × ÷ ± ≈ ≠ ≤ ≥ ∞ → ↔ ⇌ √ ∛ ∜ ∑ ∏ ∫ ∂ ∇ ∈ ∉ ⊂ ⊃ ∩ ∪ ∧ ∨ ¬ ∀ ∃
+  · Angles & vectors: ° ∠ ⃗
+  · Currency / common: ₺ € $ ¥ £ ° µ ‰ §
+
+MATHEMATICS:
+- x squared → x² (NEVER x^2 or x**2)
+- Square root → √x or ∛x (NEVER \sqrt{x} or sqrt(x))
+- Fractions: short inline as a/b; complex on a separate centered line.
+- Pi → π. Infinity → ∞.
+- DECIMAL SEPARATOR: __DECIMAL_RULE__
+- Sets/logic: ∈ ∉ ⊂ ⊃ ∩ ∪ ∧ ∨ ¬ ∀ ∃
+
+PHYSICS:
+- Units with mid-dot: kg·m/s², N·m, J/(kg·K). Standard: N J W Pa Hz Ω °C K
+- Vectors: F⃗ or **F**. Magnitude as |F⃗| or F.
+
+CHEMISTRY:
+- Unicode subscripts/superscripts: H₂O, CO₂, H₂SO₄, NaHCO₃, Ca(OH)₂, NH₄⁺, SO₄²⁻, Fe²⁺/Fe³⁺
+- Arrows: → (irreversible), ⇌ (equilibrium)
+- Bonds: = (double), ≡ (triple)
+- State labels: (k)/(s) solid, (g) gas, (aq)/(suda) aqueous, (l) liquid
+
+BIOLOGY:
+- Latin species in *italic*: *Homo sapiens*, *Escherichia coli*. Genus capital, species lowercase.
+- Classification: Kingdom → Phylum → Class → Order → Family → Genus → Species
+
+LANGUAGES (Turkish, English, Arabic, German, French, etc.):
+- Grammar terms in the user's language; provide example sentences.
+- IPA phonetics in square brackets when needed: [tʃɛvap]
+- Conjugation tables when verb forms are asked: subject pronouns as rows, tenses as columns.
+- For language learning: 1 example with translation per rule.
+
+HISTORY:
+- Dates: YYYY format; ranges as "1923–1938" (en-dash). BC/AD or BCE/CE — pick the convention of the user's locale.
+- Cause → Effect chains as numbered lists or arrow flows.
+- Important figures and treaties in **bold** on first mention.
+- Timeline tables when multiple events span centuries.
+
+GEOGRAPHY:
+- Coordinates: 41°00′N 28°58′E format.
+- Distances/areas with proper SI units (km, km², m above sea level).
+- Climate types use Köppen codes (Cfa, BSk, etc.) when relevant.
+- Regional terms in the user's language but include the international name in parentheses.
+
+LAW:
+- Reference articles as "Madde 12" (TR) / "Article 12" (EN) / "§ 12" (DE).
+- Cite statute + article when relevant; full law name on first reference.
+- Logical structure: norm → element → application → conclusion.
+
+ECONOMICS / FINANCE:
+- Formulas in Unicode (e.g. r = (FV − PV) / PV)
+- Currencies with correct symbol position by locale (₺100 in TR, $100 in US, 100€ in DE).
+- Percentages with % sign, decimals per LOCALE rule.
+
+COMPUTER SCIENCE:
+- Code in fenced blocks with language tag: ```python … ```
+- Big-O in italic capitals: *O(n log n)*, *O(n²)*, *O(1)*
+- Boolean operators in code style: `&&`, `||`, `!`
+- Algorithms as numbered steps + complexity note at end.
+
+MEDICINE / ANATOMY:
+- Anatomical terms in Latin *italic*: *musculus biceps brachii*
+- Drug names: generic (lowercase) and brand (Capitalized) with mg dose.
+- Vital signs with units: 120/80 mmHg, 37,0 °C, 75 bpm.
+
+MUSIC:
+- Notes as letters A–G with octave number (C4 = middle C).
+- Time signatures: 4/4, 3/4, 6/8 (NEVER \frac{4}{4}).
+- Dynamics: *pp*, *p*, *mf*, *f*, *ff* (italic markdown).
+
+PHILOSOPHY / LOGIC:
+- Propositions in P, Q form; connectives with ∧ ∨ ¬ → ↔.
+- Cite philosophers' full names + dates on first reference: *Aristoteles (M.Ö. 384–322)*.
+
+RELIGION / ETHICS:
+- Quote scripture with chapter:verse format (e.g. Yaratılış 1:1, Bakara 2:255).
+- Multiple traditions covered respectfully and neutrally.
+
+ART / VISUAL CULTURE:
+- Movement names in **bold** with date range.
+- Artist names with life dates: *Pablo Picasso (1881–1973)*.
+- Works in italic with year: *Guernica (1937)*.
+
+UNIVERSAL LAYOUT:
+- Step-by-step solutions: "Adım 1, Adım 2, …" or user's language equivalent. Each step states the rule/formula being applied.
+- Important equations / definitions on their OWN line (blank line before & after).
+- Comparison data → markdown table. Sequential steps → numbered list. Concepts → bullet list.
+- End complex answers with a brief "Sonuç:" (Sonuç / Summary / Résumé / Schluss) box.
+
+LANGUAGE:
+- Match the user's language (whatever they typed). Use natural local phrasing.
+- Keep mathematical/scientific notation universal regardless of natural language.
+
+=== LEVEL ADAPTATION — ABSOLUTELY ESSENTIAL ===
+The user's education profile is provided below. Match your TONE, VOCABULARY,
+DEPTH, and EXAMPLES exactly to that level. Do NOT use jargon above the level;
+do NOT under-explain at higher levels.
+
+''';
+
+    const tail = r'''
+=== ORIGINAL SYSTEM INSTRUCTION (follow this intent, format using the rules above) ===
+''';
+
+    final filledDirective =
+        directive.replaceAll('__DECIMAL_RULE__', decimalRule);
+    return '$filledDirective\n$levelBlock\n$tail\n$userPrompt';
+  }
+
+  /// EduProfile'tan seviye + ülke + branş bilgisini okuyup, AI'a "kullanıcı
+  /// kim, nasıl hitap et" rehberi üretir. Profile yoksa nötr (yetişkin
+  /// öğrenci) fallback.
+  static String _levelDirective(EduProfile? p) {
+    if (p == null) {
+      return '''USER PROFILE: unknown (assume general learner, adult).
+TONE: friendly, clear, neither childish nor overly academic.
+DEPTH: moderate — explain core terms once, no need to dumb down.''';
+    }
+
+    final country = p.country;
+    final level = p.level;
+    final grade = p.grade;
+    final track = p.track ?? '';
+    final faculty = p.faculty ?? '';
+
+    final levelHuman = switch (level) {
+      'primary'   => 'primary school (ages 6–10)',
+      'middle'    => 'middle school (ages 11–14)',
+      'high'      => 'high school (ages 15–18)',
+      'exam_prep' => 'high-stakes exam preparation (e.g. YKS / SAT / Abitur / Gaokao)',
+      'university'=> 'undergraduate university',
+      'masters'   => 'master\'s / graduate',
+      'doctorate' => 'doctoral / PhD researcher',
+      'other'     => 'adult continuing education',
+      _           => level,
+    };
+
+    // Primary school — ÇOK küçük yaş için (1-3. sınıf) görsel ağırlıklı,
+    // çok kısa cümleler. 4-6. sınıf için biraz daha gelişmiş ama hâlâ basit.
+    final gradeNum = int.tryParse(grade.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+    final isVeryYoung = level == 'primary' && gradeNum > 0 && gradeNum <= 3;
+
+    final toneGuide = switch (level) {
+      'primary' when isVeryYoung => '''TONE: ÇOK küçük çocuk (1.–3. sınıf, 6–9 yaş) için bir abla/abi gibi konuş.
+GÖRSEL ANLATIM ZORUNLU: her açıklamayı emoji veya basit semboller ile zenginleştir.
+Örnekler:
+  • "3 elma + 2 elma = ?" sorusunda "🍎🍎🍎  +  🍎🍎  =  🍎🍎🍎🍎🍎" göster.
+  • Toplama: "🟢🟢🟢🟢 ve 🟢🟢🟢 → birleştir → 🟢🟢🟢🟢🟢🟢🟢 (7 tane!)"
+  • Şekiller: kareyi "□", daireyi "○", üçgeni "△" ile çiz.
+  • Hayvanlar/eşyalar: 🦊🐰🐶🐱🐦🍎🍌🎈⚽🚗🌟☀️🌙 — konuya uygun seç.
+DİL: Çok kısa cümleler (5-8 kelime). "Hadi!", "Süper!", "Bak şuraya!" gibi cesaretlendirici ifadeler.
+JARGON YASAK: "toplama" yerine "saymak", "çıkarma" yerine "geri vermek/almak", "eşit" yerine "aynı sayıda" kullan.
+ÖRNEKLER: günlük hayattan — oyuncak, hayvan, yiyecek, oyun.
+DEPTH: tek bir konsept, 3-5 cümle ile, sonunda "Şimdi sen dene! 😊" daveti.''',
+
+      'primary' => '''TONE: 4.–6. sınıf öğrencisi için sıcak, büyük kardeş tonu. Basit kelimeler.
+GÖRSEL DESTEK: çözümleri emoji/sembol ile pekiştir ama bilgi yoğunluğu daha yüksek.
+  • Matematik: kutu/daire sayma, basit kesir "🍕🍕/4 = çeyrek pizza"
+  • Bilim: 🌱→🌳 büyüme, 💧→❄️ donma gibi sembol akışları
+Jargon ASLA kullanma. Günlük örnekler: elma, balon, hayvanlar, oyuncaklar.
+"Sen" hitabı, doğal/dostane. Çabayı öv: "Çok güzel düşündün!" / "Süper!"
+Adım adım yaklaşım: "Önce ..., sonra ..., en son ..."
+DEPTH: 2-3 kısa paragraf. Çok örnek, az soyutlama. Konunun sonunda 1-2 cümlelik özet.''',
+
+      'middle' => '''TONE: friendly teacher. Clear, concrete vocabulary.
+Brief jargon allowed but DEFINE it immediately the first time.
+DEPTH: 2–3 paragraphs. Bridge from concrete (real objects, situations) to abstract (formulas, rules).
+Encourage curiosity: "Şimdi bunu daha derinden inceleyelim…" / "Let's go a bit deeper…"''',
+
+      'high' => '''TONE: standard high-school textbook with respectful peer voice.
+Use proper academic terms; expect the student knows the basics of the subject.
+DEPTH: full explanation with derivations / proofs / cause-effect chains.
+Connect to the curriculum (TR: MEB programı, US: AP/SAT, UK: A-Level, DE: Abitur, etc.) where relevant.''',
+
+      'exam_prep' => '''TONE: exam coach. Pragmatic, time-aware, pattern-focused.
+DEPTH: cover the concept + show 1–2 question patterns commonly tested + common pitfalls.
+Always close with: "Sınavda dikkat:" / "Watch out:" — 1–3 bullet tips about typical traps.
+If the user mentions a specific exam (YKS, SAT, etc.), tailor to its question style.''',
+
+      'university' => '''TONE: peer-to-peer with a senior student / TA voice.
+Technical vocabulary expected; define only non-standard or rare terms.
+DEPTH: include prerequisites referenced, formal notation, derivation outlines.
+Cite a textbook or seminal source when concept is foundational (e.g. "Strang, Linear Algebra").''',
+
+      'masters' => '''TONE: collegial, research-aware.
+DEPTH: assume strong foundation. Cover competing frameworks, edge cases, recent developments.
+Reference key papers or authors briefly when relevant.''',
+
+      'doctorate' => '''TONE: peer researcher.
+DEPTH: rigorous; methodology critique welcome. Discuss assumptions and limitations.
+Use proper citation style (Author, Year). Note open questions and active debates in the field.''',
+
+      'other' => '''TONE: adult, respectful, no condescension.
+DEPTH: moderate — explain underlying logic, not just the answer.''',
+
+      _ => '''TONE: neutral and clear.
+DEPTH: moderate.''',
+    };
+
+    final faculties = faculty.isNotEmpty ? ' · Faculty: $faculty' : '';
+    final tracks = track.isNotEmpty ? ' · Track: $track' : '';
+
+    return '''USER PROFILE: Country=$country · Level=$levelHuman · Grade=$grade$tracks$faculties
+
+$toneGuide
+
+═══ CURRICULUM HIERARCHY (BAĞLAYICI KURALLAR) ═══
+Hiyerarşi: [Ülke=$country] → [Seviye=$level] → [Sınıf/Sınav/Bölüm=$grade] → [Ders] → [Alt Konu] → [Modül]
+
+ZORUNLU:
+• İçeriği TAM olarak bu sınıf/seviyenin RESMİ MÜFREDATINA göre üret.
+  - TR ilkokul → MEB ilkokul kazanımları (Türkçe, Matematik, Hayat Bilgisi, vb.)
+  - TR ortaokul → MEB ortaokul kazanımları (Fen Bilimleri, Sosyal Bilgiler, BTY, vb.)
+  - TR lise → MEB lise kazanımları (Türk Dili ve Edebiyatı, alan dersleri)
+  - TR sınav → ÖSYM/MEB sınav kapsamı (LGS, YKS-TYT/AYT, KPSS)
+  - TR üniversite → YÖK ders kataloğu, bölüm + sınıfa özel akademik dersler
+  - Diğer ülkeler → o ülkenin RESMİ müfredatı (Common Core, NCERT, AP, A-Level, Gaokao, vb.)
+• Pedagojik derinlik bu seviyeyle ESLEŞMELİ:
+  - 1.-3. sınıfa SOYUT KAVRAM verme; emoji + günlük örnek kullan.
+  - Lise 9. sınıfa ÜNİVERSİTE konsepti verme.
+  - Üniversite 4. sınıfa LİSE konsepti verme.
+• Modül komutuna göre (özet/test/yarışma/sıralama) UYGUN format:
+  - Özet: anahtar kelimeler + maddeli + tanım/formül + örnek
+  - Test: 5 soru, sınıfa uygun zorluk (1. sınıfa görsel/basit, 12'ye analitik/yeni nesil), cevap anahtarı
+  - Yarışma: 3 etap, hızlı ve net soru-cevap
+  - Sıralama: konu sonu rozet adı + puan türü
+
+MÜFREDAT DIŞI içerik = HATA → ASLA üretme.''';
+  }
+
+  // ── Proxy POST ─────────────────────────────────────────────────────────────
+  // kUseProxy true iken çağrılır. Firebase ID token ile auth eklenir.
+  // Gemini'nin orijinal generateContent body'sini AYNEN proxy'ye geçirir;
+  // proxy upstream'e iletir ve yanıtı döner. Yanıt formatı Gemini ile birebir.
+  static Future<http.Response> _proxyPost({
+    required String requestBody,
+    required Duration timeout,
+    String model = _model,
+  }) async {
+    var user = FirebaseAuth.instance.currentUser;
+    // Kullanıcı oturumu yoksa (logout sonrası veya hiç giriş yapmamış misafir)
+    // Firebase'e anonim giriş yap → proxy'nin beklediği ID token üretilir.
+    // Böylece test/özet/quiz üretimi misafir modunda da çalışır.
+    if (user == null) {
+      try {
+        final result = await FirebaseAuth.instance.signInAnonymously();
+        user = result.user;
+      } catch (e) {
+        _log('signInAnonymously failed: $e');
+        throw GeminiException.invalidKey();
+      }
+    }
+    if (user == null) throw GeminiException.invalidKey();
+    final idToken = await user.getIdToken();
+    if (idToken == null || idToken.isEmpty) {
+      throw GeminiException.invalidKey();
+    }
+    // body içine 'model' field'ı enjekte et (proxy'nin bilmesi için)
+    final decoded = jsonDecode(requestBody) as Map<String, dynamic>;
+    decoded['model'] = model;
+    final wrappedBody = jsonEncode(decoded);
+    return _http
+        .post(
+          Uri.parse(_proxyUrl),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $idToken',
+          },
+          body: wrappedBody,
+        )
+        .timeout(timeout);
+  }
+
   // Gemini 429 yanıtı genelde şunu içerir:
   //   error.details[].retryDelay = "27s"
   // Parse edip saniye olarak döndür. Parse edilemezse null.
@@ -56,7 +391,7 @@ class GeminiService {
           }
         }
       }
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'gemini_service'); }
     return null;
   }
 
@@ -74,7 +409,7 @@ class GeminiService {
   }) async {
     _log('OpenAI isteği → model=$_openaiTextModel');
     try {
-      final response = await http.post(
+      final response = await _http.post(
         Uri.parse(_openaiUrl),
         headers: {
           'Content-Type': 'application/json',
@@ -83,7 +418,9 @@ class GeminiService {
         body: jsonEncode({
           'model': _openaiTextModel,
           'messages': [
-            {'role': 'system', 'content': systemPrompt},
+            // Global format directive — OpenAI fallback path da Gemini ile
+            // aynı eğitim kalitesi format kuralını kullanır.
+            {'role': 'system', 'content': _injectFormatDirective(systemPrompt)},
             {'role': 'user', 'content': userMessage},
           ],
           'max_tokens': maxTokens,
@@ -117,7 +454,7 @@ class GeminiService {
     double temperature = 0.3,
   }) async {
     _log('OpenAI Vision isteği → model=$_openaiVisionModel');
-    final response = await http.post(
+    final response = await _http.post(
       Uri.parse(_openaiUrl),
       headers: {
         'Content-Type': 'application/json',
@@ -195,12 +532,15 @@ class GeminiService {
 
     http.Response? lastBadResponse;
     bool hadEmptyResponse = false;
+    // Global format directive — eğitim materyali kalitesi (Unicode sembol,
+    // LaTeX yok, ondalık locale uyumlu). Bkz: _injectFormatDirective.
+    final injectedPrompt = _injectFormatDirective(systemPrompt);
     final body = jsonEncode({
       'contents': [
         {
           'role': 'user',
           'parts': [
-            {'text': '$systemPrompt\n\n$userMessage'},
+            {'text': '$injectedPrompt\n\n$userMessage'},
           ],
         },
       ],
@@ -211,6 +551,33 @@ class GeminiService {
         if (responseMimeType != null) 'responseMimeType': responseMimeType,
       },
     });
+
+    // ── Proxy modu (kUseProxy=true) — tek istek, key iterasyonu yok ─────────
+    if (kUseProxy) {
+      _log('Gemini PROXY → model=$_model');
+      try {
+        final response = await _proxyPost(requestBody: body, timeout: timeout);
+        _log('Gemini PROXY HTTP ${response.statusCode}');
+        if (response.statusCode == 200) {
+          final json = jsonDecode(utf8.decode(response.bodyBytes))
+              as Map<String, dynamic>;
+          final candidate = json['candidates']?[0];
+          final text =
+              candidate?['content']?['parts']?[0]?['text'] as String?;
+          final fr = (candidate?['finishReason'] as String?) ?? 'STOP';
+          if (text == null || text.trim().isEmpty) {
+            throw GeminiException.emptyResponse();
+          }
+          return (text: text, finishReason: fr);
+        }
+        // _handleError signature is `Never` — always throws.
+        _handleError(response);
+      } on SocketException {
+        throw GeminiException.noInternet();
+      } on TimeoutException {
+        throw GeminiException.serverTimeout();
+      }
+    }
 
     for (var i = 0; i < keys.length; i++) {
       final key = keys[i];
@@ -406,12 +773,14 @@ class GeminiService {
     if (keys.isEmpty) {
       throw GeminiException.invalidKey();
     }
+    // Global format directive (text stream path)
+    final injectedPrompt = _injectFormatDirective(systemPrompt);
     final body = jsonEncode({
       'contents': [
         {
           'role': 'user',
           'parts': [
-            {'text': '$systemPrompt\n\n$userMessage'},
+            {'text': '$injectedPrompt\n\n$userMessage'},
           ],
         },
       ],
@@ -439,7 +808,7 @@ class GeminiService {
           ..headers['Content-Type'] = 'application/json'
           ..headers['Accept'] = 'text/event-stream'
           ..body = body;
-        final streamedResponse = await req.send().timeout(timeout);
+        final streamedResponse = await _http.send(req).timeout(timeout);
         _log('Gemini STREAM HTTP status=${streamedResponse.statusCode}');
         if (streamedResponse.statusCode != 200) {
           final fullBody =
@@ -568,6 +937,8 @@ class GeminiService {
       throw GeminiException.invalidKey();
     }
 
+    // Global format directive (görsel/vision path)
+    final injectedPrompt = _injectFormatDirective(prompt);
     GeminiException? lastKeyErr;
     final modelName = modelOverride ?? _model;
     for (var i = 0; i < keys.length; i++) {
@@ -577,7 +948,7 @@ class GeminiService {
       try {
         return await _callGeminiVisionInner(
           url: url,
-          prompt: prompt,
+          prompt: injectedPrompt,
           base64Image: base64Image,
           mimeType: mimeType,
           maxTokens: maxTokens,
@@ -630,31 +1001,40 @@ class GeminiService {
     required double temperature,
     int thinkingBudget = 0,
   }) async {
-    final response = await http.post(
-      Uri.parse(url),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'contents': [
-          {
-            'role': 'user',
-            'parts': [
-              {'text': prompt},
-              {
-                'inlineData': {
-                  'mimeType': mimeType,
-                  'data': base64Image,
-                },
+    final body = jsonEncode({
+      'contents': [
+        {
+          'role': 'user',
+          'parts': [
+            {'text': prompt},
+            {
+              'inlineData': {
+                'mimeType': mimeType,
+                'data': base64Image,
               },
-            ],
-          },
-        ],
-        'generationConfig': {
-          'maxOutputTokens': maxTokens,
-          'temperature': temperature,
-          'thinkingConfig': {'thinkingBudget': thinkingBudget},
+            },
+          ],
         },
-      }),
-    ).timeout(const Duration(seconds: 120));
+      ],
+      'generationConfig': {
+        'maxOutputTokens': maxTokens,
+        'temperature': temperature,
+        'thinkingConfig': {'thinkingBudget': thinkingBudget},
+      },
+    });
+    // Proxy modunda: anahtar APK'da değil; Firebase Cloud Function üzerinden.
+    final response = kUseProxy
+        ? await _proxyPost(
+            requestBody: body,
+            timeout: const Duration(seconds: 120),
+          )
+        : await _http
+            .post(
+              Uri.parse(url),
+              headers: {'Content-Type': 'application/json'},
+              body: body,
+            )
+            .timeout(const Duration(seconds: 120));
 
     if (response.statusCode == 200) {
       final json = jsonDecode(utf8.decode(response.bodyBytes))
@@ -804,17 +1184,60 @@ KURALLAR (sıkı):
     }
 
     final langName = _languageNameFor(langCode);
+    final profile = EduProfile.current;
+    final eduCtx = profile != null ? educationContext(profile) : '';
+    // Seviye-bazlı ton talimatı — AI cevabını kullanıcı yaşına/sınıfına uyarlar.
+    final levelTone = _toneForLevel(profile?.level);
+
     final systemPrompt =
         '''Sen QuAlsar; kullanıcı seninle SESLİ ya da yazılı olarak konuşuyor.
 Öncelikli rolün eğitim asistanı: ders, konu, akademik soru — net, dolu, anlaşılır cevap.
 
+$eduCtx
+
+🛡️ EĞİTİM FİLTRESİ (EN ÖNEMLİ KURAL):
+Sen yalnızca EĞİTİM ASİSTANISIN. Aşağıdaki ders/akademik konularda yardımcı olabilirsin:
+✅ Matematik, fizik, kimya, biyoloji, türkçe/edebiyat, tarih, coğrafya, yabancı
+   dil, felsefe, din kültürü, sanat, müzik, beden eğitimi tarihi
+✅ Sınav hazırlığı (YKS, LGS, ALES, KPSS vb.)
+✅ Üniversite dersleri, akademik araştırma
+✅ Öğrenme yöntemleri, ders çalışma tavsiyeleri
+✅ Kısa selamlama / vedalaşma ("merhaba", "teşekkürler" gibi sosyal jestler)
+
+❌ AŞAĞIDAKİ KONULARDA CEVAP VERME:
+• Sosyal medya (Instagram, TikTok, YouTube içeriği — meme, video, post)
+• Oyun ekranları (PUBG, Fortnite, Minecraft vb.), oyun rehberi
+• Film/dizi/şarkı/eğlence içeriği
+• Aşk, ilişki, flört, kişisel duygusal sorunlar
+• Politik/dini polemikler
+• Reklam, alışveriş, finans (ders kapsamında değilse)
+• Tartışmalı veya yetişkin içerik
+
+Eğer kullanıcı yukarıdaki ❌ kategorilerden bir şey sorarsa veya ders dışı bir
+görsel gösterirse şu şablonu kullan (kullanıcının diliyle):
+> "Burada yalnızca eğitim konularında yardımcı olabilirim. Hangi dersinden veya
+>  konudan destek almak istersin?"
+
+Kısa, nazik ama net şekilde reddet. Tartışmaya girme, ders dışı soruyu
+"anlatma" yoluyla geçiştirme — sadece yönlendirme yap.
+
+SEVİYE UYUMU (ÇOK ÖNEMLİ):
+$levelTone
+
 KURALLAR:
-• Cevap TAM olsun — soruya eksiksiz cevap ver, yarıda bırakma. Konunun gereği uzunsa
-  4-8 cümleye kadar uzayabilir; ama gereksiz uzatma da yapma. "Sonra anlatırım" YOK.
+• Cevap TAM olsun — soruya eksiksiz cevap ver, yarıda bırakma. "Sonra anlatırım" YOK.
 • Konuşma dili: $langName. Doğal, samimi. Akademik/robotik ton YASAK.
 • LaTeX/formül kutusu/emoji KULLANMA — TTS okuyacak.
 • Selamlama/"Tabii" YASAK — direkt cevap.
-• Liste yerine akıcı paragraf tercih et; ama gerekirse 2-3 madde verilebilir.''';
+• Liste yerine akıcı paragraf tercih et; ama gerekirse 2-3 madde verilebilir.
+
+İNSANSI KONUŞMA (TTS akıcılığı için ÖNEMLİ):
+• Kısa, ritmik cümleler kur. Çok uzun cümleyi virgülle parçala.
+• Ara sıra "hmm", "şöyle ki", "aslında", "yani", "bak şimdi" gibi doğal geçiş
+  ifadeleri kullan — sadece anlamla uyuşuyorsa, zorlama.
+• Üç nokta KULLANMA (TTS'te garip ses çıkarır). Virgül kullan.
+• Sayıları rakamla yaz (motor doğal okur). "%" yerine "yüzde" de.
+• Kullanıcının tonuna uyum sağla: heyecanlıysa enerjik, üzgünse yumuşak/empatik.''';
 
     // Bağlam: son mesajlar contents listesine eklenir.
     final contents = <Map<String, dynamic>>[];
@@ -863,7 +1286,7 @@ KURALLAR:
             ..headers['Accept'] = 'text/event-stream'
             ..body = body;
           final resp =
-              await req.send().timeout(const Duration(seconds: 25));
+              await _http.send(req).timeout(const Duration(seconds: 25));
           if (resp.statusCode != 200) {
             final fullBody = await resp.stream.bytesToString();
             if (_isKeyFailure(resp.statusCode)) continue;
@@ -906,10 +1329,14 @@ KURALLAR:
       throw GeminiException.invalidKey();
     }
 
+    // Live mod (sesli/kamera diyalog) için Flash öncelikli:
+    //   • Flash first-token ~0.3-0.6s, Pro ~1-2s — diyalog hissi için kritik.
+    //   • Flash görsel + kısa konuşma cevabı için kalite olarak yeterli.
+    //   • Sadece transient hata (overload/timeout) durumunda Pro'ya düş —
+    //     ironik ama Pro'nun rate-limit'i daha rahat olabiliyor.
     try {
-      yield* tryStream('gemini-2.5-pro');
+      yield* tryStream('gemini-2.5-flash');
     } catch (e) {
-      // Pro fail → Flash fallback (transient hatalarda)
       if (e is GeminiException) {
         final m = e.userMessage.toLowerCase();
         final isTransient = m.contains('zaman') ||
@@ -920,12 +1347,62 @@ KURALLAR:
             m.contains('unavailable');
         if (!isTransient) rethrow;
       }
-      _log('chatWithImageStream Pro fail → Flash fallback');
-      yield* tryStream('gemini-2.5-flash');
+      _log('chatWithImageStream Flash fail → Pro fallback');
+      yield* tryStream('gemini-2.5-pro');
     }
   }
 
   /// Dil kodundan endonim adı (sistem prompt'unda kullanılır).
+  /// EduProfile.level değerine göre AI'a ses tonu / kelime dağarcığı talimatı.
+  /// Çocuk → basit kelime + samimi; lise → akademik dengeli; üniversite → uzman.
+  static String _toneForLevel(String? level) {
+    switch (level) {
+      case 'primary':
+        return '''Kullanıcı İLKOKUL öğrencisi (6-10 yaş).
+• Çok basit kelimeler kullan. Karmaşık terim yasak.
+• Kısa cümleler (5-8 kelime). Çok uzun anlatım yok.
+• Eğlenceli ton — sıcak, cesaret veren ("harika soru!", "süper!").
+• Örnekler günlük hayattan: elma, oyuncak, hayvan, anne-baba.
+• Açıklamalar somut. Soyut kavramlardan kaç. Hesap basit: "3+5=8" gibi.
+• Asla "tahmin etmiştim", "doğal olarak" gibi büyük dili kullanma.''';
+      case 'middle':
+        return '''Kullanıcı ORTAOKUL öğrencisi (10-14 yaş).
+• Orta seviye kelime. Karmaşık terimi açıklayarak kullan.
+• Cümleler 8-15 kelime. Açıklamalar yapılandırılmış.
+• Arkadaşça ama saygılı ton. Konuyu eğlenceli bağlamlarla bağla.
+• Örnekler oyun, spor, popüler kültür, okul hayatından.
+• Formülleri verirken mantığı da anlat. "Şöyle düşün..." ile başla.''';
+      case 'high':
+        return '''Kullanıcı LİSE öğrencisi (14-18 yaş).
+• Akademik kelime kullanabilirsin ama açıkla.
+• Cümleler 10-20 kelime, akademik ama anlaşılır.
+• Olgun tona yakın, mentor gibi konuş — eşit hisset.
+• Sınav odaklı: konuyu YKS/sınav bağlamında ele al.
+• Formül + örnek + hızlı uygulama; ezbersiz öğretim.''';
+      case 'exam_prep':
+        return '''Kullanıcı SINAV HAZIRLIK öğrencisi (YKS/LGS/ALES vb.).
+• Doğrudan, verimli, zaman kazandıran cevap.
+• Soru tipini hızlıca tanı, "şu püf nokta" ile çözüm verimliliği vurgula.
+• Akademik dil + sınav diyorduğu kalıpları kullan.
+• Pratik strateji + zaman yönetimi tavsiyeleri ekle.''';
+      case 'university':
+        return '''Kullanıcı ÜNİVERSİTE öğrencisi.
+• Profesyonel akademik dil — uzman kelimeler özgürce kullanılabilir.
+• Cümleler tam, kapsamlı, kavramsal derinlikte.
+• Mentor/danışman tonu. Eleştirel düşünmeyi destekle.
+• Konunun teorik temelini + uygulamalı yönlerini bağla.''';
+      case 'masters':
+      case 'doctorate':
+        return '''Kullanıcı LİSANSÜSTÜ öğrencisi.
+• En üst seviye akademik dil. Uzman terminoloji.
+• Tartışma, eleştirel analiz, kaynak/referans bağlamı.
+• Konuya nüanslı yaklaş; "şu görüşe göre... fakat..." gibi.''';
+      default:
+        return '''Genel öğrenci kitlesi — orta seviye akademik dil.
+Karmaşık terimi açıkla, örnekle pekiştir, samimi ama saygılı ton.''';
+    }
+  }
+
   static String _languageNameFor(String code) {
     const map = {
       'tr': 'Türkçe', 'en': 'English', 'de': 'Deutsch', 'fr': 'Français',
@@ -1626,17 +2103,44 @@ Format:
   })> fetchProfileCurriculum(EduProfile profile) async {
     _log('fetchProfileCurriculum() — ${profile.displayLabel()}');
     final ctx = educationContext(profile);
-    final systemPrompt = '''Sen uluslararası bir eğitim müfredat uzmanısın. Aşağıdaki öğrenci profili için, RESMİ ULUSAL MÜFREDATA göre o öğrencinin O DÖNEMDE okuduğu DERSLERİ + her dersin KONU başlıklarını ver.
+    final systemPrompt = '''Sen "QuAlsar" eğitim uygulamasının çekirdek müfredat mimarısın. Görevin: kullanıcının seçtiği [Ülke → Seviye → Sınıf/Sınav/Bölüm] kombinasyonuna göre RESMİ ULUSAL MÜFREDATA (TR için MEB/YÖK, US için Common Core/AP, UK için National Curriculum/A-Level, vs.) %100 uyumlu ders + konu hiyerarşisini ver.
+
+HİYERARŞİ: [Ülke] → [Seviye] → [Sınıf/Sınav/Bölüm] → [Ders Listesi] → [Alt Konular/Üniteler]
 
 $ctx
 
 KURALLAR:
 - 6-14 ders arası.
-- Ders adlarını ülkenin RESMİ DİLİNDE (endonim) ver — örn. Brezilya'da "Matemática", Almanya'da "Mathematik", Mısır'da "الرياضيات", Tayland'da "คณิตศาสตร์".
+- ⚠️ KESİN — Ders adlarını ülkenin RESMİ DİLİNDE (endonim) ver. İngilizce karışmaz, transliterasyon yok.
+  • Türkiye → "Matematik", "Bilgisayar Mühendisliği", "İşletme Yönetimi" (asla "Mathematics" / "Computer Engineering")
+  • Brezilya → "Matemática" (asla "Math")
+  • Almanya → "Mathematik" (asla "Math")
+  • Mısır → "الرياضيات" (asla "Mathematics")
+  • Tayland → "คณิตศาสตร์" (asla "Math")
+  • Japonya → "数学" (asla "Math")
+- TEK İSTİSNA: bilim alanlarındaki uluslararası sembol (örn. "DNA", "AI", "RNA") parantez içinde verilebilir, ana ad yine yerel dilde.
 - Her ders için: snake_case ASCII anahtar (math, lit, history, ...), o dilde ad, mantıklı emoji.
 - Her dersin altında 5-12 konu başlığı, ülkenin müfredatına özgü (yerel dilde).
 - Sınava hazırlık seviyesinde (SAT, JEE, Gaokao, Bac, vb.): o sınavın resmi konularını ders olarak listele.
-- Üniversite/yüksek lisans/doktora bölümlerinde: bölümün ÇEKİRDEK derslerini listele.
+- ⚠️ KRİTİK — Üniversite/yüksek lisans/doktora için: profile'daki SINIF NUMARASI ('1', '2', '3', '4'...) BU YILA özgü dersleri belirler. ASLA tüm yılların derslerini karıştırma.
+  • 1. sınıf: temel dersler (giriş, matematik, çekirdek teorik konular)
+  • 2. sınıf: orta düzey çekirdek dersler
+  • 3. sınıf: ileri düzey + alan dersleri
+  • 4. sınıf: SENIOR seviye + bitirme projesi + sektör/uygulama dersleri
+  Örnek: Türkiye İşletme 4. sınıf → "Stratejik Yönetim", "Türk Vergi Sistemi", "Yönetim Bilgi Sistemleri", "İşletme Politikaları", "Bitirme Projesi/Mezuniyet Tezi", + 2-3 seçmeli (Liderlik, Girişimcilik, Uluslararası İşletmecilik, vb.). ASLA "Muhasebe Giriş" gibi 1. sınıf derslerini yazma.
+  Örnek: ABD Computer Science 4. yıl → "Senior Capstone", "Compiler Design", "Distributed Systems", "Machine Learning", "Software Architecture", "Senior Project". ASLA "Intro to Programming" yazma.
+- İlk/orta/lise: SINIF NUMARASINA göre o yılın derslerini ver.
+  TÜRKİYE referans tablosu (MEB) — bu derslerin DIŞINA çıkma, bu derslerin TÜMÜNÜ kaçırma:
+  • İlkokul 1: Türkçe, Matematik, Hayat Bilgisi, Müzik, Görsel Sanatlar, Oyun ve Fiziki Etkinlikler
+  • İlkokul 2: + İngilizce (Hayat Bilgisi devam)
+  • İlkokul 3: + Fen Bilimleri (Hayat Bilgisi devam)
+  • İlkokul 4: Türkçe, Matematik, Fen Bilimleri, Sosyal Bilgiler, İngilizce, Din Kültürü ve Ahlak Bilgisi, Trafik Güvenliği, İnsan Hakları Yurttaşlık ve Demokrasi, Müzik, Görsel Sanatlar
+  • Ortaokul 5-7: Türkçe, Matematik, Fen Bilimleri, Sosyal Bilgiler, İngilizce, Din Kültürü ve Ahlak Bilgisi, Bilişim Teknolojileri ve Yazılım, Seçmeli
+  • Ortaokul 8: Sosyal Bilgiler yerine T.C. İnkılap Tarihi ve Atatürkçülük
+  • Lise 9: Türk Dili ve Edebiyatı, Matematik, Fizik, Kimya, Biyoloji, Tarih, Coğrafya, İngilizce, 2. Yabancı Dil, Din Kültürü, Sağlık Bilgisi ve Trafik Kültürü
+  • Lise 10-12: + Felsefe, T.C. İnkılap Tarihi, alan dersleri (sayısal/sözel/eşit ağırlık/dil track'e göre)
+- ⚠️ MÜFREDAT DIŞI içerik YASAK: 1. sınıfa soyut matematik / üniversite kavramları VERME. Lise 9'a doktora konuları YOK. Sınıfa uygun PEDAGOJİK DERİNLİK.
+- Konu başlıkları (topics): Bu sınıfın O DERS için resmi kazanımlarına denk gelmeli. Örn. TR Lise 11 Matematik → "Fonksiyonlarda Uygulamalar", "Türev", "Üstel ve Logaritmik Fonksiyonlar" (üniv. düzey "Cebirsel topoloji" YASAK).
 - Sadece geçerli JSON, açıklama yok.
 
 Format:
@@ -1793,16 +2297,60 @@ KURALLAR:
   //  Single Topic Summary — bir konunun (subject + topic) detaylı özetini al.
   //  Kullanıcı "Oluştur" butonuna tıklayınca tek konuyu üretir.
   // ══════════════════════════════════════════════════════════════════════════════
-  static Future<String> fetchSingleTopicSummary({
+  /// Konu özeti çek — TOPLULUK CACHE'li.
+  ///
+  /// AKIŞ:
+  ///   1. Cache'te canonical varsa direkt döner (AI çağrısı YOK, anında).
+  ///   2. Cache'te 5+ aday var ama canonical seçilmediyse en yüksek puanlı
+  ///      adayı döner.
+  ///   3. Hiç aday yoksa veya cache miss ise AI'dan üretir, cache'e aday
+  ///      olarak ekler.
+  ///
+  /// `forceFresh = true` → cache'i atla, AI'dan yeniden üret (Premium "Yeniden
+  /// üret" butonu için).
+  ///
+  /// Döner: `(text, candidateDocId, cacheDocId, isCanonical)` — UI rating
+  /// widget'ı bu ID'leri kullanır.
+  static Future<({
+    String text,
+    String? candidateDocId,
+    String? cacheDocId,
+    bool isCanonical,
+    bool fromCache,
+  })> fetchSingleTopicSummary({
     required String subjectName,
     required String topicName,
     required EduProfile profile,
+    bool forceFresh = false,
   }) async {
-    _log('fetchSingleTopicSummary() — $subjectName · $topicName');
+    _log('fetchSingleTopicSummary() — $subjectName · $topicName · '
+        '${forceFresh ? "FRESH" : "cache-aware"}');
 
-    // DNS pre-check kaldırıldı — http katmanı gerçek bağlantı sorununda
-    // SocketException atar, dıştaki try-catch noInternet'e çevirir.
+    // ── 1) Cache okuma (forceFresh değilse) ──────────────────────────────────
+    if (!forceFresh) {
+      try {
+        final cached = await SummaryCacheService.read(
+          profile: profile,
+          subject: subjectName,
+          topic: topicName,
+        );
+        if (cached != null && cached.body.isNotEmpty) {
+          _log('Summary cache HIT: ${cached.isCanonical ? "canonical" : "fallback"} '
+              '· ${cached.body.length} kar');
+          return (
+            text: cached.body,
+            candidateDocId: cached.candidateDocId,
+            cacheDocId: cached.cacheDocId,
+            isCanonical: cached.isCanonical,
+            fromCache: true,
+          );
+        }
+      } catch (e, st) {
+        ErrorLogger.instance.capture(e, st, context: 'topic_summary_cache_read');
+      }
+    }
 
+    // ── 2) AI üretimi ────────────────────────────────────────────────────────
     final ctx = educationContext(profile);
     final systemPrompt = '''$_sysIdentity
 
@@ -1824,16 +2372,16 @@ Maksimum 250-350 kelime. Bölüm başlıklarını KULLANICININ DİLİNDE yaz.
 Ders: $subjectName
 Konu: $topicName''';
 
+    String generated;
     try {
-      final text = await _callGemini(
+      generated = await _callGemini(
         systemPrompt: systemPrompt,
         userMessage: 'Bu konunun özetini çıkar.',
         maxTokens: 1200,
         temperature: 0.2,
         timeout: const Duration(seconds: 30),
       );
-      _log('fetchSingleTopicSummary OK: ${text.length} kar');
-      return text;
+      _log('fetchSingleTopicSummary OK: ${generated.length} kar');
     } on GeminiException {
       rethrow;
     } on TimeoutException {
@@ -1843,6 +2391,36 @@ Konu: $topicName''';
     } catch (e) {
       throw GeminiException.unknown(e.toString());
     }
+
+    // ── 3) Aday olarak cache'e yaz (fire-and-forget, kullanıcı beklemez) ──
+    String? candidateDocId;
+    String? cacheDocId;
+    try {
+      candidateDocId = await SummaryCacheService.addCandidate(
+        profile: profile,
+        subject: subjectName,
+        topic: topicName,
+        body: generated,
+        model: _model,
+      );
+      if (candidateDocId != null) {
+        cacheDocId = SummaryCacheService.makeCacheKey(
+          profile: profile,
+          subject: subjectName,
+          topic: topicName,
+        );
+      }
+    } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'topic_summary_cache_write');
+    }
+
+    return (
+      text: generated,
+      candidateDocId: candidateDocId,
+      cacheDocId: cacheDocId,
+      isCanonical: false,
+      fromCache: false,
+    );
   }
 
   // ══════════════════════════════════════════════════════════════════════════════
@@ -3223,6 +3801,511 @@ KURALLAR:
     } catch (e) {
       _log('generateTitle istisna: $e');
       return '';
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  Bilgi Ligi — Ülke için EYALET listesi
+  //  Federasyon değilse boş liste döner; çağıran taraf doğrudan şehir listesine
+  //  geçer. Federasyonsa o ülkenin tüm eyaletlerini/idari birimlerini verir.
+  // ══════════════════════════════════════════════════════════════════════════════
+  static Future<List<Map<String, String>>> fetchCountrySubdivisions({
+    required String countryName,
+    required String countryCode,
+  }) async {
+    _log('fetchCountrySubdivisions() — $countryName ($countryCode)');
+
+    final systemPrompt =
+        '''Sen bir idari coğrafya uzmanısın. Aşağıdaki ülkenin EYALET / FEDERAL BİRİM listesini ver.
+
+Ülke: $countryName (ISO: $countryCode)
+
+KURALLAR:
+- ABD → 50 eyalet (Alabama ... Wyoming) + DC.
+- Almanya → 16 federal eyalet (Baden-Württemberg ... Thüringen).
+- Hindistan → 28 eyalet + 8 federal bölge.
+- Brezilya → 26 eyalet + Federal District.
+- Avustralya → 6 eyalet + 2 territory.
+- Kanada → 10 eyalet + 3 territory.
+- Rusya, Meksika, Arjantin, Malezya, BAE → tüm federal birimler.
+- ÜNİTER ülke (Türkiye, Fransa, Japonya, İngiltere, Çin vb.) → BOŞ DİZİ döndür.
+  Çünkü kullanıcı bu ülkelerde direkt şehir seçecek.
+- "name" yerel dilde (endonim) olmalı.
+- "code" snake_case ASCII slug.
+- Alfabetik sıralı.
+- Sadece JSON, açıklama yok.
+
+Format:
+{
+  "isFederation": true,
+  "subdivisions": [
+    {"code": "alabama", "name": "Alabama"},
+    {"code": "alaska", "name": "Alaska"}
+  ]
+}
+
+ÜNİTER ülke için:
+{ "isFederation": false, "subdivisions": [] }''';
+
+    try {
+      final res = await _callGeminiFull(
+        systemPrompt: systemPrompt,
+        userMessage:
+            '$countryName için eyalet listesi. Üniter ülkeyse boş dizi.',
+        maxTokens: 2048,
+        temperature: 0.0,
+        thinkingBudget: 0,
+        responseMimeType: 'application/json',
+        timeout: const Duration(seconds: 25),
+      );
+      var text = res.text
+          .replaceAll(RegExp(r'```json\s*'), '')
+          .replaceAll(RegExp(r'```\s*'), '')
+          .trim();
+      Map<String, dynamic> parsed;
+      try {
+        parsed = jsonDecode(text) as Map<String, dynamic>;
+      } on FormatException {
+        parsed = jsonDecode(_repairTruncatedJson(text)) as Map<String, dynamic>;
+      }
+      final raw = parsed['subdivisions'];
+      if (raw is! List) return const [];
+      final out = <Map<String, String>>[];
+      final seen = <String>{};
+      for (final e in raw) {
+        if (e is! Map) continue;
+        final code = (e['code'] ?? '').toString().trim().toLowerCase();
+        final name = (e['name'] ?? '').toString().trim();
+        if (code.isEmpty || name.isEmpty) continue;
+        if (!seen.add(code)) continue;
+        out.add({'code': code, 'name': name});
+      }
+      _log('fetchCountrySubdivisions OK: ${out.length} eyalet');
+      return out;
+    } on GeminiException {
+      rethrow;
+    } on TimeoutException {
+      throw GeminiException.serverTimeout();
+    } on SocketException {
+      throw GeminiException.noInternet();
+    } catch (e) {
+      throw GeminiException.unknown(e.toString());
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  Bilgi Ligi — Bir EYALETİN şehirleri
+  //  Federasyon ülkelerinde kullanıcı eyalet seçtikten sonra çağrılır.
+  // ══════════════════════════════════════════════════════════════════════════════
+  static Future<List<Map<String, String>>> fetchStateCities({
+    required String countryName,
+    required String stateName,
+  }) async {
+    _log('fetchStateCities() — $countryName / $stateName');
+
+    final systemPrompt =
+        '''Sen bir coğrafya uzmanısın. Aşağıdaki ülke + eyalet için TÜM önemli şehirleri listele.
+
+Ülke: $countryName
+Eyalet/Federal Birim: $stateName
+
+KURALLAR:
+- Eyalet içindeki en az 15-30 önemli şehri ver (büyük metropolitan + bilinen ilçeler).
+- Çok büyük eyaletlerde (California, Texas, Bayern, Maharashtra vb.) 30-50 şehir.
+- "name" yerel dil (endonim).
+- "code" ASCII snake_case slug.
+- Alfabetik.
+- Sadece JSON.
+
+Format:
+{
+  "cities": [
+    {"code": "los_angeles", "name": "Los Angeles"},
+    {"code": "san_francisco", "name": "San Francisco"}
+  ]
+}''';
+
+    try {
+      final res = await _callGeminiFull(
+        systemPrompt: systemPrompt,
+        userMessage:
+            '$stateName ($countryName) için şehirleri listele. Sadece JSON.',
+        maxTokens: 3072,
+        temperature: 0.1,
+        thinkingBudget: 0,
+        responseMimeType: 'application/json',
+        timeout: const Duration(seconds: 30),
+      );
+      var text = res.text
+          .replaceAll(RegExp(r'```json\s*'), '')
+          .replaceAll(RegExp(r'```\s*'), '')
+          .trim();
+      Map<String, dynamic> parsed;
+      try {
+        parsed = jsonDecode(text) as Map<String, dynamic>;
+      } on FormatException {
+        parsed = jsonDecode(_repairTruncatedJson(text)) as Map<String, dynamic>;
+      }
+      final raw = parsed['cities'];
+      if (raw is! List) return const [];
+      final out = <Map<String, String>>[];
+      final seen = <String>{};
+      for (final e in raw) {
+        if (e is! Map) continue;
+        final code = (e['code'] ?? '').toString().trim().toLowerCase();
+        final name = (e['name'] ?? '').toString().trim();
+        if (code.isEmpty || name.isEmpty) continue;
+        if (!seen.add(code)) continue;
+        out.add({'code': code, 'name': name});
+      }
+      _log('fetchStateCities OK: ${out.length} şehir');
+      return out;
+    } on GeminiException {
+      rethrow;
+    } on TimeoutException {
+      throw GeminiException.serverTimeout();
+    } on SocketException {
+      throw GeminiException.noInternet();
+    } catch (e) {
+      throw GeminiException.unknown(e.toString());
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  Bilgi Ligi — Ülke için tam idari birim/şehir listesi
+  //  Statik LocationCatalog'da olmayan veya az şehir içeren ülkeler için
+  //  Gemini'den TÜM önemli idari birimleri (il/eyalet/ana şehir) çek.
+  //  Sonuç: [{code: 'paris', name: 'Paris'}, ...]
+  // ══════════════════════════════════════════════════════════════════════════════
+  static Future<List<Map<String, String>>> fetchCountryCities({
+    required String countryName,
+    required String countryCode,
+  }) async {
+    _log('fetchCountryCities() — $countryName ($countryCode)');
+
+    final systemPrompt =
+        '''Sen bir coğrafya / idari birim uzmanısın. Aşağıdaki ülkenin TÜM birinci kademe idari birimlerini (il/eyalet/şehir) listele.
+
+Ülke: $countryName (ISO: $countryCode)
+
+KURALLAR:
+- Türkiye gibi il sistemi varsa 81 ilin TAMAMINI ver (Adana ... Zonguldak).
+- ABD gibi eyalet sistemi varsa 50 eyaleti ver.
+- Almanya gibi eyalet sistemi varsa 16 eyaletinin tamamını ver.
+- Diğer ülkelerde: idari taksimat ya da o ülkenin önemli şehirlerinin TAMAMI (en az 30 adet eğer ülke küçük değilse).
+- Çok küçük ülkelerde (Lihtenştayn, Vatikan vb.) tüm yerleşim birimleri.
+- "name" alanı: o ülkenin yerel diliyle (endonim) — örn. Almanya için "Bayern", Fransa için "Île-de-France".
+- "code" alanı: ASCII snake_case slug (Türkçe karakterleri ASCII'ye çevir, Türkçe için: ç→c, ğ→g, ı→i, ö→o, ş→s, ü→u; boşluk → _).
+- Sıralama alfabetik.
+- Sadece JSON döndür, açıklama yok.
+
+Format:
+{
+  "cities": [
+    {"code": "adana", "name": "Adana"},
+    {"code": "ankara", "name": "Ankara"}
+  ]
+}''';
+
+    try {
+      final res = await _callGeminiFull(
+        systemPrompt: systemPrompt,
+        userMessage:
+            '$countryName için tüm il/eyalet/şehirleri listele. Sadece JSON.',
+        maxTokens: 4096,
+        temperature: 0.1,
+        thinkingBudget: 0,
+        responseMimeType: 'application/json',
+        timeout: const Duration(seconds: 30),
+      );
+      var text = res.text
+          .replaceAll(RegExp(r'```json\s*'), '')
+          .replaceAll(RegExp(r'```\s*'), '')
+          .trim();
+      Map<String, dynamic> parsed;
+      try {
+        parsed = jsonDecode(text) as Map<String, dynamic>;
+      } on FormatException {
+        parsed = jsonDecode(_repairTruncatedJson(text)) as Map<String, dynamic>;
+      }
+      final raw = parsed['cities'];
+      if (raw is! List) {
+        throw GeminiException.unknown('cities alanı eksik');
+      }
+      final out = <Map<String, String>>[];
+      final seen = <String>{};
+      for (final e in raw) {
+        if (e is! Map) continue;
+        final code = (e['code'] ?? '').toString().trim().toLowerCase();
+        final name = (e['name'] ?? '').toString().trim();
+        if (code.isEmpty || name.isEmpty) continue;
+        if (!seen.add(code)) continue;
+        out.add({'code': code, 'name': name});
+      }
+      _log('fetchCountryCities OK: ${out.length} şehir');
+      return out;
+    } on GeminiException {
+      rethrow;
+    } on TimeoutException {
+      throw GeminiException.serverTimeout();
+    } on SocketException {
+      throw GeminiException.noInternet();
+    } catch (e) {
+      throw GeminiException.unknown(e.toString());
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  Bilgi Ligi — Çoktan Seçmeli Test Üretici (Çift AI Doğrulama)
+  //
+  //  İki aşamalı pipeline:
+  //    AŞAMA A — Üretici: profile + ders + konu için count×1.6 soru üretir
+  //               (doğrulayıcının elemesi sonrası en az count soru kalsın diye).
+  //    AŞAMA B — Denetçi: aynı soruları DOĞRU CEVABI GÖRMEDEN sıfırdan çözdürür
+  //               (yeni prompt + farklı sıcaklık). Her soru için Gemini'nin
+  //               cevabı, üreticinin söylediği cevapla eşleşmiyorsa elenir.
+  //
+  //  Sonuç: hata oranı %15+ → ~%3'e iner (Gemini araştırma raporları).
+  //  Maliyet: ~2x token (üret + doğrula). Test havuzuna girip cache'lendiği
+  //  için pratikte çok düşük.
+  // ══════════════════════════════════════════════════════════════════════════════
+  static Future<List<Map<String, dynamic>>> generateLeagueQuiz({
+    required EduProfile profile,
+    required String subjectName,
+    String? topic,
+    int count = 10,
+    bool validate = true,
+  }) async {
+    _log('generateLeagueQuiz() — ${profile.displayLabel()} · $subjectName${topic != null ? " > $topic" : ""} · validate=$validate');
+
+    final overproduce = validate ? (count * 1.6).ceil() : count;
+
+    // ── AŞAMA A: Üret ────────────────────────────────────────────────────────
+    final raw = await _generateRawMcq(
+      profile: profile,
+      subjectName: subjectName,
+      topic: topic,
+      count: overproduce,
+    );
+    if (!validate) {
+      // Doğrulama atlanırsa ilk count soruyu döner.
+      return raw.take(count).toList();
+    }
+
+    // ── AŞAMA B: Doğrula ─────────────────────────────────────────────────────
+    List<Map<String, dynamic>> verified;
+    try {
+      verified = await _validateMcq(rawQuestions: raw, profile: profile);
+    } catch (e) {
+      _log('generateLeagueQuiz: doğrulama atlandı (${e.runtimeType}); üretim sonucu kullanılıyor');
+      verified = raw;
+    }
+
+    if (verified.length < count) {
+      _log('Doğrulama sonrası ${verified.length} soru kaldı, eksiği üretim sonucundan tamamlanıyor');
+      // Doğrulanmış + (gereksinimi karşılamak için) doğrulanmamış soruları
+      // birleştir; doğrulama sürse sürmese de en az count soru garanti.
+      final seen = verified.map((e) => e['q']).toSet();
+      for (final q in raw) {
+        if (verified.length >= count) break;
+        if (seen.contains(q['q'])) continue;
+        verified.add(q);
+      }
+    }
+    return verified.take(count).toList();
+  }
+
+  // Üretici çağrı (eski generateLeagueQuiz mantığı, ham soru listesi).
+  static Future<List<Map<String, dynamic>>> _generateRawMcq({
+    required EduProfile profile,
+    required String subjectName,
+    String? topic,
+    required int count,
+  }) async {
+    final ctx = educationContext(profile);
+    final scope = topic != null && topic.isNotEmpty
+        ? 'Ders: $subjectName · Konu: $topic'
+        : 'Ders: $subjectName (genel)';
+
+    final systemPrompt =
+        '''Sen bir sınav sorusu hazırlama uzmanısın. Aşağıdaki öğrenci profili ve konu için $count adet ÇOKTAN SEÇMELİ soru üret.
+
+$ctx
+
+$scope
+
+KURALLAR:
+- Her soru tam olarak 4 şıklı (A/B/C/D, ama sen sadece options dizisi ver — index 0..3).
+- Şıklardan SADECE BİRİ doğru olacak; diğerleri makul ama açıkça yanlış.
+- Müfredata + sınıfa uygun zorluk; yorum ve hesap dengesi olsun.
+- Gereksiz uzun cümle yok, sınav diliyle net.
+- Aynı konunun farklı alt başlıklarına dağıt; tek bir alt konuya yığma.
+- Öğrencinin dilinde (öğrencinin yerel dilinde) yaz.
+- "explanation" alanı 1-2 cümle, doğru şıkkın neden doğru olduğunu kısaca anlat.
+- Sadece geçerli JSON döndür, başka metin yok.
+
+Format:
+{
+  "questions": [
+    {
+      "q": "Soru metni…",
+      "options": ["şık 1", "şık 2", "şık 3", "şık 4"],
+      "correct": 0,
+      "explanation": "Kısa açıklama."
+    }
+  ]
+}''';
+
+    try {
+      final res = await _callGeminiFull(
+        systemPrompt: systemPrompt,
+        userMessage:
+            'Yukarıdaki profile + konuya $count soruluk MCQ üret. Sadece JSON.',
+        maxTokens: 4096,
+        temperature: 0.4,
+        thinkingBudget: 0,
+        responseMimeType: 'application/json',
+        timeout: const Duration(seconds: 60),
+      );
+      var text = res.text
+          .replaceAll(RegExp(r'```json\s*'), '')
+          .replaceAll(RegExp(r'```\s*'), '')
+          .trim();
+      Map<String, dynamic> parsed;
+      try {
+        parsed = jsonDecode(text) as Map<String, dynamic>;
+      } on FormatException {
+        parsed = jsonDecode(_repairTruncatedJson(text)) as Map<String, dynamic>;
+      }
+      final raw = parsed['questions'];
+      if (raw is! List) {
+        throw GeminiException.unknown('questions alanı eksik');
+      }
+      final out = <Map<String, dynamic>>[];
+      for (final e in raw) {
+        if (e is! Map) continue;
+        final q = (e['q'] ?? '').toString().trim();
+        final opts = e['options'];
+        final correct = e['correct'];
+        if (q.isEmpty || opts is! List || opts.length != 4) continue;
+        if (correct is! num || correct < 0 || correct > 3) continue;
+        out.add({
+          'q': q,
+          'options': opts.map((o) => o.toString()).toList(),
+          'correct': correct.toInt(),
+          'explanation': (e['explanation'] ?? '').toString(),
+        });
+      }
+      _log('_generateRawMcq OK: ${out.length} soru');
+      if (out.isEmpty) {
+        throw GeminiException.unknown('Geçerli soru üretilemedi');
+      }
+      return out;
+    } on GeminiException {
+      rethrow;
+    } on TimeoutException {
+      throw GeminiException.serverTimeout();
+    } on SocketException {
+      throw GeminiException.noInternet();
+    } catch (e) {
+      throw GeminiException.unknown(e.toString());
+    }
+  }
+
+  /// Denetçi: soruları doğru cevabı görmeden sıfırdan çözdürür, üretim
+  /// cevabıyla eşleşenleri tutar.
+  static Future<List<Map<String, dynamic>>> _validateMcq({
+    required List<Map<String, dynamic>> rawQuestions,
+    required EduProfile profile,
+  }) async {
+    if (rawQuestions.isEmpty) return rawQuestions;
+
+    // Denetçiye gidecek payload — correct ve explanation kasten gizleniyor.
+    final maskedList = <Map<String, dynamic>>[];
+    for (int i = 0; i < rawQuestions.length; i++) {
+      maskedList.add({
+        'i': i,
+        'q': rawQuestions[i]['q'],
+        'options': rawQuestions[i]['options'],
+      });
+    }
+    final payload = jsonEncode({'questions': maskedList});
+
+    final ctx = educationContext(profile);
+    final systemPrompt = '''Sen titiz bir akademik denetçi/sınav cevap anahtarı uzmanısın. Sana çoktan seçmeli sorular geleceksiz. Senden DOĞRU ŞIKKIN İNDEKSİNİ (0..3) bağımsızca BULMANI istiyoruz. Daha önceki herhangi bir cevaba bakma — sıfırdan çöz.
+
+$ctx
+
+KURALLAR:
+- Her soru için en doğru şıkkı düşün ve sadece indeks ver (0,1,2,3).
+- Belirsiz sorularda en olası doğru şıkkı yine de seç (rastgele değil; gerekçen olsun).
+- Çıktı: sadece geçerli JSON, açıklama yok.
+
+Format:
+{
+  "answers": [
+    {"i": 0, "correct": 2},
+    {"i": 1, "correct": 0}
+  ]
+}''';
+
+    try {
+      final res = await _callGeminiFull(
+        systemPrompt: systemPrompt,
+        userMessage:
+            'Aşağıdaki MCQ\'lerin her biri için doğru şık indeksini ver:\n$payload',
+        maxTokens: 2048,
+        temperature: 0.0,
+        thinkingBudget: 0,
+        responseMimeType: 'application/json',
+        timeout: const Duration(seconds: 60),
+      );
+      var text = res.text
+          .replaceAll(RegExp(r'```json\s*'), '')
+          .replaceAll(RegExp(r'```\s*'), '')
+          .trim();
+      Map<String, dynamic> parsed;
+      try {
+        parsed = jsonDecode(text) as Map<String, dynamic>;
+      } on FormatException {
+        parsed = jsonDecode(_repairTruncatedJson(text)) as Map<String, dynamic>;
+      }
+      final answers = parsed['answers'];
+      if (answers is! List) {
+        throw GeminiException.unknown('answers alanı eksik');
+      }
+      final answersByIndex = <int, int>{};
+      for (final a in answers) {
+        if (a is! Map) continue;
+        final i = (a['i'] as num?)?.toInt();
+        final c = (a['correct'] as num?)?.toInt();
+        if (i == null || c == null) continue;
+        answersByIndex[i] = c;
+      }
+
+      final accepted = <Map<String, dynamic>>[];
+      int matched = 0;
+      int rejected = 0;
+      for (int i = 0; i < rawQuestions.length; i++) {
+        final orig = rawQuestions[i]['correct'] as int;
+        final judge = answersByIndex[i];
+        if (judge != null && judge == orig) {
+          accepted.add(rawQuestions[i]);
+          matched++;
+        } else {
+          rejected++;
+        }
+      }
+      _log('_validateMcq: $matched/${rawQuestions.length} eşleşti ($rejected elendi)');
+      return accepted;
+    } on GeminiException {
+      rethrow;
+    } on TimeoutException {
+      throw GeminiException.serverTimeout();
+    } on SocketException {
+      throw GeminiException.noInternet();
+    } catch (e) {
+      throw GeminiException.unknown(e.toString());
     }
   }
 }

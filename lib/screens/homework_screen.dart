@@ -981,7 +981,7 @@ class _SolveSheetState extends State<_SolveSheet> {
                               colors: [Color(0xFF00C2D4), Color(0xFF6B21F2)]),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Center(child: Text('Tamam', style: GoogleFonts.inter(
+                          child: Center(child: Text('Tamam'.tr(), style: GoogleFonts.inter(
                             color: Colors.white, fontSize: 13, fontWeight: FontWeight.w800))),
                         ),
                       ),

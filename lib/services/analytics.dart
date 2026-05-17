@@ -16,6 +16,7 @@
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
+import 'error_logger.dart';
 
 class Analytics {
   static FirebaseAnalytics? _analytics;
@@ -60,7 +61,7 @@ class Analytics {
     try {
       await a.setUserId(id: id);
       _crashlytics?.setUserIdentifier(id ?? 'anonymous');
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'analytics'); }
   }
 
   /// Profil özelliği ata (örn. country, level).
@@ -69,7 +70,7 @@ class Analytics {
     if (a == null) return;
     try {
       await a.setUserProperty(name: name, value: value);
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'analytics'); }
   }
 
   /// Ekran görüntüleme.

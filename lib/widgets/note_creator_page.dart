@@ -14,6 +14,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../services/runtime_translator.dart';
+import '../services/error_logger.dart';
 import 'dart:math' as math;
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
@@ -105,7 +107,7 @@ class _NoteCreatorPageState extends State<NoteCreatorPage> {
         final decoded = jsonDecode(stylesRaw) as List;
         final restored = decoded.map((e) => e.toString()).toList();
         _bodyCtrl.setCharStyles(restored);
-      } catch (_) {}
+      } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'note_creator_page'); }
     }
     if (mounted) setState(() {});
   }
@@ -199,7 +201,7 @@ class _NoteCreatorPageState extends State<NoteCreatorPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Görsel eklenemedi: $e')),
+          SnackBar(content: Text('${'Görsel eklenemedi:'.tr()} $e')),
         );
       }
     }
@@ -214,7 +216,7 @@ class _NoteCreatorPageState extends State<NoteCreatorPage> {
   Future<void> _toggleRecord() async {
     if (!_recorderReady) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Kayıt cihazı hazırlanıyor…')),
+        SnackBar(content: Text('Kayıt cihazı hazırlanıyor…'.tr())),
       );
       return;
     }
@@ -231,7 +233,7 @@ class _NoteCreatorPageState extends State<NoteCreatorPage> {
     if (!status.isGranted) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Mikrofon izni reddedildi.')),
+          SnackBar(content: Text('Mikrofon izni reddedildi.'.tr())),
         );
       }
       return;
@@ -249,7 +251,7 @@ class _NoteCreatorPageState extends State<NoteCreatorPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Kayıt başlatılamadı: $e')),
+          SnackBar(content: Text('${'Kayıt başlatılamadı:'.tr()} $e')),
         );
       }
     }
@@ -293,7 +295,7 @@ class _NoteCreatorPageState extends State<NoteCreatorPage> {
     try {
       final f = File(path);
       if (await f.exists()) await f.delete();
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'note_creator_page'); }
     await _save();
   }
 
@@ -914,7 +916,7 @@ class _BgPicker extends StatelessWidget {
             children: [
               Icon(Icons.palette_rounded, color: Colors.white, size: 18),
               SizedBox(width: 8),
-              Text('Renk',
+              Text('Renk'.tr(),
                   style: GoogleFonts.poppins(
                       fontSize: 14,
                       fontWeight: FontWeight.w800,

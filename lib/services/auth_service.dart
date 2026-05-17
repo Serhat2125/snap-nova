@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'error_logger.dart';
 import 'dart:io' show Platform;
 import 'dart:math' as math;
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
@@ -12,25 +13,16 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 //  AuthService — Çoklu sağlayıcılı kimlik doğrulama
 //
 //  TASARIM NOTU:
-//  Bu servis çağıran tarafa SOYUT bir API sunar. Şu an mock (simulasyon)
-//  implementasyon kullanılıyor — Google, Apple, Facebook ve e-posta akışları
-//  yerel olarak çalışır, kullanıcı ID'si oluşturup SharedPreferences'a yazar.
-//  Üretim için aşağıdaki paketler eklenmeli ve TODO kısımları gerçek SDK
-//  çağrılarıyla değiştirilmeli:
+//  Şu an gerçek FirebaseAuth + Google Sign-In + Apple Sign-In + Email/Şifre
+//  entegrasyonları aktif. Sadece misafir (guest) ve telefon doğrulama placeholder
+//  (telefon verifyCode akışı stub — gerçek SMS doğrulama Firebase Phone Auth ile).
 //
-//   firebase_auth: ^5.x
-//   google_sign_in: ^6.x
-//   sign_in_with_apple: ^6.x
-//   flutter_facebook_auth: ^7.x
-//
-//  Paket entegrasyonu sırasında platform tarafı:
-//   • Android: SHA-1 / SHA-256 → Firebase Console; google-services.json
-//   • iOS: Info.plist URL schemes; GoogleService-Info.plist; Apple capability
-//   • Facebook: Meta Developers app ID + URL scheme
-//   • Apple Sign In: iOS 13+; entitlements; Apple Developer onayı
-//
-//  Tüm UI çağrıları zaten doğru imzalarla yapıldığı için gerçek sağlayıcılara
-//  geçiş tek dosya değişikliğiyle (bu dosya) tamamlanabilir.
+//  Platform tarafı önkoşullar:
+//   • Android: Release SHA-1 / SHA-256 → Firebase Console'a eklenmiş olmalı;
+//              google-services.json yerleşik.
+//   • iOS:     Info.plist URL schemes (Google client id) + GoogleService-Info.plist
+//              + Apple Sign In capability eklenmeli.
+//   • Apple Sign In: iOS 13+; entitlements; Apple Developer Console'da etkin.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 enum AuthProvider { google, apple, phone, email, guest }
@@ -459,15 +451,55 @@ class AuthService {
       throw const AuthException(
           'weak-password', 'Şifre en az 6 karakter olmalı.');
     }
-    // TODO(prod): FirebaseAuth.instance.createUserWithEmailAndPassword(...)
-    await Future<void>.delayed(const Duration(milliseconds: 700));
-    return _persist(AppUser(
-      id: _genId('e'),
-      name: name.trim(),
-      email: email.trim(),
-      provider: AuthProvider.email,
-      createdAt: DateTime.now(),
-    ));
+    if (!firebaseReady) {
+      throw const AuthException(
+          'firebase-not-configured',
+          'E-posta kaydı için Firebase yapılandırılmamış. '
+          'Firebase Console\'da Email/Password sign-in provider\'ı aktive et.');
+    }
+    try {
+      final result = await fb_auth.FirebaseAuth.instance
+          .createUserWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+      final fbUser = result.user;
+      if (fbUser == null) {
+        throw const AuthException('no-user', 'Kullanıcı oluşturulamadı.');
+      }
+      // displayName'i kaydet (Firebase'de async update)
+      try {
+        await fbUser.updateDisplayName(name.trim());
+      } catch (e, st) {
+        ErrorLogger.instance
+            .capture(e, st, context: 'auth_service.updateDisplayName');
+      }
+      return _persist(AppUser(
+        id: fbUser.uid,
+        name: name.trim(),
+        email: fbUser.email ?? email.trim(),
+        provider: AuthProvider.email,
+        createdAt: DateTime.now(),
+      ));
+    } on AuthException {
+      rethrow;
+    } on fb_auth.FirebaseAuthException catch (e) {
+      debugPrint('[Auth][email-signup] firebase: ${e.code} ${e.message}');
+      // Firebase error code → kullanıcı dostu mesaj
+      final msg = switch (e.code) {
+        'email-already-in-use' =>
+          'Bu e-posta zaten kayıtlı. Giriş yapmayı dene.',
+        'invalid-email' => 'E-posta formatı geçersiz.',
+        'weak-password' => 'Şifre çok zayıf — en az 6 karakter ve karışık olsun.',
+        'operation-not-allowed' =>
+          'E-posta kaydı şu an aktif değil. Lütfen Google ile giriş yap.',
+        _ => e.message ?? 'Kayıt başarısız.',
+      };
+      throw AuthException(e.code, msg);
+    } catch (e) {
+      debugPrint('[Auth][email-signup] error: $e');
+      throw AuthException('unknown', e.toString());
+    }
   }
 
   static Future<AppUser> signInWithEmail({
@@ -481,14 +513,69 @@ class AuthService {
       throw const AuthException(
           'weak-password', 'Şifre en az 6 karakter olmalı.');
     }
-    // TODO(prod): FirebaseAuth.instance.signInWithEmailAndPassword(...)
-    await Future<void>.delayed(const Duration(milliseconds: 700));
-    return _persist(AppUser(
-      id: _genId('e'),
-      email: email.trim(),
-      provider: AuthProvider.email,
-      createdAt: DateTime.now(),
-    ));
+    if (!firebaseReady) {
+      throw const AuthException(
+          'firebase-not-configured',
+          'E-posta girişi için Firebase yapılandırılmamış.');
+    }
+    try {
+      final result = await fb_auth.FirebaseAuth.instance
+          .signInWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+      final fbUser = result.user;
+      if (fbUser == null) {
+        throw const AuthException('no-user', 'Kullanıcı bulunamadı.');
+      }
+      return _persist(AppUser(
+        id: fbUser.uid,
+        name: fbUser.displayName,
+        email: fbUser.email ?? email.trim(),
+        photoUrl: fbUser.photoURL,
+        provider: AuthProvider.email,
+        createdAt: DateTime.now(),
+      ));
+    } on AuthException {
+      rethrow;
+    } on fb_auth.FirebaseAuthException catch (e) {
+      debugPrint('[Auth][email-signin] firebase: ${e.code} ${e.message}');
+      final msg = switch (e.code) {
+        'user-not-found' || 'invalid-credential' =>
+          'E-posta veya şifre hatalı.',
+        'wrong-password' => 'Şifre hatalı.',
+        'user-disabled' => 'Bu hesap askıya alınmış.',
+        'too-many-requests' =>
+          'Çok fazla deneme yapıldı. Lütfen birkaç dakika sonra tekrar dene.',
+        _ => e.message ?? 'Giriş başarısız.',
+      };
+      throw AuthException(e.code, msg);
+    } catch (e) {
+      debugPrint('[Auth][email-signin] error: $e');
+      throw AuthException('unknown', e.toString());
+    }
+  }
+
+  /// Şifre sıfırlama e-postası gönder.
+  static Future<void> sendPasswordResetEmail(String email) async {
+    if (!_isValidEmail(email)) {
+      throw const AuthException('invalid-email', 'Geçerli bir e-posta gir.');
+    }
+    if (!firebaseReady) {
+      throw const AuthException(
+          'firebase-not-configured', 'Firebase yapılandırılmamış.');
+    }
+    try {
+      await fb_auth.FirebaseAuth.instance
+          .sendPasswordResetEmail(email: email.trim());
+    } on fb_auth.FirebaseAuthException catch (e) {
+      final msg = switch (e.code) {
+        'user-not-found' => 'Bu e-postaya kayıtlı kullanıcı bulunamadı.',
+        'invalid-email' => 'E-posta formatı geçersiz.',
+        _ => e.message ?? 'Şifre sıfırlama maili gönderilemedi.',
+      };
+      throw AuthException(e.code, msg);
+    }
   }
 
   // ── MİSAFİR ───────────────────────────────────────────────────────────────
@@ -501,12 +588,44 @@ class AuthService {
   }
 
   // ── ÇIKIŞ ─────────────────────────────────────────────────────────────────
+  // Firebase + Google + local state tümünü temizler. Bunlardan biri atılırsa
+  // kullanıcı tekrar açılışta otomatik giriş yapmış görünür → "logout çalışmıyor"
+  // hatası.
   static Future<void> signOut() async {
+    // 1) Local state + persist temizle
     _current = null;
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_kUserKey);
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'auth_service'); }
+
+    // 2) Firebase Auth oturumunu kapat
+    if (firebaseReady) {
+      try {
+        await fb_auth.FirebaseAuth.instance.signOut();
+      } catch (e, st) {
+        ErrorLogger.instance.capture(e, st, context: 'auth_service.firebase_signout');
+      }
+    }
+
+    // 3) Google Sign-In oturumunu kapat (cache'li token silinir)
+    try {
+      final googleSignIn = (!kIsWeb && Platform.isIOS)
+          ? GoogleSignIn(
+              clientId:
+                  '828607169326-f2j8au8cjoiuh8bp3c2l14qi61jfmd26.apps.googleusercontent.com',
+              serverClientId:
+                  '828607169326-os08cs4ik9e8ki9m7enbfbju2vuf6b2u.apps.googleusercontent.com',
+            )
+          : GoogleSignIn();
+      if (await googleSignIn.isSignedIn()) {
+        await googleSignIn.signOut();
+      }
+    } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'auth_service.google_signout');
+    }
+
+    // 4) Listener'lara bildir → UI yenilenir
     _changes.add(null);
   }
 

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'error_logger.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
@@ -68,7 +69,7 @@ class RemoteConfigService {
             debugPrint('$_tag cache uygulandı (${map.length} anahtar)');
           }
         }
-      } catch (_) {}
+      } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'remote_config_service'); }
     }
     // Arka planda tazele (başarısızsa umursama)
     unawaited(refresh());

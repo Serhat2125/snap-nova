@@ -31,6 +31,113 @@
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+
+    /* ── Bilgi Ligi: 9 composite index (3 scope × 3 mode) ───────────────── */
+    /*  scopeKey alanları:                                                  */
+    /*    scopeWorld   = "{level}|{grade}"                                  */
+    /*    scopeCountry = "{countryCode}|{level}|{grade}"                    */
+    /*    scopeCity    = "{countryCode}|{cityCode}|{level}|{grade}"         */
+
+    { "collectionGroup": "league_attempts", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "scopeWorld", "order": "ASCENDING" },
+        { "fieldPath": "score", "order": "DESCENDING" }
+      ]
+    },
+    { "collectionGroup": "league_attempts", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "scopeCountry", "order": "ASCENDING" },
+        { "fieldPath": "score", "order": "DESCENDING" }
+      ]
+    },
+    { "collectionGroup": "league_attempts", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "scopeCity", "order": "ASCENDING" },
+        { "fieldPath": "score", "order": "DESCENDING" }
+      ]
+    },
+
+    { "collectionGroup": "league_attempts", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "scopeWorld", "order": "ASCENDING" },
+        { "fieldPath": "subjectKey", "order": "ASCENDING" },
+        { "fieldPath": "score", "order": "DESCENDING" }
+      ]
+    },
+    { "collectionGroup": "league_attempts", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "scopeCountry", "order": "ASCENDING" },
+        { "fieldPath": "subjectKey", "order": "ASCENDING" },
+        { "fieldPath": "score", "order": "DESCENDING" }
+      ]
+    },
+    { "collectionGroup": "league_attempts", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "scopeCity", "order": "ASCENDING" },
+        { "fieldPath": "subjectKey", "order": "ASCENDING" },
+        { "fieldPath": "score", "order": "DESCENDING" }
+      ]
+    },
+
+    { "collectionGroup": "league_attempts", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "scopeWorld", "order": "ASCENDING" },
+        { "fieldPath": "subjectKey", "order": "ASCENDING" },
+        { "fieldPath": "topic", "order": "ASCENDING" },
+        { "fieldPath": "score", "order": "DESCENDING" }
+      ]
+    },
+    { "collectionGroup": "league_attempts", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "scopeCountry", "order": "ASCENDING" },
+        { "fieldPath": "subjectKey", "order": "ASCENDING" },
+        { "fieldPath": "topic", "order": "ASCENDING" },
+        { "fieldPath": "score", "order": "DESCENDING" }
+      ]
+    },
+    { "collectionGroup": "league_attempts", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "scopeCity", "order": "ASCENDING" },
+        { "fieldPath": "subjectKey", "order": "ASCENDING" },
+        { "fieldPath": "topic", "order": "ASCENDING" },
+        { "fieldPath": "score", "order": "DESCENDING" }
+      ]
+    },
+
+    /* ── Test havuzu (quiz_pool) ──────────────────────────────────────── */
+    /*  poolKey = "{country}|{level}|{grade}|{subjectKey}|{topic}"          */
+    /*  Random çekiş için createdAt veya rawIndex'e göre sıralı sorgular.   */
+    { "collectionGroup": "quiz_pool", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "poolKey", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+
+    /* ── Topluluk Özet Cache (summary_cache) ──────────────────────────── */
+    /*  En yüksek puanlı adayı çekme (status=active, sort by ratings.avg)  */
+    { "collectionGroup": "candidates", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "ratings.avg", "order": "DESCENDING" }
+      ]
+    },
+
+    /* ── Question Pool ─────────────────────────────────────────────────── */
+    /*  status=generating + acceptedCount<X scheduled scan için            */
+    { "collectionGroup": "question_pool", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "acceptedCount", "order": "ASCENDING" }
+      ]
+    },
+    /*  Frozen + eskimiş pool'ları taramak için                            */
+    { "collectionGroup": "question_pool", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "frozenAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

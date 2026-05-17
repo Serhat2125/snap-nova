@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io' show Platform;
+import 'error_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'critical_translations.dart';
@@ -222,7 +223,7 @@ class LocaleService extends ChangeNotifier {
         final raw = parts[1].split('.').first; // "TR.UTF-8" gibi varyantları temizle
         detectedCountryCode = _normalizeIsoCountry(raw);
       }
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'locale_service'); }
 
     if (saved != null && supportedLocales.contains(saved)) {
       _localeCode = saved;
@@ -1065,6 +1066,12 @@ the same MANDATORY presence.''';
       'auth_no_account': 'Hesabın yok mu? Kayıt ol',
       'auth_have_account': 'Zaten hesabın var mı? Giriş yap',
       'auth_error_generic': 'Bir şeyler ters gitti. Tekrar dene.',
+      // ── settings_drawer ekstra anahtarları ─────────────────────────
+      'view_my_profile': 'Profilimi Görüntüle',
+      'rate_your_experience': 'Deneyiminizi puanlayın',
+      'your_message': 'Mesajınız',
+      'write_your_feedback_hint': 'Görüşlerinizi yazın...',
+      'social_media': 'Sosyal Medya',
     },
 
     // ─── English ─────────────────────────────────────────────────────────
@@ -1699,6 +1706,12 @@ the same MANDATORY presence.''';
       'auth_no_account': "Don't have an account? Sign up",
       'auth_have_account': 'Already have an account? Sign in',
       'auth_error_generic': 'Something went wrong. Please try again.',
+      // ── settings_drawer extras ─────────────────────────────────────
+      'view_my_profile': 'View My Profile',
+      'rate_your_experience': 'Rate your experience',
+      'your_message': 'Your message',
+      'write_your_feedback_hint': 'Write your feedback...',
+      'social_media': 'Social Media',
     },
 
     // ─── Español ─────────────────────────────────────────────────────────

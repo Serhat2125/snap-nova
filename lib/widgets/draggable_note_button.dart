@@ -12,6 +12,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/runtime_translator.dart';
 
 import '../theme/app_theme.dart';
 /// Notu aç/düzenle bottom sheet'i — hem floating button hem toolbar tarafından
@@ -116,7 +117,7 @@ Future<void> openTopicNoteSheet({
                   TextButton.icon(
                     onPressed: () => ctrl.clear(),
                     icon: Icon(Icons.cleaning_services_rounded, size: 16),
-                    label: Text('Temizle'),
+                    label: Text('Temizle'.tr()),
                     style: TextButton.styleFrom(
                         foregroundColor: Colors.black54),
                   ),
@@ -132,7 +133,7 @@ Future<void> openTopicNoteSheet({
                       if (sheetCtx.mounted) Navigator.of(sheetCtx).pop();
                     },
                     icon: Icon(Icons.check_rounded, size: 18),
-                    label: Text('Kaydet'),
+                    label: Text('Kaydet'.tr()),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: color,
                       foregroundColor: Colors.white,
@@ -229,7 +230,7 @@ class _DraggableNoteOverlayState extends State<DraggableNoteOverlay> {
 
   Future<void> _openSheet(BuildContext ctx) async {
     final initial = await _loadText();
-    if (!mounted) return;
+    if (!ctx.mounted) return;
     final ctrl = TextEditingController(text: initial);
     await showModalBottomSheet<void>(
       context: ctx,
@@ -344,7 +345,7 @@ class _DraggableNoteOverlayState extends State<DraggableNoteOverlay> {
                       },
                       icon: Icon(Icons.cleaning_services_rounded,
                           size: 16),
-                      label: Text('Temizle'),
+                      label: Text('Temizle'.tr()),
                       style: TextButton.styleFrom(
                         foregroundColor: AppPalette.textSecondary(context),
                       ),
@@ -360,8 +361,8 @@ class _DraggableNoteOverlayState extends State<DraggableNoteOverlay> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(ctrl.text.trim().isEmpty
-                                  ? 'Not silindi'
-                                  : 'Not kaydedildi'),
+                                  ? 'Not silindi'.tr()
+                                  : 'Not kaydedildi'.tr()),
                               behavior: SnackBarBehavior.floating,
                               duration: Duration(seconds: 2),
                             ),
@@ -369,7 +370,7 @@ class _DraggableNoteOverlayState extends State<DraggableNoteOverlay> {
                         }
                       },
                       icon: Icon(Icons.check_rounded, size: 18),
-                      label: Text('Kaydet'),
+                      label: Text('Kaydet'.tr()),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: widget.color,
                         foregroundColor: Colors.white,

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../services/error_logger.dart';
 import 'package:camera/camera.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
@@ -95,7 +96,7 @@ class _CameraScreenState extends State<CameraScreen>
 
     List<CameraDescription> cams = globalCameras;
     if (cams.isEmpty) {
-      try { cams = await availableCameras(); globalCameras = cams; } catch (_) {}
+      try { cams = await availableCameras(); globalCameras = cams; } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'camera_screen'); }
     }
     if (cams.isEmpty) {
       if (mounted) setState(() => _errorMsg = localeService.tr('camera_not_found'));
@@ -122,7 +123,7 @@ class _CameraScreenState extends State<CameraScreen>
         _minZoom = await ctrl.getMinZoomLevel();
         _maxZoom = await ctrl.getMaxZoomLevel();
         _currentZoom = _minZoom;
-      } catch (_) {}
+      } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'camera_screen'); }
       setState(() { _isInitialized = true; _errorMsg = null; });
       _startLightStream();
     } on CameraException catch (e) {
@@ -147,7 +148,7 @@ class _CameraScreenState extends State<CameraScreen>
 
   Future<void> _stopLightStream() async {
     if (!_lightStreaming || _controller == null) return;
-    try { await _controller!.stopImageStream(); } catch (_) {}
+    try { await _controller!.stopImageStream(); } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'camera_screen'); }
     _lightStreaming = false;
   }
 
@@ -309,7 +310,7 @@ class _CameraScreenState extends State<CameraScreen>
     setState(() => _isFlashOn = next);
     try {
       await _controller!.setFlashMode(next ? FlashMode.torch : FlashMode.off);
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'camera_screen'); }
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────────

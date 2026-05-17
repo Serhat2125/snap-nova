@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../main.dart' show localeService;
+import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -231,7 +232,7 @@ class _WriteQuestionScreenState extends State<WriteQuestionScreen> {
           ),
           SizedBox(width: 10),
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Soruyu Yaz',
+            Text('Soruyu Yaz'.tr(),
                 style: TextStyle(
                     color: Colors.white,
                     fontSize: 15,

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import '../services/error_logger.dart';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
@@ -62,6 +63,8 @@ class TestQuestion {
 }
 
 /// AI çıktısını temizleyip JSON array olarak parse eder.
+/// Aynı soruyu (q metni normalleştirildi) iki kez içeren cevaplarda dedupe
+/// yapar — AI bazen "10 soru" istediğimizde aynı soruyu tekrar üretebiliyor.
 List<TestQuestion> parseTestQuestions(String raw) {
   var s = raw.trim();
   // Markdown fence'leri sök
@@ -81,13 +84,21 @@ List<TestQuestion> parseTestQuestions(String raw) {
   try {
     final decoded = jsonDecode(s);
     if (decoded is List) {
-      return decoded
+      final all = decoded
           .whereType<Map>()
           .map((e) => TestQuestion.fromJson(Map<String, dynamic>.from(e)))
           .where((q) => q.q.isNotEmpty && q.opts.isNotEmpty)
           .toList();
+      // Dedupe: q metni boşluk/case normalize edilip set ile filtrelenir.
+      final seen = <String>{};
+      final out = <TestQuestion>[];
+      for (final q in all) {
+        final key = q.q.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+        if (seen.add(key)) out.add(q);
+      }
+      return out;
     }
-  } catch (_) {}
+  } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'test_page'); }
   return const [];
 }
 
@@ -98,7 +109,15 @@ class TestPage extends StatefulWidget {
   final String subjectName;
   final String topic;
   final Map<int, String?>? initialAnswers;
+  // Önceki oturumdan kalan per-question timer state. Cheese koruması:
+  // kullanıcı testten çıkıp tekrar girince timer sıfırlanmaz.
+  final Map<int, int>? initialPerQuestionRemaining;
   final Future<void> Function(Map<int, String?> answers)? onFinish;
+  // Cevap ya da timer her değiştiğinde çağrılır (debounce'lu) — uygulama
+  // crash olursa ya da kullanıcı çıkarsa son durum kaybolmasın.
+  // `remaining` parametresi: soru-bazlı kalan saniye (0 = relax modda boş).
+  final Future<void> Function(
+      Map<int, String?> answers, Map<int, int> remaining)? onAnswerChanged;
   // 0 = süresiz (relax). >0 = soru başına saniye (90 normal, 45 yarış).
   final int timeLimit;
   const TestPage({
@@ -107,7 +126,9 @@ class TestPage extends StatefulWidget {
     required this.subjectName,
     required this.topic,
     this.initialAnswers,
+    this.initialPerQuestionRemaining,
     this.onFinish,
+    this.onAnswerChanged,
     this.timeLimit = 0,
   });
 
@@ -118,19 +139,33 @@ class TestPage extends StatefulWidget {
 class _TestPageState extends State<TestPage> {
   late final List<TestQuestion> _questions;
   final Map<int, String?> _answers = {};
+  // Her soru için kalan süre — geri-ileri yapınca cheese olmasın diye
+  // her sorunun kendi sayacı vardır. timeLimit > 0 ise dolu, 0 ise boş.
+  final Map<int, int> _perQuestionRemaining = {};
   int _idx = 0;
   bool _showHint = false;
-  int _remaining = 0;
   Timer? _ticker;
+  // Auto-save debounce (cevap değişimi).
+  Timer? _saveDebounce;
   late final DateTime _startedAt;
+  bool _finishing = false;
+
+  // race mode'da ipucu butonu gizli (sınav simülasyonu).
+  bool get _hintAllowed => widget.timeLimit == 0 || widget.timeLimit >= 90;
 
   @override
   void initState() {
     super.initState();
     _startedAt = DateTime.now();
     _questions = parseTestQuestions(widget.rawContent);
+    final savedPqr = widget.initialPerQuestionRemaining;
     for (var i = 0; i < _questions.length; i++) {
       _answers[i] = widget.initialAnswers?[i];
+      if (widget.timeLimit > 0) {
+        // Önceki oturumdan kalan süreyi yüklü tut; yoksa tam süre.
+        final saved = savedPqr?[i];
+        _perQuestionRemaining[i] = saved ?? widget.timeLimit;
+      }
     }
     // Test sayfası süresi → "soru" kategorisinde StudySessionTracker'a yaz.
     StudySessionTracker.instance.start(
@@ -145,26 +180,64 @@ class _TestPageState extends State<TestPage> {
   void dispose() {
     StudySessionTracker.instance.end();
     _ticker?.cancel();
+    // Pending auto-save varsa flush et — user "A" cevabını seçip 200ms
+    // sonra app'i kapatırsa 800ms debounce hiç fire etmez ve son cevap
+    // kaybolur. Burada fire-and-forget ile son state'i (cevap + timer) kaydet.
+    final hadPending = _saveDebounce?.isActive ?? false;
+    _saveDebounce?.cancel();
+    if (hadPending && !_finishing) {
+      _saveNow();
+    }
     super.dispose();
   }
 
   void _startTimerForCurrent() {
     _ticker?.cancel();
     if (widget.timeLimit <= 0 || _questions.isEmpty) return;
-    _remaining = widget.timeLimit;
+    // Per-question carry-over: kullanıcı bu soruda 30sn geçirdiyse geri
+    // gelip tekrar tam süre alamaz.
+    _perQuestionRemaining[_idx] ??= widget.timeLimit;
+    if ((_perQuestionRemaining[_idx] ?? 0) <= 0) {
+      // Bu sorunun süresi zaten bitmiş → sayaç tetiklemeye gerek yok.
+      return;
+    }
+    int saveTickCounter = 0;
     _ticker = Timer.periodic(Duration(seconds: 1), (t) {
       if (!mounted) {
         t.cancel();
         return;
       }
-      if (_remaining <= 1) {
+      final cur = _perQuestionRemaining[_idx] ?? 0;
+      if (cur <= 1) {
+        _perQuestionRemaining[_idx] = 0;
         t.cancel();
-        // Süre doldu → cevap verilmediyse boş bırak ve sonraki soruya/bitire geç.
+        // Süre 0'a düştü → durumu hemen persist et + sonraki soruya geç.
+        _saveNow();
         _timeExpired();
       } else {
-        setState(() => _remaining -= 1);
+        setState(() {
+          _perQuestionRemaining[_idx] = cur - 1;
+        });
+        // Her 5sn'de bir direct save (debounce yok — sürekli tick olduğu için
+        // debounce hiçbir zaman fire etmez). Crash/exit'te en fazla 5sn kayıp.
+        saveTickCounter++;
+        if (saveTickCounter >= 5) {
+          saveTickCounter = 0;
+          _saveNow();
+        }
       }
     });
+  }
+
+  // Debounce'suz direkt save — timer tick + navigation event'lerinde.
+  void _saveNow() {
+    final cb = widget.onAnswerChanged;
+    if (cb == null) return;
+    // ignore: discarded_futures
+    cb(
+      Map<int, String?>.from(_answers),
+      Map<int, int>.from(_perQuestionRemaining),
+    );
   }
 
   void _timeExpired() {
@@ -187,6 +260,24 @@ class _TestPageState extends State<TestPage> {
         _answers[_idx] = letter;
       }
     });
+    _scheduleAutoSave();
+  }
+
+  // Her cevap değişikliğinde / timer tick'inde 800ms debounce ile partial-save
+  // callback'i tetikle. Uygulama crash / kullanıcı çıkışı durumunda son durum
+  // kaybolmasın. Hem cevap haritası hem timer state'i iletilir.
+  void _scheduleAutoSave() {
+    final cb = widget.onAnswerChanged;
+    if (cb == null) return;
+    _saveDebounce?.cancel();
+    _saveDebounce = Timer(const Duration(milliseconds: 800), () {
+      if (!mounted) return;
+      // ignore: discarded_futures
+      cb(
+        Map<int, String?>.from(_answers),
+        Map<int, int>.from(_perQuestionRemaining),
+      );
+    });
   }
 
   void _goPrev() {
@@ -195,6 +286,9 @@ class _TestPageState extends State<TestPage> {
       _idx -= 1;
       _showHint = false;
     });
+    // Navigasyon → mevcut timer state'i persist (her ne kadar otomatik
+    // 5sn save olsa da soru geçişi anında doğru state garantilenir).
+    _saveNow();
     _startTimerForCurrent();
   }
 
@@ -207,6 +301,7 @@ class _TestPageState extends State<TestPage> {
       _idx += 1;
       _showHint = false;
     });
+    _saveNow();
     _startTimerForCurrent();
   }
 
@@ -220,11 +315,71 @@ class _TestPageState extends State<TestPage> {
       _idx += 1;
       _showHint = false;
     });
+    _saveNow();
     _startTimerForCurrent();
   }
 
+  // Cevap haritasından bir soruya direkt atlama.
+  void _jumpTo(int i) {
+    if (i < 0 || i >= _questions.length || i == _idx) return;
+    setState(() {
+      _idx = i;
+      _showHint = false;
+    });
+    _saveNow();
+    _startTimerForCurrent();
+  }
+
+  // Geri tuşu / swipe-back → "emin misin?" diyaloğu.
+  // Cevaplar zaten auto-save ile kaydedildi (her _pick'te debounce'lu).
+  // Onaylanırsa son durum flush edilip Navigator.pop tetiklenir.
+  Future<bool> _confirmExit() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppPalette.card(context),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+        ),
+        title: Text(
+          'Testten çık?'.tr(),
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w900,
+            fontSize: 16,
+          ),
+        ),
+        content: Text(
+          'Çıkarsan bu denemen kaydedilir, daha sonra kaldığın yerden devam edebilirsin.'
+              .tr(),
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            color: AppPalette.textSecondary(context),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text('Vazgeç'.tr(),
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text('Çık'.tr(),
+                style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFFDC2626))),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
   Future<void> _finish() async {
+    _finishing = true;
     _ticker?.cancel();
+    _saveDebounce?.cancel();
     final answersSnapshot = Map<int, String?>.from(_answers);
     final elapsed = DateTime.now().difference(_startedAt);
     if (widget.onFinish != null) {
@@ -249,6 +404,9 @@ class _TestPageState extends State<TestPage> {
   Widget build(BuildContext context) {
     final pageBg = AppPalette.bg(context);
     if (_questions.isEmpty) {
+      // Eski bozuk JSON kaydı → kullanıcı yine de açmış olabilir.
+      // Inline "Listeye Dön" pill + açıklama: list'te uzun basıp Yeniden
+      // Oluştur ya da Sil yapabileceğini belirt.
       return Scaffold(
         backgroundColor: pageBg,
         appBar: AppBar(
@@ -263,13 +421,56 @@ class _TestPageState extends State<TestPage> {
         ),
         body: Center(
           child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              "Test verisi okunamadı. Lütfen bu konu için testi yeniden oluştur."
-                  .tr(),
-              textAlign: TextAlign.center,
-              style:
-                  GoogleFonts.poppins(fontSize: 13, color: Colors.black54),
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Icon(Icons.error_outline_rounded,
+                    size: 48, color: AppPalette.textSecondary(context)),
+                SizedBox(height: 12),
+                Text(
+                  "Test verisi okunamadı".tr(),
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: AppPalette.textPrimary(context),
+                  ),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  "Listeden bu konuya uzun basıp Yeniden Oluştur veya Sil yapabilirsin."
+                      .tr(),
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: AppPalette.textSecondary(context),
+                    height: 1.4,
+                  ),
+                ),
+                SizedBox(height: 18),
+                GestureDetector(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      "Listeye Dön".tr(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -277,11 +478,35 @@ class _TestPageState extends State<TestPage> {
     }
     final q = _questions[_idx];
     final selected = _answers[_idx];
-    final progress = (_idx + 1) / _questions.length;
     final isLast = _idx == _questions.length - 1;
     final hasTimer = widget.timeLimit > 0;
-    final timerLow = hasTimer && _remaining <= 10;
-    return Scaffold(
+    final remainingSec = _perQuestionRemaining[_idx] ?? 0;
+    final timerLow = hasTimer && remainingSec <= 10;
+    final hasAnyAnswer = _answers.values.any((v) => v != null);
+    return PopScope(
+      // Cevap girilmemişse veya zaten finishing ise direkt pop.
+      canPop: !hasAnyAnswer || _finishing,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        // Navigator'ı async gap'ten ÖNCE tutuyoruz ki sonradan ana
+        // context'i kullanmamıza gerek kalmasın (lint susar).
+        final nav = Navigator.of(context);
+        final ok = await _confirmExit();
+        if (!ok || !mounted) return;
+        // Çıkmadan önce son hâli flush — debounce'u beklemeden.
+        _saveDebounce?.cancel();
+        final cb = widget.onAnswerChanged;
+        if (cb != null) {
+          try {
+            await cb(
+              Map<int, String?>.from(_answers),
+              Map<int, int>.from(_perQuestionRemaining),
+            );
+          } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'test_page'); }
+        }
+        if (mounted) nav.pop();
+      },
+      child: Scaffold(
       backgroundColor: pageBg,
       appBar: AppBar(
         backgroundColor: pageBg,
@@ -329,7 +554,7 @@ class _TestPageState extends State<TestPage> {
                         color: Colors.white, size: 12),
                     SizedBox(width: 4),
                     Text(
-                      _formatSeconds(_remaining),
+                      _formatSeconds(remainingSec),
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
@@ -341,19 +566,16 @@ class _TestPageState extends State<TestPage> {
               ),
             ),
         ],
+        // ── Cevap haritası: 1..N küçük noktalar (dolu/boş/aktif). ──────
+        // Kullanıcı hangi sorulara cevap verdiğini görür + tıklayınca o
+        // soruya direkt atlar. LGS/YKS klasiği.
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(8),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: LinearProgressIndicator(
-                value: progress,
-                backgroundColor: Colors.black12,
-                color: AppPalette.textPrimary(context),
-                minHeight: 4,
-              ),
-            ),
+          preferredSize: const Size.fromHeight(34),
+          child: _AnswerMap(
+            count: _questions.length,
+            currentIndex: _idx,
+            isAnswered: (i) => _answers[i] != null,
+            onTap: _jumpTo,
           ),
         ),
       ),
@@ -373,37 +595,27 @@ class _TestPageState extends State<TestPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          // Sabit koyu zemin + beyaz yazı — her iki modda
-                          // okunur kontrast (oval pill kontrast garanti).
-                          color: Colors.black,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          "Soru ${_idx + 1} / ${_questions.length}".tr(),
-                          style: GoogleFonts.poppins(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                          ),
-                        ),
+                  // "Soru N / Toplam" pill. Per-question difficulty pill
+                  // KALDIRILDI — tüm sorular aynı zorlukta olduğundan
+                  // tekrar bilgi vermiyordu (setup'tan zaten görüldü).
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black,
+                        borderRadius: BorderRadius.circular(999),
                       ),
-                      Text(
-                        _difficultyLabel(q.d).tr(),
+                      child: Text(
+                        "Soru ${_idx + 1} / ${_questions.length}".tr(),
                         style: GoogleFonts.poppins(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: AppPalette.textSecondary(context),
-                          letterSpacing: 0.1,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
                         ),
                       ),
-                    ],
+                    ),
                   ),
                   SizedBox(height: 14),
                   LatexText(q.q, fontSize: 15, lineHeight: 1.45),
@@ -419,7 +631,8 @@ class _TestPageState extends State<TestPage> {
                 selected: selected == entry.key,
               ),
             // ── İpucu (açıkken gösterilir) ──────────────────────────
-            if (_showHint && q.hint.isNotEmpty) ...[
+            // race modunda (45s/soru) sınav simülasyonu için gizli.
+            if (_hintAllowed && _showHint && q.hint.isNotEmpty) ...[
               SizedBox(height: 8),
               Container(
                 width: double.infinity,
@@ -460,20 +673,21 @@ class _TestPageState extends State<TestPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Alt bar — sol: ipucu, orta: geri + atla, sağ: sonraki/bitir
+              // Alt bar — sol: ipucu (yalnız hint allowed iken),
+              // orta: geri + atla, sağ: sonraki/bitir
               Row(
                 children: [
-                  // İpucu butonu (sol)
-                  _chipButton(
-                    icon: Icons.lightbulb_outline_rounded,
-                    label: _showHint
-                        ? 'İpucunu gizle'.tr()
-                        : 'İpucu'.tr(),
-                    onTap: q.hint.isEmpty
-                        ? null
-                        : () => setState(() => _showHint = !_showHint),
-                    dense: true,
-                  ),
+                  if (_hintAllowed)
+                    _chipButton(
+                      icon: Icons.lightbulb_outline_rounded,
+                      label: _showHint
+                          ? 'İpucunu gizle'.tr()
+                          : 'İpucu'.tr(),
+                      onTap: q.hint.isEmpty
+                          ? null
+                          : () => setState(() => _showHint = !_showHint),
+                      dense: true,
+                    ),
                   Spacer(),
                   _chipButton(
                     icon: Icons.arrow_back_rounded,
@@ -542,6 +756,7 @@ class _TestPageState extends State<TestPage> {
           ),
         ),
       ),
+      ),
     );
   }
 
@@ -550,19 +765,6 @@ class _TestPageState extends State<TestPage> {
     final m = s ~/ 60;
     final r = s % 60;
     return '$m:${r.toString().padLeft(2, '0')}';
-  }
-
-  String _difficultyLabel(String d) {
-    switch (d.toLowerCase()) {
-      case 'easy':
-        return 'Kolay';
-      case 'medium':
-        return 'Orta';
-      case 'hard':
-        return 'Zor';
-      default:
-        return '';
-    }
   }
 
   Widget _chipButton({
@@ -680,6 +882,83 @@ class _TestPageState extends State<TestPage> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Cevap haritası — yatay scroll, 1..N noktalı satır.
+//  Durumlar:
+//    • Aktif (current): turuncu dolu
+//    • Cevaplanmış: koyu dolu
+//    • Boş: hafif border, içi şeffaf
+//  Tıklayınca o soruya atlama.
+// ═════════════════════════════════════════════════════════════════════════════
+class _AnswerMap extends StatelessWidget {
+  final int count;
+  final int currentIndex;
+  final bool Function(int) isAnswered;
+  final void Function(int) onTap;
+  const _AnswerMap({
+    required this.count,
+    required this.currentIndex,
+    required this.isAnswered,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 34,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        itemCount: count,
+        itemBuilder: (ctx, i) {
+          final isCur = i == currentIndex;
+          final filled = isAnswered(i);
+          final Color bg;
+          final Color fg;
+          final Color border;
+          if (isCur) {
+            bg = _testOrange;
+            fg = Colors.white;
+            border = _testOrange;
+          } else if (filled) {
+            bg = AppPalette.textPrimary(context);
+            fg = AppPalette.bg(context);
+            border = AppPalette.textPrimary(context);
+          } else {
+            bg = Colors.transparent;
+            fg = AppPalette.textSecondary(context);
+            border = AppPalette.border(context);
+          }
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 3),
+            child: GestureDetector(
+              onTap: () => onTap(i),
+              child: Container(
+                width: 22,
+                height: 22,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: bg,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: border, width: 1),
+                ),
+                child: Text(
+                  '${i + 1}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w800,
+                    color: fg,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -2396,7 +2675,7 @@ class _ShareModePageState extends State<_ShareModePage> {
       debugPrint('[TestShare] hata: $e\n$st');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Paylaşılamadı: $e'),
+        content: Text('${'Paylaşılamadı:'.tr()} $e'),
         behavior: SnackBarBehavior.floating,
         duration: Duration(seconds: 4),
       ));

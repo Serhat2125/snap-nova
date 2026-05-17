@@ -1,8 +1,13 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+
+import '../services/pomodoro_stats.dart';
+import '../services/runtime_translator.dart';
+import 'academic_planner.dart' show logPomodoroSessionToCalendar;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  GreenColonyScreen — Mars temalı pomodoro / odak ekranı
@@ -16,7 +21,7 @@ class GreenColonyScreen extends StatefulWidget {
 }
 
 class _GreenColonyScreenState extends State<GreenColonyScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   static const _focus = 25 * 60;
   static const _shortBreak = 5 * 60;
   static const _longBreak = 15 * 60;
@@ -26,6 +31,9 @@ class _GreenColonyScreenState extends State<GreenColonyScreen>
   int _totalTime = _focus;
   bool _running = false;
   Timer? _ticker;
+  // Persistance için ek: focus fazı başlangıç anı (takvime yazılan süre
+  // gerçekten geçen saniye olsun).
+  DateTime? _focusStartedAt;
   int _session = 1;
   String _mode = 'focus';
   int _capsules = 0;
@@ -38,6 +46,7 @@ class _GreenColonyScreenState extends State<GreenColonyScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final rng = math.Random(7);
     _stars = List.generate(60, (_) {
       return _StarSpec(
@@ -56,10 +65,59 @@ class _GreenColonyScreenState extends State<GreenColonyScreen>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
+    // 6 saatten yeni session varsa devam ettir (kapsül + O2 + mod + zaman).
+    _tryRestoreSession();
+  }
+
+  Future<void> _tryRestoreSession() async {
+    final saved = await PomodoroStats.readColonySession();
+    if (saved == null || !mounted) return;
+    setState(() {
+      _capsules = saved.capsules;
+      _o2 = saved.o2;
+      _session = saved.session;
+      _mode = saved.mode;
+      _timeLeft = saved.timeLeft;
+      _totalTime = _modeBaseSec(saved.mode);
+    });
+  }
+
+  int _modeBaseSec(String m) {
+    switch (m) {
+      case 'focus':
+        return _focus;
+      case 'break':
+        return _shortBreak;
+      case 'longBreak':
+        return _longBreak;
+    }
+    return _focus;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      // Sayfanın açık kaldığı süreyi diske yaz — kullanıcı geri dönerse
+      // 6 saat içinde kaldığı yerden devam.
+      _persistSession();
+    }
+  }
+
+  Future<void> _persistSession() async {
+    await PomodoroStats.saveColonySession(
+      capsules: _capsules,
+      o2: _o2,
+      session: _session,
+      timeLeft: _timeLeft,
+      mode: _mode,
+    );
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _ticker?.cancel();
     WakelockPlus.disable();
     _starCtrl.dispose();
@@ -68,9 +126,9 @@ class _GreenColonyScreenState extends State<GreenColonyScreen>
   }
 
   String get _modeLabel {
-    if (_mode == 'focus') return 'ODAK';
-    if (_mode == 'break') return 'MOLA';
-    return 'UZUN';
+    if (_mode == 'focus') return 'ODAK'.tr();
+    if (_mode == 'break') return 'MOLA'.tr();
+    return 'UZUN'.tr();
   }
 
   String _format(int s) {
@@ -85,9 +143,14 @@ class _GreenColonyScreenState extends State<GreenColonyScreen>
       setState(() => _running = false);
       return;
     }
+    if (_mode == 'focus' && _focusStartedAt == null) {
+      _focusStartedAt = DateTime.now();
+    }
     setState(() => _running = true);
     WakelockPlus.enable();
+    HapticFeedback.lightImpact();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
       setState(() {
         _timeLeft--;
         if (_mode == 'focus') _o2 = 100;
@@ -96,12 +159,17 @@ class _GreenColonyScreenState extends State<GreenColonyScreen>
     });
   }
 
-  void _completePhase() {
+  Future<void> _completePhase() async {
     _ticker?.cancel();
     WakelockPlus.disable();
+    HapticFeedback.heavyImpact();
+    SystemSound.play(SystemSoundType.alert);
+    final wasFocus = _mode == 'focus';
+    final focusDur = _focus; // tam süre
+    // State değişimini önce yap.
     setState(() {
       _running = false;
-      if (_mode == 'focus') {
+      if (wasFocus) {
         _capsules++;
         if (_session >= _totalSessions) {
           _mode = 'longBreak';
@@ -117,9 +185,97 @@ class _GreenColonyScreenState extends State<GreenColonyScreen>
         _timeLeft = _totalTime = _focus;
       }
     });
+    _focusStartedAt = null;
+    // Yan etkiler (takvim + istatistik + rozet) sadece focus için.
+    if (wasFocus) {
+      unawaited(logPomodoroSessionToCalendar(
+        durationSec: focusDur,
+        label: 'Yeşil Koloni · Odak'.tr(),
+      ));
+      unawaited(PomodoroStats.incrementCapsule());
+      final snap = await PomodoroStats.recordFocusPhase(durationSec: focusDur);
+      final badges = <String>[];
+      if (snap.totalPhases >= 100) {
+        badges.add('total_100');
+      } else if (snap.totalPhases >= 50) {
+        badges.add('total_50');
+      } else if (snap.totalPhases >= 10) {
+        badges.add('total_10');
+      }
+      if (snap.streakDays >= 30) {
+        badges.add('streak_30');
+      } else if (snap.streakDays >= 7) {
+        badges.add('streak_7');
+      } else if (snap.streakDays >= 3) {
+        badges.add('streak_3');
+      }
+      if (badges.isNotEmpty) {
+        final newOnes = await PomodoroStats.awardBadges(badges);
+        if (mounted && newOnes.isNotEmpty) _showBadgeSnack(newOnes);
+      }
+      // Persist updated session state.
+      _persistSession();
+    }
   }
 
-  void _reset() {
+  void _showBadgeSnack(List<String> ids) {
+    final emojis = ids
+        .map((id) => findPomodoroBadge(id)?.emoji ?? '🏅')
+        .join(' ');
+    final names = ids
+        .map((id) => findPomodoroBadge(id)?.title.tr() ?? id)
+        .join(', ');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: const Color(0xFF0A1018),
+        content: Row(
+          children: [
+            Text(emojis, style: const TextStyle(fontSize: 18)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '${'Rozet kazandın'.tr()}: $names',
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  Future<void> _reset() async {
+    final hasProgress = _running || _capsules > 0;
+    if (hasProgress) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF0A1018),
+          title: Text('Sıfırla?'.tr(),
+              style: const TextStyle(color: Color(0xFF00FF9D))),
+          content: Text(
+            'Mevcut seans, kapsüller ve O₂ sıfırlanacak. Emin misin?'.tr(),
+            style: const TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text('Vazgeç'.tr(),
+                  style: const TextStyle(color: Color(0xFFA8E6CF))),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00FF9D),
+                  foregroundColor: Colors.black),
+              child: Text('Sıfırla'.tr()),
+            ),
+          ],
+        ),
+      );
+      if (!(ok ?? false)) return;
+    }
     _ticker?.cancel();
     WakelockPlus.disable();
     setState(() {
@@ -130,12 +286,88 @@ class _GreenColonyScreenState extends State<GreenColonyScreen>
       _capsules = 0;
       _o2 = 100;
     });
+    _focusStartedAt = null;
+    await PomodoroStats.clearColonySession();
   }
 
-  void _skip() {
+  Future<void> _skip() async {
+    if (_running && _mode == 'focus') {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF0A1018),
+          title: Text('Atla?'.tr(),
+              style: const TextStyle(color: Color(0xFF00FF9D))),
+          content: Text(
+            'Bu fokus seansı yarıda kesilirse takvime yazılmaz.'.tr(),
+            style: const TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text('Vazgeç'.tr(),
+                  style: const TextStyle(color: Color(0xFFA8E6CF))),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00FF9D),
+                  foregroundColor: Colors.black),
+              child: Text('Atla'.tr()),
+            ),
+          ],
+        ),
+      );
+      if (!(ok ?? false)) return;
+      // Yarıda kesilen focus: kapsül vermeden direkt molaya geçer.
+      _ticker?.cancel();
+      WakelockPlus.disable();
+      setState(() {
+        _running = false;
+        _mode = _session >= _totalSessions ? 'longBreak' : 'break';
+        _timeLeft = _totalTime =
+            _mode == 'longBreak' ? _longBreak : _shortBreak;
+        if (_mode == 'break') _session++;
+        if (_mode == 'longBreak') _session = 1;
+      });
+      _focusStartedAt = null;
+      return;
+    }
     _ticker?.cancel();
     setState(() => _timeLeft = 0);
     _completePhase();
+  }
+
+  /// Geri tuşu / appbar back: aktif focus seansı varsa uyar.
+  Future<bool> _confirmExit() async {
+    if (!_running) return true;
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0A1018),
+        title: Text('Çık?'.tr(),
+            style: const TextStyle(color: Color(0xFF00FF9D))),
+        content: Text(
+          'Aktif odak seansı kaydedilmeyecek. Çıkmak istiyor musun?'.tr(),
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text('Kal'.tr(),
+                style: const TextStyle(color: Color(0xFFA8E6CF))),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF00FF9D),
+                foregroundColor: Colors.black),
+            child: Text('Çık'.tr()),
+          ),
+        ],
+      ),
+    );
+    return res ?? false;
   }
 
   double get _progress {
@@ -145,13 +377,21 @@ class _GreenColonyScreenState extends State<GreenColonyScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: Container(
+    return PopScope(
+      canPop: !_running,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final navigator = Navigator.of(context);
+        final ok = await _confirmExit();
+        if (ok && mounted) navigator.pop();
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: SafeArea(
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Container(
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
@@ -234,7 +474,8 @@ class _GreenColonyScreenState extends State<GreenColonyScreen>
                 _buildBottomPanel(),
               ],
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -248,10 +489,13 @@ class _GreenColonyScreenState extends State<GreenColonyScreen>
           IconButton(
             icon: const Icon(Icons.arrow_back_ios_new_rounded,
                 color: Color(0xFFA8E6CF), size: 18),
-            onPressed: () => Navigator.pop(context),
+            onPressed: () async {
+              final ok = await _confirmExit();
+              if (ok && mounted) Navigator.pop(context);
+            },
           ),
           const Spacer(),
-          Text('⬤  MARS · SEC 7',
+          Text('⬤  ${'MARS · SEC 7'.tr()}',
               style: GoogleFonts.poppins(
                 color: const Color(0xFFA8E6CF),
                 fontSize: 11,
@@ -266,7 +510,7 @@ class _GreenColonyScreenState extends State<GreenColonyScreen>
   Widget _buildHeader() {
     return Column(
       children: [
-        Text('THE GREEN COLONY',
+        Text('THE GREEN COLONY'.tr(),
             style: GoogleFonts.poppins(
               fontSize: 15,
               fontWeight: FontWeight.w800,
@@ -277,7 +521,7 @@ class _GreenColonyScreenState extends State<GreenColonyScreen>
               ],
             )),
         const SizedBox(height: 2),
-        Text('BIOPOD CONTROL',
+        Text('BIOPOD CONTROL'.tr(),
             style: GoogleFonts.poppins(
               fontSize: 8,
               color: const Color(0xFF8BA6B8),
@@ -537,7 +781,7 @@ class _GreenColonyScreenState extends State<GreenColonyScreen>
         children: [
           Row(
             children: [
-              Text('O₂ JENERATÖRÜ',
+              Text('O₂ JENERATÖRÜ'.tr(),
                   style: GoogleFonts.poppins(
                     color: const Color(0xFFA8E6CF),
                     fontSize: 9,
@@ -590,11 +834,13 @@ class _GreenColonyScreenState extends State<GreenColonyScreen>
           const SizedBox(height: 8),
           Row(
             children: [
-              Expanded(child: _stat('Kapsül', _capsules.toString())),
+              Expanded(child: _stat('Kapsül'.tr(), _capsules.toString())),
               const SizedBox(width: 5),
-              Expanded(child: _stat('Seans', '$_session/$_totalSessions')),
+              Expanded(
+                  child: _stat('Seans'.tr(), '$_session/$_totalSessions')),
               const SizedBox(width: 5),
-              Expanded(child: _stat('Mod', _modeLabel, smaller: true)),
+              Expanded(
+                  child: _stat('Mod'.tr(), _modeLabel, smaller: true)),
             ],
           ),
           const SizedBox(height: 8),

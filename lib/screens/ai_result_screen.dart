@@ -1,3 +1,4 @@
+import '../services/error_logger.dart';
 import '../services/runtime_translator.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -147,7 +148,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
       _cardsBgN.value   = read('cards');
       _photoBgN.value   = read('photo');
       _cardsTextN.value = read('cardsText');
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'ai_result_screen'); }
   }
 
   Future<void> _saveResultColors() async {
@@ -167,7 +168,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
       } else {
         await prefs.setString(_resultColorsKey, jsonEncode(m));
       }
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'ai_result_screen'); }
   }
 
   void _applyResultColor(String target, Color c) {

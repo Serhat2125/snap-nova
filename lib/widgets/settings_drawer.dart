@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../main.dart' show themeService;
+import '../screens/onboarding_screen.dart';
 import '../services/auth_service.dart';
 import '../services/locale_service.dart';
+import '../services/runtime_translator.dart';
 
 import '../theme/app_theme.dart';
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -240,12 +243,27 @@ class _MainMenu extends StatelessWidget {
         ),
       );
 
-  void _showLogout(BuildContext context) {
-    showDialog(
+  void _showLogout(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.65),
       builder: (_) => const _LogoutDialog(),
     );
+    if (confirmed == true) {
+      await AuthService.signOut();
+      // Onboarding'i tekrar göster — yeni kullanıcı / tekrar giriş akışı.
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('onboarding_done_v2');
+        await prefs.remove('mini_test_grade');
+      } catch (_) {/* yok say */}
+      if (context.mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+          (r) => false,
+        );
+      }
+    }
   }
 }
 
@@ -318,7 +336,7 @@ class _ProfileCard extends StatelessWidget {
                       fontSize: 14,
                       fontWeight: FontWeight.w700)),
               SizedBox(height: 3),
-              Text('Profilimi Görüntüle',
+              Text(context.tr('view_my_profile'),
                   style: TextStyle(
                       fontSize: 11,
                       color: Colors.cyanAccent.withValues(alpha: 0.80),
@@ -993,9 +1011,9 @@ class _FeedbackPageState extends State<_FeedbackPage> {
         physics: BouncingScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 18),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _PageHeader(title: 'Geri Bildirim', onBack: shell._closePage),
+          _PageHeader(title: context.tr('feedback'), onBack: shell._closePage),
           SizedBox(height: 12),
-          Text('Deneyiminizi puanlayın',
+          Text(context.tr('rate_your_experience'),
               style: TextStyle(
                   color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
           SizedBox(height: 14),
@@ -1024,7 +1042,7 @@ class _FeedbackPageState extends State<_FeedbackPage> {
             }),
           ),
           SizedBox(height: 24),
-          Text('Mesajınız',
+          Text(context.tr('your_message'),
               style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.50),
                   fontSize: 12,
@@ -1042,7 +1060,7 @@ class _FeedbackPageState extends State<_FeedbackPage> {
               maxLines: 5,
               style: TextStyle(color: Colors.white, fontSize: 14),
               decoration: InputDecoration(
-                hintText: 'Görüşlerinizi yazın...',
+                hintText: context.tr('write_your_feedback_hint'),
                 hintStyle: TextStyle(
                     color: Colors.white.withValues(alpha: 0.28), fontSize: 13),
                 border: InputBorder.none,
@@ -1087,7 +1105,7 @@ class _FeedbackPageState extends State<_FeedbackPage> {
                 ],
               ),
               child: Center(
-                child: Text('Gönder',
+                child: Text(context.tr('send'),
                     style: TextStyle(
                         color: AppPalette.textPrimary(context),
                         fontSize: 15,
@@ -1254,7 +1272,7 @@ class _AboutPage extends StatelessWidget {
               'QuAlsar öğrencilerin öğrenme sürecini kişiselleştirerek '
               'daha hızlı ve daha etkili bir eğitim deneyimi sunar.'),
           SizedBox(height: 16),
-          Text('Sosyal Medya',
+          Text(context.tr('social_media'),
               style: TextStyle(
                   color: Colors.white,
                   fontSize: 14,
@@ -1336,7 +1354,7 @@ class _TermsPage extends StatelessWidget {
     final shell = context.findAncestorStateOfType<_SettingsDrawerState>()!;
     return SafeArea(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _PageHeader(title: 'Kullanım Koşulları', onBack: shell._closePage),
+        _PageHeader(title: 'Kullanım Koşulları'.tr(), onBack: shell._closePage),
         Expanded(
           child: SingleChildScrollView(
             physics: BouncingScrollPhysics(),
@@ -1344,23 +1362,23 @@ class _TermsPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _section('1. Hizmet Kapsamı',
-                    'QuAlsar, öğrencilere yapay zeka destekli akademik çözümler sunar. '
-                    'Hizmet eğitim amaçlıdır; ticari kullanım yasaktır.'),
-                _section('2. Kullanıcı Sorumlulukları',
-                    'Kullanıcılar platform üzerinden yanlış, yanıltıcı veya zararlı içerik '
-                    'paylaşmamayı kabul eder.'),
-                _section('3. Gizlilik',
-                    'Yüklenen fotoğraflar yalnızca çözüm üretimi için işlenir ve '
-                    'saklanmaz. Kişisel veriler KVKK kapsamında korunur.'),
-                _section('4. Abonelik',
-                    'Premium abonelikler otomatik yenilenir. İptal en az 24 saat '
-                    'öncesinden yapılmalıdır.'),
-                _section('5. Değişiklikler',
-                    'QuAlsar bu koşulları önceden bildirmeksizin değiştirme hakkını '
-                    'saklı tutar.'),
+                _section('1. Hizmet Kapsamı'.tr(),
+                    ('QuAlsar, öğrencilere yapay zeka destekli akademik çözümler sunar. '
+                     'Hizmet eğitim amaçlıdır; ticari kullanım yasaktır.').tr()),
+                _section('2. Kullanıcı Sorumlulukları'.tr(),
+                    ('Kullanıcılar platform üzerinden yanlış, yanıltıcı veya zararlı içerik '
+                     'paylaşmamayı kabul eder.').tr()),
+                _section('3. Gizlilik'.tr(),
+                    ('Yüklenen fotoğraflar yalnızca çözüm üretimi için işlenir ve '
+                     'saklanmaz. Kişisel veriler KVKK kapsamında korunur.').tr()),
+                _section('4. Abonelik'.tr(),
+                    ('Premium abonelikler otomatik yenilenir. İptal en az 24 saat '
+                     'öncesinden yapılmalıdır.').tr()),
+                _section('5. Değişiklikler'.tr(),
+                    ('QuAlsar bu koşulları önceden bildirmeksizin değiştirme hakkını '
+                     'saklı tutar.').tr()),
                 SizedBox(height: 8),
-                Text('Son güncelleme: Nisan 2026',
+                Text('Son güncelleme: Nisan 2026'.tr(),
                     style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.30),
                         fontSize: 11)),

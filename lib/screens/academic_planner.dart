@@ -3,16 +3,21 @@
 import '../services/runtime_translator.dart';
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../main.dart' show localeService;
 import '../services/analytics.dart';
+import '../services/error_logger.dart';
+import '../services/summary_cache_service.dart';
+import '../widgets/summary_rating_table.dart';
 import '../services/usage_quota.dart';
 import '../features/offline/domain/offline_subject_pack.dart';
 import '../features/offline/providers/offline_pack_provider.dart';
@@ -26,9 +31,10 @@ import 'test_page.dart';
 import 'green_colony_screen.dart';
 import 'history_screen.dart';
 import 'qualsar_arena_screen.dart';
+import 'bilgi_ligi_screen.dart';
 import '../widgets/study_toolbar.dart';
 import 'qualsar_mars_screen.dart';
-import 'exam_countdown_screen.dart';
+import '../services/pomodoro_stats.dart';
 
 import '../theme/app_theme.dart';
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -93,21 +99,76 @@ class _ActivityEntry {
 
 class _ActivityStore {
   static const _key = 'library_activity_log_v2';
+  // SharedPreferences'taki aktif log cap. Bu sayıyı aşan kayıtlar arşive
+  // taşınır → kullanıcı haftalar geçtikten sonra "kaybolan" veri görmesin.
+  // Önceki 200 cap, aktif kullanıcılarda 2 haftada veri kaybına yol açıyordu.
+  static const int _activeCap = 1000;
+  // Cap aşıldığında arşive taşınacak miktar — en eski _archiveSpill kayıt
+  // disk dosyasına eklenir (append-only).
+  static const int _archiveSpill = 500;
+  static const String _archiveFileName = 'library_activity_archive_v1.jsonl';
 
   static String dayKey(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
+  // Tüm write ops sıralı kuyrukta — SolutionsStorage._serialize pattern.
+  // SharedPreferences read-modify-write concurrent çağrılarında entry kaybı
+  // oluşmasın. Async append archive de aynı lock altında.
+  static Future<void> _writeLock = Future.value();
+  static Future<T> _serialize<T>(Future<T> Function() task) {
+    final prev = _writeLock;
+    final c = Completer<T>();
+    _writeLock = prev.then((_) async {
+      try {
+        final r = await task();
+        c.complete(r);
+      } catch (e, st) {
+        c.completeError(e, st);
+      }
+    });
+    return c.future;
+  }
+
+  static Future<File> _archiveFile() async {
+    final dir = await getApplicationDocumentsDirectory();
+    return File('${dir.path}/$_archiveFileName');
+  }
+
+  static _ActivityEntry? _parseLine(String s) {
+    try {
+      return _ActivityEntry.fromJson(
+          jsonDecode(s) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Hem SharedPreferences'taki aktif log'u hem arşiv dosyasını okuyup
+  /// birleşik liste döner. Bozuk satırlar partial-recovery ile atlanır.
   static Future<List<_ActivityEntry>> readAll() async {
     final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList(_key) ?? [];
-    return list.map((s) {
-      try {
-        return _ActivityEntry.fromJson(
-            jsonDecode(s) as Map<String, dynamic>);
-      } catch (_) {
-        return null;
+    final activeList = prefs.getStringList(_key) ?? [];
+    final out = <_ActivityEntry>[];
+    for (final s in activeList) {
+      final e = _parseLine(s);
+      if (e != null) out.add(e);
+    }
+    // Arşiv dosyasını oku — JSON Lines (her satır bir entry). I/O fail
+    // olursa sadece prefs verisi döner.
+    try {
+      final f = await _archiveFile();
+      if (await f.exists()) {
+        final raw = await f.readAsString();
+        for (final line in const LineSplitter().convert(raw)) {
+          if (line.trim().isEmpty) continue;
+          final e = _parseLine(line);
+          if (e != null) out.add(e);
+        }
       }
-    }).whereType<_ActivityEntry>().toList();
+    } catch (e) {
+      debugPrint('[ActivityStore] archive read fail: $e');
+    }
+    return out;
   }
 
   // Mevcut hafta için günlere göre gruplayarak döner
@@ -124,27 +185,62 @@ class _ActivityStore {
     return out;
   }
 
+  // İç yardımcı — cap aştığında eski kayıtları arşiv dosyasına taşır.
+  // Çağıran zaten _serialize altındadır, ek lock yok.
+  static Future<List<String>> _trimAndArchive(List<String> list) async {
+    if (list.length <= _activeCap) return list;
+    final overflow = list.length - (_activeCap - _archiveSpill);
+    if (overflow <= 0) return list;
+    final toArchive = list.sublist(0, overflow);
+    try {
+      final f = await _archiveFile();
+      // Append (line-by-line). Bir entry başarısız yazılsa diğerleri korunur.
+      final sink = f.openWrite(mode: FileMode.append);
+      try {
+        for (final line in toArchive) {
+          sink.writeln(line);
+        }
+        await sink.flush();
+      } finally {
+        await sink.close();
+      }
+      return list.sublist(overflow);
+    } catch (e) {
+      debugPrint('[ActivityStore] archive append fail: $e — eski kayıtlar trimlenmedi');
+      // Fail durumunda silme yapma — kullanıcı verisi kaybolmasın. Cap aşılı
+      // kalır ama veri korunur.
+      return list;
+    }
+  }
+
   static Future<void> log({
     required String subject,
     required String topic,
     required String type,
-  }) async {
-    final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList(_key) ?? [];
-    final entry = _ActivityEntry(
-      when: DateTime.now(),
-      subject: subject,
-      topic: topic,
-      type: type,
-    );
-    list.add(jsonEncode(entry.toJson()));
-    // En fazla 200 son kayıt sakla
-    if (list.length > 200) list.removeRange(0, list.length - 200);
-    await prefs.setStringList(_key, list);
+  }) {
+    return _serialize(() async {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final list = List<String>.from(prefs.getStringList(_key) ?? []);
+        final entry = _ActivityEntry(
+          when: DateTime.now(),
+          subject: subject,
+          topic: topic,
+          type: type,
+        );
+        list.add(jsonEncode(entry.toJson()));
+        final trimmed = await _trimAndArchive(list);
+        await prefs.setStringList(_key, trimmed);
+      } catch (e) {
+        debugPrint('[ActivityStore] log fail: $e');
+      }
+    });
   }
 
   /// Kullanıcı bir sayfayı kapattığında çağrılır — geçirilen süreyle
   /// birlikte yeni bir entry yazar. Çok kısa açılışlar (< 5 sn) atılır.
+  /// `startedAt` verilirse entry zamanı session başlangıcına yazılır
+  /// (gece yarısı geçişlerinde session başladığı güne sayılır).
   /// idleSec → o oturumda hareketsizlik yüzünden duraklatılan süre.
   static Future<void> logSession({
     required String subject,
@@ -152,23 +248,50 @@ class _ActivityStore {
     required String type,
     required int durationSec,
     int idleSec = 0,
-  }) async {
-    if (durationSec < 5) return;
-    final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList(_key) ?? [];
-    final entry = _ActivityEntry(
-      when: DateTime.now(),
-      subject: subject,
-      topic: topic,
-      type: type,
-      durationSec: durationSec,
-      idleSec: idleSec,
-    );
-    list.add(jsonEncode(entry.toJson()));
-    if (list.length > 200) list.removeRange(0, list.length - 200);
-    await prefs.setStringList(_key, list);
-    StudySessionTracker.instance._notifyDataChanged();
+    DateTime? startedAt,
+  }) {
+    return _serialize(() async {
+      if (durationSec < 5) return;
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final list = List<String>.from(prefs.getStringList(_key) ?? []);
+        final entry = _ActivityEntry(
+          // Gece yarısı bug'ı için session start time. Yoksa now() —
+          // backwards compatible (eski callsite'lar etkilenmez).
+          when: startedAt ?? DateTime.now(),
+          subject: subject,
+          topic: topic,
+          type: type,
+          durationSec: durationSec,
+          idleSec: idleSec,
+        );
+        list.add(jsonEncode(entry.toJson()));
+        final trimmed = await _trimAndArchive(list);
+        await prefs.setStringList(_key, trimmed);
+      } catch (e) {
+        debugPrint('[ActivityStore] logSession fail: $e');
+      }
+      StudySessionTracker.instance._notifyDataChanged();
+    });
   }
+}
+
+/// Pomodoro / Yeşil Koloni ekranlarından çalışma takvimine session
+/// yazmak için public bridge. Ders adı yok — özel "Pomodoro" subject ile
+/// loglanır ki "Çalışma Takvimim"de Pomodoro kategorisi olarak görünsün.
+Future<void> logPomodoroSessionToCalendar({
+  required int durationSec,
+  String? label,
+}) {
+  if (durationSec < 5) return Future.value();
+  // Default label runtime'da kullanıcının diline çevrilir.
+  final resolvedLabel = label ?? 'Odak Seansı'.tr();
+  return _ActivityStore.logSession(
+    subject: 'Pomodoro',
+    topic: resolvedLabel,
+    type: 'pomodoro',
+    durationSec: durationSec,
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -193,9 +316,20 @@ class StudySessionTracker extends ChangeNotifier
   /// Kullanıcı hareketsiz kaldığında otomatik pause eşiği.
   static const Duration idleThreshold = Duration(minutes: 2);
 
+  /// Checkpoint anahtarı — devam eden session'ın SharedPreferences snapshot'u.
+  /// App lifecycle detached / crash sonrası kurtarma için.
+  static const String _ckptKey = 'study_tracker_checkpoint_v1';
+  /// Her N saniyede bir checkpoint güncellenir — crash'te en kötü kayıp.
+  static const int _ckptIntervalSec = 30;
+  int _tickCounter = 0;
+
   String? _subject;
   String? _topic;
   String? _type; // 'özet' | 'soru'
+
+  /// İlk start() çağrısının zamanı — entry.when'i bu değere göre yazıyoruz
+  /// ki gece yarısı sınırını geçen session başladığı güne sayılsın.
+  DateTime? _sessionStartedAt;
 
   /// Şu ana kadar BİRİKEN saniye (önceki run segment'lerinin toplamı).
   int _accumulatedSec = 0;
@@ -203,8 +337,11 @@ class StudySessionTracker extends ChangeNotifier
   /// Şu anki "çalışıyor" segment'inin başlangıcı; null ise paused.
   DateTime? _runStart;
 
-  Timer? _ticker; // 1 sn'lik UI rebuild
-  Timer? _idleTimer; // 1 sn'lik idle sayacı
+  // Tek timer — her saniyede hem UI notify hem idle increment.
+  Timer? _ticker;
+  // Legacy field — _stopTicker mevcut callsite'larda hâlâ null-cancel
+  // yapabilsin diye tutuluyor; aktif kullanılmıyor.
+  Timer? _idleTimer;
 
   /// Etkileşimden geçen saniye. idleThreshold'u aşınca pause(byIdle:true).
   int _idleSec = 0;
@@ -246,14 +383,19 @@ class StudySessionTracker extends ChangeNotifier
     _topic = topic;
     _type = type;
     _accumulatedSec = 0;
-    _runStart = DateTime.now();
+    final now = DateTime.now();
+    _sessionStartedAt = now;
+    _runStart = now;
     _paused = false;
     _pausedByIdle = false;
     _idleSec = 0;
     _sessionIdleSec = 0;
     _idlePauseStart = null;
     WidgetsBinding.instance.addObserver(this);
-    _startTickers();
+    _startTicker();
+    // İlk checkpoint hemen — crash 30sn içinde olursa bile son durum kayıtlı.
+    // ignore: discarded_futures
+    _writeCheckpoint();
     notifyListeners();
   }
 
@@ -263,6 +405,7 @@ class StudySessionTracker extends ChangeNotifier
     final s = _subject!;
     final t = _topic!;
     final ty = _type!;
+    final startedAt = _sessionStartedAt;
     final elapsed = liveSec;
     // Hâlâ idle pause'da bitiyorsa, biriken idle süresine son aralığı ekle.
     if (_idlePauseStart != null) {
@@ -271,11 +414,12 @@ class StudySessionTracker extends ChangeNotifier
       _idlePauseStart = null;
     }
     final idle = _sessionIdleSec;
-    _stopTickers();
+    _stopTicker();
     WidgetsBinding.instance.removeObserver(this);
     _subject = null;
     _topic = null;
     _type = null;
+    _sessionStartedAt = null;
     _accumulatedSec = 0;
     _runStart = null;
     _paused = false;
@@ -289,11 +433,14 @@ class StudySessionTracker extends ChangeNotifier
       type: ty,
       durationSec: elapsed,
       idleSec: idle,
+      startedAt: startedAt,
     );
+    // Checkpoint'i temizle — session başarıyla yazıldı.
+    await _clearCheckpoint();
   }
 
   /// Süreyi durdur. byIdle=true → kullanıcı hareketsizliği nedeniyle.
-  /// Aktif segment uzunluğu birikenlere eklenir; ticker'lar durdurulur.
+  /// Aktif segment uzunluğu birikenlere eklenir; ticker durdurulur.
   void pause({bool byIdle = false}) {
     if (!isActive || _paused) return;
     if (_runStart != null) {
@@ -306,7 +453,7 @@ class StudySessionTracker extends ChangeNotifier
     if (byIdle) {
       _idlePauseStart = DateTime.now();
     }
-    _stopTickers();
+    _stopTicker();
     notifyListeners();
   }
 
@@ -323,7 +470,7 @@ class StudySessionTracker extends ChangeNotifier
     _paused = false;
     _pausedByIdle = false;
     _idleSec = 0;
-    _startTickers();
+    _startTicker();
     notifyListeners();
   }
 
@@ -361,21 +508,94 @@ class StudySessionTracker extends ChangeNotifier
     }
   }
 
-  void _startTickers() {
+  // İki ayrı Timer.periodic'i tek tick'e indirdik — her saniyede
+  // hem UI bildirimi hem idle sayacı yapılır. Ayrıca her 30sn'de bir
+  // checkpoint SharedPreferences'a yazılır (lifecycle detached için).
+  void _startTicker() {
     _ticker?.cancel();
     _idleTimer?.cancel();
+    _tickCounter = 0;
     _ticker = Timer.periodic(Duration(seconds: 1), (_) {
-      notifyListeners();
-    });
-    _idleTimer = Timer.periodic(Duration(seconds: 1), (_) {
       _idleSec += 1;
       if (_idleSec >= idleThreshold.inSeconds) {
         pause(byIdle: true);
+        return; // pause çağrısı ticker'ı zaten durduracak
       }
+      _tickCounter++;
+      if (_tickCounter >= _ckptIntervalSec) {
+        _tickCounter = 0;
+        // Fire-and-forget — UI bloklamasın.
+        // ignore: discarded_futures
+        _writeCheckpoint();
+      }
+      notifyListeners();
     });
   }
 
-  void _stopTickers() {
+  /// Devam eden session'ı SharedPreferences'a snapshot et. App kill edilirse
+  /// bir sonraki boot'ta `recoverPendingSession` bunu okur ve logSession ile
+  /// commit eder. En kötü kayıp: _ckptIntervalSec (30sn).
+  Future<void> _writeCheckpoint() async {
+    if (!isActive || _sessionStartedAt == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_ckptKey, jsonEncode({
+        'subject': _subject,
+        'topic': _topic,
+        'type': _type,
+        'startedAt': _sessionStartedAt!.toIso8601String(),
+        'durationSec': liveSec,
+        'idleSec': _sessionIdleSec,
+      }));
+    } catch (e) {
+      debugPrint('[Tracker] checkpoint fail: $e');
+    }
+  }
+
+  /// App start'ta çağrılır — önceki crash/kill'den kalan checkpoint varsa
+  /// logSession ile commit eder + checkpoint'i temizler.
+  static Future<void> recoverPendingSession() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_ckptKey);
+      if (raw == null || raw.isEmpty) return;
+      final m = jsonDecode(raw) as Map<String, dynamic>;
+      await prefs.remove(_ckptKey);
+      final subject = m['subject'] as String?;
+      final topic = m['topic'] as String?;
+      final type = m['type'] as String?;
+      final startedAtStr = m['startedAt'] as String?;
+      final duration = (m['durationSec'] as num?)?.toInt() ?? 0;
+      final idle = (m['idleSec'] as num?)?.toInt() ?? 0;
+      if (subject == null || topic == null || type == null || duration < 5) {
+        return;
+      }
+      final startedAt = startedAtStr != null
+          ? DateTime.tryParse(startedAtStr)
+          : null;
+      await _ActivityStore.logSession(
+        subject: subject,
+        topic: topic,
+        type: type,
+        durationSec: duration,
+        idleSec: idle,
+        startedAt: startedAt,
+      );
+      debugPrint('[Tracker] pending session recovered: $subject/$topic '
+          '(${duration}s)');
+    } catch (e) {
+      debugPrint('[Tracker] recoverPendingSession fail: $e');
+    }
+  }
+
+  Future<void> _clearCheckpoint() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_ckptKey);
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'academic_planner'); }
+  }
+
+  void _stopTicker() {
     _ticker?.cancel();
     _ticker = null;
     _idleTimer?.cancel();
@@ -419,70 +639,8 @@ class StudySessionTracker extends ChangeNotifier
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-//  Haftalık takvim widget'ı (Pzt-Paz, bugün indigo, aktivite ✓)
-// ═══════════════════════════════════════════════════════════════════════════
-class _WeeklyCalendar extends StatefulWidget {
-  const _WeeklyCalendar();
-  @override
-  State<_WeeklyCalendar> createState() => _WeeklyCalendarState();
-}
-
-class _WeeklyCalendarState extends State<_WeeklyCalendar> {
-  Map<String, List<_ActivityEntry>> _grouped = {};
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final g = await _ActivityStore.readWeekGrouped();
-    if (!mounted) return;
-    setState(() => _grouped = g);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final monday = now.subtract(Duration(days: now.weekday - 1));
-    final today = DateTime(now.year, now.month, now.day);
-    final labels = [
-      localeService.tr('day_mon_short'),
-      localeService.tr('day_tue_short'),
-      localeService.tr('day_wed_short'),
-      localeService.tr('day_thu_short'),
-      localeService.tr('day_fri_short'),
-      localeService.tr('day_sat_short'),
-      localeService.tr('day_sun_short'),
-    ];
-
-    return SizedBox(
-      height: 76,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: 7,
-        separatorBuilder: (_, __) => SizedBox(width: 8),
-        itemBuilder: (_, i) {
-          final day = monday.add(Duration(days: i));
-          final isToday = day.year == today.year &&
-              day.month == today.month &&
-              day.day == today.day;
-          final hasActivity =
-              (_grouped[_ActivityStore.dayKey(day)] ?? const []).isNotEmpty;
-          return _DayCell(
-            label: labels[i],
-            day: day.day,
-            isToday: isToday,
-            hasActivity: hasActivity,
-          );
-        },
-      ),
-    );
-  }
-}
+// NOT: Eski `_WeeklyCalendar` + `_DayCell` widget'ları silindi — `StudyCalendarPage`
+// kendi gün hücrelerini `_buildDayFrame` üzerinden üretiyor; dead code idi.
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Çalışma Takvimim — haftalık takvim + günlük detay listeleri
@@ -495,17 +653,113 @@ class StudyCalendarPage extends StatefulWidget {
 
 class _StudyCalendarPageState extends State<StudyCalendarPage> {
   Map<String, List<_ActivityEntry>> _grouped = {};
+  bool _loading = true;
 
   @override
   void initState() {
     super.initState();
     _load();
+    // Yeni session tamamlandığında otomatik tazele — kullanıcı sayfayı
+    // pop+push yapmadan değişiklikleri görsün.
+    StudySessionTracker.instance.addListener(_onTrackerChanged);
+  }
+
+  @override
+  void dispose() {
+    StudySessionTracker.instance.removeListener(_onTrackerChanged);
+    super.dispose();
+  }
+
+  bool _wasActive = false;
+  void _onTrackerChanged() {
+    final isActive = StudySessionTracker.instance.isActive;
+    // Active → kapalı geçişi (session sona erdi) → yeniden yükle.
+    if (_wasActive && !isActive) {
+      _load();
+    }
+    _wasActive = isActive;
   }
 
   Future<void> _load() async {
     final g = await _ActivityStore.readWeekGrouped();
     if (!mounted) return;
-    setState(() => _grouped = g);
+    setState(() {
+      _grouped = g;
+      _loading = false;
+    });
+  }
+
+  // ── Haftalık özet metrikleri ─────────────────────────────────────────────
+  /// Mevcut haftaya ait toplam süre, en çok çalışılan ders, günlük ortalama
+  /// ve ardışık-gün (streak) sayısı.
+  ({int totalSec, String topSubject, int dayAvgSec, int streak})
+      _weeklySummary() {
+    final now = DateTime.now();
+    final monday = DateTime(now.year, now.month, now.day)
+        .subtract(Duration(days: now.weekday - 1));
+    int totalSec = 0;
+    int activeDays = 0;
+    final perSubject = <String, int>{};
+    final activeDayKeys = <String>{};
+    for (var i = 0; i < 7; i++) {
+      final d = monday.add(Duration(days: i));
+      final dk = _ActivityStore.dayKey(d);
+      final entries = _grouped[dk] ?? const [];
+      int daySec = 0;
+      for (final e in entries) {
+        daySec += e.durationSec;
+        perSubject[e.subject] =
+            (perSubject[e.subject] ?? 0) + e.durationSec;
+      }
+      if (daySec > 0) {
+        totalSec += daySec;
+        activeDays++;
+        activeDayKeys.add(dk);
+      }
+    }
+    String topSubject = '—';
+    int topSec = 0;
+    perSubject.forEach((k, v) {
+      if (v > topSec) {
+        topSec = v;
+        topSubject = k;
+      }
+    });
+    final dayAvgSec = activeDays == 0 ? 0 : totalSec ~/ activeDays;
+    // Streak — bugünden geriye gidip _ActivityStore'daki tüm günlere bak.
+    int streak = 0;
+    for (var i = 0; i < 365; i++) {
+      final d = DateTime(now.year, now.month, now.day)
+          .subtract(Duration(days: i));
+      final dk = _ActivityStore.dayKey(d);
+      final entries = _grouped[dk] ?? const [];
+      final has = entries.any((e) => e.durationSec > 0);
+      if (has) {
+        streak++;
+      } else if (i > 0) {
+        // Bugün boş ama dün dolu olabilir → bugünü atla, dünden başla.
+        if (i == 0) continue;
+        break;
+      } else {
+        // i==0 ve bugün boş → streak 0
+        break;
+      }
+    }
+    return (
+      totalSec: totalSec,
+      topSubject: topSubject,
+      dayAvgSec: dayAvgSec,
+      streak: streak,
+    );
+  }
+
+  String _fmtDur(int sec) {
+    if (sec <= 0) return '0 dk';
+    if (sec < 60) return '$sec sn';
+    if (sec < 3600) return '${sec ~/ 60} dk';
+    final h = sec ~/ 3600;
+    final m = (sec % 3600) ~/ 60;
+    return m == 0 ? '$h sa' : '$h sa $m dk';
   }
 
   /// Aktivite olan tamamlanmış geçmiş haftaların pazartesi günleri,
@@ -529,10 +783,28 @@ class _StudyCalendarPageState extends State<StudyCalendarPage> {
       ..sort((a, b) => b.compareTo(a));
   }
 
-  static const _monthShort = [
-    'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz',
-    'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara',
-  ];
+  // Aktif dile çevrilen 3 harfli ay adları (Ocak→Oca, Jan, Янв, vb.)
+  static List<String> get _monthShort => const [
+        'month_jan_short', 'month_feb_short', 'month_mar_short',
+        'month_apr_short', 'month_may_short', 'month_jun_short',
+        'month_jul_short', 'month_aug_short', 'month_sep_short',
+        'month_oct_short', 'month_nov_short', 'month_dec_short',
+      ].map((k) => k.tr()).toList(growable: false);
+
+  /// Entry listesinin toplam süresini kısa formatta döndürür ("1.5sa", "45dk").
+  /// 0 saniye veya hiç süre yoksa '—' döner. Static — _PastWeekDayCell'den de
+  /// kullanılır.
+  static String _totalDurationLabel(List<_ActivityEntry> entries) {
+    int total = 0;
+    for (final e in entries) {
+      total += e.durationSec;
+    }
+    if (total <= 0) return '—';
+    if (total < 60) return '${total}sn';
+    if (total < 3600) return '${total ~/ 60}dk';
+    final h = total / 3600;
+    return '${h.toStringAsFixed(h % 1 == 0 ? 0 : 1)}sa';
+  }
 
   String _weekRangeLabel(DateTime monday) {
     final sunday = monday.add(Duration(days: 6));
@@ -558,6 +830,7 @@ class _StudyCalendarPageState extends State<StudyCalendarPage> {
     ];
     final pastMondays = _completedPastWeekMondays();
 
+    final summary = _loading ? null : _weeklySummary();
     return Scaffold(
       backgroundColor: AppPalette.bg(context),
       appBar: AppBar(
@@ -572,55 +845,139 @@ class _StudyCalendarPageState extends State<StudyCalendarPage> {
           ),
         ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
-        children: [
-          Center(
-            child: Text(
-              'Haftalık Performansın'.tr(),
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: AppPalette.textPrimary(context),
-                letterSpacing: 0.2,
+      body: _loading
+          ? const Center(
+              child: SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(strokeWidth: 2.5),
               ),
-            ),
-          ),
-          SizedBox(height: 18),
-          // Takvim çerçevesi — bu haftanın 7 günü + sağ tarafa tamamlanmış
-          // geçmiş haftaların özet sekmeleri (en yeni en başta).
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-            color: AppPalette.card(context),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppPalette.textPrimary(context), width: 1.4),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 10,
-                  offset: Offset(0, 3),
+            )
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
+              children: [
+                Center(
+                  child: Text(
+                    'Haftalık Performansın'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: AppPalette.textPrimary(context),
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ),
+                SizedBox(height: 12),
+                // Haftalık özet metrik kartı — toplam süre, en çok ders,
+                // günlük ortalama, streak.
+                if (summary != null) _weeklySummaryCard(summary),
+                SizedBox(height: 14),
+                // Takvim çerçevesi — bu haftanın 7 günü + sağ tarafa tamamlanmış
+                // geçmiş haftaların özet sekmeleri (en yeni en başta).
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppPalette.card(context),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                        color: AppPalette.textPrimary(context),
+                        width: 1.4),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 10,
+                        offset: Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: GridView.count(
+                    crossAxisCount: 3,
+                    shrinkWrap: true,
+                    physics: NeverScrollableScrollPhysics(),
+                    mainAxisSpacing: 10,
+                    crossAxisSpacing: 10,
+                    childAspectRatio: 0.72,
+                    children: [
+                      for (var i = 0; i < 7; i++)
+                        _buildDayFrame(
+                            monday.add(Duration(days: i)), dayNames[i]),
+                      for (final m in pastMondays)
+                        _buildPastWeekCell(m),
+                    ],
+                  ),
                 ),
               ],
             ),
-            child: GridView.count(
-              crossAxisCount: 3,
-              shrinkWrap: true,
-              physics: NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
-              childAspectRatio: 0.72,
-              children: [
-                for (var i = 0; i < 7; i++)
-                  _buildDayFrame(
-                      monday.add(Duration(days: i)), dayNames[i]),
-                for (final m in pastMondays)
-                  _buildPastWeekCell(m),
-              ],
-            ),
+    );
+  }
+
+  /// Haftalık özet kartı — 4 metrik (toplam, ortalama, top ders, streak).
+  Widget _weeklySummaryCard(
+      ({int totalSec, String topSubject, int dayAvgSec, int streak}) s) {
+    Widget metric(String label, String value, IconData icon, Color color) {
+      return Expanded(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: color.withValues(alpha: 0.30)),
           ),
-        ],
-      ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: color),
+              SizedBox(height: 6),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    color: AppPalette.textPrimary(context),
+                  ),
+                ),
+              ),
+              SizedBox(height: 2),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppPalette.textSecondary(context),
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        metric('Toplam'.tr(), _fmtDur(s.totalSec),
+            Icons.timer_rounded, _indigo),
+        SizedBox(width: 8),
+        metric('Ortalama/gün'.tr(), _fmtDur(s.dayAvgSec),
+            Icons.show_chart_rounded, _blue),
+        SizedBox(width: 8),
+        metric('Streak'.tr(), '${s.streak} ${'gün'.tr()}',
+            Icons.local_fire_department_rounded, _orange),
+        SizedBox(width: 8),
+        metric(
+            'En çok'.tr(),
+            s.topSubject.length > 8
+                ? '${s.topSubject.substring(0, 8)}…'
+                : s.topSubject,
+            Icons.workspace_premium_rounded,
+            Color(0xFFA855F7)),
+      ],
     );
   }
 
@@ -787,16 +1144,13 @@ class _StudyCalendarPageState extends State<StudyCalendarPage> {
 
   Widget _buildDayFrameInner(DateTime day, String dayName,
       String dateText, List<_ActivityEntry> entries, bool isToday) {
-    // Son aktivite saati; yoksa bugün için "şimdi", değilse "—"
-    final now = DateTime.now();
+    // Son aktivite saati; yoksa "—" (bugün boş ise "şu an saati" göstermek
+    // yanıltıcı — sanki yeni bir aktivite olmuş gibi).
     String timeText;
     if (entries.isNotEmpty) {
       final last = entries.first.when;
       timeText =
           '${last.hour.toString().padLeft(2, '0')}:${last.minute.toString().padLeft(2, '0')}';
-    } else if (isToday) {
-      timeText =
-          '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
     } else {
       timeText = '—';
     }
@@ -918,6 +1272,8 @@ class _StudyCalendarPageState extends State<StudyCalendarPage> {
 
   Widget _compactActivityRow(_ActivityEntry e) {
     final isQ = e.type == 'soru';
+    final accent = isQ ? _orange : _blue;
+    final dur = e.durationSec;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
@@ -926,7 +1282,7 @@ class _StudyCalendarPageState extends State<StudyCalendarPage> {
           Icon(
             isQ ? Icons.quiz_rounded : Icons.menu_book_rounded,
             size: 10,
-            color: isQ ? _orange : _blue,
+            color: accent,
           ),
           SizedBox(width: 4),
           Expanded(
@@ -944,14 +1300,36 @@ class _StudyCalendarPageState extends State<StudyCalendarPage> {
                     height: 1.15,
                   ),
                 ),
-                Text(
-                  e.subject,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.poppins(
-                    fontSize: 8.5,
-                    color: Colors.grey.shade600,
-                  ),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        e.subject,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: 8.5,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ),
+                    if (dur > 0) ...[
+                      SizedBox(width: 4),
+                      Text('·',
+                          style: GoogleFonts.poppins(
+                              fontSize: 8.5,
+                              color: Colors.grey.shade400)),
+                      SizedBox(width: 4),
+                      Text(
+                        _shortDur(dur),
+                        style: GoogleFonts.poppins(
+                          fontSize: 8.5,
+                          fontWeight: FontWeight.w700,
+                          color: accent,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
@@ -959,6 +1337,14 @@ class _StudyCalendarPageState extends State<StudyCalendarPage> {
         ],
       ),
     );
+  }
+
+  /// Kompakt süre formatı — "45sn" / "12dk" / "1.5sa".
+  static String _shortDur(int sec) {
+    if (sec < 60) return '${sec}sn';
+    if (sec < 3600) return '${sec ~/ 60}dk';
+    final h = sec / 3600;
+    return '${h.toStringAsFixed(h % 1 == 0 ? 0 : 1)}sa';
   }
 
 }
@@ -976,10 +1362,13 @@ class _PastWeekPage extends StatelessWidget {
     required this.entriesByDay,
   });
 
-  static const _monthShort = [
-    'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz',
-    'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara',
-  ];
+  // Aktif dile çevrilen 3 harfli ay adları (Ocak→Oca, Jan, Янв, vb.)
+  static List<String> get _monthShort => const [
+        'month_jan_short', 'month_feb_short', 'month_mar_short',
+        'month_apr_short', 'month_may_short', 'month_jun_short',
+        'month_jul_short', 'month_aug_short', 'month_sep_short',
+        'month_oct_short', 'month_nov_short', 'month_dec_short',
+      ].map((k) => k.tr()).toList(growable: false);
 
   String _weekRangeLabel() {
     final sunday = monday.add(Duration(days: 6));
@@ -1171,6 +1560,22 @@ class _PastWeekDayCell extends StatelessWidget {
                           ),
                         ),
                       ),
+                      // Günlük toplam süre — "0sn" gibi yararsızsa gizle.
+                      if (entries.isNotEmpty) ...[
+                        SizedBox(height: 2),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            _StudyCalendarPageState._totalDurationLabel(entries),
+                            maxLines: 1,
+                            style: GoogleFonts.poppins(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w800,
+                              color: _indigo,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -1216,10 +1621,17 @@ class _DayDetailPageState extends State<_DayDetailPage> {
   /// başlar, tracker tetiklendikçe (yeni session yazıldığında) yenilenir.
   late List<_ActivityEntry> _liveEntries;
 
-  /// Konu kartında "Çalışma Süresi" badge'inin TOPLAM değerini beslemek
-  /// için hafta seviyesinde önceden hesaplanmış istatistikler.
-  /// Anahtar: "subject|topic"  →  saniye toplamı.
-  Map<String, int> _topicWeekTotal = const {};
+  /// Konu kartında "Çalışma Süresi" badge'i için BU GÜN'e özel toplam
+  /// süreler. Eski sürümde haftalık toplam tutuluyordu — kullanıcı gün
+  /// detay sayfasında haftalık metrik görüyordu, yanıltıcıydı.
+  /// Anahtar: "subject|topic"  →  o günkü saniye toplamı.
+  Map<String, int> _topicDayTotal = const {};
+
+  /// O günkü tüm aktivitelerin toplamı (özet + soru). Header altındaki
+  /// "Bugün toplam" özet satırı için.
+  int _dayTotalSec = 0;
+  int _daySummarySec = 0;
+  int _dayQuestionSec = 0;
 
   String _topicKey(String subject, String topic) => '$subject|$topic';
 
@@ -1262,29 +1674,39 @@ class _DayDetailPageState extends State<_DayDetailPage> {
     super.initState();
     _liveEntries = List.of(widget.entries);
     _loadColors();
-    _loadWeekStats();
+    _loadDayStats();
     StudySessionTracker.instance.addListener(_onTrackerTick);
   }
 
-  /// Görüntülenen günün ait olduğu haftanın (Pzt-Paz) tüm entry'lerini
-  /// okuyup (subject, topic) kombinasyonu için toplam süreyi hesaplar.
-  /// Konu kartı "Çalışma Süresi" badge'i bu haritadan beslenir.
-  Future<void> _loadWeekStats() async {
+  /// Sadece görüntülenen GÜN için (subject, topic) toplamlarını hesaplar.
+  /// Aynı konuya birden fazla session açıldıysa süreler toplanır.
+  /// Ayrıca header altı "Bugün toplam" özet satırı için günlük totalleri
+  /// (toplam / özet / soru) tutar.
+  Future<void> _loadDayStats() async {
     final all = await _ActivityStore.readAll();
-    final base = widget.day;
-    final monday = DateTime(base.year, base.month, base.day)
-        .subtract(Duration(days: base.weekday - 1));
-    final nextMonday = monday.add(Duration(days: 7));
+    final dk = _ActivityStore.dayKey(widget.day);
     final total = <String, int>{};
+    int day = 0;
+    int summary = 0;
+    int question = 0;
     for (final e in all) {
       if (e.durationSec <= 0) continue;
-      if (e.when.isBefore(monday) || !e.when.isBefore(nextMonday)) continue;
+      if (_ActivityStore.dayKey(e.when) != dk) continue;
       final key = _topicKey(e.subject, e.topic);
       total[key] = (total[key] ?? 0) + e.durationSec;
+      day += e.durationSec;
+      if (e.type == 'soru') {
+        question += e.durationSec;
+      } else {
+        summary += e.durationSec;
+      }
     }
     if (!mounted) return;
     setState(() {
-      _topicWeekTotal = total;
+      _topicDayTotal = total;
+      _dayTotalSec = day;
+      _daySummarySec = summary;
+      _dayQuestionSec = question;
     });
   }
 
@@ -1297,15 +1719,30 @@ class _DayDetailPageState extends State<_DayDetailPage> {
   bool _wasActive = false;
   void _onTrackerTick() {
     if (!mounted) return;
-    final isActive = StudySessionTracker.instance.isActive;
-    // Saniyelik tick'lerde sadece UI rebuild — liveSec değişti, _aggregatedFor
-    // bunu okur. Pref I/O yok.
-     setState(() {});
+    final tr = StudySessionTracker.instance;
+    final isActive = tr.isActive;
     // Aktif → kapalı geçişi (session sona erdi) → entries'i yeniden yükle.
+    // Bu setState yapılmadan refreshEntries setState ile zaten rebuild eder.
     if (_wasActive && !isActive) {
+      _wasActive = isActive;
       _refreshEntries();
+      return;
     }
     _wasActive = isActive;
+    // Saniyelik tick → rebuild yalnızca aktif session bu sayfanın gününe ve
+    // bir konusuna denk geliyorsa anlamlı (liveSec değişimi orada görünür).
+    // Aksi halde tüm ağacı her saniye yeniden çizmek ısrarsız battery drain.
+    if (!isActive) return;
+    final dk = _ActivityStore.dayKey(widget.day);
+    final today = _ActivityStore.dayKey(DateTime.now());
+    if (dk != today) return;
+    // Listede aktif konunun karşılığı yoksa rebuild faydasız.
+    final subj = tr.currentSubject;
+    final topic = tr.currentTopic;
+    final hasMatching = _liveEntries.any(
+        (e) => e.subject == subj && e.topic == topic);
+    if (!hasMatching) return;
+    setState(() {});
   }
 
   Future<void> _refreshEntries() async {
@@ -1316,10 +1753,9 @@ class _DayDetailPageState extends State<_DayDetailPage> {
           ..sort((a, b) => b.when.compareTo(a.when));
     if (!mounted) return;
     setState(() => _liveEntries = filtered);
-    // Hafta istatistiklerini de tazele — kullanıcı yeni bir session
-    // tamamladığında "Çalışma Süresi" badge'i ve günlük dağılım anında
-    // güncellenir.
-    await _loadWeekStats();
+    // Gün istatistiklerini de tazele — yeni session tamamlanınca konu
+    // kartı badge'i ve header'daki "Bugün toplam" anında güncellenir.
+    await _loadDayStats();
   }
 
   Future<void> _loadColors() async {
@@ -1336,7 +1772,7 @@ class _DayDetailPageState extends State<_DayDetailPage> {
         if (t != null) _topicCardBg = Color(t);
         if (p != null) _pageBg = Color(p);
       });
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'academic_planner'); }
   }
 
   Future<void> _saveColors() async {
@@ -1354,7 +1790,7 @@ class _DayDetailPageState extends State<_DayDetailPage> {
       await set(_subjectsKey, _subjectsBg);
       await set(_topicCardKey, _topicCardBg);
       await set(_pageKey, _pageBg);
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'academic_planner'); }
   }
 
   void _applyColor(Color c) {
@@ -1545,6 +1981,10 @@ class _DayDetailPageState extends State<_DayDetailPage> {
                     );
                   },
                 ),
+                SizedBox(height: 10),
+                // Günlük toplam özet — header'ın altında 3 metrik:
+                //   ⏱ toplam · 📖 özet · 📝 soru
+                if (_dayTotalSec > 0) _dayTotalsRow(headerInk, headerInkMute),
                 SizedBox(height: 14),
                 // "Çalışılan Dersler" başlığı — çerçevenin ÜSTÜNDE,
                 // sayfa genişliğince ortalanmış olarak konumlanır.
@@ -1615,6 +2055,68 @@ class _DayDetailPageState extends State<_DayDetailPage> {
     );
   }
 
+  /// Günlük toplam özet — header altında küçük 3 metrik (toplam, özet, soru).
+  /// 0 ise satır gizli (build içinde koşul var).
+  Widget _dayTotalsRow(Color ink, Color inkMute) {
+    Widget chip(IconData icon, String label, int sec, Color color) {
+      return Expanded(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color.withValues(alpha: 0.30)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: color),
+              SizedBox(width: 6),
+              Flexible(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      maxLines: 1,
+                      style: GoogleFonts.poppins(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: color,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                    Text(
+                      _entryDurationText(sec),
+                      maxLines: 1,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        color: ink,
+                        height: 1.1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        chip(Icons.timer_rounded, 'Toplam'.tr(), _dayTotalSec, _indigo),
+        SizedBox(width: 8),
+        chip(Icons.menu_book_rounded, 'Özet'.tr(), _daySummarySec, _blue),
+        SizedBox(width: 8),
+        chip(Icons.quiz_rounded, 'Soru'.tr(), _dayQuestionSec, _orange),
+      ],
+    );
+  }
+
   /// Bir entry'nin durationSec değerini "12 dk" / "45sn" / "—" olarak formatlar.
   String _entryDurationText(int sec) {
     if (sec <= 0) return '—';
@@ -1627,27 +2129,38 @@ class _DayDetailPageState extends State<_DayDetailPage> {
     return mm == 0 ? '$h sa' : '$h sa $mm dk';
   }
 
+  /// (subject, topic, type) → o kombinasyon için kaç oturum log'landı.
+  /// _groupedBySubject hesaplaması sırasında doldurulur; _entryRow rozet
+  /// olarak gösterir ("3 oturum" gibi).
+  final Map<String, int> _sessionCountByDedupKey = {};
+
+  String _dedupKey(String subject, String topic, String type) =>
+      '$subject|$topic|$type';
+
   /// Entries'i ders bazında gruplar — sıra: en son aktiviteye göre.
-  /// Aynı (subject, topic, type) kombinasyonu için yalnızca bir entry
-  /// tutulur (en yeni `when`); aynı konu için birden fazla session/log
-  /// kaydı olduğunda kart listesinde tekrar etmez.
+  /// Aynı (subject, topic, type) kombinasyonu için tek temsilci tutulur
+  /// ama session sayısı `_sessionCountByDedupKey` haritasında biriktirilir
+  /// — _entryRow "× N" rozetiyle aynı konuya kaç oturum çalışıldığını
+  /// gösterir. Önceden tekrarlar UI'da görünmeden yutuluyordu.
   List<({String subject, List<_ActivityEntry> entries})> _groupedBySubject() {
+    _sessionCountByDedupKey.clear();
     final subjectOrder = <String>[];
-    // (subject, topic, type) → o kombinasyon için tutulan en yeni entry.
     final unique = <String, _ActivityEntry>{};
     final perSubjectKeys = <String, List<String>>{};
     for (final e in _liveEntries) {
-      final dedupKey = '${e.subject}|${e.topic}|${e.type}';
-      final existing = unique[dedupKey];
+      final dk = _dedupKey(e.subject, e.topic, e.type);
+      _sessionCountByDedupKey[dk] =
+          (_sessionCountByDedupKey[dk] ?? 0) + 1;
+      final existing = unique[dk];
       if (existing == null) {
-        unique[dedupKey] = e;
+        unique[dk] = e;
         if (!perSubjectKeys.containsKey(e.subject)) {
           perSubjectKeys[e.subject] = [];
           subjectOrder.add(e.subject);
         }
-        perSubjectKeys[e.subject]!.add(dedupKey);
+        perSubjectKeys[e.subject]!.add(dk);
       } else if (e.when.isAfter(existing.when)) {
-        unique[dedupKey] = e;
+        unique[dk] = e;
       }
     }
     return subjectOrder
@@ -1697,11 +2210,11 @@ class _DayDetailPageState extends State<_DayDetailPage> {
   Widget _entryRow(_ActivityEntry e, Color ink, Color inkMute) {
     final isQ = e.type == 'soru';
     final accent = isQ ? _orange : _blue;
-    // Bu konunun bu haftaki TOPLAM çalışma süresi (saniye). Aynı topiğin
+    // Bu konunun BU GÜNKÜ toplam çalışma süresi (saniye). Aynı topiğin
     // birden fazla session'ı varsa tümü toplanır; yoksa entry'nin kendi
     // durationSec değerine düşülür (eski kayıtlarla uyum).
-    final weekTotalSec =
-        _topicWeekTotal[_topicKey(e.subject, e.topic)] ?? e.durationSec;
+    final dayTotalSec =
+        _topicDayTotal[_topicKey(e.subject, e.topic)] ?? e.durationSec;
     // Konu kartı arka plan + metin rengi — kullanıcı renk seçici "Konular"
     // hedefiyle özel renk verdiyse onu, yoksa varsayılan accent tonunu
     // kullan. Koyu zeminde metin beyaza çevrilir.
@@ -1738,21 +2251,56 @@ class _DayDetailPageState extends State<_DayDetailPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              // ── 1. SATIR: konu adı | Çalışma Süresi ───────────────────────
+              // ── 1. SATIR: konu adı (+ session count rozeti) | Çalışma Süresi
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: Text(
-                      e.topic,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: cardInk,
-                        height: 1.25,
-                      ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            e.topic,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: cardInk,
+                              height: 1.25,
+                            ),
+                          ),
+                        ),
+                        if ((_sessionCountByDedupKey[
+                                    _dedupKey(e.subject, e.topic, e.type)] ??
+                                1) >
+                            1) ...[
+                          SizedBox(width: 6),
+                          // Aynı konuya N oturum çalışıldı rozeti.
+                          Padding(
+                            padding: const EdgeInsets.only(top: 1),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: accent.withValues(alpha: 0.14),
+                                borderRadius:
+                                    BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                '× ${_sessionCountByDedupKey[_dedupKey(e.subject, e.topic, e.type)]}',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  color: accent,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                   SizedBox(width: 10),
@@ -1781,7 +2329,7 @@ class _DayDetailPageState extends State<_DayDetailPage> {
                       ),
                       SizedBox(height: 2),
                       Text(
-                        _entryDurationText(weekTotalSec),
+                        _entryDurationText(dayTotalSec),
                         style: GoogleFonts.poppins(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w900,
@@ -1950,7 +2498,7 @@ class _DayDetailPageState extends State<_DayDetailPage> {
                       .map((s) => jsonEncode(s.toJson()))
                       .toList();
                   await prefs2.setStringList(key, updated);
-                } catch (_) {}
+                } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'academic_planner'); }
               },
             ),
           ));
@@ -2148,78 +2696,7 @@ class _DayDetailPageState extends State<_DayDetailPage> {
   }
 }
 
-class _DayCell extends StatelessWidget {
-  final String label;
-  final int day;
-  final bool isToday;
-  final bool hasActivity;
-  const _DayCell({
-    required this.label,
-    required this.day,
-    required this.isToday,
-    required this.hasActivity,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final bg = isToday ? _indigo : Colors.white;
-    final fg = isToday ? Colors.white : Colors.black87;
-    return Container(
-      width: 50,
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isToday
-              ? _indigo
-              : Color(0xFFE5E7EB),
-          width: 1,
-        ),
-        boxShadow: isToday
-            ? [
-                BoxShadow(
-                  color: _indigo.withValues(alpha: 0.18),
-                  blurRadius: 8,
-                  offset: Offset(0, 3),
-                )
-              ]
-            : null,
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            label,
-            style: GoogleFonts.poppins(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: fg.withValues(alpha: 0.85),
-            ),
-          ),
-          SizedBox(height: 2),
-          Text(
-            '$day',
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: fg,
-            ),
-          ),
-          SizedBox(height: 4),
-          Icon(
-            hasActivity ? Icons.check_circle_rounded : Icons.circle_outlined,
-            size: 12,
-            color: hasActivity
-                ? (isToday ? Colors.white : Color(0xFF22C55E))
-                : (isToday
-                    ? Colors.white.withValues(alpha: 0.4)
-                    : Colors.grey.shade300),
-          ),
-        ],
-      ),
-    );
-  }
-}
+// (_DayCell silindi — _WeeklyCalendar ile birlikte dead code'du.)
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  LibraryLanding — Kütüphanem karşılama ekranı
@@ -2254,8 +2731,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
     'history': 'Çözümlerim',
     'contest': 'Bilgi Yarışı',
     'calendar': 'Çalışma Takvimi',
-    'arena': 'QuAlsar Arena',
-    'exam': 'Sınav Sayaçları',
+    'league': 'Dünya Sıralaması',
   };
 
   static const _libraryColorsKey = 'library_colors_v1';
@@ -2318,7 +2794,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
           if (ink != null) _cardInks[slug] = ink;
         }
       });
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'academic_planner'); }
   }
 
   Future<void> _saveLibraryColors() async {
@@ -2336,7 +2812,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
       } else {
         await prefs.setString(_libraryColorsKey, jsonEncode(m));
       }
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'academic_planner'); }
   }
 
   /// target = 'bg' → sayfa arka planı; aksi halde kart slug'ı.
@@ -2541,7 +3017,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
               ],
             ),
             SizedBox(height: 12),
-            // ── 3. satır: Çalışma Takvimim (sol) | QuAlsar Arena (sağ) ─
+            // ── 3. satır: Çalışma Takvimim (sol) | Bilgi Ligi (sağ) ──
             Row(
               children: [
                 Expanded(
@@ -2563,16 +3039,16 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 SizedBox(width: 10),
                 Expanded(
                   child: _LandingCard(
-                    icon: Icons.stadium_rounded,
-                    title: 'QuAlsar Arena',
-                    color: Color(0xFFFF5B2E),
-                    customBg: _cardBgs['arena'],
-                    customTextColor: _cardInks['arena'],
+                    icon: Icons.leaderboard_rounded,
+                    title: 'Dünya Sıralaması'.tr(),
+                    color: Color(0xFF7C3AED),
+                    customBg: _cardBgs['league'],
+                    customTextColor: _cardInks['league'],
                     onColorAccept: (c) =>
-                        _applyLibraryColor('arena', c),
+                        _applyLibraryColor('league', c),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => QuAlsarArenaScreen(),
+                        builder: (_) => const BilgiLigiScreen(),
                       ),
                     ),
                   ),
@@ -2580,26 +3056,30 @@ class _LibraryLandingState extends State<LibraryLanding> {
               ],
             ),
             SizedBox(height: 12),
-            // ── 4. satır: Sınav Sayaçları (sol) | (boş) ──────────────
+            // ── 4. satır: Pomodoro (sol) | boş yer (sağ) ─────────────
+            // Tek kart ama diğer satırlardaki kartlarla aynı genişlikte
+            // olsun diye Row + Expanded(SizedBox) ile sağ yarı rezerve.
+            // Tıklanınca Yeşil Koloni + Mars Protokolü seçim sayfası açılır.
             Row(
               children: [
                 Expanded(
                   child: _LandingCard(
-                    icon: Icons.timer_outlined,
-                    title: localeService.tr('exam_countdowns'),
-                    color: Color(0xFFFF6A00),
-                    customBg: _cardBgs['exam'],
-                    customTextColor: _cardInks['exam'],
-                    onColorAccept: (c) => _applyLibraryColor('exam', c),
+                    icon: Icons.rocket_launch_rounded,
+                    title: 'Pomodoro Tekniği'.tr(),
+                    color: Color(0xFFFF6A3C),
+                    customBg: _cardBgs['pomodoro'],
+                    customTextColor: _cardInks['pomodoro'],
+                    onColorAccept: (c) =>
+                        _applyLibraryColor('pomodoro', c),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => ExamCountdownScreen(),
+                        builder: (_) => const _PomodoroTechniquePage(),
                       ),
                     ),
                   ),
                 ),
                 SizedBox(width: 10),
-                Expanded(child: SizedBox()),
+                Expanded(child: SizedBox.shrink()),
               ],
             ),
           ],
@@ -2632,7 +3112,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
             children: [
               Icon(Icons.palette_rounded, size: 16, color: Colors.black),
               SizedBox(width: 6),
-              Text('Renk',
+              Text('Renk'.tr(),
                   style: GoogleFonts.poppins(
                       fontSize: 13,
                       fontWeight: FontWeight.w900,
@@ -2650,7 +3130,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
                     borderRadius: BorderRadius.circular(100),
                     border: Border.all(color: Colors.black12),
                   ),
-                  child: Text('Sıfırla',
+                  child: Text('Sıfırla'.tr(),
                       style: GoogleFonts.poppins(
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
@@ -2663,7 +3143,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
           _libraryTargetToggle(orange),
           SizedBox(height: 6),
           Text(
-            'Renge bas ya da sürükleyip istediğin yere bırak.',
+            'Renge bas ya da sürükleyip istediğin yere bırak.'.tr(),
             style: GoogleFonts.poppins(
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
@@ -2788,9 +3268,10 @@ class _LibraryLandingState extends State<LibraryLanding> {
           SizedBox(width: 6),
           for (final entry in _cardSlugs.entries) ...[
             // Her kart için kendi chip'i — slug → görünen ad eşlemesi.
+            // Slug ad'ları default Türkçe; .tr() ile aktif dile çevrilir.
             ConstrainedBox(
               constraints: BoxConstraints(minWidth: 80),
-              child: chip(entry.key, entry.value),
+              child: chip(entry.key, entry.value.tr()),
             ),
             SizedBox(width: 6),
           ],
@@ -2967,6 +3448,10 @@ class _TestAttempt {
   final int timeLimit;
   // Seçilen zorluk — UI'da rozet olarak gösterilebilir.
   final String difficulty;
+  // Soru başına kalan saniye — kullanıcı testten çıkıp tekrar girdiğinde
+  // her sorunun süresinin kaldığı yerden devam etmesi için persist.
+  // Boş map (varsayılan) → ilk açılışta TestPage timeLimit'ten doldurur.
+  Map<int, int> perQuestionRemaining;
 
   _TestAttempt({
     required this.id,
@@ -2976,7 +3461,8 @@ class _TestAttempt {
     required this.createdAt,
     this.timeLimit = 0,
     this.difficulty = 'medium',
-  });
+    Map<int, int>? perQuestionRemaining,
+  }) : perQuestionRemaining = perQuestionRemaining ?? {};
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -2987,6 +3473,8 @@ class _TestAttempt {
         'createdAt': createdAt.toIso8601String(),
         'timeLimit': timeLimit,
         'difficulty': difficulty,
+        'pqr': perQuestionRemaining
+            .map((k, v) => MapEntry(k.toString(), v)),
       };
 
   factory _TestAttempt.fromJson(Map<String, dynamic> j) {
@@ -2995,6 +3483,13 @@ class _TestAttempt {
     raw.forEach((k, v) {
       final key = int.tryParse(k.toString());
       if (key != null) parsed[key] = v?.toString();
+    });
+    final rawPqr = (j['pqr'] as Map?) ?? const {};
+    final pqr = <int, int>{};
+    rawPqr.forEach((k, v) {
+      final key = int.tryParse(k.toString());
+      final val = (v is num) ? v.toInt() : int.tryParse(v.toString());
+      if (key != null && val != null) pqr[key] = val;
     });
     return _TestAttempt(
       id: (j['id'] ?? DateTime.now().millisecondsSinceEpoch.toString())
@@ -3006,6 +3501,7 @@ class _TestAttempt {
           DateTime.tryParse(j['createdAt']?.toString() ?? '') ?? DateTime.now(),
       timeLimit: (j['timeLimit'] as num?)?.toInt() ?? 0,
       difficulty: (j['difficulty'] ?? 'medium').toString(),
+      perQuestionRemaining: pqr,
     );
   }
 }
@@ -3043,6 +3539,12 @@ class _Summary {
   final String? country;
   final String? gradeLabel;
   final bool ragHit;
+  // Topluluk cache metaverisi — rating widget'ı bunları kullanır.
+  // Eski (cache öncesi) özetlerde null kalır → rating UI gösterilmez.
+  // Streaming sonrası post-write için MUTABLE.
+  String? cacheDocId;
+  String? candidateDocId;
+  bool isCanonical;
   _Summary({
     required this.id,
     required this.topic,
@@ -3052,6 +3554,9 @@ class _Summary {
     this.country,
     this.gradeLabel,
     this.ragHit = false,
+    this.cacheDocId,
+    this.candidateDocId,
+    this.isCanonical = false,
   }) : tests = tests ?? [];
 
   Map<String, dynamic> toJson() => {
@@ -3063,6 +3568,9 @@ class _Summary {
         if (country != null) 'country': country,
         if (gradeLabel != null) 'gradeLabel': gradeLabel,
         'ragHit': ragHit,
+        if (cacheDocId != null) 'cacheDocId': cacheDocId,
+        if (candidateDocId != null) 'candidateDocId': candidateDocId,
+        if (isCanonical) 'isCanonical': true,
       };
 
   factory _Summary.fromJson(Map<String, dynamic> j) {
@@ -3080,6 +3588,9 @@ class _Summary {
       country: j['country'] as String?,
       gradeLabel: j['gradeLabel'] as String?,
       ragHit: (j['ragHit'] as bool?) ?? false,
+      cacheDocId: j['cacheDocId'] as String?,
+      candidateDocId: j['candidateDocId'] as String?,
+      isCanonical: (j['isCanonical'] as bool?) ?? false,
     );
   }
 }
@@ -3284,6 +3795,9 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
   String _monthKey = '';
   List<_Subject> _subjects = [];
   bool _generating = false;
+  // Loader sırasında kullanıcı "İptal"e bastıysa true — solveHomework Future'ı
+  // arka planda devam eder ama sonucu yutulur + kota iade edilir.
+  bool _generatingCancelled = false;
   // Loader aşama metinleri + sembol akışı için aktif üretim bilgisi.
   String _generatingTopic = '';
   String _generatingSubject = '';
@@ -3375,7 +3889,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
         if (v is num) _summaryCardColors[k] = Color(v.toInt());
       });
       if (mounted) setState(() {});
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'academic_planner'); }
   }
 
   Future<void> _saveSummaryCardColors() async {
@@ -3389,7 +3903,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
             jsonEncode(_summaryCardColors
                 .map((k, v) => MapEntry(k, v.toARGB32()))));
       }
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'academic_planner'); }
   }
 
   void _applyColorToSummaryCard(String subjectId, Color c) {
@@ -3415,7 +3929,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
       }
       if (!mounted) return;
       setState(() => _customSubjects = loaded);
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'academic_planner'); }
   }
 
   Future<void> _saveCustomSubjects() async {
@@ -3430,7 +3944,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
               })
           .toList();
       await prefs.setString(_customSubjectsKey, jsonEncode(list));
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'academic_planner'); }
   }
 
   Future<void> _loadSubjectOrder() async {
@@ -3450,7 +3964,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
       reordered.addAll(byKey.values);
       if (!mounted) return;
       setState(() => _inlineEduSubjects = reordered);
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'academic_planner'); }
   }
 
   Future<void> _saveSubjectOrder() async {
@@ -3460,7 +3974,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
         _subjectOrderKey,
         _inlineEduSubjects.map((s) => s.key).toList(),
       );
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'academic_planner'); }
   }
 
   // İki dersin yerini değiştir + kaydet. Drag bitince sheet'i de kapat.
@@ -3502,7 +4016,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
             m.forEach((k, v) {
               if (v is num) _subjectTileColors[k] = Color(v.toInt());
             });
-          } catch (_) {}
+          } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'academic_planner'); }
         }
         if (tilesTextRaw != null && tilesTextRaw.isNotEmpty) {
           try {
@@ -3511,10 +4025,10 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
             m.forEach((k, v) {
               if (v is num) _subjectTileTextColors[k] = Color(v.toInt());
             });
-          } catch (_) {}
+          } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'academic_planner'); }
         }
       });
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'academic_planner'); }
   }
 
   Future<void> _saveColorPrefs() async {
@@ -3556,7 +4070,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
             .map((k, v) => MapEntry(k, v.toARGB32())));
         await prefs.setString(_tileTextColorsKey, json);
       }
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'academic_planner'); }
   }
 
   void _applyColorTo(String target, Color c) {
@@ -3943,10 +4457,17 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
           grade: '11',
         );
     final seen = <String>{};
+    final seenNames = <String>{};
     final all = <EduSubject>[];
     void addList(List<EduSubject> list) {
       for (final s in list) {
-        if (seen.add(s.key)) all.add(s);
+        // Hem key hem displayName ile dedup et — farklı track'lerde aynı
+        // ders adı (örn. "Coğrafya") farklı key ile gelebilir, 2x görünürdü.
+        final nameKey = s.name.trim().toLowerCase();
+        if (seen.contains(s.key) || seenNames.contains(nameKey)) continue;
+        seen.add(s.key);
+        seenNames.add(nameKey);
+        all.add(s);
       }
     }
     addList(subjectsForProfile(eff));
@@ -4095,12 +4616,21 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
   Future<bool> _generateForExistingSubject(
       _Subject subject, String topic,
       {_TestConfig? config}) async {
-    if (_monthUsed >= _monthlyLimit) {
-      _showSnack(localeService.tr('monthly_limit_reached'));
-      return false;
-    }
     final isQuestions = widget.mode == LibraryMode.questions;
     final cfg = config ?? _TestConfig();
+
+    // ── KOTA: günlük + aylık global (UsageQuota tek doğru kaynak) ─────────
+    final kind = isQuestions ? QuotaKind.testQuestions : QuotaKind.topicSummary;
+    final quota = await UsageQuota.get(kind);
+    if (quota.isExhausted) {
+      Analytics.logQuotaExhausted(kind.name);
+      _showSnack(quota.isDailyExhausted
+          ? 'Günlük AI sınırına ulaştın (${quota.dailyLimit}). '
+              'Yarın tekrar dene veya Premium\'a geç.'
+          : 'Aylık AI sınırına ulaştın (${quota.monthlyLimit}). '
+              'Ay başında sıfırlanır.');
+      return false;
+    }
 
     // Questions mode: aynı konu varsa 3 hakkını kontrol et + attempt ekle.
     _Summary? existingSummary;
@@ -4117,6 +4647,9 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
         return false;
       }
     }
+
+    // Pre-check geçti — şimdi kotayı artır. Hata olursa decrement edilecek.
+    await UsageQuota.increment(kind);
 
     try {
       final profile = await EduProfile.load();
@@ -4139,6 +4672,16 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
         solutionType: isQuestions ? 'TestSorulari' : 'KonuÖzeti',
         subject: subject.name,
       );
+
+      // Questions mode'da JSON validate; bozuksa attempt'ı saklama, kotayı iade et.
+      if (isQuestions && parseTestQuestions(content).isEmpty) {
+        await UsageQuota.decrement(kind);
+        if (mounted) {
+          _showSnack(
+              'AI testi bozuk biçimde döndü. Tekrar dene.'.tr());
+        }
+        return false;
+      }
       final cleanContent = isQuestions ? content : _stripMarkdown(content);
 
       if (isQuestions && existingSummary != null) {
@@ -4176,9 +4719,8 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
         );
         subject.summaries.insert(0, summary);
       }
-      _monthUsed += 1;
+      // _monthUsed dead-code; UsageQuota tek doğru kaynak.
       await _persistSubjects();
-      await _persistUsage();
       await _ActivityStore.log(
         subject: subject.name,
         topic: topic,
@@ -4187,9 +4729,11 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
       if (mounted) setState(() {});
       return true;
     } on GeminiException catch (e) {
+      await UsageQuota.decrement(kind);
       if (mounted) _showSnack(e.userMessage);
       return false;
     } catch (e) {
+      await UsageQuota.decrement(kind);
       if (mounted) _showSnack('${localeService.tr('error_label')}: $e');
       return false;
     }
@@ -4202,8 +4746,15 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
       _Subject subject, _Summary summary,
       {_TestConfig? config}) async {
     if (widget.mode != LibraryMode.questions) return;
-    if (_monthUsed >= _monthlyLimit) {
-      _showSnack(localeService.tr('monthly_limit_reached'));
+    // ── KOTA: günlük + aylık global ──────────────────────────────────────
+    final quota = await UsageQuota.get(QuotaKind.testQuestions);
+    if (quota.isExhausted) {
+      Analytics.logQuotaExhausted(QuotaKind.testQuestions.name);
+      _showSnack(quota.isDailyExhausted
+          ? 'Günlük AI sınırına ulaştın (${quota.dailyLimit}). '
+              'Yarın tekrar dene veya Premium\'a geç.'
+          : 'Aylık AI sınırına ulaştın (${quota.monthlyLimit}). '
+              'Ay başında sıfırlanır.');
       return;
     }
     if (summary.tests.length >= 3) {
@@ -4212,6 +4763,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
       return;
     }
     final cfg = config ?? _TestConfig();
+    await UsageQuota.increment(QuotaKind.testQuestions);
     try {
       final profile = await EduProfile.load();
       final baseCtx = _contextFromGrade(_grade);
@@ -4237,6 +4789,15 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
         solutionType: 'TestSorulari',
         subject: subject.name,
       );
+      // JSON validate; bozuksa attempt'ı saklama, kotayı iade et.
+      if (parseTestQuestions(content).isEmpty) {
+        await UsageQuota.decrement(QuotaKind.testQuestions);
+        if (mounted) {
+          _showSnack(
+              'AI testi bozuk biçimde döndü. Tekrar dene.'.tr());
+        }
+        return;
+      }
       final attempt = _TestAttempt(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         content: content,
@@ -4247,9 +4808,8 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
         difficulty: cfg.difficulty,
       );
       summary.tests.add(attempt);
-      _monthUsed += 1;
+      // _monthUsed dead-code; UsageQuota tek doğru kaynak.
       await _persistSubjects();
-      await _persistUsage();
       await _ActivityStore.log(
         subject: subject.name,
         topic: summary.topic,
@@ -4259,8 +4819,10 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
       setState(() {});
       _openTestAttempt(summary, attempt, subject.name);
     } on GeminiException catch (e) {
+      await UsageQuota.decrement(QuotaKind.testQuestions);
       if (mounted) _showSnack(e.userMessage);
     } catch (e) {
+      await UsageQuota.decrement(QuotaKind.testQuestions);
       if (mounted) _showSnack('${localeService.tr('error_label')}: $e');
     }
   }
@@ -4430,11 +4992,66 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
             ragHit: ragHit);
 
     if (!isQuestions) {
-      // ── STREAMING AKIŞI (KonuÖzeti) ─────────────────────────────────
+      // ── CACHE-FIRST: TOPLULUK ÖZETİ KONTROL ────────────────────────────
+      // Aynı seviye+ders+konu için cache'te canonical/yüksek-puanlı aday
+      // varsa AI çağrısı YAPILMADAN direkt göster. Yoksa streaming yapıp
+      // sonra cache'e aday olarak ekle.
+      final profile = EduProfile.current;
+      CachedSummary? cached;
+      if (profile != null) {
+        try {
+          cached = await SummaryCacheService.read(
+            profile: profile,
+            subject: subjectName,
+            topic: topic,
+          );
+        } catch (e, st) {
+          ErrorLogger.instance.capture(e, st, context: 'planner_cache_read');
+        }
+      }
+
+      if (cached != null && cached.body.isNotEmpty) {
+        // CACHE HIT — anında göster, stream'siz
+        final summary = _Summary(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          topic: topic,
+          content: cached.body,
+          createdAt: DateTime.now(),
+          country: EduProfile.current?.country,
+          gradeLabel:
+              _grade.isNotEmpty ? _grade : EduProfile.current?.grade,
+          ragHit: ragHit,
+          cacheDocId: cached.cacheDocId,
+          candidateDocId: cached.candidateDocId,
+          isCanonical: cached.isCanonical,
+        );
+        if (subjectRef != null && subjectRef.id.isNotEmpty) {
+          subjectRef.summaries.insert(0, summary);
+        } else {
+          _subjects.add(_Subject(
+            id: DateTime.now().millisecondsSinceEpoch.toString(),
+            name: subjectName,
+            summaries: [summary],
+          ));
+        }
+        await _persistSubjects();
+        await _ActivityStore.log(
+            subject: subjectName, topic: topic, type: 'özet');
+        if (!mounted) return;
+        setState(() {});
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => _SummaryDetailPage(
+            summary: summary,
+            subjectName: subjectName,
+          ),
+        ));
+        return;
+      }
+
+      // ── STREAMING AKIŞI (KonuÖzeti) — cache miss ───────────────────────
       // 1) Boş özet oluştur, _subjects'e ekle, persist et.
       // 2) Sayfayı HEMEN aç + stream'i ona ver.
-      // 3) Stream bitince summary.content güncellenir + persist edilir
-      //    (onStreamComplete callback'iyle).
+      // 3) Stream bitince summary.content güncellenir + cache'e yazılır.
       final summary = _Summary(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         topic: topic,
@@ -4453,9 +5070,10 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
           summaries: [summary],
         ));
       }
-      _monthUsed += 1;
+      // NOT: `_monthUsed += 1` çıkarıldı — UsageQuota tek doğru kaynak
+      // (4366'da artırıldı). _monthlyLimit=100000 zaten devre dışı,
+      // _persistUsage dead-code idi. Çift sayım UI'ı yanıltıyordu.
       await _persistSubjects();
-      await _persistUsage();
       await _ActivityStore.log(
         subject: subjectName,
         topic: topic,
@@ -4465,21 +5083,63 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
       if (!mounted) return;
       setState(() {});
 
-      final stream = GeminiService.solveHomeworkStream(
-        question: prompt,
-        solutionType: 'KonuÖzeti',
-        subject: subjectName,
-      );
+      Stream<String> newStream() => GeminiService.solveHomeworkStream(
+            question: prompt,
+            solutionType: 'KonuÖzeti',
+            subject: subjectName,
+          );
 
       Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => _SummaryDetailPage(
           summary: summary,
           subjectName: subjectName,
-          stream: stream,
+          stream: newStream(),
           onStreamComplete: (finalContent) async {
             summary.content = _stripMarkdown(finalContent);
+            // Cache'e aday olarak ekle — gelecek kullanıcılar bu içeriği
+            // de görsün (eğer yeterli puan alırsa canonical olabilir).
+            if (profile != null) {
+              try {
+                final candidateId =
+                    await SummaryCacheService.addCandidate(
+                  profile: profile,
+                  subject: subjectName,
+                  topic: topic,
+                  body: summary.content,
+                );
+                if (candidateId != null) {
+                  summary.candidateDocId = candidateId;
+                  summary.cacheDocId = SummaryCacheService.makeCacheKey(
+                    profile: profile,
+                    subject: subjectName,
+                    topic: topic,
+                  );
+                }
+              } catch (e, st) {
+                ErrorLogger.instance.capture(e, st,
+                    context: 'planner_cache_write');
+              }
+            }
             await _persistSubjects();
             if (mounted) setState(() {});
+          },
+          // Stream hiç chunk üretmeden fail / boş yanıt → kotayı iade et
+          // ve boş özet kaydını listeden temizle.
+          onEarlyFailure: () async {
+            await UsageQuota.decrement(kind);
+            // Boş özeti listeden çıkar — kullanıcı boş kart görmesin.
+            for (final s in _subjects) {
+              s.summaries.removeWhere((sum) => sum.id == summary.id);
+            }
+            _subjects.removeWhere((s) => s.summaries.isEmpty);
+            await _persistSubjects();
+            if (mounted) setState(() {});
+          },
+          // Sayfa içi "Tekrar Dene" — yeni stream üret, kotayı tekrar say.
+          onRetry: () {
+            // ignore: discarded_futures
+            UsageQuota.increment(kind);
+            return newStream();
           },
         ),
       )).then((_) {
@@ -4493,6 +5153,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
       _generating = true;
       _generatingTopic = topic;
       _generatingSubject = subjectName;
+      _generatingCancelled = false;
     });
     try {
       final content = await GeminiService.solveHomework(
@@ -4501,12 +5162,46 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
         subject: subjectName,
       );
 
-      // AI yanıtı boş veya çok kısa geldiyse — kaydetme, hata göster + retry
+      // Kullanıcı bekleme sırasında "İptal"e bastıysa sonucu yutmadan dön.
+      if (!mounted) return;
+      if (_generatingCancelled) {
+        // Kotayı geri al — kullanıcı testi görmedi.
+        await UsageQuota.decrement(kind);
+        setState(() {
+          _generating = false;
+          _generatingCancelled = false;
+        });
+        return;
+      }
+
+      // AI yanıtı boş veya çok kısa geldiyse — kaydetme, hata göster + retry.
       if (content.trim().length < 40) {
+        await UsageQuota.decrement(kind);
         if (!mounted) return;
         setState(() => _generating = false);
         _showRetrySnack(
           'AI yanıt veremedi. Tekrar denemek ister misin?',
+          () => _generate(
+            subjectName: subjectName,
+            topic: topic,
+            newSubject: newSubject,
+            existingSubject: existingSubject,
+            config: config,
+          ),
+        );
+        return;
+      }
+
+      // JSON parse pre-check — AI cevabı geçerli bir test mi?
+      // parseTestQuestions boş dönerse attempt'ı saklama, kotayı iade et.
+      // (3-hak slotu boşa harcanmasın + kullanıcı boş test görmesin.)
+      final parsedCheck = parseTestQuestions(content);
+      if (parsedCheck.isEmpty) {
+        await UsageQuota.decrement(kind);
+        if (!mounted) return;
+        setState(() => _generating = false);
+        _showRetrySnack(
+          'AI testi bozuk biçimde döndü. Tekrar denemek ister misin?',
           () => _generate(
             subjectName: subjectName,
             topic: topic,
@@ -4569,9 +5264,9 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
         targetSummary = summary;
       }
 
-      _monthUsed += 1;
+      // NOT: `_monthUsed += 1` + `_persistUsage` çıkarıldı — UsageQuota tek
+      // doğru kaynak (4366'da artırıldı). Dead-code temizliği.
       await _persistSubjects();
-      await _persistUsage();
       await _ActivityStore.log(
         subject: subjectName,
         topic: topic,
@@ -4582,6 +5277,8 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
       setState(() => _generating = false);
       _openTestAttempt(targetSummary, createdAttempt, subjectName);
     } on GeminiException catch (e) {
+      // İstek hata verdi → kotayı geri al (kullanıcı boş yere yememeli).
+      await UsageQuota.decrement(kind);
       if (!mounted) return;
       setState(() => _generating = false);
       _showRetrySnack(
@@ -4595,6 +5292,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
         ),
       );
     } catch (e) {
+      await UsageQuota.decrement(kind);
       if (!mounted) return;
       setState(() => _generating = false);
       _showRetrySnack(
@@ -4738,6 +5436,13 @@ QuAlsar Akademik İçerik Protokolü'nü uygula:
 $layerLine
 SADECE geçerli bir JSON array döndür — başka hiçbir metin, açıklama,
 markdown fence (```json), emoji başlık yok.
+
+KRİTİK — SELAMLAMA / GİRİZGÂH YASAK:
+• "Tabii", "Tabii ki", "İşte", "Hadi", "Elbette" gibi GİRİŞ kelimeleriyle
+  başlama. Cevabın İLK karakteri "[" olmalı.
+• Cevap sonunda "Başarılar", "İyi çalışmalar", "Umarım yardımcı olur"
+  gibi KAPANIŞ paragrafı YOK. Son karakter "]" olmalı.
+• Bunlar parser'a takılıyor — ihlal edilirse cevap GEÇERSİZ sayılır.
 
 Format (array, $count eleman):
 [
@@ -5152,8 +5857,19 @@ Müfredat bağlamına bakıp terminolojiyi seviyeye uyarla:
   ince ayar tuzaklar.
 
 [AKADEMİK EDİTÖR — KATI FORMAT PROTOKOLÜ]
-Sen bir akademik editörsün. Aşağıdaki 4 kural HARFİ HARFİNE uygulanır;
+Sen bir akademik editörsün. Aşağıdaki kurallar HARFİ HARFİNE uygulanır;
 herhangi biri ihlal edilirse çıktı GEÇERSİZDİR.
+
+0) SELAMLAMA / GİRİZGÂH YASAK (KRİTİK):
+   • "Tabii ki", "Harika soru!", "Hemen başlayalım", "Şimdi seninle bu konuyu
+     işleyelim", "Elbette", "Tabii", "Tabii ki!", "Bu konuyu sana açıklayacağım"
+     gibi giriş cümleleri YAZMA. Doğrudan ilk başlıkla (📖 / 📚 / 🎯 / 📐 …) başla.
+   • İlk satır MUTLAKA bir emoji başlığı olmalı — düz cümleyle başlatma.
+   • Kapanışta "Umarım yardımcı olur", "Başka sorun varsa sor", "Özetle…" gibi
+     veda paragrafı YOK. Son başlık biter, içerik orada kapanır.
+   • Bu kural sebepsiz değil: sayfa ilk açıldığında AI girişi başlık alanını
+     dolduruyor ve kullanıcı asıl içeriği görene kadar bekliyor. Doğrudan
+     konuya gir.
 
 1) GÖRSEL TEMİZLİK — HAM MARKDOWN YASAK:
    • Asla satır başında çıplak "#", "##", "###" yazma. Başlıkları sadece bu
@@ -5594,10 +6310,23 @@ ${isVerbal ? '• Tarihte yıl, edebiyatta yazar/eser/dönem, felsefede filozof/
         subjectName: subjectName,
         topic: summary.topic,
         initialAnswers: attempt.answers,
+        // Önceki oturumdan kalan timer state — çıkış-giriş cheese'i kapatır.
+        initialPerQuestionRemaining: attempt.perQuestionRemaining.isEmpty
+            ? null
+            : Map<int, int>.from(attempt.perQuestionRemaining),
         timeLimit: attempt.timeLimit,
+        // Cevap / timer değiştiğinde partial save — uygulama crash, çıkış,
+        // arka plana atma senaryolarında son durum kaybolmasın.
+        onAnswerChanged: (answers, remaining) async {
+          attempt.answers = Map<int, String?>.from(answers);
+          attempt.perQuestionRemaining = Map<int, int>.from(remaining);
+          await _persistSubjects();
+        },
         onFinish: (answers) async {
           attempt.answers = Map<int, String?>.from(answers);
           attempt.completed = true;
+          // Tamamlandı → timer state'in artık önemi yok, temizle.
+          attempt.perQuestionRemaining.clear();
           await _persistSubjects();
           if (mounted) setState(() {});
         },
@@ -5811,16 +6540,68 @@ ${isVerbal ? '• Tarihte yıl, edebiyatta yazar/eser/dönem, felsefede filozof/
         // "Diğer Dersler" overlay sheet — modal değil, üstteki ders
         // grid'i tıklanabilir kalır (sürükle-bırak için).
         if (_showOtherSheet) _buildOtherSheetOverlay(),
-        // Loader her şeyin üstünde — AppBar + body'yi tamamen kaplar
+        // Loader her şeyin üstünde — AppBar + body'yi tamamen kaplar.
+        // Sağ üstte "İptal" butonu: kullanıcı bekleme süresinden vazgeçerse
+        // arka plan isteği devam eder ama sonuç yutulur + kota iade edilir.
         if (_generating)
           Positioned.fill(
-            child: Material(color: AppPalette.card(context),
-              child: QuAlsarLoadingWidget(
-                type: widget.mode == LibraryMode.questions
-                    ? QuAlsarLoadingType.test
-                    : QuAlsarLoadingType.summary,
-                topic: _generatingTopic,
-                domain: _generatingDomain,
+            child: Material(
+              color: AppPalette.card(context),
+              child: Stack(
+                children: [
+                  QuAlsarLoadingWidget(
+                    type: widget.mode == LibraryMode.questions
+                        ? QuAlsarLoadingType.test
+                        : QuAlsarLoadingType.summary,
+                    topic: _generatingTopic,
+                    domain: _generatingDomain,
+                  ),
+                  SafeArea(
+                    child: Align(
+                      alignment: Alignment.topRight,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: GestureDetector(
+                          onTap: _generatingCancelled
+                              ? null
+                              : () {
+                                  setState(() {
+                                    _generatingCancelled = true;
+                                  });
+                                },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: _generatingCancelled
+                                  ? Color(0x33808080)
+                                  : Colors.black,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.close_rounded,
+                                    size: 14, color: Colors.white),
+                                SizedBox(width: 4),
+                                Text(
+                                  _generatingCancelled
+                                      ? 'İptal ediliyor…'.tr()
+                                      : 'İptal'.tr(),
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -7033,7 +7814,10 @@ ${isVerbal ? '• Tarihte yıl, edebiyatta yazar/eser/dönem, felsefede filozof/
   /// 8'in üstündeki müfredat dersleri + 4'ün üstündeki manuel dersleri
   /// listeleyen bottom sheet.
   Future<void> _openOtherSubjectsSheet() async {
-    final overflowCurr = _inlineEduSubjects.skip(8).toList();
+    // Ana grid 12 ders gösteriyor (3×4); sheet sadece TAŞAN dersleri içerir.
+    // Önceki bug: skip(8) → 9-12 arası dersler hem grid'te hem sheet'te
+    // görünüyordu.
+    final overflowCurr = _inlineEduSubjects.skip(12).toList();
     final overflowCustom = _customSubjects.skip(4).toList();
     if (overflowCurr.isEmpty && overflowCustom.isEmpty) return;
     setState(() => _showOtherSheet = true);
@@ -7050,8 +7834,9 @@ ${isVerbal ? '• Tarihte yıl, edebiyatta yazar/eser/dönem, felsefede filozof/
 
   // Overlay sheet — modal değil, arka plandaki top-8 grid tıklanabilir kalır.
   Widget _buildOtherSheetOverlay() {
-    // Müfredat dersleri 9+ ve manuel dersler 5+ aynı sheet'te toplanır.
-    final overflowCurr = _inlineEduSubjects.skip(8).toList();
+    // Müfredat dersleri 13+ ve manuel dersler 5+ aynı sheet'te toplanır.
+    // (Ana grid ilk 12 müfredat + ilk 4 manuel gösterir.)
+    final overflowCurr = _inlineEduSubjects.skip(12).toList();
     final overflowCustom = _customSubjects.skip(4).toList();
     final overflow = [...overflowCurr, ...overflowCustom];
     if (overflow.isEmpty) return const SizedBox.shrink();
@@ -7314,8 +8099,8 @@ ${isVerbal ? '• Tarihte yıl, edebiyatta yazar/eser/dönem, felsefede filozof/
             SnackBar(
               content: Row(
                 mainAxisSize: MainAxisSize.min,
-                children: const [
-                  SizedBox(
+                children: [
+                  const SizedBox(
                     width: 14,
                     height: 14,
                     child: CircularProgressIndicator(
@@ -7323,8 +8108,8 @@ ${isVerbal ? '• Tarihte yıl, edebiyatta yazar/eser/dönem, felsefede filozof/
                       color: Colors.white,
                     ),
                   ),
-                  SizedBox(width: 10),
-                  Text('Konular hazırlanıyor…'),
+                  const SizedBox(width: 10),
+                  Text('Konular hazırlanıyor…'.tr()),
                 ],
               ),
               duration: Duration(seconds: 30),
@@ -7363,7 +8148,7 @@ ${isVerbal ? '• Tarihte yıl, edebiyatta yazar/eser/dönem, felsefede filozof/
                   '${p.country}_${p.level}_${p.grade}_'
                   '${p.faculty ?? ""}_${p.track ?? ""}::${edu.key}';
               await prefs.setString(key, pack.encode());
-            } catch (_) {}
+            } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'academic_planner'); }
           }
         } catch (_) {
           // Sessizce başarısız → kullanıcı kendi konusunu yazabilir.
@@ -7654,7 +8439,7 @@ class _NewSubjectSheetState extends State<_NewSubjectSheet> {
                     icon: Icon(_customMode ? Icons.grid_view_rounded : Icons.edit_rounded,
                         size: 14, color: _orange),
                     label: Text(
-                      _customMode ? 'Listeden seç' : 'Kendim yazayım',
+                      _customMode ? 'Listeden seç'.tr() : 'Kendim yazayım'.tr(),
                       style: GoogleFonts.poppins(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
@@ -8015,6 +8800,11 @@ class _SubjectDetailPage extends StatefulWidget {
 class _SubjectDetailPageState extends State<_SubjectDetailPage> {
   bool _generating = false;
   String _generatingTopic = '';
+  // Loader sırasında kullanıcı "İptal"e basarsa true — onAddTopic/onAddAttempt
+  // arka planda devam eder ama _SubjectDetailPage tarafı sonucu beklemeden
+  // loader'ı kapatır. Parent (_AcademicPlannerState) zaten kendi
+  // _generatingCancelled mantığıyla kotayı iade eder.
+  bool _generatingCancelled = false;
 
   /// Konu satırına basılı tutunca: [Yeniden Oluştur] + [Sil] seçenekleri.
   Future<void> _showTopicActions(_Summary sum) async {
@@ -8213,15 +9003,13 @@ class _SubjectDetailPageState extends State<_SubjectDetailPage> {
                         height: 1.2,
                       ),
                     ),
-                    SizedBox(height: 2),
-                    Text(
-                      '${sum.tests.length}/3 ${'test'.tr()}',
-                      style: GoogleFonts.poppins(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w600,
-                        color: AppPalette.textSecondary(context),
-                      ),
-                    ),
+                    SizedBox(height: 4),
+                    // Hak rozeti: kaç test hakkı kaldı, renkli vurgu.
+                    //   3 hak → yeşil "Hazır"
+                    //   2 hak → mavi  "2 hak kaldı"
+                    //   1 hak → turuncu "Son hak"
+                    //   0 hak → gri "Bitti"
+                    _testQuotaBadge(sum.tests.length),
                   ],
                 ),
               ),
@@ -8233,6 +9021,48 @@ class _SubjectDetailPageState extends State<_SubjectDetailPage> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  // Kaç test hakkı kaldığını renkli rozetle göster.
+  Widget _testQuotaBadge(int used) {
+    final remaining = 3 - used;
+    final Color bg;
+    final Color fg;
+    final String label;
+    if (remaining == 3) {
+      bg = Color(0x1410B981);
+      fg = Color(0xFF059669);
+      label = '3 ${'hak'.tr()}';
+    } else if (remaining == 2) {
+      bg = Color(0x142563EB);
+      fg = Color(0xFF2563EB);
+      label = '2 ${'hak kaldı'.tr()}';
+    } else if (remaining == 1) {
+      bg = Color(0x14FF6A00);
+      fg = Color(0xFFFF6A00);
+      label = 'Son hak'.tr();
+    } else {
+      bg = AppPalette.cardMuted(context);
+      fg = AppPalette.textSecondary(context);
+      label = 'Bitti'.tr();
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: fg.withValues(alpha: 0.3), width: 0.7),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.poppins(
+          fontSize: 9.5,
+          fontWeight: FontWeight.w800,
+          color: fg,
+          letterSpacing: 0.2,
         ),
       ),
     );
@@ -8401,16 +9231,67 @@ class _SubjectDetailPageState extends State<_SubjectDetailPage> {
                 ),
           if (_generating)
             Positioned.fill(
-              child: QuAlsarLoadingWidget(
-                type: widget.mode == LibraryMode.questions
-                    ? QuAlsarLoadingType.test
-                    : QuAlsarLoadingType.summary,
-                topic: _generatingTopic,
-                domain: _AcademicPlannerState._subjectLayer(
-                            widget.subject.name) ==
-                        'verbal'
-                    ? SubjectDomain.verbal
-                    : SubjectDomain.numeric,
+              child: Stack(
+                children: [
+                  QuAlsarLoadingWidget(
+                    type: widget.mode == LibraryMode.questions
+                        ? QuAlsarLoadingType.test
+                        : QuAlsarLoadingType.summary,
+                    topic: _generatingTopic,
+                    domain: _AcademicPlannerState._subjectLayer(
+                                widget.subject.name) ==
+                            'verbal'
+                        ? SubjectDomain.verbal
+                        : SubjectDomain.numeric,
+                  ),
+                  // İptal pill — sağ üst. Loader'dan vazgeçilir, arka plan
+                  // isteği devam etse de UI serbest kalır. Parent quota
+                  // refund mantığı (_generate*) zaten yerinde.
+                  SafeArea(
+                    child: Align(
+                      alignment: Alignment.topRight,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: GestureDetector(
+                          onTap: _generatingCancelled
+                              ? null
+                              : () {
+                                  setState(() {
+                                    _generatingCancelled = true;
+                                    _generating = false;
+                                  });
+                                },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: _generatingCancelled
+                                  ? Color(0x33808080)
+                                  : Colors.black,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.close_rounded,
+                                    size: 14, color: Colors.white),
+                                SizedBox(width: 4),
+                                Text(
+                                  'İptal'.tr(),
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
         ],
@@ -8429,11 +9310,18 @@ class _SummaryDetailPage extends StatefulWidget {
   // içerik gelir; stream bitince onStreamComplete çağrılır (persist için).
   final Stream<String>? stream;
   final Future<void> Function(String finalContent)? onStreamComplete;
+  // Stream tek chunk üretemeden fail oldu → kullanıcı kotasını geri al.
+  final Future<void> Function()? onEarlyFailure;
+  // "Tekrar Dene" butonu — sayfa içinden stream restart. null değilse
+  // banner'da retry butonu görünür. Yeni stream döndürür.
+  final Stream<String> Function()? onRetry;
   const _SummaryDetailPage({
     required this.summary,
     required this.subjectName,
     this.stream,
     this.onStreamComplete,
+    this.onEarlyFailure,
+    this.onRetry,
   });
 
   @override
@@ -8494,6 +9382,13 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
   /// noInternet/serverTimeout/safety/etc spesifik mesajları üstlenir.
   String? _streamFailMessage;
   StreamSubscription<String>? _streamSub;
+  // Parse debounce — stream sırasında her chunk full parse ediyordu (5KB
+  // özette jank). 150ms throttle: chunk'lar üst üste binerse sonuncu
+  // parse'i tetikler, intermediate'lerde eski cache görünür.
+  Timer? _parseDebounce;
+  // Auto-scroll: kullanıcı en altta ise (eşik 60px) stream akarken yapışık
+  // kalsın; yukarı kaydırdıysa karışma.
+  bool _autoFollowBottom = true;
 
   /// StudyToolbarOverlay sticky highlights için — ListView ile overlay
   /// Stack'te sibling olduğundan Scrollable.maybeOf(context) bulamıyor.
@@ -8565,7 +9460,8 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
       type: 'özet',
     );
     _loadColors();
-    _attachStreamIfAny();
+    _scrollController.addListener(_handleScroll);
+    _attachStreamIfAny(widget.stream);
     // Heavy parse'ı ilk frame'den SONRA yap — sayfa transition'ı anında
     // açılsın, içerik bir tick sonra dolsun. Boş cache ile ilk build hızlı.
     if (widget.stream == null && widget.summary.content.isNotEmpty) {
@@ -8577,17 +9473,42 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
     }
   }
 
-  void _attachStreamIfAny() {
-    final s = widget.stream;
+  // Auto-scroll: kullanıcı eli ile yukarı kaydırırsa follow-bottom kapanır.
+  // En alta yakın (60px) konumdayken yapışık kalır.
+  void _handleScroll() {
+    if (!_scrollController.hasClients) return;
+    final pos = _scrollController.position;
+    final atBottom = pos.maxScrollExtent - pos.pixels < 60;
+    if (atBottom != _autoFollowBottom) {
+      _autoFollowBottom = atBottom;
+    }
+  }
+
+  void _scrollToBottomIfFollowing() {
+    if (!_autoFollowBottom) return;
+    if (!_scrollController.hasClients) return;
+    final pos = _scrollController.position;
+    if (pos.maxScrollExtent <= 0) return;
+    _scrollController.jumpTo(pos.maxScrollExtent);
+  }
+
+  void _attachStreamIfAny(Stream<String>? s) {
     if (s == null) return;
     setState(() {
       _streaming = true;
+      _streamFailed = false;
+      _streamFailMessage = null;
       _streamedContent = '';
     });
     _streamSub = s.listen(
       (acc) {
         if (!mounted) return;
-        setState(() => _streamedContent = acc);
+        // setState yapmıyoruz; her chunk full parse + rebuild jank yapıyor.
+        // Sadece bayrakları güncelle, debounce timer parse + setState'i
+        // 150ms sonra topluca çalıştırsın. Bu aralıkta ekranda eski cache
+        // görünür — kabul edilebilir, kullanıcı zaten satırlar akarken bakıyor.
+        _streamedContent = acc;
+        _scheduleParse();
       },
       onError: (e) async {
         if (!mounted) return;
@@ -8600,42 +9521,121 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
         if (e is GeminiException) {
           msg = e.userMessage;
         } else {
-          msg = 'AI yanıt veremedi — özeti tekrar oluşturmak için satıra uzun bas.';
+          // Retry butonu yan tarafta görünüyorsa kullanıcı zaten görüyor.
+          msg = 'AI yanıt veremedi.';
         }
+        // Debounce'u iptal et + son parse'i ZORLA çalıştır.
+        _parseDebounce?.cancel();
+        _parseDebounce = null;
         setState(() {
           _streaming = false;
           _streamFailed = true;
           _streamFailMessage = msg;
           if (partial.isNotEmpty) {
+            _ensureParsed(partial);
             widget.summary.content = partial;
           }
         });
         if (partial.isNotEmpty) {
           try {
             await widget.onStreamComplete?.call(partial);
-          } catch (_) {}
+          } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'academic_planner'); }
+        } else {
+          // Hiç chunk gelmedi → kotayı iade et.
+          try {
+            await widget.onEarlyFailure?.call();
+          } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'academic_planner'); }
         }
       },
       onDone: () async {
         if (!mounted) return;
         final finalContent = _streamedContent ?? '';
+        // Debounce'u iptal et + son parse'i ZORLA çalıştır.
+        _parseDebounce?.cancel();
+        _parseDebounce = null;
         setState(() {
           _streaming = false;
+          if (finalContent.isNotEmpty) _ensureParsed(finalContent);
           widget.summary.content = finalContent;
         });
-        try {
-          await widget.onStreamComplete?.call(finalContent);
-        } catch (_) {}
+        // Son chunk'tan sonra alta yapışık kalmak isteyen kullanıcı için
+        // bir frame sonrası finalize scroll.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToBottomIfFollowing();
+        });
+        if (finalContent.isNotEmpty) {
+          try {
+            await widget.onStreamComplete?.call(finalContent);
+          } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'academic_planner'); }
+        } else {
+          // Stream boş yanıt verdi → kotayı iade et.
+          try {
+            await widget.onEarlyFailure?.call();
+          } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'academic_planner'); }
+        }
       },
       cancelOnError: true,
     );
+  }
+
+  // 150ms debounce — chunk arası setState + parse maliyetini düşürür.
+  void _scheduleParse() {
+    _parseDebounce?.cancel();
+    _parseDebounce = Timer(const Duration(milliseconds: 150), () {
+      if (!mounted) return;
+      final raw = _streamedContent ?? '';
+      _ensureParsed(raw);
+      setState(() {});
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToBottomIfFollowing();
+      });
+    });
+  }
+
+  Future<void> _retryStream() async {
+    final cb = widget.onRetry;
+    if (cb == null) return;
+    // Eski sub'ı kapat + state'i sıfırla.
+    await _streamSub?.cancel();
+    _streamSub = null;
+    _parseDebounce?.cancel();
+    _parseDebounce = null;
+    setState(() {
+      _streamedContent = '';
+      _streamFailed = false;
+      _streamFailMessage = null;
+      _streaming = true;
+      // Cache'i de temizle ki loader yeniden görünsün.
+      _cachedRaw = null;
+      _cachedCleaned = '';
+      _cachedNormalSections = const [];
+      _cachedKeyFacts = null;
+      _cachedExamples = null;
+      widget.summary.content = '';
+    });
+    _attachStreamIfAny(cb());
   }
 
   @override
   void dispose() {
     // Çalışma session'ını kapat — geçen süre _ActivityStore'a yazılır.
     StudySessionTracker.instance.end();
+    // Yarıda kalan stream → partial içerik varsa persist et, yoksa kotayı
+    // iade et. dispose async olamadığı için fire-and-forget.
+    if (_streaming) {
+      final partial = _streamedContent ?? '';
+      if (partial.isNotEmpty) {
+        widget.summary.content = partial;
+        // ignore: discarded_futures
+        widget.onStreamComplete?.call(partial);
+      } else {
+        // ignore: discarded_futures
+        widget.onEarlyFailure?.call();
+      }
+    }
+    _parseDebounce?.cancel();
     _streamSub?.cancel();
+    _scrollController.removeListener(_handleScroll);
     _scrollController.dispose();
     super.dispose();
   }
@@ -8659,7 +9659,7 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
         _titleTextOverride = read('titleText');
         _cardsTextOverride = read('cardsText');
       });
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'academic_planner'); }
   }
 
   Future<void> _saveColors() async {
@@ -8680,7 +9680,7 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
       } else {
         await prefs.setString(_prefKey, jsonEncode(m));
       }
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'academic_planner'); }
   }
 
   void _applyColorTo(String target, Color c) {
@@ -8820,37 +9820,41 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
   // ── Sağ alt FAB — "Test Sorularını Çöz" ─────────────────────────────
   // Tıklanınca: questions kütüphanesinden bu konunun testi varsa direkt aç,
   // yoksa AcademicPlanner(questions, autoOpen) ile yönlendir.
-  Widget _testQuestionsFab() {
-    // Küçük, kompakt pill — uzun extended FAB yerine.
-    return GestureDetector(
-      onTap: _onTestQuestionsTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(
-          color: Color(0xFFFF6A00),
-          borderRadius: BorderRadius.circular(999),
-          boxShadow: [
-            BoxShadow(
-              color: Color(0xFFFF6A00).withValues(alpha: 0.40),
-              blurRadius: 10,
-              offset: Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.quiz_rounded, color: Colors.white, size: 16),
-            SizedBox(width: 6),
-            Text('Test Çöz'.tr(),
-                style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 11,
-                    color: Colors.white)),
-          ],
-        ),
+  // `enabled=false` → gri disabled görünür (stream akarken kullanıcı FAB'ı
+  // önceden görür ama tıklayamaz).
+  Widget _testQuestionsFab({bool enabled = true}) {
+    final bg = enabled ? Color(0xFFFF6A00) : Color(0x33808080);
+    final ink = enabled ? Colors.white : Color(0xCCFFFFFF);
+    final pill = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: enabled
+            ? [
+                BoxShadow(
+                  color: Color(0xFFFF6A00).withValues(alpha: 0.40),
+                  blurRadius: 10,
+                  offset: Offset(0, 3),
+                ),
+              ]
+            : null,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.quiz_rounded, color: ink, size: 16),
+          SizedBox(width: 6),
+          Text('Test Çöz'.tr(),
+              style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 11,
+                  color: ink)),
+        ],
       ),
     );
+    if (!enabled) return IgnorePointer(child: pill);
+    return GestureDetector(onTap: _onTestQuestionsTap, child: pill);
   }
 
   Future<void> _onTestQuestionsTap() async {
@@ -8877,7 +9881,7 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
     }
     if (!mounted) return;
 
-    // Hiç konu yoksa direkt yeni özet/test akışına yönlendir.
+    // Hiç ders/konu yoksa direkt yeni test oluşturma akışına yönlendir.
     if (subject == null || subject.summaries.isEmpty) {
       Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => AcademicPlanner(
@@ -8889,12 +9893,31 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
       return;
     }
 
-    // Bu derste herhangi bir konunun en az 1 testi varsa → "Testlerim".
-    // Aksi halde → konu listesi (direkt test oluşturma).
-    final hasAnyTest = subject.summaries.any((s) => s.tests.isNotEmpty);
-    final pickerMode =
-        hasAnyTest ? _TestPickerMode.testlerim : _TestPickerMode.pick;
+    // ŞU ANKİ konuya ait test var mı?
+    //   • VAR → "Testlerim" picker'ı aç, bu konunun satırına (3 test sekmeli)
+    //     odaklan.
+    //   • YOK → direkt test oluşturma akışı (AcademicPlanner autoOpen).
+    final currentTopicSummary = subject.summaries.firstWhere(
+      (s) => s.topic.toLowerCase().trim() == topicTarget,
+      orElse: () => _Summary(
+        id: '', topic: '', content: '', createdAt: DateTime.now(),
+      ),
+    );
+    final hasTestForThisTopic = currentTopicSummary.id.isNotEmpty &&
+        currentTopicSummary.tests.isNotEmpty;
 
+    if (!hasTestForThisTopic) {
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => AcademicPlanner(
+          mode: LibraryMode.questions,
+          autoOpenSubject: widget.subjectName,
+          autoOpenTopic: widget.summary.topic,
+        ),
+      ));
+      return;
+    }
+
+    // Testlerim picker — bu konunun satırına auto-scroll + highlight.
     final result = await showModalBottomSheet<_TopicPickerResult>(
       context: context,
       isScrollControlled: true,
@@ -8902,7 +9925,7 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
       builder: (ctx) => _TestTopicPicker(
         subject: subject!,
         activeTopicLower: topicTarget,
-        mode: pickerMode,
+        mode: _TestPickerMode.testlerim,
       ),
     );
     if (result == null || !mounted) return;
@@ -8957,6 +9980,7 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
     final color = isFail
         ? Color(0xFFEF4444)
         : Color(0xFF7C3AED);
+    final canRetry = isFail && widget.onRetry != null;
     return Container(
       margin: const EdgeInsets.fromLTRB(6, 4, 6, 6),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -8984,7 +10008,7 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
             child: Text(
               isFail
                   ? (_streamFailMessage ??
-                      'AI yanıt veremedi — özeti tekrar oluşturmak için satıra uzun bas.')
+                      'AI yanıt veremedi. Tekrar dene.')
                   : 'AI özeti yazıyor… içerik geldikçe ekrana akacak.',
               style: GoogleFonts.poppins(
                 fontSize: 11,
@@ -8993,6 +10017,38 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
               ),
             ),
           ),
+          if (canRetry) ...[
+            SizedBox(width: 8),
+            // Sayfa içinde restart — listeye dönüp uzun basmaya gerek yok.
+            InkWell(
+              onTap: _retryStream,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.refresh_rounded,
+                        size: 13, color: Colors.white),
+                    SizedBox(width: 4),
+                    Text(
+                      'Tekrar Dene'.tr(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -9060,10 +10116,12 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
     return Scaffold(
       backgroundColor: pageBg,
       // ── Sağ alt FAB: "Test Sorularını Çöz" ─────────────────────────
-      // Stream bittikten sonra (özet hazırsa) görünür; yoksa gizli.
-      floatingActionButton: (widget.stream == null || !_streaming)
-          ? _testQuestionsFab()
-          : null,
+      // • _streamFailed → tamamen gizli (boş özetten test mantıksız)
+      // • _streaming    → gri/disabled (kullanıcı önceden görsün, tıklayamaz)
+      // • aksi          → normal aktif
+      floatingActionButton: _streamFailed
+          ? null
+          : _testQuestionsFab(enabled: !_streaming),
       appBar: AppBar(
         // Üst bar her zaman soluk beyaz — kullanıcı renk paletini değiştirse
         // bile sabit kalır. Yükseklik 44 (varsayılan 56'dan dar).
@@ -9161,11 +10219,18 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
                 final keyOffset = keyFactsSection != null ? 1 : 0;
                 final exOffset = examplesSection != null ? 1 : 0;
                 // Layout: [title, spacer, sections..., (spacer+keyFacts)?,
-                //         (spacer+examples)?]
+                //         (spacer+examples)?, rating?]
+                // Rating widget'ı sadece cache ID'leri varsa gösterilir
+                // (topluluk cache'i aktif değilse — eski özetler için).
+                final showRating = widget.summary.cacheDocId != null &&
+                    widget.summary.candidateDocId != null &&
+                    widget.stream == null; // streaming bittiğinde göster
+                final ratingOffset = showRating ? 1 : 0;
                 final total = 2 +
                     sectionCount +
                     (keyOffset == 0 ? 0 : 2) +
-                    (exOffset == 0 ? 0 : 2);
+                    (exOffset == 0 ? 0 : 2) +
+                    ratingOffset;
                 return ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.fromLTRB(6, 4, 6, 32),
@@ -9222,6 +10287,15 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
                           ),
                         );
                       }
+                      cursor += 2;
+                    }
+                    // En sonda rating widget'ı (topluluk değerlendirme)
+                    if (showRating && sIdx == cursor) {
+                      return SummaryRatingTable(
+                        cacheDocId: widget.summary.cacheDocId!,
+                        candidateDocId: widget.summary.candidateDocId!,
+                        isCanonical: widget.summary.isCanonical,
+                      );
                     }
                     return const SizedBox.shrink();
                   },
@@ -9929,7 +11003,11 @@ class _DifficultyPickerDialog extends StatefulWidget {
 }
 
 class _DifficultyPickerDialogState extends State<_DifficultyPickerDialog> {
-  String? _selected; // null | 'easy' | 'medium' | 'hard'
+  // Üç satırlı seçim — hepsi default olarak dolu (medium / 10 / relax),
+  // kullanıcı istemezse dokunmadan "Tamam"a basabilir → eski davranış.
+  String _difficulty = 'medium'; // 'easy' | 'medium' | 'hard'
+  int _count = 10; // 5 | 10 | 15 | 20
+  String _timeMode = 'relax'; // 'relax' | 'normal' | 'race'
 
   @override
   Widget build(BuildContext context) {
@@ -9941,121 +11019,175 @@ class _DifficultyPickerDialogState extends State<_DifficultyPickerDialog> {
         ),
         insetPadding: const EdgeInsets.symmetric(horizontal: 24),
         child: Container(
-          constraints: BoxConstraints(maxWidth: 360),
+          constraints: BoxConstraints(maxWidth: 380),
           padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Başlık
-              Row(
-                children: [
-                  Expanded(
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Başlık
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Test Ayarları'.tr(),
+                        style: GoogleFonts.poppins(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                          color: AppPalette.textPrimary(context),
+                          letterSpacing: 0.1,
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.of(context).pop(),
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppPalette.cardMuted(context),
+                          border: Border.all(color: Colors.black12),
+                        ),
+                        child: Icon(Icons.close_rounded,
+                            size: 15, color: Colors.black),
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 14),
+
+                // ── Satır 1: Zorluk ─────────────────────────────────────
+                _sectionLabel('Zorluk'.tr()),
+                SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _difficultyBox(
+                        id: 'easy',
+                        emoji: '🌱',
+                        label: 'Kolay'.tr(),
+                        accent: Color(0xFF10B981),
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: _difficultyBox(
+                        id: 'medium',
+                        emoji: '⚖️',
+                        label: 'Orta'.tr(),
+                        accent: Color(0xFFF59E0B),
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: _difficultyBox(
+                        id: 'hard',
+                        emoji: '🔥',
+                        label: 'Zor'.tr(),
+                        accent: Color(0xFFDC2626),
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 14),
+
+                // ── Satır 2: Soru sayısı ────────────────────────────────
+                _sectionLabel('Soru Sayısı'.tr()),
+                SizedBox(height: 6),
+                Row(
+                  children: [
+                    for (final n in const [5, 10, 15, 20]) ...[
+                      Expanded(child: _countPill(n)),
+                      if (n != 20) SizedBox(width: 8),
+                    ],
+                  ],
+                ),
+                SizedBox(height: 14),
+
+                // ── Satır 3: Süre modu ──────────────────────────────────
+                _sectionLabel('Süre Modu'.tr()),
+                SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _timeBox(
+                        id: 'relax',
+                        emoji: '🧘',
+                        label: 'Rahat'.tr(),
+                        sub: 'Süresiz'.tr(),
+                        accent: Color(0xFF6B7280),
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: _timeBox(
+                        id: 'normal',
+                        emoji: '⏱️',
+                        label: 'Normal'.tr(),
+                        sub: '90s/soru'.tr(),
+                        accent: Color(0xFF2563EB),
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: _timeBox(
+                        id: 'race',
+                        emoji: '⚡',
+                        label: 'Hız'.tr(),
+                        sub: '45s/soru'.tr(),
+                        accent: Color(0xFFDC2626),
+                      ),
+                    ),
+                  ],
+                ),
+
+                SizedBox(height: 16),
+                // Tamam — her zaman aktif, default değerlerle de basılabilir.
+                GestureDetector(
+                  onTap: () {
+                    final cfg = _TestConfig()
+                      ..difficulty = _difficulty
+                      ..count = _count
+                      ..timeMode = _timeMode;
+                    Navigator.of(context).pop(cfg);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                    alignment: Alignment.center,
                     child: Text(
-                      'Zorluk Seç'.tr(),
+                      'Teste Başla'.tr(),
                       style: GoogleFonts.poppins(
-                        fontSize: 17,
+                        fontSize: 14,
                         fontWeight: FontWeight.w900,
-                        color: AppPalette.textPrimary(context),
-                        letterSpacing: 0.1,
+                        color: Colors.white,
+                        letterSpacing: 0.3,
                       ),
                     ),
                   ),
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    child: Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppPalette.cardMuted(context),
-                        border: Border.all(color: Colors.black12),
-                      ),
-                      child: Icon(Icons.close_rounded,
-                          size: 15, color: Colors.black),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 4),
-              Text(
-                'Test zorluğunu seç ve Tamam\'a bas.'.tr(),
-                style: GoogleFonts.poppins(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: AppPalette.textSecondary(context),
-                  height: 1.3,
                 ),
-              ),
-              SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: _difficultyBox(
-                      id: 'easy',
-                      emoji: '🌱',
-                      label: 'Kolay'.tr(),
-                      accent: Color(0xFF10B981),
-                    ),
-                  ),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: _difficultyBox(
-                      id: 'medium',
-                      emoji: '⚖️',
-                      label: 'Orta'.tr(),
-                      accent: Color(0xFFF59E0B),
-                    ),
-                  ),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: _difficultyBox(
-                      id: 'hard',
-                      emoji: '🔥',
-                      label: 'Zor'.tr(),
-                      accent: Color(0xFFDC2626),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 16),
-              // Tamam butonu — sadece bir zorluk seçiliyse aktif.
-              GestureDetector(
-                onTap: _selected == null
-                    ? null
-                    : () {
-                        final cfg = _TestConfig()..difficulty = _selected!;
-                        Navigator.of(context).pop(cfg);
-                      },
-                child: AnimatedContainer(
-                  duration: Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(vertical: 13),
-                  decoration: BoxDecoration(
-                    color: _selected == null
-                        ? Color(0xFFE5E7EB)
-                        : Colors.black,
-                    borderRadius: BorderRadius.circular(100),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    'Tamam'.tr(),
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                      color: _selected == null
-                          ? Colors.black38
-                          : Colors.white,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+
+  Widget _sectionLabel(String t) => Text(
+        t,
+        style: GoogleFonts.poppins(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: AppPalette.textSecondary(context),
+          letterSpacing: 0.3,
+        ),
+      );
 
   Widget _difficultyBox({
     required String id,
@@ -10063,12 +11195,12 @@ class _DifficultyPickerDialogState extends State<_DifficultyPickerDialog> {
     required String label,
     required Color accent,
   }) {
-    final active = _selected == id;
+    final active = _difficulty == id;
     return GestureDetector(
-      onTap: () => setState(() => _selected = id),
+      onTap: () => setState(() => _difficulty = id),
       child: AnimatedContainer(
         duration: Duration(milliseconds: 140),
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
         decoration: BoxDecoration(
           color: active ? accent.withValues(alpha: 0.12) : Colors.white,
           borderRadius: BorderRadius.circular(14),
@@ -10080,18 +11212,100 @@ class _DifficultyPickerDialogState extends State<_DifficultyPickerDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(emoji, style: TextStyle(fontSize: 26)),
-            SizedBox(height: 6),
+            Text(emoji, style: TextStyle(fontSize: 22)),
+            SizedBox(height: 4),
             Text(
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: FontWeight.w800,
                 color: active ? accent : Colors.black,
                 letterSpacing: 0.1,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _countPill(int n) {
+    final active = _count == n;
+    return GestureDetector(
+      onTap: () => setState(() => _count = n),
+      child: AnimatedContainer(
+        duration: Duration(milliseconds: 140),
+        padding: const EdgeInsets.symmetric(vertical: 11),
+        decoration: BoxDecoration(
+          color: active ? Colors.black : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Colors.black,
+            width: active ? 2 : 1,
+          ),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          '$n',
+          style: GoogleFonts.poppins(
+            fontSize: 14,
+            fontWeight: FontWeight.w900,
+            color: active ? Colors.white : Colors.black,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _timeBox({
+    required String id,
+    required String emoji,
+    required String label,
+    required String sub,
+    required Color accent,
+  }) {
+    final active = _timeMode == id;
+    return GestureDetector(
+      onTap: () => setState(() => _timeMode = id),
+      child: AnimatedContainer(
+        duration: Duration(milliseconds: 140),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        decoration: BoxDecoration(
+          color: active ? accent.withValues(alpha: 0.12) : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: active ? accent : Colors.black,
+            width: active ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(emoji, style: TextStyle(fontSize: 20)),
+            SizedBox(height: 3),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: active ? accent : Colors.black,
+              ),
+            ),
+            Text(
+              sub,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+                color: AppPalette.textSecondary(context),
               ),
             ),
           ],
@@ -10599,6 +11813,7 @@ class _TestSetupPageState extends State<_TestSetupPage> {
                         _TestPillOpt('5', '⚡', '5 Soru', '~5 dk'),
                         _TestPillOpt('10', '📝', '10 Soru', '~10 dk'),
                         _TestPillOpt('15', '📚', '15 Soru', '~15 dk'),
+                        _TestPillOpt('20', '🎯', '20 Soru', '~20 dk'),
                       ],
                       selected: '${_cfg.count}',
                       onSelect: (v) =>
@@ -10874,11 +12089,48 @@ class _OverflowSubjectTile extends StatelessWidget {
   }
 }
 
-class _PomodoroTechniquePage extends StatelessWidget {
+class _PomodoroTechniquePage extends StatefulWidget {
   const _PomodoroTechniquePage();
 
+  @override
+  State<_PomodoroTechniquePage> createState() => _PomodoroTechniquePageState();
+}
+
+class _PomodoroTechniquePageState extends State<_PomodoroTechniquePage>
+    with WidgetsBindingObserver {
   static const _colonyPrefKey = 'pomodoro_intro_colony_seen_v1';
   static const _marsPrefKey = 'pomodoro_intro_mars_seen_v1';
+
+  PomodoroStatsSnapshot _stats = PomodoroStatsSnapshot.empty;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _refreshStats();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Alt sayfadan dönüş veya app foreground'a gelince istatistik yenile.
+    if (state == AppLifecycleState.resumed) _refreshStats();
+  }
+
+  Future<void> _refreshStats() async {
+    final s = await PomodoroStats.read();
+    if (!mounted) return;
+    setState(() {
+      _stats = s;
+      _loading = false;
+    });
+  }
 
   Future<void> _openWithIntro(
     BuildContext context, {
@@ -10904,9 +12156,11 @@ class _PomodoroTechniquePage extends StatelessWidget {
       await prefs.setBool(prefKey, true);
     }
     if (!context.mounted) return;
-    Navigator.of(context).push(
+    await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => pageBuilder()),
     );
+    // Geri dönüşte istatistik yenile.
+    _refreshStats();
   }
 
   @override
@@ -10932,8 +12186,18 @@ class _PomodoroTechniquePage extends StatelessWidget {
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.emoji_events_rounded,
+                color: AppPalette.textPrimary(context)),
+            tooltip: 'Rozetler'.tr(),
+            onPressed: _stats.marsBadges.isEmpty
+                ? null
+                : () => _openBadgesSheet(context),
+          ),
+        ],
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -10946,7 +12210,9 @@ class _PomodoroTechniquePage extends StatelessWidget {
                 height: 1.4,
               ),
             ),
-            SizedBox(height: 18),
+            SizedBox(height: 14),
+            if (!_loading) _buildStatsCard(context),
+            SizedBox(height: 14),
             _LandingCard(
               icon: Icons.eco_rounded,
               title: 'Yeşil Koloni'.tr(),
@@ -10956,12 +12222,13 @@ class _PomodoroTechniquePage extends StatelessWidget {
                 prefKey: _colonyPrefKey,
                 title: 'Yeşil Koloni'.tr(),
                 emoji: '🌱',
-                intro: 'Pomodoro boyunca küçük bir ada geliştiriyorsun. '
+                intro: 'Pomodoro boyunca küçük bir koloni geliştiriyorsun. '
                         'Her tamamlanan 25 dakikalık odak seansı için '
-                        'bir tohum ekilir; molada sulamazsan bitki solar. '
-                        'Kesintisiz odaklanmak kolonini büyütür, dikkat '
-                        'dağılınca tohumların bir kısmı kaybolur. '
-                        'Hedef: haftalar içinde bu adayı ormana çevirmek.'
+                        'bir kapsül ekilir ve oksijen yenilenir. '
+                        'Kesintisiz odaklanmak kolonini büyütür; '
+                        'çalışma takvimine de otomatik yazılır. '
+                        'Hedef: haftalar içinde kapsülleri çoğaltıp '
+                        'koloniyi büyütmek.'
                     .tr(),
                 pageBuilder: () => GreenColonyScreen(),
               ),
@@ -10976,13 +12243,12 @@ class _PomodoroTechniquePage extends StatelessWidget {
                 prefKey: _marsPrefKey,
                 title: 'QuAlsar · Mars Protokolü'.tr(),
                 emoji: '🚀',
-                intro: 'Bu mod derin odak için tasarlandı. 25 dakikalık '
-                        'bir "görev fazı" başlatırsın; görev boyunca roket '
-                        'Mars\'a doğru ilerler. Telefonu kilitler veya '
-                        'uygulamadan çıkarsan görev başarısız olur. '
-                        'Başarılı her seans QuAlsar Point kazandırır ve '
-                        'seni sıralamada yukarı taşır. Toplam biriken '
-                        'görevlerle rozetler açılır.'
+                intro: 'Bu mod derin odak için tasarlandı. Her aşama bir '
+                        '"görev fazı"dır; görev boyunca koloni Mars\'ta '
+                        'kurulur. Uygulamadan çıkarsan sinyal kaybı alarmı '
+                        'başlar; geri dönmezsen aşama biter. Her tamamlanan '
+                        'faz çalışma takvimine yazılır ve rozet açar. '
+                        '4 fazı tamamlayınca "Koloni Kurucusu" rozetini alırsın.'
                     .tr(),
                 pageBuilder: () => QuAlsarMarsScreen(),
               ),
@@ -10990,6 +12256,257 @@ class _PomodoroTechniquePage extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildStatsCard(BuildContext context) {
+    final ink = AppPalette.textPrimary(context);
+    final muted = AppPalette.textSecondary(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      decoration: BoxDecoration(
+        color: AppPalette.card(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: ink.withValues(alpha: 0.12),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.insights_rounded, size: 18, color: ink),
+              SizedBox(width: 6),
+              Text(
+                'Odak İstatistiğin'.tr(),
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: ink,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _statTile(
+                  emoji: '🎯',
+                  label: 'Toplam'.tr(),
+                  value: '${_stats.totalPhases}',
+                  ink: ink,
+                  muted: muted,
+                ),
+              ),
+              Expanded(
+                child: _statTile(
+                  emoji: '☀️',
+                  label: 'Bugün'.tr(),
+                  value: '${_stats.todayPhases}',
+                  ink: ink,
+                  muted: muted,
+                ),
+              ),
+              Expanded(
+                child: _statTile(
+                  emoji: '🔥',
+                  label: 'Streak'.tr(),
+                  value: '${_stats.streakDays} ${'gün'.tr()}',
+                  ink: ink,
+                  muted: muted,
+                ),
+              ),
+            ],
+          ),
+          if (_stats.marsBadges.isNotEmpty) ...[
+            SizedBox(height: 8),
+            Divider(height: 1, color: ink.withValues(alpha: 0.10)),
+            SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.emoji_events_rounded,
+                    size: 16, color: Colors.amber.shade700),
+                SizedBox(width: 4),
+                Text(
+                  '${_stats.marsBadges.length} ${'rozet'.tr()}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: ink,
+                  ),
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _stats.marsBadges
+                        .take(5)
+                        .map((id) => findPomodoroBadge(id)?.emoji ?? '🏅')
+                        .join('  '),
+                    style: TextStyle(fontSize: 14),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _statTile({
+    required String emoji,
+    required String label,
+    required String value,
+    required Color ink,
+    required Color muted,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(emoji, style: TextStyle(fontSize: 22)),
+        SizedBox(height: 2),
+        Text(
+          value,
+          style: GoogleFonts.poppins(
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+            color: ink,
+          ),
+        ),
+        Text(
+          label,
+          style: GoogleFonts.poppins(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: muted,
+            letterSpacing: 0.3,
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _openBadgesSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppPalette.card(context),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        final earned = _stats.marsBadges.toSet();
+        return DraggableScrollableSheet(
+          initialChildSize: 0.6,
+          minChildSize: 0.4,
+          maxChildSize: 0.92,
+          expand: false,
+          builder: (_, scroll) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppPalette.border(context),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 14),
+                  Text(
+                    'Rozetler'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: AppPalette.textPrimary(context),
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    '${earned.length} / ${pomodoroBadgeCatalog.length}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      color: AppPalette.textSecondary(context),
+                    ),
+                  ),
+                  SizedBox(height: 12),
+                  Expanded(
+                    child: ListView.separated(
+                      controller: scroll,
+                      itemCount: pomodoroBadgeCatalog.length,
+                      separatorBuilder: (_, __) => SizedBox(height: 8),
+                      itemBuilder: (_, i) {
+                        final b = pomodoroBadgeCatalog[i];
+                        final got = earned.contains(b.id);
+                        return Opacity(
+                          opacity: got ? 1 : 0.4,
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppPalette.bg(context),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: got
+                                    ? Colors.amber.shade700
+                                    : AppPalette.border(context),
+                                width: got ? 1.5 : 1,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Text(b.emoji,
+                                    style: TextStyle(fontSize: 26)),
+                                SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        b.title.tr(),
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w800,
+                                          color: AppPalette.textPrimary(
+                                              context),
+                                        ),
+                                      ),
+                                      SizedBox(height: 2),
+                                      Text(
+                                        b.desc.tr(),
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 11,
+                                          color:
+                                              AppPalette.textSecondary(context),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (got)
+                                  Icon(Icons.check_circle_rounded,
+                                      color: Colors.green.shade600,
+                                      size: 20),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -11723,7 +13240,7 @@ class _ParentLink {
 //  durağan ve kurumsal.
 // ═══════════════════════════════════════════════════════════════════════════
 class ParentReportPage extends StatefulWidget {
-  const ParentReportPage();
+  const ParentReportPage({super.key});
 
   @override
   State<ParentReportPage> createState() => ParentReportPageState();
@@ -11814,11 +13331,11 @@ class ParentReportPageState extends State<ParentReportPage> {
       // Yalnızca hata olduğunda snack — başarılı paylaşımda sessiz kal.
       try {
         await Clipboard.setData(ClipboardData(text: msg));
-      } catch (_) {}
+      } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'academic_planner'); }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Paylaşım hatası: $e — davet panoya kopyalandı.'),
+          content: Text('${'Paylaşım hatası:'.tr()} $e — ${'davet panoya kopyalandı'.tr()}.'),
           behavior: SnackBarBehavior.floating,
         ),
       );

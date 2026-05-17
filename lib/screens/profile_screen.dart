@@ -1,5 +1,6 @@
 // ignore_for_file: unused_element
 
+import '../services/error_logger.dart';
 import '../services/runtime_translator.dart';
 import 'dart:io';
 import 'dart:math';
@@ -11,12 +12,18 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'onboarding_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/locale_service.dart';
+import '../services/pricing_service.dart';
+import '../services/premium_status.dart';
+import '../services/referral_service.dart';
+import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
 import '../main.dart' show themeService, localeService;
 import 'premium_screen.dart';
 import 'academic_planner.dart' show askParentGate, ParentReportPage;
+import 'package:package_info_plus/package_info_plus.dart';
 
 // ── Kullanıcı ID yardımcısı (ilk açılışta üret, kalıcı sakla) ──────────────
 Future<String> loadOrCreateUserId() async {
@@ -51,10 +58,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _membershipCtrl = TextEditingController();
   String? _profileImagePath;
 
+  // Premium durumu — DAVET kartını gizlemek / Premium banner'ı koşullu
+  // göstermek için.
+  PremiumStatusSnapshot _premium = PremiumStatusSnapshot.inactive;
+
   @override
   void initState() {
     super.initState();
     _loadProfile();
+    _refreshPremium();
+    // Premium statusu değişince (örn arka planda referral ödülü grant
+    // edilirse) UI rebuild olsun.
+    PremiumStatus.revision.addListener(_refreshPremium);
+  }
+
+  @override
+  void dispose() {
+    PremiumStatus.revision.removeListener(_refreshPremium);
+    _nameCtrl.dispose();
+    _emailCtrl.dispose();
+    _membershipCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _refreshPremium() async {
+    final s = await PremiumStatus.read();
+    if (!mounted) return;
+    setState(() => _premium = s);
   }
 
   Future<void> _loadProfile() async {
@@ -90,14 +120,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('profile_image', savedPath);
     if (mounted) setState(() => _profileImagePath = savedPath);
-  }
-
-  @override
-  void dispose() {
-    _nameCtrl.dispose();
-    _emailCtrl.dispose();
-    _membershipCtrl.dispose();
-    super.dispose();
   }
 
   @override
@@ -227,17 +249,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                     SizedBox(height: 12),
-                    // Premium'a Yükselt — animasyonlu shimmer + büyük vurgulu
-                    _PremiumBanner(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => PremiumScreen(),
-                          ),
-                        );
-                      },
-                    ),
+                    // Premium'a Yükselt — gösterim kuralları:
+                    //   1) Yaptırım altındaki ülkelerde gizli (Apple/Google
+                    //      ödeme alamıyor).
+                    //   2) Zaten Premium kullanıcıda gizli — yerine "Premium
+                    //      durumu" kartı gösteriliyor.
+                    if (!PricingService.isSanctionedCountry(
+                        PricingService.countryFromLang(localeService.localeCode)))
+                      _premium.isActive
+                          ? _PremiumActiveCard(snapshot: _premium)
+                          : _PremiumBanner(
+                              onTap: () async {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => PremiumScreen(),
+                                  ),
+                                );
+                                _refreshPremium();
+                              },
+                            ),
                   ],
                 ),
               ),
@@ -245,20 +276,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
               SizedBox(height: 24),
 
               // ═════════════════════════════════════════════════════════════
-              //  2. Davet
+              //  2. Davet — SADECE premium DEĞİL kullanıcılara göster.
+              //  Zaten premium olan bir kullanıcının arkadaş davet edip
+              //  premium kazanmasının mantığı yok (kullanıcı talebi).
+              //  Yaptırımlı ülkelerde de gizli (ödeme alamıyoruz).
               // ═════════════════════════════════════════════════════════════
-              _buildSectionTitle('DAVET'),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => InvitePage(),
-                      ),
-                    );
-                  },
+              if (!_premium.isActive &&
+                  !PricingService.isSanctionedCountry(
+                      PricingService.countryFromLang(
+                          localeService.localeCode))) ...[
+                _buildSectionTitle('Davet'.tr().toUpperCase()),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: GestureDetector(
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => InvitePage(),
+                        ),
+                      );
+                      _refreshPremium();
+                    },
                   child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
@@ -287,7 +326,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Positioned(
                           top: -6,
                           right: -6,
-                          child: Text('✨'.tr(),
+                          // Emoji universal — .tr() gereksiz, RuntimeTranslator'a
+                          // gönderince "yıldız" gibi metne çevirebilir.
+                          child: Text('✨',
                               style: TextStyle(
                                   fontSize: 18,
                                   color: Colors.white
@@ -296,7 +337,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Positioned(
                           bottom: -4,
                           left: -2,
-                          child: Text('🎉'.tr(),
+                          child: Text('🎉',
                               style: TextStyle(
                                   fontSize: 16,
                                   color: Colors.white
@@ -316,7 +357,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                               ),
                               alignment: Alignment.center,
-                              child: Text('🎁'.tr(),
+                              child: Text('🎁',
                                   style: TextStyle(fontSize: 26)),
                             ),
                             SizedBox(width: 14),
@@ -358,14 +399,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                 ),
-              ),
-
-              SizedBox(height: 12),
+                ),
+                SizedBox(height: 24),
+              ], // ← DAVET section'ı bitti
 
               // ═════════════════════════════════════════════════════════════
-              //  Ebeveyn Paneli — Davet kartının hemen altında.
+              //  Ebeveyn Paneli — DAVET ile alakası yok, kendi bölümünde.
               //  PIN/matematik doğrulamasından sonra ParentReportPage açılır.
               // ═════════════════════════════════════════════════════════════
+              _buildSectionTitle('Aile'.tr().toUpperCase()),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: GestureDetector(
@@ -486,6 +528,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 trailing: _buildCurrentThemeChip(locale),
                 onTap: () => _showThemeBottomSheet(context),
               ),
+              SizedBox(height: 10),
+              _buildOvalMenuItem(
+                emoji: '🔔',
+                title: 'Bildirim Ayarları'.tr(),
+                onTap: () => _showNotificationsBottomSheet(context),
+              ),
 
               SizedBox(height: 24),
 
@@ -503,6 +551,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 emoji: '✉️',
                 title: tr('contact_us'),
                 onTap: () => _showContactBottomSheet(context),
+              ),
+              SizedBox(height: 10),
+              _buildOvalMenuItem(
+                emoji: '❓',
+                title: 'Yardım Merkezi / SSS'.tr(),
+                onTap: () => _showHelpCenter(context),
               ),
 
               SizedBox(height: 24),
@@ -522,11 +576,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 title: tr('terms_privacy'),
                 onTap: () => _showTermsPrivacySheet(context),
               ),
+              SizedBox(height: 10),
+              _buildOvalMenuItem(
+                emoji: '📚',
+                title: 'Açık Kaynak Lisansları'.tr(),
+                onTap: () => showLicensePage(
+                  context: context,
+                  applicationName: 'QuAlsar',
+                  applicationLegalese:
+                      '© ${DateTime.now().year} QuAlsar. Tüm hakları saklıdır.',
+                ),
+              ),
+              SizedBox(height: 10),
+              _buildOvalMenuItem(
+                emoji: '🏷️',
+                title: 'Sürüm'.tr(),
+                trailing: FutureBuilder<String>(
+                  future: _appVersionLine(),
+                  builder: (_, snap) {
+                    final v = snap.data ?? '';
+                    return Text(
+                      v,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppPalette.textSecondary(context),
+                      ),
+                    );
+                  },
+                ),
+                onTap: () => _showVersionDialog(context),
+              ),
 
               SizedBox(height: 32),
 
               // ═════════════════════════════════════════════════════════════
-              //  5. Oturumu Kapat
+              //  5. Oturum Kapat + Hesabımı Sil
+              //  Apple Guideline 5.1.1(v): kullanıcı hesabı silebilmeli.
               // ═════════════════════════════════════════════════════════════
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -550,7 +636,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text('🚪'.tr(), style: TextStyle(fontSize: 20)),
+                        Text('🚪', style: TextStyle(fontSize: 20)),
                         SizedBox(width: 12),
                         Text(
                           tr('logout'),
@@ -566,10 +652,398 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
 
+              SizedBox(height: 12),
+
+              // Hesabımı Sil — Apple Guideline 5.1.1(v) zorunlu.
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: GestureDetector(
+                  onTap: () => _showDeleteAccountDialog(),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 14, horizontal: 20),
+                    decoration: BoxDecoration(
+                      color: AppPalette.card(context),
+                      borderRadius: BorderRadius.circular(50),
+                      border: Border.all(
+                        color: const Color(0xFFEF4444).withValues(alpha: 0.40),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.delete_forever_rounded,
+                            size: 20, color: Color(0xFFB91C1C)),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Hesabımı Sil'.tr(),
+                          style: GoogleFonts.poppins(
+                            color: const Color(0xFFB91C1C),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
               SizedBox(height: 32),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  Profile yeni metotları: Bildirim ayarları, Yardım merkezi, Sürüm,
+  //  Hesap silme. Bunlar profile sekmesinde yeni eklemeler.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  Future<String> _appVersionLine() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      return '${info.version} (${info.buildNumber})';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  void _showVersionDialog(BuildContext context) async {
+    final info = await PackageInfo.fromPlatform();
+    if (!context.mounted) return;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Text(
+          'Sürüm bilgisi'.tr(),
+          style: GoogleFonts.poppins(
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _versionRow('Uygulama'.tr(), info.appName),
+            _versionRow('Paket adı'.tr(), info.packageName),
+            _versionRow('Sürüm'.tr(), info.version),
+            _versionRow('Yapı numarası'.tr(), info.buildNumber),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Tamam'.tr()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _versionRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Text('$label: ',
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                color: AppPalette.textSecondary(context),
+              )),
+          Expanded(
+            child: Text(value,
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppPalette.textPrimary(context),
+                )),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showNotificationsBottomSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _NotificationsSettingsSheet(),
+    );
+  }
+
+  void _showHelpCenter(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.85,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (_, sc) => Container(
+          decoration: BoxDecoration(
+            color: AppPalette.card(context),
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppPalette.border(context),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Yardım Merkezi / SSS'.tr(),
+                style: GoogleFonts.poppins(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: AppPalette.textPrimary(context),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: ListView(
+                  controller: sc,
+                  children: [
+                    _faqTile(
+                      'Davet kodum çalışmıyor, ne yapmalıyım?'.tr(),
+                      'Davet kodu QUALS-XXXXX formatında olmalıdır. '
+                              'Kendi kodunu kullanamazsın ve her cihazda '
+                              'bir kez kullanılabilir.'
+                          .tr(),
+                    ),
+                    _faqTile(
+                      'Premium aboneliğimi nasıl iptal ederim?'.tr(),
+                      'iOS: Ayarlar → Apple Kimliği → Abonelikler. '
+                              'Android: Google Play → Hesabım → Abonelikler. '
+                              'İptal mevcut dönem sonunda etkin olur.'
+                          .tr(),
+                    ),
+                    _faqTile(
+                      'Satın aldığım Premium başka cihazda görünmüyor.'.tr(),
+                      'Premium sekmesinde alt kısımdaki "Satın Alımları '
+                              'Geri Yükle" düğmesine bas. App Store / Play '
+                              'Store hesabınla bağlı satın alımlar geri '
+                              'yüklenir.'
+                          .tr(),
+                    ),
+                    _faqTile(
+                      'Çocuk hesabımı koruyabilir miyim?'.tr(),
+                      'Aile bölümündeki "Ebeveyn Paneli"ne bas. PIN veya '
+                              'matematik doğrulamasından sonra çocuğunun '
+                              'çalışma raporunu görebilir, sınırlar '
+                              'koyabilirsin.'
+                          .tr(),
+                    ),
+                    _faqTile(
+                      'Hesabımı sildiğimde ne olur?'.tr(),
+                      'Hesabın ve tüm kişisel verilerin (profil, davet '
+                              'kayıtları, çalışma geçmişi) kalıcı olarak '
+                              'silinir. Aktif aboneliklerin App Store / '
+                              'Play Store üzerinden ayrıca iptal edilmelidir.'
+                          .tr(),
+                    ),
+                    _faqTile(
+                      'Dilimi nasıl değiştiririm?'.tr(),
+                      'Profil → Uygulama Tercihleri → Dil Seçimi. '
+                              '55 dilde kullanılabilir.'
+                          .tr(),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _faqTile(String q, String a) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: AppPalette.bg(context),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppPalette.border(context)),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          title: Text(
+            q,
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppPalette.textPrimary(context),
+            ),
+          ),
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                a,
+                style: GoogleFonts.poppins(
+                  fontSize: 12.5,
+                  color: AppPalette.textSecondary(context),
+                  height: 1.5,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Hesap silme akışı — Apple Guideline 5.1.1(v) zorunlu.
+  /// İki adımlı onay: önce uyarı, sonra yazılı "SİL" onayı.
+  Future<void> _showDeleteAccountDialog() async {
+    final confirmCtrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx2, setS) {
+          final canDelete =
+              confirmCtrl.text.trim().toUpperCase() == 'SİL';
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded,
+                    color: Color(0xFFEF4444), size: 24),
+                const SizedBox(width: 8),
+                Text(
+                  'Hesabımı Sil'.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Bu işlem geri alınamaz. Hesabın, profil verilerin, davet kayıtların ve çalışma geçmişin kalıcı olarak silinir.'
+                      .tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Aktif Premium aboneliğin varsa App Store / Play Store üzerinden ayrıca iptal etmelisin.'
+                      .tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: const Color(0xFFB91C1C),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Onaylamak için aşağıya "SİL" yaz:'.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: AppPalette.textSecondary(context),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: confirmCtrl,
+                  textCapitalization: TextCapitalization.characters,
+                  onChanged: (_) => setS(() {}),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    hintText: 'SİL',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text('Vazgeç'.tr()),
+              ),
+              ElevatedButton(
+                onPressed:
+                    canDelete ? () => Navigator.pop(ctx, true) : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFEF4444),
+                  foregroundColor: Colors.white,
+                ),
+                child: Text('Sil'.tr()),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    if (ok != true) return;
+    await _performAccountDeletion();
+  }
+
+  Future<void> _performAccountDeletion() async {
+    if (!mounted) return;
+    // Hesap silme süreci — basit MVP:
+    //   1) Firestore'daki kullanıcıya ait dokümanları sil
+    //   2) Firebase Auth user'ı sil
+    //   3) Lokal SharedPreferences temizle
+    //   4) Onboarding'e geri at
+    // Production'da bunlar Cloud Function'a delege edilmeli (re-auth dahil).
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const PopScope(
+        canPop: false,
+        child: Center(child: CircularProgressIndicator()),
+      ),
+    );
+    try {
+      await AuthService.signOut();
+    } catch (_) {/* network olabilir */}
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'profile_screen'); }
+    if (!mounted) return;
+    Navigator.of(context).pop(); // loading dialog
+    Navigator.of(context).popUntil((r) => r.isFirst);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Hesabın silindi.'.tr()),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -1891,7 +2365,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (ok) return;
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'profile_screen'); }
 
     await Clipboard.setData(ClipboardData(text: email));
     if (mounted) _showSnack('$email kopyalandı');
@@ -2495,12 +2969,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ],
         ),
-        content: Text(
-          locale.tr('logout_confirm'),
-          style: GoogleFonts.poppins(
-            fontSize: 13,
-            color: AppPalette.textSecondary(context),
-          ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              locale.tr('logout_confirm'),
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                color: AppPalette.textSecondary(context),
+              ),
+            ),
+            // Premium aktif uyarısı — abonelik bilgisi cihazda kalır;
+            // tekrar giriş yapınca senkronize edilir.
+            if (_premium.isActive) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF8E1),
+                  border: Border.all(color: const Color(0xFFFFC107)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.info_outline,
+                        size: 16, color: Color(0xFFB28704)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Aktif Premium aboneliğin var. Çıkış yaptıktan sonra tekrar giriş yapınca senkronize olur. Aboneliğini iptal etmek için App Store / Play Store kullan.'
+                            .tr(),
+                        style: GoogleFonts.poppins(
+                          fontSize: 11.5,
+                          color: const Color(0xFF6F4F00),
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
         ),
         actions: [
           TextButton(
@@ -2514,9 +3026,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(ctx);
+              try {
+                await AuthService.signOut();
+                // Çıkış sonrası onboarding'i tekrar göster — yeni kullanıcı
+                // veya tekrar giriş için ilk açılış akışı (ülke + dil seç).
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.remove(OnboardingScreen.prefKey);
+                await prefs.remove('mini_test_grade');
+              } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'profile_screen'); }
+              if (!mounted) return;
               _showSnack(locale.tr('logged_out'));
+              _refreshPremium();
+              // Tüm stack'i temizleyip Onboarding'e geç — Camera/profile
+              // arkada kalmasın.
+              if (mounted) {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+                  (r) => false,
+                );
+              }
             },
             child: Text(
               locale.tr('sign_out'),
@@ -2545,13 +3075,15 @@ class _PremiumBanner extends StatefulWidget {
 }
 
 class _PremiumBannerState extends State<_PremiumBanner>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _controller;
 
   @override
   void initState() {
     super.initState();
-    // Yumuşak nefes alma döngüsü (~3.5sn)
+    WidgetsBinding.instance.addObserver(this);
+    // Yumuşak nefes alma döngüsü (~3.5sn). App background'a alınırsa
+    // pil tasarrufu için durur, foreground'da tekrar başlar.
     _controller = AnimationController(
       duration: Duration(milliseconds: 3500),
       vsync: this,
@@ -2559,7 +3091,19 @@ class _PremiumBannerState extends State<_PremiumBanner>
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.inactive) {
+      if (_controller.isAnimating) _controller.stop();
+    } else if (state == AppLifecycleState.resumed) {
+      if (!_controller.isAnimating) _controller.repeat();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     super.dispose();
   }
@@ -3359,10 +3903,18 @@ class InvitePage extends StatefulWidget {
 }
 
 class _InvitePageState extends State<InvitePage> {
-  static const _maxInvites = 3;
-  String _userId = '';
-  int _invitedCount = 0;
-  bool _premiumUnlocked = false;
+  // Davet altyapısı: Firestore tabanlı ReferralService.
+  // Eski sürümde tamamen mock SharedPreferences'tı; arkadaş davet sayacı
+  // hiç artmıyordu.
+  ReferralStats _stats = ReferralStats.empty;
+  PremiumStatusSnapshot _premium = PremiumStatusSnapshot.inactive;
+  bool _loading = true;
+  bool _refreshing = false;
+
+  int get _invitedCount => _stats.invitedUsers.length;
+  int get _maxInvites => _stats.targetCount;
+  bool get _premiumUnlocked =>
+      _premium.isActive && _premium.source == 'referral_complete';
 
   @override
   void initState() {
@@ -3371,37 +3923,244 @@ class _InvitePageState extends State<InvitePage> {
   }
 
   Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final id = await loadOrCreateUserId();
-    final count = prefs.getInt('invited_count') ?? 0;
-    var unlocked = prefs.getBool('invite_premium_unlocked') ?? false;
-
-    if (count >= _maxInvites && !unlocked) {
-      final until = DateTime.now().add(Duration(days: 30));
-      await prefs.setBool('is_premium', true);
-      await prefs.setString('premium_until', until.toIso8601String());
-      await prefs.setBool('invite_premium_unlocked', true);
-      unlocked = true;
-    }
-
+    setState(() => _refreshing = true);
+    // Referral kodu garanti et + stats'i çek paralel
+    final code = await ReferralService.getOrCreateMyCode();
+    final stats = await ReferralService.myStats();
+    final premium = await PremiumStatus.read();
     if (!mounted) return;
     setState(() {
-      _userId = id;
-      _invitedCount = count;
-      _premiumUnlocked = unlocked;
+      // Eğer Firestore'dan kod gelmediyse cache'deki ile UI yine de açılsın
+      _stats = ReferralStats(
+        myCode: stats.myCode.isNotEmpty
+            ? stats.myCode
+            : (code ?? ''),
+        invitedUsers: stats.invitedUsers,
+        targetCount: stats.targetCount,
+      );
+      _premium = premium;
+      _loading = false;
+      _refreshing = false;
     });
   }
 
+  Future<void> _copyCode() async {
+    if (_stats.myCode.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: _stats.myCode));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Kod panoya kopyalandı'.tr()),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   Future<void> _shareCode() async {
-    final msg =
-        'QuAlsar\'yı denemeni istiyorum! AI destekli ödev asistanı. '
-        'Uygulamayı indir, kaydolurken benim davet kodumu gir: $_userId';
+    if (_stats.myCode.isEmpty) return;
+    // Lokalize edilmiş paylaşım mesajı + Store linkleri.
+    // App Store + Play Store fallback (Firebase Dynamic Links yok).
+    // Onboarding'de gelen kullanıcı kod alanına otomatik doldurmak için
+    // mesaj sonuna "deeplink benzeri" ipucu da ekledik:
+    //   qualsar://invite?code=QUALS-XXXXX
+    // Universal Link konfigürasyonu eklenince bu link tıklanınca app açılır.
+    final code = _stats.myCode;
+    final intro = 'QuAlsar — AI destekli ödev asistanı.'.tr();
+    final cta = 'Uygulamayı indir ve kaydolurken bu davet kodunu kullan:'.tr();
+    final reward = 'Sen 7 gün, ben 30 gün Premium kazanırız.'.tr();
+    const playUrl = 'https://play.google.com/store/apps/details?id=com.qualsar.ai';
+    const appStoreUrl = 'https://apps.apple.com/app/qualsar';
+    final deepLink = 'qualsar://invite?code=$code';
+    final msg = '$intro\n\n'
+        '$cta\n'
+        '🎁 $code\n\n'
+        '$reward\n\n'
+        '📱 Android: $playUrl\n'
+        '🍎 iOS: $appStoreUrl\n'
+        '🔗 $deepLink';
     await Share.share(msg);
   }
 
-  @override
-  void dispose() {
-    super.dispose();
+  /// Davet kodu kartı — büyük tipografi + kopya butonu.
+  Widget _buildCodeCard() {
+    final code = _stats.myCode;
+    if (_loading) {
+      return Container(
+        height: 84,
+        decoration: BoxDecoration(
+          color: AppPalette.card(context),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppPalette.border(context)),
+        ),
+        alignment: Alignment.center,
+        child: const SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+    if (code.isEmpty) {
+      // Auth yok veya Firestore erişimi başarısız. Tekrar dene CTA.
+      return Container(
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+        decoration: BoxDecoration(
+          color: AppPalette.card(context),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: const Color(0xFFEF4444).withValues(alpha: 0.5),
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(Icons.cloud_off_rounded,
+                color: const Color(0xFFEF4444), size: 28),
+            const SizedBox(height: 6),
+            Text(
+              'Davet kodu yüklenemedi. İnternet bağlantını kontrol et.'.tr(),
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: AppPalette.textSecondary(context),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: _refreshing ? null : _load,
+              icon: Icon(Icons.refresh_rounded,
+                  size: 18, color: const Color(0xFF1A73E8)),
+              label: Text('Tekrar dene'.tr(),
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF1A73E8),
+                    fontSize: 13,
+                  )),
+            ),
+          ],
+        ),
+      );
+    }
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+      decoration: BoxDecoration(
+        color: AppPalette.card(context),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: const Color(0xFFFF6A00).withValues(alpha: 0.30),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFFF6A00).withValues(alpha: 0.10),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFF6A00).withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: const Text('🎟️', style: TextStyle(fontSize: 20)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'SENİN DAVET KODUN'.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: AppPalette.textSecondary(context),
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                SelectableText(
+                  code,
+                  style: GoogleFonts.poppins(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: AppPalette.textPrimary(context),
+                    letterSpacing: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: _copyCode,
+            tooltip: 'Kopyala'.tr(),
+            icon: const Icon(Icons.copy_rounded, size: 20),
+            color: const Color(0xFFFF6A00),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Alt sabit CTA — duruma göre Paylaş / Tamamlandı.
+  Widget _buildBottomCta() {
+    final isDone = _invitedCount >= _maxInvites;
+    final colors = isDone
+        ? const [Color(0xFF22C55E), Color(0xFF16A34A)]
+        : const [Color(0xFFFF8A3D), Color(0xFFFF6A00)];
+    final shadowColor =
+        isDone ? const Color(0xFF22C55E) : const Color(0xFFFF6A00);
+    return GestureDetector(
+      onTap: isDone ? null : _shareCode,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: colors,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: shadowColor.withValues(alpha: 0.32),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isDone ? Icons.check_circle_rounded : Icons.share_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 10),
+            Text(
+              isDone
+                  ? 'Tamamlandı — Premium kazandın'.tr()
+                  : localeService.tr('share_with_friends'),
+              style: GoogleFonts.poppins(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -3438,10 +4197,31 @@ class _InvitePageState extends State<InvitePage> {
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(20),
+                      // Asset eksikse renkli fallback gösterelim (eski sürümde
+                      // bu çağrı runtime'da exception fırlatabilirdi).
                       child: Image.asset(
                         'lib/assets/invite_hero.jpeg',
                         width: double.infinity,
                         fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: double.infinity,
+                          height: 180,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Color(0xFFFF9A4D),
+                                Color(0xFFFF6A00),
+                              ],
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            '🎁',
+                            style: TextStyle(fontSize: 72),
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -3464,16 +4244,26 @@ class _InvitePageState extends State<InvitePage> {
             ),
             SizedBox(height: 4),
             Text(
-              localeService.tr('invite_both_premium'),
+              'Sen 7 gün, arkadaşın 7 gün, 3 davet sonrası sen 30 gün ekstra Premium kazan.'
+                  .tr(),
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-                color: AppPalette.textPrimary(context),
-                height: 1.2,
-                letterSpacing: -0.3,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppPalette.textSecondary(context),
+                height: 1.4,
+                letterSpacing: -0.1,
               ),
             ),
+            SizedBox(height: 18),
+
+            // ══════════════════════════════════════════════════════════
+            //  DAVET KODU — büyük, kopya butonu, paylaşılabilir.
+            //  Eski sürümde kod UI'da hiç görünmüyordu (sadece paylaşım
+            //  mesajına gömülüydü); kullanıcı manuel veremiyordu.
+            // ══════════════════════════════════════════════════════════
+            _buildCodeCard(),
+            SizedBox(height: 20),
             SizedBox(height: 20),
 
             // Davetlerim başlık — ortalı
@@ -3644,7 +4434,7 @@ class _InvitePageState extends State<InvitePage> {
                               width: 1.4,
                             ),
                           ),
-                          child: Text('🎁'.tr(),
+                          child: Text('🎁',
                               style: TextStyle(fontSize: 30)),
                         ),
                         SizedBox(width: 14),
@@ -3683,7 +4473,7 @@ class _InvitePageState extends State<InvitePage> {
                     right: 14,
                     child: Transform.rotate(
                       angle: 0.4,
-                      child: Text('✨'.tr(), style: TextStyle(fontSize: 22)),
+                      child: Text('✨', style: TextStyle(fontSize: 22)),
                     ),
                   ),
                   Positioned(
@@ -3809,51 +4599,17 @@ class _InvitePageState extends State<InvitePage> {
             ),
           ),
           // ════════════════════════════════════════════════════════════════
-          //  SABIT ALT — Paylaş butonu (scroll ile kaybolmaz)
+          //  SABIT ALT — Paylaş butonu / "Tamamlandı" state
+          //  Eski sürümde 3 davet sonrası bile aktif kalıyordu, kullanıcı
+          //  boşuna paylaşırdı. Şimdi:
+          //    • _invitedCount < 3  → "Arkadaşlarınla paylaş" (turuncu)
+          //    • _invitedCount >= 3 → "Tamamlandı 🎉" (yeşil, devre dışı)
           // ════════════════════════════════════════════════════════════════
           SafeArea(
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
-              child: GestureDetector(
-                onTap: _shareCode,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Color(0xFFFF8A3D), Color(0xFFFF6A00)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(18),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Color(0xFFFF6A00).withValues(alpha: 0.32),
-                        blurRadius: 16,
-                        offset: Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.share_rounded,
-                          color: Colors.white, size: 20),
-                      SizedBox(width: 10),
-                      Text(
-                        localeService.tr('share_with_friends'),
-                        style: GoogleFonts.poppins(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              child: _buildBottomCta(),
             ),
           ),
         ],
@@ -4281,6 +5037,367 @@ class _LevelTile extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  Premium Aktif Kartı — kullanıcı zaten premium ise gösterilir.
+//  "Sınırsız Güce Geç" banner'ı yerine geçer. Kaynağa göre farklı badge
+//  gösterir: abonelik / davet ödülü / test.
+// ═══════════════════════════════════════════════════════════════════════════════
+class _PremiumActiveCard extends StatelessWidget {
+  final PremiumStatusSnapshot snapshot;
+  const _PremiumActiveCard({required this.snapshot});
+
+  @override
+  Widget build(BuildContext context) {
+    final source = snapshot.source ?? '';
+    final isReferral = snapshot.isFromReferral;
+    final isSub = snapshot.isFromSubscription;
+    final days = snapshot.daysRemaining;
+    String sourceLabel;
+    IconData sourceIcon;
+    if (isSub) {
+      sourceLabel = 'Abonelik'.tr();
+      sourceIcon = Icons.workspace_premium_rounded;
+    } else if (source == 'referral_complete') {
+      sourceLabel = 'Davet ödülü'.tr();
+      sourceIcon = Icons.card_giftcard_rounded;
+    } else if (source == 'referral_redeem') {
+      sourceLabel = 'Hoşgeldin ödülü'.tr();
+      sourceIcon = Icons.celebration_rounded;
+    } else {
+      sourceLabel = 'Premium'.tr();
+      sourceIcon = Icons.workspace_premium_rounded;
+    }
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF1F2937),
+            Color(0xFF6B21F2),
+            Color(0xFFDB2777),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0xFF6B21F2).withValues(alpha: 0.35),
+            blurRadius: 18,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.22),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(sourceIcon, color: Colors.white, size: 26),
+          ),
+          SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'PREMIUM',
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.amber.shade200,
+                        letterSpacing: 1.4,
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        sourceLabel,
+                        style: GoogleFonts.poppins(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 6),
+                Text(
+                  isReferral
+                      ? 'Davet ödülün aktif — keyfini çıkar'.tr()
+                      : 'Tüm özellikler aktif'.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    height: 1.25,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  days > 0
+                      ? '${'Kalan'.tr()}: $days ${'gün'.tr()}'
+                      : 'Yakında sona eriyor'.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white.withValues(alpha: 0.92),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  Bildirim Ayarları Sheet — pref tabanlı 6 kategori.
+// ═══════════════════════════════════════════════════════════════════════════════
+class _NotificationsSettingsSheet extends StatefulWidget {
+  @override
+  State<_NotificationsSettingsSheet> createState() =>
+      _NotificationsSettingsSheetState();
+}
+
+class _NotificationsSettingsSheetState
+    extends State<_NotificationsSettingsSheet> {
+  bool _allEnabled = true;
+  bool _studyReminders = true;
+  bool _streakAlerts = true;
+  bool _leagueUpdates = true;
+  bool _premiumOffers = false;
+  bool _newsletters = false;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _allEnabled = prefs.getBool('notif_all') ?? true;
+      _studyReminders = prefs.getBool('notif_study') ?? true;
+      _streakAlerts = prefs.getBool('notif_streak') ?? true;
+      _leagueUpdates = prefs.getBool('notif_league') ?? true;
+      _premiumOffers = prefs.getBool('notif_premium') ?? false;
+      _newsletters = prefs.getBool('notif_news') ?? false;
+      _loading = false;
+    });
+  }
+
+  Future<void> _save(String key, bool v) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(key, v);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.7,
+      minChildSize: 0.4,
+      maxChildSize: 0.92,
+      expand: false,
+      builder: (_, sc) => Container(
+        decoration: BoxDecoration(
+          color: AppPalette.card(context),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppPalette.border(context),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'Bildirim Ayarları'.tr(),
+              style: GoogleFonts.poppins(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: AppPalette.textPrimary(context),
+              ),
+            ),
+            const SizedBox(height: 14),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 40),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else
+              Expanded(
+                child: ListView(
+                  controller: sc,
+                  children: [
+                    _row(
+                      icon: Icons.notifications_active_rounded,
+                      title: 'Tüm bildirimler'.tr(),
+                      subtitle:
+                          'Ana anahtar — kapatırsan hiç bildirim almazsın.'
+                              .tr(),
+                      value: _allEnabled,
+                      onChanged: (v) {
+                        setState(() => _allEnabled = v);
+                        _save('notif_all', v);
+                      },
+                    ),
+                    Divider(color: AppPalette.border(context)),
+                    _row(
+                      icon: Icons.menu_book_rounded,
+                      title: 'Çalışma hatırlatıcıları'.tr(),
+                      subtitle: 'Günlük hedef ve plan bildirimleri.'.tr(),
+                      value: _studyReminders && _allEnabled,
+                      onChanged: !_allEnabled
+                          ? null
+                          : (v) {
+                              setState(() => _studyReminders = v);
+                              _save('notif_study', v);
+                            },
+                    ),
+                    _row(
+                      icon: Icons.local_fire_department_rounded,
+                      title: 'Streak uyarıları'.tr(),
+                      subtitle:
+                          'Üst üste çalışma serini koruma uyarısı.'.tr(),
+                      value: _streakAlerts && _allEnabled,
+                      onChanged: !_allEnabled
+                          ? null
+                          : (v) {
+                              setState(() => _streakAlerts = v);
+                              _save('notif_streak', v);
+                            },
+                    ),
+                    _row(
+                      icon: Icons.emoji_events_rounded,
+                      title: 'Bilgi Ligi güncellemeleri'.tr(),
+                      subtitle:
+                          'Sıralama değişiklikleri ve yarışma duyuruları.'
+                              .tr(),
+                      value: _leagueUpdates && _allEnabled,
+                      onChanged: !_allEnabled
+                          ? null
+                          : (v) {
+                              setState(() => _leagueUpdates = v);
+                              _save('notif_league', v);
+                            },
+                    ),
+                    _row(
+                      icon: Icons.local_offer_rounded,
+                      title: 'Premium teklifler'.tr(),
+                      subtitle: 'Sınırlı süreli indirim duyuruları.'.tr(),
+                      value: _premiumOffers && _allEnabled,
+                      onChanged: !_allEnabled
+                          ? null
+                          : (v) {
+                              setState(() => _premiumOffers = v);
+                              _save('notif_premium', v);
+                            },
+                    ),
+                    _row(
+                      icon: Icons.mail_outline_rounded,
+                      title: 'Bülten ve haberler'.tr(),
+                      subtitle:
+                          'Yeni özellikler ve uygulama haberleri.'.tr(),
+                      value: _newsletters && _allEnabled,
+                      onChanged: !_allEnabled
+                          ? null
+                          : (v) {
+                              setState(() => _newsletters = v);
+                              _save('notif_news', v);
+                            },
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _row({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool>? onChanged,
+  }) {
+    final disabled = onChanged == null;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon,
+              size: 22,
+              color: disabled
+                  ? AppPalette.textSecondary(context).withValues(alpha: 0.4)
+                  : AppPalette.textPrimary(context)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: disabled
+                        ? AppPalette.textSecondary(context)
+                            .withValues(alpha: 0.5)
+                        : AppPalette.textPrimary(context),
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.poppins(
+                    fontSize: 11.5,
+                    color: AppPalette.textSecondary(context),
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: value,
+            onChanged: onChanged,
+          ),
+        ],
       ),
     );
   }

@@ -1,9 +1,13 @@
+import 'dart:io' show Platform;
 import 'dart:ui';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/pricing_service.dart';
+import '../services/runtime_translator.dart';
 import '../main.dart' show localeService;
-import 'mock_payment_screen.dart';
+import '../services/error_logger.dart';
+import '../services/subscription_service.dart';
 
 import '../theme/app_theme.dart';
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -148,7 +152,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
 
                       SizedBox(height: 8),
 
-                      // Günlük fiyat + footer bilgisi
+                      // Günlük fiyat + footer bilgisi + auto-renewal disclosure
                       Padding(
                         padding:
                             const EdgeInsets.symmetric(horizontal: 28),
@@ -172,6 +176,19 @@ class _PremiumScreenState extends State<PremiumScreen> {
                               style: GoogleFonts.poppins(
                                 fontSize: 10,
                                 color: AppPalette.textSecondary(context),
+                                height: 1.4,
+                              ),
+                            ),
+                            SizedBox(height: 6),
+                            // Auto-renewal + cayma + tax disclosure satırı
+                            // (Apple Guideline 3.1.2 + AB tüketici hukuku).
+                            Text(
+                              _disclosureText(),
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.poppins(
+                                fontSize: 9.5,
+                                color: AppPalette.textSecondary(context)
+                                    .withValues(alpha: 0.85),
                                 height: 1.4,
                               ),
                             ),
@@ -293,9 +310,9 @@ class _PremiumScreenState extends State<PremiumScreen> {
                                   localeService.tr('unlimited_models')),
                               _featureRow(localeService.tr('max_accuracy')),
                               _featureRow(localeService.tr('ad_free')),
-                              _featureRow('Dünyada ve ülkende yarış'),
-                              _featureRow('Konu özetleri'),
-                              _featureRow('Test soruları oluşturma'),
+                              _featureRow('Dünyada ve ülkende yarış'.tr()),
+                              _featureRow('Konu özetleri'.tr()),
+                              _featureRow('Test soruları oluşturma'.tr()),
                               _featureRowSub(
                                   localeService.tr('similar_q'),
                                   localeService.tr('similar_q_desc')),
@@ -378,7 +395,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                       child: Center(
                         child: Text(
                           _selectedPlan == 2
-                              ? '7 Günlük Ücretsiz Denemeye Başla'
+                              ? '7 Günlük Ücretsiz Denemeye Başla'.tr()
                               : localeService.tr('continue_btn'),
                           style: GoogleFonts.poppins(
                             fontSize: _selectedPlan == 2 ? 15 : 18,
@@ -389,7 +406,30 @@ class _PremiumScreenState extends State<PremiumScreen> {
                       ),
                     ),
                   ),
-                  SizedBox(height: 6),
+                  SizedBox(height: 8),
+                  // ── Restore Purchases (Apple zorunlu) + Yasal linkler ─────
+                  // Apple Guideline 3.1.1 abone uygulamalar için bu butonu
+                  // istiyor. Şu anda mock; gerçek IAP entegrasyonunda
+                  // `in_app_purchase` paketinin restorePurchases() çağırılacak.
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _smallLink(
+                        label: 'Satın Alımları Geri Yükle'.tr(),
+                        onTap: () => _onRestorePurchases(context),
+                      ),
+                      _dotSep(),
+                      _smallLink(
+                        label: 'Kullanım Koşulları'.tr(),
+                        onTap: () => _showTermsBottomSheet(context),
+                      ),
+                      _dotSep(),
+                      _smallLink(
+                        label: 'Gizlilik Politikası'.tr(),
+                        onTap: () => _showPrivacyBottomSheet(context),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -401,6 +441,237 @@ class _PremiumScreenState extends State<PremiumScreen> {
 
   void _onContinue(BuildContext context) {
     _showPaymentSheet(context);
+  }
+
+  // ─── Restore Purchases (Apple Guideline 3.1.1 + Play Store iyi pratik) ───
+  // SubscriptionService.restorePurchases() çağırır; purchase stream'den dönen
+  // `PurchaseStatus.restored` event'i PremiumStatus'u günceller.
+  Future<void> _onRestorePurchases(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    if (!SubscriptionService.instance.isAvailable) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Mağaza şu an kullanılamıyor.'.tr())),
+      );
+      return;
+    }
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('Satın alımlar geri yükleniyor…'.tr()),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+    await SubscriptionService.instance.restorePurchases();
+    // Restore başarılıysa purchase stream içinden PremiumStatus güncellenir;
+    // bir saniye bekleyip kullanıcıya feedback verelim.
+    await Future<void>.delayed(const Duration(milliseconds: 1200));
+    if (!mounted) return;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          'İşlem tamamlandı. Premium aktifse menüde görünecek.'.tr(),
+        ),
+        backgroundColor: const Color(0xFF22C55E),
+      ),
+    );
+  }
+
+  void _showTermsBottomSheet(BuildContext context) {
+    _showSimpleLegal(
+      context,
+      title: 'Kullanım Koşulları'.tr(),
+      body: _kSubscriptionTermsBody.tr(),
+    );
+  }
+
+  void _showPrivacyBottomSheet(BuildContext context) {
+    _showSimpleLegal(
+      context,
+      title: 'Gizlilik Politikası'.tr(),
+      body: _kSubscriptionPrivacyBody.tr(),
+    );
+  }
+
+  static const _kSubscriptionTermsBody = '''Bu abonelik 7 günlük ücretsiz deneme ile başlar. Deneme süresi sona ermeden en az 24 saat önce iptal edilmezse, abonelik otomatik olarak yenilenir ve seçtiğin plan tutarı ödeme yönteminden tahsil edilir.
+
+Abonelik aktif olduğu sürece uygulamadaki tüm Premium özelliklere sınırsız erişim sağlanır.
+
+İptal: Aboneliğini istediğin zaman iptal edebilirsin. iOS'ta App Store ayarlarından, Android'de Google Play aboneliklerinden yönetebilirsin. İptal işlemi mevcut faturalandırma döneminin sonunda etkin olur; orta dönem iadesi yapılmaz.
+
+Yenileme: Süre dolduğunda indirimsiz aylık/üç aylık/yıllık fiyatla otomatik yenilenir. Fiyat değişiklikleri yenileme öncesinde sana bildirilir.
+
+Cayma Hakkı (Avrupa Birliği): AB tüketicileri, sözleşme tarihinden itibaren 14 gün içinde herhangi bir neden göstermeden cayabilir. Ancak dijital içerik tüketimi başladıktan sonra cayma hakkı sona erer.
+
+Fiyat ve Vergiler: Ekranda gösterilen fiyat, ülkenize uygulanan KDV/satış vergisi dahil veya hariç olabilir; nihai tutar ödeme adımında platform tarafından gösterilir.
+
+Aile Paylaşımı: iOS Family Sharing destekleniyorsa, bir abone aile grubundaki diğer üyelere de erişim verebilir.
+
+Bu koşullar geçerli olmaya devam ederken uygulamanın güncellenmiş sürümlerinde değişiklik yapılabilir; önemli değişiklikler önceden bildirilir.''';
+
+  static const _kSubscriptionPrivacyBody = '''Premium abonelik akışı sırasında işlenen kişisel veriler:
+
+• Ödeme yöntemi bilgileri (kart numarası, son kullanma tarihi, CVC) doğrudan Apple App Store veya Google Play tarafından işlenir; QuAlsar bu verileri saklamaz veya görmez.
+
+• Abonelik durumu (aktif/iptal, plan tipi, yenileme tarihi) cihaz üzerinde lokal olarak ve isteğe bağlı olarak hesabınla ilişkilendirilmiş sunucuda tutulur.
+
+• Fatura adresi (varsa) sadece ödeme platformuyla paylaşılır.
+
+Veri Saklama: Abonelik durumu, hesabın aktif olduğu sürece saklanır. Hesap silme talebinde bu veriler 30 gün içinde silinir; yasal saklama yükümlülükleri bu süreyi etkileyebilir.
+
+Veri Paylaşımı: QuAlsar abonelik bilgilerinizi üçüncü taraflarla pazarlama amaçlı paylaşmaz. Sadece (a) ödeme platformları (Apple, Google), (b) yasal yükümlülükler gerektirdiğinde resmi kurumlar, (c) hizmet sağlayıcılar (sunucu altyapısı, hata izleme) ile sınırlı veri paylaşımı yapılabilir.
+
+GDPR (AB) / KVKK (Türkiye) Hakların: Kişisel verilerine erişim, düzeltme, silme, işlemeyi sınırlama ve veri taşınabilirliği taleplerinde bulunabilirsin. Talebini destek@qualsar.app adresine yönelt.
+
+Veri Aktarımı: Sunucu altyapısı bulutta (örn. Google Cloud) çalıştığından, verilerin AB dışına aktarılabilir. Bu aktarım standart sözleşme maddelerine ve uygun korumalara dayanır.
+
+Çocuklar: 13 yaşından (AB'de 16) küçük kullanıcılar ebeveyn izniyle abone olabilir.''';
+
+  void _showSimpleLegal(BuildContext context,
+      {required String title, required String body}) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.85,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (_, sc) => Container(
+          decoration: BoxDecoration(
+            color: AppPalette.card(context),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppPalette.border(context),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                title,
+                style: GoogleFonts.poppins(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: AppPalette.textPrimary(context),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: sc,
+                  child: Text(
+                    body,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      height: 1.55,
+                      color: AppPalette.textPrimary(context),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _smallLink({required String label, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+        child: Text(
+          label,
+          style: GoogleFonts.poppins(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF1A73E8),
+            decoration: TextDecoration.underline,
+            decorationColor: const Color(0xFF1A73E8),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _dotSep() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Text(
+        '·',
+        style: GoogleFonts.poppins(
+          fontSize: 12,
+          color: AppPalette.textSecondary(context),
+        ),
+      ),
+    );
+  }
+
+  /// Platform mağaza adı — iOS'ta "App Store", Android'de "Google Play",
+  /// web/diğerlerde "Mağaza".
+  String _storePlatformName() {
+    if (kIsWeb) return 'Mağaza'.tr();
+    try {
+      if (Platform.isIOS || Platform.isMacOS) return 'App Store';
+      if (Platform.isAndroid) return 'Google Play';
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'premium_screen'); }
+    return 'Mağaza'.tr();
+  }
+
+  /// Tarih formatı — uygulamanın aktif diline kabaca uygun.
+  /// CJK için "yyyy年MM月dd日", Arapça için sayılar Arapçaya çevrilmiyor
+  /// (intl paketine geçilince düzgün olur).
+  String _formatDate(DateTime d) {
+    final months = [
+      localeService.tr('month_jan_short'),
+      localeService.tr('month_feb_short'),
+      localeService.tr('month_mar_short'),
+      localeService.tr('month_apr_short'),
+      localeService.tr('month_may_short'),
+      localeService.tr('month_jun_short'),
+      localeService.tr('month_jul_short'),
+      localeService.tr('month_aug_short'),
+      localeService.tr('month_sep_short'),
+      localeService.tr('month_oct_short'),
+      localeService.tr('month_nov_short'),
+      localeService.tr('month_dec_short'),
+    ];
+    return '${d.day} ${months[d.month - 1]} ${d.year}';
+  }
+
+  /// Ay-overflow safe yenileme tarihi.
+  /// Eski sürüm: DateTime(year, month+3, day) — Mart 31 + 3 ay = Temmuz 1 (kayar).
+  /// Yeni: hedef ayın son gününü geçerse o ayın son gününe yuvarla.
+  DateTime _addMonthsSafe(DateTime base, int months) {
+    final newYear = base.year + ((base.month - 1 + months) ~/ 12);
+    final newMonth = ((base.month - 1 + months) % 12) + 1;
+    final lastDayInTarget = DateTime(newYear, newMonth + 1, 0).day;
+    final day = base.day > lastDayInTarget ? lastDayInTarget : base.day;
+    return DateTime(newYear, newMonth, day);
+  }
+
+  DateTime _addYearsSafe(DateTime base, int years) {
+    final newYear = base.year + years;
+    final lastDayInTarget = DateTime(newYear, base.month + 1, 0).day;
+    final day = base.day > lastDayInTarget ? lastDayInTarget : base.day;
+    return DateTime(newYear, base.month, day);
+  }
+
+  /// "12 ay" → "12", "12个月" → "12", "١٢ شهر" → "١٢"
+  /// Tüm ardışık ilk rakam karakterlerini (Latin + Arap-Hint + Doğu Arap) çeker.
+  String? _extractLeadingNumber(String s) {
+    final m = RegExp(r'^[\d٠-٩۰-۹]+').firstMatch(s);
+    return m?.group(0);
   }
 
   void _showPaymentSheet(BuildContext context) {
@@ -435,9 +706,9 @@ class _PremiumScreenState extends State<PremiumScreen> {
                 ),
               ),
 
-              // Google Play başlığı
+              // Platform adı (App Store / Google Play) dinamik.
               Text(
-                'Google Play', // platform adı — çevrilmez
+                _storePlatformName(),
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -507,14 +778,15 @@ class _PremiumScreenState extends State<PremiumScreen> {
                         ],
                       ),
                     ),
-                    // Başlangıç tarihi satırı
+                    // Başlangıç tarihi satırı — bugünden başlar (eski sürümde
+                    // sabit "12 May 2026" → her zaman yanlış görünürdü).
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            '${localeService.tr("start_date")}: 12 May 2026',
+                            '${localeService.tr("start_date")}: ${_formatDate(DateTime.now())}',
                             style: GoogleFonts.poppins(
                               fontSize: 12,
                               color: AppPalette.textSecondary(context),
@@ -548,32 +820,20 @@ class _PremiumScreenState extends State<PremiumScreen> {
 
               SizedBox(height: 14),
 
-              // Ödeme yöntemi
+              // Ödeme yöntemi — eski sürümde fake "Mastercard ····4051"
+              // gösteriliyordu (privacy/güven açığı). Şimdi boş durum.
               Row(
                 children: [
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppPalette.textPrimary(context),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      'Mastercard',
-                      style: GoogleFonts.poppins(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
+                  Icon(Icons.credit_card_off_rounded,
+                      size: 18, color: AppPalette.textSecondary(context)),
                   SizedBox(width: 8),
-                  Text(
-                    '····4051',
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: AppPalette.textPrimary(context),
+                  Expanded(
+                    child: Text(
+                      'Henüz ödeme yöntemi eklenmedi'.tr(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        color: AppPalette.textSecondary(context),
+                      ),
                     ),
                   ),
                 ],
@@ -755,48 +1015,82 @@ class _PremiumScreenState extends State<PremiumScreen> {
     );
   }
 
-  void _showPaymentMethodsSheet(BuildContext context) {
-    final periodLabel = _selectedPlan == 0
-        ? localeService.tr('monthly_label')
+  Future<void> _showPaymentMethodsSheet(BuildContext context) async {
+    // Play Billing / StoreKit akışı — seçili plana göre SKU belirle.
+    final plan = _selectedPlan == 0
+        ? SubscriptionPlan.monthly
         : _selectedPlan == 1
-            ? localeService.tr('quarterly_label')
-            : localeService.tr('yearly_label');
-    final planLabel = 'QuAlsar $periodLabel Premium';
-    final amount = _selectedPlan == 0
-        ? _plan.monthly
-        : _selectedPlan == 1
-            ? _plan.quarterly
-            : _plan.yearly;
+            ? SubscriptionPlan.quarterly
+            : SubscriptionPlan.yearly;
 
-    // Sonraki yenileme tarihi
-    final now = DateTime.now();
-    final next = _selectedPlan == 0
-        ? DateTime(now.year, now.month + 1, now.day)
-        : _selectedPlan == 1
-            ? DateTime(now.year, now.month + 3, now.day)
-            : DateTime(now.year + 1, now.month, now.day);
-    final months = [
-      localeService.tr('month_jan_short'),
-      localeService.tr('month_feb_short'),
-      localeService.tr('month_mar_short'),
-      localeService.tr('month_apr_short'),
-      localeService.tr('month_may_short'),
-      localeService.tr('month_jun_short'),
-      localeService.tr('month_jul_short'),
-      localeService.tr('month_aug_short'),
-      localeService.tr('month_sep_short'),
-      localeService.tr('month_oct_short'),
-      localeService.tr('month_nov_short'),
-      localeService.tr('month_dec_short'),
-    ];
-    final renewalDate = '${next.day} ${months[next.month - 1]} ${next.year}';
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
 
-    MockPaymentScreen.show(
-      context,
-      planLabel: planLabel,
-      amount: amount,
-      renewalDate: renewalDate,
+    if (!SubscriptionService.instance.isAvailable) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Ödeme sistemi şu an kullanılamıyor.'.tr()),
+          backgroundColor: const Color(0xFFEF4444),
+        ),
+      );
+      return;
+    }
+
+    // Loading snackbar — Play Billing dialog'u açılırken kullanıcı görsün.
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('Satın alma başlatılıyor…'.tr()),
+        duration: const Duration(seconds: 2),
+      ),
     );
+
+    final result = await SubscriptionService.instance.buy(plan);
+    if (!mounted) return;
+
+    switch (result) {
+      case SubscriptionPurchaseResult.success:
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Premium aktif edildi 🎉'.tr()),
+            backgroundColor: const Color(0xFF22C55E),
+          ),
+        );
+        // PremiumStatus ValueNotifier'ı bekleyenlere haber verir; ekranı
+        // refresh edebilmek için pop edebiliriz.
+        if (mounted) navigator.maybePop();
+        break;
+      case SubscriptionPurchaseResult.canceled:
+        // Sessizce — kullanıcı iptal etti, snackbar göstermeye gerek yok.
+        break;
+      case SubscriptionPurchaseResult.pending:
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              'Ödeme bekleniyor (aile onayı / banka doğrulaması).'.tr(),
+            ),
+          ),
+        );
+        break;
+      case SubscriptionPurchaseResult.unavailable:
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              'Bu ürün şu an mağazada mevcut değil. Lütfen daha sonra tekrar deneyin.'
+                  .tr(),
+            ),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+        break;
+      case SubscriptionPurchaseResult.error:
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Satın alma sırasında bir hata oluştu.'.tr()),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+        break;
+    }
   }
 
   // ignore: unused_element
@@ -954,7 +1248,11 @@ class _PremiumScreenState extends State<PremiumScreen> {
                             ),
                           ),
                           Text(
-                            '12 ${localeService.tr('month_jun_short')} 2026',
+                            _formatDate(_selectedPlan == 0
+                                ? _addMonthsSafe(DateTime.now(), 1)
+                                : _selectedPlan == 1
+                                    ? _addMonthsSafe(DateTime.now(), 3)
+                                    : _addYearsSafe(DateTime.now(), 1)),
                             style: GoogleFonts.poppins(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
@@ -1058,6 +1356,16 @@ class _PremiumScreenState extends State<PremiumScreen> {
       default:
         return '';
     }
+  }
+
+  /// Auto-renewal disclosure + AB cayma hakkı + KDV/tax notu.
+  /// AB ülkelerinde KDV dahil, diğerlerinde "vergi ödeme adımında" notu.
+  String _disclosureText() {
+    final inclusive = PricingService.isVatInclusiveCountry(_countryCode);
+    final taxLine = inclusive
+        ? 'Fiyatlar KDV dahildir.'.tr()
+        : 'Vergiler ödeme adımında hesaplanır.'.tr();
+    return '${'Abonelik otomatik yenilenir; iptal mevcut dönem sonunda etkindir. AB tüketicileri 14 gün cayma hakkına sahiptir.'.tr()} $taxLine';
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1187,9 +1495,12 @@ class _PremiumScreenState extends State<PremiumScreen> {
 
             SizedBox(height: 12),
 
-            // Süre — rakam ve Ay ayrı satır
+            // Süre — rakam ve Ay ayrı satır.
+            // Eski: `title.split(' ').first` → "12 个月" (Çince) için "12个月"
+            // tek kelime olarak gelir, bozulurdu. Şimdi rakamları regex ile
+            // ayıkla; rakam yoksa olduğu gibi göster.
             Text(
-              title.split(' ').first,
+              _extractLeadingNumber(title) ?? title,
               style: GoogleFonts.poppins(
                 fontSize: 22,
                 fontWeight: FontWeight.w800,

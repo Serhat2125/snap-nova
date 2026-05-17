@@ -1,8 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import '../services/error_logger.dart';
 import 'dart:math' as math;
 import 'package:country_flags/country_flags.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../main.dart' show localeService;
 import '../services/auth_service.dart';
@@ -10,6 +14,7 @@ import '../services/country_resolver.dart';
 import '../services/education_profile.dart';
 import '../services/gemini_service.dart';
 import '../services/locale_service.dart';
+import '../services/referral_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
 import '../widgets/qualsar_logo_mark.dart';
@@ -46,6 +51,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   /// Multi-select: kullanıcı birden fazla seviye seçmiş olabilir.
   /// Her giriş: 'level:grade' veya 'level:faculty:grade'.
   List<String> _selectedProfiles = [];
+  /// Grade sayfasındaki "Sistem sizi X'de tespit etti" onaylanmış mı?
+  /// _GradePage'in `onCountryConfirmedChanged` callback'i bunu günceller;
+  /// canContinue kontrolü bu flag'i kullanır.
+  bool _countryConfirmed = false;
 
   static const int _totalPages = 7;
   static const int _gradePageIndex = 2;
@@ -177,10 +186,35 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         unawaited(_prefetchAiCurriculum(temp));
       }
     }
+    // Davet kodu adımı — kullanıcı zaten Auth ekranından geçti
+    // (FirebaseAuth.currentUser dolu olmalı). Opsiyonel; "Atla" diyebilir.
+    if (mounted) {
+      await _askInviteCode();
+    }
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => CameraScreen()),
+    );
+  }
+
+  /// Onboarding sonu davet kodu sheet'i.
+  /// Kullanıcı kayıt olurken (veya açılışta) arkadaşının davet kodunu
+  /// girebilir. Geçerli kod → 7 gün hoşgeldin Premium otomatik aktive olur.
+  Future<void> _askInviteCode() async {
+    // Auth yoksa atla — kod redeem'i auth gerektiriyor.
+    if (FirebaseAuth.instance.currentUser == null) return;
+    // Daha önce redeem etmiş mi? Atla.
+    final already = await ReferralService.getMyUsedCode();
+    if (already != null && already.isNotEmpty) return;
+
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      isDismissible: true,
+      builder: (ctx) => _InviteCodeSheet(),
     );
   }
 
@@ -238,9 +272,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     // Şimdilik isAuth değişkeni `_authPageIndex` ile referanslı kalsın
     // (compiler unused warning vermesin).
     final _ = isAuth;
+    // Grade sayfasında ileri gitmek için: ülke ONAYI + eğitim düzeyi seçimi
+    // İKİSİ DE zorunlu. Önceki davranış: sadece biri yeterliydi → kullanıcı
+    // tespit edilen ülkeyi onaylamadan veya sınıf seçmeden ilerleyebiliyordu.
     final canContinue = !isGrade ||
-        _selectedProfiles.isNotEmpty ||
-        _selectedGrade != null;
+        (_countryConfirmed &&
+            (_selectedProfiles.isNotEmpty || _selectedGrade != null));
     // Tüm onboarding beyaz zeminde — üst bar öğeleri koyu renkli.
     const onBg = Color(0xFF4B5563);
     final inactiveTrack = Colors.black.withValues(alpha: 0.10);
@@ -321,13 +358,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
             // ── Sayfalar ────────────────────────────────────────────────
             Expanded(
-              // Locale değiştiğinde PageView komple yeniden kurulur —
-              // böylece içerideki tüm state'ler (carousel, bullet) silinip
-              // yeni dilde taze çizilir. Kaçak "eski dil" kalamaz.
+              // Locale değişiminde PageView'i KEYLEMİYORUZ — eski davranış
+              // (key: ValueKey('onb_pages_$locale')) sayfa 0'a sarıyordu.
+              // Çocuk widget'lar zaten LocaleInherited.of(context) ile
+              // dinleyip kendi metinlerini yenileyebilir.
               child: PageView(
-                key: ValueKey('onb_pages_${locale.localeCode}'),
                 controller: _pageController,
-                physics: BouncingScrollPhysics(),
+                // Grade sayfasında zorunlu seçimler tamamlanmadan kullanıcı
+                // SWIPE ile de geçemesin. canContinue=false iken tüm scroll
+                // kapatılır (geri ok ile geri dönüş hâlâ üst bar'dan mümkün).
+                physics: canContinue
+                    ? BouncingScrollPhysics()
+                    : NeverScrollableScrollPhysics(),
                 onPageChanged: (i) => setState(() => _currentPage = i),
                 children: [
                   const _HeroPage(),
@@ -349,6 +391,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     onSelect: (g) => setState(() => _selectedGrade = g),
                     onProfilesChanged: (list) =>
                         setState(() => _selectedProfiles = list),
+                    onCountryConfirmedChanged: (v) =>
+                        setState(() => _countryConfirmed = v),
                   ),
                   _FeaturePage(
                     accent: _accentPerPage[3],
@@ -539,10 +583,17 @@ class _LanguagePickerSheetState extends State<_LanguagePickerSheet> {
     LocaleService locale,
     String code,
   ) async {
-    // Anında dil değişimi — statik harita (critical + generated) tüm UI'ı
-    // garantiliyor. Gemini'yi beklemek yok; setLocaleChangeHook preloadAll'u
-    // arka planda koşturmaya devam eder (yeni anahtarlar için fallback).
+    // Dil değişimi: locale'i hemen set et (UI'ı yenilemek için).
     await locale.setLocale(code);
+    if (!sheetCtx.mounted) return;
+    // Onboarding'in en görünür metinlerini Gemini cache'le PRELOAD et —
+    // bu sayede picker kapanmadan UI yeni dilde tam görünür.
+    // Timeout: 4 saniye; aşılırsa yine de kapat (preload arka planda biter).
+    final preload = RuntimeTranslator.instance.preloadAll(code);
+    await preload.timeout(
+      const Duration(seconds: 4),
+      onTimeout: () => null,
+    );
     if (!sheetCtx.mounted) return;
     Navigator.of(sheetCtx).pop();
   }
@@ -1357,11 +1408,15 @@ class _GradePage extends StatefulWidget {
   /// Multi-select: tüm eklenen profil string'lerinin tam listesi.
   /// Format her profil: 'level:grade' veya 'level:faculty:grade'.
   final ValueChanged<List<String>>? onProfilesChanged;
+  /// Ülke onay durumu değiştiğinde parent'a bildir — parent "İleri" butonunu
+  /// disable/enable etmek için bu bilgiyi kullanır.
+  final ValueChanged<bool>? onCountryConfirmedChanged;
   const _GradePage({
     required this.accent,
     required this.selected,
     required this.onSelect,
     this.onProfilesChanged,
+    this.onCountryConfirmedChanged,
   });
 
   @override
@@ -1417,6 +1472,7 @@ class _GradePageState extends State<_GradePage> {
         if (code != null && code.isNotEmpty) _country = code;
         _countryConfirmed = confirmed;
       });
+      widget.onCountryConfirmedChanged?.call(confirmed);
     });
   }
 
@@ -1428,6 +1484,7 @@ class _GradePageState extends State<_GradePage> {
     // (autoDetectCountryIfMissing); burada sadece onay flag'i yeterli.
     if (!mounted) return;
     setState(() => _countryConfirmed = true);
+    widget.onCountryConfirmedChanged?.call(true);
   }
 
   /// "Başka müfredat seç" — public picker'ı aç, kullanıcı yeni ülke seçerse
@@ -1446,6 +1503,7 @@ class _GradePageState extends State<_GradePage> {
       _country = picked;
       _countryConfirmed = true;
     });
+    widget.onCountryConfirmedChanged?.call(true);
   }
 
   Widget _countryConfirmCard(Color accent) {
@@ -1453,9 +1511,19 @@ class _GradePageState extends State<_GradePage> {
       (c) => c.key == _country,
       orElse: () => Country('international', 'International', '🌐'),
     );
+    // Şablon temelli çeviri — {country} placeholder kullanıcının seçtiği dile
+    // çevrildikten sonra ülke adı ile değiştirilir. Böylece dinamik kısım da
+    // çevrilebilir kalır.
+    final titleText = 'Sistem sizi {country} ülkesinde tespit etti'
+        .tr()
+        .replaceAll('{country}', entry.name);
+    final subText = '{country} müfredatı ile devam edelim mi?'
+        .tr()
+        .replaceAll('{country}', entry.name);
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      // Yukarı kaldırıldı — alttaki "Eğitim seviyen" kartıyla çakışmasın.
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -1501,19 +1569,19 @@ class _GradePageState extends State<_GradePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Sistem sizi ${entry.name}\'de tespit etti',
+                      titleText,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: 15,
                         fontWeight: FontWeight.w800,
                         color: AppPalette.textPrimary(context),
                         height: 1.25,
                       ),
                     ),
-                    SizedBox(height: 2),
+                    SizedBox(height: 4),
                     Text(
-                      '${entry.name} müfredatı ile devam edelim mi?',
+                      subText,
                       style: TextStyle(
-                        fontSize: 11.5,
+                        fontSize: 13.5,
                         color: Colors.black.withValues(alpha: 0.62),
                         height: 1.35,
                       ),
@@ -1541,9 +1609,9 @@ class _GradePageState extends State<_GradePage> {
                         Icon(Icons.check_rounded,
                             size: 16, color: Colors.white),
                         SizedBox(width: 5),
-                        Text('Evet, devam et',
+                        Text('Evet, devam et'.tr(),
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 14,
                               fontWeight: FontWeight.w800,
                               color: Colors.white,
                             )),
@@ -1569,9 +1637,9 @@ class _GradePageState extends State<_GradePage> {
                       children: [
                         Icon(Icons.public_rounded, size: 16, color: accent),
                         SizedBox(width: 5),
-                        Text('Başka müfredat',
+                        Text('Başka müfredat'.tr(),
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 14,
                               fontWeight: FontWeight.w800,
                               color: accent,
                             )),
@@ -5403,6 +5471,273 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
           ],
         ],
       ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  Davet Kodu Sheet — Onboarding sonu açılır. Kullanıcı arkadaşının
+//  davet kodunu girip 7 gün hoşgeldin Premium kazanır. "Atla" da seçenek.
+//  Ayrıca panodaki kod otomatik algılanır (paylaşım mesajında geliyor).
+// ═══════════════════════════════════════════════════════════════════════════════
+class _InviteCodeSheet extends StatefulWidget {
+  @override
+  State<_InviteCodeSheet> createState() => _InviteCodeSheetState();
+}
+
+class _InviteCodeSheetState extends State<_InviteCodeSheet> {
+  final _ctrl = TextEditingController();
+  bool _submitting = false;
+  String? _error;
+  bool _success = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _autofillFromClipboard();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  /// Pano'da QUALS-XXXXX varsa otomatik doldur — paylaşım mesajından
+  /// gelen kullanıcılar için sürtünmeyi azaltır.
+  Future<void> _autofillFromClipboard() async {
+    try {
+      final cd = await Clipboard.getData(Clipboard.kTextPlain);
+      final t = cd?.text;
+      if (t == null) return;
+      final code = parseInviteCodeFromText(t);
+      if (code != null && mounted) {
+        setState(() => _ctrl.text = code);
+      }
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'onboarding_screen'); }
+  }
+
+  Future<void> _submit() async {
+    final code = _ctrl.text.trim().toUpperCase();
+    if (code.isEmpty) return;
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    final res = await ReferralService.redeemCode(code);
+    if (!mounted) return;
+    setState(() => _submitting = false);
+    switch (res) {
+      case RedeemResult.success:
+        setState(() => _success = true);
+        // 1.5sn sonra otomatik kapat
+        Future.delayed(const Duration(milliseconds: 1500), () {
+          if (mounted) Navigator.of(context).pop();
+        });
+        return;
+      case RedeemResult.selfReferral:
+        setState(() => _error = 'Kendi davet kodunu kullanamazsın.'.tr());
+        return;
+      case RedeemResult.alreadyUsed:
+        setState(() =>
+            _error = 'Bu hesapla zaten bir davet kodu kullandın.'.tr());
+        return;
+      case RedeemResult.deviceAlreadyUsed:
+        setState(() => _error =
+            'Bu cihazdan daha önce bir davet kodu kullanıldı.'.tr());
+        return;
+      case RedeemResult.invalidCode:
+        setState(() => _error = 'Davet kodu geçersiz. QUALS-XXXXX formatında olmalı.'.tr());
+        return;
+      case RedeemResult.notAuthenticated:
+        setState(() => _error = 'Davet kodu kullanmak için giriş yap.'.tr());
+        return;
+      case RedeemResult.ownerNotFound:
+        setState(() => _error = 'Kod sahibi bulunamadı.'.tr());
+        return;
+      case RedeemResult.networkError:
+        setState(() => _error =
+            'İnternet bağlantı sorunu. Tekrar dene.'.tr());
+        return;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppPalette.card(context),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Drag handle
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppPalette.border(context),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (_success) ...[
+              Center(
+                child: Icon(Icons.celebration_rounded,
+                    size: 56, color: const Color(0xFF22C55E)),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Davet kodu kabul edildi!'.tr(),
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: AppPalette.textPrimary(context),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '7 günlük hoşgeldin Premium aktif edildi.'.tr(),
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  color: AppPalette.textSecondary(context),
+                ),
+              ),
+            ] else ...[
+              Row(
+                children: [
+                  const Text('🎁', style: TextStyle(fontSize: 28)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Davet kodun var mı?'.tr(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: AppPalette.textPrimary(context),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Arkadaşının davet kodunu girersen 7 gün ücretsiz Premium kazanırsın.'
+                    .tr(),
+                style: GoogleFonts.poppins(
+                  fontSize: 12.5,
+                  color: AppPalette.textSecondary(context),
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _ctrl,
+                textCapitalization: TextCapitalization.characters,
+                enabled: !_submitting,
+                inputFormatters: [
+                  UpperCaseTextFormatter(),
+                  FilteringTextInputFormatter.allow(RegExp(r'[A-Z0-9-]')),
+                  LengthLimitingTextInputFormatter(11),
+                ],
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 2,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'QUALS-XXXXX',
+                  hintStyle: GoogleFonts.poppins(
+                    color: AppPalette.textSecondary(context)
+                        .withValues(alpha: 0.5),
+                    letterSpacing: 2,
+                  ),
+                  errorText: _error,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 14),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: _submitting
+                          ? null
+                          : () => Navigator.of(context).pop(),
+                      child: Text(
+                        'Atla'.tr(),
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppPalette.textSecondary(context),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton(
+                      onPressed: _submitting ? null : _submit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFF6A00),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _submitting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              'Uygula'.tr(),
+                              style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// TextField için tüm karakterleri büyük harfe çevirir (davet kodu girişi).
+class UpperCaseTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    return TextEditingValue(
+      text: newValue.text.toUpperCase(),
+      selection: newValue.selection,
     );
   }
 }

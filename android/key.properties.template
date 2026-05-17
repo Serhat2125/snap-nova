@@ -1,0 +1,24 @@
+# ─── QuAlsar Release Signing Template ─────────────────────────────────────────
+# Bu dosyayı `key.properties` olarak KOPYALA ve gerçek değerlerle doldur.
+# `key.properties` ve `.jks` ASLA git'e commit edilmez (.gitignore'da).
+#
+# 1) Keystore üret (bir kere, ardından `key.jks` dosyasını GÜVENLE sakla):
+#
+#    keytool -genkey -v -keystore android/app/key.jks ^
+#      -keyalg RSA -keysize 2048 -validity 10000 ^
+#      -alias qualsar-release
+#
+#    Sana şifre + alias şifresi sorar. İkisini de aşağıya yaz.
+#
+# 2) Bu dosyayı `key.properties` adıyla kopyala, aşağıdaki 4 değeri doldur.
+#
+# 3) `flutter build appbundle --release` → otomatik release imzalı .aab üretilir.
+#
+# ⚠️ keystore dosyasını ve şifrelerini KAYBETMEMEK çok önemli — Play Store
+# bir kere yüklenen paketin imza fingerprint'ini sabitler; aynı keystore
+# olmadan güncellenmiş sürüm yüklenemez. Yedekle (USB + şifreli cloud).
+
+storePassword=DEGISTIR_KEYSTORE_SIFRESI
+keyPassword=DEGISTIR_ALIAS_SIFRESI
+keyAlias=qualsar-release
+storeFile=app/key.jks

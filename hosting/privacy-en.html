@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QuAlsar Privacy Policy</title>
+  <style>
+    body { font-family: -apple-system, system-ui, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 20px; color: #111; line-height: 1.7; }
+    h1 { font-size: 28px; border-bottom: 2px solid #FF6A3C; padding-bottom: 12px; }
+    h2 { font-size: 18px; margin-top: 32px; color: #FF6A3C; }
+    p, li { font-size: 15px; }
+    .meta { color: #666; font-size: 13px; }
+    a { color: #FF6A3C; }
+  </style>
+</head>
+<body>
+  <h1>QuAlsar — Privacy Policy</h1>
+  <p class="meta">Last updated: May 13, 2026 · Service provider: QuAlsar</p>
+
+  <p>QuAlsar ("we", "the app") respects your privacy. This policy explains what data we collect, how we use it, and your rights.</p>
+
+  <h2>1. Data We Collect</h2>
+  <ul>
+    <li><b>Account info:</b> Email address, full name (provided by Google/Apple/email at sign-up).</li>
+    <li><b>Education profile:</b> Country, grade, field/major preference (for personalized content).</li>
+    <li><b>Question photos:</b> Photos you upload for solutions — only sent to Google Gemini for AI processing; not permanently stored on our servers.</li>
+    <li><b>Voice input:</b> Voice from microphone is converted to text on-device (Apple/Google native APIs). Audio files are not sent to our servers.</li>
+    <li><b>Solution history:</b> AI responses you've used are stored on device + Firebase Firestore (for cross-device sync).</li>
+    <li><b>Leaderboard / location:</b> City + country level (for Knowledge League). Precise GPS location is not collected.</li>
+    <li><b>Device info:</b> Anonymous device ID, OS version, app version (for crash reports).</li>
+  </ul>
+
+  <h2>2. How We Use Your Data</h2>
+  <ul>
+    <li>Generate AI-powered solutions (by querying Google Gemini API).</li>
+    <li>Personalize curriculum and recommendations.</li>
+    <li>Operate the Knowledge League ranking system.</li>
+    <li>Detect and fix app errors (Firebase Crashlytics).</li>
+    <li>Manage premium subscriptions (Google Play Billing).</li>
+  </ul>
+
+  <h2>3. Third-Party Services</h2>
+  <p>We share data with the following trusted services:</p>
+  <ul>
+    <li><b>Google Firebase</b> — authentication, database, crash reports (privacy policy: <a href="https://firebase.google.com/support/privacy">firebase.google.com/support/privacy</a>)</li>
+    <li><b>Google Gemini</b> — AI solution generation (privacy policy: <a href="https://policies.google.com/privacy">policies.google.com/privacy</a>)</li>
+    <li><b>Google Play Billing</b> — subscription payments</li>
+    <li><b>Apple Sign-In / Google Sign-In</b> — authentication</li>
+  </ul>
+
+  <h2>4. Data Retention</h2>
+  <ul>
+    <li>Account info: while account is active.</li>
+    <li>Question photos: deleted after processing (not stored on server).</li>
+    <li>Solution history: persisted until you delete it.</li>
+    <li>Crash reports: 90 days (Firebase default).</li>
+  </ul>
+
+  <h2>5. Children's Privacy</h2>
+  <p>The app is not designed for users under 13. We do not knowingly collect personal data from children under 13. Parents should review this policy before allowing their children to use the app.</p>
+
+  <h2>6. Your Rights (GDPR & CCPA)</h2>
+  <p>You have the following rights:</p>
+  <ul>
+    <li>Learn what data we process and why</li>
+    <li>Request a copy of your data</li>
+    <li>Request correction of inaccurate data</li>
+    <li>Delete your account (in-app "Delete Account" + all Firestore data wiped)</li>
+    <li>Object to data processing</li>
+  </ul>
+
+  <h2>7. Data Security</h2>
+  <ul>
+    <li>All communication is HTTPS/TLS encrypted.</li>
+    <li>Firebase Firestore security rules restrict users to their own data.</li>
+    <li>AI API calls are routed through a server-side proxy (keys not stored in the APK).</li>
+  </ul>
+
+  <h2>8. Policy Updates</h2>
+  <p>We may update this policy periodically. Significant changes will be announced in-app.</p>
+
+  <h2>9. Contact</h2>
+  <p>For questions: <a href="mailto:serhatdsme@gmail.com">serhatdsme@gmail.com</a></p>
+</body>
+</html>

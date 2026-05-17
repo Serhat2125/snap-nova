@@ -41,6 +41,10 @@ class QuAlsarNumericLoader extends StatefulWidget {
   /// Aşamalar arasındaki gecikme (varsayılan 3 sn).
   final Duration stageInterval;
 
+  /// true → üst QuAlsar logosu + alt durum metni + tip kartı gizlenir,
+  /// yalnızca dönen disk render edilir. Splash ekranı için kullanılır.
+  final bool diskOnly;
+
   const QuAlsarNumericLoader({
     super.key,
     this.primaryText,
@@ -49,6 +53,7 @@ class QuAlsarNumericLoader extends StatefulWidget {
     this.variant = QuAlsarLoaderVariant.numeric,
     this.stages,
     this.stageInterval = const Duration(seconds: 3),
+    this.diskOnly = false,
   });
 
   @override
@@ -241,6 +246,15 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
     // motivasyon). Sabit gap'lerle birbirine yakın, ekran yüksekliği değişse
     // bile tutarlı. Alt çerçeveli kart kaldırıldı.
     // KLASIK mod (stages yok): eski Align temelli yerleşim korunur.
+    // diskOnly modu: splash ekranı için. QuAlsar logosu + durum metni +
+    // tip kartı yok; sadece dönen disk göster. Arka plan beyaz kalır.
+    if (widget.diskOnly) {
+      return Container(
+        color: Colors.white,
+        alignment: Alignment.center,
+        child: _buildLoader(),
+      );
+    }
     final bool stagesMode =
         widget.stages != null && widget.stages!.isNotEmpty;
     if (stagesMode) {

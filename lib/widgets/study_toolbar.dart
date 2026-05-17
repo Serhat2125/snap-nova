@@ -11,6 +11,8 @@
 
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../services/error_logger.dart';
+import '../services/runtime_translator.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'note_creator_page.dart';
@@ -102,7 +104,7 @@ class _StudyToolbarOverlayState extends State<StudyToolbarOverlay> {
         _toolbarLeft = (m['left'] as num?)?.toDouble();
         _toolbarTop = (m['top'] as num?)?.toDouble();
       });
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'study_toolbar'); }
   }
 
   Future<void> _saveToolbarPos() async {
@@ -180,7 +182,7 @@ class _StudyToolbarOverlayState extends State<StudyToolbarOverlay> {
         _strokes.addAll(list
             .map((e) => _Stroke.fromJson(e as Map<String, dynamic>))
             .toList());
-      } catch (_) {}
+      } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'study_toolbar'); }
     }
     if (!mounted) return;
     setState(() => _loaded = true);
@@ -672,7 +674,7 @@ class _ColorSubPanel extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 10),
-                Text('Çizim Şekli',
+                Text('Çizim Şekli'.tr(),
                     style: GoogleFonts.poppins(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,

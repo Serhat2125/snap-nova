@@ -14,24 +14,40 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'error_logger.dart';
 
 class VoiceInputService {
   static final stt.SpeechToText _stt = stt.SpeechToText();
   static bool _initialized = false;
   static bool _available = false;
 
+  /// STT durum bilgisi — son hata veya status mesajı (debug için).
+  /// "Konuşma algılanmadı" hatasında sebebi anlamak için kullanıcıya gösterilebilir.
+  static String lastStatus = 'init bekleniyor';
+  static String lastError = '';
+
   static bool get isAvailable => _available;
   static bool get isListening => _stt.isListening;
 
   /// Bir kez çağrılır (main.dart). Cihaz speech engine var mı kontrol eder.
   /// Hata atmaz; başarısızsa `isAvailable` false kalır.
+  ///
+  /// NOT: audio_session ile manuel session config kaldırıldı — speech_to_text
+  /// paketi kendi iç AVAudioSession yönetimini yapıyor, override etmek bazı
+  /// cihazlarda "konuşma algılanamadı" hatasına sebep oluyordu.
   static Future<bool> init() async {
     if (_initialized) return _available;
     _initialized = true;
     try {
       _available = await _stt.initialize(
-        onError: (e) => debugPrint('[VoiceInput] error: $e'),
-        onStatus: (s) => debugPrint('[VoiceInput] status: $s'),
+        onError: (e) {
+          lastError = e.errorMsg;
+          debugPrint('[VoiceInput] error: $e');
+        },
+        onStatus: (s) {
+          lastStatus = s;
+          debugPrint('[VoiceInput] status: $s');
+        },
         debugLogging: kDebugMode,
       );
     } catch (e) {
@@ -119,12 +135,12 @@ class VoiceInputService {
   static Future<void> stop() async {
     try {
       await _stt.stop();
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'voice_input_service'); }
   }
 
   static Future<void> cancel() async {
     try {
       await _stt.cancel();
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'voice_input_service'); }
   }
 }

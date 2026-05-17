@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:ui' as ui;
+import 'error_logger.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -124,7 +125,7 @@ class ImageShareService {
       debugPrint('[ImgShare] failed: $e\n$st');
       try {
         entry.remove();
-      } catch (_) {}
+      } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'image_share_service'); }
       rethrow;
     }
   }

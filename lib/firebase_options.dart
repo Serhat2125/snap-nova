@@ -51,7 +51,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyB--uWigFIMb8FX2Phe4foEjoCdvtplxSE',
-    appId: '1:828607169326:android:ffe38e85f1c1f0de50b0bf',
+    appId: '1:828607169326:android:5618df0dea5ff94950b0bf',
     messagingSenderId: '828607169326',
     projectId: 'qualsar2-640f0',
     storageBucket: 'qualsar2-640f0.firebasestorage.app',
@@ -64,7 +64,7 @@ class DefaultFirebaseOptions {
     projectId: 'qualsar2-640f0',
     storageBucket: 'qualsar2-640f0.firebasestorage.app',
     iosClientId: '828607169326-f2j8au8cjoiuh8bp3c2l14qi61jfmd26.apps.googleusercontent.com',
-    iosBundleId: 'com.qualsar.app',
+    iosBundleId: 'com.qualsar.ai',
   );
 
 }

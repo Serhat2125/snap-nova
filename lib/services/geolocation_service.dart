@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'error_logger.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -52,7 +53,7 @@ class GeolocationService {
     if (extraRaw != null) {
       try {
         extra = jsonDecode(extraRaw) as Map<String, dynamic>;
-      } catch (_) {}
+      } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'geolocation_service'); }
     }
     return GeoInfo(
       country: country,

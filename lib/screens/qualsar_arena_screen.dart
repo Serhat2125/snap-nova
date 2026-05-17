@@ -16,6 +16,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/analytics.dart';
+import '../services/error_logger.dart';
 import '../services/runtime_translator.dart';
 import '../services/curriculum_catalog.dart';
 import '../services/education_profile.dart';
@@ -37,6 +38,7 @@ import '../theme/app_theme.dart';
 class _Palette {
   static const bg = Color(0xFFECEEF2);
   static const ink = Color(0xFF0E0E10);
+  // ignore: unused_field
   static const inkSoft = Color(0xFF47474D);
   static const inkMute = Color(0xFF8B8B93);
   static const line = Color(0xFFE8E3DA);
@@ -119,6 +121,25 @@ class _ArenaStateStore {
   int powerSkip = 1;
   int powerDoublePoints = 1;
 
+  // Concurrent save/load arasında write-write race olmasın diye yazma
+  // çağrıları sıralı kuyruğa girer. SolutionsStorage._serialize ile aynı
+  // pattern — Future zincirli, atomic. load() okuma olduğundan lock'a
+  // gerek yok ama save()'i pas geçmemesi için kuyruğun sonunda yapılmalı.
+  Future<void> _writeLock = Future.value();
+  Future<T> _serialize<T>(Future<T> Function() task) {
+    final prev = _writeLock;
+    final c = Completer<T>();
+    _writeLock = prev.then((_) async {
+      try {
+        final r = await task();
+        c.complete(r);
+      } catch (e, st) {
+        c.completeError(e, st);
+      }
+    });
+    return c.future;
+  }
+
   Future<void> load() async {
     final p = await SharedPreferences.getInstance();
     qp = p.getInt(_kPrefsQP) ?? 120; // yeni kullanıcıya hoşgeldin bonusu
@@ -129,10 +150,23 @@ class _ArenaStateStore {
     if (mStr != null && mStr.isNotEmpty) {
       try {
         final parsed = jsonDecode(mStr) as Map<String, dynamic>;
+        // PARTIAL RECOVERY: tek bir mastery satırı bozuk olsa bile diğerlerini
+        // koru. Bozuk olanları sessizce atla (debug log).
         parsed.forEach((k, v) {
-          mastery[k] = (v as num).toInt();
+          try {
+            if (v is num) {
+              mastery[k] = v.toInt().clamp(0, 100);
+            } else {
+              final parsed = int.tryParse(v.toString());
+              if (parsed != null) mastery[k] = parsed.clamp(0, 100);
+            }
+          } catch (_) {
+            debugPrint('[Arena] mastery satırı atlandı: $k=$v');
+          }
         });
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[Arena] mastery JSON parse fail: $e');
+      }
     }
     final pu = p.getString(_kPrefsPowerUps);
     if (pu != null && pu.isNotEmpty) {
@@ -142,25 +176,35 @@ class _ArenaStateStore {
         powerFreeze = (m['freeze'] as num?)?.toInt() ?? 2;
         powerSkip = (m['skip'] as num?)?.toInt() ?? 1;
         powerDoublePoints = (m['double'] as num?)?.toInt() ?? 1;
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[Arena] powerup JSON parse fail: $e');
+      }
     }
   }
 
-  Future<void> save() async {
-    final p = await SharedPreferences.getInstance();
-    await p.setInt(_kPrefsQP, qp);
-    await p.setInt(_kPrefsStreak, streak);
-    if (lastPlayDate != null) await p.setString(_kPrefsLastPlay, lastPlayDate!);
-    await p.setString(_kPrefsMastery, jsonEncode(mastery));
-    await p.setString(
-      _kPrefsPowerUps,
-      jsonEncode({
-        'fiftyFifty': powerFiftyFifty,
-        'freeze': powerFreeze,
-        'skip': powerSkip,
-        'double': powerDoublePoints,
-      }),
-    );
+  Future<void> save() {
+    return _serialize(() async {
+      try {
+        final p = await SharedPreferences.getInstance();
+        await p.setInt(_kPrefsQP, qp);
+        await p.setInt(_kPrefsStreak, streak);
+        if (lastPlayDate != null) {
+          await p.setString(_kPrefsLastPlay, lastPlayDate!);
+        }
+        await p.setString(_kPrefsMastery, jsonEncode(mastery));
+        await p.setString(
+          _kPrefsPowerUps,
+          jsonEncode({
+            'fiftyFifty': powerFiftyFifty,
+            'freeze': powerFreeze,
+            'skip': powerSkip,
+            'double': powerDoublePoints,
+          }),
+        );
+      } catch (e) {
+        debugPrint('[Arena] save fail: $e');
+      }
+    });
   }
 
   // Testi bitirince çağır: skoru hesapla, QP ekle, ustalıkları güncelle, streak işle
@@ -2675,7 +2719,7 @@ class _AddSubjectSheetState extends State<_AddSubjectSheet> {
               ),
             ),
             SizedBox(height: 16),
-            Text('Yeni Bir Ders Ekle',
+            Text('Yeni Bir Ders Ekle'.tr(),
                 style: _serif(size: 20, weight: FontWeight.w600, letterSpacing: -0.02)),
             SizedBox(height: 4),
             Text('Hazır listeden seç ya da kendi ders adını yaz.'.tr(),
@@ -2921,7 +2965,7 @@ void _showNotificationsSheet(BuildContext context) {
                 Text('🔔'.tr(), style: TextStyle(fontSize: 24)),
                 SizedBox(width: 8),
                 Expanded(
-                  child: Text('Bildirimler',
+                  child: Text('Bildirimler'.tr(),
                       style: _serif(size: 22, weight: FontWeight.w600, letterSpacing: -0.02)),
                 ),
                 Container(
@@ -3209,7 +3253,7 @@ class _DueloCard extends StatelessWidget {
                                 ),
                               ),
                               SizedBox(width: 3),
-                              Text('CANLI',
+                              Text('CANLI'.tr(),
                                   style: _sans(size: 8, weight: FontWeight.w800, color: Colors.white, letterSpacing: 0.1)),
                             ],
                           ),
@@ -3380,7 +3424,7 @@ Future<_PickerOption?> _showLanguagePickerSheet(BuildContext context) {
                 Text('🗣️'.tr(), style: TextStyle(fontSize: 24)),
                 SizedBox(width: 8),
                 Expanded(
-                  child: Text('Hangi Dil?',
+                  child: Text('Hangi Dil?'.tr(),
                       style: _serif(size: 22, weight: FontWeight.w600, letterSpacing: -0.02)),
                 ),
               ],
@@ -3923,7 +3967,7 @@ class _DueloRecordStore {
         try {
           out.add(_DueloRecord.fromJson(
               jsonDecode(s) as Map<String, dynamic>));
-        } catch (_) {}
+        } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'qualsar_arena_screen'); }
       }
       // En yeni başa
       out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -3943,7 +3987,7 @@ class _DueloRecordStore {
         list.removeRange(0, list.length - 30);
       }
       await prefs.setStringList(_key, list);
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'qualsar_arena_screen'); }
   }
 
   static Future<void> delete(String id) async {
@@ -3959,7 +4003,7 @@ class _DueloRecordStore {
         }
       });
       await prefs.setStringList(_key, list);
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'qualsar_arena_screen'); }
   }
 }
 
@@ -4698,7 +4742,7 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
         }
       });
       if (mounted) setState(() {});
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'qualsar_arena_screen'); }
   }
 
   Future<void> _saveDuelOrder() async {
@@ -4708,7 +4752,7 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
         _duelOrderKey,
         jsonEncode(_customOrder),
       );
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'qualsar_arena_screen'); }
   }
 
   // _availableSubjects sonucunu mevcut scope için kayıtlı sıraya göre
@@ -4759,7 +4803,7 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
             m.forEach((k, v) {
               if (v is num) _subjectColors[k] = Color(v.toInt());
             });
-          } catch (_) {}
+          } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'qualsar_arena_screen'); }
         }
         if (tilesTextRaw != null && tilesTextRaw.isNotEmpty) {
           try {
@@ -4768,10 +4812,10 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
             m.forEach((k, v) {
               if (v is num) _subjectTextColors[k] = Color(v.toInt());
             });
-          } catch (_) {}
+          } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'qualsar_arena_screen'); }
         }
       });
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'qualsar_arena_screen'); }
   }
 
   Future<void> _saveDuelColorPrefs() async {
@@ -4803,7 +4847,7 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
             .map((k, v) => MapEntry(k, v.toARGB32())));
         await prefs.setString(_duelTileTextColorsKey, json);
       }
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'qualsar_arena_screen'); }
   }
 
   void _applyColorTo(String target, Color c) {
@@ -4984,6 +5028,20 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
           subject: subjectObj.name,
           topic: topic ?? subjectObj.name,
         );
+        // AI boş veya geçersiz pair üretirse kotayı iade et, snackbar göster.
+        if (pairs.isEmpty) {
+          await UsageQuota.decrement(QuotaKind.arenaQuiz);
+          if (mounted) {
+            setState(() => _matching = false);
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(
+                  'Bu konu için eşleştirme kartları üretilemedi. Tekrar dene.'
+                      .tr()),
+              behavior: SnackBarBehavior.floating,
+            ));
+          }
+          return;
+        }
         // Rakip arama animasyonu — test ile aynı 2 sn delay.
         final DueloMatchResult? match = await _fakeMatchmakingDelay();
         if (!mounted) return;
@@ -5031,6 +5089,8 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
         );
       } catch (e) {
         debugPrint('[Duelo] match pairs üretimi başarısız: $e');
+        // AI/Gemini fail → kullanıcı kotasını boşa harcamasın.
+        await UsageQuota.decrement(QuotaKind.arenaQuiz);
         if (mounted) {
           setState(() => _matching = false);
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -5124,8 +5184,11 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
     if (!mounted) return;
 
     // 6) En az minProceedCount varsa oyunu başlat, yetiyorsa targetCount'a
-    //    kırp. Aksi halde net hata ver.
+    //    kırp. Aksi halde net hata ver + kotayı iade et.
     if (picks.length < minProceedCount) {
+      // AI yeterli soru üretemedi → kullanıcı kota harcamadan dön.
+      await UsageQuota.decrement(QuotaKind.arenaQuiz);
+      if (!mounted) return;
       setState(() => _matching = false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(
@@ -5647,7 +5710,7 @@ KURALLAR:
             Text('🤷'.tr(), style: TextStyle(fontSize: 24)),
             SizedBox(width: 10),
             Expanded(
-              child: Text('Bu modda uygun ders yok',
+              child: Text('Bu modda uygun ders yok'.tr(),
                   style: _sans(size: 12, color: AppPalette.textSecondary(context))),
             ),
           ],
@@ -7010,7 +7073,7 @@ class _AddDueloSubjectSheetState extends State<_AddDueloSubjectSheet> {
                   Text('➕'.tr(), style: TextStyle(fontSize: 22)),
                   SizedBox(width: 8),
                   Expanded(
-                    child: Text('Yeni Ders Ekle',
+                    child: Text('Yeni Ders Ekle'.tr(),
                         style: _serif(size: 20, weight: FontWeight.w600, letterSpacing: -0.02)),
                   ),
                 ],
@@ -7022,7 +7085,7 @@ class _AddDueloSubjectSheetState extends State<_AddDueloSubjectSheet> {
               ),
               SizedBox(height: 18),
               // İkon + ad
-              Text('DERS ADI',
+              Text('DERS ADI'.tr(),
                   style: _sans(size: 10, weight: FontWeight.w700, color: AppPalette.textSecondary(context), letterSpacing: 0.08)),
               SizedBox(height: 8),
               Row(
@@ -7076,7 +7139,7 @@ class _AddDueloSubjectSheetState extends State<_AddDueloSubjectSheet> {
               SizedBox(height: 18),
               Row(
                 children: [
-                  Text('KONULAR',
+                  Text('KONULAR'.tr(),
                       style: _sans(size: 10, weight: FontWeight.w700, color: AppPalette.textSecondary(context), letterSpacing: 0.08)),
                   SizedBox(width: 6),
                   Text('(opsiyonel, virgülle ayır)'.tr(),
@@ -8267,7 +8330,7 @@ class _DueloResultsScreen extends StatelessWidget {
         subjectName: subjectName,
         topicName: topicName,
       );
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'qualsar_arena_screen'); }
     messenger.showSnackBar(SnackBar(
       content: Text(
           '@$opponentName kullanıcısına rövanş isteği gönderildi.'.tr()),
@@ -9054,7 +9117,7 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
       debugPrint('[DueloShare] hata: $e\n$st');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Paylaşılamadı: $e'),
+        content: Text('${'Paylaşılamadı:'.tr()} $e'),
         behavior: SnackBarBehavior.floating,
       ));
     } finally {
@@ -10278,7 +10341,7 @@ class _FriendsSection extends StatelessWidget {
                         Text('Arkadaş Ekle'.tr(),
                             style: _sans(size: 15, weight: FontWeight.w800, color: Colors.white, letterSpacing: -0.01)),
                         SizedBox(height: 2),
-                        Text('QR, rehber veya davet linkiyle',
+                        Text('QR, rehber veya davet linkiyle'.tr(),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: _sans(size: 11, color: Colors.white.withValues(alpha: 0.88))),
@@ -10700,7 +10763,7 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
               decoration: BoxDecoration(color: AppPalette.textSecondary(context), borderRadius: BorderRadius.circular(10)),
             ),
             SizedBox(height: 18),
-            Text('Senin QR Kodun',
+            Text('Senin QR Kodun'.tr(),
                 style: _serif(size: 20, weight: FontWeight.w600, letterSpacing: -0.02)),
             SizedBox(height: 4),
             Text('Arkadaşın okutsun, ekleme isteği gelsin'.tr(),
@@ -10902,7 +10965,7 @@ class _ContactsSheetState extends State<_ContactsSheet> {
           ),
         ),
         SizedBox(height: 16),
-        Text('Rehberden Ekle',
+        Text('Rehberden Ekle'.tr(),
             style: _serif(size: 22, weight: FontWeight.w600, letterSpacing: -0.02)),
         SizedBox(height: 4),
         Text('QuAlsar kullanan kontaktların burada. Kullanmayanlar davet edilebilir.'.tr(),
@@ -11100,7 +11163,7 @@ class _QrScanDialog extends StatelessWidget {
               children: [
                 Text('📷'.tr(), style: TextStyle(fontSize: 20)),
                 SizedBox(width: 8),
-                Text('QR Kod Tara',
+                Text('QR Kod Tara'.tr(),
                     style: _sans(size: 16, weight: FontWeight.w700, color: Colors.white)),
                 Spacer(),
                 GestureDetector(
@@ -11121,7 +11184,7 @@ class _QrScanDialog extends StatelessWidget {
                 child: Stack(
                   children: [
                     Center(
-                      child: Text('Kameraya izin ver',
+                      child: Text('Kameraya izin ver'.tr(),
                           style: _sans(size: 13, color: Colors.white.withValues(alpha: 0.6))),
                     ),
                     // Köşe işaretleri
@@ -11341,7 +11404,7 @@ class _SuggestionRow extends StatelessWidget {
                 children: [
                   Icon(Icons.person_add_rounded, size: 12, color: Colors.white),
                   SizedBox(width: 4),
-                  Text('Ekle',
+                  Text('Ekle'.tr(),
                       style: _sans(size: 11, weight: FontWeight.w800, color: Colors.white)),
                 ],
               ),
@@ -11397,7 +11460,7 @@ class _WrappedCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Arena Wrapped',
+                    Text('Arena Wrapped'.tr(),
                         style: _serif(size: 18, weight: FontWeight.w800, color: Colors.white, letterSpacing: -0.02)),
                     SizedBox(height: 2),
                     Text('Bu haftanın özetini gör ve paylaş'.tr(),
@@ -11478,7 +11541,7 @@ class _WrappedSheet extends StatelessWidget {
                       ],
                     ),
                     SizedBox(height: 2),
-                    Text('Bu Haftan',
+                    Text('Bu Haftan'.tr(),
                         style: _sans(size: 11, weight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.75), letterSpacing: 0.06)),
                     SizedBox(height: 20),
                     _wrappedStat('⚡', '${_arenaState.qp} QP', 'Toplam skor'),
@@ -11581,7 +11644,7 @@ class _MasterySection extends StatelessWidget {
                   child: Text('Konu Ustalığın'.tr(),
                       style: _serif(size: 17, weight: FontWeight.w600, letterSpacing: -0.02)),
                 ),
-                Text('Ort. %${_arenaState.masteryAverage}',
+                Text('${'Ort.'.tr()} %${_arenaState.masteryAverage}',
                     style: _sans(size: 12, weight: FontWeight.w700, color: _Palette.accent)),
               ],
             ),
@@ -11792,7 +11855,7 @@ class _BadgesSectionTitle extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 10),
       child: Row(
         children: [
-          Text('Rozetlerim', style: _serif(size: 20, weight: FontWeight.w600, letterSpacing: -0.02)),
+          Text('Rozetlerim'.tr(), style: _serif(size: 20, weight: FontWeight.w600, letterSpacing: -0.02)),
           SizedBox(width: 6),
           GestureDetector(
             onTap: onInfoTap,
@@ -11912,7 +11975,7 @@ void _showSingleBadgeSheet(BuildContext context, _BadgeInfo badge) {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('NASIL KAZANILIR?',
+                Text('NASIL KAZANILIR?'.tr(),
                     style: _sans(size: 10, weight: FontWeight.w700, color: AppPalette.textSecondary(context), letterSpacing: 0.08)),
                 SizedBox(height: 6),
                 Text(badge.rule, style: _sans(size: 14, color: AppPalette.textPrimary(context), height: 1.4)),
@@ -13583,6 +13646,8 @@ class _LoadingScreen extends StatefulWidget {
 class _LoadingScreenState extends State<_LoadingScreen> {
   int _msgIdx = 0;
   Timer? _tick;
+  // Kullanıcı iptal etti — pushReplacement çalışmasın, sadece pop.
+  bool _cancelled = false;
   late final List<_QuizQuestion> _questions;
   late final List<(String, String)> _messages;
 
@@ -13637,11 +13702,15 @@ class _LoadingScreenState extends State<_LoadingScreen> {
       ('Son kontroller...', 'Kalite onayı yapılıyor'),
     ];
     _tick = Timer.periodic(Duration(milliseconds: 900), (t) {
-      if (!mounted) return;
+      if (!mounted || _cancelled) {
+        t.cancel();
+        return;
+      }
       if (_msgIdx >= _messages.length - 1) {
         t.cancel();
         Future.delayed(Duration(milliseconds: 300), () {
-          if (!mounted) return;
+          // İki guard: hâlâ mount edilmiş + kullanıcı iptal etmemiş olmalı.
+          if (!mounted || _cancelled) return;
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
               builder: (_) => _QuizScreen(cfg: widget.cfg, questions: _questions),
@@ -13669,6 +13738,14 @@ class _LoadingScreenState extends State<_LoadingScreen> {
     'stats', 'istatistik', 'informatics', 'bilisim',
   };
 
+  // Kullanıcı iptal etti — timer'ı dur + pushReplacement engelle + pop.
+  void _cancelLoading() {
+    if (_cancelled) return;
+    setState(() => _cancelled = true);
+    _tick?.cancel();
+    Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     // Birleşik standart loader — type=test → 3 aşama, mavi tikler, motivasyon.
@@ -13684,12 +13761,61 @@ class _LoadingScreenState extends State<_LoadingScreen> {
         .any((k) => _numericKeys.contains(k.toLowerCase()));
     final domain =
         hasNumeric ? SubjectDomain.numeric : SubjectDomain.verbal;
-    return Scaffold(
-      backgroundColor: AppPalette.card(context),
-      body: QuAlsarLoadingWidget(
-        type: QuAlsarLoadingType.test,
-        topic: topic,
-        domain: domain,
+    return PopScope(
+      canPop: _cancelled,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        _cancelLoading();
+      },
+      child: Scaffold(
+        backgroundColor: AppPalette.card(context),
+        body: Stack(
+          children: [
+            QuAlsarLoadingWidget(
+              type: QuAlsarLoadingType.test,
+              topic: topic,
+              domain: domain,
+            ),
+            // İptal pill — sağ üst (test/özet sayfalarıyla tutarlı UX).
+            SafeArea(
+              child: Align(
+                alignment: Alignment.topRight,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: GestureDetector(
+                    onTap: _cancelled ? null : _cancelLoading,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: _cancelled
+                            ? Color(0x33808080)
+                            : Colors.black,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.close_rounded,
+                              size: 14, color: Colors.white),
+                          SizedBox(width: 4),
+                          Text(
+                            'İptal'.tr(),
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -14422,6 +14548,9 @@ class _QuizScreenState extends State<_QuizScreen> {
   void _usePowerUp(String id) {
     if (_usedInThisQ.contains(id)) return;
     final q = widget.questions[_index];
+    // NOT: switch sonundaki tek _arenaState.save() çağrısı (line 14603)
+    // tüm power-up'larda crash-safe persist sağlar — burada ekstra save
+    // çağrısı yapmaya gerek yok.
     switch (id) {
       case 'fiftyFifty':
         if (_arenaState.powerFiftyFifty <= 0) return;
@@ -14502,14 +14631,30 @@ class _QuizScreenState extends State<_QuizScreen> {
       return;
     }
 
-    // Solo mod — standart akış.
-    await _arenaState.onQuizCompleted(
-      questions: widget.questions,
-      answers: _answers,
-      comboMax: _comboMax,
-      doublePoints: _doublePointsActive,
-    );
+    // Solo mod — standart akış. QP/ustalık güncelleme fail olursa sessiz
+    // veri kaybı yerine kullanıcıya bildir (sonuç ekranı yine açılır ama
+    // SharedPreferences I/O hatası gizlenmesin).
+    bool saveOk = true;
+    try {
+      await _arenaState.onQuizCompleted(
+        questions: widget.questions,
+        answers: _answers,
+        comboMax: _comboMax,
+        doublePoints: _doublePointsActive,
+      );
+    } catch (e) {
+      saveOk = false;
+      debugPrint('[Arena] onQuizCompleted fail: $e');
+    }
     if (!mounted) return;
+    if (!saveOk) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+            'Skor kaydedilemedi (yerel depolama hatası), sonuçlar aşağıda.'
+                .tr()),
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (_) => _ResultsScreen(
@@ -14705,7 +14850,15 @@ class _QuizScreenState extends State<_QuizScreen> {
     }
     final q = widget.questions[_index];
     final progress = (_index + 1) / _total;
-    return Scaffold(
+    // Hardware back / iOS swipe-back için PopScope confirm — kullanıcı
+    // kazara çıkarsa _confirmExit dialog'u açılır (X butonu ile aynı akış).
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        _confirmExit();
+      },
+      child: Scaffold(
       backgroundColor: AppPalette.bg(context),
       body: SafeArea(
         child: Column(
@@ -14927,6 +15080,7 @@ class _QuizScreenState extends State<_QuizScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -16455,6 +16609,13 @@ class _SocialShareSheetState extends State<_SocialShareSheet> {
                     ),
                   );
                 }
+                // Detection fail olursa empty fallback'e düş — eski
+                // davranış sessiz boş ekrandı; şimdi açık liste alternatifi.
+                if (snap.hasError) {
+                  debugPrint(
+                      '[Share] detectInstalledApps error: ${snap.error}');
+                  return _emptyDetectionFallback();
+                }
                 final installed = snap.data ?? [];
                 if (installed.isEmpty) {
                   return _emptyDetectionFallback();
@@ -16731,7 +16892,7 @@ class _ShareCardPreview extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('DERS', style: _miniLabel(template)),
+                    Text('DERS'.tr(), style: _miniLabel(template)),
                     SizedBox(height: 2),
                     Text(
                       subjText,
@@ -16754,7 +16915,7 @@ class _ShareCardPreview extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('KONU', style: _miniLabel(template)),
+                    Text('KONU'.tr(), style: _miniLabel(template)),
                     SizedBox(height: 2),
                     Text(
                       topicText,
@@ -16784,7 +16945,7 @@ class _ShareCardPreview extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('SORU SAYISI', style: _miniLabel(template)),
+                    Text('SORU SAYISI'.tr(), style: _miniLabel(template)),
                     SizedBox(height: 2),
                     Text(
                       'Toplam $total soru',
@@ -17276,10 +17437,49 @@ class _DueloMatchingScreenState extends State<_DueloMatchingScreen> {
     return '${(s ~/ 60).toString().padLeft(2, '0')}:${(s % 60).toString().padLeft(2, '0')}';
   }
 
+  // Hardware back / iOS swipe-back için confirm dialog.
+  Future<void> _confirmExitMatching() async {
+    final completed = _myFinishedAtMs != null;
+    // Oyun bittiyse direkt çık.
+    if (completed) {
+      if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Yarıştan çıkmak istiyor musun?'.tr(),
+            style: _sans(size: 15, weight: FontWeight.w600)),
+        content: Text('İlerlemen kaydedilmeyecek.'.tr(),
+            style: _sans(
+                size: 13, color: AppPalette.textSecondary(context))),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('Vazgeç'.tr())),
+          TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text('Çık'.tr())),
+        ],
+      ),
+    );
+    if (ok == true && mounted) {
+      _ticker?.cancel();
+      _watch.stop();
+      Navigator.of(context).popUntil((r) => r.isFirst);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final completed = _myFinishedAtMs != null;
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        _confirmExitMatching();
+      },
+      child: Scaffold(
       backgroundColor: AppPalette.bg(context),
       body: SafeArea(
         child: Column(
@@ -17379,6 +17579,7 @@ class _DueloMatchingScreenState extends State<_DueloMatchingScreen> {
               ),
           ],
         ),
+      ),
       ),
     );
   }

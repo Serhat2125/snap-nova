@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -30,7 +33,9 @@ import 'services/error_logger.dart';
 import 'services/geolocation_service.dart';
 import 'services/remote_config_service.dart';
 import 'services/runtime_translator.dart';
+import 'services/subscription_service.dart';
 import 'widgets/smart_sidebar.dart';
+import 'widgets/qualsar_splash_screen.dart';
 
 /// Tüm uygulama için tek navigator (global sidebar buradan navigate eder)
 final GlobalKey<NavigatorState> globalNavigatorKey =
@@ -64,6 +69,25 @@ Future<void> main() async {
     await SystemChrome.setPreferredOrientations(
         [DeviceOrientation.portraitUp]);
 
+    // ── 3D Model Lisansları (showLicensePage()'te görünür) ────────────────
+    // DamagedHelmet CC BY 4.0 → attribution zorunlu. Diğerleri CC0/Apache.
+    LicenseRegistry.addLicense(() async* {
+      yield const LicenseEntryWithLineBreaks(
+        ['3D Models · model_viewer_plus assets'],
+        '''Bu uygulama Çalışma Arkadaşım ve Mars ekranında aşağıdaki 3D modellerin placeholder versiyonlarını kullanır:
+
+• RobotExpressive.glb — © Google, modelviewer.dev/shared-assets (Apache 2.0)
+• Astronaut.glb — © Google, modelviewer.dev/shared-assets (CC BY 4.0)
+• DamagedHelmet.glb — theblueturtle_ / Khronos glTF Sample Models (CC BY 4.0)
+• Duck.glb — Sony Computer Entertainment Inc. / Khronos (CC0 / Public Domain)
+• BoomBox.glb — © Microsoft, Khronos glTF Sample Models (CC0)
+• Lantern.glb — © Microsoft, Khronos glTF Sample Models (CC0)
+
+CC BY 4.0 attribution: https://creativecommons.org/licenses/by/4.0/
+Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''',
+      );
+    });
+
     // ── Firebase ───────────────────────────────────────────────────────
     //   `flutterfire configure` ile üretilen DefaultFirebaseOptions kullanılıyor.
     //   Henüz üretilmediyse stub bir hata fırlatır → catch'te yakalanır,
@@ -74,19 +98,47 @@ Future<void> main() async {
         options: DefaultFirebaseOptions.currentPlatform,
       );
       AuthService.firebaseReady = true;
+
+      // ── App Check — Phone Auth + Firestore abuse koruması ─────────────
+      // Play Integrity (Android prod), Debug provider (dev/debug build),
+      // DeviceCheck (iOS). Phone Auth'un error 39 vermesini önler.
+      // Token verification: Firebase Auth otomatik gönderir, App Check
+      // backend doğrular. Enforce: Firebase Console → App Check'te ayarlanır.
+      try {
+        await FirebaseAppCheck.instance.activate(
+          androidProvider: kDebugMode
+              ? AndroidProvider.debug
+              : AndroidProvider.playIntegrity,
+          appleProvider: kDebugMode
+              ? AppleProvider.debug
+              : AppleProvider.deviceCheck,
+        );
+      } catch (e, st) {
+        ErrorLogger.instance.capture(e, st, context: 'app_check_activate');
+      }
+
       // Firestore offline cache — ağ kesikken son veriye erişim + yazma kuyruğu.
       FirebaseFirestore.instance.settings = Settings(
         persistenceEnabled: true,
         cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
       );
+      // Anonim Firebase Auth — Bilgi Ligi gibi yazmaları olan modüller
+      // her kullanıcının uid'ye sahip olmasını gerektirir. currentUser
+      // null ise tek seferlik anonim oturum aç. (Firebase Console →
+      // Authentication → Sign-in method → "Anonymous" etkinleştirilmiş
+      // olmalı.) Hata yutulur; ağ yoksa veya devre dışıysa offline akış sürer.
+      try {
+        if (fb_auth.FirebaseAuth.instance.currentUser == null) {
+          await fb_auth.FirebaseAuth.instance.signInAnonymously();
+        }
+      } catch (_) {/* anonim auth başarısız → cloud yazımları atlanır */}
       // Analytics + Crashlytics — Firebase init başarılı olduktan SONRA.
       // Hata atmaz; init başarısızsa no-op'a düşer.
       await Analytics.init();
       Analytics.registerFlutterErrorHandler();
     } catch (e, st) {
       AuthService.firebaseReady = false;
-      // ignore: avoid_print
-      print('[Firebase] init başarısız: $e\n'
+      debugPrint('[Firebase] init başarısız: $e\n'
           'Çözüm: terminalde "flutterfire configure" çalıştırıp '
           'firebase_options.dart\'ı üret. Sonra google-services.json (Android) '
           've GoogleService-Info.plist (iOS) dosyalarının yerinde olduğundan '
@@ -114,12 +166,11 @@ Future<void> main() async {
     await AuthService.init();
     // Runtime translator — kalıcı cache'i yükle + LocaleService'e hook bağla
     await RuntimeTranslator.instance.init();
-    // Açılışta TÜM TR kaynak string'lerini runtime translator'a kaydet —
-    // her dil değişiminde hepsi birden preload edilecek.
-    // bulkRegister: timer reset/restart per-item önlenir, startup hızlanır.
-    RuntimeTranslator.instance
-        .bulkRegister(LocaleService.allTrSourceStrings);
-
+    // bulkRegister ÇOK pahalı: 5000+ string'i set'e atar, 3sn sonra büyük
+    // jsonEncode + SharedPreferences write yapar. Cihaz Türkçeyse hiçbir
+    // çeviriye gerek olmadığı için tamamen atlanır. Diğer dillerde de
+    // sadece dil değişiminde tetiklenir (setLocaleChangeHook altında),
+    // her açılışta değil. Bu, startup'taki donmanın ana sebebiydi.
     LocaleService.setLocaleChangeHook((lang) async {
       // Her dil değişiminde önce tüm kaynakların kayıtlı olduğunu garanti et.
       RuntimeTranslator.instance
@@ -133,8 +184,13 @@ Future<void> main() async {
       return RuntimeTranslator.instance.lookup(source);
     });
     // Açılışta mevcut dil Türkçe değilse eksik çevirileri arka planda çek.
+    // (Bulk register burada — sadece TR-dışı cihazlarda + arka planda.)
     if (localeService.localeCode != 'tr') {
-      unawaited(RuntimeTranslator.instance.preloadAll(localeService.localeCode));
+      unawaited(() async {
+        RuntimeTranslator.instance
+            .bulkRegister(LocaleService.allTrSourceStrings);
+        await RuntimeTranslator.instance.preloadAll(localeService.localeCode);
+      }());
     }
 
     // IP geolocation arka planda (UI'ı bekletmez). Başarılıysa
@@ -165,6 +221,15 @@ Future<void> main() async {
     // Hem ders listesi (subjects) hem de konu haritası (topics) ayrı cache'lerde.
     await EduProfile.loadAiSubjectCache();
     await EduProfile.loadAiTopicsCache();
+
+    // Önceki açılıştan kalan tamamlanmamış çalışma session'ı varsa kurtar.
+    // (App kill / crash sonrası en kötü 30sn kayıpla session yine yazılır.)
+    unawaited(StudySessionTracker.recoverPendingSession());
+
+    // Play Billing / StoreKit purchase stream'ini başlat (async, blocking değil).
+    // App startup'tan sonra ilk satın alma denenebilir; sub_service stream
+    // dinleyiciyi bu çağrıyla bağlar.
+    unawaited(SubscriptionService.instance.init());
 
     // ProviderScope: Yeni feature katmanları (lib/features/...) Riverpod
     // kullanır; eski ekranlar StatefulWidget+setState ile çalışmaya devam
@@ -203,11 +268,42 @@ class _StartupRouterState extends State<_StartupRouter> {
   }
 
   Future<_StartupState> _resolve() async {
-    // ── Geçici: onboarding + educationSetup atlandı, doğrudan ana ekran. ──
-    // Kullanıcı isteği üzerine giriş ve tanıtım yazıları şimdilik gizli.
-    // Geri getirmek için: aşağıdaki return'ü kaldırıp eski mantığı (her
-    // açılışta onboarding) yeniden aktive et, ya da
-    // 'onboarding_launch_count_v3' bazlı şartı geri tak.
+    // Splash en az 1500ms görünsün — hızlı load'da bile harf intro + disk
+    // fade animasyonu tamamlansın, kullanıcı flaş gibi geçen ekrana bakmasın.
+    final minSplash = Future<void>.delayed(const Duration(milliseconds: 1500));
+    final prefs = await SharedPreferences.getInstance();
+
+    // Launch counter — her açılışta artar.
+    final count = (prefs.getInt('app_launch_count_v2') ?? 0) + 1;
+    await prefs.setInt('app_launch_count_v2', count);
+
+    // İlk 10 giriş = "deneme/test" fazı:
+    //   onboarding + eğitim setup TAMAMLANMAMIŞSA bu fazda mutlaka gösterilir.
+    //   Tamamlandıysa atlanır.  11. açılıştan sonra normal akış.
+    final inTrialPhase = count <= 10;
+
+    final onboardingDone = prefs.getBool(OnboardingScreen.prefKey) ?? false;
+    if (!onboardingDone) {
+      await minSplash;
+      return _StartupState.onboarding;
+    }
+
+    // Setup tamamlandı mı? mini_test_grade pref'inde grade kayıtlıysa OK.
+    final hasGrade = (prefs.getString('mini_test_grade') ?? '').isNotEmpty;
+    if (!hasGrade) {
+      await minSplash;
+      return _StartupState.educationSetup;
+    }
+
+    // İlk 10 girişte EduProfile.current henüz yüklenmemiş olabilir → yükle.
+    if (inTrialPhase && EduProfile.current == null) {
+      try {
+        await EduProfile.load();
+      } catch (_) {/* yok say */}
+    }
+
+    // Splash minimum süresini bekle — animasyon tamamlansın.
+    await minSplash;
     return _StartupState.home;
   }
 
@@ -228,10 +324,10 @@ class _StartupRouterState extends State<_StartupRouter> {
       future: _future,
       builder: (context, snap) {
         if (!snap.hasData) {
-          return Scaffold(
-            backgroundColor: AppColors.background,
-            body: SizedBox.shrink(),
-          );
+          // Native splash bittikten Flutter MaterialApp ilk frame'i çizene
+          // kadar gösterilen marka açılış ekranı — beyaz titreme yok,
+          // QuAlsar logosu + fütüristik harf girişi + dönen disk.
+          return const QuAlsarSplashScreen();
         }
         switch (snap.data!) {
           case _StartupState.onboarding:
@@ -312,12 +408,9 @@ class _GlobalSidebarOverlayState extends State<_GlobalSidebarOverlay>
     final qRaw = prefs.getStringList('library_subjects_questions_v2') ?? [];
 
     // İçerik aynıysa parse + setState yapma — gereksiz rebuild önlenir.
-    final summaryHash = summaryRaw.length.toString() +
-        '|' +
-        (summaryRaw.isNotEmpty ? summaryRaw.last.length.toString() : '0');
-    final qHash = qRaw.length.toString() +
-        '|' +
-        (qRaw.isNotEmpty ? qRaw.last.length.toString() : '0');
+    final summaryHash =
+        '${summaryRaw.length}|${summaryRaw.isNotEmpty ? summaryRaw.last.length : 0}';
+    final qHash = '${qRaw.length}|${qRaw.isNotEmpty ? qRaw.last.length : 0}';
     if (summaryHash == _lastSummaryHash && qHash == _lastQuestionHash) {
       return;
     }
@@ -365,7 +458,7 @@ class _GlobalSidebarOverlayState extends State<_GlobalSidebarOverlay>
             );
           }).toList(),
         ));
-      } catch (_) {}
+      } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'main'); }
     }
     return out;
   }
@@ -523,15 +616,19 @@ class QuAlsarApp extends StatelessWidget {
       service: localeService,
       child: ThemeInherited(
         service: themeService,
-        child: AnimatedBuilder(
-          // RuntimeTranslator notifyListeners → tüm uygulama rebuild
-          // (preload parça parça bittikçe UI otomatik günceller)
-          animation: RuntimeTranslator.instance,
-          builder: (context, _) => Builder(
-            builder: (context) {
-              final locale = LocaleInherited.of(context);
-              final theme = ThemeInherited.of(context);
-              return MaterialApp(
+        child: Builder(
+          builder: (context) {
+            final locale = LocaleInherited.of(context);
+            final theme = ThemeInherited.of(context);
+            // NOT: Önceden RuntimeTranslator.instance'ı dinleyen bir
+            // AnimatedBuilder MaterialApp'ı sarıyordu. Her preload chunk
+            // notify'ı tüm navigation stack'i rebuild ediyor, donmaya
+            // yol açıyordu. LocaleService kendi notify'ı yapıyor ve
+            // LocaleInherited bağımlılıkları zaten dil değişimini taşıyor;
+            // RuntimeTranslator preload bittiğinde mevcut sayfa hâlâ
+            // kaynak TR gösterse de bir sonraki rota geçişinde otomatik
+            // doğru çeviri gelir — global rebuild'in maliyetine değmiyor.
+            return MaterialApp(
               debugShowCheckedModeBanner: false,
               title: 'QuAlsar',
               theme: AppTheme.light,
@@ -543,6 +640,12 @@ class QuAlsarApp extends StatelessWidget {
                   .map((c) => Locale(c))
                   .toList(),
               localeResolutionCallback: (device, supported) {
+                // 1) Önce uygulamanın aktif dilini supportedLocales içinde
+                //    bulup döndür — bu Flutter'a RTL tespitini yaptırır.
+                for (final s in supported) {
+                  if (s.languageCode == locale.localeCode) return s;
+                }
+                // 2) Cihazın dili supported içindeyse
                 if (device != null) {
                   for (final s in supported) {
                     if (s.languageCode == device.languageCode) return s;
@@ -564,10 +667,9 @@ class QuAlsarApp extends StatelessWidget {
                   ],
                 );
               },
-                home: const _StartupRouter(),
-              );
-            },
-          ),
+              home: const _StartupRouter(),
+            );
+          },
         ),
       ),
     );

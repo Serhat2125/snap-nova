@@ -36,16 +36,27 @@ class OfflineGeneratedTopic {
   final String name;
   final String summary;
   final DateTime generatedAt;
+  /// Topluluk cache referansları — rating widget'ı bunlarla çalışır.
+  /// Eski kayıtlarda null olabilir (geriye uyumlu).
+  final String? cacheDocId;
+  final String? candidateDocId;
+  final bool isCanonical;
   const OfflineGeneratedTopic({
     required this.name,
     required this.summary,
     required this.generatedAt,
+    this.cacheDocId,
+    this.candidateDocId,
+    this.isCanonical = false,
   });
 
   Map<String, dynamic> toJson() => {
         'name': name,
         'summary': summary,
         'generatedAt': generatedAt.toIso8601String(),
+        if (cacheDocId != null) 'cacheDocId': cacheDocId,
+        if (candidateDocId != null) 'candidateDocId': candidateDocId,
+        if (isCanonical) 'isCanonical': true,
       };
 
   factory OfflineGeneratedTopic.fromJson(Map<String, dynamic> j) =>
@@ -54,6 +65,9 @@ class OfflineGeneratedTopic {
         summary: (j['summary'] ?? '').toString(),
         generatedAt: DateTime.tryParse(j['generatedAt']?.toString() ?? '') ??
             DateTime.now(),
+        cacheDocId: j['cacheDocId'] as String?,
+        candidateDocId: j['candidateDocId'] as String?,
+        isCanonical: (j['isCanonical'] as bool?) ?? false,
       );
 }
 
@@ -206,7 +220,7 @@ class OfflineGenerationController
       clearError: true,
     );
     try {
-      final summary = await GeminiService.fetchSingleTopicSummary(
+      final summaryResult = await GeminiService.fetchSingleTopicSummary(
         subjectName: subjectName,
         topicName: topicName,
         profile: profile,
@@ -215,8 +229,11 @@ class OfflineGenerationController
         ...existing,
         OfflineGeneratedTopic(
           name: topicName,
-          summary: summary,
+          summary: summaryResult.text,
           generatedAt: DateTime.now(),
+          cacheDocId: summaryResult.cacheDocId,
+          candidateDocId: summaryResult.candidateDocId,
+          isCanonical: summaryResult.isCanonical,
         ),
       ];
       await _saveGenerated(
@@ -230,7 +247,7 @@ class OfflineGenerationController
         subjectKey: subjectKey,
         subjectName: subjectName,
         topicName: topicName,
-        summary: summary,
+        summary: summaryResult.text,
       );
       state = state.copyWith(
         generatingTopics:

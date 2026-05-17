@@ -162,11 +162,33 @@ class PricingService {
   }
 
   // ── Fallback kurlar (API çalışmazsa) ─────────────────────────────────────
+  // 2026-Q1 yaklaşık değerleri. Yüksek enflasyon ülkelerinde (TRY, ARS, LBP)
+  // gerçek API tercih edilmeli; bu değerler son çare.
   static const Map<String, double> _fallbackRates = {
     'USD': 1.0,
     'EUR': 0.92,
     'GBP': 0.79,
     'TRY': 38.5,
+    // Yeni eklenen para birimleri (kurları yaklaşık 2026 başı)
+    'XOF': 600.0, 'XAF': 600.0, 'CDF': 2800.0,
+    'ETB': 125.0, 'ERN': 15.0, 'DJF': 178.0,
+    'SOS': 570.0, 'RWF': 1380.0, 'BIF': 2950.0,
+    'GMD': 70.0, 'GNF': 8650.0, 'LRD': 195.0,
+    'SLL': 22500.0, 'CVE': 102.0,
+    'MZN': 64.0, 'AOA': 920.0, 'ZWG': 13.5,
+    'BWP': 13.6, 'NAD': 18.5, 'LSL': 18.5, 'SZL': 18.5,
+    'MGA': 4500.0, 'MWK': 1730.0, 'ZMW': 27.0,
+    'KMF': 450.0, 'MUR': 46.0, 'SCR': 14.0, 'STN': 23.0,
+    'AFN': 70.0, 'BTN': 84.0, 'MVR': 15.4,
+    'TMT': 3.5, 'KGS': 87.0, 'TJS': 11.0,
+    'LAK': 21000.0, 'KPW': 900.0, 'MOP': 8.05,
+    'BAM': 1.8, 'ALL': 92.0, 'MKD': 56.6, 'MDL': 18.0,
+    'AMD': 395.0,
+    'PYG': 7700.0, 'GTQ': 7.8, 'HNL': 25.0, 'NIO': 36.8,
+    'CUP': 24.0, 'HTG': 132.0, 'JMD': 157.0, 'BSD': 1.0,
+    'BBD': 2.0, 'TTD': 6.8, 'XCD': 2.7, 'BZD': 2.0,
+    'FJD': 2.3, 'PGK': 3.9, 'WST': 2.7, 'TOP': 2.4,
+    'LYD': 4.85, 'SSP': 1300.0,
     'NOK': 10.8,
     'SEK': 10.5,
     'DKK': 6.88,
@@ -269,98 +291,225 @@ class PricingService {
     5: 2.99,
   };
 
-  // ── Ülke → Tier eşleşmesi ───────────────────────────────────────────────
+  // ── Ülke → Tier eşleşmesi (195 BM üyesi + Tayvan/Kosova/Filistin kapsanır)
+  // Eski listede ~80 ülke vardı; eksik ülkeler tier_3 ($6.99) fallback'a
+  // düşüp Bolivya/Burkina Faso/Tacikistan kullanıcılarını ödeme yapamaz
+  // hale getiriyordu. Şimdi her ülke uygun gelir seviyesine atandı
+  // (Dünya Bankası 2024 GNI per capita Atlas yöntemi).
   static const Map<String, int> _countryTier = {
-    // Tier 1 — Çok yüksek gelir
+    // ── Tier 1 — Çok yüksek gelir ($9.99) ─────────────────────────────
     'NO': 1, 'SE': 1, 'DK': 1, 'FI': 1, 'IS': 1,
-    'CH': 1, 'LU': 1, 'IE': 1, 'SG': 1,
-    'QA': 1, 'AE': 1, 'KW': 1, 'BH': 1, 'BN': 1, 'MC': 1,
+    'CH': 1, 'LU': 1, 'IE': 1, 'SG': 1, 'MC': 1,
+    'QA': 1, 'AE': 1, 'KW': 1, 'BH': 1, 'BN': 1,
+    'LI': 1, 'AD': 1, 'SM': 1, 'VA': 1,
 
-    // Tier 2 — Yüksek gelir
+    // ── Tier 2 — Yüksek gelir ($9.99) ─────────────────────────────────
     'US': 2, 'CA': 2, 'GB': 2, 'DE': 2, 'FR': 2,
     'NL': 2, 'BE': 2, 'AT': 2, 'AU': 2, 'NZ': 2,
     'IL': 2, 'SA': 2, 'OM': 2, 'HK': 2, 'TW': 2,
     'MT': 2, 'CY': 2, 'EE': 2, 'SI': 2, 'LT': 2,
+    'LV': 2, // Letonya 2023'te tier_2 sınıfına geçti
+    'BS': 2, 'BB': 2, 'TT': 2, 'KN': 2, 'AG': 2,
+    'PR': 2, // Porto Riko (ABD bölgesi)
 
-    // Tier 3 — Orta-üst gelir
+    // ── Tier 3 — Orta-üst gelir ($6.99) ───────────────────────────────
     'JP': 3, 'KR': 3, 'IT': 3, 'ES': 3, 'PT': 3,
-    'GR': 3, 'CZ': 3, 'SK': 3, 'HR': 3, 'LV': 3,
+    'GR': 3, 'CZ': 3, 'SK': 3, 'HR': 3,
     'CL': 3, 'UY': 3, 'PA': 3, 'CR': 3, 'MY': 3,
     'CN': 3, 'RO': 3, 'BG': 3, 'HU': 3, 'RS': 3,
+    'ME': 3, 'BA': 3, 'AL': 3, 'MK': 3, 'XK': 3,
+    'MD': 3,
+    'GD': 3, 'LC': 3, 'VC': 3, 'DM': 3, 'BZ': 3,
+    'SC': 3, 'MU': 3,
+    'TR': 3, // 2024 GNI sıçraması ile tier_3'e yaklaştı
 
-    // Tier 4 — Orta gelir
-    'TR': 4, 'BR': 4, 'MX': 4, 'AR': 4, 'CO': 4,
+    // ── Tier 4 — Orta gelir ($4.99) ───────────────────────────────────
+    'BR': 4, 'MX': 4, 'AR': 4, 'CO': 4,
     'PE': 4, 'PL': 4, 'RU': 4, 'UA': 4, 'TH': 4,
     'ZA': 4, 'JO': 4, 'LB': 4, 'TN': 4, 'DZ': 4,
     'MA': 4, 'GE': 4, 'AZ': 4, 'KZ': 4, 'BY': 4,
     'PH': 4, 'IQ': 4, 'EC': 4, 'BO': 4, 'DO': 4,
+    'AM': 4, 'IR': 4, 'MN': 4,
+    'VE': 4, 'PY': 4, 'GT': 4, 'SV': 4, 'JM': 4,
+    'CU': 4, 'BW': 4, 'NA': 4, 'GA': 4, 'AO': 4,
+    'CV': 4, 'NG': 4, 'EG': 4, 'LY': 4,
+    'PS': 4, 'FJ': 4, 'TO': 4, 'WS': 4, 'PG': 4,
+    'TM': 4, 'TL': 4,
 
-    // Tier 5 — Düşük gelir
-    'IR': 4, // İran
-    'MN': 4, // Moğolistan
+    // ── Tier 5 — Düşük gelir ($2.99) ──────────────────────────────────
     'IN': 5, 'ID': 5, 'PK': 5, 'BD': 5, 'VN': 5,
-    'EG': 5, 'NG': 5, 'KE': 5, 'GH': 5, 'TZ': 5,
+    'KE': 5, 'GH': 5, 'TZ': 5,
     'ET': 5, 'UG': 5, 'MM': 5, 'KH': 5, 'LA': 5,
     'NP': 5, 'LK': 5, 'UZ': 5, 'SN': 5, 'CM': 5,
     'ZW': 5, 'MZ': 5, 'AF': 5, 'SD': 5, 'SY': 5, 'YE': 5,
+    'KG': 5, 'TJ': 5,
+    'HN': 5, 'NI': 5, 'HT': 5,
+    'CI': 5, 'ML': 5, 'BF': 5, 'NE': 5, 'TD': 5,
+    'CG': 5, 'CD': 5, 'CF': 5, 'GN': 5, 'GW': 5,
+    'LR': 5, 'SL': 5, 'TG': 5, 'BJ': 5, 'GM': 5,
+    'RW': 5, 'BI': 5, 'MG': 5, 'MW': 5, 'ZM': 5,
+    'SO': 5, 'ER': 5, 'DJ': 5, 'SS': 5,
+    'KP': 5, // Kuzey Kore — yaptırım nedeniyle ödeme zaten engelli
+    'BT': 5, 'MV': 5,
+    'ST': 5, 'KM': 5, 'LS': 5, 'SZ': 5,
+    'GQ': 5,
   };
 
+  /// AB üyesi ülkeler — KDV dahil fiyat zorunluluğu (Tüketici Hakları Direktifi).
+  /// Plus İngiltere (yine VAT dahil), İsviçre, Norveç, Türkiye benzer kurallar.
+  static const Set<String> _vatInclusiveCountries = {
+    // AB-27
+    'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR',
+    'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL',
+    'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE',
+    // AB değil ama benzer VAT inclusive kuralları
+    'GB', 'CH', 'NO', 'IS', 'LI', 'TR', 'IL', 'AU', 'NZ',
+  };
+
+  /// AB / VAT-inclusive ülkesinde fiyat KDV dahil gösterilmeli.
+  static bool isVatInclusiveCountry(String code) {
+    return _vatInclusiveCountries.contains(code.toUpperCase());
+  }
+
+  /// ABD/Birleşmiş yaptırım listeleri — App Store/Play Store bu ülkelerde
+  /// ödeme alamaz. UI premium banner'ı gizlemeli.
+  static const Set<String> _sanctionedCountries = {
+    'KP', // Kuzey Kore
+    'SY', // Suriye
+    'CU', // Küba (kısmi)
+    'IR', // İran
+  };
+
+  static bool isSanctionedCountry(String code) {
+    return _sanctionedCountries.contains(code.toUpperCase());
+  }
+
   // ── Ülke → Para birimi kodu ──────────────────────────────────────────────
+  // Eski sürümde Etiyopya/Senegal/Kamerun/Laos/Afganistan/Mozambik gibi
+  // birçok ülke yanlışlıkla USD'ye atanmıştı. Düzeltildi.
   static const Map<String, String> _countryCurrency = {
-    'US': 'USD', 'CA': 'CAD', 'GB': 'GBP', 'AU': 'AUD', 'NZ': 'NZD',
+    // Kuzey Amerika
+    'US': 'USD', 'CA': 'CAD', 'MX': 'MXN', 'PR': 'USD',
+    // Latin Amerika
+    'BR': 'BRL', 'AR': 'ARS', 'CO': 'COP', 'PE': 'PEN',
+    'CL': 'CLP', 'UY': 'UYU', 'PA': 'USD', 'CR': 'CRC',
+    'EC': 'USD', 'BO': 'BOB', 'DO': 'DOP', 'VE': 'USD', // VES kullanıyor ama dolarize
+    'PY': 'PYG', 'GT': 'GTQ', 'SV': 'USD', 'HN': 'HNL',
+    'NI': 'NIO', 'CU': 'CUP', 'HT': 'HTG', 'JM': 'JMD',
+    'BS': 'BSD', 'BB': 'BBD', 'TT': 'TTD', 'KN': 'XCD',
+    'AG': 'XCD', 'GD': 'XCD', 'LC': 'XCD', 'VC': 'XCD',
+    'DM': 'XCD', 'BZ': 'BZD',
+    // Avrupa
+    'GB': 'GBP',
     'DE': 'EUR', 'FR': 'EUR', 'IT': 'EUR', 'ES': 'EUR', 'PT': 'EUR',
     'NL': 'EUR', 'BE': 'EUR', 'AT': 'EUR', 'IE': 'EUR', 'FI': 'EUR',
     'GR': 'EUR', 'SK': 'EUR', 'SI': 'EUR', 'EE': 'EUR', 'LT': 'EUR',
     'LV': 'EUR', 'HR': 'EUR', 'CY': 'EUR', 'MT': 'EUR', 'LU': 'EUR',
-    'MC': 'EUR',
+    'MC': 'EUR', 'AD': 'EUR', 'SM': 'EUR', 'VA': 'EUR', 'XK': 'EUR',
+    'ME': 'EUR',
     'NO': 'NOK', 'SE': 'SEK', 'DK': 'DKK', 'IS': 'ISK',
-    'CH': 'CHF',
+    'CH': 'CHF', 'LI': 'CHF',
+    'PL': 'PLN', 'CZ': 'CZK', 'HU': 'HUF', 'RO': 'RON',
+    'BG': 'BGN', 'RS': 'RSD', 'BA': 'BAM', 'AL': 'ALL',
+    'MK': 'MKD', 'MD': 'MDL',
+    'RU': 'RUB', 'UA': 'UAH', 'BY': 'BYN',
     'TR': 'TRY',
-    'JP': 'JPY', 'KR': 'KRW', 'CN': 'CNY', 'HK': 'HKD', 'TW': 'TWD',
-    'SG': 'SGD', 'MY': 'MYR', 'TH': 'THB', 'ID': 'IDR', 'PH': 'PHP',
-    'VN': 'VND', 'KH': 'KHR', 'MM': 'MMK', 'BN': 'BND', 'LA': 'USD',
-    'IN': 'INR', 'PK': 'PKR', 'BD': 'BDT', 'LK': 'LKR', 'NP': 'NPR',
-    'IL': 'ILS',
-    'AE': 'AED', 'SA': 'SAR', 'QA': 'QAR', 'KW': 'KWD', 'BH': 'BHD',
-    'OM': 'OMR', 'JO': 'JOD', 'IQ': 'IQD', 'LB': 'LBP',
-    'EG': 'EGP', 'NG': 'NGN', 'ZA': 'ZAR', 'KE': 'KES', 'GH': 'GHS',
-    'TZ': 'TZS', 'UG': 'UGX', 'ET': 'USD', 'SN': 'USD', 'CM': 'USD',
-    'ZW': 'USD', 'MZ': 'USD', 'SD': 'SDG', 'SY': 'SYP', 'YE': 'YER',
-    'AF': 'USD',
-    'BR': 'BRL', 'MX': 'MXN', 'AR': 'ARS', 'CO': 'COP', 'PE': 'PEN',
-    'CL': 'CLP', 'UY': 'UYU', 'PA': 'USD', 'CR': 'CRC',
-    'EC': 'USD', 'BO': 'BOB', 'DO': 'DOP',
-    'RU': 'RUB', 'UA': 'UAH', 'PL': 'PLN', 'CZ': 'CZK', 'HU': 'HUF',
-    'RO': 'RON', 'BG': 'BGN', 'RS': 'RSD', 'BY': 'BYN',
-    'GE': 'GEL', 'AZ': 'AZN', 'KZ': 'KZT', 'UZ': 'UZS', 'MN': 'MNT',
-    'IR': 'IRR',
-    'TN': 'TND', 'DZ': 'DZD', 'MA': 'MAD',
+    // Asya - Doğu
+    'JP': 'JPY', 'KR': 'KRW', 'KP': 'KPW',
+    'CN': 'CNY', 'HK': 'HKD', 'TW': 'TWD', 'MO': 'MOP',
+    'MN': 'MNT',
+    // Güneydoğu Asya
+    'SG': 'SGD', 'MY': 'MYR', 'TH': 'THB', 'ID': 'IDR',
+    'PH': 'PHP', 'VN': 'VND', 'KH': 'KHR', 'MM': 'MMK',
+    'BN': 'BND', 'LA': 'LAK', 'TL': 'USD',
+    // Güney Asya
+    'IN': 'INR', 'PK': 'PKR', 'BD': 'BDT', 'LK': 'LKR',
+    'NP': 'NPR', 'BT': 'BTN', 'MV': 'MVR', 'AF': 'AFN',
+    // Orta Asya
+    'KZ': 'KZT', 'UZ': 'UZS', 'TM': 'TMT',
+    'KG': 'KGS', 'TJ': 'TJS',
+    // Orta Doğu
+    'IL': 'ILS', 'PS': 'ILS',
+    'AE': 'AED', 'SA': 'SAR', 'QA': 'QAR', 'KW': 'KWD',
+    'BH': 'BHD', 'OM': 'OMR', 'JO': 'JOD', 'IQ': 'IQD',
+    'LB': 'LBP', 'SY': 'SYP', 'YE': 'YER', 'IR': 'IRR',
+    // Kuzey Afrika
+    'EG': 'EGP', 'LY': 'LYD', 'TN': 'TND', 'DZ': 'DZD',
+    'MA': 'MAD', 'SD': 'SDG', 'SS': 'SSP',
+    // Sahra-altı Afrika (Doğu)
+    'KE': 'KES', 'TZ': 'TZS', 'UG': 'UGX',
+    'RW': 'RWF', 'BI': 'BIF', 'ET': 'ETB', 'ER': 'ERN',
+    'DJ': 'DJF', 'SO': 'SOS',
+    // Sahra-altı Afrika (Batı - XOF: Senegal, Mali, Burkina Faso...)
+    'SN': 'XOF', 'ML': 'XOF', 'BF': 'XOF', 'NE': 'XOF',
+    'CI': 'XOF', 'TG': 'XOF', 'BJ': 'XOF', 'GW': 'XOF',
+    'GH': 'GHS', 'NG': 'NGN', 'GM': 'GMD', 'GN': 'GNF',
+    'LR': 'LRD', 'SL': 'SLL', 'CV': 'CVE',
+    // Sahra-altı Afrika (Orta - XAF: Kamerun, Çad, Gabon...)
+    'CM': 'XAF', 'TD': 'XAF', 'CF': 'XAF', 'CG': 'XAF',
+    'GA': 'XAF', 'GQ': 'XAF',
+    'CD': 'CDF',
+    // Sahra-altı Afrika (Güney)
+    'ZA': 'ZAR', 'ZW': 'ZWG', 'MZ': 'MZN', 'AO': 'AOA',
+    'BW': 'BWP', 'NA': 'NAD', 'LS': 'LSL', 'SZ': 'SZL',
+    'MG': 'MGA', 'MW': 'MWK', 'ZM': 'ZMW', 'KM': 'KMF',
+    'MU': 'MUR', 'SC': 'SCR', 'ST': 'STN',
+    // Kafkasya
+    'GE': 'GEL', 'AZ': 'AZN', 'AM': 'AMD',
+    // Okyanusya
+    'AU': 'AUD', 'NZ': 'NZD',
+    'FJ': 'FJD', 'PG': 'PGK', 'WS': 'WST', 'TO': 'TOP',
   };
 
   // ── Para birimi sembolleri ───────────────────────────────────────────────
   static const Map<String, String> _currencySymbols = {
+    // Latin
     'USD': '\$', 'EUR': '€', 'GBP': '£', 'TRY': '₺',
-    'NOK': 'kr', 'SEK': 'kr', 'DKK': 'kr', 'ISK': 'kr',
     'CHF': 'CHF', 'CAD': 'CA\$', 'AUD': 'A\$', 'NZD': 'NZ\$',
-    'JPY': '¥', 'KRW': '₩', 'CNY': '¥',
-    'HKD': 'HK\$', 'TWD': 'NT\$', 'SGD': 'S\$',
+    // İskandinav
+    'NOK': 'kr', 'SEK': 'kr', 'DKK': 'kr', 'ISK': 'kr',
+    // Asya
+    'JPY': '¥', 'KRW': '₩', 'CNY': '¥', 'KPW': '₩',
+    'HKD': 'HK\$', 'TWD': 'NT\$', 'SGD': 'S\$', 'MOP': 'MOP\$',
     'MYR': 'RM', 'THB': '฿', 'IDR': 'Rp', 'PHP': '₱', 'VND': '₫',
     'INR': '₹', 'PKR': 'Rs', 'BDT': '৳', 'LKR': 'Rs', 'NPR': 'Rs',
+    'BTN': 'Nu', 'MVR': 'Rf', 'AFN': '؋',
+    'MNT': '₮', 'KHR': '៛', 'MMK': 'K', 'BND': 'B\$',
+    'LAK': '₭',
+    // Orta Asya
+    'KZT': '₸', 'UZS': 'сўм', 'TMT': 'T', 'KGS': 'с', 'TJS': 'SM',
+    // Orta Doğu
     'ILS': '₪',
     'AED': 'AED', 'SAR': 'SAR', 'QAR': 'QAR', 'KWD': 'KD',
     'BHD': 'BD', 'OMR': 'OMR', 'JOD': 'JD', 'IQD': 'IQD', 'LBP': 'L£',
+    'SYP': 'S£', 'YER': 'YER', 'IRR': 'IRR',
+    // Afrika
     'EGP': 'E£', 'NGN': '₦', 'ZAR': 'R', 'KES': 'KSh', 'GHS': 'GH₵',
-    'TZS': 'TSh', 'UGX': 'USh',
+    'TZS': 'TSh', 'UGX': 'USh', 'RWF': 'RF', 'BIF': 'FBu',
+    'ETB': 'Br', 'ERN': 'Nfk', 'DJF': 'Fdj', 'SOS': 'Sh',
+    'XOF': 'CFA', 'XAF': 'FCFA', 'CDF': 'FC',
+    'GMD': 'D', 'GNF': 'FG', 'LRD': 'L\$', 'SLL': 'Le', 'CVE': 'Esc',
+    'ZWG': 'ZWG', 'MZN': 'MT', 'AOA': 'Kz',
+    'BWP': 'P', 'NAD': 'N\$', 'LSL': 'L', 'SZL': 'E',
+    'MGA': 'Ar', 'MWK': 'MK', 'ZMW': 'ZK', 'KMF': 'CF',
+    'MUR': '₨', 'SCR': '₨', 'STN': 'Db',
+    'SDG': 'SDG', 'SSP': 'SSP',
+    'LYD': 'LD', 'TND': 'DT', 'DZD': 'DA', 'MAD': 'MAD',
+    // Latin Amerika
     'BRL': 'R\$', 'MXN': 'MX\$', 'ARS': 'ARS', 'COP': 'COP',
     'PEN': 'S/', 'CLP': 'CLP', 'UYU': '\$U', 'CRC': '₡',
     'BOB': 'Bs', 'DOP': 'RD\$',
+    'PYG': '₲', 'GTQ': 'Q', 'HNL': 'L', 'NIO': 'C\$',
+    'CUP': '\$', 'HTG': 'G', 'JMD': 'J\$', 'BSD': 'B\$',
+    'BBD': 'Bds\$', 'TTD': 'TT\$', 'XCD': 'EC\$', 'BZD': 'BZ\$',
+    // Avrupa Doğu
     'RUB': '₽', 'UAH': '₴', 'PLN': 'zł', 'CZK': 'Kč', 'HUF': 'Ft',
     'RON': 'lei', 'BGN': 'лв', 'RSD': 'din', 'BYN': 'Br',
-    'GEL': '₾', 'AZN': '₼', 'KZT': '₸', 'UZS': 'сўм',
-    'TND': 'DT', 'DZD': 'DA', 'MAD': 'MAD',
-    'SDG': 'SDG', 'SYP': 'S£', 'YER': 'YER',
-    'KHR': '៛', 'MMK': 'K', 'BND': 'B\$',
-    'MNT': '₮', 'IRR': 'IRR',
+    'BAM': 'KM', 'ALL': 'L', 'MKD': 'ден', 'MDL': 'L',
+    // Kafkasya
+    'GEL': '₾', 'AZN': '₼', 'AMD': '֏',
+    // Okyanusya
+    'FJD': 'FJ\$', 'PGK': 'K', 'WST': 'WS\$', 'TOP': 'T\$',
   };
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -455,13 +604,22 @@ class PricingService {
       'KHR', 'MMK', 'UGX', 'TZS', 'UZS', 'IQD', 'LBP', 'SYP',
       'YER', 'SDG', 'PKR', 'BDT', 'NPR', 'LKR', 'KES', 'GHS',
       'ARS', 'NGN', 'KZT', 'RSD', 'DZD',
+      // Yeni eklenenler (önceki satırlarda zaten var olanlar
+      // tekrar edilmez — Dart const set'te duplicate yasak.)
+      'XOF', 'XAF', 'CDF', 'RWF', 'BIF', 'DJF', 'SOS', 'MGA',
+      'MWK', 'GNF', 'SLL', 'STN', 'AOA', 'MZN', 'LAK', 'KPW',
+      'PYG',
     };
 
-    // Sembol önde mi arkada mı
+    // Sembol önde mi arkada mı.
+    // Türkiye, Eurozone, Rus tipi: sayı önce, sembol arkada ("99,00 ₺").
     const symbolAfter = {
+      'TRY', 'EUR',
       'NOK', 'SEK', 'DKK', 'ISK', 'CZK', 'HUF', 'PLN', 'RON',
       'BGN', 'RSD', 'RUB', 'UAH', 'BYN', 'GEL', 'AZN', 'KZT',
       'UZS', 'TND', 'DZD', 'MAD', 'THB',
+      'BAM', 'ALL', 'MKD', 'MDL', 'AMD', 'TMT', 'KGS', 'TJS',
+      'AFN', 'LYD', 'ETB', 'BWP', 'ZMW', 'MWK', 'MZN',
     };
 
     String formatted;

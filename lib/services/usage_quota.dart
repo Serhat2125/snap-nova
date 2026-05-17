@@ -7,6 +7,7 @@
 
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'error_logger.dart';
 
 /// Kullanım türleri — her birinin ayrı kotası vardır.
 enum QuotaKind {
@@ -125,13 +126,13 @@ class UsageQuota {
       if (m['date'] == _todayKey()) {
         dailyUsed = (m['count'] as num?)?.toInt() ?? 0;
       }
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'usage_quota'); }
     try {
       final m = jsonDecode(monthlyRaw) as Map<String, dynamic>;
       if (m['month'] == _monthKey()) {
         monthlyUsed = (m['count'] as num?)?.toInt() ?? 0;
       }
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'usage_quota'); }
 
     return QuotaUsage(
       dailyUsed: dailyUsed,
@@ -154,6 +155,42 @@ class UsageQuota {
   /// Sadece sayacı artır (quota kontrolü yapmaz). Force / arka plan retry vb.
   static Future<void> increment(QuotaKind kind) => _incrementSilent(kind);
 
+  /// Sayacı 1 geri al — örn. AI çağrısı başlatıldı ama stream hiç chunk
+  /// üretmeden hata verdi → kullanıcı kotasını boşa harcamasın.
+  /// Daily ve monthly sayaçlar 0'ın altına düşmez.
+  static Future<void> decrement(QuotaKind kind) async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = _kindKey(kind);
+
+    final today = _todayKey();
+    try {
+      final raw = prefs.getString('quota_daily_$key');
+      if (raw != null) {
+        final m = jsonDecode(raw) as Map<String, dynamic>;
+        if (m['date'] == today) {
+          final c = (m['count'] as num?)?.toInt() ?? 0;
+          final next = c > 0 ? c - 1 : 0;
+          await prefs.setString('quota_daily_$key',
+              jsonEncode({'date': today, 'count': next}));
+        }
+      }
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'usage_quota'); }
+
+    final month = _monthKey();
+    try {
+      final raw = prefs.getString('quota_monthly_$key');
+      if (raw != null) {
+        final m = jsonDecode(raw) as Map<String, dynamic>;
+        if (m['month'] == month) {
+          final c = (m['count'] as num?)?.toInt() ?? 0;
+          final next = c > 0 ? c - 1 : 0;
+          await prefs.setString('quota_monthly_$key',
+              jsonEncode({'month': month, 'count': next}));
+        }
+      }
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'usage_quota'); }
+  }
+
   static Future<void> _incrementSilent(QuotaKind kind) async {
     final prefs = await SharedPreferences.getInstance();
     final key = _kindKey(kind);
@@ -169,7 +206,7 @@ class UsageQuota {
           dailyCount = (m['count'] as num?)?.toInt() ?? 0;
         }
       }
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'usage_quota'); }
     dailyCount++;
     await prefs.setString(
       'quota_daily_$key',
@@ -187,7 +224,7 @@ class UsageQuota {
           monthlyCount = (m['count'] as num?)?.toInt() ?? 0;
         }
       }
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'usage_quota'); }
     monthlyCount++;
     await prefs.setString(
       'quota_monthly_$key',

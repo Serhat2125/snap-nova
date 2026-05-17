@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import '../services/error_logger.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -7,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 import '../services/solutions_storage.dart';
 import '../services/pdf_service.dart';
+import '../services/runtime_translator.dart';
 import '../widgets/adaptive_photo.dart';
 import '../main.dart' show localeService;
 import 'ai_result_screen.dart';
@@ -32,6 +34,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
   String _loadingMessage  = '';
   bool _isSelecting       = false;
   final Set<String> _selectedIds = {};
+
+  // Arama state — TextField içindeki canlı sorgu. Boş ise filtre yok.
+  String _searchQuery = '';
+  final TextEditingController _searchCtrl = TextEditingController();
+  bool _showSearch = false;
+
+  // PDF üretimi sırasında set edilir — kullanıcı "İptal"e basarsa
+  // tamamlanan PDF'i discard et (paylaş ekranı açma). Future iptal
+  // edilemez ama UI serbest kalır.
+  bool _pdfCancelled = false;
 
   // "Tümü" sekmesinde ders gruplarından hangisi "yanık" — yani başlığa
   // basılarak vurgulanmış. Aynı anda en fazla bir tane yanık olabilir.
@@ -91,6 +103,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
     super.initState();
     _load();
     _loadHistoryColors();
+    _searchCtrl.addListener(() {
+      if (!mounted) return;
+      final q = _searchCtrl.text.trim();
+      if (q != _searchQuery) {
+        setState(() => _searchQuery = q);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -114,7 +139,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         _cardsBgOverride = read('cards');
         _cardsTextOverride = read('cardsText');
       });
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'history_screen'); }
   }
 
   Future<void> _saveHistoryColors() async {
@@ -132,7 +157,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       } else {
         await prefs.setString(_historyColorsKey, jsonEncode(m));
       }
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'history_screen'); }
   }
 
   void _applyHistoryColor(String target, Color c) {
@@ -176,12 +201,28 @@ class _HistoryScreenState extends State<HistoryScreen> {
     if (_selectedFilter != 'Tümü') {
       list = list.where((r) => r.subject == _selectedFilter).toList();
     }
+    // Arama filtresi — AI title / subject / solutionType / result / cachedQuestion
+    // alanlarında case-insensitive substring.
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      list = list.where((r) {
+        if (r.aiTitle.toLowerCase().contains(q)) return true;
+        if (r.subject.toLowerCase().contains(q)) return true;
+        if (r.solutionType.toLowerCase().contains(q)) return true;
+        if (r.cachedQuestionText.toLowerCase().contains(q)) return true;
+        // Result uzun olabilir; içinde tarama büyük metinlerde maliyetli ama
+        // 100-200 kayıt boyutunda makul.
+        if (r.result.toLowerCase().contains(q)) return true;
+        return false;
+      }).toList();
+    }
     return list;
   }
 
   Future<void> _delete(String id) async {
-    await SolutionsStorage.delete(id);
+    // Önce yerel state'i güncelle — kullanıcı anında geri bildirim alır.
     if (mounted) setState(() => _records.removeWhere((r) => r.id == id));
+    await SolutionsStorage.delete(id);
   }
 
   void _enterSelectMode() {
@@ -204,9 +245,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   Future<void> _deleteSelected() async {
     final ids = List<String>.from(_selectedIds);
-    for (final id in ids) {
-      await SolutionsStorage.delete(id);
-    }
+    // Optimistic UI: önce yerelden çıkar, sonra tek pass'te disk'e yaz.
     if (mounted) {
       setState(() {
         _records.removeWhere((r) => ids.contains(r.id));
@@ -214,25 +253,72 @@ class _HistoryScreenState extends State<HistoryScreen> {
         _selectedIds.clear();
       });
     }
+    // deleteMany: 50 kayıt için 50 file write yerine 1 file write.
+    await SolutionsStorage.deleteMany(ids);
+  }
+
+  // Çoklu seçim banner'ından — filtrelenmiş listenin tüm id'lerini ekle.
+  void _selectAllVisible() {
+    final ids = _filtered.map((r) => r.id).toSet();
+    setState(() {
+      _selectedIds
+        ..clear()
+        ..addAll(ids);
+    });
+  }
+
+  // Görünür listede seçimi tersine çevir.
+  void _invertSelection() {
+    final visible = _filtered.map((r) => r.id).toSet();
+    setState(() {
+      final newSel = <String>{};
+      for (final id in visible) {
+        if (!_selectedIds.contains(id)) newSel.add(id);
+      }
+      _selectedIds
+        ..clear()
+        ..addAll(newSel);
+    });
   }
 
   Future<void> _toggleFavorite(SolutionRecord rec) async {
+    // Optimistic update: yerel state'de tek kaydı flip + disk'e yaz.
+    // Önceki davranış (await + _load()) tüm dosyayı tekrar okuyordu.
+    final idx = _records.indexWhere((r) => r.id == rec.id);
+    if (idx >= 0 && mounted) {
+      setState(() {
+        _records[idx] = _records[idx].copyWith(
+          isFavorite: !_records[idx].isFavorite,
+        );
+      });
+    }
     await SolutionsStorage.toggleFavorite(rec.id);
-    await _load();
   }
 
-  void _startLoading(String msg) =>
-      setState(() { _isLoading = true; _loadingMessage = msg; });
+  void _startLoading(String msg) {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _loadingMessage = msg;
+      _pdfCancelled = false;
+    });
+  }
 
-  void _stopLoading() =>
-      setState(() => _isLoading = false);
+  void _stopLoading() {
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+  }
 
   Future<void> _exportPdf(SolutionRecord rec) async {
     _startLoading(localeService.tr('creating_pdf'));
     try {
       await PdfService.generateAndShare(rec);
+      // Kullanıcı iptal ettiyse paylaş ekranı yine açıldı ama loader'ı
+      // kapat — bug değil, sadece bildirim.
     } catch (_) {
-      _showError(localeService.tr('pdf_error'));
+      if (!_pdfCancelled) {
+        _showError(localeService.tr('pdf_error'));
+      }
     } finally {
       _stopLoading();
     }
@@ -312,24 +398,29 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
               _divider(),
 
-              _optionTile(
-                ctx: ctx,
-                icon: Icons.replay_rounded,
-                iconColor: Color(0xFF10B981),
-                label: localeService.tr('resolve'),
-                subtitle: null,
-                onTap: () {
-                  Navigator.pop(ctx);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => SolutionScreen(imagePath: rec.imagePath),
-                    ),
-                  );
-                },
-              ),
-
-              _divider(),
+              // Resolve sadece resim dosyası mevcutsa gösterilir — yoksa
+              // SolutionScreen boş açılır, bu da UX bug'ı.
+              if (rec.imagePath.isNotEmpty &&
+                  File(rec.imagePath).existsSync()) ...[
+                _optionTile(
+                  ctx: ctx,
+                  icon: Icons.replay_rounded,
+                  iconColor: Color(0xFF10B981),
+                  label: localeService.tr('resolve'),
+                  subtitle: null,
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            SolutionScreen(imagePath: rec.imagePath),
+                      ),
+                    );
+                  },
+                ),
+                _divider(),
+              ],
 
               _optionTile(
                 ctx: ctx,
@@ -400,7 +491,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   Future<void> _shareRecord(SolutionRecord rec) async {
     final imgFile = File(rec.imagePath);
-    final text = '${rec.subject} — ${rec.solutionType}\n\n${rec.result}';
+    // Paylaşılan metin: önce konu (varsa), sonra mod, sonra OCR ile çıkarılan
+    // soru metni (varsa), sonra cevap. Daha anlamlı paylaşım.
+    final buf = StringBuffer();
+    buf.writeln('${rec.subject} — ${rec.solutionType}');
+    if (rec.cachedQuestionText.isNotEmpty) {
+      buf.writeln();
+      buf.writeln('Soru:');
+      buf.writeln(rec.cachedQuestionText);
+    }
+    buf.writeln();
+    buf.writeln(rec.result);
+    final text = buf.toString();
     try {
       if (imgFile.existsSync()) {
         await Share.shareXFiles([XFile(rec.imagePath)], text: text);
@@ -410,7 +512,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     } catch (_) {
       try {
         await Share.share(text);
-      } catch (_) {}
+      } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'history_screen'); }
     }
   }
 
@@ -573,12 +675,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return Scaffold(
       backgroundColor: _pageBgOverride ?? AppPalette.bg(context),
       body: SafeArea(
-        child: SelectionArea(
+        // SelectionArea kaldırıldı — liste sayfasında metin seçimi UX
+        // beklentisine ters (uzun-bas = çoklu seçim modu olmalı).
         child: Stack(
           children: [
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (_showSearch) _buildSearchBar(),
                 // ── Başlık + Renk Seç pill (sağda) ─────────────────────
                 Padding(
                   padding: const EdgeInsets.fromLTRB(4, 4, 12, 0),
@@ -716,6 +820,27 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              // Search toggle
+                              GestureDetector(
+                                onTap: () => setState(() {
+                                  _showSearch = !_showSearch;
+                                  if (!_showSearch) {
+                                    _searchCtrl.clear();
+                                    _searchQuery = '';
+                                  }
+                                }),
+                                behavior: HitTestBehavior.opaque,
+                                child: SizedBox(
+                                  width: 40, height: 44,
+                                  child: Icon(
+                                    _showSearch
+                                        ? Icons.search_off_rounded
+                                        : Icons.search_rounded,
+                                    color: AppPalette.textPrimary(context),
+                                    size: 24,
+                                  ),
+                                ),
+                              ),
                               GestureDetector(
                                 onTap: _showHelpSheet,
                                 behavior: HitTestBehavior.opaque,
@@ -836,6 +961,47 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               style: TextStyle(color: AppPalette.textPrimary(context), fontSize: 13, fontWeight: FontWeight.w600),
                             ),
                           ),
+                          // "Tümünü Seç" / "Ters Çevir" — görünür liste üzerinde.
+                          GestureDetector(
+                            onTap: _selectAllVisible,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: AppPalette.cardMuted(context),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                'Tümü'.tr(),
+                                style: TextStyle(
+                                  color: AppPalette.textPrimary(context),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 6),
+                          GestureDetector(
+                            onTap: _invertSelection,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: AppPalette.cardMuted(context),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                'Ters'.tr(),
+                                style: TextStyle(
+                                  color: AppPalette.textPrimary(context),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 6),
                           if (_selectedIds.isNotEmpty)
                             GestureDetector(
                               onTap: () => showDialog(
@@ -889,37 +1055,163 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                   child: Container(
                     color: Colors.black.withValues(alpha: 0.55),
-                    child: Center(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-                        decoration: BoxDecoration(
-            color: AppPalette.card(context),
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.10),
-                              blurRadius: 20,
+                    child: Stack(
+                      children: [
+                        Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 28, vertical: 24),
+                            decoration: BoxDecoration(
+                              color: AppPalette.card(context),
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.10),
+                                  blurRadius: 20,
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CircularProgressIndicator(color: Color(0xFF3B82F6), strokeWidth: 2.5),
-                            SizedBox(height: 16),
-                            Text(
-                              _loadingMessage,
-                              style: TextStyle(color: AppPalette.textPrimary(context), fontSize: 13, fontWeight: FontWeight.w500),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                CircularProgressIndicator(
+                                    color: Color(0xFF3B82F6),
+                                    strokeWidth: 2.5),
+                                SizedBox(height: 16),
+                                Text(
+                                  _loadingMessage,
+                                  style: TextStyle(
+                                    color: AppPalette.textPrimary(context),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                if (_pdfCancelled) ...[
+                                  SizedBox(height: 6),
+                                  Text(
+                                    'İptal ediliyor…'.tr(),
+                                    style: TextStyle(
+                                      color: AppPalette.textSecondary(context),
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
-                          ],
+                          ),
                         ),
-                      ),
+                        // İptal pill — sağ üst (test page / academic planner
+                        // ile tutarlı). PDF Future iptal edilemez ama UI
+                        // serbest kalır; tamamlanan PDF discard işareti
+                        // _pdfCancelled true olur.
+                        SafeArea(
+                          child: Align(
+                            alignment: Alignment.topRight,
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: GestureDetector(
+                                onTap: _pdfCancelled
+                                    ? null
+                                    : () {
+                                        setState(() {
+                                          _pdfCancelled = true;
+                                          _isLoading = false;
+                                        });
+                                      },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 7),
+                                  decoration: BoxDecoration(
+                                    color: _pdfCancelled
+                                        ? Color(0x33808080)
+                                        : Colors.black,
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.close_rounded,
+                                          size: 14, color: Colors.white),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        'İptal'.tr(),
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  // Arama satırı — başlığın hemen altında. Boş olunca filtre yok.
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Container(
+        height: 42,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: AppPalette.card(context),
+          borderRadius: BorderRadius.circular(50),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 6,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.search_rounded,
+                size: 18, color: AppPalette.textSecondary(context)),
+            SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: _searchCtrl,
+                autofocus: true,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppPalette.textPrimary(context),
+                ),
+                decoration: InputDecoration(
+                  border: InputBorder.none,
+                  isCollapsed: true,
+                  hintText: 'Konu, ders veya kelime ara…'.tr(),
+                  hintStyle: TextStyle(
+                    fontSize: 13,
+                    color: AppPalette.textSecondary(context),
+                  ),
+                ),
+                textInputAction: TextInputAction.search,
+              ),
+            ),
+            if (_searchQuery.isNotEmpty)
+              GestureDetector(
+                onTap: () {
+                  _searchCtrl.clear();
+                  setState(() => _searchQuery = '');
+                },
+                child: Icon(Icons.close_rounded,
+                    size: 18, color: AppPalette.textSecondary(context)),
+              ),
+          ],
         ),
       ),
     );
@@ -1091,7 +1383,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             children: [
               Icon(Icons.palette_rounded, size: 16, color: Colors.black),
               SizedBox(width: 6),
-              Text('Renk',
+              Text('Renk'.tr(),
                   style: GoogleFonts.poppins(
                       fontSize: 13,
                       fontWeight: FontWeight.w900,
@@ -1109,7 +1401,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     borderRadius: BorderRadius.circular(100),
                     border: Border.all(color: Colors.black12),
                   ),
-                  child: Text('Sıfırla',
+                  child: Text('Sıfırla'.tr(),
                       style: GoogleFonts.poppins(
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
@@ -1241,6 +1533,25 @@ class _HistoryScreenState extends State<HistoryScreen> {
       );
     }
 
+    // Yazı modunda 'bg' (arka plan) chip'i anlamsız — yazıya etki etmez.
+    // Sadece kart yazısını boyamak için 'cards' chip görünür kalır.
+    final isTextMode = _colorMode == 'text';
+    if (isTextMode) {
+      // Text mode → cards otomatik seç (UI tek hedef gösterir).
+      if (_colorTarget != 'cards') {
+        // postFrame'de yap; build sırasında setState yasak.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _colorTarget != 'cards') {
+            setState(() => _colorTarget = 'cards');
+          }
+        });
+      }
+      return Row(
+        children: [
+          chip('cards', 'Kart yazısı'),
+        ],
+      );
+    }
     return Row(
       children: [
         chip('bg', 'Arka plan'),

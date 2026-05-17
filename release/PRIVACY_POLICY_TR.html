@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QuAlsar Gizlilik Politikası</title>
+  <style>
+    body { font-family: -apple-system, system-ui, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 20px; color: #111; line-height: 1.7; }
+    h1 { font-size: 28px; border-bottom: 2px solid #FF6A3C; padding-bottom: 12px; }
+    h2 { font-size: 18px; margin-top: 32px; color: #FF6A3C; }
+    p, li { font-size: 15px; }
+    .meta { color: #666; font-size: 13px; }
+    a { color: #FF6A3C; }
+    code { background: #f5f5f5; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <h1>QuAlsar — Gizlilik Politikası</h1>
+  <p class="meta">Son güncelleme: 13 Mayıs 2026 · Hizmet sağlayıcı: QuAlsar</p>
+
+  <p>QuAlsar uygulaması ("biz", "uygulama") gizliliğine önem verir. Bu politika, hangi verileri topladığımızı, nasıl kullandığımızı ve haklarını açıklar.</p>
+
+  <h2>1. Topladığımız Veriler</h2>
+  <ul>
+    <li><b>Hesap bilgileri:</b> E-posta adresin, ad-soyad (kayıt olduğunda Google/Apple/e-posta sağlar).</li>
+    <li><b>Eğitim profili:</b> Ülke, sınıf, alan/bölüm tercihi (kişiselleştirilmiş içerik için).</li>
+    <li><b>Soru fotoğrafları:</b> Çözüm için yüklediğin fotoğraflar — yalnızca AI işleme için Google Gemini'ye iletilir, sunucumuzda kalıcı saklanmaz.</li>
+    <li><b>Sesli komut:</b> Mikrofondan gelen ses cihaz üzerinde metne çevrilir (Apple/Google native API'leri). Ses dosyası sunucumuza gönderilmez.</li>
+    <li><b>Çözüm geçmişi:</b> Kullandığın AI yanıtları cihazda + Firebase Firestore'da saklanır (cihaz değişikliğinde senkron için).</li>
+    <li><b>Sıralama / konum:</b> Şehir + ülke seviyesinde (Bilgi Ligi için). Tam GPS konum verisi alınmaz.</li>
+    <li><b>Cihaz bilgisi:</b> Anonim cihaz ID, işletim sistemi, uygulama sürümü (hata raporları için).</li>
+  </ul>
+
+  <h2>2. Veri Kullanım Amaçları</h2>
+  <ul>
+    <li>AI destekli çözüm üretmek (Google Gemini API'sine sorgu göndererek).</li>
+    <li>Kişisel müfredat ve öneri çıkarmak.</li>
+    <li>Bilgi Ligi sıralama sistemini çalıştırmak.</li>
+    <li>Uygulama hatalarını tespit ve düzeltme (Firebase Crashlytics).</li>
+    <li>Premium aboneliklerini yönetmek (Google Play Billing).</li>
+  </ul>
+
+  <h2>3. Üçüncü Taraf Servisler</h2>
+  <p>Aşağıdaki güvenilir servislerle veri paylaşırız:</p>
+  <ul>
+    <li><b>Google Firebase</b> — kimlik doğrulama, veritabanı, hata raporu (kendi gizlilik politikası: <a href="https://firebase.google.com/support/privacy">firebase.google.com/support/privacy</a>)</li>
+    <li><b>Google Gemini</b> — AI çözüm üretimi (kendi gizlilik politikası: <a href="https://policies.google.com/privacy">policies.google.com/privacy</a>)</li>
+    <li><b>Google Play Billing</b> — abonelik ödemeleri</li>
+    <li><b>Apple Sign-In / Google Sign-In</b> — kimlik doğrulama</li>
+  </ul>
+
+  <h2>4. Veri Saklama Süresi</h2>
+  <ul>
+    <li>Hesap bilgileri: hesap aktif olduğu sürece.</li>
+    <li>Çözüm fotoğrafları: işlem tamamlandıktan sonra silinir (sunucuda saklanmaz).</li>
+    <li>Çözüm geçmişi: kendin sildiğin sürece kalıcı.</li>
+    <li>Hata raporları: 90 gün (Firebase varsayılan).</li>
+  </ul>
+
+  <h2>5. Çocukların Gizliliği</h2>
+  <p>Uygulama 13 yaş altı kullanıcılar için tasarlanmamıştır. 13 yaş altı kullanıcılardan bilinçli olarak kişisel veri toplamayız. Veliler, çocuklarının uygulamayı kullanmasından önce bu politikayı incelemelidir.</p>
+
+  <h2>6. Haklarınız (KVKK & GDPR)</h2>
+  <p>Aşağıdaki haklara sahipsin:</p>
+  <ul>
+    <li>Verilerinin hangi amaçla işlendiğini öğrenme</li>
+    <li>Verilerinin bir kopyasını talep etme</li>
+    <li>Yanlış verilerin düzeltilmesini isteme</li>
+    <li>Hesabını silme (uygulama içi "Hesabı Sil" + tüm Firestore verilerin temizlenir)</li>
+    <li>Veri işlemeye itiraz etme</li>
+  </ul>
+
+  <h2>7. Veri Güvenliği</h2>
+  <ul>
+    <li>Tüm iletişim HTTPS/TLS şifreli.</li>
+    <li>Firebase Firestore güvenlik kuralları kullanıcıyı kendi verisine kısıtlar.</li>
+    <li>AI API çağrıları sunucu tarafı proxy üzerinden yapılır (anahtarlar APK'da saklanmaz).</li>
+  </ul>
+
+  <h2>8. Politika Değişiklikleri</h2>
+  <p>Bu politikayı zaman zaman güncelleyebiliriz. Önemli değişiklikler uygulama içinde duyurulur.</p>
+
+  <h2>9. İletişim</h2>
+  <p>Sorularınız için: <a href="mailto:serhatdsme@gmail.com">serhatdsme@gmail.com</a></p>
+</body>
+</html>

@@ -5,6 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../services/error_logger.dart';
+import '../../../services/geolocation_service.dart';
 import '../../../services/runtime_translator.dart';
 import '../data/location_catalog.dart';
 import '../domain/user_location.dart';
@@ -71,19 +73,54 @@ class LocationState {
   }
 }
 
-/// Mock geo-IP servisi — production'da bir HTTPS endpoint
-/// (örn. ipapi.co/json) ile değiştirilir. İmza aynı kalır.
-class _MockGeoIpService {
+/// Geo-IP konum tespiti — GeolocationService (ipapi.co + 2 yedek) kullanır.
+/// Ağ yoksa veya hata olursa Türkiye/İstanbul'a düşer (kullanıcı dropdown'dan
+/// değiştirebilir; bu sadece ilk varsayılan).
+class _AutoLocationDetector {
   static Future<UserLocation> detect() async {
-    // Gerçek IP lookup'ı simüle eden kısa gecikme
-    await Future<void>.delayed(Duration(milliseconds: 700));
-    // Varsayılan: Türkiye / İstanbul
+    try {
+      final info = await GeolocationService.resolve();
+      if (info != null && info.country.isNotEmpty) {
+        final cc = info.country.toUpperCase();
+        // GeolocationService alpha-2 country code döndürür; LocationCatalog
+        // ile eşleştirip yerel adını çek.
+        final entry = LocationCatalog.countries.firstWhere(
+          (c) => c.code == cc,
+          orElse: () => LocationCatalog.countries.first,
+        );
+        final countryName = entry.code == cc ? entry.name : cc;
+        final cityRaw = (info.extra['city'] as String?) ?? '';
+        final cityName = cityRaw.isEmpty ? _defaultCityFor(cc) : cityRaw;
+        return UserLocation(
+          country: countryName,
+          countryCode: cc,
+          city: cityName,
+          cityCode: cityName.toLowerCase().replaceAll(' ', '-'),
+        );
+      }
+    } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'auto_location_detector');
+    }
+    // Fallback: Türkiye/İstanbul (kullanıcı sonra değiştirebilir)
     return UserLocation(
       country: 'Türkiye',
       countryCode: 'TR',
       city: 'İstanbul',
       cityCode: 'istanbul',
     );
+  }
+
+  static String _defaultCityFor(String countryCode) {
+    // Çok temel — sadece coğrafi popülerlik için. Gerçek şehir API'den gelmezse
+    // kullanıcıdan seçmesini isteyeceğiz.
+    return const {
+      'TR': 'İstanbul',
+      'US': 'New York',
+      'DE': 'Berlin',
+      'FR': 'Paris',
+      'GB': 'London',
+      'JP': 'Tokyo',
+    }[countryCode] ?? '';
   }
 }
 
@@ -114,7 +151,7 @@ class LocationController extends StateNotifier<LocationState> {
 
   Future<void> _autoDetect() async {
     try {
-      final loc = await _MockGeoIpService.detect();
+      final loc = await _AutoLocationDetector.detect();
       if (!mounted) return;
       state = state.copyWith(
         detected: loc,

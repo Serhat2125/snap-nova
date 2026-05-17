@@ -3,7 +3,7 @@ description: "A new Flutter project."
 
 publish_to: 'none'
 
-version: 0.1.0+1
+version: 1.0.0+14
 
 environment:
   sdk: '>=3.2.3 <4.0.0'
@@ -54,12 +54,15 @@ dependencies:
   firebase_auth: ^5.3.0
   firebase_analytics: ^11.3.0
   firebase_crashlytics: ^4.1.0
+  firebase_app_check: ^0.3.2
   cloud_firestore: ^5.4.0
   google_sign_in: ^6.2.1
   sign_in_with_apple: ^6.1.4
 
   # Media & Links
   url_launcher: ^6.2.0
+  # App versiyonu (Bilgi/About ekranı için)
+  package_info_plus: ^8.0.0
 
   # PDF
   pdf: ^3.10.8
@@ -78,6 +81,14 @@ dependencies:
   # State management — yeni feature katmanları için (eski setState'lere
   # dokunulmuyor; sadece yeni özellikler Riverpod kullanıyor).
   flutter_riverpod: ^2.5.1
+
+  # 3D model görüntüleyici — Mars ekranı (Earth/Astronaut) ve Çalışma
+  # Arkadaşım (robot avatarlar) için. WebView tabanlı, .glb/.gltf destekler.
+  model_viewer_plus: ^1.9.0
+
+  # Google Play Billing + App Store StoreKit — premium abone akışı.
+  # Production'da MockPaymentScreen yerine SubscriptionService kullanılıyor.
+  in_app_purchase: ^3.2.0
 
 dev_dependencies:
   flutter_test:

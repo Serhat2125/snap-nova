@@ -1,3 +1,4 @@
+import '../services/error_logger.dart';
 import '../services/runtime_translator.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -277,7 +278,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
       _photoBgN.value   = read('photo');
       _cardsBgN.value   = read('cards');
       _cardsTextN.value = read('cardsText');
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'solution_screen'); }
   }
 
   Future<void> _saveResultColors() async {
@@ -296,7 +297,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
       } else {
         await prefs.setString(_resultColorsKey, jsonEncode(m));
       }
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'solution_screen'); }
   }
 
   void _applyResultColor(String target, Color c) {
@@ -326,7 +327,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
     try {
       final f = File(widget.imagePath);
       if (await f.exists()) await f.delete();
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'solution_screen'); }
     if (mounted) Navigator.pop(context);
   }
 

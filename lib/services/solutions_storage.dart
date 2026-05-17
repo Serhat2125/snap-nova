@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'error_logger.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -120,9 +123,39 @@ class SolutionsStorage {
   static const _fileName = 'snap_nova_solutions.json';
   static const _imagesDir = 'snap_nova_images';
 
+  // Tüm read-modify-write işlemleri bu kuyruğa girer — concurrent
+  // saveOrUpdate / toggleFavorite / delete çağrıları arasında race
+  // condition oluşmasını engeller. Future zincirli.
+  static Future<void> _writeLock = Future.value();
+  static Future<T> _serialize<T>(Future<T> Function() task) {
+    final prev = _writeLock;
+    final c = Completer<T>();
+    _writeLock = prev.then((_) async {
+      try {
+        final r = await task();
+        c.complete(r);
+      } catch (e, st) {
+        c.completeError(e, st);
+      }
+    });
+    return c.future;
+  }
+
   static Future<File> _file() async {
     final dir = await getApplicationDocumentsDirectory();
     return File('${dir.path}/$_fileName');
+  }
+
+  // Tek kaydı parse et — fail olursa null döner ki dış parser onu skip
+  // edebilsin. Partial recovery için kritik: tek bozuk kayıt tüm history'yi
+  // uçurmasın.
+  static SolutionRecord? _parseOne(dynamic raw) {
+    try {
+      return SolutionRecord.fromJson(raw as Map<String, dynamic>);
+    } catch (e) {
+      debugPrint('[SolutionsStorage] bozuk kayıt skip: $e');
+      return null;
+    }
   }
 
   /// Geçici kamera/galeri fotoğrafını kalıcı uygulama klasörüne kopyalar.
@@ -150,93 +183,192 @@ class SolutionsStorage {
     }
   }
 
+  /// Tüm kayıtları yükler. JSON corrupt veya tek tek kayıt bozuk olursa
+  /// PARTIAL RECOVERY uygular: geçerli kayıtları döndürür, bozuk olanları
+  /// atlar — kullanıcı tek byte hatası yüzünden tüm history'yi kaybetmez.
   static Future<List<SolutionRecord>> loadAll() async {
     try {
       final f = await _file();
       if (!await f.exists()) return [];
       final raw = await f.readAsString();
-      final list = jsonDecode(raw) as List;
-      final records = list
-          .map((e) => SolutionRecord.fromJson(e as Map<String, dynamic>))
-          .toList();
+      if (raw.trim().isEmpty) return [];
+      final dynamic decoded;
+      try {
+        decoded = jsonDecode(raw);
+      } catch (e) {
+        debugPrint('[SolutionsStorage] JSON parse fail: $e — kayıtlar boş döner');
+        return [];
+      }
+      if (decoded is! List) return [];
+      // Tek tek parse — bozuk kayıtları atla.
+      final records = <SolutionRecord>[];
+      for (final raw in decoded) {
+        final r = _parseOne(raw);
+        if (r != null) records.add(r);
+      }
       records.sort((a, b) => b.timestamp.compareTo(a.timestamp));
       return records;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[SolutionsStorage] loadAll fatal: $e');
       return [];
     }
   }
 
-  static Future<void> saveOrUpdate(SolutionRecord record) async {
-    try {
-      final records = await loadAll();
-      final idx = records.indexWhere((r) => r.id == record.id);
-      if (idx >= 0) {
-        records[idx] = record;
-      } else {
-        records.insert(0, record);
-      }
-      final f = await _file();
-      await f.writeAsString(
-          jsonEncode(records.map((r) => r.toJson()).toList()));
-    } catch (_) {}
+  // Yardımcı: records listesini JSON'a serialize edip dosyaya yaz.
+  static Future<void> _writeAll(List<SolutionRecord> records) async {
+    final f = await _file();
+    await f.writeAsString(
+        jsonEncode(records.map((r) => r.toJson()).toList()));
   }
 
-  static Future<void> delete(String id) async {
-    try {
-      final records = await loadAll();
-      final idx = records.indexWhere((r) => r.id == id);
-      if (idx >= 0) {
+  static Future<void> saveOrUpdate(SolutionRecord record) {
+    return _serialize(() async {
+      try {
+        final records = await loadAll();
+        final idx = records.indexWhere((r) => r.id == record.id);
+        if (idx >= 0) {
+          records[idx] = record;
+        } else {
+          records.insert(0, record);
+        }
+        await _writeAll(records);
+      } catch (e) {
+        debugPrint('[SolutionsStorage] saveOrUpdate fail: $e');
+      }
+    });
+  }
+
+  static Future<void> delete(String id) {
+    return _serialize(() async {
+      try {
+        final records = await loadAll();
+        final idx = records.indexWhere((r) => r.id == id);
+        if (idx < 0) return;
         final rec = records[idx];
+        // ÖNCE JSON'dan çıkar + yaz — bu kritik veri. JSON yazma başarısızsa
+        // resmi de silme (rollback yok ama tutarsız kalmaz). Yazma başarılıysa
+        // resmi sonra sil — orphan kalsa bile cleanOrphans toparlar.
+        records.removeAt(idx);
+        await _writeAll(records);
         try {
           final imgFile = File(rec.imagePath);
           if (await imgFile.exists()) await imgFile.delete();
-        } catch (_) {}
-        records.removeAt(idx);
+        } catch (_) {/* orphan kalsa cleanOrphans toparlar */}
+      } catch (e) {
+        debugPrint('[SolutionsStorage] delete fail: $e');
       }
-      final f = await _file();
-      await f.writeAsString(
-          jsonEncode(records.map((r) => r.toJson()).toList()));
-    } catch (_) {}
+    });
   }
 
-  static Future<void> toggleFavorite(String id) async {
-    try {
-      final records = await loadAll();
-      final idx = records.indexWhere((r) => r.id == id);
-      if (idx < 0) return;
-      records[idx] = records[idx].copyWith(isFavorite: !records[idx].isFavorite);
-      final f = await _file();
-      await f.writeAsString(
-          jsonEncode(records.map((r) => r.toJson()).toList()));
-    } catch (_) {}
+  /// Toplu silme — tek bir read+write pass'inde N kayıt siler. Bulk operasyon
+  /// için N kez delete() çağırmaktan ~N× hızlı.
+  static Future<void> deleteMany(Iterable<String> ids) {
+    final idSet = ids.toSet();
+    if (idSet.isEmpty) return Future.value();
+    return _serialize(() async {
+      try {
+        final records = await loadAll();
+        final toRemove = <SolutionRecord>[];
+        records.removeWhere((r) {
+          if (idSet.contains(r.id)) {
+            toRemove.add(r);
+            return true;
+          }
+          return false;
+        });
+        await _writeAll(records);
+        // Resimleri arka planda sil — yarısı fail etse orphan kalır, OK.
+        for (final r in toRemove) {
+          try {
+            final f = File(r.imagePath);
+            if (await f.exists()) await f.delete();
+          } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'solutions_storage'); }
+        }
+      } catch (e) {
+        debugPrint('[SolutionsStorage] deleteMany fail: $e');
+      }
+    });
+  }
+
+  static Future<void> toggleFavorite(String id) {
+    return _serialize(() async {
+      try {
+        final records = await loadAll();
+        final idx = records.indexWhere((r) => r.id == id);
+        if (idx < 0) return;
+        records[idx] =
+            records[idx].copyWith(isFavorite: !records[idx].isFavorite);
+        await _writeAll(records);
+      } catch (e) {
+        debugPrint('[SolutionsStorage] toggleFavorite fail: $e');
+      }
+    });
   }
 
   /// OCR ile çıkarılan soru metnini kaydeder (paylaşımı hızlandırmak için).
-  static Future<void> saveQuestionText(String id, String questionText) async {
-    try {
-      final records = await loadAll();
-      final idx = records.indexWhere((r) => r.id == id);
-      if (idx < 0) return;
-      records[idx] = records[idx].copyWith(cachedQuestionText: questionText);
-      final f = await _file();
-      await f.writeAsString(
-          jsonEncode(records.map((r) => r.toJson()).toList()));
-    } catch (_) {}
+  static Future<void> saveQuestionText(String id, String questionText) {
+    return _serialize(() async {
+      try {
+        final records = await loadAll();
+        final idx = records.indexWhere((r) => r.id == id);
+        if (idx < 0) return;
+        records[idx] =
+            records[idx].copyWith(cachedQuestionText: questionText);
+        await _writeAll(records);
+      } catch (e) {
+        debugPrint('[SolutionsStorage] saveQuestionText fail: $e');
+      }
+    });
   }
 
   /// Belirli bir kayda Study Suite JSON'unu kalıcı olarak yaz.
   /// Kayıt yoksa sessizce atlar.
   static Future<void> saveStudySuite(
-      String id, Map<String, dynamic> suite) async {
-    try {
-      final records = await loadAll();
-      final idx = records.indexWhere((r) => r.id == id);
-      if (idx < 0) return;
-      records[idx] = records[idx].copyWith(studySuite: suite);
-      final f = await _file();
-      await f.writeAsString(
-          jsonEncode(records.map((r) => r.toJson()).toList()));
-    } catch (_) {}
+      String id, Map<String, dynamic> suite) {
+    return _serialize(() async {
+      try {
+        final records = await loadAll();
+        final idx = records.indexWhere((r) => r.id == id);
+        if (idx < 0) return;
+        records[idx] = records[idx].copyWith(studySuite: suite);
+        await _writeAll(records);
+      } catch (e) {
+        debugPrint('[SolutionsStorage] saveStudySuite fail: $e');
+      }
+    });
+  }
+
+  /// Disk'te tutulan resim klasörünü tarayıp JSON'daki kayıtlarla
+  /// eşleşmeyen dosyaları siler. Cache clear, copy fail, eski sürümden
+  /// kalan dosyalar gibi orphan'ları temizler. Düşük öncelik — uygulama
+  /// açılışında ya da manuel "Önbelleği Temizle" akışında çağrılır.
+  /// Döndürdüğü sayı silinen dosya adedi.
+  static Future<int> cleanOrphans() async {
+    return _serialize(() async {
+      int removed = 0;
+      try {
+        final docs = await getApplicationDocumentsDirectory();
+        final dirPath = '${docs.path}/$_imagesDir';
+        final dir = Directory(dirPath);
+        if (!await dir.exists()) return 0;
+        final records = await loadAll();
+        final referenced = records
+            .map((r) => r.imagePath)
+            .where((p) => p.isNotEmpty)
+            .toSet();
+        await for (final entity in dir.list()) {
+          if (entity is File && !referenced.contains(entity.path)) {
+            try {
+              await entity.delete();
+              removed++;
+            } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'solutions_storage'); }
+          }
+        }
+      } catch (e) {
+        debugPrint('[SolutionsStorage] cleanOrphans fail: $e');
+      }
+      return removed;
+    });
   }
 
   /// Belirli bir kayda kayıtlı Study Suite varsa getirir, yoksa null.

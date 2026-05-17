@@ -3,6 +3,11 @@
 *.log
 *.pyc
 *.swp
+
+# Firebase local cache + backup files
+.firebase/
+*.old
+*.json.old
 .DS_Store
 .atom/
 .build/
@@ -17,6 +22,16 @@ tool/
 *.backup
 *.backup-*
 *.bak
+
+# ─── Release signing (Google Play AAB) ────────────────────────────────────────
+# Keystore + şifre dosyası ASLA commit edilmez. Template dosyası
+# (key.properties.template) commit edilir; gerçek key.properties + .jks
+# yerel ve yedekli olmalı.
+android/key.properties
+android/app/key.jks
+android/app/key.keystore
+*.jks
+*.keystore
 
 # IntelliJ related
 *.iml

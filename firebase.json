@@ -1,1 +1,59 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"qualsar2-640f0","appId":"1:828607169326:android:ffe38e85f1c1f0de50b0bf","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"qualsar2-640f0","configurations":{"android":"1:828607169326:android:ffe38e85f1c1f0de50b0bf","ios":"1:828607169326:ios:f9ea118c720e803b50b0bf"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "qualsar2-640f0",
+          "appId": "1:828607169326:android:5618df0dea5ff94950b0bf",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "qualsar2-640f0",
+          "configurations": {
+            "android": "1:828607169326:android:5618df0dea5ff94950b0bf",
+            "ios": "1:828607169326:ios:f9ea118c720e803b50b0bf"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "hosting": {
+    "public": "hosting",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "cleanUrls": true,
+    "trailingSlash": false,
+    "headers": [
+      {
+        "source": "**/*.html",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=3600" }
+        ]
+      }
+    ]
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log"
+      ],
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run build"
+      ]
+    }
+  ]
+}

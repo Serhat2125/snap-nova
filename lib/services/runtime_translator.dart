@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'error_logger.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'locale_service.dart';
@@ -72,20 +73,33 @@ class RuntimeTranslator extends ChangeNotifier {
       try {
         final list = jsonDecode(seenRaw) as List;
         _seen.addAll(list.map((e) => e.toString()));
-      } catch (_) {}
+      } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'runtime_translator'); }
     }
-    // Desteklenen dillerin cachelerini yükle
-    for (final lang in LocaleService.supportedLocales) {
-      final raw = _prefs!.getString('$_prefCachePrefix$lang');
-      if (raw == null) continue;
-      try {
-        final map = jsonDecode(raw) as Map<String, dynamic>;
-        _cache[lang] =
-            map.map((k, v) => MapEntry(k, v?.toString() ?? ''));
-      } catch (_) {}
+    // ESKİ: 55 dilin cache'ini ana thread'de jsonDecode ederdi — büyük
+    // cache'lerde 1-2sn donma. ŞİMDİ: lazy — sadece aktif dilin cache'i
+    // ihtiyaç anında `_ensureLangLoaded` ile yüklenir.
+    final active = LocaleService.global?.localeCode ?? _sourceLang;
+    if (active != _sourceLang) {
+      _ensureLangLoaded(active);
     }
-    _log('init: ${_seen.length} seen · '
-        '${_cache.entries.map((e) => "${e.key}:${e.value.length}").join(", ")}');
+    _log('init: ${_seen.length} seen · lazy lang load');
+  }
+
+  /// Belirtilen dilin SharedPreferences cache'ini lazy yükler. Cache zaten
+  /// bellekteyse no-op; yoksa jsonDecode + bellek map'e yazar.
+  void _ensureLangLoaded(String lang) {
+    if (_cache.containsKey(lang)) return;
+    final raw = _prefs?.getString('$_prefCachePrefix$lang');
+    if (raw == null) {
+      _cache[lang] = {};
+      return;
+    }
+    try {
+      final map = jsonDecode(raw) as Map<String, dynamic>;
+      _cache[lang] = map.map((k, v) => MapEntry(k, v?.toString() ?? ''));
+    } catch (_) {
+      _cache[lang] = {};
+    }
   }
 
   /// Bir kaynak string'i "görüldü" olarak işaretle (ileride preload eder).
@@ -133,6 +147,8 @@ class RuntimeTranslator extends ChangeNotifier {
   String lookup(String source) {
     final lang = LocaleService.global?.localeCode ?? _sourceLang;
     if (lang == _sourceLang) return source;
+    // Lazy: aktif dil cache'i henüz yüklenmediyse şimdi yükle.
+    _ensureLangLoaded(lang);
     final byLang = _cache[lang];
     if (byLang == null) return source;
     final hit = byLang[source];
@@ -340,7 +356,7 @@ Output (JSON array only):'''
     try {
       final decoded = jsonDecode(s);
       if (decoded is List) return decoded.map((e) => e.toString()).toList();
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'runtime_translator'); }
     return null;
   }
 
@@ -369,7 +385,7 @@ Output (JSON array only):'''
     _dirty = false;
     try {
       await _prefs!.setString(_prefSeenKey, jsonEncode(_seen.toList()));
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'runtime_translator'); }
   }
 
   Future<void> _persistLang(String lang) async {
@@ -379,7 +395,7 @@ Output (JSON array only):'''
     try {
       await _prefs!.setString(
           '$_prefCachePrefix$lang', jsonEncode(map));
-    } catch (_) {}
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'runtime_translator'); }
   }
 
   void _log(String msg) {

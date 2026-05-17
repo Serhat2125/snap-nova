@@ -1,12 +1,28 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:model_viewer_plus/model_viewer_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
-import '../theme/app_theme.dart';
+import '../services/pomodoro_stats.dart';
+import '../services/runtime_translator.dart';
+import 'academic_planner.dart' show logPomodoroSessionToCalendar;
+
+// qualsar.app — paylaşım kartlarındaki QR kod ve attribution linki için.
+const String _kQualsarShareUrl = 'https://qualsar.app';
+
+// Mars ekranı header'ındaki 3D figür. Public CDN; assets/3d/earth.glb
+// dosyası eklenince burayı 'assets/3d/earth.glb' olarak güncelle.
+const String _kEarthGlbUrl =
+    'https://modelviewer.dev/shared-assets/models/Astronaut.glb';
 // ═══════════════════════════════════════════════════════════════════════════════
 //  QuAlsarMarsScreen — Gerçekçi QuAlsar kolonisi pomodoro, 4 aşama:
 //    1) Starship inişi + 3 astronot + yaşam kubbesi
@@ -26,12 +42,15 @@ enum _PhaseKind { phase1, break1, phase2, break2, phase3, break3, phase4, done }
 
 class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
     with TickerProviderStateMixin, WidgetsBindingObserver {
-  // ── Mod değişkenleri (istek gereği bu isimlerle) ────────────────────────────
-  bool test_mode = true;
-  bool pro_mode = false;
+  // ── Mod değişkenleri ────────────────────────────────────────────────────────
+  bool _testMode = true;
+  bool _proMode = false;
 
-  int get _phaseSec => pro_mode ? 25 * 60 : 5 * 60;
-  int get _breakSec => pro_mode ? 5 * 60 : 1 * 60;
+  int get _phaseSec => _proMode ? 25 * 60 : 5 * 60;
+  int get _breakSec => _proMode ? 5 * 60 : 1 * 60;
+
+  // Yeni kazanılan rozetler — Victory dialog'ta gösterilecek.
+  final List<String> _newlyEarnedBadges = [];
 
   // ── Sayaç durumu ───────────────────────────────────────────────────────────
   _PhaseKind _phase = _PhaseKind.phase1;
@@ -147,8 +166,13 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (!_running) return;
+    // SADECE gerçek background (paused/hidden) sinyal kaybı tetikler.
+    // `inactive` iOS'ta notification merkezi açılınca / kontrol merkezi
+    // sürüklendiğinde de gelir — bu kadarcık eylemde alarm tetiklemek
+    // çok agresif. Kullanıcı app içinde, sadece uyarılı durumlar için
+    // ceza yiyor.
     if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive) {
+        state == AppLifecycleState.hidden) {
       _triggerSignalLoss();
     } else if (state == AppLifecycleState.resumed) {
       _recoverSignal();
@@ -243,12 +267,16 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
   void _advance() {
     _ticker?.cancel();
     HapticFeedback.heavyImpact();
+    SystemSound.play(SystemSoundType.alert);
+    // Bir focus fazı bittiyse: takvime yaz + istatistiğe kaydet + rozet.
+    String? finishedPhaseId;
     setState(() {
       _running = false;
       WakelockPlus.disable();
       switch (_phase) {
         case _PhaseKind.phase1:
           _p1 = 1;
+          finishedPhaseId = 'mars_phase1';
           _phase = _PhaseKind.break1;
           _timeLeft = _totalTime = _breakSec;
           break;
@@ -258,6 +286,7 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
           break;
         case _PhaseKind.phase2:
           _p2 = 1;
+          finishedPhaseId = 'mars_phase2';
           _phase = _PhaseKind.break2;
           _timeLeft = _totalTime = _breakSec;
           break;
@@ -267,6 +296,7 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
           break;
         case _PhaseKind.phase3:
           _p3 = 1;
+          finishedPhaseId = 'mars_phase3';
           _phase = _PhaseKind.break3;
           _timeLeft = _totalTime = _breakSec;
           break;
@@ -276,14 +306,103 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
           break;
         case _PhaseKind.phase4:
           _p4 = 1;
+          finishedPhaseId = 'mars_phase4';
           _phase = _PhaseKind.done;
           _done = true;
-          _showVictoryCard();
           break;
         case _PhaseKind.done:
           break;
       }
     });
+    if (finishedPhaseId != null) {
+      _recordFinishedFocusPhase(finishedPhaseId!);
+    }
+    if (_done) {
+      _showVictoryCard();
+    }
+  }
+
+  /// Bir focus fazı tamamlandığında: çalışma takvimine yaz, kalıcı
+  /// istatistikleri güncelle, rozet kontrolü yap. Hepsi arka planda.
+  Future<void> _recordFinishedFocusPhase(String phaseId) async {
+    final dur = _phaseSec;
+    // Takvime yaz (Pomodoro/Odak Seansı kategorisinde).
+    unawaited(logPomodoroSessionToCalendar(
+      durationSec: dur,
+      label: 'Mars · ${_phaseSecondsToLabel(phaseId)}',
+    ));
+    // Stats güncelle + rozet kontrol.
+    final snap = await PomodoroStats.recordFocusPhase(durationSec: dur);
+    final badges = <String>[phaseId];
+    // 4 faz tamamlandıysa koloni kurucusu.
+    if (_done) badges.add('mars_complete');
+    // Total milestone'lar.
+    if (snap.totalPhases >= 100) {
+      badges.add('total_100');
+    } else if (snap.totalPhases >= 50) {
+      badges.add('total_50');
+    } else if (snap.totalPhases >= 10) {
+      badges.add('total_10');
+    }
+    // Streak milestone'lar.
+    if (snap.streakDays >= 30) {
+      badges.add('streak_30');
+    } else if (snap.streakDays >= 7) {
+      badges.add('streak_7');
+    } else if (snap.streakDays >= 3) {
+      badges.add('streak_3');
+    }
+    final newOnes = await PomodoroStats.awardBadges(badges);
+    if (!mounted) return;
+    if (newOnes.isNotEmpty) {
+      _newlyEarnedBadges.addAll(newOnes);
+      if (!_done) {
+        // Faz arası rozet bildirimi (snackbar).
+        _showBadgeSnack(newOnes);
+      }
+    }
+  }
+
+  String _phaseSecondsToLabel(String phaseId) {
+    switch (phaseId) {
+      case 'mars_phase1':
+        return 'İniş'.tr();
+      case 'mars_phase2':
+        return 'Sera'.tr();
+      case 'mars_phase3':
+        return 'Yaşam Destek'.tr();
+      case 'mars_phase4':
+        return 'İletişim'.tr();
+    }
+    return 'Faz'.tr();
+  }
+
+  void _showBadgeSnack(List<String> ids) {
+    if (!mounted) return;
+    final emojis = ids
+        .map((id) => findPomodoroBadge(id)?.emoji ?? '🏅')
+        .join(' ');
+    final names = ids
+        .map((id) => findPomodoroBadge(id)?.title.tr() ?? id)
+        .join(', ');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: const Color(0xFF1E0A22),
+        content: Row(
+          children: [
+            Text(emojis, style: const TextStyle(fontSize: 18)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '${'Rozet kazandın'.tr()}: $names',
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   void _triggerSignalLoss() {
@@ -339,9 +458,16 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
   }
 
   void _showVictoryCard() {
-    Future.delayed(const Duration(milliseconds: 600), () {
+    Future.delayed(const Duration(milliseconds: 600), () async {
       if (!mounted) return;
-      showDialog(context: context, builder: (_) => const _VictoryDialog());
+      final newBadges = List<String>.from(_newlyEarnedBadges);
+      _newlyEarnedBadges.clear();
+      await showDialog<void>(
+        context: context,
+        builder: (_) => _VictoryDialog(newBadges: newBadges),
+      );
+      if (!mounted) return;
+      _reset(); // sayfayı sıralama 1. faza döndür
     });
   }
 
@@ -354,19 +480,19 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
   String get _phaseTitle {
     switch (_phase) {
       case _PhaseKind.phase1:
-        return 'AŞAMA 1 · İNİŞ & KUBBE';
+        return 'AŞAMA 1 · İNİŞ & KUBBE'.tr();
       case _PhaseKind.phase2:
-        return 'AŞAMA 2 · SERA';
+        return 'AŞAMA 2 · SERA'.tr();
       case _PhaseKind.phase3:
-        return 'AŞAMA 3 · YAŞAM DESTEK';
+        return 'AŞAMA 3 · YAŞAM DESTEK'.tr();
       case _PhaseKind.phase4:
-        return 'AŞAMA 4 · İLETİŞİM';
+        return 'AŞAMA 4 · İLETİŞİM'.tr();
       case _PhaseKind.break1:
       case _PhaseKind.break2:
       case _PhaseKind.break3:
-        return 'MOLA';
+        return 'MOLA'.tr();
       case _PhaseKind.done:
-        return 'KOLONİ KURULDU';
+        return 'KOLONİ KURULDU'.tr();
     }
   }
 
@@ -374,36 +500,36 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
     final p = _progress;
     switch (_phase) {
       case _PhaseKind.phase1:
-        if (p < 0.18) return 'Starship atmosfere giriyor…';
-        if (p < 0.26) return 'Belly-flop: retro-burn ateşleniyor…';
-        if (p < 0.32) return 'Motorlar yakıt yakıyor, iniş dikeyleşiyor…';
-        if (p < 0.40) return 'Ayaklar açılıyor, yumuşak iniş.';
-        if (p < 0.55) return 'Airlock açıldı, mürettebat iniyor…';
-        if (p < 0.80) return 'Astronotlar Habitat\'ı kuruyor…';
-        return 'Modül basınçlandı, ışıklar yanıyor.';
+        if (p < 0.18) return 'Starship atmosfere giriyor…'.tr();
+        if (p < 0.26) return 'Belly-flop: retro-burn ateşleniyor…'.tr();
+        if (p < 0.32) return 'Motorlar yakıt yakıyor, iniş dikeyleşiyor…'.tr();
+        if (p < 0.40) return 'Ayaklar açılıyor, yumuşak iniş.'.tr();
+        if (p < 0.55) return 'Airlock açıldı, mürettebat iniyor…'.tr();
+        if (p < 0.80) return 'Astronotlar Habitat\'ı kuruyor…'.tr();
+        return 'Modül basınçlandı, ışıklar yanıyor.'.tr();
       case _PhaseKind.phase2:
-        if (p < 0.20) return 'Sera çelik iskeleti kuruluyor…';
-        if (p < 0.45) return 'Panelli cam kaplama ekleniyor…';
-        if (p < 0.70) return 'Hidroponik raflar dolduruluyor…';
-        if (p < 0.90) return 'Buğday, domates, marul, biber yetişiyor!';
-        return 'İlk hasat toplanıyor.';
+        if (p < 0.20) return 'Sera çelik iskeleti kuruluyor…'.tr();
+        if (p < 0.45) return 'Panelli cam kaplama ekleniyor…'.tr();
+        if (p < 0.70) return 'Hidroponik raflar dolduruluyor…'.tr();
+        if (p < 0.90) return 'Buğday, domates, marul, biber yetişiyor!'.tr();
+        return 'İlk hasat toplanıyor.'.tr();
       case _PhaseKind.phase3:
-        if (p < 0.30) return 'Sondaj kulesi konumlandırıldı…';
-        if (p < 0.55) return 'Buz tabakasına sondaj sürüyor…';
-        if (p < 0.80) return 'Su buharı çıkıyor, jeneratörler bağlandı…';
-        return 'O₂ ve H₂O stokları dolduruluyor.';
+        if (p < 0.30) return 'Sondaj kulesi konumlandırıldı…'.tr();
+        if (p < 0.55) return 'Buz tabakasına sondaj sürüyor…'.tr();
+        if (p < 0.80) return 'Su buharı çıkıyor, jeneratörler bağlandı…'.tr();
+        return 'O₂ ve H₂O stokları dolduruluyor.'.tr();
       case _PhaseKind.phase4:
-        if (p < 0.30) return 'Teleskopik anten yükseliyor…';
-        if (p < 0.70) return 'Çanak Dünya\'ya odaklanıyor…';
-        return 'Dünya\'ya lazer sinyali gönderiliyor…';
+        if (p < 0.30) return 'Teleskopik anten yükseliyor…'.tr();
+        if (p < 0.70) return 'Çanak Dünya\'ya odaklanıyor…'.tr();
+        return 'Dünya\'ya lazer sinyali gönderiliyor…'.tr();
       case _PhaseKind.break1:
-        return 'Basınç eşitlendi. İlk güvenli bölge kuruldu.';
+        return 'Basınç eşitlendi. İlk güvenli bölge kuruldu.'.tr();
       case _PhaseKind.break2:
-        return 'İlk hasat yetişti. QuAlsar artık nefes alıyor.';
+        return 'İlk hasat yetişti. QuAlsar artık nefes alıyor.'.tr();
       case _PhaseKind.break3:
-        return 'Oksijen ve su stokları %100. Hayati risk atlatıldı.';
+        return 'Oksijen ve su stokları %100. Hayati risk atlatıldı.'.tr();
       case _PhaseKind.done:
-        return 'BAĞLANTI KURULDU. QuAlsar Koloni Kurucusu.';
+        return 'BAĞLANTI KURULDU. QuAlsar Koloni Kurucusu.'.tr();
     }
   }
 
@@ -417,13 +543,151 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
       _phase == _PhaseKind.break2 ||
       _phase == _PhaseKind.break3;
 
+  /// Geri tuşu: sayaç çalışıyorsa kullanıcıya "kayıp olur" uyarısı göster.
+  Future<bool> _confirmExit() async {
+    if (!_running && !_done) return true;
+    if (_done) return true;
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E0A22),
+        title: Text(
+          'Görevi iptal et?'.tr(),
+          style: GoogleFonts.orbitron(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+            fontSize: 16,
+          ),
+        ),
+        content: Text(
+          'Aktif aşama kaydedilmeyecek. Çıkmak istediğine emin misin?'.tr(),
+          style: GoogleFonts.poppins(
+            color: Colors.white.withValues(alpha: 0.85),
+            fontSize: 13,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text('Devam Et'.tr(),
+                style: TextStyle(color: Colors.orange.shade200)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF6A3C),
+            ),
+            child: Text('Çık'.tr()),
+          ),
+        ],
+      ),
+    );
+    return res ?? false;
+  }
+
+  /// Reset için onay (running iken).
+  Future<void> _confirmAndReset() async {
+    if (!_running && !_done) {
+      _reset();
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E0A22),
+        title: Text(
+          'Sıfırla?'.tr(),
+          style: GoogleFonts.orbitron(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+            fontSize: 16,
+          ),
+        ),
+        content: Text(
+          'Tüm aşama ilerlemen sıfırlanacak. Emin misin?'.tr(),
+          style: GoogleFonts.poppins(
+            color: Colors.white.withValues(alpha: 0.85),
+            fontSize: 13,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text('Vazgeç'.tr(),
+                style: TextStyle(color: Colors.orange.shade200)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF6A3C),
+            ),
+            child: Text('Sıfırla'.tr()),
+          ),
+        ],
+      ),
+    );
+    if (ok ?? false) _reset();
+  }
+
+  /// Skip için onay (running iken, focus fazı içindeyken).
+  Future<void> _confirmAndSkip() async {
+    if (!_running) {
+      _skip();
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E0A22),
+        title: Text(
+          'Aşamayı atla?'.tr(),
+          style: GoogleFonts.orbitron(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+            fontSize: 16,
+          ),
+        ),
+        content: Text(
+          'Bu aşamayı yarıda kesmek isteyebilirsin ama tamamlanmayan faz takvime yazılmaz.'.tr(),
+          style: GoogleFonts.poppins(
+            color: Colors.white.withValues(alpha: 0.85),
+            fontSize: 13,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text('Devam Et'.tr(),
+                style: TextStyle(color: Colors.orange.shade200)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF6A3C),
+            ),
+            child: Text('Atla'.tr()),
+          ),
+        ],
+      ),
+    );
+    if (ok ?? false) _skip();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: SafeArea(
-        child: Stack(
-          children: [
+    return PopScope(
+      canPop: !_running,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final navigator = Navigator.of(context);
+        final ok = await _confirmExit();
+        if (ok && mounted) navigator.pop();
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: SafeArea(
+          child: Stack(
+            children: [
             // Uzay gradyanı (koyudan pembemsi-kırmızıya)
             Positioned.fill(
               child: Container(
@@ -563,7 +827,8 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
 
             if (_signalLost) _buildSignalLostOverlay(),
             if (_stormCollapsed) _buildStormOverlay(),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -576,27 +841,30 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
       child: Row(
         children: [
           _iconBtn(Icons.arrow_back_rounded,
-              onTap: () => Navigator.of(context).pop()),
+              onTap: () async {
+                final ok = await _confirmExit();
+                if (ok && mounted) Navigator.of(context).pop();
+              }),
           const SizedBox(width: 10),
-          _modeChip('TEST 5-1', test_mode && !pro_mode, () {
+          _modeChip('TEST 5-1'.tr(), _testMode && !_proMode, () {
             if (_running) return;
             setState(() {
-              test_mode = true;
-              pro_mode = false;
+              _testMode = true;
+              _proMode = false;
               _timeLeft = _totalTime = _onBreak ? _breakSec : _phaseSec;
             });
           }),
           const SizedBox(width: 6),
-          _modeChip('PRO 25-5', pro_mode, () {
+          _modeChip('PRO 25-5'.tr(), _proMode, () {
             if (_running) return;
             setState(() {
-              pro_mode = true;
-              test_mode = false;
+              _proMode = true;
+              _testMode = false;
               _timeLeft = _totalTime = _onBreak ? _breakSec : _phaseSec;
             });
           }),
           const Spacer(),
-          _iconBtn(Icons.refresh_rounded, onTap: _reset),
+          _iconBtn(Icons.refresh_rounded, onTap: _confirmAndReset),
         ],
       ),
     );
@@ -710,19 +978,21 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
             children: [
               _bigBtn(
                 icon: _running ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                label: _running ? 'DURDUR' : (_done ? 'BİTTİ' : 'BAŞLAT'),
+                label: _running
+                    ? 'DURDUR'.tr()
+                    : (_done ? 'BİTTİ'.tr() : 'BAŞLAT'.tr()),
                 primary: true,
                 onTap: _toggle,
               ),
               _bigBtn(
                 icon: Icons.skip_next_rounded,
-                label: 'ATLA',
-                onTap: _skip,
+                label: 'ATLA'.tr(),
+                onTap: _confirmAndSkip,
               ),
               _bigBtn(
                 icon: Icons.restart_alt_rounded,
-                label: 'SIFIRLA',
-                onTap: _reset,
+                label: 'SIFIRLA'.tr(),
+                onTap: _confirmAndReset,
               ),
             ],
           ),
@@ -742,7 +1012,7 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
             Icon(Icons.signal_cellular_connected_no_internet_0_bar_rounded,
                 size: 72, color: Colors.redAccent.shade200),
             const SizedBox(height: 14),
-            Text('SİNYAL KAYBI',
+            Text('SİNYAL KAYBI'.tr(),
                 style: GoogleFonts.orbitron(
                   color: Colors.redAccent.shade100,
                   fontSize: 24,
@@ -750,7 +1020,7 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
                   letterSpacing: 2,
                 )),
             const SizedBox(height: 6),
-            Text('7 saniye içinde dönmezsen koloni kum altında kalır!',
+            Text('7 saniye içinde dönmezsen koloni kum altında kalır!'.tr(),
                 textAlign: TextAlign.center,
                 style: GoogleFonts.orbitron(
                     color: Colors.white.withValues(alpha: 0.8),
@@ -767,7 +1037,7 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
             ElevatedButton.icon(
               onPressed: _imBack,
               icon: const Icon(Icons.arrow_forward_rounded),
-              label: const Text('GELDİM'),
+              label: Text('GELDİM'.tr()),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF22C55E),
                 foregroundColor: Colors.white,
@@ -788,6 +1058,7 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
   }
 
   Widget _buildStormOverlay() {
+    final phaseLabel = _phaseTitle;
     return Positioned.fill(
       child: Container(
         alignment: Alignment.center,
@@ -798,7 +1069,7 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
             Icon(Icons.cyclone_rounded,
                 size: 72, color: Colors.orange.shade200),
             const SizedBox(height: 12),
-            Text('KUM FIRTINASI',
+            Text('KUM FIRTINASI'.tr(),
                 style: GoogleFonts.orbitron(
                   color: Colors.orange.shade100,
                   fontSize: 22,
@@ -806,27 +1077,67 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
                   letterSpacing: 2,
                 )),
             const SizedBox(height: 8),
-            Text('İnşaat durdu. Tekrar denemek ister misin?',
+            Text('İnşaat durdu. Tekrar denemek ister misin?'.tr(),
                 textAlign: TextAlign.center,
                 style: GoogleFonts.orbitron(
                     color: Colors.white.withValues(alpha: 0.85),
                     fontSize: 12)),
             const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: _reset,
-              icon: const Icon(Icons.restart_alt_rounded),
-              label: const Text('YENİDEN BAŞLA'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF6A3C),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 22, vertical: 12),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-              ),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              alignment: WrapAlignment.center,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _reset,
+                  icon: const Icon(Icons.restart_alt_rounded),
+                  label: Text('YENİDEN BAŞLA'.tr()),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFF6A3C),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 18, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+                // "Rezaletini paylaş" — viral growth loop. Kullanıcı kendi
+                // başarısızlığını paylaşır, sosyal medyada yayılır.
+                OutlinedButton.icon(
+                  onPressed: () => _openStormShareSheet(phaseLabel),
+                  icon: const Icon(Icons.ios_share_rounded, size: 18),
+                  label: Text('PAYLAŞ'.tr()),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.55),
+                      width: 1.2,
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 18, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // ── Paylaşım sheet'leri ────────────────────────────────────────────────────
+
+  void _openStormShareSheet(String phaseLabel) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _ShareSheet(
+        card: _StormShareCard(phaseLabel: phaseLabel),
+        fileName: 'qualsar_storm',
+        shareText: 'Mars\'taki kolonim çöktü 😭 #QuAlsar $_kQualsarShareUrl',
       ),
     );
   }
@@ -1195,11 +1506,29 @@ class _Earth extends StatelessWidget {
           ),
         ],
       ),
-      child: CustomPaint(painter: _EarthPainter(rotation)),
+      child: ClipOval(
+        child: ModelViewer(
+          src: _kEarthGlbUrl,
+          alt: 'Earth 3D',
+          autoRotate: true,
+          rotationPerSecond: '24deg',
+          disableZoom: true,
+          disablePan: true,
+          disableTap: true,
+          interactionPrompt: InteractionPrompt.none,
+          ar: false,
+          cameraControls: false,
+          autoPlay: true,
+          backgroundColor: const Color(0x00000000),
+        ),
+      ),
     );
   }
 }
 
+// Eski 2D Earth painter — _Earth widget'ı 3D ModelViewer'a geçti, ama
+// painter'ı silmedik (3D yüklenemezse hızlı fallback için elimizde dursun).
+// ignore: unused_element
 class _EarthPainter extends CustomPainter {
   final double rot; // 0..1
   _EarthPainter(this.rot);
@@ -2593,7 +2922,8 @@ class _StormPainter extends CustomPainter {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class _VictoryDialog extends StatelessWidget {
-  const _VictoryDialog();
+  final List<String> newBadges;
+  const _VictoryDialog({this.newBadges = const []});
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -2621,7 +2951,7 @@ class _VictoryDialog extends StatelessWidget {
             Icon(Icons.military_tech_rounded,
                 size: 58, color: Colors.orange.shade200),
             const SizedBox(height: 10),
-            Text('BAĞLANTI KURULDU',
+            Text('BAĞLANTI KURULDU'.tr(),
                 style: GoogleFonts.orbitron(
                   color: Colors.white,
                   fontSize: 18,
@@ -2629,7 +2959,7 @@ class _VictoryDialog extends StatelessWidget {
                   letterSpacing: 2,
                 )),
             const SizedBox(height: 8),
-            Text('QuAlsar Koloni Kurucusu',
+            Text('QuAlsar Koloni Kurucusu'.tr(),
                 style: GoogleFonts.orbitron(
                   color: Colors.orange.shade100,
                   fontSize: 12,
@@ -2637,29 +2967,591 @@ class _VictoryDialog extends StatelessWidget {
                 )),
             const SizedBox(height: 12),
             Text(
-              '4 aşamalı QuAlsar Protokolü\'nü tamamladın.\nDünya ile iletişim kuruldu.',
+              '4 aşamalı QuAlsar Protokolü\'nü tamamladın.\nDünya ile iletişim kuruldu.'
+                  .tr(),
               textAlign: TextAlign.center,
               style: GoogleFonts.orbitron(
                 color: Colors.white.withValues(alpha: 0.85),
                 fontSize: 11,
               ),
             ),
-            const SizedBox(height: 18),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF6A3C),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 24, vertical: 10),
+            if (newBadges.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.30),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: const Color(0xFFFFB070).withValues(alpha: 0.6),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      '✨ ${'Yeni Rozetler'.tr()} ✨',
+                      style: GoogleFonts.orbitron(
+                        color: Colors.amber.shade200,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      alignment: WrapAlignment.center,
+                      children: newBadges.map((id) {
+                        final b = findPomodoroBadge(id);
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(b?.emoji ?? '🏅',
+                                  style: const TextStyle(fontSize: 14)),
+                              const SizedBox(width: 4),
+                              Text(
+                                b?.title.tr() ?? id,
+                                style: GoogleFonts.poppins(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
               ),
-              child: const Text('DEVAM'),
+            ],
+            const SizedBox(height: 18),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Paylaşılabilir başarı kartı — QR + qualsar.app
+                OutlinedButton.icon(
+                  onPressed: () {
+                    showModalBottomSheet<void>(
+                      context: context,
+                      backgroundColor: Colors.transparent,
+                      isScrollControlled: true,
+                      builder: (_) => _ShareSheet(
+                        card: _VictoryShareCard(newBadges: newBadges),
+                        fileName: 'qualsar_victory',
+                        shareText:
+                            "Mars'a kolonimi kurdum 🚀 #QuAlsar $_kQualsarShareUrl",
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.ios_share_rounded, size: 18),
+                  label: Text('PAYLAŞ'.tr()),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: BorderSide(
+                      color: const Color(0xFFFFB070).withValues(alpha: 0.75),
+                      width: 1.2,
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 18, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFF6A3C),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 10),
+                  ),
+                  child: Text('DEVAM'.tr()),
+                ),
+              ],
             ),
           ],
         ),
       ),
     );
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  Paylaşım Sheet — kart önizleme + tek tuşla PNG export & system share.
+//  RepaintBoundary ile widget'ı offscreen render edip share_plus'a aktarırız.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _ShareSheet extends StatefulWidget {
+  final Widget card;
+  final String fileName;
+  final String shareText;
+  const _ShareSheet({
+    required this.card,
+    required this.fileName,
+    required this.shareText,
+  });
+
+  @override
+  State<_ShareSheet> createState() => _ShareSheetState();
+}
+
+class _ShareSheetState extends State<_ShareSheet> {
+  final GlobalKey _boundaryKey = GlobalKey();
+  bool _busy = false;
+
+  Future<void> _share() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final boundary = _boundaryKey.currentContext!.findRenderObject()
+          as RenderRepaintBoundary;
+      // pixelRatio 3 → yüksek çözünürlük (Instagram story / TikTok için)
+      final image = await boundary.toImage(pixelRatio: 3.0);
+      final byteData =
+          await image.toByteData(format: ui.ImageByteFormat.png);
+      final bytes = byteData!.buffer.asUint8List();
+      final dir = await getTemporaryDirectory();
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      final file = File('${dir.path}/${widget.fileName}_$ts.png');
+      await file.writeAsBytes(bytes);
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: widget.shareText,
+      );
+    } catch (_) {
+      // Sessizce yut — kullanıcı yine "Kapat" ile çıkabilir.
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Sheet handle bar
+            Container(
+              width: 42,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.35),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Card preview — RepaintBoundary buradan capture edilir
+            Flexible(
+              child: SingleChildScrollView(
+                child: RepaintBoundary(
+                  key: _boundaryKey,
+                  child: widget.card,
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.5),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text('Kapat'.tr()),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton.icon(
+                    onPressed: _busy ? null : _share,
+                    icon: _busy
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.ios_share_rounded, size: 18),
+                    label: Text('PAYLAŞ'.tr()),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFF6A3C),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Storm (sinyal kaybı / kum fırtınası) paylaşım kartı ─────────────────────
+class _StormShareCard extends StatelessWidget {
+  final String phaseLabel;
+  const _StormShareCard({required this.phaseLabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return AspectRatio(
+      aspectRatio: 9 / 16,
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF03030A),
+              Color(0xFF24101E),
+              Color(0xFF4C2018),
+              Color(0xFF7E3A22),
+            ],
+            stops: [0, 0.40, 0.72, 1],
+          ),
+        ),
+        child: Stack(
+          children: [
+            // Yıldız efekti — basit nokta noise
+            const Positioned.fill(
+              child: CustomPaint(painter: _ShareStarPainter()),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(28, 40, 28, 28),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'QUALSAR · MARS PROTOKOLÜ',
+                    style: GoogleFonts.orbitron(
+                      color: Colors.orange.shade100.withValues(alpha: 0.70),
+                      fontSize: 11,
+                      letterSpacing: 2.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  Icon(Icons.cyclone_rounded,
+                      size: 96, color: Colors.orange.shade200),
+                  const SizedBox(height: 18),
+                  Text(
+                    'KOLONİ\nÇÖKTÜ',
+                    style: GoogleFonts.orbitron(
+                      color: Colors.white,
+                      fontSize: 44,
+                      height: 1.0,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF6A3C).withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: const Color(0xFFFF6A3C).withValues(alpha: 0.55),
+                      ),
+                    ),
+                    child: Text(
+                      phaseLabel.toUpperCase(),
+                      style: GoogleFonts.orbitron(
+                        color: Colors.orange.shade100,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.4,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    'Telefonuma baktım,\nkum fırtınası başladı.\nKolonim çöktü 😭',
+                    style: GoogleFonts.poppins(
+                      color: Colors.white.withValues(alpha: 0.92),
+                      fontSize: 17,
+                      fontWeight: FontWeight.w500,
+                      height: 1.35,
+                    ),
+                  ),
+                  const Spacer(),
+                  Row(
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFFF6A3C), Color(0xFFFF9860)],
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Text(
+                          'Q',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'QuAlsar',
+                            style: GoogleFonts.orbitron(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          Text(
+                            'qualsar.app',
+                            style: GoogleFonts.poppins(
+                              color: Colors.white.withValues(alpha: 0.60),
+                              fontSize: 11,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Victory (Mars Koloni tamamlandı) paylaşım kartı — QR kod dahil ──────────
+class _VictoryShareCard extends StatelessWidget {
+  final List<String> newBadges;
+  const _VictoryShareCard({required this.newBadges});
+
+  @override
+  Widget build(BuildContext context) {
+    return AspectRatio(
+      aspectRatio: 9 / 16,
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF1E0A22),
+              Color(0xFF4C2018),
+              Color(0xFFB06040),
+            ],
+            stops: [0, 0.55, 1],
+          ),
+        ),
+        child: Stack(
+          children: [
+            const Positioned.fill(
+              child: CustomPaint(painter: _ShareStarPainter()),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(28, 40, 28, 28),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'QUALSAR · MARS PROTOKOLÜ',
+                    style: GoogleFonts.orbitron(
+                      color: Colors.orange.shade100.withValues(alpha: 0.70),
+                      fontSize: 11,
+                      letterSpacing: 2.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  Icon(Icons.military_tech_rounded,
+                      size: 96, color: Colors.orange.shade200),
+                  const SizedBox(height: 18),
+                  Text(
+                    'KOLONİ\nKURULDU',
+                    style: GoogleFonts.orbitron(
+                      color: Colors.white,
+                      fontSize: 44,
+                      height: 1.0,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFB070).withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: const Color(0xFFFFB070).withValues(alpha: 0.70),
+                      ),
+                    ),
+                    child: Text(
+                      '4 AŞAMA TAMAMLANDI',
+                      style: GoogleFonts.orbitron(
+                        color: Colors.orange.shade50,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.4,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    "Dünya'yla bağlantı kuruldu.\nQuAlsar Koloni Kurucusu 🚀",
+                    style: GoogleFonts.poppins(
+                      color: Colors.white.withValues(alpha: 0.92),
+                      fontSize: 17,
+                      fontWeight: FontWeight.w500,
+                      height: 1.35,
+                    ),
+                  ),
+                  if (newBadges.isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: newBadges.take(4).map((id) {
+                        final b = findPomodoroBadge(id);
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '${b?.emoji ?? '🏅'} ${b?.title.tr() ?? id}',
+                            style: GoogleFonts.poppins(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                  const Spacer(),
+                  // Alt: QR kod + branding
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: QrImageView(
+                          data: _kQualsarShareUrl,
+                          version: QrVersions.auto,
+                          size: 72,
+                          backgroundColor: Colors.white,
+                          padding: EdgeInsets.zero,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'QuAlsar',
+                              style: GoogleFonts.orbitron(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Sen de koloninin kur:\nqualsar.app',
+                              style: GoogleFonts.poppins(
+                                color: Colors.white.withValues(alpha: 0.85),
+                                fontSize: 11,
+                                height: 1.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Paylaşım kartlarının arka planındaki yıldız serpiştirmesi — hafif noise.
+class _ShareStarPainter extends CustomPainter {
+  const _ShareStarPainter();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rng = math.Random(7);
+    final paint = Paint();
+    for (int i = 0; i < 60; i++) {
+      final dx = rng.nextDouble() * size.width;
+      final dy = rng.nextDouble() * size.height * 0.55;
+      final r = rng.nextDouble() * 1.4 + 0.3;
+      paint.color = Colors.white.withValues(
+        alpha: rng.nextDouble() * 0.5 + 0.2,
+      );
+      canvas.drawCircle(Offset(dx, dy), r, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ShareStarPainter oldDelegate) => false;
 }

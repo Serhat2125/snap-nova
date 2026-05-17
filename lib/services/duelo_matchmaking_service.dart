@@ -20,6 +20,7 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'error_logger.dart';
 
 // Eşleşme isteği kriterleri.
 class DueloMatchCriteria {
@@ -289,7 +290,7 @@ class DueloMatchmakingService {
           if (d.exists && d.data()?['status'] != 'matched') {
             await myQueueDoc.delete();
           }
-        } catch (_) {}
+        } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'duelo_matchmaking'); }
       }
     }
   }
