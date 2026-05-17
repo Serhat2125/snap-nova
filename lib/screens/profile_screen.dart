@@ -5,6 +5,7 @@ import '../services/runtime_translator.dart';
 import 'dart:io';
 import 'dart:math';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -586,11 +587,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _buildOvalMenuItem(
                 emoji: '📚',
                 title: 'Açık Kaynak Lisansları'.tr(),
-                onTap: () => showLicensePage(
-                  context: context,
-                  applicationName: 'QuAlsar',
-                  applicationLegalese:
-                      '© ${DateTime.now().year} QuAlsar. Tüm hakları saklıdır.',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const _CenteredLicensesScreen(),
+                  ),
                 ),
               ),
               SizedBox(height: 10),
@@ -2525,46 +2526,114 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         SizedBox(height: 24),
 
-                        // ── Esnek Çözüm Metodolojileri ───────────────────
-                        _aboutSectionTitle('⚡', localeService.tr('flexible_solutions')),
+                        // ── 1. Yapay Zeka Destekli Çözüm ─────────────────
+                        _aboutSectionTitle('📷', 'Kamera ile Soru Çözümü'.tr()),
                         SizedBox(height: 12),
                         _aboutFeatureCard(
                           icon: Icons.bolt_rounded,
                           color: Color(0xFFF59E0B),
-                          title: localeService.tr('quick_solve_mode'),
-                          desc: localeService.tr('quick_solve_mode_desc'),
+                          title: 'Hızlı Çözüm'.tr(),
+                          desc:
+                              'Kamerayı soruya doğrult — Gemini AI saniyeler içinde adım adım çözüm sunar.'
+                                  .tr(),
                         ),
                         SizedBox(height: 10),
                         _aboutFeatureCard(
                           icon: Icons.list_alt_rounded,
                           color: Color(0xFF3B82F6),
-                          title: localeService.tr('step_analysis'),
-                          desc: localeService.tr('step_analysis_desc'),
+                          title: 'Adım Adım Açıklama'.tr(),
+                          desc:
+                              'Her çözüm sınıf seviyene ve müfredatına özel yazılır; formüller LaTeX ile temiz görünür.'
+                                  .tr(),
                         ),
                         SizedBox(height: 10),
                         _aboutFeatureCard(
-                          icon: Icons.school_rounded,
+                          icon: Icons.record_voice_over_rounded,
                           color: Color(0xFFEC4899),
-                          title: localeService.tr('ai_teacher'),
-                          desc: localeService.tr('ai_teacher_desc'),
+                          title: 'Sesli Komut Modu'.tr(),
+                          desc:
+                              'Soruyu yazmadan, mikrofonla anlat — AI sesini metne çevirip çözer.'
+                                  .tr(),
                         ),
                         SizedBox(height: 20),
 
-                        // ── Dünyanın En Güçlü Zekaları ──────────────────
-                        _aboutSectionTitle('🧠', localeService.tr('worlds_strongest_ai')),
+                        // ── 2. Müfredat Tabanlı Eğitim ───────────────────
+                        _aboutSectionTitle('🌍', 'Dünya Genelinde Müfredat'.tr()),
+                        SizedBox(height: 12),
+                        _aboutFeatureCard(
+                          icon: Icons.public_rounded,
+                          color: Color(0xFF22D3EE),
+                          title: '131 Ülke, 55 Dil'.tr(),
+                          desc:
+                              'ABD, Çin, Hindistan, Türkiye dahil 131 ülkenin tüm sınıfları için gerçek müfredat. Uygulama 55 dilde çalışır.'
+                                  .tr(),
+                        ),
+                        SizedBox(height: 10),
+                        _aboutFeatureCard(
+                          icon: Icons.menu_book_rounded,
+                          color: Color(0xFF8B5CF6),
+                          title: 'Ülke Özel Dersler & Konular'.tr(),
+                          desc:
+                              'Fransa\'da Mathématiques, Almanya\'da Mathematik, Çin\'de 数学 — her ülkenin kendi resmî müfredatı, kendi dilinde.'
+                                  .tr(),
+                        ),
+                        SizedBox(height: 20),
+
+                        // ── 3. Çalışma & Pekiştirme ──────────────────────
+                        _aboutSectionTitle('🎯', 'Aktif Öğrenme'.tr()),
+                        SizedBox(height: 12),
+                        _aboutFeatureCard(
+                          icon: Icons.school_rounded,
+                          color: Color(0xFFF59E0B),
+                          title: 'AI Özet ve Test Üretimi'.tr(),
+                          desc:
+                              'Her ders, her konu için anlık özet + çift doğrulamalı test soruları üretilir.'
+                                  .tr(),
+                        ),
+                        SizedBox(height: 10),
+                        _aboutFeatureCard(
+                          icon: Icons.leaderboard_rounded,
+                          color: Color(0xFF10B981),
+                          title: 'Bilgi Ligi'.tr(),
+                          desc:
+                              'Şehrin, ülkende ve dünyada sıralamana bak — kendi seviyendeki öğrencilerle yarış, ders/konu bazında ölçül.'
+                                  .tr(),
+                        ),
+                        SizedBox(height: 10),
+                        _aboutFeatureCard(
+                          icon: Icons.smart_toy_rounded,
+                          color: Color(0xFFEC4899),
+                          title: 'Çalışma Arkadaşım'.tr(),
+                          desc:
+                              '6 farklı 3D robot avatar — özelleştirebileceğin AI eğitim arkadaşın. Soru sor, anlat, dinle.'
+                                  .tr(),
+                        ),
+                        SizedBox(height: 10),
+                        _aboutFeatureCard(
+                          icon: Icons.timer_rounded,
+                          color: Color(0xFF06B6D4),
+                          title: 'Çalışma Planlayıcı'.tr(),
+                          desc:
+                              'Sınav günlerin, hedeflerin, günlük çalışma saatlerin — hepsi tek ekranda.'
+                                  .tr(),
+                        ),
+                        SizedBox(height: 24),
+
+                        // ── Teknoloji ────────────────────────────────────
+                        _aboutSectionTitle('🧠', 'Teknoloji'.tr()),
                         SizedBox(height: 12),
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(18),
                           decoration: BoxDecoration(
-            color: AppPalette.card(context),
+                            color: AppPalette.card(context),
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'ChatGPT-5 Pro · Claude Max · Gemini Pro\nSuper Grok · DeepSeek',
+                                'Google Gemini 2.5 Flash',
                                 style: GoogleFonts.poppins(
                                   fontSize: 17,
                                   fontWeight: FontWeight.w700,
@@ -2574,7 +2643,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                               SizedBox(height: 10),
                               Text(
-                                localeService.tr('worlds_strongest_ai_desc'),
+                                'QuAlsar, Google\'ın en yeni Gemini 2.5 Flash modeli üzerine kurulu. Çift AI doğrulama mimarisi (üretici + denetçi) ile soru çözüm doğruluğu artar; cevap kalitesi dünyanın en iyi eğitim platformlarına eşit.'
+                                    .tr(),
                                 style: GoogleFonts.poppins(
                                   fontSize: 14,
                                   color: AppPalette.textSecondary(context),
@@ -2584,31 +2654,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ],
                           ),
                         ),
-                        SizedBox(height: 20),
-
-                        // ── Aktif Öğrenme ve Pekiştirme ──────────────────
-                        _aboutSectionTitle('🎯', localeService.tr('active_learning')),
-                        SizedBox(height: 12),
-                        _aboutFeatureCard(
-                          icon: Icons.shuffle_rounded,
-                          color: Color(0xFF8B5CF6),
-                          title: localeService.tr('similar_q'),
-                          desc: localeService.tr('active_learning_desc'),
-                        ),
-                        SizedBox(height: 10),
-                        _aboutFeatureCard(
-                          icon: Icons.style_rounded,
-                          color: Color(0xFF06B6D4),
-                          title: localeService.tr('smart_info_cards'),
-                          desc: localeService.tr('smart_info_cards_desc'),
-                        ),
-                        SizedBox(height: 10),
-                        _aboutFeatureCard(
-                          icon: Icons.emoji_events_rounded,
-                          color: Color(0xFF10B981),
-                          title: localeService.tr('gamified_learning'),
-                          desc: localeService.tr('gamified_learning_desc'),
-                        ),
                         SizedBox(height: 24),
 
                         // ── Bilgi satırları ──────────────────────────────
@@ -2616,15 +2661,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           width: double.infinity,
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-            color: AppPalette.card(context),
+                            color: AppPalette.card(context),
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Column(
                             children: [
-                              _infoRow(localeService.tr('version'), '0.1.0'),
-                              _infoRow(localeService.tr('developer'), 'QuAlsar Team'),
-                              _infoRow(localeService.tr('ai_model'), 'Gemini 2.0 Flash'),
+                              FutureBuilder<String>(
+                                future: _appVersionLine(),
+                                builder: (_, snap) {
+                                  return _infoRow(localeService.tr('version'),
+                                      snap.data?.split('•').first.trim() ?? '1.0.0');
+                                },
+                              ),
+                              _infoRow('Geliştirici'.tr(), 'QuAlsar Team'),
+                              _infoRow('AI Modeli'.tr(), 'Gemini 2.5 Flash'),
+                              _infoRow('Müfredat Kapsamı'.tr(), '131 ülke • 55 dil'),
                             ],
+                          ),
+                        ),
+                        SizedBox(height: 12),
+                        Center(
+                          child: Text(
+                            '© ${DateTime.now().year} QuAlsar. Tüm hakları saklıdır.'.tr(),
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              color: AppPalette.textSecondary(context).withValues(alpha: 0.70),
+                              height: 1.5,
+                            ),
                           ),
                         ),
                       ],
@@ -5648,3 +5712,171 @@ class _NotificationsSettingsSheetState
   }
 }
 
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  _CenteredLicensesScreen — Açık Kaynak Lisansları (tüm metinler ortalı)
+//
+//  Flutter'ın varsayılan showLicensePage()'i sol hizalı. Burada
+//  LicenseRegistry.licenses stream'ini doğrudan okuyup tüm metinleri
+//  ortalanmış halde gösteriyoruz.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _CenteredLicensesScreen extends StatefulWidget {
+  const _CenteredLicensesScreen();
+
+  @override
+  State<_CenteredLicensesScreen> createState() => _CenteredLicensesScreenState();
+}
+
+class _CenteredLicensesScreenState extends State<_CenteredLicensesScreen> {
+  final List<LicenseEntry> _licenses = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLicenses();
+  }
+
+  Future<void> _loadLicenses() async {
+    await for (final license in LicenseRegistry.licenses) {
+      if (!mounted) return;
+      _licenses.add(license);
+    }
+    if (!mounted) return;
+    setState(() => _loading = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppPalette.bg(context),
+      appBar: AppBar(
+        backgroundColor: AppPalette.bg(context),
+        elevation: 0,
+        centerTitle: true,
+        title: Text(
+          'Açık Kaynak Lisansları'.tr(),
+          style: GoogleFonts.poppins(
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+            color: AppPalette.textPrimary(context),
+          ),
+        ),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_rounded,
+              size: 18, color: AppPalette.textPrimary(context)),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: _loading
+          ? Center(
+              child: CircularProgressIndicator(
+                color: AppPalette.textPrimary(context),
+              ),
+            )
+          : SafeArea(
+              child: ListView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                children: [
+                  // Üst başlık — QuAlsar bilgisi
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: AppPalette.card(context),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          'QuAlsar',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.poppins(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            color: AppPalette.textPrimary(context),
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '© ${DateTime.now().year} QuAlsar. Tüm hakları saklıdır.'.tr(),
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.poppins(
+                            fontSize: 11.5,
+                            color: AppPalette.textSecondary(context),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Bu uygulama aşağıdaki açık kaynak paketleri ve içerikleri kullanır:'
+                              .tr(),
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: AppPalette.textSecondary(context),
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Her lisans — kart, başlık + metin ortalı
+                  for (int i = 0; i < _licenses.length; i++)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppPalette.card(context),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            // Paket adları
+                            Text(
+                              _licenses[i].packages.join(' · '),
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: AppPalette.textPrimary(context),
+                                height: 1.4,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            // Lisans metni (paragraflar)
+                            for (final p in _licenses[i].paragraphs) ...[
+                              Padding(
+                                padding:
+                                    EdgeInsets.only(left: p.indent * 6.0),
+                                child: Text(
+                                  p.text,
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 11,
+                                    color: AppPalette.textSecondary(context),
+                                    height: 1.55,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+    );
+  }
+}
