@@ -61,23 +61,27 @@ class _QuAlsarSplashScreenState extends State<QuAlsarSplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Logo, başlığın hemen altında — büyük Expanded yerine sabit yükseklik
+    // ve mainAxisAlignment center → tüm grup üst yarıda kalır, logo yukarıda.
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.start,
           children: [
-            const SizedBox(height: 110),
+            const SizedBox(height: 140),
             _SlidingTitle(intro: _intro),
-            const SizedBox(height: 36),
-            Expanded(
-              child: FadeTransition(
-                opacity: _loader,
-                child: ScaleTransition(
-                  scale: Tween<double>(begin: 0.88, end: 1.0).animate(
-                    CurvedAnimation(
-                        parent: _loader, curve: Curves.easeOutCubic),
-                  ),
-                  child: const QuAlsarNumericLoader(
+            const SizedBox(height: 18),
+            FadeTransition(
+              opacity: _loader,
+              child: ScaleTransition(
+                scale: Tween<double>(begin: 0.88, end: 1.0).animate(
+                  CurvedAnimation(
+                      parent: _loader, curve: Curves.easeOutCubic),
+                ),
+                child: const SizedBox(
+                  height: 140,
+                  child: QuAlsarNumericLoader(
                     diskOnly: true,
                     variant: QuAlsarLoaderVariant.verbal,
                   ),

@@ -69,6 +69,16 @@ Future<void> main() async {
     await SystemChrome.setPreferredOrientations(
         [DeviceOrientation.portraitUp]);
 
+    // ═══════════════════════════════════════════════════════════════════════
+    //  ANLIK SPLASH — Firebase + 13 async init ~5-6 saniye sürüyor.
+    //  Native white screen yerine QuAlsar splash'ı HEMEN göster; init arkada
+    //  devam ederken kullanıcı yazıyı + dönen logoyu görür. Init bittiğinde
+    //  ikinci runApp() gerçek QuAlsarApp ile yer değiştirir.
+    // ═══════════════════════════════════════════════════════════════════════
+    runApp(const _InstantSplashApp());
+    // Bir frame bekle ki splash render edilsin, sonra heavy init başlasın.
+    await Future<void>.delayed(const Duration(milliseconds: 16));
+
     // ── 3D Model Lisansları (showLicensePage()'te görünür) ────────────────
     // DamagedHelmet CC BY 4.0 → attribution zorunlu. Diğerleri CC0/Apache.
     LicenseRegistry.addLicense(() async* {
@@ -353,6 +363,22 @@ enum _StartupState { onboarding, educationSetup, home }
 /// Kullanıcı tercihine göre Kamera veya Kütüphane açan router.
 /// Ayarlar > Uygulamayı Kişiselleştir sekmesinde seçilir.
 /// SharedPreferences key: `startup_screen` → 'camera' (varsayılan) veya 'library'
+/// Minimal MaterialApp — Firebase/locale/theme init beklemeden hemen
+/// QuAlsarSplashScreen'i gösterir. main() heavy init bittiğinde gerçek
+/// QuAlsarApp ile yer değiştirir (ikinci runApp çağrısı).
+/// Bu widget HİÇBİR servise (Firebase, locale, theme) bağımlı değildir;
+/// bağımsız çalışır → instant render.
+class _InstantSplashApp extends StatelessWidget {
+  const _InstantSplashApp();
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: QuAlsarSplashScreen(),
+    );
+  }
+}
+
 class _HomeRouter extends StatelessWidget {
   // ignore: unused_element_parameter
   const _HomeRouter({super.key});
