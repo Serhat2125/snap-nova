@@ -373,12 +373,14 @@ class _PremiumScreenState extends State<PremiumScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Devam et butonu
+                  // Devam et butonu — uzun metinde FittedBox ile küçülterek
+                  // taşma engellenir (örn. "7 Günlük Ücretsiz Denemeye Başla").
                   GestureDetector(
                     onTap: () => _onContinue(context),
                     child: Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 16),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [Color(0xFFF59E0B), Color(0xFFE8850C)],
@@ -393,42 +395,33 @@ class _PremiumScreenState extends State<PremiumScreen> {
                         ],
                       ),
                       child: Center(
-                        child: Text(
-                          _selectedPlan == 2
-                              ? '7 Günlük Ücretsiz Denemeye Başla'.tr()
-                              : localeService.tr('continue_btn'),
-                          style: GoogleFonts.poppins(
-                            fontSize: _selectedPlan == 2 ? 15 : 18,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            _selectedPlan == 2
+                                ? '7 Günlük Ücretsiz Denemeye Başla'.tr()
+                                : localeService.tr('continue_btn'),
+                            maxLines: 1,
+                            style: GoogleFonts.poppins(
+                              fontSize: _selectedPlan == 2 ? 15 : 18,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
                   SizedBox(height: 8),
-                  // ── Restore Purchases (Apple zorunlu) + Yasal linkler ─────
-                  // Apple Guideline 3.1.1 abone uygulamalar için bu butonu
-                  // istiyor. Şu anda mock; gerçek IAP entegrasyonunda
-                  // `in_app_purchase` paketinin restorePurchases() çağırılacak.
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _smallLink(
-                        label: 'Satın Alımları Geri Yükle'.tr(),
-                        onTap: () => _onRestorePurchases(context),
-                      ),
-                      _dotSep(),
-                      _smallLink(
-                        label: 'Kullanım Koşulları'.tr(),
-                        onTap: () => _showTermsBottomSheet(context),
-                      ),
-                      _dotSep(),
-                      _smallLink(
-                        label: 'Gizlilik Politikası'.tr(),
-                        onTap: () => _showPrivacyBottomSheet(context),
-                      ),
-                    ],
+                  // Gizlilik Politikası — abonelikli uygulamalarda yasal zorunluluk.
+                  // (Satın Alımları Geri Yükle ve Kullanım Koşulları kaldırıldı —
+                  // not: Apple Guideline 3.1.1 iOS publish için Restore butonunu
+                  // ister; iOS'a release alırken bu kaldırma geri çevrilmeli.)
+                  Center(
+                    child: _smallLink(
+                      label: 'Gizlilik Politikası'.tr(),
+                      onTap: () => _showPrivacyBottomSheet(context),
+                    ),
                   ),
                 ],
               ),
@@ -446,6 +439,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
   // ─── Restore Purchases (Apple Guideline 3.1.1 + Play Store iyi pratik) ───
   // SubscriptionService.restorePurchases() çağırır; purchase stream'den dönen
   // `PurchaseStatus.restored` event'i PremiumStatus'u günceller.
+  // ignore: unused_element
   Future<void> _onRestorePurchases(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     if (!SubscriptionService.instance.isAvailable) {
@@ -475,6 +469,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
     );
   }
 
+  // ignore: unused_element
   void _showTermsBottomSheet(BuildContext context) {
     _showSimpleLegal(
       context,
@@ -604,6 +599,7 @@ Veri Aktarımı: Sunucu altyapısı bulutta (örn. Google Cloud) çalıştığı
     );
   }
 
+  // ignore: unused_element
   Widget _dotSep() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6),
