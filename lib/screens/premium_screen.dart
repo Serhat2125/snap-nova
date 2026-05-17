@@ -1902,13 +1902,27 @@ class _PremiumFeaturesSlider extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
       child: Container(
         decoration: BoxDecoration(
-          color: AppPalette.isDark(context)
-              ? Colors.black
-              : Color(0xFFF3F4F6),
+          // Turuncu → açık turuncu → krem → beyaz dikey gradient
+          // (Avantajlar tablosu ile aynı palet — premium aviation feel)
+          gradient: AppPalette.isDark(context)
+              ? null
+              : const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFFFFCC80), // turuncu (başlık ile aynı)
+                    Color(0xFFFFDDA6), // açık turuncu
+                    Color(0xFFFFECC8), // daha açık
+                    Color(0xFFFFF6E6), // krem
+                    Colors.white,       // dipte beyaz
+                  ],
+                  stops: [0.0, 0.2, 0.45, 0.7, 1.0],
+                ),
+          color: AppPalette.isDark(context) ? Colors.black : null,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
+              color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 12,
               offset: Offset(0, 4),
             ),
@@ -2016,9 +2030,10 @@ class _PremiumFeaturesSlider extends StatelessWidget {
                   separatorBuilder: (_, __) => Divider(
                     height: 18,
                     thickness: 1,
+                    // Gradient turuncuyla uyumlu yarı şeffaf koyu turuncu çizgi
                     color: AppPalette.isDark(context)
                         ? Color(0xFF2E2E2E)
-                        : Color(0xFFEEF0F3),
+                        : const Color(0xFFE8850C).withValues(alpha: 0.18),
                   ),
                   itemBuilder: (_, i) => _PremiumRow(item: _items[i]),
                 ),
