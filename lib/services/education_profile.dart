@@ -1324,20 +1324,31 @@ List<EduSubject> subjectsForProfile(EduProfile? profile) {
     }
   }
 
-  // Diğer: country × level
+  // Non-TR ülkeler: ÖNCE curriculum_catalog'a sor (ülke-spesifik lokalize
+  // edilmiş ders adları orada: math → Mathématiques (fr), Mathematik (de),
+  // 数学 (jp), Matemáticas (es) vs.). _subjectKeysByProfile'daki TR-keyed
+  // subject'leri (math → "Matematik") yanlışlıkla göstermesin diye bu
+  // öncelik gerekli — aksi halde Fransa kullanıcısı "Matematik, Fizik" görür.
+  if (profile.country != 'tr') {
+    try {
+      final fromCatalog = _curriculumSubjectsBuilder?.call(profile);
+      if (fromCatalog != null && fromCatalog.isNotEmpty) {
+        return fromCatalog;
+      }
+    } catch (_) {/* yok say — devam et */}
+  }
+
+  // Diğer: country × level (özellikle TR ilkokul/ortaokul için _subjectKeysByProfile)
   final k = '${profile.country}_${profile.level}';
   final list = _subjectKeysByProfile[k];
   if (list != null) {
     return list.map((s) => _allSubjects[s]).whereType<EduSubject>().toList();
   }
 
-  // CURRICULUM CATALOG fallback — _subjectKeysByProfile'da bu sınıf için
-  // hazır key listesi yoksa, curriculum_catalog.dart'taki tam müfredat
+  // CURRICULUM CATALOG fallback (TR için) — _subjectKeysByProfile'da bu sınıf
+  // için hazır key listesi yoksa, curriculum_catalog.dart'taki tam müfredat
   // ağacından (ülke+seviye+sınıf hassas) dersleri çek.
   // Örn. TR ilkokul 1 → curriculum_catalog'taki 'tr_primary_1' dersleri.
-  // _subjectKeysByProfile'da 'tr_primary_*' anahtarları yok ama
-  // curriculum_catalog'da var. Bu fallback olmadan TR ilkokul kullanıcısı
-  // uluslararası fallback'e düşüyordu (yanlış dersler).
   try {
     final fromCatalog = _curriculumSubjectsBuilder?.call(profile);
     if (fromCatalog != null && fromCatalog.isNotEmpty) {

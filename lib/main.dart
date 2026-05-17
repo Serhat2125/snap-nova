@@ -268,9 +268,9 @@ class _StartupRouterState extends State<_StartupRouter> {
   }
 
   Future<_StartupState> _resolve() async {
-    // Splash en az 1500ms görünsün — hızlı load'da bile harf intro + disk
-    // fade animasyonu tamamlansın, kullanıcı flaş gibi geçen ekrana bakmasın.
-    final minSplash = Future<void>.delayed(const Duration(milliseconds: 1500));
+    // Splash en az 5000ms (5 saniye) görünsün — QuAlsar logo + harf intro +
+    // disk animasyonu tam göstermeli; kullanıcı uygulamanın açıldığını net görsün.
+    final minSplash = Future<void>.delayed(const Duration(milliseconds: 5000));
     final prefs = await SharedPreferences.getInstance();
 
     // Launch counter — her açılışta artar.

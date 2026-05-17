@@ -1,11 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- QuAlsar launch splash — Mars/burgundy bg + icon center.
-     Flutter ilk frame'i çizene kadar bu görünür (beyaz ekran yok). -->
+<!-- QuAlsar launch splash — sadece beyaz arka plan. Logo YOK.
+     Flutter QuAlsarSplashScreen (Orbitron + harf animasyonu) hemen
+     onun yerine çıkar. Native splash'ta logo gösterilmez. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/qualsar_splash_bg" />
-    <item>
-        <bitmap
-            android:gravity="center"
-            android:src="@mipmap/ic_launcher" />
-    </item>
 </layer-list>

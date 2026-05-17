@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ (API 31+) SplashScreen API override.
+     Varsayılan olarak sistem ic_launcher'ı splash'ta gösterir;
+     biz şeffaf bir icon koyarak gizliyoruz. Sadece beyaz ekran kalır,
+     Flutter QuAlsarSplashScreen hemen onu kapatır. -->
+<resources>
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">@drawable/launch_background</item>
+        <item name="android:windowSplashScreenBackground">@color/qualsar_splash_bg</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_icon_transparent</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/qualsar_splash_bg</item>
+    </style>
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">?android:colorBackground</item>
+    </style>
+</resources>

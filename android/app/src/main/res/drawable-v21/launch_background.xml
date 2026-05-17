@@ -1,10 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- QuAlsar launch splash (v21+) — Mars/burgundy bg + icon center. -->
+<!-- QuAlsar launch splash (v21+) — sadece beyaz arka plan, logo YOK. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/qualsar_splash_bg" />
-    <item>
-        <bitmap
-            android:gravity="center"
-            android:src="@mipmap/ic_launcher" />
-    </item>
 </layer-list>
