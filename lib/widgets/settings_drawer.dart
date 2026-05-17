@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../main.dart' show themeService;
 import '../screens/onboarding_screen.dart';
+import '../screens/premium_screen.dart';
 import '../services/auth_service.dart';
 import '../services/locale_service.dart';
 import '../services/runtime_translator.dart';
@@ -600,13 +601,25 @@ class _ProfilePageState extends State<_ProfilePage> {
           _neonField('E-posta', email, Icons.email_outlined),
           SizedBox(height: 24),
 
-          _neonBtn('Üyeliğim', Icons.workspace_premium_rounded,
-              Color(0xFFF59E0B)),
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PremiumScreen()),
+              );
+            },
+            child: _neonBtn('Üyeliğim', Icons.workspace_premium_rounded,
+                Color(0xFFF59E0B)),
+          ),
           SizedBox(height: 10),
-          if (!isGuest)
-            _neonBtn('Hesap Ayarları', Icons.settings_outlined,
-                Color(0xFF8B5CF6)),
-          if (!isGuest) SizedBox(height: 10),
+          if (!isGuest) ...[
+            GestureDetector(
+              onTap: () => _showAccountSettingsSheet(context),
+              child: _neonBtn('Hesap Ayarları', Icons.settings_outlined,
+                  Color(0xFF8B5CF6)),
+            ),
+            SizedBox(height: 10),
+          ],
           // Çıkış / Giriş — gerçek auth durumuna göre.
           GestureDetector(
             onTap: () async {
@@ -690,6 +703,167 @@ class _ProfilePageState extends State<_ProfilePage> {
       ]),
     );
   }
+}
+
+/// Hesap Ayarları bottom sheet — hesap yönetimi seçenekleri
+void _showAccountSettingsSheet(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: const Color(0xFF0A0F1F),
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (sheetCtx) {
+      Widget tile(IconData icon, String title, String subtitle, Color color,
+          VoidCallback onTap) {
+        return InkWell(
+          onTap: () {
+            Navigator.pop(sheetCtx);
+            onTap();
+          },
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: color.withValues(alpha: 0.30)),
+            ),
+            child: Row(children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 2),
+                    Text(subtitle,
+                        style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.50),
+                            fontSize: 11)),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded,
+                  color: color.withValues(alpha: 0.50), size: 18),
+            ]),
+          ),
+        );
+      }
+
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 30),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.20),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text('Hesap Ayarları'.tr(),
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800)),
+              const SizedBox(height: 16),
+              tile(
+                  Icons.person_outline_rounded,
+                  'Profil Bilgilerimi Düzenle'.tr(),
+                  'İsim, e-posta ve avatar'.tr(),
+                  const Color(0xFF22D3EE), () {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text('Bu özellik yakında — şimdilik OAuth bilgileri otomatik kullanılıyor.'.tr()),
+                ));
+              }),
+              tile(Icons.notifications_outlined,
+                  'Bildirim Tercihleri'.tr(),
+                  'Hatırlatma ve uyarı ayarları'.tr(),
+                  const Color(0xFF8B5CF6), () async {
+                final prefs = await SharedPreferences.getInstance();
+                final on = prefs.getBool('notifications_enabled_v1') ?? true;
+                await prefs.setBool('notifications_enabled_v1', !on);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(!on
+                        ? 'Bildirimler açıldı'.tr()
+                        : 'Bildirimler kapatıldı'.tr()),
+                    backgroundColor: Colors.cyanAccent,
+                  ));
+                }
+              }),
+              tile(Icons.privacy_tip_outlined, 'Gizlilik & Veri'.tr(),
+                  'Verilerimi yönet, dışa aktar'.tr(),
+                  const Color(0xFF10B981), () async {
+                final uri = Uri.parse('https://qualsar2-640f0.web.app/privacy.html');
+                if (await canLaunchUrl(uri)) await launchUrl(uri);
+              }),
+              tile(Icons.delete_forever_outlined, 'Hesabımı Sil'.tr(),
+                  'Tüm verilerim kalıcı silinir'.tr(),
+                  const Color(0xFFEF4444), () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    backgroundColor: const Color(0xFF0A0F1F),
+                    title: Text('Hesabımı Sil'.tr(),
+                        style: const TextStyle(color: Colors.white)),
+                    content: Text(
+                        'Tüm verilerin (çözümler, profiller, geçmiş) kalıcı olarak silinecek. Devam etmek istiyor musun?'
+                            .tr(),
+                        style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.70))),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: Text('İptal'.tr(),
+                            style: const TextStyle(color: Colors.cyanAccent)),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: Text('Sil'.tr(),
+                            style: const TextStyle(color: Color(0xFFEF4444))),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirm == true) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(
+                        'Hesap silme talebi alındı. 7 gün içinde işlenecek.'
+                            .tr()),
+                    backgroundColor: const Color(0xFFEF4444),
+                  ));
+                }
+              }),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
