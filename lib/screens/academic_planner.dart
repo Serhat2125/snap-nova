@@ -9386,9 +9386,11 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
   // özette jank). 150ms throttle: chunk'lar üst üste binerse sonuncu
   // parse'i tetikler, intermediate'lerde eski cache görünür.
   Timer? _parseDebounce;
-  // Auto-scroll: kullanıcı en altta ise (eşik 60px) stream akarken yapışık
-  // kalsın; yukarı kaydırdıysa karışma.
-  bool _autoFollowBottom = true;
+  // Auto-scroll DEVRE DIŞI — kullanıcı özet oluşturulurken ekranın
+  // aşağı kaymasını istemiyor; özetin ilk sayfası ekranda kalsın,
+  // okuyucu kendi kaydırdığı kadar görsün. Kullanıcı manuel olarak
+  // aşağı inerse zaten yeni içerik orada bekliyor olacak.
+  bool _autoFollowBottom = false;
 
   /// StudyToolbarOverlay sticky highlights için — ListView ile overlay
   /// Stack'te sibling olduğundan Scrollable.maybeOf(context) bulamıyor.
@@ -9473,15 +9475,11 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
     }
   }
 
-  // Auto-scroll: kullanıcı eli ile yukarı kaydırırsa follow-bottom kapanır.
-  // En alta yakın (60px) konumdayken yapışık kalır.
+  // Scroll dinleyici devre dışı — auto-follow kapalı, kullanıcı her zaman
+  // kendi konumunda kalsın. Eski davranış: kullanıcı en alttayken stream
+  // akarken yapışık tutuyordu; özet oluşturulurken ilk sayfa görünmüyordu.
   void _handleScroll() {
-    if (!_scrollController.hasClients) return;
-    final pos = _scrollController.position;
-    final atBottom = pos.maxScrollExtent - pos.pixels < 60;
-    if (atBottom != _autoFollowBottom) {
-      _autoFollowBottom = atBottom;
-    }
+    // No-op; manuel scroll kullanıcıya bırakıldı.
   }
 
   void _scrollToBottomIfFollowing() {
