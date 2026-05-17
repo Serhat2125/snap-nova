@@ -89,6 +89,8 @@ class _SettingsDrawerState extends State<SettingsDrawer> {
         return const _LanguagePage();
       case 'theme':
         return const _ThemePage();
+      case 'customize':
+        return const _CustomizePage();
       case 'feedback':
         return const _FeedbackPage();
       case 'faq':
@@ -168,6 +170,12 @@ class _MainMenu extends StatelessWidget {
                     title: tr('theme_appearance'),
                     subtitle: tr('dark_mode'),
                     onTap: () => onOpenPage('theme')),
+                _Item(
+                    icon: Icons.tune_rounded,
+                    color: Color(0xFFEC4899),
+                    title: 'Uygulamayı Kişiselleştir'.tr(),
+                    subtitle: 'Açılış ekranı + tercihler'.tr(),
+                    onTap: () => onOpenPage('customize')),
 
                 SizedBox(height: 10),
                 _divider(),
@@ -1151,6 +1159,193 @@ class _ThemePageState extends State<_ThemePage> {
             );
           }),
         ]),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  3.5. Uygulamayı Kişiselleştir
+//  Kullanıcı uygulamayı her açtığında hangi ekran gelsin seçer.
+//  SharedPreferences key: `startup_screen` → 'camera' | 'library'
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _CustomizePage extends StatefulWidget {
+  const _CustomizePage();
+
+  @override
+  State<_CustomizePage> createState() => _CustomizePageState();
+}
+
+class _CustomizePageState extends State<_CustomizePage> {
+  String _startupScreen = 'camera';
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _startupScreen = prefs.getString('startup_screen') ?? 'camera';
+      _loaded = true;
+    });
+  }
+
+  Future<void> _setStartupScreen(String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('startup_screen', value);
+    if (!mounted) return;
+    setState(() => _startupScreen = value);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(value == 'camera'
+          ? 'Açılışta Kamera açılacak'.tr()
+          : 'Açılışta Kütüphane açılacak'.tr()),
+      backgroundColor: Colors.cyanAccent,
+      duration: const Duration(seconds: 2),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final shell = context.findAncestorStateOfType<_SettingsDrawerState>()!;
+    if (!_loaded) {
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.cyanAccent),
+      );
+    }
+
+    Widget option({
+      required String value,
+      required IconData icon,
+      required String title,
+      required String subtitle,
+      required Color color,
+    }) {
+      final sel = _startupScreen == value;
+      return GestureDetector(
+        onTap: () => _setStartupScreen(value),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: sel
+                ? color.withValues(alpha: 0.12)
+                : Colors.white.withValues(alpha: 0.03),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+                color: sel
+                    ? color.withValues(alpha: 0.65)
+                    : Colors.white.withValues(alpha: 0.08),
+                width: sel ? 1.6 : 1.0),
+            boxShadow: sel
+                ? [BoxShadow(color: color.withValues(alpha: 0.20), blurRadius: 14)]
+                : [],
+          ),
+          child: Row(children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: sel ? 0.22 : 0.10),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: color, size: 28),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: TextStyle(
+                          color: sel ? color : Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 4),
+                  Text(subtitle,
+                      style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.55),
+                          fontSize: 12,
+                          height: 1.3)),
+                ],
+              ),
+            ),
+            if (sel)
+              Icon(Icons.check_circle_rounded, color: color, size: 22),
+          ]),
+        ),
+      );
+    }
+
+    return SafeArea(
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _PageHeader(
+              title: 'Uygulamayı Kişiselleştir'.tr(),
+              onBack: shell._closePage,
+            ),
+            const SizedBox(height: 8),
+            Text('Açılış Ekranı'.tr(),
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800)),
+            const SizedBox(height: 4),
+            Text(
+                'Uygulamayı her açtığında hangi sayfa gelsin?'.tr(),
+                style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.50), fontSize: 12)),
+            const SizedBox(height: 16),
+            option(
+              value: 'camera',
+              icon: Icons.camera_alt_rounded,
+              title: 'Kamera'.tr(),
+              subtitle: 'Doğrudan soru tarama ekranı açılır'.tr(),
+              color: const Color(0xFFFF6A00),
+            ),
+            option(
+              value: 'library',
+              icon: Icons.menu_book_rounded,
+              title: 'Kütüphane'.tr(),
+              subtitle: 'Dersler, testler ve özetler ekranı açılır'.tr(),
+              color: const Color(0xFF8B5CF6),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.cyanAccent.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                    color: Colors.cyanAccent.withValues(alpha: 0.25)),
+              ),
+              child: Row(children: [
+                Icon(Icons.info_outline_rounded,
+                    color: Colors.cyanAccent.withValues(alpha: 0.80), size: 18),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                      'Bu ayar uygulamayı bir sonraki açışında geçerli olur.'
+                          .tr(),
+                      style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.70),
+                          fontSize: 12,
+                          height: 1.35)),
+                ),
+              ]),
+            ),
+          ],
+        ),
       ),
     );
   }

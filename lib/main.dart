@@ -341,7 +341,7 @@ class _StartupRouterState extends State<_StartupRouter> {
               ),
             );
           case _StartupState.home:
-            return CameraScreen();
+            return _HomeRouter();
         }
       },
     );
@@ -349,6 +349,27 @@ class _StartupRouterState extends State<_StartupRouter> {
 }
 
 enum _StartupState { onboarding, educationSetup, home }
+
+/// Kullanıcı tercihine göre Kamera veya Kütüphane açan router.
+/// Ayarlar > Uygulamayı Kişiselleştir sekmesinde seçilir.
+/// SharedPreferences key: `startup_screen` → 'camera' (varsayılan) veya 'library'
+class _HomeRouter extends StatelessWidget {
+  // ignore: unused_element_parameter
+  const _HomeRouter({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<String>(
+      future: SharedPreferences.getInstance()
+          .then((p) => p.getString('startup_screen') ?? 'camera'),
+      builder: (_, snap) {
+        if (!snap.hasData) return const QuAlsarSplashScreen();
+        if (snap.data == 'library') return const LibraryLanding();
+        return CameraScreen();
+      },
+    );
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  GlobalSidebarOverlay — Tüm sayfalarda görünen sürüklenebilir yan panel
