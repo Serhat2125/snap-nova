@@ -3524,6 +3524,12 @@ class _TestConfig {
   }
 }
 
+/// Özet uzunluk türü — her konunun en fazla 2 özeti olur (kısa + kapsamlı).
+/// Eski kayıtlar için varsayılan: `short` (daha önce tek tip vardı, yeni
+/// sistemde bu eski özetler "kısa" sayılır; kullanıcı kapsamlı versiyonu
+/// ekstra olarak oluşturabilir).
+enum _SummaryLength { short, comprehensive }
+
 class _Summary {
   final String id;
   final String topic;
@@ -3545,6 +3551,9 @@ class _Summary {
   String? cacheDocId;
   String? candidateDocId;
   bool isCanonical;
+  /// Kısa veya Kapsamlı özet türü. Aynı konuda her ikisinden bir tane
+  /// oluşturulabilir (toplam max 2). Eski özetlerde null kalır → kısa kabul edilir.
+  final _SummaryLength length;
   _Summary({
     required this.id,
     required this.topic,
@@ -3557,6 +3566,7 @@ class _Summary {
     this.cacheDocId,
     this.candidateDocId,
     this.isCanonical = false,
+    this.length = _SummaryLength.short,
   }) : tests = tests ?? [];
 
   Map<String, dynamic> toJson() => {
@@ -3571,6 +3581,7 @@ class _Summary {
         if (cacheDocId != null) 'cacheDocId': cacheDocId,
         if (candidateDocId != null) 'candidateDocId': candidateDocId,
         if (isCanonical) 'isCanonical': true,
+        'length': length.name, // 'short' veya 'comprehensive'
       };
 
   factory _Summary.fromJson(Map<String, dynamic> j) {
@@ -3579,6 +3590,10 @@ class _Summary {
         .whereType<Map>()
         .map((e) => _TestAttempt.fromJson(Map<String, dynamic>.from(e)))
         .toList();
+    final rawLength = j['length'] as String?;
+    final length = rawLength == 'comprehensive'
+        ? _SummaryLength.comprehensive
+        : _SummaryLength.short;
     return _Summary(
       id: j['id'] as String,
       topic: j['topic'] as String,
@@ -3591,6 +3606,7 @@ class _Summary {
       cacheDocId: j['cacheDocId'] as String?,
       candidateDocId: j['candidateDocId'] as String?,
       isCanonical: (j['isCanonical'] as bool?) ?? false,
+      length: length,
     );
   }
 }
@@ -4886,6 +4902,144 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
     );
   }
 
+  /// Kullanıcıya "Özetiniz kısa mı olsun kapsamlı mı olsun?" diye sorar.
+  /// Ekranın ortasında küçük bir dialog açar. İptal edilirse null döner.
+  Future<_SummaryLength?> _askSummaryLength(BuildContext ctx) {
+    return showGeneralDialog<_SummaryLength>(
+      context: ctx,
+      barrierDismissible: true,
+      barrierLabel: 'Özet türü',
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      transitionDuration: const Duration(milliseconds: 200),
+      pageBuilder: (dialogCtx, a1, a2) => Center(
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            width: MediaQuery.of(dialogCtx).size.width * 0.85,
+            constraints: const BoxConstraints(maxWidth: 360),
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
+            decoration: BoxDecoration(
+              color: AppPalette.card(dialogCtx),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.18),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Özetiniz kısa mı olsun kapsamlı mı olsun?'.tr(),
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: AppPalette.textPrimary(dialogCtx),
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => Navigator.of(dialogCtx)
+                            .pop(_SummaryLength.short),
+                        child: Container(
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 16),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [
+                                Color(0xFF22C55E),
+                                Color(0xFF16A34A),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF22C55E)
+                                    .withValues(alpha: 0.30),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              const Icon(Icons.flash_on_rounded,
+                                  color: Colors.white, size: 22),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Kısa Özet'.tr(),
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => Navigator.of(dialogCtx)
+                            .pop(_SummaryLength.comprehensive),
+                        child: Container(
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 16),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [
+                                Color(0xFF3B82F6),
+                                Color(0xFF2563EB),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF3B82F6)
+                                    .withValues(alpha: 0.30),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              const Icon(Icons.menu_book_rounded,
+                                  color: Colors.white, size: 22),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Kapsamlı Özet'.tr(),
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // ── AI çağrısı ve özet kayıt (yeni ders kartı için) ──────────────────────
   Future<void> _generate({
     required String subjectName,
@@ -4907,6 +5061,40 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
           subjectRef = s;
           break;
         }
+      }
+    }
+
+    // ── ÖZET UZUNLUK ROUTING (kısa vs kapsamlı) ──────────────────────────
+    // Aynı konuda max 2 özet: 1 kısa + 1 kapsamlı.
+    //  • İkisi de varsa: snack ile bilgi ver, üretmez.
+    //  • Sadece biri varsa: dialog ATLA, otomatik diğer türü üret.
+    //  • Hiçbiri yoksa: dialog ile sor.
+    _SummaryLength? chosenLength;
+    if (!isQuestions) {
+      bool hasShort = false;
+      bool hasComp = false;
+      if (subjectRef != null) {
+        for (final s in subjectRef.summaries) {
+          if (s.topic.toLowerCase() == topic.toLowerCase()) {
+            if (s.length == _SummaryLength.short) hasShort = true;
+            if (s.length == _SummaryLength.comprehensive) hasComp = true;
+          }
+        }
+      }
+      if (hasShort && hasComp) {
+        _showSnack(
+            'Bu konunun hem kısa hem kapsamlı özeti zaten var. Tekrar oluşturulamaz.'
+                .tr());
+        return;
+      }
+      if (hasShort && !hasComp) {
+        chosenLength = _SummaryLength.comprehensive;
+      } else if (hasComp && !hasShort) {
+        chosenLength = _SummaryLength.short;
+      } else {
+        // Hiçbiri yok — kullanıcıya sor
+        chosenLength = await _askSummaryLength(context);
+        if (chosenLength == null) return; // iptal
       }
     }
 
@@ -4989,7 +5177,9 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
             grade: _grade,
             strategy: strategy,
             ragBlock: ragBlock,
-            ragHit: ragHit);
+            ragHit: ragHit,
+            length: chosenLength ?? _SummaryLength.short,
+          );
 
     if (!isQuestions) {
       // ── CACHE-FIRST: TOPLULUK ÖZETİ KONTROL ────────────────────────────
@@ -5060,6 +5250,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
         country: EduProfile.current?.country,
         gradeLabel: _grade.isNotEmpty ? _grade : EduProfile.current?.grade,
         ragHit: ragHit,
+        length: chosenLength ?? _SummaryLength.short,
       );
       if (subjectRef != null && subjectRef.id.isNotEmpty) {
         subjectRef.summaries.insert(0, summary);
@@ -5549,6 +5740,7 @@ $strategyStyleLine
     _PromptStrategy strategy = _PromptStrategy.schoolBalanced,
     String? ragBlock,
     bool ragHit = false,
+    _SummaryLength length = _SummaryLength.short,
   }) {
     final layer = _subjectLayer(subject);
     final isNumeric = layer == 'numeric';
@@ -5716,7 +5908,31 @@ varsa metinle betimle.
         '[MÜFREDAT VERİSİ — RAG]\n'
             '(Bu konu için yerel müfredat veritabanında eşleşme bulunamadı; '
             'sistem genel bilgileri kullanıyor.)\n';
+
+    // ── ÖZET UZUNLUK DİREKTİFİ — kullanıcı seçimine göre kısa veya kapsamlı
+    final lengthDirective = length == _SummaryLength.short
+        ? '''
+[ÖZET UZUNLUĞU — KISA]
+KULLANICI KISA ÖZET istedi. Hedef: 400-700 kelime (≈2-3 ekran).
+• Konunun TANIMINI, EN ÖNEMLİ 3-5 NOKTASINI ve KRİTİK FORMÜLLERİNİ ver.
+• Detaylı türetmeler, çok sayıda örnek soru, uzun tarihsel arka plan ver-ME.
+• Tablo/şema kullan ama sınırlı (1-2 tane).
+• Görsel betimlemesi maksimum 1 tane.
+• Çıktın YOĞUN ve KESKİN olsun — hızlı okuyup özünü kavrasın.
+'''
+        : '''
+[ÖZET UZUNLUĞU — KAPSAMLI]
+KULLANICI KAPSAMLI ÖZET istedi. Hedef: 1500-3000 kelime (uzun, derinlemesine).
+• Tüm alt başlıkları, istisnaları, uç durumları, dönem analizini AÇIK AÇIK ver.
+• Çoklu örnek sorular ("🧪 Uygulama Örneği" hücreleri) zorunlu.
+• Tablolar, karşılaştırmalar, sebep-sonuç zincirleri detaylı.
+• Görsel betimlemesi 2-4 tane (uygun yerlerde).
+• Sınavda hata yaptıran ince detaylar + ileri seviye notlar ekle.
+• Çıktın bir DERSHANE KİTABI BÖLÜMÜ kalitesinde olmalı.
+''';
+
     return '''
+$lengthDirective
 ${_strategyBlock(strategy, exam)}
 $ragSection
 [KONU ÖZETİ — DERSHANE KİTABI TARZI]
