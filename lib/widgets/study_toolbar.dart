@@ -442,10 +442,6 @@ class _StudyToolbarOverlayState extends State<StudyToolbarOverlay> {
   Widget build(BuildContext context) {
     if (!_loaded) return const SizedBox.shrink();
     final drawing = _mode != _DrawMode.off;
-    // Renk vurgu modunda küçük üst gösterge: kullanıcıya modu hatırlatır + çıkış butonu.
-    final colorActive = _mode == _DrawMode.multiHighlight ||
-        _mode == _DrawMode.multiHighlightStraight ||
-        _mode == _DrawMode.pen;
     return Stack(
       children: [
         // Çizim katmanı — YATAY drag = vurgulama, DİKEY drag = scroll için
@@ -521,65 +517,6 @@ class _StudyToolbarOverlayState extends State<StudyToolbarOverlay> {
                           _penPickerOpen = false;
                         }),
                       ),
-                      // Yan sub-panel: highlighter veya kalem renk/kalınlık seçici
-                      if (_colorPickerOpen) ...[
-                        const SizedBox(width: 8),
-                        // Multi-color highlighter toolbar'da 2. sıra (Not Sayfası altında).
-                        // Yaklaşık offset: 1 buton yüksekliği + divider ≈ 50px.
-                        Padding(
-                          padding: const EdgeInsets.only(top: 50),
-                          child: _ColorSubPanel(
-                            colors: _multiHighlightColors,
-                            selected: _multiHighlightColor,
-                            eraserActive: _mode == _DrawMode.eraser,
-                            onSelect: (c, straight) => setState(() {
-                              _multiHighlightColor = c;
-                              _mode = straight
-                                  ? _DrawMode.multiHighlightStraight
-                                  : _DrawMode.multiHighlight;
-                              _colorPickerOpen = false;
-                              // Toolbar tamamen kapanır → ekran temiz; kullanıcı
-                              // seçtiği renkle cümleyi vurgulayabilir.
-                              _expanded = false;
-                            }),
-                            onErase: () => setState(() {
-                              // Silgi MODU aktif — hepsini silmez, parmakla
-                              // dokunulan yerdeki strokes silinir.
-                              _mode = _DrawMode.eraser;
-                              _colorPickerOpen = false;
-                            }),
-                          ),
-                        ),
-                      ],
-                      // Kalem sub-paneli — 8 renk + 3 kalınlık
-                      if (_penPickerOpen) ...[
-                        const SizedBox(width: 8),
-                        // Pen panel — kalem butonu 3. sırada (≈ 100px offset).
-                        Padding(
-                          padding: const EdgeInsets.only(top: 100),
-                          child: _PenSubPanel(
-                            colors: _penColors,
-                            widths: _penWidths,
-                            selectedColor: _penColor,
-                            selectedWidth: _penWidth,
-                            onPick: (c, w) async {
-                              // Renk + kalınlık seçildi; alt sheet ile şekil sor.
-                              setState(() {
-                                _penColor = c;
-                                _penWidth = w;
-                                _penPickerOpen = false;
-                                _expanded = false;
-                              });
-                              final picked = await _askPenShape(context);
-                              if (picked == null || !mounted) return;
-                              setState(() {
-                                _penShape = picked;
-                                _mode = _DrawMode.pen;
-                              });
-                            },
-                          ),
-                        ),
-                      ],
                     ],
                   )
                 : _CollapsedButton(
@@ -607,93 +544,72 @@ class _StudyToolbarOverlayState extends State<StudyToolbarOverlay> {
           ),
         );
         }(),
-        // ── Sol üst renk modu göstergesi ──────────────────────────────
-        // Kullanıcı renk + çizim şekli seçtikten sonra toolbar kapanır;
-        // bu küçük tab modu hatırlatır + X ile çıkış sağlar.
-        if (colorActive)
+        // ── Sağ üst FLOATING renk paleti ─────────────────────────────
+        // Highlighter modu (çoklu renk) açıkken VEYA aktif renk modundayken:
+        // Sağ üstte _ColorSubPanel sabit kalır. Kullanıcı çizerken bile
+        // farklı bir renge dokunabilir; mode anlık güncellenir. X ile kapanır.
+        if (_colorPickerOpen ||
+            _mode == _DrawMode.multiHighlight ||
+            _mode == _DrawMode.multiHighlightStraight ||
+            _mode == _DrawMode.eraser)
           Positioned(
-            left: 12,
+            right: 8,
             top: MediaQuery.of(context).padding.top + 8,
-            child: _ColorModeBadge(
-              color: _mode == _DrawMode.pen ? _penColor : _multiHighlightColor,
-              onClose: () => setState(() => _mode = _DrawMode.off),
+            child: _ColorSubPanel(
+              colors: _multiHighlightColors,
+              selected: _multiHighlightColor,
+              eraserActive: _mode == _DrawMode.eraser,
+              onSelect: (c, straight) => setState(() {
+                _multiHighlightColor = c;
+                _mode = straight
+                    ? _DrawMode.multiHighlightStraight
+                    : _DrawMode.multiHighlight;
+                // Panel açık kalır — kullanıcı renk değiştirmek isteyebilir
+                _colorPickerOpen = true;
+                _expanded = false;
+              }),
+              onErase: () => setState(() {
+                _mode = _DrawMode.eraser;
+              }),
+              onClose: () => setState(() {
+                _mode = _DrawMode.off;
+                _colorPickerOpen = false;
+              }),
+            ),
+          ),
+        // ── Sağ üst FLOATING kalem paleti ────────────────────────────
+        // Kalem panel'i veya kalem modu aktifken sağ üstte sabit kalır.
+        if (_penPickerOpen || _mode == _DrawMode.pen)
+          Positioned(
+            right: 8,
+            top: MediaQuery.of(context).padding.top + 8,
+            child: _PenSubPanel(
+              colors: _penColors,
+              widths: _penWidths,
+              selectedColor: _penColor,
+              selectedWidth: _penWidth,
+              onPick: (c, w) async {
+                setState(() {
+                  _penColor = c;
+                  _penWidth = w;
+                  _expanded = false;
+                });
+                final picked = await _askPenShape(context);
+                if (picked == null || !mounted) return;
+                setState(() {
+                  _penShape = picked;
+                  _mode = _DrawMode.pen;
+                  // Panel açık kalır — kullanıcı renk değiştirebilir
+                  _penPickerOpen = true;
+                });
+              },
+              onClose: () => setState(() {
+                _mode = _DrawMode.off;
+                _penPickerOpen = false;
+              }),
             ),
           ),
       ],
-    );
-  }
-}
-
-// ─── Sol üst renk modu göstergesi ──────────────────────────────────────────
-// Küçük yatay tab: renk dot + "Renk seç, cümleni vurgula" + X.
-class _ColorModeBadge extends StatelessWidget {
-  final Color color;
-  final VoidCallback onClose;
-  const _ColorModeBadge({required this.color, required this.onClose});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(10, 7, 6, 7),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.78),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withValues(alpha: 0.55), width: 1.4),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.22),
-              blurRadius: 12,
-              offset: const Offset(2, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Renk dot
-            Container(
-              width: 14,
-              height: 14,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: color,
-                border: Border.all(color: Colors.white, width: 1.4),
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Metin
-            Text(
-              'Renk seç, cümleni vurgula',
-              style: GoogleFonts.poppins(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(width: 6),
-            // X butonu — renk modundan çıkar
-            GestureDetector(
-              onTap: onClose,
-              behavior: HitTestBehavior.opaque,
-              child: Container(
-                width: 22,
-                height: 22,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.close_rounded,
-                  color: Colors.white,
-                  size: 14,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -905,12 +821,15 @@ class _ColorSubPanel extends StatelessWidget {
   /// `(color, straight)` — straight=true → düz çizgi modu, false → serbest.
   final void Function(Color color, bool straight) onSelect;
   final VoidCallback onErase;
+  /// Panel'in X butonu — modu kapatır, paneli gizler.
+  final VoidCallback? onClose;
   final bool eraserActive;
   const _ColorSubPanel({
     required this.colors,
     required this.selected,
     required this.onSelect,
     required this.onErase,
+    this.onClose,
     this.eraserActive = false,
   });
 
@@ -1010,17 +929,38 @@ class _ColorSubPanel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Üst ipucu — kullanıcıya ne yapacağını anlatır.
+          // Üst sıra: başlık + X butonu (sağ üst köşede)
           Padding(
             padding: const EdgeInsets.only(left: 4, right: 4, bottom: 6),
-            child: Text(
-              'Bir renk seç, cümleni vurgula',
-              style: GoogleFonts.poppins(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: Colors.white.withValues(alpha: 0.70),
-                letterSpacing: 0.2,
-              ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Bir renk seç, cümleni vurgula',
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white.withValues(alpha: 0.70),
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ),
+                if (onClose != null)
+                  GestureDetector(
+                    onTap: onClose,
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      width: 20,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.close_rounded,
+                          color: Colors.white, size: 13),
+                    ),
+                  ),
+              ],
             ),
           ),
           // 2 sıra × yatay scroll
@@ -1312,6 +1252,7 @@ class _PenSubPanel extends StatefulWidget {
   final Color selectedColor;
   final double selectedWidth;
   final void Function(Color color, double width) onPick;
+  final VoidCallback? onClose;
 
   const _PenSubPanel({
     required this.colors,
@@ -1319,6 +1260,7 @@ class _PenSubPanel extends StatefulWidget {
     required this.selectedColor,
     required this.selectedWidth,
     required this.onPick,
+    this.onClose,
   });
 
   @override
@@ -1356,17 +1298,38 @@ class _PenSubPanelState extends State<_PenSubPanel> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // İpucu
+          // İpucu + X
           Padding(
             padding: const EdgeInsets.only(left: 4, right: 4, bottom: 6),
-            child: Text(
-              'Renk ve kalınlık seç',
-              style: GoogleFonts.poppins(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: Colors.white.withValues(alpha: 0.70),
-                letterSpacing: 0.2,
-              ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Renk ve kalınlık seç',
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white.withValues(alpha: 0.70),
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ),
+                if (widget.onClose != null)
+                  GestureDetector(
+                    onTap: widget.onClose,
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      width: 20,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.close_rounded,
+                          color: Colors.white, size: 13),
+                    ),
+                  ),
+              ],
             ),
           ),
           // 8 renk yan yana (yatay scroll)
