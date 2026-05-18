@@ -39,6 +39,21 @@ const List<Color> _multiHighlightColors = [
   Color(0xFF000000), // siyah
 ];
 
+/// Kalem renk paleti — 8 koyu/canlı renk, çizim için ideal opasite.
+const List<Color> _penColors = [
+  Color(0xFFEF4444), // kırmızı
+  Color(0xFF000000), // siyah
+  Color(0xFF3B82F6), // mavi
+  Color(0xFF22C55E), // yeşil
+  Color(0xFFF59E0B), // turuncu
+  Color(0xFFA855F7), // mor
+  Color(0xFFEC4899), // pembe
+  Color(0xFF92400E), // kahverengi
+];
+
+/// Kalem kalınlık seçenekleri — ince, orta, kalın.
+const List<double> _penWidths = [2.0, 4.0, 7.0];
+
 class StudyToolbarOverlay extends StatefulWidget {
   final String topicId;
   final String topicName;
@@ -74,6 +89,10 @@ class _StudyToolbarOverlayState extends State<StudyToolbarOverlay> {
   // Çoklu renkli vurgulayıcı: butona basılınca yana 5 renk + silgi paneli açılır.
   bool _colorPickerOpen = false;
   Color _multiHighlightColor = _multiHighlightColors.first;
+  // Kalem: kullanıcı seçtiği renk + kalınlık. Butona basınca yana panel açılır.
+  bool _penPickerOpen = false;
+  Color _penColor = _penColors.first;
+  double _penWidth = _penWidths[1]; // orta = 4.0
 
   // ── Draggable toolbar pozisyonu ────────────────────────────────────────
   // Kullanıcı toolbar'ı sürükleyince offset güncellenir, position
@@ -219,8 +238,9 @@ class _StudyToolbarOverlayState extends State<StudyToolbarOverlay> {
         strokeWidth = 16;
         break;
       case _DrawMode.pen:
-        strokeColor = const Color(0xFFEF4444).withValues(alpha: 0.95);
-        strokeWidth = 4;
+        // Kullanıcı seçimi — renk + kalınlık yan panelden gelir.
+        strokeColor = _penColor.withValues(alpha: 0.95);
+        strokeWidth = _penWidth;
         break;
       case _DrawMode.multiHighlight:
       case _DrawMode.multiHighlightStraight:
@@ -347,6 +367,8 @@ class _StudyToolbarOverlayState extends State<StudyToolbarOverlay> {
                         multiActive: _mode == _DrawMode.multiHighlight ||
                             _mode == _DrawMode.multiHighlightStraight,
                         multiOpen: _colorPickerOpen,
+                        penOpen: _penPickerOpen,
+                        penColor: _penColor,
                         onOpenNotePage: () => Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (_) => NoteCreatorPage(
@@ -357,22 +379,26 @@ class _StudyToolbarOverlayState extends State<StudyToolbarOverlay> {
                         ),
                         onMultiHighlight: () => setState(() {
                           _colorPickerOpen = !_colorPickerOpen;
+                          if (_colorPickerOpen) _penPickerOpen = false;
                         }),
                         onHighlight: () =>
                             setState(() => _mode = _DrawMode.highlight),
-                        onPen: () =>
-                            setState(() => _mode = _DrawMode.pen),
+                        onPen: () => setState(() {
+                          _penPickerOpen = !_penPickerOpen;
+                          if (_penPickerOpen) _colorPickerOpen = false;
+                        }),
                         onErase: _eraseAll,
                         onClose: () => setState(() {
                           _mode = _DrawMode.off;
                           _expanded = false;
                           _colorPickerOpen = false;
+                          _penPickerOpen = false;
                         }),
                       ),
-                      // Yan sub-panel: 5 renk yatay + silgi alt
+                      // Yan sub-panel: highlighter veya kalem renk/kalınlık seçici
                       if (_colorPickerOpen) ...[
                         const SizedBox(width: 8),
-                        // Multi-color pen toolbar'da 2. sıra (Not Sayfası altında).
+                        // Multi-color highlighter toolbar'da 2. sıra (Not Sayfası altında).
                         // Yaklaşık offset: 1 buton yüksekliği + divider ≈ 50px.
                         Padding(
                           padding: const EdgeInsets.only(top: 50),
@@ -395,6 +421,27 @@ class _StudyToolbarOverlayState extends State<StudyToolbarOverlay> {
                               // dokunulan yerdeki strokes silinir.
                               _mode = _DrawMode.eraser;
                               _colorPickerOpen = false;
+                            }),
+                          ),
+                        ),
+                      ],
+                      // Kalem sub-paneli — 8 renk + 3 kalınlık
+                      if (_penPickerOpen) ...[
+                        const SizedBox(width: 8),
+                        // Pen panel — kalem butonu 3. sırada (≈ 100px offset).
+                        Padding(
+                          padding: const EdgeInsets.only(top: 100),
+                          child: _PenSubPanel(
+                            colors: _penColors,
+                            widths: _penWidths,
+                            selectedColor: _penColor,
+                            selectedWidth: _penWidth,
+                            onPick: (c, w) => setState(() {
+                              _penColor = c;
+                              _penWidth = w;
+                              _mode = _DrawMode.pen;
+                              _penPickerOpen = false;
+                              _expanded = false;
                             }),
                           ),
                         ),
@@ -485,6 +532,8 @@ class _ToolbarPanel extends StatelessWidget {
   final _DrawMode mode;
   final bool multiActive;
   final bool multiOpen;
+  final bool penOpen;
+  final Color penColor;
   final VoidCallback onOpenNotePage;
   final VoidCallback onMultiHighlight;
   final VoidCallback onHighlight;
@@ -496,6 +545,8 @@ class _ToolbarPanel extends StatelessWidget {
     required this.mode,
     required this.multiActive,
     required this.multiOpen,
+    required this.penOpen,
+    required this.penColor,
     required this.onOpenNotePage,
     required this.onMultiHighlight,
     required this.onHighlight,
@@ -544,9 +595,11 @@ class _ToolbarPanel extends StatelessWidget {
           // sarı seçeneği var, çift fonksiyona gerek yok.
           _ToolBtn(
             icon: Icons.create_rounded,
-            tooltip: 'Kırmızı Kalem',
-            color: const Color(0xFFEF4444),
-            active: mode == _DrawMode.pen,
+            tooltip: 'Kalem (Renk + Kalınlık)',
+            // Seçili kalem rengini buton üzerinde göster — kullanıcı geçerli
+            // rengi anında görür.
+            color: penColor,
+            active: mode == _DrawMode.pen || penOpen,
             onTap: onPen,
           ),
           _Divider(),
@@ -992,3 +1045,189 @@ class _StrokePainter extends CustomPainter {
 // gelecek başlık/etiket için tutuluyor. Şu anda toolbar sadece ikon.
 // ignore: unused_element
 final _ = GoogleFonts.poppins;
+
+// ─── Kalem Sub-Paneli ─────────────────────────────────────────────────────
+// 8 renk + 3 kalınlık (ince/orta/kalın). Renk ve kalınlık birlikte seçilir,
+// onPick callback'i ile mode pen olarak aktive olur.
+class _PenSubPanel extends StatefulWidget {
+  final List<Color> colors;
+  final List<double> widths;
+  final Color selectedColor;
+  final double selectedWidth;
+  final void Function(Color color, double width) onPick;
+
+  const _PenSubPanel({
+    required this.colors,
+    required this.widths,
+    required this.selectedColor,
+    required this.selectedWidth,
+    required this.onPick,
+  });
+
+  @override
+  State<_PenSubPanel> createState() => _PenSubPanelState();
+}
+
+class _PenSubPanelState extends State<_PenSubPanel> {
+  late Color _tmpColor;
+  late double _tmpWidth;
+
+  @override
+  void initState() {
+    super.initState();
+    _tmpColor = widget.selectedColor;
+    _tmpWidth = widget.selectedWidth;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 18,
+            offset: const Offset(2, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // İpucu
+          Padding(
+            padding: const EdgeInsets.only(left: 4, right: 4, bottom: 6),
+            child: Text(
+              'Renk ve kalınlık seç',
+              style: GoogleFonts.poppins(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: Colors.white.withValues(alpha: 0.70),
+                letterSpacing: 0.2,
+              ),
+            ),
+          ),
+          // 8 renk yan yana (yatay scroll)
+          SizedBox(
+            width: 220,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(children: [
+                for (final c in widget.colors) ...[
+                  _ColorDot(
+                    color: c,
+                    active: c.toARGB32() == _tmpColor.toARGB32(),
+                    onTap: () => setState(() => _tmpColor = c),
+                  ),
+                  const SizedBox(width: 6),
+                ],
+              ]),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // İnce / orta / kalın — yatay 3 buton
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              for (int i = 0; i < widget.widths.length; i++)
+                _PenWidthBtn(
+                  width: widget.widths[i],
+                  color: _tmpColor,
+                  active: widget.widths[i] == _tmpWidth,
+                  label: ['İnce', 'Orta', 'Kalın'][i],
+                  onTap: () => setState(() => _tmpWidth = widget.widths[i]),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Onay butonu — seçimi uygula
+          GestureDetector(
+            onTap: () => widget.onPick(_tmpColor, _tmpWidth),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 9),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [_tmpColor, _tmpColor.withValues(alpha: 0.75)],
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                'Çizmeye Başla',
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PenWidthBtn extends StatelessWidget {
+  final double width;
+  final Color color;
+  final bool active;
+  final String label;
+  final VoidCallback onTap;
+  const _PenWidthBtn({
+    required this.width,
+    required this.color,
+    required this.active,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 62,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: active ? color.withValues(alpha: 0.18) : Colors.white.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: active ? color : Colors.white.withValues(alpha: 0.10),
+            width: active ? 1.6 : 1.0,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Çizgi önizleme — seçili kalınlık ve renk
+            Container(
+              height: width,
+              width: 36,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(width / 2),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                color: active ? color : Colors.white.withValues(alpha: 0.65),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
