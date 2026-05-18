@@ -19,6 +19,11 @@ import 'note_creator_page.dart';
 
 enum _DrawMode { off, highlight, pen, multiHighlight, multiHighlightStraight, eraser }
 
+/// Kalem çizim şekli — kullanıcı renk/kalınlık seçtikten sonra hangi şekilde
+/// çizeceğini belirler. `freehand` = elle/serbest çizim (parmak izi),
+/// diğerleri rubber-band: start ve end point ile şekil.
+enum _PenShape { freehand, circle, square, rectangle }
+
 /// Çoklu renkli vurgulayıcının renk paleti — 16 renk, 2 sıra × 8 sütun.
 const List<Color> _multiHighlightColors = [
   Color(0xFFFFEB3B), // sarı
@@ -89,10 +94,12 @@ class _StudyToolbarOverlayState extends State<StudyToolbarOverlay> {
   // Çoklu renkli vurgulayıcı: butona basılınca yana 5 renk + silgi paneli açılır.
   bool _colorPickerOpen = false;
   Color _multiHighlightColor = _multiHighlightColors.first;
-  // Kalem: kullanıcı seçtiği renk + kalınlık. Butona basınca yana panel açılır.
+  // Kalem: kullanıcı seçtiği renk + kalınlık + şekil. Butona basınca yana panel
+  // açılır; "Çizmeye Başla" sonrası şekil seçim sheet'i (alt) gelir.
   bool _penPickerOpen = false;
   Color _penColor = _penColors.first;
   double _penWidth = _penWidths[1]; // orta = 4.0
+  _PenShape _penShape = _PenShape.freehand;
 
   // ── Draggable toolbar pozisyonu ────────────────────────────────────────
   // Kullanıcı toolbar'ı sürükleyince offset güncellenir, position
@@ -257,6 +264,9 @@ class _StudyToolbarOverlayState extends State<StudyToolbarOverlay> {
         width: strokeWidth,
         // Content-space'te sakla → scroll ile birlikte hareket eder.
         points: [_toContent(d.localPosition)],
+        // Kalem modunda kullanıcı seçtiği şekli kaydet; diğer modlar
+        // her zaman freehand (highlighter).
+        shape: _mode == _DrawMode.pen ? _penShape : _PenShape.freehand,
       );
     });
   }
@@ -292,6 +302,19 @@ class _StudyToolbarOverlayState extends State<StudyToolbarOverlay> {
     }
     if (_current == null) return;
     final contentPt = _toContent(d.localPosition);
+    // Şekil modlarında (circle/square/rectangle) sadece 2 nokta tut —
+    // ilk = anchor, ikinci = güncel mouse/parmak pozisyonu (rubber-band).
+    final isShape = _current!.shape != _PenShape.freehand;
+    if (isShape) {
+      setState(() {
+        if (_current!.points.length < 2) {
+          _current!.points.add(contentPt);
+        } else {
+          _current!.points[1] = contentPt;
+        }
+      });
+      return;
+    }
     // Düz çizgi modunda Y'yi başlangıç noktasına kilitle — yatay düz çizgi.
     final pt = _mode == _DrawMode.multiHighlightStraight
         ? Offset(contentPt.dx, _current!.points.first.dy)
@@ -306,6 +329,105 @@ class _StudyToolbarOverlayState extends State<StudyToolbarOverlay> {
       _current = null;
     });
     _persistStrokes();
+  }
+
+  /// Kalem rengi + kalınlığı seçildikten sonra "Nasıl çizmek istersin?"
+  /// alt sheet'i açar — 4 seçenek: Yuvarlak / Kare / Dikdörtgen / Düz (elle).
+  Future<_PenShape?> _askPenShape(BuildContext ctx) {
+    return showModalBottomSheet<_PenShape>(
+      context: ctx,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) => Container(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 22),
+        decoration: const BoxDecoration(
+          color: Color(0xF0111122),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _penColor,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text('Nasıl çizmek istersin?'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    )),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: _PenShapeCard(
+                    label: 'Yuvarlak'.tr(),
+                    color: _penColor,
+                    width: _penWidth,
+                    shape: _PenShape.circle,
+                    onTap: () => Navigator.of(sheetCtx).pop(_PenShape.circle),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _PenShapeCard(
+                    label: 'Kare'.tr(),
+                    color: _penColor,
+                    width: _penWidth,
+                    shape: _PenShape.square,
+                    onTap: () => Navigator.of(sheetCtx).pop(_PenShape.square),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: _PenShapeCard(
+                    label: 'Dikdörtgen'.tr(),
+                    color: _penColor,
+                    width: _penWidth,
+                    shape: _PenShape.rectangle,
+                    onTap: () =>
+                        Navigator.of(sheetCtx).pop(_PenShape.rectangle),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _PenShapeCard(
+                    label: 'Düz'.tr(),
+                    color: _penColor,
+                    width: _penWidth,
+                    shape: _PenShape.freehand,
+                    onTap: () =>
+                        Navigator.of(sheetCtx).pop(_PenShape.freehand),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _eraseAll() async {
@@ -440,13 +562,21 @@ class _StudyToolbarOverlayState extends State<StudyToolbarOverlay> {
                             widths: _penWidths,
                             selectedColor: _penColor,
                             selectedWidth: _penWidth,
-                            onPick: (c, w) => setState(() {
-                              _penColor = c;
-                              _penWidth = w;
-                              _mode = _DrawMode.pen;
-                              _penPickerOpen = false;
-                              _expanded = false;
-                            }),
+                            onPick: (c, w) async {
+                              // Renk + kalınlık seçildi; alt sheet ile şekil sor.
+                              setState(() {
+                                _penColor = c;
+                                _penWidth = w;
+                                _penPickerOpen = false;
+                                _expanded = false;
+                              });
+                              final picked = await _askPenShape(context);
+                              if (picked == null || !mounted) return;
+                              setState(() {
+                                _penShape = picked;
+                                _mode = _DrawMode.pen;
+                              });
+                            },
                           ),
                         ),
                       ],
@@ -1060,10 +1190,13 @@ class _Stroke {
   Color color;
   double width;
   List<Offset> points;
+  /// Çizim şekli — freehand (varsayılan) veya geometric (circle/square/rect).
+  _PenShape shape;
   _Stroke({
     required this.color,
     required this.width,
     required this.points,
+    this.shape = _PenShape.freehand,
   });
 
   Map<String, dynamic> toJson() => {
@@ -1071,6 +1204,7 @@ class _Stroke {
         'c': color.value,
         'w': width,
         'p': points.map((o) => [o.dx, o.dy]).toList(),
+        's': shape.index,
       };
 
   factory _Stroke.fromJson(Map<String, dynamic> j) => _Stroke(
@@ -1080,6 +1214,10 @@ class _Stroke {
             .map((e) => Offset(
                 (e[0] as num).toDouble(), (e[1] as num).toDouble()))
             .toList(),
+        shape: j['s'] != null
+            ? _PenShape.values[(j['s'] as num).toInt()
+                .clamp(0, _PenShape.values.length - 1)]
+            : _PenShape.freehand,
       );
 }
 
@@ -1101,6 +1239,41 @@ class _StrokePainter extends CustomPainter {
     canvas.save();
     canvas.translate(0, -scrollOffset);
     void drawStroke(_Stroke s) {
+      if (s.points.isEmpty) return;
+      final paint = Paint()
+        ..color = s.color
+        ..strokeWidth = s.width
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..style = PaintingStyle.stroke;
+      // Geometric shape — start + end (rubber-band).
+      if (s.shape != _PenShape.freehand && s.points.length >= 2) {
+        final a = s.points.first;
+        final b = s.points.last;
+        switch (s.shape) {
+          case _PenShape.circle:
+            // Oval: a ve b ile tanımlanan dikdörtgenin içine sığar.
+            final rect = Rect.fromPoints(a, b);
+            canvas.drawOval(rect, paint);
+            return;
+          case _PenShape.square:
+            // En büyük kenar tarafından belirlenen kare; a köşe, b yön.
+            final dx = b.dx - a.dx;
+            final dy = b.dy - a.dy;
+            final side = (dx.abs() > dy.abs() ? dx.abs() : dy.abs());
+            final sx = dx >= 0 ? a.dx : a.dx - side;
+            final sy = dy >= 0 ? a.dy : a.dy - side;
+            canvas.drawRect(
+                Rect.fromLTWH(sx, sy, side, side), paint);
+            return;
+          case _PenShape.rectangle:
+            canvas.drawRect(Rect.fromPoints(a, b), paint);
+            return;
+          case _PenShape.freehand:
+            break;
+        }
+      }
+      // Freehand veya tek nokta
       if (s.points.length < 2) {
         if (s.points.length == 1) {
           canvas.drawCircle(s.points.first, s.width / 2,
@@ -1108,12 +1281,6 @@ class _StrokePainter extends CustomPainter {
         }
         return;
       }
-      final paint = Paint()
-        ..color = s.color
-        ..strokeWidth = s.width
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..style = PaintingStyle.stroke;
       final path = Path()..moveTo(s.points.first.dx, s.points.first.dy);
       for (var i = 1; i < s.points.length; i++) {
         path.lineTo(s.points[i].dx, s.points[i].dy);
@@ -1320,4 +1487,115 @@ class _PenWidthBtn extends StatelessWidget {
       ),
     );
   }
+}
+
+// ─── Kalem Şekil Kartı (alt sheet içinde) ─────────────────────────────────
+// Her kart bir şekli önizler + ada sahip + tıklanınca Navigator.pop ile döner.
+class _PenShapeCard extends StatelessWidget {
+  final String label;
+  final Color color;
+  final double width;
+  final _PenShape shape;
+  final VoidCallback onTap;
+  const _PenShapeCard({
+    required this.label,
+    required this.color,
+    required this.width,
+    required this.shape,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withValues(alpha: 0.45), width: 1.2),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Şekil önizleme — küçük canvas
+            SizedBox(
+              width: 60,
+              height: 40,
+              child: CustomPaint(
+                painter: _PenShapePreview(
+                  shape: shape,
+                  color: color,
+                  width: width,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PenShapePreview extends CustomPainter {
+  final _PenShape shape;
+  final Color color;
+  final double width;
+  _PenShapePreview(
+      {required this.shape, required this.color, required this.width});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = width
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final rect = Rect.fromCenter(
+        center: Offset(size.width / 2, size.height / 2),
+        width: size.width * 0.7,
+        height: size.height * 0.6);
+    switch (shape) {
+      case _PenShape.circle:
+        canvas.drawOval(rect, paint);
+        break;
+      case _PenShape.square:
+        final side = rect.height;
+        final square = Rect.fromCenter(
+            center: rect.center, width: side, height: side);
+        canvas.drawRect(square, paint);
+        break;
+      case _PenShape.rectangle:
+        canvas.drawRect(rect, paint);
+        break;
+      case _PenShape.freehand:
+        // Dalgalı serbest çizgi — elle çizimi temsil eder.
+        final path = Path()..moveTo(rect.left, rect.center.dy);
+        final step = rect.width / 6;
+        for (int i = 0; i < 6; i++) {
+          final x1 = rect.left + step * (i + 0.5);
+          final y1 = rect.center.dy + (i % 2 == 0 ? -8.0 : 8.0);
+          final x2 = rect.left + step * (i + 1);
+          final y2 = rect.center.dy;
+          path.quadraticBezierTo(x1, y1, x2, y2);
+        }
+        canvas.drawPath(path, paint);
+        break;
+    }
+  }
+
+  @override
+  bool shouldRepaint(_PenShapePreview old) =>
+      old.shape != shape || old.color != color || old.width != width;
 }
