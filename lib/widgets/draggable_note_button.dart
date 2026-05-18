@@ -178,7 +178,8 @@ class DraggableNoteOverlay extends StatefulWidget {
 }
 
 class _DraggableNoteOverlayState extends State<DraggableNoteOverlay> {
-  static const _btnSize = 56.0;
+  // Buton boyutu — daha küçük ve daha az dikkat çekici (kullanıcı isteği).
+  static const _btnSize = 44.0;
   // Pref keys
   String get _posKey => 'note_fab_pos_${widget.topicId}';
   String get _textKey => 'note_text_${widget.topicId}';
@@ -439,8 +440,8 @@ class _NoteFab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 56,
-      height: 56,
+      width: 44,
+      height: 44,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: LinearGradient(
@@ -453,9 +454,9 @@ class _NoteFab extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: color.withValues(alpha: 0.40),
-            blurRadius: 16,
-            offset: Offset(0, 4),
+            color: color.withValues(alpha: 0.32),
+            blurRadius: 12,
+            offset: Offset(0, 3),
           ),
         ],
       ),
@@ -463,18 +464,18 @@ class _NoteFab extends StatelessWidget {
         alignment: Alignment.center,
         children: [
           Icon(Icons.sticky_note_2_rounded,
-              color: Colors.white, size: 26),
+              color: Colors.white, size: 20),
           if (hasNote)
             Positioned(
-              top: 8,
-              right: 8,
+              top: 6,
+              right: 6,
               child: Container(
-                width: 10,
-                height: 10,
+                width: 8,
+                height: 8,
                 decoration: BoxDecoration(
                   color: Color(0xFFEF4444),
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 1.5),
+                  border: Border.all(color: Colors.white, width: 1.2),
                 ),
               ),
             ),
