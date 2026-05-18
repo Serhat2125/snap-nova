@@ -363,7 +363,11 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
   Widget _buildLoader() {
     const disc = 200.0; // önceki 160 → biraz daha büyük
     const mid = disc / 2;
-    return Container(
+    // ClipOval ile DAİRESEL clip — orbit ring'i ve uçuşan semboller diskin
+    // dışına asla taşmaz. Şekil BoxShape.circle olsa da içerideki Stack
+    // rectangular bound'a göre clip yapıyordu; ClipOval gerçek daire clip.
+    return ClipOval(
+      child: Container(
       width: disc,
       height: disc,
       decoration: BoxDecoration(
@@ -389,7 +393,9 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
                 width: disc,
                 height: disc,
                 child: Stack(
-                  clipBehavior: Clip.none,
+                  // Disk içine clip — semboller diskin dışına taşmaz
+                  // (uzaktan süzülen ikonlar artık disk kenarından başlar).
+                  clipBehavior: Clip.hardEdge,
                   children: _symbols.map((s) {
                     final life = ((now - s.birthMs) / 2000).clamp(0.0, 1.0);
                     final st = _symbolState(life);
@@ -457,6 +463,7 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
           _buildCenterSymbol(),
         ],
       ),
+    ),
     );
   }
 

@@ -363,18 +363,24 @@ enum _StartupState { onboarding, educationSetup, home }
 /// Kullanıcı tercihine göre Kamera veya Kütüphane açan router.
 /// Ayarlar > Uygulamayı Kişiselleştir sekmesinde seçilir.
 /// SharedPreferences key: `startup_screen` → 'camera' (varsayılan) veya 'library'
-/// Minimal MaterialApp — Firebase/locale/theme init beklemeden hemen
+/// Minimal MaterialApp — Firebase/locale init beklemeden hemen
 /// QuAlsarSplashScreen'i gösterir. main() heavy init bittiğinde gerçek
 /// QuAlsarApp ile yer değiştirir (ikinci runApp çağrısı).
-/// Bu widget HİÇBİR servise (Firebase, locale, theme) bağımlı değildir;
-/// bağımsız çalışır → instant render.
+///
+/// Önemli: Splash içindeki widget'lar AppPalette → ThemeInherited.of()
+/// kullanıyor; bu yüzden minimal ama ThemeInherited wrapper'lı bir tree
+/// kuruluyor. ThemeService default light mode ile başlar (SharedPref'ten
+/// yüklemeden), yeterli çünkü splash görseli zaten beyaz.
 class _InstantSplashApp extends StatelessWidget {
   const _InstantSplashApp();
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: QuAlsarSplashScreen(),
+    return ThemeInherited(
+      service: themeService, // global instance — light default
+      child: const MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: QuAlsarSplashScreen(),
+      ),
     );
   }
 }

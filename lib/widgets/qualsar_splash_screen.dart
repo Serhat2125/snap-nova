@@ -69,9 +69,10 @@ class _QuAlsarSplashScreenState extends State<QuAlsarSplashScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.start,
           children: [
-            const SizedBox(height: 140),
+            // Logo (dönen disk) "biraz daha aşağı" — üst boşluk 140 → 180.
+            const SizedBox(height: 180),
             _SlidingTitle(intro: _intro),
-            const SizedBox(height: 18),
+            const SizedBox(height: 28),
             FadeTransition(
               opacity: _loader,
               child: ScaleTransition(
@@ -80,7 +81,8 @@ class _QuAlsarSplashScreenState extends State<QuAlsarSplashScreen>
                       parent: _loader, curve: Curves.easeOutCubic),
                 ),
                 child: const SizedBox(
-                  height: 140,
+                  // Disk 200×200, etrafa minik glow için 220 px alan yeter.
+                  height: 220,
                   child: QuAlsarNumericLoader(
                     diskOnly: true,
                     variant: QuAlsarLoaderVariant.verbal,
@@ -154,19 +156,21 @@ class _SlidingTitle extends StatelessWidget {
                 child: Text(
                   _letters[i],
                   style: GoogleFonts.orbitron(
-                    fontSize: 60,
+                    // Boyut 60 → 48: ekrana daha dengeli sığar, küçük cihazlarda
+                    // da kenara taşmaz.
+                    fontSize: 48,
                     fontWeight: FontWeight.w900,
                     color: isAccent
                         ? const Color(0xFFE53935)
                         : Colors.black,
-                    letterSpacing: 4,
+                    letterSpacing: 3,
                     height: 1.0,
                     shadows: isAccent
                         ? [
                             Shadow(
                               color: const Color(0xFFE53935)
                                   .withValues(alpha: 0.30),
-                              blurRadius: 14,
+                              blurRadius: 12,
                             ),
                           ]
                         : null,
