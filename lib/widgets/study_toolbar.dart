@@ -320,6 +320,10 @@ class _StudyToolbarOverlayState extends State<StudyToolbarOverlay> {
   Widget build(BuildContext context) {
     if (!_loaded) return const SizedBox.shrink();
     final drawing = _mode != _DrawMode.off;
+    // Renk vurgu modunda küçük üst gösterge: kullanıcıya modu hatırlatır + çıkış butonu.
+    final colorActive = _mode == _DrawMode.multiHighlight ||
+        _mode == _DrawMode.multiHighlightStraight ||
+        _mode == _DrawMode.pen;
     return Stack(
       children: [
         // Çizim katmanı — YATAY drag = vurgulama, DİKEY drag = scroll için
@@ -473,7 +477,93 @@ class _StudyToolbarOverlayState extends State<StudyToolbarOverlay> {
           ),
         );
         }(),
+        // ── Sol üst renk modu göstergesi ──────────────────────────────
+        // Kullanıcı renk + çizim şekli seçtikten sonra toolbar kapanır;
+        // bu küçük tab modu hatırlatır + X ile çıkış sağlar.
+        if (colorActive)
+          Positioned(
+            left: 12,
+            top: MediaQuery.of(context).padding.top + 8,
+            child: _ColorModeBadge(
+              color: _mode == _DrawMode.pen ? _penColor : _multiHighlightColor,
+              onClose: () => setState(() => _mode = _DrawMode.off),
+            ),
+          ),
       ],
+    );
+  }
+}
+
+// ─── Sol üst renk modu göstergesi ──────────────────────────────────────────
+// Küçük yatay tab: renk dot + "Renk seç, cümleni vurgula" + X.
+class _ColorModeBadge extends StatelessWidget {
+  final Color color;
+  final VoidCallback onClose;
+  const _ColorModeBadge({required this.color, required this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(10, 7, 6, 7),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.78),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withValues(alpha: 0.55), width: 1.4),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.22),
+              blurRadius: 12,
+              offset: const Offset(2, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Renk dot
+            Container(
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: color,
+                border: Border.all(color: Colors.white, width: 1.4),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Metin
+            Text(
+              'Renk seç, cümleni vurgula',
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 6),
+            // X butonu — renk modundan çıkar
+            GestureDetector(
+              onTap: onClose,
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.close_rounded,
+                  color: Colors.white,
+                  size: 14,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
