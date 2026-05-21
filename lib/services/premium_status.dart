@@ -138,8 +138,14 @@ class PremiumStatus {
     revision.value++;
   }
 
-  /// Geliştirici / test için manuel grant.
+  /// Geliştirici / test için manuel grant. Production'da NO-OP.
+  /// kDebugMode ve kProfileMode false ise (release build) çağrılırsa
+  /// sessizce geri döner — kullanıcılar exploit edemesin.
   static Future<void> grantManualTest({int days = 30}) async {
+    if (!kDebugMode && !kProfileMode) {
+      debugPrint('[Premium] grantManualTest release build\'de devre dışı');
+      return;
+    }
     final until = DateTime.now().add(Duration(days: days));
     await _writeLocal(until: until, source: 'manual_test');
   }

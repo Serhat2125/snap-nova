@@ -14,6 +14,7 @@ import '../services/country_resolver.dart';
 import '../services/education_profile.dart';
 import '../services/gemini_service.dart';
 import '../services/locale_service.dart';
+import '../services/deep_link_service.dart';
 import '../services/referral_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
@@ -5494,11 +5495,32 @@ class _InviteCodeSheetState extends State<_InviteCodeSheet> {
   @override
   void initState() {
     super.initState();
-    _autofillFromClipboard();
+    // Deep link davet kodu — uygulama linkten açıldıysa öncelikle bunu doldur.
+    final fromLink = DeepLinkService.instance.pendingReferralCode.value;
+    if (fromLink != null && fromLink.isNotEmpty) {
+      _ctrl.text = fromLink;
+      DeepLinkService.instance.clearReferralCode();
+    } else {
+      // Yoksa panoyu kontrol et — paylaşım metninden QUALS-XXXXX yakala.
+      _autofillFromClipboard();
+    }
+    // Sheet açıkken link gelirse (kullanıcı arka plandan linke tıklarsa)
+    DeepLinkService.instance.pendingReferralCode
+        .addListener(_onDeepLinkCode);
+  }
+
+  void _onDeepLinkCode() {
+    final code = DeepLinkService.instance.pendingReferralCode.value;
+    if (code != null && code.isNotEmpty && mounted) {
+      setState(() => _ctrl.text = code);
+      DeepLinkService.instance.clearReferralCode();
+    }
   }
 
   @override
   void dispose() {
+    DeepLinkService.instance.pendingReferralCode
+        .removeListener(_onDeepLinkCode);
     _ctrl.dispose();
     super.dispose();
   }

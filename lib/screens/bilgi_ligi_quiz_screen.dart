@@ -17,6 +17,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../features/league/league_scores.dart';
 import '../features/league/quiz_pool_service.dart';
 import '../services/education_profile.dart';
 import '../services/gemini_service.dart';
@@ -31,6 +32,11 @@ class BilgiLigiQuizScreen extends StatefulWidget {
   final String subjectName;
   final String subjectEmoji;
   final String? topic;
+  /// Bilgi Ligi'nde seçili periyot — Günlük/Haftalık/Aylık/Genel. Quiz
+  /// içeriğini SEÇMEZ (sorular periyottan bağımsız) ama puan kaydı bu
+  /// periyot etiketi ile yapılır ve quiz header'ında rozet olarak gösterilir
+  /// → kullanıcı seçimin etkisini görür.
+  final LeaguePeriod period;
 
   const BilgiLigiQuizScreen({
     super.key,
@@ -39,6 +45,7 @@ class BilgiLigiQuizScreen extends StatefulWidget {
     required this.subjectName,
     required this.subjectEmoji,
     this.topic,
+    this.period = LeaguePeriod.weekly,
   });
 
   @override
@@ -66,6 +73,42 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
   /// Her sorunun kullanıcı cevabı: int (0-3) seçilen şık veya null (boş).
   /// Quiz bittikten sonra "Yanlış Yaptığın Sorular" ekranı için kullanılır.
   late List<int?> _userAnswers;
+
+  /// Periyot için deterministik seed — aynı gün/hafta/ay = aynı 10 soru.
+  /// allTime → null (rastgele her seferinde).
+  /// Hafta hesabı ISO 8601 standardına göre yapılır → her ülkede aynı sonuç.
+  int? _periodSeed(LeaguePeriod p) {
+    final now = DateTime.now();
+    switch (p) {
+      case LeaguePeriod.daily:
+        // UTC'ye normalize edilmiş "gün" — kullanıcı timezone'larından
+        // bağımsız olarak aynı gün herkeste aynı seed.
+        final utc = now.toUtc();
+        final dayOfYear =
+            utc.difference(DateTime.utc(utc.year, 1, 1)).inDays + 1;
+        return utc.year * 1000 + dayOfYear;
+      case LeaguePeriod.weekly:
+        return _isoWeekSeed(now.toUtc());
+      case LeaguePeriod.monthly:
+        final utc = now.toUtc();
+        return utc.year * 12 + utc.month;
+      case LeaguePeriod.allTime:
+        return null;
+    }
+  }
+
+  /// ISO 8601 hafta numarası — Pazartesi başlangıç, Perşembe içeren hafta
+  /// o yılın haftasıdır. Yıl sınırlarında doğru çalışır.
+  int _isoWeekSeed(DateTime utc) {
+    // Bu haftaki Perşembe gününü bul (ISO: hafta Perşembe içerdiği yılın).
+    final dayOfWeek = utc.weekday; // 1=Pzt, 7=Paz
+    final thursday = utc.add(Duration(days: 4 - dayOfWeek));
+    // Bu Perşembenin yıl içindeki sırası
+    final jan1 = DateTime.utc(thursday.year, 1, 1);
+    final dayOfYear = thursday.difference(jan1).inDays + 1;
+    final week = ((dayOfYear - 1) / 7).floor() + 1;
+    return thursday.year * 100 + week;
+  }
 
   // ÖSYM tarzı net: Doğru − (Yanlış / divisor); divisor yaş bazlı.
   //   primary (1-4)        → ceza yok (null)
@@ -151,8 +194,17 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
         subjectKey: widget.subjectKey,
         topic: widget.topic,
       );
-      List<Map<String, dynamic>> raw =
-          await QuizPoolService.fetchPoolQuestions(key: key, count: 10);
+      // Periyot rotasyonu için deterministik seed:
+      //   • daily   → yıl+gün → her gün farklı 10 soru, tüm kullanıcı aynı set
+      //   • weekly  → yıl+haftaNo → her hafta farklı set
+      //   • monthly → yıl+ay → her ay farklı set
+      //   • allTime → null → her açılışta rastgele
+      final seed = _periodSeed(widget.period);
+      List<Map<String, dynamic>> raw = await QuizPoolService.fetchPoolQuestions(
+        key: key,
+        count: 10,
+        seed: seed,
+      );
 
       // 2) Havuz boş veya yetersiz → Gemini'den üret + (cap altındaysa) havuza
       //    ekle. Çift AI doğrulama default açık.
@@ -487,7 +539,31 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
+          // Periyot rozeti — seçilen filtrenin quiz'i hangi periyot için
+          // çözdüğünü kullanıcıya gösterir. Daily/Weekly/Monthly → aynı
+          // dilimdeki tüm kullanıcılar AYNI 10 soruyu çözer (deterministik seed).
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFF6A00), Color(0xFFFF8A3C)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              widget.period.displayLabel.tr(),
+              style: GoogleFonts.inter(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
           Text(
             '$_correctCount/${_questions.length}',
             style: GoogleFonts.inter(

@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.qualsar.ai",
+      "sha256_cert_fingerprints": [
+        "D0:91:BA:64:8C:74:E8:B0:9D:C9:01:32:A4:13:C1:8E:43:70:4B:07:8F:F1:F4:55:7A:D3:FB:0A:B7:8D:A3:30"
+      ]
+    }
+  }
+]

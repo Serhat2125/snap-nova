@@ -12,6 +12,10 @@
             <action android:name="android.speech.RecognitionService" />
         </intent>
     </queries>
+    <!-- Contacts — rehberden arkadaş eşleştirme (opsiyonel, runtime permission) -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- FCM Push bildirimleri (Android 13+ runtime permission) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Gallery / Storage -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
@@ -41,6 +45,30 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <!-- Deep link: davet ve profil linkleri ───────────────────────
+                 https://qualsar2-640f0.web.app/davet/{username}
+                 https://qualsar2-640f0.web.app/u/{username}
+                 + custom scheme qualsar://...                              -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https"
+                      android:host="qualsar2-640f0.web.app"
+                      android:pathPrefix="/davet/" />
+                <data android:scheme="https"
+                      android:host="qualsar2-640f0.web.app"
+                      android:pathPrefix="/u/" />
+                <data android:scheme="https"
+                      android:host="qualsar2-640f0.web.app"
+                      android:pathPrefix="/i/" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="qualsar" />
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

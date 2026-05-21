@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'critical_translations.dart';
 import 'library_translations.dart';
+import 'preferences_sync_service.dart';
 import 'translations_generated.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -297,6 +298,8 @@ class LocaleService extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefKey, code);
+    // Cloud sync — yeni cihazda restore için. Fire-and-forget.
+    unawaited(PreferencesSyncService.syncFromLocal());
     // Runtime translator — arka planda tüm hardcoded string'leri yeni dile çevirt.
     // LocaleService'in runtime_translator'a doğrudan bağımlılığı olmasın diye
     // dışarıdan set edilebilir bir callback üzerinden tetikliyoruz.

@@ -1,18 +1,30 @@
-// QuAlsarSplashScreen — iki aşamalı açılış ekranı.
+// QuAlsarSplashScreen — uygulama açılışı.
 //
-// Tasarım:
-//  • Tam BEYAZ arka plan.
-//  • Faz 1 (0-1300ms): "QuAlsar" harfleri tek tek FÜTÜRİSTİK kayarak
-//    gelir; sıradan harf uzaktan (yatay offset + scale + opacity) süzülür,
-//    kendi yerine yerleşir. Sıralı stagger 90ms ile harfler birer birer.
-//    En son tüm harfler doğru yerde birleşir.
-//  • Faz 2 (1300ms+): Hemen ardından altına dönen halka logosu (disk only)
-//    smooth fade ile gelir.
-//  • Halka altında STATUS METNİ YOK.
+// Kullanıcı isteği:
+//  • Uygulamaya BASILIR BASILMAZ "QuAlsar" yazısı görünsün.
+//  • Yaklaşık 2 saniye sonra dönen logo (disk) altında belirsin.
+//  • Uygulama tam yüklenene kadar her ikisi de ekranda kalsın.
+//
+// Tasarım detayları:
+//  • Title kayma animasyonu KALDIRILDI — frame 0'da Text widget direkt görünür.
+//    Widget tree iki kez rebuild edilse (anlık splash + sonra QuAlsarApp
+//    içindeki _StartupRouter) bile yazı "kaybolup geri gelme" titremesi yapmaz.
+//  • Logo görünürlüğü module-seviyesi `_appStartTime` ile takip edilir — widget
+//    state'i resetlense bile, app açılışından 2sn geçtiyse logo zaten orada
+//    olur. Yalnızca ilk 2sn için bir Timer.
+//  • Layout MINIMUM: Center > Column(min, center). Hiçbir overflow imkansız.
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'qualsar_numeric_loader.dart';
+
+/// Uygulama process'i başladığında set edilir. Widget tree rebuild olsa bile
+/// reset olmaz — splash logo'sunun "2sn sonra göründüm" durumunu korur.
+final DateTime _appStartTime = DateTime.now();
+
+/// Logo'nun ortaya çıkacağı eşik.
+const Duration _logoRevealAfter = Duration(seconds: 2);
 
 class QuAlsarSplashScreen extends StatefulWidget {
   const QuAlsarSplashScreen({super.key});
@@ -22,165 +34,134 @@ class QuAlsarSplashScreen extends StatefulWidget {
 }
 
 class _QuAlsarSplashScreenState extends State<QuAlsarSplashScreen>
-    with TickerProviderStateMixin {
-  // Yazı intro — toplam 1300ms; harfler 0-1100 arası sırayla yerleşir.
-  late final AnimationController _intro;
-  // Logo fade — harf yerleşmesi biter bitmez başlar.
-  late final AnimationController _loader;
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _logoFade;
+  Timer? _revealTimer;
 
   @override
   void initState() {
     super.initState();
-    _intro = AnimationController(
+    _logoFade = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1300),
-    )..forward();
-
-    _loader = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 500),
+      duration: const Duration(milliseconds: 400),
     );
 
-    // %85'te (≈1100ms) logo fade başlat — harfler son pozisyonuna yaklaşırken
-    // logo da pürüzsüz girer.
-    _intro.addListener(() {
-      if (_intro.value >= 0.85 &&
-          !_loader.isAnimating &&
-          _loader.value == 0.0) {
-        _loader.forward();
-      }
-    });
+    final elapsed = DateTime.now().difference(_appStartTime);
+    if (elapsed >= _logoRevealAfter) {
+      // Widget tekrar mount olduğunda (örn. ikinci runApp sonrası) zaten
+      // 2sn geçmişse logo'yu anında göster — fade animasyonunu replay etme.
+      _logoFade.value = 1.0;
+    } else {
+      final remaining = _logoRevealAfter - elapsed;
+      _revealTimer = Timer(remaining, () {
+        if (!mounted) return;
+        _logoFade.forward();
+      });
+    }
   }
 
   @override
   void dispose() {
-    _intro.dispose();
-    _loader.dispose();
+    _revealTimer?.cancel();
+    _logoFade.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Logo, başlığın hemen altında — büyük Expanded yerine sabit yükseklik
-    // ve mainAxisAlignment center → tüm grup üst yarıda kalır, logo yukarıda.
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-            // Logo (dönen disk) "biraz daha aşağı" — üst boşluk 140 → 180.
-            const SizedBox(height: 180),
-            _SlidingTitle(intro: _intro),
-            const SizedBox(height: 28),
-            FadeTransition(
-              opacity: _loader,
-              child: ScaleTransition(
-                scale: Tween<double>(begin: 0.88, end: 1.0).animate(
-                  CurvedAnimation(
-                      parent: _loader, curve: Curves.easeOutCubic),
+    // Material en alt katman: ErrorWidget veya başka widget'ların kırmızı
+    // şeritler bırakmasına karşı beyaz zemin ve metin kontextini sağlar.
+    // Align (0, -0.45): yatayda merkez, dikeyde üst yarıya doğru kaydırır —
+    // başlık ve logo ekranın üst bölümünde, alt %30'da boşluk kalır.
+    return Material(
+      color: Colors.white,
+      child: SafeArea(
+        child: Align(
+          alignment: const Alignment(0, -0.45),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ── QuAlsar başlığı — frame 0'da görünür, animasyonsuz ──
+              // Stil: Audiowide — fütüristik ama yumuşak eğrilerle, Orbitron'a
+              // göre daha karakterli ve modern. Letterspacing ile havadar.
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text.rich(
+                    TextSpan(
+                      style: GoogleFonts.audiowide(
+                        fontSize: 56,
+                        fontWeight: FontWeight.w400,
+                        color: Colors.black,
+                        letterSpacing: 4,
+                        height: 1.0,
+                      ),
+                      children: [
+                        const TextSpan(text: 'Qu'),
+                        TextSpan(
+                          text: 'Al',
+                          style: TextStyle(
+                            color: const Color(0xFFE53935),
+                            shadows: [
+                              Shadow(
+                                color: const Color(0xFFE53935)
+                                    .withValues(alpha: 0.35),
+                                blurRadius: 14,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const TextSpan(text: 'sar'),
+                      ],
+                    ),
+                  ),
                 ),
-                child: const SizedBox(
-                  // Disk 200×200, etrafa minik glow için 220 px alan yeter.
-                  height: 220,
-                  child: QuAlsarNumericLoader(
+              ),
+              // Başlık altı küçük boşluk.
+              const SizedBox(height: 14),
+              // ── Alt başlık: "QuAlsar Eğitim Dünyasına Hoş Geldiniz" ──
+              // FittedBox(fitWidth) + SizedBox(220): yazının genişliği TAM
+              // altındaki logo diski kadar (220). Tek satır, başlangıcı/bitişi
+              // logo'nun başlangıcı/bitişi ile birebir hizalı.
+              SizedBox(
+                width: 220,
+                child: FittedBox(
+                  fit: BoxFit.fitWidth,
+                  child: Text(
+                    'QuAlsar Eğitim Dünyasına Hoş Geldiniz',
+                    maxLines: 1,
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                      letterSpacing: 0.2,
+                      height: 1.0,
+                    ),
+                  ),
+                ),
+              ),
+              // Alt başlık ile logo arasındaki boşluk.
+              const SizedBox(height: 36),
+              // ── Logo (disk) — 2 saniye sonra fade ile belirir ──
+              // Önce 220×220 yer rezerve edilir; opacity 0 iken bile aynı
+              // yer kaplar, böylece title konumu logo göründüğünde KAYMAZ.
+              SizedBox(
+                height: 220,
+                width: 220,
+                child: FadeTransition(
+                  opacity: _logoFade,
+                  child: const QuAlsarNumericLoader(
                     diskOnly: true,
                     variant: QuAlsarLoaderVariant.verbal,
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    );
-  }
-}
-
-// ── "QuAlsar" başlığı — tek tek harfler yatay süzülerek birleşir ─────────
-class _SlidingTitle extends StatelessWidget {
-  final AnimationController intro;
-  const _SlidingTitle({required this.intro});
-
-  // Tasarım: Qu — siyah, Al — kırmızı (vurgu), sar — siyah.
-  // ASCII karakterler: Q, u, A, l, s, a, r → 7 harf.
-  static const _letters = ['Q', 'u', 'A', 'l', 's', 'a', 'r'];
-  static bool _isAccent(int i) => i == 2 || i == 3; // 'A' ve 'l'
-
-  // Her harf belirli bir yatay offset'ten süzülür — alternatifli yönler:
-  // odd index sağdan, even index soldan. Bu daha "fütüristik" hareket verir.
-  static const _slideOffsets = [-160, 140, -120, 120, -100, 100, -140];
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: intro,
-      builder: (_, __) => Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (int i = 0; i < _letters.length; i++) _buildLetter(i),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLetter(int i) {
-    // Stagger — her harf önceki başladıktan 90ms sonra başlasın.
-    // Sürede 7 harf × 90ms = 630ms gecikme + 350ms süzülme = 980ms toplam.
-    final start = (i * 0.075).clamp(0.0, 0.75);
-    final end = (start + 0.32).clamp(0.0, 1.0);
-    final t = CurvedAnimation(
-      parent: intro,
-      curve: Interval(start, end, curve: Curves.easeOutBack),
-    );
-
-    final dx = Tween<double>(begin: _slideOffsets[i].toDouble(), end: 0.0)
-        .animate(t);
-    final scale = Tween<double>(begin: 0.6, end: 1.0).animate(t);
-    final opacity = Tween<double>(begin: 0, end: 1).animate(t);
-
-    final isAccent = _isAccent(i);
-
-    return AnimatedBuilder(
-      animation: t,
-      builder: (_, __) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 1.5),
-          child: Opacity(
-            opacity: opacity.value,
-            child: Transform.translate(
-              offset: Offset(dx.value, 0),
-              child: Transform.scale(
-                scale: scale.value,
-                child: Text(
-                  _letters[i],
-                  style: GoogleFonts.orbitron(
-                    // Boyut 60 → 48: ekrana daha dengeli sığar, küçük cihazlarda
-                    // da kenara taşmaz.
-                    fontSize: 48,
-                    fontWeight: FontWeight.w900,
-                    color: isAccent
-                        ? const Color(0xFFE53935)
-                        : Colors.black,
-                    letterSpacing: 3,
-                    height: 1.0,
-                    shadows: isAccent
-                        ? [
-                            Shadow(
-                              color: const Color(0xFFE53935)
-                                  .withValues(alpha: 0.30),
-                              blurRadius: 12,
-                            ),
-                          ]
-                        : null,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 }

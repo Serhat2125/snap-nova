@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'error_logger.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -235,6 +237,7 @@ class SolutionsStorage {
       } catch (e) {
         debugPrint('[SolutionsStorage] saveOrUpdate fail: $e');
       }
+      unawaited(_cloudUpsert(record));
     });
   }
 
@@ -257,6 +260,7 @@ class SolutionsStorage {
       } catch (e) {
         debugPrint('[SolutionsStorage] delete fail: $e');
       }
+      unawaited(_cloudDelete(id));
     });
   }
 
@@ -287,37 +291,44 @@ class SolutionsStorage {
       } catch (e) {
         debugPrint('[SolutionsStorage] deleteMany fail: $e');
       }
+      unawaited(_cloudDeleteMany(idSet));
     });
   }
 
   static Future<void> toggleFavorite(String id) {
     return _serialize(() async {
+      SolutionRecord? updated;
       try {
         final records = await loadAll();
         final idx = records.indexWhere((r) => r.id == id);
         if (idx < 0) return;
         records[idx] =
             records[idx].copyWith(isFavorite: !records[idx].isFavorite);
+        updated = records[idx];
         await _writeAll(records);
       } catch (e) {
         debugPrint('[SolutionsStorage] toggleFavorite fail: $e');
       }
+      if (updated != null) unawaited(_cloudUpsert(updated));
     });
   }
 
   /// OCR ile çıkarılan soru metnini kaydeder (paylaşımı hızlandırmak için).
   static Future<void> saveQuestionText(String id, String questionText) {
     return _serialize(() async {
+      SolutionRecord? updated;
       try {
         final records = await loadAll();
         final idx = records.indexWhere((r) => r.id == id);
         if (idx < 0) return;
         records[idx] =
             records[idx].copyWith(cachedQuestionText: questionText);
+        updated = records[idx];
         await _writeAll(records);
       } catch (e) {
         debugPrint('[SolutionsStorage] saveQuestionText fail: $e');
       }
+      if (updated != null) unawaited(_cloudUpsert(updated));
     });
   }
 
@@ -326,15 +337,18 @@ class SolutionsStorage {
   static Future<void> saveStudySuite(
       String id, Map<String, dynamic> suite) {
     return _serialize(() async {
+      SolutionRecord? updated;
       try {
         final records = await loadAll();
         final idx = records.indexWhere((r) => r.id == id);
         if (idx < 0) return;
         records[idx] = records[idx].copyWith(studySuite: suite);
+        updated = records[idx];
         await _writeAll(records);
       } catch (e) {
         debugPrint('[SolutionsStorage] saveStudySuite fail: $e');
       }
+      if (updated != null) unawaited(_cloudUpsert(updated));
     });
   }
 
@@ -368,6 +382,119 @@ class SolutionsStorage {
         debugPrint('[SolutionsStorage] cleanOrphans fail: $e');
       }
       return removed;
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  CLOUD SYNC — users/{uid}/solutions/{id} koleksiyonu.
+  //
+  //  ŞEMA: meta-only sync. Resim dosyası (imagePath) yerel/cihaza özel kalır;
+  //  cloud doc'unda sadece "image" flag'i var. Yeni cihaza geçince çözüm
+  //  metni + Q&A + studySuite geri yüklenir; resim "📷 cihazda yok" olarak
+  //  gösterilir (kullanıcı çözüm metnine ulaşır ama eski fotoğraf görmez).
+  //
+  //  Auth yoksa veya offline → sessizce no-op. Yerel her zaman kaynak.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  static String? get _uid => FirebaseAuth.instance.currentUser?.uid;
+
+  static Future<void> _cloudUpsert(SolutionRecord r) async {
+    try {
+      final uid = _uid;
+      if (uid == null) return;
+      final payload = <String, dynamic>{
+        ...r.toJson(),
+        // Resim yolu cihaza özel — cloud'da sadece "var mı yok mu" flag.
+        'hasImage': r.imagePath.isNotEmpty,
+        'imagePath': '', // cihaz değişince geçersiz; boş yaz
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('solutions')
+          .doc(r.id)
+          .set(payload, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[SolutionsStorage] cloud upsert fail: $e');
+    }
+  }
+
+  static Future<void> _cloudDelete(String id) async {
+    try {
+      final uid = _uid;
+      if (uid == null) return;
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('solutions')
+          .doc(id)
+          .delete();
+    } catch (e) {
+      debugPrint('[SolutionsStorage] cloud delete fail: $e');
+    }
+  }
+
+  static Future<void> _cloudDeleteMany(Set<String> ids) async {
+    try {
+      final uid = _uid;
+      if (uid == null || ids.isEmpty) return;
+      final batch = FirebaseFirestore.instance.batch();
+      final col = FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('solutions');
+      for (final id in ids) {
+        batch.delete(col.doc(id));
+      }
+      await batch.commit();
+    } catch (e) {
+      debugPrint('[SolutionsStorage] cloud deleteMany fail: $e');
+    }
+  }
+
+  /// Yerel JSON boşsa cloud'dan geri yükle — telefon değişti / uygulama
+  /// silindi senaryosu. Resimler geri gelmez ama çözüm metinleri tam döner.
+  /// Bootstrap'tan sonra çağrılır.
+  ///
+  /// Döndürdüğü değer: restore edilen kayıt sayısı (0 → restore yapılmadı).
+  static Future<int> restoreFromCloudIfEmpty() async {
+    return _serialize(() async {
+      try {
+        final local = await loadAll();
+        if (local.isNotEmpty) return 0;
+        final uid = _uid;
+        if (uid == null) return 0;
+        final snap = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('solutions')
+            .orderBy('timestamp', descending: true)
+            .limit(500) // koruma — Firestore okuma maliyeti
+            .get();
+        if (snap.docs.isEmpty) return 0;
+        final restored = <SolutionRecord>[];
+        for (final d in snap.docs) {
+          final m = d.data();
+          // imagePath yerel/cihaza özel; cloud'da boş kalmış olabilir.
+          // Boş bırakırsak UI "fotoğraf yok" gösterir, sorun değil.
+          try {
+            restored.add(SolutionRecord.fromJson(
+              Map<String, dynamic>.from(m),
+            ));
+          } catch (e) {
+            debugPrint('[SolutionsStorage] cloud parse fail: $e');
+          }
+        }
+        if (restored.isEmpty) return 0;
+        await _writeAll(restored);
+        debugPrint(
+            '[SolutionsStorage] cloud restore: ${restored.length} kayıt');
+        return restored.length;
+      } catch (e) {
+        debugPrint('[SolutionsStorage] cloud restore fail: $e');
+        return 0;
+      }
     });
   }
 

@@ -29,6 +29,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'error_logger.dart';
 
@@ -44,6 +45,14 @@ class TtsService {
   static final List<String> _sentenceQueue = [];
   static bool _queueRunning = false;
   static String _currentLang = 'tr-TR';
+
+  // ── Konuşma hızı (kullanıcı tunable) ───────────────────────────────────
+  // Default 0.58 ≈ 155 WPM doğal konuşma. Özet sayfası 0.5x/1x/1.5x/2x
+  // çarpanlarıyla bu değeri ölçekler (0.29 / 0.58 / 0.87 / 1.16).
+  static const double _defaultRate = 0.58;
+  static double _rate = _defaultRate;
+  static const String _kRatePrefKey = 'tts_speech_rate';
+  static double get currentRate => _rate;
 
   /// UI dalga rengi vb. için reactive sinyal — başla/dur değişimlerinde
   /// listener'ları tetikler. `isSpeaking` getter polling içindir.
@@ -81,13 +90,19 @@ class TtsService {
         }
       });
 
+      // Persisted hızı yükle — kullanıcı önceki oturumda değiştirdiyse korunur.
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final saved = prefs.getDouble(_kRatePrefKey);
+        if (saved != null) _rate = saved.clamp(0.15, 1.50);
+      } catch (_) {}
+
       // ── İnsansı tonlama ─────────────────────────────────────────────────
       //   pitch 1.02  → düz robotik değil, çok hafifçe canlı
-      //   rate  0.58  → ~155 WPM doğal konuşma; cümleler arası engine zaten
-      //                 nefes verir, ekstra delay eklemiyoruz.
+      //   rate  _rate → varsayılan 0.58 ~155 WPM; kullanıcı hızı SharedPrefs'te
       //   volume 1.0  → tam ses
       await _tts.setPitch(1.02);
-      await _tts.setSpeechRate(0.58);
+      await _tts.setSpeechRate(_rate);
       await _tts.setVolume(1.0);
 
       // KRİTİK: `await speak(...)` cümle bitene kadar bloklasın → worker
@@ -249,5 +264,19 @@ class TtsService {
     try {
       await _tts.pause();
     } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'tts_service'); }
+  }
+
+  /// Konuşma hızını ayarlar (kalıcı). Aralık 0.15–1.50 ile clamp edilir.
+  /// 0.58 doğal konuşma (~155 WPM); 0.29 yavaş öğrenme, 1.16 hızlı tekrar.
+  /// Aktif konuşma varsa bir sonraki cümlede hız değişir.
+  static Future<void> setRate(double rate) async {
+    _rate = rate.clamp(0.15, 1.50);
+    try {
+      if (_initialized) await _tts.setSpeechRate(_rate);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble(_kRatePrefKey, _rate);
+    } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'tts_service');
+    }
   }
 }

@@ -217,6 +217,12 @@ class _SolutionScreenState extends State<SolutionScreen> {
 
   @override
   void dispose() {
+    // Loading sırasında back/leave olursa AI çağrısının sonucunu yutmak
+    // için cancel flag set edelim. Stream HTTP isteği zaten arka planda
+    // tamamlanır (cancel edemiyoruz) ama navigator.push çağrısı yapılmaz,
+    // setState atılmaz, kullanıcı maliyet/UX sorunu yaşamaz.
+    _cancelled = true;
+    _slowConnTimer?.cancel();
     _scrollCtrl.dispose();
     _pageBgN.dispose();
     _photoBgN.dispose();
@@ -226,11 +232,43 @@ class _SolutionScreenState extends State<SolutionScreen> {
     super.dispose();
   }
 
+  // ─── Stream cancel + slow connection state ─────────────────────────────
+  bool _cancelled = false;
+  Timer? _slowConnTimer;
+  bool _slowConnection = false;
+
   /// Kullanıcı kırpma çerçevesini daralttıysa yeni bir temp JPG yarat ve
   /// onun yolunu döndür; daraltılmamışsa orijinal yolu döndür.
   /// Hata durumunda (decode/IO) sessizce orijinal yola düş — analiz akışı
   /// kesilmesin.
+  /// Eski recrop_*.jpg temp dosyalarını sil — birikim disk doluşturmasın.
+  /// Sadece 1 günden eski olanları sil (aktif çözümler korunur).
+  static Future<void> _cleanOldRecropTemps() async {
+    try {
+      final dir = await getTemporaryDirectory();
+      if (!await dir.exists()) return;
+      final cutoff =
+          DateTime.now().subtract(const Duration(hours: 24));
+      await for (final ent in dir.list()) {
+        if (ent is File &&
+            ent.path.contains('recrop_') &&
+            ent.path.endsWith('.jpg')) {
+          try {
+            final stat = await ent.stat();
+            if (stat.modified.isBefore(cutoff)) {
+              await ent.delete();
+            }
+          } catch (_) {}
+        }
+      }
+    } catch (e) {
+      debugPrint('[Solution] recrop cleanup fail: $e');
+    }
+  }
+
   Future<String> _applyCropIfNeeded() async {
+    // Her _solve çağrısında arka planda eski temp dosyaları temizle.
+    unawaited(_cleanOldRecropTemps());
     final r = _cropRectN.value;
     // Tam alan ya da neredeyse tam (1 px tolerans) → kırpma yok.
     const eps = 0.005;
@@ -398,9 +436,18 @@ class _SolutionScreenState extends State<SolutionScreen> {
       'option': _selectedOption ?? 'unknown',
     });
 
+    _cancelled = false;
+    _slowConnection = false;
     setState(() {
       _isLoading = true;
       _subjectKind = null;
+    });
+    // 5sn'i geçerse "Bağlantı kontrol ediliyor…" göster
+    _slowConnTimer?.cancel();
+    _slowConnTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted && _isLoading && !_cancelled) {
+        setState(() => _slowConnection = true);
+      }
     });
 
     // Not: Daha önce `classifySubjectQuick` paralel çağrısı yapılıyordu —
@@ -446,10 +493,16 @@ class _SolutionScreenState extends State<SolutionScreen> {
       geminiError = GeminiException.unknown(e.toString());
     } finally {
       // _isLoading'i her koşulda sıfırla — UI asla kilitlenmesin
-      if (mounted) setState(() => _isLoading = false);
+      _slowConnTimer?.cancel();
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _slowConnection = false;
+        });
+      }
     }
 
-    if (!mounted) return;
+    if (!mounted || _cancelled) return;
 
     if (geminiError != null) {
       _showErrorDialog(geminiError);
@@ -486,7 +539,12 @@ class _SolutionScreenState extends State<SolutionScreen> {
       barrierColor: Colors.black.withValues(alpha: 0.65),
       builder: (_) => Dialog(
         backgroundColor: Colors.transparent,
-        child: _FuturisticErrorDialog(exception: e),
+        child: _FuturisticErrorDialog(
+          exception: e,
+          // Network/timeout/empty/unknown hatalarında tek tıkla yeniden dene.
+          // Quota ve safety hatalarında retry mantıklı değil (gizlenir).
+          onRetry: () => _solve(),
+        ),
       ),
     );
   }
@@ -616,11 +674,52 @@ class _SolutionScreenState extends State<SolutionScreen> {
           // ediliyor" fallback'ine düşer.
           if (_isLoading)
             Positioned.fill(
-              child: QuAlsarLoadingWidget(
-                type: QuAlsarLoadingType.solution,
-                domain: _subjectKind == 'verbal'
-                    ? SubjectDomain.verbal
-                    : SubjectDomain.numeric,
+              child: Stack(
+                children: [
+                  QuAlsarLoadingWidget(
+                    type: QuAlsarLoadingType.solution,
+                    domain: _subjectKind == 'verbal'
+                        ? SubjectDomain.verbal
+                        : SubjectDomain.numeric,
+                  ),
+                  if (_slowConnection)
+                    Positioned(
+                      bottom: 80,
+                      left: 0,
+                      right: 0,
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.72),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Color(0xFFFFB200)),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Bağlantı yavaş, kontrol ediliyor…'.tr(),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
         ],
@@ -1468,7 +1567,16 @@ class _AuraPainter extends CustomPainter {
 
 class _FuturisticErrorDialog extends StatelessWidget {
   final GeminiException exception;
-  const _FuturisticErrorDialog({required this.exception});
+  /// Retry mümkün hata türleri için callback. null verilirse retry butonu gizli.
+  final VoidCallback? onRetry;
+  const _FuturisticErrorDialog({required this.exception, this.onRetry});
+
+  /// Hata tipi retry yapılabilir mi? (network, timeout, empty response, vs.)
+  bool get _canRetry =>
+      exception.type == GeminiErrorType.noInternet ||
+      exception.type == GeminiErrorType.serverTimeout ||
+      exception.type == GeminiErrorType.emptyResponse ||
+      exception.type == GeminiErrorType.unknown;
 
   IconData get _icon => switch (exception.type) {
         GeminiErrorType.noInternet    => Icons.wifi_off_rounded,
@@ -1571,7 +1679,45 @@ class _FuturisticErrorDialog extends StatelessWidget {
             ),
           ],
           SizedBox(height: 24),
-          // Kapat butonu
+          // Retry + Kapat butonları (retry sadece uygun hata türlerinde)
+          if (_canRetry && onRetry != null) ...[
+            GestureDetector(
+              onTap: () {
+                Navigator.pop(context);
+                onRetry!();
+              },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [c, c.withValues(alpha: 0.78)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                alignment: Alignment.center,
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.refresh_rounded,
+                        color: Colors.white, size: 18),
+                    SizedBox(width: 8),
+                    Text(
+                      'Tekrar Dene',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
           GestureDetector(
             onTap: () => Navigator.pop(context),
             child: Container(

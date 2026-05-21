@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QuAlsar — Davet</title>
+  <meta property="og:title" content="QuAlsar — Bilgi Yarışı Daveti">
+  <meta property="og:description" content="Arkadaşın seni QuAlsar'da yarışmaya davet ediyor. Uygulamayı indir, hemen başla.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://qualsar2-640f0.web.app/og_invite.png">
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: linear-gradient(135deg, #FF6A00 0%, #FF3D00 100%); color: #111; min-height: 100vh; }
+    .container { max-width: 480px; margin: 0 auto; padding: 40px 24px; }
+    .card { background: white; border-radius: 24px; padding: 32px 24px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.15); }
+    .logo { font-size: 56px; }
+    h1 { font-size: 26px; font-weight: 800; margin: 12px 0 4px; letter-spacing: -0.4px; }
+    .username { color: #FF6A00; font-weight: 800; font-size: 18px; margin-bottom: 16px; }
+    p { color: #555; line-height: 1.5; font-size: 14px; }
+    .features { text-align: left; margin: 20px 0; padding: 16px; background: #FFF7ED; border-radius: 12px; }
+    .features ul { margin: 0; padding-left: 18px; }
+    .features li { padding: 4px 0; font-size: 13px; color: #444; }
+    .btn { display: block; padding: 14px; border-radius: 14px; text-decoration: none; font-weight: 800; margin: 10px 0; font-size: 15px; }
+    .btn-primary { background: linear-gradient(135deg, #FF6A00, #FF8A3C); color: white; box-shadow: 0 6px 18px rgba(255,106,0,0.4); }
+    .btn-secondary { background: #f5f5f5; color: #111; }
+    .footer { color: rgba(255,255,255,0.85); text-align: center; padding: 16px; font-size: 12px; }
+    .footer a { color: white; text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="logo">🏆</div>
+      <h1>Bilgi Yarışı'na Davetlisin!</h1>
+      <div class="username" id="invitedBy">Davet linkini açtın</div>
+      <p>QuAlsar, AI destekli bir sınav asistanı + bilgi yarışı. Arkadaşın seninle yarışmak istiyor.</p>
+
+      <div class="features">
+        <ul>
+          <li>📸 Soruları fotoğrafla, AI çözsün</li>
+          <li>🏆 Şehir, ülke ve dünya sıralaması</li>
+          <li>⚔️ Arkadaşlarla 1v1 düello</li>
+          <li>🔥 Günlük streak ve rozet sistemi</li>
+        </ul>
+      </div>
+
+      <a class="btn btn-primary" id="install" href="https://play.google.com/store/apps/details?id=com.qualsar.ai">
+        📲 Play Store'dan İndir
+      </a>
+      <a class="btn btn-secondary" href="https://qualsar2-640f0.web.app">
+        ℹ️ QuAlsar Hakkında Bilgi
+      </a>
+    </div>
+  </div>
+  <div class="footer">
+    © 2026 QuAlsar · <a href="/privacy">Gizlilik</a> · <a href="/terms">Koşullar</a>
+  </div>
+
+  <script>
+    // URL'den username veya davet kodu çek
+    const path = window.location.pathname;
+    const userMatch = path.match(/\/(davet|u)\/([^/]+)/);
+    const codeMatch = path.match(/\/i\/([A-Za-z0-9-]+)/);
+    if (codeMatch) {
+      const code = decodeURIComponent(codeMatch[1]).toUpperCase();
+      document.getElementById('invitedBy').textContent =
+        '🎁 Davet kodun: ' + code;
+    } else if (userMatch) {
+      const username = decodeURIComponent(userMatch[2]);
+      document.getElementById('invitedBy').textContent = '@' + username + ' seni davet ediyor';
+    }
+    // Mobil cihazda app açmayı dene (deep link); 1.5sn sonra hâlâ buradaysa store'a yönlendirme zaten görünür.
+    if (/android/i.test(navigator.userAgent)) {
+      // Android App Link autoVerify ile manifest tarafından otomatik açılır.
+      // Buraya düştüyse uygulama yüklü değil → Play Store CTA görünür.
+    }
+  </script>
+</body>
+</html>

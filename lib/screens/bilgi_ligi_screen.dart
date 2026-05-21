@@ -16,6 +16,7 @@
 //  Firestore'a aynı şema (subjectKey, topic, score, when) ile aktarılır.
 // ═══════════════════════════════════════════════════════════════════════════════
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
@@ -151,6 +152,655 @@ class _LbEntry {
     required this.score,
     this.isMe = false,
   });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  BİLGİ LİGİ — Nasıl Çalışır rehber sayfası
+//
+//  AppBar'daki "?" butonuna basınca açılır. 6 adım kartı + alttaki büyük
+//  CTA buton. Her kart: ikon + başlık + açıklama. Renkler turuncu/mor
+//  paletten — Bilgi Ligi ana sayfasıyla aynı dil.
+// ═══════════════════════════════════════════════════════════════════════════════
+class _BilgiLigiHowItWorksPage extends StatelessWidget {
+  const _BilgiLigiHowItWorksPage();
+
+  @override
+  Widget build(BuildContext context) {
+    const orange = Color(0xFFFF6A00);
+    const purple = Color(0xFF7C3AED);
+    return Scaffold(
+      backgroundColor: AppPalette.bg(context),
+      appBar: AppBar(
+        backgroundColor: AppPalette.bg(context),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close_rounded),
+          color: AppPalette.textPrimary(context),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(
+          'Nasıl Çalışır?'.tr(),
+          style: GoogleFonts.fraunces(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: AppPalette.textPrimary(context),
+            letterSpacing: -0.2,
+          ),
+        ),
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          children: [
+            // Üst banner — büyük başlık + tek cümlelik özet
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [orange, Color(0xFFFF8A3C)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(
+                    color: orange.withValues(alpha: 0.30),
+                    blurRadius: 14,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('🏆', style: TextStyle(fontSize: 32)),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Bilgi Ligi nedir?'.tr(),
+                    style: GoogleFonts.fraunces(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Test çöz, puan kazan, şehrinde-ülkende-dünyada sıralanmaya başla. Her doğru cevap +1 puan; hızlı çözen üst sıraya çıkar.'
+                        .tr(),
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white.withValues(alpha: 0.92),
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            // 6 adım kartı
+            _HowStepCard(
+              step: 1,
+              icon: Icons.menu_book_rounded,
+              title: 'Dersini seç',
+              desc:
+                  'Üstteki "Ders Seç" butonundan bir ders, sonra konu seç. Acelen varsa ⚡ Hızlı Test ile direkt başla.',
+              accent: purple,
+            ),
+            _HowStepCard(
+              step: 2,
+              icon: Icons.quiz_rounded,
+              title: '10 soruyu çöz',
+              desc:
+                  'Çoktan seçmeli 10 soru. Süre tutulur — eşit puanda hızlı olan üstte. Yanlış cevaplar net puandan düşülür (ÖSYM tarzı).',
+              accent: purple,
+            ),
+            _HowStepCard(
+              step: 3,
+              icon: Icons.location_on_rounded,
+              title: 'Konum seç',
+              desc:
+                  'Hangi şehirde-ülkede sıralandığını görmek için konum seç. Şehir / Ülke / Dünya filtresinden istediğin kapsama geç.',
+              accent: orange,
+            ),
+            _HowStepCard(
+              step: 4,
+              icon: Icons.access_time_rounded,
+              title: 'Periyot seç',
+              desc:
+                  'Günlük • Haftalık • Aylık • Genel. Günlük seçersen TÜM kullanıcılar O GÜN için aynı 10 soruyu çözer — adil challenge.',
+              accent: orange,
+            ),
+            _HowStepCard(
+              step: 5,
+              icon: Icons.local_fire_department_rounded,
+              title: 'Streak\'i koru',
+              desc:
+                  'Her gün en az 1 test çöz, 🔥 streak göstergesin büyür. 7 gün üst üste = +rozet, ek motivasyon.',
+              accent: orange,
+            ),
+            _HowStepCard(
+              step: 6,
+              icon: Icons.emoji_events_rounded,
+              title: 'Podyuma çık',
+              desc:
+                  'İlk 3 sıraya girersen 🥇🥈🥉 podyumda görünürsün. Yakın rakipler kartı kaç puan farkla yükseleceğini söyler.',
+              accent: purple,
+            ),
+            const SizedBox(height: 18),
+            // İpucu kartı
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: purple.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: purple.withValues(alpha: 0.30)),
+              ),
+              child: Row(
+                children: [
+                  const Text('💡', style: TextStyle(fontSize: 22)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Cloud\'a bağlanamazsan örnek bir liste gösterilir. Test çözünce skorun gerçek sıralamaya yazılır, anında podyuma yansır.'
+                          .tr(),
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppPalette.textPrimary(context),
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Alt CTA — kapatıp teste başla
+            SizedBox(
+              width: double.infinity,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () => Navigator.of(context).pop(),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [orange, Color(0xFFFF8A3C)],
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: orange.withValues(alpha: 0.30),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.play_arrow_rounded,
+                            color: Colors.white, size: 22),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Anladım, başla'.tr(),
+                          style: GoogleFonts.inter(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HowStepCard extends StatelessWidget {
+  final int step;
+  final IconData icon;
+  final String title;
+  final String desc;
+  final Color accent;
+  const _HowStepCard({
+    required this.step,
+    required this.icon,
+    required this.title,
+    required this.desc,
+    required this.accent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppPalette.card(context),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppPalette.border(context)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Numara + ikon kombosu
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  accent,
+                  accent.withValues(alpha: 0.70),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: accent.withValues(alpha: 0.30),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            alignment: Alignment.center,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Icon(icon, color: Colors.white, size: 22),
+                Positioned(
+                  top: -4,
+                  right: -4,
+                  child: Container(
+                    width: 16,
+                    height: 16,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white,
+                      border: Border.all(color: accent, width: 1.5),
+                    ),
+                    child: Text(
+                      '$step',
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                        color: accent,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title.tr(),
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: AppPalette.textPrimary(context),
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  desc.tr(),
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: AppPalette.textSecondary(context),
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Yakın rakip satırı (1 üst / 1 alt motivasyon kartı içinde) ──────────────
+enum _RivalDir { above, below }
+
+class _RivalRow extends StatelessWidget {
+  final _RivalDir direction;
+  final _LbEntry entry;
+  final double diff;
+  const _RivalRow({
+    required this.direction,
+    required this.entry,
+    required this.diff,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isAbove = direction == _RivalDir.above;
+    final color = isAbove ? const Color(0xFFEF4444) : const Color(0xFF10B981);
+    final arrow = isAbove
+        ? Icons.arrow_upward_rounded
+        : Icons.arrow_downward_rounded;
+    final absDiff = diff.abs();
+    final diffStr = absDiff == absDiff.truncateToDouble()
+        ? absDiff.toInt().toString()
+        : absDiff.toStringAsFixed(1);
+    final message = isAbove
+        ? '$diffStr ${"puan geride · geçmek için bir test daha".tr()}'
+        : '$diffStr ${"puan önde · arayı koruyabilirsin".tr()}';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.30)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 26,
+            height: 26,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color.withValues(alpha: 0.15),
+            ),
+            child: Icon(arrow, size: 14, color: color),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            entry.avatar.isEmpty ? '👤' : entry.avatar,
+            style: const TextStyle(fontSize: 16),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  entry.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: AppPalette.textPrimary(context),
+                  ),
+                ),
+                Text(
+                  message,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            entry.score.toStringAsFixed(0),
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              color: AppPalette.textPrimary(context),
+              letterSpacing: -0.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Top 3 podyum widget'ı ───────────────────────────────────────────────────
+// Liderlik tablosunun üst kısmında — altın/gümüş/bronz görsel kart.
+// İlk 3 kullanıcı için podium şeklinde dizilir (1. ortada en yüksek, 2. solda,
+// 3. sağda). Kullanıcı kendisi top 3'teyse altın çerçeve highlight'ı alır.
+class _LeaderboardPodium extends StatelessWidget {
+  final List<_LbEntry> top3;
+  const _LeaderboardPodium({required this.top3});
+
+  @override
+  Widget build(BuildContext context) {
+    if (top3.isEmpty) return const SizedBox.shrink();
+    // Sıralama: 2 (sol kısa) — 1 (orta uzun) — 3 (sağ orta)
+    final p1 = top3.isNotEmpty ? top3[0] : null;
+    final p2 = top3.length > 1 ? top3[1] : null;
+    final p3 = top3.length > 2 ? top3[2] : null;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 14, 12, 16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFFFFF7E6),
+            const Color(0xFFFFE4D2),
+          ],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+        border: Border(
+          bottom: BorderSide(color: AppPalette.border(context), width: 1),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(child: _PodiumColumn(entry: p2, place: 2)),
+          Expanded(child: _PodiumColumn(entry: p1, place: 1)),
+          Expanded(child: _PodiumColumn(entry: p3, place: 3)),
+        ],
+      ),
+    );
+  }
+}
+
+class _PodiumColumn extends StatelessWidget {
+  final _LbEntry? entry;
+  final int place; // 1, 2, 3
+  const _PodiumColumn({required this.entry, required this.place});
+
+  @override
+  Widget build(BuildContext context) {
+    final e = entry;
+    final isFirst = place == 1;
+    final medalColor = switch (place) {
+      1 => const Color(0xFFFFB300), // altın
+      2 => const Color(0xFFB0B7BF), // gümüş
+      _ => const Color(0xFFCD7F32), // bronz
+    };
+    final medalIcon = switch (place) {
+      1 => '🥇',
+      2 => '🥈',
+      _ => '🥉',
+    };
+    final pedestalHeight = switch (place) {
+      1 => 56.0,
+      2 => 38.0,
+      _ => 28.0,
+    };
+    final avatarSize = isFirst ? 48.0 : 40.0;
+    final isMe = e?.isMe ?? false;
+
+    if (e == null) {
+      // Boş slot — siluet
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: avatarSize,
+            height: avatarSize,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppPalette.cardMuted(context),
+            ),
+            alignment: Alignment.center,
+            child: Text(medalIcon, style: const TextStyle(fontSize: 20)),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '—',
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: AppPalette.textSecondary(context),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Container(
+            height: pedestalHeight,
+            margin: const EdgeInsets.only(top: 4),
+            decoration: BoxDecoration(
+              color: medalColor.withValues(alpha: 0.18),
+              borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(8)),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              '$place',
+              style: GoogleFonts.fraunces(
+                fontSize: isFirst ? 22 : 18,
+                fontWeight: FontWeight.w900,
+                color: medalColor,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: [
+            Container(
+              width: avatarSize,
+              height: avatarSize,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white,
+                border: Border.all(
+                  color: isMe ? const Color(0xFFFF6A00) : medalColor,
+                  width: isFirst ? 3 : 2.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: medalColor.withValues(alpha: 0.35),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                e.avatar.isEmpty ? '👤' : e.avatar,
+                style: TextStyle(fontSize: isFirst ? 22 : 18),
+              ),
+            ),
+            Positioned(
+              top: -8,
+              child: Text(medalIcon,
+                  style: TextStyle(fontSize: isFirst ? 22 : 18)),
+            ),
+            if (isMe)
+              Positioned(
+                bottom: -4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF6A00),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'SEN'.tr(),
+                    style: GoogleFonts.inter(
+                      fontSize: 8,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          e.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.inter(
+            fontSize: isFirst ? 12 : 11,
+            fontWeight: FontWeight.w800,
+            color: const Color(0xFF111111),
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          e.score.toStringAsFixed(0),
+          style: GoogleFonts.fraunces(
+            fontSize: isFirst ? 14 : 12,
+            fontWeight: FontWeight.w800,
+            color: medalColor,
+          ),
+        ),
+        Container(
+          height: pedestalHeight,
+          margin: const EdgeInsets.only(top: 4),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                medalColor.withValues(alpha: 0.85),
+                medalColor.withValues(alpha: 0.55),
+              ],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+            borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(8)),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            '$place',
+            style: GoogleFonts.fraunces(
+              fontSize: isFirst ? 24 : 18,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              letterSpacing: -0.5,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 // ─── Mock veri uyarı banner'ı ────────────────────────────────────────────────
@@ -424,6 +1074,8 @@ class _MyRankCard extends StatelessWidget {
   final String name;
   final String location;
   final bool hideLocation;
+  /// Üst üste quiz çözülen gün sayısı. 0 ise rozet hiç gösterilmez.
+  final int streakDays;
   const _MyRankCard({
     required this.rank,
     required this.cloudRankFuture,
@@ -431,6 +1083,7 @@ class _MyRankCard extends StatelessWidget {
     required this.name,
     required this.location,
     this.hideLocation = false,
+    this.streakDays = 0,
   });
 
   String _fmtScore(double n) {
@@ -500,14 +1153,43 @@ class _MyRankCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    'SENİN SIRAN'.tr(),
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                      color: orange,
-                      letterSpacing: 0.6,
-                    ),
+                  Row(
+                    children: [
+                      Text(
+                        'SENİN SIRAN'.tr(),
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          color: orange,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                      if (streakDays > 0) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [
+                                Color(0xFFFF6A00),
+                                Color(0xFFFF3D00),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '🔥 $streakDays',
+                            style: GoogleFonts.inter(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -676,8 +1358,14 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
   LeagueScoreSummary _mySummary =
       const LeagueScoreSummary(average: null, best: null, total: 0, attempts: 0);
 
+  /// Üst üste quiz çözülen gün sayısı (streak). 0 ise rozet gizlenir.
+  int _streakDays = 0;
+
   // Liderlik tablosu future'ı — filtre değişince yeniden tetiklenir.
+  // Real-time: snapshot stream'inden gelen her güncellemede Future.value()
+  // ile yenilenir, FutureBuilder'lar otomatik rebuild olur.
   Future<List<LeagueLeaderRow>>? _leaderboardFuture;
+  StreamSubscription<List<LeagueLeaderRow>>? _leaderboardSub;
 
   // Kullanıcının kendi sıra pozisyonu — top-50 dışına düşerse sticky bar'da
   // gösterilir. Leaderboard refresh ile birlikte tazelenir.
@@ -711,6 +1399,15 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
   void initState() {
     super.initState();
     _bootstrap();
+  }
+
+  @override
+  void dispose() {
+    _refreshDebounce?.cancel();
+    _refreshDebounce = null;
+    _leaderboardSub?.cancel();
+    _leaderboardSub = null;
+    super.dispose();
   }
 
   Future<void> _bootstrap() async {
@@ -828,27 +1525,44 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
         _Mode.overall => LeagueMode.overall,
       };
 
+  // Filtre değişimleri art arda yapıldığında her birinde yeni Firestore
+  // stream açmamak için 250ms debounce. Hızlı tıklamalarda son seçim aktif.
+  Timer? _refreshDebounce;
+
   void _refreshLeaderboard() {
+    _refreshDebounce?.cancel();
+    _refreshDebounce = Timer(const Duration(milliseconds: 250), _doRefresh);
+  }
+
+  void _doRefresh() {
+    // Önceki stream subscription'ı iptal et — filtre değişince eski abonelik
+    // gereksiz yere setState tetiklemesin.
+    _leaderboardSub?.cancel();
+    _leaderboardSub = null;
+
     if (_profile == null || _location == null) {
+      if (!mounted) return;
       setState(() {
         _leaderboardFuture = Future.value(const []);
         _myRankFuture = Future.value(null);
       });
       return;
     }
+    // Real-time: snapshot stream'i kur, her emission'da future'ı güncel
+    // listeyle yenile → tüm FutureBuilder'lar otomatik rebuild olur.
+    final stream = LeagueLeaderboardService.watch(
+      profile: _profile!,
+      location: _location!,
+      scope: _serviceScope,
+      mode: _serviceMode,
+      period: _period,
+      subjectKey: _mode == _Mode.overall ? null : _subject?.key,
+      topic: null,
+      limit: 50,
+    );
+    if (!mounted) return;
     setState(() {
-      _leaderboardFuture = LeagueLeaderboardService.fetch(
-        profile: _profile!,
-        location: _location!,
-        scope: _serviceScope,
-        mode: _serviceMode,
-        period: _period,
-        subjectKey: _mode == _Mode.overall ? null : _subject?.key,
-        topic: null,
-        limit: 50,
-      );
-      // Top-50 dışındaki kullanıcı için kendi pozisyonu (limit 200'e
-      // kadar arar). Sticky bar bu future'ı dinler.
+      _leaderboardFuture = Future.value(const []);
       _myRankFuture = LeagueLeaderboardService.myRank(
         profile: _profile!,
         location: _location!,
@@ -858,6 +1572,14 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
         subjectKey: _mode == _Mode.overall ? null : _subject?.key,
         topic: null,
       );
+    });
+    _leaderboardSub = stream.listen((rows) {
+      if (!mounted) return;
+      setState(() {
+        _leaderboardFuture = Future.value(rows);
+      });
+    }, onError: (e) {
+      debugPrint('[bilgi_ligi_screen] leaderboard stream error: $e');
     });
   }
 
@@ -878,8 +1600,15 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
         }
         break;
     }
+    int streak = 0;
+    try {
+      streak = await LeagueScores.currentStreak();
+    } catch (_) {/* yok say */}
     if (!mounted) return;
-    setState(() => _mySummary = s);
+    setState(() {
+      _mySummary = s;
+      _streakDays = streak;
+    });
   }
 
   String get _seedKey {
@@ -962,7 +1691,6 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
 
   Widget _buildScrollableContent(
       BuildContext context, Color bg, bool isDark) {
-    final showLocationHint = _location == null;
     // Filtre çerçevesi yüksekliği — _buildFilterFrame ölçümü:
     //   container padding 8+10=18 + Column(14+38) = ~70; +üst/alt padding 12 → 100
     const filterBarHeight = 100.0;
@@ -985,14 +1713,10 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
             ),
           ),
         ),
-        // ── Konum hint banner (varsa) ─────────────────────────────────
-        if (showLocationHint)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: _buildLocationHintBanner(context),
-            ),
-          ),
+        // ── "Konumunu seç" banner kaldırıldı — kullanıcı onboarding'de
+        //     şehrini zaten seçiyor; banner gereksiz yer kaplıyordu.
+        // ── "Bu hafta X öğrenci katıldı" sosyal kanıt bar kaldırıldı —
+        //     mock veri olmadan boş kalıyordu, kafa karıştırıyordu.
         // ── MyRank kartı (scroll'da kaybolur) ─────────────────────────
         SliverToBoxAdapter(
           child: Padding(
@@ -1000,6 +1724,8 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
             child: _buildMyRankCard(context),
           ),
         ),
+        // ── Yakın rakipler kartı (1 üst + 1 alt + fark mesajı) ────────
+        SliverToBoxAdapter(child: _buildNearbyRivalsCard(context)),
         // ── Pinned NO/KULLANICI/PUAN sütun başlığı ────────────────────
         SliverPersistentHeader(
           pinned: true,
@@ -1089,7 +1815,15 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
                 // kullanıcı için şeffaflık: yeterli gerçek oyuncu yokken
                 // "örnek" liste gösterildiği açıkça belirtilir.
                 if (!hasEnoughCloudData) _MockDataBanner(),
-                for (int i = 0; i < visibleEntries.length; i++)
+                // "İlk sıralamayı sen başlat / Teste Başla" CTA kaldırıldı —
+                // kullanıcı Kütüphanem'den teste girebiliyor; bu sekmede
+                // tekrar gösterilmesine gerek yok.
+                // Podyum (Top 3) — liste boş değilse en üste yerleşir.
+                if (visibleEntries.isNotEmpty)
+                  _LeaderboardPodium(
+                    top3: visibleEntries.take(3).toList(),
+                  ),
+                for (int i = 3; i < visibleEntries.length; i++)
                   _LeaderboardRow(
                     entry: visibleEntries[i],
                     isLast: i == visibleEntries.length - 1,
@@ -1138,6 +1872,91 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
               ? (_location?.country ?? 'Türkiye')
               : (_location?.city ?? 'İstanbul'),
           hideLocation: _scope == _Scope.city,
+          streakDays: _streakDays,
+        );
+      },
+    );
+  }
+
+  /// Kullanıcının 1 üstündeki ve 1 altındaki rakipler — motivasyon kartı.
+  /// Liste boşsa veya kullanıcı listede yoksa hiç gösterilmez.
+  Widget _buildNearbyRivalsCard(BuildContext context) {
+    return FutureBuilder<List<LeagueLeaderRow>>(
+      future: _leaderboardFuture,
+      builder: (ctx, snap) {
+        final cloudRows = snap.data ?? const [];
+        final hasEnoughCloudData = cloudRows.length >= 5;
+        final entries = hasEnoughCloudData
+            ? _toLbEntries(cloudRows)
+            : _MockLeaderboard.generate(
+                seedKey: _seedKey,
+                scope: _scope,
+                period: _period,
+                mode: _mode,
+                injectMyScore: _mySummary.total,
+                myDisplayName: _myDisplayNameForMock(),
+              );
+        int? myIdx;
+        for (int i = 0; i < entries.length; i++) {
+          if (entries[i].isMe) {
+            myIdx = i;
+            break;
+          }
+        }
+        if (myIdx == null) return const SizedBox.shrink();
+        if (entries.length < 2) return const SizedBox.shrink();
+
+        final myScore = entries[myIdx].score;
+        final above = myIdx > 0 ? entries[myIdx - 1] : null;
+        final below = myIdx < entries.length - 1 ? entries[myIdx + 1] : null;
+        if (above == null && below == null) return const SizedBox.shrink();
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppPalette.card(context),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppPalette.border(context)),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.flash_on_rounded,
+                        size: 14, color: Color(0xFF7C3AED)),
+                    const SizedBox(width: 4),
+                    Text(
+                      'YAKIN RAKİPLER'.tr(),
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        color: const Color(0xFF7C3AED),
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (above != null)
+                  _RivalRow(
+                    direction: _RivalDir.above,
+                    entry: above,
+                    diff: above.score - myScore,
+                  ),
+                if (above != null && below != null)
+                  const SizedBox(height: 6),
+                if (below != null)
+                  _RivalRow(
+                    direction: _RivalDir.below,
+                    entry: below,
+                    diff: myScore - below.score,
+                  ),
+              ],
+            ),
+          ),
         );
       },
     );
@@ -1170,10 +1989,39 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
                 tooltip: 'Geri'.tr(),
               ),
               const Spacer(),
+              // Yardım butonu — "Nasıl Çalışır?" rehberini açar. Yeni
+              // kullanıcı sayfayı tanımak için tek tıkla turuncu kart
+              // listesini görür.
               IconButton(
-                onPressed: null,
-                icon: Icon(Icons.emoji_events_rounded,
-                    color: AppPalette.textPrimary(context)),
+                onPressed: () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const _BilgiLigiHowItWorksPage(),
+                    fullscreenDialog: true,
+                  ));
+                },
+                icon: Container(
+                  width: 28,
+                  height: 28,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFFFF6A00).withValues(alpha: 0.15),
+                    border: Border.all(
+                      color: const Color(0xFFFF6A00).withValues(alpha: 0.50),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: const Text(
+                    '?',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFFFF6A00),
+                      height: 1.0,
+                    ),
+                  ),
+                ),
+                tooltip: 'Nasıl çalışır?'.tr(),
               ),
             ],
           ),
@@ -1479,54 +2327,117 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
         if (ca != cb) return cb.compareTo(ca);
         return a.displayName.compareTo(b.displayName);
       });
+    String query = '';
     await _showAnchoredPopup(
       chipIndex: 0,
       headerText: 'DERS'.tr(),
-      builder: (ctx) => SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        child: GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 6,
-          crossAxisSpacing: 6,
-          childAspectRatio: 2.6,
-          children: [
-            // 1. hücre (sol üst): "Tüm Dersler" — artık diğer dersler gibi
-            // grid içinde bir sekme. 2. hücre (sağ üst) Matematik (ana
-            // ders sıralamasının ilki) olur; sonrası sırayla devam eder.
-            _modePopupTile(
-              ctx: ctx,
-              emoji: '🌟',
-              label: 'Tüm Dersler'.tr(),
-              selected: _mode == _Mode.overall,
-              onTap: () async {
-                Navigator.of(ctx).pop();
-                setState(() => _mode = _Mode.overall);
-                await _refreshMySummary();
-                _refreshLeaderboard();
-              },
-            ),
-            for (final s in ordered)
-              _modePopupTile(
-                ctx: ctx,
-                emoji: s.emoji,
-                label: s.displayName,
-                selected: _mode == _Mode.subject &&
-                    _subject?.key == s.key,
-                onTap: () async {
-                  Navigator.of(ctx).pop();
-                  setState(() {
-                    _subject = s;
-                    _topic = null;
-                    _mode = _Mode.subject;
-                  });
-                  await _refreshMySummary();
-                  _refreshLeaderboard();
-                },
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          final q = query.trim().toLowerCase();
+          final filtered = q.isEmpty
+              ? ordered
+              : ordered
+                  .where((s) => s.displayName.toLowerCase().contains(q))
+                  .toList();
+          // "Tüm Dersler" satırı sadece arama boşken görünür.
+          final showAll = q.isEmpty;
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Arama kutusu — 55+ dersli müfredatta net hızlı erişim.
+              Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: BoxDecoration(
+                  color: AppPalette.cardMuted(context),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppPalette.border(context)),
+                ),
+                child: TextField(
+                  autofocus: false,
+                  onChanged: (v) => setLocal(() => query = v),
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    border: InputBorder.none,
+                    prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                    prefixIconConstraints:
+                        const BoxConstraints(minWidth: 36, minHeight: 36),
+                    hintText: 'Ders ara…'.tr(),
+                    hintStyle: GoogleFonts.inter(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                      color: AppPalette.textSecondary(context),
+                    ),
+                  ),
+                ),
               ),
-          ],
-        ),
+              Flexible(
+                child: filtered.isEmpty && !showAll
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        child: Text(
+                          'Ders bulunamadı'.tr(),
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppPalette.textSecondary(context),
+                          ),
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: GridView.count(
+                          crossAxisCount: 2,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          mainAxisSpacing: 6,
+                          crossAxisSpacing: 6,
+                          childAspectRatio: 2.6,
+                          children: [
+                            if (showAll)
+                              _modePopupTile(
+                                ctx: ctx,
+                                emoji: '🌟',
+                                label: 'Tüm Dersler'.tr(),
+                                selected: _mode == _Mode.overall,
+                                onTap: () async {
+                                  Navigator.of(ctx).pop();
+                                  setState(() => _mode = _Mode.overall);
+                                  await _refreshMySummary();
+                                  _refreshLeaderboard();
+                                },
+                              ),
+                            for (final s in filtered)
+                              _modePopupTile(
+                                ctx: ctx,
+                                emoji: s.emoji,
+                                label: s.displayName,
+                                selected: _mode == _Mode.subject &&
+                                    _subject?.key == s.key,
+                                onTap: () async {
+                                  Navigator.of(ctx).pop();
+                                  setState(() {
+                                    _subject = s;
+                                    _topic = null;
+                                    _mode = _Mode.subject;
+                                  });
+                                  await _refreshMySummary();
+                                  _refreshLeaderboard();
+                                },
+                              ),
+                          ],
+                        ),
+                      ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -2269,10 +3180,111 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
                 ),
               ],
             ),
+            const SizedBox(height: 10),
+            // Hızlı Test — tek tıkla ders+konu seçmeden direkt başlatır.
+            // Kullanıcı en çok çözdüğü dersten ya da rastgele birinden alınır.
+            // Periyot seed'i quiz akışına otomatik akar — günlük challenge ise
+            // tüm kullanıcılar AYNI 10 soruyu çözer.
+            SizedBox(
+              width: double.infinity,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: _startQuickQuiz,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      gradient: const LinearGradient(
+                        colors: [
+                          Color(0xFF7C3AED),
+                          Color(0xFFA855F7),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF7C3AED)
+                              .withValues(alpha: 0.30),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.flash_on_rounded,
+                            color: Colors.white, size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Hızlı Test'.tr(),
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.22),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            _period.label,
+                            style: GoogleFonts.inter(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
     );
+  }
+
+  /// Hızlı Test — tek tıkla quiz başlatır.
+  ///   1) En çok çözülmüş ders → öyle bir ders varsa onu kullan
+  ///   2) Yoksa müfredattaki ilk dersi (genelde Matematik)
+  ///   3) Periyot seed quiz screen'de otomatik uygulanır
+  Future<void> _startQuickQuiz() async {
+    if (_subjects.isEmpty) return;
+    // Önce kullanıcının en çok denediği dersi seç (sıkça çözdüğü konuya
+    // odaklan), yoksa müfredatın ilk dersi (math).
+    String? topAttemptKey;
+    int topCount = 0;
+    _attemptsBySubject.forEach((k, c) {
+      if (c > topCount) {
+        topCount = c;
+        topAttemptKey = k;
+      }
+    });
+    final picked = _subjects.firstWhere(
+      (s) => s.key == topAttemptKey,
+      orElse: () => _subjects.first,
+    );
+    setState(() {
+      _subject = picked;
+      _topic = null;
+      _mode = _Mode.subject;
+    });
+    await _startQuizFor(picked, topic: null);
   }
 
   /// Tek CTA → ders + (varsa) konu seçimi zincirleme + quiz başlatma.
@@ -2343,30 +3355,31 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
   Future<void> _openTopicPickForQuiz() async {
     final s = _subject;
     if (s == null) return;
-    if (s.topics.isEmpty) {
-      // Konusu olmayan dersler için doğrudan quiz başlat (topic null).
-      await _startQuizFor(s, topic: null);
-      return;
-    }
+    // Tek satırlı virgülle ayrılmış konu stringini ayır (international_*
+    // entries için: "Algebra, functions, trigonometry"). Aynı zamanda
+    // yinelenenleri eler.
+    final topics = _expandTopics(s.topics);
+    // Konusu olmadan da dialog'u göster — kullanıcı "Konu Seç" tuşuna basıp
+    // hiç UI görmemesini istemiyoruz. Liste boşsa sadece "Tüm Konular"
+    // gösteririz ve altında bilgilendirme satırı ekleriz.
     final picked = await showDialog<String>(
       context: context,
       barrierDismissible: true,
-      builder: (ctx) => _QuizPickerDialog<String>(
-        title: '${s.emoji} ${s.displayName} • ${'Konu Seç'.tr()}',
-        items: [
-          _QuizPickerItem<String>(
-            emoji: '🟢',
+      builder: (ctx) => _TopicPickerSheet(
+        subjectEmoji: s.emoji,
+        subjectName: s.displayName,
+        topics: [
+          _TopicEntry(
             label: 'Tüm Konular'.tr(),
-            attemptCount: _attemptsBySubject[s.key] ?? 0,
             value: '__ALL__',
+            attemptCount: _attemptsBySubject[s.key] ?? 0,
             highlighted: true,
           ),
-          for (final t in s.topics)
-            _QuizPickerItem<String>(
-              emoji: s.emoji, // Dersin emoji'si — konu kartları görsel olarak
-              label: t,        //   ders kartlarıyla aynı aileye ait hissedilir.
-              attemptCount: _attemptsByTopic['${s.key}|$t'] ?? 0,
+          for (final t in topics)
+            _TopicEntry(
+              label: t,
               value: t,
+              attemptCount: _attemptsByTopic['${s.key}|$t'] ?? 0,
             ),
         ],
       ),
@@ -2377,6 +3390,25 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
     // "Tüm Konular" seçilirse _topic null kalır (etiket "Konu Seç" döner).
     setState(() => _topic = topic);
     await _startQuizFor(s, topic: topic);
+  }
+
+  /// Müfredat kataloğunda bazı ders kayıtları tek bir virgülle ayrılmış
+  /// uzun string içeriyor (örn. international_high.math). Konu picker'da
+  /// bunu okunabilir tek tek satır olarak göstermek için parçalara böler.
+  /// Aynı zamanda yinelenenleri (case-insensitive) eler.
+  List<String> _expandTopics(List<String> raw) {
+    final out = <String>[];
+    final seen = <String>{};
+    for (final entry in raw) {
+      final parts = entry.split(',');
+      for (final p in parts) {
+        final trimmed = p.trim();
+        if (trimmed.isEmpty) continue;
+        final key = trimmed.toLowerCase();
+        if (seen.add(key)) out.add(trimmed);
+      }
+    }
+    return out;
   }
 
   // ignore: unused_element
@@ -2715,8 +3747,46 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
                     ),
                   ),
                 ),
-                const Icon(Icons.chevron_right_rounded,
-                    size: 18, color: Color(0xFFFF6A00)),
+                const SizedBox(width: 8),
+                // Görünür "Seç" CTA pill'i — kullanıcı sadece chevron'a
+                // güvenmesin, net buton görsün.
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFF6A00), Color(0xFFFF8A3C)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFFF6A00)
+                            .withValues(alpha: 0.35),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Seç'.tr(),
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.chevron_right_rounded,
+                          size: 16, color: Colors.white),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -2787,6 +3857,7 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
                     ? (_location?.country ?? 'Türkiye')
                     : (_location?.city ?? 'İstanbul'),
                 hideLocation: _scope == _Scope.city,
+                streakDays: _streakDays,
               ),
               const SizedBox(height: 12),
               // ── Liderlik tablosu (top 20-50) ─────────────────────────
@@ -2997,6 +4068,7 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
           subjectName: subject.displayName,
           subjectEmoji: subject.emoji,
           topic: topic,
+          period: _period,
         ),
       ),
     );
@@ -3628,6 +4700,214 @@ class _HeroButton extends StatelessWidget {
 }
 
 // ── Quiz seçim dialog'u — başlık + grid kartlar + iptal ─────────────────────
+// ─── Topic picker — ders seçimi sonrası "Hangi konudan yarışmak istersin?" ──
+class _TopicEntry {
+  final String label;
+  final String value;
+  final int attemptCount;
+  final bool highlighted;
+  const _TopicEntry({
+    required this.label,
+    required this.value,
+    required this.attemptCount,
+    this.highlighted = false,
+  });
+}
+
+class _TopicPickerSheet extends StatelessWidget {
+  final String subjectEmoji;
+  final String subjectName;
+  final List<_TopicEntry> topics;
+  const _TopicPickerSheet({
+    required this.subjectEmoji,
+    required this.subjectName,
+    required this.topics,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const accent = Color(0xFF7C3AED);
+    const orange = Color(0xFFFF6A00);
+    return Dialog(
+      backgroundColor: AppPalette.card(context),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 48),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Üst başlık — küçük ders adı + emoji
+            Row(
+              children: [
+                Text(subjectEmoji, style: const TextStyle(fontSize: 22)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    subjectName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppPalette.textSecondary(context),
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            // Büyük soru — kullanıcıya direkt seslenen başlık
+            Text(
+              'Hangi konudan yarışmak istersin?'.tr(),
+              style: GoogleFonts.fraunces(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: AppPalette.textPrimary(context),
+                letterSpacing: -0.3,
+                height: 1.25,
+              ),
+            ),
+            const SizedBox(height: 14),
+            // Beyaz oval pill listesi — tek tek konular
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final t in topics) ...[
+                      _TopicPill(
+                        entry: t,
+                        accent: t.highlighted ? orange : accent,
+                        onTap: () => Navigator.of(context).pop(t.value),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(
+                  'İptal'.tr(),
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppPalette.textSecondary(context),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TopicPill extends StatelessWidget {
+  final _TopicEntry entry;
+  final Color accent;
+  final VoidCallback onTap;
+  const _TopicPill({
+    required this.entry,
+    required this.accent,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(28),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            // Beyaz çerçeve içinde her konu — tam beyaz zemin
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(
+              color: entry.highlighted
+                  ? accent
+                  : accent.withValues(alpha: 0.25),
+              width: entry.highlighted ? 1.8 : 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: accent.withValues(alpha: 0.10),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              // Sol işaret — highlight'lı (Tüm Konular) için "🟢", konu için
+              // küçük accent dot.
+              if (entry.highlighted)
+                const Text('🟢', style: TextStyle(fontSize: 14))
+              else
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: accent,
+                  ),
+                ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      entry.label,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF111111),
+                        letterSpacing: -0.1,
+                        height: 1.25,
+                      ),
+                    ),
+                    if (entry.attemptCount > 0) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        '${entry.attemptCount} ${"test çözüldü".tr()}',
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF6B7280),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 20,
+                color: accent,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _QuizPickerItem<T> {
   final String emoji;
   final String label;

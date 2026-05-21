@@ -2,9 +2,18 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Apple Sign-In -->
 	<key>com.apple.developer.applesignin</key>
 	<array>
 		<string>Default</string>
+	</array>
+	<!-- APNs / FCM Push Notifications -->
+	<key>aps-environment</key>
+	<string>production</string>
+	<!-- Universal Links — qualsar2-640f0.web.app/davet/* + /u/* -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:qualsar2-640f0.web.app</string>
 	</array>
 </dict>
 </plist>

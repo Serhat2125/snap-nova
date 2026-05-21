@@ -396,6 +396,17 @@ class _NoteCreatorPageState extends State<NoteCreatorPage> {
                     expands: true,
                     keyboardType: TextInputType.multiline,
                     textAlignVertical: TextAlignVertical.top,
+                    // Uzun bas / çift dokunma → Tümünü Seç / Kes / Kopyala /
+                    // Yapıştır menüsü. Adaptive toolbar platform default
+                    // görünümünü kullanır (Android Material, iOS Cupertino).
+                    enableInteractiveSelection: true,
+                    contextMenuBuilder: (ctx, editableTextState) {
+                      return AdaptiveTextSelectionToolbar.editableText(
+                        editableTextState: editableTextState,
+                      );
+                    },
+                    // Klavye üstünde "select / copy / paste" toolbar'ı:
+                    selectionControls: MaterialTextSelectionControls(),
                     style: GoogleFonts.poppins(
                       fontSize: 15,
                       height: 1.55,

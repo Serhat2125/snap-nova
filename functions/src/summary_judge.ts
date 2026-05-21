@@ -265,44 +265,85 @@ YANIT FORMATI (sadece JSON, başka hiçbir şey ekleme):
   const apiKey = GEMINI_API_KEY.value();
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.1,
-        maxOutputTokens: 600,
-        responseMimeType: "application/json",
-      },
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Gemini judge HTTP ${response.status}`);
+  // Timeout + retry — Cloud Function inactivity timeout 60sn varsayılan;
+  // Gemini 503/429 dönerse 2 backoff retry. Toplam max ~25sn (10+5+10).
+  const RETRYABLE = new Set([408, 429, 500, 502, 503, 504]);
+  let lastErr: unknown = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const controller = new AbortController();
+    const timeoutMs = attempt === 0 ? 10000 : 8000; // ilk dene daha cömert
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.1,
+            maxOutputTokens: 600,
+            responseMimeType: "application/json",
+          },
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (!response.ok) {
+        if (RETRYABLE.has(response.status) && attempt < 2) {
+          await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+          lastErr = new Error(`Gemini judge HTTP ${response.status}`);
+          continue;
+        }
+        throw new Error(`Gemini judge HTTP ${response.status}`);
+      }
+      const j = (await response.json()) as {
+        candidates?: {
+          content?: { parts?: { text?: string }[] };
+        }[];
+      };
+      const text = j?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+      if (!text) {
+        if (attempt < 2) {
+          await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+          lastErr = new Error("judge boş yanıt");
+          continue;
+        }
+        throw new Error("judge boş yanıt");
+      }
+      let parsed: { winnerIndex?: number };
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        // Parse hatası — Gemini bazen ham metin döndürür; ilk denemede retry et.
+        if (attempt < 2) {
+          await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+          lastErr = new Error("judge JSON parse error");
+          continue;
+        }
+        throw new Error("judge JSON parse error: " + text.slice(0, 200));
+      }
+      const winnerIdx = (parsed.winnerIndex ?? 1) - 1;
+      if (winnerIdx < 0 || winnerIdx >= group.length) {
+        // Geçersiz index — varsayılan olarak ilk özeti seç (fail-safe).
+        return group[0];
+      }
+      return group[winnerIdx];
+    } catch (e) {
+      clearTimeout(timer);
+      lastErr = e;
+      // Timeout (AbortError) veya network hatası — retry yap
+      if (attempt < 2) {
+        await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+        continue;
+      }
+      // Son denemede de patladı — fail-safe: ilk özeti döndür ki judge
+      // tamamen bloke olmasın. Çağıran loop devam etsin.
+      console.warn(`[judge] tüm retry başarısız, fail-safe: ${e}`);
+      return group[0];
+    }
   }
-
-  const j = (await response.json()) as {
-    candidates?: {
-      content?: { parts?: { text?: string }[] };
-    }[];
-  };
-  const text =
-    j?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-  if (!text) {
-    throw new Error("judge boş yanıt");
-  }
-
-  let parsed: { winnerIndex?: number };
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    throw new Error("judge JSON parse error: " + text.slice(0, 200));
-  }
-
-  const winnerIdx = (parsed.winnerIndex ?? 1) - 1;
-  if (winnerIdx < 0 || winnerIdx >= group.length) {
-    throw new Error(`invalid winner index: ${parsed.winnerIndex}`);
-  }
-  return group[winnerIdx];
+  // Buraya teorik olarak ulaşılmaz ama TS exhaustiveness için.
+  throw lastErr instanceof Error
+      ? lastErr
+      : new Error(`judge retry tükendi: ${lastErr}`);
 }

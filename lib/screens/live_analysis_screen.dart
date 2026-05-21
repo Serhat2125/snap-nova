@@ -23,6 +23,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart' as ph;
 import '../main.dart' show globalCameras, localeService;
 import '../services/analytics.dart';
 import '../services/gemini_service.dart';
@@ -87,6 +88,10 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
   // Yavaş bağlantı göstergesi — istek 5sn'den uzun sürerse true.
   bool _slowConnection = false;
   Timer? _slowConnTimer;
+  // Dispose / arka plan / chat panel kapatma flag'i — Gemini stream'i
+  // çalışırken kullanıcı sayfadan çıkarsa await for loop'unda
+  // erken break ile TTS kuyruğuna chunk eklemekten kaçınılır.
+  bool _cancelStream = false;
   final List<_ChatMsg> _messages = [];
   final ScrollController _chatScroll = ScrollController();
 
@@ -231,7 +236,18 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
     if (_thinking || _listening || _paused) return;
     final ok = await VoiceInputService.requestMic();
     if (!ok) {
-      _showSnack('Mikrofon izni reddedildi'.tr());
+      if (!mounted) return;
+      // Kullanıcıyı sistem ayarlarına yönlendir — manuel izin verme yolu.
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+            'Mikrofon izni reddedildi. Ayarlardan izin verebilirsin.'.tr()),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+        action: SnackBarAction(
+          label: 'Ayarlar'.tr(),
+          onPressed: () => ph.openAppSettings(),
+        ),
+      ));
       return;
     }
     final localeId = await VoiceInputService.resolveLocaleId(
@@ -327,6 +343,8 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
       'has_image': _camActive ? '1' : '0',
     });
 
+    // Yeni mesaj başlıyor → önceki cancel bayrağını sıfırla
+    _cancelStream = false;
     setState(() {
       _messages.add(_ChatMsg(role: 'user', text: text));
       _messages.add(_ChatMsg(role: 'ai', text: '', pending: true));
@@ -382,7 +400,11 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
       final langCode = localeService.localeCode;
 
       await for (final chunk in stream) {
-        if (!mounted) return;
+        if (!mounted || _cancelStream) {
+          // Sayfa kapandı veya sohbet moduna geçildi → loop'u kes,
+          // TTS kuyruğuna yeni chunk eklenmesin
+          break;
+        }
         buffer.write(chunk);
         // İlk chunk → pending'i kapat, slow göstergesini sil.
         if (firstChunk) {
@@ -678,7 +700,11 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
 
   @override
   void dispose() {
+    // SIRA ÖNEMLİ: önce in-flight stream'i durdur, sonra resource'ları kapat
+    _cancelStream = true;
     _slowConnTimer?.cancel();
+    if (_listening) VoiceInputService.cancel();
+    TtsService.stop();
     _wave.dispose();
     _pulse.dispose();
     _logoRot.dispose();
@@ -687,8 +713,6 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
     _chatScroll.dispose();
     _textCtrl.dispose();
     _cam?.dispose();
-    if (_listening) VoiceInputService.cancel();
-    TtsService.stop();
     super.dispose();
   }
 
@@ -788,10 +812,20 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
                 behavior: HitTestBehavior.opaque,
                 onTap: () {
                   FocusScope.of(context).unfocus();
+                  // Aktif Gemini stream'i sonlandır + TTS'i sustur +
+                  // yavaş bağlantı timer'ını temizle. Aksi halde sohbet
+                  // panelinden çıkıldıktan sonra TTS arka planda konuşmaya
+                  // devam edebiliyordu.
+                  _cancelStream = true;
+                  _slowConnTimer?.cancel();
+                  TtsService.stop();
+                  if (_listening) _stopListening();
                   setState(() {
                     _chatPanelOpen = false;
                     _messages.clear();
                     _liveTranscript.value = '';
+                    _thinking = false;
+                    _slowConnection = false;
                   });
                 },
                 child: Container(
@@ -1621,6 +1655,13 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
           _BottomCircleButton(
             icon: Icons.chat_bubble_outline_rounded,
             onTap: () async {
+              // Mod değişimi → in-flight Gemini stream'i kes, TTS'i sustur,
+              // mikrofon dinlemeyi durdur. Aksi halde mod değiştirildikten
+              // sonra eski moddaki konuşma arka planda devam ederdi.
+              _cancelStream = true;
+              _slowConnTimer?.cancel();
+              TtsService.stop();
+              if (_listening) _stopListening();
               if (!_chatPanelOpen) {
                 // Sohbet açılıyor → kamerayı tamamen kapat (kaynak boşalt)
                 if (_camActive) {
@@ -1635,6 +1676,8 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
               }
               setState(() {
                 _chatPanelOpen = !_chatPanelOpen;
+                _thinking = false;
+                _slowConnection = false;
                 // Mod değişimi: sohbet panel toggle'ında önceki moddan
                 // (sesli/kamera) kalan mesajlar yeni moda taşmasın —
                 // kullanıcı her modda sıfırdan başlamış hissetsin.

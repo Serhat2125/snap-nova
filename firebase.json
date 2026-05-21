@@ -38,6 +38,32 @@
         "headers": [
           { "key": "Cache-Control", "value": "public, max-age=3600" }
         ]
+      },
+      {
+        "source": "/.well-known/assetlinks.json",
+        "headers": [
+          { "key": "Content-Type", "value": "application/json" }
+        ]
+      },
+      {
+        "source": "/.well-known/apple-app-site-association",
+        "headers": [
+          { "key": "Content-Type", "value": "application/json" }
+        ]
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "/davet/**",
+        "destination": "/davet.html"
+      },
+      {
+        "source": "/u/**",
+        "destination": "/davet.html"
+      },
+      {
+        "source": "/i/**",
+        "destination": "/davet.html"
       }
     ]
   },

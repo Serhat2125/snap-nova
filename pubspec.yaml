@@ -3,7 +3,7 @@ description: "A new Flutter project."
 
 publish_to: 'none'
 
-version: 1.0.0+17
+version: 1.0.0+19
 
 environment:
   sdk: '>=3.2.3 <4.0.0'
@@ -56,6 +56,7 @@ dependencies:
   firebase_crashlytics: ^4.1.0
   firebase_app_check: ^0.3.2
   cloud_firestore: ^5.4.0
+  cloud_functions: ^5.1.4
   google_sign_in: ^6.2.1
   sign_in_with_apple: ^6.1.4
 
@@ -89,6 +90,13 @@ dependencies:
   # Google Play Billing + App Store StoreKit — premium abone akışı.
   # Production'da MockPaymentScreen yerine SubscriptionService kullanılıyor.
   in_app_purchase: ^3.2.0
+
+  # Sosyal altyapı — FCM push, deep link davet, QR scan, rehber sync.
+  firebase_messaging: ^15.1.0
+  flutter_local_notifications: ^17.2.3
+  app_links: ^6.3.2
+  mobile_scanner: ^5.2.3
+  flutter_contacts: ^1.1.9+2
 
 dev_dependencies:
   flutter_test:

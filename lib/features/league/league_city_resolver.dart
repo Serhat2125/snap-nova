@@ -144,8 +144,16 @@ class LeagueCityResolver {
         jsonEncode(
             cities.map((c) => {'code': c.code, 'name': c.name}).toList()),
       );
+      lastError = '';
       return cities;
-    } catch (_) {
+    } catch (e) {
+      // Kardeş method `resolveSubdivisionsForCountry` ile tutarlı: hata
+      // sessizce yutulmaz, `lastError` UI'a iletilir ki kullanıcı boş listenin
+      // sebebini görebilsin.
+      debugPrint('[LeagueCityResolver] state cities fail ($key): $e');
+      lastError =
+          'Şehir listesi şu an alınamadı. İnternet bağlantını kontrol et.';
+      _memStateCities[key] = const [];
       return const [];
     }
   }

@@ -5,12 +5,16 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -23,6 +27,12 @@ import '../services/education_profile.dart';
 import '../services/usage_quota.dart';
 import '../services/gemini_service.dart';
 import '../services/duelo_matchmaking_service.dart';
+import '../services/friend_service.dart';
+import '../services/notification_service.dart';
+import '../services/deep_link_service.dart';
+import '../services/achievement_service.dart';
+import 'bilgi_ligi_screen.dart';
+import 'invite_accept_screen.dart';
 import '../features/leaderboard/providers/location_controller.dart';
 import '../features/leaderboard/widgets/location_selection_sheet.dart';
 import '../widgets/qualsar_numeric_loader.dart';
@@ -204,7 +214,86 @@ class _ArenaStateStore {
       } catch (e) {
         debugPrint('[Arena] save fail: $e');
       }
+      // Cloud sync — offline-first: yerel her zaman kaynak, cloud yedek.
+      // Auth yoksa veya offline ise sessizce atlanır (yerel kayıt bozulmaz).
+      unawaited(_syncToCloud());
     });
+  }
+
+  /// Arena state'i users/{uid}/arena_state/main doc'una yazar.
+  /// Telefon değişse, uygulama yeniden yüklense de mastery + QP + streak
+  /// geri yüklenebilir (loadFromCloudIfEmpty).
+  Future<void> _syncToCloud() async {
+    try {
+      final uid = fb_auth.FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('arena_state')
+          .doc('main')
+          .set({
+        'qp': qp,
+        'streak': streak,
+        'lastPlayDate': lastPlayDate,
+        'mastery': mastery,
+        'powerUps': {
+          'fiftyFifty': powerFiftyFifty,
+          'freeze': powerFreeze,
+          'skip': powerSkip,
+          'double': powerDoublePoints,
+        },
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[Arena] cloud sync fail: $e');
+    }
+  }
+
+  /// Yerel boşsa (yeni kurulum sonrası) cloud'dan geri yükle.
+  /// load()'tan SONRA çağrılır; cloud verisi varsa yerelin üstüne yazar.
+  Future<bool> loadFromCloudIfEmpty() async {
+    if (mastery.isNotEmpty || qp != 120 || streak > 0) {
+      // Yerel zaten dolu — cloud'dan geri yükleme gerek yok.
+      return false;
+    }
+    try {
+      final uid = fb_auth.FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return false;
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('arena_state')
+          .doc('main')
+          .get();
+      if (!doc.exists) return false;
+      final m = doc.data() ?? const <String, dynamic>{};
+      qp = (m['qp'] as num?)?.toInt() ?? qp;
+      streak = (m['streak'] as num?)?.toInt() ?? streak;
+      lastPlayDate = m['lastPlayDate']?.toString();
+      final mst = m['mastery'];
+      if (mst is Map) {
+        mastery.clear();
+        mst.forEach((k, v) {
+          if (v is num) mastery[k.toString()] = v.toInt().clamp(0, 100);
+        });
+      }
+      final pu = m['powerUps'];
+      if (pu is Map) {
+        powerFiftyFifty =
+            (pu['fiftyFifty'] as num?)?.toInt() ?? powerFiftyFifty;
+        powerFreeze = (pu['freeze'] as num?)?.toInt() ?? powerFreeze;
+        powerSkip = (pu['skip'] as num?)?.toInt() ?? powerSkip;
+        powerDoublePoints =
+            (pu['double'] as num?)?.toInt() ?? powerDoublePoints;
+      }
+      // Yerele de yaz — bir sonraki açılışta cloud'a gitmesin
+      await save();
+      return true;
+    } catch (e) {
+      debugPrint('[Arena] cloud restore fail: $e');
+      return false;
+    }
   }
 
   // Testi bitirince çağır: skoru hesapla, QP ekle, ustalıkları güncelle, streak işle
@@ -332,6 +421,9 @@ class _QuAlsarArenaScreenState extends State<QuAlsarArenaScreen> {
 
     // Arena durumunu yükle (QP, ustalık, streak, power-up)
     await _arenaState.load();
+    // Yerel boşsa cloud'dan geri yükle — telefon değiştiyse veya
+    // yeniden yüklendiyse mastery + QP + streak korunur.
+    unawaited(_arenaState.loadFromCloudIfEmpty());
 
     // Giriş sayısını artır (max 999 tut, gereksiz büyümesin)
     final prevCount = prefs.getInt(_kPrefsOpenCount) ?? 0;
@@ -2897,37 +2989,57 @@ class _BellButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppPalette.card(context),
-              border: Border.all(color: AppPalette.border(context)),
-            ),
-            alignment: Alignment.center,
-            child: Icon(Icons.notifications_none_rounded, size: 20, color: AppPalette.textPrimary(context)),
-          ),
-          Positioned(
-            top: 8,
-            right: 10,
-            child: Container(
-              width: 9,
-              height: 9,
-              decoration: BoxDecoration(
-                color: _Palette.brand,
-                shape: BoxShape.circle,
-                border: Border.all(color: AppPalette.card(context), width: 2),
+    return StreamBuilder<int>(
+      stream: NotificationService.watchUnreadCount(),
+      builder: (ctx, snap) {
+        final count = snap.data ?? 0;
+        return GestureDetector(
+          onTap: onTap,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppPalette.card(context),
+                  border: Border.all(color: AppPalette.border(context)),
+                ),
+                alignment: Alignment.center,
+                child: Icon(Icons.notifications_none_rounded,
+                    size: 20, color: AppPalette.textPrimary(context)),
               ),
-            ),
+              if (count > 0)
+                Positioned(
+                  top: -2,
+                  right: -2,
+                  child: Container(
+                    constraints:
+                        const BoxConstraints(minWidth: 18, minHeight: 18),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: _Palette.brand,
+                      borderRadius: BorderRadius.circular(20),
+                      border:
+                          Border.all(color: AppPalette.card(context), width: 2),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      count > 9 ? '9+' : '$count',
+                      style: _sans(
+                          size: 9,
+                          weight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: 0),
+                    ),
+                  ),
+                ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -2968,24 +3080,87 @@ void _showNotificationsSheet(BuildContext context) {
                   child: Text('Bildirimler'.tr(),
                       style: _serif(size: 22, weight: FontWeight.w600, letterSpacing: -0.02)),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: _Palette.brand.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(100),
+                StreamBuilder<int>(
+                  stream: NotificationService.watchUnreadCount(),
+                  builder: (ctx, snap) {
+                    final n = snap.data ?? 0;
+                    if (n == 0) return const SizedBox.shrink();
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: _Palette.brand.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(100),
+                      ),
+                      child: Text('$n ${"yeni".tr()}',
+                          style: _sans(
+                              size: 10,
+                              weight: FontWeight.w800,
+                              color: _Palette.brand)),
+                    );
+                  },
+                ),
+                const SizedBox(width: 8),
+                TextButton(
+                  onPressed: () => NotificationService.markAllRead(),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: const Size(0, 28),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
-                  child: Text('3 yeni',
-                      style: _sans(size: 10, weight: FontWeight.w800, color: _Palette.brand)),
+                  child: Text('Tümünü oku'.tr(),
+                      style: _sans(
+                          size: 10,
+                          weight: FontWeight.w800,
+                          color: _Palette.brand)),
                 ),
               ],
             ),
             SizedBox(height: 16),
-            _notifItem('🏆', '@deniz.k seni haftalık sıralamada geçti', '12 dk önce', true),
-            _notifItem('🎯', 'Yeni yarışma daveti — @elif_m', '1 saat önce', true),
-            _notifItem('🔥', 'Serini koru! Bugün hiç test çözmedin', '3 saat önce', true),
-            _notifItem('🎁', 'Haftalık Wrapped kartın hazır', 'Dün'),
-            _notifItem('👑', '1 hafta önce Bilgi Ustası rozeti kazandın', '1 hafta önce'),
-            _notifItem("🎯", "Türev'de 3 test üst üste %90+ yaptın", '2 hafta önce'),
+            StreamBuilder<List<AppNotification>>(
+              stream: NotificationService.watch(limit: 50),
+              builder: (ctx, snap) {
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                        child: CircularProgressIndicator(strokeWidth: 2)),
+                  );
+                }
+                final list = snap.data ?? const [];
+                if (list.isEmpty) {
+                  return Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppPalette.card(context),
+                      borderRadius: BorderRadius.circular(12),
+                      border:
+                          Border.all(color: AppPalette.border(context)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Text('✨', style: TextStyle(fontSize: 20)),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Yeni bildirim yok'.tr(),
+                            style: _sans(
+                                size: 12,
+                                color: AppPalette.textSecondary(context)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                return Column(
+                  children: [
+                    for (final n in list)
+                      _RealNotifItem(notif: n),
+                  ],
+                );
+              },
+            ),
             SizedBox(height: 14),
             Container(
               padding: const EdgeInsets.all(12),
@@ -3012,6 +3187,103 @@ void _showNotificationsSheet(BuildContext context) {
       ),
     ),
   );
+}
+
+// ─── Gerçek bildirim satırı — NotificationService.watch() stream'inden ─────
+class _RealNotifItem extends StatelessWidget {
+  final AppNotification notif;
+  const _RealNotifItem({required this.notif});
+
+  String _ago() {
+    final d = DateTime.now().difference(notif.when);
+    if (d.inMinutes < 1) return 'şimdi'.tr();
+    if (d.inMinutes < 60) return '${d.inMinutes} dk önce';
+    if (d.inHours < 24) return '${d.inHours} sa önce';
+    if (d.inDays < 7) return '${d.inDays} g önce';
+    return '${(d.inDays / 7).floor()} hafta';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final unread = !notif.read;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GestureDetector(
+        onTap: () {
+          NotificationService.markRead(notif.id);
+          // Tipe göre uygun sheet'i aç
+          if (notif.type == AppNotifType.friendRequest) {
+            Navigator.pop(context);
+            _showRequestsSheet(context);
+          } else if (notif.type == AppNotifType.dueloInvite) {
+            Navigator.pop(context);
+            _showDueloInvitesSheet(context);
+          }
+        },
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: unread
+                ? _Palette.brand.withValues(alpha: 0.06)
+                : AppPalette.card(context),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: unread
+                  ? _Palette.brand.withValues(alpha: 0.3)
+                  : AppPalette.border(context),
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AppPalette.cardMuted(context),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppPalette.border(context)),
+                ),
+                alignment: Alignment.center,
+                child: Text(notif.type.emoji,
+                    style: const TextStyle(fontSize: 16)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      notif.type.titleTr.tr(),
+                      style: _sans(
+                          size: 12,
+                          weight: FontWeight.w800,
+                          color: AppPalette.textPrimary(context)),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      notif.message,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: _sans(
+                          size: 11,
+                          color: AppPalette.textSecondary(context),
+                          height: 1.4),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(_ago(),
+                  style: _sans(
+                      size: 10,
+                      color: AppPalette.textSecondary(context))),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 Widget _notifItem(String emoji, String text, String time, [bool unread = false]) {
@@ -5042,8 +5314,19 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
           }
           return;
         }
-        // Rakip arama animasyonu — test ile aynı 2 sn delay.
-        final DueloMatchResult? match = await _fakeMatchmakingDelay();
+        // Gerçek matchmaking — DueloMatchmakingService Firestore queue üzerinden
+        // aynı kriterlerdeki başka oyuncuya 12sn boyunca bakar. Bulamazsa null
+        // döner ve aşağıdaki bot havuzuna düşülür (kullanıcı yine de oynar).
+        DueloMatchResult? match;
+        try {
+          match = await _runRealMatchmaking(
+            subjectKey: subjectKey,
+            topic: topic,
+          );
+        } catch (e) {
+          debugPrint('[Duelo] real matchmaking fail: $e');
+          match = null;
+        }
         if (!mounted) return;
 
         String oppName, oppAvatar, oppFlag, oppCountry;
@@ -5111,6 +5394,9 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
     // Takipli ID tabanlı tekrar bloklama — aynı soru tekrar eklenmesin.
     final seen = <String>{};
     List<_QuizQuestion> picks = <_QuizQuestion>[];
+    // AI fallback chain'inde herhangi bir AI üretimi patladıysa true → final
+    // hatada kullanıcıya daha net mesaj göstermek için.
+    bool aiFailed = false;
     void addUnique(Iterable<_QuizQuestion> qs) {
       for (final q in qs) {
         final k = '${q.subjectKey}|${q.topic}|${q.text}';
@@ -5142,17 +5428,26 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
           topic: topic,
           count: need,
         );
+        if (aiQs.isEmpty) aiFailed = true;
         addUnique(aiQs);
       } catch (e) {
+        aiFailed = true;
         debugPrint('[Duelo] AI soru üretimi başarısız (1): $e');
       }
     }
 
-    // 3) "Rakip Aranıyor" animasyonu (dev modda 2 sn).
-    final DueloMatchResult? match = await _fakeMatchmakingDelay();
-    // Prod için:
-    //   match = await _runRealMatchmaking(
-    //     subjectKey: subjectKey, topic: topic);
+    // 3) Gerçek rakip arama — Firestore queue, 12sn timeout. Bulamazsa
+    //    bot havuzuna düşülür (kullanıcı yine de oynar).
+    DueloMatchResult? match;
+    try {
+      match = await _runRealMatchmaking(
+        subjectKey: subjectKey,
+        topic: topic,
+      );
+    } catch (e) {
+      debugPrint('[Duelo] real matchmaking fail: $e');
+      match = null;
+    }
     if (!mounted) return;
 
     // 4) Hâlâ eksikse: AYNI DERSİN diğer konularından doldur (subject
@@ -5176,8 +5471,10 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
           topic: null, // ders geneli
           count: need,
         );
+        if (aiQs.isEmpty) aiFailed = true;
         addUnique(aiQs);
       } catch (e) {
+        aiFailed = true;
         debugPrint('[Duelo] AI soru üretimi başarısız (2): $e');
       }
     }
@@ -5190,10 +5487,15 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
       await UsageQuota.decrement(QuotaKind.arenaQuiz);
       if (!mounted) return;
       setState(() => _matching = false);
+      // AI gerçekten patladıysa daha açıklayıcı mesaj — kullanıcı "neden
+      // başlamadı" anlasın. Sadece havuz/konu boşluğuysa kısa mesaj.
+      final msg = aiFailed
+          ? 'Yapay zekâ şu an cevap veremedi. İnternet bağlantını kontrol et ve birazdan tekrar dene.'
+              .tr()
+          : 'Bu konu için şu an yeterli soru üretilemedi. Lütfen birazdan tekrar dene.'
+              .tr();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(
-            'Bu konu için şu an yeterli soru üretilemedi. Lütfen birazdan tekrar dene.'
-                .tr()),
+        content: Text(msg),
         behavior: SnackBarBehavior.floating,
       ));
       return;
@@ -6861,7 +7163,7 @@ KURALLAR:
         builder: (_) => _DueloShareModePage(
           caption:
               'QuAlsar uygulamasını indir — sen de istediğin derste, '
-              'istediğin konuda, dünyada veya ülkende yarış!\nqualsar.app',
+              'istediğin konuda, dünyada veya ülkende yarış!\nqualsar2-640f0.web.app',
           subjectName: r.subjectName,
           topicName: r.topicName,
           totalQuestions: r.totalQuestions,
@@ -8263,7 +8565,7 @@ class _DueloResultsScreen extends StatelessWidget {
     // Paylaşım mesajı: kazanç/kayıp detayı veya skor karşılaştırması yok.
     // Sadece sade bir davet — sonucun görseli zaten kartta.
     return 'QuAlsar uygulamasını indir — sen de istediğin derste, '
-        'istediğin konuda, dünyada veya ülkende yarış!\nqualsar.app';
+        'istediğin konuda, dünyada veya ülkende yarış!\nqualsar2-640f0.web.app';
   }
 
   void _openShareMode(BuildContext context, {required bool friendMode}) {
@@ -9115,11 +9417,19 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
       );
     } catch (e, st) {
       debugPrint('[DueloShare] hata: $e\n$st');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('${'Paylaşılamadı:'.tr()} $e'),
-        behavior: SnackBarBehavior.floating,
-      ));
+      // Görsel başarısız → text-only paylaşıma düş; o da olmazsa SnackBar.
+      try {
+        final shareText = widget.friendMode
+            ? _buildFriendChallengeText()
+            : widget.caption;
+        await Share.share(shareText, sharePositionOrigin: origin);
+      } catch (_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('${'Paylaşılamadı:'.tr()} $e'),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
     } finally {
       if (mounted) setState(() => _sharing = false);
     }
@@ -9148,7 +9458,7 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
     return '$outcomeEmoji ${widget.subjectName} · ${widget.topicName} '
         'yarışmasında $outcomeWord! Skorum: $score.\n'
         'Sıra sende — beni geçebilir misin?\n'
-        'qualsar.app';
+        'qualsar2-640f0.web.app';
   }
 
   @override
@@ -9806,14 +10116,14 @@ class _DueloShareCard extends StatelessWidget {
                     ),
                     SizedBox(height: 2),
                     Text(
-                      'qualsar.app',
+                      'qualsar2-640f0.web.app',
                       style: _sans(
-                          size: 12,
+                          size: 11,
                           weight: FontWeight.w900,
                           color: isBgDark
                               ? Colors.white
                               : Color(0xFFC8102E),
-                          letterSpacing: 0.5),
+                          letterSpacing: 0.3),
                     ),
                   ],
                 ),
@@ -9841,7 +10151,7 @@ class _DueloShareCard extends StatelessWidget {
                             Border.all(color: AppPalette.border(context), width: 1),
                       ),
                       child: QrImageView(
-                        data: 'https://qualsar.app',
+                        data: 'https://qualsar2-640f0.web.app',
                         version: QrVersions.auto,
                         size: 54,
                         backgroundColor: AppPalette.card(context),
@@ -10223,7 +10533,7 @@ class _DueloAvatar extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  ARKADAŞLAR — mock feed (gerçek backend sonrası dolacak)
+//  ARKADAŞLAR — gerçek friends koleksiyonu + son aktiviteleri (Firestore stream)
 // ═══════════════════════════════════════════════════════════════════════════════
 class _FriendsSection extends StatelessWidget {
   /// Sıralama butonu callback'i — Rozetler bölümünden buraya taşındı.
@@ -10233,12 +10543,16 @@ class _FriendsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final feed = const [
-      ('deniz.k', 'D', '🇹🇷', 'Matematik testinde %95 yaptı', '12 dk önce', '🎯'),
-      ('lukas_m', 'L', '🇩🇪', 'Günlük meydan okumayı bitirdi', '1 saat önce', '🌍'),
-      ('zeynep_y', 'Z', '🇹🇷', '7 gün streak yaptı', '3 saat önce', '🔥'),
-      ('priya_s', 'P', '🇮🇳', 'Efsanevi lige yükseldi', '5 saat önce', '👑'),
-    ];
+    return StreamBuilder<List<Friend>>(
+      stream: FriendService.watchFriends(),
+      builder: (ctx, snap) {
+        final friends = snap.data ?? const <Friend>[];
+        return _buildSection(context, friends);
+      },
+    );
+  }
+
+  Widget _buildSection(BuildContext context, List<Friend> friends) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -10262,39 +10576,83 @@ class _FriendsSection extends StatelessWidget {
                   child: Icon(Icons.question_mark_rounded, size: 13, color: _Palette.brand),
                 ),
               ),
-              if (onRankingsTap != null) ...[
-                Spacer(),
-                GestureDetector(
-                  onTap: onRankingsTap,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      // Buton zemini her iki modda da kontrast yapsın:
-                      // aydınlıkta koyu+beyaz yazı, karanlıkta açık+koyu yazı.
-                      color: AppPalette.isDark(context)
-                          ? Colors.white
-                          : Colors.black,
-                      borderRadius: BorderRadius.circular(100),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('🏆'.tr(),
-                            style: TextStyle(fontSize: 11)),
-                        SizedBox(width: 5),
-                        Text('Sıralama'.tr(),
+              const SizedBox(width: 8),
+              // Bekleyen istek badge'i — sayı varsa turuncu pill olarak gösterilir.
+              StreamBuilder<List<FriendRequest>>(
+                stream: FriendService.watchPendingRequests(),
+                builder: (ctx, snap) {
+                  final count = snap.data?.length ?? 0;
+                  if (count == 0) return const SizedBox.shrink();
+                  return GestureDetector(
+                    onTap: () => _showRequestsSheet(context),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFF6A00), Color(0xFFFF3D00)],
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.mail_rounded,
+                              size: 11, color: Colors.white),
+                          const SizedBox(width: 4),
+                          Text(
+                            '$count ${"istek".tr()}',
                             style: _sans(
-                                size: 12,
-                                weight: FontWeight.w700,
-                                color: AppPalette.isDark(context)
-                                    ? Colors.black
-                                    : Colors.white)),
-                      ],
+                                size: 10,
+                                weight: FontWeight.w800,
+                                color: Colors.white),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ),
-              ],
+                  );
+                },
+              ),
+              const SizedBox(width: 4),
+              // Düello daveti badge'i — mor gradient.
+              StreamBuilder<List<DueloInvite>>(
+                stream: DueloMatchmakingService.watchInvites(),
+                builder: (ctx, snap) {
+                  final count = snap.data?.length ?? 0;
+                  if (count == 0) return const SizedBox.shrink();
+                  return GestureDetector(
+                    onTap: () => _showDueloInvitesSheet(context),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF7C3AED), Color(0xFFA855F7)],
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.sports_kabaddi_rounded,
+                              size: 11, color: Colors.white),
+                          const SizedBox(width: 4),
+                          Text(
+                            '$count ${"düello".tr()}',
+                            style: _sans(
+                                size: 10,
+                                weight: FontWeight.w800,
+                                color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+              // "Sıralama" sekmesi kaldırıldı — kullanıcı Kütüphanem'de
+              // ayrı "Dünya Sıralaması" kartına erişiyor; burada tekrarı
+              // yer kaplıyordu.
             ],
           ),
         ),
@@ -10354,11 +10712,13 @@ class _FriendsSection extends StatelessWidget {
             ),
           ),
         ),
-        for (int i = 0; i < feed.length; i++)
+        // Gerçek arkadaş listesi — friends boşsa boş state CTA, doluysa
+        // her arkadaş için kart (avatar + username + son aktivite + düello btn).
+        if (friends.isEmpty)
           Padding(
-            padding: EdgeInsets.fromLTRB(16, 0, 16, i == feed.length - 1 ? 0 : 8),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
             child: Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: AppPalette.card(context),
                 borderRadius: BorderRadius.circular(14),
@@ -10366,54 +10726,632 @@ class _FriendsSection extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: _avatarColors[feed[i].$1.hashCode.abs() % _avatarColors.length],
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(feed[i].$2,
-                        style: _sans(size: 13, weight: FontWeight.w800, color: Colors.white)),
-                  ),
-                  SizedBox(width: 10),
+                  const Text('👋', style: TextStyle(fontSize: 22)),
+                  const SizedBox(width: 10),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(feed[i].$3, style: TextStyle(fontSize: 11)),
-                            SizedBox(width: 4),
-                            Flexible(
-                              child: Text('@${feed[i].$1}',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: _sans(size: 12, weight: FontWeight.w700, color: AppPalette.textPrimary(context))),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 2),
-                        Text(feed[i].$4,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: _sans(size: 11, color: AppPalette.textSecondary(context))),
-                      ],
+                    child: Text(
+                      'Henüz arkadaşın yok. Yukarıdaki "Arkadaş Ekle" butonu ile başla.'
+                          .tr(),
+                      style: _sans(
+                          size: 12,
+                          color: AppPalette.textSecondary(context),
+                          height: 1.4),
                     ),
                   ),
-                  SizedBox(width: 6),
-                  Text(feed[i].$6, style: TextStyle(fontSize: 16)),
-                  SizedBox(width: 4),
-                  Text(feed[i].$5.split(' ').first,
-                      style: _sans(size: 10, color: AppPalette.textSecondary(context))),
                 ],
               ),
             ),
-          ),
+          )
+        else
+          for (int i = 0; i < friends.length; i++)
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                  16, 0, 16, i == friends.length - 1 ? 0 : 8),
+              child: _FriendCard(friend: friends[i]),
+            ),
       ],
     );
   }
+}
+
+// ─── Tek arkadaş kartı + son aktivite (league_attempts) ──────────────────────
+class _FriendCard extends StatelessWidget {
+  final Friend friend;
+  const _FriendCard({required this.friend});
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>?> _lastActivity() {
+    return FirebaseFirestore.instance
+        .collection('league_attempts')
+        .where('uid', isEqualTo: friend.uid)
+        .orderBy('when', descending: true)
+        .limit(1)
+        .snapshots()
+        .map((s) => s.docs.isEmpty ? null : s.docs.first);
+  }
+
+  String _activityText(Map<String, dynamic>? data) {
+    if (data == null) return 'Henüz aktivite yok'.tr();
+    final score = (data['score'] as num?)?.toDouble() ?? 0;
+    final subject = (data['subjectKey'] ?? '').toString();
+    return '$subject • ${score.toStringAsFixed(0)} puan';
+  }
+
+  String _ago(Timestamp? ts) {
+    if (ts == null) return '';
+    final diff = DateTime.now().difference(ts.toDate());
+    if (diff.inMinutes < 1) return 'şimdi';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} dk';
+    if (diff.inHours < 24) return '${diff.inHours} sa';
+    return '${diff.inDays} g';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>?>(
+      stream: _lastActivity(),
+      builder: (ctx, snap) {
+        final data = snap.data?.data();
+        final when = data?['when'] as Timestamp?;
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppPalette.card(context),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppPalette.border(context)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _avatarColors[
+                      friend.username.hashCode.abs() % _avatarColors.length],
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  friend.avatar.isNotEmpty
+                      ? friend.avatar
+                      : (friend.displayName.isNotEmpty
+                          ? friend.displayName[0].toUpperCase()
+                          : '?'),
+                  style: _sans(
+                      size: 14, weight: FontWeight.w800, color: Colors.white),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '@${friend.username}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: _sans(
+                        size: 12,
+                        weight: FontWeight.w700,
+                        color: AppPalette.textPrimary(context),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _activityText(data),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: _sans(
+                        size: 11,
+                        color: AppPalette.textSecondary(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              if (when != null)
+                Text(
+                  _ago(when),
+                  style: _sans(
+                      size: 10, color: AppPalette.textSecondary(context)),
+                ),
+              const SizedBox(width: 6),
+              // Düello daveti gönder
+              GestureDetector(
+                onTap: () => _sendDuelInvite(context, friend),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _Palette.brand,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.sports_kabaddi_rounded,
+                          size: 13, color: Colors.white),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Düello'.tr(),
+                        style: _sans(
+                            size: 10,
+                            weight: FontWeight.w800,
+                            color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+String _flagForCountry(String? code) {
+  if (code == null || code.length != 2) return '🌍';
+  const baseLetter = 0x41;
+  const baseRegional = 0x1F1E6;
+  final upper = code.toUpperCase();
+  final c1 = upper.codeUnitAt(0);
+  final c2 = upper.codeUnitAt(1);
+  if (c1 < baseLetter || c1 > baseLetter + 25) return '🌍';
+  if (c2 < baseLetter || c2 > baseLetter + 25) return '🌍';
+  return String.fromCharCodes([
+    baseRegional + (c1 - baseLetter),
+    baseRegional + (c2 - baseLetter),
+  ]);
+}
+
+void _showDueloInvitesSheet(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (_) => const _DueloInvitesSheet(),
+  );
+}
+
+class _DueloInvitesSheet extends StatelessWidget {
+  const _DueloInvitesSheet();
+
+  Future<void> _accept(BuildContext context, DueloInvite inv) async {
+    final ok = await DueloMatchmakingService.acceptInvite(inviteId: inv.id);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok
+          ? 'Düello başlatıldı — @${inv.fromUsername} ile yarış'
+          : 'Düello açılamadı'),
+      behavior: SnackBarBehavior.floating,
+    ));
+  }
+
+  Future<void> _reject(BuildContext context, DueloInvite inv) async {
+    await DueloMatchmakingService.rejectInvite(inviteId: inv.id);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.7,
+      minChildSize: 0.45,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (_, scroll) => Container(
+        decoration: BoxDecoration(
+          color: AppPalette.bg(context),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: ListView(
+          controller: scroll,
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppPalette.textSecondary(context),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text('Düello Davetleri'.tr(),
+                style: _serif(
+                    size: 22, weight: FontWeight.w600, letterSpacing: -0.02)),
+            const SizedBox(height: 4),
+            Text(
+              'Kabul edersen anında soruları çözmeye başlarsınız.'.tr(),
+              style: _sans(
+                  size: 12,
+                  color: AppPalette.textSecondary(context),
+                  height: 1.4),
+            ),
+            const SizedBox(height: 18),
+            StreamBuilder<List<DueloInvite>>(
+              stream: DueloMatchmakingService.watchInvites(),
+              builder: (ctx, snap) {
+                final list = snap.data ?? const [];
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                        child: CircularProgressIndicator(strokeWidth: 2)),
+                  );
+                }
+                if (list.isEmpty) {
+                  return Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: AppPalette.card(context),
+                      borderRadius: BorderRadius.circular(14),
+                      border:
+                          Border.all(color: AppPalette.border(context)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Text('⚔️', style: TextStyle(fontSize: 22)),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Bekleyen düello daveti yok'.tr(),
+                            style: _sans(
+                                size: 13,
+                                weight: FontWeight.w600,
+                                color: AppPalette.textPrimary(context)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                return Column(
+                  children: [
+                    for (final inv in list)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppPalette.card(context),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                                color: AppPalette.border(context)),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: _avatarColors[inv.fromUsername
+                                          .hashCode
+                                          .abs() %
+                                      _avatarColors.length],
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  inv.fromAvatar.isNotEmpty
+                                      ? inv.fromAvatar
+                                      : (inv.fromDisplayName.isNotEmpty
+                                          ? inv.fromDisplayName[0]
+                                              .toUpperCase()
+                                          : '?'),
+                                  style: _sans(
+                                      size: 16,
+                                      weight: FontWeight.w800,
+                                      color: Colors.white),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      inv.fromDisplayName.isEmpty
+                                          ? '@${inv.fromUsername}'
+                                          : inv.fromDisplayName,
+                                      style: _sans(
+                                          size: 13,
+                                          weight: FontWeight.w700,
+                                          color: AppPalette.textPrimary(
+                                              context)),
+                                    ),
+                                    Text(
+                                      '@${inv.fromUsername}',
+                                      style: _sans(
+                                          size: 11,
+                                          color:
+                                              AppPalette.textSecondary(
+                                                  context)),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () => _reject(context, inv),
+                                icon: const Icon(Icons.close_rounded,
+                                    size: 20,
+                                    color: Color(0xFFEF4444)),
+                                tooltip: 'Reddet'.tr(),
+                              ),
+                              GestureDetector(
+                                onTap: () => _accept(context, inv),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: _Palette.brand,
+                                    borderRadius:
+                                        BorderRadius.circular(20),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(
+                                          Icons.sports_kabaddi_rounded,
+                                          size: 13,
+                                          color: Colors.white),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Yarış'.tr(),
+                                        style: _sans(
+                                            size: 11,
+                                            weight: FontWeight.w800,
+                                            color: Colors.white),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+void _showRequestsSheet(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (_) => const _FriendRequestsSheet(),
+  );
+}
+
+class _FriendRequestsSheet extends StatelessWidget {
+  const _FriendRequestsSheet();
+
+  Future<void> _accept(BuildContext context, FriendRequest r) async {
+    final ok = await FriendService.acceptRequest(fromUid: r.fromUid);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok
+          ? '@${r.fromUsername} artık arkadaşın'
+          : 'İşlem başarısız'),
+      behavior: SnackBarBehavior.floating,
+    ));
+  }
+
+  Future<void> _reject(BuildContext context, FriendRequest r) async {
+    await FriendService.rejectRequest(fromUid: r.fromUid);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.75,
+      minChildSize: 0.45,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (_, scroll) => Container(
+        decoration: BoxDecoration(
+          color: AppPalette.bg(context),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: ListView(
+          controller: scroll,
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppPalette.textSecondary(context),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Gelen Arkadaşlık İstekleri'.tr(),
+              style: _serif(
+                  size: 22, weight: FontWeight.w600, letterSpacing: -0.02),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Kabul edersen iki yönlü arkadaş olursunuz, düello davet edebilirsiniz.'
+                  .tr(),
+              style: _sans(
+                  size: 12,
+                  color: AppPalette.textSecondary(context),
+                  height: 1.4),
+            ),
+            const SizedBox(height: 18),
+            StreamBuilder<List<FriendRequest>>(
+              stream: FriendService.watchPendingRequests(),
+              builder: (ctx, snap) {
+                final list = snap.data ?? const [];
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                        child:
+                            CircularProgressIndicator(strokeWidth: 2)),
+                  );
+                }
+                if (list.isEmpty) {
+                  return Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: AppPalette.card(context),
+                      borderRadius: BorderRadius.circular(14),
+                      border:
+                          Border.all(color: AppPalette.border(context)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Text('✨', style: TextStyle(fontSize: 22)),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Bekleyen isteğin yok'.tr(),
+                            style: _sans(
+                                size: 13,
+                                weight: FontWeight.w600,
+                                color: AppPalette.textPrimary(context)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                return Column(
+                  children: [
+                    for (final r in list)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppPalette.card(context),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                                color: AppPalette.border(context)),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: _avatarColors[
+                                      r.fromUsername.hashCode.abs() %
+                                          _avatarColors.length],
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  r.fromAvatar.isNotEmpty
+                                      ? r.fromAvatar
+                                      : (r.fromDisplayName.isNotEmpty
+                                          ? r.fromDisplayName[0]
+                                              .toUpperCase()
+                                          : '?'),
+                                  style: _sans(
+                                      size: 16,
+                                      weight: FontWeight.w800,
+                                      color: Colors.white),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      r.fromDisplayName.isEmpty
+                                          ? '@${r.fromUsername}'
+                                          : r.fromDisplayName,
+                                      style: _sans(
+                                          size: 13,
+                                          weight: FontWeight.w700,
+                                          color: AppPalette.textPrimary(
+                                              context)),
+                                    ),
+                                    Text(
+                                      '@${r.fromUsername}',
+                                      style: _sans(
+                                          size: 11,
+                                          color:
+                                              AppPalette.textSecondary(
+                                                  context)),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              // Reddet
+                              IconButton(
+                                onPressed: () => _reject(context, r),
+                                icon: const Icon(Icons.close_rounded,
+                                    size: 20, color: Color(0xFFEF4444)),
+                                tooltip: 'Reddet'.tr(),
+                              ),
+                              // Kabul
+                              GestureDetector(
+                                onTap: () => _accept(context, r),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: _Palette.brand,
+                                    borderRadius:
+                                        BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    'Kabul'.tr(),
+                                    style: _sans(
+                                        size: 11,
+                                        weight: FontWeight.w800,
+                                        color: Colors.white),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _sendDuelInvite(BuildContext context, Friend friend) async {
+  final ok = await DueloMatchmakingService.invite(
+    targetUid: friend.uid,
+    targetUsername: friend.username,
+  );
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    content: Text(ok
+        ? '@${friend.username} adlı kullanıcıya düello daveti gönderildi'
+        : 'Davet gönderilemedi'),
+    behavior: SnackBarBehavior.floating,
+  ));
 }
 
 void _showFriendsInfoSheet(BuildContext context) {
@@ -10532,40 +11470,65 @@ class _AddFriendSheet extends StatefulWidget {
 
 class _AddFriendSheetState extends State<_AddFriendSheet> {
   final _searchCtrl = TextEditingController();
+  Timer? _debounce;
+  List<FriendUser> _results = const [];
+  bool _searching = false;
 
-  static const _suggestions = [
-    ('elifm', 'E', '🇹🇷', 'Lise 10', 'Tanıdığın 3 kişi ekledi'),
-    ('arda_2010', 'A', '🇹🇷', 'Lise 10', 'Aynı sınıf'),
-    ('kaan.ak', 'K', '🇹🇷', 'Lise 10', 'Haftalık sıralamada yakın'),
-    ('bahar_c', 'B', '🇹🇷', 'Lise 10', 'Aynı bölümden'),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _searchCtrl.addListener(_onQueryChanged);
+  }
 
   @override
   void dispose() {
+    _searchCtrl.removeListener(_onQueryChanged);
     _searchCtrl.dispose();
+    _debounce?.cancel();
     super.dispose();
   }
 
-  List<dynamic> _filteredSuggestions() {
-    final q = _searchCtrl.text.trim().toLowerCase();
-    if (q.isEmpty) return _suggestions;
-    return _suggestions.where((s) => s.$1.toLowerCase().contains(q)).toList();
+  void _onQueryChanged() {
+    _debounce?.cancel();
+    final q = _searchCtrl.text.trim();
+    if (q.length < 2) {
+      setState(() {
+        _results = const [];
+        _searching = false;
+      });
+      return;
+    }
+    setState(() => _searching = true);
+    _debounce = Timer(const Duration(milliseconds: 350), () async {
+      final users = await FriendService.searchUsers(q);
+      if (!mounted) return;
+      setState(() {
+        _results = users;
+        _searching = false;
+      });
+    });
   }
 
-  void _sendRequest(BuildContext context, String username) {
+  Future<void> _sendRequest(BuildContext context, FriendUser user) async {
     Navigator.pop(context);
+    final ok = await FriendService.sendRequest(toUid: user.uid);
+    if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
-            Text('📨'.tr(), style: TextStyle(fontSize: 16)),
-            SizedBox(width: 8),
-            Expanded(child: Text('@$username\'a istek gönderildi')),
+            Text(ok ? '📨' : '⚠️', style: const TextStyle(fontSize: 16)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(ok
+                  ? '@${user.username} adlı kullanıcıya istek gönderildi'
+                  : '@${user.username} zaten arkadaşın veya istek gönderilemedi'),
+            ),
           ],
         ),
         backgroundColor: AppPalette.textPrimary(context),
         behavior: SnackBarBehavior.floating,
-        duration: Duration(seconds: 2),
+        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -10573,7 +11536,6 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    final suggestions = _filteredSuggestions();
     return Padding(
       padding: EdgeInsets.only(bottom: bottomInset),
       child: DraggableScrollableSheet(
@@ -10633,13 +11595,25 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                       label: 'Davet Linki',
                       sub: 'Paylaş',
                       onTap: () async {
-                        final link = 'https://qualsar.app/davet/$_currentUsername';
-                        await Share.share(
-                          'QuAlsar Arena\'da benimle yarış! 🏆\n'
-                          '@$_currentUsername davet ediyor · kabul edince ikimiz de +50 QP kazanırız.\n\n'
-                          '$link',
-                          subject: 'QuAlsar Arena daveti',
-                        );
+                        final link =
+                            'https://qualsar2-640f0.web.app/davet/$_currentUsername';
+                        try {
+                          await Share.share(
+                            'QuAlsar Arena\'da benimle yarış! 🏆\n'
+                            '@$_currentUsername davet ediyor · kabul edince ikimiz de +50 QP kazanırız.\n\n'
+                            '$link',
+                            subject: 'QuAlsar Arena daveti',
+                          );
+                        } catch (_) {
+                          // Paylaşım sheet açılmadıysa kullanıcı linki en
+                          // azından panodan alabilsin.
+                          await Clipboard.setData(ClipboardData(text: link));
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text('Davet linki kopyalandı'.tr()),
+                            behavior: SnackBarBehavior.floating,
+                          ));
+                        }
                       },
                     ),
                   ),
@@ -10663,11 +11637,19 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                 ],
               ),
               SizedBox(height: 22),
-              // Öneriler
-              Text(_searchCtrl.text.isEmpty ? 'ÖNERİLEN KİŞİLER' : 'ARAMA SONUÇLARI',
-                  style: _sans(size: 10, weight: FontWeight.w700, color: AppPalette.textSecondary(context), letterSpacing: 0.08)),
+              // Arama sonuçları
+              Text(
+                _searchCtrl.text.trim().length < 2
+                    ? 'KULLANICI ARA'.tr()
+                    : 'ARAMA SONUÇLARI'.tr(),
+                style: _sans(
+                    size: 10,
+                    weight: FontWeight.w700,
+                    color: AppPalette.textSecondary(context),
+                    letterSpacing: 0.08),
+              ),
               SizedBox(height: 10),
-              if (suggestions.isEmpty)
+              if (_searchCtrl.text.trim().length < 2)
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -10677,26 +11659,64 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                   ),
                   child: Row(
                     children: [
-                      Text('🔍'.tr(), style: TextStyle(fontSize: 18)),
-                      SizedBox(width: 10),
+                      const Text('🔍', style: TextStyle(fontSize: 18)),
+                      const SizedBox(width: 10),
                       Expanded(
-                        child: Text('Kullanıcı bulunamadı. Davet linki gönderebilirsin.'.tr(),
-                            style: _sans(size: 12, color: AppPalette.textSecondary(context))),
+                        child: Text(
+                          'En az 2 karakter yaz, kullanıcı bul. Veya davet linki gönder.'
+                              .tr(),
+                          style: _sans(
+                              size: 12,
+                              color: AppPalette.textSecondary(context)),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else if (_searching)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                )
+              else if (_results.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppPalette.card(context),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppPalette.border(context)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Text('🔍', style: TextStyle(fontSize: 18)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Kullanıcı bulunamadı. Davet linki gönderebilirsin.'
+                              .tr(),
+                          style: _sans(
+                              size: 12,
+                              color: AppPalette.textSecondary(context)),
+                        ),
                       ),
                     ],
                   ),
                 )
               else
-                for (final s in suggestions)
+                for (final u in _results)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: _SuggestionRow(
-                      username: s.$1 as String,
-                      avatar: s.$2 as String,
-                      flag: s.$3 as String,
-                      grade: s.$4 as String,
-                      reason: s.$5 as String,
-                      onAdd: () => _sendRequest(context, s.$1 as String),
+                      username: u.username,
+                      avatar: u.avatar.isEmpty
+                          ? (u.displayName.isNotEmpty
+                              ? u.displayName[0].toUpperCase()
+                              : '?')
+                          : u.avatar,
+                      flag: _flagForCountry(u.country),
+                      grade: u.grade ?? '',
+                      reason: u.displayName,
+                      onAdd: () => _sendRequest(context, u),
                     ),
                   ),
             ],
@@ -10778,7 +11798,22 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: AppPalette.border(context)),
               ),
-              child: CustomPaint(painter: _QrPainter()),
+              // Gerçek QR kodu — davet linki encode edilir.
+              // mobile_scanner okuyucusu bu URL'i decode edip InviteAcceptScreen'e gider.
+              child: QrImageView(
+                data: DeepLinkService.inviteLinkFor(_currentUsername),
+                version: QrVersions.auto,
+                gapless: true,
+                backgroundColor: Colors.white,
+                eyeStyle: const QrEyeStyle(
+                  eyeShape: QrEyeShape.square,
+                  color: Color(0xFF111111),
+                ),
+                dataModuleStyle: const QrDataModuleStyle(
+                  dataModuleShape: QrDataModuleShape.square,
+                  color: Color(0xFF111111),
+                ),
+              ),
             ),
             SizedBox(height: 14),
             Text('@$_currentUsername',
@@ -10791,7 +11826,7 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                 Navigator.pop(context);
                 showDialog(
                   context: context,
-                  builder: (_) => _QrScanDialog(),
+                  builder: (_) => const _QrScanDialog(),
                 );
               },
             ),
@@ -10800,10 +11835,19 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
               label: '🔗 QR Yerine Linki Paylaş'.tr(),
               onTap: () async {
                 final nav = Navigator.of(context);
-                final link = 'https://qualsar.app/davet/$_currentUsername';
+                final messenger = ScaffoldMessenger.of(context);
+                final link = 'https://qualsar2-640f0.web.app/davet/$_currentUsername';
                 final shareText = "QuAlsar Arena'da benimle yarış! 🏆\n"
                     '@$_currentUsername davet ediyor · $link';
-                await Share.share(shareText);
+                try {
+                  await Share.share(shareText);
+                } catch (_) {
+                  await Clipboard.setData(ClipboardData(text: link));
+                  messenger.showSnackBar(SnackBar(
+                    content: Text('Davet linki kopyalandı'.tr()),
+                    behavior: SnackBarBehavior.floating,
+                  ));
+                }
                 if (nav.mounted) nav.pop();
               },
             ),
@@ -10822,23 +11866,28 @@ class _ContactsSheet extends StatefulWidget {
   State<_ContactsSheet> createState() => _ContactsSheetState();
 }
 
+class _ContactEntry {
+  final String name;
+  final String displayContact; // gösterilecek (email maskeli veya telefon)
+  final String? email;
+  final String? phone;
+  /// QuAlsar'da bulunduysa eşleşen kullanıcı, yoksa null.
+  final FriendUser? matched;
+  const _ContactEntry({
+    required this.name,
+    required this.displayContact,
+    this.email,
+    this.phone,
+    this.matched,
+  });
+}
+
 class _ContactsSheetState extends State<_ContactsSheet> {
   bool _permissionAsked = false;
   bool _permissionGranted = false;
+  bool _loading = false;
   final _searchCtrl = TextEditingController();
-
-  // Mock rehber verisi — gerçek sürümde flutter_contacts paketinden gelir
-  static const _contacts = [
-    ('Deniz Kaya', '+90 532 *** 4412', true, '@deniz.k'),
-    ('Elif Yıldız', '+90 533 *** 7891', true, '@elif_m'),
-    ('Arda Çelik', '+90 541 *** 2033', true, '@arda_2010'),
-    ('Mehmet Aksu', '+90 532 *** 5566', false, null),
-    ('Fatma Öz', '+90 555 *** 8899', false, null),
-    ('Burak Şen', '+90 505 *** 1234', true, '@burak.s'),
-    ('Ayşe Korkut', '+90 542 *** 9900', false, null),
-    ('Kaan Akdağ', '+90 532 *** 3322', true, '@kaan.ak'),
-    ('Zehra Bulut', '+90 538 *** 6677', false, null),
-  ];
+  List<_ContactEntry> _contacts = const [];
 
   @override
   void dispose() {
@@ -10846,17 +11895,126 @@ class _ContactsSheetState extends State<_ContactsSheet> {
     super.dispose();
   }
 
+  /// İzin iste + rehberi oku + email eşleşmelerini Firestore'da sor.
   Future<void> _requestPermission() async {
-    // Gerçek sürüm: permission_handler ile Permission.contacts.request()
+    if (_permissionAsked) return;
     setState(() => _permissionAsked = true);
-    await Future.delayed(Duration(milliseconds: 800));
-    if (mounted) setState(() => _permissionGranted = true);
+    try {
+      final granted = await FlutterContacts.requestPermission(readonly: true);
+      if (!granted) {
+        if (!mounted) return;
+        setState(() => _permissionAsked = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Rehber izni reddedildi'.tr()),
+          behavior: SnackBarBehavior.floating,
+        ));
+        return;
+      }
+      if (!mounted) return;
+      setState(() {
+        _permissionGranted = true;
+        _loading = true;
+      });
+      await _loadContacts();
+      if (!mounted) return;
+      setState(() => _loading = false);
+    } catch (e) {
+      debugPrint('[Contacts] permission/load fail: $e');
+      if (!mounted) return;
+      setState(() {
+        _permissionAsked = false;
+        _loading = false;
+      });
+    }
   }
 
-  List<dynamic> _filtered() {
+  Future<void> _loadContacts() async {
+    // Rehberden e-posta ve telefonu olan kontaktları çek.
+    final raw = await FlutterContacts.getContacts(
+      withProperties: true,
+      withPhoto: false,
+    );
+    // QuAlsar tarafında benzersiz email seti hazırla.
+    final emailMap = <String, String>{}; // email → contact name
+    for (final c in raw) {
+      final name = c.displayName.trim();
+      for (final e in c.emails) {
+        final email = e.address.trim().toLowerCase();
+        if (email.isEmpty) continue;
+        emailMap.putIfAbsent(email, () => name);
+      }
+    }
+    // Firestore'da bu email'lere sahip kullanıcıları topluca ara (chunk).
+    final foundByEmail = <String, FriendUser>{};
+    final emails = emailMap.keys.toList();
+    const chunkSize = 10; // whereIn 30 limit, ama Firestore field 'email' indexlenmemiş; tek tek arar.
+    for (int i = 0; i < emails.length; i += chunkSize) {
+      final end = (i + chunkSize > emails.length) ? emails.length : i + chunkSize;
+      final chunk = emails.sublist(i, end);
+      try {
+        final snap = await FirebaseFirestore.instance
+            .collection('users')
+            .where('email', whereIn: chunk)
+            .limit(30)
+            .get();
+        for (final d in snap.docs) {
+          final user = FriendUser.fromDoc(d);
+          final emailValue =
+              (d.data()['email'] ?? '').toString().toLowerCase();
+          if (emailValue.isNotEmpty) foundByEmail[emailValue] = user;
+        }
+      } catch (e) {
+        debugPrint('[Contacts] email lookup chunk fail: $e');
+      }
+    }
+    // Çıktı listesi — önce eşleşenler, sonra eşleşmeyenler.
+    final matched = <_ContactEntry>[];
+    final unmatched = <_ContactEntry>[];
+    for (final c in raw) {
+      final name = c.displayName.trim();
+      if (name.isEmpty) continue;
+      String? email;
+      String? phone;
+      FriendUser? userMatch;
+      for (final e in c.emails) {
+        final lower = e.address.trim().toLowerCase();
+        if (lower.isEmpty) continue;
+        email = lower;
+        if (foundByEmail.containsKey(lower)) {
+          userMatch = foundByEmail[lower];
+          break;
+        }
+      }
+      if (c.phones.isNotEmpty) phone = c.phones.first.number;
+      final entry = _ContactEntry(
+        name: name,
+        displayContact: userMatch != null
+            ? '@${userMatch.username}'
+            : (email ?? phone ?? ''),
+        email: email,
+        phone: phone,
+        matched: userMatch,
+      );
+      if (userMatch != null) {
+        matched.add(entry);
+      } else if (email != null || phone != null) {
+        unmatched.add(entry);
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _contacts = [...matched, ...unmatched];
+    });
+  }
+
+  List<_ContactEntry> _filtered() {
     final q = _searchCtrl.text.trim().toLowerCase();
     if (q.isEmpty) return _contacts;
-    return _contacts.where((c) => c.$1.toLowerCase().contains(q)).toList();
+    return _contacts
+        .where((c) =>
+            c.name.toLowerCase().contains(q) ||
+            (c.matched?.username.toLowerCase().contains(q) ?? false))
+        .toList();
   }
 
   @override
@@ -10952,6 +12110,14 @@ class _ContactsSheetState extends State<_ContactsSheet> {
   }
 
   Widget _buildContactList(ScrollController scroll) {
+    if (_loading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(40),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
     final filtered = _filtered();
     return ListView(
       controller: scroll,
@@ -11005,35 +12171,57 @@ class _ContactsSheetState extends State<_ContactsSheet> {
           ),
         ),
         SizedBox(height: 16),
-        for (final c in filtered)
+        if (filtered.isEmpty)
           Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: _ContactRow(
-              name: c.$1 as String,
-              phone: c.$2 as String,
-              onQuAlsar: c.$3 as bool,
-              username: c.$4 as String?,
-              onAction: () {
-                final onApp = c.$3 as bool;
-                Navigator.pop(context);
-                if (onApp) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('${c.$4}\'a arkadaş isteği gönderildi 📨'),
-                      backgroundColor: AppPalette.textPrimary(context),
-                      behavior: SnackBarBehavior.floating,
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                } else {
-                  Share.share(
-                    'Merhaba ${c.$1}! QuAlsar Arena\'da yarışalım mı? 🏆\n'
-                    'https://qualsar.app/davet/$_currentUsername',
-                  );
-                }
-              },
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Text(
+              'Eşleşen kontakt yok. Davet linkiyle herkesi çağırabilirsin.'.tr(),
+              textAlign: TextAlign.center,
+              style: _sans(
+                  size: 12, color: AppPalette.textSecondary(context)),
             ),
-          ),
+          )
+        else
+          for (final c in filtered)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _ContactRow(
+                name: c.name,
+                phone: c.displayContact,
+                onQuAlsar: c.matched != null,
+                username: c.matched != null ? '@${c.matched!.username}' : null,
+                onAction: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  final m = c.matched;
+                  if (m != null) {
+                    // Gerçek istek
+                    final ok = await FriendService.sendRequest(toUid: m.uid);
+                    if (!context.mounted) return;
+                    messenger.showSnackBar(SnackBar(
+                      content: Text(ok
+                          ? '@${m.username} adlı kullanıcıya istek gönderildi'
+                          : 'Zaten arkadaş veya istek gönderilemedi'),
+                      behavior: SnackBarBehavior.floating,
+                    ));
+                  } else {
+                    // SMS / share — davet linki
+                    final link = DeepLinkService.inviteLinkFor(_currentUsername);
+                    try {
+                      await Share.share(
+                        'Merhaba ${c.name}! QuAlsar\'da yarışalım mı? 🏆\n$link',
+                      );
+                    } catch (_) {
+                      await Clipboard.setData(ClipboardData(text: link));
+                      if (!context.mounted) return;
+                      messenger.showSnackBar(SnackBar(
+                        content: Text('Davet linki kopyalandı'.tr()),
+                        behavior: SnackBarBehavior.floating,
+                      ));
+                    }
+                  }
+                },
+              ),
+            ),
       ],
     );
   }
@@ -11148,7 +12336,52 @@ class _ContactRow extends StatelessWidget {
 }
 
 // Basit QR tarayıcı mock (gerçek sürümde mobile_scanner paketi)
-class _QrScanDialog extends StatelessWidget {
+class _QrScanDialog extends StatefulWidget {
+  const _QrScanDialog();
+  @override
+  State<_QrScanDialog> createState() => _QrScanDialogState();
+}
+
+class _QrScanDialogState extends State<_QrScanDialog> {
+  final MobileScannerController _controller = MobileScannerController(
+    formats: const [BarcodeFormat.qrCode],
+    detectionSpeed: DetectionSpeed.normal,
+  );
+  bool _processed = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onDetect(BarcodeCapture capture) {
+    if (_processed) return;
+    final raw = capture.barcodes.firstOrNull?.rawValue;
+    if (raw == null || raw.isEmpty) return;
+    // Davet linki pattern'i: /davet/{username}
+    final uri = Uri.tryParse(raw);
+    if (uri == null) return;
+    final segs = uri.pathSegments
+        .where((s) => s.isNotEmpty)
+        .map((s) => s.toLowerCase())
+        .toList();
+    if (segs.length < 2 || segs[0] != 'davet') {
+      setState(() => _error =
+          'QR kod tanınmadı. Sadece QuAlsar davet QR\'ları desteklenir.');
+      return;
+    }
+    _processed = true;
+    final username = segs[1];
+    Navigator.of(context).pop();
+    // Davet ekranını aç
+    final nav = Navigator.of(context, rootNavigator: true);
+    nav.push(MaterialPageRoute(
+      builder: (_) => InviteAcceptScreen(username: username),
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -11161,62 +12394,83 @@ class _QrScanDialog extends StatelessWidget {
           children: [
             Row(
               children: [
-                Text('📷'.tr(), style: TextStyle(fontSize: 20)),
-                SizedBox(width: 8),
+                const Text('📷', style: TextStyle(fontSize: 20)),
+                const SizedBox(width: 8),
                 Text('QR Kod Tara'.tr(),
-                    style: _sans(size: 16, weight: FontWeight.w700, color: Colors.white)),
-                Spacer(),
+                    style: _sans(
+                        size: 16,
+                        weight: FontWeight.w700,
+                        color: Colors.white)),
+                const Spacer(),
+                // Flash toggle
+                IconButton(
+                  onPressed: () => _controller.toggleTorch(),
+                  icon: const Icon(Icons.flash_on_rounded,
+                      color: Colors.white, size: 22),
+                ),
+                // Kamera değiştir
+                IconButton(
+                  onPressed: () => _controller.switchCamera(),
+                  icon: const Icon(Icons.cameraswitch_rounded,
+                      color: Colors.white, size: 22),
+                ),
                 GestureDetector(
                   onTap: () => Navigator.pop(context),
-                  child: Icon(Icons.close_rounded, color: Colors.white, size: 20),
+                  child: const Icon(Icons.close_rounded,
+                      color: Colors.white, size: 20),
                 ),
               ],
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             AspectRatio(
               aspectRatio: 1,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: AppPalette.textPrimary(context),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
-                ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
                 child: Stack(
                   children: [
-                    Center(
-                      child: Text('Kameraya izin ver'.tr(),
-                          style: _sans(size: 13, color: Colors.white.withValues(alpha: 0.6))),
+                    MobileScanner(
+                      controller: _controller,
+                      onDetect: _onDetect,
+                      errorBuilder: (ctx, err, _) {
+                        return Container(
+                          color: Colors.black,
+                          alignment: Alignment.center,
+                          padding: const EdgeInsets.all(24),
+                          child: Text(
+                            'Kamera açılamadı: ${err.errorCode.name}\nİzin verdiğinden emin ol.',
+                            textAlign: TextAlign.center,
+                            style: _sans(size: 12, color: Colors.white),
+                          ),
+                        );
+                      },
                     ),
-                    // Köşe işaretleri
-                    Positioned(top: 12, left: 12, child: _corner(topLeft: true)),
-                    Positioned(top: 12, right: 12, child: _corner(topRight: true)),
-                    Positioned(bottom: 12, left: 12, child: _corner(bottomLeft: true)),
-                    Positioned(bottom: 12, right: 12, child: _corner(bottomRight: true)),
+                    // Köşe rehber işaretleri
+                    Positioned(
+                        top: 12, left: 12, child: _corner(topLeft: true)),
+                    Positioned(
+                        top: 12, right: 12, child: _corner(topRight: true)),
+                    Positioned(
+                        bottom: 12,
+                        left: 12,
+                        child: _corner(bottomLeft: true)),
+                    Positioned(
+                        bottom: 12,
+                        right: 12,
+                        child: _corner(bottomRight: true)),
                   ],
                 ),
               ),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 12),
             Text(
-              'Arkadaşının QR kodunu bu çerçeveye hizala',
+              _error ??
+                  'Arkadaşının QR kodunu çerçeveye hizala — otomatik okunur',
               textAlign: TextAlign.center,
-              style: _sans(size: 12, color: Colors.white.withValues(alpha: 0.7)),
-            ),
-            SizedBox(height: 14),
-            _PrimaryButton(
-              label: 'Kamerayı Aç'.tr(),
-              brand: true,
-              onTap: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Kamera izni istenecek · gerçek sürümde mobile_scanner ile açılır'.tr()),
-                    backgroundColor: AppPalette.textPrimary(context),
-                    behavior: SnackBarBehavior.floating,
-                    duration: Duration(seconds: 3),
-                  ),
-                );
-              },
+              style: _sans(
+                  size: 12,
+                  color: _error != null
+                      ? const Color(0xFFFF6A00)
+                      : Colors.white.withValues(alpha: 0.75)),
             ),
           ],
         ),
@@ -11235,10 +12489,18 @@ class _QrScanDialog extends StatelessWidget {
       height: 28,
       decoration: BoxDecoration(
         border: Border(
-          top: (topLeft || topRight) ? BorderSide(color: _Palette.brand, width: 3) : BorderSide.none,
-          bottom: (bottomLeft || bottomRight) ? BorderSide(color: _Palette.brand, width: 3) : BorderSide.none,
-          left: (topLeft || bottomLeft) ? BorderSide(color: _Palette.brand, width: 3) : BorderSide.none,
-          right: (topRight || bottomRight) ? BorderSide(color: _Palette.brand, width: 3) : BorderSide.none,
+          top: (topLeft || topRight)
+              ? const BorderSide(color: Color(0xFFFF6A00), width: 3)
+              : BorderSide.none,
+          bottom: (bottomLeft || bottomRight)
+              ? const BorderSide(color: Color(0xFFFF6A00), width: 3)
+              : BorderSide.none,
+          left: (topLeft || bottomLeft)
+              ? const BorderSide(color: Color(0xFFFF6A00), width: 3)
+              : BorderSide.none,
+          right: (topRight || bottomRight)
+              ? const BorderSide(color: Color(0xFFFF6A00), width: 3)
+              : BorderSide.none,
         ),
       ),
     );
@@ -11552,7 +12814,7 @@ class _WrappedSheet extends StatelessWidget {
                     SizedBox(height: 12),
                     _wrappedStat('🏆', _leagues[_arenaState.league].name, 'Aktif lig'),
                     SizedBox(height: 18),
-                    Text('Sıra sende! @$_currentUsername · qualsar.app'.tr(),
+                    Text('Sıra sende! @$_currentUsername · qualsar2-640f0.web.app'.tr(),
                         style: _sans(size: 11, weight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.85))),
                   ],
                 ),
@@ -11562,15 +12824,24 @@ class _WrappedSheet extends StatelessWidget {
             _PrimaryButton(
               label: '📤 Paylaş'.tr(),
               brand: true,
-              onTap: () {
-                Share.share(
-                  "🎁 QuAlsar Arena Wrapped — Bu hafta:\n"
-                  "⚡ ${_arenaState.qp} QP · 🔥 ${_arenaState.streak} gün seri\n"
-                  "👑 En iyi konum: $topTopic\n"
-                  "🏆 ${_leagues[_arenaState.league].name} Ligi\n\n"
-                  "Sen de dene! qualsar.app",
-                );
-                Navigator.pop(context);
+              onTap: () async {
+                final nav = Navigator.of(context);
+                final messenger = ScaffoldMessenger.of(context);
+                final shareText = "🎁 QuAlsar Arena Wrapped — Bu hafta:\n"
+                    "⚡ ${_arenaState.qp} QP · 🔥 ${_arenaState.streak} gün seri\n"
+                    "👑 En iyi konum: $topTopic\n"
+                    "🏆 ${_leagues[_arenaState.league].name} Ligi\n\n"
+                    "Sen de dene! qualsar2-640f0.web.app";
+                try {
+                  await Share.share(shareText);
+                } catch (_) {
+                  await Clipboard.setData(ClipboardData(text: shareText));
+                  messenger.showSnackBar(SnackBar(
+                    content: Text('Wrapped panoya kopyalandı'.tr()),
+                    behavior: SnackBarBehavior.floating,
+                  ));
+                }
+                if (nav.mounted) nav.pop();
               },
             ),
           ],
@@ -12073,7 +13344,7 @@ final Map<String, List<_RankEntry>> _rankingsData = {
 };
 
 void _showRankingsSheet(BuildContext context) async {
-  // Konum onaylanmamışsa önce LocationSelectionSheet aç — leaderboard
+  // Konum onaylanmamışsa önce LocationSelectionSheet aç — Bilgi Ligi
   // ülke + şehir bazlı segmentlendiği için bu kritik bir ön adım.
   final nav = Navigator.of(context);
   final alreadySet = await isUserLocationSet();
@@ -12083,16 +13354,13 @@ void _showRankingsSheet(BuildContext context) async {
       context,
       onConfirm: (_) {
         // Konum kaydedildi — devam akışı; LocationSelectionSheet kendi
-        // içinde maybePop yapar, biz aşağıda rankings'e geçeriz.
+        // içinde maybePop yapar, biz aşağıda Bilgi Ligi'ye geçeriz.
       },
     );
   }
   if (!context.mounted) return;
-  // Tam sayfa route — Modal sheet yerine Navigator.push ile açılır;
-  // başlık AppBar'da ortalanır, geri butonu sistemden gelir.
-  nav.push(
-    MaterialPageRoute(builder: (_) => const _RankingsSheet()),
-  );
+  // Gerçek leaderboard: BilgiLigiScreen — mock _RankingsSheet kaldırıldı.
+  nav.push(MaterialPageRoute(builder: (_) => const BilgiLigiScreen()));
 }
 
 class _RankingsSheet extends StatefulWidget {
@@ -12620,54 +13888,193 @@ class _BadgesScroll extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       height: 120,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: _allBadges.length,
-        separatorBuilder: (_, __) => SizedBox(width: 10),
-        itemBuilder: (_, i) {
-          final b = _allBadges[i];
-          return GestureDetector(
-            onTap: () => _showSingleBadgeSheet(context, b),
-            child: Opacity(
-              opacity: b.unlocked ? 1 : 0.5,
-              child: Container(
+      child: FutureBuilder<List<Achievement>>(
+        future: AchievementService.compute(),
+        builder: (ctx, snap) {
+          // Veriler gelene kadar boş card'lar göster (skeleton).
+          final items =
+              snap.data ?? const <Achievement>[];
+          if (items.isEmpty) {
+            return ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: 4,
+              separatorBuilder: (_, __) => const SizedBox(width: 10),
+              itemBuilder: (_, __) => Container(
                 width: 104,
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                 decoration: BoxDecoration(
-                  color: AppPalette.card(context),
+                  color: AppPalette.cardMuted(context),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppPalette.border(context)),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(b.emoji, style: TextStyle(fontSize: 30)),
-                    SizedBox(height: 4),
-                    Text(
-                      b.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: _sans(size: 11, weight: FontWeight.w600),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      b.earnedStatus,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: _sans(size: 9, color: AppPalette.textSecondary(context)),
-                    ),
-                  ],
                 ),
               ),
-            ),
+            );
+          }
+          return ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            itemBuilder: (_, i) {
+              final b = items[i];
+              return GestureDetector(
+                onTap: () => _showAchievementSheet(context, b),
+                child: Opacity(
+                  opacity: b.unlocked ? 1 : 0.55,
+                  child: Container(
+                    width: 104,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: AppPalette.card(context),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                          color: b.unlocked
+                              ? _Palette.brand.withValues(alpha: 0.35)
+                              : AppPalette.border(context)),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(b.emoji, style: const TextStyle(fontSize: 30)),
+                        const SizedBox(height: 4),
+                        Text(
+                          b.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: _sans(size: 11, weight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          b.status,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: _sans(
+                              size: 9,
+                              color: AppPalette.textSecondary(context)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
           );
         },
       ),
     );
   }
+}
+
+/// Achievement detay sheet'i — kazanıldıysa kutlama, kilitliyse ilerleme barı.
+void _showAchievementSheet(BuildContext context, Achievement a) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (_) => Container(
+      decoration: BoxDecoration(
+        color: AppPalette.bg(context),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+                color: AppPalette.textSecondary(context),
+                borderRadius: BorderRadius.circular(10)),
+          ),
+          const SizedBox(height: 18),
+          Text(a.emoji,
+              style: TextStyle(
+                  fontSize: 68, color: a.unlocked ? null : Colors.grey)),
+          const SizedBox(height: 10),
+          Text(a.name,
+              style: _serif(
+                  size: 22,
+                  weight: FontWeight.w600,
+                  letterSpacing: -0.02)),
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: a.unlocked
+                  ? _Palette.success.withValues(alpha: 0.12)
+                  : AppPalette.border(context),
+              borderRadius: BorderRadius.circular(100),
+            ),
+            child: Text(
+              a.unlocked ? '✓ Kazanıldı · ${a.status}' : '🔒 ${a.status}',
+              style: _sans(
+                size: 11,
+                weight: FontWeight.w700,
+                color: a.unlocked
+                    ? _Palette.success
+                    : AppPalette.textSecondary(context),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppPalette.card(context),
+              borderRadius: BorderRadius.circular(14),
+              border:
+                  Border.all(color: AppPalette.border(context)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('NASIL KAZANILIR?'.tr(),
+                    style: _sans(
+                        size: 10,
+                        weight: FontWeight.w700,
+                        color: AppPalette.textSecondary(context),
+                        letterSpacing: 0.08)),
+                const SizedBox(height: 6),
+                Text(a.rule,
+                    style: _sans(
+                        size: 14,
+                        color: AppPalette.textPrimary(context),
+                        height: 1.4)),
+                // İlerleme barı
+                if (!a.unlocked && a.progress != null) ...[
+                  const SizedBox(height: 12),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: LinearProgressIndicator(
+                      value: a.progress,
+                      minHeight: 8,
+                      backgroundColor: AppPalette.border(context),
+                      valueColor:
+                          AlwaysStoppedAnimation(_Palette.brand),
+                    ),
+                  ),
+                  if (a.progressText != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      a.progressText!,
+                      style: _sans(
+                          size: 11,
+                          color: AppPalette.textSecondary(context)),
+                    ),
+                  ],
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -16498,7 +17905,7 @@ class _SocialShareSheetState extends State<_SocialShareSheet> {
         "🧠 Benzer sorular üret\n"
         "🎯 Kendi mini testini hazırla\n"
         "🎴 Bilgi kartları oluştur\n\n"
-        "👉 qualsar.app";
+        "👉 qualsar2-640f0.web.app";
   }
 
   Future<void> _shareVia(_SocialApp app) async {

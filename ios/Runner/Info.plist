@@ -4,6 +4,13 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<!-- App Store: encryption export compliance — sadece HTTPS standart şifreleme,
+	     review formuna gerek olmadan kabul edilir. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<!-- Minimum iOS sürümü — firebase_messaging, mobile_scanner, app_links 13.0+ ister -->
+	<key>MinimumOSVersion</key>
+	<string>13.0</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -76,6 +83,10 @@
 	<string>Sesli soru sormak ve kamera kullanımı için mikrofon erişimi gerekiyor.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Sorularınızı sesli olarak sorabilmeniz için konuşma tanıma kullanılır.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>Rehberinizdeki QuAlsar kullanan arkadaşlarınızı bulmak için kontaktlara erişim gerekiyor. Kişiler sunucumuza gönderilmez, sadece eşleştirme için kullanılır.</string>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>Reklam göstermiyoruz; bu izin yalnızca sistem uyumluluğu içindir.</string>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>whatsapp</string>
@@ -104,7 +115,27 @@
 				<string>com.googleusercontent.apps.828607169326-f2j8au8cjoiuh8bp3c2l14qi61jfmd26</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.qualsar.ai</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>qualsar</string>
+			</array>
+		</dict>
 	</array>
+	<!-- FCM push + Universal Links + Pomodoro alarm sesi arka plan teslimat -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+		<string>audio</string>
+	</array>
+	<!-- Firebase Messaging — swizzle aktif (FlutterAppDelegate'i auto-bind) -->
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<true/>
 	<key>GIDClientID</key>
 	<string>828607169326-f2j8au8cjoiuh8bp3c2l14qi61jfmd26.apps.googleusercontent.com</string>
 	<key>GIDServerClientID</key>

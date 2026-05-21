@@ -43,6 +43,22 @@ extension LeaguePeriodX on LeaguePeriod {
         return null; // pencere yok
     }
   }
+
+  /// UI etiketi — quiz badge, filtre chip, vb. Public — herhangi bir
+  /// ekran tarafından kullanılabilir. (`label` adı bilgi_ligi_screen.dart
+  /// içindeki özel uzantı ile çakışmasın diye `displayLabel` seçildi.)
+  String get displayLabel {
+    switch (this) {
+      case LeaguePeriod.daily:
+        return 'Günlük';
+      case LeaguePeriod.weekly:
+        return 'Haftalık';
+      case LeaguePeriod.monthly:
+        return 'Aylık';
+      case LeaguePeriod.allTime:
+        return 'Genel';
+    }
+  }
 }
 
 class LeagueAttempt {
@@ -389,6 +405,38 @@ class LeagueScores {
   }
 
   // ── Sorgu API'si ────────────────────────────────────────────────────────────
+
+  /// Üst üste quiz çözülen gün sayısı (streak).
+  /// Bugün quiz çözülmediyse dünden geri başlar (dünden başlayarak ardışık
+  /// günler sayılır). Hiç attempt yoksa 0 döner.
+  ///
+  /// Mantık:
+  ///   - Tüm attempt'lerin tarihlerini güne yuvarla, eşsiz gün seti yap.
+  ///   - Bugünden geriye doğru git: hangi günde aktivite varsa +1, ilk
+  ///     boş günde dur. Bugün yoksa dün'den başla (1 günlük tolerans).
+  static Future<int> currentStreak() async {
+    final list = await loadAll();
+    if (list.isEmpty) return 0;
+    final days = <DateTime>{};
+    for (final a in list) {
+      final d = DateTime(a.when.year, a.when.month, a.when.day);
+      days.add(d);
+    }
+    final today = DateTime.now();
+    DateTime cursor = DateTime(today.year, today.month, today.day);
+    // Bugün boşsa dünden başla — günlük streak'i sıfıra düşürmemek için
+    // 1 gün tolerans.
+    if (!days.contains(cursor)) {
+      cursor = cursor.subtract(const Duration(days: 1));
+      if (!days.contains(cursor)) return 0;
+    }
+    int streak = 0;
+    while (days.contains(cursor)) {
+      streak++;
+      cursor = cursor.subtract(const Duration(days: 1));
+    }
+    return streak;
+  }
 
   /// Belirli bir konu için (ders + konu eşleşmeli) skor özeti.
   static Future<LeagueScoreSummary> forTopic({

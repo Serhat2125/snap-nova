@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../services/pomodoro_stats.dart';
+import '../services/push_service.dart';
 import '../services/runtime_translator.dart';
 import 'academic_planner.dart' show logPomodoroSessionToCalendar;
 
@@ -166,6 +167,23 @@ class _GreenColonyScreenState extends State<GreenColonyScreen>
     SystemSound.play(SystemSoundType.alert);
     final wasFocus = _mode == 'focus';
     final focusDur = _focus; // tam süre
+    // Local notification — sessiz mod / arka plan / ekran kapalıyken
+    // kullanıcı faz tamamlandığını görsün.
+    final isLastSession =
+        wasFocus && _session >= _totalSessions;
+    unawaited(PushService.showLocal(
+      title: wasFocus
+          ? (isLastSession
+              ? '🌱 Yeşil Koloni — Set tamamlandı!'
+              : '✅ Odak fazı bitti')
+          : '⏰ Mola bitti',
+      body: wasFocus
+          ? (isLastSession
+              ? 'Uzun mola zamanı (${(_longBreak / 60).round()} dk).'
+              : 'Kısa mola — ${(_shortBreak / 60).round()} dakika dinlen.')
+          : 'Sıradaki odak fazı başlıyor.',
+      id: 0xFA102,
+    ));
     // State değişimini önce yap.
     setState(() {
       _running = false;

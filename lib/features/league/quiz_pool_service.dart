@@ -76,10 +76,15 @@ class QuizPoolService {
   /// Her test belgesinde 10 soru var; biz hem birden fazla testten karışım
   /// alıyor hem de tekil sorular çıkarıyoruz: önce N test çek, sonra
   /// içlerinden `count` soru rastgele seç. (10×N soru havuzu → şanslı çeşitlilik.)
+  /// [seed] verilirse Fisher-Yates `Random(seed)` ile yapılır → AYNI seed,
+  /// AYNI havuz = AYNI sorular. Periyot rotasyonu için kullanılır
+  /// (günlük/haftalık/aylık challenge: tüm kullanıcılar aynı 10 soruyu çözer).
+  /// Null verilirse her çağrıda rastgele seçim.
   static Future<List<Map<String, dynamic>>> fetchPoolQuestions({
     required String key,
     int count = 10,
     int sampleTests = 5,
+    int? seed,
   }) async {
     try {
       // Tüm testleri çek (havuz cap ≤100, yük az). createdAt ile
@@ -106,8 +111,8 @@ class QuizPoolService {
       }
       if (allQuestions.isEmpty) return const [];
 
-      // Fisher-Yates shuffle, top `count`
-      final rng = math.Random();
+      // Fisher-Yates shuffle — seed varsa deterministik, yoksa rastgele.
+      final rng = seed != null ? math.Random(seed) : math.Random();
       for (int i = allQuestions.length - 1; i > 0; i--) {
         final j = rng.nextInt(i + 1);
         final tmp = allQuestions[i];

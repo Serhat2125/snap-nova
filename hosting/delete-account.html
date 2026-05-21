@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QuAlsar — Hesap ve Veri Silme</title>
+  <style>
+    body { font-family: -apple-system, system-ui, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 20px; color: #111; line-height: 1.7; }
+    h1 { font-size: 28px; border-bottom: 2px solid #FF6A3C; padding-bottom: 12px; }
+    h2 { font-size: 18px; margin-top: 32px; color: #FF6A3C; }
+    p, li { font-size: 15px; }
+    .meta { color: #666; font-size: 13px; }
+    a { color: #FF6A3C; }
+    code { background: #f5f5f5; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+    .box { background: #FFF4EE; border-left: 4px solid #FF6A3C; padding: 16px 20px; margin: 20px 0; border-radius: 6px; }
+    .email { font-weight: 600; font-size: 16px; }
+    ol li { margin-bottom: 8px; }
+    .divider { border-top: 1px solid #e5e5e5; margin: 50px 0 30px; }
+  </style>
+</head>
+<body>
+  <h1>QuAlsar — Hesap ve Veri Silme</h1>
+  <p class="meta">Son güncelleme: 20 Mayıs 2026 · Hizmet sağlayıcı: QuAlsar</p>
+
+  <p>QuAlsar olarak verilerin üzerinde tam kontrol sahibi olmanı önemsiyoruz. Hesabını ve verilerini silmek için iki yöntem sunuyoruz.</p>
+
+  <h2>1. Uygulama içinden silme (önerilen)</h2>
+  <ol>
+    <li>QuAlsar uygulamasını aç</li>
+    <li>Sağ üst köşeden <b>Profil</b> sekmesine git</li>
+    <li><b>Hesap Ayarları</b> → <b>Hesabımı Sil</b> seçeneğine bas</li>
+    <li>Onay ekranında <b>Sil</b> butonuyla onayla</li>
+  </ol>
+  <p>İşlem tamamlandığında hesabın ve aşağıda listelenen tüm verilerin <b>kalıcı olarak silinir</b>.</p>
+
+  <h2>2. E-posta ile silme talebi</h2>
+  <p>Uygulamaya erişimini kaybettiysen veya başka bir nedenden ötürü uygulama içinden silemiyorsan, hesap silme talebini bize e-postayla iletebilirsin:</p>
+
+  <div class="box">
+    <p class="email">📧 <a href="mailto:serhatdsme@gmail.com?subject=Hesap%20Silme%20Talebi%20-%20QuAlsar&body=Merhaba%2C%0A%0AQuAlsar%20uygulamas%C4%B1ndaki%20hesab%C4%B1m%C4%B1n%20ve%20t%C3%BCm%20verilerimin%20silinmesini%20talep%20ediyorum.%0A%0AHesap%20e-postam%3A%20%5BBuraya%20kay%C4%B1tl%C4%B1%20oldu%C4%9Fun%20e-postay%C4%B1%20yaz%5D%0A%0ATe%C5%9Fekk%C3%BCrler.">serhatdsme@gmail.com</a></p>
+    <p>E-posta konusu: <code>Hesap Silme Talebi - QuAlsar</code></p>
+    <p>İçerikte hesabınla ilişkili e-posta adresini belirt. Talebini aldıktan sonra <b>en geç 30 gün içinde</b> hesabını ve verilerini sileriz, e-postayla onay göndeririz.</p>
+  </div>
+
+  <h2>3. Silinen veriler</h2>
+  <p>Hesap silme işlemi tamamlandığında aşağıdaki veriler <b>kalıcı olarak</b> silinir:</p>
+  <ul>
+    <li><b>Hesap bilgileri:</b> E-posta, ad-soyad, profil fotoğrafı</li>
+    <li><b>Eğitim profili:</b> Ülke, sınıf, alan/bölüm tercihi</li>
+    <li><b>Çözüm geçmişi:</b> Tüm AI çözümleri, kayıtlı sorular, notlar</li>
+    <li><b>Kütüphane içerikleri:</b> Oluşturduğun özetler, çalışma kartları</li>
+    <li><b>Konum verileri:</b> Bilgi Ligi sıralamasında kullanılan şehir/ülke kaydı</li>
+    <li><b>Premium abonelik kaydı:</b> Mevcut aboneliğin uygulama tarafında bağlantısı kesilir (Google Play tarafındaki aboneliği ayrıca <a href="https://support.google.com/googleplay/answer/7018481">Play Store ayarlarından</a> iptal etmen gerekir)</li>
+  </ul>
+
+  <h2>4. Saklanan veriler (yasal zorunluluk)</h2>
+  <p>Aşağıdaki sınırlı veriler yasal yükümlülük gereği <b>saklanmaya devam eder</b>:</p>
+  <ul>
+    <li><b>Faturalama kayıtları:</b> Premium satın alma geçmişi (Türk Vergi Mevzuatı gereği 5 yıl)</li>
+    <li><b>Anonim hata günlükleri:</b> Cihaz/sürüm bilgisi (Firebase Crashlytics'te 90 gün, kullanıcı kimliği ile bağı kesilmiş halde)</li>
+  </ul>
+  <p>Bu veriler senin kimliğinle eşleştirilemez ve sadece güvenlik/yasal süreçlerde kullanılır.</p>
+
+  <h2>5. Silme süresi</h2>
+  <ul>
+    <li><b>Uygulama içi silme:</b> Anında (saniyeler içinde)</li>
+    <li><b>E-posta talebi:</b> En geç 30 gün</li>
+    <li><b>Yedeklerden temizlik:</b> Firebase yedeklerinden 60 gün içinde tamamen kaldırılır</li>
+  </ul>
+
+  <h2>6. İlgili belgeler</h2>
+  <ul>
+    <li><a href="/privacy">Gizlilik Politikası</a></li>
+    <li><a href="/terms">Kullanım Koşulları</a></li>
+  </ul>
+
+  <div class="divider"></div>
+
+  <h1 style="margin-top: 20px;">QuAlsar — Account &amp; Data Deletion</h1>
+  <p class="meta">Last updated: May 20, 2026 · Service provider: QuAlsar</p>
+
+  <p>You have full control over your data. There are two ways to delete your account and personal data.</p>
+
+  <h2>1. In-app deletion (recommended)</h2>
+  <ol>
+    <li>Open the QuAlsar app</li>
+    <li>Tap <b>Profile</b> in the top-right corner</li>
+    <li>Go to <b>Account Settings</b> → <b>Delete My Account</b></li>
+    <li>Confirm on the confirmation screen</li>
+  </ol>
+  <p>Your account and all listed data will be <b>permanently deleted</b>.</p>
+
+  <h2>2. Email request</h2>
+  <p>If you cannot access the app, you may request deletion by email:</p>
+
+  <div class="box">
+    <p class="email">📧 <a href="mailto:serhatdsme@gmail.com?subject=Account%20Deletion%20Request%20-%20QuAlsar">serhatdsme@gmail.com</a></p>
+    <p>Subject: <code>Account Deletion Request - QuAlsar</code></p>
+    <p>Include the email address associated with your account. We will delete your account and data <b>within 30 days</b> and send a confirmation email.</p>
+  </div>
+
+  <h2>3. Data that will be deleted</h2>
+  <ul>
+    <li><b>Account info:</b> email, name, profile photo</li>
+    <li><b>Education profile:</b> country, grade, track</li>
+    <li><b>Solution history:</b> all AI solutions, saved questions, notes</li>
+    <li><b>Library content:</b> summaries, flashcards you created</li>
+    <li><b>Location data:</b> city/country record used in Knowledge League rankings</li>
+    <li><b>Premium subscription link:</b> link is severed on app side (cancel the Play Store subscription separately via <a href="https://support.google.com/googleplay/answer/7018481">Play Store settings</a>)</li>
+  </ul>
+
+  <h2>4. Data retained (legal obligation)</h2>
+  <ul>
+    <li><b>Billing records:</b> Premium purchase history (5 years under Turkish tax law)</li>
+    <li><b>Anonymous error logs:</b> device/version info (90 days in Firebase Crashlytics, unlinked from user identity)</li>
+  </ul>
+
+  <h2>5. Deletion timeline</h2>
+  <ul>
+    <li><b>In-app deletion:</b> immediate (seconds)</li>
+    <li><b>Email request:</b> within 30 days</li>
+    <li><b>Backup cleanup:</b> fully removed from Firebase backups within 60 days</li>
+  </ul>
+
+  <h2>6. Related documents</h2>
+  <ul>
+    <li><a href="/privacy-en">Privacy Policy</a></li>
+    <li><a href="/terms-en">Terms of Service</a></li>
+  </ul>
+
+  <p class="meta" style="text-align: center; margin-top: 40px;">© 2026 QuAlsar</p>
+</body>
+</html>

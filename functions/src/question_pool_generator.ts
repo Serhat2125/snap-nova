@@ -27,7 +27,10 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 
 const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 
-const TARGET_POOL_SIZE = 5000;
+// Hedef pool boyutu — 1000 yeterli kapsama (50-100 farklı test × 10-20 soru).
+// Önceki 5000 değeri abartılı: aynı konuda gerçekten farklı 30-50 soru kalıbı
+// var, fazlası dedup ile elenir. 1000 + organic doluş yetiyor.
+const TARGET_POOL_SIZE = 1000;
 const BATCH_SIZE = 50;
 const MAX_BATCHES_PER_RUN = 1; // güvenlik — tek seferde 50 üret
 const DEDUP_SIM_THRESHOLD = 0.92; // basit Jaccard similarity üzerinde

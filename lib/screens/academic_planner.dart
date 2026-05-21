@@ -1,11 +1,14 @@
 // ignore_for_file: unused_element, unused_element_parameter
 
+import '../services/push_service.dart';
 import '../services/runtime_translator.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -17,6 +20,7 @@ import '../main.dart' show localeService;
 import '../services/analytics.dart';
 import '../services/error_logger.dart';
 import '../services/summary_cache_service.dart';
+import '../services/question_pool_service.dart';
 import '../widgets/summary_rating_table.dart';
 import '../services/usage_quota.dart';
 import '../features/offline/domain/offline_subject_pack.dart';
@@ -24,11 +28,13 @@ import '../features/offline/providers/offline_pack_provider.dart';
 import '../services/curriculum_catalog.dart';
 import '../services/education_profile.dart';
 import '../services/gemini_service.dart';
+import '../services/tts_service.dart';
 import '../services/rag_service.dart';
 import '../widgets/latex_text.dart';
 import '../widgets/qualsar_loading_widget.dart';
 import 'test_page.dart';
 import 'green_colony_screen.dart';
+import 'ai_coach_screen.dart';
 import 'history_screen.dart';
 import 'qualsar_arena_screen.dart';
 import 'bilgi_ligi_screen.dart';
@@ -108,8 +114,13 @@ class _ActivityStore {
   static const int _archiveSpill = 500;
   static const String _archiveFileName = 'library_activity_archive_v1.jsonl';
 
-  static String dayKey(DateTime d) =>
-      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  /// Day key — kullanıcının LOKAL gününe göre normalize edilir.
+  /// Cloud restore'dan gelen UTC DateTime'lar için `.toLocal()` zorlanır;
+  /// böylece "23:00'da çalıştım ama yarın gösteriyor" bug'ı oluşmaz.
+  static String dayKey(DateTime d) {
+    final l = d.isUtc ? d.toLocal() : d;
+    return '${l.year}-${l.month.toString().padLeft(2, '0')}-${l.day.toString().padLeft(2, '0')}';
+  }
 
   // Tüm write ops sıralı kuyrukta — SolutionsStorage._serialize pattern.
   // SharedPreferences read-modify-write concurrent çağrılarında entry kaybı
@@ -171,8 +182,27 @@ class _ActivityStore {
     return out;
   }
 
+  // In-memory cache — 1000+ entry'de readAll() çok sayfa scroll'da yavaş.
+  // log/logSession/restoreFromCloudIfEmpty çağrıldığında invalidate edilir.
+  static Map<String, List<_ActivityEntry>>? _weekGroupedCache;
+  static DateTime? _weekGroupedCacheAt;
+  static const Duration _cacheTtl = Duration(seconds: 30);
+
+  static void _invalidateWeekCache() {
+    _weekGroupedCache = null;
+    _weekGroupedCacheAt = null;
+  }
+
   // Mevcut hafta için günlere göre gruplayarak döner
   static Future<Map<String, List<_ActivityEntry>>> readWeekGrouped() async {
+    // Cache hit — 30sn TTL içinde tekrar okuma yapma.
+    final cached = _weekGroupedCache;
+    final cachedAt = _weekGroupedCacheAt;
+    if (cached != null &&
+        cachedAt != null &&
+        DateTime.now().difference(cachedAt) < _cacheTtl) {
+      return cached;
+    }
     final all = await readAll();
     final out = <String, List<_ActivityEntry>>{};
     for (final e in all) {
@@ -182,6 +212,8 @@ class _ActivityStore {
     for (final v in out.values) {
       v.sort((a, b) => b.when.compareTo(a.when));
     }
+    _weekGroupedCache = out;
+    _weekGroupedCacheAt = DateTime.now();
     return out;
   }
 
@@ -219,10 +251,11 @@ class _ActivityStore {
     required String type,
   }) {
     return _serialize(() async {
+      _ActivityEntry? entry;
       try {
         final prefs = await SharedPreferences.getInstance();
         final list = List<String>.from(prefs.getStringList(_key) ?? []);
-        final entry = _ActivityEntry(
+        entry = _ActivityEntry(
           when: DateTime.now(),
           subject: subject,
           topic: topic,
@@ -231,9 +264,11 @@ class _ActivityStore {
         list.add(jsonEncode(entry.toJson()));
         final trimmed = await _trimAndArchive(list);
         await prefs.setStringList(_key, trimmed);
+        _invalidateWeekCache();
       } catch (e) {
         debugPrint('[ActivityStore] log fail: $e');
       }
+      if (entry != null) unawaited(_cloudAppend(entry));
     });
   }
 
@@ -252,10 +287,11 @@ class _ActivityStore {
   }) {
     return _serialize(() async {
       if (durationSec < 5) return;
+      _ActivityEntry? entry;
       try {
         final prefs = await SharedPreferences.getInstance();
         final list = List<String>.from(prefs.getStringList(_key) ?? []);
-        final entry = _ActivityEntry(
+        entry = _ActivityEntry(
           // Gece yarısı bug'ı için session start time. Yoksa now() —
           // backwards compatible (eski callsite'lar etkilenmez).
           when: startedAt ?? DateTime.now(),
@@ -268,10 +304,92 @@ class _ActivityStore {
         list.add(jsonEncode(entry.toJson()));
         final trimmed = await _trimAndArchive(list);
         await prefs.setStringList(_key, trimmed);
+        _invalidateWeekCache();
       } catch (e) {
         debugPrint('[ActivityStore] logSession fail: $e');
       }
+      if (entry != null) unawaited(_cloudAppend(entry));
       StudySessionTracker.instance._notifyDataChanged();
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //  CLOUD SYNC — users/{uid}/study_activities/{auto}
+  //
+  //  Her log/logSession sonrası fire-and-forget Firestore yazımı. Yerel
+  //  her zaman kaynak; cloud yedek. Auth yoksa veya offline ise sessiz
+  //  no-op. Yerel boşsa restoreFromCloudIfEmpty() son 500 entry'yi geri
+  //  yükler.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  static Future<void> _cloudAppend(_ActivityEntry e) async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('study_activities')
+          .add({
+        ...e.toJson(),
+        'whenTs': Timestamp.fromDate(e.when),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    } catch (err) {
+      debugPrint('[ActivityStore] cloud append fail: $err');
+    }
+  }
+
+  /// Yerel boşsa cloud'dan son 500 entry'yi yükle. Bootstrap'ta çağrılır.
+  /// Yeni telefonda / uygulama yeniden yüklendiğinde aktivite geçmişi geri gelir.
+  /// Döner: restore edilen entry sayısı (0 = restore yapılmadı).
+  static Future<int> restoreFromCloudIfEmpty() async {
+    return _serialize(() async {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final localList = prefs.getStringList(_key) ?? const [];
+        if (localList.isNotEmpty) return 0;
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        if (uid == null) return 0;
+        final snap = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('study_activities')
+            .orderBy('whenTs', descending: true)
+            .limit(_activeCap)
+            .get();
+        if (snap.docs.isEmpty) return 0;
+        final list = <String>[];
+        for (final d in snap.docs) {
+          final m = d.data();
+          // whenTs Timestamp olarak gelir — _ActivityEntry'nin beklediği
+          // ISO string format'a normalize et.
+          final ts = m['whenTs'];
+          if (ts is Timestamp) {
+            m['when'] = ts.toDate().toIso8601String();
+          }
+          m.remove('whenTs');
+          m.remove('createdAt');
+          try {
+            final entry = _ActivityEntry.fromJson(
+                Map<String, dynamic>.from(m));
+            list.add(jsonEncode(entry.toJson()));
+          } catch (e) {
+            debugPrint('[ActivityStore] cloud parse fail: $e');
+          }
+        }
+        if (list.isEmpty) return 0;
+        // En eski en başta olacak şekilde sırala (yerel format böyle)
+        list.sort();
+        await prefs.setStringList(_key, list);
+        _invalidateWeekCache();
+        debugPrint(
+            '[ActivityStore] cloud restore: ${list.length} entry');
+        return list.length;
+      } catch (e) {
+        debugPrint('[ActivityStore] cloud restore fail: $e');
+        return 0;
+      }
     });
   }
 }
@@ -452,6 +570,15 @@ class StudySessionTracker extends ChangeNotifier
     _pausedByIdle = byIdle;
     if (byIdle) {
       _idlePauseStart = DateTime.now();
+      // İdle pause olunca local notification ile kullanıcıyı bilgilendir —
+      // sayfa görünür değilse (arka planda telefonda başka şey yapıyorsa)
+      // bu uyarı sistem tepsisinde görünür. PushService.init() main'de zaten
+      // bağlı; izin verilmediyse sessiz no-op.
+      unawaited(PushService.showLocal(
+        title: 'Hâlâ burada mısın?',
+        body: 'Çalışma süresi 2 dakikadır dondu. Devam etmek için uygulamaya dön.',
+        id: 0xFA002,
+      ));
     }
     _stopTicker();
     notifyListeners();
@@ -681,7 +808,15 @@ class _StudyCalendarPageState extends State<StudyCalendarPage> {
   }
 
   Future<void> _load() async {
-    final g = await _ActivityStore.readWeekGrouped();
+    var g = await _ActivityStore.readWeekGrouped();
+    // Yerel boşsa cloud'dan restore — telefon değişti / yeniden yükleme
+    // sonrası kullanıcı eski çalışma geçmişini geri görsün.
+    if (g.isEmpty) {
+      final restored = await _ActivityStore.restoreFromCloudIfEmpty();
+      if (restored > 0) {
+        g = await _ActivityStore.readWeekGrouped();
+      }
+    }
     if (!mounted) return;
     setState(() {
       _grouped = g;
@@ -2732,6 +2867,8 @@ class _LibraryLandingState extends State<LibraryLanding> {
     'contest': 'Bilgi Yarışı',
     'calendar': 'Çalışma Takvimi',
     'league': 'Dünya Sıralaması',
+    'pomodoro': 'Pomodoro Tekniği',
+    'ai_coach': 'AI Koç',
   };
 
   static const _libraryColorsKey = 'library_colors_v1';
@@ -3079,7 +3216,22 @@ class _LibraryLandingState extends State<LibraryLanding> {
                   ),
                 ),
                 SizedBox(width: 10),
-                Expanded(child: SizedBox.shrink()),
+                Expanded(
+                  child: _LandingCard(
+                    icon: Icons.auto_awesome_rounded,
+                    title: 'AI Koç'.tr(),
+                    color: Color(0xFF7C3AED),
+                    customBg: _cardBgs['ai_coach'],
+                    customTextColor: _cardInks['ai_coach'],
+                    onColorAccept: (c) =>
+                        _applyLibraryColor('ai_coach', c),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const AICoachScreen(),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ],
@@ -3510,7 +3662,18 @@ class _TestAttempt {
 class _TestConfig {
   int count = 10;
   String difficulty = 'medium'; // 'easy' | 'medium' | 'hard'
-  String timeMode = 'relax'; // 'relax' | 'normal' | 'race'
+  String timeMode = 'relax'; // 'relax' | 'normal' | 'race' | 'custom'
+  /// timeMode=='custom' iken soru başına saniye (30–120 clamp).
+  int customSecondsPerQuestion = 60;
+  /// Soru tipi: 'mc' (çoktan seçmeli) · 'tf' (doğru/yanlış) ·
+  /// 'fill' (boşluk doldurma) · 'mixed' (karışık)
+  String questionType = 'mc';
+  /// Yanlışlardan Tekrar Testi modu — true ise AI çağrısı yapılmaz,
+  /// `wrongsToReuse`'daki sorular ile attempt oluşturulur.
+  bool fromWrongs = false;
+  List<dynamic> wrongsToReuse = const [];
+  /// Karışık konu modunda eklenen yan konular (current topic'e ek).
+  List<String> extraTopics = const [];
 
   int get timeLimitSeconds {
     switch (timeMode) {
@@ -3518,9 +3681,58 @@ class _TestConfig {
         return 90;
       case 'race':
         return 45;
+      case 'custom':
+        return customSecondsPerQuestion.clamp(15, 300);
       default:
         return 0;
     }
+  }
+
+  // SharedPreferences için JSON sürümü — sadece kalıcı (UI) ayarlar.
+  // fromWrongs / wrongsToReuse / extraTopics geçici, kalıcılaştırılmaz.
+  Map<String, dynamic> toPrefsJson() => {
+        'count': count,
+        'difficulty': difficulty,
+        'timeMode': timeMode,
+        'customSecondsPerQuestion': customSecondsPerQuestion,
+        'questionType': questionType,
+      };
+
+  void applyFromPrefsJson(Map<String, dynamic> m) {
+    final c = m['count'];
+    if (c is int) count = c.clamp(5, 40);
+    final d = m['difficulty'];
+    if (d is String && {'easy', 'medium', 'hard'}.contains(d)) difficulty = d;
+    final t = m['timeMode'];
+    if (t is String && {'relax', 'normal', 'race', 'custom'}.contains(t)) {
+      timeMode = t;
+    }
+    final cs = m['customSecondsPerQuestion'];
+    if (cs is int) customSecondsPerQuestion = cs.clamp(15, 300);
+    final qt = m['questionType'];
+    if (qt is String && {'mc', 'tf', 'fill', 'mixed'}.contains(qt)) {
+      questionType = qt;
+    }
+  }
+
+  static const String _prefsKey = 'test_config_last_v2';
+
+  static Future<_TestConfig> loadFromPrefs() async {
+    final cfg = _TestConfig();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_prefsKey);
+      if (raw == null || raw.isEmpty) return cfg;
+      cfg.applyFromPrefsJson(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {}
+    return cfg;
+  }
+
+  Future<void> persistToPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_prefsKey, jsonEncode(toPrefsJson()));
+    } catch (_) {}
   }
 }
 
@@ -3630,6 +3842,59 @@ class _Subject {
             .map((e) => _Summary.fromJson(e as Map<String, dynamic>))
             .toList(),
       );
+}
+
+// ─── Home aggregate'ları için yardımcı veri yapıları ────────────────────
+// AcademicPlanner üst panellerinde (Devam Et, Bugün Tekrar Et, mini stats,
+// kart-altı progress) kullanılır. Hepsi prefs'ten async hesaplanır.
+
+class _DueItem {
+  final String subjectName;
+  final _Summary summary;
+  final DateTime lastReview;
+  final int currentIntervalDays;
+  _DueItem({
+    required this.subjectName,
+    required this.summary,
+    required this.lastReview,
+    required this.currentIntervalDays,
+  });
+  int get daysSince => DateTime.now().difference(lastReview).inDays;
+}
+
+class _RecentItem {
+  final String subjectName;
+  final _Summary summary;
+  final DateTime openedAt;
+  _RecentItem({
+    required this.subjectName,
+    required this.summary,
+    required this.openedAt,
+  });
+}
+
+
+// TOC sheet'inde ana başlık ve alt başlıkları aynı düz listede taşır.
+class _TocEntry {
+  final int sectionIdx;
+  final bool isSub;
+  final String label;
+  _TocEntry({
+    required this.sectionIdx,
+    required this.isSub,
+    required this.label,
+  });
+}
+
+class _SearchHit {
+  final String subjectName;
+  final _Summary summary;
+  final bool topicMatch; // true: konu adı eşleşti, false: ders adı
+  _SearchHit({
+    required this.subjectName,
+    required this.summary,
+    required this.topicMatch,
+  });
 }
 
 // Seviye → kısaltma (sınav tipi)
@@ -3804,7 +4069,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
       : localeService.tr('exam_questions');
   String get _headline => widget.mode == LibraryMode.summary
       ? localeService.tr('create_summary_hint')
-      : 'İstediğin konudan test oluştur'.tr();
+      : 'Hangi dersten test oluşturmak istersin?'.tr();
 
   String _grade = '';
   int _monthUsed = 0;
@@ -3894,6 +4159,20 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
   // Alt kartların (oluşturulmuş özet/test ders kartları) ayrı renk map'i.
   final Map<String, Color> _summaryCardColors = {};
 
+  // ── Home aggregate state — üst panellerin verisi ───────────────────────
+  // Hepsi async _loadHomeAggregates ile doldurulur; UI null-safe render eder.
+  // Sayfa her açılışta (initState + ekrana geri dönüldüğünde) yenilenir.
+  List<_DueItem> _dueToday = [];
+  _RecentItem? _continueItem;
+  int _statsWeeklyMinutes = 0;
+  int _statsTotalSummaries = 0;
+  int _statsCompletedTopics = 0;
+
+  // ── Arama state ────────────────────────────────────────────────────────
+  bool _showSearch = false;
+  String _searchQuery = '';
+  final TextEditingController _searchCtrl = TextEditingController();
+
   Future<void> _loadSummaryCardColors() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -3925,6 +4204,153 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
   void _applyColorToSummaryCard(String subjectId, Color c) {
     setState(() => _summaryCardColors[subjectId] = c);
     _saveSummaryCardColors();
+  }
+
+  // ─── Home aggregate yükleyici ─────────────────────────────────────────
+  // Tek SharedPreferences instance'ında: subjects + tüm SRS key'leri +
+  // last_opened_summary + summary_completed_* + activity log → 4 panele
+  // veri üretir. Subject sayısı * ortalama 5 özet pek çoğunlukla < 100
+  // anahtar; getKeys() filter yeterince hızlı.
+  Future<void> _loadHomeAggregates() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys();
+
+      // 1) Subjects + summary index
+      final raw = prefs.getStringList(_subjectsKey) ?? const [];
+      final subjects = <_Subject>[];
+      for (final s in raw) {
+        try {
+          subjects
+              .add(_Subject.fromJson(jsonDecode(s) as Map<String, dynamic>));
+        } catch (_) {}
+      }
+      // summary id → (subject, summary) lookup
+      final byId = <String, ({String name, _Summary summary})>{};
+      int totalSummaries = 0;
+      for (final sub in subjects) {
+        for (final sum in sub.summaries) {
+          byId[sum.id] = (name: sub.name, summary: sum);
+          totalSummaries++;
+        }
+      }
+
+      // 2) SRS due topics + completed count
+      final due = <_DueItem>[];
+      int completedTopics = 0;
+      final now = DateTime.now();
+      for (final k in keys) {
+        if (!k.startsWith('srs_')) continue;
+        final id = k.substring(4);
+        final hit = byId[id];
+        if (hit == null) continue;
+        try {
+          final m = jsonDecode(prefs.getString(k) ?? '{}')
+              as Map<String, dynamic>;
+          final lastStr = m['last'] as String?;
+          final step = (m['step'] as int?) ?? 0;
+          final done = (m['done'] as bool?) ?? false;
+          if (lastStr == null) continue;
+          final last = DateTime.tryParse(lastStr);
+          if (last == null) continue;
+          completedTopics++;
+          if (done) continue;
+          final stepClamp =
+              step.clamp(0, _SummaryDetailPageState._kSrsIntervalsDays.length - 1);
+          final intervalDays =
+              _SummaryDetailPageState._kSrsIntervalsDays[stepClamp];
+          final dueDate = last.add(Duration(days: intervalDays));
+          if (now.isBefore(dueDate)) continue;
+          due.add(_DueItem(
+            subjectName: hit.name,
+            summary: hit.summary,
+            lastReview: last,
+            currentIntervalDays: intervalDays,
+          ));
+        } catch (_) {}
+      }
+      // En çok bekleyen önce
+      due.sort(
+          (a, b) => b.lastReview.compareTo(a.lastReview) * -1);
+
+      // 3) Continue: last_opened_summary
+      _RecentItem? recent;
+      try {
+        final lastRaw = prefs.getString('last_opened_summary');
+        if (lastRaw != null && lastRaw.isNotEmpty) {
+          final m = jsonDecode(lastRaw) as Map<String, dynamic>;
+          final id = m['summaryId'] as String?;
+          final atStr = m['at'] as String?;
+          final at = atStr != null ? DateTime.tryParse(atStr) : null;
+          if (id != null && at != null) {
+            final hit = byId[id];
+            if (hit != null) {
+              recent = _RecentItem(
+                subjectName: hit.name,
+                summary: hit.summary,
+                openedAt: at,
+              );
+            }
+          }
+        }
+      } catch (_) {}
+
+      // 4) Haftalık dakikalar — son 7 gün durationSec toplamı
+      final weekAgo = now.subtract(const Duration(days: 7));
+      int weeklySec = 0;
+      try {
+        final all = await _ActivityStore.readAll();
+        for (final e in all) {
+          if (e.when.isAfter(weekAgo)) weeklySec += e.durationSec;
+        }
+      } catch (_) {}
+
+      if (!mounted) return;
+      setState(() {
+        _dueToday = due;
+        _continueItem = recent;
+        _statsWeeklyMinutes = weeklySec ~/ 60;
+        _statsTotalSummaries = totalSummaries;
+        _statsCompletedTopics = completedTopics;
+      });
+    } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'load_home_aggregates');
+    }
+  }
+
+  // ─── Arama: ders adı + konu adı içinde fuzzy filter ──────────────────
+  // Diakritik insensitive değil, basit lowercase contains — TR'de yeterli.
+  // En fazla 30 sonuç döner.
+  List<_SearchHit> _runSearch(String query) {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return const [];
+    final out = <_SearchHit>[];
+    for (final sub in _subjects) {
+      final subjLower = sub.name.toLowerCase();
+      final subjectMatch = subjLower.contains(q);
+      for (final sum in sub.summaries) {
+        final topicLower = sum.topic.toLowerCase();
+        final topicMatch = topicLower.contains(q);
+        if (!topicMatch && !subjectMatch) continue;
+        out.add(_SearchHit(
+          subjectName: sub.name,
+          summary: sum,
+          topicMatch: topicMatch,
+        ));
+        if (out.length >= 30) return out;
+      }
+    }
+    return out;
+  }
+
+  void _toggleSearchBar() {
+    setState(() {
+      _showSearch = !_showSearch;
+      if (!_showSearch) {
+        _searchQuery = '';
+        _searchCtrl.clear();
+      }
+    });
   }
 
   Future<void> _loadCustomSubjects() async {
@@ -4407,6 +4833,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
     _loadColorPrefs();
     _loadSummaryCardColors();
     _loadCustomSubjects();
+    _loadHomeAggregates();
     // Inline panel profili hemen yükle
     EduProfile.load().then((p) async {
       if (!mounted) return;
@@ -4509,6 +4936,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
 
   @override
   void dispose() {
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -4566,6 +4994,14 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
       _monthUsed = used;
       _subjects = list;
     });
+    // Yerel boşsa cloud'dan restore — telefon değiştiyse veya yeniden
+    // yüklendiyse kullanıcı eski özet/test'lerini geri alır.
+    if (list.isEmpty) {
+      unawaited(_restoreLibraryFromCloudIfEmpty());
+    }
+    // Subjects yüklendi → home aggregate (SRS due, progress, stats) yenile.
+    // Async, fire-and-forget; build daha önce çalışırsa null-safe render eder.
+    unawaited(_loadHomeAggregates());
     // Test sonuç sayfasından "Kısa bir tekrar" ile açıldıysa hedef konuyu
     // otomatik aç (varsa özetini, yoksa üretim akışını).
     _maybeAutoOpen();
@@ -4622,6 +5058,84 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
       _subjectsKey,
       _subjects.map((s) => jsonEncode(s.toJson())).toList(),
     );
+    // Cloud sync — telefon değişimi/yeniden yükleme durumunda kullanıcının
+    // kendi özetleri kaybolmasın. Yerel her zaman kaynak; cloud yedek.
+    unawaited(_syncLibraryToCloud());
+  }
+
+  /// Kütüphaneyi (özet + test attempts) Firestore'a yedekler.
+  /// Yerel yazımdan SONRA arka planda çalışır; başarısızlık yerel kaydı
+  /// etkilemez. Auth yoksa sessiz no-op.
+  Future<void> _syncLibraryToCloud() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+      // Tek doc — listenin tamamı (özet+test attempts dahil). Subject sayısı
+      // tipik 8-15, her birinin altında <50 summary/test → toplam <1MB.
+      // Firestore doc limit 1MB; aşılırsa parça parça yazıma geçeriz.
+      final payload = {
+        'mode': widget.mode == LibraryMode.questions ? 'questions' : 'summary',
+        'subjects':
+            _subjects.map((s) => s.toJson()).toList(growable: false),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('library')
+          .doc(widget.mode == LibraryMode.questions ? 'questions' : 'summary')
+          .set(payload, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[Library] cloud sync fail: $e');
+    }
+  }
+
+  /// Yerel boşsa cloud'dan geri yükle — bootstrap sırasında çağrılır.
+  /// Cloud verisi varsa yerelin üstüne yazar (telefon değişti senaryosu).
+  /// Cloud da boşsa hiçbir şey yapmaz.
+  Future<bool> _restoreLibraryFromCloudIfEmpty() async {
+    if (_subjects.isNotEmpty) return false; // yerel dolu
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return false;
+      final docId =
+          widget.mode == LibraryMode.questions ? 'questions' : 'summary';
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('library')
+          .doc(docId)
+          .get();
+      if (!doc.exists) return false;
+      final m = doc.data() ?? const <String, dynamic>{};
+      final raw = m['subjects'];
+      if (raw is! List) return false;
+      final restored = <_Subject>[];
+      for (final item in raw) {
+        if (item is Map) {
+          try {
+            restored.add(_Subject.fromJson(
+                Map<String, dynamic>.from(item)));
+          } catch (e) {
+            debugPrint('[Library] subject parse fail: $e');
+          }
+        }
+      }
+      if (restored.isEmpty) return false;
+      if (!mounted) return false;
+      setState(() => _subjects = restored);
+      // Yerele de yaz — bir sonraki açılışta cloud'a tekrar gitmesin
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(
+        _subjectsKey,
+        _subjects.map((s) => jsonEncode(s.toJson())).toList(),
+      );
+      debugPrint('[Library] cloud\'tan ${restored.length} ders restore edildi');
+      return true;
+    } catch (e) {
+      debugPrint('[Library] cloud restore fail: $e');
+      return false;
+    }
   }
 
 
@@ -4629,11 +5143,53 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
 
 
   // Public: detail page'in çağırdığı "yeni konu ekle" akışı (page açık kalır)
+  // [forcedLength] — özet modunda kullanıcı UI'da "Kısa" veya "Kapsamlı"
+  // slot'una bastıysa diyalog atlanır, bu uzunlukla üretilir.
   Future<bool> _generateForExistingSubject(
       _Subject subject, String topic,
-      {_TestConfig? config}) async {
+      {_TestConfig? config, _SummaryLength? forcedLength}) async {
     final isQuestions = widget.mode == LibraryMode.questions;
     final cfg = config ?? _TestConfig();
+
+    // ── ÖZET UZUNLUK ROUTING (kısa vs kapsamlı) ─────────────────────────
+    // Aynı konuda max 2 özet: 1 kısa + 1 kapsamlı.
+    //   • forcedLength verildi: o uzunluk var mı kontrol et; varsa engelle.
+    //   • forcedLength null + ikisi de var: snack ile engelle.
+    //   • forcedLength null + biri var: diğerini otomatik üret.
+    //   • forcedLength null + hiçbiri yok: kullanıcıya sor.
+    _SummaryLength? chosenLength;
+    if (!isQuestions) {
+      bool hasShort = false;
+      bool hasComp = false;
+      for (final s in subject.summaries) {
+        if (s.topic.toLowerCase() == topic.toLowerCase()) {
+          if (s.length == _SummaryLength.short) hasShort = true;
+          if (s.length == _SummaryLength.comprehensive) hasComp = true;
+        }
+      }
+      if (forcedLength != null) {
+        final exists = forcedLength == _SummaryLength.short ? hasShort : hasComp;
+        if (exists) {
+          _showSnack(
+              'Bu uzunlukta özet zaten var. Aynı konuda 3. özet üretilemez.'
+                  .tr());
+          return false;
+        }
+        chosenLength = forcedLength;
+      } else if (hasShort && hasComp) {
+        _showSnack(
+            'Bu konunun hem kısa hem kapsamlı özeti zaten var. Tekrar oluşturulamaz.'
+                .tr());
+        return false;
+      } else if (hasShort && !hasComp) {
+        chosenLength = _SummaryLength.comprehensive;
+      } else if (hasComp && !hasShort) {
+        chosenLength = _SummaryLength.short;
+      } else {
+        chosenLength = await _askSummaryLength(context);
+        if (chosenLength == null) return false;
+      }
+    }
 
     // ── KOTA: günlük + aylık global (UsageQuota tek doğru kaynak) ─────────
     final kind = isQuestions ? QuotaKind.testQuestions : QuotaKind.topicSummary;
@@ -4657,9 +5213,9 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
           break;
         }
       }
-      if (existingSummary != null && existingSummary.tests.length >= 3) {
+      if (existingSummary != null && existingSummary.tests.length >= 6) {
         _showSnack(
-            'Bu konu için 3 test hakkın da bitti. Başka bir konu dene.'.tr());
+            'Bu konu için 6 test hakkın da bitti. Başka bir konu dene.'.tr());
         return false;
       }
     }
@@ -4680,6 +5236,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
         exam: exam,
         count: cfg.count,
         difficulty: cfg.difficulty,
+        length: chosenLength ?? _SummaryLength.short,
       );
       final prompt = built.prompt;
       final ragHit = built.ragHit;
@@ -4719,6 +5276,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
           country: EduProfile.current?.country,
           gradeLabel: _grade.isNotEmpty ? _grade : EduProfile.current?.grade,
           ragHit: ragHit,
+          length: chosenLength ?? _SummaryLength.short,
           tests: isQuestions
               ? [
                   _TestAttempt(
@@ -4762,6 +5320,121 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
       _Subject subject, _Summary summary,
       {_TestConfig? config}) async {
     if (widget.mode != LibraryMode.questions) return;
+    final cfg = config ?? _TestConfig();
+    if (summary.tests.length >= 6) {
+      _showSnack(
+          'Bu konu için 6 test hakkın da bitti. Başka bir konu dene.'.tr());
+      return;
+    }
+    // ── YANLIŞLARDAN TEKRAR YOLU — AI çağrısı yok, kota tüketilmez ───
+    if (cfg.fromWrongs) {
+      final wrongs = cfg.wrongsToReuse.whereType<TestQuestion>().toList();
+      if (wrongs.isEmpty) {
+        _showSnack('Tekrar edilecek yanlış soru bulunamadı.'.tr());
+        return;
+      }
+      // JSON array string olarak yeniden serileştir — TestPage parse eder.
+      final rebuilt = jsonEncode(wrongs
+          .map((q) => {
+                'q': q.q,
+                'opts': q.opts,
+                'ans': q.ans,
+                'hint': q.hint,
+                'sol': q.sol,
+                'd': q.d,
+              })
+          .toList());
+      final attempt = _TestAttempt(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        content: rebuilt,
+        answers: {},
+        completed: false,
+        createdAt: DateTime.now(),
+        timeLimit: cfg.timeLimitSeconds,
+        difficulty: 'mixed',
+      );
+      summary.tests.add(attempt);
+      await _persistSubjects();
+      await _ActivityStore.log(
+        subject: subject.name,
+        topic: summary.topic,
+        type: 'soru',
+      );
+      if (!mounted) return;
+      setState(() {});
+      _openTestAttempt(summary, attempt, subject.name);
+      return;
+    }
+    // ── HAVUZDAN ÇEKME YOLU — aynı ülke/seviye/sınıf öğrencileri için ──
+    // Topluluk soru havuzu (QuestionPoolService) yeterli soru biriktiyse,
+    // AI çağrısı yapmadan oradan çek. Karışık konu modunda atla (havuz
+    // tek konuluk). drawQuestions accepted<10 ise null döner → AI fallback.
+    if (cfg.extraTopics.isEmpty) {
+      try {
+        final profile = await EduProfile.load();
+        if (profile != null) {
+          // 'medium' tüm havuz dahil; 'easy'/'hard' filtreli çek.
+          final filterDifficulty =
+              (cfg.difficulty == 'easy' || cfg.difficulty == 'hard')
+                  ? cfg.difficulty
+                  : null;
+          final pool = await QuestionPoolService.drawQuestions(
+            profile: profile,
+            subject: subject.name,
+            topic: summary.topic,
+            count: cfg.count,
+            difficulty: filterDifficulty,
+          );
+          if (pool != null && pool.length >= cfg.count ~/ 2) {
+            // PoolQuestion → TestQuestion JSON formatına dönüştür
+            const letters = ['A', 'B', 'C', 'D', 'E'];
+            final json = jsonEncode(pool.map((p) {
+              final opts = <String, String>{};
+              for (var i = 0; i < p.options.length && i < 5; i++) {
+                opts[letters[i]] = p.options[i];
+              }
+              final ansIdx = p.correctIndex.clamp(0, opts.length - 1);
+              return {
+                'q': p.stem,
+                'opts': opts,
+                'ans': letters[ansIdx],
+                'hint': '',
+                'sol': p.explanation ?? '',
+                'd': p.difficulty,
+              };
+            }).toList());
+            if (parseTestQuestions(json).isNotEmpty) {
+              final attempt = _TestAttempt(
+                id: DateTime.now().millisecondsSinceEpoch.toString(),
+                content: json,
+                answers: {},
+                completed: false,
+                createdAt: DateTime.now(),
+                timeLimit: cfg.timeLimitSeconds,
+                difficulty: cfg.difficulty,
+              );
+              summary.tests.add(attempt);
+              await _persistSubjects();
+              await _ActivityStore.log(
+                subject: subject.name,
+                topic: summary.topic,
+                type: 'soru',
+              );
+              if (!mounted) return;
+              setState(() {});
+              _showSnack(
+                  '📦 ${pool.length} soru havuzdan getirildi — kotan dokunulmadı.'
+                      .tr());
+              _openTestAttempt(summary, attempt, subject.name);
+              return;
+            }
+          }
+        }
+      } catch (e, st) {
+        ErrorLogger.instance.capture(e, st, context: 'question_pool_draw');
+        // Sessizce AI fallback'e geç
+      }
+    }
     // ── KOTA: günlük + aylık global ──────────────────────────────────────
     final quota = await UsageQuota.get(QuotaKind.testQuestions);
     if (quota.isExhausted) {
@@ -4773,12 +5446,6 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
               'Ay başında sıfırlanır.');
       return;
     }
-    if (summary.tests.length >= 3) {
-      _showSnack(
-          'Bu konu için 3 test hakkın da bitti. Başka bir konu dene.'.tr());
-      return;
-    }
-    final cfg = config ?? _TestConfig();
     await UsageQuota.increment(QuotaKind.testQuestions);
     try {
       final profile = await EduProfile.load();
@@ -4799,6 +5466,8 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
         strategy: _strategyFor(_grade),
         ragBlock: ragBlock,
         ragHit: !ragRes.usedFallback,
+        questionType: cfg.questionType,
+        extraTopics: cfg.extraTopics,
       );
       final content = await GeminiService.solveHomework(
         question: prompt,
@@ -4831,6 +5500,47 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
         topic: summary.topic,
         type: 'soru',
       );
+      // ── HAVUZA ORGANIK YAZIM (fire-and-forget) ──────────────────────────
+      // AI'ın ürettiği soruları topluluk havuzuna ekle → sonraki öğrenciler
+      // aynı (country|level|grade|subject|topic) için havuzdan çekecek.
+      // Hata olursa kullanıcı akışı etkilenmez (sessizce log'a düşer).
+      try {
+        final profileForPool = await EduProfile.load();
+        if (profileForPool != null) {
+          final parsed = parseTestQuestions(content);
+          if (parsed.isNotEmpty) {
+            const letters = ['A', 'B', 'C', 'D', 'E'];
+            final qList = <Map<String, dynamic>>[];
+            for (final q in parsed) {
+              final options = <String>[];
+              for (final l in letters) {
+                final v = q.opts[l];
+                if (v != null) options.add(v);
+              }
+              final ansIdx = letters.indexOf(q.ans.toUpperCase());
+              if (ansIdx < 0 || ansIdx >= options.length) continue;
+              qList.add({
+                'stem': q.q,
+                'options': options,
+                'correctIndex': ansIdx,
+                'explanation': q.sol,
+                'difficulty': q.d,
+              });
+            }
+            if (qList.isNotEmpty) {
+              unawaited(QuestionPoolService.insertQuestions(
+                profile: profileForPool,
+                subject: subject.name,
+                topic: summary.topic,
+                questions: qList,
+              ));
+            }
+          }
+        }
+      } catch (e, st) {
+        ErrorLogger.instance.capture(e, st,
+            context: 'pool_insert_after_ai_test');
+      }
       if (!mounted) return;
       setState(() {});
       _openTestAttempt(summary, attempt, subject.name);
@@ -4867,9 +5577,9 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
         break;
       }
     }
-    if (nextIdx >= 3) {
+    if (nextIdx >= 6) {
       _showSnack(
-          'Bu konu için 3 test hakkın da bitti. Başka bir konu dene.'.tr());
+          'Bu konu için 6 test hakkın da bitti. Başka bir konu dene.'.tr());
       return;
     }
     // Küçük zorluk seçici dialog — arka plan flu + 3 kutu + Tamam butonu.
@@ -5127,9 +5837,9 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
     }
     if (isQuestions &&
         existingSummary != null &&
-        existingSummary.tests.length >= 3) {
+        existingSummary.tests.length >= 6) {
       _showSnack(
-          'Bu konu için 3 test hakkın da bitti. Başka bir konu dene.'.tr());
+          'Bu konu için 6 test hakkın da bitti. Başka bir konu dene.'.tr());
       return;
     }
 
@@ -5506,6 +6216,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
     required String exam,
     int count = 10,
     String difficulty = 'medium',
+    _SummaryLength length = _SummaryLength.short,
   }) async {
     final strategy = _strategyFor(_grade);
     final rag = await _fetchRag(subject: subject, topic: topic);
@@ -5537,6 +6248,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
         strategy: strategy,
         ragBlock: ragBlock,
         ragHit: ragHit,
+        length: length,
       ),
       ragHit: ragHit
     );
@@ -5569,6 +6281,8 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
     _PromptStrategy strategy = _PromptStrategy.schoolBalanced,
     String? ragBlock,
     bool ragHit = false,
+    String questionType = 'mc',
+    List<String> extraTopics = const [],
   }) {
     final layer = _subjectLayer(subject);
     final isNumeric = layer == 'numeric';
@@ -5611,12 +6325,43 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
         '[MÜFREDAT VERİSİ — RAG]\n'
             '(Bu konu için yerel müfredat veritabanında eşleşme bulunamadı; '
             'sistem genel bilgileri kullanıyor.)\n';
+    // ── Soru tipi direktifi ───────────────────────────────────────────
+    // Parser tüm tipleri opts/ans formatında bekliyor; "tf" 2 şık (Doğru/
+    // Yanlış), "fill" boşluk doldurma stilinde soru + 5 şık, "mixed" karışım.
+    final qTypeLine = () {
+      switch (questionType) {
+        case 'tf':
+          return '• SORU TİPİ: Hepsi DOĞRU/YANLIŞ. "opts" SADECE 2 şık olsun '
+              '({"A": "Doğru", "B": "Yanlış"}). Soru metni bir önerme '
+              'cümlesi (bildirim cümlesi) olmalı, soru cümlesi değil. '
+              'Önermeyi doğrulamak/yalanlamak öğrencinin işi.';
+        case 'fill':
+          return '• SORU TİPİ: Hepsi BOŞLUK DOLDURMA. Soru metninde anahtar '
+              'kavramı "_____" (5 alt çizgi) ile gizle. "opts" 5 şık olsun '
+              've sadece bir tanesi boşluğa doğru tamamlamayı yapsın. '
+              'Çeldirici şıklar yakın kavramlar/kelimeler olsun.';
+        case 'mixed':
+          return '• SORU TİPİ: KARIŞIK — sorular arası dağılım yaklaşık şöyle '
+              'olsun: %50 çoktan seçmeli klasik, %25 doğru/yanlış (2 şık), '
+              '%25 boşluk doldurma (5 şık + soruda "_____"). Tek bir test '
+              'farklı tipleri görür.';
+        case 'mc':
+        default:
+          return '• SORU TİPİ: Hepsi ÇOKTAN SEÇMELİ (klasik). 5 şık, 1 doğru.';
+      }
+    }();
+    final extraTopicsLine = extraTopics.isEmpty
+        ? ''
+        : '\nEK KONULAR (karışık konu testi): ${extraTopics.join(", ")}\n'
+            '• KARIŞIK KONU MODU: Sorular toplam $count tane ve şu konular '
+            'arasında dağıtılmış: $topic + ${extraTopics.join(", ")}. '
+            'Her konudan dengeli pay (yaklaşık eşit sayıda soru).\n';
     return '''
 ${_strategyBlock(strategy, exam)}
 $ragSection
 [TEST — $count SORU · JSON]
 Ders: $subject
-Konu: $topic
+Konu: $topic$extraTopicsLine
 Bağlam: $ctx
 Zorluk: $difficulty
 Katman: ${isNumeric ? 'SAYISAL (formül + sembol + birim)' : isVerbal ? 'SÖZEL (anlatı + kronoloji + bağlam)' : 'KARMA'}
@@ -5625,6 +6370,7 @@ GÖREVİN: Bu konu için $exam stiline uygun TAM OLARAK $count soru üret.
 Tüm sorular $difficulty zorluk seviyesinde olsun.
 QuAlsar Akademik İçerik Protokolü'nü uygula:
 $layerLine
+$qTypeLine
 SADECE geçerli bir JSON array döndür — başka hiçbir metin, açıklama,
 markdown fence (```json), emoji başlık yok.
 
@@ -5910,28 +6656,80 @@ varsa metinle betimle.
             'sistem genel bilgileri kullanıyor.)\n';
 
     // ── ÖZET UZUNLUK DİREKTİFİ — kullanıcı seçimine göre kısa veya kapsamlı
+    // KRİTİK: Bu iki mod CIDDI ÖLÇÜDE farklı çıktı vermeli. Kısa = sadece öz;
+    // Kapsamlı = mümkün olan en detaylı, hiçbir alt başlık eksik kalmadan.
     final lengthDirective = length == _SummaryLength.short
         ? '''
-[ÖZET UZUNLUĞU — KISA]
-KULLANICI KISA ÖZET istedi. Hedef: 400-700 kelime (≈2-3 ekran).
-• Konunun TANIMINI, EN ÖNEMLİ 3-5 NOKTASINI ve KRİTİK FORMÜLLERİNİ ver.
-• Detaylı türetmeler, çok sayıda örnek soru, uzun tarihsel arka plan ver-ME.
-• Tablo/şema kullan ama sınırlı (1-2 tane).
-• Görsel betimlemesi maksimum 1 tane.
-• Çıktın YOĞUN ve KESKİN olsun — hızlı okuyup özünü kavrasın.
+[ÖZET UZUNLUĞU — KISA · MUTLAK ÖNCELİK]
+KULLANICI KISA ÖZET istedi. SADECE EN ÖNEMLİ NOKTALAR.
+HEDEF: 300-550 KELİME ARASI. Bu sınırı AŞMA. Saymadan önce yaz, sonra fazlasını kes.
+
+ZORUNLU İÇERİK (yalnızca bunlar):
+• Konunun 1-2 cümlelik TANIMI.
+• EN KRİTİK 3-5 ANA NOKTA (her biri en fazla 2-3 cümle).
+• Sınav için MUTLAKA bilinmesi gereken 1-3 FORMÜL veya KAVRAM
+  (matematik/fizik/kimya ise; sözel ise 1-3 anahtar tarih/kural/tanım).
+• Konuya özel 1 KRİTİK TUZAK/YAYGIN HATA (varsa).
+
+KESİNLİKLE YAPMA:
+✗ Uzun türetme / ispat
+✗ Birden fazla çözümlü örnek soru (en fazla 1 mini örnek)
+✗ Tarihsel arka plan / detaylı dönem analizi
+✓ 1-2 küçük tablo serbest (karşılaştırma/sınıflandırma için)
+✓ ŞEMA: görsel-zorunlu konularda (hücre, anatomi, atom, dalga, devre,
+  harita, kesir pastası, ilkokul/ortaokul konuları) EN AZ 1, EN FAZLA 2.
+  Diğer konularda kısa modda şema YOK.
+✗ "Bonus", "ileri seviye not", "ek bilgi" gibi opsiyonel kısımlar
+
+TON: YOĞUN, KESKİN, FİLTRELİ. Bir öğrenci sınav öncesi son 5 dakikada
+okusa, konuyu kafasında tazelemeli. Genişletme YOK; özünü ver, geç.
 '''
         : '''
-[ÖZET UZUNLUĞU — KAPSAMLI]
-KULLANICI KAPSAMLI ÖZET istedi. Hedef: 1500-3000 kelime (uzun, derinlemesine).
-• Tüm alt başlıkları, istisnaları, uç durumları, dönem analizini AÇIK AÇIK ver.
-• Çoklu örnek sorular ("🧪 Uygulama Örneği" hücreleri) zorunlu.
-• Tablolar, karşılaştırmalar, sebep-sonuç zincirleri detaylı.
-• Görsel betimlemesi 2-4 tane (uygun yerlerde).
-• Sınavda hata yaptıran ince detaylar + ileri seviye notlar ekle.
-• Çıktın bir DERSHANE KİTABI BÖLÜMÜ kalitesinde olmalı.
+[ÖZET UZUNLUĞU — KAPSAMLI · MAKSIMUM DERİNLİK]
+KULLANICI KAPSAMLI ÖZET istedi. KONUYU EN İNCE DETAYINA KADAR İŞLE.
+HEDEF: 2200-4000 KELİME. Aşağı düşme — eksik kalmasından bol olması iyidir.
+
+ZORUNLU İÇERİK (HEPSİ EKSİKSİZ):
+• Konunun TARİHÇESİ / BAĞLAMI (nereden geldi, neden önemli).
+• TÜM ALT BAŞLIKLAR — biri bile atlanmasın. Müfredatta geçen her kavram
+  ayrı kart/bölüm olarak işlenir.
+• Her formül için TAM TÜRETİM (1-3 adımda) + sembol tablosu + birim
+  analizi + tipik değerler.
+• Her alt başlık için EN AZ 1 ÇÖZÜMLÜ ÖRNEK ("🧪 Uygulama Örneği" hücresi)
+  — sayısal derste 3-5 örnek; sözel derste 2-3 vaka analizi.
+• İSTİSNALAR, UÇ DURUMLAR, SINIR HÂLLERİ (0!, n=0, payda=0, kararsız izotop,
+  istisna kelime grubu vb.) tek tek listele, neden istisna olduğunu açıkla.
+• Konuyla İLİŞKİLİ DİĞER KONULAR (bağlantı haritası): hangi konuyla nasıl
+  bağlanır, prerequisite hangileri, ileri seviye nereye götürür.
+• YAYGIN HATALAR / TUZAKLAR — sınavda en çok hangi noktada öğrenci yanılır,
+  doğru yaklaşım nedir.
+• TABLOLAR bol miktarda (EN AZ 4-6 tane) — karşılaştırma, sınıflandırma,
+  formül listesi, kronoloji, kavram sözlüğü, sebep-sonuç hep tablo.
+• GÖRSELLER (ŞEMA): konuya göre 1-5 arası. Görsel-zorunlu konularda
+  (hücre, anatomi, atom modeli, dalga, devre, harita, eser kapağı,
+  ilkokul/ortaokul müfredatı) MUTLAKA görsel ekle — eksik kalmasın.
+• İLERİ SEVİYE NOTLAR / BONUS — meraklı öğrenci için ekstra derinlik.
+
+TON: BİR DERSHANE KİTABININ EN AYRINTILI BÖLÜMÜ + akademik makale arası.
+Konuyu hiç bilmeyen biri okuyup sıfırdan uzmanlaşabilmeli. Tekrar etmekten
+kaçınma — pekiştirme için aynı kavramı farklı açıdan tekrar tekrar göstermek
+KAPSAMLI özetin imzasıdır. Eksik bırakmak HATA, fazla yazmak ERDEMDİR.
 ''';
 
+    final lang = localeService.localeCode;
+    final langDirective = lang == 'tr'
+        ? '[ÇIKTI DİLİ] Tüm metin, başlık, tablo hücreleri, şema lejantları, '
+            'parça etiketleri ve numaralı açıklamalar TÜRKÇE yazılacak. '
+            'Yabancı kavramların Türkçe karşılığı varsa onu kullan '
+            '(örn. "Nucleus" değil "Çekirdek"). Karışık dil YOK.'
+        : '[OUTPUT LANGUAGE] All text, headings, table cells, schema legends, '
+            'part labels and numbered explanations MUST be in the language '
+            'with code "$lang". Use native vocabulary; no mixing with other '
+            'languages (e.g. don\'t write English term alongside translation).';
+
     return '''
+$langDirective
+
 $lengthDirective
 ${_strategyBlock(strategy, exam)}
 $ragSection
@@ -5955,81 +6753,174 @@ Sen 55 dilde akıcı, 130 ülkenin müfredatına hâkim, dünya çapında seçki
 • Dil / Yabancı dil → Sen bir dilbilimcisin. Kural → istisna → örnek.
   İki dilli karşılaştırma tabloları kullan.
 
-GÖRSEL BETİMLEMESİ PROTOKOLÜ (Wikipedia'dan otomatik görsel):
-Her özet sadece METİN değil, KONUYU GÖRSELLEŞTİREN ŞEMALARLA desteklenir.
-Görsel etiket formatı (TEK SATIR — başka satıra bölme):
-   [Görsel Betimlemesi: <Wikipedia'da aranabilir TEK kavram adı> — <kısa açıklama>]
-   • Sol kısım (— öncesi): Wikipedia'da aranacak SAF, STANDART BİLİMSEL
-     terim (1-3 kelime). Wikipedia'da bu adla ya da çok yakın varyantıyla
-     ANSIKLOPEDİK SAYFASI BULUNAN bir terim olmalı. UI bu metinle
-     wikipedia.org'dan otomatik thumbnail çeker.
-     ✅ DOĞRU: "Faz diyagramı", "Bohr atom modeli", "Hayvan hücresi",
-        "Fotosentez", "Newton yasaları", "Periyodik tablo", "Mitoz"
-     ❌ YANLIŞ: "Saf madde hal değişim grafiği" (uzun + ders kitabı dili,
-        Wikipedia sayfası yok), "Maddenin hallerinin görseli", "Bohr
-        modelinin şeması" (gereksiz "şema/görsel/grafik/tablo" eki).
-     KURAL: "grafiği", "şeması", "diyagramı", "modeli", "tablosu",
-     "haritası", "yapısı", "formülü" gibi DECORATOR kelimeleri EKLEME —
-     Wikipedia sayfaları çıplak terim adıyla açılır. ("Hayvan hücresi"
-     evet, "Hayvan hücresi şeması" hayır.)
-     KURAL: Türkçe Wikipedia'da olmayabilecek yerel ifadeler yerine
-     ULUSLARARASI BİLİMSEL TERİMİ tercih et ("Faz diyagramı", "Newton
-     yasaları"). Sistem bulamadığında otomatik olarak EN sayfasına da
-     bakacak; bu yüzden terim hem TR hem EN Wikipedia'da var olan
-     standart formda olmalı.
-   • Sağ kısım (— sonrası): öğrenciye 1-2 cümlelik KISA + EĞİTİCİ caption;
-     görselin neyi gösterdiğini, hangi parçaya odaklanılacağını söyle.
+📊 İÇERİK ANLATIM KURALI — DOĞRU FORMAT, DOĞRU YERDE (KRİTİK):
+Her bilgi tipinin ideal sunum biçimi farklıdır. Hedef: ÖĞRENCİ KAFASINDA
+RESIM OLUŞSUN. Tablo verisi tablo, görsel bilgisi GÖRSEL olarak ver.
 
-YERLEŞİM (KRİTİK):
-Görsel etiketi, ilgili kavramın ANLATILDIĞI metin bloğunun HEMEN ALTINA
-yerleştirilir — kavram tanımlandıktan/açıklandıktan sonraki ilk boş satıra.
-ASLA ana başlığın hemen altına toplu liste olarak yazma; her görsel ait
-olduğu kavramın yanında dursun.
+🟦 TABLO KULLAN — şu durumlarda:
+• Karşılaştırma (X vs Y): kavram/yıl/temsilci/özellik → TABLO
+• Sınıflandırma (türler, alt türler, kategoriler) → TABLO
+• Süreç adımları metinsel ise (1, 2, 3 → sonuç) → TABLO
+• Formül listesi (formül, ne için, birim) → TABLO
+• Zaman çizgisi / kronoloji → TABLO (yıl | olay | etki)
+• Dilbilgisi kuralı + istisnası → TABLO (kural | örnek | istisna)
+• Periyodik özellikler → TABLO
+• Kavram sözlüğü → TABLO (terim | tanım | örnek)
 
-DERS BAZLI MİNİMUM SAYI (kesin alt sınır — daha fazlası serbest):
-• Biyoloji / Kimya / Fizik / Anatomi / Tıp → EN AZ 2 detaylı görsel.
-  Hücre yapısı, organeller, atom modeli, periyodik tablo kesiti, deney
-  düzeneği, devre şeması, dolaşım/sinir sistemi gibi yapı odaklı kısımlara
-  öncelik ver.
-• Coğrafya → EN AZ 3-4 görsel. Yer şekilleri (vadi, mendere, plato),
-  iklim tipleri, harita kesitleri, atmosfer katmanları, levha hareketleri
-  gibi farklı tiplerin her birini ayrı görselle göster.
-• Tarih → EN AZ 2 görsel: dönem haritası (savaş/antlaşma/imparatorluk
-  sınırları) + önemli şahsiyet portresi.
-• Edebiyat / Felsefe / Sosyal → EN AZ 2 görsel: önemli şahsiyet/eser
-  görseli + kavram haritası niteliğinde mind-map etiketi
-  (Örn: [Görsel Betimlemesi: Tanzimat edebiyatı — Akım, temsilciler ve
-   eserler arasındaki ilişki ağı]).
-• Matematik (saf) → görsel zorunlu DEĞİL; geometri/fonksiyon grafikleri
-  uygunsa 1 görsel ekle.
-• Yabancı dil → görsel zorunlu DEĞİL.
+🟪 GÖRSEL (ŞEMA) ZORUNLU — şu konularda öğrenci görmeden öğrenemez:
+✅ FEN BİLİMLERİ
+• Hücre yapısı (bitki/hayvan hücresi, organeller numaralı) → ŞEMA ŞART
+• Fotosentez → yaprak kesiti + hücredeki kloroplast + reaksiyon akışı
+• Solunum sistemi / sindirim sistemi / dolaşım sistemi / boşaltım sistemi
+  → organların yerleşimi + akış oklarıyla
+• İnsan anatomisi (kalp, beyin, göz, kulak, böbrek, akciğer) → kesit + numara
+• Atom modelleri (Bohr, Rutherford, Dalton, Thomson, Modern) → her birinin
+  ŞEMASI ayrı ayrı
+• Periyodik tablo kesiti (gruplar/periyotlar arası ilişki) → grid ŞEMA
+• Dalga şekilleri (enine, boyuna, su, ses, ışık) → dalga formları
+• Elektrik devreleri → seri/paralel ŞEMA
+• Optik (mercek, ayna, ışık yolu, kırılma) → ışık yolu ŞEMASI
+• Coğrafya: yer şekli kesiti, levha hareketi, atmosfer katmanları,
+  iklim haritası → ŞEMA + harita basit gösterim
+• Geometrik şekil, vektör → ŞEMA
 
-FALLBACK (Wikipedia'dan görsel çekilemezse):
-UI etiketin sağ kısmındaki açıklamayı "Diyagram Çerçevesi" placeholder
-olarak gösterir. Bu yüzden caption KENDİ BAŞINA bilgi verecek kadar
-TEKNİK ve net olmalı: "şu parça nerede, hangi renk, hangi etiket". Tek
-satırlık jenerik açıklama yerine; "üstte X, altta Y, ortada Z" gibi
-konumsal anlatım yaz.
+✅ SOSYAL / EDEBİYAT
+• Tarih: önemli savaş haritası, sınır değişimi, antlaşma kesiti → ŞEMA
+• Edebiyat: eserin (örn. "Çalıkuşu", "Saatleri Ayarlama Enstitüsü") kapak
+  ASCII çizimi, dönem-akım ağacı, karakterler arası ilişki şeması → ŞEMA
+• Felsefe: düşünce akımları arasındaki etki şeması → ŞEMA
 
-NUMARALI / ETİKETLİ DİYAGRAMLAR (KRİTİK):
-Wikipedia'dan gelen pek çok bilim diyagramı parçaları 1, 2, 3 ya da
-A, B, C ile NUMARALANDIRMIŞ olur ama görselin üzerinde lejant
-yoktur. Bu yüzden caption mutlaka numara/etiket → açıklama
-eşlemesini içermeli ki kullanıcı her parçanın ne olduğunu bilsin.
+✅ İLKOKUL (1-4) ve ORTAOKUL (5-8) — GÖRSEL EN KRİTİK
+Bu yaş aralığında öğrenci SOMUT düşünür. Her ana kavram için MUTLAKA görsel:
+• Matematik: kesirler (pasta dilimi ŞEMA), dört işlem (somut nesne ŞEMA),
+  geometri (şekiller + ölçüler ŞEMA), saat okuma (saat yüzü ŞEMA)
+• Fen: canlılar, mevsimler, su döngüsü, kuvvet/hareket → HER BİRİ ŞEMA
+• Türkçe: noktalama (cümle örneği + işaret konumu ŞEMA), öyküleyici metin
+  yapısı (giriş-gelişme-sonuç akış ŞEMASI)
+• Sosyal: harita, mahalle krokisi, milli bayramlar zaman çizgisi → ŞEMA
+• Müzik: nota değerleri, porte → ŞEMA
+• Hayat bilgisi: trafik kuralları, beslenme piramidi → ŞEMA
 
-Format (caption sonunda eşleme bloğu):
-   [Görsel Betimlemesi: <kavram> — <kısa anlatım>; 1: <parça adı>,
-    2: <parça adı>, 3: <parça adı>]
+🟧 ALTIN KURAL: "Bir öğrenci bu konuyu okuyup KAFASINDA RESIM OLUŞTURABİLİYOR MU?"
+• EVET (sebep-sonuç metni, tarih listesi, kural-istisna) → TABLO/METİN
+• HAYIR (anatomik yapı, devre, dalga, hücre, model, harita) → ŞEMA ZORUNLU
 
-Örnek (hücre):
-   [Görsel Betimlemesi: Hayvan hücresi — temel organellerin konumu;
-    1: çekirdek, 2: mitokondri, 3: golgi aygıtı, 4: ribozom,
-    5: hücre zarı, 6: endoplazmik retikulum]
+DİL: Tüm şema etiketleri, lejant, başlık, parça isimleri öğrencinin
+DİLİNDE yazılır. Sistem dili Türkçe ise Türkçe; İngilizce ise İngilizce.
+Kesinlikle karışık dil kullanma (örn. "Nucleus / Çekirdek" YOK, sadece
+hangi dilse o).
 
-Örnek (atom modeli):
-   [Görsel Betimlemesi: Bohr atom modeli — elektron yörüngeleri ve
-    çekirdek; 1: çekirdek (proton+nötron), 2: K kabuğu, 3: L kabuğu,
-    4: M kabuğu]
+ŞEMA PROTOKOLÜ (KENDİ ÇİZ — dış bağımlılık YOK):
+Eskiden Wikipedia'dan görsel çekiliyordu; çoğunlukla yüklenmiyordu.
+ARTIK görselleri SEN kendin Unicode/ASCII sanatıyla çiziyorsun.
+UI bu blokları monospace çerçeveli kart olarak render edecek.
+
+Format (BLOK ETIKETI — başlangıç ve bitiş zorunlu):
+   [ŞEMA: <Konu Adı>]
+   <ÇİZİM>
+   ─────────
+   <LEJANT / AÇIKLAMA SATIRLARI>
+   [/ŞEMA]
+
+Kurallar:
+• Çizim satırları MONOSPACE çıkacağı için Unicode kutu karakterleri,
+  oklar ve semboller serbestçe kullanılır:
+    Kutu/çerçeve : ┌ ─ ┐ │ └ ┘ ╔ ═ ╗ ║ ╚ ╝ ╭ ╮ ╰ ╯
+    Oklar         : → ← ↑ ↓ ↔ ↕ ⟶ ⟵ ⇒ ⇐
+    Geometri      : ○ ● ◯ ◉ ◇ ◆ □ ■ △ ▲ ▽ ▼ ⬡ ⬢
+    Bilim         : ⊕ ⊖ ⊗ ⊘ ∇ ∆ ∑ ∫ √ ∞ ° ± ·
+    Bağlantı      : ━ ┃ ╋ ╂ ┳ ┻ ┣ ┫
+• Çizim satırları SOLDAN HİZALI başlar; ortalamak için boşlukla
+  doldurursun. Aralıklı kalmasın — kompakt çiz.
+• Her şemanın altında, "─" çizgisinden sonra LEJANT satırları:
+   ⊕ = Çekirdek (proton + nötron)
+   ● = Elektron (kabuk üzerinde)
+   ↑ = Pozitif yön
+  Numaralı parçalar varsa "1: …, 2: …" gibi listele.
+• Şemanın YÜKSEKLİĞİ 4-10 satır, GENİŞLİĞİ 30-50 karakter aralığında
+  olsun — telefon ekranına sığsın. Çok büyük olanları parçalara böl.
+
+YERLEŞİM:
+Şema bloğu, ilgili kavramın ANLATILDIĞI metin bloğunun HEMEN ALTINA
+yerleştirilir. Asla başlığın hemen altına toplu liste olarak yazma.
+
+DERS BAZLI ŞEMA POLİTİKASI (konu görsel-zorunlu mu?):
+• Biyoloji / Anatomi / Tıp → 2-4 ŞEMA serbest (hücre, organ, sistem,
+  döngü). Karşılaştırma için TABLO da ekle. Görsel öğrenmenin omurgası.
+• Kimya → 1-3 ŞEMA (atom modelleri ZORUNLU; molekül yapısı, periyodik
+  kesit). Reaksiyon listesi/özellik karşılaştırma TABLO.
+• Fizik → 1-3 ŞEMA (dalga şekli, devre, optik ışık yolu, vektör, kuvvet
+  diyagramı). Formül listesi TABLO.
+• Coğrafya → 2-4 ŞEMA (yer şekli kesiti, levha, atmosfer, iklim haritası).
+  Veri karşılaştırması TABLO.
+• Tarih → 1-2 ŞEMA (savaş haritası, sınır değişimi, antlaşma kesiti).
+  Kronoloji ve neden-sonuç TABLO.
+• Edebiyat → 1-2 ŞEMA (eserin ASCII kapak çizimi, dönem-akım ağacı,
+  karakter ilişki şeması). Akım-temsilci-eser TABLO.
+• Felsefe / Sosyal → 0-1 ŞEMA (etki şeması zorunlu ise).
+• Matematik → 1-2 ŞEMA (geometri, fonksiyon grafiği, kesir pastası,
+  küme şeması). Formül TABLO.
+• Türkçe → 0-1 ŞEMA (metin yapısı akış oku zorunlu ise).
+• Yabancı dil → 0 ŞEMA; kural-örnek-istisna TABLO.
+
+⚠️ İLKOKUL (1-4) ve ORTAOKUL (5-8) MÜFREDATI İSE:
+Bu yaş gruplarında HER kavram için görsel kritik. Yukarıdaki üst sınırları
+%50 ARTIR (örn. Fizik 1-3 → 2-5; Türkçe 0-1 → 1-2). Çocuk metni okurken
+zihninde RESMI oluşturamazsa öğrenemez. Görsel ZORUNLU.
+
+ÖRNEK 1 — Bohr atom modeli (basit/kompakt):
+[ŞEMA: Bohr Atom Modeli]
+        ●  ●
+      ●  ⊕  ●          K kabuğu (2e⁻)
+        ●  ●
+      ● ● ● ● ●          L kabuğu (8e⁻)
+─────────────
+⊕ = Çekirdek (proton + nötron)
+● = Elektron
+[/ŞEMA]
+
+ÖRNEK 2 — Hayvan hücresi (numaralı parça):
+[ŞEMA: Hayvan Hücresi]
+   ╭───────────────────────╮
+   │  ⑤  ╭───────╮         │
+   │    │   ①   │  ②      │
+   │    ╰───────╯    ⑥    │
+   │  ③            ④       │
+   ╰───────────────────────╯
+─────────────
+① = Çekirdek         ② = Mitokondri
+③ = Golgi aygıtı     ④ = Ribozom
+⑤ = Hücre zarı       ⑥ = Endoplazmik retikulum
+[/ŞEMA]
+
+ÖRNEK 3 — Sebep-sonuç akış (tarih/sosyal):
+[ŞEMA: Tanzimat Süreci]
+Mali Buhran (1838)
+       │
+       ▼
+Avrupa Baskısı  ─→  Gülhane Hattı (1839)
+                          │
+                          ▼
+                  Kanun Önünde Eşitlik
+─────────────
+→ : Tetikleyen ilişki
+▼ : Doğrudan sonuç
+[/ŞEMA]
+
+ÖRNEK 4 — Devre şeması (fizik):
+[ŞEMA: Basit Elektrik Devresi]
+    ┌───── R ─────┐
+    │             │
+    ┴ V           ⊗ L (lamba)
+    │             │
+    └─────────────┘
+─────────────
+V = Pil (gerilim kaynağı)   R = Direnç
+⊗ = Lamba (yük)             ┴ = Topraklama / negatif uç
+[/ŞEMA]
+
+NOT: Eski formattaki [Görsel Betimlemesi: ...] etiketini ARTIK kullanma.
+Sadece yukarıdaki [ŞEMA: ...] ... [/ŞEMA] bloğunu kullan.
 
 Örnek (kalp anatomisi):
    [Görsel Betimlemesi: İnsan kalbi — odacıklar ve büyük damarlar;
@@ -6201,22 +7092,27 @@ tanım, ardından konuyu mantıksal ana başlıklara böl ve her ana başlığı
 altında alt başlıkları/maddeleri ver — tıpkı bir ders kitabının
 "konu işlenişi" sayfası gibi. Hedef: "Nihai Özet" kalitesi.
 
-⚠️ ÇIKTI ZORUNLU OLARAK 4 BÖLÜMÜN HEPSİNİ İÇERİR (sırayla):
+⚠️ ÇIKTI ZORUNLU OLARAK ŞU BÖLÜMLERİ İÇERİR (sırayla):
    1) 📖 Tanım
-   2) 📚 Konu İşlenişi   ← ana başlıklar + alt maddeler (asla atlama)
-   3) ${isNumeric ? '📐 Formül Galerisi + 🧪 Uygulama Örneği' : isVerbal ? '(Konu İşlenişi içine yedirilen detaylı sebep-sonuç akışı yeterli)' : '📐 Formül / Akış (varsa)'}
+   2) ANA BAŞLIKLAR (▸ 1. 📍 Başlık Adı formatında, doğrudan, "Konu
+      İşlenişi" wrapper başlığı YOK) — ana başlıklar + alt maddeler
+   3) ${isNumeric ? '📐 Formül Galerisi + 🧪 Uygulama Örneği' : isVerbal ? '(Ana başlıklar içine yedirilen detaylı sebep-sonuç akışı yeterli)' : '📐 Formül / Akış (varsa)'}
    4) ⭐ Özet — 5 Bilgi
-HERHANGİ BİR BÖLÜM EKSİK OLURSA cevap GEÇERSİZDİR — özellikle "Konu
-İşlenişi" sadece tanımdan sonra durup BİTİRME, mutlaka ana başlıklarla
-devam et.
+HERHANGİ BİR BÖLÜM EKSİK OLURSA cevap GEÇERSİZDİR.
+
+KRİTİK — "📚 Konu İşlenişi" WRAPPER BAŞLIĞI ARTIK YOK:
+Tanım'dan sonra DOĞRUDAN ilk ana başlık (▸ 1. {emoji} Başlık Adı) ile
+başla. "📚 Konu İşlenişi", "📚 Konu Anlatımı", "📚 Topic Processing"
+gibi wrapper başlıkları KESİNLİKLE YAZMA — sadece ana başlıklar olsun.
+UI tarafı bu wrapper'ı zaten gizliyor; yazarsan boşa harcanmış olur.
 
 İlk satır "📖 Tanım" başlığı olmalıdır; öncesinde HİÇBİR selamlama
 ("Harika!", "Tabii ki", "Hemen başlayalım", "Bu konuyu inceleyelim") YOK.
-Tanım satırından sonra DOĞRUDAN "📚 Konu İşlenişi" gelir, ardından diğer
-bölümler — TÜM bölümler tamamlanana dek bitirme.
+Tanım satırından sonra DOĞRUDAN ilk ana başlık (▸ 1. {emoji} ...) gelir,
+ardından diğer ana başlıklar — TÜM bölümler tamamlanana dek bitirme.
 
 ÖZEL ÇERÇEVE YOK — "⚠️ KRİTİK UYARI / 🔬 QuAlsar Notu" diye AYRI bir bölüm
-açma. Tuzak/istisna/uzman içgörüsü gerekiyorsa Konu İşlenişi içinde
+açma. Tuzak/istisna/uzman içgörüsü gerekiyorsa ana başlık içinde
 "💡 Önemli Bilgi: ..." satırı olarak inline yedir (UI bunu kutuda gösterir).
 
 YAPI (aşağıdaki başlıkları BİREBİR kullan — sırayla):
@@ -6224,7 +7120,7 @@ YAPI (aşağıdaki başlıkları BİREBİR kullan — sırayla):
 📖 Tanım
 [TEK kısa cümle. Süsleme YOK, dolambaç YOK.]
 
-📚 Konu İşlenişi
+[ANA BAŞLIKLAR — wrapper başlığı YAZMA, doğrudan ▸ 1. ile başla]
 [Konunun doğal mantığına göre ${isNumeric ? '4-6' : '5-7'} ANA BAŞLIK belirle ve
  her ana başlığın altında ${isNumeric ? '4-7' : '5-8'} alt madde ver.
  Yapı, ders kitaplarındaki bir ünitenin DETAYLI işlenişi gibidir —
@@ -6408,7 +7304,8 @@ $formulasBlock
 KATI KURALLAR (bozarsan cevap geçersiz):
 • ÇIKTI "📖 Tanım" satırıyla BAŞLAR. Öncesinde tek kelime selamlama,
   "Harika", "Tabii", "Hemen başlayalım", "Bu konuya bakalım" YASAK.
-• "📚 Konu İşlenişi" bölümünde ana başlık → alt madde hiyerarşisi ZORUNLU.
+• Ana başlıklar (▸ N. {emoji}...) için ana başlık → alt madde hiyerarşisi
+  ZORUNLU. "📚 Konu İşlenişi" wrapper başlığı YAZMA (UI gizliyor).
 • ⭐ Özet bölümünde "bunu bilmen önemli", "sınavda çıkar", "akılda tut" gibi
   meta yorum YASAK — sadece doğrudan bilgi cümleleri.
 • Markdown bold (**metin**) SERBEST — UI bold render eder; sadece
@@ -6575,8 +7472,8 @@ ${isVerbal ? '• Tarihte yıl, edebiyatta yazar/eser/dönem, felsefede filozof/
             // Planner'da bu ders kartı renklendirilmişse, açılan sayfa da
             // aynı zemin rengiyle başlasın — kayıtlı renk kalıcı kabul edilir.
             pageBg: _summaryCardColors[s.id],
-            onAddTopic: (topic) =>
-                _generateForExistingSubject(s, topic),
+            onAddTopic: (topic, {length}) =>
+                _generateForExistingSubject(s, topic, forcedLength: length),
             onDelete: (sum) async {
               s.summaries.removeWhere((x) => x.id == sum.id);
               await _persistSubjects();
@@ -6596,6 +7493,9 @@ ${isVerbal ? '• Tarihte yıl, edebiyatta yazar/eser/dönem, felsefede filozof/
         .then((result) {
       if (!mounted) return;
       setState(() {});
+      // Subject detay sayfasından dönüldüğünde home aggregate'leri yenile —
+      // kullanıcı orada özet açtıysa "Devam Et" + due strip + stats güncellensin.
+      unawaited(_loadHomeAggregates());
       // FAB'e basıldıysa `_openSubjectTopics` sinyali gelir → bu dersin
       // konular dialogunu aç (yeni konu seçmek için).
       if (result == '_openSubjectTopics') {
@@ -6714,6 +7614,38 @@ ${isVerbal ? '• Tarihte yıl, edebiyatta yazar/eser/dönem, felsefede filozof/
                   ),
                 ),
               ),
+              // Arama ikonu — kütüphane büyüdükçe ders/konu hızlı bulmak için.
+              Padding(
+                padding: const EdgeInsets.only(
+                    top: 8, bottom: 8, left: 0, right: 4),
+                child: GestureDetector(
+                  onTap: _toggleSearchBar,
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _showSearch
+                          ? AppPalette.textPrimary(context)
+                              .withValues(alpha: 0.08)
+                          : Colors.transparent,
+                      border: Border.all(
+                        color: AppPalette.textPrimary(context)
+                            .withValues(alpha: 0.35),
+                        width: 1,
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Icon(
+                      _showSearch
+                          ? Icons.close_rounded
+                          : Icons.search_rounded,
+                      size: 17,
+                      color: AppPalette.textPrimary(context),
+                    ),
+                  ),
+                ),
+              ),
               // Aile/Ebeveyn butonu Profil sayfasına taşındı.
               // Sayfa rehberi (?) — Renk Seç pill'inin sağında, aynı hizada.
               Padding(
@@ -6735,15 +7667,23 @@ ${isVerbal ? '• Tarihte yıl, edebiyatta yazar/eser/dönem, felsefede filozof/
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                 SizedBox(height: 14),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-                  child: _buildInlineAddPanel(),
-                ),
-                if (_subjects.isNotEmpty)
+                // Arama çubuğu — aktifse query'ye göre tüm panelleri yutar.
+                if (_showSearch) _buildSearchBar(),
+                if (_showSearch && _searchQuery.trim().isNotEmpty) ...[
+                  _buildSearchResults(),
+                ] else ...[
+                  // Üst paneller: Bugün Tekrar Et
+                  _buildDueTodayStrip(),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: _buildCardsRow(),
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                    child: _buildInlineAddPanel(),
                   ),
+                  if (_subjects.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: _buildCardsRow(),
+                    ),
+                ],
                 SizedBox(height: 22),
               ],
             ),
@@ -6824,6 +7764,518 @@ ${isVerbal ? '• Tarihte yıl, edebiyatta yazar/eser/dönem, felsefede filozof/
       ],
     );
   }
+
+  // ─── Arama çubuğu — AppBar'daki ikon ile toggle'lanır ─────────────────
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppPalette.card(context),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppPalette.border(context)),
+        ),
+        child: Row(
+          children: [
+            const SizedBox(width: 12),
+            Icon(Icons.search_rounded,
+                size: 18, color: AppPalette.textSecondary(context)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: _searchCtrl,
+                autofocus: true,
+                onChanged: (v) => setState(() => _searchQuery = v),
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppPalette.textPrimary(context),
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Ders veya konu ara…'.tr(),
+                  hintStyle: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: AppPalette.textSecondary(context),
+                  ),
+                  isDense: true,
+                  contentPadding:
+                      const EdgeInsets.symmetric(vertical: 12),
+                  border: InputBorder.none,
+                ),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close_rounded, size: 18),
+              color: AppPalette.textSecondary(context),
+              onPressed: _toggleSearchBar,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchResults() {
+    final hits = _runSearch(_searchQuery);
+    if (_searchQuery.trim().isEmpty) return const SizedBox.shrink();
+    if (hits.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppPalette.card(context),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppPalette.border(context)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.search_off_rounded,
+                  color: AppPalette.textSecondary(context), size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Eşleşen ders veya konu yok'.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppPalette.textSecondary(context),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppPalette.card(context),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppPalette.border(context)),
+        ),
+        child: Column(
+          children: [
+            for (int i = 0; i < hits.length; i++) ...[
+              if (i > 0)
+                Divider(
+                    height: 1,
+                    color: AppPalette.border(context).withValues(alpha: 0.5)),
+              _searchHitRow(hits[i]),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _searchHitRow(_SearchHit h) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () async {
+        // Aramayı kapat → kullanıcı listeye geri dönerse temiz.
+        FocusScope.of(context).unfocus();
+        await Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => _SummaryDetailPage(
+            summary: h.summary,
+            subjectName: h.subjectName,
+          ),
+        ));
+        if (mounted) _loadHomeAggregates();
+      },
+      child: Padding(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                color: const Color(0xFF7C3AED).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                h.topicMatch
+                    ? Icons.menu_book_rounded
+                    : Icons.school_rounded,
+                size: 15,
+                color: const Color(0xFF7C3AED),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    h.summary.topic,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppPalette.textPrimary(context),
+                    ),
+                  ),
+                  Text(
+                    h.subjectName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: AppPalette.textSecondary(context),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded,
+                size: 18, color: AppPalette.textSecondary(context)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── Mini istatistik bandı (3-chip yatay) ─────────────────────────────
+  Widget _buildStatsBand() {
+    if (_statsTotalSummaries == 0 && _statsWeeklyMinutes == 0) {
+      return const SizedBox.shrink();
+    }
+    Widget chip(IconData icon, String value, String label, Color tint) {
+      return Expanded(
+        child: Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+          decoration: BoxDecoration(
+            color: tint.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: tint.withValues(alpha: 0.35), width: 1),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 16, color: tint),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      value,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        color: tint,
+                        height: 1.0,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                        color: AppPalette.textSecondary(context),
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final hours = (_statsWeeklyMinutes / 60).floor();
+    final mins = _statsWeeklyMinutes % 60;
+    final timeStr = hours > 0
+        ? (mins > 0 ? '${hours}sa ${mins}dk' : '${hours}sa')
+        : '${_statsWeeklyMinutes}dk';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Row(
+        children: [
+          chip(Icons.timer_rounded, timeStr, 'BU HAFTA'.tr(),
+              const Color(0xFF2563EB)),
+          const SizedBox(width: 8),
+          chip(Icons.menu_book_rounded, '$_statsTotalSummaries',
+              'TOPLAM ÖZET'.tr(), const Color(0xFF7C3AED)),
+          const SizedBox(width: 8),
+          chip(Icons.task_alt_rounded, '$_statsCompletedTopics',
+              'TAMAMLANAN'.tr(), const Color(0xFF10B981)),
+        ],
+      ),
+    );
+  }
+
+  // ─── "Devam Et" kartı — en son açılan özet ─────────────────────────────
+  // İnce profil: yatay padding 10/8, dikey 6 — kart yüksekliği ~46px.
+  Widget _buildContinueCard() {
+    final r = _continueItem;
+    if (r == null) return const SizedBox.shrink();
+    final ago = _humanAgo(DateTime.now().difference(r.openedAt));
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () async {
+          await Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => _SummaryDetailPage(
+              summary: r.summary,
+              subjectName: r.subjectName,
+            ),
+          ));
+          if (mounted) _loadHomeAggregates();
+        },
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(10, 7, 8, 7),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF7C3AED), Color(0xFF2563EB)],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF7C3AED).withValues(alpha: 0.25),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.22),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                alignment: Alignment.center,
+                child: const Icon(Icons.play_arrow_rounded,
+                    color: Colors.white, size: 17),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      r.summary.topic,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        height: 1.1,
+                      ),
+                    ),
+                    Text(
+                      '${r.subjectName}  ·  $ago',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white.withValues(alpha: 0.80),
+                        height: 1.1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.chevron_right_rounded,
+                  color: Colors.white, size: 18),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _humanAgo(Duration d) {
+    if (d.inMinutes < 1) return 'az önce';
+    if (d.inMinutes < 60) return '${d.inMinutes} dk önce';
+    if (d.inHours < 24) return '${d.inHours} sa önce';
+    if (d.inDays < 7) return '${d.inDays} gün önce';
+    return '${(d.inDays / 7).floor()} hafta önce';
+  }
+
+  // ─── "Bugün Tekrar Et" yatay kuşağı ──────────────────────────────────
+  Widget _buildDueTodayStrip() {
+    if (_dueToday.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Row(
+              children: [
+                const Icon(Icons.event_repeat_rounded,
+                    size: 16, color: Color(0xFFFF6A00)),
+                const SizedBox(width: 6),
+                Text(
+                  'BUGÜN TEKRAR ET'.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    color: const Color(0xFFFF6A00),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color:
+                        const Color(0xFFFF6A00).withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${_dueToday.length} ${'konu'.tr()}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w900,
+                      color: const Color(0xFFFF6A00),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: 96,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: _dueToday.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (_, i) => _dueCard(_dueToday[i]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dueCard(_DueItem d) {
+    final days = d.daysSince;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () async {
+        await Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => _SummaryDetailPage(
+            summary: d.summary,
+            subjectName: d.subjectName,
+          ),
+        ));
+        if (mounted) _loadHomeAggregates();
+      },
+      child: Container(
+        width: 200,
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFFBBF24), Color(0xFFFF6A00)],
+          ),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFFF6A00).withValues(alpha: 0.25),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.30),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    days <= 0
+                        ? 'bugün'.tr()
+                        : '$days ${'gün'.tr()}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                const Icon(Icons.refresh_rounded,
+                    size: 14, color: Colors.white),
+              ],
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  d.summary.topic,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    height: 1.15,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  d.subjectName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white.withValues(alpha: 0.85),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
 
   Widget _buildCardsRow() {
     // Her dersin kendi mini "sayfası" var — başlığın altında o dersin TÜM
@@ -6963,14 +8415,11 @@ ${isVerbal ? '• Tarihte yıl, edebiyatta yazar/eser/dönem, felsefede filozof/
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
-        onTap: () {
-          if (isQuestions) {
-            // Son attempt'ı aç — _openSummary mantığı zaten bu fallback'i yapıyor
-            _openSummary(sum, s.name);
-          } else {
-            _openSummary(sum, s.name);
-          }
-        },
+        // Tek konu satırına bas → DOĞRUDAN o özeti açma; önce dersin TÜM
+        // konuları listesini aç. Kullanıcı oradan hangisini istiyorsa seçer
+        // (kısa/kapsamlı slot ile birlikte). Karta neresine basılırsa basılsın
+        // davranış aynı: konu seçim sayfası gelir.
+        onTap: () => _openSubject(s),
         onLongPress: () async {
           final ok = await showDialog<bool>(
             context: context,
@@ -7084,7 +8533,7 @@ ${isVerbal ? '• Tarihte yıl, edebiyatta yazar/eser/dönem, felsefede filozof/
         : 'Konu Özetleri'.tr();
     final outputWord = isQuestions ? 'test sorularını' : 'özetini';
     final limitLine = isQuestions
-        ? 'Her dersin her konusu için en fazla 3 test hakkın var. 3. denemen bittikten sonra aynı konudan yeni test üretemezsin; başka bir konu seçebilirsin.'
+        ? 'Her dersin her konusu için en fazla 6 test hakkın var. 6. denemen bittikten sonra aynı konudan yeni test üretemezsin; başka bir konu seçebilirsin.'
         : 'Bir ay içinde aynı dersten en fazla 4 konu özeti çıkarabilirsin. Limit dolduğunda bekle, yeni ay başında sayaç sıfırlanır. İstediğin kadar farklı dersle çalışabilirsin — toplam ders sayısı sınırsız.';
     final steps = <(String, String, String)>[
       (
@@ -7666,28 +9115,70 @@ ${isVerbal ? '• Tarihte yıl, edebiyatta yazar/eser/dönem, felsefede filozof/
   }
 
   /// Tam genişlikte "+ Yeni Ders Ekle" butonu — grid'in altında.
-  /// `_addSubjectTile()` (kare grid hücresi) kaldırıldı; yerine bu kullanılır.
+  /// Sağında kalan hak rozeti (n/4). Dolu olduğunda görünüm "kilitli"
+  /// olarak gri tonlarına döner; tıklayınca sınır uyarısı snackbar.
   Widget _wideAddSubjectButton() {
+    final used = _customSubjects.length;
+    final remaining = _customSubjectMaxCount - used;
+    final full = remaining <= 0;
+    final Color tint = full ? Colors.grey : _orange;
     return GestureDetector(
       onTap: _openAddCustomSubjectDialog,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 11),
+        padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 14),
         decoration: BoxDecoration(
-          color: _orange.withValues(alpha: 0.08),
+          color: tint.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: _orange.withValues(alpha: 0.55), width: 1.4),
+          border: Border.all(color: tint.withValues(alpha: 0.55), width: 1.4),
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.add_rounded, size: 16, color: _orange),
-            SizedBox(width: 6),
-            Text(
-              'Yeni Ders Ekle'.tr(),
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                color: _orange,
+            // Spacer için sol tarafa boş alan: rozet sağdayken metin ortalı görünsün.
+            // Estetik için sağdaki rozetle simetrik 56px sol boşluk.
+            const SizedBox(width: 56),
+            // Sol+orta: ikon + metin (ortalı)
+            Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    full ? Icons.lock_rounded : Icons.add_rounded,
+                    size: 16,
+                    color: tint,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Yeni Ders Ekle'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: tint,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Sağ: kalan hak rozeti. "n/4" formatı, içerik renkli kapsül.
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: tint.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: tint.withValues(alpha: 0.5),
+                  width: 0.8,
+                ),
+              ),
+              child: Text(
+                '$used/$_customSubjectMaxCount',
+                style: GoogleFonts.poppins(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w900,
+                  color: tint,
+                  letterSpacing: 0.2,
+                ),
               ),
             ),
           ],
@@ -7967,7 +9458,19 @@ ${isVerbal ? '• Tarihte yıl, edebiyatta yazar/eser/dönem, felsefede filozof/
   // grid altında gösteriliyor. Kullanıcı "+ Yeni Ders Ekle"'ye basınca aynı
   // _openAddCustomSubjectDialog akışı çalışır.
 
+  // En fazla bu kadar özel ders eklenebilir. Kullanıcı kütüphanesinin
+  // dağılmasını önlemek için sınırlı tutuldu.
+  static const int _customSubjectMaxCount = 4;
+
   Future<void> _openAddCustomSubjectDialog() async {
+    // Limit ön-kontrol: dialog'u açmadan önce bilgilendir.
+    if (_customSubjects.length >= _customSubjectMaxCount) {
+      _showSnack(
+          'En fazla $_customSubjectMaxCount yeni ders ekleyebilirsin. '
+                  'Daha fazla eklemek için mevcut bir dersi sil.'
+              .tr());
+      return;
+    }
     final result = await showModalBottomSheet<_NewCustomSubjectResult>(
       context: context,
       isScrollControlled: true,
@@ -7980,6 +9483,12 @@ ${isVerbal ? '• Tarihte yıl, edebiyatta yazar/eser/dönem, felsefede filozof/
       ),
     );
     if (!mounted || result == null) return;
+    // Yarışma koşulu: dialog açıkken başka yerden eklenebilir. Tekrar kontrol.
+    if (_customSubjects.length >= _customSubjectMaxCount) {
+      _showSnack(
+          'En fazla $_customSubjectMaxCount yeni ders eklenebilir.'.tr());
+      return;
+    }
     final exists = [
       ..._inlineEduSubjects,
       ..._customSubjects,
@@ -8137,25 +9646,55 @@ ${isVerbal ? '• Tarihte yıl, edebiyatta yazar/eser/dönem, felsefede filozof/
                           ),
                         ),
                       ),
-                      // Sağ üstte küçük, çerçevesiz, soluk (flu) ipucu —
-                      // iki satıra sığacak kadar dar.
+                      // Sağ üstte vurgulu ipucu — gradient zemin + ikon,
+                      // basılı tut + sürükle akışını net anlatır.
                       ConstrainedBox(
-                        constraints:
-                            BoxConstraints(maxWidth: 130),
-                        child: Opacity(
-                          opacity: 0.85,
-                          child: Text(
-                            'Derslere basılı tut,\nsürükle, yerini değiştir'
-                                .tr(),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.left,
-                            style: GoogleFonts.poppins(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w600,
-                              color: AppPalette.textPrimary(context),
-                              height: 1.2,
+                        constraints: BoxConstraints(maxWidth: 160),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 7),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(10),
+                            gradient: const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Color(0xFFFF6A3C),
+                                Color(0xFFFF8A5C),
+                              ],
                             ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFFF6A3C)
+                                    .withValues(alpha: 0.30),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.swap_horiz_rounded,
+                                  size: 14, color: Colors.white),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  'Bir derse basılı tut, sürükle —\nana derslerle yer değiştir'
+                                      .tr(),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.left,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                    height: 1.15,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -8989,7 +10528,10 @@ InputDecoration _inputDec(String hint) => InputDecoration(
 class _SubjectDetailPage extends StatefulWidget {
   final _Subject subject;
   final LibraryMode mode;
-  final Future<bool> Function(String topic) onAddTopic;
+  /// Summary modunda [length] verildiyse o uzunlukla üretir (slot tap'i).
+  /// Verilmediyse parent kendi rutin akışı: mevcut özetlere göre otomatik
+  /// veya kullanıcıya sorarak.
+  final Future<bool> Function(String topic, {_SummaryLength? length}) onAddTopic;
   final Future<void> Function(_Summary sum) onDelete;
   // Questions mode — boş slot: yeni attempt üret. Çağıran tarafta loader
   // durumu yok; burası kendi loader'ını gösterir. Config, önce setup page'de
@@ -9108,69 +10650,366 @@ class _SubjectDetailPageState extends State<_SubjectDetailPage> {
       if (mounted) setState(() {});
     } else if (action == 'regen') {
       final topic = sum.topic;
-      // Önce mevcut özeti sil, sonra aynı konu için yeniden oluştur
+      final regenLength = sum.length;
+      // Önce mevcut özeti sil, sonra aynı konu+uzunlukta yeniden oluştur
       await widget.onDelete(sum);
       if (!mounted) return;
       setState(() {
         _generating = true;
         _generatingTopic = topic;
       });
-      await widget.onAddTopic(topic);
+      await widget.onAddTopic(topic, length: regenLength);
       if (!mounted) return;
       setState(() => _generating = false);
     }
   }
 
-  // Summary mode — eski düzen.
-  Widget _summaryRow(_Subject s, _Summary sum) {
-    final d = sum.createdAt;
-    final dateText =
-        '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
-    return Material(color: AppPalette.card(context),
+  // Summary mode — konu + sağda 2 slot (Kısa / Kapsamlı).
+  // Dolu slot → o özeti aç. Boş slot → onAddTopic(topic, length:…)
+  // ile ilgili türde özet üret. İki slot da dolduktan sonra ekstra üretim
+  // _generateForExistingSubject içinde engellenir.
+  Widget _summarySlotsRow(
+      _Subject s, String topic, _Summary? shortSum, _Summary? compSum) {
+    final (icon, iconColor) = _topicIcon(topic);
+    return Material(
+      color: AppPalette.card(context),
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        onTap: () {
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => _SummaryDetailPage(
-              summary: sum,
-              subjectName: s.name,
-            ),
-          ));
+        onLongPress: () {
+          // Uzun bas: hangi özet varsa onun action menüsü açılır.
+          // İki varsa kullanıcıya kısa olanı göster (daha yaygın seçim).
+          final target = shortSum ?? compSum;
+          if (target != null) _showTopicActions(target);
         },
-        onLongPress: () => _showTopicActions(sum),
         child: Container(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppPalette.textPrimary(context), width: 1),
+            border:
+                Border.all(color: AppPalette.textPrimary(context), width: 1),
           ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text('📖', style: TextStyle(fontSize: 20)),
-              SizedBox(width: 12),
+              // Sol: konuya özel ikon (üstte, ortalı) + konu adı (altta).
               Expanded(
+                flex: 4,
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(sum.topic,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.black)),
-                    SizedBox(height: 2),
-                    Text(dateText,
-                        style: GoogleFonts.poppins(
-                            fontSize: 11.5,
-                            color: Colors.black54)),
+                    Icon(icon, color: iconColor, size: 24),
+                    const SizedBox(height: 4),
+                    Text(
+                      topic,
+                      maxLines: 2,
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: AppPalette.textPrimary(context),
+                        height: 1.2,
+                      ),
+                    ),
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right_rounded,
-                  color: Colors.black54),
+              const SizedBox(width: 8),
+              // Sağ: 2 slot — Kısa / Kapsamlı (mevcut düzen aynı kalıyor).
+              Expanded(
+                flex: 5,
+                child: Row(children: [
+                  Expanded(
+                    child: _summarySlot(
+                      s,
+                      topic,
+                      _SummaryLength.short,
+                      shortSum,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: _summarySlot(
+                      s,
+                      topic,
+                      _SummaryLength.comprehensive,
+                      compSum,
+                    ),
+                  ),
+                ]),
+              ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Konu adına göre uygun ikon + renk döndürür. Anahtar kelime tabanlı
+  // hızlı eşleştirme: fotosentez → yaprak, atom → atom, türev → fonksiyon vb.
+  // Eşleşme yoksa varsayılan kitap ikonu.
+  (IconData, Color) _topicIcon(String topic) {
+    final t = topic.toLowerCase();
+    // — Biyoloji / Botanik —
+    if (t.contains('fotosentez') ||
+        t.contains('bitki') ||
+        t.contains('yaprak') ||
+        t.contains('çiçek') ||
+        t.contains('orman') ||
+        t.contains('ekosistem')) {
+      return (Icons.eco_rounded, const Color(0xFF22C55E));
+    }
+    if (t.contains('hücre') ||
+        t.contains('mikrobiy') ||
+        t.contains('bakteri') ||
+        t.contains('virüs') ||
+        t.contains('dna') ||
+        t.contains('rna') ||
+        t.contains('gen')) {
+      return (Icons.biotech_rounded, const Color(0xFF14B8A6));
+    }
+    if (t.contains('insan') ||
+        t.contains('anatomi') ||
+        t.contains('iskelet') ||
+        t.contains('kas') ||
+        t.contains('sindirim') ||
+        t.contains('dolaşım') ||
+        t.contains('sinir')) {
+      return (Icons.accessibility_new_rounded, const Color(0xFFEF4444));
+    }
+    if (t.contains('kalp') || t.contains('damar') || t.contains('kan')) {
+      return (Icons.favorite_rounded, const Color(0xFFEF4444));
+    }
+    // — Kimya —
+    if (t.contains('atom') ||
+        t.contains('molekül') ||
+        t.contains('element') ||
+        t.contains('periyodik') ||
+        t.contains('izotop')) {
+      return (Icons.bubble_chart_rounded, const Color(0xFF8B5CF6));
+    }
+    if (t.contains('asit') ||
+        t.contains('baz') ||
+        t.contains('ph') ||
+        t.contains('tepkime') ||
+        t.contains('reaksiyon') ||
+        t.contains('kimya')) {
+      return (Icons.science_rounded, const Color(0xFF06B6D4));
+    }
+    // — Fizik —
+    if (t.contains('elektrik') ||
+        t.contains('akım') ||
+        t.contains('voltaj') ||
+        t.contains('manyet')) {
+      return (Icons.bolt_rounded, const Color(0xFFFBBF24));
+    }
+    if (t.contains('ışık') ||
+        t.contains('optik') ||
+        t.contains('mercek') ||
+        t.contains('renk') ||
+        t.contains('dalga')) {
+      return (Icons.wb_sunny_rounded, const Color(0xFFF59E0B));
+    }
+    if (t.contains('kuvvet') ||
+        t.contains('hareket') ||
+        t.contains('hız') ||
+        t.contains('ivme') ||
+        t.contains('newton') ||
+        t.contains('momentum')) {
+      return (Icons.speed_rounded, const Color(0xFFEF4444));
+    }
+    if (t.contains('uzay') ||
+        t.contains('gezegen') ||
+        t.contains('güneş sistem') ||
+        t.contains('yıldız') ||
+        t.contains('evren') ||
+        t.contains('astronomi')) {
+      return (Icons.rocket_launch_rounded, const Color(0xFF6366F1));
+    }
+    if (t.contains('enerji') || t.contains('iş güç') || t.contains('termodin')) {
+      return (Icons.flash_on_rounded, const Color(0xFFFBBF24));
+    }
+    // — Matematik —
+    if (t.contains('türev') ||
+        t.contains('integral') ||
+        t.contains('limit') ||
+        t.contains('fonksiyon')) {
+      return (Icons.functions_rounded, const Color(0xFF2563EB));
+    }
+    if (t.contains('geometri') ||
+        t.contains('üçgen') ||
+        t.contains('daire') ||
+        t.contains('çember') ||
+        t.contains('kare') ||
+        t.contains('dikdörtgen') ||
+        t.contains('polig')) {
+      return (Icons.category_rounded, const Color(0xFF2563EB));
+    }
+    if (t.contains('denklem') ||
+        t.contains('eşitsizlik') ||
+        t.contains('cebir') ||
+        t.contains('polinom')) {
+      return (Icons.calculate_rounded, const Color(0xFF2563EB));
+    }
+    if (t.contains('olasılık') ||
+        t.contains('istatistik') ||
+        t.contains('permüt') ||
+        t.contains('kombin')) {
+      return (Icons.casino_rounded, const Color(0xFF2563EB));
+    }
+    if (t.contains('mantık') || t.contains('küme')) {
+      return (Icons.account_tree_rounded, const Color(0xFF2563EB));
+    }
+    // — Tarih / Sosyal —
+    if (t.contains('tarih') ||
+        t.contains('osman') ||
+        t.contains('selçuk') ||
+        t.contains('cumhuriyet') ||
+        t.contains('savaş') ||
+        t.contains('antlaş') ||
+        t.contains('inkılap') ||
+        t.contains('atatürk')) {
+      return (Icons.history_edu_rounded, const Color(0xFF92400E));
+    }
+    if (t.contains('coğraf') ||
+        t.contains('iklim') ||
+        t.contains('harita') ||
+        t.contains('kıta') ||
+        t.contains('nehir') ||
+        t.contains('dağ')) {
+      return (Icons.public_rounded, const Color(0xFF0EA5E9));
+    }
+    // — Edebiyat / Dil —
+    if (t.contains('şiir') ||
+        t.contains('roman') ||
+        t.contains('öykü') ||
+        t.contains('edebiyat') ||
+        t.contains('destan')) {
+      return (Icons.menu_book_rounded, const Color(0xFFA855F7));
+    }
+    if (t.contains('dilbilgisi') ||
+        t.contains('gramer') ||
+        t.contains('sözcük') ||
+        t.contains('yazım') ||
+        t.contains('noktal') ||
+        t.contains('cümle')) {
+      return (Icons.abc_rounded, const Color(0xFFA855F7));
+    }
+    if (t.contains('ingilizce') ||
+        t.contains('almanca') ||
+        t.contains('fransızca') ||
+        t.contains('yabancı dil')) {
+      return (Icons.translate_rounded, const Color(0xFF7C3AED));
+    }
+    // — Felsefe / Din —
+    if (t.contains('felsefe') ||
+        t.contains('mantık') ||
+        t.contains('etik') ||
+        t.contains('ahlak')) {
+      return (Icons.psychology_rounded, const Color(0xFF6366F1));
+    }
+    if (t.contains('din') ||
+        t.contains('kuran') ||
+        t.contains('peygamb') ||
+        t.contains('ibadet')) {
+      return (Icons.mosque_rounded, const Color(0xFF059669));
+    }
+    // — Ekonomi / Sosyal —
+    if (t.contains('ekonomi') ||
+        t.contains('para') ||
+        t.contains('enflasyon') ||
+        t.contains('ticaret')) {
+      return (Icons.attach_money_rounded, const Color(0xFF10B981));
+    }
+    // — Bilişim —
+    if (t.contains('kod') ||
+        t.contains('programlama') ||
+        t.contains('algoritma') ||
+        t.contains('yazılım')) {
+      return (Icons.code_rounded, const Color(0xFF2563EB));
+    }
+    // — Su / Çevre —
+    if (t.contains('su') || t.contains('okyanus') || t.contains('deniz')) {
+      return (Icons.water_drop_rounded, const Color(0xFF0EA5E9));
+    }
+    // Varsayılan
+    return (Icons.menu_book_rounded, AppPalette.textSecondary(context));
+  }
+
+  Widget _summarySlot(_Subject subject, String topic, _SummaryLength length,
+      _Summary? existing) {
+    final filled = existing != null;
+    // Renkler: kısa=yeşil tonu, kapsamlı=mor tonu; boş=soluk gri.
+    final Color accent = length == _SummaryLength.short
+        ? const Color(0xFF10B981)
+        : const Color(0xFF7C3AED);
+    final bg = filled ? accent : const Color(0xFFEFF1F6);
+    final fg = filled ? Colors.white : Colors.black38;
+    final borderColor =
+        filled ? accent : Colors.black.withValues(alpha: 0.18);
+    final label = length == _SummaryLength.short
+        ? 'Kısa Özet'.tr()
+        : 'Kapsamlı Özet'.tr();
+    return AspectRatio(
+      aspectRatio: 1.0,
+      child: Material(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () async {
+            if (filled) {
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => _SummaryDetailPage(
+                  summary: existing,
+                  subjectName: subject.name,
+                ),
+              ));
+              return;
+            }
+            // Boş slot — bu uzunlukta üret.
+            setState(() {
+              _generating = true;
+              _generatingTopic = topic;
+            });
+            await widget.onAddTopic(topic, length: length);
+            if (!mounted) return;
+            setState(() => _generating = false);
+          },
+          child: Container(
+            alignment: Alignment.center,
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: borderColor, width: 1),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  filled
+                      ? Icons.check_circle_rounded
+                      : Icons.add_rounded,
+                  size: 14,
+                  color: fg,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  maxLines: 2,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w800,
+                    color: fg,
+                    height: 1.1,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -9180,14 +11019,18 @@ class _SubjectDetailPageState extends State<_SubjectDetailPage> {
   // Questions mode — konu + sağda 3 küçük test slot'u.
   // Dolu slot turuncu (tamamlanmışsa ✓ ikonlu), boş slot soluk.
   // Dolu slot → sonuç / devam. Boş slot → yeni test üret. 3 bitince kapalı.
+  // Konu kartı — üstte konu adı + ikon, altında yatay 6 test slotu.
+  // Eski "yan yana 3 slot" düzeni 6 slota geçince yatayda sığmadığı için
+  // altta tek satıra alındı.
   Widget _questionsRow(_Subject s, _Summary sum) {
     final slots = <Widget>[];
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 6; i++) {
       final attempt = i < sum.tests.length ? sum.tests[i] : null;
       slots.add(Expanded(child: _testSlot(s, sum, i, attempt)));
-      if (i < 2) slots.add(SizedBox(width: 6));
+      if (i < 5) slots.add(const SizedBox(width: 5));
     }
-    return Material(color: AppPalette.card(context),
+    return Material(
+      color: AppPalette.card(context),
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
@@ -9196,19 +11039,19 @@ class _SubjectDetailPageState extends State<_SubjectDetailPage> {
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppPalette.textPrimary(context), width: 1),
+            border:
+                Border.all(color: AppPalette.textPrimary(context), width: 1),
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('📖', style: TextStyle(fontSize: 20)),
-              SizedBox(width: 10),
-              // Sol: konu adı
-              Expanded(
-                flex: 4,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
+              // ── Üst satır: ikon + konu adı + hak rozeti ─────────────
+              Row(
+                children: [
+                  const Text('📖', style: TextStyle(fontSize: 20)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
                       sum.topic,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -9219,22 +11062,14 @@ class _SubjectDetailPageState extends State<_SubjectDetailPage> {
                         height: 1.2,
                       ),
                     ),
-                    SizedBox(height: 4),
-                    // Hak rozeti: kaç test hakkı kaldı, renkli vurgu.
-                    //   3 hak → yeşil "Hazır"
-                    //   2 hak → mavi  "2 hak kaldı"
-                    //   1 hak → turuncu "Son hak"
-                    //   0 hak → gri "Bitti"
-                    _testQuotaBadge(sum.tests.length),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 8),
+                  _testQuotaBadge(sum.tests.length),
+                ],
               ),
-              SizedBox(width: 8),
-              // Sağ: 3 slot
-              Expanded(
-                flex: 5,
-                child: Row(children: slots),
-              ),
+              const SizedBox(height: 10),
+              // ── Alt satır: 6 test slotu yatayda eşit dağılmış ──────
+              Row(children: slots),
             ],
           ),
         ),
@@ -9242,23 +11077,28 @@ class _SubjectDetailPageState extends State<_SubjectDetailPage> {
     );
   }
 
-  // Kaç test hakkı kaldığını renkli rozetle göster.
+  // Kaç test hakkı kaldığını renkli rozetle göster — toplam 6 hak.
   Widget _testQuotaBadge(int used) {
-    final remaining = 3 - used;
+    const total = 6;
+    final remaining = total - used;
     final Color bg;
     final Color fg;
     final String label;
-    if (remaining == 3) {
-      bg = Color(0x1410B981);
-      fg = Color(0xFF059669);
-      label = '3 ${'hak'.tr()}';
-    } else if (remaining == 2) {
-      bg = Color(0x142563EB);
-      fg = Color(0xFF2563EB);
-      label = '2 ${'hak kaldı'.tr()}';
+    if (remaining == total) {
+      bg = const Color(0x1410B981);
+      fg = const Color(0xFF059669);
+      label = '$total ${'hak'.tr()}';
+    } else if (remaining >= 3) {
+      bg = const Color(0x142563EB);
+      fg = const Color(0xFF2563EB);
+      label = '$remaining ${'hak kaldı'.tr()}';
+    } else if (remaining >= 2) {
+      bg = const Color(0x14D97706);
+      fg = const Color(0xFFD97706);
+      label = '$remaining ${'hak kaldı'.tr()}';
     } else if (remaining == 1) {
-      bg = Color(0x14FF6A00);
-      fg = Color(0xFFFF6A00);
+      bg = const Color(0x14FF6A00);
+      fg = const Color(0xFFFF6A00);
       label = 'Son hak'.tr();
     } else {
       bg = AppPalette.cardMuted(context);
@@ -9288,13 +11128,14 @@ class _SubjectDetailPageState extends State<_SubjectDetailPage> {
       _Subject subject, _Summary summary, int index, _TestAttempt? attempt) {
     final filled = attempt != null;
     final completed = attempt?.completed ?? false;
-    // Renkler: dolu=turuncu, boş=soluk.
+    // Renkler: tamamlandı → yeşil, başladı (yarım) → turuncu, boş → soluk.
+    const green = Color(0xFF10B981);
     final bg = filled
-        ? _orange.withValues(alpha: completed ? 1.0 : 0.75)
-        : Color(0xFFEFF1F6);
+        ? (completed ? green : _orange.withValues(alpha: 0.75))
+        : const Color(0xFFEFF1F6);
     final fg = filled ? Colors.white : Colors.black38;
     final borderColor = filled
-        ? _orange
+        ? (completed ? green : _orange)
         : Colors.black.withValues(alpha: 0.18);
     final label = '${index + 1}. ${'Test'.tr()}';
     return AspectRatio(
@@ -9321,15 +11162,50 @@ class _SubjectDetailPageState extends State<_SubjectDetailPage> {
                 return;
               }
               if (widget.onAddAttempt == null) return;
-              // Önce kullanıcıya son ayarlar sayfası.
-              final cfg = await Navigator.of(context).push<_TestConfig>(
-                MaterialPageRoute(
-                  builder: (_) => _TestSetupPage(
-                    subjectName: subject.name,
-                    topic: summary.topic,
-                    attemptIndex: summary.tests.length,
-                  ),
+              // Önce kullanıcıya son ayarlar sayfası. Konu özetini ve
+              // önceki denemeleri ile birlikte aynı dersin diğer konularını
+              // setup'a iletiyoruz — özeti hatırlat / yanlışlardan tekrar /
+              // karışık konular özellikleri için.
+              _Summary? thisSummary;
+              try {
+                thisSummary = subject.summaries.firstWhere(
+                    (s) => s.id == summary.id);
+              } catch (_) {
+                thisSummary = null;
+              }
+              final summaryContent = thisSummary?.content ?? '';
+              final prevAttempts = thisSummary?.tests ?? const <_TestAttempt>[];
+              // showGeneralDialog → arka plan buğulu (BackdropFilter), kart
+              // ortada animasyonla açılır. MaterialPageRoute tam ekran
+              // açıyordu; "ilk test oluştur" akışındaki narin görünüm.
+              final cfg = await showGeneralDialog<_TestConfig>(
+                context: context,
+                barrierDismissible: true,
+                barrierLabel: 'TestSetup',
+                barrierColor: Colors.black.withValues(alpha: 0.35),
+                transitionDuration: const Duration(milliseconds: 240),
+                pageBuilder: (_, __, ___) => _TestSetupPage(
+                  subjectName: subject.name,
+                  topic: summary.topic,
+                  attemptIndex: summary.tests.length,
+                  summaryContent: summaryContent,
+                  previousAttempts: prevAttempts,
+                  sameSubjectSummaries: subject.summaries,
                 ),
+                transitionBuilder: (ctx, anim, _, child) {
+                  final t = Curves.easeOutCubic.transform(anim.value);
+                  return BackdropFilter(
+                    filter: ui.ImageFilter.blur(
+                        sigmaX: 6 * t, sigmaY: 6 * t),
+                    child: Opacity(
+                      opacity: anim.value,
+                      child: Transform.scale(
+                        scale: 0.96 + 0.04 * t,
+                        child: child,
+                      ),
+                    ),
+                  );
+                },
               );
               if (cfg == null) return;
               setState(() {
@@ -9385,7 +11261,7 @@ class _SubjectDetailPageState extends State<_SubjectDetailPage> {
     final s = widget.subject;
     final isQuestions = widget.mode == LibraryMode.questions;
     final fabLabel = isQuestions
-        ? 'Yeni Test Soruları'.tr()
+        ? 'Yeni Test Oluştur'.tr()
         : 'Yeni Konu Özeti'.tr();
     // Sayfa zemini — planner'da ders kartına atanmış renk varsa onu kullan,
     // yoksa nötr açık gri. Kart arka planının koyu/açık olmasına göre
@@ -9408,8 +11284,10 @@ class _SubjectDetailPageState extends State<_SubjectDetailPage> {
         ),
       ),
       // Sağ alt: yeni özet/soru için bu dersin konular sayfasını açan buton.
+      // Questions mode → yeşil (Test Oluştur), Summary mode → siyah (orijinal).
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: Colors.black,
+        backgroundColor:
+            isQuestions ? const Color(0xFF10B981) : Colors.black,
         foregroundColor: Colors.white,
         elevation: 4,
         onPressed: () {
@@ -9433,16 +11311,49 @@ class _SubjectDetailPageState extends State<_SubjectDetailPage> {
                       style: GoogleFonts.poppins(
                           color: Colors.grey.shade500)),
                 )
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-                  itemCount: s.summaries.length,
-                  separatorBuilder: (_, __) => SizedBox(height: 10),
-                  itemBuilder: (_, i) {
-                    final sum = s.summaries[i];
+              : Builder(
+                  builder: (_) {
+                    // Summary modunda aynı konuya ait kısa + kapsamlı özetleri
+                    // tek bir satırda 2 slot olarak göster. Questions modu eski
+                    // 1-satır-1-test akışını korur.
                     if (widget.mode == LibraryMode.questions) {
-                      return _questionsRow(s, sum);
+                      return ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                        itemCount: s.summaries.length,
+                        separatorBuilder: (_, __) => SizedBox(height: 10),
+                        itemBuilder: (_, i) =>
+                            _questionsRow(s, s.summaries[i]),
+                      );
                     }
-                    return _summaryRow(s, sum);
+                    // Konuya göre grupla (case-insensitive). LinkedHashMap
+                    // ekleme sırasını korur → en son eklenen konu üstte
+                    // (s.summaries zaten insert(0, …) ile en güncel başta).
+                    final groups = <String, List<_Summary>>{};
+                    for (final sum in s.summaries) {
+                      final key = sum.topic.toLowerCase();
+                      groups.putIfAbsent(key, () => []).add(sum);
+                    }
+                    final entries = groups.entries.toList();
+                    return ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                      itemCount: entries.length,
+                      separatorBuilder: (_, __) => SizedBox(height: 10),
+                      itemBuilder: (_, i) {
+                        final group = entries[i].value;
+                        _Summary? shortSum;
+                        _Summary? compSum;
+                        for (final sum in group) {
+                          if (sum.length == _SummaryLength.short) {
+                            shortSum ??= sum;
+                          } else {
+                            compSum ??= sum;
+                          }
+                        }
+                        // Konu adı için ilk öğeden al (orijinal harf düzeni).
+                        return _summarySlotsRow(
+                            s, group.first.topic, shortSum, compSum);
+                      },
+                    );
                   },
                 ),
           if (_generating)
@@ -9602,6 +11513,12 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
   // özette jank). 150ms throttle: chunk'lar üst üste binerse sonuncu
   // parse'i tetikler, intermediate'lerde eski cache görünür.
   Timer? _parseDebounce;
+  // Loader watchdog — stream 45 sn boyunca anlamlı içerik üretmezse
+  // loader ekranına "Bağlantı yavaş — Yeniden Dene" butonu ekleriz.
+  // Önceden hiç timeout yoktu → kullanıcı sonsuza dek "özetin neredeyse
+  // hazır" loader'ında takılıp kalıyordu.
+  Timer? _loaderSlowTimer;
+  bool _loaderSlow = false;
   // Auto-scroll DEVRE DIŞI — kullanıcı özet oluşturulurken ekranın
   // aşağı kaymasını istemiyor; özetin ilk sayfası ekranda kalsın,
   // okuyucu kendi kaydırdığı kadar görsün. Kullanıcı manuel olarak
@@ -9613,6 +11530,66 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
   /// Controller'ı parent'ta tutup overlay'e inject ediyoruz.
   final ScrollController _scrollController = ScrollController();
 
+  // ── Yeni özet sayfası özellikleri (font / TOC / bookmark / arama / vs) ──
+  /// Yazı boyutu — kullanıcı A−/A+ ile değiştirir. 12-22 arası clamp.
+  double _bodyFontSize = 15;
+  static const String _fontSizePrefKey = 'summary_body_font_size';
+
+  /// Yer imi (scroll offset) — bu özete özel.
+  double? _bookmarkOffset;
+  String get _bookmarkPrefKey => 'summary_bookmark_${widget.summary.id}';
+
+  /// Çizimleri/vurguları görsel olarak gizle — sınava hazırlıkta "boş özet".
+  bool _hideStrokes = false;
+
+  /// Arama state'i: search bar görünür mü, sorgu nedir.
+  bool _showSearch = false;
+  String _searchQuery = '';
+  final TextEditingController _searchCtrl = TextEditingController();
+
+  /// Scroll ilerleme yüzdesi (0..1) — üst ince çubuk için.
+  final ValueNotifier<double> _readProgress = ValueNotifier<double>(0);
+
+  /// Sayfanın başına dön FAB görünürlüğü — scroll > 600 ise true.
+  final ValueNotifier<bool> _showBackToTop = ValueNotifier<bool>(false);
+
+  /// TTS state'i.
+  bool _ttsPlaying = false;
+
+  /// Bölüm tamamlama — kullanıcı bir bölümü "öğrendim ✓" işaretler.
+  Set<int> _completedSections = {};
+  String get _completedPrefKey =>
+      'summary_completed_${widget.summary.id}';
+
+  /// Sticky header — şu an görünen bölümün başlığı (0..n).
+  /// -1 = title card görünüyor (başlığı title card sağlıyor).
+  final ValueNotifier<int> _currentSectionIdx = ValueNotifier<int>(-1);
+
+  // ── Spaced repetition (tekrar planı) state ───────────────────────────────
+  // Bilim "spaced repetition" intervals: 1, 3, 7, 14, 30 gün. Bölüm
+  // tamamlama %100'e ulaşınca otomatik başlar; overflow menüsünden
+  // manuel başlatılabilir. Her özet kendi planına sahip (key: srs_<id>).
+  static const _kSrsIntervalsDays = [1, 3, 7, 14, 30];
+  DateTime? _srsLastReview;
+  int _srsStep = 0;
+  bool _srsCompleted = false;
+  String get _srsPrefKey => 'srs_${widget.summary.id}';
+  bool get _srsScheduled => _srsLastReview != null && !_srsCompleted;
+  DateTime? get _srsNextDue {
+    if (_srsLastReview == null || _srsCompleted) return null;
+    final step = _srsStep.clamp(0, _kSrsIntervalsDays.length - 1);
+    return _srsLastReview!.add(Duration(days: _kSrsIntervalsDays[step]));
+  }
+  bool get _srsIsDue {
+    final due = _srsNextDue;
+    return due != null && !DateTime.now().isBefore(due);
+  }
+
+  // ── TTS hız kontrolü ─────────────────────────────────────────────────
+  // 1.0x → TtsService default rate (0.58). Çarpan SharedPrefs'te kalıcı.
+  static const String _ttsSpeedPrefKey = 'summary_tts_speed_x';
+  double _ttsSpeedX = 1.0;
+
   // ── Parse cache — sayfa açılışını anında yapmak için ───────────────────
   // _clean() + _splitSections() pahalı; her build'de tekrar koşmasın.
   // Ham içerik değişmediyse cache kullan, sadece içerik değişince yenile.
@@ -9621,6 +11598,9 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
   List<_Section> _cachedNormalSections = const [];
   _Section? _cachedKeyFacts;
   _Section? _cachedExamples;
+  // Her normal section için GlobalKey — sticky header için gerçek scroll
+  // konumunu ölçmekte kullanılır. Section sayısı değişince yenilenir.
+  List<GlobalKey> _sectionKeys = const [];
 
   void _ensureParsed(String raw) {
     if (raw == _cachedRaw) return;
@@ -9634,6 +11614,9 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
       // "📌 Özetle" kapanış paragrafı kaldırıldı — geçmişte üretilmiş
       // özetlerde bu bölüm varsa render'da gizle.
       if (_isClosingHeader(s.header)) continue;
+      // "📚 Konu İşlenişi" sekmesi de gizlenir — ana içeriği zaten
+      // başlık + 5 bilgi + sorular toplulukla aynı bilgiyi veriyor.
+      if (_isTopicProcessHeader(s.header)) continue;
       if (_isKeyFactsHeader(s.header)) {
         key = s;
       } else if (_isExamplesHeader(s.header)) {
@@ -9645,11 +11628,27 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
     _cachedNormalSections = normal;
     _cachedKeyFacts = key;
     _cachedExamples = examples;
+    if (_sectionKeys.length != normal.length) {
+      _sectionKeys = List.generate(normal.length, (_) => GlobalKey());
+    }
   }
 
   bool _isClosingHeader(String h) {
     final t = h.toLowerCase();
     return t.contains('📌') || t.contains('özetle');
+  }
+
+  /// "📚 Konu İşlenişi" / "topic processing" sekmesi — render'da gizlenir.
+  /// Eski özetlerde bu bölüm varsa kart olarak gösterilmez (içerik korunur,
+  /// silinmez — sadece UI'da çıkartılır).
+  bool _isTopicProcessHeader(String h) {
+    final t = h.toLowerCase();
+    return t.contains('konu işlen') ||
+        t.contains('konu islen') ||
+        t.contains('topic processing') ||
+        t.contains('topic process') ||
+        t.contains('konu anlatımı') ||
+        t.contains('konu anlatimi');
   }
 
   bool _isExamplesHeader(String h) {
@@ -9678,7 +11677,11 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
       type: 'özet',
     );
     _loadColors();
+    _loadUserPrefs();
+    _loadSrs();
+    _incrementVisitCount();
     _scrollController.addListener(_handleScroll);
+    _scrollController.addListener(_updateReadProgress);
     _attachStreamIfAny(widget.stream);
     // Heavy parse'ı ilk frame'den SONRA yap — sayfa transition'ı anında
     // açılsın, içerik bir tick sonra dolsun. Boş cache ile ilk build hızlı.
@@ -9687,8 +11690,641 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
         if (!mounted) return;
         _ensureParsed(widget.summary.content);
         setState(() {});
+        // Bookmark varsa kullanıcıya "kaldığın yerden devam?" snackbar.
+        _maybeShowBookmarkResume();
       });
     }
+  }
+
+  Future<void> _incrementVisitCount() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = 'topic_visits_${widget.summary.id}';
+      final cur = prefs.getInt(key) ?? 0;
+      await prefs.setInt(key, cur + 1);
+      // AcademicPlanner home'daki "Kaldığın yerden devam et" kartı için —
+      // son açılan özetin id+ders adı+zamanı global anahtara yazılır.
+      await prefs.setString('last_opened_summary', jsonEncode({
+        'summaryId': widget.summary.id,
+        'subjectName': widget.subjectName,
+        'topic': widget.summary.topic,
+        'at': DateTime.now().toIso8601String(),
+      }));
+    } catch (_) {}
+  }
+
+  Future<void> _loadUserPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final fs = prefs.getDouble(_fontSizePrefKey);
+    final bm = prefs.getDouble(_bookmarkPrefKey);
+    final hs = prefs.getBool('summary_hide_strokes') ?? false;
+    final completed = prefs.getStringList(_completedPrefKey) ?? const [];
+    final tx = prefs.getDouble(_ttsSpeedPrefKey);
+    if (!mounted) return;
+    setState(() {
+      if (fs != null) _bodyFontSize = fs.clamp(12, 22);
+      _bookmarkOffset = bm;
+      _hideStrokes = hs;
+      _completedSections = completed
+          .map((s) => int.tryParse(s))
+          .whereType<int>()
+          .toSet();
+      if (tx != null) _ttsSpeedX = tx.clamp(0.25, 2.5);
+    });
+  }
+
+  // ── Spaced repetition: load / save / control ───────────────────────────
+  Future<void> _loadSrs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_srsPrefKey);
+      if (raw == null) return;
+      final m = jsonDecode(raw) as Map<String, dynamic>;
+      final last = m['last'] as String?;
+      final step = (m['step'] as int?) ?? 0;
+      final done = (m['done'] as bool?) ?? false;
+      if (!mounted) return;
+      setState(() {
+        _srsLastReview = last != null ? DateTime.tryParse(last) : null;
+        _srsStep = step.clamp(0, _kSrsIntervalsDays.length - 1);
+        _srsCompleted = done;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _saveSrs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (_srsLastReview == null) {
+        await prefs.remove(_srsPrefKey);
+        return;
+      }
+      await prefs.setString(_srsPrefKey, jsonEncode({
+        'last': _srsLastReview!.toIso8601String(),
+        'step': _srsStep,
+        'done': _srsCompleted,
+      }));
+    } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'srs_save');
+    }
+  }
+
+  Future<void> _startSrs({bool silent = false}) async {
+    if (_srsScheduled) return;
+    setState(() {
+      _srsLastReview = DateTime.now();
+      _srsStep = 0;
+      _srsCompleted = false;
+    });
+    await _saveSrs();
+    if (!silent && mounted) {
+      _toast('📚 Tekrar planı başladı — 1 gün sonra hatırlatacağım.');
+    }
+  }
+
+  Future<void> _confirmSrsReview() async {
+    if (!_srsScheduled) return;
+    setState(() {
+      _srsLastReview = DateTime.now();
+      _srsStep++;
+      if (_srsStep >= _kSrsIntervalsDays.length) {
+        _srsCompleted = true;
+        _srsStep = _kSrsIntervalsDays.length - 1;
+      }
+    });
+    await _saveSrs();
+    if (mounted) {
+      _toast(_srsCompleted
+          ? '🎉 Tekrar planı tamamlandı — konu uzun süreli belleğe geçti.'
+          : '✓ Sonraki tekrar ${_kSrsIntervalsDays[_srsStep]} gün sonra.');
+    }
+  }
+
+  Future<void> _resetSrs() async {
+    setState(() {
+      _srsLastReview = null;
+      _srsStep = 0;
+      _srsCompleted = false;
+    });
+    await _saveSrs();
+  }
+
+  // ── TTS hız ayarı: çarpan → gerçek rate, kalıcı + canlı uygula ────────
+  double get _ttsRateActual => (0.58 * _ttsSpeedX).clamp(0.15, 1.50);
+
+  Future<void> _setTtsSpeed(double x) async {
+    setState(() => _ttsSpeedX = x);
+    await TtsService.setRate(_ttsRateActual);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble(_ttsSpeedPrefKey, x);
+    } catch (_) {}
+  }
+
+  String _ttsSpeedLabel() {
+    if (_ttsSpeedX <= 0.6) return '0.5x';
+    if (_ttsSpeedX <= 1.1) return '1x';
+    if (_ttsSpeedX <= 1.6) return '1.5x';
+    return '2x';
+  }
+
+  Future<void> _saveCompletedSections() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      _completedPrefKey,
+      _completedSections.map((i) => i.toString()).toList(),
+    );
+  }
+
+  void _toggleSectionCompleted(int idx) {
+    setState(() {
+      if (_completedSections.contains(idx)) {
+        _completedSections.remove(idx);
+      } else {
+        _completedSections.add(idx);
+      }
+    });
+    _saveCompletedSections();
+    // SRS otomatik tetik: tüm bölümler tamamlandığında ve henüz plan yoksa
+    // 1/3/7/14/30 gün aralıklı tekrar planı kendiliğinden başlar.
+    if (_cachedNormalSections.isNotEmpty &&
+        _completedSections.length >= _cachedNormalSections.length &&
+        !_srsScheduled && !_srsCompleted) {
+      _startSrs();
+    }
+  }
+
+  Future<void> _saveFontSize() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_fontSizePrefKey, _bodyFontSize);
+  }
+
+  Future<void> _saveHideStrokes() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('summary_hide_strokes', _hideStrokes);
+  }
+
+  void _updateReadProgress() {
+    if (!_scrollController.hasClients) return;
+    final p = _scrollController.position;
+    if (p.maxScrollExtent <= 0) {
+      _readProgress.value = 0;
+      _showBackToTop.value = false;
+      return;
+    }
+    _readProgress.value =
+        (p.pixels / p.maxScrollExtent).clamp(0.0, 1.0);
+    _showBackToTop.value = p.pixels > 600;
+    // Sticky header: her section'ın GlobalKey'inden gerçek konumu ölç.
+    // AppBar (44) + progress bar (2.5) + sticky pill yüksekliği (~30) +
+    // küçük buffer = 80. Bu eşiğin altına geçen son section aktif kabul
+    // edilir. Önceki yaklaşım: her section ~380px sabit varsayıyordu;
+    // farklı uzunluktaki section'larda başlık yanlış konumda kalıyordu.
+    if (_cachedNormalSections.isNotEmpty && _sectionKeys.isNotEmpty) {
+      const threshold = 80.0;
+      int activeIdx = -1;
+      for (int i = _sectionKeys.length - 1; i >= 0; i--) {
+        final ctx = _sectionKeys[i].currentContext;
+        if (ctx == null) continue;
+        final box = ctx.findRenderObject();
+        if (box is! RenderBox || !box.attached) continue;
+        final dy = box.localToGlobal(Offset.zero).dy;
+        if (dy <= threshold) {
+          activeIdx = i;
+          break;
+        }
+      }
+      _currentSectionIdx.value = activeIdx;
+    }
+  }
+
+  void _scrollToTop() {
+    if (!_scrollController.hasClients) return;
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  // ── TTS — Sesli Okuma ──────────────────────────────────────────────────
+  /// TTS engine'in "yıldız", "yumruk emoji" gibi okuyacağı sembol/emoji/
+  /// dingbat karakterlerini içerikten süzer. Rune bazında çalışır — Dart
+  /// regex'in surrogate pair zafiyetlerinden bağımsız. Korur: harf, rakam,
+  /// noktalama, boşluk, TR aksanlı karakterler, matematik temel sembolleri
+  /// (=, +, −, ×, ÷, %, ‰), parantezler.
+  String _stripSymbolsForTts(String s) {
+    bool isSkippable(int r) {
+      // Emoji blokları
+      if (r >= 0x1F300 && r <= 0x1FAFF) return true; // misc symbols & pictographs, emoticons, transport
+      if (r >= 0x1F000 && r <= 0x1F2FF) return true; // mahjong, domino, playing cards, enclosed
+      if (r >= 0x2600 && r <= 0x27BF) return true; // misc symbols, dingbats
+      if (r >= 0x2300 && r <= 0x23FF) return true; // misc technical
+      if (r >= 0x2B00 && r <= 0x2BFF) return true; // misc symbols and arrows
+      if (r >= 0x2190 && r <= 0x21FF) return true; // arrows
+      if (r >= 0x25A0 && r <= 0x25FF) return true; // geometric shapes
+      // Box drawing & block elements — bazen şema satırlarında kalır
+      if (r >= 0x2500 && r <= 0x259F) return true;
+      // Bullets ve seçilmiş işaretler
+      const skip = <int>{
+        0x2022, // •
+        0x00B7, // ·
+        0x2023, // ‣
+        0x25CF, // ●
+        0x25CB, // ○
+        0x2605, // ★
+        0x2606, // ☆
+        0x2713, // ✓
+        0x2714, // ✔
+        0x2717, // ✗
+        0x2718, // ✘
+        0x27A4, // ➤
+        0x27A1, // ➡
+        0x2192, // → (zaten arrows içinde ama explicit)
+        0xFE0F, // variation selector
+        0x200D, // ZWJ
+        0x2060, // word joiner
+        0x00AD, // soft hyphen
+      };
+      if (skip.contains(r)) return true;
+      // Yan-yana yıldız işaretleri (zaten regex'le siliniyor; rune kontrolünde de tut)
+      if (r == 0x002A) return true; // *
+      // Hash
+      if (r == 0x0023) return true; // #
+      return false;
+    }
+
+    final buf = StringBuffer();
+    for (final r in s.runes) {
+      if (isSkippable(r)) {
+        buf.write(' ');
+      } else {
+        buf.writeCharCode(r);
+      }
+    }
+    // Çoklu boşlukları tek boşluk yap.
+    return buf.toString().replaceAll(RegExp(r'[ \t]+'), ' ').trim();
+  }
+
+  Future<void> _toggleTts() async {
+    if (_ttsPlaying) {
+      await TtsService.stop();
+      setState(() => _ttsPlaying = false);
+      return;
+    }
+    final raw = _streamedContent ?? widget.summary.content;
+    final cleaned = _clean(raw);
+    // İçeriği TTS için temizle: latex blokları, ŞEMA blokları, markdown
+    // markerları çıkar; ardından rune bazında emoji/sembol/dingbat süz.
+    String spoken = cleaned
+        .replaceAll(RegExp(r'\\\([^\)]+\\\)'), '')
+        .replaceAll(RegExp(r'\\\[[^\]]+\\\]'), '')
+        .replaceAll(RegExp(r'\[ŞEMA:[^\]]*\][^\[]*\[/ŞEMA\]', dotAll: true), '')
+        .replaceAll(RegExp(r'\[VIDEO:[^\]]*\]', dotAll: true), '')
+        .replaceAll(RegExp(r'\[WEB:[^\]]*\]', dotAll: true), '');
+    spoken = _stripSymbolsForTts(spoken);
+    // Boş satır fazlalığını sadeleştir — TTS doğal nefes verir.
+    spoken = spoken.replaceAll(RegExp(r'\n{2,}'), '\n').trim();
+    if (spoken.isEmpty) {
+      _toast('Okunacak içerik yok.');
+      return;
+    }
+    setState(() => _ttsPlaying = true);
+    // Kullanıcının seçtiği hızı her oynatma öncesi yeniden uygula —
+    // başka ekran (canlı analiz vb.) rate'i değiştirmiş olabilir.
+    await TtsService.setRate(_ttsRateActual);
+    try {
+      await TtsService.speak(spoken);
+    } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'summary_tts');
+    } finally {
+      if (mounted) setState(() => _ttsPlaying = false);
+    }
+  }
+
+  // ── "Bu kısmı farklı anlat" — AI ile yeniden anlatım ────────────────
+  Future<void> _rewriteSectionWithAi(String header, String body) async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(SnackBar(
+      content: Row(
+        children: [
+          const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+                strokeWidth: 2, color: Colors.white),
+          ),
+          const SizedBox(width: 12),
+          Text('Bu bölümü farklı anlattırıyorum…'.tr()),
+        ],
+      ),
+      duration: const Duration(seconds: 12),
+    ));
+    try {
+      final prompt =
+          'Aşağıdaki ders konusu açıklamasını 12-15 yaşındaki bir öğrenciye '
+          'günlük dilden örneklerle ve daha kısa olarak yeniden anlat. '
+          'Akademik terimleri kullan ama hemen yanında gündelik karşılığını '
+          'belirt. Maksimum 200 kelime.\n\n'
+          'BAŞLIK: $header\n\nMETİN:\n$body';
+      final content = await GeminiService.solveHomework(
+        question: prompt,
+        solutionType: 'KonuÖzeti',
+        subject: widget.subjectName,
+      );
+      if (!mounted) return;
+      messenger.hideCurrentSnackBar();
+      // Yeniden anlatımı bottom sheet'te göster
+      await showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: AppPalette.card(context),
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (ctx) {
+          return DraggableScrollableSheet(
+            initialChildSize: 0.62,
+            minChildSize: 0.4,
+            maxChildSize: 0.92,
+            expand: false,
+            builder: (_, ctrl) => Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              child: Column(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppPalette.textSecondary(context)
+                          .withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Icon(Icons.auto_awesome_rounded,
+                          color: Color(0xFF7C3AED), size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Farklı Anlatım — $header'.tr(),
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: AppPalette.textPrimary(context),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: ctrl,
+                      child: SelectableText(
+                        content,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          height: 1.55,
+                          color: AppPalette.textPrimary(context),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'rewrite_section');
+      if (mounted) _toast('AI cevap veremedi.');
+    }
+  }
+
+  // ── Konuya özel istatistikler ────────────────────────────────────────
+  Future<void> _showTopicStats() async {
+    int totalMinutes = 0;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      totalMinutes =
+          prefs.getInt('topic_minutes_${widget.summary.id}') ?? 0;
+    } catch (_) {}
+    final completedCount = _completedSections.length;
+    final totalSections = _cachedNormalSections.length;
+
+    // Oluşturma tarihi (createdAt) TR formatı: "8 Mayıs 2026"
+    final created = widget.summary.createdAt;
+    const trMonths = [
+      'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+      'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
+    ];
+    final createdStr =
+        '${created.day} ${trMonths[created.month - 1]} ${created.year}';
+
+    // Tekrar planı durumu
+    String srsValue;
+    String srsLabel;
+    if (_srsCompleted) {
+      srsValue = 'Tamamlandı 🎉';
+      srsLabel = '5/5 tekrar — uzun süreli bellek';
+    } else if (_srsScheduled) {
+      final due = _srsNextDue;
+      final daysToDue = due?.difference(DateTime.now()).inDays;
+      final stepText = '${_srsStep + 1}/${_kSrsIntervalsDays.length}';
+      final nextText = daysToDue == null
+          ? ''
+          : (daysToDue <= 0
+              ? 'bugün'
+              : '$daysToDue gün sonra');
+      srsValue = nextText.isEmpty ? 'Plan aktif · $stepText' : 'Sonraki: $nextText';
+      srsLabel = nextText.isEmpty
+          ? 'Tekrar planı'
+          : 'Tekrar planı · $stepText';
+    } else {
+      srsValue = 'Henüz başlamadı';
+      srsLabel = 'Tüm bölümleri tamamla → plan başlasın';
+    }
+
+    // Test denemeleri — varsa say + tamamlanan deneme % ortalamasını hesapla.
+    final attempts = widget.summary.tests;
+    final completedAttempts = attempts.where((a) => a.completed).toList();
+    int? avgPct;
+    if (completedAttempts.isNotEmpty) {
+      double sum = 0;
+      int counted = 0;
+      for (final a in completedAttempts) {
+        try {
+          final qs = parseTestQuestions(a.content);
+          if (qs.isEmpty) continue;
+          int correct = 0;
+          for (int i = 0; i < qs.length; i++) {
+            final ua = a.answers[i];
+            if (ua != null && ua.toUpperCase() == qs[i].ans) correct++;
+          }
+          sum += (correct / qs.length) * 100;
+          counted++;
+        } catch (_) {}
+      }
+      if (counted > 0) avgPct = (sum / counted).round();
+    }
+
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppPalette.card(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppPalette.textSecondary(context)
+                      .withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Icon(Icons.insights_rounded,
+                      color: Color(0xFF2563EB), size: 22),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Konu İstatistikleri'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: AppPalette.textPrimary(context),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              _statRow(
+                Icons.timer_rounded,
+                totalMinutes > 0 ? '$totalMinutes dk' : 'Henüz çalışmadın',
+                'Toplam çalışma süresi'.tr(),
+                const Color(0xFF2563EB),
+              ),
+              _statRow(
+                Icons.check_circle_rounded,
+                totalSections > 0
+                    ? '$completedCount / $totalSections'
+                    : 'Henüz bölüm yok',
+                'Tamamlanan bölüm'.tr(),
+                const Color(0xFF10B981),
+              ),
+              _statRow(
+                Icons.calendar_today_rounded,
+                createdStr,
+                'Çalışmaya başladığın gün'.tr(),
+                const Color(0xFF7C3AED),
+              ),
+              _statRow(
+                Icons.event_repeat_rounded,
+                srsValue,
+                srsLabel.tr(),
+                const Color(0xFFFF6A00),
+              ),
+              if (attempts.isNotEmpty)
+                _statRow(
+                  Icons.quiz_rounded,
+                  avgPct != null
+                      ? '${completedAttempts.length} ${'deneme'.tr()} · %$avgPct'
+                      : '${attempts.length} ${'deneme'.tr()}',
+                  avgPct != null
+                      ? 'Test denemeleri · ortalama'.tr()
+                      : 'Test denemeleri'.tr(),
+                  const Color(0xFFEC4899),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _statRow(IconData icon, String value, String label,
+      [Color tint = const Color(0xFF2563EB)]) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: tint.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            alignment: Alignment.center,
+            child: Icon(icon, size: 18, color: tint),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: AppPalette.textPrimary(context),
+                ),
+              ),
+              Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: AppPalette.textSecondary(context),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _maybeShowBookmarkResume() {
+    final bm = _bookmarkOffset;
+    if (bm == null || bm < 100) return;
+    // Sayfa az scroll edildiyse veya bookmark başlangıçtaysa gösterme.
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+    Future<void>.delayed(const Duration(milliseconds: 600), () {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(
+        content: Text('📍 Kaldığın yerden devam edebilirsin'.tr()),
+        action: SnackBarAction(
+          label: 'Git'.tr(),
+          onPressed: () {
+            if (_scrollController.hasClients) {
+              _scrollController.animateTo(
+                bm,
+                duration: const Duration(milliseconds: 500),
+                curve: Curves.easeOutCubic,
+              );
+            }
+          },
+        ),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 5),
+      ));
+    });
   }
 
   // Scroll dinleyici devre dışı — auto-follow kapalı, kullanıcı her zaman
@@ -9713,6 +12349,16 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
       _streamFailed = false;
       _streamFailMessage = null;
       _streamedContent = '';
+      _loaderSlow = false;
+    });
+    // 45 sn sonra hâlâ anlamlı içerik yoksa loader'a retry butonu ekle.
+    _loaderSlowTimer?.cancel();
+    _loaderSlowTimer = Timer(const Duration(seconds: 45), () {
+      if (!mounted) return;
+      final accLen = (_streamedContent ?? '').trim().length;
+      if (_streaming && accLen < 40) {
+        setState(() => _loaderSlow = true);
+      }
     });
     _streamSub = s.listen(
       (acc) {
@@ -9722,10 +12368,18 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
         // 150ms sonra topluca çalıştırsın. Bu aralıkta ekranda eski cache
         // görünür — kabul edilebilir, kullanıcı zaten satırlar akarken bakıyor.
         _streamedContent = acc;
+        // İlk anlamlı chunk geldi → "yavaş" uyarısı gerekmiyor, timer iptal.
+        if (acc.trim().length >= 40 && _loaderSlowTimer != null) {
+          _loaderSlowTimer?.cancel();
+          _loaderSlowTimer = null;
+        }
         _scheduleParse();
       },
       onError: (e) async {
         if (!mounted) return;
+        // Loader yavaşlama timer'ını iptal — hata zaten geldi.
+        _loaderSlowTimer?.cancel();
+        _loaderSlowTimer = null;
         // Stream hata verse bile o ana kadar gelmiş kısmi içeriği KAYDET —
         // kullanıcı yarıda kalmış özeti görsün, ileride uzun-bas → "Yeniden
         // Oluştur" ile tamamlayabilsin.
@@ -9763,6 +12417,9 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
       },
       onDone: () async {
         if (!mounted) return;
+        // Loader yavaşlama timer'ını iptal — stream başarıyla bitti.
+        _loaderSlowTimer?.cancel();
+        _loaderSlowTimer = null;
         final finalContent = _streamedContent ?? '';
         // Debounce'u iptal et + son parse'i ZORLA çalıştır.
         _parseDebounce?.cancel();
@@ -9814,11 +12471,14 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
     _streamSub = null;
     _parseDebounce?.cancel();
     _parseDebounce = null;
+    _loaderSlowTimer?.cancel();
+    _loaderSlowTimer = null;
     setState(() {
       _streamedContent = '';
       _streamFailed = false;
       _streamFailMessage = null;
       _streaming = true;
+      _loaderSlow = false;
       // Cache'i de temizle ki loader yeniden görünsün.
       _cachedRaw = null;
       _cachedCleaned = '';
@@ -9848,10 +12508,561 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
       }
     }
     _parseDebounce?.cancel();
+    _loaderSlowTimer?.cancel();
     _streamSub?.cancel();
     _scrollController.removeListener(_handleScroll);
+    _scrollController.removeListener(_updateReadProgress);
     _scrollController.dispose();
+    _searchCtrl.dispose();
+    _readProgress.dispose();
+    _showBackToTop.dispose();
+    _currentSectionIdx.dispose();
+    // TTS aktifse durdur — sayfa kapanırken arkaplanda çalmasın.
+    if (_ttsPlaying) TtsService.stop();
     super.dispose();
+  }
+
+  // ── Yeni özet sayfası action'ları ────────────────────────────────────
+  void _adjustFontSize(double delta) {
+    setState(() {
+      _bodyFontSize = (_bodyFontSize + delta).clamp(12, 22);
+    });
+    _saveFontSize();
+  }
+
+  /// Section body içinden alt başlıkları çıkarır.
+  /// AI prompt'ta tanımlı format: "▸ N. {emoji} Başlık Adı" — satır başında
+  /// ▸ karakteri + numara + nokta + emoji + başlık. Başında 0–2 boşluk olabilir.
+  List<String> _extractSubHeaders(String body) {
+    final out = <String>[];
+    final re = RegExp(r'^\s{0,3}▸\s*\d+\.\s+(.+?)\s*$', multiLine: true);
+    for (final m in re.allMatches(body)) {
+      final g = m.group(1)?.trim();
+      if (g != null && g.isNotEmpty) out.add(g);
+    }
+    return out;
+  }
+
+  Future<void> _openSectionTOC() async {
+    if (_cachedNormalSections.isEmpty) {
+      _toast('Bu özette atlanacak başlık bulunamadı.');
+      return;
+    }
+    // Düz liste: her section için bir başlık satırı + altında çıkarılan
+    // alt başlık satırları. _TocEntry tuple: (sectionIdx, sub başlık metni
+    // veya null, indent). null = ana başlık.
+    final entries = <_TocEntry>[];
+    for (int i = 0; i < _cachedNormalSections.length; i++) {
+      final s = _cachedNormalSections[i];
+      entries.add(_TocEntry(sectionIdx: i, isSub: false, label: s.header));
+      for (final sub in _extractSubHeaders(s.body)) {
+        entries.add(_TocEntry(sectionIdx: i, isSub: true, label: sub));
+      }
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppPalette.card(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      isScrollControlled: true,
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.55,
+          minChildSize: 0.35,
+          maxChildSize: 0.92,
+          expand: false,
+          builder: (_, ctrl) => SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppPalette.textSecondary(context)
+                            .withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Icon(Icons.list_alt_rounded,
+                          color: Color(0xFF7C3AED), size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Bölümler'.tr(),
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: AppPalette.textPrimary(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: ListView.separated(
+                      controller: ctrl,
+                      shrinkWrap: true,
+                      itemCount: entries.length,
+                      separatorBuilder: (_, i) {
+                        // Bir alt başlığın altında ince ayraç; ana başlıklar
+                        // arasında biraz daha belirgin.
+                        final cur = entries[i];
+                        final next = i + 1 < entries.length
+                            ? entries[i + 1]
+                            : null;
+                        if (next == null) return const SizedBox.shrink();
+                        final isSectionBoundary =
+                            cur.isSub != next.isSub || !next.isSub;
+                        return Divider(
+                          height: 1,
+                          thickness: isSectionBoundary ? 0.8 : 0.4,
+                          color: AppPalette.border(context).withValues(
+                              alpha: isSectionBoundary ? 0.9 : 0.4),
+                        );
+                      },
+                      itemBuilder: (_, i) {
+                        final e = entries[i];
+                        final s = _cachedNormalSections[e.sectionIdx];
+                        if (!e.isSub) {
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Container(
+                              width: 28,
+                              height: 28,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: s.color.withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                '${e.sectionIdx + 1}',
+                                style: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 12,
+                                  color: s.color,
+                                ),
+                              ),
+                            ),
+                            title: Text(
+                              e.label,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: AppPalette.textPrimary(context),
+                              ),
+                            ),
+                            onTap: () {
+                              Navigator.of(ctx).pop();
+                              _scrollToSection(e.sectionIdx);
+                            },
+                          );
+                        }
+                        // Alt başlık satırı — soldan girintili, narin görünüm.
+                        return ListTile(
+                          contentPadding:
+                              const EdgeInsets.only(left: 36, right: 0),
+                          dense: true,
+                          visualDensity: const VisualDensity(
+                              horizontal: -3, vertical: -3),
+                          leading: Container(
+                            width: 5,
+                            height: 18,
+                            decoration: BoxDecoration(
+                              color: s.color.withValues(alpha: 0.55),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          title: Text(
+                            e.label,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: AppPalette.textSecondary(context),
+                              height: 1.25,
+                            ),
+                          ),
+                          onTap: () {
+                            // Alt başlıkların kendi key'i yok — parent section'a
+                            // kaydır, kullanıcı listede ilgili maddeyi görür.
+                            Navigator.of(ctx).pop();
+                            _scrollToSection(e.sectionIdx);
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _scrollToSection(int idx) {
+    if (!_scrollController.hasClients) return;
+    // Önce GlobalKey ile gerçek konuma git — Scrollable.ensureVisible
+    // section'ı viewport top'a hizalar (alignment 0.0). RenderBox in-tree
+    // değilse (cache extent dışı), kaba estimate ile yaklaş.
+    if (idx >= 0 && idx < _sectionKeys.length) {
+      final ctx = _sectionKeys[idx].currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 420),
+          curve: Curves.easeOutCubic,
+          alignment: 0.0,
+        );
+        return;
+      }
+    }
+    final approxOffset = (idx * 380 + 100).toDouble();
+    final max = _scrollController.position.maxScrollExtent;
+    _scrollController.animateTo(
+      approxOffset.clamp(0.0, max),
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  Future<void> _toggleBookmark() async {
+    if (!_scrollController.hasClients) return;
+    final prefs = await SharedPreferences.getInstance();
+    if (_bookmarkOffset != null) {
+      await prefs.remove(_bookmarkPrefKey);
+      if (!mounted) return;
+      setState(() => _bookmarkOffset = null);
+      _toast('Yer imi silindi.');
+    } else {
+      final pos = _scrollController.offset;
+      await prefs.setDouble(_bookmarkPrefKey, pos);
+      if (!mounted) return;
+      setState(() => _bookmarkOffset = pos);
+      _toast('📍 Yer imi konuldu.');
+    }
+  }
+
+  void _toggleHideStrokes() {
+    setState(() => _hideStrokes = !_hideStrokes);
+    _saveHideStrokes();
+    _toast(_hideStrokes ? 'Çizimler gizlendi.' : 'Çizimler gösteriliyor.');
+  }
+
+  /// Diğer versiyona geç (Kısa↔Kapsamlı).
+  Future<void> _switchLengthVersion() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getStringList('library_subjects_v2') ?? const [];
+    for (final s in raw) {
+      try {
+        final j = jsonDecode(s) as Map<String, dynamic>;
+        if ((j['name'] as String).toLowerCase() !=
+            widget.subjectName.toLowerCase()) continue;
+        final summaries = (j['summaries'] as List?) ?? [];
+        for (final em in summaries) {
+          final m = em as Map<String, dynamic>;
+          if ((m['topic'] as String).toLowerCase() ==
+              widget.summary.topic.toLowerCase()) {
+            final otherSum = _Summary.fromJson(m);
+            if (otherSum.id == widget.summary.id) continue;
+            if (otherSum.length == widget.summary.length) continue;
+            if (!mounted) return;
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (_) => _SummaryDetailPage(
+                  summary: otherSum,
+                  subjectName: widget.subjectName,
+                ),
+              ),
+            );
+            return;
+          }
+        }
+      } catch (_) {}
+    }
+    _toast('Bu konunun diğer versiyonu henüz oluşturulmamış.');
+  }
+
+  Future<void> _shareSummary() async {
+    final raw = _streamedContent ?? widget.summary.content;
+    final cleaned = _clean(raw);
+    final header = '${widget.subjectName} / ${widget.summary.topic}\n';
+    final body = cleaned.length > 4000
+        ? '${cleaned.substring(0, 4000)}…'
+        : cleaned;
+    final text = '$header\n$body';
+    try {
+      await Clipboard.setData(ClipboardData(text: text));
+    } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'summary_share');
+    }
+    if (!mounted) return;
+    // Kopyalama bittikten sonra paylaşım sheet'i — WhatsApp/Telegram/SMS
+    // gibi uygulamalara doğrudan yönlendirme için Share.share() kullanılır.
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppPalette.card(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppPalette.textSecondary(context)
+                          .withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFFEC4899), Color(0xFF7C3AED)],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Icon(Icons.send_rounded,
+                          color: Colors.white, size: 19),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Arkadaşına göndermek ister misin?'.tr(),
+                            style: GoogleFonts.poppins(
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w800,
+                              color: AppPalette.textPrimary(context),
+                              height: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Özet panoya kopyalandı'.tr(),
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: AppPalette.textSecondary(context),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.share_rounded, size: 18),
+                    label: Text(
+                      'Paylaş'.tr(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFEC4899),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      elevation: 0,
+                    ),
+                    onPressed: () async {
+                      Navigator.of(ctx).pop();
+                      try {
+                        await Share.share(
+                          text,
+                          subject:
+                              '${widget.subjectName} — ${widget.summary.topic}',
+                        );
+                      } catch (e, st) {
+                        ErrorLogger.instance.capture(e, st,
+                            context: 'summary_share_send');
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: Text(
+                      'Şimdilik sadece kopyala'.tr(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppPalette.textSecondary(context),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _toggleSearch() {
+    setState(() {
+      _showSearch = !_showSearch;
+      if (!_showSearch) {
+        _searchQuery = '';
+        _searchCtrl.clear();
+      }
+    });
+  }
+
+  void _toast(String msg) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.showSnackBar(SnackBar(
+      content: Text(msg.tr()),
+      behavior: SnackBarBehavior.floating,
+      duration: const Duration(seconds: 2),
+    ));
+  }
+
+  PopupMenuItem<String> _menuItem(
+      String value, IconData icon, String label, Color color,
+      {bool enabled = true}) {
+    // Her item kendi yuvarlatılmış kart kapsülünde — kapsayıcı menü içinde
+    // satırlar zeminden ayrışsın, daha narin görünsün. Yükseklik default
+    // 48 → 36; padding default 16 yatay → 4 yatay 2 dikey.
+    final tint = enabled ? color : AppPalette.textSecondary(context);
+    return PopupMenuItem<String>(
+      value: value,
+      enabled: enabled,
+      height: 36,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: AppPalette.card(context),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: tint.withValues(alpha: 0.20),
+            width: 0.8,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: tint.withValues(alpha: 0.06),
+              blurRadius: 6,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                color: tint.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(7),
+              ),
+              alignment: Alignment.center,
+              child: Icon(icon, size: 13, color: tint),
+            ),
+            const SizedBox(width: 9),
+            Flexible(
+              child: Text(
+                label.tr(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: enabled
+                      ? AppPalette.textPrimary(context)
+                      : AppPalette.textSecondary(context),
+                  letterSpacing: 0.1,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _onOverflowMenu(String action) {
+    switch (action) {
+      case 'toc':
+        _openSectionTOC();
+        break;
+      case 'bookmark':
+        _toggleBookmark();
+        break;
+      case 'search':
+        _toggleSearch();
+        break;
+      case 'switchLength':
+        _switchLengthVersion();
+        break;
+      case 'hideStrokes':
+        _toggleHideStrokes();
+        break;
+      case 'share':
+        _shareSummary();
+        break;
+      case 'tts':
+        _toggleTts();
+        break;
+      case 'ttsSpeed':
+        _showTtsSpeedSheet();
+        break;
+      case 'srs':
+        _showSrsPlanSheet();
+        break;
+      case 'stats':
+        _showTopicStats();
+        break;
+      case 'testCoz':
+        _onTestQuestionsTap();
+        break;
+    }
   }
 
   Future<void> _loadColors() async {
@@ -9960,7 +13171,11 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
               width: hovering ? 2 : 1,
             ),
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
@@ -10024,10 +13239,79 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
+              // Kısa/Kapsamlı rozeti — kullanıcı hangi versiyonu okuduğunu
+              // her zaman görsün. Kısa=yeşil, Kapsamlı=mor (liste slot'larıyla
+              // aynı renkler).
+              _lengthBadge(),
+            ],
+              ),
+              if (_cachedNormalSections.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                // Sadece tamamlama oranı — okuma süresi tahmini kaldırıldı.
+                ValueListenableBuilder<double>(
+                  valueListenable: _readProgress,
+                  builder: (_, __, ___) {
+                    final completedRatio =
+                        _completedSections.length /
+                            _cachedNormalSections.length;
+                    return Row(
+                      children: [
+                        const Spacer(),
+                        Icon(Icons.check_circle_rounded,
+                            size: 13, color: const Color(0xFF10B981)),
+                        const SizedBox(width: 3),
+                        Text(
+                          '${(completedRatio * 100).toInt()}%',
+                          style: GoogleFonts.poppins(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF10B981),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ],
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _lengthBadge() {
+    final isShort = widget.summary.length == _SummaryLength.short;
+    final Color accent =
+        isShort ? const Color(0xFF10B981) : const Color(0xFF7C3AED);
+    final String label = isShort ? 'Kısa'.tr() : 'Kapsamlı'.tr();
+    final IconData icon = isShort
+        ? Icons.flash_on_rounded
+        : Icons.menu_book_rounded;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: accent.withValues(alpha: 0.5), width: 0.8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: accent),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: accent,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -10188,6 +13472,457 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
     ));
   }
 
+  // ── Spaced repetition due banner ─────────────────────────────────────
+  // Plan aktif + son tekrardan bu yana kontrol aralığı dolmuşsa görünür.
+  // Üst kenardan ListView'ın üstüne yerleşir; "Tekrarladım ✓" → bir
+  // sonraki interval'a geçer (1→3→7→14→30 gün).
+  Widget _buildSrsDueBanner() {
+    final due = _srsNextDue;
+    if (!_srsIsDue || due == null) return const SizedBox.shrink();
+    final daysSince = DateTime.now().difference(_srsLastReview!).inDays;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(6, 4, 6, 8),
+      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFBBF24), Color(0xFFFF6A00)],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFFF6A00).withValues(alpha: 0.25),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.event_repeat_rounded,
+              color: Colors.white, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              daysSince <= 0
+                  ? 'Tekrar zamanı — bugün gözden geçirme günü.'.tr()
+                  : '${'Tekrar zamanı — son okumadan'.tr()} $daysSince ${'gün geçti'.tr()}.',
+              style: GoogleFonts.poppins(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          InkWell(
+            onTap: _confirmSrsReview,
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.check_rounded,
+                      size: 13, color: Color(0xFFFF6A00)),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Tekrarladım'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFFFF6A00),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── SRS plan bottom sheet (overflow menüsünden açılır) ───────────────
+  Future<void> _showSrsPlanSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppPalette.card(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheet) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppPalette.textSecondary(context)
+                            .withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        const Icon(Icons.event_repeat_rounded,
+                            color: Color(0xFFFF6A00), size: 22),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Tekrar Planı'.tr(),
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: AppPalette.textPrimary(context),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Bilimsel "aralıklı tekrar" yöntemi: konuyu 1, 3, 7, 14 ve 30. günlerde tekrar edersen uzun süreli belleğe yerleşir.'
+                          .tr(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 11.5,
+                        height: 1.45,
+                        color: AppPalette.textSecondary(context),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    if (!_srsScheduled && !_srsCompleted) ...[
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.play_arrow_rounded),
+                          label: Text('Planı Başlat'.tr()),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFF6A00),
+                            foregroundColor: Colors.white,
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onPressed: () async {
+                            await _startSrs(silent: true);
+                            setSheet(() {});
+                          },
+                        ),
+                      ),
+                    ] else ...[
+                      for (int i = 0; i < _kSrsIntervalsDays.length; i++)
+                        _srsTimelineRow(i),
+                      const SizedBox(height: 10),
+                      if (_srsCompleted)
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981)
+                                .withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.emoji_events_rounded,
+                                  color: Color(0xFF10B981), size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  '🎉 Plan tamamlandı — uzun süreli belleğe geçti.'
+                                      .tr(),
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFF10B981),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                icon: const Icon(Icons.refresh_rounded,
+                                    size: 16),
+                                label: Text('Sıfırla'.tr(),
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    )),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor:
+                                      AppPalette.textSecondary(context),
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 10),
+                                ),
+                                onPressed: () async {
+                                  await _resetSrs();
+                                  setSheet(() {});
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                icon: const Icon(Icons.check_rounded,
+                                    size: 16),
+                                label: Text('Tekrarladım'.tr(),
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                    )),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFFF6A00),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 10),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                onPressed: () async {
+                                  await _confirmSrsReview();
+                                  setSheet(() {});
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      if (_srsCompleted) ...[
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: TextButton.icon(
+                            icon: const Icon(Icons.restart_alt_rounded,
+                                size: 16),
+                            label: Text('Planı Sıfırla'.tr()),
+                            onPressed: () async {
+                              await _resetSrs();
+                              setSheet(() {});
+                            },
+                          ),
+                        ),
+                      ],
+                    ],
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _srsTimelineRow(int idx) {
+    final days = _kSrsIntervalsDays[idx];
+    final isDone = idx < _srsStep || _srsCompleted;
+    final isCurrent = idx == _srsStep && !_srsCompleted;
+    final scheduledDate = isCurrent && _srsLastReview != null
+        ? _srsLastReview!.add(Duration(days: days))
+        : null;
+    String dateStr = '';
+    if (scheduledDate != null) {
+      final d = scheduledDate;
+      dateStr = '${d.day}/${d.month}/${d.year}';
+    }
+    final accent = isDone
+        ? const Color(0xFF10B981)
+        : isCurrent
+            ? const Color(0xFFFF6A00)
+            : AppPalette.textSecondary(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: isDone || isCurrent ? 0.18 : 0.08),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            alignment: Alignment.center,
+            child: Icon(
+              isDone
+                  ? Icons.check_rounded
+                  : isCurrent
+                      ? Icons.schedule_rounded
+                      : Icons.circle_outlined,
+              size: 16,
+              color: accent,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              '$days. ${'gün'.tr()}',
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w600,
+                color: AppPalette.textPrimary(context),
+              ),
+            ),
+          ),
+          if (dateStr.isNotEmpty)
+            Text(
+              dateStr,
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: accent,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ── TTS hız seçici (overflow → "Sesli okuma hızı") ───────────────────
+  Future<void> _showTtsSpeedSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppPalette.card(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheet) {
+            Widget option(double x, String label, String hint) {
+              final selected = _ttsSpeedX == x;
+              return InkWell(
+                onTap: () async {
+                  await _setTtsSpeed(x);
+                  setSheet(() {});
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                      vertical: 12, horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? const Color(0xFF06B6D4).withValues(alpha: 0.14)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: selected
+                          ? const Color(0xFF06B6D4)
+                          : AppPalette.border(context),
+                      width: selected ? 1.5 : 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        selected
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_unchecked,
+                        size: 18,
+                        color: selected
+                            ? const Color(0xFF06B6D4)
+                            : AppPalette.textSecondary(context),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        label,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: AppPalette.textPrimary(context),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          hint,
+                          style: GoogleFonts.poppins(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w500,
+                            color: AppPalette.textSecondary(context),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppPalette.textSecondary(context)
+                            .withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        const Icon(Icons.speed_rounded,
+                            color: Color(0xFF06B6D4), size: 22),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Sesli Okuma Hızı'.tr(),
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: AppPalette.textPrimary(context),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    option(0.5, '0.5x', '— ${'yavaş, öğrenme'.tr()}'),
+                    option(1.0, '1x', '— ${'normal'.tr()}'),
+                    option(1.5, '1.5x', '— ${'hızlı'.tr()}'),
+                    option(2.0, '2x', '— ${'çok hızlı, tekrar'.tr()}'),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Tercihin kaydedilir; sonraki seansta da aynı hız uygulanır.'
+                          .tr(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w500,
+                        color: AppPalette.textSecondary(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   // Sayfa açılır açılmaz görünen ince şerit — AI yazıyor / başarısız oldu.
   Widget _buildStreamingBanner() {
     final isFail = _streamFailed;
@@ -10296,13 +14031,119 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
     if (widget.stream != null && _streaming && cleaned.trim().length < 40) {
       return Scaffold(
         backgroundColor: AppPalette.card(context),
-        body: QuAlsarLoadingWidget(
-          type: QuAlsarLoadingType.summary,
-          topic: widget.summary.topic,
-          domain: _AcademicPlannerState._subjectLayer(widget.subjectName) ==
-                  'verbal'
-              ? SubjectDomain.verbal
-              : SubjectDomain.numeric,
+        body: Stack(
+          children: [
+            QuAlsarLoadingWidget(
+              type: QuAlsarLoadingType.summary,
+              topic: widget.summary.topic,
+              domain:
+                  _AcademicPlannerState._subjectLayer(widget.subjectName) ==
+                          'verbal'
+                      ? SubjectDomain.verbal
+                      : SubjectDomain.numeric,
+            ),
+            // 45 sn'den uzun süredir içerik gelmediyse "yeniden dene" /
+            // "geri dön" seçenekleri sunan alt panel. Loader devam ediyor
+            // ama kullanıcı artık sıkışmış değil — eylem alabilir.
+            if (_loaderSlow)
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: 24,
+                child: SafeArea(
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.12),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Bağlantı yavaş görünüyor'.tr(),
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'AI hâlâ üretiyor — biraz bekle veya yeniden dene.'
+                              .tr(),
+                          style: GoogleFonts.poppins(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black54,
+                            height: 1.35,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 10),
+                                  side: BorderSide(
+                                      color: Colors.black26, width: 1),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Geri'.tr(),
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: widget.onRetry == null
+                                    ? null
+                                    : () => _retryStream(),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF7C3AED),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 10),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Yeniden Dene'.tr(),
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       );
     }
@@ -10335,7 +14176,54 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
       // • aksi          → normal aktif
       floatingActionButton: _streamFailed
           ? null
-          : _testQuestionsFab(enabled: !_streaming),
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                // Sayfanın başına dön — scroll > 600px iken görünür.
+                ValueListenableBuilder<bool>(
+                  valueListenable: _showBackToTop,
+                  builder: (_, show, __) => AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: show
+                        ? Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: FloatingActionButton.small(
+                              heroTag: 'backToTop',
+                              backgroundColor: AppPalette.card(context),
+                              foregroundColor:
+                                  AppPalette.textPrimary(context),
+                              onPressed: _scrollToTop,
+                              child: const Icon(
+                                Icons.keyboard_arrow_up_rounded,
+                                size: 24,
+                              ),
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                ),
+                // TTS Stop — sesli okuma aktifken kırmızı durdur FAB'ı.
+                // Kullanıcı dilediği anda kesebilsin; durunca FAB kaybolur.
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: _ttsPlaying
+                      ? FloatingActionButton.small(
+                          key: const ValueKey('ttsStop'),
+                          heroTag: 'ttsStop',
+                          backgroundColor: const Color(0xFFEF4444),
+                          foregroundColor: Colors.white,
+                          onPressed: _toggleTts,
+                          tooltip: 'Sesli okumayı durdur'.tr(),
+                          child: const Icon(
+                            Icons.stop_rounded,
+                            size: 22,
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ],
+            ),
       appBar: AppBar(
         // Üst bar her zaman soluk beyaz — kullanıcı renk paletini değiştirse
         // bile sabit kalır. Yükseklik 44 (varsayılan 56'dan dar).
@@ -10403,6 +14291,186 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
               ),
             ),
           ),
+          // A− / A+ yazı boyutu pill — iki ufak buton birleşik kapsülde.
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppPalette.card(context),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: AppPalette.textPrimary(context).withValues(alpha: 0.3),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  InkWell(
+                    onTap: () => _adjustFontSize(-1),
+                    customBorder: const CircleBorder(),
+                    child: Container(
+                      width: 28,
+                      height: 28,
+                      alignment: Alignment.center,
+                      child: Text(
+                        'A−',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: AppPalette.textPrimary(context),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    width: 1,
+                    height: 16,
+                    color: AppPalette.textPrimary(context)
+                        .withValues(alpha: 0.2),
+                  ),
+                  InkWell(
+                    onTap: () => _adjustFontSize(1),
+                    customBorder: const CircleBorder(),
+                    child: Container(
+                      width: 28,
+                      height: 28,
+                      alignment: Alignment.center,
+                      child: Text(
+                        'A+',
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: AppPalette.textPrimary(context),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Yardım butonu (?) — sayfanın nasıl çalıştığını açıklayan ekran.
+          Padding(
+            padding: const EdgeInsets.only(right: 4, top: 5, bottom: 5),
+            child: GestureDetector(
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const _SummaryHelpPage(),
+                ),
+              ),
+              child: Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white,
+                  border: Border.all(
+                      color: AppPalette.textPrimary(context)
+                          .withValues(alpha: 0.4),
+                      width: 1.2),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  '?',
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    color: AppPalette.textPrimary(context),
+                    height: 1.0,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // ─ Overflow ⋮ menüsü — tüm gelişmiş özellikler burada ─
+          // Oval kenarlı, narin tasarım: dış kapsam radius 22, padding küçük,
+          // arka plan AppPalette.bg → item beyaz kartlarıyla kontrast.
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert_rounded,
+                color: AppPalette.textPrimary(context)),
+            tooltip: 'Daha fazla',
+            color: AppPalette.bg(context),
+            elevation: 10,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(22),
+              side: BorderSide(
+                color: AppPalette.border(context),
+                width: 0.8,
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+            menuPadding: const EdgeInsets.symmetric(vertical: 4),
+            constraints: const BoxConstraints(
+              minWidth: 200,
+              maxWidth: 240,
+            ),
+            onSelected: _onOverflowMenu,
+            itemBuilder: (ctx) => [
+              // Test Çöz — en üstte ve vurgulu, ana aksiyon olduğu için.
+              _menuItem('testCoz', Icons.quiz_rounded, 'Test Çöz',
+                  _orange, enabled: !_streaming),
+              _menuItem('toc', Icons.list_alt_rounded, 'Bölümler',
+                  const Color(0xFF7C3AED)),
+              _menuItem(
+                  'bookmark',
+                  _bookmarkOffset != null
+                      ? Icons.bookmark_rounded
+                      : Icons.bookmark_border_rounded,
+                  _bookmarkOffset != null
+                      ? 'Yer imini kaldır'
+                      : 'Yer imi koy',
+                  const Color(0xFFFF6A00)),
+              _menuItem('search', Icons.search_rounded, 'Konuda ara',
+                  const Color(0xFF2563EB)),
+              _menuItem(
+                  'switchLength',
+                  Icons.swap_horiz_rounded,
+                  widget.summary.length == _SummaryLength.short
+                      ? 'Kapsamlıya geç'
+                      : 'Kısaya geç',
+                  const Color(0xFF10B981)),
+              _menuItem(
+                  'hideStrokes',
+                  _hideStrokes
+                      ? Icons.visibility_rounded
+                      : Icons.visibility_off_rounded,
+                  _hideStrokes
+                      ? 'Çizimleri göster'
+                      : 'Çizimleri gizle',
+                  const Color(0xFF06B6D4)),
+              _menuItem(
+                'tts',
+                _ttsPlaying
+                    ? Icons.stop_circle_rounded
+                    : Icons.volume_up_rounded,
+                _ttsPlaying ? 'Sesli okumayı durdur' : 'Sesli oku',
+                const Color(0xFFFBBF24),
+              ),
+              _menuItem(
+                'ttsSpeed',
+                Icons.speed_rounded,
+                'Sesli okuma hızı (${_ttsSpeedLabel()})',
+                const Color(0xFF06B6D4),
+              ),
+              _menuItem(
+                'srs',
+                _srsScheduled
+                    ? Icons.event_available_rounded
+                    : Icons.event_repeat_rounded,
+                _srsCompleted
+                    ? 'Tekrar planı (tamamlandı)'
+                    : _srsScheduled
+                        ? 'Tekrar planı (aktif)'
+                        : 'Tekrar planına ekle',
+                const Color(0xFFFF6A00),
+              ),
+              _menuItem('stats', Icons.insights_rounded,
+                  'Konu istatistikleri', const Color(0xFF2563EB)),
+              _menuItem('share', Icons.copy_rounded, 'Özeti kopyala',
+                  const Color(0xFFEC4899)),
+            ],
+          ),
         ],
       ),
       // Klavye açıldığında layout otomatik kaysın (TextField sheet için kritik).
@@ -10411,10 +14479,63 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
         children: [
           // Asıl içerik (sayfa)
           Column(children: [
+          // Üst ince ilerleme çubuğu — kullanıcı özetin neresinde okuduğunu görür.
+          ValueListenableBuilder<double>(
+            valueListenable: _readProgress,
+            builder: (_, p, __) => Container(
+              height: 2.5,
+              alignment: Alignment.centerLeft,
+              color: AppPalette.border(context).withValues(alpha: 0.4),
+              child: FractionallySizedBox(
+                widthFactor: p,
+                heightFactor: 1,
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF7C3AED), Color(0xFF2563EB)],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // Arama çubuğu — overflow menüsünden "Konuda ara" ile açılır.
+          if (_showSearch)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _searchCtrl,
+                      autofocus: true,
+                      onChanged: (v) => setState(() => _searchQuery = v),
+                      decoration: InputDecoration(
+                        hintText: 'Konuda kelime ara…'.tr(),
+                        prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                    onPressed: _toggleSearch,
+                  ),
+                ],
+              ),
+            ),
           if (_showColorPicker) _buildColorPickerPanel(),
           // Streaming şeridi sadece HATA durumunda gösterilir; üretim
           // sırasında "AI özeti yazıyor…" yazısı kaldırıldı.
           if (_streamFailed) _buildStreamingBanner(),
+          // Tekrar planı zamanı geldiyse turuncu banner — "Tekrarladım ✓".
+          // Streaming aktifken gösterme; kafası karışmasın.
+          if (!_streaming && _srsIsDue) _buildSrsDueBanner(),
           Expanded(
             child: DragTarget<Color>(
               onAcceptWithDetails: (d) {
@@ -10467,6 +14588,9 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
                       }
                       final s = normalSections[sIdx];
                       return RepaintBoundary(
+                        key: sIdx < _sectionKeys.length
+                            ? _sectionKeys[sIdx]
+                            : null,
                         child: Padding(
                           padding: const EdgeInsets.only(bottom: 10),
                           child: _wrappedCard(
@@ -10474,6 +14598,7 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
                               header: s.header,
                               headerColor: s.color,
                               body: s.body,
+                              sectionIdx: sIdx,
                             ),
                           ),
                         ),
@@ -10519,11 +14644,89 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
           ),
           ]),
           // Çalışma araç çubuğu — sol kenar; not + vurgulayıcı + kalem +
-          // silgi + kapat. Çizimler topicId bazlı kalıcı saklanır.
-          StudyToolbarOverlay(
-            topicId: 'note_${widget.summary.id}',
-            topicName: widget.summary.topic,
-            scrollController: _scrollController,
+          // silgi + kapat. _hideStrokes=true iken tamamen gizlenir.
+          if (!_hideStrokes)
+            StudyToolbarOverlay(
+              topicId: 'note_${widget.summary.id}',
+              topicName: widget.summary.topic,
+              scrollController: _scrollController,
+            ),
+          // Sticky section header — scroll edilince üstte mevcut bölüm
+          // başlığını gösterir.
+          ValueListenableBuilder<int>(
+            valueListenable: _currentSectionIdx,
+            builder: (_, idx, __) {
+              if (idx < 0 || idx >= _cachedNormalSections.length) {
+                return const SizedBox.shrink();
+              }
+              final s = _cachedNormalSections[idx];
+              final header = _stripHeaderMarkers(s.header);
+              return Positioned(
+                top: 4, // progress bar altında
+                left: 12,
+                right: 12,
+                child: IgnorePointer(
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 180),
+                    opacity: 0.95,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppPalette.card(context)
+                            .withValues(alpha: 0.92),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: s.color.withValues(alpha: 0.55),
+                          width: 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.08),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 4,
+                            height: 14,
+                            decoration: BoxDecoration(
+                              color: s.color,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              header,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.poppins(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w800,
+                                color: s.color,
+                                letterSpacing: 0.1,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${idx + 1}/${_cachedNormalSections.length}',
+                            style: GoogleFonts.poppins(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: AppPalette.textSecondary(context),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -10741,10 +14944,13 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
     required String header,
     required Color headerColor,
     required String body,
+    int? sectionIdx,
   }) {
     final bg = AppPalette.resolveCardBg(context, _cardsBgOverride);
     final ink = _cardsTextOverride ??
         (_isDark(bg) ? Colors.white : Colors.black);
+    final isCompleted =
+        sectionIdx != null && _completedSections.contains(sectionIdx);
     // Üst bant arkaplanı: bölüm rengiyle tonlanmış soft tint. Kullanıcı renk
     // override yaptıysa bg'yi koru (tutarlılık).
     final headerBg = _cardsBgOverride == null
@@ -10774,7 +14980,7 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
           if (cleanedHeader.isNotEmpty)
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 11),
+              padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
               decoration: BoxDecoration(
                 color: headerBg,
                 border: Border(
@@ -10788,27 +14994,149 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
                   ),
                 ),
               ),
-              child: Text(
-                cleanedHeader,
-                style: GoogleFonts.poppins(
-                  fontSize: 14.5,
-                  fontWeight: FontWeight.w900,
-                  color: _cardsTextOverride ?? headerColor,
-                  letterSpacing: 0.15,
-                  height: 1.25,
-                ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      cleanedHeader,
+                      style: GoogleFonts.poppins(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w900,
+                        color: _cardsTextOverride ?? headerColor,
+                        letterSpacing: 0.15,
+                        height: 1.25,
+                        decoration: isCompleted
+                            ? TextDecoration.lineThrough
+                            : null,
+                        decorationColor: headerColor.withValues(alpha: 0.45),
+                        decorationThickness: 1.5,
+                      ),
+                    ),
+                  ),
+                  if (sectionIdx != null)
+                    InkWell(
+                      onTap: () => _toggleSectionCompleted(sectionIdx),
+                      customBorder: const CircleBorder(),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          isCompleted
+                              ? Icons.check_circle_rounded
+                              : Icons.radio_button_unchecked_rounded,
+                          size: 22,
+                          color: isCompleted
+                              ? const Color(0xFF10B981)
+                              : headerColor.withValues(alpha: 0.55),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-            child: DefaultTextStyle.merge(
-              style: TextStyle(color: ink),
-              child: LatexText(body, fontSize: 14, lineHeight: 1.65),
+          // Section uzun bas → Kopyala (#7 Bölüm Bazlı Eylem).
+          GestureDetector(
+            onLongPress: () => _showSectionActions(cleanedHeader, body),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+              child: DefaultTextStyle.merge(
+                style: TextStyle(color: ink),
+                child: LatexText(
+                  // Arama eşleşmesi varsa ★ ile vurgulanır (basit highlight).
+                  _searchQuery.isNotEmpty &&
+                          body.toLowerCase()
+                              .contains(_searchQuery.toLowerCase())
+                      ? body.replaceAllMapped(
+                          RegExp(RegExp.escape(_searchQuery),
+                              caseSensitive: false),
+                          (m) => '★${m.group(0)}★')
+                      : body,
+                  fontSize: _bodyFontSize,
+                  lineHeight: 1.65,
+                ),
+              ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// Bölüm uzun bas → bottom sheet: Kopyala / Paylaş.
+  Future<void> _showSectionActions(String header, String body) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppPalette.card(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                child: Text(
+                  header,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: AppPalette.textSecondary(context),
+                  ),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.copy_rounded,
+                    color: Color(0xFF7C3AED)),
+                title: Text('Bölümü kopyala'.tr()),
+                onTap: () => Navigator.of(ctx).pop('copy'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.auto_awesome_rounded,
+                    color: Color(0xFF7C3AED)),
+                title: Text('Bu bölümü farklı anlat (AI)'.tr()),
+                subtitle: Text(
+                  'Daha basit, gündelik dilden örneklerle'.tr(),
+                  style: const TextStyle(fontSize: 11),
+                ),
+                onTap: () => Navigator.of(ctx).pop('rewrite'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.thumb_up_rounded,
+                    color: Color(0xFF10B981)),
+                title: Text('İyi anlatılmış'.tr()),
+                onTap: () => Navigator.of(ctx).pop('like'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.thumb_down_rounded,
+                    color: Color(0xFFEF4444)),
+                title: Text('Eksik / yanlış'.tr()),
+                onTap: () => Navigator.of(ctx).pop('dislike'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (action == null || !mounted) return;
+    switch (action) {
+      case 'copy':
+        await Clipboard.setData(ClipboardData(text: '$header\n\n$body'));
+        if (mounted) _toast('📋 Bölüm kopyalandı.');
+        break;
+      case 'rewrite':
+        _rewriteSectionWithAi(header, body);
+        break;
+      case 'like':
+        _toast('👍 Geri bildirimin alındı.');
+        break;
+      case 'dislike':
+        _toast('👎 Geri bildirimin alındı.');
+        break;
+    }
   }
 
   // ═════ 📝 Örnek Sorular — gri zeminli özel kart (özetin sonunda) ═══════
@@ -10855,16 +15183,16 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
           SizedBox(height: 6),
           Container(height: 1, color: accent.withValues(alpha: 0.30)),
           SizedBox(height: 10),
-          DefaultTextStyle.merge(
-            style: TextStyle(color: ink),
-            child: LatexText(s.body, fontSize: 13.5, lineHeight: 1.6),
-          ),
+          // Toggle widget — her soru altında "Çözümü Göster" butonu.
+          // Parse başarısız olursa düz LaTeX'e düşer (eski özetler korunur).
+          _ExamplesToggleList(body: s.body, ink: ink),
         ],
       ),
     );
   }
 
   // ═════ ⭐ En Önemli 5 Bilgi — vurgulu, farklı renk kartı ═════
+
   Widget _keyFactsCard(_Section s) {
     final bg = AppPalette.resolveInnerBg(context, _cardsBgOverride);
     final ink = _cardsTextOverride ??
@@ -11202,6 +15530,278 @@ class _Section {
   Color color;
   String body;
   _Section({required this.header, required this.color, required this.body});
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  _ExamplesToggleList — Pekiştirme sorularını parse eder; her sorunun
+//  altında "Çözümü Göster" butonu, basınca çözüm + cevap açılır/kapanır.
+//
+//  AI çıktı formatı (academic_planner prompt'tan):
+//    **Soru 1:** [metin]
+//    A) ...  B) ...  C) ...
+//
+//    **Çözüm:** [açıklama]
+//    **Cevap:** [şık]
+//
+//  Parser tolerant — markdown bold işaretleri, ekstra boşluk, eksik kısımları
+//  graceful handle eder. Parse başarısız (örn. format değişmiş eski özet)
+//  → tek bir bütün LaTeX bloğu olarak fallback gösterilir.
+// ═══════════════════════════════════════════════════════════════════════════
+class _ExamplesToggleList extends StatefulWidget {
+  final String body;
+  final Color ink;
+  const _ExamplesToggleList({required this.body, required this.ink});
+
+  @override
+  State<_ExamplesToggleList> createState() => _ExamplesToggleListState();
+}
+
+class _ExamplesToggleListState extends State<_ExamplesToggleList> {
+  late final List<_ParsedExample> _items = _parseExamples(widget.body);
+  final Set<int> _open = <int>{};
+
+  /// "**Soru N:**" ile başlayan blokları yakalar, içinden Çözüm/Cevap çıkarır.
+  /// Bold işaretlerini (** **) temizler.
+  static List<_ParsedExample> _parseExamples(String raw) {
+    final out = <_ParsedExample>[];
+    // "**Soru" ya da "Soru" başlığı ile satır başında olan yerlerde böl
+    final pattern = RegExp(
+        r'(?:^|\n)\s*\*{0,2}\s*Soru\s*\d+\s*[:\.\)]\s*',
+        caseSensitive: false);
+    final matches = pattern.allMatches(raw).toList();
+    if (matches.isEmpty) return const [];
+    for (var i = 0; i < matches.length; i++) {
+      final start = matches[i].end;
+      final end = i + 1 < matches.length ? matches[i + 1].start : raw.length;
+      final chunk = raw.substring(start, end).trim();
+      // Çözüm ve Cevap satırlarını ayır
+      final solIdx = RegExp(r'\*{0,2}\s*(?:Çözüm|Cozum|Solution)\s*[:\.]',
+              caseSensitive: false)
+          .firstMatch(chunk);
+      String questionPart;
+      String solutionPart = '';
+      String answerPart = '';
+      if (solIdx == null) {
+        questionPart = chunk;
+      } else {
+        questionPart = chunk.substring(0, solIdx.start).trim();
+        var rest = chunk.substring(solIdx.end).trim();
+        // Cevap satırını ayır
+        final ansIdx = RegExp(
+                r'\*{0,2}\s*(?:Cevap|Answer)\s*[:\.]',
+                caseSensitive: false)
+            .firstMatch(rest);
+        if (ansIdx == null) {
+          solutionPart = rest;
+        } else {
+          solutionPart = rest.substring(0, ansIdx.start).trim();
+          answerPart = rest.substring(ansIdx.end).trim();
+        }
+      }
+      // Bold markdown temizliği (** çevresi)
+      String clean(String s) =>
+          s.replaceAll(RegExp(r'\*{2,}'), '').trim();
+      out.add(_ParsedExample(
+        index: i + 1,
+        questionWithOptions: clean(questionPart),
+        solution: clean(solutionPart),
+        answer: clean(answerPart),
+      ));
+    }
+    return out;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_items.isEmpty) {
+      // Parser hata — fallback olarak ham içerik
+      return DefaultTextStyle.merge(
+        style: TextStyle(color: widget.ink),
+        child: LatexText(widget.body, fontSize: 13.5, lineHeight: 1.6),
+      );
+    }
+    return DefaultTextStyle.merge(
+      style: TextStyle(color: widget.ink),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < _items.length; i++) ...[
+            if (i > 0) const SizedBox(height: 14),
+            _buildQuestion(_items[i], i),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuestion(_ParsedExample ex, int i) {
+    final isOpen = _open.contains(i);
+    final hasSolution =
+        ex.solution.isNotEmpty || ex.answer.isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Soru numarası başlığı
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Text(
+            'Soru ${ex.index}',
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              color: widget.ink,
+              letterSpacing: 0.15,
+            ),
+          ),
+        ),
+        // Soru + şıklar
+        LatexText(
+          ex.questionWithOptions,
+          fontSize: 13.5,
+          lineHeight: 1.6,
+        ),
+        if (hasSolution) ...[
+          const SizedBox(height: 10),
+          // "Çözümü Göster / Gizle" toggle butonu
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                if (isOpen) {
+                  _open.remove(i);
+                } else {
+                  _open.add(i);
+                }
+              });
+            },
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: isOpen
+                    ? const Color(0xFF7C3AED).withValues(alpha: 0.12)
+                    : const Color(0xFF7C3AED).withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: const Color(0xFF7C3AED).withValues(alpha: 0.40),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isOpen
+                        ? Icons.expand_less_rounded
+                        : Icons.expand_more_rounded,
+                    size: 18,
+                    color: const Color(0xFF7C3AED),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    isOpen
+                        ? 'Çözümü Gizle'.tr()
+                        : 'Çözümü Göster'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF7C3AED),
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Açıklama bloğu — animasyonlu açılış
+          AnimatedSize(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topLeft,
+            child: isOpen
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF7C3AED)
+                            .withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFF7C3AED)
+                              .withValues(alpha: 0.20),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (ex.solution.isNotEmpty) ...[
+                            Row(
+                              children: [
+                                const Text('🧠',
+                                    style: TextStyle(fontSize: 14)),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Çözüm'.tr(),
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w900,
+                                    color: const Color(0xFF6D28D9),
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            LatexText(
+                              ex.solution,
+                              fontSize: 13,
+                              lineHeight: 1.55,
+                            ),
+                          ],
+                          if (ex.answer.isNotEmpty) ...[
+                            if (ex.solution.isNotEmpty)
+                              const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                const Text('✅',
+                                    style: TextStyle(fontSize: 14)),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '${"Cevap".tr()}: ${ex.answer}',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w900,
+                                    color: const Color(0xFF16A34A),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ParsedExample {
+  final int index;
+  final String questionWithOptions;
+  final String solution;
+  final String answer;
+  const _ParsedExample({
+    required this.index,
+    required this.questionWithOptions,
+    required this.solution,
+    required this.answer,
+  });
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -11587,11 +16187,14 @@ class _SubjectTopicsDialog extends StatefulWidget {
 
 class _SubjectTopicsDialogState extends State<_SubjectTopicsDialog> {
   final _newTopicCtrl = TextEditingController();
+  final _searchCtrl = TextEditingController();
   final Set<String> _savedCustomTopics = {};
+  String _searchQuery = '';
 
   @override
   void dispose() {
     _newTopicCtrl.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -11612,6 +16215,11 @@ class _SubjectTopicsDialogState extends State<_SubjectTopicsDialog> {
             .any((c) => c.toLowerCase() == t.toLowerCase()))
         .toList();
     final allTopics = [...widget.curriculumTopics, ...extras];
+    // Arama filtresi — case-insensitive contains, boşken hepsini göster.
+    final q = _searchQuery.trim().toLowerCase();
+    final filteredTopics = q.isEmpty
+        ? allTopics
+        : allTopics.where((t) => t.toLowerCase().contains(q)).toList();
 
     return Dialog(
       // Dialog iç zemini SOLUK beyaz — konu kartları (saf beyaz) öne çıksın
@@ -11661,10 +16269,87 @@ class _SubjectTopicsDialogState extends State<_SubjectTopicsDialog> {
                       ],
                     ),
                   ),
-              SizedBox(height: 14),
+              SizedBox(height: 6),
+              // Alt başlık — kullanıcıya bir konu seçmesini iste.
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  widget.mode == LibraryMode.questions
+                      ? 'Hangi konudan başlamak istersin?'.tr()
+                      : 'Hangi konunun özetini görmek istersin?'.tr(),
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppPalette.textSecondary(context),
+                    height: 1.25,
+                  ),
+                ),
+              ),
+              SizedBox(height: 12),
               // Ders başlığı altında ince ayırıcı — yumuşak ton
               Container(height: 1, color: Colors.black.withValues(alpha: 0.08)),
-              SizedBox(height: 14),
+              SizedBox(height: 12),
+              // ── Konu arama çubuğu — 4+ konu varsa görünür ──────────────
+              // Liste 30-50 konuya çıkabiliyor; arama olmadan scroll yorucu.
+              if (allTopics.length > 4) ...[
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppPalette.card(context),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: AppPalette.border(context),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const SizedBox(width: 12),
+                      Icon(Icons.search_rounded,
+                          size: 16,
+                          color: AppPalette.textSecondary(context)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _searchCtrl,
+                          onChanged: (v) => setState(() => _searchQuery = v),
+                          style: GoogleFonts.poppins(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w500,
+                            color: AppPalette.textPrimary(context),
+                          ),
+                          cursorColor: AppPalette.textPrimary(context),
+                          decoration: InputDecoration(
+                            hintText: 'Konu ara…'.tr(),
+                            hintStyle: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: AppPalette.textSecondary(context),
+                            ),
+                            isDense: true,
+                            contentPadding:
+                                const EdgeInsets.symmetric(vertical: 10),
+                            border: InputBorder.none,
+                          ),
+                        ),
+                      ),
+                      if (_searchQuery.isNotEmpty)
+                        IconButton(
+                          padding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                          icon: Icon(Icons.close_rounded,
+                              size: 16,
+                              color: AppPalette.textSecondary(context)),
+                          onPressed: () => setState(() {
+                            _searchQuery = '';
+                            _searchCtrl.clear();
+                          }),
+                        ),
+                      const SizedBox(width: 4),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               Flexible(
                 child: SingleChildScrollView(
                   child: Column(
@@ -11681,8 +16366,22 @@ class _SubjectTopicsDialogState extends State<_SubjectTopicsDialog> {
                             ),
                           ),
                         )
+                      else if (filteredTopics.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          child: Center(
+                            child: Text(
+                              'Eşleşen konu yok'.tr(),
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppPalette.textSecondary(context),
+                              ),
+                            ),
+                          ),
+                        )
                       else
-                        for (final topic in allTopics) _topicRow(topic),
+                        for (final topic in filteredTopics) _topicRow(topic),
                     ],
                   ),
                 ),
@@ -11803,16 +16502,36 @@ class _SubjectTopicsDialogState extends State<_SubjectTopicsDialog> {
   }
 
   Widget _topicRow(String topic) {
-    final existing = _summaryForTopic(topic);
+    final isQuestions = widget.mode == LibraryMode.questions;
+    // Konuya ait kısa/kapsamlı özetleri AYRI say. Aynı konuda max 2 özet var:
+    // 1 kısa + 1 kapsamlı. Bu sayıma göre button davranışı:
+    //   • 0/2 → "Özet Oluştur" (kullanıcıya kısa/kapsamlı sorulur)
+    //   • 1/2 → "Özet Oluştur" (eksik olanı OTOMATIK üretir, sormaz)
+    //   • 2/2 → "Tamamlandı" — buton kilitli, dokununca bilgilendirme.
+    final subj = widget.getExistingSubject();
+    _Summary? shortSum;
+    _Summary? compSum;
+    for (final s in subj.summaries) {
+      if (s.topic.toLowerCase() == topic.toLowerCase()) {
+        if (s.length == _SummaryLength.short) {
+          shortSum ??= s;
+        } else {
+          compSum ??= s;
+        }
+      }
+    }
+    final summaryCount =
+        (shortSum != null ? 1 : 0) + (compSum != null ? 1 : 0);
+    final existing = shortSum ?? compSum; // questions mode için ilk varolan
     final hasSummary = existing != null;
     final hasIcon = hasSummary || _savedCustomTopics.contains(topic);
-    final isQuestions = widget.mode == LibraryMode.questions;
+    final summaryFull = !isQuestions && summaryCount >= 2;
     // Questions mode'da sağdaki butonun davranışı:
-    //   • testCount < 3  → her tıklama yeni test üretir (eski sonuca gitmez)
-    //   • testCount == 3 → buton kilitli, dokununca uyarı snackbar'ı
+    //   • testCount < 6  → her tıklama yeni test üretir (eski sonuca gitmez)
+    //   • testCount == 6 → buton kilitli, dokununca uyarı snackbar'ı
     final testCount =
         isQuestions && existing != null ? existing.tests.length : 0;
-    final limitReached = isQuestions && testCount >= 3;
+    final limitReached = isQuestions && testCount >= 6;
 
     final IconData actionIcon;
     final String actionLabel;
@@ -11821,12 +16540,12 @@ class _SubjectTopicsDialogState extends State<_SubjectTopicsDialog> {
     if (isQuestions) {
       if (limitReached) {
         actionIcon = Icons.lock_rounded;
-        actionLabel = '${'Limit'.tr()} · 3/3';
+        actionLabel = '${'Limit'.tr()} · 6/6';
         actionBg = Color(0xFFE5E7EB);
         actionFg = Colors.black54;
       } else if (testCount > 0) {
         actionIcon = Icons.add_rounded;
-        actionLabel = '${'Yeni Test'.tr()} · $testCount/3';
+        actionLabel = '${'Yeni Test'.tr()} · $testCount/6';
         actionBg = Color(0xFFEFF1F6);
         actionFg = Colors.black;
       } else {
@@ -11835,13 +16554,23 @@ class _SubjectTopicsDialogState extends State<_SubjectTopicsDialog> {
         actionBg = Color(0xFFEFF1F6);
         actionFg = Colors.black;
       }
+    } else if (summaryFull) {
+      // İki özet de tamamlandı — kilitli görünüm.
+      actionIcon = Icons.lock_rounded;
+      actionLabel = '${'Tamamlandı'.tr()} · 2/2';
+      actionBg = const Color(0xFFE5E7EB);
+      actionFg = Colors.black54;
+    } else if (summaryCount == 1) {
+      // 1 özet var, diğerini otomatik üret.
+      actionIcon = Icons.add_rounded;
+      actionLabel = widget._createLabel.tr();
+      actionBg = const Color(0xFFEFF1F6);
+      actionFg = Colors.black;
     } else {
-      actionIcon = hasSummary
-          ? Icons.auto_stories_rounded
-          : Icons.auto_awesome_rounded;
-      actionLabel =
-          hasSummary ? widget._existingLabel.tr() : widget._createLabel.tr();
-      actionBg = Color(0xFFEFF1F6);
+      // Henüz hiç özet yok.
+      actionIcon = Icons.auto_awesome_rounded;
+      actionLabel = widget._createLabel.tr();
+      actionBg = const Color(0xFFEFF1F6);
       actionFg = Colors.black;
     }
     return Padding(
@@ -11898,7 +16627,7 @@ class _SubjectTopicsDialogState extends State<_SubjectTopicsDialog> {
                     Navigator.of(context).pop();
                     messenger.showSnackBar(SnackBar(
                       content: Text(
-                        'Bu konudan zaten 3 test oluşturdun. Aynı konu için en fazla 3 test oluşturabilirsin.'
+                        'Bu konudan zaten 6 test oluşturdun. Aynı konu için en fazla 6 test oluşturabilirsin.'
                             .tr(),
                       ),
                       behavior: SnackBarBehavior.floating,
@@ -11910,11 +16639,28 @@ class _SubjectTopicsDialogState extends State<_SubjectTopicsDialog> {
                   }
                   if (isQuestions) {
                     widget.onGenerateTopic(topic);
-                  } else if (hasSummary) {
-                    widget.onOpenExistingSummary(existing);
-                  } else {
-                    widget.onGenerateTopic(topic);
+                    return;
                   }
+                  // Summary mode — KISA/KAPSAMLI 2'li sistem:
+                  //   • 2/2 dolu: dialog kapatıp bilgi snack'i göster.
+                  //   • 1/2 veya 0/2: onGenerateTopic'a aktar; backend
+                  //     (_generateForExistingSubject) eksik olanı otomatik
+                  //     seçer veya hiçbiri yoksa kullanıcıya sorar.
+                  if (summaryFull) {
+                    final messenger = ScaffoldMessenger.of(context);
+                    Navigator.of(context).pop();
+                    messenger.showSnackBar(SnackBar(
+                      content: Text(
+                          'Bu konunun hem kısa hem kapsamlı özeti zaten var.'
+                              .tr()),
+                      behavior: SnackBarBehavior.floating,
+                      duration: const Duration(seconds: 3),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ));
+                    return;
+                  }
+                  widget.onGenerateTopic(topic);
                 },
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
@@ -11953,10 +16699,23 @@ class _TestSetupPage extends StatefulWidget {
   final String subjectName;
   final String topic;
   final int attemptIndex; // 0..2 — 1./2./3. test
+  /// Mevcut konunun özet içeriği — "Bu konunun özetini hatırlat" sheet'inde
+  /// kullanılır. Boşsa buton görünmez.
+  final String summaryContent;
+  /// Önceki test denemeleri — "Yanlışlardan Tekrar Testi" için.
+  /// Tamamlanmış denemelerdeki yanlış cevaplı sorular toplanır.
+  final List<_TestAttempt> previousAttempts;
+  /// Aynı dersin diğer konuları — "Karışık konular" modunda seçilebilir.
+  /// Current topic listede yer almaz.
+  final List<_Summary> sameSubjectSummaries;
+
   const _TestSetupPage({
     required this.subjectName,
     required this.topic,
     required this.attemptIndex,
+    this.summaryContent = '',
+    this.previousAttempts = const [],
+    this.sameSubjectSummaries = const [],
   });
 
   @override
@@ -11964,112 +16723,315 @@ class _TestSetupPage extends StatefulWidget {
 }
 
 class _TestSetupPageState extends State<_TestSetupPage> {
-  final _cfg = _TestConfig();
+  _TestConfig _cfg = _TestConfig();
+  bool _loaded = false;
+  // Karışık konular toggle + seçili konu adları.
+  bool _mixTopics = false;
+  final Set<String> _selectedExtraTopics = {};
+
+  // Önceki denemelerden yanlışlar — once hesaplanır, cached tutulur.
+  late final List<TestQuestion> _wrongs = _collectWrongs();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCfg();
+  }
+
+  Future<void> _loadCfg() async {
+    final loaded = await _TestConfig.loadFromPrefs();
+    if (!mounted) return;
+    setState(() {
+      _cfg = loaded;
+      _loaded = true;
+    });
+  }
+
+  // Bütün tamamlanmış denemelerden yanlış cevaplı soruları topla — soru
+  // metnine göre dedupe.
+  List<TestQuestion> _collectWrongs() {
+    final out = <TestQuestion>[];
+    final seen = <String>{};
+    for (final att in widget.previousAttempts) {
+      if (!att.completed) continue;
+      try {
+        final qs = parseTestQuestions(att.content);
+        for (int i = 0; i < qs.length; i++) {
+          final ua = att.answers[i];
+          if (ua == null) continue; // boş bırakılan → yanlış sayılmasın
+          if (ua.toUpperCase() == qs[i].ans) continue; // doğru
+          final key =
+              qs[i].q.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+          if (seen.add(key)) out.add(qs[i]);
+        }
+      } catch (_) {}
+    }
+    return out;
+  }
+
+  void _applyPreset(int count, String difficulty, String timeMode,
+      {String questionType = 'mc'}) {
+    setState(() {
+      _cfg.count = count;
+      _cfg.difficulty = difficulty;
+      _cfg.timeMode = timeMode;
+      _cfg.questionType = questionType;
+    });
+  }
+
+  String _estimatedDurationLabel() {
+    final perQ = _cfg.timeMode == 'relax' ? 30 : _cfg.timeLimitSeconds;
+    final totalSec = _cfg.count * perQ;
+    if (totalSec < 60) return '~${totalSec}s';
+    final m = (totalSec / 60).ceil();
+    return '~$m dk';
+  }
+
+  Future<void> _onSubmit() async {
+    // Onay dialog'u kaldırıldı — kullanıcı "Teste Başla" diyince direkt
+    // pop edip arka planda test üretimini başlatır.
+    // Karışık konular: seçili extra konuları cfg'ye yedir.
+    if (_mixTopics && _selectedExtraTopics.isNotEmpty) {
+      _cfg.extraTopics = _selectedExtraTopics.toList();
+    }
+    await _cfg.persistToPrefs();
+    if (!mounted) return;
+    Navigator.of(context).pop(_cfg);
+  }
+
+  String _difficultyLabel(String d) {
+    switch (d) {
+      case 'easy':
+        return 'Kolay';
+      case 'hard':
+        return 'Zor';
+      default:
+        return 'Orta';
+    }
+  }
+
+  String _timeModeLabel() {
+    switch (_cfg.timeMode) {
+      case 'normal':
+        return '90s/soru';
+      case 'race':
+        return '45s/soru';
+      case 'custom':
+        return '${_cfg.customSecondsPerQuestion}s/soru';
+      default:
+        return 'süresiz';
+    }
+  }
+
+  void _openSummarySheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppPalette.card(context),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.92,
+        expand: false,
+        builder: (_, ctrl) => Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppPalette.textSecondary(context)
+                        .withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Icon(Icons.menu_book_rounded,
+                      color: Color(0xFF7C3AED), size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${widget.topic} — ${'Konu Özeti'.tr()}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: AppPalette.textPrimary(context),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: ctrl,
+                  child: SelectableText(
+                    widget.summaryContent,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      height: 1.55,
+                      color: AppPalette.textPrimary(context),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Yanlışlardan Tekrar Testi'ne geç → cfg.fromWrongs=true + count=wrongs.length
+  // Onay dialog'undan geçmesin (AI çağrısı yok, kota tüketilmiyor).
+  void _replayWrongs() {
+    if (_wrongs.isEmpty) return;
+    _cfg.fromWrongs = true;
+    _cfg.wrongsToReuse = _wrongs;
+    _cfg.count = _wrongs.length.clamp(1, 40);
+    Navigator.of(context).pop(_cfg);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final pageBg = AppPalette.bg(context);
-    return Scaffold(
-      backgroundColor: pageBg,
-      appBar: AppBar(
+    // Dialog zemini beyaz — resimde de beyaz, pill'ler çevresinde net çıkar.
+    const pageBg = Colors.white;
+    if (!_loaded) {
+      return Dialog(
         backgroundColor: pageBg,
-        elevation: 0,
-        foregroundColor: AppPalette.textPrimary(context),
-        centerTitle: true,
-        title: Text(
-          '${widget.attemptIndex + 1}. ${'Test'.tr()}',
-          style:
-              GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w800),
+        insetPadding:
+            const EdgeInsets.symmetric(horizontal: 24, vertical: 60),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22)),
+        child: const Padding(
+          padding: EdgeInsets.all(40),
+          child: Center(child: CircularProgressIndicator()),
         ),
+      );
+    }
+    return Dialog(
+      backgroundColor: pageBg,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(22),
       ),
-      body: SafeArea(
-        child: Column(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 460,
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
+        ),
+        child: Stack(
+          clipBehavior: Clip.none,
           children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 6, 16, 20),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ── Üst başlık — "Test Ayarları" (her iki akış için aynı) ──
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 56, 6),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Test Ayarları'.tr(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: const Color(0xFF6B7B95),
+                        height: 1.1,
+                      ),
+                    ),
+                  ),
+                ),
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 4, vertical: 6),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Son Ayarlar'.tr(),
-                            style: GoogleFonts.poppins(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w800,
-                              color: AppPalette.textPrimary(context),
-                              height: 1.1,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            '${widget.subjectName} · ${widget.topic}',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.poppins(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                              color: AppPalette.textSecondary(context),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: 18),
+                    // Sıralama: Soru Tipi → Soru Sayısı → Zorluk → Süre Modu
+                    // Soru Tipi — her label 2 kelime, alt alta satırlar (\n).
                     _TestPillGroup(
-                      label: '📊 SORU SAYISI'.tr(),
+                      label: 'Soru Tipi'.tr(),
                       options: const [
-                        _TestPillOpt('5', '⚡', '5 Soru', '~5 dk'),
-                        _TestPillOpt('10', '📝', '10 Soru', '~10 dk'),
-                        _TestPillOpt('15', '📚', '15 Soru', '~15 dk'),
-                        _TestPillOpt('20', '🎯', '20 Soru', '~20 dk'),
+                        _TestPillOpt('mc', '', 'Çoktan\nSeçmeli', ''),
+                        _TestPillOpt('tf', '', 'Doğru\nYanlış', ''),
+                        _TestPillOpt('fill', '', 'Boşluk\nDoldurma', ''),
+                      ],
+                      selected: _cfg.questionType,
+                      titleFontSize: 12,
+                      verticalPadding: 12,
+                      onSelect: (v) =>
+                          setState(() => _cfg.questionType = v),
+                    ),
+                    // Soru Sayısı — büyük rakamlar, daha uzun kutular.
+                    _TestPillGroup(
+                      label: 'Soru Sayısı'.tr(),
+                      options: const [
+                        _TestPillOpt('5', '', '5', ''),
+                        _TestPillOpt('10', '', '10', ''),
+                        _TestPillOpt('15', '', '15', ''),
+                        _TestPillOpt('20', '', '20', ''),
                       ],
                       selected: '${_cfg.count}',
+                      titleFontSize: 20,
+                      verticalPadding: 18,
                       onSelect: (v) =>
                           setState(() => _cfg.count = int.parse(v)),
                     ),
+                    // Zorluk Seviyesi — incelmiş Y.
                     _TestPillGroup(
-                      label: '⚡ ZORLUK SEVİYESİ'.tr(),
+                      label: 'Zorluk Seviyesi'.tr(),
                       options: const [
-                        _TestPillOpt('easy', '🟢', 'Kolay', 'Temel',
-                            tone: Color(0xFF059669),
-                            toneBg: Color(0xFFECFDF5)),
-                        _TestPillOpt('medium', '🟡', 'Orta', 'Dengeli',
+                        _TestPillOpt('easy', '🌱', 'Kolay', ''),
+                        _TestPillOpt('medium', '⚖️', 'Orta', '',
                             tone: Color(0xFFD97706),
-                            toneBg: Color(0xFFFFFBEB)),
-                        _TestPillOpt('hard', '🔴', 'Zor', 'Zorlayıcı',
-                            tone: Color(0xFFDC2626),
-                            toneBg: Color(0xFFFEF2F2)),
+                            toneBg: Color(0xFFFEF3C7)),
+                        _TestPillOpt('hard', '🔥', 'Zor', ''),
                       ],
                       selected: _cfg.difficulty,
-                      onSelect: (v) =>
-                          setState(() => _cfg.difficulty = v),
+                      titleFontSize: 13,
+                      verticalPadding: 6,
+                      onSelect: (v) => setState(() => _cfg.difficulty = v),
                     ),
+                    // Süre Modu — incelmiş Y.
                     _TestPillGroup(
-                      label: '⏱️ SÜRE MODU'.tr(),
+                      label: 'Süre Modu'.tr(),
                       options: const [
-                        _TestPillOpt('relax', '🧘', 'Rahat', 'Süre yok'),
+                        _TestPillOpt('relax', '🧘', 'Rahat', 'Süresiz',
+                            tone: Color(0xFF374151),
+                            toneBg: Color(0xFFE5E7EB)),
                         _TestPillOpt(
-                            'normal', '⏲️', 'Normal', '90 sn/soru'),
-                        _TestPillOpt('race', '🔥', 'Yarış', '45 sn/soru'),
+                            'normal', '⏱️', 'Normal', '90s/soru'),
+                        _TestPillOpt('race', '⚡', 'Hız', '45s/soru'),
                       ],
                       selected: _cfg.timeMode,
-                      onSelect: (v) =>
-                          setState(() => _cfg.timeMode = v),
+                      titleFontSize: 13,
+                      verticalPadding: 6,
+                      onSelect: (v) => setState(() => _cfg.timeMode = v),
                     ),
+                    // ── KARIŞIK KONULAR ─────────────────────────────────
+                    if (widget.sameSubjectSummaries.isNotEmpty)
+                      _mixTopicsSection(),
                   ],
                 ),
               ),
             ),
+            // ── ALT: "Teste Başla" (turuncu oval) ────────────────────
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 18),
               child: GestureDetector(
-                onTap: () => Navigator.of(context).pop(_cfg),
+                onTap: _onSubmit,
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -12080,29 +17042,362 @@ class _TestSetupPageState extends State<_TestSetupPage> {
                       BoxShadow(
                         color: _orange.withValues(alpha: 0.35),
                         blurRadius: 12,
-                        offset: Offset(0, 4),
+                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
                   alignment: Alignment.center,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text('🚀', style: TextStyle(fontSize: 16)),
-                      SizedBox(width: 8),
-                      Text(
-                        'Testi Oluştur'.tr(),
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    'Teste Başla'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      letterSpacing: 0.2,
+                    ),
                   ),
                 ),
               ),
             ),
+          ],
+        ),
+        // Sağ üstte kapat butonu — çerçevesiz daire
+        Positioned(
+          right: 8,
+          top: 8,
+          child: Material(
+            color: AppPalette.card(context),
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: () => Navigator.of(context).pop(),
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: Icon(Icons.close_rounded,
+                    size: 16, color: AppPalette.textPrimary(context)),
+              ),
+            ),
+          ),
+        ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Hazır şablonlar — 3 chip yan yana ────────────────────────────────
+  Widget _quickTemplatesRow() {
+    Widget chip({
+      required String emoji,
+      required String label,
+      required String hint,
+      required Color tint,
+      required VoidCallback onTap,
+    }) {
+      return Expanded(
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [tint.withValues(alpha: 0.16), tint.withValues(alpha: 0.04)],
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: tint.withValues(alpha: 0.45), width: 1),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(emoji, style: const TextStyle(fontSize: 18)),
+                const SizedBox(height: 3),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    color: tint,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  hint,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppPalette.textSecondary(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        chip(
+          emoji: '⚡',
+          label: 'Hızlı Tekrar',
+          hint: '5 · Kolay · Rahat',
+          tint: const Color(0xFF10B981),
+          onTap: () => _applyPreset(5, 'easy', 'relax'),
+        ),
+        const SizedBox(width: 8),
+        chip(
+          emoji: '🎯',
+          label: 'TYT Provası',
+          hint: '20 · Orta · 45s',
+          tint: const Color(0xFFFF6A00),
+          onTap: () => _applyPreset(20, 'medium', 'race'),
+        ),
+        const SizedBox(width: 8),
+        chip(
+          emoji: '🏆',
+          label: 'Sınav Simülasyonu',
+          hint: '20 · Zor · 90s',
+          tint: const Color(0xFF7C3AED),
+          onTap: () => _applyPreset(20, 'hard', 'normal',
+              questionType: 'mixed'),
+        ),
+      ],
+    );
+  }
+
+  // ── Tek tıklık aksiyon kartı (özet hatırlat / yanlışlardan tekrar) ───
+  Widget _quickActionTile({
+    required IconData icon,
+    required Color tint,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 11, 8, 11),
+        decoration: BoxDecoration(
+          color: AppPalette.card(context),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: tint.withValues(alpha: 0.35), width: 1),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: tint.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              alignment: Alignment.center,
+              child: Icon(icon, size: 19, color: tint),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppPalette.textPrimary(context),
+                    ),
+                  ),
+                  Text(
+                    subtitle.tr(),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w500,
+                      color: AppPalette.textSecondary(context),
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded,
+                size: 18, color: Color(0xFF6B7280)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Özel süre slider'ı (30–120s soru başına) ─────────────────────────
+  Widget _customTimeSlider() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18, top: 4),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
+        decoration: BoxDecoration(
+          color: AppPalette.card(context),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppPalette.border(context), width: 1),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'Soru başına süre'.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppPalette.textSecondary(context),
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: _orange.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${_cfg.customSecondsPerQuestion} sn',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      color: _orange,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Slider(
+              value: _cfg.customSecondsPerQuestion.toDouble(),
+              min: 30,
+              max: 120,
+              divisions: 18, // 5s'lik adım
+              activeColor: _orange,
+              onChanged: (v) {
+                setState(() {
+                  _cfg.customSecondsPerQuestion = v.round();
+                });
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Karışık konular: toggle + multi-select chip listesi ──────────────
+  Widget _mixTopicsSection() {
+    final others = widget.sameSubjectSummaries
+        .where((s) => s.topic.toLowerCase().trim() !=
+            widget.topic.toLowerCase().trim())
+        .toList();
+    if (others.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18, top: 4),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        decoration: BoxDecoration(
+          color: AppPalette.card(context),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppPalette.border(context), width: 1),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.shuffle_rounded,
+                    size: 16, color: Color(0xFFEC4899)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'KARIŞIK KONULAR'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      color: AppPalette.textSecondary(context),
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ),
+                Switch.adaptive(
+                  value: _mixTopics,
+                  activeThumbColor: const Color(0xFFEC4899),
+                  onChanged: (v) => setState(() {
+                    _mixTopics = v;
+                    if (!v) _selectedExtraTopics.clear();
+                  }),
+                ),
+              ],
+            ),
+            if (_mixTopics) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Birden fazla konudan karışık soru üret'.tr(),
+                style: GoogleFonts.poppins(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w500,
+                  color: AppPalette.textSecondary(context),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final s in others)
+                    GestureDetector(
+                      onTap: () => setState(() {
+                        if (_selectedExtraTopics.contains(s.topic)) {
+                          _selectedExtraTopics.remove(s.topic);
+                        } else {
+                          _selectedExtraTopics.add(s.topic);
+                        }
+                      }),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _selectedExtraTopics.contains(s.topic)
+                              ? const Color(0xFFEC4899)
+                                  .withValues(alpha: 0.15)
+                              : AppPalette.bg(context),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: _selectedExtraTopics.contains(s.topic)
+                                ? const Color(0xFFEC4899)
+                                : AppPalette.border(context),
+                            width: 1,
+                          ),
+                        ),
+                        child: Text(
+                          s.topic,
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: _selectedExtraTopics.contains(s.topic)
+                                ? const Color(0xFFEC4899)
+                                : AppPalette.textPrimary(context),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -12126,78 +17421,106 @@ class _TestPillGroup extends StatelessWidget {
   final List<_TestPillOpt> options;
   final String selected;
   final ValueChanged<String> onSelect;
+  // Pill yüksekliği ve title font boyutu — gruptan gruba değişebilsin
+  // (Soru Sayısı büyük, Zorluk/Süre Modu ince).
+  final double verticalPadding;
+  final double titleFontSize;
   const _TestPillGroup({
     required this.label,
     required this.options,
     required this.selected,
     required this.onSelect,
+    this.verticalPadding = 12,
+    this.titleFontSize = 14,
   });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 18),
+      padding: const EdgeInsets.only(bottom: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: GoogleFonts.poppins(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              color: AppPalette.textSecondary(context),
-              letterSpacing: 0.8,
+          // Bölüm başlığı — gri-mavi, normal weight (resimdeki gibi).
+          Padding(
+            padding: const EdgeInsets.only(left: 2, bottom: 10),
+            child: Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF6B7B95),
+                letterSpacing: 0.2,
+                height: 1.1,
+              ),
             ),
           ),
-          SizedBox(height: 10),
+          // Pill satırı — her pill bağımsız kare-rounded kart.
           Row(
             children: [
               for (int i = 0; i < options.length; i++) ...[
-                if (i > 0) SizedBox(width: 8),
+                if (i > 0) const SizedBox(width: 10),
                 Expanded(
                   child: GestureDetector(
                     onTap: () => onSelect(options[i].value),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 14),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 160),
+                      padding: EdgeInsets.symmetric(
+                          horizontal: 4, vertical: verticalPadding),
                       decoration: BoxDecoration(
+                        // Seçili → yeşil arka plan, beyaz yazı.
+                        // Seçilmemiş → beyaz arka plan, siyah yazı.
                         color: selected == options[i].value
-                            ? (options[i].toneBg ?? Colors.white)
+                            ? const Color(0xFF10B981)
                             : Colors.white,
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(16),
                         border: Border.all(
                           color: selected == options[i].value
-                              ? (options[i].tone ?? Colors.black)
-                              : Colors.black12,
-                          width: selected == options[i].value ? 2 : 1,
+                              ? const Color(0xFF10B981)
+                              : Colors.black.withValues(alpha: 0.18),
+                          width: selected == options[i].value ? 2 : 1.2,
                         ),
                       ),
                       child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(options[i].emoji,
-                              style: TextStyle(fontSize: 22)),
-                          SizedBox(height: 4),
+                          if (options[i].emoji.isNotEmpty) ...[
+                            Text(options[i].emoji,
+                                style: const TextStyle(fontSize: 28)),
+                            const SizedBox(height: 6),
+                          ],
                           Text(
                             options[i].title,
-                            maxLines: 1,
+                            // 2 kelimelik başlıklarda \n ile alt satıra düşer.
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
                             style: GoogleFonts.poppins(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
-                              color: AppPalette.textPrimary(context),
+                              fontSize: titleFontSize,
+                              fontWeight: FontWeight.w800,
+                              color: selected == options[i].value
+                                  ? Colors.white
+                                  : Colors.black,
+                              height: 1.15,
                             ),
                           ),
-                          SizedBox(height: 2),
-                          Text(
-                            options[i].hint,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.poppins(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: AppPalette.textSecondary(context),
+                          if (options[i].hint.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              options[i].hint,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.poppins(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: selected == options[i].value
+                                    ? Colors.white.withValues(alpha: 0.85)
+                                    : const Color(0xFF6B7B95),
+                                height: 1.1,
+                              ),
                             ),
-                          ),
+                          ],
                         ],
                       ),
                     ),
@@ -12813,7 +18136,7 @@ class _IntroDialog extends StatelessWidget {
 //  Test Topic Picker — Test FAB tıklanınca açılan sheet
 //  Aktif konu turuncu border + dolgu ile vurgulanır (active_topic_color).
 // ═════════════════════════════════════════════════════════════════════════
-enum _TestPickerMode { testlerim, pick }
+enum _TestPickerMode { testlerim }
 enum _TestPickerIntent { continueLast, newTest }
 
 class _TopicPickerResult {
@@ -12914,7 +18237,7 @@ class _TestTopicPicker extends StatelessWidget {
                                 _TopicPickerResult(
                                     s, _TestPickerIntent.continueLast))
                             : null,
-                        onNewTest: s.tests.length >= 3
+                        onNewTest: s.tests.length >= 6
                             ? null
                             : () => Navigator.of(ctx).pop(_TopicPickerResult(
                                 s, _TestPickerIntent.newTest)),
@@ -12958,7 +18281,7 @@ class _TestlerimRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasTest = testCount > 0;
-    final atLimit = testCount >= 3;
+    final atLimit = testCount >= 6;
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
@@ -13041,7 +18364,7 @@ class _TestlerimRow extends StatelessWidget {
               Expanded(
                 child: _SmallActionBtn(
                   icon: atLimit ? Icons.lock_rounded : Icons.add_rounded,
-                  label: atLimit ? 'Limit · 3/3' : 'Yeni Test Oluştur',
+                  label: atLimit ? 'Limit · 6/6' : 'Yeni Test Oluştur',
                   color: atLimit ? Colors.black54 : _activeColor,
                   filled: !atLimit,
                   onTap: onNewTest ?? () {},
@@ -13533,7 +18856,7 @@ class ParentReportPageState extends State<ParentReportPage> {
         'uygulamasını yükle ve aşağıdaki kodla bağlan:\n\n'
         'Eşleşme kodu: $_pairCode\n'
         'Öğrenci ID: $_studentId\n\n'
-        'Uygulamayı indir: https://qualsar.app';
+        'Uygulamayı indir: https://qualsar2-640f0.web.app';
 
     unawaited(_doShareInvite(msg));
   }
@@ -14405,6 +19728,505 @@ class ParentReportPageState extends State<ParentReportPage> {
               fontWeight: FontWeight.w500,
               color: AppPalette.textPrimary(context),
               height: 1.45,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  _SummaryHelpPage — Özet detay sayfasının "Nasıl Çalışır?" rehberi.
+//  Sağ üstteki (?) butonundan açılır; tüm UI öğelerini ve hareketli araç
+//  çubuğunu net bir şekilde anlatır.
+// ═══════════════════════════════════════════════════════════════════════════
+class _SummaryHelpPage extends StatelessWidget {
+  const _SummaryHelpPage();
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = AppPalette.bg(context);
+    final ink = AppPalette.textPrimary(context);
+    return Scaffold(
+      backgroundColor: bg,
+      appBar: AppBar(
+        backgroundColor: bg,
+        elevation: 0,
+        foregroundColor: ink,
+        title: Text(
+          'Sayfa Nasıl Çalışır?'.tr(),
+          style: GoogleFonts.poppins(
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            color: ink,
+          ),
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(18, 8, 18, 32),
+        children: [
+          // ── Üst tanıtım (kısa) ────────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  const Color(0xFF7C3AED).withValues(alpha: 0.12),
+                  const Color(0xFF2563EB).withValues(alpha: 0.10),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                  color: const Color(0xFF7C3AED).withValues(alpha: 0.30),
+                  width: 1),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.auto_stories_rounded,
+                    size: 22, color: Color(0xFF7C3AED)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Konuyu oku, üstüne not al, sesli dinle, planla, tekrar et — her şey burada.'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: ink,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ════════ ÜST BAR ════════
+          _groupHeader(context, '📌 ÜST BAR'),
+          _section(
+            context,
+            icon: Icons.palette_rounded,
+            iconColor: const Color(0xFFDB2777),
+            title: 'Renk Seç',
+            body: 'Sağ üstteki renkli kapsül → sayfanın arka planını, '
+                'başlık ve kart renklerini değiştir. Seçimin bu konuya '
+                'özel kaydedilir.',
+          ),
+          _section(
+            context,
+            icon: Icons.text_fields_rounded,
+            iconColor: const Color(0xFF2563EB),
+            title: 'Yazı Boyutu (A− / A+)',
+            body: 'Yazı boyutunu küçült veya büyüt (12–22 punto). Tercihin '
+                'tüm özetlerde geçerli olur.',
+          ),
+          _section(
+            context,
+            icon: Icons.help_outline_rounded,
+            iconColor: const Color(0xFF7C3AED),
+            title: 'Yardım (?)',
+            body: 'Bu sayfa — her özelliğin nasıl çalıştığını anlatır.',
+          ),
+          _section(
+            context,
+            icon: Icons.more_vert_rounded,
+            iconColor: const Color(0xFF06B6D4),
+            title: '⋮ Menü',
+            body: 'Sayfanın tüm gelişmiş özellikleri burada — her satır '
+                'kendi mini kartında. Aşağıda tek tek anlattım.',
+          ),
+
+          // ════════ MENÜ İÇERİĞİ ════════
+          _groupHeader(context, '🎛️ ⋮ MENÜ İÇERİĞİ'),
+          _subItem(context,
+              icon: Icons.quiz_rounded,
+              color: const Color(0xFFFF6A00),
+              title: 'Test Çöz',
+              body: 'Bu konunun testini başlatır. Yarım kalan varsa '
+                  'kaldığın yerden devam edersin, yoksa yeni test üretilir.'),
+          _subItem(context,
+              icon: Icons.list_alt_rounded,
+              color: const Color(0xFF7C3AED),
+              title: 'Bölümler',
+              body: 'Tüm ana başlıkları VE alt başlıkları sırayla gösterir. '
+                  'Bir satıra dokunarak doğrudan o bölüme atlarsın.'),
+          _subItem(context,
+              icon: Icons.bookmark_rounded,
+              color: const Color(0xFFFF6A00),
+              title: 'Yer İmi',
+              body: 'O anki konumunu kaydeder. Bir sonraki açılışta '
+                  '"Kaldığın yerden devam?" snackbar\'ı çıkar.'),
+          _subItem(context,
+              icon: Icons.search_rounded,
+              color: const Color(0xFF2563EB),
+              title: 'Konuda Ara',
+              body: 'Özetin içinde kelime ara — eşleşen yerler ★ ile '
+                  'vurgulanır.'),
+          _subItem(context,
+              icon: Icons.swap_horiz_rounded,
+              color: const Color(0xFF10B981),
+              title: 'Kısa ↔ Kapsamlı',
+              body: 'Aynı konunun diğer versiyonuna geç. Her konu için '
+                  'en fazla 1 Kısa + 1 Kapsamlı özet vardır.'),
+          _subItem(context,
+              icon: Icons.visibility_off_rounded,
+              color: const Color(0xFF06B6D4),
+              title: 'Çizimleri Gizle / Göster',
+              body: 'Kalemle yaptığın çizimleri ve vurguları geçici '
+                  'gizler — sınava hazırlanırken "boş özet" görünümü.'),
+          _subItem(context,
+              icon: Icons.volume_up_rounded,
+              color: const Color(0xFFFBBF24),
+              title: 'Sesli Oku',
+              body: 'Özeti baştan sona sesli oku. Sembol, emoji ve '
+                  'formülleri ATLAR — insansı akış. Konuşma başlayınca '
+                  'sağ altta KIRMIZI durdur butonu çıkar.'),
+          _subItem(context,
+              icon: Icons.speed_rounded,
+              color: const Color(0xFF06B6D4),
+              title: 'Sesli Okuma Hızı',
+              body: '0.5x (yavaş, öğrenme) · 1x (normal) · 1.5x (hızlı) · '
+                  '2x (çok hızlı, tekrar). Tercihin kaydedilir.'),
+          _subItem(context,
+              icon: Icons.event_repeat_rounded,
+              color: const Color(0xFFFF6A00),
+              title: 'Tekrar Planı (Aralıklı Tekrar)',
+              body: 'Bilimsel "spaced repetition": konuyu 1, 3, 7, 14, 30. '
+                  'günlerde tekrar et → uzun süreli belleğe geç. Tüm '
+                  'bölümleri tamamlayınca plan otomatik başlar; menüden de '
+                  'manuel başlatabilirsin.'),
+          _subItem(context,
+              icon: Icons.insights_rounded,
+              color: const Color(0xFF2563EB),
+              title: 'Konu İstatistikleri',
+              body: 'Toplam çalışma süren, tamamladığın bölümler, '
+                  'başladığın gün, tekrar planı durumu ve test denemeleri '
+                  '(ortalama doğru %).'),
+          _subItem(context,
+              icon: Icons.copy_rounded,
+              color: const Color(0xFFEC4899),
+              title: 'Özeti Kopyala',
+              body: 'Özet panoya kopyalanır + arkadaşına göndermek '
+                  'istersen Paylaş sheet\'i açılır (WhatsApp, Telegram, '
+                  'SMS, e-posta, vs.).'),
+
+          // ════════ SAYFA İÇİ ÖZELLİKLER ════════
+          _groupHeader(context, '📖 SAYFA İÇİ'),
+          _section(
+            context,
+            icon: Icons.title_rounded,
+            iconColor: const Color(0xFF2563EB),
+            title: 'Başlık Kartı',
+            body: 'Üstteki kart ders + konu adını, ⚡ Kısa / 📖 Kapsamlı '
+                'rozetini, tahmini okuma süresini ve % tamamlanma oranını '
+                'gösterir.',
+          ),
+          _section(
+            context,
+            icon: Icons.linear_scale_rounded,
+            iconColor: const Color(0xFF7C3AED),
+            title: 'Üst İlerleme Çubuğu',
+            body: 'AppBar\'ın altındaki ince mor-mavi şerit, özetin '
+                'neresini okuduğunu gösterir.',
+          ),
+          _section(
+            context,
+            icon: Icons.push_pin_rounded,
+            iconColor: const Color(0xFF06B6D4),
+            title: 'Yapışan Bölüm Başlığı',
+            body: 'Aşağı kaydırdıkça hangi bölümde olduğunu üstte küçük '
+                'bir kapsülde görürsün — sağda "3/7" ile kaçıncı bölüm '
+                'olduğunu söyler.',
+          ),
+          _section(
+            context,
+            icon: Icons.check_circle_rounded,
+            iconColor: const Color(0xFF10B981),
+            title: 'Bölüm Tamamla (✓)',
+            body: 'Her bölüm başlığının sağındaki yuvarlak işaret. '
+                'Tıkladığında bölüm "öğrendim" olarak işaretlenir, '
+                'başlık üzerinde çizgi belirir. Tüm bölümler tamamlanınca '
+                'TEKRAR PLANI otomatik başlar.',
+          ),
+          _section(
+            context,
+            icon: Icons.notifications_active_rounded,
+            iconColor: const Color(0xFFFF6A00),
+            title: 'Tekrar Zamanı Banner\'ı',
+            body: 'Aktif tekrar planında bir kontrol günü geldiyse üstte '
+                'turuncu bir bant çıkar. "Tekrarladım ✓" → bir sonraki '
+                'aralığa geçer (1 → 3 → 7 → 14 → 30 gün).',
+          ),
+          _section(
+            context,
+            icon: Icons.touch_app_rounded,
+            iconColor: const Color(0xFFA855F7),
+            title: 'Bölüme Uzun Bas',
+            body: 'Herhangi bir bölümü UZUN BAS → "Kopyala", "Bu bölümü '
+                'farklı anlat (AI)" veya "İyi / Eksik" geri bildirim '
+                'seçenekleri.',
+          ),
+
+          // ════════ SAĞ ALT FAB ════════
+          _groupHeader(context, '🎯 SAĞ ALT BUTONLAR'),
+          _section(
+            context,
+            icon: Icons.keyboard_arrow_up_rounded,
+            iconColor: const Color(0xFF2563EB),
+            title: 'Başa Dön',
+            body: 'Aşağı 600px\'den fazla kaydırınca beyaz yuvarlak FAB '
+                'belirir — tıkla, sayfanın başına süzülerek döner.',
+          ),
+          _section(
+            context,
+            icon: Icons.stop_rounded,
+            iconColor: const Color(0xFFEF4444),
+            title: 'Sesli Okuma Durdur',
+            body: 'TTS aktifken kırmızı durdur FAB\'ı çıkar — istediğin '
+                'anda kes. Durduğunda FAB kaybolur, yeniden okutursan '
+                'tekrar çıkar.',
+          ),
+
+          // ════════ ARAÇ ÇUBUĞU ════════
+          _groupHeader(context, '✏️ HAREKETLİ ARAÇ ÇUBUĞU'),
+          _section(
+            context,
+            icon: Icons.menu_book_rounded,
+            iconColor: const Color(0xFF7C3AED),
+            title: 'Sol Kenardaki Yuvarlak Buton',
+            body: 'Sürüklenebilir. Tıkla, 3 araç açılır:',
+          ),
+          _subItem(context,
+              icon: Icons.palette_rounded,
+              color: const Color(0xFFEC4899),
+              title: 'Renk Paleti (Vurgulayıcı)',
+              body: '16 renkle metni vurgula — yatay parmak ile Serbest '
+                  'veya Düz Çizgi.'),
+          _subItem(context,
+              icon: Icons.create_rounded,
+              color: const Color(0xFFEF4444),
+              title: 'Kalem',
+              body: '16 renk + 3 kalınlık. Çizmeye Başla → Yuvarlak / '
+                  'Dikdörtgen / Serbest seçeneklerinden biriyle çiz.'),
+          _subItem(context,
+              icon: Icons.close_rounded,
+              color: Colors.white,
+              title: 'Kapat',
+              body: 'Aracı kapatır. Çizimlerin saklanır.'),
+
+          const SizedBox(height: 8),
+          _tipBox(
+            context,
+            'Tüm çizimlerin bu konuya kayıt edilir. Sayfayı kapatıp açsan '
+                'da aynı yerde durur. Çizimi UZUN BASIP başka yere '
+                'taşıyabilirsin. Renk/Kalem panelleri yapışan başlığın '
+                'altında açılır — üst üste binmez.',
+          ),
+
+          // ════════ İPUÇLARI ════════
+          _groupHeader(context, '💡 İPUÇLARI'),
+          _section(
+            context,
+            icon: Icons.lightbulb_rounded,
+            iconColor: const Color(0xFFFBBF24),
+            title: 'Püf Noktalar',
+            body: '• Tablonun sağ üstündeki "Tabloyu Tam Ekran Yap" → '
+                'yatay geniş ekran.\n'
+                '• Konu kartına UZUN BAS → Yeniden Oluştur veya Sil.\n'
+                '• AI yazarken sayfa kaymaz; bağlantı koparsa "Tekrar Dene".\n'
+                '• Tekrar planını overflow menüsünden "Sıfırla" ile '
+                'baştan başlatabilirsin.\n'
+                '• Sesli okuma sembolleri okumaz — ⚡, 📖, ▸, • gibi '
+                'işaretler atlanır, insansı akış kalır.',
+          ),
+
+          const SizedBox(height: 12),
+          Center(
+            child: Text(
+              'İyi çalışmalar! 📚',
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: AppPalette.textSecondary(context),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // — Yardımcı: grup başlığı (Üst Bar, Menü İçeriği, vb.) —
+  Widget _groupHeader(BuildContext context, String label) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 8, 2, 10),
+      child: Text(
+        label,
+        style: GoogleFonts.poppins(
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+          color: AppPalette.textSecondary(context),
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+
+  // — Yardımcı: tam başlıklı bölüm kartı —
+  Widget _section(
+    BuildContext context, {
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String body,
+  }) {
+    final ink = AppPalette.textPrimary(context);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      decoration: BoxDecoration(
+        color: AppPalette.card(context),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: AppPalette.border(context).withValues(alpha: 0.6),
+            width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                alignment: Alignment.center,
+                child: Icon(icon, size: 20, color: iconColor),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    color: ink,
+                    height: 1.25,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            body.tr(),
+            style: GoogleFonts.poppins(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w500,
+              color: ink.withValues(alpha: 0.85),
+              height: 1.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // — Yardımcı: alt madde (toolbar buton açıklaması) —
+  Widget _subItem(
+    BuildContext context, {
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String body,
+  }) {
+    final ink = AppPalette.textPrimary(context);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      decoration: BoxDecoration(
+        color: AppPalette.card(context),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.30), width: 1),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.78),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            alignment: Alignment.center,
+            child: Icon(icon, size: 16, color: color),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    color: ink,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  body.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w500,
+                    color: ink.withValues(alpha: 0.80),
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // — Yardımcı: bilgi kutusu —
+  Widget _tipBox(BuildContext context, String text) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16, top: 4),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFBBF24).withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+            color: const Color(0xFFFBBF24).withValues(alpha: 0.45),
+            width: 1),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.lightbulb_rounded,
+              size: 18, color: Color(0xFFFBBF24)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text.tr(),
+              style: GoogleFonts.poppins(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: AppPalette.textPrimary(context).withValues(alpha: 0.85),
+                height: 1.45,
+              ),
             ),
           ),
         ],

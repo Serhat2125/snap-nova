@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'preferences_sync_service.dart';
 
 class ThemeService extends ChangeNotifier {
   static const _prefsKey = 'theme_mode_index';
@@ -29,6 +31,8 @@ class ThemeService extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_prefsKey, i);
     notifyListeners();
+    // Cloud sync — yeni cihazda tema tercihi korunur. Fire-and-forget.
+    unawaited(PreferencesSyncService.syncFromLocal());
   }
 }
 

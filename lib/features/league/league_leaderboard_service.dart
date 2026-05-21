@@ -136,8 +136,104 @@ class LeagueLeaderboardService {
       return const [];
     }
 
-    // 4) Periyot filter + uid başına TOPLAM puan (Bilgi Ligi sıralaması
-    //    "toplam puan" üzerinden — her test puanı kullanıcının toplamına eklenir).
+    return _aggregateRows(
+      docs: snap.docs.map((d) => d.data()).toList(),
+      scope: scope,
+      period: period,
+      limit: limit,
+    );
+  }
+
+  /// Real-time leaderboard stream — Firestore snapshots üzerinden.
+  /// Aynı filtre parametreleri; her doküman değişiminde yeni liste yayar.
+  /// Hata/timeout durumunda boş liste yayar, asla bırakmaz.
+  static Stream<List<LeagueLeaderRow>> watch({
+    required EduProfile profile,
+    required UserLocation location,
+    required LeagueScope scope,
+    required LeagueMode mode,
+    required LeaguePeriod period,
+    String? subjectKey,
+    String? topic,
+    int limit = 50,
+  }) {
+    if (location.countryCode.isEmpty) {
+      return Stream.value(const <LeagueLeaderRow>[]);
+    }
+    final col = FirebaseFirestore.instance.collection('league_attempts');
+    Query<Map<String, dynamic>> q = col;
+
+    switch (scope) {
+      case LeagueScope.city:
+        if (location.cityCode.isEmpty) {
+          return Stream.value(const <LeagueLeaderRow>[]);
+        }
+        q = q.where(
+          'scopeCity',
+          isEqualTo:
+              '${location.countryCode}|${location.cityCode}|${profile.level}|${profile.grade}',
+        );
+        break;
+      case LeagueScope.country:
+        q = q.where(
+          'scopeCountry',
+          isEqualTo: '${location.countryCode}|${profile.level}|${profile.grade}',
+        );
+        break;
+      case LeagueScope.world:
+        q = q.where(
+          'scopeWorld',
+          isEqualTo: '${profile.level}|${profile.grade}',
+        );
+        break;
+    }
+
+    switch (mode) {
+      case LeagueMode.overall:
+        break;
+      case LeagueMode.subject:
+        if (subjectKey == null || subjectKey.isEmpty) {
+          return Stream.value(const <LeagueLeaderRow>[]);
+        }
+        q = q.where('subjectKey', isEqualTo: subjectKey);
+        break;
+      case LeagueMode.topic:
+        if (subjectKey == null || subjectKey.isEmpty) {
+          return Stream.value(const <LeagueLeaderRow>[]);
+        }
+        if (topic == null || topic.isEmpty) {
+          return Stream.value(const <LeagueLeaderRow>[]);
+        }
+        q = q
+            .where('subjectKey', isEqualTo: subjectKey)
+            .where('topic', isEqualTo: topic);
+        break;
+    }
+
+    q = q.orderBy('score', descending: true).limit(limit * 4);
+
+    return q.snapshots().map((snap) {
+      return _aggregateRows(
+        docs: snap.docs.map((d) => d.data()).toList(),
+        scope: scope,
+        period: period,
+        limit: limit,
+      );
+    }).handleError((e) {
+      debugPrint('[LeagueLeaderboard] watch fail: $e');
+      return const <LeagueLeaderRow>[];
+    });
+  }
+
+  /// Doc map listesini periyot penceresi + uid başına dedupe + sıralama
+  /// pipeline'ından geçirip top-`limit` döner. Hem `fetch()` hem `watch()`
+  /// burayı kullanır.
+  static List<LeagueLeaderRow> _aggregateRows({
+    required List<Map<String, dynamic>> docs,
+    required LeagueScope scope,
+    required LeaguePeriod period,
+    required int limit,
+  }) {
     final cutoff = period.window == null
         ? null
         : DateTime.now().subtract(period.window!);
@@ -145,13 +241,10 @@ class LeagueLeaderboardService {
 
     final totalsScore = <String, double>{};
     final totalsDuration = <String, int>{};
-    // Tiebreaker: aynı (score, duration) durumunda EN ESKİ aktivite üstte
-    // (daha önce ulaşan kazanır). uid başına en erken `when` saklanır.
     final earliestWhen = <String, DateTime>{};
     final infos = <String, Map<String, dynamic>>{};
 
-    for (final doc in snap.docs) {
-      final m = doc.data();
+    for (final m in docs) {
       final uid = (m['uid'] ?? '').toString();
       if (uid.isEmpty) continue;
       final score = (m['score'] as num?)?.toDouble() ?? 0.0;
@@ -188,13 +281,24 @@ class LeagueLeaderboardService {
         earliestWhen[uid],
       );
     }).toList()
-      // Sıralama: skor DESC, eşitlikte daha az süre, eşitlikte daha erken `when`.
+      // Sıralama:
+      //   1) Toplam puan DESC
+      //   2) Tiebreaker — puan başı süre (saniye/puan) ASC — verimlilik:
+      //      10 test atan (toplam 600sn / 50 puan = 12 sn/puan) 1 test
+      //      atan (60sn / 5 puan = 12 sn/puan) ile aynı verimlilikte sayılır.
+      //      Yüksek hacimli oyuncu kandırılmaz, hızlı çözen ödüllendirilir.
+      //   3) Erken başlayan üstte (kayıt sırası)
       ..sort((a, b) {
         final cmpScore = b.row.score.compareTo(a.row.score);
         if (cmpScore != 0) return cmpScore;
-        final cmpDur = a.row.durationSec.compareTo(b.row.durationSec);
-        if (cmpDur != 0) return cmpDur;
-        // Tiebreaker: önce gelen kazanır.
+        final aEff = a.row.score == 0
+            ? double.infinity
+            : a.row.durationSec / a.row.score;
+        final bEff = b.row.score == 0
+            ? double.infinity
+            : b.row.durationSec / b.row.score;
+        final cmpEff = aEff.compareTo(bEff);
+        if (cmpEff != 0) return cmpEff;
         final aw = a.when;
         final bw = b.when;
         if (aw == null && bw == null) return 0;

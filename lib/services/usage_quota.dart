@@ -5,9 +5,12 @@
 // Tasarım: tek tip + durum bağımsız "increment" + "remaining" çağrısı.
 // Quota dolarsa kullanıcıya net mesaj gösterilir, gün sonu / ay sonu reset.
 
+import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'error_logger.dart';
+import 'premium_status.dart';
 
 /// Kullanım türleri — her birinin ayrı kotası vardır.
 enum QuotaKind {
@@ -92,6 +95,35 @@ class QuotaUsage {
 
 class UsageQuota {
   static QuotaLimits limits = QuotaLimits.free;
+  static bool _premiumWired = false;
+
+  /// Main.dart init'ten çağrılır — PremiumStatus revision listener'ı kurar +
+  /// mevcut durumu sorar. Premium aktivasyon/expire olunca `limits` otomatik
+  /// swap edilir, böylece kullanıcı kotaları doğru tier'da görür.
+  static Future<void> initPremiumListener() async {
+    if (_premiumWired) return;
+    _premiumWired = true;
+    // İlk durum
+    await refreshLimitsFromPremium();
+    // Sonraki değişiklikleri dinle
+    PremiumStatus.revision.addListener(() {
+      // Async — ama listener sync olmak zorunda; fire-and-forget güvenli.
+      refreshLimitsFromPremium();
+    });
+  }
+
+  /// PremiumStatus snapshot'ını oku ve uygun QuotaLimits set'ini ata.
+  /// Manuel çağrı için public — örneğin başarılı satın alma sonrası.
+  static Future<void> refreshLimitsFromPremium() async {
+    try {
+      final snap = await PremiumStatus.read();
+      limits = snap.isActive ? QuotaLimits.premium : QuotaLimits.free;
+      debugPrint(
+          '[UsageQuota] limits=${snap.isActive ? "PREMIUM" : "FREE"}');
+    } catch (e) {
+      debugPrint('[UsageQuota] refresh fail: $e');
+    }
+  }
 
   static String _kindKey(QuotaKind k) => switch (k) {
         QuotaKind.topicSummary => 'topic_summary',

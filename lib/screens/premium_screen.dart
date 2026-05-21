@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/pricing_service.dart';
 import '../services/runtime_translator.dart';
 import '../main.dart' show localeService;
@@ -413,14 +414,32 @@ class _PremiumScreenState extends State<PremiumScreen> {
                     ),
                   ),
                   SizedBox(height: 8),
-                  // Gizlilik Politikası — abonelikli uygulamalarda yasal zorunluluk.
-                  // (Satın Alımları Geri Yükle ve Kullanım Koşulları kaldırıldı —
-                  // not: Apple Guideline 3.1.1 iOS publish için Restore butonunu
-                  // ister; iOS'a release alırken bu kaldırma geri çevrilmeli.)
+                  // Apple Guideline 3.1.1 — Restore Purchases zorunlu link.
+                  // Play Store iyi pratik: kullanıcı abonelik yönetimine
+                  // tek tıkla ulaşabilsin.
                   Center(
-                    child: _smallLink(
-                      label: 'Gizlilik Politikası'.tr(),
-                      onTap: () => _showPrivacyBottomSheet(context),
+                    child: Wrap(
+                      spacing: 16,
+                      runSpacing: 6,
+                      alignment: WrapAlignment.center,
+                      children: [
+                        _smallLink(
+                          label: 'Satın Alımları Geri Yükle'.tr(),
+                          onTap: () => _onRestorePurchases(context),
+                        ),
+                        _smallLink(
+                          label: 'Aboneliği Yönet'.tr(),
+                          onTap: () => _openManageSubscriptions(context),
+                        ),
+                        _smallLink(
+                          label: 'Kullanım Koşulları'.tr(),
+                          onTap: () => _showTermsBottomSheet(context),
+                        ),
+                        _smallLink(
+                          label: 'Gizlilik Politikası'.tr(),
+                          onTap: () => _showPrivacyBottomSheet(context),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -430,6 +449,35 @@ class _PremiumScreenState extends State<PremiumScreen> {
         ),
       ),
     );
+  }
+
+  /// Aboneliği Yönet — iOS itms-services veya Play Store derin linki.
+  /// Apple Guideline 3.1.2(a) — kullanıcı kolayca iptal edebilmelidir.
+  Future<void> _openManageSubscriptions(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    Uri uri;
+    if (Platform.isIOS || Platform.isMacOS) {
+      // iOS: App Store abonelikleri direkt açar
+      uri = Uri.parse('https://apps.apple.com/account/subscriptions');
+    } else {
+      // Android: Play Store abonelik yönetimi
+      uri = Uri.parse(
+          'https://play.google.com/store/account/subscriptions?sku=qualsar_premium_monthly&package=com.qualsar.ai');
+    }
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && context.mounted) {
+        messenger.showSnackBar(SnackBar(
+          content: Text('Aboneliği yönetme sayfası açılamadı.'.tr()),
+        ));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        messenger.showSnackBar(SnackBar(
+          content: Text('Hata: $e'),
+        ));
+      }
+    }
   }
 
   void _onContinue(BuildContext context) {
@@ -514,7 +562,7 @@ Veri Saklama: Abonelik durumu, hesabın aktif olduğu sürece saklanır. Hesap s
 
 Veri Paylaşımı: QuAlsar abonelik bilgilerinizi üçüncü taraflarla pazarlama amaçlı paylaşmaz. Sadece (a) ödeme platformları (Apple, Google), (b) yasal yükümlülükler gerektirdiğinde resmi kurumlar, (c) hizmet sağlayıcılar (sunucu altyapısı, hata izleme) ile sınırlı veri paylaşımı yapılabilir.
 
-GDPR (AB) / KVKK (Türkiye) Hakların: Kişisel verilerine erişim, düzeltme, silme, işlemeyi sınırlama ve veri taşınabilirliği taleplerinde bulunabilirsin. Talebini destek@qualsar.app adresine yönelt.
+GDPR (AB) / KVKK (Türkiye) Hakların: Kişisel verilerine erişim, düzeltme, silme, işlemeyi sınırlama ve veri taşınabilirliği taleplerinde bulunabilirsin. Talebini serhatdsme@gmail.com adresine yönelt.
 
 Veri Aktarımı: Sunucu altyapısı bulutta (örn. Google Cloud) çalıştığından, verilerin AB dışına aktarılabilir. Bu aktarım standart sözleşme maddelerine ve uygun korumalara dayanır.
 
@@ -2146,7 +2194,7 @@ class _TermsSection extends StatelessWidget {
     ),
     (
       'İade Politikası',
-      'İade talepleri, ödeme yapıldıktan sonraki ilk 7 gün içinde "Bize Ulaşın" sekmesinden veya support@qualsar.com adresinden iletilebilir. İadeler, yalnızca Premium özellikler henüz kullanılmamışsa ve 7 günlük süre aşılmamışsa değerlendirmeye alınır.',
+      'İade talepleri, ödeme yapıldıktan sonraki ilk 7 gün içinde "Bize Ulaşın" sekmesinden veya serhatdsme@gmail.com adresinden iletilebilir. İadeler, yalnızca Premium özellikler henüz kullanılmamışsa ve 7 günlük süre aşılmamışsa değerlendirmeye alınır.',
     ),
     (
       'İade Yöntemi',

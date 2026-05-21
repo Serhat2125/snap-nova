@@ -19,6 +19,7 @@
 
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'error_logger.dart';
 
@@ -89,6 +90,50 @@ class DueloMatchResult {
     required this.opponentElo,
     required this.isOwner,
   });
+}
+
+/// Arkadaşa-davet inbox kaydı — duelo_invites/{me}/inbox/{id}.
+class DueloInvite {
+  final String id;
+  final String fromUid;
+  final String fromUsername;
+  final String fromDisplayName;
+  final String fromAvatar;
+  final String? subjectKey;
+  final String? topic;
+  final DateTime sentAt;
+  final String status; // pending | accepted | rejected
+  final String? sessionId; // accept'ten sonra dolar
+  const DueloInvite({
+    required this.id,
+    required this.fromUid,
+    required this.fromUsername,
+    required this.fromDisplayName,
+    required this.fromAvatar,
+    required this.sentAt,
+    required this.status,
+    this.subjectKey,
+    this.topic,
+    this.sessionId,
+  });
+
+  factory DueloInvite.fromDoc(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+    final m = doc.data();
+    final ts = m['sentAt'];
+    final when = ts is Timestamp ? ts.toDate() : DateTime.now();
+    return DueloInvite(
+      id: doc.id,
+      fromUid: (m['fromUid'] ?? '').toString(),
+      fromUsername: (m['fromUsername'] ?? '').toString(),
+      fromDisplayName: (m['fromDisplayName'] ?? '').toString(),
+      fromAvatar: (m['fromAvatar'] ?? '').toString(),
+      sentAt: when,
+      status: (m['status'] ?? 'pending').toString(),
+      subjectKey: m['subjectKey']?.toString(),
+      topic: m['topic']?.toString(),
+      sessionId: m['sessionId']?.toString(),
+    );
+  }
 }
 
 class DueloMatchmakingService {
@@ -362,6 +407,129 @@ class DueloMatchmakingService {
       _log('Rövanş isteği yazıldı → @$opponentUsername');
     } catch (e) {
       _log('requestRematch hata: $e');
+    }
+  }
+
+  /// Belirli bir arkadaşa düello daveti gönder.
+  /// `duelo_invites/{targetUid}/inbox/{auto}` doc'u yazılır.
+  /// Cloud Function `onDueloInviteAccepted` kabul edilince session açar +
+  /// her iki tarafa bildirim atar.
+  /// Auth yoksa veya hata → false döner.
+  static Future<bool> invite({
+    required String targetUid,
+    required String targetUsername,
+    String? subjectKey,
+    String? topic,
+  }) async {
+    final me = FirebaseAuth.instance.currentUser?.uid;
+    if (me == null || me == targetUid) return false;
+    try {
+      final db = FirebaseFirestore.instance;
+      // Kendi profili (snapshot)
+      final mySnap = await db.collection('users').doc(me).get();
+      final myProfile = mySnap.data() ?? const <String, dynamic>{};
+
+      // Davet doc'u — fromUid + profile snapshot ile (trigger function bunları okur)
+      await db
+          .collection('duelo_invites')
+          .doc(targetUid)
+          .collection('inbox')
+          .doc()
+          .set({
+        'fromUid': me,
+        'fromUsername': myProfile['username'] ?? '',
+        'fromDisplayName': myProfile['displayName'] ?? '',
+        'fromAvatar': myProfile['avatar'] ?? '',
+        'targetUid': targetUid,
+        'targetUsername': targetUsername,
+        'subjectKey': subjectKey,
+        'topic': topic,
+        'sentAt': FieldValue.serverTimestamp(),
+        'status': 'pending',
+      });
+      // In-app bildirim (FCM push'u tetikler)
+      await db
+          .collection('notifications')
+          .doc(targetUid)
+          .collection('items')
+          .doc()
+          .set({
+        'type': 'duelo_invite',
+        'fromUid': me,
+        'fromUsername': myProfile['username'] ?? '',
+        'fromDisplayName': myProfile['displayName'] ?? '',
+        'fromAvatar': myProfile['avatar'] ?? '',
+        'targetUsername': targetUsername,
+        'subjectKey': subjectKey,
+        'topic': topic,
+        'when': FieldValue.serverTimestamp(),
+        'read': false,
+      });
+      _log('Düello daveti → @$targetUsername');
+      return true;
+    } catch (e) {
+      _log('invite hata: $e');
+      return false;
+    }
+  }
+
+  /// Bekleyen düello davetlerini stream — UI badge ve inbox için.
+  static Stream<List<DueloInvite>> watchInvites() {
+    final me = FirebaseAuth.instance.currentUser?.uid;
+    if (me == null) return Stream.value(const []);
+    return FirebaseFirestore.instance
+        .collection('duelo_invites')
+        .doc(me)
+        .collection('inbox')
+        .where('status', isEqualTo: 'pending')
+        .orderBy('sentAt', descending: true)
+        .snapshots()
+        .map((s) => s.docs.map(DueloInvite.fromDoc).toList())
+        .handleError((e) {
+      debugPrint('[Duelo] watchInvites error: $e');
+      return const <DueloInvite>[];
+    });
+  }
+
+  /// Düello davetini kabul et → Cloud Function tetiklenir, session açar.
+  static Future<bool> acceptInvite({required String inviteId}) async {
+    final me = FirebaseAuth.instance.currentUser?.uid;
+    if (me == null) return false;
+    try {
+      await FirebaseFirestore.instance
+          .collection('duelo_invites')
+          .doc(me)
+          .collection('inbox')
+          .doc(inviteId)
+          .update({
+        'status': 'accepted',
+        'respondedAt': FieldValue.serverTimestamp(),
+      });
+      return true;
+    } catch (e) {
+      _log('acceptInvite fail: $e');
+      return false;
+    }
+  }
+
+  /// Düello davetini reddet.
+  static Future<bool> rejectInvite({required String inviteId}) async {
+    final me = FirebaseAuth.instance.currentUser?.uid;
+    if (me == null) return false;
+    try {
+      await FirebaseFirestore.instance
+          .collection('duelo_invites')
+          .doc(me)
+          .collection('inbox')
+          .doc(inviteId)
+          .update({
+        'status': 'rejected',
+        'respondedAt': FieldValue.serverTimestamp(),
+      });
+      return true;
+    } catch (e) {
+      _log('rejectInvite fail: $e');
+      return false;
     }
   }
 

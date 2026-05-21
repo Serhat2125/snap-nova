@@ -310,22 +310,16 @@ class ReferralService {
         });
       });
 
-      // Yeni kullanıcıya 7 gün hoşgeldin premium grant
+      // Yeni kullanıcıya 7 gün hoşgeldin premium grant.
+      // (Kendi uid'sine yazma → Firestore rules izin verir.)
       await _grantPremium(user.uid, days: _kRedemptionRewardDays,
           source: 'referral_redeem');
 
-      // Davet edenin sayacı hedef'e ulaştıysa 30 gün premium grant
-      // (transaction sonrası okuyup kontrol et)
-      try {
-        final freshOwner = await ownerDoc.get();
-        final invited =
-            ((freshOwner.data()?['invitedUsers'] as List?) ?? const [])
-                .length;
-        if (invited >= _kTargetCount) {
-          await _grantPremium(ownerUid,
-              days: _kFirstRewardDays, source: 'referral_complete');
-        }
-      } catch (_) {/* yan etki, ignore */}
+      // Davet edenin (owner) 30 gün ödülü artık Cloud Function ile veriliyor:
+      //   functions/src/referral_reward.ts → onReferralCompleted trigger
+      // Sebep: client'tan cross-user write (users/{ownerUid}/premium/state)
+      // Firestore rules tarafından engelleniyor. Cloud Function admin SDK ile
+      // güvenli ve idempotent grant yapar.
 
       return RedeemResult.success;
     } on FirebaseException catch (e) {
@@ -435,7 +429,7 @@ class ReferralService {
 }
 
 /// Onboarding adımı için: paylaşılan davet kodu URL/clipboard'tan parse edilir.
-/// URL örnek: https://qualsar.app/i/QUALS-7K9F2
+/// URL örnek: https://qualsar2-640f0.web.app/i/QUALS-7K9F2
 String? parseInviteCodeFromText(String text) {
   final m = RegExp(r'QUALS-[A-Z0-9]{5}', caseSensitive: false).firstMatch(text);
   return m?.group(0)?.toUpperCase();

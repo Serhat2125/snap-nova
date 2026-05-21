@@ -23,6 +23,23 @@ class GeminiService {
   static const _baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
   static const _tag     = '🤖 [GeminiService]';
 
+  // TestSorulari token bütçesini prompt'taki soru sayısına göre dinamik
+  // hesaplar. Eski sabit 5500 token 10 sorodan fazlasında JSON ortada
+  // kesiliyordu. Her soru ~280 token (q + 5 opts + hint + sol + JSON
+  // overhead, sıkı tutuldu) + 800 sabit overhead.
+  //
+  // ÜST SINIR 8192 — Firebase Cloud Function proxy'sinin 60s timeout'una
+  // sığsın. 16K-65K teorik olarak destekleniyor ama AI 30+ saniye yazıyor
+  // ve proxy bağlantıyı kesiyor → upstream timeout → 401/quotaExceeded
+  // gibi yanıltıcı hataya dönüşüyor. 8K içinde 20 soru rahat, 30-40 soruda
+  // hint/sol kısa tutulur ama parse edilebilir kalır.
+  static int _testSorulariMaxTok(String prompt) {
+    final m = RegExp(r'\[TEST\s*[—\-]\s*(\d+)').firstMatch(prompt);
+    final count = m != null ? (int.tryParse(m.group(1)!) ?? 10) : 10;
+    final budget = count * 280 + 800;
+    return budget.clamp(3000, 8192);
+  }
+
   // ── PROXY MODU ─────────────────────────────────────────────────────────────
   // Play Store yüklemeden ÖNCE bu sabiti `true` yap. Tüm Gemini çağrıları
   // Firebase Cloud Function üzerinden gider; anahtar APK içinde olmaz.
@@ -354,7 +371,18 @@ MÜFREDAT DIŞI içerik = HATA → ASLA üretme.''';
       }
     }
     if (user == null) throw GeminiException.invalidKey();
-    final idToken = await user.getIdToken();
+    // Token cache'i 1 saatte expire olabiliyor. forceRefresh=true ile
+    // her çağrıda taze token üret — eski cache'li token proxy'de 401
+    // ("Invalid Firebase ID token") tetiklemesin.
+    String? idToken;
+    try {
+      idToken = await user.getIdToken(true);
+    } catch (_) {
+      // Refresh başarısızsa cached'e düş.
+      try {
+        idToken = await user.getIdToken();
+      } catch (_) {}
+    }
     if (idToken == null || idToken.isEmpty) {
       throw GeminiException.invalidKey();
     }
@@ -552,7 +580,11 @@ MÜFREDAT DIŞI içerik = HATA → ASLA üretme.''';
       },
     });
 
-    // ── Proxy modu (kUseProxy=true) — tek istek, key iterasyonu yok ─────────
+    // ── Proxy modu (kUseProxy=true) — önce proxy, başarısız olursa local
+    // key fallback. Proxy 401/403/5xx döndüğünde aşağıdaki direct API
+    // döngüsüne geç → kullanıcı "API bağlantı reddedildi" görmesin diye
+    // local Secrets.gemini + fallbacks devreye girer.
+    bool proxyFallback = false;
     if (kUseProxy) {
       _log('Gemini PROXY → model=$_model');
       try {
@@ -570,12 +602,41 @@ MÜFREDAT DIŞI içerik = HATA → ASLA üretme.''';
           }
           return (text: text, finishReason: fr);
         }
-        // _handleError signature is `Never` — always throws.
-        _handleError(response);
+        // Proxy auth/sunucu hatası → local key fallback'e izin ver.
+        // 401/403: Firebase ID token veya proxy üstteki Gemini key sorunu.
+        // 5xx: proxy/Cloud Function durumu kötü.
+        // 429: rate limit — yine local key dene (kullanıcının kendi keyi farklı).
+        if (response.statusCode == 401 ||
+            response.statusCode == 403 ||
+            response.statusCode == 429 ||
+            response.statusCode >= 500) {
+          _log('Proxy ${response.statusCode} → local key fallback başlatılıyor');
+          proxyFallback = true;
+        } else {
+          _handleError(response);
+        }
       } on SocketException {
-        throw GeminiException.noInternet();
+        // Network kopuk → local key de zaten erişemez ama yine dene.
+        _log('Proxy SocketException → local key fallback');
+        proxyFallback = true;
       } on TimeoutException {
-        throw GeminiException.serverTimeout();
+        _log('Proxy timeout → local key fallback');
+        proxyFallback = true;
+      } on GeminiException catch (e) {
+        // Token / signin gibi proxy-only hatalar → local key fallback.
+        if (e.type == GeminiErrorType.invalidKey ||
+            e.type == GeminiErrorType.emptyResponse) {
+          _log('Proxy GeminiException ${e.type.name} → local key fallback');
+          proxyFallback = true;
+        } else {
+          rethrow;
+        }
+      }
+      // Fallback aktif değilse — proxy başarılı olmuştur (kod yukarıda
+      // return etmiştir) veya zaten _handleError throw etmiştir.
+      if (!proxyFallback) {
+        // Bu noktaya gelinmemeli; defensively throw.
+        throw GeminiException.unknown('proxy unexpected flow');
       }
     }
 
@@ -825,9 +886,17 @@ MÜFREDAT DIŞI içerik = HATA → ASLA üretme.''';
 
         final buffer = StringBuffer();
         String? finishReason;
+        // Chunk-idle timeout: AI sunucusu chunk göndermeyi 30 sn boyunca
+        // durursa stream'i kasıtlı olarak fail et → sıradaki key denenir.
+        // Önceden idle timeout yoktu → sunucu donduğunda kullanıcı sonsuza
+        // kadar "logo dönüyor" görüyordu ("özetin neredeyse hazır" hatası).
         final lines = streamedResponse.stream
             .transform(utf8.decoder)
-            .transform(const LineSplitter());
+            .transform(const LineSplitter())
+            .timeout(const Duration(seconds: 30), onTimeout: (sink) {
+          sink.addError(TimeoutException('Stream idle 30s — AI yanıt vermiyor'));
+          sink.close();
+        });
         await for (final line in lines) {
           if (!line.startsWith('data:')) continue;
           final raw = line.substring(5).trim();
@@ -2727,13 +2796,15 @@ $modeInstr
 Cevabı Türkçe ver.''';
     }
 
-    // Moda göre token bütçesi ve yaratıcılık
+    // Moda göre token bütçesi ve yaratıcılık. TestSorulari için bütçe
+    // prompt'taki soru sayısına göre dinamik — 10 soruda 5500 yetiyor ama
+    // 30-40 soruda JSON ortada kesiliyor, parser bozuk diye reddediyor.
     final (maxTok, temp) = switch (solutionType) {
       'Basit Çöz'     => (700,  0.1),
       'Adım Adım Çöz' => (1500, 0.2),
       'AI Öğretmen' || 'AI Arkadaşım' => (2000, 0.35),
       'KonuÖzeti'     => (32000, 0.3), // 70-110 satırlık derin özet + LaTeX + tablo → 16K MAX_TOKENS'a takılıyordu
-      'TestSorulari'  => (5500, 0.4), // 10 soru + çözümler — yeterli
+      'TestSorulari'  => (_testSorulariMaxTok(question), 0.4),
       _               => (1500, 0.2),
     };
 
@@ -2759,10 +2830,13 @@ Cevabı Türkçe ver.''';
       try {
         return await attempt();
       } on GeminiException catch (e) {
-        // Sadece geçici hatalarda 1 kez tekrar dene
+        // Sadece geçici hatalarda 1 kez tekrar dene. invalidKey de geçici
+        // sayılır — Firebase ID token süresi dolmuş olabilir; ikinci
+        // denemede forceRefresh ile taze token alınır.
         final transient = e.type == GeminiErrorType.serverTimeout ||
             e.type == GeminiErrorType.emptyResponse ||
-            e.type == GeminiErrorType.quotaExceeded;
+            e.type == GeminiErrorType.quotaExceeded ||
+            e.type == GeminiErrorType.invalidKey;
         if (!transient) rethrow;
         _log('solveHomework: ${e.type.name} → 1 kere otomatik retry');
         await Future.delayed(const Duration(milliseconds: 600));
@@ -2837,7 +2911,7 @@ Cevabı Türkçe ver.''';
       'Adım Adım Çöz' => (1500, 0.2),
       'AI Öğretmen' || 'AI Arkadaşım' => (2000, 0.35),
       'KonuÖzeti'     => (32000, 0.3), // 70-110 satırlık derin özet + LaTeX + tablo → 16K MAX_TOKENS'a takılıyordu
-      'TestSorulari'  => (5500, 0.4),
+      'TestSorulari'  => (_testSorulariMaxTok(question), 0.4),
       _               => (1500, 0.2),
     };
 
@@ -3801,6 +3875,119 @@ KURALLAR:
     } catch (e) {
       _log('generateTitle istisna: $e');
       return '';
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  AI Koç — Kişiselleştirilmiş günlük + haftalık çalışma planı.
+  //
+  //  Girdi:
+  //    • weakTopics: {subject, topic, errorRate}[]  — son çözümlerden hatalı konular
+  //    • streakDays: kullanıcının ardışık çalışma günü sayısı
+  //    • todayFocusMin: bugün yapılan dakika
+  //    • lang: kullanıcı dili (TR/EN/...)
+  //
+  //  Çıktı: JSON
+  //    {
+  //      "greeting": "Bugün matematiğini güçlendirme zamanı, Selma 💪",
+  //      "today":   [{emoji, title, subject, topic, durationMin, why}, ...]  (3 öğe)
+  //      "week":    [{day:"Pzt", topic:"Türev", subject:"Matematik", durationMin}, ...]  (7 öğe)
+  //      "tip":     "Bilim diyor ki..."  (motivasyon/öğrenme ipucu, 1 cümle)
+  //    }
+  //
+  //  Hata durumunda boş Map döner; çağıran tarafta deterministic fallback üretir.
+  // ══════════════════════════════════════════════════════════════════════════════
+  static Future<Map<String, dynamic>> generateCoachPlan({
+    required List<Map<String, dynamic>> weakTopics,
+    required int streakDays,
+    required int todayFocusMin,
+    required String lang,
+    String? userName,
+  }) async {
+    _log('generateCoachPlan() lang=$lang weak=${weakTopics.length}');
+    final langInstr = lang.toLowerCase() == 'tr'
+        ? 'Türkçe cevap ver.'
+        : 'Reply in language code: $lang';
+    final systemPrompt = '''
+Sen kişisel bir AI çalışma koçusun. Öğrencinin verilerinden hareketle:
+1) BUGÜNÜN 3 ÖNERİSİ (toplam 30 dk altı, her biri 5-15 dk)
+2) HAFTANIN 7 GÜNLÜK PLANI (Pzt-Paz, her gün 1 konu)
+3) Tek cümle motivasyon ipucu
+
+KURALLAR:
+• ÇIKTI MUTLAKA JSON OLMALI, başka hiçbir metin yazma.
+• JSON şeması:
+{
+  "greeting": "string (1 cümle, isim varsa kullan, emoji ekle)",
+  "today": [
+    {
+      "emoji":"📐",
+      "title":"string (örn 'Türev kuralları' veya 'Türev testi')",
+      "subject":"string",
+      "topic":"string",
+      "durationMin":N,
+      "why":"string (1 kısa cümle, neden bu?)",
+      "kind":"summary | test"
+    }
+  ],
+  "week": [
+    {"day":"Pzt","subject":"string","topic":"string","durationMin":N},
+    ... 7 gün (Pzt,Sal,Çar,Per,Cum,Cmt,Paz)
+  ],
+  "tip":"string (1 cümle)"
+}
+
+KIND ALANI MUTLAK ZORUNLU (her today öğesi için):
+• "summary" → kullanıcı bu konunun ÖZETİNİ okumalı (öğrenmeye yeni başlıyor
+  veya temel pekişmemiş). Title örnek: "Türev kurallarını çalış", "Hücre özetini oku".
+• "test"    → kullanıcı zaten konuyu çalışmış, ŞIMDİ TEST çözmeli
+  (test verisi var ve hata yapmış veya pekiştirme zamanı).
+  Title örnek: "Türev testi çöz", "Fotosentez sorularını tekrarla".
+
+KARAR KURALI:
+• weakTopics içinde correct+wrong >= 3 → kind="test"
+  (kullanıcı test çözmüş, eksiklerini görmeli)
+• weakTopics içinde correct+wrong < 3 ama summaries > 0 → kind="test"
+  (özet çalışılmış, ölçme zamanı)
+• Diğer durumlarda → kind="summary"
+
+• Zayıf konuları önceliklendir, ama dengeli plan yap (aynı konu peş peşe değil).
+• Streak yüksekse motive et, düşükse yumuşak başla.
+• $langInstr
+''';
+
+    final userMessage = '''
+ÖĞRENCİ VERİLERİ:
+İsim: ${userName ?? 'öğrenci'}
+Streak (ardışık gün): $streakDays
+Bugün odak dakikası: $todayFocusMin
+Zayıf konular (en hatalıdan):
+${weakTopics.take(8).map((w) => '- ${w['subject']} / ${w['topic']} — hata oranı: %${((w['errorRate'] as num? ?? 0) * 100).round()}').join('\n')}
+
+JSON ÇIKTI ÜRET:
+''';
+
+    try {
+      final text = await _callGemini(
+        systemPrompt: systemPrompt,
+        userMessage: userMessage,
+        maxTokens: 1024,
+        temperature: 0.6,
+        timeout: const Duration(seconds: 25),
+      );
+      // JSON'u temizle (```json ... ``` veya inline ```)
+      var clean = text.trim();
+      clean = clean.replaceAll(RegExp(r'^```(?:json)?\s*'), '');
+      clean = clean.replaceAll(RegExp(r'\s*```$'), '');
+      final m = jsonDecode(clean);
+      if (m is Map<String, dynamic>) {
+        _log('generateCoachPlan OK');
+        return m;
+      }
+      return const {};
+    } catch (e) {
+      _log('generateCoachPlan hata: $e');
+      return const {};
     }
   }
 

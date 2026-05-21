@@ -138,7 +138,49 @@
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "frozenAt", "order": "ASCENDING" }
       ]
+    },
+
+    /* ── Sosyal: Arkadaşlık istekleri (inbox) ──────────────────────────── */
+    /*  toUid altındaki inbox — status==pending + orderBy sentAt           */
+    { "collectionGroup": "inbox", "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "sentAt", "order": "DESCENDING" }
+      ]
+    },
+
+    /* ── Sosyal: In-app bildirimler ────────────────────────────────────── */
+    /*  items koleksiyonu — read==false unread sayımı için + orderBy when  */
+    { "collectionGroup": "items", "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "read", "order": "ASCENDING" },
+        { "fieldPath": "when", "order": "DESCENDING" }
+      ]
+    },
+
+    /* ── league_attempts: arkadaş son aktivite stream'i ──────────────── */
+    /*  where uid == X + orderBy when DESC                                 */
+    { "collectionGroup": "league_attempts", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "when", "order": "DESCENDING" }
+      ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "users",
+      "fieldPath": "email",
+      "indexes": [
+        { "queryScope": "COLLECTION", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "fieldPath": "searchTokens",
+      "indexes": [
+        { "queryScope": "COLLECTION", "arrayConfig": "CONTAINS" }
+      ]
+    }
+  ]
 }

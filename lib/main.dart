@@ -21,6 +21,12 @@ import 'theme/app_theme.dart';
 import 'firebase_options.dart';
 import 'services/analytics.dart';
 import 'services/auth_service.dart';
+import 'services/push_service.dart';
+import 'services/deep_link_service.dart';
+import 'services/usage_quota.dart';
+import 'services/pomodoro_stats.dart';
+import 'services/preferences_sync_service.dart';
+import 'screens/invite_accept_screen.dart';
 import 'services/locale_service.dart';
 import 'services/theme_service.dart';
 import 'services/tts_service.dart';
@@ -54,6 +60,16 @@ final themeService = ThemeService();
 /// Ağ durumu servisi — snackbar, offline rozeti, API retry kararları.
 final connectivityService = ConnectivityService();
 
+/// QuAlsarApp tek seferlik başlatma guard'ı — safety-net Timer ile normal
+/// flow yarış halinde olabilir; flag her iki yolun da çift runApp atmasını
+/// engeller.
+bool _appLaunched = false;
+void _launchAppOnce() {
+  if (_appLaunched) return;
+  _appLaunched = true;
+  runApp(ProviderScope(child: QuAlsarApp()));
+}
+
 Future<void> main() async {
   // ═══════════════════════════════════════════════════════════════════════
   //  Global hata sınırı — çöken her widget / zone exception'ı
@@ -61,6 +77,16 @@ Future<void> main() async {
   // ═══════════════════════════════════════════════════════════════════════
   runZonedGuarded<Future<void>>(() async {
     WidgetsFlutterBinding.ensureInitialized();
+
+    // ErrorWidget — release'de sessiz boş alan (kullanıcıya kırmızı kutu
+    // gösterme); debug'da KIRMIZI KUTUYU KORU çünkü geliştirme sırasında
+    // hatayı gizlemek "beyaz ekran sebebini bulamamak" demek.
+    if (kReleaseMode) {
+      ErrorWidget.builder = (FlutterErrorDetails details) {
+        FlutterError.reportError(details);
+        return const SizedBox.shrink();
+      };
+    }
 
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -76,8 +102,22 @@ Future<void> main() async {
     //  ikinci runApp() gerçek QuAlsarApp ile yer değiştirir.
     // ═══════════════════════════════════════════════════════════════════════
     runApp(const _InstantSplashApp());
-    // Bir frame bekle ki splash render edilsin, sonra heavy init başlasın.
-    await Future<void>.delayed(const Duration(milliseconds: 16));
+    // Splash'ın render olmasına yetecek kadar bekle. 16ms tek frame için sınırda;
+    // 80ms = ~5 frame ile splash garanti çizilir, sonra heavy init başlasın.
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  SAFETY NET — Heavy init'in herhangi bir yerinde sonsuz takılırsa
+    //  20 saniye sonra QuAlsarApp ZORLA başlatılır; beyaz ekranda asla
+    //  takılıp kalınmaz. Init başarıyla biterse aşağıdaki normal runApp
+    //  bu Timer'dan ÖNCE atar; _launchedApp guard'ı çift runApp'ı engeller.
+    // ═══════════════════════════════════════════════════════════════════════
+    Timer(const Duration(seconds: 20), () {
+      if (_appLaunched) return;
+      debugPrint('[main] SAFETY NET: heavy init 20sn\'den uzun sürdü → '
+          'QuAlsarApp zorla başlatılıyor.');
+      _launchAppOnce();
+    });
 
     // ── 3D Model Lisansları (showLicensePage()'te görünür) ────────────────
     // DamagedHelmet CC BY 4.0 → attribution zorunlu. Diğerleri CC0/Apache.
@@ -104,9 +144,10 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
     //   uygulama Firebase olmadan açılmaya devam eder. FirebaseAuth (telefon)
     //   gibi özellikler bu durumda kullanıcıya net bir mesaj gösterir.
     try {
+      // Firebase init — 8sn timeout ile; ağ yoksa donma yerine offline aç.
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
-      );
+      ).timeout(const Duration(seconds: 8));
       AuthService.firebaseReady = true;
 
       // ── App Check — Phone Auth + Firestore abuse koruması ─────────────
@@ -122,7 +163,7 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
           appleProvider: kDebugMode
               ? AppleProvider.debug
               : AppleProvider.deviceCheck,
-        );
+        ).timeout(const Duration(seconds: 4));
       } catch (e, st) {
         ErrorLogger.instance.capture(e, st, context: 'app_check_activate');
       }
@@ -136,10 +177,13 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
       // her kullanıcının uid'ye sahip olmasını gerektirir. currentUser
       // null ise tek seferlik anonim oturum aç. (Firebase Console →
       // Authentication → Sign-in method → "Anonymous" etkinleştirilmiş
-      // olmalı.) Hata yutulur; ağ yoksa veya devre dışıysa offline akış sürer.
+      // olmalı.) Hata/timeout yutulur; ağ yoksa offline akış sürer.
+      // KRİTİK: timeout yoksa yavaş ağda sonsuz takılıp splash donar.
       try {
         if (fb_auth.FirebaseAuth.instance.currentUser == null) {
-          await fb_auth.FirebaseAuth.instance.signInAnonymously();
+          await fb_auth.FirebaseAuth.instance
+              .signInAnonymously()
+              .timeout(const Duration(seconds: 5));
         }
       } catch (_) {/* anonim auth başarısız → cloud yazımları atlanır */}
       // Analytics + Crashlytics — Firebase init başarılı olduktan SONRA.
@@ -156,7 +200,11 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
     }
 
     // ── Hata toplayıcı (Firestore opsiyonel) ──────────────────────────
-    await ErrorLogger.instance.init();
+    // KRİTİK: Aşağıdaki awaits HERHANGI BİRİ throw atarsa son
+    // runApp(QuAlsarApp) HİÇ ÇALIŞMAZ ve kullanıcı sonsuza dek beyaz
+    // splash görür. Bu yüzden her adımı KENDI try/catch'inde sarmala —
+    // bir tanesi patlayıp init devam etsin, runApp() garanti çalışsın.
+    try { await ErrorLogger.instance.init(); } catch (_) {}
 
     // ── Kamera, dil, tema, ağ, ülke, uzaktan ayar ─────────────────────
     try {
@@ -166,71 +214,106 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
       ErrorLogger.instance.capture(e, st, context: 'camera_enumeration');
     }
 
-    await localeService.init();
-    await themeService.init();
-    await connectivityService.init();
+    try { await localeService.init(); } catch (_) {}
+    try { await themeService.init(); } catch (_) {}
+    try { await connectivityService.init(); } catch (_) {}
     // Voice & TTS — Sesli Komut için. Hata atmaz; başarısızsa no-op.
     unawaited(VoiceInputService.init());
     unawaited(TtsService.init());
     // Saklı oturumu yükle — auth_user_v1 prefs key'inden.
-    await AuthService.init();
+    try { await AuthService.init(); } catch (_) {}
+    // Premium-aware kota — UsageQuota.limits PremiumStatus revision değişince
+    // otomatik FREE ↔ PREMIUM arasında swap edilir. Ödemeden sonra anında
+    // yeni kotaya geçer; init'te de mevcut durum okunur.
+    unawaited(UsageQuota.initPremiumListener());
+    // Pomodoro istatistikleri cloud restore — yerel boşsa cloud'dan al,
+    // yeni telefonda streak + toplam faz + rozet korunur.
+    unawaited(PomodoroStats.restoreFromCloudIfEmpty());
+    // Uygulama Tercihleri cloud restore (dil/tema/bildirim/açılış ekranı)
+    // — yerel eksikse cloud'daki kullanıcı tercihlerini yere yaz, yeni
+    // telefonda kullanıcı ayarlarını tekrar yapmasın.
+    unawaited(PreferencesSyncService.restoreFromCloudIfEmpty());
+    // FCM push + local notifications — Firebase init başarılıysa.
+    // Bildirim izni dialog'u burada çıkar; arka planda çalışır, UI bloklamaz.
+    if (AuthService.firebaseReady) {
+      unawaited(PushService.init(onTap: (payload) {
+        // Bildirim tıklanma: payload'a göre yönlendirme yapılabilir.
+        // Şimdilik log — main navigator key kurulduktan sonra route bağlanır.
+        debugPrint('[Push] tap payload: $payload');
+      }));
+    }
+    // Deep link davet handler — uygulamayı linkten açana profil/davet sayfasını gösterir.
+    unawaited(DeepLinkService.instance.init());
     // Runtime translator — kalıcı cache'i yükle + LocaleService'e hook bağla
-    await RuntimeTranslator.instance.init();
+    try { await RuntimeTranslator.instance.init(); } catch (_) {}
     // bulkRegister ÇOK pahalı: 5000+ string'i set'e atar, 3sn sonra büyük
     // jsonEncode + SharedPreferences write yapar. Cihaz Türkçeyse hiçbir
     // çeviriye gerek olmadığı için tamamen atlanır. Diğer dillerde de
     // sadece dil değişiminde tetiklenir (setLocaleChangeHook altında),
     // her açılışta değil. Bu, startup'taki donmanın ana sebebiydi.
-    LocaleService.setLocaleChangeHook((lang) async {
-      // Her dil değişiminde önce tüm kaynakların kayıtlı olduğunu garanti et.
-      RuntimeTranslator.instance
-          .bulkRegister(LocaleService.allTrSourceStrings);
-      await RuntimeTranslator.instance.preloadAll(lang);
-    });
-    // LocaleService.tr() içinde bir key'in çevirisi yoksa Türkçe kaynağı
-    // runtime translator'dan geçirip cache'den okutsun.
-    LocaleService.setRuntimeTranslateHook((source) {
-      RuntimeTranslator.instance.register(source);
-      return RuntimeTranslator.instance.lookup(source);
-    });
-    // Açılışta mevcut dil Türkçe değilse eksik çevirileri arka planda çek.
-    // (Bulk register burada — sadece TR-dışı cihazlarda + arka planda.)
-    if (localeService.localeCode != 'tr') {
-      unawaited(() async {
+    try {
+      LocaleService.setLocaleChangeHook((lang) async {
+        // Her dil değişiminde önce tüm kaynakların kayıtlı olduğunu garanti et.
         RuntimeTranslator.instance
             .bulkRegister(LocaleService.allTrSourceStrings);
-        await RuntimeTranslator.instance.preloadAll(localeService.localeCode);
-      }());
-    }
+        await RuntimeTranslator.instance.preloadAll(lang);
+      });
+      // LocaleService.tr() içinde bir key'in çevirisi yoksa Türkçe kaynağı
+      // runtime translator'dan geçirip cache'den okutsun.
+      LocaleService.setRuntimeTranslateHook((source) {
+        RuntimeTranslator.instance.register(source);
+        return RuntimeTranslator.instance.lookup(source);
+      });
+      // Açılışta mevcut dil Türkçe değilse eksik çevirileri arka planda çek.
+      // (Bulk register burada — sadece TR-dışı cihazlarda + arka planda.)
+      if (localeService.localeCode != 'tr') {
+        unawaited(() async {
+          RuntimeTranslator.instance
+              .bulkRegister(LocaleService.allTrSourceStrings);
+          await RuntimeTranslator.instance
+              .preloadAll(localeService.localeCode);
+        }());
+      }
+    } catch (_) {}
 
     // IP geolocation arka planda (UI'ı bekletmez). Başarılıysa
     // locale'i ve ülke çözümleyiciyi yeniden değerlendir.
+    // onError ile zone'a sızıntı engellenir.
     unawaited(GeolocationService.resolve().then((geo) async {
       if (geo != null) {
         await localeService.reevaluateFromGeo(ipCountry: geo.country);
       }
       await CountryResolver.instance.refresh(locale: localeService);
-    }));
+    }).catchError((_) {}));
     // Ülke çözümleyiciyi mevcut sinyallerle hemen doldur
-    await CountryResolver.instance.init(locale: localeService);
+    try {
+      await CountryResolver.instance.init(locale: localeService);
+    } catch (_) {}
 
-    // Uzaktan ayar — cache anında, tazeleme arka planda
-    await RemoteConfigService.instance.init();
+    // Uzaktan ayar — cache anında, tazeleme arka planda. 4sn timeout:
+    // ilk açılışta Remote Config fetch yavaş ağda sonsuz takılıyordu.
+    try {
+      await RemoteConfigService.instance
+          .init()
+          .timeout(const Duration(seconds: 4));
+    } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'remote_config_init');
+    }
 
     // Müfredat kataloğu → education_profile'a bağla
-    initCurriculumCatalog();
+    try { initCurriculumCatalog(); } catch (_) {}
 
     // İlk açılışsa cihaz locale'inden ülkeyi tespit et — onboarding'in ülke
     // seçicisi bu pref'i varsayılan olarak alır (kullanıcı manuel
     // değiştirebilir, ama pek çok kullanıcı için tek tıkla doğru ülke gelir).
-    await EduProfile.autoDetectCountryIfMissing();
+    try { await EduProfile.autoDetectCountryIfMissing(); } catch (_) {}
 
     // Mevcut öğrenci profilini cache'e yükle (AI prompt'larında kullanılır)
-    await EduProfile.load();
+    try { await EduProfile.load(); } catch (_) {}
     // AI'dan üretilmiş profil-özel müfredat varsa belleğe yükle (varsa).
     // Hem ders listesi (subjects) hem de konu haritası (topics) ayrı cache'lerde.
-    await EduProfile.loadAiSubjectCache();
-    await EduProfile.loadAiTopicsCache();
+    try { await EduProfile.loadAiSubjectCache(); } catch (_) {}
+    try { await EduProfile.loadAiTopicsCache(); } catch (_) {}
 
     // Önceki açılıştan kalan tamamlanmamış çalışma session'ı varsa kurtar.
     // (App kill / crash sonrası en kötü 30sn kayıpla session yine yazılır.)
@@ -245,7 +328,7 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
     // kullanır; eski ekranlar StatefulWidget+setState ile çalışmaya devam
     // eder — wrapper sadece yeni provider'ları aktive eder, eski koda
     // hiçbir etkisi yok.
-    runApp(ProviderScope(child: QuAlsarApp()));
+    _launchAppOnce();
   }, (error, stack) {
     // Zone dışına sızan her şey — hem ErrorLogger hem Crashlytics'e gönder.
     ErrorLogger.instance.capture(
@@ -275,6 +358,28 @@ class _StartupRouterState extends State<_StartupRouter> {
   void initState() {
     super.initState();
     _future = _resolve();
+    // Deep link davet listener — link gelince /davet/{username} → push.
+    DeepLinkService.instance.pendingInvite.addListener(_handleInvite);
+  }
+
+  @override
+  void dispose() {
+    DeepLinkService.instance.pendingInvite.removeListener(_handleInvite);
+    super.dispose();
+  }
+
+  void _handleInvite() {
+    final username = DeepLinkService.instance.pendingInvite.value;
+    if (username == null || username.isEmpty) return;
+    // Navigator hazır olmasını bekle (post-frame).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final nav = globalNavigatorKey.currentState;
+      if (nav == null) return;
+      DeepLinkService.instance.clearInvite();
+      nav.push(MaterialPageRoute(
+        builder: (_) => InviteAcceptScreen(username: username),
+      ));
+    });
   }
 
   Future<_StartupState> _resolve() async {
@@ -396,9 +501,31 @@ class _HomeRouter extends StatelessWidget {
           .then((p) => p.getString('startup_screen') ?? 'camera'),
       builder: (_, snap) {
         if (!snap.hasData) return const QuAlsarSplashScreen();
-        if (snap.data == 'library') return const LibraryLanding();
+        if (snap.data == 'library') return const _LibraryEntryShell();
         return CameraScreen();
       },
+    );
+  }
+}
+
+// LibraryLanding root olarak açıldığında (kullanıcı startup_screen=library
+// seçtiyse) geri tuşu APP'TEN ÇIKMAMALI — asıl ana sayfa CameraScreen
+// (alt sekmeli sayfa) açılmalı. PopScope ile back'i intercept edip
+// pushReplacement ile CameraScreen'e geç. CameraScreen'den sonraki back
+// (sistem davranışı) artık uygulamadan çıkar — bu beklenen.
+class _LibraryEntryShell extends StatelessWidget {
+  const _LibraryEntryShell();
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => CameraScreen()),
+        );
+      },
+      child: const LibraryLanding(),
     );
   }
 }

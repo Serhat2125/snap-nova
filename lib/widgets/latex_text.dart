@@ -263,6 +263,29 @@ class LatexText extends StatelessWidget {
     r'^\[\s*(?:Görsel\s*Betimlemesi|Visual\s*Description)\s*:\s*(.+?)\s*\]\s*$',
     caseSensitive: false,
   );
+  // ŞEMA bloğu: [ŞEMA: <title>] ile başlar, [/ŞEMA] ile biter.
+  // Aradaki satırlar Unicode/ASCII çizim olarak monospace render edilir.
+  // Şapkalı Ş ve klasik S — büyük/küçük harf duyarsız.
+  static final _reSchemaStart = RegExp(
+    r'^\[\s*(?:ŞEMA|SEMA|SCHEMA|DIAGRAM)\s*:\s*(.+?)\s*\]\s*$',
+    caseSensitive: false,
+  );
+  static final _reSchemaEnd = RegExp(
+    r'^\[\s*/\s*(?:ŞEMA|SEMA|SCHEMA|DIAGRAM)\s*\]\s*$',
+    caseSensitive: false,
+  );
+
+  static bool _isSchemaStart(String line) =>
+      _reSchemaStart.hasMatch(line.trim());
+
+  static int _findSchemaEnd(List<String> lines, int start) {
+    for (int i = start + 1; i < lines.length; i++) {
+      if (_reSchemaEnd.hasMatch(lines[i].trim())) return i;
+    }
+    // Bitiş etiketi yoksa dosyanın sonuna kadar al — kullanıcı taşınmadan
+    // yarı kalmış bir özet hâlâ görünür.
+    return lines.length - 1;
+  }
   // Bullet satırı: "• ..." — hanging indent (devam satırı ilk metnin
   // başlangıç hizasına gelir, bullet'ın ALTINA değil).
   static final _reBullet = RegExp(r'^(•)\s+(.+)');
@@ -287,6 +310,26 @@ class LatexText extends StatelessWidget {
 
     int i = 0;
     while (i < lines.length) {
+      // ŞEMA bloğu: [ŞEMA: title] ... [/ŞEMA] — AI tarafından üretilen
+      // Unicode/ASCII diyagram. Monospace çerçeveli kart olarak render.
+      if (_isSchemaStart(lines[i])) {
+        final end = _findSchemaEnd(lines, i);
+        final titleMatch = _reSchemaStart.firstMatch(lines[i].trim());
+        final title = titleMatch?.group(1)?.trim() ?? '';
+        // Body: i+1 ile end-1 arasındaki satırlar (start ve end etiketleri hariç).
+        final body = (end > i + 1)
+            ? lines.sublist(i + 1, end).join('\n')
+            : '';
+        if (children.isNotEmpty) children.add(SizedBox(height: gap * 2));
+        children.add(_SchemaBlock(
+          title: title,
+          body: body,
+          fontSize: fontSize,
+        ));
+        if (end + 1 < lines.length) children.add(SizedBox(height: gap * 2));
+        i = end + 1; // [/ŞEMA] satırını da atla
+        continue;
+      }
       // Markdown tablosu: header satırı (| ... |) + separator (|---|---|)
       // ardışık ise bir _TableBlock olarak render et.
       if (_isTableStart(lines, i)) {
@@ -1017,7 +1060,7 @@ class _FullscreenTableButton extends StatelessWidget {
                   size: 13, color: Colors.black),
               SizedBox(width: 5),
               Text(
-                'Tam Ekran Yap'.tr(),
+                'Tabloyu Tam Ekran Yap'.tr(),
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
@@ -1385,6 +1428,282 @@ class _VisualImageCardState extends State<_VisualImageCard> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  _SchemaBlock — AI tarafından Unicode/ASCII art ile çizilmiş diyagram.
+//  Monospace font ile satır satır render, ders kitabı tarzı çerçevede.
+// ═══════════════════════════════════════════════════════════════════════════════
+class _SchemaBlock extends StatelessWidget {
+  final String title;
+  final String body;
+  final double fontSize;
+  const _SchemaBlock({
+    required this.title,
+    required this.body,
+    required this.fontSize,
+  });
+
+  static TextStyle _monoStyle(double size) => TextStyle(
+        fontSize: size,
+        height: 1.25,
+        fontFamily: 'Courier',
+        fontFamilyFallback: const [
+          'monospace',
+          'Roboto Mono',
+          'Menlo',
+          'Consolas',
+        ],
+        color: Colors.black,
+        letterSpacing: 0,
+      );
+
+  void _openFullscreen(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => _SchemaFullscreenPage(title: title, body: body),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const accent = Color(0xFF7C3AED);
+    // Tablo gibi: Tam Ekran butonu çerçevenin DIŞINDA, sağ üstte.
+    // Çerçeve içindeki eski fullscreen ikonu kaldırıldı.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4, right: 2, top: 4),
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: _FullscreenSchemaButton(
+              onTap: () => _openFullscreen(context),
+            ),
+          ),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border:
+                Border.all(color: accent.withValues(alpha: 0.35), width: 1),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Üst başlık şeridi: sadece ikon + konu adı (fullscreen ikonu yok).
+              Container(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.14),
+                  border: Border(
+                    bottom: BorderSide(
+                      color: accent.withValues(alpha: 0.30),
+                      width: 1,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.schema_rounded, size: 16, color: accent),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        title.isEmpty ? 'Şema' : title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: fontSize - 1,
+                          fontWeight: FontWeight.w800,
+                          color: accent,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Body — monospace çizim. Yatay scroll uzun şemalar için.
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                  child: Text(body, style: _monoStyle(fontSize - 1)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Tam Ekran butonu — diyagramın üstünde, tablo butonunun ikizi ───────────
+class _FullscreenSchemaButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _FullscreenSchemaButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(100),
+        child: Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+          decoration: BoxDecoration(
+            color: AppPalette.card(context),
+            borderRadius: BorderRadius.circular(100),
+            border: Border.all(
+                color: Colors.black.withValues(alpha: 0.25), width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.open_in_full_rounded,
+                  size: 13, color: Colors.black),
+              const SizedBox(width: 5),
+              Text(
+                'Diyagramı Tam Ekran Yap'.tr(),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: AppPalette.textPrimary(context),
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  _SchemaFullscreenPage — Diyagramı tam ekran açar; iki yönde scroll + pinch zoom.
+// ═══════════════════════════════════════════════════════════════════════════════
+class _SchemaFullscreenPage extends StatefulWidget {
+  final String title;
+  final String body;
+  const _SchemaFullscreenPage({required this.title, required this.body});
+
+  @override
+  State<_SchemaFullscreenPage> createState() => _SchemaFullscreenPageState();
+}
+
+class _SchemaFullscreenPageState extends State<_SchemaFullscreenPage> {
+  @override
+  void initState() {
+    super.initState();
+    // Tablo gibi: landscape moda zorla → diyagramı yatay göster.
+    SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+  }
+
+  @override
+  void dispose() {
+    SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.portraitUp,
+    ]);
+    super.dispose();
+  }
+
+  Future<void> _close() async {
+    await SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.portraitUp,
+    ]);
+    if (!mounted) return;
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const accent = Color(0xFF7C3AED);
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            // Diyagram — pinch zoom + iki yönlü scroll
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 52, 16, 16),
+              child: InteractiveViewer(
+                constrained: false,
+                minScale: 0.5,
+                maxScale: 4.0,
+                boundaryMargin: const EdgeInsets.all(80),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Text(
+                    widget.body,
+                    style: _SchemaBlock._monoStyle(14),
+                  ),
+                ),
+              ),
+            ),
+            // Başlık şeridi — sol üst
+            Positioned(
+              top: 8,
+              left: 8,
+              right: 56,
+              child: Text(
+                widget.title.isEmpty ? 'Şema' : widget.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: accent,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            // Kapat (X) — sağ üst
+            Positioned(
+              top: 4,
+              right: 8,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _close,
+                  borderRadius: BorderRadius.circular(100),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      size: 22,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

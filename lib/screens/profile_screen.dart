@@ -19,7 +19,19 @@ import '../services/locale_service.dart';
 import '../services/pricing_service.dart';
 import '../services/premium_status.dart';
 import '../services/referral_service.dart';
+import 'dart:async';
+import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image/image.dart' as img;
 import '../services/auth_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:permission_handler/permission_handler.dart' as ph;
+import '../services/friend_service.dart';
+import '../services/preferences_sync_service.dart';
+import '../services/push_service.dart';
+import '../services/solutions_storage.dart';
 import '../theme/app_theme.dart';
 import '../main.dart' show themeService, localeService;
 import 'premium_screen.dart';
@@ -1032,20 +1044,60 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _performAccountDeletion() async {
     if (!mounted) return;
-    // Hesap silme süreci — basit MVP:
-    //   1) Firestore'daki kullanıcıya ait dokümanları sil
-    //   2) Firebase Auth user'ı sil
-    //   3) Lokal SharedPreferences temizle
+    // Hesap silme süreci — Cloud Function ile FULL CASCADE delete.
+    //   1) Cloud Function `deleteAccount` çağrısı (Auth admin SDK ile
+    //      Firestore'daki TÜM ilişkili veriyi cascade siler + Auth user'ı siler)
+    //   2) FCM token cihazdan kaldır
+    //   3) Lokal SharedPreferences + image cache temizle
     //   4) Onboarding'e geri at
-    // Production'da bunlar Cloud Function'a delege edilmeli (re-auth dahil).
+    // Apple Guideline 5.1.1(v) + GDPR Article 17 uyumu için kritik.
     showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (_) => const PopScope(
         canPop: false,
-        child: Center(child: CircularProgressIndicator()),
+        child: Center(
+          child: Card(
+            margin: EdgeInsets.symmetric(horizontal: 60),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.all(Radius.circular(16))),
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 14),
+                  Text(
+                    'Hesabın siliniyor…',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
+    // 1) Cloud Function — server-side cascade delete
+    try {
+      final callable = FirebaseFunctions.instanceFor(region: 'us-central1')
+          .httpsCallable('deleteAccount',
+              options: HttpsCallableOptions(
+                timeout: const Duration(seconds: 60),
+              ));
+      final result = await callable.call();
+      debugPrint('[Profile] deleteAccount result: ${result.data}');
+    } catch (e) {
+      debugPrint('[Profile] deleteAccount Cloud Function fail: $e');
+      // Devam et — local cleanup yine de yapılsın. Auth tarafında zaten
+      // delete denemesi yapıldı; başarısız olursa user oturum açık kalır.
+    }
+    // 2) FCM token bu cihazdan kaldır — push gönderilmesin
+    try {
+      await PushService.clearTokenOnLogout();
+    } catch (_) {}
+    // 3) Local auth sign out + prefs clear
     try {
       await AuthService.signOut();
     } catch (_) {/* network olabilir */}
@@ -1058,7 +1110,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     Navigator.of(context).popUntil((r) => r.isFirst);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Hesabın silindi.'.tr()),
+        content: Text('Hesabın ve tüm verilerin silindi.'.tr()),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -2195,13 +2247,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                       SizedBox(height: 20),
 
-                      // Gönder butonu
+                      // Gönder butonu — hem Firestore'a yaz (kalıcı kayıt)
+                      // hem de email aç (kullanıcıya hızlı feedback).
+                      // Rate limit: son 1 dakikada max 3 gönderim.
                       GestureDetector(
-                        onTap: () {
-                          if (controller.text.trim().isEmpty) return;
+                        onTap: () async {
+                          final text = controller.text.trim();
+                          if (text.isEmpty) return;
+                          // Rate limit kontrolü
+                          final prefs = await SharedPreferences.getInstance();
+                          final lastTimes = prefs.getStringList(
+                                  'feedback_last_send_v1') ??
+                              const <String>[];
+                          final nowMs =
+                              DateTime.now().millisecondsSinceEpoch;
+                          final fresh = lastTimes
+                              .map(int.tryParse)
+                              .whereType<int>()
+                              .where((t) => nowMs - t < 60 * 1000)
+                              .toList();
+                          if (fresh.length >= 3) {
+                            if (ctx.mounted) {
+                              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                                content: Text(
+                                    'Çok sık gönderim. 1 dk sonra tekrar dene.'
+                                        .tr()),
+                              ));
+                            }
+                            return;
+                          }
+                          fresh.add(nowMs);
+                          await prefs.setStringList(
+                              'feedback_last_send_v1',
+                              fresh
+                                  .map((t) => t.toString())
+                                  .toList(growable: false));
+                          // 1) Firestore'a yaz (anonim auth ok, rules zaten
+                          //    `allow create: if true` — sadece admin okur)
+                          try {
+                            await FirebaseFirestore.instance
+                                .collection('feedback')
+                                .add({
+                              'text': text,
+                              'userId': AuthService.current?.id ?? 'anonymous',
+                              'userEmail':
+                                  AuthService.current?.email ?? '',
+                              'platform': Platform.isIOS
+                                  ? 'ios'
+                                  : (Platform.isAndroid ? 'android' : 'other'),
+                              'appVersion': await _appVersionLine(),
+                              'locale': locale.localeCode,
+                              'createdAt': FieldValue.serverTimestamp(),
+                            });
+                          } catch (e) {
+                            debugPrint('[Feedback] firestore write fail: $e');
+                          }
+                          // 2) Email akışı — kullanıcı isterse copy/paste alır
                           _launchEmail(
                             subject: 'QuAlsar - Geri Bildirim',
-                            body: controller.text.trim(),
+                            body: text,
                           );
                           setSheetState(() => sent = true);
                           Future.delayed(Duration(milliseconds: 1200), () {
@@ -2600,12 +2704,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   .tr(),
                         ),
                         SizedBox(height: 10),
+                        // AI Koç — kişisel çalışma asistanı (Yeni!)
                         _aboutFeatureCard(
-                          icon: Icons.smart_toy_rounded,
-                          color: Color(0xFFEC4899),
-                          title: 'Çalışma Arkadaşım'.tr(),
+                          icon: Icons.auto_awesome_rounded,
+                          color: Color(0xFF7C3AED),
+                          title: 'AI Koç'.tr(),
                           desc:
-                              '6 farklı 3D robot avatar — özelleştirebileceğin AI eğitim arkadaşın. Soru sor, anlat, dinle.'
+                              'Geçmiş çözümlerinden, testlerinden ve özet çalışmalarından zayıf konularını tespit eder; her güne özel çalışma planı önerir.'
                                   .tr(),
                         ),
                         SizedBox(height: 10),
@@ -2675,11 +2780,75 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                               _infoRow('Geliştirici'.tr(), 'QuAlsar Team'),
                               _infoRow('AI Modeli'.tr(), 'Gemini 2.5 Flash'),
-                              _infoRow('Müfredat Kapsamı'.tr(), '131 ülke • 55 dil'),
+                              _infoRow('Müfredat Kapsamı'.tr(),
+                                  '131 ülke • 55 dil'),
+                              _infoRow('Kuruluş'.tr(), '2026'),
+                              _infoRow('İletişim'.tr(),
+                                  'serhatdsme@gmail.com'),
                             ],
                           ),
                         ),
-                        SizedBox(height: 12),
+                        const SizedBox(height: 20),
+                        // ═══════════════════════════════════════════════════
+                        //  MİSYON & DEĞERLER
+                        // ═══════════════════════════════════════════════════
+                        _aboutSectionTitle('🎯', 'Misyon'.tr()),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Her öğrencinin kendi seviyesinde, kendi dilinde, kendi cebinde bir özel öğretmene erişmesini sağlamak. AI\'ı eğitimde demokratikleştirmek.'
+                              .tr(),
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            color: AppPalette.textPrimary(context),
+                            height: 1.55,
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        _aboutSectionTitle('💎', 'Değerler'.tr()),
+                        const SizedBox(height: 8),
+                        _valueLine('🌍', 'Erişilebilirlik'.tr(),
+                            'Her dile, her seviyeye, her ülkeye'.tr()),
+                        _valueLine('🛡️', 'Gizlilik'.tr(),
+                            'Verilerin senin; sattığımız ürün değil'.tr()),
+                        _valueLine('📚', 'Doğruluk'.tr(),
+                            'Müfredata uygun, çift AI doğrulamalı içerik'.tr()),
+                        _valueLine('⚡', 'Hız'.tr(),
+                            'Saniyeler içinde cevap, yapay zeka destekli'.tr()),
+                        const SizedBox(height: 20),
+                        // ═══════════════════════════════════════════════════
+                        //  WEB & SOSYAL MEDYA
+                        // ═══════════════════════════════════════════════════
+                        _aboutSectionTitle('🌐', 'Web ve Bağlantılar'.tr()),
+                        const SizedBox(height: 10),
+                        _socialLink(
+                          icon: Icons.language_rounded,
+                          label: 'qualsar2-640f0.web.app',
+                          color: const Color(0xFF3B82F6),
+                          url: 'https://qualsar2-640f0.web.app',
+                        ),
+                        const SizedBox(height: 8),
+                        _socialLink(
+                          icon: Icons.mail_outline_rounded,
+                          label: 'serhatdsme@gmail.com',
+                          color: const Color(0xFFEC4899),
+                          url:
+                              'mailto:serhatdsme@gmail.com?subject=QuAlsar',
+                        ),
+                        const SizedBox(height: 8),
+                        _socialLink(
+                          icon: Icons.privacy_tip_rounded,
+                          label: 'Gizlilik Politikası'.tr(),
+                          color: const Color(0xFF10B981),
+                          url: 'https://qualsar2-640f0.web.app/privacy',
+                        ),
+                        const SizedBox(height: 8),
+                        _socialLink(
+                          icon: Icons.description_rounded,
+                          label: 'Kullanım Koşulları'.tr(),
+                          color: const Color(0xFF8B5CF6),
+                          url: 'https://qualsar2-640f0.web.app/terms',
+                        ),
+                        const SizedBox(height: 16),
                         Center(
                           child: Text(
                             '© ${DateTime.now().year} QuAlsar. Tüm hakları saklıdır.'.tr(),
@@ -2700,6 +2869,96 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         );
       },
+    );
+  }
+
+  /// Değer satırı — emoji + başlık + kısa açıklama.
+  Widget _valueLine(String emoji, String title, String desc) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 20)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: AppPalette.textPrimary(context))),
+                Text(desc,
+                    style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: AppPalette.textSecondary(context),
+                        height: 1.4)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Sosyal link — tıklanınca url_launcher ile açar.
+  Widget _socialLink({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required String url,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () async {
+          final messenger = ScaffoldMessenger.of(context);
+          try {
+            final ok = await launchUrl(
+              Uri.parse(url),
+              mode: LaunchMode.externalApplication,
+            );
+            if (!ok && context.mounted) {
+              messenger.showSnackBar(
+                SnackBar(content: Text('Link açılamadı'.tr())),
+              );
+            }
+          } catch (_) {
+            await Clipboard.setData(ClipboardData(text: url));
+            if (!context.mounted) return;
+            messenger.showSnackBar(
+              SnackBar(content: Text('Link panoya kopyalandı'.tr())),
+            );
+          }
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color.withValues(alpha: 0.25)),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: color, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppPalette.textPrimary(context))),
+              ),
+              Icon(Icons.open_in_new_rounded, color: color, size: 16),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -3108,6 +3367,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onPressed: () async {
               Navigator.pop(ctx);
               try {
+                // FCM token önce — auth çıktıktan sonra uid null, silinemez
+                await PushService.clearTokenOnLogout();
                 await AuthService.signOut();
                 // Çıkış sonrası onboarding'i tekrar göster — yeni kullanıcı
                 // veya tekrar giriş için ilk açılış akışı (ülke + dil seç).
@@ -3455,6 +3716,13 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   String? _profileImagePath;
   String? _educationLevel;
   String _userId = '';
+  String? _nameError;
+  String? _statusError;
+  // Debounce — kullanıcı her karakter girince cloud'a yazma yapmasın.
+  Timer? _nameDebounce;
+  Timer? _statusDebounce;
+  static const _maxNameLen = 30;
+  static const _maxStatusLen = 120;
 
   @override
   void initState() {
@@ -3473,34 +3741,191 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       _educationLevel = prefs.getString('profile_education_level');
       _userId = id;
     });
+    // Yerel boşsa cloud'dan restore — telefon değişti senaryosu.
+    if (_nameCtrl.text.isEmpty &&
+        _statusCtrl.text.isEmpty &&
+        _profileImagePath == null) {
+      unawaited(_restoreFromCloud());
+    }
+  }
+
+  /// users/{uid} doc'undan displayName + statusMessage + avatarData oku.
+  /// Yerel SharedPreferences'a yaz + UI'yı güncelle.
+  Future<void> _restoreFromCloud() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+      final me = await FriendService.getUserByUid(uid);
+      if (me == null || !mounted) return;
+      final prefs = await SharedPreferences.getInstance();
+      if (me.displayName.isNotEmpty) {
+        await prefs.setString('profile_name', me.displayName);
+      }
+      if (me.statusMessage.isNotEmpty) {
+        await prefs.setString('profile_status_message', me.statusMessage);
+      }
+      // Avatar — base64 data URL ise dosyaya yaz, yerel path SharedPref'e
+      String? imgPath;
+      if (me.avatarData.startsWith('data:image/')) {
+        try {
+          final commaIdx = me.avatarData.indexOf(',');
+          if (commaIdx > 0) {
+            final b64 = me.avatarData.substring(commaIdx + 1);
+            final bytes = base64Decode(b64);
+            final dir = await getApplicationDocumentsDirectory();
+            final path = '${dir.path}/profile_avatar.jpg';
+            await File(path).writeAsBytes(bytes);
+            imgPath = path;
+            await prefs.setString('profile_image', path);
+          }
+        } catch (e) {
+          debugPrint('[Profile] avatar restore fail: $e');
+        }
+      }
+      if (!mounted) return;
+      setState(() {
+        if (me.displayName.isNotEmpty) _nameCtrl.text = me.displayName;
+        if (me.statusMessage.isNotEmpty) _statusCtrl.text = me.statusMessage;
+        if (imgPath != null) _profileImagePath = imgPath;
+      });
+    } catch (e) {
+      debugPrint('[Profile] cloud restore fail: $e');
+    }
+  }
+
+  String? _validateName(String name) {
+    if (name.isEmpty) return null; // boş bırakmak serbest
+    if (name.length < 2) {
+      return localeService.tr('name_too_short');
+    }
+    if (name.length > _maxNameLen) {
+      return localeService.tr('name_too_long');
+    }
+    // Sadece harf, rakam, boşluk, alt çizgi, nokta, tire. Emoji+özel kabul.
+    if (RegExp(r'[<>/\\{}|]').hasMatch(name)) {
+      return localeService.tr('name_invalid_chars');
+    }
+    return null;
+  }
+
+  String? _validateStatus(String s) {
+    if (s.length > _maxStatusLen) {
+      return localeService.tr('status_too_long');
+    }
+    return null;
   }
 
   Future<void> _saveName() async {
+    final raw = _nameCtrl.text.trim();
+    final err = _validateName(raw);
+    if (mounted) setState(() => _nameError = err);
+    if (err != null) return;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('profile_name', _nameCtrl.text.trim());
+    await prefs.setString('profile_name', raw);
+    _nameDebounce?.cancel();
+    _nameDebounce = Timer(const Duration(milliseconds: 500), () {
+      unawaited(_syncToCloud());
+    });
   }
 
   Future<void> _saveStatus() async {
+    final raw = _statusCtrl.text.trim();
+    final err = _validateStatus(raw);
+    if (mounted) setState(() => _statusError = err);
+    if (err != null) return;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('profile_status_message', _statusCtrl.text.trim());
+    await prefs.setString('profile_status_message', raw);
+    _statusDebounce?.cancel();
+    _statusDebounce = Timer(const Duration(milliseconds: 500), () {
+      unawaited(_syncToCloud());
+    });
   }
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.gallery, maxWidth: 512);
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 512,
+      imageQuality: 85,
+    );
     if (picked == null) return;
-    final dir = await getApplicationDocumentsDirectory();
-    final savedPath = '${dir.path}/profile_avatar.jpg';
-    await File(picked.path).copy(savedPath);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('profile_image', savedPath);
-    if (mounted) setState(() => _profileImagePath = savedPath);
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final savedPath = '${dir.path}/profile_avatar.jpg';
+      await File(picked.path).copy(savedPath);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('profile_image', savedPath);
+      if (mounted) setState(() => _profileImagePath = savedPath);
+      // Cloud sync — küçük thumbnail (100x100) base64 → Firestore'a yedek.
+      // Firebase Storage maliyetinden kaçınıyoruz; ~5-8KB doc'a sığar.
+      unawaited(_uploadAvatarThumbnail(picked.path));
+    } catch (e) {
+      debugPrint('[Profile] image pick fail: $e');
+    }
+  }
+
+  /// 100x100 thumbnail base64 üret → FriendService.upsertMyProfile ile
+  /// users/{uid}.avatarData'ya yaz. Arkadaş kartlarında bu görünür.
+  Future<void> _uploadAvatarThumbnail(String srcPath) async {
+    try {
+      final bytes = await File(srcPath).readAsBytes();
+      final decoded = img.decodeImage(bytes);
+      if (decoded == null) return;
+      final thumb = img.copyResize(
+        decoded,
+        width: 100,
+        height: 100,
+        interpolation: img.Interpolation.average,
+      );
+      final jpeg = img.encodeJpg(thumb, quality: 70);
+      final dataUrl = 'data:image/jpeg;base64,${base64Encode(jpeg)}';
+      // Limit kontrolü: 15KB üstü cloud'a yazma (Firestore doc 1MB cap'i koru)
+      if (dataUrl.length > 15 * 1024) {
+        debugPrint(
+            '[Profile] thumbnail too big (${dataUrl.length}B), skip cloud');
+        return;
+      }
+      await _syncToCloud(overrideAvatarData: dataUrl);
+    } catch (e) {
+      debugPrint('[Profile] thumbnail upload fail: $e');
+    }
+  }
+
+  /// Tüm profil alanlarını FriendService üzerinden Firestore'a senkronize et.
+  /// Arkadaş arama, davet, leaderboard görünümleri bu doc'tan beslenir.
+  Future<void> _syncToCloud({String? overrideAvatarData}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final email = FirebaseAuth.instance.currentUser?.email ?? '';
+      // Username (handle) — auth_service _writePublicProfile'da üretilmiş
+      // olan handle'ı kullan; profile_name DISPLAYNAME'dir, ayrı.
+      final savedUsername = prefs.getString('user_username_v1') ?? '';
+      final username = savedUsername.isNotEmpty
+          ? savedUsername
+          : (email.contains('@')
+              ? email.substring(0, email.indexOf('@'))
+              : 'user${_userId.substring(_userId.length - 6)}');
+      final displayName = _nameCtrl.text.trim();
+      final status = _statusCtrl.text.trim();
+      await FriendService.upsertMyProfile(
+        username: username,
+        displayName: displayName.isEmpty ? username : displayName,
+        avatar: '👤',
+        email: email,
+        statusMessage: status,
+        avatarData: overrideAvatarData,
+      );
+    } catch (e) {
+      debugPrint('[Profile] cloud sync fail: $e');
+    }
   }
 
   @override
   void dispose() {
     _saveName();
     _saveStatus();
+    _nameDebounce?.cancel();
+    _statusDebounce?.cancel();
     _nameCtrl.dispose();
     _statusCtrl.dispose();
     super.dispose();
@@ -3612,6 +4037,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 children: [
                   TextField(
                     controller: _nameCtrl,
+                    maxLength: _maxNameLen,
                     style: GoogleFonts.poppins(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
@@ -3627,6 +4053,12 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                       border: InputBorder.none,
                       isDense: true,
                       contentPadding: EdgeInsets.zero,
+                      counterText: '',
+                      errorText: _nameError,
+                      errorStyle: GoogleFonts.poppins(
+                        fontSize: 11,
+                        color: const Color(0xFFEF4444),
+                      ),
                     ),
                     onChanged: (_) => _saveName(),
                   ),
@@ -3677,25 +4109,47 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
             // Sekme 2 — Durum Mesajı
             _LabeledCard(
               label: localeService.tr('status_message_label'),
-              child: TextField(
-                controller: _statusCtrl,
-                style: GoogleFonts.poppins(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: AppPalette.textPrimary(context),
-                ),
-                decoration: InputDecoration(
-                  hintText: localeService.tr('write_something_hint'),
-                  hintStyle: GoogleFonts.poppins(
-                    color: AppPalette.textSecondary(context),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  TextField(
+                    controller: _statusCtrl,
+                    maxLength: _maxStatusLen,
+                    maxLines: 2,
+                    minLines: 1,
+                    style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppPalette.textPrimary(context),
+                    ),
+                    decoration: InputDecoration(
+                      hintText: localeService.tr('write_something_hint'),
+                      hintStyle: GoogleFonts.poppins(
+                        color: AppPalette.textSecondary(context),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
+                      counterText: '',
+                      errorText: _statusError,
+                      errorStyle: GoogleFonts.poppins(
+                        fontSize: 11,
+                        color: const Color(0xFFEF4444),
+                      ),
+                    ),
+                    onChanged: (_) => _saveStatus(),
                   ),
-                  border: InputBorder.none,
-                  isDense: true,
-                  contentPadding: EdgeInsets.zero,
-                ),
-                onChanged: (_) => _saveStatus(),
+                  // Karakter sayacı — kullanıcı sınırı görsün
+                  Text(
+                    '${_statusCtrl.text.length}/$_maxStatusLen',
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      color: AppPalette.textSecondary(context),
+                    ),
+                  ),
+                ],
               ),
             ),
             SizedBox(height: 18),
@@ -4037,28 +4491,83 @@ class _InvitePageState extends State<InvitePage> {
   }
 
   Future<void> _shareCode() async {
-    if (_stats.myCode.isEmpty) return;
-    // Lokalize edilmiş paylaşım mesajı + Store linkleri.
-    // App Store + Play Store fallback (Firebase Dynamic Links yok).
-    // Onboarding'de gelen kullanıcı kod alanına otomatik doldurmak için
-    // mesaj sonuna "deeplink benzeri" ipucu da ekledik:
-    //   qualsar://invite?code=QUALS-XXXXX
-    // Universal Link konfigürasyonu eklenince bu link tıklanınca app açılır.
-    final code = _stats.myCode;
+    // 1) Kod boşsa SESSIZCE return ETME — kullanıcıya bildir ve yeniden
+    //    yüklemeyi tetikle. Eskiden burada erken çıkış vardı, kullanıcı
+    //    "basınca bir şey olmuyor" diyordu.
+    var code = _stats.myCode;
+    if (code.isEmpty) {
+      // Önce hızlı yeniden dene
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+            'Davet kodu hazırlanıyor, bir saniye…'.tr()),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ));
+      await _load();
+      code = _stats.myCode;
+      if (code.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              'Davet kodu yüklenemedi. İnternetini kontrol et ve tekrar dene.'
+                  .tr()),
+          behavior: SnackBarBehavior.floating,
+          action: SnackBarAction(
+            label: 'Tekrar dene'.tr(),
+            onPressed: _load,
+          ),
+        ));
+        return;
+      }
+    }
+    // Tek deep link → mesaj kısa, link preview temiz, hem Android hem iOS
+    // kullanıcıları yakalanır.
     final intro = 'QuAlsar — AI destekli ödev asistanı.'.tr();
-    final cta = 'Uygulamayı indir ve kaydolurken bu davet kodunu kullan:'.tr();
+    final cta =
+        'Uygulamayı indir ve kaydolurken şu davet kodumu kullan:'.tr();
     final reward = 'Sen 7 gün, ben 30 gün Premium kazanırız.'.tr();
-    const playUrl = 'https://play.google.com/store/apps/details?id=com.qualsar.ai';
-    const appStoreUrl = 'https://apps.apple.com/app/qualsar';
-    final deepLink = 'qualsar://invite?code=$code';
+    final inviteUrl = 'https://qualsar2-640f0.web.app/i/$code';
     final msg = '$intro\n\n'
         '$cta\n'
         '🎁 $code\n\n'
         '$reward\n\n'
-        '📱 Android: $playUrl\n'
-        '🍎 iOS: $appStoreUrl\n'
-        '🔗 $deepLink';
-    await Share.share(msg);
+        '$inviteUrl';
+    // iPad popover origin — async gap öncesi yakala. iOS'ta Share.share
+    // tablet'lerde popover gerektirir, yoksa exception fırlar.
+    Rect? origin;
+    if (mounted) {
+      try {
+        final box = context.findRenderObject() as RenderBox?;
+        if (box != null && box.attached) {
+          origin = box.localToGlobal(Offset.zero) & box.size;
+        }
+      } catch (_) {}
+    }
+    // Share sheet açılmazsa veya intent çökerse → metni panoya kopyala ki
+    // kullanıcı WhatsApp'a manuel yapıştırabilsin.
+    try {
+      final result = await Share.share(
+        msg,
+        subject: 'QuAlsar davet kodum',
+        sharePositionOrigin: origin,
+      );
+      // Bazı cihazlarda result.status .dismissed / .unavailable döner —
+      // o durumda kullanıcının elinde hiçbir şey olmasın diye fallback'e geç.
+      if (result.status == ShareResultStatus.unavailable) {
+        throw Exception('share unavailable');
+      }
+    } catch (e) {
+      debugPrint('[Invite] share fail: $e');
+      await Clipboard.setData(ClipboardData(text: msg));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+            'Paylaşım açılamadı — davet metni panoya kopyalandı.'.tr()),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
+      ));
+    }
   }
 
   /// Davet kodu kartı — büyük tipografi + kopya butonu.
@@ -5286,6 +5795,76 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
     await prefs.setString('startup_screen', value);
     if (!mounted) return;
     setState(() => _startupScreen = value);
+    // Cloud sync — diğer cihazda da geçerli olsun
+    unawaited(PreferencesSyncService.syncFromLocal());
+  }
+
+  /// Cache temizleme — geçici resim/ses dosyaları, runtime translator cache,
+  /// soru havuzu local index. SharedPreferences ve kritik veriler korunur.
+  Future<void> _clearCache() async {
+    final messenger = ScaffoldMessenger.of(context);
+    // Onay dialogu
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Önbelleği temizle?'.tr()),
+        content: Text(
+          'Geçici dosyalar silinir. Çözümlerin, özetlerin ve profil bilgilerin SİLİNMEZ.'
+              .tr(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Vazgeç'.tr()),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFFEF4444),
+            ),
+            child: Text('Temizle'.tr()),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    int sizeMb = 0;
+    try {
+      final tempDir = await getTemporaryDirectory();
+      if (await tempDir.exists()) {
+        // Toplam boyut hesabı (info amaçlı, fail olursa da temizle)
+        try {
+          int total = 0;
+          await for (final ent in tempDir.list(recursive: true)) {
+            if (ent is File) {
+              try {
+                total += await ent.length();
+              } catch (_) {}
+            }
+          }
+          sizeMb = (total / (1024 * 1024)).round();
+        } catch (_) {}
+        // İçeriği temizle (klasörü silme, sadece içini)
+        await for (final ent in tempDir.list()) {
+          try {
+            await ent.delete(recursive: true);
+          } catch (_) {/* tek dosya başarısızsa sonrakine geç */}
+        }
+      }
+      // Çözüm orphan resimlerini temizle (cleanOrphans çağrısı)
+      try {
+        await SolutionsStorage.cleanOrphans();
+      } catch (_) {}
+    } catch (e) {
+      debugPrint('[Profile] cache clear fail: $e');
+    }
+    if (!mounted) return;
+    messenger.showSnackBar(SnackBar(
+      content: Text(sizeMb > 0
+          ? '$sizeMb MB önbellek temizlendi'
+          : 'Önbellek temizlendi'.tr()),
+      behavior: SnackBarBehavior.floating,
+    ));
   }
 
   @override
@@ -5381,6 +5960,60 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
                         ),
                       ),
                     ]),
+                  ),
+                  const SizedBox(height: 22),
+                  // Önbellek temizle — depolama yönetimi
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _clearCache,
+                      borderRadius: BorderRadius.circular(14),
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEF4444).withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: const Color(0xFFEF4444)
+                                .withValues(alpha: 0.30),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Text('🗑️', style: TextStyle(fontSize: 22)),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Önbelleği Temizle'.tr(),
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w800,
+                                      color: const Color(0xFFEF4444),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Geçici dosyalar — çözümlerin ve özetlerin korunur.'
+                                        .tr(),
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 11,
+                                      color:
+                                          AppPalette.textSecondary(context),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.chevron_right_rounded,
+                                color: Color(0xFFEF4444), size: 22),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -5523,6 +6156,59 @@ class _NotificationsSettingsSheetState
   Future<void> _save(String key, bool v) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(key, v);
+    // Cloud sync — yeni cihazda kullanıcı bildirim tercihlerini bulur
+    unawaited(PreferencesSyncService.syncFromLocal());
+  }
+
+  /// Test bildirim — kullanıcı ayarlarını değiştirdikten sonra çalıştığını
+  /// görsün. PushService.showLocal → flutter_local_notifications.
+  /// Android 13+ runtime permission gerekirse iste.
+  Future<void> _sendTestNotification() async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      // iOS + Android izin akışı — eski cihazda izin yoksa burada iste
+      final settings =
+          await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      final granted =
+          settings.authorizationStatus == AuthorizationStatus.authorized ||
+              settings.authorizationStatus == AuthorizationStatus.provisional;
+      if (!granted) {
+        if (!mounted) return;
+        messenger.showSnackBar(SnackBar(
+          content: Text(
+              'Bildirim izni verilmedi. Sistem ayarlarından izin ver.'.tr()),
+          behavior: SnackBarBehavior.floating,
+          action: SnackBarAction(
+            label: 'Ayarlar'.tr(),
+            onPressed: () {
+              ph.openAppSettings();
+            },
+          ),
+        ));
+        return;
+      }
+      await PushService.showLocal(
+        title: '🔔 Test bildirimi',
+        body:
+            'Tebrikler! Bildirimler düzgün çalışıyor. Bu mesajı sistem tepsisinde görmen lazım.',
+        id: 0xFA999,
+      );
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(
+        content: Text('Test bildirimi gönderildi'.tr()),
+        behavior: SnackBarBehavior.floating,
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(
+        content: Text('Test başarısız: $e'),
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
   }
 
   @override
@@ -5647,6 +6333,49 @@ class _NotificationsSettingsSheetState
                               setState(() => _newsletters = v);
                               _save('notif_news', v);
                             },
+                    ),
+                    const SizedBox(height: 16),
+                    // Test bildirim butonu — kullanıcı bildirimlerin gerçekten
+                    // çalıştığını gözleriyle görsün. iOS+Android izin akışı
+                    // burada otomatik tetiklenir.
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: _sendTestNotification,
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1A73E8)
+                                .withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: const Color(0xFF1A73E8)
+                                  .withValues(alpha: 0.30),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.notifications_active_rounded,
+                                  color: Color(0xFF1A73E8), size: 22),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Test bildirim gönder'.tr(),
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFF1A73E8),
+                                  ),
+                                ),
+                              ),
+                              const Icon(Icons.chevron_right_rounded,
+                                  color: Color(0xFF1A73E8), size: 22),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -5827,13 +6556,15 @@ class _CenteredLicensesScreenState extends State<_CenteredLicensesScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Her lisans — kart, başlık + metin ortalı
+                  // Her lisans — kart. Paket adları Wrap ile satır sığdırma,
+                  // lisans metni softWrap + word-break tolerant, indent kaldırıldı
+                  // (ortalı düzende indent metni ekrandan dışarı itiyordu).
                   for (int i = 0; i < _licenses.length; i++)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
                         decoration: BoxDecoration(
                           color: AppPalette.card(context),
                           borderRadius: BorderRadius.circular(14),
@@ -5841,31 +6572,48 @@ class _CenteredLicensesScreenState extends State<_CenteredLicensesScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            // Paket adları
-                            Text(
-                              _licenses[i].packages.join(' · '),
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.poppins(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                color: AppPalette.textPrimary(context),
-                                height: 1.4,
-                              ),
+                            // Paket adları — Wrap ile uzun isimler alt satıra
+                            // geçsin (eskiden join('·') tek satırda taşıyordu).
+                            Wrap(
+                              alignment: WrapAlignment.center,
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: [
+                                for (final pkg in _licenses[i].packages)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: AppPalette.cardMuted(context),
+                                      borderRadius:
+                                          BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      pkg,
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w800,
+                                        color:
+                                            AppPalette.textPrimary(context),
+                                        height: 1.2,
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
                             const SizedBox(height: 10),
-                            // Lisans metni (paragraflar)
+                            // Lisans metni — softWrap default, indent yok
+                            // (ortalı düzende sol padding metni ekrandan
+                            // dışarı taşırıyordu). Uzun URL/karakterler için
+                            // SelectableText ile kullanıcı kopyalayabilir.
                             for (final p in _licenses[i].paragraphs) ...[
-                              Padding(
-                                padding:
-                                    EdgeInsets.only(left: p.indent * 6.0),
-                                child: Text(
-                                  p.text,
-                                  textAlign: TextAlign.center,
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 11,
-                                    color: AppPalette.textSecondary(context),
-                                    height: 1.55,
-                                  ),
+                              SelectableText(
+                                p.text,
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  color: AppPalette.textSecondary(context),
+                                  height: 1.55,
                                 ),
                               ),
                               const SizedBox(height: 6),

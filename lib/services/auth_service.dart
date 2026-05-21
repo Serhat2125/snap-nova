@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'error_logger.dart';
+import 'friend_service.dart';
 import 'dart:io' show Platform;
 import 'dart:math' as math;
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
@@ -129,8 +130,53 @@ class AuthService {
     } catch (e) {
       debugPrint('[Auth] persist error: $e');
     }
+    // Friends sistemi için Firestore'a public profil yaz (idempotent).
+    // Username yoksa email/name'den türetilir; kullanıcı sonradan değiştirebilir.
+    unawaited(_writePublicProfile(u));
     _changes.add(u);
     return u;
+  }
+
+  /// users/{uid} public profile — FriendService araması ve arkadaşlık için.
+  /// Username yoksa email/name/uid'den deterministik türetilir.
+  static Future<void> _writePublicProfile(AppUser u) async {
+    try {
+      String username;
+      // Kullanıcı önceden bir username belirlemişse onu kullan
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString('user_username_v1');
+      if (saved != null && saved.length >= 3) {
+        username = saved;
+      } else {
+        // email'in @ öncesi, yoksa name baş harfleri, yoksa uid son 6
+        final email = u.email ?? '';
+        final atIdx = email.indexOf('@');
+        if (atIdx > 0) {
+          username = email.substring(0, atIdx);
+        } else if ((u.name ?? '').isNotEmpty) {
+          username = (u.name ?? '').replaceAll(' ', '').toLowerCase();
+        } else {
+          username = 'user${u.id.substring(u.id.length - 6)}';
+        }
+        await prefs.setString('user_username_v1', username);
+      }
+      final avatar = (u.photoUrl != null && u.photoUrl!.isNotEmpty)
+          ? u.photoUrl!
+          : _avatarEmojiFor(u.id);
+      await FriendService.upsertMyProfile(
+        username: username,
+        displayName: u.name ?? username,
+        avatar: avatar,
+        email: u.email,
+      );
+    } catch (e) {
+      debugPrint('[Auth] public profile write fail: $e');
+    }
+  }
+
+  static String _avatarEmojiFor(String uid) {
+    const pool = ['🦁', '🐯', '🐺', '🦊', '🐼', '🐨', '🐸', '🦄', '🐲', '🦅'];
+    return pool[uid.hashCode.abs() % pool.length];
   }
 
   static String _genId(String prefix) {

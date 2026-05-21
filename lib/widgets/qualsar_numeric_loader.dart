@@ -76,8 +76,9 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
   final math.Random _rng = math.Random();
   Timer? _spawnTimer;
 
-  // Merkez sembol
-  int _centerIdx = 0;
+  // Merkez sembol — ValueNotifier: setState yerine sadece izleyen subtree
+  // (ValueListenableBuilder içindeki) rebuild olur. Tüm widget tree değil.
+  final ValueNotifier<int> _centerIdx = ValueNotifier<int>(0);
   Timer? _centerTimer;
 
   // Alt yazı — 2 aşamalı basit akış: ilk 3 sn "Analiz", sonrası "Çözüm"
@@ -88,12 +89,12 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
   int _stageIdx = 0;
   Timer? _stageRevealTimer;
 
-  // Noktalar
-  int _dots = 0;
+  // Noktalar — ValueNotifier (setState yerine, hedeflenmiş rebuild)
+  final ValueNotifier<int> _dots = ValueNotifier<int>(0);
   Timer? _dotTimer;
 
-  // Tip kartları — alt kısımda dönen "Biliyor muydunuz?" kartları
-  int _tipIdx = 0;
+  // Tip kartları — ValueNotifier
+  final ValueNotifier<int> _tipIdx = ValueNotifier<int>(0);
   Timer? _tipTimer;
 
   // Uzun süreli istek için "lütfen ayrılmayın" göstergesi
@@ -137,12 +138,10 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
       _spawnSymbol();
     });
 
-    // Merkez sembol (180 ms aralık)
+    // Merkez sembol (180 ms aralık) — setState yok, sadece notifier.
     _centerTimer = Timer.periodic(Duration(milliseconds: 180), (_) {
       if (!mounted) return;
-      setState(() {
-        _centerIdx = (_centerIdx + 1) % _centerPool.length;
-      });
+      _centerIdx.value = (_centerIdx.value + 1) % _centerPool.length;
     });
 
     // 3 sn sonra ikincil metne geç — sadece staticLabel false ve stages
@@ -166,18 +165,16 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
       });
     }
 
-    // Nokta animasyonu (300 ms aralık)
+    // Nokta animasyonu (300 ms aralık) — notifier ile hedef rebuild.
     _dotTimer = Timer.periodic(Duration(milliseconds: 300), (_) {
       if (!mounted) return;
-      setState(() {
-        _dots = (_dots + 1) % 4;
-      });
+      _dots.value = (_dots.value + 1) % 4;
     });
 
-    // Tip kartları — her 5 saniyede yeni "Biliyor muydunuz?" göster.
+    // Tip kartları — 5 saniyede bir, notifier ile.
     _tipTimer = Timer.periodic(Duration(seconds: 5), (_) {
       if (!mounted) return;
-      setState(() => _tipIdx = (_tipIdx + 1) % _tips.length);
+      _tipIdx.value = (_tipIdx.value + 1) % _tips.length;
     });
 
     // 20 saniye sonra "lütfen ayrılmayın" mesajı.
@@ -201,6 +198,9 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
     _orbit3.dispose();
     _glowCtrl.dispose();
     _ticker.dispose();
+    _centerIdx.dispose();
+    _dots.dispose();
+    _tipIdx.dispose();
     super.dispose();
   }
 
@@ -224,19 +224,20 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
         ? (10 + _rng.nextDouble() * 4)
         : (14 + _rng.nextDouble() * 12);
 
-    setState(() {
-      _symbols.add(_StreamSymbol(
-        text: char,
-        color: color,
-        fromX: fromX,
-        fromY: fromY,
-        size: size,
-        birthMs: DateTime.now().millisecondsSinceEpoch,
-      ));
-      // Eski sembolleri temizle (2 sn ömür)
-      final now = DateTime.now().millisecondsSinceEpoch;
-      _symbols.removeWhere((s) => now - s.birthMs > 2100);
-    });
+    // setState YOK — her frame zaten _ticker'a bağlı AnimatedBuilder bu
+    // listeyi okuyor. setState eklenirse tüm tree (stage text, tip card,
+    // long-running banner vb.) her 80ms yeniden inşa olur → kare kare jank.
+    // Sadece liste mutasyonu, render sonraki tick'te otomatik gelir.
+    _symbols.add(_StreamSymbol(
+      text: char,
+      color: color,
+      fromX: fromX,
+      fromY: fromY,
+      size: size,
+      birthMs: DateTime.now().millisecondsSinceEpoch,
+    ));
+    final now = DateTime.now().millisecondsSinceEpoch;
+    _symbols.removeWhere((s) => now - s.birthMs > 2100);
   }
 
   @override
@@ -363,6 +364,13 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
   Widget _buildLoader() {
     const disc = 200.0; // önceki 160 → biraz daha büyük
     const mid = disc / 2;
+    // diskOnly modunda splash (ThemeInherited yokken bile) render olmalı.
+    // AppPalette.textPrimary(context) → ThemeInherited.of(context) çağırıyor
+    // ve assert atıyor. Splash ZATEN beyaz arka planda gösterildiğinden disk
+    // her zaman koyu gerek; sabit siyah token kullan, palet'e dokunma.
+    final discColor = widget.diskOnly
+        ? const Color(0xFF111111)
+        : AppPalette.textPrimary(context);
     // ClipOval ile DAİRESEL clip — orbit ring'i ve uçuşan semboller diskin
     // dışına asla taşmaz. Şekil BoxShape.circle olsa da içerideki Stack
     // rectangular bound'a göre clip yapıyordu; ClipOval gerçek daire clip.
@@ -372,7 +380,7 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
       height: disc,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: AppPalette.textPrimary(context),
+        color: discColor,
         boxShadow: [
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.25),
@@ -468,28 +476,33 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
   }
 
   Widget _buildCenterSymbol() {
-    final sym = _centerPool[_centerIdx];
-    final isLong = sym.length > 3;
-    return AnimatedSwitcher(
-      duration: Duration(milliseconds: 140),
-      child: SizedBox(
-        key: ValueKey(_centerIdx),
-        width: 50,
-        height: 50,
-        child: Center(
-          child: Text(
-            sym,
-            style: TextStyle(
-              fontSize: isLong ? 16 : 28,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF00FFFF),
-              shadows: const [
-                Shadow(color: Color(0xFF00FFFF), blurRadius: 20),
-              ],
+    return ValueListenableBuilder<int>(
+      valueListenable: _centerIdx,
+      builder: (_, idx, __) {
+        final sym = _centerPool[idx];
+        final isLong = sym.length > 3;
+        return AnimatedSwitcher(
+          duration: Duration(milliseconds: 140),
+          child: SizedBox(
+            key: ValueKey(idx),
+            width: 50,
+            height: 50,
+            child: Center(
+              child: Text(
+                sym,
+                style: TextStyle(
+                  fontSize: isLong ? 16 : 28,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF00FFFF),
+                  shadows: const [
+                    Shadow(color: Color(0xFF00FFFF), blurRadius: 20),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -500,7 +513,6 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
     if (widget.stages != null && widget.stages!.isNotEmpty) {
       return _buildStagesColumn();
     }
-    final dotStr = '.' * _dots;
     final primary = widget.primaryText ?? 'Sorunuz Analiz Ediliyor';
     final secondary = widget.secondaryText ?? 'Sorunuz Çözülüyor';
     final label = (widget.staticLabel || !_solving) ? primary : secondary;
@@ -521,10 +533,13 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
           Text(label, style: textStyle),
           SizedBox(
             width: 18,
-            child: Text(
-              dotStr,
-              style: textStyle,
-              textAlign: TextAlign.left,
+            child: ValueListenableBuilder<int>(
+              valueListenable: _dots,
+              builder: (_, d, __) => Text(
+                '.' * d,
+                style: textStyle,
+                textAlign: TextAlign.left,
+              ),
             ),
           ),
         ],
@@ -534,7 +549,6 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
 
   Widget _buildStagesColumn() {
     final stages = widget.stages!;
-    final dotStr = '.' * _dots;
     final activeStyle = TextStyle(
       color: AppPalette.textPrimary(context),
       fontSize: 14,
@@ -612,10 +626,13 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
                   if (i == _stageIdx)
                     SizedBox(
                       width: 18,
-                      child: Text(
-                        dotStr,
-                        style: activeStyle,
-                        textAlign: TextAlign.left,
+                      child: ValueListenableBuilder<int>(
+                        valueListenable: _dots,
+                        builder: (_, d, __) => Text(
+                          '.' * d,
+                          style: activeStyle,
+                          textAlign: TextAlign.left,
+                        ),
                       ),
                     ),
                 ],
@@ -668,50 +685,53 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
             ),
             SizedBox(height: 8),
           ],
-          AnimatedSwitcher(
-            duration: Duration(milliseconds: 320),
-            transitionBuilder: (child, anim) => FadeTransition(
-              opacity: anim,
-              child: SlideTransition(
-                position: Tween<Offset>(
-                  begin: Offset(0, 0.15),
-                  end: Offset.zero,
-                ).animate(anim),
-                child: child,
-              ),
-            ),
-            child: Container(
-              key: ValueKey('tip_$_tipIdx'),
-              constraints: BoxConstraints(maxWidth: 320),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: Color(0xFFF5F3FF),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: Color(0xFF7C3AED).withValues(alpha: 0.20),
-                  width: 0.6,
+          ValueListenableBuilder<int>(
+            valueListenable: _tipIdx,
+            builder: (_, idx, __) => AnimatedSwitcher(
+              duration: Duration(milliseconds: 320),
+              transitionBuilder: (child, anim) => FadeTransition(
+                opacity: anim,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: Offset(0, 0.15),
+                    end: Offset.zero,
+                  ).animate(anim),
+                  child: child,
                 ),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.lightbulb_rounded,
-                      size: 14, color: Color(0xFF7C3AED)),
-                  SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      _tips[_tipIdx],
-                      textAlign: TextAlign.start,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        height: 1.4,
-                        color: Color(0xFF1F1F2E),
-                        fontWeight: FontWeight.w500,
+              child: Container(
+                key: ValueKey('tip_$idx'),
+                constraints: BoxConstraints(maxWidth: 320),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Color(0xFFF5F3FF),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Color(0xFF7C3AED).withValues(alpha: 0.20),
+                    width: 0.6,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.lightbulb_rounded,
+                        size: 14, color: Color(0xFF7C3AED)),
+                    SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        _tips[idx],
+                        textAlign: TextAlign.start,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          height: 1.4,
+                          color: Color(0xFF1F1F2E),
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

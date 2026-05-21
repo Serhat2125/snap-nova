@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import '../services/error_logger.dart';
 import 'dart:ui';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,6 +14,7 @@ import '../services/runtime_translator.dart';
 import '../widgets/adaptive_photo.dart';
 import '../main.dart' show localeService;
 import 'ai_result_screen.dart';
+import 'camera_screen.dart';
 import 'solution_screen.dart';
 
 import '../theme/app_theme.dart';
@@ -34,6 +37,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
   String _loadingMessage  = '';
   bool _isSelecting       = false;
   final Set<String> _selectedIds = {};
+
+  // "Bu cevap yanlış" raporu — kullanıcı AI çözümünü yanlış işaretlerse buraya
+  // eklenir. SharedPreferences'ta kalıcı saklanır + opsiyonel Firestore'a yazılır
+  // (AI kalitesini iyileştirme verisi). Kart UI'da küçük 🚩 ikon görünür.
+  static const _kReportedIdsKey = 'reported_incorrect_solution_ids_v1';
+  final Set<String> _reportedIds = {};
 
   // Arama state — TextField içindeki canlı sorgu. Boş ise filtre yok.
   String _searchQuery = '';
@@ -103,6 +112,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     super.initState();
     _load();
     _loadHistoryColors();
+    _loadReportedIds();
     _searchCtrl.addListener(() {
       if (!mounted) return;
       final q = _searchCtrl.text.trim();
@@ -112,6 +122,83 @@ class _HistoryScreenState extends State<HistoryScreen> {
     });
   }
 
+  Future<void> _loadReportedIds() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = prefs.getStringList(_kReportedIdsKey) ?? const [];
+      if (!mounted) return;
+      setState(() {
+        _reportedIds
+          ..clear()
+          ..addAll(list);
+      });
+    } catch (_) {/* önemli değil */}
+  }
+
+  /// Kullanıcı "Bu cevap yanlış" der → kayıt SharedPreferences'a flag'lenir +
+  /// best-effort Firestore'a yazılır (AI kalitesini iyileştirme verisi).
+  /// 1 tap UX: dialog yok, hemen "✓ Bildirildi" SnackBar.
+  Future<void> _reportIncorrect(SolutionRecord rec) async {
+    if (_reportedIds.contains(rec.id)) return; // çift bildirme YOK
+    setState(() => _reportedIds.add(rec.id));
+    // 1) Lokal flag — kart UI'ında 🚩 görünsün, bir daha bildirim teklif edilmesin.
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_kReportedIdsKey, _reportedIds.toList());
+    } catch (_) {/* sessiz */}
+    // 2) Firestore'a yaz — fire-and-forget. Auth/network yoksa sessiz fail.
+    //    Şema: incorrect_reports/{auto_id}
+    //      subject, solutionType, modelName, resultPreview (ilk 500 char),
+    //      timestamp, userId, recordId
+    () async {
+      try {
+        final uid = FirebaseAuth.instance.currentUser?.uid ?? 'anon';
+        await FirebaseFirestore.instance
+            .collection('incorrect_reports')
+            .add({
+          'subject': rec.subject,
+          'solutionType': rec.solutionType,
+          'modelName': rec.modelName,
+          'aiTitle': rec.aiTitle,
+          'resultPreview': rec.result.length > 500
+              ? rec.result.substring(0, 500)
+              : rec.result,
+          'cachedQuestionText': rec.cachedQuestionText,
+          'recordId': rec.id,
+          'userId': uid,
+          'reportedAt': FieldValue.serverTimestamp(),
+          'recordTimestamp': rec.timestamp.toIso8601String(),
+        });
+      } catch (e, st) {
+        ErrorLogger.instance
+            .capture(e, st, context: 'history_report_incorrect');
+      }
+    }();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('✓ Bildirildi — Teşekkürler, AI gelişmesine yardım ettin.'
+          .tr()),
+      behavior: SnackBarBehavior.floating,
+      duration: const Duration(seconds: 3),
+    ));
+  }
+
+  /// Yanlışlık bildirimi geri al — kullanıcı tekrar bildirmek istemezse.
+  Future<void> _unreportIncorrect(SolutionRecord rec) async {
+    if (!_reportedIds.contains(rec.id)) return;
+    setState(() => _reportedIds.remove(rec.id));
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_kReportedIdsKey, _reportedIds.toList());
+    } catch (_) {/* sessiz */}
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Bildirim geri alındı'.tr()),
+      behavior: SnackBarBehavior.floating,
+      duration: const Duration(seconds: 2),
+    ));
+  }
+
   @override
   void dispose() {
     _searchCtrl.dispose();
@@ -119,7 +206,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Future<void> _load() async {
-    final records = await SolutionsStorage.loadAll();
+    var records = await SolutionsStorage.loadAll();
+    // Yerel boşsa cloud'dan restore — telefon değişti / yeniden yükleme.
+    if (records.isEmpty) {
+      final restored = await SolutionsStorage.restoreFromCloudIfEmpty();
+      if (restored > 0) {
+        records = await SolutionsStorage.loadAll();
+      }
+    }
     if (mounted) setState(() => _records = records);
   }
 
@@ -422,6 +516,32 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 _divider(),
               ],
 
+              // "Bu cevap yanlış" — kullanıcı AI çuvalladıysa 1 tap'le bildirir.
+              // Önceden bildirilmişse "Bildirimi geri al" gösterilir (toggle).
+              _optionTile(
+                ctx: ctx,
+                icon: _reportedIds.contains(rec.id)
+                    ? Icons.flag_rounded
+                    : Icons.flag_outlined,
+                iconColor: const Color(0xFFEF4444),
+                label: _reportedIds.contains(rec.id)
+                    ? 'Bildirimi geri al'.tr()
+                    : 'Bu cevap yanlış'.tr(),
+                subtitle: _reportedIds.contains(rec.id)
+                    ? null
+                    : 'AI hatasını bildir (1 tap)'.tr(),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  if (_reportedIds.contains(rec.id)) {
+                    _unreportIncorrect(rec);
+                  } else {
+                    _reportIncorrect(rec);
+                  }
+                },
+              ),
+
+              _divider(),
+
               _optionTile(
                 ctx: ctx,
                 icon: Icons.delete_rounded,
@@ -491,6 +611,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   Future<void> _shareRecord(SolutionRecord rec) async {
     final imgFile = File(rec.imagePath);
+    // iPad popover origin — sheet doğru pozisyondan çıksın. Android'de no-op.
+    Rect? origin;
+    try {
+      final box = context.findRenderObject() as RenderBox?;
+      if (box != null && box.attached) {
+        origin = box.localToGlobal(Offset.zero) & box.size;
+      }
+    } catch (_) {}
     // Paylaşılan metin: önce konu (varsa), sonra mod, sonra OCR ile çıkarılan
     // soru metni (varsa), sonra cevap. Daha anlamlı paylaşım.
     final buf = StringBuffer();
@@ -505,13 +633,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final text = buf.toString();
     try {
       if (imgFile.existsSync()) {
-        await Share.shareXFiles([XFile(rec.imagePath)], text: text);
+        await Share.shareXFiles(
+          [XFile(rec.imagePath)],
+          text: text,
+          sharePositionOrigin: origin,
+        );
       } else {
-        await Share.share(text);
+        await Share.share(text, sharePositionOrigin: origin);
       }
     } catch (_) {
       try {
-        await Share.share(text);
+        await Share.share(text, sharePositionOrigin: origin);
       } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'history_screen'); }
     }
   }
@@ -1269,6 +1401,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         record: rec,
         isSelecting: _isSelecting,
         isSelected: isSelected,
+        isReportedIncorrect: _reportedIds.contains(rec.id),
         customBg: _cardsBgOverride,
         customTextColor: _cardsTextOverride,
         onColorAccept: (c) => _applyHistoryColor('cards', c),
@@ -1297,48 +1430,84 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Widget _emptyState() {
     final isFiltered   = _selectedFilter != 'Tümü';
     final isFavorites  = _showFavoritesOnly;
+    // Filtre/favori değilse (yani gerçekten hiç kayıt yoksa) CTA butonu
+    // göster — yeni kullanıcı kameraya nasıl döneceğini bilemiyordu.
+    final showCta = !isFiltered && !isFavorites;
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isFavorites ? Icons.star_border_rounded : Icons.inbox_rounded,
-            size: 52,
-            color: AppPalette.textSecondary(context).withValues(alpha: 0.50),
-          ),
-          SizedBox(height: 14),
-          Text(
-            isFavorites
-                ? localeService.tr('empty_favorites')
-                : isFiltered
-                    ? localeService.tr('empty_category')
-                    : localeService.tr('empty_solutions'),
-            style: TextStyle(color: AppPalette.textSecondary(context), fontSize: 14),
-          ),
-          if (isFavorites) ...[
-            SizedBox(height: 6),
-            Text(
-              localeService.tr('empty_favorites_hint'),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AppPalette.textSecondary(context),
-                fontSize: 12,
-                height: 1.5,
-              ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isFavorites ? Icons.star_border_rounded : Icons.inbox_rounded,
+              size: 52,
+              color:
+                  AppPalette.textSecondary(context).withValues(alpha: 0.50),
             ),
-          ] else if (!isFiltered) ...[
-            SizedBox(height: 6),
+            SizedBox(height: 14),
             Text(
-              localeService.tr('empty_solutions_hint'),
-              textAlign: TextAlign.center,
+              isFavorites
+                  ? localeService.tr('empty_favorites')
+                  : isFiltered
+                      ? localeService.tr('empty_category')
+                      : localeService.tr('empty_solutions'),
               style: TextStyle(
-                color: AppPalette.textSecondary(context),
-                fontSize: 12,
-                height: 1.5,
-              ),
+                  color: AppPalette.textSecondary(context), fontSize: 14),
             ),
+            if (isFavorites) ...[
+              SizedBox(height: 6),
+              Text(
+                localeService.tr('empty_favorites_hint'),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppPalette.textSecondary(context),
+                  fontSize: 12,
+                  height: 1.5,
+                ),
+              ),
+            ] else if (!isFiltered) ...[
+              SizedBox(height: 6),
+              Text(
+                localeService.tr('empty_solutions_hint'),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppPalette.textSecondary(context),
+                  fontSize: 12,
+                  height: 1.5,
+                ),
+              ),
+            ],
+            if (showCta) ...[
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.camera_alt_rounded, size: 18),
+                label: Text(
+                  'İlk Soruyu Çek'.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFF6A00),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 22, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  elevation: 0,
+                ),
+                onPressed: () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const CameraScreen(),
+                  ));
+                },
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -1609,6 +1778,7 @@ class _HistoryCard extends StatelessWidget {
   final VoidCallback onLongPress;
   final bool isSelecting;
   final bool isSelected;
+  final bool isReportedIncorrect;
   final Color? customBg;
   final Color? customTextColor;
   final ValueChanged<Color>? onColorAccept;
@@ -1619,6 +1789,7 @@ class _HistoryCard extends StatelessWidget {
     required this.onLongPress,
     this.isSelecting = false,
     this.isSelected  = false,
+    this.isReportedIncorrect = false,
     this.customBg,
     this.customTextColor,
     this.onColorAccept,
@@ -1693,6 +1864,46 @@ class _HistoryCard extends StatelessWidget {
                     top: 10,
                     right: 10,
                     child: Icon(Icons.star_rounded, color: Colors.yellow, size: 22),
+                  ),
+
+                // "Yanlış cevap" 🚩 — sol üst. Kullanıcı bu kaydı yanlış
+                // olarak işaretledi → görsel hatırlatma. Tooltip ile bilgi.
+                if (isReportedIncorrect)
+                  Positioned(
+                    top: 10,
+                    left: 10,
+                    child: Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF4444),
+                        borderRadius: BorderRadius.circular(999),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.15),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.flag_rounded,
+                              color: Colors.white, size: 12),
+                          const SizedBox(width: 3),
+                          Text(
+                            'Yanlış'.tr(),
+                            style: GoogleFonts.poppins(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
 
                 // Seçim modu onay kutusu — sağ alt

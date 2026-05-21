@@ -21,6 +21,10 @@
 //  ekran tarafı `unawaited` ile çağırabilir.
 // ═══════════════════════════════════════════════════════════════════════════════
 
+import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class PomodoroStatsSnapshot {
@@ -126,7 +130,9 @@ class PomodoroStats {
     await prefs.setInt(_kStreak, streak);
     await prefs.setString(_kTodayDate, todayKey);
     await prefs.setString(_kLastAt, DateTime.now().toIso8601String());
-    return read();
+    final snap = await read();
+    unawaited(_cloudSync(snap));
+    return snap;
   }
 
   /// Mars: bir aşama tamamlandığında rozet kazandır.
@@ -145,6 +151,7 @@ class PomodoroStats {
     }
     if (newOnes.isNotEmpty) {
       await prefs.setStringList(_kMarsBadges, existing.toList());
+      unawaited(_cloudSync(await read()));
     }
     return newOnes;
   }
@@ -154,7 +161,81 @@ class PomodoroStats {
     final prefs = await SharedPreferences.getInstance();
     final v = (prefs.getInt(_kColonyCapsules) ?? 0) + 1;
     await prefs.setInt(_kColonyCapsules, v);
+    unawaited(_cloudSync(await read()));
     return v;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //  CLOUD SYNC — users/{uid}/pomodoro_stats/main
+  //  Yerel her zaman kaynak; cloud yedek. Auth yoksa sessiz no-op.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  static Future<void> _cloudSync(PomodoroStatsSnapshot s) async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('pomodoro_stats')
+          .doc('main')
+          .set({
+        'totalPhases': s.totalPhases,
+        'todayPhases': s.todayPhases,
+        'streakDays': s.streakDays,
+        'lastFocusAt':
+            s.lastFocusAt == null ? null : Timestamp.fromDate(s.lastFocusAt!),
+        'marsBadges': s.marsBadges,
+        'colonyCapsules': s.colonyCapsules,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[PomodoroStats] cloud sync fail: $e');
+    }
+  }
+
+  /// Yerel boşsa cloud'dan geri yükle — bootstrap'ta çağrılır.
+  /// Yeni cihaz/yeniden yükleme sonrası streak + toplam faz + rozet restore.
+  static Future<bool> restoreFromCloudIfEmpty() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final hasLocal = (prefs.getInt(_kTotal) ?? 0) > 0;
+      if (hasLocal) return false;
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return false;
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('pomodoro_stats')
+          .doc('main')
+          .get();
+      if (!doc.exists) return false;
+      final m = doc.data() ?? const <String, dynamic>{};
+      final total = (m['totalPhases'] as num?)?.toInt() ?? 0;
+      if (total == 0) return false;
+      await prefs.setInt(_kTotal, total);
+      await prefs.setInt(
+          _kToday, (m['todayPhases'] as num?)?.toInt() ?? 0);
+      await prefs.setInt(
+          _kStreak, (m['streakDays'] as num?)?.toInt() ?? 0);
+      final lastTs = m['lastFocusAt'];
+      if (lastTs is Timestamp) {
+        await prefs.setString(
+            _kLastAt, lastTs.toDate().toIso8601String());
+      }
+      final badges = m['marsBadges'];
+      if (badges is List) {
+        await prefs.setStringList(
+            _kMarsBadges, badges.map((e) => e.toString()).toList());
+      }
+      await prefs.setInt(_kColonyCapsules,
+          (m['colonyCapsules'] as num?)?.toInt() ?? 0);
+      debugPrint('[PomodoroStats] cloud restore tamamlandı');
+      return true;
+    } catch (e) {
+      debugPrint('[PomodoroStats] cloud restore fail: $e');
+      return false;
+    }
   }
 
   /// Yeşil Koloni: O2 / capsule durumunu persist et (oturum durumu).

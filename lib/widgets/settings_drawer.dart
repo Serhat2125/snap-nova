@@ -849,7 +849,7 @@ void _showAccountSettingsSheet(BuildContext context) {
                     ],
                   ),
                 );
-                if (confirm == true) {
+                if (confirm == true && context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                     content: Text(
                         'Hesap silme talebi alındı. 7 gün içinde işlenecek.'
@@ -1454,8 +1454,8 @@ class _AboutPage extends StatelessWidget {
                   fontWeight: FontWeight.w700)),
           SizedBox(height: 10),
           _socialBtn(
-              Icons.language_rounded, 'qualsar.app', Color(0xFF3B82F6),
-              url: 'https://qualsar.app'),
+              Icons.language_rounded, 'qualsar2-640f0.web.app', Color(0xFF3B82F6),
+              url: 'https://qualsar2-640f0.web.app'),
           SizedBox(height: 8),
           _socialBtn(
               Icons.camera_alt_outlined, '@qualsar', Color(0xFFEC4899),

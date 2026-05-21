@@ -12,12 +12,14 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../services/error_logger.dart';
 import '../services/pomodoro_stats.dart';
+import '../services/push_service.dart';
 import '../services/runtime_translator.dart';
 import 'academic_planner.dart' show logPomodoroSessionToCalendar;
 
-// qualsar.app — paylaşım kartlarındaki QR kod ve attribution linki için.
-const String _kQualsarShareUrl = 'https://qualsar.app';
+// Canlı domain — paylaşım kartlarındaki QR kod ve attribution linki için.
+const String _kQualsarShareUrl = 'https://qualsar2-640f0.web.app';
 
 // Mars ekranı header'ındaki 3D figür. Public CDN; assets/3d/earth.glb
 // dosyası eklenince burayı 'assets/3d/earth.glb' olarak güncelle.
@@ -43,19 +45,22 @@ enum _PhaseKind { phase1, break1, phase2, break2, phase3, break3, phase4, done }
 class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
     with TickerProviderStateMixin, WidgetsBindingObserver {
   // ── Mod değişkenleri ────────────────────────────────────────────────────────
-  bool _testMode = true;
-  bool _proMode = false;
+  // _testMode geliştirme sırasında hızlı tur için 5dk faz/1dk mola verir.
+  // YAYINDA false bırakılmalı — kullanıcılar gerçek 25dk Pomodoro alır.
+  bool _testMode = false;
+  bool _proMode = true;
 
-  int get _phaseSec => _proMode ? 25 * 60 : 5 * 60;
-  int get _breakSec => _proMode ? 5 * 60 : 1 * 60;
+  int get _phaseSec => _testMode ? 5 * 60 : 25 * 60;
+  int get _breakSec => _testMode ? 1 * 60 : 5 * 60;
 
   // Yeni kazanılan rozetler — Victory dialog'ta gösterilecek.
   final List<String> _newlyEarnedBadges = [];
 
   // ── Sayaç durumu ───────────────────────────────────────────────────────────
+  // İlk değer initState'te _phaseSec ile overwrite edilir; 25*60 default güvenli.
   _PhaseKind _phase = _PhaseKind.phase1;
-  int _timeLeft = 5 * 60;
-  int _totalTime = 5 * 60;
+  int _timeLeft = 25 * 60;
+  int _totalTime = 25 * 60;
   bool _running = false;
   bool _done = false;
   Timer? _ticker;
@@ -268,6 +273,24 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
     _ticker?.cancel();
     HapticFeedback.heavyImpact();
     SystemSound.play(SystemSoundType.alert);
+    // Local notification — sessiz mod / arka plan / ekran kapalıyken
+    // kullanıcı faz tamamlandığını görsün. iOS+Android destekli.
+    final isFocus = _phase == _PhaseKind.phase1 ||
+        _phase == _PhaseKind.phase2 ||
+        _phase == _PhaseKind.phase3 ||
+        _phase == _PhaseKind.phase4;
+    final wasLast = _phase == _PhaseKind.phase4;
+    unawaited(PushService.showLocal(
+      title: wasLast
+          ? '🚀 Mars Protokolü tamamlandı!'
+          : (isFocus ? '✅ Odak fazı bitti' : '⏰ Mola bitti'),
+      body: wasLast
+          ? '4 faz başarıyla bitti. Rozetlerin Mars Protokolü\'nde.'
+          : (isFocus
+              ? 'Şimdi kısa bir mola — ${_breakSec ~/ 60} dakika dinlen.'
+              : 'Yeni faz başlıyor — odaklan.'),
+      id: 0xFA101,
+    ));
     // Bir focus fazı bittiyse: takvime yaz + istatistiğe kaydet + rozet.
     String? finishedPhaseId;
     setState(() {
@@ -1488,15 +1511,40 @@ class _MoonPainter extends CustomPainter {
 //  Dünya — kıtalar + bulutlar, hafif dönen
 // ═══════════════════════════════════════════════════════════════════════════════
 
-class _Earth extends StatelessWidget {
+class _Earth extends StatefulWidget {
   final double size;
   final double rotation;
   const _Earth({required this.size, required this.rotation});
+
+  @override
+  State<_Earth> createState() => _EarthState();
+}
+
+class _EarthState extends State<_Earth> {
+  // 3D model yükleme timeout — 8sn'de yüklenmezse 2D painter'a düş.
+  // Network kesik / WebView fail durumunda kullanıcı boş daire görmesin.
+  bool _useFallback = false;
+  Timer? _loadTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTimer = Timer(const Duration(seconds: 8), () {
+      if (mounted) setState(() => _useFallback = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _loadTimer?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: size,
-      height: size,
+      width: widget.size,
+      height: widget.size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         boxShadow: [
@@ -1507,20 +1555,25 @@ class _Earth extends StatelessWidget {
         ],
       ),
       child: ClipOval(
-        child: ModelViewer(
-          src: _kEarthGlbUrl,
-          alt: 'Earth 3D',
-          autoRotate: true,
-          rotationPerSecond: '24deg',
-          disableZoom: true,
-          disablePan: true,
-          disableTap: true,
-          interactionPrompt: InteractionPrompt.none,
-          ar: false,
-          cameraControls: false,
-          autoPlay: true,
-          backgroundColor: const Color(0x00000000),
-        ),
+        child: _useFallback
+            ? CustomPaint(
+                painter: _EarthPainter(widget.rotation),
+                size: Size(widget.size, widget.size),
+              )
+            : ModelViewer(
+                src: _kEarthGlbUrl,
+                alt: 'Earth 3D',
+                autoRotate: true,
+                rotationPerSecond: '24deg',
+                disableZoom: true,
+                disablePan: true,
+                disableTap: true,
+                interactionPrompt: InteractionPrompt.none,
+                ar: false,
+                cameraControls: false,
+                autoPlay: true,
+                backgroundColor: const Color(0x00000000),
+              ),
       ),
     );
   }
@@ -3039,7 +3092,7 @@ class _VictoryDialog extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Paylaşılabilir başarı kartı — QR + qualsar.app
+                // Paylaşılabilir başarı kartı — QR + qualsar2-640f0.web.app
                 OutlinedButton.icon(
                   onPressed: () {
                     showModalBottomSheet<void>(
@@ -3116,14 +3169,26 @@ class _ShareSheetState extends State<_ShareSheet> {
   Future<void> _share() async {
     if (_busy) return;
     setState(() => _busy = true);
+    // 3 kademeli fallback chain: image → text-only → SnackBar.
+    // PixelRatio 2.0 (eski 3.0 düşük RAM cihazda OOM yapıyordu — Instagram
+    // story için 2.0 hâlâ ≥1080px verir).
+    // iPad popover origin — sheet doğru pozisyondan açılsın. Android'de no-op.
+    Rect? origin;
     try {
-      final boundary = _boundaryKey.currentContext!.findRenderObject()
-          as RenderRepaintBoundary;
-      // pixelRatio 3 → yüksek çözünürlük (Instagram story / TikTok için)
-      final image = await boundary.toImage(pixelRatio: 3.0);
+      final box = context.findRenderObject() as RenderBox?;
+      if (box != null && box.attached) {
+        origin = box.localToGlobal(Offset.zero) & box.size;
+      }
+    } catch (_) {}
+    try {
+      final boundary = _boundaryKey.currentContext?.findRenderObject()
+          as RenderRepaintBoundary?;
+      if (boundary == null) throw StateError('boundary null');
+      final image = await boundary.toImage(pixelRatio: 2.0);
       final byteData =
           await image.toByteData(format: ui.ImageByteFormat.png);
-      final bytes = byteData!.buffer.asUint8List();
+      final bytes = byteData?.buffer.asUint8List();
+      if (bytes == null || bytes.isEmpty) throw StateError('empty image');
       final dir = await getTemporaryDirectory();
       final ts = DateTime.now().millisecondsSinceEpoch;
       final file = File('${dir.path}/${widget.fileName}_$ts.png');
@@ -3131,9 +3196,21 @@ class _ShareSheetState extends State<_ShareSheet> {
       await Share.shareXFiles(
         [XFile(file.path)],
         text: widget.shareText,
+        sharePositionOrigin: origin,
       );
-    } catch (_) {
-      // Sessizce yut — kullanıcı yine "Kapat" ile çıkabilir.
+    } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'qualsar_mars_share');
+      // Görsel fail → text-only paylaşıma düş.
+      try {
+        await Share.share(widget.shareText, sharePositionOrigin: origin);
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Paylaşım açılamadı. Tekrar dene.'.tr()),
+            behavior: SnackBarBehavior.floating,
+          ));
+        }
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -3343,7 +3420,7 @@ class _StormShareCard extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            'qualsar.app',
+                            'qualsar2-640f0.web.app',
                             style: GoogleFonts.poppins(
                               color: Colors.white.withValues(alpha: 0.60),
                               fontSize: 11,
@@ -3512,7 +3589,7 @@ class _VictoryShareCard extends StatelessWidget {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              'Sen de koloninin kur:\nqualsar.app',
+                              'Sen de koloninin kur:\nqualsar2-640f0.web.app',
                               style: GoogleFonts.poppins(
                                 color: Colors.white.withValues(alpha: 0.85),
                                 fontSize: 11,

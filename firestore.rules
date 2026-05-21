@@ -43,14 +43,63 @@ service cloud.firestore {
       allow read, update, delete: if isAdmin();
     }
 
-    // ── users/{uid}: kullanıcının kendi profili ──────────────────────────
+    // ── users/{uid}: kullanıcı profili (arkadaş araması için public read) ─
+    //    Read: oturum açmış herkes (username search, profil önizleme).
+    //    Write: sadece sahibi.
+    //    Alt koleksiyonlar (solved_problems, mastery vb.) sadece sahibi okur/yazar.
     match /users/{uid} {
-      allow read, write: if isOwner(uid);
+      allow read: if isSignedIn();
+      allow write: if isOwner(uid);
 
       // Alt koleksiyonlar (solved_problems, mastery, achievements vb.)
       match /{sub=**} {
         allow read, write: if isOwner(uid);
       }
+    }
+
+    // ── friends/{uid}/list/{friendUid}: iki yönlü arkadaşlık edge'i ────────
+    //    Read: sadece sahibi (kendi listesini görür).
+    //    Write: hem sahibi (uid) HEM de karşı taraf (friendUid) yazabilir —
+    //           çünkü acceptRequest() iki yönlü edge'i tek batch'te oluşturur.
+    match /friends/{uid}/list/{friendUid} {
+      allow read: if isOwner(uid);
+      allow create, update, delete:
+        if isOwner(uid) || isOwner(friendUid);
+    }
+
+    // ── friend_requests/{toUid}/inbox/{fromUid}: arkadaşlık istekleri ─────
+    //    Read: sadece alıcı (toUid).
+    //    Create: gönderen (fromUid) kendi isteğini yazabilir.
+    //    Update: alıcı (status = accepted/rejected) veya admin.
+    //    Delete: alıcı veya admin.
+    match /friend_requests/{toUid}/inbox/{fromUid} {
+      allow read: if isOwner(toUid);
+      allow create: if isOwner(fromUid)
+        && request.resource.data.fromUid == request.auth.uid;
+      allow update: if isOwner(toUid);
+      allow delete: if isOwner(toUid) || isAdmin();
+    }
+
+    // ── notifications/{uid}/items/{auto}: in-app bildirimler ──────────────
+    //    Read: sahibi.
+    //    Create: herhangi bir oturum açmış kullanıcı (X kullanıcı Y'ye
+    //            arkadaşlık isteği gönderirken Y'nin inbox'ına bildirim yazar).
+    //    Update: sadece sahibi (read flag).
+    //    Delete: sahibi.
+    match /notifications/{uid}/items/{nid} {
+      allow read: if isOwner(uid);
+      allow create: if isSignedIn();
+      allow update, delete: if isOwner(uid);
+    }
+
+    // ── duelo_invites/{targetUid}/inbox/{auto}: arkadaşa düello daveti ────
+    //    Read: hedef kullanıcı.
+    //    Create: oturum açmış herkes (davet gönderir).
+    //    Update: hedef (accept/reject).
+    match /duelo_invites/{targetUid}/inbox/{iid} {
+      allow read: if isOwner(targetUid);
+      allow create: if isSignedIn();
+      allow update, delete: if isOwner(targetUid);
     }
 
     // ── leaderboards: herkes okur, sadece admin ya da Cloud Functions yazar
@@ -63,14 +112,28 @@ service cloud.firestore {
     //    Read: oturum açmış herkes (liderlik tablosu için).
     //    Create: sadece doküman içindeki uid eşleşiyorsa (kendi attempt'ı).
     //    Update/Delete: kendi dokümanı + admin.
+    //
+    //    Cheat koruması:
+    //      • score number (int OR double — ondalık net hesabı için)
+    //      • 0 ≤ score ≤ 10 (tek quiz max 10 net)
+    //      • durationSec 5..3600 (10 saniyeden hızlı = bot; 1 saat üstü =
+    //        idle/manipülasyon)
+    //      • subjectKey ve when ZORUNLU (eksiksiz kayıt)
     match /league_attempts/{doc} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
         && request.resource.data.uid == request.auth.uid
-        && request.resource.data.score is int
+        && request.resource.data.score is number
         && request.resource.data.score >= 0
-        && request.resource.data.score <= 5000;
-      allow update, delete: if isOwner(resource.data.uid) || isAdmin();
+        && request.resource.data.score <= 10
+        && request.resource.data.durationSec is number
+        && request.resource.data.durationSec >= 5
+        && request.resource.data.durationSec <= 3600
+        && request.resource.data.subjectKey is string
+        && request.resource.data.subjectKey.size() > 0;
+      // Update YASAK (score sonradan değiştirilemez) — sadece silme veya admin.
+      allow update: if isAdmin();
+      allow delete: if isOwner(resource.data.uid) || isAdmin();
     }
 
     // ── quiz_pool: AI'la üretilen test havuzu ─────────────────────────────

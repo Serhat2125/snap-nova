@@ -23,8 +23,25 @@ class VoiceInputService {
 
   /// STT durum bilgisi — son hata veya status mesajı (debug için).
   /// "Konuşma algılanmadı" hatasında sebebi anlamak için kullanıcıya gösterilebilir.
+  ///
+  /// 30Hz callback'lerden gelen güncellemelerin son user-facing hatayı
+  /// silmemesi için lastError SADECE "permanent" hata kodları tutar
+  /// (no_match, network, etc.). Geçici/bilgi mesajları lastStatus'a gider.
   static String lastStatus = 'init bekleniyor';
   static String lastError = '';
+
+  /// Permanent error kodları — kullanıcıya gösterilmeye değer.
+  static const _permanentErrors = {
+    'error_no_match',
+    'error_speech_timeout',
+    'error_network',
+    'error_network_timeout',
+    'error_audio',
+    'error_server',
+    'error_busy',
+    'error_insufficient_permissions',
+    'error_too_many_requests',
+  };
 
   static bool get isAvailable => _available;
   static bool get isListening => _stt.isListening;
@@ -41,7 +58,12 @@ class VoiceInputService {
     try {
       _available = await _stt.initialize(
         onError: (e) {
-          lastError = e.errorMsg;
+          // Sadece permanent error kodlarını lastError'a yaz; transient
+          // callback'ler son user-facing hatayı silmesin.
+          final code = e.errorMsg;
+          if (_permanentErrors.contains(code) || e.permanent) {
+            lastError = code;
+          }
           debugPrint('[VoiceInput] error: $e');
         },
         onStatus: (s) {
@@ -77,7 +99,9 @@ class VoiceInputService {
   }
 
   /// LocaleService kodunu (`tr`, `en`, `de`...) speech_to_text locale_id'sine
-  /// (`tr_TR`, `en_US`, `de_DE`) çevir. Cihazda eşleşen locale yoksa default.
+  /// (`tr_TR`, `en_US`, `de_DE`) çevir. Cihazda eşleşen locale yoksa
+  /// fallback chain: en_US → en_* → systemLocale → ilk locale.
+  /// Bu sayede sesli komut hiçbir cihazda "locale not found" ile boş kalmaz.
   static Future<String?> resolveLocaleId(String langCode) async {
     final list = await locales();
     if (list.isEmpty) return null;
@@ -86,11 +110,28 @@ class VoiceInputService {
     for (final l in list) {
       if (l.localeId.toLowerCase().startsWith('${lc}_')) return l.localeId;
     }
-    // 2) Sadece dil eşleşmesi
+    // 2) Sadece dil eşleşmesi (örn. "tr" → "tr-tr")
     for (final l in list) {
       if (l.localeId.toLowerCase().startsWith(lc)) return l.localeId;
     }
-    return null;
+    // 3) Cihaz sistem locale'i (speech_to_text varsa döner)
+    try {
+      final sys = await _stt.systemLocale();
+      if (sys != null && sys.localeId.isNotEmpty) return sys.localeId;
+    } catch (_) {/* yok say */}
+    // 4) en_US fallback
+    for (final l in list) {
+      if (l.localeId.toLowerCase().startsWith('en_us') ||
+          l.localeId.toLowerCase().startsWith('en-us')) {
+        return l.localeId;
+      }
+    }
+    // 5) Herhangi bir İngilizce
+    for (final l in list) {
+      if (l.localeId.toLowerCase().startsWith('en')) return l.localeId;
+    }
+    // 6) Son çare: ilk locale
+    return list.first.localeId;
   }
 
   /// Dinlemeyi başlat. `onResult(text, isFinal)` her transkript güncelimde,

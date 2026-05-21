@@ -34,6 +34,10 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // flutter_local_notifications API 26 öncesinde java.time için
+        // desugaring ister. Olmadan build hata: "core library desugaring
+        // to be enabled for :app".
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -80,10 +84,24 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Native library debug sembolleri — Flutter tooling AAB içinde
+            // libflutter.so.sym/dbg ARIYOR; "NONE" verince eksik diye build'i
+            // fail ediyor. SYMBOL_TABLE: küçük (~5-10 MB ekstra), Play Console
+            // crash sembolleri için yeterli; FULL: ~50 MB, native stack trace
+            // satır numarası gerekirse. SYMBOL_TABLE varsayılan dengesini verir.
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
         }
     }
 }
 
 flutter {
     source = "../.."
+}
+
+// Core library desugaring runtime — `isCoreLibraryDesugaringEnabled = true`
+// olan compileOptions için Android'in resmi backport kütüphanesi gerekir.
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

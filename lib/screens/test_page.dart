@@ -7,12 +7,14 @@ import 'dart:ui' as ui;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 import '../services/education_profile.dart';
+import '../services/question_pool_service.dart';
 import '../services/runtime_translator.dart';
 import '../widgets/latex_text.dart';
 import 'academic_planner.dart';
@@ -150,6 +152,41 @@ class _TestPageState extends State<TestPage> {
   late final DateTime _startedAt;
   bool _finishing = false;
 
+  // ── Şüpheli işaretleri — sonra dönmek istenen sorular ──────────────────
+  final Set<int> _flagged = {};
+  // ── Şık eleme — soru başına çizgi çekilmiş şıklar (A/B/C/D/E) ──────────
+  // Cevap olarak seçilemezler ama UI'da çizgili gösterilir.
+  final Map<int, Set<String>> _eliminated = {};
+  // ── Bildirilen sorular — kullanıcı "yanlış/saçma" dedi ─────────────────
+  final Set<int> _reported = {};
+  // ── Karalama notları (per-soru) ────────────────────────────────────────
+  final Map<int, String> _scratchNotes = {};
+  // ── Hesap makinesi state ───────────────────────────────────────────────
+  bool _showCalc = false;
+  String _calcExpr = '';
+  String _calcResult = '';
+  // ── Süre uyarısı — soru başına bir kez titrer/haptic verir ─────────────
+  final Set<int> _lowTimeWarnedFor = {};
+
+  // ── İpucu sayacı — test başına max 3 farklı soruda ipucu kullanılabilir ─
+  static const int _kMaxHintsPerTest = 3;
+  final Set<int> _hintShownFor = {};
+  int get _remainingHints =>
+      _kMaxHintsPerTest - _hintShownFor.length;
+
+  // ── Rahat modda kronometre (geçen süre) ────────────────────────────────
+  bool _stopwatchVisible = true;
+  int _elapsedSec = 0;
+  Timer? _stopwatchTimer;
+
+  // ── Fosforlu kalem (highlight) — soru başına vurgulu kelime indeksleri ─
+  // Map<soruIdx, Set<kelimeIdx>> — soru metni boşluklara bölünür, vurgulu
+  // kelimelerin indeksi tutulur. Toggle ile aç/kapat.
+  final Map<int, Set<int>> _highlights = {};
+  // Vurgu modu açıkken kullanıcı kelimeye dokununca sarıya boyar.
+  // Kapalıyken normal soru metni görünür.
+  bool _highlightMode = false;
+
   // race mode'da ipucu butonu gizli (sınav simülasyonu).
   bool get _hintAllowed => widget.timeLimit == 0 || widget.timeLimit >= 90;
 
@@ -174,12 +211,20 @@ class _TestPageState extends State<TestPage> {
       type: 'soru',
     );
     _startTimerForCurrent();
+    // Rahat modda (timeLimit == 0) ekrana toplam geçen süreyi yansıt.
+    if (widget.timeLimit == 0) {
+      _stopwatchTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        setState(() => _elapsedSec++);
+      });
+    }
   }
 
   @override
   void dispose() {
     StudySessionTracker.instance.end();
     _ticker?.cancel();
+    _stopwatchTimer?.cancel();
     // Pending auto-save varsa flush et — user "A" cevabını seçip 200ms
     // sonra app'i kapatırsa 800ms debounce hiç fire etmez ve son cevap
     // kaybolur. Burada fire-and-forget ile son state'i (cevap + timer) kaydet.
@@ -218,6 +263,11 @@ class _TestPageState extends State<TestPage> {
         setState(() {
           _perQuestionRemaining[_idx] = cur - 1;
         });
+        // 10 saniye uyarısı — soru başına bir kez titrer + haptic.
+        if (cur - 1 == 10 && !_lowTimeWarnedFor.contains(_idx)) {
+          _lowTimeWarnedFor.add(_idx);
+          HapticFeedback.mediumImpact();
+        }
         // Her 5sn'de bir direct save (debounce yok — sürekli tick olduğu için
         // debounce hiçbir zaman fire etmez). Crash/exit'te en fazla 5sn kayıp.
         saveTickCounter++;
@@ -374,6 +424,373 @@ class _TestPageState extends State<TestPage> {
       ),
     );
     return ok == true;
+  }
+
+  // ── Şüpheli işareti aç/kapat ─────────────────────────────────────────
+  void _toggleFlag() {
+    setState(() {
+      if (_flagged.contains(_idx)) {
+        _flagged.remove(_idx);
+      } else {
+        _flagged.add(_idx);
+      }
+    });
+  }
+
+  // ── Şık eleme — uzun-bas ile çizgi çek/kaldır ───────────────────────
+  void _toggleEliminate(String letter) {
+    setState(() {
+      final set = _eliminated.putIfAbsent(_idx, () => <String>{});
+      if (set.contains(letter)) {
+        set.remove(letter);
+      } else {
+        set.add(letter);
+        // Eğer seçili cevap eleniyorsa cevabı da kaldır.
+        if (_answers[_idx] == letter) {
+          _answers[_idx] = null;
+        }
+      }
+    });
+    HapticFeedback.lightImpact();
+    _scheduleAutoSave();
+  }
+
+  // ── Soruyu raporla ───────────────────────────────────────────────────
+  Future<void> _reportQuestion() async {
+    final reason = await showModalBottomSheet<String>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                child: Text(
+                  'Bu sorunun nesi yanlış?'.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: AppPalette.textPrimary(context),
+                  ),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.cancel_outlined,
+                    color: Color(0xFFDC2626)),
+                title: Text('Cevap yanlış'.tr()),
+                onTap: () => Navigator.of(ctx).pop('wrong_answer'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.help_outline_rounded,
+                    color: Color(0xFFD97706)),
+                title: Text('Soru belirsiz / anlaşılmıyor'.tr()),
+                onTap: () => Navigator.of(ctx).pop('ambiguous'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.copy_all_outlined,
+                    color: Color(0xFF7C3AED)),
+                title: Text('Birden fazla doğru cevap var'.tr()),
+                onTap: () => Navigator.of(ctx).pop('multiple_correct'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.school_outlined,
+                    color: Color(0xFF2563EB)),
+                title: Text('Konuyla ilgisiz'.tr()),
+                onTap: () => Navigator.of(ctx).pop('off_topic'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (reason == null || !mounted) return;
+    setState(() => _reported.add(_idx));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('🚩 ${'Geri bildirimin alındı.'.tr()}'),
+      behavior: SnackBarBehavior.floating,
+      duration: const Duration(seconds: 2),
+    ));
+    // Pool'a rapor — havuzdan gelen soruysa errorReports artar.
+    // ID'yi pool'dan bilmiyoruz; ana arayüz attempt'i yüklerken
+    // pool ID'sini tutmadığı için şimdilik sadece lokal işaretle.
+    // Server tarafında istek atmıyoruz — gerekirse sonradan eklenir.
+  }
+
+  // ── Karalama notları — alt sayfada metin alanı ───────────────────────
+  Future<void> _openScratchPad() async {
+    final ctrl =
+        TextEditingController(text: _scratchNotes[_idx] ?? '');
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+              16, 12, 16, MediaQuery.of(ctx).viewInsets.bottom + 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppPalette.textSecondary(context)
+                        .withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Icon(Icons.edit_note_rounded,
+                      size: 20, color: Color(0xFFFF6A00)),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Karalama — Soru ${_idx + 1}'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: AppPalette.textPrimary(context),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                maxLines: 8,
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  color: AppPalette.textPrimary(context),
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Hesap, not, çizim açıklaması…'.tr(),
+                  filled: true,
+                  fillColor: AppPalette.card(context),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.save_rounded, size: 16),
+                  label: Text('Kaydet'.tr()),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _testOrange,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _scratchNotes[_idx] = ctrl.text;
+                    });
+                    Navigator.of(ctx).pop();
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ── Hesap makinesi — basit dört işlem + parantez ────────────────────
+  void _calcKey(String key) {
+    setState(() {
+      switch (key) {
+        case 'C':
+          _calcExpr = '';
+          _calcResult = '';
+          break;
+        case '⌫':
+          if (_calcExpr.isNotEmpty) {
+            _calcExpr = _calcExpr.substring(0, _calcExpr.length - 1);
+          }
+          break;
+        case '=':
+          _evaluateCalc();
+          break;
+        default:
+          _calcExpr += key;
+      }
+    });
+  }
+
+  void _evaluateCalc() {
+    try {
+      // Basit eval — math_expressions paketi yerine inline parser.
+      final expr = _calcExpr
+          .replaceAll('×', '*')
+          .replaceAll('÷', '/')
+          .replaceAll('−', '-');
+      final result = _simpleEval(expr);
+      _calcResult = result;
+    } catch (_) {
+      _calcResult = 'Hata';
+    }
+  }
+
+  /// Şunting-yard mini eval — +, -, *, /, parantez. Negatif/üs yok (yeter).
+  String _simpleEval(String s) {
+    final out = <num>[];
+    final ops = <String>[];
+    int prec(String op) => (op == '+' || op == '-') ? 1 : 2;
+    void apply() {
+      if (out.length < 2 || ops.isEmpty) return;
+      final b = out.removeLast();
+      final a = out.removeLast();
+      final op = ops.removeLast();
+      switch (op) {
+        case '+':
+          out.add(a + b);
+          break;
+        case '-':
+          out.add(a - b);
+          break;
+        case '*':
+          out.add(a * b);
+          break;
+        case '/':
+          out.add(b == 0 ? double.nan : a / b);
+          break;
+      }
+    }
+
+    int i = 0;
+    while (i < s.length) {
+      final c = s[i];
+      if (c == ' ') {
+        i++;
+        continue;
+      }
+      if (RegExp(r'[0-9.]').hasMatch(c)) {
+        final buf = StringBuffer();
+        while (i < s.length && RegExp(r'[0-9.]').hasMatch(s[i])) {
+          buf.write(s[i]);
+          i++;
+        }
+        out.add(num.parse(buf.toString()));
+        continue;
+      }
+      if (c == '(') {
+        ops.add(c);
+      } else if (c == ')') {
+        while (ops.isNotEmpty && ops.last != '(') {
+          apply();
+        }
+        if (ops.isNotEmpty) ops.removeLast();
+      } else if ('+-*/'.contains(c)) {
+        while (ops.isNotEmpty &&
+            ops.last != '(' &&
+            prec(ops.last) >= prec(c)) {
+          apply();
+        }
+        ops.add(c);
+      }
+      i++;
+    }
+    while (ops.isNotEmpty) {
+      apply();
+    }
+    if (out.isEmpty) return '';
+    final v = out.last;
+    if (v.isNaN || v.isInfinite) return 'Hata';
+    if (v == v.toInt()) return v.toInt().toString();
+    return v.toStringAsFixed(4).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
+  }
+
+  // ── Bitir onayı — boş/şüpheli soru varsa uyar ────────────────────────
+  // Diyalog 3 sonuçtan birini döner:
+  //   'finish'  → bitir
+  //   'jump'    → ilk boş soruya / boş yoksa ilk şüpheliye atla
+  //   null      → diyaloğu kapat, hiçbir şey yapma (geri butonu)
+  Future<void> _confirmAndFinish() async {
+    final unanswered = <int>[];
+    for (var i = 0; i < _questions.length; i++) {
+      if (_answers[i] == null) unanswered.add(i);
+    }
+    final flagged = _flagged.toList()..sort();
+    // Hiç boş/şüpheli yoksa direkt bitir.
+    if (unanswered.isEmpty && flagged.isEmpty) {
+      await _finish();
+      return;
+    }
+    final messages = <String>[];
+    if (unanswered.isNotEmpty) {
+      messages.add('${unanswered.length} ${'soru boş'.tr()}');
+    }
+    if (flagged.isNotEmpty) {
+      messages.add('${flagged.length} ${'şüpheli işaretli'.tr()}');
+    }
+    // İlk boş soru veya yoksa ilk şüpheli — "Devam et" tıklanınca buna atla.
+    final jumpTarget = unanswered.isNotEmpty
+        ? unanswered.first
+        : (flagged.isNotEmpty ? flagged.first : null);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded,
+                color: Color(0xFFD97706)),
+            const SizedBox(width: 8),
+            Text('Emin misin?'.tr(),
+                style: GoogleFonts.poppins(
+                    fontSize: 15, fontWeight: FontWeight.w800)),
+          ],
+        ),
+        content: Text(
+          '${messages.join(' · ')}\n${'Yine de testi bitirmek istiyor musun?'.tr()}',
+          style: GoogleFonts.poppins(
+            fontSize: 12.5,
+            color: AppPalette.textSecondary(context),
+            height: 1.45,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop('jump'),
+            child: Text('Devam et'.tr()),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop('finish'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _testOrange,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Bitir'.tr()),
+          ),
+        ],
+      ),
+    );
+    if (result == 'finish') {
+      await _finish();
+    } else if (result == 'jump' && jumpTarget != null) {
+      _jumpTo(jumpTarget);
+    }
   }
 
   Future<void> _finish() async {
@@ -533,96 +950,276 @@ class _TestPageState extends State<TestPage> {
           ],
         ),
         actions: [
-          if (hasTimer)
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                  vertical: 10, horizontal: 12),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: timerLow
-                      ? Color(0xFFDC2626)
-                      : _testOrange,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                alignment: Alignment.center,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.timer_rounded,
-                        color: Colors.white, size: 12),
-                    SizedBox(width: 4),
-                    Text(
-                      _formatSeconds(remainingSec),
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                      ),
+          // Süre pill'i + altında küçük (?) yardım butonu — Column ile dikey
+          // stack. (?) her zaman görünür, süre yokken bile.
+          Padding(
+            padding:
+                const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Yarış/Normal: soru başına kalan süre pill'i
+                if (hasTimer)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color:
+                          timerLow ? const Color(0xFFDC2626) : _testOrange,
+                      borderRadius: BorderRadius.circular(999),
                     ),
-                  ],
-                ),
-              ),
-            ),
-        ],
-        // ── Cevap haritası: 1..N küçük noktalar (dolu/boş/aktif). ──────
-        // Kullanıcı hangi sorulara cevap verdiğini görür + tıklayınca o
-        // soruya direkt atlar. LGS/YKS klasiği.
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(34),
-          child: _AnswerMap(
-            count: _questions.length,
-            currentIndex: _idx,
-            isAnswered: (i) => _answers[i] != null,
-            onTap: _jumpTo,
-          ),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Soru kartı ───────────────────────────────────────────
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
-              decoration: BoxDecoration(
-            color: AppPalette.card(context),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // "Soru N / Toplam" pill. Per-question difficulty pill
-                  // KALDIRILDI — tüm sorular aynı zorlukta olduğundan
-                  // tekrar bilgi vermiyordu (setup'tan zaten görüldü).
-                  Align(
-                    alignment: Alignment.centerLeft,
+                    alignment: Alignment.center,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.timer_rounded,
+                            color: Colors.white, size: 12),
+                        const SizedBox(width: 4),
+                        Text(
+                          _formatSeconds(remainingSec),
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                // Rahat mod: geçen süre kronometresi + gizle/göster toggle.
+                if (!hasTimer && _stopwatchVisible)
+                  InkWell(
+                    onTap: () =>
+                        setState(() => _stopwatchVisible = false),
+                    borderRadius: BorderRadius.circular(999),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.black,
+                        color: AppPalette.textPrimary(context)
+                            .withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        "Soru ${_idx + 1} / ${_questions.length}".tr(),
-                        style: GoogleFonts.poppins(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
+                        border: Border.all(
+                          color: AppPalette.border(context),
+                          width: 1,
                         ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.timer_outlined,
+                              color: AppPalette.textPrimary(context),
+                              size: 12),
+                          const SizedBox(width: 4),
+                          Text(
+                            _formatSeconds(_elapsedSec),
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: AppPalette.textPrimary(context),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(Icons.close_rounded,
+                              color: AppPalette.textSecondary(context),
+                              size: 12),
+                        ],
                       ),
                     ),
                   ),
-                  SizedBox(height: 14),
-                  LatexText(q.q, fontSize: 15, lineHeight: 1.45),
-                ],
-              ),
+                if (!hasTimer && !_stopwatchVisible)
+                  IconButton(
+                    padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                    constraints:
+                        const BoxConstraints(minWidth: 28, minHeight: 24),
+                    icon: Icon(Icons.timer_outlined,
+                        color: AppPalette.textSecondary(context),
+                        size: 18),
+                    tooltip: 'Süreyi göster'.tr(),
+                    onPressed: () =>
+                        setState(() => _stopwatchVisible = true),
+                  ),
+                const SizedBox(height: 4),
+                // (?) Yardım butonu — süre sekmesinin tam altında, sağa hizalı.
+                // Tıkla → "Bu sayfa nasıl çalışır?" detay sayfası.
+                InkWell(
+                  borderRadius: BorderRadius.circular(999),
+                  onTap: () {
+                    Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const _TestPageHelpPage(),
+                    ));
+                  },
+                  child: Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppPalette.card(context),
+                      border: Border.all(
+                        color: AppPalette.textPrimary(context)
+                            .withValues(alpha: 0.35),
+                        width: 1,
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '?',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        color: AppPalette.textPrimary(context),
+                        height: 1.0,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-            SizedBox(height: 14),
+          ),
+        ],
+        toolbarHeight: 72,
+        // ── Cevap haritası + araç ikonları (bayrak/karalama/kalem/raporla)
+        //    Cevap haritası solda yatay scroll; ikonlar en sağda sırayla.
+        //    İkonların hizası rakamlarla aynı çizgide.
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(40),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _AnswerMap(
+                    count: _questions.length,
+                    currentIndex: _idx,
+                    isAnswered: (i) => _answers[i] != null,
+                    isFlagged: (i) => _flagged.contains(i),
+                    onTap: _jumpTo,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                // Sırayla: bayrak → karalama → kalem → raporla.
+                // En sağdan başlar (Row sağa hizalı bittiği için doğal sıra).
+                _toolIconBtn(
+                  icon: _flagged.contains(_idx)
+                      ? Icons.flag_rounded
+                      : Icons.flag_outlined,
+                  active: _flagged.contains(_idx),
+                  activeColor: const Color(0xFFD97706),
+                  onTap: _toggleFlag,
+                ),
+                _toolIconBtn(
+                  icon: (_scratchNotes[_idx]?.isNotEmpty ?? false)
+                      ? Icons.edit_note_rounded
+                      : Icons.edit_note_outlined,
+                  active: _scratchNotes[_idx]?.isNotEmpty ?? false,
+                  activeColor: const Color(0xFFFF6A00),
+                  onTap: _openScratchPad,
+                ),
+                _toolIconBtn(
+                  icon: Icons.brush_rounded,
+                  active: _highlightMode,
+                  activeColor: const Color(0xFFFBBF24),
+                  onTap: () => setState(
+                      () => _highlightMode = !_highlightMode),
+                ),
+                _toolIconBtn(
+                  icon: _reported.contains(_idx)
+                      ? Icons.report_rounded
+                      : Icons.report_outlined,
+                  active: _reported.contains(_idx),
+                  activeColor: const Color(0xFFDC2626),
+                  onTap: _reported.contains(_idx) ? null : _reportQuestion,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ── Üst mini ilerleme bandı — cevaplanan/şüpheli/boş ─────
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppPalette.card(context),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      _statChip(
+                        Icons.check_circle_outline_rounded,
+                        const Color(0xFF10B981),
+                        '${_answers.values.where((v) => v != null).length}',
+                        'Cevaplanan'.tr(),
+                      ),
+                      const SizedBox(width: 10),
+                      _statChip(
+                        Icons.flag_outlined,
+                        const Color(0xFFD97706),
+                        '${_flagged.length}',
+                        'Şüpheli'.tr(),
+                      ),
+                      const SizedBox(width: 10),
+                      _statChip(
+                        Icons.circle_outlined,
+                        AppPalette.textSecondary(context),
+                        '${_questions.length - _answers.values.where((v) => v != null).length}',
+                        'Boş'.tr(),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                // ── Soru kartı ───────────────────────────────────────────
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+                  decoration: BoxDecoration(
+                    color: AppPalette.card(context),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Sadece soru numarası pill — bayrak/karalama/kalem/
+                      // raporla ikonları AppBar'ın bottom satırına (cevap
+                      // haritasının sağına) taşındı, kart içinde yer kapamasın.
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.black,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              "Soru ${_idx + 1} / ${_questions.length}"
+                                  .tr(),
+                              style: GoogleFonts.poppins(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 14),
+                      _buildQuestionStem(q.q),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 14),
             // ── Şıklar ──────────────────────────────────────────────
             for (final entry in q.opts.entries)
               _optionTile(
@@ -667,6 +1264,29 @@ class _TestPageState extends State<TestPage> {
           ],
         ),
       ),
+          // ── Hesap makinesi yüzer butonu (sağ alt) ───────────────────
+          Positioned(
+            right: 14,
+            bottom: 14,
+            child: FloatingActionButton.small(
+              heroTag: 'calc',
+              backgroundColor: Colors.black,
+              foregroundColor: Colors.white,
+              onPressed: () => setState(() => _showCalc = !_showCalc),
+              child: Icon(_showCalc
+                  ? Icons.close_rounded
+                  : Icons.calculate_rounded),
+            ),
+          ),
+          // ── Hesap makinesi paneli ────────────────────────────────────
+          if (_showCalc)
+            Positioned(
+              right: 14,
+              bottom: 70,
+              child: _buildCalcPanel(),
+            ),
+        ],
+      ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 6, 16, 14),
@@ -680,12 +1300,39 @@ class _TestPageState extends State<TestPage> {
                   if (_hintAllowed)
                     _chipButton(
                       icon: Icons.lightbulb_outline_rounded,
+                      // Etiket: kalan ipucu hakkını gösterir. Bu soruda
+                      // zaten gösterildiyse "Gizle"ye döner.
                       label: _showHint
                           ? 'İpucunu gizle'.tr()
-                          : 'İpucu'.tr(),
+                          : '${'İpucu'.tr()} ($_remainingHints)',
                       onTap: q.hint.isEmpty
                           ? null
-                          : () => setState(() => _showHint = !_showHint),
+                          : () {
+                              // Bu soruda zaten ipucu gösterildiyse aç/kapat.
+                              if (_hintShownFor.contains(_idx)) {
+                                setState(() => _showHint = !_showHint);
+                                return;
+                              }
+                              // İlk kez gösteriliyor — hak kalmadıysa engelle.
+                              if (_remainingHints <= 0) {
+                                ScaffoldMessenger.of(context)
+                                    .showSnackBar(SnackBar(
+                                  content: Text(
+                                      'Bu testteki ipucu hakların doldu.'
+                                          .tr()),
+                                  behavior:
+                                      SnackBarBehavior.floating,
+                                  duration:
+                                      const Duration(seconds: 2),
+                                ));
+                                return;
+                              }
+                              // Hakkı tüket ve ipucunu göster.
+                              setState(() {
+                                _hintShownFor.add(_idx);
+                                _showHint = true;
+                              });
+                            },
                       dense: true,
                     ),
                   Spacer(),
@@ -705,18 +1352,25 @@ class _TestPageState extends State<TestPage> {
                 ],
               ),
               SizedBox(height: 10),
-              // Ana ilerleme butonu — şık seçilince turuncu, değilse soluk
+              // Ana ilerleme butonu — son soruda "Bitir" onay dialog'u açar,
+              // diğerlerinde direkt sonraki soruya geçer.
               GestureDetector(
-                onTap: selected == null ? null : _goNext,
+                onTap: () {
+                  if (isLast) {
+                    _confirmAndFinish();
+                  } else if (selected != null) {
+                    _goNext();
+                  }
+                },
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   decoration: BoxDecoration(
-                    color: selected == null
+                    color: (!isLast && selected == null)
                         ? _testOrange.withValues(alpha: 0.35)
                         : _testOrange,
                     borderRadius: BorderRadius.circular(999),
-                    boxShadow: selected == null
+                    boxShadow: (!isLast && selected == null)
                         ? null
                         : [
                             BoxShadow(
@@ -756,6 +1410,299 @@ class _TestPageState extends State<TestPage> {
           ),
         ),
       ),
+      ),
+    );
+  }
+
+  // ── Soru metni — fosforlu kalem destekli ──────────────────────────────
+  // Eğer soru LaTeX içeriyorsa (formül var) → LatexText (vurgu kapalı).
+  // Aksi halde kelime bazlı interaktif Text.rich:
+  //   • _highlightMode kapalıyken → düz görünüm, vurgulu kelimeler sarı bg
+  //   • _highlightMode açıkken → her kelime tıklanabilir, dokununca toggle
+  Widget _buildQuestionStem(String text) {
+    // LaTeX algıla — sayısal sorularda fosfor kapalı kalır.
+    final hasLatex = text.contains(r'\(') ||
+        text.contains(r'\[') ||
+        text.contains(r'$');
+    if (hasLatex) {
+      return LatexText(text, fontSize: 15, lineHeight: 1.45);
+    }
+    // Kelime + ayraç olarak böl. RegExp ile boşluk + noktalama korunur.
+    final tokens = _tokenize(text);
+    final selectedSet =
+        _highlights.putIfAbsent(_idx, () => <int>{});
+    return RichText(
+      text: TextSpan(
+        style: GoogleFonts.poppins(
+          fontSize: 15,
+          height: 1.45,
+          color: AppPalette.textPrimary(context),
+        ),
+        children: [
+          for (var i = 0; i < tokens.length; i++)
+            if (tokens[i].isWord)
+              WidgetSpan(
+                alignment: PlaceholderAlignment.middle,
+                child: GestureDetector(
+                  onTap: !_highlightMode
+                      ? null
+                      : () {
+                          setState(() {
+                            if (selectedSet.contains(i)) {
+                              selectedSet.remove(i);
+                            } else {
+                              selectedSet.add(i);
+                            }
+                          });
+                        },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: selectedSet.contains(i)
+                          ? const Color(0xFFFEF08A)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    child: Text(
+                      tokens[i].text,
+                      style: GoogleFonts.poppins(
+                        fontSize: 15,
+                        height: 1.45,
+                        color: AppPalette.textPrimary(context),
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            else
+              TextSpan(text: tokens[i].text),
+        ],
+      ),
+    );
+  }
+
+  /// Metni kelime ve ayraç token'larına böler. Kelime = harf+rakam dizisi.
+  List<_QToken> _tokenize(String s) {
+    final out = <_QToken>[];
+    final buf = StringBuffer();
+    bool curIsWord = false;
+    void flush() {
+      if (buf.isEmpty) return;
+      out.add(_QToken(text: buf.toString(), isWord: curIsWord));
+      buf.clear();
+    }
+
+    for (final c in s.runes) {
+      // Harf, rakam, TR aksanlı, alt çizgi → kelime karakteri.
+      final isLetter = (c >= 0x41 && c <= 0x5A) || // A-Z
+          (c >= 0x61 && c <= 0x7A) || // a-z
+          (c >= 0x30 && c <= 0x39) || // 0-9
+          c == 0x5F || // _
+          // TR
+          c == 0xC7 || c == 0xE7 || // Çç
+          c == 0x011E || c == 0x011F || // Ğğ
+          c == 0x0130 || c == 0x0131 || // İı
+          c == 0xD6 || c == 0xF6 || // Öö
+          c == 0x015E || c == 0x015F || // Şş
+          c == 0xDC || c == 0xFC; // Üü
+      if (isLetter != curIsWord) {
+        flush();
+        curIsWord = isLetter;
+      }
+      buf.writeCharCode(c);
+    }
+    flush();
+    return out;
+  }
+
+  // Üst ilerleme bandı için tek istatistik chip'i.
+  /// AppBar bottom satırındaki araç ikonu — bayrak/karalama/kalem/raporla
+  /// için. Cevap haritasındaki 22px daireler ile aynı boyut, aynı hiza.
+  Widget _toolIconBtn({
+    required IconData icon,
+    required bool active,
+    required Color activeColor,
+    required VoidCallback? onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          width: 26,
+          height: 26,
+          alignment: Alignment.center,
+          child: Icon(
+            icon,
+            size: 18,
+            color: active
+                ? activeColor
+                : AppPalette.textSecondary(context),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _statChip(IconData icon, Color tint, String value, String label) {
+    return Expanded(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: tint),
+          const SizedBox(width: 4),
+          Text(
+            value,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              color: tint,
+            ),
+          ),
+          const SizedBox(width: 3),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                fontSize: 9.5,
+                fontWeight: FontWeight.w600,
+                color: AppPalette.textSecondary(context),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Hesap makinesi panel UI'ı.
+  Widget _buildCalcPanel() {
+    // Buton — Expanded ile esnek genişlik, panel boyutuna otomatik uyar.
+    Widget btn(String label, {Color? bg, Color? fg, VoidCallback? on}) {
+      return Expanded(
+        child: SizedBox(
+          height: 42,
+          child: ElevatedButton(
+            onPressed: on ?? () => _calcKey(label),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: bg ?? Colors.white,
+              foregroundColor: fg ?? Colors.black,
+              padding: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              elevation: 0,
+              side: BorderSide(color: Colors.black.withValues(alpha: 0.12)),
+            ),
+            child: Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    Widget btnRow(List<Widget> children) {
+      final out = <Widget>[];
+      for (int i = 0; i < children.length; i++) {
+        if (i > 0) out.add(const SizedBox(width: 5));
+        out.add(children[i]);
+      }
+      return Row(children: out);
+    }
+
+    return Material(
+      elevation: 8,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        // Ekran genişliğine göre dinamik — küçük cihazlarda taşmaz.
+        width: 248,
+        padding: const EdgeInsets.all(7),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.black.withValues(alpha: 0.10)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Ekran
+            Container(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3F4F6),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    _calcExpr.isEmpty ? '0' : _calcExpr,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.robotoMono(
+                      fontSize: 14,
+                      color: Colors.black54,
+                    ),
+                  ),
+                  Text(
+                    _calcResult,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.robotoMono(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.black,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 7),
+            btnRow([
+              btn('C',
+                  bg: const Color(0xFFFEF2F2), fg: const Color(0xFFDC2626)),
+              btn('('),
+              btn(')'),
+              btn('⌫', bg: const Color(0xFFF3F4F6)),
+            ]),
+            const SizedBox(height: 5),
+            btnRow([
+              btn('7'),
+              btn('8'),
+              btn('9'),
+              btn('÷', bg: const Color(0xFFFFF7ED), fg: _testOrange),
+            ]),
+            const SizedBox(height: 5),
+            btnRow([
+              btn('4'),
+              btn('5'),
+              btn('6'),
+              btn('×', bg: const Color(0xFFFFF7ED), fg: _testOrange),
+            ]),
+            const SizedBox(height: 5),
+            btnRow([
+              btn('1'),
+              btn('2'),
+              btn('3'),
+              btn('−', bg: const Color(0xFFFFF7ED), fg: _testOrange),
+            ]),
+            const SizedBox(height: 5),
+            btnRow([
+              btn('0'),
+              btn('.'),
+              btn('=', bg: Colors.black, fg: Colors.white),
+              btn('+', bg: const Color(0xFFFFF7ED), fg: _testOrange),
+            ]),
+          ],
+        ),
       ),
     );
   }
@@ -813,15 +1760,12 @@ class _TestPageState extends State<TestPage> {
     required bool selected,
   }) {
     final isDark = AppPalette.isDark(context);
-    // Şık zemin: koyu modda her zaman koyu (selected için cardMuted vurgu);
-    // aydınlık modda eski selected siyah / değilse beyaz.
-    final tileBg = isDark
-        ? (selected ? AppPalette.cardMuted(context) : AppPalette.card(context))
-        : (selected ? Colors.black : Colors.white);
-    // Yazı: koyu modda her zaman beyaz tonu; aydınlıkta selected beyaz / değilse siyah.
-    final tileInk = isDark
-        ? AppPalette.textPrimary(context)
-        : (selected ? Colors.white : Colors.black);
+    // Zemin her durumda nötr (light=beyaz / dark=card). Seçim sadece
+    // turuncu çerçeve + harf dairesinin turuncu vurgusuyla belli olsun.
+    final tileBg = isDark ? AppPalette.card(context) : Colors.white;
+    final tileInk = AppPalette.textPrimary(context);
+    final eliminated = (_eliminated[_idx]?.contains(letter)) ?? false;
+    final disabled = eliminated;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
@@ -832,54 +1776,123 @@ class _TestPageState extends State<TestPage> {
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: selected
-                  ? (isDark ? Colors.white : Colors.black)
-                  : AppPalette.border(context),
-              width: selected ? 1.4 : 1,
+                  ? _testOrange
+                  : (eliminated
+                      ? Colors.black.withValues(alpha: 0.18)
+                      : AppPalette.border(context)),
+              width: selected ? 2 : 1,
             ),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: _testOrange.withValues(alpha: 0.18),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
           ),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(14),
-            onTap: () => _pick(letter),
-            child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-              child: Row(
-                children: [
-                  Container(
-                    width: 28,
-                    height: 28,
+          child: Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(14),
+                    bottomLeft: Radius.circular(14),
+                  ),
+                  onTap: disabled ? null : () => _pick(letter),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 13, 6, 13),
+                    child: Opacity(
+                      opacity: disabled ? 0.45 : 1.0,
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 28,
+                            height: 28,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: selected
+                                  ? _testOrange.withValues(alpha: 0.15)
+                                  : (isDark
+                                      ? AppPalette.bg(context)
+                                      : const Color(0xFFF3F4F6)),
+                              shape: BoxShape.circle,
+                              border: selected
+                                  ? Border.all(
+                                      color: _testOrange, width: 1.2)
+                                  : null,
+                            ),
+                            child: Text(
+                              letter,
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: selected ? _testOrange : tileInk,
+                                decoration: eliminated
+                                    ? TextDecoration.lineThrough
+                                    : null,
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: DefaultTextStyle.merge(
+                              style: TextStyle(
+                                color: tileInk,
+                                decoration: eliminated
+                                    ? TextDecoration.lineThrough
+                                    : null,
+                                decorationColor:
+                                    tileInk.withValues(alpha: 0.6),
+                                decorationThickness: 2,
+                              ),
+                              child: LatexText(
+                                text,
+                                fontSize: 13.5,
+                                lineHeight: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              // ── Sağda küçük ✕ butonu — şıkkı ele/eleme aç-kapat ───────
+              // Tek tıkla işlem yapılır, uzun-bas yok.
+              InkWell(
+                borderRadius: const BorderRadius.only(
+                  topRight: Radius.circular(14),
+                  bottomRight: Radius.circular(14),
+                ),
+                onTap: () => _toggleEliminate(letter),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 12, 12, 12),
+                  child: Container(
+                    width: 24,
+                    height: 24,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: isDark
-                          ? AppPalette.bg(context)
-                          : (selected ? Colors.white : const Color(0xFFF3F4F6)),
+                      color: eliminated
+                          ? const Color(0xFFDC2626).withValues(alpha: 0.12)
+                          : AppPalette.border(context).withValues(alpha: 0.4),
                       shape: BoxShape.circle,
                     ),
-                    child: Text(
-                      letter,
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: tileInk,
-                      ),
+                    child: Icon(
+                      eliminated
+                          ? Icons.close_rounded
+                          : Icons.close_rounded,
+                      size: 14,
+                      color: eliminated
+                          ? const Color(0xFFDC2626)
+                          : AppPalette.textSecondary(context),
                     ),
                   ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    // Şık metninde LaTeX formül / matematik sembolü olabilir;
-                    // LatexText ile render edilmezse \( ... \) bozuk gözükür.
-                    child: DefaultTextStyle.merge(
-                      style: TextStyle(color: tileInk),
-                      child: LatexText(
-                        text,
-                        fontSize: 13.5,
-                        lineHeight: 1.4,
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),
@@ -894,16 +1907,338 @@ class _TestPageState extends State<TestPage> {
 //    • Cevaplanmış: koyu dolu
 //    • Boş: hafif border, içi şeffaf
 //  Tıklayınca o soruya atlama.
+// Soru metni token'ı (kelime veya boşluk/noktalama).
+class _QToken {
+  final String text;
+  final bool isWord;
+  const _QToken({required this.text, required this.isWord});
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
+//  Test sayfası yardım ekranı — "Bu sayfa nasıl çalışır?"
+//  Test çözerken kullanılabilen tüm özelliklerin sade görsel rehberi.
+// ═════════════════════════════════════════════════════════════════════════════
+class _TestPageHelpPage extends StatelessWidget {
+  const _TestPageHelpPage();
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = AppPalette.bg(context);
+    final ink = AppPalette.textPrimary(context);
+    return Scaffold(
+      backgroundColor: bg,
+      appBar: AppBar(
+        backgroundColor: bg,
+        elevation: 0,
+        foregroundColor: ink,
+        title: Text(
+          'Bu Sayfa Nasıl Çalışır?'.tr(),
+          style: GoogleFonts.poppins(
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            color: ink,
+          ),
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(18, 8, 18, 32),
+        children: [
+          // ── Üst tanıtım ─────────────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  const Color(0xFFFF6A00).withValues(alpha: 0.14),
+                  const Color(0xFFDB2777).withValues(alpha: 0.10),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                  color: const Color(0xFFFF6A00).withValues(alpha: 0.32),
+                  width: 1),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.quiz_rounded,
+                    size: 22, color: Color(0xFFFF6A00)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Soruyu oku, şıkları değerlendir, gerekirse şık ele veya soruyu işaretle.'
+                        .tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: ink,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ══════════ ÜST BAR ══════════
+          _helpGroupHeader(context, '⏱ ÜST BAR'),
+          _helpSection(
+            context,
+            icon: Icons.timer_rounded,
+            iconColor: const Color(0xFFFF6A00),
+            title: 'Zaman Göstergesi',
+            body: 'Yarış / Normal modda soru başına kalan süre turuncu pill. '
+                '10 saniye kala telefon hafifçe titrer, süre rengi kırmızıya '
+                'döner. Süre dolunca otomatik sonraki soruya geçilir.',
+          ),
+          _helpSection(
+            context,
+            icon: Icons.timer_outlined,
+            iconColor: const Color(0xFF2563EB),
+            title: 'Kronometre (Rahat Modda)',
+            body: 'Rahat modda süre yok, ama testte geçen toplam süre üstte '
+                'görünür. Stres yapmasın diye X ile gizlenebilir → küçük '
+                'saat ikonuyla tekrar açılır.',
+          ),
+
+          // ══════════ İSTATİSTİK BANDI ══════════
+          _helpGroupHeader(context, '📊 İLERLEME ŞERİDİ'),
+          _helpSection(
+            context,
+            icon: Icons.check_circle_outline_rounded,
+            iconColor: const Color(0xFF10B981),
+            title: 'Cevaplanan / Şüpheli / Boş',
+            body: 'Üstte 3 sayaç: kaç soruyu cevapladın, kaçını şüpheli '
+                'işaretledin, kaçı hâlâ boş. Bir bakışta nerede olduğunu '
+                'görürsün.',
+          ),
+
+          // ══════════ SORU KARTI ══════════
+          _helpGroupHeader(context, '❓ SORU KARTI'),
+          _helpSection(
+            context,
+            icon: Icons.flag_outlined,
+            iconColor: const Color(0xFFD97706),
+            title: 'Şüpheli İşareti (Bayrak)',
+            body: 'Emin değilsen soruyu bayrakla işaretle, önce diğerlerini '
+                'çöz, sonra geri dön. Alt navigasyonda sarı bayrakla '
+                'görünür → tek tıkla geri ulaşırsın.',
+          ),
+          _helpSection(
+            context,
+            icon: Icons.edit_note_rounded,
+            iconColor: const Color(0xFFFF6A00),
+            title: 'Karalama Notu',
+            body: 'Her soru için ayrı not alanı. Çözüm yolunu, hatırlatmayı, '
+                'hesap basamaklarını yaz — sayfa kapansa da geri dönünce '
+                'notların duruyor.',
+          ),
+          _helpSection(
+            context,
+            icon: Icons.brush_rounded,
+            iconColor: const Color(0xFFFBBF24),
+            title: 'Fosforlu Kalem (Sözel)',
+            body: 'Sözel sorularda soru metnindeki önemli kelimeleri sarıya '
+                'boyamak için fırça ikonuna bas (sarı = aktif). Kelimeye '
+                'dokun → boyar, tekrar dokun → kalkar. Matematik gibi '
+                'formüllü sorularda otomatik kapalı.',
+          ),
+          _helpSection(
+            context,
+            icon: Icons.report_outlined,
+            iconColor: const Color(0xFFDC2626),
+            title: 'Soruyu Raporla',
+            body: 'Soru yanlış / belirsiz / çift cevaplı görünüyorsa rapor '
+                'ikonuna bas → neden seç. 3+ rapor alan sorular otomatik '
+                'olarak havuzdan kaldırılır.',
+          ),
+
+          // ══════════ ŞIKLAR ══════════
+          _helpGroupHeader(context, '🔤 ŞIKLAR'),
+          _helpSection(
+            context,
+            icon: Icons.radio_button_checked,
+            iconColor: const Color(0xFFFF6A00),
+            title: 'Şık Seçme',
+            body: 'Bir şıka tıkla → cevabın olarak seçilir, turuncu çerçeve '
+                'belirir. Tekrar tıkla → cevap kaldırılır (boş bırakılır).',
+          ),
+          _helpSection(
+            context,
+            icon: Icons.close_rounded,
+            iconColor: const Color(0xFFDC2626),
+            title: 'Şık Eleme (✕ butonu)',
+            body: 'Her şıkın sağında küçük ✕ ikonu var. Tıkla → o şık '
+                'soluklaşır + üzeri çizilir ("bu olamaz" anlamında). '
+                'Tekrar tıkla → geri alınır. Sınav stratejisi için altın.',
+          ),
+
+          // ══════════ ALT BAR ══════════
+          _helpGroupHeader(context, '🎛 ALT BAR'),
+          _helpSection(
+            context,
+            icon: Icons.lightbulb_outline_rounded,
+            iconColor: const Color(0xFFFBBF24),
+            title: 'İpucu',
+            body: 'Test başına 3 ipucu hakkın var. Buton etiketinde kalan '
+                'hak görünür (örn. "İpucu (2)"). Aynı soruyu açıp kapatmak '
+                'hak harcamaz, sadece yeni soruda ilk açış sayar. Yarış '
+                'modunda ipucu yoktur.',
+          ),
+          _helpSection(
+            context,
+            icon: Icons.arrow_back_rounded,
+            iconColor: const Color(0xFF6B7280),
+            title: 'Geri / Atla',
+            body: '"Geri" önceki soruya, "Atla" cevabı boş bırakıp sonraki '
+                'soruya geçer. Atlanan soruya alt nokta navigasyonundan '
+                'tekrar dönebilirsin.',
+          ),
+          _helpSection(
+            context,
+            icon: Icons.arrow_forward_rounded,
+            iconColor: const Color(0xFFFF6A00),
+            title: 'Sonraki Soru / Testi Bitir',
+            body: 'Şık seçilince turuncu olur, tıkla → bir sonraki soruya '
+                'geç. Son soruda etiket "Testi Bitir"e döner. Boş veya '
+                'şüpheli soru varsa onay dialog\'u çıkar; "Devam et" '
+                'tıklarsan ilk boş soruya gönderir.',
+          ),
+
+          // ══════════ NOKTA NAVİGASYONU ══════════
+          _helpGroupHeader(context, '🔵 NAVİGASYON'),
+          _helpSection(
+            context,
+            icon: Icons.circle_outlined,
+            iconColor: const Color(0xFF2563EB),
+            title: 'Alt Nokta Şeridi',
+            body: 'Üst barın hemen altında 1, 2, 3 ... küçük noktalar. '
+                'Renk kodları: turuncu = mevcut soru, siyah dolu = '
+                'cevaplanmış, sarı + bayrak = şüpheli, boş = henüz '
+                'cevaplanmamış. Tıkla → o soruya atla.',
+          ),
+
+          // ══════════ YÜZER BUTONLAR ══════════
+          _helpGroupHeader(context, '🎯 YÜZER BUTONLAR'),
+          _helpSection(
+            context,
+            icon: Icons.calculate_rounded,
+            iconColor: Colors.black,
+            title: 'Hesap Makinesi',
+            body: 'Sağ alttaki siyah yuvarlak buton → küçük hesap makinesi '
+                'paneli açılır. Toplama, çıkarma, çarpma, bölme, parantez. '
+                'Sayfadan çıkmadan hesap yap. Tekrar tıkla → kapanır.',
+          ),
+
+          const SizedBox(height: 12),
+          Center(
+            child: Text(
+              'Başarılar! 🎯',
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: AppPalette.textSecondary(context),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _helpGroupHeader(BuildContext context, String label) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 8, 2, 10),
+      child: Text(
+        label,
+        style: GoogleFonts.poppins(
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+          color: AppPalette.textSecondary(context),
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+
+  Widget _helpSection(
+    BuildContext context, {
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String body,
+  }) {
+    final ink = AppPalette.textPrimary(context);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      decoration: BoxDecoration(
+        color: AppPalette.card(context),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+            color: AppPalette.border(context).withValues(alpha: 0.6),
+            width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                alignment: Alignment.center,
+                child: Icon(icon, size: 18, color: iconColor),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: ink,
+                    height: 1.25,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            body.tr(),
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: ink.withValues(alpha: 0.85),
+              height: 1.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 class _AnswerMap extends StatelessWidget {
   final int count;
   final int currentIndex;
   final bool Function(int) isAnswered;
+  final bool Function(int)? isFlagged;
   final void Function(int) onTap;
   const _AnswerMap({
     required this.count,
     required this.currentIndex,
     required this.isAnswered,
+    this.isFlagged,
     required this.onTap,
   });
 
@@ -918,6 +2253,7 @@ class _AnswerMap extends StatelessWidget {
         itemBuilder: (ctx, i) {
           final isCur = i == currentIndex;
           final filled = isAnswered(i);
+          final flagged = isFlagged?.call(i) ?? false;
           final Color bg;
           final Color fg;
           final Color border;
@@ -925,6 +2261,11 @@ class _AnswerMap extends StatelessWidget {
             bg = _testOrange;
             fg = Colors.white;
             border = _testOrange;
+          } else if (flagged) {
+            // Şüpheli — sarı/turuncu çerçeve, içi boyalı vurgu.
+            bg = const Color(0xFFFEF3C7);
+            fg = const Color(0xFFD97706);
+            border = const Color(0xFFD97706);
           } else if (filled) {
             bg = AppPalette.textPrimary(context);
             fg = AppPalette.bg(context);
@@ -938,23 +2279,39 @@ class _AnswerMap extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 3),
             child: GestureDetector(
               onTap: () => onTap(i),
-              child: Container(
-                width: 22,
-                height: 22,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: bg,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: border, width: 1),
-                ),
-                child: Text(
-                  '${i + 1}',
-                  style: GoogleFonts.poppins(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w800,
-                    color: fg,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 22,
+                    height: 22,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: bg,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                          color: border, width: flagged ? 1.5 : 1),
+                    ),
+                    child: Text(
+                      '${i + 1}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        color: fg,
+                      ),
+                    ),
                   ),
-                ),
+                  if (flagged)
+                    const Positioned(
+                      right: -2,
+                      top: -2,
+                      child: Icon(
+                        Icons.flag_rounded,
+                        size: 10,
+                        color: Color(0xFFD97706),
+                      ),
+                    ),
+                ],
               ),
             ),
           );
@@ -1004,6 +2361,8 @@ class _TestResultPageState extends State<TestResultPage> {
   String _grade = '';
   String _eduLabel = ''; // "Lise 11. Sınıf" / "YKS Hazırlık" / "İlkokul 2. Sınıf"
   final GlobalKey _cardKey = GlobalKey();
+  // Topluluk istatistiği — havuzdaki bu konu için.
+  ({int attempts, int avgPct})? _communityStats;
 
   @override
   void initState() {
@@ -1015,12 +2374,29 @@ class _TestResultPageState extends State<TestResultPage> {
         _grade = (p.getString('user_grade_level') ?? '').trim();
       });
     });
-    // Eğitim profilinden okunabilir seviye etiketi üret.
-    EduProfile.load().then((profile) {
+    // Eğitim profilinden okunabilir seviye etiketi üret + havuz istatistik.
+    EduProfile.load().then((profile) async {
       if (!mounted || profile == null) return;
       setState(() {
         _eduLabel = _humanizeEduLevel(profile);
       });
+      // 1) Bu sonucu anonim olarak havuza işle — sonraki kullanıcılar
+      //    karşılaştırma yapabilsin.
+      unawaited(QuestionPoolService.recordAttempt(
+        profile: profile,
+        subject: widget.subjectName,
+        topic: widget.topic,
+        correct: _correct,
+        total: widget.questions.length,
+      ));
+      // 2) Mevcut topluluk istatistiğini oku → UI'da kart göster.
+      final stats = await QuestionPoolService.readCommunityStats(
+        profile: profile,
+        subject: widget.subjectName,
+        topic: widget.topic,
+      );
+      if (!mounted) return;
+      setState(() => _communityStats = stats);
     });
   }
 
@@ -1115,6 +2491,31 @@ class _TestResultPageState extends State<TestResultPage> {
   // Çözülemeyen (yanlış + boş) sorular.
   int get _unsolved => _wrong + _empty;
 
+  // Soru tipini sorulardan çıkar — sonuç kartında "Soru tipi: ..." satırı için.
+  // tf  : opts'ta tam 2 şık (Doğru/Yanlış)
+  // fill: soru metninde 5+ alt çizgi (boşluk doldurma)
+  // mc  : diğerleri (klasik çoktan seçmeli, 5 şık)
+  // Hepsi aynı tipse o tip, karışıksa "Karışık".
+  String get _questionTypeLabel {
+    if (widget.questions.isEmpty) return '';
+    int tf = 0, fill = 0, mc = 0;
+    for (final q in widget.questions) {
+      if (q.opts.length == 2) {
+        tf++;
+      } else if (q.q.contains('____')) {
+        fill++;
+      } else {
+        mc++;
+      }
+    }
+    final n = tf + fill + mc;
+    if (n == 0) return '';
+    if (tf == n) return 'Doğru-Yanlış'.tr();
+    if (fill == n) return 'Boşluk Doldurma'.tr();
+    if (mc == n) return 'Çoktan Seçmeli'.tr();
+    return 'Karışık'.tr();
+  }
+
   @override
   Widget build(BuildContext context) {
     final pageBg = AppPalette.bg(context);
@@ -1139,6 +2540,7 @@ class _TestResultPageState extends State<TestResultPage> {
               userName: _userName,
               grade: _grade,
               eduLabel: _eduLabel,
+              questionTypeLabel: _questionTypeLabel,
               correct: _correct,
               wrong: _wrong,
               empty: _empty,
@@ -1223,6 +2625,13 @@ class _TestResultPageState extends State<TestResultPage> {
                 SizedBox(height: 12),
                 ..._unsolvedAnswerCards(),
               ],
+              // ── Topluluk kıyas kartı — yanlış sorular satırının altında ─
+              // Veri en az 3 deneme + 10 soru toplanınca görünür (anlamlı
+              // ortalama). Aksi halde gizli kalır.
+              if (_communityStats != null) ...[
+                SizedBox(height: 10),
+                _communityCompareCard(),
+              ],
             ],
           ),
         ],
@@ -1258,6 +2667,7 @@ class _TestResultPageState extends State<TestResultPage> {
         userName: _userName,
         grade: _grade,
         eduLabel: _eduLabel,
+        questionTypeLabel: _questionTypeLabel,
         correct: _correct,
         wrong: _wrong,
         empty: _empty,
@@ -1296,35 +2706,174 @@ class _TestResultPageState extends State<TestResultPage> {
     if (iconRotation != 0) {
       iconWidget = Transform.rotate(angle: iconRotation, child: iconWidget);
     }
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(14),
-          border: borderColor != null
-              ? Border.all(color: borderColor, width: 1)
-              : null,
-        ),
-        child: Row(
-          children: [
-            iconWidget,
-            SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                label,
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: fg,
+    // GestureDetector → InkWell + Material ile değiştirildi: tap'in
+    // mutlaka kaydedilmesi (HitTestBehavior.opaque eşdeğeri) + dokunma
+    // ripple geri bildirimi. Önceki haliyle bazı cihazlarda "Arkadaşına
+    // gönder" satırının tıklaması düştü-düşmedi belirsizdi.
+    return Material(
+      color: color,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+            border: borderColor != null
+                ? Border.all(color: borderColor, width: 1)
+                : null,
+          ),
+          child: Row(
+            children: [
+              iconWidget,
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: fg,
+                  ),
                 ),
               ),
-            ),
-            if (trailing != null) trailing,
-          ],
+              if (trailing != null) trailing,
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  // ── Topluluk kıyas kartı — bu konuda kaç öğrenci, ortalama %kaç ──────
+  Widget _communityCompareCard() {
+    final s = _communityStats;
+    if (s == null) return const SizedBox.shrink();
+    final userPct = widget.questions.isEmpty
+        ? 0
+        : ((_correct * 100) / widget.questions.length).round();
+    final diff = userPct - s.avgPct;
+    final isAbove = diff >= 0;
+    final Color tint = isAbove
+        ? const Color(0xFF10B981) // yeşil — ortalamadan yüksek
+        : const Color(0xFFD97706); // amber — ortalamanın altı
+    final String headline = isAbove
+        ? 'Ortalamadan ${diff.abs()} puan yüksek 🎯'
+        : 'Ortalamadan ${diff.abs()} puan düşük';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: tint.withValues(alpha: 0.35), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.groups_rounded, size: 18, color: tint),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Topluluk Kıyaslaması'.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${s.attempts} ${'öğrenci bu konuyu çözdü'.tr()}',
+            style: GoogleFonts.poppins(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w500,
+              color: Colors.black54,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _miniStatBlock(
+                  label: 'TOPLULUK ORT.'.tr(),
+                  value: '%${s.avgPct}',
+                  tint: Colors.black54,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _miniStatBlock(
+                  label: 'SEN'.tr(),
+                  value: '%$userPct',
+                  tint: tint,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: tint.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              headline.tr(),
+              style: GoogleFonts.poppins(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+                color: tint,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniStatBlock({
+    required String label,
+    required String value,
+    required Color tint,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              color: Colors.black54,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: GoogleFonts.poppins(
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              color: tint,
+              height: 1.0,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1541,6 +3090,7 @@ class _ResultCard extends StatelessWidget {
   final String userName;
   final String grade;
   final String eduLabel; // "Lise 11. Sınıf" / "YKS Hazırlık" gibi okunabilir
+  final String questionTypeLabel; // "Çoktan Seçmeli" / "Doğru-Yanlış" / "Boşluk Doldurma" / "Karışık"
   final int correct;
   final int wrong;
   final int empty;
@@ -1564,6 +3114,7 @@ class _ResultCard extends StatelessWidget {
     required this.bgColor,
     this.grade = '',
     this.eduLabel = '',
+    this.questionTypeLabel = '',
     this.elapsedSeconds = 0,
     this.donutFrameOverride,
     this.textOverride,
@@ -1816,66 +3367,17 @@ class _ResultCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Eğitim seviyesi rozeti + uygun ikon —
-                      // "🎯 YKS Hazırlık", "🎓 Lise 11. Sınıf",
-                      // "📚 İlkokul 2. Sınıf" vb.
-                      if (eduLabel.isNotEmpty) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: _alKirmizi.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(
-                              color: _alKirmizi.withValues(alpha: 0.4),
-                              width: 1,
-                            ),
-                          ),
-                          child: RichText(
-                            text: TextSpan(
-                              children: [
-                                TextSpan(
-                                  text: '${_eduIcon()} ',
-                                  style: TextStyle(fontSize: 11),
-                                ),
-                                TextSpan(
-                                  text: eduLabel,
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w800,
-                                    color: _alKirmizi,
-                                    letterSpacing: 0.4,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                      // Seviye satırı — eduLabel öncelikli, yoksa grade.
+                      // "Seviye: 6. Sınıf" / "Seviye: Lise 10. Sınıf" /
+                      // "Seviye: KPSS Hazırlık" şeklinde, Ders/Konu satırlarıyla
+                      // tutarlı stilde.
+                      if (eduLabel.isNotEmpty || grade.isNotEmpty) ...[
+                        _labeledLine(
+                          label: 'Seviye'.tr(),
+                          value: eduLabel.isNotEmpty ? eduLabel : grade,
+                          icon: _eduIcon(),
                         ),
-                        SizedBox(height: 6),
-                      ] else if (grade.isNotEmpty) ...[
-                        // Profil okunamadıysa eski grade rozetine düş.
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: _alKirmizi.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(
-                              color: _alKirmizi.withValues(alpha: 0.4),
-                              width: 1,
-                            ),
-                          ),
-                          child: Text(
-                            grade.toUpperCase(),
-                            style: GoogleFonts.poppins(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              color: _alKirmizi,
-                              letterSpacing: 0.8,
-                            ),
-                          ),
-                        ),
-                        SizedBox(height: 6),
+                        SizedBox(height: 5),
                       ],
                       _labeledLine(
                         label: 'Ders'.tr(),
@@ -1889,6 +3391,14 @@ class _ResultCard extends StatelessWidget {
                         icon: _topicIcon(),
                         maxLines: 2,
                       ),
+                      if (questionTypeLabel.isNotEmpty) ...[
+                        SizedBox(height: 5),
+                        _labeledLine(
+                          label: 'Soru tipi'.tr(),
+                          value: questionTypeLabel,
+                          icon: '📝',
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -1957,12 +3467,12 @@ class _ResultCard extends StatelessWidget {
                       ),
                       SizedBox(height: 2),
                       Text(
-                        'qualsar.app',
+                        'qualsar2-640f0.web.app',
                         style: GoogleFonts.poppins(
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: FontWeight.w900,
                           color: _alKirmizi,
-                          letterSpacing: 0.5,
+                          letterSpacing: 0.3,
                         ),
                       ),
                     ],
@@ -1995,7 +3505,7 @@ class _ResultCard extends StatelessWidget {
                               Border.all(color: AppPalette.border(context), width: 1),
                         ),
                         child: QrImageView(
-                          data: 'https://qualsar.app',
+                          data: 'https://qualsar2-640f0.web.app',
                           version: QrVersions.auto,
                           size: 56,
                           backgroundColor: AppPalette.card(context),
@@ -2491,6 +4001,7 @@ class _ShareModePage extends StatefulWidget {
   final String userName;
   final String grade;
   final String eduLabel;
+  final String questionTypeLabel;
   final int correct;
   final int wrong;
   final int empty;
@@ -2509,6 +4020,7 @@ class _ShareModePage extends StatefulWidget {
     required this.friendMode,
     this.grade = '',
     this.eduLabel = '',
+    this.questionTypeLabel = '',
     this.elapsedSeconds = 0,
   });
 
@@ -2614,70 +4126,116 @@ class _ShareModePageState extends State<_ShareModePage> {
   Future<void> _share() async {
     if (_sharing) return;
     // iPad/tablet popover origin — async gap'ten önce yakala.
+    // Android'de bu değer kullanılmaz ama null geçmek güvenli.
     Rect? origin;
-    final pageBox = context.findRenderObject() as RenderBox?;
-    if (pageBox != null) {
-      origin = pageBox.localToGlobal(Offset.zero) & pageBox.size;
-    }
+    try {
+      final pageBox = context.findRenderObject() as RenderBox?;
+      if (pageBox != null && pageBox.attached) {
+        origin = pageBox.localToGlobal(Offset.zero) & pageBox.size;
+      }
+    } catch (_) {}
     setState(() => _sharing = true);
+    final msg = widget.friendMode
+        ? '${widget.subjectName} · ${widget.topic}\n${widget.correct}/${widget.total} · %${((widget.correct * 100) / (widget.total == 0 ? 1 : widget.total)).round()}\n\nQuAlsar\'da sen de dene: https://qualsar2-640f0.web.app'
+        : 'QuAlsar ile çözdüğüm test — sen de dene: https://qualsar2-640f0.web.app';
+    // Tüm yollar başarısız olursa kullanıcı en azından metni panodan
+    // alabilsin — son çare clipboard fallback.
+    bool sheetOpened = false;
     try {
       // 1) Capture'dan önce mevcut frame'in tamamlanmasını bekle.
-      //    Tooltip/scroll değişiminden hemen sonra boundary'nin hazır
-      //    olmaması görüntünün eksik çıkmasına yol açabiliyor.
       await WidgetsBinding.instance.endOfFrame;
 
       final boundary = _shotKey.currentContext?.findRenderObject()
           as RenderRepaintBoundary?;
-      if (boundary == null) {
-        throw StateError('Kart render edilmedi (boundary null).');
+      Uint8List? bytes;
+      if (boundary != null && boundary.attached) {
+        // 2) Henüz ilk paint yapılmadıysa needsPaint true olur.
+        if (boundary.debugNeedsPaint) {
+          await Future.delayed(const Duration(milliseconds: 50));
+        }
+        try {
+          // pixelRatio 2.5 → 1.8: %50 daha az bellek, görüntü hâlâ HD.
+          // Yüksek değerler düşük-RAM cihazlarda paylaşım sheet'i
+          // açılırken uygulamayı çökertiyordu.
+          final image = await boundary.toImage(pixelRatio: 1.8);
+          final byteData =
+              await image.toByteData(format: ui.ImageByteFormat.png);
+          image.dispose();
+          if (byteData != null) {
+            bytes = byteData.buffer.asUint8List();
+          }
+        } catch (e, st) {
+          debugPrint('[TestShare] capture fail: $e\n$st');
+        }
       }
 
-      // 2) Henüz ilk paint yapılmadıysa needsPaint true olur; bir frame daha bekle.
-      if (boundary.debugNeedsPaint) {
-        await Future.delayed(Duration(milliseconds: 50));
+      // 3) Image elde edildiyse dosyaya yazıp resimli paylaş; aksi halde
+      //    görsel-yok fallback ile sadece metin paylaş (asla çökmesin).
+      ShareResult? result;
+      if (bytes != null) {
+        try {
+          final dir = await getTemporaryDirectory();
+          final file = File(
+              '${dir.path}/qualsar_test_${DateTime.now().millisecondsSinceEpoch}.png');
+          await file.writeAsBytes(bytes, flush: true);
+          result = await Share.shareXFiles(
+            [
+              XFile(file.path,
+                  mimeType: 'image/png', name: 'qualsar_test.png')
+            ],
+            text: msg,
+            subject: 'QuAlsar Test Sonucu',
+            sharePositionOrigin: origin,
+          );
+          sheetOpened = true;
+        } catch (e, st) {
+          debugPrint('[TestShare] file share fail: $e\n$st');
+          // File share çöktü → text-only fallback.
+          result = null;
+        }
+      }
+      // Görsel paylaşımı başarısızsa metin-only fallback.
+      if (result == null) {
+        try {
+          result = await Share.share(msg, sharePositionOrigin: origin);
+          sheetOpened = true;
+        } catch (e, st) {
+          debugPrint('[TestShare] text share fail: $e\n$st');
+        }
       }
 
-      final image = await boundary.toImage(pixelRatio: 2.5);
-      final byteData =
-          await image.toByteData(format: ui.ImageByteFormat.png);
-      image.dispose();
-      if (byteData == null) {
-        throw StateError('PNG byte dönüşümü başarısız.');
-      }
-      final bytes = byteData.buffer.asUint8List();
-
-      final dir = await getTemporaryDirectory();
-      final file = File(
-          '${dir.path}/qualsar_test_${DateTime.now().millisecondsSinceEpoch}.png');
-      await file.writeAsBytes(bytes, flush: true);
-
-      final msg = widget.friendMode
-          ? '${widget.subjectName} · ${widget.topic}\n${widget.correct}/${widget.total} · %${((widget.correct * 100) / (widget.total == 0 ? 1 : widget.total)).round()}\n\nQuAlsar\'da sen de dene: https://qualsar.app'
-          : 'QuAlsar ile çözdüğüm test — sen de dene: https://qualsar.app';
-
-      final result = await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'image/png', name: 'qualsar_test.png')],
-        text: msg,
-        subject: 'QuAlsar Test Sonucu',
-        sharePositionOrigin: origin,
-      );
-
-      // Kullanıcı iptal ederse silent geç.
       if (!mounted) return;
-      if (result.status == ShareResultStatus.unavailable) {
+      if (result != null && result.status == ShareResultStatus.unavailable) {
+        // Sistem paylaşım sheet'i açıldı ama hiç hedef uygulama yok →
+        // mesajı panoya kopyala ki kullanıcı manuel olarak yapıştırabilsin.
+        await Clipboard.setData(ClipboardData(text: msg));
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content:
-              Text('Paylaşım uygulaması bulunamadı.'.tr()),
+          content: Text(
+              'Paylaşım uygulaması bulunamadı — metin panoya kopyalandı.'
+                  .tr()),
+          behavior: SnackBarBehavior.floating,
+        ));
+      } else if (!sheetOpened) {
+        // Ne görsel ne text — clipboard'a düş.
+        await Clipboard.setData(ClipboardData(text: msg));
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              'Paylaşım açılamadı — metin panoya kopyalandı.'.tr()),
           behavior: SnackBarBehavior.floating,
         ));
       }
     } catch (e, st) {
       debugPrint('[TestShare] hata: $e\n$st');
       if (!mounted) return;
+      // En son çare: clipboard.
+      await Clipboard.setData(ClipboardData(text: msg));
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('${'Paylaşılamadı:'.tr()} $e'),
+        content: Text('${'Paylaşılamadı, metin panoya kopyalandı:'.tr()} $e'),
         behavior: SnackBarBehavior.floating,
-        duration: Duration(seconds: 4),
+        duration: const Duration(seconds: 4),
       ));
     } finally {
       if (mounted) setState(() => _sharing = false);
@@ -2730,6 +4288,8 @@ class _ShareModePageState extends State<_ShareModePage> {
                                   userName: widget.userName,
                                   grade: widget.grade,
                                   eduLabel: widget.eduLabel,
+                                  questionTypeLabel:
+                                      widget.questionTypeLabel,
                                   correct: widget.correct,
                                   wrong: widget.wrong,
                                   empty: widget.empty,

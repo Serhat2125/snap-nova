@@ -994,13 +994,24 @@ class _AiResultScreenState extends State<AiResultScreen> {
   }
 
   // ── Kartı görsele çevir ve paylaş ─────────────────────────────────────────
+  // 3 kademeli fallback: image → text-only → SnackBar. pixelRatio 3.0 düşük
+  // RAM Android cihazlarda OOM yapabiliyordu, 2.0'a düşürüldü (hâlâ HD).
   Future<void> _shareAsImage() async {
+    // iPad popover origin — async gap ÖNCE yakala. iOS tabletlerde
+    // Share.share() pozisyon bilgisi olmadan exception fırlatır.
+    Rect? origin;
+    try {
+      final box = context.findRenderObject() as RenderBox?;
+      if (box != null && box.attached) {
+        origin = box.localToGlobal(Offset.zero) & box.size;
+      }
+    } catch (_) {}
     try {
       await WidgetsBinding.instance.endOfFrame;
       final boundary = _shareCardKey.currentContext
           ?.findRenderObject() as RenderRepaintBoundary?;
       if (boundary == null) throw Exception('Kart bulunamadı');
-      final image = await boundary.toImage(pixelRatio: 3.0);
+      final image = await boundary.toImage(pixelRatio: 2.0);
       final byteData =
           await image.toByteData(format: ImageByteFormat.png);
       if (byteData == null) throw Exception('Görsel oluşturulamadı');
@@ -1014,12 +1025,21 @@ class _AiResultScreenState extends State<AiResultScreen> {
       await Share.shareXFiles(
         [XFile(file.path)],
         text: localeService.tr('share_invite_text'),
+        sharePositionOrigin: origin,
       );
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${localeService.tr('share_failed')}: $e')),
-      );
+      // Görsel başarısız → text-only paylaşıma düş.
+      try {
+        await Share.share(
+          localeService.tr('share_invite_text'),
+          sharePositionOrigin: origin,
+        );
+      } catch (_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${localeService.tr('share_failed')}: $e')),
+        );
+      }
     }
   }
 
