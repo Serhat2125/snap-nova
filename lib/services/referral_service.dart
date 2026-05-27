@@ -1,4 +1,4 @@
-// ═══════════════════════════════════════════════════════════════════════════════
+﻿// ═══════════════════════════════════════════════════════════════════════════════
 //  ReferralService — Gerçek referral altyapısı (Firestore tabanlı)
 //
 //  Eski sürümde davet sayacı SharedPreferences'taydı ve hiçbir yerde
@@ -155,12 +155,16 @@ class ReferralService {
   }
 
   // ── Davet kodu üretimi ─────────────────────────────────────────────────────
-  // "QUALS-XXXXX" format: 5 karakter, ambiguous karakter (O, 0, I, 1, L) yok.
+  // "QuAls-XXXXXX" format: 6 karakter, harf+rakam karışık, ambiguous karakter
+  // (O, 0, I, 1, L) yok. Örnek: QuAls-MBC5D6, QuAls-GK12M5, QuAls-12F3D6.
+  // UI tarafında "Al" hecesi kırmızı renkle render edilir.
   static const _alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  static final RegExp _codeFormat =
+      RegExp(r'^QuAls-[A-Z0-9]{6}$');
   static String _generateCode() {
     final rng = math.Random.secure();
-    final buf = StringBuffer('QUALS-');
-    for (int i = 0; i < 5; i++) {
+    final buf = StringBuffer('QuAls-');
+    for (int i = 0; i < 6; i++) {
       buf.write(_alphabet[rng.nextInt(_alphabet.length)]);
     }
     return buf.toString();
@@ -170,13 +174,28 @@ class ReferralService {
   /// yeni üretir + Firestore'a yazar. Collision olasılığı 31^5 ≈ 28M, çok düşük;
   /// yine de var ise yeniden üret.
   static Future<String?> ensureMyCode() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return null;
+    var fbUser = FirebaseAuth.instance.currentUser;
+    // Kullanıcı henüz sign-in olmamışsa anonim auth dene — referral kodu
+    // üretebilmek için uid şart. Bu sayede onboarding'i tamamlamamış
+    // kullanıcılar da paylaşım butonu çalışır.
+    if (fbUser == null) {
+      try {
+        final cred = await FirebaseAuth.instance.signInAnonymously();
+        fbUser = cred.user;
+      } catch (e) {
+        debugPrint('[Referral] anonymous signIn fail: $e');
+      }
+      if (fbUser == null) return null;
+    }
+    final user = fbUser;
     final myDoc = _col.collection('referrals').doc(user.uid);
     try {
       final snap = await myDoc.get();
-      if (snap.exists && (snap.data()?['code'] as String?) != null) {
-        return snap.data()!['code'] as String;
+      final existing = snap.data()?['code'] as String?;
+      // Yeni formata (QuAls-XXXXXX) uyuyorsa mevcut kodu kullan.
+      // Eski formattaki kodlar (QUALS-XXXXX vb.) otomatik yenilenir.
+      if (existing != null && _codeFormat.hasMatch(existing)) {
+        return existing;
       }
       // Kod üret + reverse-index yaz
       for (int attempt = 0; attempt < 5; attempt++) {
@@ -242,10 +261,16 @@ class ReferralService {
   static Future<RedeemResult> redeemCode(String rawCode) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return RedeemResult.notAuthenticated;
-    final code = rawCode.trim().toUpperCase();
-    if (code.isEmpty || !RegExp(r'^QUALS-[A-Z0-9]{5}$').hasMatch(code)) {
+    // Format: QuAls-XXXXXX (6 alfanümerik). Kullanıcı her case'de yazabilir
+    // (quals-, QUALS-, Quals-, vb.); canonical biçime normalize edilir:
+    //   prefix → "QuAls-" (Firestore doc id'leri bu biçimde),
+    //   suffix → upper-case (alfabe sadece büyük harf + rakam).
+    final raw = rawCode.trim();
+    if (raw.isEmpty ||
+        !RegExp(r'^QUALS-[A-Z0-9]{6}$', caseSensitive: false).hasMatch(raw)) {
       return RedeemResult.invalidCode;
     }
+    final code = 'QuAls-${raw.substring(6).toUpperCase()}';
     try {
       // Kod → owner lookup
       final codeDoc =
@@ -310,16 +335,14 @@ class ReferralService {
         });
       });
 
-      // Yeni kullanıcıya 7 gün hoşgeldin premium grant.
-      // (Kendi uid'sine yazma → Firestore rules izin verir.)
-      await _grantPremium(user.uid, days: _kRedemptionRewardDays,
-          source: 'referral_redeem');
-
-      // Davet edenin (owner) 30 gün ödülü artık Cloud Function ile veriliyor:
-      //   functions/src/referral_reward.ts → onReferralCompleted trigger
-      // Sebep: client'tan cross-user write (users/{ownerUid}/premium/state)
-      // Firestore rules tarafından engelleniyor. Cloud Function admin SDK ile
-      // güvenli ve idempotent grant yapar.
+      // ── HOŞGELDİN PROMOSYONU — Yeni kullanıcıya 7 gün Premium ────────────
+      // Davet kodunu kullanan YENİ kullanıcıya hoşgeldin hediyesi.
+      // Davet edenin ödülü YOK (önceki "3 davet → 30 gün" akışı kaldırıldı)
+      // çünkü kullanıcı talebi: "sen 7 ben 30 deme, sadece karşı tarafın
+      // avantajını söyle". Farm engelleyici: aynı cihaz/uid 1 kez redeem
+      // edebilir (anti-fraud yukarıda).
+      await _grantPremium(user.uid,
+          days: _kRedemptionRewardDays, source: 'referral_redeem');
 
       return RedeemResult.success;
     } on FirebaseException catch (e) {
@@ -331,12 +354,9 @@ class ReferralService {
     }
   }
 
-  /// Bir kullanıcıya N gün premium grant et.
-  /// Firestore `users/{uid}/premium/state` doc'una yazılır.
-  /// Bu doc PremiumStatus servisi tarafından okunur.
-  ///
-  /// Mantık: Mevcut premium_until tarihinden büyükse uzat, küçükse şimdiden
-  /// itibaren başlat. Yani kullanıcı zaten premium ise süre eklenmiş olur.
+  /// Kullanıcının kendi UID'sine N gün Premium yazar (Firestore + lokal cache).
+  /// Sadece yeni kullanıcının hoşgeldin promosyonu için kullanılır. Cross-user
+  /// write değil (Firestore rules izin verir).
   static Future<void> _grantPremium(String uid,
       {required int days, required String source}) async {
     try {
@@ -365,7 +385,6 @@ class ReferralService {
           SetOptions(merge: true),
         );
       });
-      // Lokal cache de güncelle — premium kontrolü offline da çalışsın
       final prefs = await SharedPreferences.getInstance();
       final currentUid = FirebaseAuth.instance.currentUser?.uid;
       if (currentUid == uid) {
@@ -377,7 +396,8 @@ class ReferralService {
         if (existingDate != null && existingDate.isAfter(until)) {
           finalUntil = existingDate.add(Duration(days: days));
         }
-        await prefs.setString('premium_until_iso', finalUntil.toIso8601String());
+        await prefs.setString(
+            'premium_until_iso', finalUntil.toIso8601String());
         await prefs.setString('premium_source', source);
       }
     } catch (e) {
@@ -429,10 +449,13 @@ class ReferralService {
 }
 
 /// Onboarding adımı için: paylaşılan davet kodu URL/clipboard'tan parse edilir.
-/// URL örnek: https://qualsar2-640f0.web.app/i/QUALS-7K9F2
+/// URL örnek: https://qualsar.app/i/QuAls-MBC5D6
 String? parseInviteCodeFromText(String text) {
-  final m = RegExp(r'QUALS-[A-Z0-9]{5}', caseSensitive: false).firstMatch(text);
-  return m?.group(0)?.toUpperCase();
+  final m = RegExp(r'QUALS-[A-Z0-9]{6}', caseSensitive: false).firstMatch(text);
+  final raw = m?.group(0);
+  if (raw == null) return null;
+  // Canonical form: prefix "QuAls-" + uppercase suffix.
+  return 'QuAls-${raw.substring(6).toUpperCase()}';
 }
 
 // JSON helper export — eski kodlar için.

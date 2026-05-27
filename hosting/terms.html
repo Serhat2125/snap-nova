@@ -1,6 +1,17 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="tr">
 <head>
+  <script>
+    // Firebase varsayilan URL'lerinden ozel domain'e yonlendirme.
+    (function () {
+      var h = window.location.hostname;
+      if (h === 'qualsar2-640f0.web.app' || h === 'qualsar2-640f0.firebaseapp.com') {
+        window.location.replace(
+          'https://qualsar.app' + window.location.pathname + window.location.search + window.location.hash
+        );
+      }
+    })();
+  </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>QuAlsar Kullanım Koşulları</title>

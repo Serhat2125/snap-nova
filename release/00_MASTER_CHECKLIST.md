@@ -1,4 +1,4 @@
-# 🚀 QuAlsar Play Store Yayın Master Checklist
+﻿# 🚀 QuAlsar Play Store Yayın Master Checklist
 
 > **Bu klasördeki dosyalar Play Store'a yüklemek için her şeyi içeriyor.**
 > Sırayla aç, her dosyada yazılan adımları yap.
@@ -71,13 +71,13 @@
    # public klasörünü "release" olarak işaretle
    firebase deploy --only hosting
    ```
-   Sonuç URL: `https://qualsar2-640f0.web.app/PRIVACY_POLICY_TR.html`
+   Sonuç URL: `https://qualsar.app/PRIVACY_POLICY_TR.html`
 
 2. **Alternatif: GitHub Pages** (HTML'leri GitHub repo'ya koy, Pages aç)
 
 3. **Alternatif: Vercel/Netlify** (Drag-drop deploy)
 
-✅ Sonuç (zaten deploy edilmiş): `https://qualsar2-640f0.web.app/privacy` ve `/terms` URL'leri çalışıyor
+✅ Sonuç (zaten deploy edilmiş): `https://qualsar.app/privacy` ve `/terms` URL'leri çalışıyor
 
 ---
 
@@ -97,7 +97,7 @@
 
 - Uygulama adı, kısa açıklama, tam açıklama: dosyadan **kopyala-yapıştır**
 - Privacy Policy URL: hosted URL'i yapıştır
-- Web sitesi: `https://qualsar2-640f0.web.app`
+- Web sitesi: `https://qualsar.app`
 - E-posta: `serhatdsme@gmail.com`
 
 #### Adım 8: Asset'leri hazırla ve yükle

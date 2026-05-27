@@ -34,6 +34,7 @@ import '../services/curriculum_catalog.dart';
 import '../services/education_profile.dart';
 import '../services/error_logger.dart';
 import '../services/runtime_translator.dart';
+import '../services/user_profile_service.dart';
 import '../theme/app_theme.dart';
 import 'bilgi_ligi_quiz_screen.dart';
 
@@ -3913,6 +3914,9 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
       final u = FirebaseAuth.instance.currentUser?.uid;
       return u != null && u.length >= 5 ? 'Öğrenci #${u.substring(0, 5)}' : 'Sen';
     }
+    // Username öncelikli — sıralamada herkes kullanıcı adı ile gözükür.
+    final uname = UserProfileService.instance.username;
+    if (uname.isNotEmpty) return uname;
     if (_profileName.isNotEmpty) return _profileName;
     final dn = (FirebaseAuth.instance.currentUser?.displayName ?? '').trim();
     return dn.isEmpty ? 'Sen' : dn;

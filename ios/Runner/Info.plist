@@ -87,6 +87,8 @@
 	<string>Rehberinizdeki QuAlsar kullanan arkadaşlarınızı bulmak için kontaktlara erişim gerekiyor. Kişiler sunucumuza gönderilmez, sadece eşleştirme için kullanılır.</string>
 	<key>NSUserTrackingUsageDescription</key>
 	<string>Reklam göstermiyoruz; bu izin yalnızca sistem uyumluluğu içindir.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Uygulama kilidi için Face ID kullanılır. PIN kodun yerine biyometrik doğrulama yapabilirsin.</string>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>whatsapp</string>

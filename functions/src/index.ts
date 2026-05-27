@@ -30,3 +30,5 @@ export { pushOnRankPassed } from "./rank_passed";
 export { onDueloInviteAccepted } from "./duelo_invite_accepted";
 export { onReferralCompleted } from "./referral_reward";
 export { deleteAccount } from "./delete_account";
+export { verifyPurchase } from "./verify_purchase";
+export { rtdnWebhook } from "./rtdn_webhook";

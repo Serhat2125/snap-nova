@@ -82,20 +82,18 @@ class _QuAlsarSplashScreenState extends State<QuAlsarSplashScreen>
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              // ── QuAlsar başlığı — frame 0'da görünür, animasyonsuz ──
-              // Stil: Audiowide — fütüristik ama yumuşak eğrilerle, Orbitron'a
-              // göre daha karakterli ve modern. Letterspacing ile havadar.
+              // ── QuAlsar başlığı — standart yazı stili, Al parlak kırmızı.
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text.rich(
                     TextSpan(
-                      style: GoogleFonts.audiowide(
+                      style: const TextStyle(
                         fontSize: 56,
-                        fontWeight: FontWeight.w400,
+                        fontWeight: FontWeight.w900,
                         color: Colors.black,
-                        letterSpacing: 4,
+                        letterSpacing: 2,
                         height: 1.0,
                       ),
                       children: [
@@ -103,12 +101,12 @@ class _QuAlsarSplashScreenState extends State<QuAlsarSplashScreen>
                         TextSpan(
                           text: 'Al',
                           style: TextStyle(
-                            color: const Color(0xFFE53935),
+                            color: const Color(0xFFFF1A1A),
                             shadows: [
                               Shadow(
-                                color: const Color(0xFFE53935)
-                                    .withValues(alpha: 0.35),
-                                blurRadius: 14,
+                                color: const Color(0xFFFF1A1A)
+                                    .withValues(alpha: 0.55),
+                                blurRadius: 16,
                               ),
                             ],
                           ),

@@ -1,8 +1,8 @@
-// ═══════════════════════════════════════════════════════════════════════════════
+﻿// ═══════════════════════════════════════════════════════════════════════════════
 //  InviteAcceptScreen — Davet linkinden açılan ekran.
 //
 //  Akış:
-//    1. Deep link `qualsar2-640f0.web.app/davet/{username}` tıklanır.
+//    1. Deep link `qualsar.app/davet/{username}` tıklanır.
 //    2. DeepLinkService.pendingInvite = username.
 //    3. main.dart navigatorKey üzerinden bu ekran push'lanır.
 //    4. Ekran: davet eden kullanıcının profilini gösterir + "Arkadaş Ekle" CTA.

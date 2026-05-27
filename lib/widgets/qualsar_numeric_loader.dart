@@ -259,7 +259,10 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
     final bool stagesMode =
         widget.stages != null && widget.stages!.isNotEmpty;
     if (stagesMode) {
-      return Container(color: AppPalette.card(context),
+      // Loader arka planı her zaman saf beyaz — dönen logo ve metin dışında
+      // hiçbir şey görünmesin. Karanlık modda bile beyaz kalır (kullanıcı
+      // talebi: "logonun dışında kalan tüm arka plan beyaz olsun").
+      return Container(color: Colors.white,
         child: SafeArea(
           child: SingleChildScrollView(
             child: Padding(
@@ -280,7 +283,7 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
         ),
       );
     }
-    return Container(color: AppPalette.card(context),
+    return Container(color: Colors.white,
       child: SafeArea(
         child: Stack(
           children: [
@@ -516,8 +519,9 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
     final primary = widget.primaryText ?? 'Sorunuz Analiz Ediliyor';
     final secondary = widget.secondaryText ?? 'Sorunuz Çözülüyor';
     final label = (widget.staticLabel || !_solving) ? primary : secondary;
+    // Arka plan saf beyaz olduğu için yazılar koyu olmalı (dark mode bile).
     final textStyle = TextStyle(
-      color: AppPalette.textPrimary(context),
+      color: Colors.black,
       fontSize: 15,
       letterSpacing: 1.2,
       fontWeight: FontWeight.w700,
@@ -549,14 +553,15 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
 
   Widget _buildStagesColumn() {
     final stages = widget.stages!;
+    // Arka plan saf beyaz — yazılar koyu (dark mode bile).
     final activeStyle = TextStyle(
-      color: AppPalette.textPrimary(context),
+      color: Colors.black,
       fontSize: 14,
       fontWeight: FontWeight.w800,
       height: 1.25,
     );
     final doneStyle = TextStyle(
-      color: AppPalette.textSecondary(context),
+      color: Colors.black.withValues(alpha: 0.55),
       fontSize: 13,
       fontWeight: FontWeight.w600,
       height: 1.25,

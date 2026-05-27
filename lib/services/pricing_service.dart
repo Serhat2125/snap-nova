@@ -269,90 +269,95 @@ class PricingService {
   };
 
   // ═══════════════════════════════════════════════════════════════════════════
-  //  5 KATEGORİ — Kişi başı gelir seviyesine göre (USD bazlı fiyatlar)
+  //  3 KATEGORİ — Gelir seviyesine göre (USD bazlı, Play Console'la senkron)
   // ═══════════════════════════════════════════════════════════════════════════
   //
-  //  Tier 1 — Çok yüksek gelir  → Aylık  $9.99
-  //  Tier 2 — Yüksek gelir      → Aylık  $9.99
-  //  Tier 3 — Orta-üst gelir    → Aylık  $6.99
-  //  Tier 4 — Orta gelir        → Aylık  $4.99
-  //  Tier 5 — Düşük gelir       → Aylık  $2.99
+  //  Gelişmiş (Tier 1+2)        → Aylık  $4.99
+  //  Az gelişmiş (Tier 3, TR)   → Aylık  $3.99
+  //  Geri kalmış (Tier 4+5)     → Aylık  $2.99
   //
-  //  3 Aylık = Aylık x 3 (indirim yok)
-  //  Yıllık  = Aylık x 12 x 0.50 (%50 indirim)
-  //  Süre dolunca indirimsiz fiyatla (aylık x süre) yenilenir
+  //  3 Aylık = Aylık x 3 x 0.90 (%10 indirim)
+  //  Yıllık  = Aylık x 12 x 0.67 (%33 indirim)
+  //  Yenileme aynı fiyatta devam eder (introductory offer kullanmıyoruz).
   // ═══════════════════════════════════════════════════════════════════════════
 
+  // ⚠️ Play Console fiyatlarıyla SENKRONIZE — değiştirirsen Play Console'da da güncelle!
+  //  Tier 1+2: 4.99 USD/ay → app ~$4.99 gösterir, Play ~€4.99 çeker
+  //  Tier 3:   3.99 USD/ay → app/Play orta düzey ülke fiyatı (TR dahil)
+  //  Tier 4+5: 2.99 USD/ay → düşük gelir ülkeleri
   static const Map<int, double> _tierMonthlyUsd = {
-    1: 9.99,
-    2: 9.99,
-    3: 6.99,
-    4: 4.99,
+    1: 4.99,
+    2: 4.99,
+    3: 3.99,
+    4: 2.99,
     5: 2.99,
   };
 
-  // ── Ülke → Tier eşleşmesi (195 BM üyesi + Tayvan/Kosova/Filistin kapsanır)
-  // Eski listede ~80 ülke vardı; eksik ülkeler tier_3 ($6.99) fallback'a
-  // düşüp Bolivya/Burkina Faso/Tacikistan kullanıcılarını ödeme yapamaz
-  // hale getiriyordu. Şimdi her ülke uygun gelir seviyesine atandı
-  // (Dünya Bankası 2024 GNI per capita Atlas yöntemi).
+  // ── Ülke → Tier eşleşmesi — Play Console fiyat tablosuna BİREBİR uyumlu
+  // 173 ülke kapsanır. Listede olmayan ülke Tier 3 ($3.99) fallback'a düşer.
+  // Tier 1+2 → $4.99 (Gelişmiş), Tier 3 → $3.99 (Az gelişmiş), Tier 4+5 → $2.99 (Geri kalmış)
   static const Map<String, int> _countryTier = {
-    // ── Tier 1 — Çok yüksek gelir ($9.99) ─────────────────────────────
+    // ── Tier 1+2 — GELİŞMİŞ ($4.99) — 60 ülke ─────────────────────────
+    // Çok yüksek gelir
     'NO': 1, 'SE': 1, 'DK': 1, 'FI': 1, 'IS': 1,
     'CH': 1, 'LU': 1, 'IE': 1, 'SG': 1, 'MC': 1,
     'QA': 1, 'AE': 1, 'KW': 1, 'BH': 1, 'BN': 1,
     'LI': 1, 'AD': 1, 'SM': 1, 'VA': 1,
-
-    // ── Tier 2 — Yüksek gelir ($9.99) ─────────────────────────────────
+    // Yüksek gelir
     'US': 2, 'CA': 2, 'GB': 2, 'DE': 2, 'FR': 2,
     'NL': 2, 'BE': 2, 'AT': 2, 'AU': 2, 'NZ': 2,
     'IL': 2, 'SA': 2, 'OM': 2, 'HK': 2, 'TW': 2,
     'MT': 2, 'CY': 2, 'EE': 2, 'SI': 2, 'LT': 2,
-    'LV': 2, // Letonya 2023'te tier_2 sınıfına geçti
-    'BS': 2, 'BB': 2, 'TT': 2, 'KN': 2, 'AG': 2,
-    'PR': 2, // Porto Riko (ABD bölgesi)
+    'LV': 2, 'BS': 2, 'PR': 2,
+    // Caribbean / Adalar (yüksek gelir)
+    'BM': 2, 'VG': 2, 'KY': 2, 'GI': 2, 'TC': 2, 'MO': 2,
+    // Upper-income (Play Console'da Gelişmiş grubuna alındı)
+    'JP': 2, 'KR': 2, 'IT': 2, 'ES': 2, 'PT': 2,
+    'GR': 2, 'CZ': 2, 'SK': 2, 'HR': 2,
+    'CL': 2, 'PA': 2, 'CR': 2,
+    'PL': 2, 'RO': 2, 'HU': 2,
 
-    // ── Tier 3 — Orta-üst gelir ($6.99) ───────────────────────────────
-    'JP': 3, 'KR': 3, 'IT': 3, 'ES': 3, 'PT': 3,
-    'GR': 3, 'CZ': 3, 'SK': 3, 'HR': 3,
-    'CL': 3, 'UY': 3, 'PA': 3, 'CR': 3, 'MY': 3,
-    'CN': 3, 'RO': 3, 'BG': 3, 'HU': 3, 'RS': 3,
-    'ME': 3, 'BA': 3, 'AL': 3, 'MK': 3, 'XK': 3,
-    'MD': 3,
-    'GD': 3, 'LC': 3, 'VC': 3, 'DM': 3, 'BZ': 3,
-    'SC': 3, 'MU': 3,
-    'TR': 3, // 2024 GNI sıçraması ile tier_3'e yaklaştı
+    // ── Tier 3 — AZ GELİŞMİŞ ($3.99) — 63 ülke ────────────────────────
+    // Türkiye dahil orta-üst ve orta gelir grubu
+    'TR': 3, 'BR': 3, 'BG': 3, 'DZ': 3, 'EC': 3,
+    'ID': 3, 'MA': 3, 'ZA': 3, 'GE': 3, 'IQ': 3,
+    'KZ': 3, 'CO': 3, 'MY': 3, 'MX': 3, 'MN': 3,
+    'PY': 3, 'PE': 3, 'RU': 3, 'RS': 3, 'TH': 3,
+    'UA': 3, 'JO': 3,
+    // Caribbean / Latin Amerika orta gelir
+    'AG': 3, 'AR': 3, 'AL': 3, 'AW': 3, 'AZ': 3,
+    'BY': 3, 'BZ': 3, 'BA': 3, 'BW': 3, 'CV': 3,
+    'DO': 3, 'DM': 3, 'AM': 3, 'FJ': 3, 'GD': 3,
+    'GT': 3, 'HN': 3, 'JM': 3, 'MK': 3, 'KG': 3,
+    'LY': 3, 'LB': 3, 'MV': 3, 'MU': 3, 'MD': 3,
+    'NA': 3, 'NI': 3, 'KN': 3, 'LC': 3, 'WS': 3,
+    'SC': 3, 'SR': 3, 'TJ': 3, 'TO': 3, 'TT': 3,
+    'TN': 3, 'TM': 3, 'UY': 3, 'VU': 3, 'UZ': 3,
+    'GA': 3,
 
-    // ── Tier 4 — Orta gelir ($4.99) ───────────────────────────────────
-    'BR': 4, 'MX': 4, 'AR': 4, 'CO': 4,
-    'PE': 4, 'PL': 4, 'RU': 4, 'UA': 4, 'TH': 4,
-    'ZA': 4, 'JO': 4, 'LB': 4, 'TN': 4, 'DZ': 4,
-    'MA': 4, 'GE': 4, 'AZ': 4, 'KZ': 4, 'BY': 4,
-    'PH': 4, 'IQ': 4, 'EC': 4, 'BO': 4, 'DO': 4,
-    'AM': 4, 'IR': 4, 'MN': 4,
-    'VE': 4, 'PY': 4, 'GT': 4, 'SV': 4, 'JM': 4,
-    'CU': 4, 'BW': 4, 'NA': 4, 'GA': 4, 'AO': 4,
-    'CV': 4, 'NG': 4, 'EG': 4, 'LY': 4,
-    'PS': 4, 'FJ': 4, 'TO': 4, 'WS': 4, 'PG': 4,
-    'TM': 4, 'TL': 4,
-
-    // ── Tier 5 — Düşük gelir ($2.99) ──────────────────────────────────
-    'IN': 5, 'ID': 5, 'PK': 5, 'BD': 5, 'VN': 5,
-    'KE': 5, 'GH': 5, 'TZ': 5,
-    'ET': 5, 'UG': 5, 'MM': 5, 'KH': 5, 'LA': 5,
-    'NP': 5, 'LK': 5, 'UZ': 5, 'SN': 5, 'CM': 5,
-    'ZW': 5, 'MZ': 5, 'AF': 5, 'SD': 5, 'SY': 5, 'YE': 5,
-    'KG': 5, 'TJ': 5,
-    'HN': 5, 'NI': 5, 'HT': 5,
-    'CI': 5, 'ML': 5, 'BF': 5, 'NE': 5, 'TD': 5,
-    'CG': 5, 'CD': 5, 'CF': 5, 'GN': 5, 'GW': 5,
-    'LR': 5, 'SL': 5, 'TG': 5, 'BJ': 5, 'GM': 5,
-    'RW': 5, 'BI': 5, 'MG': 5, 'MW': 5, 'ZM': 5,
-    'SO': 5, 'ER': 5, 'DJ': 5, 'SS': 5,
-    'KP': 5, // Kuzey Kore — yaptırım nedeniyle ödeme zaten engelli
-    'BT': 5, 'MV': 5,
-    'ST': 5, 'KM': 5, 'LS': 5, 'SZ': 5,
-    'GQ': 5,
+    // ── Tier 4+5 — GERİ KALMIŞ ($2.99) — 50 ülke ──────────────────────
+    'BD': 5, 'BO': 5, 'CI': 5, 'SV': 5, 'PH': 5,
+    'GH': 5, 'IN': 5, 'KH': 5, 'CM': 5, 'KE': 5,
+    'FM': 5, 'MM': 5, 'EG': 5, 'NG': 5, 'PK': 5,
+    'SN': 5, 'LK': 5, 'TZ': 5, 'VN': 5,
+    // Sub-Sahara + diğer düşük gelir
+    'AO': 5, 'DJ': 5, 'ER': 5, 'GM': 5, 'GN': 5,
+    'HT': 5, 'KM': 5, 'CG': 5, 'CD': 5, 'LA': 5,
+    'LR': 5, 'MZ': 5, 'NP': 5, 'PG': 5, 'RW': 5,
+    'SL': 5, 'SB': 5, 'SO': 5, 'UG': 5, 'VE': 5,
+    'YE': 5, 'ZM': 5, 'ZW': 5, 'TD': 5,
+    // West Africa CFA franc bölgesi
+    'BJ': 5, 'BF': 5, 'GW': 5, 'ML': 5, 'NE': 5,
+    'CF': 5, 'TG': 5,
+    // Sanctioned / unavailable (Play Console satmıyor; defensif)
+    'IR': 5, 'CU': 5, 'KP': 5, 'SY': 5,
+    // Diğer düşük gelir (user listesinde değil — defensif)
+    'AF': 5, 'BT': 5, 'BI': 5, 'ET': 5, 'LS': 5,
+    'MG': 5, 'MW': 5, 'SD': 5, 'SS': 5, 'ST': 5,
+    'SZ': 5, 'GQ': 5,
+    // Diğer orta gelir defansif (listede yoksa Tier 3 fallback'a düşer)
+    'ME': 3, 'XK': 3, 'VC': 3, 'CN': 3, 'PS': 3,
+    'TL': 3,
   };
 
   /// AB üyesi ülkeler — KDV dahil fiyat zorunluluğu (Tüketici Hakları Direktifi).
@@ -521,15 +526,16 @@ class PricingService {
     final tier = _countryTier[code] ?? 3;
     final monthlyUsd = _tierMonthlyUsd[tier]!;
 
-    // 3 Aylık = aylık x 3 (indirim yok)
-    // Yıllık  = aylık x 12 x 0.50 (%50 indirim)
-    final quarterlyUsd = monthlyUsd * 3;
-    final yearlyUsd = monthlyUsd * 12 * 0.50;
+    // 3 Aylık = aylık x 3 x 0.90 (%10 indirim — Play Console fiyatlarıyla uyumlu)
+    // Yıllık  = aylık x 12 x 0.67 (%33 indirim)
+    final quarterlyUsd = monthlyUsd * 3 * 0.90;
+    final yearlyUsd = monthlyUsd * 12 * 0.67;
 
-    // İndirimsiz yenileme fiyatları (süre dolunca bu fiyatla devam eder)
-    final monthlyRenewUsd = monthlyUsd;        // aylık zaten indirimsiz
-    final quarterlyRenewUsd = monthlyUsd * 3;  // 3 aylık zaten indirimsiz
-    final yearlyRenewUsd = monthlyUsd * 12;    // yıllık indirimsiz = aylık x 12
+    // Yenileme fiyatları — Play Console aboneliği aynı tutarda yeniler;
+    // burada renewal ve initial aynı (introductory offer kullanmıyoruz).
+    final monthlyRenewUsd = monthlyUsd;
+    final quarterlyRenewUsd = quarterlyUsd;
+    final yearlyRenewUsd = yearlyUsd;
 
     final currency = _countryCurrency[code] ?? 'USD';
     final symbol = _currencySymbols[currency] ?? currency;

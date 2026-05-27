@@ -13,6 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme.dart';
 import '../main.dart' show localeService;
 import '../services/analytics.dart';
+import '../services/app_settings_service.dart';
 import '../services/usage_quota.dart';
 import '../widgets/adaptive_photo.dart';
 import '../widgets/ai_model_card.dart';
@@ -213,6 +214,19 @@ class _SolutionScreenState extends State<SolutionScreen> {
   void initState() {
     super.initState();
     _loadResultColors();
+    // Varsayılan çözüm modu (Uygulama Ayarları > Çalışma) — kullanıcı
+    // tercihine göre _selectedOption'ı önceden seç. Kullanıcı yine de
+    // değiştirebilir; sadece açılışta hızlı seçim sağlanmış olur.
+    final defaultMode = AppSettingsService.instance.defaultSolutionMode;
+    final modeLabel = switch (defaultMode) {
+      'quick' => 'Basit Çöz'.tr(),
+      'stepbystep' => 'Adım Adım Çöz'.tr(),
+      'detailed' => 'AI Arkadaşım'.tr(),
+      _ => null,
+    };
+    if (modeLabel != null) {
+      _selectedOption = modeLabel;
+    }
   }
 
   @override

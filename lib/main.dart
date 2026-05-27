@@ -25,7 +25,13 @@ import 'services/push_service.dart';
 import 'services/deep_link_service.dart';
 import 'services/usage_quota.dart';
 import 'services/pomodoro_stats.dart';
+import 'services/account_service.dart';
+import 'services/app_settings_service.dart';
+import 'screens/parent_dashboard_screen.dart';
+import 'screens/teacher_dashboard_screen.dart';
 import 'services/preferences_sync_service.dart';
+import 'services/user_profile_service.dart';
+import 'screens/app_lock_screen.dart';
 import 'screens/invite_accept_screen.dart';
 import 'services/locale_service.dart';
 import 'services/theme_service.dart';
@@ -233,6 +239,15 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
     // — yerel eksikse cloud'daki kullanıcı tercihlerini yere yaz, yeni
     // telefonda kullanıcı ayarlarını tekrar yapmasın.
     unawaited(PreferencesSyncService.restoreFromCloudIfEmpty());
+    // AppSettings (sessiz saatler, otomatik karanlık, ses, kilit, vb.)
+    // Yönlendirme uygulaması SystemChrome'a hemen yansır.
+    await AppSettingsService.instance.init();
+    // Hesap tipi (öğrenci/ebeveyn/öğretmen) — _HomeRouter yönlendirme için
+    // okur. init() prefs'ten yükler + Firestore'dan async senkronize.
+    await AccountService.instance.init();
+    // Username + display name + avatar — Firestore stream ile canlı.
+    // Cache hızlı; offline'da bile username görünür.
+    unawaited(UserProfileService.instance.init());
     // FCM push + local notifications — Firebase init başarılıysa.
     // Bildirim izni dialog'u burada çıkar; arka planda çalışır, UI bloklamaz.
     if (AuthService.firebaseReady) {
@@ -353,6 +368,9 @@ class _StartupRouter extends StatefulWidget {
 
 class _StartupRouterState extends State<_StartupRouter> {
   Future<_StartupState>? _future;
+  // Uygulama kilidi (AppSettings.appLockEnabled) açıksa onboarding/setup
+  // sonrası home'a geçmeden bu PIN doğrulanmalı.
+  bool _unlocked = false;
 
   @override
   void initState() {
@@ -456,6 +474,14 @@ class _StartupRouterState extends State<_StartupRouter> {
               ),
             );
           case _StartupState.home:
+            // Uygulama kilidi açıksa önce PIN/biyometrik doğrulama
+            if (AppSettingsService.instance.appLockEnabled &&
+                AppSettingsService.instance.hasAppLockPin &&
+                !_unlocked) {
+              return AppLockScreen(
+                onUnlocked: () => setState(() => _unlocked = true),
+              );
+            }
             return _HomeRouter();
         }
       },
@@ -501,6 +527,16 @@ class _HomeRouter extends StatelessWidget {
           .then((p) => p.getString('startup_screen') ?? 'camera'),
       builder: (_, snap) {
         if (!snap.hasData) return const QuAlsarSplashScreen();
+        // Hesap tipine göre yönlendir — ebeveyn/öğretmen kendi paneline gider.
+        // AccountService.init() main.dart açılışta çağrıldığı için type hazır.
+        final type = AccountService.instance.type;
+        if (type == AccountType.parent) {
+          return const ParentDashboardScreen();
+        }
+        if (type == AccountType.teacher) {
+          return const TeacherDashboardScreen();
+        }
+        // Öğrenci akışı (mevcut)
         if (snap.data == 'library') return const _LibraryEntryShell();
         return CameraScreen();
       },
@@ -800,15 +836,14 @@ class QuAlsarApp extends StatelessWidget {
           builder: (context) {
             final locale = LocaleInherited.of(context);
             final theme = ThemeInherited.of(context);
-            // NOT: Önceden RuntimeTranslator.instance'ı dinleyen bir
-            // AnimatedBuilder MaterialApp'ı sarıyordu. Her preload chunk
-            // notify'ı tüm navigation stack'i rebuild ediyor, donmaya
-            // yol açıyordu. LocaleService kendi notify'ı yapıyor ve
-            // LocaleInherited bağımlılıkları zaten dil değişimini taşıyor;
-            // RuntimeTranslator preload bittiğinde mevcut sayfa hâlâ
-            // kaynak TR gösterse de bir sonraki rota geçişinde otomatik
-            // doğru çeviri gelir — global rebuild'in maliyetine değmiyor.
-            return MaterialApp(
+            // NOT: RuntimeTranslator preload bittiğinde global rebuild ile
+            // String.tr() çağrılarının ANINDA yeni dile geçmesini garanti
+            // ederiz. RuntimeTranslator içinde _scheduleNotify 1.5 sn debounce
+            // ettiği için preload chunk'larında donma olmaz; sadece nihai
+            // sonuçta tek bir rebuild olur.
+            return ListenableBuilder(
+              listenable: RuntimeTranslator.instance,
+              builder: (context, _) => MaterialApp(
               debugShowCheckedModeBanner: false,
               title: 'QuAlsar',
               theme: AppTheme.light,
@@ -848,6 +883,7 @@ class QuAlsarApp extends StatelessWidget {
                 );
               },
               home: const _StartupRouter(),
+            ),
             );
           },
         ),

@@ -1,22 +1,18 @@
 /**
  * referral_reward — referrals/{ownerUid}.invitedUsers değişince tetiklenir.
  *
- * KRITIK NEDEN:
+ *   • invitedUsers boyutu ≥ targetCount (3) ise davet edene 30 gün Premium
+ *     grant. Mevcut süre varsa üzerine eklenir (kümülatif).
+ *   • Idempotency: aynı doc'ta `rewardGrantedAt` varsa skip → duplicate yok.
+ *
+ * KRITIK NEDEN (client-side neden olmaz):
  *   Firestore rules `users/{uid}/{sub=**}` sahibi-only. Client tarafında
- *   ReferralService._grantPremium owner'ın `users/{ownerUid}/premium/state`
- *   doc'una yazmaya çalışır → cross-user write → DENIED. Bu yüzden 3 davet
- *   tamamlandığında davet eden 30 günlük ödülünü ASLA almıyordu.
+ *   ReferralService _grantPremium owner'ın `users/{ownerUid}/premium/state`
+ *   doc'una yazmaya çalışır → cross-user write → DENIED. Bu function admin
+ *   SDK ile güvenli ve idempotent grant yapar.
  *
- * BU FUNCTION'UN İŞİ:
- *   • referrals/{ownerUid} onUpdate trigger
- *   • invitedUsers boyutu ≥ targetCount (3) ise:
- *       - users/{ownerUid}/premium/state doc'una 30 gün ekle (mevcut süre
- *         üzerine kümülatif)
- *       - referrals/{ownerUid}.rewardGrantedAt yaz (idempotency için)
- *   • Aynı ödül iki kez verilmesin diye `rewardGrantedAt` zaten varsa skip.
- *
- * NOT: Yeni kullanıcının kendi 7 günlük "hoşgeldin" ödülü `redeemCode()`
- * içinde verilmeye devam eder (kendi uid'sine yazma → izin var, sorun yok).
+ * NOT: Davet edilen yeni kullanıcı 7 günlük "hoşgeldin" ödülünü
+ * `redeemCode()` içinde KENDİ uid'sine yazarak alır (cross-user değil).
  */
 
 import { onDocumentUpdated } from "firebase-functions/v2/firestore";
@@ -43,10 +39,8 @@ export const onReferralCompleted = onDocumentUpdated(
       ? after.invitedUsers.length
       : 0;
 
-    // Sadece artış → tetikle, azalma/değişmeme → skip
     if (afterCount <= beforeCount) return;
 
-    // Hedef'e ulaştı mı?
     if (afterCount < TARGET_COUNT) {
       logger.info(
         `[referral] ${ownerUid} progress ${afterCount}/${TARGET_COUNT}`
@@ -54,7 +48,6 @@ export const onReferralCompleted = onDocumentUpdated(
       return;
     }
 
-    // Idempotency — ödül zaten verildi mi?
     if (after.rewardGrantedAt) {
       logger.info(`[referral] ${ownerUid} ödül zaten verilmiş, skip`);
       return;
@@ -73,7 +66,6 @@ export const onReferralCompleted = onDocumentUpdated(
         const premiumSnap = await tx.get(premiumRef);
         const referralSnap = await tx.get(referralRef);
 
-        // Idempotency double-check (tx içinde)
         if (referralSnap.data()?.rewardGrantedAt) {
           logger.info(`[referral] tx içinde duplicate fark edildi, skip`);
           return;
@@ -117,12 +109,11 @@ export const onReferralCompleted = onDocumentUpdated(
           .collection("items")
           .doc()
           .set({
-            type: "streak_milestone", // generic milestone tipini kullan
+            type: "streak_milestone",
             fromUsername: "QuAlsar",
             fromDisplayName: "QuAlsar Ödül",
             when: FieldValue.serverTimestamp(),
             read: false,
-            // Custom alanlar
             milestone: "referral_3_friends",
             rewardDays: REWARD_DAYS,
           });

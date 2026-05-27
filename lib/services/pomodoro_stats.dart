@@ -26,6 +26,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'activity_writer_service.dart';
 
 class PomodoroStatsSnapshot {
   final int totalPhases;
@@ -132,6 +133,8 @@ class PomodoroStats {
     await prefs.setString(_kLastAt, DateTime.now().toIso8601String());
     final snap = await read();
     unawaited(_cloudSync(snap));
+    // Ebeveyn dashboard'unun veri kaynağı — günlük aktivite kaydı.
+    unawaited(ActivityWriterService.recordFocus(durationSec));
     return snap;
   }
 

@@ -47,13 +47,30 @@ service cloud.firestore {
     //    Read: oturum açmış herkes (username search, profil önizleme).
     //    Write: sadece sahibi.
     //    Alt koleksiyonlar (solved_problems, mastery vb.) sadece sahibi okur/yazar.
+    //    İSTİSNA: `premium/*` doc'ları sadece Cloud Function (admin SDK) yazar.
     match /users/{uid} {
       allow read: if isSignedIn();
       allow write: if isOwner(uid);
 
+      // ⚠️ Premium subscription state — yalnızca server (admin SDK) yazabilir.
+      //    Client sadece okur. Bu kural recursive /{sub=**} kuralından
+      //    ÖNCE değil — Firestore "any allow wins" kullandığı için
+      //    aşağıdaki recursive rule içinde `sub` regex'iyle premium
+      //    yazımı bloklanıyor. Buradaki block sadece okuma izni veriyor.
+      match /premium/{doc=**} {
+        allow read: if isOwner(uid);
+        allow write: if false; // admin SDK bu kurala tabi değildir
+      }
+
       // Alt koleksiyonlar (solved_problems, mastery, achievements vb.)
+      //    Premium hariç — recursive wildcard `path` tipinde döner, string'e
+      //    çevirip ilk segment kontrolü yapıyoruz. Premium yazımı bu kuralda
+      //    reddedilir; sadece üstteki `match /premium/{doc=**}` rule
+      //    (allow write: if false) geçerli olur — yani client yazamaz.
       match /{sub=**} {
-        allow read, write: if isOwner(uid);
+        allow read: if isOwner(uid);
+        allow write: if isOwner(uid)
+          && !string(sub).matches('premium(/.*)?');
       }
     }
 
@@ -241,6 +258,92 @@ service cloud.firestore {
     match /rate_limits/{doc} {
       allow read, write: if isAdmin();
     }
+
+    // ── purchaseTokens/{token}: Google Play purchaseToken → uid mapping ───
+    //   RTDN webhook'un user'ı bulması için. Client kendi uid'sini yazar,
+    //   sadece admin (Cloud Function) okur. Token başlı başına bir secret
+    //   olduğu için read'i kapatıyoruz (kötü niyetli kullanıcı tüm token-uid
+    //   eşlemelerini listeleyemesin).
+    match /purchaseTokens/{token} {
+      allow read: if isAdmin();
+      allow create, update: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid;
+      allow delete: if isAdmin();
+    }
+
+    // ── parent_links/{parentUid}/children/{childUid}: bağlı çocuklar ─────
+    //   Ebeveyn kendi list'ini okur/yazar; aktif bağlantı = çocuk onaylamış.
+    //   Çocuk istek geldiğinde durumu 'active'e çevirebilir (özel update).
+    match /parent_links/{parentUid}/children/{childUid} {
+      allow read: if isOwner(parentUid) || isOwner(childUid);
+      // Ebeveyn pending istek oluşturabilir
+      allow create: if isOwner(parentUid)
+        && request.resource.data.status == 'pending';
+      // Çocuk kabul/red — sadece status değişikliği
+      allow update: if (isOwner(childUid) || isOwner(parentUid))
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'acceptedAt']);
+      // Ebeveyn bağlantıyı sonlandırabilir
+      allow delete: if isOwner(parentUid);
+    }
+
+    // ── child_invites/{childUid}/from/{parentUid}: çocuğun gelen kutusu ──
+    //   Çocuk istekleri okur + status değiştirir.
+    //   Ebeveyn create yapar.
+    match /child_invites/{childUid}/from/{parentUid} {
+      allow read: if isOwner(childUid) || isOwner(parentUid);
+      allow create: if isOwner(parentUid)
+        && request.resource.data.status == 'pending';
+      allow update: if isOwner(childUid)
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'acceptedAt']);
+      allow delete: if isOwner(childUid) || isOwner(parentUid);
+    }
+
+    // ── classes/{classId}: öğretmen sınıfı ────────────────────────────────
+    //   Read: oturum açmış herkes (sınıf detayını öğrenci de görür).
+    //   Create: oturum açan herkes (kendisini teacherUid olarak yazmalı).
+    //   Update/Delete: sadece öğretmen.
+    match /classes/{classId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.teacherUid == request.auth.uid;
+      allow update, delete: if isSignedIn()
+        && resource.data.teacherUid == request.auth.uid;
+
+      // students alt koleksiyonu — öğrenci kendini ekler, öğretmen yönetir
+      match /students/{studentUid} {
+        allow read: if isSignedIn();
+        allow create: if isOwner(studentUid);
+        allow delete: if isOwner(studentUid)
+          || (isSignedIn()
+              && get(/databases/$(database)/documents/classes/$(classId))
+                  .data.teacherUid == request.auth.uid);
+        allow update: if isSignedIn()
+          && get(/databases/$(database)/documents/classes/$(classId))
+              .data.teacherUid == request.auth.uid;
+      }
+
+      // content alt koleksiyonu — sadece öğretmen ekler, öğrenciler okur
+      match /content/{contentId} {
+        allow read: if isSignedIn();
+        allow create, update, delete: if isSignedIn()
+          && get(/databases/$(database)/documents/classes/$(classId))
+              .data.teacherUid == request.auth.uid;
+      }
+    }
+
+    // ── class_codes/{code}: kod → classId reverse index ──────────────────
+    //   Öğrenci koddan classId bulmak için okur; öğretmen create eder.
+    match /class_codes/{code} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.teacherUid == request.auth.uid;
+      allow update, delete: if isSignedIn()
+        && resource.data.teacherUid == request.auth.uid;
+    }
+
+    // NOT: notifications kuralı yukarıda (satır ~106) tek noktada tanımlı.
 
     // ── Varsayılan: reddet ───────────────────────────────────────────────
     match /{document=**} {

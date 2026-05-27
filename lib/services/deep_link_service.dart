@@ -1,10 +1,10 @@
-// ═══════════════════════════════════════════════════════════════════════════════
+﻿// ═══════════════════════════════════════════════════════════════════════════════
 //  DeepLinkService — Davet linki, paylaşım linki açma.
 //
 //  Desteklenen URL şeması (Firebase Hosting + custom scheme):
-//    • https://qualsar2-640f0.web.app/davet/{username}  ← davet linki
+//    • https://qualsar.app/davet/{username}  ← davet linki
 //    • qualsar://davet/{username}                       ← custom scheme
-//    • https://qualsar2-640f0.web.app/u/{username}      ← profil paylaşımı
+//    • https://qualsar.app/u/{username}      ← profil paylaşımı
 //
 //  Akış:
 //    1. init() → AppLinks dinleyicisini kurar (cold start + warm).
@@ -98,10 +98,10 @@ class DeepLinkService {
   /// Davet linki üretici — paylaşım butonu bunu kullanır.
   /// Production hosting URL'i kullanılır; deep link handler'ı bu pattern'i tanır.
   static String inviteLinkFor(String username) {
-    return 'https://qualsar2-640f0.web.app/davet/$username';
+    return 'https://qualsar.app/davet/$username';
   }
 
   static String profileLinkFor(String username) {
-    return 'https://qualsar2-640f0.web.app/u/$username';
+    return 'https://qualsar.app/u/$username';
   }
 }

@@ -165,6 +165,24 @@
         { "fieldPath": "uid", "order": "ASCENDING" },
         { "fieldPath": "when", "order": "DESCENDING" }
       ]
+    },
+
+    /* ── classes: öğretmen kendi sınıflarını listeler ─────────────────── */
+    /*  where teacherUid == X + orderBy createdAt DESC                     */
+    { "collectionGroup": "classes", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "teacherUid", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+
+    /* ── homeworks: bekleyen reminder taraması ────────────────────────── */
+    /*  where reminderSent == false — sınıfın altında, collection group    */
+    { "collectionGroup": "homeworks", "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "reminderSent", "order": "ASCENDING" },
+        { "fieldPath": "dueAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [

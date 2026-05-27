@@ -25,6 +25,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../firebase_options.dart';
+import 'app_settings_service.dart';
 
 /// Top-level background message handler — data-only push'lar için.
 /// Android ve iOS arka planda app suspended'ken bile çağrılır.
@@ -182,6 +183,12 @@ class PushService {
     String? payload,
     int id = 0xFA001,
   }) async {
+    // Sessiz Saatler kontrolü — kullanıcı belirli aralık tanımlamışsa
+    // o aralıkta hiçbir bildirim göstermeyiz.
+    if (AppSettingsService.instance.inQuietHours) {
+      debugPrint('[Push] sessiz saatlerde — bildirim atlandı: $title');
+      return;
+    }
     try {
       await _local.show(
         id,

@@ -1,4 +1,4 @@
-# iOS FCM Push — APNs Kurulum Rehberi
+﻿# iOS FCM Push — APNs Kurulum Rehberi
 
 iOS'ta FCM push çalışması için aşağıdaki adımlar **bir kerelik** yapılmalı.
 Bu adımlar Apple Developer hesabı + Mac + Xcode gerektirir. Android için
@@ -29,7 +29,7 @@ hiçbir şey yapmana gerek yok — orada otomatik çalışıyor.
 1. **Signing & Capabilities** → **+ Capability** → **Push Notifications**
 2. **+ Capability** → **Background Modes** → **Remote notifications** kutusunu işaretle
 3. **+ Capability** → **Associated Domains** → ekle:
-   - `applinks:qualsar2-640f0.web.app`
+   - `applinks:qualsar.app`
 
 ## 4. apple-app-site-association dosyası
 

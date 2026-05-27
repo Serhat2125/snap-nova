@@ -1,4 +1,4 @@
-# iOS Yayın Checklist — App Store'a yüklemeden önce
+﻿# iOS Yayın Checklist — App Store'a yüklemeden önce
 
 Bu döküman, iOS tarafında yapılması gereken **tüm** adımları sıralı listeler.
 Kod tarafı **%100 hazır**; aşağıdaki adımlar Apple Developer hesabı + Mac
@@ -81,7 +81,7 @@ open ios/Runner.xcworkspace
 - Capabilities sekmesinde olmaları gereken (zaten entitlements'tan otomatik gelir):
   - Push Notifications ✓
   - Sign In with Apple ✓
-  - Associated Domains: `applinks:qualsar2-640f0.web.app` ✓
+  - Associated Domains: `applinks:qualsar.app` ✓
   - Background Modes: Remote notifications, Background fetch ✓
 
 ### 🔟 Test cihazında build et
@@ -114,8 +114,8 @@ flutter run --release --device-id <iPhone-ID>
 | Alan | Değer |
 |---|---|
 | **Test hesabı** | Mail: `test@qualsar.ai` (Firebase Auth'ta oluştur), şifre: 1Password'da sakla |
-| **Privacy policy URL** | `https://qualsar2-640f0.web.app/privacy` |
-| **Terms URL** | `https://qualsar2-640f0.web.app/terms` |
+| **Privacy policy URL** | `https://qualsar.app/privacy` |
+| **Terms URL** | `https://qualsar.app/terms` |
 | **Support URL** | `mailto:serhatdsme@gmail.com` |
 | **Demo notu** | "Login ile devam → ana sayfa, Bilgi Yarışı bölümü test edilebilir. Premium satın alma sandbox'ta çalışır." |
 

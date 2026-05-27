@@ -96,6 +96,16 @@ class GeminiService {
         ? 'Decimal separator: COMMA (e.g. 3,14 — not 3.14).'
         : 'Decimal separator: PERIOD (e.g. 3.14).';
 
+    // ── ÇIKTI DİLİ DİREKTİFİ — kullanıcının seçtiği dile zorla ───────────
+    //   Bu blok TÜM Gemini çağrılarına otomatik enjekte edilir. Foto çözüm,
+    //   konu özeti, sınav soruları, AI koç planı, chat takip, başlık üretimi
+    //   — hepsi kullanıcının UI dilinde döner. Eski hardcoded TR cevap sorunu
+    //   buradan kalıcı çözülür.
+    final langName = _languageNameFor(code);
+    final langDirective = code == 'tr'
+        ? '\n\n=== ÇIKTI DİLİ — KRİTİK ===\nTÜM çıktın TÜRKÇE olacak. Başlıklar, açıklamalar, formül lejantları, tablo hücreleri, şema etiketleri, örnek soruların ifadeleri, çözümleri, cevap satırları, motivasyon notları — HEPSİ Türkçe.\nKarışık dil YASAK (örn. "Nucleus / Çekirdek" gibi). Sadece Türkçe karşılığı.\n=========================================\n'
+        : '\n\n=== OUTPUT LANGUAGE — CRITICAL ===\nALL output MUST be in: $langName (code: "$code").\nThis includes: headings, explanations, formula legends, table cells, schema labels, example questions, solutions, answer lines, motivational notes — EVERYTHING.\nDo NOT mix languages (e.g. don\'t write English term alongside translation).\nUse native vocabulary of $langName. If a technical term has a standard $langName translation, use it.\nNEVER reply in Turkish or English unless the user\'s language IS that.\n=========================================\n';
+
     // ── Kullanıcının eğitim profilini oku ────────────────────────────────────
     final profile = EduProfile.current;
     final levelBlock = _levelDirective(profile);
@@ -224,7 +234,9 @@ do NOT under-explain at higher levels.
 
     final filledDirective =
         directive.replaceAll('__DECIMAL_RULE__', decimalRule);
-    return '$filledDirective\n$levelBlock\n$tail\n$userPrompt';
+    // Sıralama önemli: ÇIKTI DİLİ direktifi EN BAŞA — Gemini önce dili
+    // garanti etsin, sonra format kurallarına uyulsun.
+    return '$langDirective$filledDirective\n$levelBlock\n$tail\n$userPrompt';
   }
 
   /// EduProfile'tan seviye + ülke + branş bilgisini okuyup, AI'a "kullanıcı
@@ -1472,14 +1484,20 @@ Karmaşık terimi açıkla, örnekle pekiştir, samimi ama saygılı ton.''';
     }
   }
 
+  /// 59 dil için native dil ismi. LocaleService.languages tuple'ından okur
+  /// (tek kaynak — yeni dil eklenince burada da otomatik kapsanır).
   static String _languageNameFor(String code) {
-    const map = {
-      'tr': 'Türkçe', 'en': 'English', 'de': 'Deutsch', 'fr': 'Français',
-      'es': 'Español', 'it': 'Italiano', 'pt': 'Português', 'ja': '日本語',
-      'ko': '한국어', 'zh': '中文', 'ru': 'Русский', 'ar': 'العربية',
-      'hi': 'हिन्दी', 'nl': 'Nederlands', 'pl': 'Polski', 'sv': 'Svenska',
+    final c = code.toLowerCase();
+    for (final l in LocaleService.languages) {
+      if (l.$4 == c) return l.$2; // native ad (örn. 'Français', '한국어')
+    }
+    // Fallback: en yakın family eşleştir
+    const fallback = {
+      'pt-br': 'Português', 'pt-pt': 'Português',
+      'zh-cn': '中文', 'zh-tw': '中文',
+      'en-us': 'English', 'en-gb': 'English',
     };
-    return map[code.toLowerCase()] ?? 'English';
+    return fallback[c] ?? 'English';
   }
 
   // ══════════════════════════════════════════════════════════════════════════════
@@ -3002,6 +3020,405 @@ $previousSolution''';
      on TimeoutException  { throw GeminiException.serverTimeout(); }
      on SocketException   { throw GeminiException.noInternet(); }
      catch (e)            { throw GeminiException.unknown(e.toString()); }
+  }
+
+  // ── AI KOÇ SOHBETI ─────────────────────────────────────────────────────────
+  // Profesyonel öğrenci rehber-koçu olarak sohbet. Kullanıcı duygusal/akademik
+  // sorularını sorar, AI bir uzman gibi cevap verir: kısa, samimi, somut
+  // tavsiyelerle. Geçmiş mesajlar history olarak iletilir.
+  //
+  // history format: [{'role': 'user'|'coach', 'text': '...'}, ...]
+  static Future<String> chatWithCoach({
+    required String userMessage,
+    List<Map<String, String>> history = const [],
+    String? userName,
+    String? gradeLabel,
+    String langCode = 'tr',
+  }) async {
+    _log('chatWithCoach() — msg="${userMessage.length} kar", history=${history.length}');
+    final lang = _languageDirective(langCode);
+    final me = (userName ?? '').trim().isEmpty ? 'öğrenci' : userName!.trim();
+    final grade = (gradeLabel ?? '').trim().isEmpty
+        ? 'seviyesi belirtilmemiş'
+        : gradeLabel!.trim();
+    final historyBlock = history.isEmpty
+        ? '(önceki mesaj yok)'
+        : history
+            .map((m) =>
+                '${m['role'] == 'user' ? 'ÖĞRENCİ' : 'KOÇ'}: ${m['text']}')
+            .join('\n');
+    final systemPrompt = '''
+[SYSTEM — AI KOÇ KİMLİĞİ]
+Sen QuAlsar AI Koç'sun. Görevin: bir öğrenciye birebir rehberlik etmek.
+
+Kimliğin:
+• Uzman bir akademik rehber, eğitim psikoloğu ve çalışma koçu.
+• Pedagoji + öğrenme bilimi + zaman yönetimi + sınav stratejileri konusunda derin bilgili.
+• Sıcak, empatik, motive edici; ama gerektiğinde net ve direkt.
+• Bir takım arkadaşı / mentor tonu.
+
+[EĞİTİM SEVİYESİNE GÖRE UYUM — KRİTİK]
+Öğrencinin seviyesi yukarıda verilmiş ($grade). CEVABININ DİLİ, TONU, KELIME
+SEÇİMİ, ÖRNEK KARMAŞIKLIĞI ve PLAN UZUNLUĞU bu seviyeye TAM UYMALI.
+Aşağıdaki tabloda her sınıf için ton/uzunluk/içerik hassas detayları:
+
+• İLKOKUL 1. sınıf (6–7 yaş):
+  - Cümleler 6-8 kelime. Tek bir somut fikir.
+  - "Aferin", "süpersin", "hadi deneyelim" + 3-4 emoji 🌟⭐🎉.
+  - Çalışma süresi: 10 dk + oyun + 10 dk. Plan TEK satır.
+  - Örnek: "Bugün 10 dakika sayı oyununu oynayalım mı? Sonra çikolata molası 🍫"
+
+• İLKOKUL 2. sınıf (7–8 yaş):
+  - Cümle 8-12 kelime. Hikaye / oyun benzetmeleri kullan.
+  - Pomodoro: 15 dk çalış + 5 dk oyna.
+  - "Çarpım tablosunu süper kahraman gibi öğrenelim 💪".
+
+• İLKOKUL 3. sınıf (8–9 yaş):
+  - 12-15 kelimelik cümleler. Resim/şekil çizmeyi öner.
+  - Pomodoro: 15-20 dk. Oyunlaştır ama küçük hedef sistemi ekle.
+  - "Sayıları 3 farklı renkle yaz, kafanda kalır 🎨".
+
+• İLKOKUL 4. sınıf (9–10 yaş):
+  - Basit akademik dil + somut örnekler. Konuyla bağ kur.
+  - Pomodoro: 20 dk. Test oluşturmayı tanıt — "kendi sorunu yap, kardeşine sor".
+  - Ufak ödül sistemi: "5 doğru = 1 mola".
+
+• ORTAOKUL 5. sınıf (10–11 yaş):
+  - Akademik dil başlasın ama günlük örneklerle. Hâlâ oyunlu ton.
+  - Pomodoro: 20 dk. "Konu özeti çıkar, bilmediğini renkle vurgula".
+
+• ORTAOKUL 6. sınıf (11–12 yaş):
+  - Konu derinleşir. Adım adım not alma, kavram haritası önerisi.
+  - Pomodoro: 20-25 dk. "Doğru-Yanlış testi ile hızlı tekrar yap".
+
+• ORTAOKUL 7. sınıf (12–13 yaş):
+  - LGS hazırlık ısınması — "paragraf", "sözel mantık", "veri analizi".
+  - Pomodoro: 25 dk. Haftalık küçük denemeler öner.
+
+• ORTAOKUL 8. sınıf (13–14 yaş, LGS YILI):
+  - LGS jargonu: "kazanım", "deneme analizi", "net hesabı".
+  - Sınav stresi yüksek → kısa nefes/zihin teknikleri.
+  - Pomodoro: 25-30 dk. "Bu hafta tarihten 50 soru çöz, yanlışları Kütüphane'de işle".
+
+• LİSE 9. sınıf (14–15 yaş):
+  - Lise yeni — uyum + temel kavram inşası.
+  - "Mantıklı not alma", "konu haritası". Pomodoro: 25-30 dk.
+  - Üniversite hayalini hatırlat ama baskı yapma.
+
+• LİSE 10. sınıf (15–16 yaş):
+  - Konular derin, yöntem bilinci artar.
+  - "Soru çeşitleri tanı, çözüm taktiği geliştir". Pomodoro: 30-40 dk.
+  - YKS uzakta ama temeli sağlamlaştır.
+
+• LİSE 11. sınıf (16–17 yaş, TYT ön hazırlık):
+  - Profesyonel ton + strateji başlasın. Branş seçimi konuşulabilir.
+  - "TYT denemeleri", "net hesabı". Pomodoro: 40 dk.
+  - Haftalık plan: ders ağırlığı + tekrar + deneme.
+
+• LİSE 12. sınıf (17–18 yaş, YKS YILI):
+  - En yoğun ton. "Net", "sıralama", "branş seçimi", "deneme analizi", "süre yönetimi".
+  - Pomodoro: 40-50 dk. Mental dayanıklılık + uyku VURGUSU.
+  - "Bu hafta TYT denemesi → AYT branş çalışması → eksik konu özeti".
+
+• ÜNİVERSİTE HAZIRLIĞI / Mezun YKS (18+ yaş):
+  - Tamamen strateji odaklı. Çok az motivasyon, çok yöntem.
+  - Pomodoro: 45-60 dk. Deneme + analiz + revizyon döngüsü.
+
+• ÜNİVERSİTE 1-4. sınıf:
+  - Akademik dil. Final/vize dönemine göre yoğunlaşma.
+  - "Spaced repetition", "Cornell not yöntemi", "Pomodoro 50-90 dk".
+  - Branşa göre özelleş: mühendislik / hukuk / tıp farklı stratejiler.
+
+• YÜKSEK LİSANS / DOKTORA:
+  - Profesyonel. "Literatür taraması", "tez planlama", "veri yönetimi".
+
+• Yetişkin / Diğer / Belirsiz:
+  - Profesyonel, nötr ton. Hedefe yönelik plan.
+
+KURAL: Cevap yazmadan önce öğrencinin seviyesini ($grade) tabloya bak,
+KELİME SEÇİMİNİ + ÖRNEKLERİ + PLAN UZUNLUĞUNU doğru sınıfa eşle. Asla bir
+12. sınıfa "süpersin canım" deme; asla bir 2. sınıfa "net hesabı" deme.
+
+[UYGULAMA İÇİ YÖNLENDİRME — ZORUNLU]
+Çalışmaya yönlendirirken her zaman QuAlsar uygulamasının kendi özelliklerini öner.
+Sadece "ders çalış" deme; HANGİ SAYFADA NEYİ YAPACAĞINI net söyle:
+
+• **Konu Özeti**: "Önce şu konudan **Kısa Özet** oluştur. Yetmediyse **Kapsamlı Özet**'e bak."
+  (Kısa = ana fikir + örnek; Kapsamlı = tüm alt konular + örnekler)
+• **Sınav Soruları**: "Bu konudan **test oluştur**, 10–15 soru çöz. Eksiklerini gör."
+• **Doğru-Yanlış Testi**: "Hızlı tekrar için **D/Y testi** çöz — 2 dakikada 20 soru gibi."
+• **Kütüphanem**: "Çözdüğün testleri **Kütüphane**'de inceleyebilirsin — yanlışların pekiştirme listesi."
+• **Çöz (Kamera)**: "Takıldığın soruyu fotoğrafla → AI saniyede çözüm + adım anlatımı verir."
+• **Bilgi Ligi / Arena**: "Konuda kendine güveniyorsan **Bilgi Ligi**'nde aynı seviyedeki öğrencilerle yarış — sıranı gör. Eğlenceli + motive edici."
+• **AI Koç ana sayfa**: "Günlük plan + zayıf konular orada zaten — kart kart bak."
+
+Tipik akış önerisi: "Konuyu **Kısa Özet**'le tara → **Sınav Sorusu** üretip çöz → eksik kalanlar için **Kapsamlı Özet** + tekrar test → kendine güvenince **Bilgi Ligi**'nde test et."
+
+Davranış kuralları:
+1. Mesaj türüne göre uzunluk: günlük sohbet/duygusal sorularda 2–4 cümle, plan/strateji isteğinde detaylı + yapılandırılmış cevap.
+2. Doğrudan cevap verme; gerekirse 1 açıklayıcı soru sor (öğrenci ne hissediyor, ne denedi, hangi ders/konu).
+3. Somut tavsiye + uygulama yönlendirmesi: "şu sayfada şunu yap, şu süreyle çalış" gibi.
+4. Motivasyon GEREKTİĞİNDE ver — duygusal anlarda. Boş övgü YOK.
+5. Asla sahte bilgi uydurma — bilmediğin spesifik bir ders konusu varsa kullanıcıya konuyu sor + uygulama özelliğine yönlendir.
+6. Soru çözümü/uzun açıklama İSTEMEZ — soru çözümleri için **Çöz/Kamera** sayfasına yönlendir.
+
+[BİÇİMLENDİRME — MARKDOWN İZİNLİ]
+Markdown kullanabilirsin (kullanıcı görüntülüyor):
+• Alt başlık: `## Başlık` veya `### Alt başlık` — `####` ve fazlasını KULLANMA.
+• Madde işaretli liste: `- madde` (`*` ile satır başlatma).
+• Numaralı liste: `1. ilk`, `2. ikinci`.
+• Kalın: `**önemli**`. İtalik (motivasyon için): `*sen yapabilirsin*`.
+• Tablo: `| baş | baş |` standart Markdown.
+• Emoji: 📚 📌 💡 ⚠️ ✅ 🎯 🔥 🧠 ☕ ⏱️ — abartma, anlam pekiştirsin.
+• YASAK: kod bloğu (``` ```), `####+` başlıklar, raw HTML.
+
+[ÖĞRENCİ BİLGİSİ]
+• Adı: $me
+• Eğitim seviyesi: $grade  ← BU SEVİYEYE UYGUN cevap ver (yukarıdaki adaptasyon tablosu).
+
+$lang
+
+[ÖNCEKI KONUŞMA]
+$historyBlock
+''';
+
+    try {
+      final text = await _callGemini(
+        systemPrompt: systemPrompt,
+        userMessage: userMessage,
+        maxTokens: 512,
+        temperature: 0.65,
+        timeout: const Duration(seconds: 30),
+      );
+      _log('chatWithCoach OK: ${text.length} kar');
+      return text.trim();
+    } on GeminiException { rethrow; }
+     on TimeoutException  { throw GeminiException.serverTimeout(); }
+     on SocketException   { throw GeminiException.noInternet(); }
+     catch (e)            { throw GeminiException.unknown(e.toString()); }
+  }
+
+  // ── KONUYA AİT TÜM FORMÜLLER ──────────────────────────────────────────────
+  // Sayısal ders + konu + öğrenci seviyesi verildiğinde o konuya ait
+  // ilgili formülleri markdown formatında üretir. Seviye → formül karmaşıklığı,
+  // sembol detayı ve dil seviyesi otomatik ayarlanır.
+  static Future<String> generateFormulas({
+    required String subject,
+    required String topic,
+    String? gradeLabel,
+    String langCode = 'tr',
+  }) async {
+    _log(
+        'generateFormulas() — subject="$subject", topic="$topic", grade="$gradeLabel"');
+    final lang = _languageDirective(langCode);
+    final grade = (gradeLabel == null || gradeLabel.trim().isEmpty)
+        ? 'seviye belirsiz'
+        : gradeLabel.trim();
+    final systemPrompt = '''
+[SYSTEM — KONU FORMÜL GALERİSİ]
+Sen $subject dersi $topic konusu için ilgili formülleri çıkaracak bir
+matematik/fen profesörüsün. Çıktı SADECE Markdown — başka açıklama yok.
+
+[ÖĞRENCİ SEVİYESİ]
+$grade
+
+[SEVİYEYE GÖRE FORMÜL KARMAŞIKLIĞI — KRİTİK]
+• İlkokul (1–4): En fazla 3-4 formül. Çok basit, sadece temel olanlar.
+  Sembol açıklamaları çocuk dilinde, günlük kelime ("yol", "süre", "ağırlık").
+• Ortaokul (5–8): 4-6 formül. Anlaşılır akademik dil. LGS müfredatı sınırı.
+  Sembol birimleri net (m, s, N, kg).
+• Lise 9–10: 5-8 formül. Standart akademik. Türetilmiş formülleri DAHİL ET.
+• Lise 11–12 / YKS: 8-12 formül. TÜM varyasyonlar + özel durumlar. Tablo halinde
+  alt-formüller ekleyebilirsin. Sembolde her birim + sınır koşul.
+• Üniversite / Lisansüstü: 10-15 formül + türetmeler + birim analizi + grenz/
+  limit durumları. Daha teknik dil.
+• Belirsiz: orta seviye (lise) baz al.
+
+ÇIKTI YAPISI — her formül için:
+### {Formülün adı}
+**Formül:** {Düz metin matematik — LaTeX değil, "²" "·" "/" notasyonu}
+**Ne işe yarar:** {1 cümle, neyi hesaplar / nerede kullanılır}
+**Semboller:**
+- {sembol} — {ne anlama gelir, hangi birim}
+- {sembol} — {açıklama}
+
+KURALLAR:
+- Notasyon: "v = v0 + a·t", "E = m·c²", "F = (k·q1·q2)/r²" gibi düz metin.
+- Sembol açıklamasında BİRİM mutlaka var (m, s, N, kg). Birimsiz → "boyutsuz".
+- Markdown başlık `###` (`####` yasak). Liste `-`.
+- Konuyla alakasız formül EKLEME.
+- Sadece İLGİLİ formüller — şüpheli/eski olanlar yok.
+- Hiçbir giriş cümlesi yazma. Direkt ilk `### ` ile başla.
+- Eğitim seviyesi düşükse (ilkokul/ortaokul) formül sayısını ve dil zorluğunu
+  buna göre kısıtla — çocuğa lise formülü gösterme.
+
+$lang
+''';
+    try {
+      final text = await _callGemini(
+        systemPrompt: systemPrompt,
+        userMessage: '$subject — $topic konusunun formüllerini ver.',
+        maxTokens: 2048,
+        temperature: 0.2,
+        timeout: const Duration(seconds: 45),
+      );
+      _log('generateFormulas OK: ${text.length} kar');
+      return text.trim();
+    } on GeminiException { rethrow; }
+     on TimeoutException  { throw GeminiException.serverTimeout(); }
+     on SocketException   { throw GeminiException.noInternet(); }
+     catch (e)            { throw GeminiException.unknown(e.toString()); }
+  }
+
+  // ── ÖDEV ÜRETİMİ (öğretmen için) ──────────────────────────────────────
+  /// Sınıf seviyesi + ders + konu + soru tipleri için AI soru paketi üretir.
+  /// Dönen JSON şeması:
+  ///   [{ "q": "...", "type": "mc|tf|fill|open",
+  ///      "choices": [...], "answer": "..." }, ...]
+  static Future<List<Map<String, dynamic>>> generateHomeworkBatch({
+    required String subject,
+    required String topic,
+    required String level,
+    required List<String> typeKeys,   // 'mc','tf','fill','open'
+    required int count,
+    String langCode = 'tr',
+    String? outcome,                  // Müfredat kazanımı (opsiyonel ipucu)
+  }) async {
+    _log('generateHomework() — $subject/$topic, $count soru, types=$typeKeys');
+    final lang = _languageDirective(langCode);
+    final outcomeBlock = (outcome == null || outcome.trim().isEmpty)
+        ? ''
+        : '\n\n[HEDEFLENEN KAZANIM]\n$outcome\n';
+    final typeNames = typeKeys.map((k) {
+      switch (k) {
+        case 'tf':   return '"tf" (doğru/yanlış)';
+        case 'fill': return '"fill" (boşluk doldurma)';
+        case 'open': return '"open" (açık uçlu)';
+        case 'mc':
+        default:     return '"mc" (çoktan seçmeli, 4 şık)';
+      }
+    }).join(', ');
+    final sys = '''
+[SYSTEM — ÖDEV ÜRETİMİ]
+Sen $level seviyesinde $subject dersi $topic konusu için AI ödev oluşturucusun.
+Çıktı SADECE JSON dizisi — başka açıklama, markdown, ön/son metin YOK.
+
+[KURALLAR]
+- Tam $count soru üret.
+- Soru tipleri: $typeNames.
+- Tip dağılımı yaklaşık eşit olsun.
+- "mc" için 4 şık ver: ["A) ...","B) ...","C) ...","D) ..."], "answer": "A".
+- "tf" için "answer": "true" veya "false".
+- "fill" için cümlede ___ ile boşluk bırak, "answer": "doğru kelime/sayı".
+- "open" için "answer": kısa örnek cevap (anahtar fikirler).
+- Tüm sorular OKUNUR, GERÇEKÇİ, MÜFREDATA UYGUN olmalı.
+- LaTeX, markdown, # başlık YASAK.
+$outcomeBlock
+
+[ÇIKTI ŞEMASI]
+[
+  {"q": "...", "type": "mc",   "choices": ["A) ...","B) ...","C) ...","D) ..."], "answer": "A"},
+  {"q": "...", "type": "tf",   "answer": "true"},
+  {"q": "____ kelimesini doldur.", "type": "fill", "answer": "..."},
+  {"q": "Açıkla: ...", "type": "open", "answer": "..."}
+]
+
+$lang
+''';
+    try {
+      final text = await _callGemini(
+        systemPrompt: sys,
+        userMessage: '$count soruluk ödev üret.',
+        maxTokens: 3000,
+        temperature: 0.7,
+        timeout: const Duration(seconds: 60),
+      );
+      // JSON ayıkla — bazen model fazla metin koyar
+      final start = text.indexOf('[');
+      final end = text.lastIndexOf(']');
+      if (start < 0 || end < 0 || end <= start) {
+        throw GeminiException.unknown('JSON ayıklanamadı');
+      }
+      final jsonStr = text.substring(start, end + 1);
+      final parsed = jsonDecode(jsonStr);
+      if (parsed is! List) {
+        throw GeminiException.unknown('Beklenen JSON listesi gelmedi');
+      }
+      return parsed
+          .whereType<Map>()
+          .map((q) => Map<String, dynamic>.from(q))
+          .toList();
+    } on GeminiException { rethrow; }
+     on TimeoutException  { throw GeminiException.serverTimeout(); }
+     on SocketException   { throw GeminiException.noInternet(); }
+     catch (e)            { throw GeminiException.unknown(e.toString()); }
+  }
+
+  // ── EBEVEYN AI İÇGÖRÜLERİ ─────────────────────────────────────────────
+  /// Çocuğun haftalık verilerini analiz edip ebeveyne özet bir Türkçe
+  /// içgörü cümlesi döner. 2-3 cümle.
+  static Future<String> generateParentInsight({
+    required String childName,
+    required Map<String, int> subjectMinutes, // ders → bu hafta dakika
+    required Map<String, double> subjectSuccess, // ders → %
+    required int totalQuestionsSolved,
+    required int totalSummariesCreated,
+    String langCode = 'tr',
+  }) async {
+    _log('generateParentInsight() — $childName');
+    final lang = _languageDirective(langCode);
+    final subjLines = subjectMinutes.entries
+        .map((e) {
+          final h = (e.value / 60).toStringAsFixed(1);
+          final s = subjectSuccess[e.key]?.toStringAsFixed(0) ?? '-';
+          return '- ${e.key}: ${h} sa, başarı %$s';
+        }).join('\n');
+    final sys = '''
+[SYSTEM — EBEVEYN İÇGÖRÜSÜ]
+Sen bir veliye çocuğunun haftalık akademik performansını anlatan eğitim
+danışmanısın. Çıktı 2-3 cümle, Türkçe, sıcak ama profesyonel.
+
+Çocuk: $childName
+Bu hafta:
+$subjLines
+- Toplam soru: $totalQuestionsSolved
+- Toplam özet: $totalSummariesCreated
+
+[KURALLAR]
+- En çok zaman ayırdığı ve en düşük başarıya sahip dersi öne çıkar.
+- Somut öneri ver: "X konusundan ek pratik" gibi.
+- 2-3 cümle, abartısız, yapıcı.
+- Markdown, başlık, emoji YOK — düz metin.
+
+$lang
+''';
+    try {
+      return (await _callGemini(
+        systemPrompt: sys,
+        userMessage: 'İçgörüyü yaz.',
+        maxTokens: 280,
+        temperature: 0.5,
+        timeout: const Duration(seconds: 20),
+      )).trim();
+    } catch (e) {
+      debugPrint('[parentInsight] fail: $e');
+      // Fallback statik mesaj
+      return '$childName bu hafta toplam '
+          '${(subjectMinutes.values.fold<int>(0, (a, b) => a + b) / 60).toStringAsFixed(1)} saat çalıştı. '
+          'En çok zaman ayırdığı dersi pekiştirmeye devam etmesi önerilir.';
+    }
+  }
+
+  /// Verilen dil kodu için kısa LLM directive.
+  static String _languageDirective(String code) {
+    final c = code.toLowerCase();
+    const names = {
+      'tr': 'Türkçe', 'en': 'English', 'es': 'Español', 'fr': 'Français',
+      'de': 'Deutsch', 'ar': 'العربية', 'ru': 'Русский', 'zh': '中文',
+      'pt': 'Português', 'it': 'Italiano', 'ja': '日本語', 'ko': '한국어',
+    };
+    final name = names[c] ?? code;
+    return '[LANGUAGE] Reply in $name only. Match user\'s tone.';
   }
 
   // ══════════════════════════════════════════════════════════════════════════════

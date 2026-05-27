@@ -22,8 +22,10 @@ import '../services/coach_data_service.dart';
 import '../services/gemini_service.dart';
 import '../services/pomodoro_stats.dart';
 import '../services/runtime_translator.dart';
+import '../services/user_profile_service.dart';
 import '../theme/app_theme.dart';
 import 'academic_planner.dart' show AcademicPlanner, LibraryMode;
+import 'ai_coach_chat_screen.dart';
 
 class AICoachScreen extends StatefulWidget {
   const AICoachScreen({super.key});
@@ -73,6 +75,9 @@ class _AICoachScreenState extends State<AICoachScreen> {
         streakDays: _stats.streakDays,
         todayFocusMin: _stats.todayPhases * 25,
         lang: localeService.localeCode,
+        userName: UserProfileService.instance.username.isNotEmpty
+            ? UserProfileService.instance.username
+            : null,
       );
 
       if (aiPlan.isNotEmpty) {
@@ -129,11 +134,13 @@ class _AICoachScreenState extends State<AICoachScreen> {
   void _applyFallback() {
     final w = _coach.weakTopics;
     final acc = (_coach.overallAccuracy * 100).round();
+    final uname = UserProfileService.instance.username;
+    final hello = uname.isNotEmpty ? 'Merhaba $uname, ' : '';
     _greeting = _stats.streakDays > 0
-        ? '${_stats.streakDays} gün streak — başarın %$acc, devam! 🔥'
+        ? '$hello${_stats.streakDays} gün streak — başarın %$acc, devam! 🔥'
         : (_coach.totalTestAnswers > 0
-            ? 'Test başarın %$acc. Hadi zayıf konuları kapatalım. 💪'
-            : 'Bugün küçük bir başlangıç yap. 💪');
+            ? '${hello}test başarın %$acc. Hadi zayıf konuları kapatalım. 💪'
+            : '${hello}bugün küçük bir başlangıç yap. 💪');
     _tip =
         'Bilim: Yanlış yaptığın soruları 24 saat içinde tekrar et — bellek %60 daha sağlam tutar.';
     if (w.isEmpty) {
@@ -292,12 +299,33 @@ class _AICoachScreenState extends State<AICoachScreen> {
           ),
         ],
       ),
+      floatingActionButton: _loading
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const AICoachChatScreen(),
+                ),
+              ),
+              backgroundColor: const Color(0xFF7C3AED),
+              foregroundColor: Colors.white,
+              elevation: 6,
+              icon: const Icon(Icons.chat_bubble_rounded, size: 20),
+              label: Text(
+                'AI Koç\'la Sohbet'.tr(),
+                style: GoogleFonts.poppins(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ),
       body: _loading
           ? _buildLoading()
           : RefreshIndicator(
               onRefresh: _bootstrap,
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
                 children: [
                   _buildGreetingCard(),
                   const SizedBox(height: 16),

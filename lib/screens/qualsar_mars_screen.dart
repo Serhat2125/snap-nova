@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
@@ -15,11 +15,12 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../services/error_logger.dart';
 import '../services/pomodoro_stats.dart';
 import '../services/push_service.dart';
+import '../services/user_profile_service.dart';
 import '../services/runtime_translator.dart';
 import 'academic_planner.dart' show logPomodoroSessionToCalendar;
 
 // Canlı domain — paylaşım kartlarındaki QR kod ve attribution linki için.
-const String _kQualsarShareUrl = 'https://qualsar2-640f0.web.app';
+const String _kQualsarShareUrl = 'https://qualsar.app';
 
 // Mars ekranı header'ındaki 3D figür. Public CDN; assets/3d/earth.glb
 // dosyası eklenince burayı 'assets/3d/earth.glb' olarak güncelle.
@@ -528,7 +529,12 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
         if (p < 0.32) return 'Motorlar yakıt yakıyor, iniş dikeyleşiyor…'.tr();
         if (p < 0.40) return 'Ayaklar açılıyor, yumuşak iniş.'.tr();
         if (p < 0.55) return 'Airlock açıldı, mürettebat iniyor…'.tr();
-        if (p < 0.80) return 'Astronotlar Habitat\'ı kuruyor…'.tr();
+        if (p < 0.80) {
+          final uname = UserProfileService.instance.username;
+          return uname.isNotEmpty
+              ? 'Astronot $uname, habitat kuruluyor…'.tr()
+              : 'Astronotlar Habitat\'ı kuruyor…'.tr();
+        }
         return 'Modül basınçlandı, ışıklar yanıyor.'.tr();
       case _PhaseKind.phase2:
         if (p < 0.20) return 'Sera çelik iskeleti kuruluyor…'.tr();
@@ -3092,7 +3098,7 @@ class _VictoryDialog extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Paylaşılabilir başarı kartı — QR + qualsar2-640f0.web.app
+                // Paylaşılabilir başarı kartı — QR + qualsar.app
                 OutlinedButton.icon(
                   onPressed: () {
                     showModalBottomSheet<void>(
@@ -3420,7 +3426,7 @@ class _StormShareCard extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            'qualsar2-640f0.web.app',
+                            'qualsar.app',
                             style: GoogleFonts.poppins(
                               color: Colors.white.withValues(alpha: 0.60),
                               fontSize: 11,
@@ -3589,7 +3595,7 @@ class _VictoryShareCard extends StatelessWidget {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              'Sen de koloninin kur:\nqualsar2-640f0.web.app',
+                              'Sen de koloninin kur:\nqualsar.app',
                               style: GoogleFonts.poppins(
                                 color: Colors.white.withValues(alpha: 0.85),
                                 fontSize: 11,

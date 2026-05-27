@@ -1,54 +1,94 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="tr">
 <head>
+  <script>
+    // Firebase varsayilan URL'lerinden ozel domain'e yonlendirme.
+    (function () {
+      var h = window.location.hostname;
+      if (h === 'qualsar2-640f0.web.app' || h === 'qualsar2-640f0.firebaseapp.com') {
+        window.location.replace(
+          'https://qualsar.app' + window.location.pathname + window.location.search + window.location.hash
+        );
+      }
+    })();
+  </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>QuAlsar — Davet</title>
-  <meta property="og:title" content="QuAlsar — Bilgi Yarışı Daveti">
-  <meta property="og:description" content="Arkadaşın seni QuAlsar'da yarışmaya davet ediyor. Uygulamayı indir, hemen başla.">
+  <title>QuAlsar davet kodu</title>
+  <meta property="og:title" content="QuAlsar davet kodu">
+  <meta property="og:description" content="QuAlsar ile sorularını anında çöz, özet ve testlerini oluştur; şehrindeki, ülkendeki ve dünyadaki rakiplerinle yarışarak sıralamanı gör!">
   <meta property="og:type" content="website">
-  <meta property="og:image" content="https://qualsar2-640f0.web.app/og_invite.png">
+  <meta property="og:image" content="https://qualsar.app/og_invite.png">
   <style>
     * { box-sizing: border-box; }
-    body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: linear-gradient(135deg, #FF6A00 0%, #FF3D00 100%); color: #111; min-height: 100vh; }
+    /* Arka plan: açık mavi gradient (kullanıcı talebi: turuncu yerine mavi). */
+    body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: linear-gradient(135deg, #60A5FA 0%, #3B82F6 100%); color: #111; min-height: 100vh; }
     .container { max-width: 480px; margin: 0 auto; padding: 40px 24px; }
     .card { background: white; border-radius: 24px; padding: 32px 24px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.15); }
     .logo { font-size: 56px; }
-    h1 { font-size: 26px; font-weight: 800; margin: 12px 0 4px; letter-spacing: -0.4px; }
-    .username { color: #FF6A00; font-weight: 800; font-size: 18px; margin-bottom: 16px; }
+    h1 { font-size: 24px; font-weight: 800; margin: 12px 0 4px; letter-spacing: -0.3px; line-height: 1.25; }
     p { color: #555; line-height: 1.5; font-size: 14px; }
-    .features { text-align: left; margin: 20px 0; padding: 16px; background: #FFF7ED; border-radius: 12px; }
-    .features ul { margin: 0; padding-left: 18px; }
-    .features li { padding: 4px 0; font-size: 13px; color: #444; }
-    .btn { display: block; padding: 14px; border-radius: 14px; text-decoration: none; font-weight: 800; margin: 10px 0; font-size: 15px; }
-    .btn-primary { background: linear-gradient(135deg, #FF6A00, #FF8A3C); color: white; box-shadow: 0 6px 18px rgba(255,106,0,0.4); }
+
+    /* Davet kodu kartı — kod TEK SATIR. Geniş kod için font auto-shrink (clamp). */
+    .code-card { display: flex; align-items: center; gap: 10px; margin: 18px 0 8px; padding: 12px 12px 12px 16px; border-radius: 16px; background: #EFF6FF; border: 2px solid #BFDBFE; }
+    .code-text { flex: 1 1 0; min-width: 0; text-align: left; overflow: hidden; }
+    .code-label { font-size: 10.5px; font-weight: 800; color: #1E40AF; letter-spacing: 1.2px; text-transform: uppercase; }
+    /* clamp(min, vw-fluid, max) — geniş ekranda 20px, dar telefonda 15px'e iner */
+    .code-value { font-size: clamp(15px, 5vw, 20px); font-weight: 900; color: #111; letter-spacing: 1px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: clip; }
+    .code-value .al { color: #E53935; }
+    .copy-btn { flex-shrink: 0; padding: 10px 14px; border-radius: 12px; background: linear-gradient(135deg, #3B82F6, #2563EB); color: white; font-weight: 800; font-size: 13px; border: none; cursor: pointer; box-shadow: 0 4px 12px rgba(59,130,246,0.35); transition: transform 0.1s ease; }
+    .copy-btn:active { transform: scale(0.96); }
+    .copy-btn.copied { background: linear-gradient(135deg, #10B981, #059669); box-shadow: 0 4px 12px rgba(16,185,129,0.35); }
+    .copy-hint { font-size: 11.5px; color: #888; margin-top: 0; margin-bottom: 18px; }
+
+    /* Mağaza butonları */
+    .btn { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px; border-radius: 14px; text-decoration: none; font-weight: 800; margin: 10px 0; font-size: 15px; }
+    .btn-play { background: linear-gradient(135deg, #3DDC84, #00875F); color: white; box-shadow: 0 6px 18px rgba(0,135,95,0.35); }
+    .btn-apple { background: #000; color: white; box-shadow: 0 6px 18px rgba(0,0,0,0.30); }
+    .btn-huawei { background: linear-gradient(135deg, #C7000A, #E60012); color: white; box-shadow: 0 6px 18px rgba(199,0,10,0.30); }
+    .btn-samsung { background: linear-gradient(135deg, #1428A0, #0E1F7A); color: white; box-shadow: 0 6px 18px rgba(20,40,160,0.30); }
+    .btn-xiaomi { background: linear-gradient(135deg, #FF6700, #E55A00); color: white; box-shadow: 0 6px 18px rgba(255,103,0,0.30); }
     .btn-secondary { background: #f5f5f5; color: #111; }
-    .footer { color: rgba(255,255,255,0.85); text-align: center; padding: 16px; font-size: 12px; }
+    .footer { color: rgba(255,255,255,0.92); text-align: center; padding: 16px; font-size: 12px; }
     .footer a { color: white; text-decoration: underline; }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="card">
-      <div class="logo">🏆</div>
-      <h1>Bilgi Yarışı'na Davetlisin!</h1>
-      <div class="username" id="invitedBy">Davet linkini açtın</div>
-      <p>QuAlsar, AI destekli bir sınav asistanı + bilgi yarışı. Arkadaşın seninle yarışmak istiyor.</p>
+      <div class="logo">🎁</div>
+      <h1>QuAlsar uygulamasını indir, 7 gün boyunca Premium avantajlardan yararlan!</h1>
+      <p>QuAlsar ile sorularını anında çöz, özet ve testlerini oluştur; şehrindeki, ülkendeki ve dünyadaki rakiplerinle yarışarak sıralamanı gör.</p>
 
-      <div class="features">
-        <ul>
-          <li>📸 Soruları fotoğrafla, AI çözsün</li>
-          <li>🏆 Şehir, ülke ve dünya sıralaması</li>
-          <li>⚔️ Arkadaşlarla 1v1 düello</li>
-          <li>🔥 Günlük streak ve rozet sistemi</li>
-        </ul>
+      <!-- Davet kodu kartı — Al hecesi kırmızı + kopyala butonu sağda, tek satır -->
+      <div class="code-card" id="codeCard" style="display:none;">
+        <div class="code-text">
+          <div class="code-label">Davet kodun</div>
+          <div class="code-value" id="codeValue"></div>
+        </div>
+        <button class="copy-btn" id="copyBtn" onclick="copyCode()">📋 Kopyala</button>
       </div>
+      <div class="copy-hint" id="copyHint" style="display:none;">Uygulamayı indirip kayıt olurken bu kodu yapıştır.</div>
 
-      <a class="btn btn-primary" id="install" href="https://play.google.com/store/apps/details?id=com.qualsar.ai">
+      <!-- Play Store -->
+      <a class="btn btn-play" id="install" href="https://play.google.com/store/apps/details?id=com.qualsar.ai">
         📲 Play Store'dan İndir
       </a>
-      <a class="btn btn-secondary" href="https://qualsar2-640f0.web.app">
-        ℹ️ QuAlsar Hakkında Bilgi
+      <!-- Apple Store (iOS) — app yayına alınınca tam URL'i güncelle. -->
+      <a class="btn btn-apple" id="installApple" href="https://apps.apple.com/app/qualsar/id000000000">
+         Apple Store'dan İndir
+      </a>
+      <!-- Huawei AppGallery — global Huawei + Çin pazarı. -->
+      <a class="btn btn-huawei" id="installHuawei" href="https://appgallery.huawei.com/app/qualsar">
+        🔴 Huawei AppGallery'den İndir
+      </a>
+      <!-- Samsung Galaxy Store — Samsung cihazlarda alternatif. -->
+      <a class="btn btn-samsung" id="installSamsung" href="https://galaxystore.samsung.com/detail/com.qualsar.ai">
+        💙 Samsung Galaxy Store'dan İndir
+      </a>
+      <!-- Xiaomi GetApps — global + Çin Xiaomi cihazları. -->
+      <a class="btn btn-xiaomi" id="installXiaomi" href="https://app.mi.com/details?id=com.qualsar.ai">
+        🟠 Xiaomi GetApps'tan İndir
       </a>
     </div>
   </div>
@@ -57,22 +97,69 @@
   </div>
 
   <script>
-    // URL'den username veya davet kodu çek
     const path = window.location.pathname;
     const userMatch = path.match(/\/(davet|u)\/([^/]+)/);
     const codeMatch = path.match(/\/i\/([A-Za-z0-9-]+)/);
-    if (codeMatch) {
-      const code = decodeURIComponent(codeMatch[1]).toUpperCase();
-      document.getElementById('invitedBy').textContent =
-        '🎁 Davet kodun: ' + code;
-    } else if (userMatch) {
-      const username = decodeURIComponent(userMatch[2]);
-      document.getElementById('invitedBy').textContent = '@' + username + ' seni davet ediyor';
+
+    let currentCode = '';
+
+    function renderCodeHtml(code) {
+      const idx = code.indexOf('Al');
+      if (idx < 0) return code;
+      return code.substring(0, idx) +
+        '<span class="al">Al</span>' +
+        code.substring(idx + 2);
     }
-    // Mobil cihazda app açmayı dene (deep link); 1.5sn sonra hâlâ buradaysa store'a yönlendirme zaten görünür.
-    if (/android/i.test(navigator.userAgent)) {
-      // Android App Link autoVerify ile manifest tarafından otomatik açılır.
-      // Buraya düştüyse uygulama yüklü değil → Play Store CTA görünür.
+
+    function showCode(rawCode) {
+      const m = rawCode.match(/^QUALS-([A-Z0-9]{6})$/i);
+      const canonical = m ? ('QuAls-' + m[1].toUpperCase()) : rawCode;
+      currentCode = canonical;
+      document.getElementById('codeValue').innerHTML = renderCodeHtml(canonical);
+      document.getElementById('codeCard').style.display = 'flex';
+      document.getElementById('copyHint').style.display = 'block';
+    }
+
+    if (codeMatch) {
+      showCode(decodeURIComponent(codeMatch[1]));
+    } else if (userMatch) {
+      const usernameLine = document.createElement('div');
+      usernameLine.style.color = '#3B82F6';
+      usernameLine.style.fontWeight = '800';
+      usernameLine.style.fontSize = '18px';
+      usernameLine.style.margin = '12px 0';
+      usernameLine.textContent = '@' + decodeURIComponent(userMatch[2]) + ' seni davet ediyor';
+      document.querySelector('.card').insertBefore(usernameLine, document.querySelector('.btn-play'));
+    }
+
+    function copyCode() {
+      if (!currentCode) return;
+      const btn = document.getElementById('copyBtn');
+      const original = btn.innerHTML;
+      const fallback = () => {
+        const ta = document.createElement('textarea');
+        ta.value = currentCode;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); } catch (_) {}
+        document.body.removeChild(ta);
+      };
+      const onSuccess = () => {
+        btn.innerHTML = '✓ Kopyalandı';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.innerHTML = original;
+          btn.classList.remove('copied');
+        }, 1800);
+      };
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(currentCode).then(onSuccess, fallback);
+      } else {
+        fallback();
+        onSuccess();
+      }
     }
   </script>
 </body>

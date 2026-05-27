@@ -717,6 +717,18 @@ const Map<String, Map<String, String>> generatedTranslations = {
     'onb_grade_university': 'Université',
     'onb_grade_adult': 'Adulte / Auto-apprentissage',
     'onb_grade_other': 'Autre',
+    // ── Onboarding kritik eksikleri (offline garantisi) ────────────────
+    'onb_lang_pick': 'Choisis ta langue',
+    'onb_save_continue': 'Enregistrer et continuer',
+    'onb_hero_welcome': 'Bienvenue dans le monde éducatif QuAlsar',
+    'onb_library_title': 'Ta propre bibliothèque',
+    'onb_library_subtitle': 'Chaque cours, chaque sujet au même endroit\nGère ton apprentissage',
+    'onb_level_section': 'Ton niveau d\'études',
+    'onb_class_section': 'Ta classe',
+    'onb_pick_one': 'Fais ton choix',
+    'onb_exam_prep_section': 'Préparation aux examens',
+    'onb_pick_level_first': 'Choisis d\'abord ton niveau d\'études',
+    'onb_no_class_needed': 'Pas besoin de choisir une classe à ce niveau',
   },
   'de': {
     'translating_please_wait': 'Übersetzungen werden vorbereitet, bitte warten Sie…',

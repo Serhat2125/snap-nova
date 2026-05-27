@@ -1,14 +1,19 @@
-import 'dart:async';
+﻿import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../main.dart' show themeService;
+import '../screens/account_type_screen.dart';
 import '../screens/onboarding_screen.dart';
 import '../screens/premium_screen.dart';
+import '../services/account_service.dart';
 import '../services/auth_service.dart';
+import '../services/subscription_service.dart';
 import '../services/locale_service.dart';
 import '../services/runtime_translator.dart';
+import '../services/user_profile_service.dart';
 
 import '../theme/app_theme.dart';
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -168,6 +173,12 @@ class _MainMenu extends StatelessWidget {
                     title: tr('theme_appearance'),
                     subtitle: tr('dark_mode'),
                     onTap: () => onOpenPage('theme')),
+                _Item(
+                    icon: Icons.switch_account_rounded,
+                    color: Color(0xFF7C3AED),
+                    title: 'Hesap Tipi'.tr(),
+                    subtitle: _accountTypeLabel(AccountService.instance.type),
+                    onTap: () => _openAccountTypeSwitcher(context)),
 
                 SizedBox(height: 10),
                 _divider(),
@@ -190,6 +201,29 @@ class _MainMenu extends StatelessWidget {
                     color: Color(0xFF6366F1),
                     title: tr('about_us'),
                     onTap: () => onOpenPage('about')),
+
+                SizedBox(height: 10),
+                _divider(),
+                SizedBox(height: 10),
+                _label('Abonelik'.tr()),
+                SizedBox(height: 6),
+
+                // Apple Guideline 3.1.1 zorunlu — iOS yayınında bu satır
+                // mutlaka görünür olmalı (review reddetme nedeni).
+                _Item(
+                    icon: Icons.restore_rounded,
+                    color: Color(0xFF10B981),
+                    title: 'Satın Alımları Geri Yükle'.tr(),
+                    subtitle: 'Aboneliğin başka cihazda alınmışsa burada aktif et'.tr(),
+                    onTap: () => _restorePurchases(context)),
+                _Item(
+                    icon: Icons.tune_rounded,
+                    color: Color(0xFF6366F1),
+                    title: 'Aboneliği Yönet'.tr(),
+                    subtitle: Platform.isIOS
+                        ? 'App Store hesabında iptal/değişiklik'.tr()
+                        : 'Google Play hesabında iptal/değişiklik'.tr(),
+                    onTap: () => _openManageSubscriptions(context)),
 
                 SizedBox(height: 10),
                 _divider(),
@@ -243,6 +277,99 @@ class _MainMenu extends StatelessWidget {
           ]),
         ),
       );
+
+  String _accountTypeLabel(AccountType t) {
+    switch (t) {
+      case AccountType.student: return 'Öğrenci'.tr();
+      case AccountType.parent:  return 'Ebeveyn'.tr();
+      case AccountType.teacher: return 'Öğretmen'.tr();
+    }
+  }
+
+  /// AccountTypeScreen'i aç. Kullanıcı Öğrenci seçerse drawer + sheet kapanıp
+  /// ana ekrana döner; Ebeveyn/Öğretmen seçerse AccountTypeScreen kendi
+  /// içinde pushAndRemoveUntil ile dashboard'a alır (tüm stack temizlenir).
+  void _openAccountTypeSwitcher(BuildContext context) {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (typeCtx) => AccountTypeScreen(
+        onStudentSelected: () async {
+          // Öğrenci seçilirse type'ı yaz, AccountTypeScreen'ı kapat, drawer'ı
+          // kapat — kullanıcı zaten student akışını kullanıyor olabilir; eğer
+          // başka tipte iken student'a döndüyse ev ekranına gönder.
+          await AccountService.instance.setType(AccountType.student);
+          if (typeCtx.mounted) Navigator.of(typeCtx).pop();
+        },
+      ),
+    )).then((_) {
+      // Drawer içinden Parent/Teacher seçilirse stack zaten temizlendiği için
+      // bu callback hiç çalışmaz. Student seçildiyse subtitle'ı tazelemek
+      // için parent State setState eder — _MainMenu StatelessWidget olduğu
+      // için bir sonraki açılışta zaten doğru gösterir.
+    });
+  }
+
+  /// SubscriptionService.restorePurchases — Play/App Store'dan aktif
+  /// abonelik varsa PremiumStatus'u günceller (purchase stream listener
+  /// içeride). Apple Guideline 3.1.1 zorunlu UI ucu.
+  Future<void> _restorePurchases(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    if (!SubscriptionService.instance.isAvailable) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('Mağaza şu an kullanılamıyor.'.tr()),
+        backgroundColor: const Color(0xFFEF4444),
+      ));
+      return;
+    }
+    messenger.showSnackBar(SnackBar(
+      content: Text('Satın alımlar yükleniyor…'.tr()),
+      duration: const Duration(seconds: 2),
+    ));
+    try {
+      await SubscriptionService.instance.restorePurchases();
+      if (context.mounted) {
+        messenger.showSnackBar(SnackBar(
+          content: Text('Tamamlandı. Premium varsa aktif edildi.'.tr()),
+          backgroundColor: const Color(0xFF22C55E),
+        ));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        messenger.showSnackBar(SnackBar(
+          content: Text('Geri yükleme başarısız: $e'),
+          backgroundColor: const Color(0xFFEF4444),
+        ));
+      }
+    }
+  }
+
+  /// Platform'a göre App Store / Play Store abonelik yönetim sayfasını açar.
+  /// Apple Guideline 3.1.2(a) — kullanıcı kolayca iptal edebilmeli.
+  Future<void> _openManageSubscriptions(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final Uri uri;
+    if (Platform.isIOS) {
+      uri = Uri.parse('https://apps.apple.com/account/subscriptions');
+    } else {
+      uri = Uri.parse(
+          'https://play.google.com/store/account/subscriptions?package=com.qualsar.ai');
+    }
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && context.mounted) {
+        messenger.showSnackBar(SnackBar(
+          content: Text('Mağaza açılamadı.'.tr()),
+          backgroundColor: const Color(0xFFEF4444),
+        ));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        messenger.showSnackBar(SnackBar(
+          content: Text('Hata: $e'),
+          backgroundColor: const Color(0xFFEF4444),
+        ));
+      }
+    }
+  }
 
   void _showLogout(BuildContext context) async {
     final confirmed = await showDialog<bool>(
@@ -328,21 +455,41 @@ class _ProfileCard extends StatelessWidget {
           ),
           SizedBox(width: 14),
           Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Hoş geldin, $displayName 👋',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700)),
-              SizedBox(height: 3),
-              Text(context.tr('view_my_profile'),
-                  style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.cyanAccent.withValues(alpha: 0.80),
-                      fontWeight: FontWeight.w500)),
-            ]),
+            child: AnimatedBuilder(
+              animation: UserProfileService.instance,
+              builder: (ctx, _) {
+                final uname = UserProfileService.instance.username;
+                return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Hoş geldin, $displayName 👋',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 2),
+                      if (uname.isNotEmpty)
+                        Text(uname,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: 11.5,
+                                color: Colors.cyanAccent
+                                    .withValues(alpha: 0.85),
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.3)),
+                      const SizedBox(height: 2),
+                      Text(context.tr('view_my_profile'),
+                          style: TextStyle(
+                              fontSize: 11,
+                              color:
+                                  Colors.white.withValues(alpha: 0.55),
+                              fontWeight: FontWeight.w500)),
+                    ]);
+              },
+            ),
           ),
           Icon(Icons.chevron_right_rounded,
               color: Colors.white.withValues(alpha: 0.35), size: 20),
@@ -818,7 +965,7 @@ void _showAccountSettingsSheet(BuildContext context) {
               tile(Icons.privacy_tip_outlined, 'Gizlilik & Veri'.tr(),
                   'Verilerimi yönet, dışa aktar'.tr(),
                   const Color(0xFF10B981), () async {
-                final uri = Uri.parse('https://qualsar2-640f0.web.app/privacy.html');
+                final uri = Uri.parse('https://qualsar.app/privacy.html');
                 if (await canLaunchUrl(uri)) await launchUrl(uri);
               }),
               tile(Icons.delete_forever_outlined, 'Hesabımı Sil'.tr(),
@@ -1454,8 +1601,8 @@ class _AboutPage extends StatelessWidget {
                   fontWeight: FontWeight.w700)),
           SizedBox(height: 10),
           _socialBtn(
-              Icons.language_rounded, 'qualsar2-640f0.web.app', Color(0xFF3B82F6),
-              url: 'https://qualsar2-640f0.web.app'),
+              Icons.language_rounded, 'qualsar.app', Color(0xFF3B82F6),
+              url: 'https://qualsar.app'),
           SizedBox(height: 8),
           _socialBtn(
               Icons.camera_alt_outlined, '@qualsar', Color(0xFFEC4899),

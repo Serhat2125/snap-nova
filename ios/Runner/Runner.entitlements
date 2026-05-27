@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -10,10 +10,10 @@
 	<!-- APNs / FCM Push Notifications -->
 	<key>aps-environment</key>
 	<string>production</string>
-	<!-- Universal Links — qualsar2-640f0.web.app/davet/* + /u/* -->
+	<!-- Universal Links — qualsar.app/davet/* + /u/* -->
 	<key>com.apple.developer.associated-domains</key>
 	<array>
-		<string>applinks:qualsar2-640f0.web.app</string>
+		<string>applinks:qualsar.app</string>
 	</array>
 </dict>
 </plist>

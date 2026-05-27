@@ -1,7 +1,10 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+﻿<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Internet -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Uygulama Kilidi: parmak izi / Face Unlock için local_auth gerekir -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.USE_FINGERPRINT" />
     <!-- Camera & Flash -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.FLASHLIGHT" />
@@ -16,6 +19,8 @@
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <!-- FCM Push bildirimleri (Android 13+ runtime permission) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Google Play Billing — in_app_purchase için zorunlu izin -->
+    <uses-permission android:name="com.android.vending.BILLING" />
     <!-- Gallery / Storage -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
@@ -46,23 +51,24 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- Deep link: davet ve profil linkleri ───────────────────────
-                 https://qualsar2-640f0.web.app/davet/{username}
-                 https://qualsar2-640f0.web.app/u/{username}
-                 + custom scheme qualsar://...                              -->
+            <!-- Deep link: profil ve mevcut kullanıcı linkleri ─────────────
+                 https://qualsar.app/davet/{username}  ← arkadaş daveti (varsa app aç)
+                 https://qualsar.app/u/{username}      ← profil paylaşımı
+                 + custom scheme qualsar://...
+                 NOT: /i/{code} (yeni kullanıcı davet linki) BU LİSTEDE YOK —
+                 her zaman tarayıcıyı açıp davet.html sayfasını göstermesi
+                 için autoVerify dışında bırakıldı. Yeni kullanıcı kodu kart
+                 üzerinden kopyalar, uygulamayı indirir, onboarding'de yapıştırır. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https"
-                      android:host="qualsar2-640f0.web.app"
+                      android:host="qualsar.app"
                       android:pathPrefix="/davet/" />
                 <data android:scheme="https"
-                      android:host="qualsar2-640f0.web.app"
+                      android:host="qualsar.app"
                       android:pathPrefix="/u/" />
-                <data android:scheme="https"
-                      android:host="qualsar2-640f0.web.app"
-                      android:pathPrefix="/i/" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />

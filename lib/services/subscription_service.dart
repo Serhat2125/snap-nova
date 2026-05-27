@@ -26,6 +26,7 @@ import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
@@ -144,6 +145,11 @@ class SubscriptionService {
 
   /// Satın alma akışını başlat. Play Billing dialog'u açılır; sonuç stream'den
   /// gelir. Buy() bekleyen completer yapısıyla sonucu döner.
+  ///
+  /// NOT: Eskiden debug modda mock akış devreye giriyordu (Play Console SKU
+  /// eksik olduğunda otomatik premium grant). Kullanıcı talebi gereği bu
+  /// devre dışı bırakıldı — premium SADECE gerçek satın alma ile aktive
+  /// olur. SKU yüklü değilse `unavailable` dönülür, UI hata gösterir.
   Future<SubscriptionPurchaseResult> buy(SubscriptionPlan plan) async {
     if (!_available) return SubscriptionPurchaseResult.unavailable;
 
@@ -224,9 +230,19 @@ class SubscriptionService {
     if (c != null && !c.isCompleted) c.complete(result);
   }
 
-  /// Başarılı satın alma → PremiumStatus'u güncelle (local + cloud).
-  /// PremiumStatus servisinin write API'sı private; burada aynı pref key'leri
-  /// kullanıyoruz (bilinçli coupling — tek kaynak gerçeği yine PremiumStatus).
+  /// Başarılı satın alma → server-side doğrulama + Premium aktivasyonu.
+  ///
+  /// AKIŞ:
+  ///   1) verifyPurchase Cloud Function çağrılır (purchaseToken / receipt
+  ///      Google Play Developer API veya App Store Server API ile doğrulanır)
+  ///   2) Function `users/{uid}/premium/state` doc'una `verified=true` yazar
+  ///   3) purchaseToken → uid mapping de yazılır (RTDN webhook için)
+  ///   4) Client local cache + revision tick (UI rebuild)
+  ///
+  /// firestore.rules client'in premium doc'una direkt yazmasını engelliyor;
+  /// bu fonksiyon Cloud Function'a delege etmek zorunda. Cloud Function
+  /// deploy edilmemişse hata loglanır ve premium aktive olmaz — bu doğru
+  /// güvenlik davranışı (sahte purchase event'leri engellenmiş olur).
   Future<void> _grantPremiumFor(PurchaseDetails p) async {
     final plan = SubscriptionPlan.byProductId(p.productID);
     if (plan == null) {
@@ -235,37 +251,81 @@ class SubscriptionService {
       return;
     }
 
-    final until = DateTime.now().add(Duration(days: plan.durationDays));
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      debugPrint('[SubscriptionService] no user — grant skipped');
+      return;
+    }
 
-    // 1) Local cache
+    // 1) Server-side doğrulama — Google Play / App Store receipt validate
+    //
+    // ⚠️ Android için purchaseToken = serverVerificationData (Purchase.getPurchaseToken()).
+    // p.purchaseID Android'de orderId döner ("GPA.xxxx-xxxx") — Google Play
+    // Developer API ise PurchaseToken bekler. Yanlış kullanılırsa API 404 verir
+    // ve RTDN webhook mapping de bulunamaz.
+    final platform = Platform.isIOS ? 'ios' : 'android';
+    final serverData = p.verificationData.serverVerificationData;
+    // Android: purchaseToken (subscription doğrulama + RTDN mapping anahtarı).
+    // iOS: base64-encoded App Store receipt.
+    int? serverExpiryMs;
     try {
+      final callable = FirebaseFunctions.instanceFor(region: 'us-central1')
+          .httpsCallable('verifyPurchase',
+              options: HttpsCallableOptions(
+                timeout: const Duration(seconds: 30),
+              ));
+      final res = await callable.call(<String, dynamic>{
+        'platform': platform,
+        'productId': p.productID,
+        if (platform == 'android') 'purchaseToken': serverData,
+        if (platform == 'ios') 'receipt': serverData,
+      });
+      debugPrint('[SubscriptionService] verifyPurchase ok: ${res.data}');
+      // Server'ın döndüğü gerçek expiry'yi al — local hesaplama yerine
+      // grace period / trial / proration durumlarında daha doğru.
+      if (res.data is Map) {
+        final raw = (res.data as Map)['premiumUntil'];
+        if (raw is int) serverExpiryMs = raw;
+        if (raw is num) serverExpiryMs = raw.toInt();
+      }
+
+      // purchaseToken → uid mapping (RTDN webhook için).
+      // RTDN payload'ı purchaseToken ile gelir; bu mapping olmadan webhook
+      // hangi user'a yazacağını bilemez.
+      if (platform == 'android' && serverData.isNotEmpty) {
+        try {
+          await FirebaseFirestore.instance
+              .collection('purchaseTokens').doc(serverData).set({
+            'uid': user.uid,
+            'productId': p.productID,
+            'createdAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        } catch (e) {
+          debugPrint('[SubscriptionService] token mapping fail: $e');
+        }
+      }
+    } on FirebaseFunctionsException catch (e) {
+      debugPrint(
+          '[SubscriptionService] verifyPurchase FAIL code=${e.code} msg=${e.message}');
+      // Premium AKTİVE EDİLMEZ — doğrulama başarısız olursa kullanıcı
+      // gerçek satın alma yapmış olsa bile riskli kabul edilir.
+      return;
+    } catch (e) {
+      debugPrint('[SubscriptionService] verifyPurchase error: $e');
+      return;
+    }
+
+    // 2) Local cache — UI hızlı yansıma için (Firestore stream gecikme yapabilir).
+    // Server gerçek expiry döndürdüyse onu kullan; yoksa plan süresine düş.
+    try {
+      final until = serverExpiryMs != null
+          ? DateTime.fromMillisecondsSinceEpoch(serverExpiryMs)
+          : DateTime.now().add(Duration(days: plan.durationDays));
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('premium_until_iso', until.toIso8601String());
       await prefs.setString('premium_source', 'subscription');
     } catch (e) {
       debugPrint('[SubscriptionService] local write error: $e');
-    }
-
-    // 2) Cloud (varsa) — Firestore users/{uid}/premium/state
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      try {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .collection('premium')
-            .doc('state')
-            .set({
-          'premiumUntil': Timestamp.fromDate(until),
-          'lastGrantSource': 'subscription',
-          'lastProductId': p.productID,
-          'lastPurchaseToken': p.purchaseID,
-          'platform': Platform.isIOS ? 'ios' : 'android',
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      } catch (e) {
-        debugPrint('[SubscriptionService] cloud write error: $e');
-      }
     }
 
     revision.value++;

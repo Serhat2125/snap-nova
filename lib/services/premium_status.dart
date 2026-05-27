@@ -73,20 +73,37 @@ class PremiumStatus {
   // singleton ve dispose karmaşası yok.
   static final ValueNotifier<int> revision = ValueNotifier<int>(0);
 
-  /// Anlık snapshot — cache + cloud.
+  /// Geçerli premium kaynakları — yalnızca bu source'lar aktif Premium sayılır.
+  /// Eski test/mock grantları ('debug_mock', 'manual_test') stale data olarak
+  /// kabul edilip otomatik temizlenir.
+  static const _validSources = <String>{
+    'subscription',
+    'referral_complete',
+    'referral_redeem',
+  };
+
+  /// Anlık snapshot — cache + cloud. Geçersiz kaynaklı (mock/test) kayıtlar
+  /// hem cloud hem de lokal cache'ten temizlenir.
   static Future<PremiumStatusSnapshot> read() async {
     // 1) Lokal cache hemen
     final local = await _readLocal();
-    // 2) Auth varsa cloud ile senkronize et (uzun cache'i tercih et)
+    if (local.source != null && !_validSources.contains(local.source)) {
+      // Eski mock/test kaydı bulundu → temizle, inactive dön.
+      debugPrint(
+          '[PremiumStatus] geçersiz kaynak temizleniyor: ${local.source}');
+      await clear();
+      return PremiumStatusSnapshot.inactive;
+    }
+    // 2) Auth varsa cloud ile senkronize et
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return local;
     try {
-      final snap = await FirebaseFirestore.instance
+      final docRef = FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .collection('premium')
-          .doc('state')
-          .get();
+          .doc('state');
+      final snap = await docRef.get();
       if (!snap.exists) return local;
       final data = snap.data() ?? const <String, dynamic>{};
       DateTime? until;
@@ -94,6 +111,19 @@ class PremiumStatus {
       if (raw is Timestamp) until = raw.toDate();
       final source = data['lastGrantSource'] as String?;
       if (until == null) return local;
+
+      // Stale/mock kaynak ise cloud'da da temizle, inactive dön.
+      if (source != null && !_validSources.contains(source)) {
+        debugPrint(
+            '[PremiumStatus] cloud\'da geçersiz kaynak: $source — temizleniyor');
+        try {
+          await docRef.delete();
+        } catch (e) {
+          debugPrint('[PremiumStatus] cloud delete fail: $e');
+        }
+        await clear();
+        return PremiumStatusSnapshot.inactive;
+      }
 
       // Cloud > lokal ise cloud'u kabul et, lokal cache'i güncelle
       if (local.until == null || until.isAfter(local.until!)) {
@@ -138,16 +168,11 @@ class PremiumStatus {
     revision.value++;
   }
 
-  /// Geliştirici / test için manuel grant. Production'da NO-OP.
-  /// kDebugMode ve kProfileMode false ise (release build) çağrılırsa
-  /// sessizce geri döner — kullanıcılar exploit edemesin.
+  /// TAMAMEN DEVRE DIŞI (kullanıcı talebi: "sahte premium olmasın").
+  /// Premium SADECE gerçek IAP satın alma ile aktive olur. Bu fonksiyon
+  /// imza geriye dönük uyumluluk için kalıyor ama hiçbir şey yapmaz.
   static Future<void> grantManualTest({int days = 30}) async {
-    if (!kDebugMode && !kProfileMode) {
-      debugPrint('[Premium] grantManualTest release build\'de devre dışı');
-      return;
-    }
-    final until = DateTime.now().add(Duration(days: days));
-    await _writeLocal(until: until, source: 'manual_test');
+    debugPrint('[Premium] grantManualTest devre dışı — gerçek ödeme gerekir');
   }
 
   /// Premium'u sıfırla (test / hesap silme / logout sonrası).

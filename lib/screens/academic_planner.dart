@@ -1,4 +1,4 @@
-// ignore_for_file: unused_element, unused_element_parameter
+﻿// ignore_for_file: unused_element, unused_element_parameter
 
 import '../services/push_service.dart';
 import '../services/runtime_translator.dart';
@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -3218,7 +3219,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 SizedBox(width: 10),
                 Expanded(
                   child: _LandingCard(
-                    icon: Icons.auto_awesome_rounded,
+                    icon: Icons.support_agent_rounded,
                     title: 'AI Koç'.tr(),
                     color: Color(0xFF7C3AED),
                     customBg: _cardBgs['ai_coach'],
@@ -11499,6 +11500,85 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
   // Her özet kendi renk setine sahip — SharedPreferences anahtarı özet id'si.
   String get _prefKey => 'summary_colors_${widget.summary.id}';
 
+  // ── Formül paneli state'i (sadece sayısal dersler için) ────────────────
+  bool _showFormulasPanel = false;
+  String? _formulasContent;
+  bool _loadingFormulas = false;
+  String? _formulasError;
+
+  /// EduProfile level/grade kodlarını Türkçe okunabilir etikete çevirir.
+  /// Formül üreteci ve AI Koç bu etiketi kullanarak içeriği seviyeye uyarlar.
+  String _gradeHuman(String level, String grade, String? faculty) {
+    final lvl = level.toLowerCase();
+    final g = grade.trim();
+    switch (lvl) {
+      case 'primary':
+        return 'İlkokul $g. sınıf';
+      case 'middle':
+        return 'Ortaokul $g. sınıf';
+      case 'high':
+        return 'Lise $g. sınıf';
+      case 'exam_prep':
+        return 'Sınav hazırlığı: $g';
+      case 'university':
+        final fac = (faculty ?? '').isEmpty ? '' : ', $faculty';
+        return 'Üniversite $g. sınıf$fac';
+      case 'masters':
+        return 'Yüksek lisans${(faculty ?? '').isEmpty ? '' : ' ($faculty)'}';
+      case 'doctorate':
+        return 'Doktora${(faculty ?? '').isEmpty ? '' : ' ($faculty)'}';
+      case 'other':
+        return 'Yetişkin / kişisel öğrenme';
+      default:
+        return '$level $g';
+    }
+  }
+
+  Future<void> _toggleFormulasPanel() async {
+    // Açıkken → kapat
+    if (_showFormulasPanel) {
+      setState(() => _showFormulasPanel = false);
+      return;
+    }
+    setState(() => _showFormulasPanel = true);
+    // İlk açılışta içeriği yükle (cache'lenir, ikinci açılışta hızlı gelir)
+    if (_formulasContent == null && !_loadingFormulas) {
+      setState(() {
+        _loadingFormulas = true;
+        _formulasError = null;
+      });
+      try {
+        // Öğrenci seviyesini al — formülün karmaşıklığı + dil seviyesi buna
+        // göre otomatik ayarlanır (ilkokul ≠ lise ≠ üniversite).
+        String? gradeLabel;
+        try {
+          final p = await EduProfile.load();
+          if (p != null) {
+            gradeLabel = _gradeHuman(p.level, p.grade, p.faculty);
+          }
+        } catch (_) {}
+        final content = await GeminiService.generateFormulas(
+          subject: widget.subjectName,
+          topic: widget.summary.topic,
+          gradeLabel: gradeLabel,
+          langCode: localeService.localeCode,
+        );
+        if (!mounted) return;
+        setState(() {
+          _formulasContent = content;
+          _loadingFormulas = false;
+        });
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _formulasError = 'Formüller yüklenemedi — internet/sunucu sorunu.'
+              .tr();
+          _loadingFormulas = false;
+        });
+      }
+    }
+  }
+
   // ── Streaming state ─────────────────────────────────────────────────────
   // _streamedContent: stream geldikçe büyür. Stream bittiğinde
   // widget.summary.content güncellenir + onStreamComplete persist eder.
@@ -14728,6 +14808,18 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
               );
             },
           ),
+          // ── Sayısal ders → sol alt formül butonu + açılır panel ──────
+          // Açıkken panel butonun ÜSTÜNDE belirir, içeride scroll vardır.
+          // Buton sabit kalır (özet kaydırılırken bile pozisyonunu korur).
+          if (_AcademicPlannerState._subjectLayer(widget.subjectName) ==
+              'numeric') ...[
+            if (_showFormulasPanel) _buildFormulasPanel(context),
+            Positioned(
+              left: 16,
+              bottom: 16,
+              child: _buildFormulasFab(),
+            ),
+          ],
         ],
       ),
     );
@@ -14738,6 +14830,185 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
     return DragTarget<Color>(
       onAcceptWithDetails: (d) => _applyColorTo('cards', d.data),
       builder: (ctx, cand, _) => child,
+    );
+  }
+
+  // ═════ FORMÜL PANELİ (sadece sayısal dersler) ═════════════════════════
+  /// Sol alt köşede sabit duran küçük "Tüm formülleri oluştur" butonu.
+  Widget _buildFormulasFab() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _toggleFormulasPanel,
+        borderRadius: BorderRadius.circular(28),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: _showFormulasPanel
+                  ? const [Color(0xFFEF4444), Color(0xFFDC2626)]
+                  : const [Color(0xFF7C3AED), Color(0xFF2563EB)],
+            ),
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: (_showFormulasPanel
+                        ? const Color(0xFFEF4444)
+                        : const Color(0xFF7C3AED))
+                    .withValues(alpha: 0.32),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                _showFormulasPanel
+                    ? Icons.close_rounded
+                    : Icons.functions_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                _showFormulasPanel
+                    ? 'Kapat'.tr()
+                    : 'Tüm formülleri oluştur'.tr(),
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  letterSpacing: 0.1,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Butonun ÜZERİNDE açılan kart — tam ekran değil, max 60% yükseklik,
+  /// içi scroll'lanabilir. AI tarafından üretilen formüller markdown render.
+  Widget _buildFormulasPanel(BuildContext context) {
+    final maxH = MediaQuery.of(context).size.height * 0.62;
+    final ink = AppPalette.textPrimary(context);
+    return Positioned(
+      left: 12,
+      right: 12,
+      bottom: 68, // butonun hemen üstünde
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+        child: Container(
+          constraints: BoxConstraints(maxHeight: maxH),
+          decoration: BoxDecoration(
+            color: AppPalette.card(context),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+                color: const Color(0xFF7C3AED).withValues(alpha: 0.25),
+                width: 1.4),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.18),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Başlık çubuğu
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.functions_rounded,
+                        color: Color(0xFF7C3AED), size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${widget.summary.topic} — Formüller'.tr(),
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: ink,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                  height: 1, color: AppPalette.border(context)),
+              Flexible(
+                child: _loadingFormulas
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 40),
+                        child: Center(
+                          child: CircularProgressIndicator(strokeWidth: 2.5),
+                        ),
+                      )
+                    : _formulasError != null
+                        ? Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Center(
+                              child: Text(
+                                _formulasError!,
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  color: const Color(0xFFEF4444),
+                                ),
+                              ),
+                            ),
+                          )
+                        : SingleChildScrollView(
+                            padding: const EdgeInsets.fromLTRB(
+                                14, 10, 14, 14),
+                            child: MarkdownBody(
+                              data: _formulasContent ?? '',
+                              shrinkWrap: true,
+                              selectable: true,
+                              styleSheet: MarkdownStyleSheet(
+                                p: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    color: ink,
+                                    height: 1.5),
+                                strong: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    color: ink),
+                                h3: GoogleFonts.poppins(
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w900,
+                                  color: const Color(0xFF7C3AED),
+                                  height: 1.3,
+                                ),
+                                listBullet: GoogleFonts.poppins(
+                                    fontSize: 13, color: ink),
+                                listIndent: 18,
+                                code: GoogleFonts.firaCode(
+                                  fontSize: 12.5,
+                                  color: ink,
+                                  backgroundColor: AppPalette.border(context)
+                                      .withValues(alpha: 0.35),
+                                ),
+                              ),
+                            ),
+                          ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -18856,7 +19127,7 @@ class ParentReportPageState extends State<ParentReportPage> {
         'uygulamasını yükle ve aşağıdaki kodla bağlan:\n\n'
         'Eşleşme kodu: $_pairCode\n'
         'Öğrenci ID: $_studentId\n\n'
-        'Uygulamayı indir: https://qualsar2-640f0.web.app';
+        'Uygulamayı indir: https://qualsar.app';
 
     unawaited(_doShareInvite(msg));
   }

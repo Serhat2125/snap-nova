@@ -87,7 +87,7 @@ class QuAlsarLoadingWidget extends StatelessWidget {
         return [
           t.isEmpty ? 'Konu içeriği taranıyor' : '$t içeriği taranıyor',
           'Kaliteli sorular ve şıklar üretiliyor',
-          'Testin neredeyse hazır',
+          'Testiniz neredeyse hazır',
         ];
       case QuAlsarLoadingType.contest:
         return [

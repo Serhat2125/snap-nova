@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import '../services/error_logger.dart';
 import 'dart:io';
@@ -3467,7 +3467,7 @@ class _ResultCard extends StatelessWidget {
                       ),
                       SizedBox(height: 2),
                       Text(
-                        'qualsar2-640f0.web.app',
+                        'qualsar.app',
                         style: GoogleFonts.poppins(
                           fontSize: 11,
                           fontWeight: FontWeight.w900,
@@ -3505,7 +3505,7 @@ class _ResultCard extends StatelessWidget {
                               Border.all(color: AppPalette.border(context), width: 1),
                         ),
                         child: QrImageView(
-                          data: 'https://qualsar2-640f0.web.app',
+                          data: 'https://qualsar.app',
                           version: QrVersions.auto,
                           size: 56,
                           backgroundColor: AppPalette.card(context),
@@ -4136,8 +4136,8 @@ class _ShareModePageState extends State<_ShareModePage> {
     } catch (_) {}
     setState(() => _sharing = true);
     final msg = widget.friendMode
-        ? '${widget.subjectName} · ${widget.topic}\n${widget.correct}/${widget.total} · %${((widget.correct * 100) / (widget.total == 0 ? 1 : widget.total)).round()}\n\nQuAlsar\'da sen de dene: https://qualsar2-640f0.web.app'
-        : 'QuAlsar ile çözdüğüm test — sen de dene: https://qualsar2-640f0.web.app';
+        ? '${widget.subjectName} · ${widget.topic}\n${widget.correct}/${widget.total} · %${((widget.correct * 100) / (widget.total == 0 ? 1 : widget.total)).round()}\n\nQuAlsar\'da sen de dene: https://qualsar.app'
+        : 'QuAlsar ile çözdüğüm test — sen de dene: https://qualsar.app';
     // Tüm yollar başarısız olursa kullanıcı en azından metni panodan
     // alabilsin — son çare clipboard fallback.
     bool sheetOpened = false;

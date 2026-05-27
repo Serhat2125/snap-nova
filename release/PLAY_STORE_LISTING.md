@@ -1,4 +1,4 @@
-# 🏪 Play Store Listing — Kopyala-Yapıştır Yönergesi
+﻿# 🏪 Play Store Listing — Kopyala-Yapıştır Yönergesi
 
 Play Console → Ana sayfa → **Mağaza varlığı / Store presence** → **Mağaza listesi / Main store listing** sayfasında her alana karşılık gelen metin aşağıda. Sırayla kopyala-yapıştır.
 
@@ -179,10 +179,10 @@ Her telefon screenshot'ının altına ekleyebileceğin başlıklar (8-10 kelime)
 
 | Alan | Değer |
 |---|---|
-| Web sitesi | `https://qualsar2-640f0.web.app` |
+| Web sitesi | `https://qualsar.app` |
 | E-posta | `serhatdsme@gmail.com` |
-| Privacy Policy URL | `https://qualsar2-640f0.web.app/privacy` |
-| Terms of Service URL (opsiyonel) | `https://qualsar2-640f0.web.app/terms` |
+| Privacy Policy URL | `https://qualsar.app/privacy` |
+| Terms of Service URL (opsiyonel) | `https://qualsar.app/terms` |
 | Telefon (opsiyonel) | (boş bırakabilirsin) |
 | Kategori | **Eğitim** (Education) |
 | Etiketler | "Education", "Productivity", "Tools" |

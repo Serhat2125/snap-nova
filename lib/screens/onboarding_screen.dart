@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import '../services/error_logger.dart';
 import 'dart:math' as math;
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:country_flags/country_flags.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -9,7 +10,9 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../main.dart' show localeService;
+import '../services/account_service.dart';
 import '../services/auth_service.dart';
+import '../services/friend_service.dart';
 import '../services/country_resolver.dart';
 import '../services/education_profile.dart';
 import '../services/gemini_service.dart';
@@ -21,6 +24,8 @@ import '../theme/app_theme.dart';
 import '../widgets/qualsar_logo_mark.dart';
 import 'camera_screen.dart';
 import 'education_setup_screen.dart' show showAppCountryPicker;
+import 'parent_intro_screen.dart';
+import 'teacher_intro_screen.dart';
 
 // ═════════════════════════════════════════════════════════════════════════════
 //  QuAlsar Onboarding — 4 tanıtım + 1 giriş (seviye seçimi)
@@ -57,9 +62,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   /// canContinue kontrolü bu flag'i kullanır.
   bool _countryConfirmed = false;
 
-  static const int _totalPages = 7;
-  static const int _gradePageIndex = 2;
+  static const int _totalPages = 8;
   static const int _authPageIndex = 1;
+  static const int _userSetupPageIndex = 2;
+  static const int _gradePageIndex = 3;
 
   @override
   void initState() {
@@ -75,15 +81,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   // Her sayfanın kendi vurgu rengi — kartlar ve ikonlar aynı paletten beslenir.
-  // Sıra: Hero → Auth → Grade → Solve → Create → Library → Compete
+  // Sıra: Hero → Auth → UserSetup → Grade → Solve → Create → Library → Compete
   static const _accentPerPage = <Color>[
     AppColors.cyan,              // 0 Hero
     Color(0xFF2563EB),           // 1 Auth (deep blue)
-    Color(0xFF22C55E),           // 2 Grade (green)
-    AppColors.cyan,              // 3 Solve
-    Color(0xFFA78BFA),           // 4 Create (purple)
-    Color(0xFFEC4899),           // 5 Library (pink)
-    Color(0xFFFF6A00),           // 6 Compete (orange)
+    Color(0xFF7C3AED),           // 2 UserSetup (purple)
+    Color(0xFF22C55E),           // 3 Grade (green)
+    AppColors.cyan,              // 4 Solve
+    Color(0xFFA78BFA),           // 5 Create (purple)
+    Color(0xFFEC4899),           // 6 Library (pink)
+    Color(0xFFFF6A00),           // 7 Compete (orange)
   ];
 
   @override
@@ -187,11 +194,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         unawaited(_prefetchAiCurriculum(temp));
       }
     }
-    // Davet kodu adımı — kullanıcı zaten Auth ekranından geçti
-    // (FirebaseAuth.currentUser dolu olmalı). Opsiyonel; "Atla" diyebilir.
-    if (mounted) {
-      await _askInviteCode();
-    }
+    // Davet kodu artık _finish'te değil, Auth sonrası (Page 2'ye geçmeden
+    // önce) işleniyor → bkz. _handleInviteAfterAuth.
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
@@ -199,16 +203,41 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  /// Onboarding sonu davet kodu sheet'i.
-  /// Kullanıcı kayıt olurken (veya açılışta) arkadaşının davet kodunu
-  /// girebilir. Geçerli kod → 7 gün hoşgeldin Premium otomatik aktive olur.
-  Future<void> _askInviteCode() async {
-    // Auth yoksa atla — kod redeem'i auth gerektiriyor.
+  /// Auth tamamlandığı an çağrılır (henüz Grade/Page 2'ye geçmeden):
+  ///  • Deep link'ten kod geldiyse → OTOMATIK redeem + toast, sheet AÇMA.
+  ///  • Yoksa → _InviteCodeSheet aç (clipboard auto-fill içeride).
+  ///  • Zaten redeem edilmişse hiçbir şey yapma.
+  ///
+  /// NOT: Bu fonksiyon artık otomatik çağrılmıyor — davet kodu Slayt 2
+  /// (UserSetupPage)'in "Davet kodunu kullan" alanında manuel toplanıyor.
+  /// Gelecekte deep-link entegrasyonu için saklanıyor; ignore_for_file
+  /// gerekirse aktive edilebilir.
+  // ignore: unused_element
+  Future<void> _handleInviteAfterAuth() async {
     if (FirebaseAuth.instance.currentUser == null) return;
-    // Daha önce redeem etmiş mi? Atla.
     final already = await ReferralService.getMyUsedCode();
     if (already != null && already.isNotEmpty) return;
 
+    // 1) Deep link kontrolü — uygulama linkten açıldıysa kodu auto-redeem et.
+    final fromLink = DeepLinkService.instance.pendingReferralCode.value;
+    if (fromLink != null && fromLink.isNotEmpty) {
+      DeepLinkService.instance.clearReferralCode();
+      final res = await ReferralService.redeemCode(fromLink);
+      if (!mounted) return;
+      if (res == RedeemResult.success) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              '🎁 7 gün QuAlsar Premium hediyen aktive edildi!'.tr()),
+          backgroundColor: const Color(0xFF22C55E),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ));
+        return;
+      }
+      // Hata durumlarında (geçersiz/duplicate) sheet açıp kullanıcı düzeltsin.
+    }
+
+    // 2) Deep link yok veya başarısız → sheet aç (clipboard auto-fill içeride).
     if (!mounted) return;
     await showModalBottomSheet<void>(
       context: context,
@@ -368,22 +397,51 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 // Grade sayfasında zorunlu seçimler tamamlanmadan kullanıcı
                 // SWIPE ile de geçemesin. canContinue=false iken tüm scroll
                 // kapatılır (geri ok ile geri dönüş hâlâ üst bar'dan mümkün).
-                physics: canContinue
-                    ? BouncingScrollPhysics()
-                    : NeverScrollableScrollPhysics(),
+                // UserSetupPage (slayt 2) ayrıca swipe ile geçilemez — kendi
+                // "Devam Et" butonu üzerinden tip + username + kod toplanır.
+                physics: (canContinue &&
+                        _currentPage != _userSetupPageIndex)
+                    ? const BouncingScrollPhysics()
+                    : const NeverScrollableScrollPhysics(),
                 onPageChanged: (i) => setState(() => _currentPage = i),
                 children: [
                   const _HeroPage(),
                   _AuthPage(
                     accent: _accentPerPage[1],
                     onAuthenticated: () async {
+                      // Auth tamamlandı → doğrudan UserSetupPage'e geç.
+                      // Davet kodu artık UserSetupPage'in "Davet kodunu kullan"
+                      // alanında toplanıyor (sadece öğrenci için); burada
+                      // otomatik sheet açmıyoruz — kullanıcı kontrolü elinde.
                       if (!mounted) return;
                       setState(() {});
                       await Future<void>.delayed(
-                          Duration(milliseconds: 350));
+                          const Duration(milliseconds: 200));
                       if (mounted && _currentPage == _authPageIndex) {
                         await _goNext();
                       }
+                    },
+                  ),
+                  _UserSetupPage(
+                    accent: _accentPerPage[2],
+                    onContinueStudent: () {
+                      // Öğrenci akışı: bir sonraki slayta (Grade) ilerle.
+                      if (mounted && _currentPage == _userSetupPageIndex) {
+                        _goNext();
+                      }
+                    },
+                    onContinueOther: (type) {
+                      // Ebeveyn/Öğretmen: kendi intro flow'una pushAndRemoveUntil.
+                      // Onboarding stack temizlenir, intro flow tek başına çalışır.
+                      if (!mounted) return;
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(
+                          builder: (_) => type == AccountType.parent
+                              ? const ParentIntroScreen()
+                              : const TeacherIntroScreen(),
+                        ),
+                        (r) => false,
+                      );
                     },
                   ),
                   _GradePage(
@@ -444,24 +502,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
 
             // ── Alt CTA ─────────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-              child: _CtaButton(
-                label: _ctaLabel(),
-                // Son sayfa ("Ülkende ve Dünyada Yarış") → yeşil "Öğrenmeye
-                // Başla". Diğer sayfalarda sayfaya özel accent kalır.
-                accent: isLast ? Color(0xFF22C55E) : accent,
-                enabled: canContinue,
-                onTap: () async {
-                  if (!canContinue) return;
-                  if (isLast) {
-                    await _finish();
-                  } else {
-                    await _goNext();
-                  }
-                },
+            // UserSetupPage kendi "Devam Et" butonunu içeriyor — bottom CTA
+            // burada gizlenir, çift buton çakışması olmasın diye.
+            if (_currentPage != _userSetupPageIndex)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                child: _CtaButton(
+                  label: _ctaLabel(),
+                  // Son sayfa ("Ülkende ve Dünyada Yarış") → yeşil "Öğrenmeye
+                  // Başla". Diğer sayfalarda sayfaya özel accent kalır.
+                  accent: isLast ? Color(0xFF22C55E) : accent,
+                  enabled: canContinue,
+                  onTap: () async {
+                    if (!canContinue) return;
+                    if (isLast) {
+                      await _finish();
+                    } else {
+                      await _goNext();
+                    }
+                  },
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -4309,6 +4370,47 @@ class _AuthPageState extends State<_AuthPage> {
   bool _busy = false;
   String? _activeProvider;
 
+  /// Mevcut kullanıcının Firestore profilinde geçerli bir username var mı?
+  Future<bool> _needsUsernameSetup() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return false;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users').doc(uid).get();
+      final cur = (snap.data()?['username'] ?? '').toString().trim();
+      return cur.length < 3;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /// Tüm auth akışları (Google/Apple/Email/Phone/Guest) buradan geçer.
+  /// Slayt 1 sade auth: kullanıcı bir provider seçer → giriş yapar →
+  /// onAuthenticated çağrılır → onboarding bir sonraki slayt'a (UserSetup)
+  /// geçer. Hesap tipi/username/kod orada toplanır.
+  /// Yine de eski kullanıcılar için username sheet fallback'i korunuyor —
+  /// Firestore'da username yoksa zorla doldurtur.
+  Future<void> _completeAuth() async {
+    if (!mounted) return;
+    final needs = await _needsUsernameSetup();
+    if (needs && mounted) {
+      final fbUser = FirebaseAuth.instance.currentUser;
+      // Yeni akışta UserSetupPage username sorduğu için sheet'i atlatıyoruz —
+      // ancak Firestore'da username olmadan bazı servisler hata verir, bu
+      // yüzden geçici fallback olarak boş kayıt yazıyoruz (UserSetupPage
+      // bunu kullanıcı gerçek username girince üzerine yazar).
+      try {
+        await FirebaseFirestore.instance
+            .collection('users').doc(fbUser?.uid).set({
+          'displayName': fbUser?.displayName ?? '',
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    widget.onAuthenticated();
+  }
+
   Future<void> _run(String tag, Future<AppUser> Function() fn) async {
     if (_busy) return;
     setState(() {
@@ -4318,7 +4420,9 @@ class _AuthPageState extends State<_AuthPage> {
     try {
       await fn();
       if (!mounted) return;
-      widget.onAuthenticated();
+      // Merkezi auth tamamlama — Google/Apple/Misafir hepsi burada,
+      // e-posta ve telefon akışları da kendi sheet'lerinde _completeAuth çağırır.
+      await _completeAuth();
     } on AuthException catch (e) {
       if (!mounted) return;
       // Kullanıcı iptal etti → sessizce dön (snackbar gösterme).
@@ -4433,7 +4537,7 @@ class _AuthPageState extends State<_AuthPage> {
         child: _EmailSignUpSheet(accent: widget.accent),
       ),
     );
-    if (ok == true && mounted) widget.onAuthenticated();
+    if (ok == true && mounted) await _completeAuth();
   }
 
   Future<void> _openPhoneSheet() async {
@@ -4450,14 +4554,14 @@ class _AuthPageState extends State<_AuthPage> {
         child: _PhoneAuthSheet(accent: widget.accent),
       ),
     );
-    if (ok == true && mounted) widget.onAuthenticated();
+    if (ok == true && mounted) await _completeAuth();
   }
 
   @override
   Widget build(BuildContext context) {
     final user = AuthService.current;
     return SingleChildScrollView(
-      physics: BouncingScrollPhysics(),
+      physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
       child: Column(
         children: [
@@ -4482,13 +4586,13 @@ class _AuthPageState extends State<_AuthPage> {
                 ),
               ],
             ),
-            child: Icon(
+            child: const Icon(
               Icons.account_circle_rounded,
               color: Colors.white,
               size: 52,
             ),
           ),
-          SizedBox(height: 18),
+          const SizedBox(height: 18),
           Text(
             localeService.tr('auth_title'),
             textAlign: TextAlign.center,
@@ -4499,7 +4603,7 @@ class _AuthPageState extends State<_AuthPage> {
               letterSpacing: -0.3,
             ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(
             localeService.tr('auth_subtitle'),
             textAlign: TextAlign.center,
@@ -4509,7 +4613,7 @@ class _AuthPageState extends State<_AuthPage> {
               height: 1.5,
             ),
           ),
-          SizedBox(height: 22),
+          const SizedBox(height: 22),
           if (user != null) ...[
             Container(
               width: double.infinity,
@@ -4567,7 +4671,7 @@ class _AuthPageState extends State<_AuthPage> {
                 ],
               ),
             ),
-            SizedBox(height: 14),
+            const SizedBox(height: 14),
           ],
           _AuthBigButton(
             label: localeService.tr('auth_with_google'),
@@ -4578,7 +4682,7 @@ class _AuthPageState extends State<_AuthPage> {
             busy: _busy && _activeProvider == 'google',
             onTap: () => _run('google', () => AuthService.signInWithGoogle()),
           ),
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
           _AuthBigButton(
             label: localeService.tr('auth_with_apple'),
             background: Colors.white,
@@ -4592,13 +4696,13 @@ class _AuthPageState extends State<_AuthPage> {
             busy: _busy && _activeProvider == 'apple',
             onTap: () => _run('apple', () => AuthService.signInWithApple()),
           ),
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
           _AuthBigButton(
             label: localeService.tr('auth_with_phone'),
             background: Colors.white,
             foreground: Colors.black,
             border: Border.all(color: Colors.black.withValues(alpha: 0.18)),
-            iconBuilder: (_) => Icon(
+            iconBuilder: (_) => const Icon(
               Icons.phone_iphone_rounded,
               color: Color(0xFF22C55E),
               size: 24,
@@ -4606,12 +4710,12 @@ class _AuthPageState extends State<_AuthPage> {
             busy: false,
             onTap: _openPhoneSheet,
           ),
-          SizedBox(height: 14),
+          const SizedBox(height: 14),
           _OrDivider(label: localeService.tr('auth_or')),
-          SizedBox(height: 14),
+          const SizedBox(height: 14),
           _AuthBigButton(
             label: localeService.tr('auth_with_email'),
-            background: Color(0xFFF6F7F9),
+            background: const Color(0xFFF6F7F9),
             foreground: Colors.black,
             border: Border.all(color: Colors.black.withValues(alpha: 0.10)),
             iconBuilder: (_) => Icon(
@@ -4622,7 +4726,7 @@ class _AuthPageState extends State<_AuthPage> {
             busy: false,
             onTap: _openEmailSheet,
           ),
-          SizedBox(height: 14),
+          const SizedBox(height: 14),
           TextButton(
             onPressed: _busy
                 ? null
@@ -4637,7 +4741,7 @@ class _AuthPageState extends State<_AuthPage> {
               ),
             ),
           ),
-          SizedBox(height: 6),
+          const SizedBox(height: 6),
           Text(
             localeService.tr('auth_terms_hint'),
             textAlign: TextAlign.center,
@@ -4648,6 +4752,554 @@ class _AuthPageState extends State<_AuthPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  _UserSetupPage — Slayt 2 (Kullanıcı Seçimi)
+//
+//  Auth tamamlandıktan sonra gösterilir. Kullanıcı:
+//    • Hesap tipini seçer (Öğrenci / Öğretmen / Ebeveyn — alt alta)
+//    • Kullanıcı adını yazar (placeholder e-posta/isim'den türetilir)
+//    • Sadece öğrenci seçildiyse Davet Kodu alanı görünür
+//
+//  "Devam Et" basınca:
+//    • Username Firestore'a yazılır (validasyon + benzersizlik kontrolü)
+//    • AccountService.setType(type) çağrılır
+//    • Öğrenci ise kod redeem edilir (7 gün premium)
+//    • Tipe göre dallanılır:
+//        - Öğrenci → onContinueStudent() — onboarding Grade slayt'ına geç
+//        - Öğretmen → onContinueOther(teacher) — TeacherIntroScreen
+//        - Ebeveyn → onContinueOther(parent) — ParentIntroScreen
+// ═══════════════════════════════════════════════════════════════════════════
+class _UserSetupPage extends StatefulWidget {
+  final Color accent;
+  final VoidCallback onContinueStudent;
+  final ValueChanged<AccountType> onContinueOther;
+  const _UserSetupPage({
+    required this.accent,
+    required this.onContinueStudent,
+    required this.onContinueOther,
+  });
+
+  @override
+  State<_UserSetupPage> createState() => _UserSetupPageState();
+}
+
+class _UserSetupPageState extends State<_UserSetupPage> {
+  AccountType? _selectedType;
+  final _usernameCtrl = TextEditingController();
+  final _codeCtrl = TextEditingController();
+  bool _saving = false;
+
+  // Auth sonrası Firebase user'dan türetilen değerler — placeholder için kullanılır
+  String? _existingUsername;
+  String? _displayName;
+  String? _email;
+
+  @override
+  void initState() {
+    super.initState();
+    // Username text alanı değişince Devam Et butonunun enabled/disabled
+    // durumunu yenilemek için rebuild tetikle.
+    _usernameCtrl.addListener(_onUsernameChanged);
+    _loadProfile();
+  }
+
+  void _onUsernameChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// Devam Et butonu için: tip seçilmeli VE kullanıcı adı (form veya mevcut
+  /// Firestore değeri) ≥3 karakter olmalı.
+  bool get _canContinue {
+    if (_selectedType == null) return false;
+    final formLen = _usernameCtrl.text.trim().length;
+    if (formLen >= 3) return true;
+    return (_existingUsername ?? '').length >= 3;
+  }
+
+  Future<void> _loadProfile() async {
+    final fb = FirebaseAuth.instance.currentUser;
+    if (fb == null) return;
+    _displayName = fb.displayName;
+    _email = fb.email ?? fb.phoneNumber;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users').doc(fb.uid).get();
+      final cur = (snap.data()?['username'] ?? '').toString().trim();
+      if (cur.length >= 3) _existingUsername = cur;
+    } catch (_) {}
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _usernameCtrl.removeListener(_onUsernameChanged);
+    _usernameCtrl.dispose();
+    _codeCtrl.dispose();
+    super.dispose();
+  }
+
+  /// Placeholder kullanıcı adı önerisi — varsa Firestore username, yoksa
+  /// e-posta local-part'ı, yoksa display name, yoksa generic.
+  String _suggestUsername() {
+    if (_existingUsername != null) return _existingUsername!;
+    if (_email != null && _email!.contains('@')) {
+      final p = _email!.split('@').first
+          .toLowerCase()
+          .replaceAll(RegExp(r'[^a-z0-9_]'), '');
+      if (p.length >= 3) return p;
+    }
+    if (_displayName != null && _displayName!.trim().isNotEmpty) {
+      final p = _displayName!.toLowerCase()
+          .replaceAll(' ', '_')
+          .replaceAll(RegExp(r'[^a-z0-9_]'), '');
+      if (p.length >= 3) return p;
+    }
+    return 'kullanici123';
+  }
+
+  void _snack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg, style: const TextStyle(fontSize: 13)),
+      backgroundColor: const Color(0xFFEF4444),
+      behavior: SnackBarBehavior.floating,
+    ));
+  }
+
+  Future<void> _continue() async {
+    if (_saving) return;
+    final type = _selectedType;
+    if (type == null) {
+      _snack('Önce hesap tipini seç'); return;
+    }
+    var username = _usernameCtrl.text.trim().toLowerCase();
+    if (username.isEmpty) username = _existingUsername ?? '';
+    if (username.isEmpty) {
+      _snack('Kullanıcı adı gerekli'); return;
+    }
+    if (username.length < 3 || username.length > 20) {
+      _snack('Kullanıcı adı 3-20 karakter olmalı'); return;
+    }
+    if (!RegExp(r'^[a-z0-9_]+$').hasMatch(username)) {
+      _snack('Sadece harf, rakam ve _ kullan'); return;
+    }
+    setState(() => _saving = true);
+    try {
+      final fb = FirebaseAuth.instance.currentUser;
+      if (fb == null) {
+        _snack('Önce giriş yap');
+        setState(() => _saving = false); return;
+      }
+      // Benzersizlik kontrolü (mevcut kullanıcı kendi adını yeniden yazıyorsa skip)
+      if (username != _existingUsername) {
+        final taken = await FirebaseFirestore.instance
+            .collection('users')
+            .where('username', isEqualTo: username)
+            .limit(1).get();
+        if (taken.docs.isNotEmpty && taken.docs.first.id != fb.uid) {
+          _snack('Bu kullanıcı adı dolu, başka dene');
+          setState(() => _saving = false); return;
+        }
+      }
+      await FirebaseFirestore.instance.collection('users').doc(fb.uid).set({
+        'username': username,
+        'displayName': fb.displayName ?? username,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      await AccountService.instance.setType(type);
+
+      // Kod sadece öğrenci için UI'da var (7 gün premium)
+      final code = _codeCtrl.text.trim();
+      if (code.isNotEmpty && type == AccountType.student) {
+        try { await ReferralService.redeemCode(code); } catch (_) {}
+      }
+
+      if (!mounted) return;
+      if (type == AccountType.student) {
+        widget.onContinueStudent();
+      } else {
+        widget.onContinueOther(type);
+      }
+    } catch (e) {
+      debugPrint('[UserSetup] continue fail: $e');
+      _snack('Bir şeyler ters gitti, tekrar dene');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = AppPalette.textPrimary(context);
+    final muted = AppPalette.textSecondary(context);
+    final placeholder = _suggestUsername();
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 8),
+          Center(child: Text('Kullanıcı Seçimi'.tr(),
+              style: TextStyle(
+                fontSize: 22, fontWeight: FontWeight.w900,
+                color: ink, letterSpacing: -0.3,
+              ))),
+          const SizedBox(height: 6),
+          Center(child: Text(
+              'Devam etmeden önce kim olduğunu söyle'.tr(),
+              style: TextStyle(fontSize: 12, color: muted, height: 1.4))),
+          const SizedBox(height: 22),
+
+          // Hesap Tipini Seç
+          Text('Hesap tipini seç'.tr(),
+              style: TextStyle(
+                fontSize: 13, fontWeight: FontWeight.w800, color: ink,
+                letterSpacing: 0.2,
+              )),
+          const SizedBox(height: 10),
+          _stackedTypeCard(
+            type: AccountType.student,
+            title: 'Öğrenci',
+            desc: 'Sorularını çöz, sınıfında yarış, AI Koç ile çalış.',
+            emoji: '🎓',
+            color: const Color(0xFF2563EB),
+          ),
+          const SizedBox(height: 8),
+          _stackedTypeCard(
+            type: AccountType.teacher,
+            title: 'Öğretmen',
+            desc: 'Sınıfını yönet, AI ile ödev üret, ilerlemeyi izle.',
+            emoji: '👨‍🏫',
+            color: const Color(0xFF7C3AED),
+          ),
+          const SizedBox(height: 8),
+          _stackedTypeCard(
+            type: AccountType.parent,
+            title: 'Ebeveyn',
+            desc: 'Çocuğunun çalışma süresini ve başarısını izle.',
+            emoji: '👨‍👩‍👧',
+            color: const Color(0xFF10B981),
+          ),
+          const SizedBox(height: 22),
+
+          // Kullanıcı Adını Oluştur
+          Text('Kullanıcı adını oluştur'.tr(),
+              style: TextStyle(
+                fontSize: 13, fontWeight: FontWeight.w800, color: ink,
+                letterSpacing: 0.2,
+              )),
+          const SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              color: AppPalette.card(context),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppPalette.border(context)),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: TextField(
+              controller: _usernameCtrl,
+              maxLength: 20,
+              textCapitalization: TextCapitalization.none,
+              autocorrect: false,
+              style: TextStyle(
+                fontSize: 15, fontWeight: FontWeight.w600, color: ink,
+              ),
+              decoration: InputDecoration(
+                hintText: placeholder,
+                hintStyle: TextStyle(
+                  fontSize: 15, fontWeight: FontWeight.w500,
+                  color: muted.withValues(alpha: 0.55),
+                ),
+                counterText: '',
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+          ),
+          if (_existingUsername != null) Padding(
+            padding: const EdgeInsets.only(top: 4, left: 4),
+            child: Text(
+              'Mevcut: $_existingUsername (boş bırakırsan korunur)',
+              style: TextStyle(fontSize: 10.5, color: muted),
+            ),
+          ),
+          const SizedBox(height: 22),
+
+          // ── Davet Kodu kartı — sadece öğrenci seçildiyse, afilli gradient
+          if (_selectedType == AccountType.student) ...[
+            _giftCard(),
+            const SizedBox(height: 22),
+          ],
+
+          // Devam Et — tip+kullanıcı adı seçilmeden disabled
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: widget.accent,
+                disabledBackgroundColor:
+                    AppPalette.textSecondary(context).withValues(alpha: 0.25),
+                disabledForegroundColor: Colors.white.withValues(alpha: 0.85),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              onPressed: (_canContinue && !_saving) ? _continue : null,
+              child: _saving
+                  ? const SizedBox(
+                      width: 20, height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2, color: Colors.white,
+                      ),
+                    )
+                  : Text('Devam Et'.tr(),
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      )),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Davet kodu kartı — turuncu/kırmızı gradient, solunda kurdele süslü
+  /// sürpriz kutu, sağ üstte "7G" rozeti, içinde beyaz arka planlı kod input.
+  Widget _giftCard() {
+    final ink = AppPalette.textPrimary(context);
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFF6A00), Color(0xFFEF4444)],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFEF4444).withValues(alpha: 0.32),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Sürpriz kutu (sol) — beyaz card + 🎁 + kurdele + 7G rozeti
+              SizedBox(
+                width: 72, height: 72,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 72, height: 72,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.20),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      alignment: Alignment.center,
+                      child: const Text('🎁',
+                          style: TextStyle(fontSize: 38)),
+                    ),
+                    // Kurdele — üst sol
+                    Positioned(
+                      top: -12, left: 18,
+                      child: Transform.rotate(
+                        angle: -0.20,
+                        child: const Text('🎀',
+                            style: TextStyle(fontSize: 26)),
+                      ),
+                    ),
+                    // 7G rozet — sağ üst
+                    Positioned(
+                      top: -8, right: -8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFBBF24),
+                          borderRadius: BorderRadius.circular(999),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.20),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                        child: const Text('7G',
+                            style: TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFFB45309),
+                              letterSpacing: 0.4,
+                            )),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Davet kodunu kullan'.tr(),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: -0.2,
+                        )),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Arkadaşının kodunu gir → 7 gün Premium hediye'.tr(),
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white.withValues(alpha: 0.92),
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          // Beyaz kart içinde kod input
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: TextField(
+              controller: _codeCtrl,
+              maxLength: 13,
+              textCapitalization: TextCapitalization.characters,
+              autocorrect: false,
+              style: TextStyle(
+                fontSize: 15.5,
+                fontWeight: FontWeight.w800,
+                color: ink,
+                letterSpacing: 1.4,
+              ),
+              decoration: InputDecoration(
+                hintText: 'QuAls-XXXXXX',
+                hintStyle: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black.withValues(alpha: 0.32),
+                  letterSpacing: 1.0,
+                ),
+                counterText: '',
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                prefixIcon: const Icon(Icons.card_giftcard_rounded,
+                    size: 20, color: Color(0xFFEF4444)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _stackedTypeCard({
+    required AccountType type,
+    required String title,
+    required String desc,
+    required String emoji,
+    required Color color,
+  }) {
+    final sel = _selectedType == type;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => setState(() => _selectedType = type),
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: sel ? color.withValues(alpha: 0.10)
+                       : AppPalette.card(context),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: sel ? color : AppPalette.border(context),
+              width: sel ? 1.8 : 1,
+            ),
+          ),
+          child: Row(children: [
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              alignment: Alignment.center,
+              child: Text(emoji, style: const TextStyle(fontSize: 22)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title.tr(),
+                      style: TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w900,
+                        color: sel ? color : AppPalette.textPrimary(context),
+                      )),
+                  const SizedBox(height: 2),
+                  Text(desc.tr(),
+                      style: TextStyle(
+                        fontSize: 12, height: 1.4,
+                        color: AppPalette.textSecondary(context),
+                      )),
+                ],
+              ),
+            ),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              width: 22, height: 22,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: sel ? color : Colors.transparent,
+                border: Border.all(
+                  color: sel ? color : AppPalette.border(context),
+                  width: 1.8,
+                ),
+              ),
+              child: sel
+                  ? const Icon(Icons.check_rounded,
+                      color: Colors.white, size: 14)
+                  : null,
+            ),
+          ]),
+        ),
       ),
     );
   }
@@ -5569,7 +6221,7 @@ class _InviteCodeSheetState extends State<_InviteCodeSheet> {
             'Bu cihazdan daha önce bir davet kodu kullanıldı.'.tr());
         return;
       case RedeemResult.invalidCode:
-        setState(() => _error = 'Davet kodu geçersiz. QUALS-XXXXX formatında olmalı.'.tr());
+        setState(() => _error = 'Davet kodu geçersiz. QuAls-XXXXXX formatında olmalı.'.tr());
         return;
       case RedeemResult.notAuthenticated:
         setState(() => _error = 'Davet kodu kullanmak için giriş yap.'.tr());
@@ -5679,7 +6331,7 @@ class _InviteCodeSheetState extends State<_InviteCodeSheet> {
                   letterSpacing: 2,
                 ),
                 decoration: InputDecoration(
-                  hintText: 'QUALS-XXXXX',
+                  hintText: 'QuAls-XXXXXX',
                   hintStyle: GoogleFonts.poppins(
                     color: AppPalette.textSecondary(context)
                         .withValues(alpha: 0.5),
@@ -5760,6 +6412,511 @@ class UpperCaseTextFormatter extends TextInputFormatter {
     return TextEditingValue(
       text: newValue.text.toUpperCase(),
       selection: newValue.selection,
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  _UsernameCreateSheet — Auth sonrası kullanıcı adı oluşturma modal'ı.
+//
+//  Akış:
+//    1. Sheet açılır → TextField focus, placeholder örnek (örn. "serhat_d")
+//    2. Kullanıcı yazdıkça 400ms debounced ile uniqueness check
+//    3. Alındıysa → kırmızı uyarı + 3 alternatif öneri chip'i
+//    4. Müsaitse → yeşil "Müsait ✓" + "Kaydet" butonu aktif
+//    5. Kaydet → FriendService.upsertMyProfile + sheet kapanır
+//
+//  UX detayları:
+//    - 3-20 karakter, [a-z0-9_] (Instagram tarzı)
+//    - "Bu adı nerede göreceksin" açıklayıcı bilgi kartı
+//    - Vazgeç butonu YOK — username zorunlu (geri çekilebilir ama warning)
+// ═══════════════════════════════════════════════════════════════════════════
+class _UsernameCreateSheet extends StatefulWidget {
+  final String initialDisplayName;
+  final String initialEmail;
+  const _UsernameCreateSheet({
+    required this.initialDisplayName,
+    required this.initialEmail,
+  });
+
+  @override
+  State<_UsernameCreateSheet> createState() => _UsernameCreateSheetState();
+}
+
+class _UsernameCreateSheetState extends State<_UsernameCreateSheet> {
+  late final TextEditingController _ctrl;
+  final FocusNode _focus = FocusNode();
+  Timer? _debounce;
+  bool _checking = false;
+  /// null = henüz check yok / kısa, true = müsait, false = alınmış
+  bool? _isAvailable;
+  bool _saving = false;
+  List<String> _suggestions = const [];
+  String? _formatError;
+
+  @override
+  void initState() {
+    super.initState();
+    // İlk öneri: display name veya email'den türet
+    final seed = _seedFromUser();
+    _ctrl = TextEditingController(text: seed);
+    if (seed.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _onChanged());
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _focus.requestFocus();
+    });
+  }
+
+  String _seedFromUser() {
+    String src = widget.initialDisplayName.trim();
+    if (src.isEmpty) {
+      // Email'den önce @ kısmı
+      final at = widget.initialEmail.indexOf('@');
+      if (at > 0) src = widget.initialEmail.substring(0, at);
+    }
+    if (src.isEmpty) return '';
+    // Türkçe karakterleri lowercase ASCII'ye çevir
+    src = src.toLowerCase();
+    const tr = 'çğıöşü';
+    const en = 'cgiosu';
+    for (var i = 0; i < tr.length; i++) {
+      src = src.replaceAll(tr[i], en[i]);
+    }
+    src = src.replaceAll(RegExp(r'[^a-z0-9_]'), '_');
+    src = src.replaceAll(RegExp(r'_+'), '_');
+    src = src.replaceAll(RegExp(r'^_+|_+$'), '');
+    if (src.length > 20) src = src.substring(0, 20);
+    return src;
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _ctrl.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  void _onChanged() {
+    final raw = _ctrl.text.trim().toLowerCase();
+    setState(() {
+      _isAvailable = null;
+      _suggestions = const [];
+      _formatError = null;
+      _checking = false;
+    });
+    if (raw.isEmpty) return;
+    if (raw.length < 3) {
+      setState(() => _formatError = 'En az 3 karakter');
+      return;
+    }
+    if (raw.length > 20) {
+      setState(() => _formatError = 'En fazla 20 karakter');
+      return;
+    }
+    if (!RegExp(r'^[a-z0-9_]+$').hasMatch(raw)) {
+      setState(() =>
+          _formatError = 'Sadece harf, rakam ve alt çizgi (_) kullan');
+      return;
+    }
+    // Debounced uniqueness check (400ms)
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 400), () async {
+      if (!mounted) return;
+      setState(() => _checking = true);
+      final ok = await FriendService.isUsernameAvailable(raw);
+      if (!mounted || _ctrl.text.trim().toLowerCase() != raw) return;
+      setState(() {
+        _checking = false;
+        _isAvailable = ok;
+        _suggestions =
+            ok ? const [] : _generateSuggestions(raw);
+      });
+    });
+  }
+
+  /// Alınmış username için 3 benzer alternatif üret.
+  List<String> _generateSuggestions(String base) {
+    final rng = math.Random();
+    final out = <String>{};
+    // Numeric suffix
+    out.add('${base}_${rng.nextInt(900) + 100}');
+    out.add('${base}_${DateTime.now().year}');
+    // _ varsa kaldır, yoksa ekle
+    if (base.contains('_')) {
+      out.add(base.replaceAll('_', ''));
+    } else {
+      out.add('${base}_');
+    }
+    // İlk harf + son ek
+    out.add('${base}x');
+    return out.where((s) => s.length >= 3 && s.length <= 20).take(3).toList();
+  }
+
+  Future<void> _useSuggestion(String s) async {
+    _ctrl.text = s;
+    _ctrl.selection =
+        TextSelection.collapsed(offset: s.length);
+    _onChanged();
+  }
+
+  Future<void> _save() async {
+    if (_isAvailable != true || _saving) return;
+    final clean = _ctrl.text.trim().toLowerCase();
+    setState(() => _saving = true);
+    try {
+      // Race condition'a karşı son bir check
+      final stillFree = await FriendService.isUsernameAvailable(clean);
+      if (!stillFree) {
+        setState(() {
+          _saving = false;
+          _isAvailable = false;
+          _suggestions = _generateSuggestions(clean);
+        });
+        return;
+      }
+      await FriendService.upsertMyProfile(
+        username: clean,
+        displayName: widget.initialDisplayName.isNotEmpty
+            ? widget.initialDisplayName
+            : clean,
+        avatar: '👤',
+        email: widget.initialEmail,
+      );
+      // Pref'e yaz — bir sonraki login'de AuthService._writePublicProfile
+      // bu username'i bulup tam profil upsert eder, sheet tekrar açılmaz.
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('user_username_v1', clean);
+      } catch (_) {}
+      if (!mounted) return;
+      Navigator.of(context).pop(clean);
+    } catch (e) {
+      debugPrint('[UsernameSheet] save fail: $e');
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Kaydedilemedi, internet bağlantını kontrol et'.tr()),
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final viewInset = MediaQuery.of(context).viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: viewInset),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppPalette.card(context),
+          borderRadius:
+              const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 22),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 44,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppPalette.border(context),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                const Text('🆔', style: TextStyle(fontSize: 22)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Kullanıcı Adını Oluştur'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      color: AppPalette.textPrimary(context),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Bu adı seni temsil eder — değiştirebilirsin ama her yerde gözükür.'
+                  .tr(),
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: AppPalette.textSecondary(context),
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 16),
+            // TextField — @ prefix + placeholder örneği
+            Container(
+              decoration: BoxDecoration(
+                color: AppPalette.cardMuted(context),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: _isAvailable == true
+                      ? const Color(0xFF22C55E)
+                      : (_isAvailable == false ||
+                              _formatError != null)
+                          ? const Color(0xFFEF4444)
+                          : AppPalette.border(context),
+                  width: 1.4,
+                ),
+              ),
+              child: Row(
+                children: [
+                  const SizedBox(width: 14),
+                  Text(
+                    '@',
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      color: AppPalette.textSecondary(context),
+                    ),
+                  ),
+                  Expanded(
+                    child: TextField(
+                      controller: _ctrl,
+                      focusNode: _focus,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      textInputAction: TextInputAction.done,
+                      onChanged: (_) => _onChanged(),
+                      onSubmitted: (_) => _save(),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                            RegExp(r'[a-zA-Z0-9_]')),
+                        LengthLimitingTextInputFormatter(20),
+                        TextInputFormatter.withFunction((old, neu) =>
+                            TextEditingValue(
+                              text: neu.text.toLowerCase(),
+                              selection: neu.selection,
+                            )),
+                      ],
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppPalette.textPrimary(context),
+                        letterSpacing: 0.3,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'serhat_d',
+                        hintStyle: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: AppPalette.textSecondary(context)
+                              .withValues(alpha: 0.45),
+                          letterSpacing: 0.3,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding:
+                            const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ),
+                  // Status icon
+                  if (_checking)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 12),
+                      child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  else if (_isAvailable == true)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 12),
+                      child: Icon(Icons.check_circle_rounded,
+                          color: Color(0xFF22C55E), size: 22),
+                    )
+                  else if (_isAvailable == false || _formatError != null)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 12),
+                      child: Icon(Icons.error_rounded,
+                          color: Color(0xFFEF4444), size: 22),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Hata mesajı / başarı
+            SizedBox(
+              height: 20,
+              child: Text(
+                _formatError ??
+                    (_isAvailable == false
+                        ? 'Bu kullanıcı adı alınmış'.tr()
+                        : _isAvailable == true
+                            ? 'Müsait ✓'.tr()
+                            : ''),
+                style: GoogleFonts.poppins(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: _isAvailable == true
+                      ? const Color(0xFF22C55E)
+                      : const Color(0xFFEF4444),
+                ),
+              ),
+            ),
+            // Öneri chip'leri (alınmışsa)
+            if (_suggestions.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Benzer öneriler:'.tr(),
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: AppPalette.textSecondary(context),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final s in _suggestions)
+                    InkWell(
+                      onTap: () => _useSuggestion(s),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1A73E8)
+                              .withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: const Color(0xFF1A73E8)
+                                .withValues(alpha: 0.30),
+                          ),
+                        ),
+                        child: Text(
+                          '@$s',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF1A73E8),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 16),
+            // Bilgilendirme kartı — username nerede kullanılacak
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppPalette.cardMuted(context),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline_rounded,
+                          size: 14,
+                          color: AppPalette.textSecondary(context)),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Bu kullanıcı adını şurada göreceksin:'.tr(),
+                        style: GoogleFonts.poppins(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                          color: AppPalette.textPrimary(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  _whereLine('🏆',
+                      'Bilgi Yarışı ve Dünya Sıralaması'.tr()),
+                  _whereLine('🎁',
+                      'Arkadaş davet linkin (qualsar.app/u/...)'.tr()),
+                  _whereLine('👥',
+                      'Arkadaş listesi ve düello davetleri'.tr()),
+                  _whereLine('📊', 'Profil sayfası ve QR kod'.tr()),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Kaydet butonu
+            GestureDetector(
+              onTap: _isAvailable == true && !_saving ? _save : null,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: _isAvailable == true && !_saving
+                        ? const [Color(0xFFFF6A00), Color(0xFFFF8A3C)]
+                        : [
+                            AppPalette.border(context),
+                            AppPalette.border(context),
+                          ],
+                  ),
+                  borderRadius: BorderRadius.circular(50),
+                ),
+                alignment: Alignment.center,
+                child: _saving
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.4,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Text(
+                        'Kullanıcı Adımı Belirle'.tr(),
+                        style: GoogleFonts.poppins(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _whereLine(String emoji, String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 12)),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              text,
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                color: AppPalette.textSecondary(context),
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

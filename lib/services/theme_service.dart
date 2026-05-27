@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'app_settings_service.dart';
 import 'preferences_sync_service.dart';
 
 class ThemeService extends ChangeNotifier {
@@ -10,18 +11,48 @@ class ThemeService extends ChangeNotifier {
   // saklanır ve sonraki açılışlarda korunur (aydınlıktan koyuya geçtiyse
   // koyu kalır). İlk kurulum / temiz install → aydınlık.
   int _index = 1;
+  Timer? _autoDarkTimer;
 
   int get index => _index;
 
-  ThemeMode get themeMode => switch (_index) {
-        0 => ThemeMode.dark,
-        1 => ThemeMode.light,
-        _ => ThemeMode.system,
-      };
+  /// Etkili tema modu. Eğer Otomatik Karanlık (AppSettings) aktifse saat
+  /// aralığı kontrol edilir; aralık içindeyse dark, dışındaysa light dön.
+  /// Manuel seçim (index) sadece otomatik mod kapalıyken etkili.
+  ThemeMode get themeMode {
+    if (AppSettingsService.instance.autoDarkEnabled) {
+      return AppSettingsService.instance.shouldBeDarkNow
+          ? ThemeMode.dark
+          : ThemeMode.light;
+    }
+    return switch (_index) {
+      0 => ThemeMode.dark,
+      1 => ThemeMode.light,
+      _ => ThemeMode.system,
+    };
+  }
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     _index = prefs.getInt(_prefsKey) ?? 1;
+    notifyListeners();
+    // AppSettings değişimlerini dinle — otomatik karanlık toggle/saat
+    // değişince tema da hemen yansısın.
+    AppSettingsService.instance.addListener(_onAppSettingsChanged);
+    _scheduleAutoDarkTick();
+  }
+
+  /// Otomatik Karanlık aktifken her dakikada bir saati kontrol et — gece
+  /// 19:00 olunca karanlığa geç, 07:00 olunca aydınlığa.
+  void _scheduleAutoDarkTick() {
+    _autoDarkTimer?.cancel();
+    if (!AppSettingsService.instance.autoDarkEnabled) return;
+    _autoDarkTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      notifyListeners();
+    });
+  }
+
+  void _onAppSettingsChanged() {
+    _scheduleAutoDarkTick();
     notifyListeners();
   }
 
@@ -33,6 +64,13 @@ class ThemeService extends ChangeNotifier {
     notifyListeners();
     // Cloud sync — yeni cihazda tema tercihi korunur. Fire-and-forget.
     unawaited(PreferencesSyncService.syncFromLocal());
+  }
+
+  @override
+  void dispose() {
+    _autoDarkTimer?.cancel();
+    AppSettingsService.instance.removeListener(_onAppSettingsChanged);
+    super.dispose();
   }
 }
 

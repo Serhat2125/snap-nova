@@ -1,6 +1,6 @@
 import 'dart:io' show Platform;
 import 'dart:ui';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -11,6 +11,7 @@ import '../services/error_logger.dart';
 import '../services/subscription_service.dart';
 
 import '../theme/app_theme.dart';
+import 'mock_payment_screen.dart';
 // ═══════════════════════════════════════════════════════════════════════════════
 //  PremiumScreen — Abonelik & Avantajlar (Ülke Bazlı Fiyatlandırma)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -128,7 +129,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                                       '/${localeService.tr("month_unit")}',
                                   total: _plan.quarterly,
                                   oldPrice: null,
-                                  discount: null,
+                                  discount: '%10',
                                 ),
                               ),
                               SizedBox(width: 10),
@@ -142,7 +143,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                                       '/${localeService.tr("month_unit")}',
                                   total: _plan.yearly,
                                   oldPrice: null,
-                                  discount: '%50',
+                                  discount: '%33',
                                   tickKey: _tickKey12Ay,
                                 ),
                               ),
@@ -413,35 +414,13 @@ class _PremiumScreenState extends State<PremiumScreen> {
                       ),
                     ),
                   ),
-                  SizedBox(height: 8),
-                  // Apple Guideline 3.1.1 — Restore Purchases zorunlu link.
-                  // Play Store iyi pratik: kullanıcı abonelik yönetimine
-                  // tek tıkla ulaşabilsin.
-                  Center(
-                    child: Wrap(
-                      spacing: 16,
-                      runSpacing: 6,
-                      alignment: WrapAlignment.center,
-                      children: [
-                        _smallLink(
-                          label: 'Satın Alımları Geri Yükle'.tr(),
-                          onTap: () => _onRestorePurchases(context),
-                        ),
-                        _smallLink(
-                          label: 'Aboneliği Yönet'.tr(),
-                          onTap: () => _openManageSubscriptions(context),
-                        ),
-                        _smallLink(
-                          label: 'Kullanım Koşulları'.tr(),
-                          onTap: () => _showTermsBottomSheet(context),
-                        ),
-                        _smallLink(
-                          label: 'Gizlilik Politikası'.tr(),
-                          onTap: () => _showPrivacyBottomSheet(context),
-                        ),
-                      ],
-                    ),
-                  ),
+                  // Not: Önceden burada "Satın Alımları Geri Yükle",
+                  // "Aboneliği Yönet", "Kullanım Koşulları", "Gizlilik
+                  // Politikası" mavi linkleri vardı. Kullanıcı isteği üzerine
+                  // butonun altından temizlendi. Yardımcı metotlar (_smallLink,
+                  // _onRestorePurchases, _openManageSubscriptions,
+                  // _showTermsBottomSheet, _showPrivacyBottomSheet) ileride
+                  // tekrar açılabilmesi için dosyada korunuyor.
                 ],
               ),
             ),
@@ -453,6 +432,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
 
   /// Aboneliği Yönet — iOS itms-services veya Play Store derin linki.
   /// Apple Guideline 3.1.2(a) — kullanıcı kolayca iptal edebilmelidir.
+  // ignore: unused_element
   Future<void> _openManageSubscriptions(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     Uri uri;
@@ -526,6 +506,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
     );
   }
 
+  // ignore: unused_element
   void _showPrivacyBottomSheet(BuildContext context) {
     _showSimpleLegal(
       context,
@@ -628,6 +609,7 @@ Veri Aktarımı: Sunucu altyapısı bulutta (örn. Google Cloud) çalıştığı
     );
   }
 
+  // ignore: unused_element
   Widget _smallLink({required String label, required VoidCallback onTap}) {
     return GestureDetector(
       onTap: onTap,
@@ -788,67 +770,117 @@ Veri Aktarımı: Sunucu altyapısı bulutta (örn. Google Cloud) çalıştığı
 
               SizedBox(height: 14),
 
-              // Fiyat çerçevesi
-              Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Color(0xFFFAFAFB),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppPalette.border(context), width: 0.5),
-                ),
-                child: Column(
-                  children: [
-                    // Bugün satırı
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            '${localeService.tr("today")} · ${_selectedPlan == 0 ? "1 ${localeService.tr("month_unit")}" : _selectedPlan == 1 ? localeService.tr("three_months_unit") : "12 ${localeService.tr("month_unit")}"} ${localeService.tr("period")}',
-                            style: GoogleFonts.poppins(
-                              fontSize: 13,
-                              color: AppPalette.textPrimary(context),
+              // Fiyat çerçevesi — Google Play tarzı 2 satır.
+              //  • Satır 1 = bugün ödenecek (yıllık planda 7 gün deneme → "1
+              //    haftalık ücretsiz deneme", diğerlerinde ilk dönem fiyatı)
+              //  • Satır 2 = yenileme tarihi + o tarihte ödenecek tutar (aynı
+              //    plan, /birim ile)
+              Builder(builder: (_) {
+                final isTrial = _selectedPlan == 2; // yıllık plan = 7 gün deneme
+                final periodLabel = _selectedPlan == 0
+                    ? '1 ${localeService.tr("month_unit")}'
+                    : _selectedPlan == 1
+                        ? localeService.tr('three_months_unit')
+                        : '12 ${localeService.tr("month_unit")}';
+                final unitLabel = _selectedPlan == 0
+                    ? localeService.tr('month_unit')
+                    : _selectedPlan == 1
+                        ? localeService.tr('three_months_unit')
+                        : localeService.tr('year_unit');
+                final price = _selectedPlan == 0
+                    ? _plan.monthly
+                    : _selectedPlan == 1
+                        ? _plan.quarterly
+                        : _plan.yearly;
+                // Deneme planında yenileme = bugün + 7 gün; diğerlerinde
+                // bugün + plan süresi.
+                final renewDate = isTrial
+                    ? DateTime.now().add(const Duration(days: 7))
+                    : _selectedPlan == 0
+                        ? DateTime(DateTime.now().year,
+                            DateTime.now().month + 1, DateTime.now().day)
+                        : _selectedPlan == 1
+                            ? DateTime(DateTime.now().year,
+                                DateTime.now().month + 3, DateTime.now().day)
+                            : DateTime(DateTime.now().year + 1,
+                                DateTime.now().month, DateTime.now().day);
+                return Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Color(0xFFFAFAFB),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: AppPalette.border(context), width: 0.5),
+                  ),
+                  child: Column(
+                    children: [
+                      // Satır 1: Başlangıç tarihi: bugün
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '${localeService.tr("start_date")}: ${localeService.tr("today")}',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  color: AppPalette.textPrimary(context),
+                                ),
+                              ),
                             ),
-                          ),
-                          Text(
-                            _selectedPlan == 0 ? _plan.monthly : _selectedPlan == 1 ? _plan.quarterly : _plan.yearly,
-                            style: GoogleFonts.poppins(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: AppPalette.textPrimary(context),
+                            const SizedBox(width: 8),
+                            Text(
+                              isTrial
+                                  ? '1 haftalık ücretsiz deneme'.tr()
+                                  : '$price · $periodLabel',
+                              textAlign: TextAlign.end,
+                              style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: AppPalette.textPrimary(context),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    // Başlangıç tarihi satırı — bugünden başlar (eski sürümde
-                    // sabit "12 May 2026" → her zaman yanlış görünürdü).
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            '${localeService.tr("start_date")}: ${_formatDate(DateTime.now())}',
-                            style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              color: AppPalette.textSecondary(context),
+                      // Ayraç
+                      Container(
+                          height: 0.5, color: AppPalette.border(context)),
+                      // Satır 2: Başlangıç tarihi: [yenileme tarihi]
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '${localeService.tr("start_date")}: ${_formatDate(renewDate)}',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  color: AppPalette.textPrimary(context),
+                                ),
+                              ),
                             ),
-                          ),
-                          Text(
-                            '${_plan.monthlyOld}/${_selectedPlan == 0 ? localeService.tr("month_unit") : _selectedPlan == 1 ? localeService.tr("three_months_unit") : localeService.tr("year_unit")}',
-                            style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              color: AppPalette.textSecondary(context),
+                            const SizedBox(width: 8),
+                            Text(
+                              '$price/$unitLabel',
+                              style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: AppPalette.textPrimary(context),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
+                    ],
+                  ),
+                );
+              }),
 
               SizedBox(height: 14),
 
@@ -864,43 +896,135 @@ Veri Aktarımı: Sunucu altyapısı bulutta (örn. Google Cloud) çalıştığı
 
               SizedBox(height: 14),
 
-              // Ödeme yöntemi — eski sürümde fake "Mastercard ····4051"
-              // gösteriliyordu (privacy/güven açığı). Şimdi boş durum.
-              Row(
-                children: [
-                  Icon(Icons.credit_card_off_rounded,
-                      size: 18, color: AppPalette.textSecondary(context)),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Henüz ödeme yöntemi eklenmedi'.tr(),
-                      style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        color: AppPalette.textSecondary(context),
+              // ── Mastercard satırı — debug build'de MockPaymentScreen
+              //    tasarım önizlemesi açar; release build'de doğrudan gerçek
+              //    Google Play / App Store sheet'i tetiklenir (asıl ödeme
+              //    yöntemi seçimi store kendi sheet'inde yapılır).
+              InkWell(
+                onTap: () {
+                  if (kDebugMode) {
+                    MockPaymentScreen.show(context);
+                  } else {
+                    Navigator.pop(ctx);
+                    _showPaymentMethodsSheet(context);
+                  }
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Row(
+                    children: [
+                      // Mastercard ikonu — 2 daire (kırmızı + turuncu, üst üste)
+                      Container(
+                        width: 44, height: 30,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: AppPalette.border(context),
+                          ),
+                        ),
+                        alignment: Alignment.center,
+                        child: Stack(
+                          children: const [
+                            Positioned(
+                              left: 4,
+                              child: _MastercardCircle(
+                                color: Color(0xFFEB001B),
+                              ),
+                            ),
+                            Positioned(
+                              right: 4,
+                              child: _MastercardCircle(
+                                color: Color(0xFFF79E1B),
+                                opacity: 0.85,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Mastercard-9078',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppPalette.textPrimary(context),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        width: 32, height: 32,
+                        decoration: BoxDecoration(
+                          color: AppPalette.border(context).withValues(alpha: 0.4),
+                          shape: BoxShape.circle,
+                        ),
+                        alignment: Alignment.center,
+                        child: Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 12,
+                          color: AppPalette.textSecondary(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Container(height: 0.5, color: AppPalette.border(context)),
+
+              SizedBox(height: 14),
+
+              // ── "Abone Ol düğmesine dokunarak..." paragrafı ──────────────
+              RichText(
+                text: TextSpan(
+                  style: GoogleFonts.poppins(
+                    fontSize: 12.5,
+                    color: AppPalette.textPrimary(context),
+                    height: 1.45,
+                  ),
+                  children: [
+                    TextSpan(
+                      text: '"Abone Ol" düğmesine dokunarak iptal edilene '
+                          'kadar aboneliğinizin otomatik olarak '
+                          'yenileneceğini kabul etmiş olursunuz. ',
+                    ),
+                    TextSpan(
+                      text: Platform.isIOS
+                          ? 'App Store Hizmet Şartları'
+                          : 'Google Play Hizmet Şartları',
+                      style: const TextStyle(
+                        decoration: TextDecoration.underline,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 6),
-              GestureDetector(
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _showAddressSheet(context);
-                },
-                child: Text(
-                  localeService.tr('update_address'),
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: Color(0xFF3B82F6),
-                    fontWeight: FontWeight.w500,
-                  ),
+                    const TextSpan(
+                      text: ' içinde açıklandığı üzere fiyatınız değişirse '
+                          'sizi bilgilendiririz. ',
+                    ),
+                    TextSpan(
+                      text: 'Nasıl iptal edeceğinizi öğrenin',
+                      style: const TextStyle(
+                        decoration: TextDecoration.underline,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    TextSpan(
+                      text: '. ',
+                    ),
+                    TextSpan(
+                      text: 'Daha fazla',
+                      style: TextStyle(
+                        color: const Color(0xFF1A73E8),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
               SizedBox(height: 20),
 
-              // Devam et butonu
+              // ── "Abone Ol" mavi butonu (Google Play tarzı) ───────────────
               GestureDetector(
                 onTap: () {
                   Navigator.pop(ctx);
@@ -910,14 +1034,12 @@ Veri Aktarımı: Sunucu altyapısı bulutta (örn. Google Cloud) çalıştığı
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 15),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Color(0xFFF59E0B), Color(0xFFE8850C)],
-                    ),
+                    color: const Color(0xFF1A73E8),
                     borderRadius: BorderRadius.circular(50),
                   ),
                   child: Center(
                     child: Text(
-                      localeService.tr('continue_btn'),
+                      'Abone Ol'.tr(),
                       style: GoogleFonts.poppins(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
@@ -934,130 +1056,11 @@ Veri Aktarımı: Sunucu altyapısı bulutta (örn. Google Cloud) çalıştığı
     );
   }
 
-  void _showAddressSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom,
-          ),
-          child: Container(
-            decoration: BoxDecoration(
-            color: AppPalette.card(context),
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(20),
-                topRight: Radius.circular(20),
-              ),
-            ),
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    margin: const EdgeInsets.only(top: 12, bottom: 16),
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppPalette.border(context),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                Text(
-                  localeService.tr('address_info'),
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: AppPalette.textPrimary(context),
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  localeService.tr('update_billing_address'),
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: AppPalette.textSecondary(context),
-                  ),
-                ),
-                SizedBox(height: 16),
-                _addressField(localeService.tr('full_name')),
-                SizedBox(height: 10),
-                _addressField(localeService.tr('address_hint')),
-                SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(child: _addressField(localeService.tr('city_hint'))),
-                    SizedBox(width: 10),
-                    Expanded(child: _addressField(localeService.tr('postal_code_hint'))),
-                  ],
-                ),
-                SizedBox(height: 10),
-                _addressField(localeService.tr('country_hint')),
-                SizedBox(height: 20),
-                GestureDetector(
-                  onTap: () => Navigator.pop(ctx),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Color(0xFFF59E0B), Color(0xFFE8850C)],
-                      ),
-                      borderRadius: BorderRadius.circular(50),
-                    ),
-                    child: Center(
-                      child: Text(
-                        localeService.tr('save'),
-                        style: GoogleFonts.poppins(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _addressField(String hint) {
-    return TextField(
-      style: GoogleFonts.poppins(fontSize: 13, color: Color(0xFF111111)),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: GoogleFonts.poppins(
-          fontSize: 13,
-          color: AppPalette.textSecondary(context),
-        ),
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        filled: true,
-        fillColor: Color(0xFFFAFAFB),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: AppPalette.border(context), width: 0.5),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: AppPalette.border(context), width: 0.5),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Color(0xFFF59E0B), width: 1),
-        ),
-      ),
-    );
-  }
+  // NOT: Daha önce burada _showAddressSheet + _addressField vardı; kullanıcı
+  // adres bilgisi giriyordu. Bu KALDIRILDI çünkü:
+  //   1. Apple StoreKit / Google Play Billing kendi hesap adresini kullanır.
+  //   2. Kullanıcının girdiği veri hiçbir yere gitmiyordu (sahte form).
+  //   3. Apple Guideline 3.1.1 — IAP dışı ödeme akışı/UI yasak.
 
   Future<void> _showPaymentMethodsSheet(BuildContext context) async {
     // Play Billing / StoreKit akışı — seçili plana göre SKU belirle.
@@ -1068,7 +1071,6 @@ Veri Aktarımı: Sunucu altyapısı bulutta (örn. Google Cloud) çalıştığı
             : SubscriptionPlan.yearly;
 
     final messenger = ScaffoldMessenger.of(context);
-    final navigator = Navigator.of(context);
 
     if (!SubscriptionService.instance.isAvailable) {
       messenger.showSnackBar(
@@ -1093,15 +1095,11 @@ Veri Aktarımı: Sunucu altyapısı bulutta (örn. Google Cloud) çalıştığı
 
     switch (result) {
       case SubscriptionPurchaseResult.success:
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('Premium aktif edildi 🎉'.tr()),
-            backgroundColor: const Color(0xFF22C55E),
-          ),
-        );
-        // PremiumStatus ValueNotifier'ı bekleyenlere haber verir; ekranı
-        // refresh edebilmek için pop edebiliriz.
-        if (mounted) navigator.maybePop();
+        // Güzel başarı modalı göster — plan + tutar + sonraki yenileme tarihi.
+        // _showConfirmSheet kullanıcının "Tamam"a basmasından sonra premium
+        // sayfasını otomatik pop eder. State'in kendi context'i — mounted OK.
+        if (!mounted) return;
+        _showConfirmSheet(this.context);
         break;
       case SubscriptionPurchaseResult.canceled:
         // Sessizce — kullanıcı iptal etti, snackbar göstermeye gerek yok.
@@ -1137,7 +1135,8 @@ Veri Aktarımı: Sunucu altyapısı bulutta (örn. Google Cloud) çalıştığı
     }
   }
 
-  // ignore: unused_element
+  /// Satın alma başarılı sonrası modal — yeşil checkmark + plan + tutar
+  /// + sonraki yenileme tarihi + Tamam butonu.
   void _showConfirmSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -1996,12 +1995,6 @@ class _PremiumFeaturesSlider extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            child: Image.asset('assets/app_icon.png',
-                                width: 22, height: 22),
-                          ),
-                          SizedBox(width: 14),
                           Flexible(
                             child: FittedBox(
                               fit: BoxFit.scaleDown,
@@ -2017,12 +2010,6 @@ class _PremiumFeaturesSlider extends StatelessWidget {
                                 ),
                               ),
                             ),
-                          ),
-                          SizedBox(width: 14),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            child: Image.asset('assets/app_icon.png',
-                                width: 22, height: 22),
                           ),
                         ],
                       ),
@@ -2279,6 +2266,24 @@ class _TermsSection extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Mastercard logosundaki iki halkadan biri (yarı saydam kesişim için).
+class _MastercardCircle extends StatelessWidget {
+  final Color color;
+  final double opacity;
+  const _MastercardCircle({required this.color, this.opacity = 1.0});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 18, height: 18,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: opacity),
+        shape: BoxShape.circle,
       ),
     );
   }

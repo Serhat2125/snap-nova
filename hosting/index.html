@@ -1,138 +1,1803 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="tr">
 <head>
+  <script>
+    // qualsar2-640f0.web.app → qualsar.app yönlendirmesi
+    (function () {
+      var h = window.location.hostname;
+      if (h === 'qualsar2-640f0.web.app' || h === 'qualsar2-640f0.firebaseapp.com') {
+        window.location.replace('https://qualsar.app' + window.location.pathname + window.location.search + window.location.hash);
+      }
+    })();
+  </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>QuAlsar — AI Sınav Asistanı</title>
-  <meta name="description" content="QuAlsar: Soruyu çek, anında AI çözüm al. 55 dil, kişisel müfredat, Pomodoro odak.">
+  <title>QuAlsar — AI Sınav ve Öğrenme Asistanı</title>
+  <meta name="description" content="QuAlsar: fotoğraftan soru çözen, özet ve test üreten, dünya sıralamasıyla yarıştıran AI öğrenme platformu. 55 dil, 131 ülke müfredatı.">
+  <meta property="og:title" content="QuAlsar — AI Sınav ve Öğrenme Asistanı">
+  <meta property="og:description" content="Fotoğraftan saniyede soru çöz, özet ve test üret, dünya sıralamasıyla yarış. 55 dil, 131 ülke müfredatı.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://qualsar.app/og_invite.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: linear-gradient(135deg, #1E0A22 0%, #4C2018 60%, #B06040 100%);
-      color: white;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
+    * { box-sizing: border-box; }
+    :root {
+      --black: #0F172A;
+      --red: #E53935;
+      --red-glow: rgba(229, 57, 53, 0.4);
+      --orange: #FF6A00;
+      --purple: #7C3AED;
+      --blue: #2563EB;
+      --cyan: #06B6D4;
+      --green: #10B981;
+      --pink: #EC4899;
+      --bg: #FAFAFA;
+      --card: #FFFFFF;
+      --muted: #64748B;
+      --border: rgba(15, 23, 42, 0.08);
     }
-    .container {
-      max-width: 720px;
+    html, body {
+      margin: 0; padding: 0;
+      font-family: 'Poppins', -apple-system, system-ui, sans-serif;
+      background: var(--bg); color: var(--black);
+      -webkit-font-smoothing: antialiased;
+      scroll-behavior: smooth;
+    }
+    /* Anchor scroll'unda başlık üst sticky nav'ın altında kalmasın diye
+       80px üst boşluk bırak. */
+    html { scroll-padding-top: 80px; }
+    section[id], h2[id], h3[id] { scroll-margin-top: 80px; }
+    .container { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+
+    /* NAV */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(250, 250, 250, 0.88);
+      backdrop-filter: saturate(140%) blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-inner { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; }
+    .brand {
+      font-size: 22px; font-weight: 900; letter-spacing: 0.5px;
+      color: var(--black); text-decoration: none;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .brand .al { color: var(--red); text-shadow: 0 0 12px var(--red-glow); }
+    /* Nav'daki minik logo — siyah daire + 2 dönen renkli halka (hero ile aynı dil) */
+    .brand-dot {
+      width: 32px; height: 32px; position: relative;
+      flex-shrink: 0;
+      border-radius: 50%;
+      background: radial-gradient(circle at 50% 50%, #000 70%, #111 100%);
+      box-shadow: 0 0 8px rgba(229,57,53,0.3);
+    }
+    .brand-dot::before, .brand-dot::after {
+      content: ''; position: absolute; border-radius: 50%;
+    }
+    .brand-dot::before {
+      inset: 0; border: 2px solid var(--red);
+      animation: spin 6s linear infinite;
+    }
+    .brand-dot::after {
+      inset: 6px; border: 1.5px solid var(--cyan);
+      animation: spin-rev 4s linear infinite;
+    }
+    .nav-links { display: flex; gap: 18px; align-items: center; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-weight: 600; font-size: 14px; }
+    .nav-links a:hover { color: var(--black); }
+    @media (max-width: 640px) { .nav-links a { display: none; } .nav-links { gap: 0; } }
+
+    /* Dil seçici buton (nav'da) — sağa itilmiş */
+    .lang-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 10px; border-radius: 999px;
+      background: var(--card); border: 1px solid var(--border);
+      font-size: 13px; font-weight: 700; color: var(--black);
+      cursor: pointer; transition: border-color 0.15s ease;
+      margin-left: 18px;
+    }
+    .lang-btn:hover { border-color: var(--red); }
+    .lang-btn .flag { font-size: 16px; }
+    .lang-btn .chev { font-size: 10px; color: var(--muted); }
+
+    /* Google Translate banner gizle — biz kendi UI'mizı kullanıyoruz */
+    .goog-te-banner-frame.skiptranslate,
+    .goog-te-gadget,
+    iframe.skiptranslate { display: none !important; }
+    body { top: 0 !important; position: static !important; }
+    #google_translate_element { display: none; }
+
+    /* Modal */
+    .modal-back {
+      position: fixed; inset: 0;
+      background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(4px);
+      display: none; align-items: center; justify-content: center;
+      z-index: 200; padding: 20px;
+    }
+    .modal-back.active { display: flex; }
+    .modal {
+      background: var(--card); border-radius: 20px;
+      width: 100%; max-width: 460px; max-height: 80vh;
+      display: flex; flex-direction: column;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.3);
+      overflow: hidden;
+    }
+    .modal-head {
+      display: flex; align-items: center; gap: 10px;
+      padding: 16px 18px 8px;
+    }
+    .modal-head h3 { font-size: 16px; font-weight: 900; margin: 0; flex: 1; }
+    .modal-close {
+      background: none; border: none; cursor: pointer;
+      width: 30px; height: 30px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--muted); font-size: 20px;
+    }
+    .modal-close:hover { background: var(--bg); color: var(--black); }
+    .modal-search {
+      margin: 0 18px 8px;
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 14px; border: 1.5px solid var(--border);
+      border-radius: 12px;
+    }
+    .modal-search:focus-within { border-color: var(--red); }
+    .modal-search input {
+      flex: 1; border: none; outline: none; font-size: 14px;
+      font-family: inherit; background: transparent; color: var(--black);
+    }
+    .modal-search .icon { font-size: 14px; color: var(--muted); }
+    .lang-list {
+      flex: 1; overflow-y: auto;
+      padding: 4px 8px 16px;
+    }
+    .lang-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 14px; border-radius: 10px; cursor: pointer;
+      transition: background 0.12s ease;
+    }
+    .lang-item:hover { background: var(--bg); }
+    .lang-item.selected {
+      background: rgba(229, 57, 53, 0.08);
+      border: 1.5px solid rgba(229, 57, 53, 0.30);
+      padding: 8.5px 12.5px;
+    }
+    .lang-item .flag { font-size: 22px; }
+    .lang-item .names { flex: 1; min-width: 0; }
+    .lang-item .native { font-size: 14px; font-weight: 700; color: var(--black); }
+    .lang-item .english { font-size: 11.5px; font-weight: 500; color: var(--muted); margin-top: 1px; }
+    .lang-item .check { color: var(--red); font-size: 18px; }
+    .lang-empty {
+      text-align: center; padding: 30px 20px;
+      color: var(--muted); font-size: 14px;
+    }
+    .lang-hint {
+      background: rgba(229, 57, 53, 0.05);
+      border-top: 1px solid var(--border);
+      padding: 10px 18px;
+      font-size: 11.5px; color: var(--muted); text-align: center;
+    }
+
+    /* HERO */
+    .hero {
+      text-align: center; padding: 60px 20px 40px;
+      background: var(--bg);
+    }
+    /* QuAlsarLogoMark web karşılığı — uygulamadaki gerçek logo:
+       siyah daire içinde 3 dönen halka + renkli sembol/kelime akışı.
+       İçi her zaman SİYAH, halkalar dış kenara yapışık döner. */
+    .hero-logo {
+      width: 280px; height: 280px; margin: 0 auto 18px;
+      position: relative;
+      border-radius: 50%;
+      background: radial-gradient(circle at 50% 50%, #000 70%, #111 100%);
+      box-shadow:
+        0 0 40px rgba(229,57,53,0.20),
+        inset 0 0 40px rgba(0,0,0,0.6);
+      overflow: hidden;
+    }
+    @media (max-width: 640px) { .hero-logo { width: 230px; height: 230px; } }
+    .ring { position: absolute; border-radius: 50%; pointer-events: none; }
+    .ring-1 {
+      inset: 0; border: 3px solid var(--red);
+      animation: spin 8s linear infinite;
+      box-shadow: 0 0 24px var(--red-glow), inset 0 0 18px rgba(229,57,53,0.25);
+    }
+    .ring-1::before, .ring-1::after {
+      content: ''; position: absolute;
+      width: 12px; height: 12px; border-radius: 50%;
+      background: var(--red); box-shadow: 0 0 14px var(--red);
+    }
+    .ring-1::before { top: 50%; right: 0; transform: translate(50%, -50%); }
+    .ring-1::after  { display: none; }
+    .ring-2 {
+      inset: 18px; border: 2.5px solid var(--cyan);
+      animation: spin-rev 5s linear infinite;
+    }
+    .ring-2::before {
+      content: ''; position: absolute; width: 10px; height: 10px;
+      border-radius: 50%; background: var(--cyan);
+      top: 50%; right: -5px; transform: translateY(-50%);
+      box-shadow: 0 0 12px var(--cyan);
+    }
+    .ring-3 {
+      inset: 40px; border: 2px solid var(--pink);
+      animation: spin 3.5s linear infinite;
+    }
+    .ring-3::before {
+      content: ''; position: absolute; width: 8px; height: 8px;
+      border-radius: 50%; background: var(--pink);
+      top: 50%; left: -4px; transform: translateY(-50%);
+      box-shadow: 0 0 12px var(--pink);
+    }
+    /* Akan semboller — kenardan merkeze sürekli akış (uygulamadaki gibi) */
+    .flow-sym {
+      position: absolute;
+      top: 50%; left: 50%;
+      font-family: 'Poppins', sans-serif;
+      font-weight: 900;
+      text-shadow: 0 0 8px currentColor;
+      pointer-events: none;
+      will-change: transform, opacity;
+      animation: flowToCenter 3.6s linear forwards;
+    }
+    @keyframes flowToCenter {
+      0%   {
+        transform: translate(calc(-50% + var(--sx)), calc(-50% + var(--sy))) scale(1.1);
+        opacity: 0;
+      }
+      15%  { opacity: 1; }
+      75%  { opacity: 1; }
+      100% {
+        transform: translate(-50%, -50%) scale(0.15);
+        opacity: 0;
+      }
+    }
+    /* Merkezdeki büyük dönen tek harf/kelime */
+    .hero-center-word {
+      position: absolute; inset: 0; z-index: 5;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 38px; font-weight: 900; letter-spacing: 1px;
+      color: var(--cyan);
+      text-shadow: 0 0 16px var(--cyan), 0 0 28px rgba(6,182,212,0.5);
+      animation: wordfade 1.2s ease-in-out infinite alternate;
+    }
+    @keyframes wordfade { from { opacity: 0.65; transform: scale(0.95); } to { opacity: 1; transform: scale(1.05); } }
+    @keyframes spin     { from { transform: rotate(0deg);   } to { transform: rotate(360deg);  } }
+    @keyframes spin-rev { from { transform: rotate(360deg); } to { transform: rotate(0deg);    } }
+
+    /* QuAlsar başlık (logo üstü) ve tagline (logo altı) */
+    .hero-title {
+      font-size: 56px; font-weight: 900; margin: 0 0 24px;
+      letter-spacing: -2px; line-height: 1;
+    }
+    .hero-title .al { color: var(--red); text-shadow: 0 0 18px var(--red-glow); }
+    .hero-tagline {
+      font-size: 16px; color: var(--muted); font-weight: 600;
+      letter-spacing: 0.3px; margin: 18px 0 24px;
+    }
+    @media (max-width: 640px) {
+      .hero-title { font-size: 42px; }
+      .hero-tagline { font-size: 14px; }
+    }
+
+    .hero h1 { font-size: 44px; font-weight: 900; margin: 0 0 16px; letter-spacing: -1px; line-height: 1.1; }
+    .hero h1 .al { color: var(--red); }
+    .hero .tagline { font-size: 18px; color: var(--muted); max-width: 600px; margin: 0 auto 30px; line-height: 1.5; }
+    @media (max-width: 640px) {
+      .hero h1 { font-size: 32px; }
+      .hero .tagline { font-size: 15px; }
+      .hero-logo { width: 180px; height: 180px; }
+      .ring-2 { inset: 22px; }
+      .ring-3 { inset: 44px; }
+    }
+    .hero-cta {
+      display: inline-block; padding: 14px 28px;
+      background: linear-gradient(135deg, var(--red), var(--orange));
+      color: white; text-decoration: none; font-weight: 800; font-size: 15px;
+      border-radius: 999px;
+      box-shadow: 0 10px 28px rgba(229,57,53,0.35);
+      transition: transform 0.15s ease;
+    }
+    .hero-cta:hover { transform: translateY(-2px); }
+
+    /* SECTIONS */
+    section { padding: 60px 0; }
+    .section-title { font-size: 32px; font-weight: 900; text-align: center; margin: 0 0 8px; letter-spacing: -0.5px; }
+    .section-sub { text-align: center; color: var(--muted); font-size: 15px; margin: 0 auto; max-width: 600px; line-height: 1.5; }
+    @media (max-width: 640px) { .section-title { font-size: 24px; } }
+
+    /* ── Başlık + alt yazı kart (beyaz oval çerçeve) ────────────────────── */
+    .title-card {
+      background: white;
+      border-radius: 28px;
+      padding: 22px 28px;
+      margin: 0 auto 36px;
+      max-width: 760px;
       text-align: center;
-      padding: 40px 24px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.05);
+      border: 1px solid var(--border);
     }
-    .logo {
-      width: 96px;
-      height: 96px;
-      margin: 0 auto 24px;
-      background: linear-gradient(135deg, #FF6A3C, #FF9860);
-      border-radius: 22px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 56px;
-      font-weight: 900;
-      color: white;
-      box-shadow: 0 20px 60px rgba(255,106,60,0.4);
+    .title-card > :first-child { margin-top: 0; }
+    .title-card > :last-child  { margin-bottom: 0; }
+    .title-card .flow-hero { margin: 0 0 6px; }
+    .title-card .flow-sub  { margin: 0; }
+    .title-card .section-title { margin: 0 0 6px; }
+    .title-card .section-sub   { margin: 0; }
+
+    /* ── SOL SABİT NAV BARI (hızlı erişim) ─────────────────────────────── */
+    /* Geniş ekranlarda body sol kenarına 170px padding ekliyoruz; sidebar
+       o boşlukta yaşıyor, ana içerikle çakışmıyor. Hover'da sağa
+       genişledikçe içerikle çakışmaz çünkü bu rezerv alan yeterli. */
+    .side-nav {
+      position: fixed;
+      left: 18px;
+      top: 80px;
+      z-index: 150;
+      display: flex; flex-direction: column; gap: 8px;
+      max-height: calc(100vh - 100px);
+      overflow-y: auto;
+      pointer-events: auto;
     }
-    h1 {
-      font-size: 42px;
-      font-weight: 900;
-      margin-bottom: 12px;
-      letter-spacing: -1px;
-    }
-    .tagline {
-      font-size: 18px;
-      opacity: 0.85;
-      margin-bottom: 36px;
-      line-height: 1.5;
-    }
-    .links {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      max-width: 360px;
-      margin: 0 auto;
-    }
-    .link-row {
-      display: flex;
-      gap: 12px;
-    }
-    .link-card {
-      flex: 1;
-      background: rgba(255,255,255,0.08);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255,255,255,0.15);
-      border-radius: 14px;
-      padding: 16px;
-      color: white;
+    .side-nav a {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 5px;
+      width: 130px; padding: 12px 10px;
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: 16px;
       text-decoration: none;
-      transition: transform 0.18s, background 0.18s;
-      display: flex;
-      align-items: center;
-      gap: 12px;
+      color: var(--black);
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+      position: relative;
+      z-index: 1;
     }
-    .link-card:hover {
-      background: rgba(255,255,255,0.16);
-      transform: translateY(-2px);
+    .side-nav a:hover {
+      transform: translateX(6px) scale(1.05);
+      border-color: var(--red);
+      box-shadow: 0 10px 26px rgba(229,57,53,0.25);
+      z-index: 5;
     }
-    .link-emoji { font-size: 22px; }
-    .link-text { text-align: left; }
-    .link-title { font-size: 14px; font-weight: 700; }
-    .link-sub { font-size: 11px; opacity: 0.7; }
-    .footer {
-      margin-top: 48px;
-      font-size: 13px;
-      opacity: 0.6;
+    .side-nav a .ic { font-size: 24px; line-height: 1; }
+    .side-nav a .tx { font-size: 12px; font-weight: 700; text-align: center; letter-spacing: 0.1px; line-height: 1.25; }
+    @media (max-width: 1180px) { .side-nav { display: none; } }
+
+    /* Geniş ekranda body sol tarafına sidebar için sabit boşluk bırak —
+       sidebar bu boşlukta yaşar, hover genişlemesi içerikle çakışmaz. */
+    @media (min-width: 1181px) {
+      body { padding-left: 170px; }
     }
-    .footer a { color: #FFB070; text-decoration: none; }
+
+    /* ── FOTO-ÇÖZÜM AKIŞ ŞEMASI ─────────────────────────────────────────── */
+    .flow-hero {
+      font-size: 22px; font-weight: 900; text-align: center;
+      margin: 0 0 8px; letter-spacing: -0.3px;
+    }
+    .flow-hero .accent {
+      background: linear-gradient(135deg, var(--red), var(--orange));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .flow-sub { text-align: center; color: var(--muted); font-size: 13.5px; margin: 0 0 28px; }
+
+    .flow-row {
+      display: grid; grid-template-columns: 1fr auto 1fr auto 1fr;
+      gap: 12px; align-items: stretch; margin: 0 auto 14px;
+      max-width: 760px;
+    }
+    .flow-arrow {
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px; color: var(--red); font-weight: 900;
+    }
+    .flow-step {
+      background: var(--card); border: 1.5px solid var(--border);
+      border-radius: 18px; padding: 18px 16px;
+      display: flex; flex-direction: column; gap: 8px;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .flow-step:hover { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(0,0,0,0.08); }
+    .flow-step .num {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--red), var(--orange));
+      color: white; font-weight: 900; font-size: 13px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .flow-step .icon { font-size: 30px; }
+    .flow-step h4 { font-size: 14.5px; font-weight: 800; margin: 0; }
+    .flow-step .desc { font-size: 12px; color: var(--muted); line-height: 1.45; margin: 0; }
+    .flow-step .tags {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;
+    }
+    .flow-tag {
+      padding: 4px 9px; border-radius: 999px;
+      background: rgba(229,57,53,0.08);
+      color: var(--red); font-size: 11px; font-weight: 700;
+      border: 1px solid rgba(229,57,53,0.18);
+    }
+    .flow-tag.purple { background: rgba(124,58,237,0.08); color: var(--purple); border-color: rgba(124,58,237,0.18); }
+    .flow-tag.blue   { background: rgba(37,99,235,0.08); color: var(--blue);   border-color: rgba(37,99,235,0.18); }
+    .flow-tag.green  { background: rgba(16,185,129,0.10); color: var(--green); border-color: rgba(16,185,129,0.20); }
+
+    .flow-down-arrow {
+      text-align: center; font-size: 32px; color: var(--red);
+      margin: 4px 0;
+    }
+
+    .flow-solution {
+      background: white;
+      border: 1.5px solid rgba(229,57,53,0.20);
+      border-radius: 20px; padding: 24px 22px;
+      margin: 0 auto 28px;
+      max-width: 760px;
+    }
+    .flow-solution h4 {
+      font-size: 16px; font-weight: 900; margin: 0 0 4px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .flow-solution .sub {
+      font-size: 12.5px; color: var(--muted); margin: 0 0 14px;
+    }
+    .flow-mini-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+    }
+    .flow-mini {
+      background: white; border-radius: 12px;
+      padding: 12px 12px; text-align: center;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.04);
+    }
+    .flow-mini .em { font-size: 24px; }
+    .flow-mini .lbl { font-size: 12px; font-weight: 700; margin-top: 4px; }
+    .flow-mini .det { font-size: 10.5px; color: var(--muted); margin-top: 2px; line-height: 1.35; }
+
+    @media (max-width: 880px) {
+      .flow-row { grid-template-columns: 1fr; }
+      .flow-arrow { font-size: 22px; transform: rotate(90deg); margin: 2px 0; }
+      .flow-mini-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* ── KÜTÜPHANEM — Her sekme için 3 adım akışı + özellik listesi ─────── */
+    .tab-flow {
+      background: var(--card);
+      border-radius: 20px;
+      padding: 22px 22px 18px;
+      margin: 0 auto 18px;
+      max-width: 760px;
+      border: 1px solid var(--border);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.04);
+    }
+    .tab-flow .tab-head {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 14px;
+    }
+    .tab-flow .tab-num {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--red), var(--orange));
+      color: white; font-weight: 900; font-size: 14px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .tab-flow .tab-title {
+      font-size: 17px; font-weight: 900; margin: 0;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .tab-flow .tab-emoji { font-size: 22px; }
+
+    /* Adım kartları */
+    .mini-row {
+      display: grid; grid-template-columns: 1fr auto 1fr auto 1fr;
+      gap: 10px; align-items: stretch; margin: 8px 0;
+    }
+    .mini-arrow {
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; color: var(--red); font-weight: 900;
+    }
+    .mini-step {
+      background: #F8FAFC; border: 1px solid var(--border);
+      border-radius: 12px; padding: 12px 12px;
+      display: flex; flex-direction: column; gap: 4px;
+      min-height: 88px;
+    }
+    .mini-step .em { font-size: 22px; }
+    .mini-step h5 { font-size: 13px; font-weight: 800; margin: 0; }
+    .mini-step p { font-size: 11.5px; color: var(--muted); line-height: 1.4; margin: 0; }
+
+    .mini-down { text-align: center; font-size: 22px; color: var(--red); margin: 2px 0; }
+
+    /* Sonuç sayfası özellik bandı */
+    .tab-result {
+      background: linear-gradient(135deg, #FFF7ED 0%, #FFE4E6 100%);
+      border: 1px solid rgba(229,57,53,0.18);
+      border-radius: 14px;
+      padding: 12px 14px;
+      margin-top: 8px;
+    }
+    .tab-result .lbl {
+      font-size: 11px; font-weight: 800; color: var(--red);
+      letter-spacing: 0.8px; text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .tab-result .chips {
+      display: flex; flex-wrap: wrap; gap: 6px;
+    }
+    .tab-chip {
+      background: white;
+      padding: 5px 10px; border-radius: 999px;
+      font-size: 11.5px; font-weight: 700; color: var(--black);
+      border: 1px solid rgba(229,57,53,0.18);
+      display: flex; align-items: center; gap: 4px;
+    }
+    .tab-chip .e { font-size: 13px; }
+
+    @media (max-width: 700px) {
+      .mini-row { grid-template-columns: 1fr; }
+      .mini-arrow { font-size: 18px; transform: rotate(90deg); margin: 2px 0; }
+    }
+
+    /* Mevcut grid (eski features) — title-card ile aynı genişlik */
+    .features {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+      max-width: 760px; margin: 0 auto;
+    }
+    @media (max-width: 900px) { .features { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 540px) { .features { grid-template-columns: 1fr; } }
+    .feature-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 18px; padding: 24px 20px;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .feature-card:hover { transform: translateY(-4px); box-shadow: 0 12px 30px rgba(0,0,0,0.08); }
+    .feature-icon { font-size: 32px; margin-bottom: 10px; }
+    .feature-title { font-size: 16px; font-weight: 800; margin: 0 0 6px; }
+    .feature-desc { font-size: 13.5px; color: var(--muted); line-height: 1.5; margin: 0; }
+
+    /* LEVELS — title-card ile aynı genişlik (760px) */
+    .levels {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+      max-width: 760px; margin: 0 auto;
+    }
+    @media (max-width: 900px) { .levels { grid-template-columns: repeat(2, 1fr); } }
+    .level-card {
+      background: var(--card); border: 1.5px solid var(--border);
+      border-radius: 14px; padding: 14px 16px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .level-emoji { font-size: 22px; }
+    .level-label { font-size: 13.5px; font-weight: 700; }
+
+    /* PREMIUM (title-card ile aynı genişlik) */
+    .premium {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 24px; padding: 50px 30px; text-align: center;
+      max-width: 760px; margin: 0 auto;
+    }
+    .premium h2 { font-size: 32px; font-weight: 900; margin: 0 0 8px; }
+    .premium .perks {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
+      max-width: 720px; margin: 30px auto 0;
+    }
+    @media (max-width: 600px) { .premium .perks { grid-template-columns: 1fr; } }
+    .perk {
+      background: white; border-radius: 14px; padding: 14px 18px;
+      text-align: left; display: flex; align-items: center; gap: 12px;
+      box-shadow: 0 4px 12px rgba(229,57,53,0.08);
+    }
+    .perk-icon { font-size: 22px; }
+    .perk-text { font-size: 14px; font-weight: 600; }
+
+    /* ── KİM İÇİN? — Hedef kitle kartları (title-card ile aynı genişlik) ─ */
+    .audience {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+      max-width: 760px; margin: 0 auto;
+    }
+    @media (max-width: 800px) { .audience { grid-template-columns: 1fr; } }
+    .aud-card {
+      background: var(--card); border-radius: 18px; padding: 24px 22px;
+      border: 1px solid var(--border);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.04);
+    }
+    .aud-emoji {
+      width: 52px; height: 52px; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px; margin-bottom: 12px;
+      background: rgba(229,57,53,0.10);
+    }
+    .aud-card.b1 .aud-emoji { background: rgba(37,99,235,0.10);  }
+    .aud-card.b2 .aud-emoji { background: rgba(16,185,129,0.10); }
+    .aud-card.b3 .aud-emoji { background: rgba(124,58,237,0.10); }
+    .aud-card h3 { font-size: 18px; font-weight: 900; margin: 0 0 8px; }
+    .aud-card p { font-size: 13px; color: var(--muted); line-height: 1.55; margin: 0 0 10px; }
+    .aud-card ul { padding-left: 18px; margin: 0; font-size: 12.5px; color: var(--black); line-height: 1.6; }
+
+    /* ── GÜVENLİK (title-card ile aynı genişlik) ──────────────────────── */
+    .security {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+      max-width: 760px; margin: 0 auto;
+    }
+    @media (max-width: 900px) { .security { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 500px) { .security { grid-template-columns: 1fr; } }
+    .sec-item {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 14px; padding: 18px 16px; text-align: center;
+    }
+    .sec-item .em { font-size: 28px; margin-bottom: 8px; }
+    .sec-item h5 { font-size: 13.5px; font-weight: 800; margin: 0 0 4px; }
+    .sec-item p { font-size: 11.5px; color: var(--muted); margin: 0; line-height: 1.5; }
+
+    /* ── SSS / FAQ ────────────────────────────────────────────────────── */
+    .faq { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+    .faq-item {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 14px; overflow: hidden;
+    }
+    .faq-q {
+      padding: 14px 18px; cursor: pointer;
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 14.5px; font-weight: 700;
+      list-style: none;
+    }
+    .faq-q::-webkit-details-marker { display: none; }
+    .faq-q::after {
+      content: '+'; font-size: 22px; font-weight: 900; color: var(--red);
+      transition: transform 0.2s ease;
+    }
+    .faq-item[open] .faq-q::after { transform: rotate(45deg); }
+    .faq-a {
+      padding: 0 18px 16px; font-size: 13px; color: var(--muted); line-height: 1.6;
+    }
+
+    /* DOWNLOAD (title-card ile aynı genişlik) */
+    .downloads { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; max-width: 760px; margin: 0 auto; }
+    @media (max-width: 540px) { .downloads { grid-template-columns: 1fr; } }
+    .dl {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      padding: 14px 18px; border-radius: 14px; font-weight: 800; font-size: 14.5px;
+      color: white; text-decoration: none; transition: transform 0.15s ease;
+    }
+    .dl:hover { transform: translateY(-2px); }
+    .dl-play   { background: linear-gradient(135deg, #3DDC84, #00875F); }
+    .dl-apple  { background: #000; }
+    .dl-huawei { background: linear-gradient(135deg, #C7000A, #E60012); }
+    .dl-samsung{ background: linear-gradient(135deg, #1428A0, #0E1F7A); }
+    .dl-xiaomi { background: linear-gradient(135deg, #FF6700, #E55A00); }
+
+    /* STATS */
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; max-width: 800px; margin: 0 auto; }
+    @media (max-width: 600px) { .stats { grid-template-columns: 1fr; } }
+    .stat { text-align: center; }
+    .stat-num {
+      font-size: 36px; font-weight: 900;
+      background: linear-gradient(135deg, var(--red), var(--orange));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .stat-label { font-size: 13px; color: var(--muted); font-weight: 600; }
+
+    /* FOOTER — soluk beyaz, sayfanın geneliyle uyumlu */
+    footer {
+      background: var(--bg); color: var(--muted);
+      padding: 40px 20px 30px; text-align: center;
+      border-top: 1px solid var(--border);
+    }
+    footer .brand { color: var(--black); justify-content: center; margin-bottom: 16px; }
+    footer .links { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; margin-bottom: 16px; }
+    footer .links a { color: var(--muted); text-decoration: none; font-size: 13px; }
+    footer .links a:hover { color: var(--red); text-decoration: underline; }
+    footer .copy { font-size: 12px; color: var(--muted); }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="logo">Q</div>
-    <h1>QuAlsar</h1>
-    <p class="tagline">AI destekli sınav asistanı.<br>Soruyu çek, çözümü gör. 55 dil, sınırsız öğrenme.</p>
 
-    <div class="links">
-      <div class="link-row">
-        <a class="link-card" href="/privacy">
-          <div class="link-emoji">🔒</div>
-          <div class="link-text">
-            <div class="link-title">Gizlilik Politikası</div>
-            <div class="link-sub">Türkçe</div>
-          </div>
-        </a>
-        <a class="link-card" href="/privacy-en">
-          <div class="link-emoji">🔒</div>
-          <div class="link-text">
-            <div class="link-title">Privacy Policy</div>
-            <div class="link-sub">English</div>
-          </div>
-        </a>
-      </div>
-      <div class="link-row">
-        <a class="link-card" href="/terms">
-          <div class="link-emoji">📄</div>
-          <div class="link-text">
-            <div class="link-title">Kullanım Koşulları</div>
-            <div class="link-sub">Türkçe</div>
-          </div>
-        </a>
-        <a class="link-card" href="/terms-en">
-          <div class="link-emoji">📄</div>
-          <div class="link-text">
-            <div class="link-title">Terms of Service</div>
-            <div class="link-sub">English</div>
-          </div>
-        </a>
+  <!-- SOL SABİT HIZLI NAV (7 sekme) — masaüstünde sticky, mobilde gizli -->
+  <aside class="side-nav" aria-label="Hızlı erişim">
+    <a href="#solve" title="Soru çözme">
+      <span class="ic">📸</span>
+      <span class="tx">Soru<br>Çözme</span>
+    </a>
+    <a href="#library" title="Kütüphanem">
+      <span class="ic">📚</span>
+      <span class="tx">Kütüphanem</span>
+    </a>
+    <a href="#voice" title="Sesli Komut">
+      <span class="ic">🎙️</span>
+      <span class="tx">Sesli<br>Komut</span>
+    </a>
+    <a href="#levels" title="Eğitim Seviyesi">
+      <span class="ic">🎓</span>
+      <span class="tx">Eğitim<br>Seviyesi</span>
+    </a>
+    <a href="#audience" title="Kim İçin">
+      <span class="ic">👥</span>
+      <span class="tx">Kim<br>İçin</span>
+    </a>
+    <a href="#premium" title="QuAlsar Premium">
+      <span class="ic">✨</span>
+      <span class="tx">QuAlsar<br>Premium</span>
+    </a>
+    <a href="#security" title="Güvenlik">
+      <span class="ic">🔒</span>
+      <span class="tx">Güvenlik</span>
+    </a>
+    <a href="#faq" title="SSS">
+      <span class="ic">❓</span>
+      <span class="tx">SSS</span>
+    </a>
+    <a href="#how" title="Nasıl Çalışır">
+      <span class="ic">⚙️</span>
+      <span class="tx">Nasıl<br>Çalışır</span>
+    </a>
+    <a href="#download" title="İndir & Başla">
+      <span class="ic">📲</span>
+      <span class="tx">İndir &<br>Başla</span>
+    </a>
+  </aside>
+
+  <!-- NAV -->
+  <nav>
+    <div class="container nav-inner">
+      <a href="#" class="brand">
+        <span class="brand-dot"></span>
+        <span class="brand-text">Qu<span class="al">Al</span>sar</span>
+      </a>
+      <div class="nav-links">
+        <a href="#features">Özellikler</a>
+        <a href="#levels">Seviyeler</a>
+        <a href="#premium">Premium</a>
+        <a href="#download">İndir</a>
+        <button class="lang-btn" id="langBtn" aria-label="Dil seçimi">
+          <span class="flag" id="langFlag">🇹🇷</span>
+          <span id="langName">Türkçe</span>
+          <span class="chev">▼</span>
+        </button>
       </div>
     </div>
+  </nav>
 
-    <p class="footer">
-      © 2026 QuAlsar · <a href="mailto:serhatdsme@gmail.com">İletişim</a>
-    </p>
+  <!-- HERO -->
+  <header class="hero">
+    <div class="container">
+      <!-- ÜSTTE — QuAlsar başlık -->
+      <h1 class="hero-title">Qu<span class="al">Al</span>sar</h1>
+
+      <!-- ORTADA — Dönen siyah logo + iç akan semboller (JS ile spawn) -->
+      <div class="hero-logo" id="heroLogo">
+        <div class="ring ring-1"></div>
+        <div class="ring ring-2"></div>
+        <div class="ring ring-3"></div>
+        <!-- Akan semboller JS ile sürekli üretilir -->
+        <!-- Merkez büyük harf — JS ile döner -->
+        <div id="centerWord" class="hero-center-word">A</div>
+      </div>
+
+      <!-- ALTTA — Tagline -->
+      <p class="hero-tagline">AI Sınav ve Ödev Asistanı</p>
+
+      <p class="tagline">
+        Sorularını anında çöz, özet ve testlerini oluştur; şehrindeki, ülkendeki ve
+        dünyadaki rakiplerinle yarışarak sıralamanı gör.
+      </p>
+      <a href="#download" class="hero-cta">📲 Hemen İndir</a>
+
+      <div style="margin-top: 50px;" class="stats">
+        <div class="stat">
+          <div class="stat-num">55</div>
+          <div class="stat-label">Desteklenen dil</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num">131</div>
+          <div class="stat-label">Ülke müfredatı</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num">15</div>
+          <div class="stat-label">Eğitim seviyesi</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- FEATURES -->
+  <section id="features">
+    <div class="container">
+      <div class="title-card">
+        <h2 class="section-title">Neler Yapabilirsin?</h2>
+        <p class="section-sub">
+          QuAlsar her sınıf, her seviye ve her ders için tek noktada öğrenme deneyimi sunar.
+        </p>
+      </div>
+
+      <!-- ─ FOTO-ÇÖZÜM AKIŞI ─ -->
+      <div class="title-card">
+        <h3 id="solve" class="flow-hero">📸 <span class="accent">Fotoğraf çek, sorularını anında çöz</span></h3>
+        <p class="flow-sub">Üç adımda istediğin AI modeli ile çözüm alırsın.</p>
+      </div>
+
+      <div class="flow-row">
+        <!-- Adım 1 -->
+        <div class="flow-step">
+          <div class="num">1</div>
+          <div class="icon">📷</div>
+          <h4>Fotoğrafını çek</h4>
+          <p class="desc">Uygulamada kamera açılır. Çözmek istediğin soruyu çerçeveye al, deklanşöre bas — el yazısı + basılı, her ikisi de okunur.</p>
+          <div class="tags">
+            <span class="flow-tag">Tek soru</span>
+            <span class="flow-tag">Çoklu soru</span>
+            <span class="flow-tag">El yazısı</span>
+          </div>
+        </div>
+        <div class="flow-arrow">➜</div>
+
+        <!-- Adım 2 -->
+        <div class="flow-step">
+          <div class="num">2</div>
+          <div class="icon">⚙️</div>
+          <h4>Çözüm yöntemini seç</h4>
+          <p class="desc">Sorunun nasıl çözüleceğini belirle. İhtiyacına göre tek tıkla istediğin tarzı seç.</p>
+          <div class="tags">
+            <span class="flow-tag purple">Detaylı</span>
+            <span class="flow-tag purple">Adım Adım</span>
+            <span class="flow-tag purple">Hızlı</span>
+            <span class="flow-tag purple">Görsel</span>
+          </div>
+        </div>
+        <div class="flow-arrow">➜</div>
+
+        <!-- Adım 3 -->
+        <div class="flow-step">
+          <div class="num">3</div>
+          <div class="icon">🤖</div>
+          <h4>AI modelini seç</h4>
+          <p class="desc">Aynı soruyu farklı modellerle dene. Hızda ve detayda farklar var — sen seç.</p>
+          <div class="tags">
+            <span class="flow-tag blue">QuAlsar</span>
+            <span class="flow-tag blue">GPT-4</span>
+            <span class="flow-tag blue">Claude</span>
+            <span class="flow-tag blue">Gemini</span>
+            <span class="flow-tag blue">Grok</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ↓ Çözüm sayfasına ok -->
+      <div class="flow-down-arrow">▼</div>
+
+      <!-- ─ ÇÖZÜM SAYFASINDA NELER VAR ─ -->
+      <div class="flow-solution">
+        <h4>📄 Çözüm sayfasında neler var?</h4>
+        <p class="sub">AI çözümünü gösterdikten sonra konuyu içselleştirmen için ek araçlar otomatik gelir.</p>
+        <div class="flow-mini-grid">
+          <div class="flow-mini">
+            <div class="em">📚</div>
+            <div class="lbl">Konuyu Pekiştir</div>
+            <div class="det">Konu özeti + temel kavramlar tek tık</div>
+          </div>
+          <div class="flow-mini">
+            <div class="em">🔄</div>
+            <div class="lbl">Benzer Sorular</div>
+            <div class="det">Aynı tür sorulardan ek alıştırma</div>
+          </div>
+          <div class="flow-mini">
+            <div class="em">🎴</div>
+            <div class="lbl">Bilgi Kartı</div>
+            <div class="det">Püf nokta + formül + kısa not</div>
+          </div>
+          <div class="flow-mini">
+            <div class="em">📤</div>
+            <div class="lbl">Arkadaşınla Paylaş</div>
+            <div class="det">WhatsApp, Telegram, e-posta…</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─ KÜTÜPHANEM — 8 sekme adım adım ─ -->
+      <div class="title-card" style="margin-top: 44px;">
+        <h3 id="library" class="flow-hero">📖 <span class="accent">Kütüphanem</span></h3>
+        <p class="flow-sub">8 sekme — her birine tıklayınca adım adım nasıl çalıştığı:</p>
+      </div>
+
+      <div>
+
+        <!-- 1. KONU ÖZETLERİ -->
+        <div class="tab-flow">
+          <div class="tab-head">
+            <div class="tab-num">1</div>
+            <h4 class="tab-title"><span class="tab-emoji">📚</span> Konu Özetleri</h4>
+          </div>
+          <div class="mini-row">
+            <div class="mini-step">
+              <div class="em">📋</div>
+              <h5>Dersini seç</h5>
+              <p>Eğitim seviyene göre derslerin listelenir (Matematik, Fizik, Tarih, vs.)</p>
+            </div>
+            <div class="mini-arrow">➜</div>
+            <div class="mini-step">
+              <div class="em">🎯</div>
+              <h5>Konuyu seç</h5>
+              <p>O dersin konuları açılır, istediğin konuya tıkla.</p>
+            </div>
+            <div class="mini-arrow">➜</div>
+            <div class="mini-step">
+              <div class="em">📖</div>
+              <h5>Özet tipini seç</h5>
+              <p>Kısa özet (ana fikir) veya kapsamlı özet (detaylı, tüm alt konular).</p>
+            </div>
+          </div>
+          <div class="mini-down">▼</div>
+          <div class="tab-result">
+            <div class="lbl">Açılan özet sayfasında neler var</div>
+            <div class="chips">
+              <span class="tab-chip"><span class="e">🔊</span> Sesli oku</span>
+              <span class="tab-chip"><span class="e">🎨</span> Renk değiştir</span>
+              <span class="tab-chip"><span class="e">🧪</span> Tüm formüller</span>
+              <span class="tab-chip"><span class="e">🔍</span> İçinde ara</span>
+              <span class="tab-chip"><span class="e">📤</span> Paylaş</span>
+              <span class="tab-chip"><span class="e">📝</span> Yanına not al</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. SINAV SORULARI -->
+        <div class="tab-flow">
+          <div class="tab-head">
+            <div class="tab-num">2</div>
+            <h4 class="tab-title"><span class="tab-emoji">📐</span> Sınav Soruları</h4>
+          </div>
+          <div class="mini-row">
+            <div class="mini-step">
+              <div class="em">📋</div>
+              <h5>Dersini seç</h5>
+              <p>Seviyene uygun dersler listelenir.</p>
+            </div>
+            <div class="mini-arrow">➜</div>
+            <div class="mini-step">
+              <div class="em">🎯</div>
+              <h5>Konu + tipini seç</h5>
+              <p>Çoktan seçmeli mi, doğru-yanlış mı, süreli mi? Zorluk: kolay/orta/ileri.</p>
+            </div>
+            <div class="mini-arrow">➜</div>
+            <div class="mini-step">
+              <div class="em">✏️</div>
+              <h5>Test başlar</h5>
+              <p>Sorular tek tek gelir, anında geri bildirim alırsın.</p>
+            </div>
+          </div>
+          <div class="mini-down">▼</div>
+          <div class="tab-result">
+            <div class="lbl">Test bitince</div>
+            <div class="chips">
+              <span class="tab-chip"><span class="e">📊</span> Skor + analiz</span>
+              <span class="tab-chip"><span class="e">📝</span> Yanlışların listesi</span>
+              <span class="tab-chip"><span class="e">🔁</span> Tekrar çöz</span>
+              <span class="tab-chip"><span class="e">💡</span> Açıklamalar</span>
+              <span class="tab-chip"><span class="e">📤</span> Sonucu paylaş</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. ÇÖZÜMLERİM -->
+        <div class="tab-flow">
+          <div class="tab-head">
+            <div class="tab-num">3</div>
+            <h4 class="tab-title"><span class="tab-emoji">✅</span> Çözümlerim</h4>
+          </div>
+          <div class="mini-row">
+            <div class="mini-step">
+              <div class="em">🗂️</div>
+              <h5>Tüm çözümlerin</h5>
+              <p>Fotoğraftan çözdüğün her soru tarih sırasıyla listelenir.</p>
+            </div>
+            <div class="mini-arrow">➜</div>
+            <div class="mini-step">
+              <div class="em">🔍</div>
+              <h5>Filtrele veya seç</h5>
+              <p>Derse, konuya, tarihe göre süz. İstediğine tıkla.</p>
+            </div>
+            <div class="mini-arrow">➜</div>
+            <div class="mini-step">
+              <div class="em">📄</div>
+              <h5>Detay sayfası</h5>
+              <p>Soru + çözüm + adımlar tekrar gözünün önünde.</p>
+            </div>
+          </div>
+          <div class="mini-down">▼</div>
+          <div class="tab-result">
+            <div class="lbl">Çözüm sayfasında neler yapabilirsin</div>
+            <div class="chips">
+              <span class="tab-chip"><span class="e">🔁</span> Farklı AI ile tekrar çöz</span>
+              <span class="tab-chip"><span class="e">🎴</span> Bilgi kartı oluştur</span>
+              <span class="tab-chip"><span class="e">🔄</span> Benzer sorular</span>
+              <span class="tab-chip"><span class="e">📚</span> Konuyu pekiştir</span>
+              <span class="tab-chip"><span class="e">📤</span> Paylaş</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. BİLGİ YARIŞI -->
+        <div class="tab-flow">
+          <div class="tab-head">
+            <div class="tab-num">4</div>
+            <h4 class="tab-title"><span class="tab-emoji">🏆</span> Bilgi Yarışı</h4>
+          </div>
+          <div class="mini-row">
+            <div class="mini-step">
+              <div class="em">⚔️</div>
+              <h5>Yarış türünü seç</h5>
+              <p>Arkadaşına davet gönder veya rastgele rakiple eşleş.</p>
+            </div>
+            <div class="mini-arrow">➜</div>
+            <div class="mini-step">
+              <div class="em">📚</div>
+              <h5>Ders + zorluk seç</h5>
+              <p>Hangi dersten yarışacağını ve zorluk seviyesini belirle.</p>
+            </div>
+            <div class="mini-arrow">➜</div>
+            <div class="mini-step">
+              <div class="em">🎮</div>
+              <h5>Düello başlar</h5>
+              <p>Aynı soruları aynı anda görürsünüz, kim hızlı çözer.</p>
+            </div>
+          </div>
+          <div class="mini-down">▼</div>
+          <div class="tab-result">
+            <div class="lbl">Yarış sonunda</div>
+            <div class="chips">
+              <span class="tab-chip"><span class="e">🏅</span> Galip / yenilgi rozeti</span>
+              <span class="tab-chip"><span class="e">📈</span> Lige puan eklenir</span>
+              <span class="tab-chip"><span class="e">🔁</span> Rövanş iste</span>
+              <span class="tab-chip"><span class="e">📤</span> Sonucu paylaş</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. ÇALIŞMA TAKVİMİM -->
+        <div class="tab-flow">
+          <div class="tab-head">
+            <div class="tab-num">5</div>
+            <h4 class="tab-title"><span class="tab-emoji">📅</span> Çalışma Takvimim</h4>
+          </div>
+          <div class="mini-row">
+            <div class="mini-step">
+              <div class="em">📆</div>
+              <h5>Bugünkü plan</h5>
+              <p>AI Koç senin için sabah / öğle / akşam blokları çıkarmış.</p>
+            </div>
+            <div class="mini-arrow">➜</div>
+            <div class="mini-step">
+              <div class="em">▶️</div>
+              <h5>Bir bloka bas</h5>
+              <p>"Şimdi başla" → Pomodoro otomatik kurulur, görev açılır.</p>
+            </div>
+            <div class="mini-arrow">➜</div>
+            <div class="mini-step">
+              <div class="em">✅</div>
+              <h5>Tamamla → işaret</h5>
+              <p>Görev tamamlandığında kırmızı tik. Streak büyür.</p>
+            </div>
+          </div>
+          <div class="mini-down">▼</div>
+          <div class="tab-result">
+            <div class="lbl">Takvim özellikleri</div>
+            <div class="chips">
+              <span class="tab-chip"><span class="e">🔔</span> Hatırlatıcı bildirim</span>
+              <span class="tab-chip"><span class="e">📊</span> Haftalık özet</span>
+              <span class="tab-chip"><span class="e">⚙️</span> Planı düzenle</span>
+              <span class="tab-chip"><span class="e">🤖</span> AI yeniden planlasın</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. DÜNYA SIRALAMASI -->
+        <div class="tab-flow">
+          <div class="tab-head">
+            <div class="tab-num">6</div>
+            <h4 class="tab-title"><span class="tab-emoji">🌍</span> Dünya Sıralaması</h4>
+          </div>
+          <div class="mini-row">
+            <div class="mini-step">
+              <div class="em">🌐</div>
+              <h5>Kapsam seç</h5>
+              <p>Şehir · Ülke · Dünya — hangi coğrafi alanda sıralanmak istersin?</p>
+            </div>
+            <div class="mini-arrow">➜</div>
+            <div class="mini-step">
+              <div class="em">🎯</div>
+              <h5>Filtreyi seç</h5>
+              <p>Ders (tüm konuları ort.) · Konu (sadece o konu) · Genel (her şey).</p>
+            </div>
+            <div class="mini-arrow">➜</div>
+            <div class="mini-step">
+              <div class="em">📅</div>
+              <h5>Periyot + tablo</h5>
+              <p>Günlük · Haftalık · Aylık · Genel — sıralı liste çıkar.</p>
+            </div>
+          </div>
+          <div class="mini-down">▼</div>
+          <div class="tab-result">
+            <div class="lbl">Seçim katmanları</div>
+            <div class="chips">
+              <span class="tab-chip"><span class="e">🏙️</span> Şehir / Ülke / Dünya</span>
+              <span class="tab-chip"><span class="e">📚</span> Ders / Konu / Genel</span>
+              <span class="tab-chip"><span class="e">📅</span> Günlük / Haftalık / Aylık / Genel</span>
+              <span class="tab-chip"><span class="e">📋</span> Filtreli liderlik tablosu</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 7. POMODORO TEKNİĞİ -->
+        <div class="tab-flow">
+          <div class="tab-head">
+            <div class="tab-num">7</div>
+            <h4 class="tab-title"><span class="tab-emoji">⏱️</span> Pomodoro Tekniği</h4>
+          </div>
+          <div class="mini-row">
+            <div class="mini-step">
+              <div class="em">✏️</div>
+              <h5>Hedef yaz</h5>
+              <p>Bu seansta ne çalışacaksın? Tek cümleyle hedefini gir.</p>
+            </div>
+            <div class="mini-arrow">➜</div>
+            <div class="mini-step">
+              <div class="em">⏲️</div>
+              <h5>Süreyi seç</h5>
+              <p>25 dk klasik · 40 dk lise · 60 dk üniversite — kendine uygun olanı seç.</p>
+            </div>
+            <div class="mini-arrow">➜</div>
+            <div class="mini-step">
+              <div class="em">🍅</div>
+              <h5>Sayaç başlar</h5>
+              <p>Telefon sessiz, ekran kilit. Süre dolunca otomatik mola.</p>
+            </div>
+          </div>
+          <div class="mini-down">▼</div>
+          <div class="tab-result">
+            <div class="lbl">Seans bittikten sonra</div>
+            <div class="chips">
+              <span class="tab-chip"><span class="e">📊</span> Günlük toplam saat</span>
+              <span class="tab-chip"><span class="e">🔥</span> Streak (üst üste gün)</span>
+              <span class="tab-chip"><span class="e">🏅</span> Odak rozetleri</span>
+              <span class="tab-chip"><span class="e">🎵</span> Lo-fi müzik (opsiyonel)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 8. AI KOÇ -->
+        <div class="tab-flow">
+          <div class="tab-head">
+            <div class="tab-num">8</div>
+            <h4 class="tab-title"><span class="tab-emoji">🤖</span> AI Koç</h4>
+          </div>
+          <div class="mini-row">
+            <div class="mini-step">
+              <div class="em">📋</div>
+              <h5>Günlük plan + zayıf konular</h5>
+              <p>AI Koç senin için "bugün ne yap" listesi ve eksiklerini gösterir.</p>
+            </div>
+            <div class="mini-arrow">➜</div>
+            <div class="mini-step">
+              <div class="em">💬</div>
+              <h5>Sohbete başla</h5>
+              <p>"AI Koç'la Sohbet" butonuna bas — istediğini sor, dertleş.</p>
+            </div>
+            <div class="mini-arrow">➜</div>
+            <div class="mini-step">
+              <div class="em">🎯</div>
+              <h5>Sana özel yanıt</h5>
+              <p>Sınıfına ve seviyene göre konuşur, uygulama içinden yönlendirir.</p>
+            </div>
+          </div>
+          <div class="mini-down">▼</div>
+          <div class="tab-result">
+            <div class="lbl">AI Koç senin için neler yapabilir</div>
+            <div class="chips">
+              <span class="tab-chip"><span class="e">📋</span> Çalışma planı çıkar</span>
+              <span class="tab-chip"><span class="e">💪</span> Motivasyon ver</span>
+              <span class="tab-chip"><span class="e">🧠</span> Verimli yöntemler öner</span>
+              <span class="tab-chip"><span class="e">😰</span> Sınav kaygısı yönet</span>
+              <span class="tab-chip"><span class="e">🌙</span> Uyku düzeni tavsiyesi</span>
+              <span class="tab-chip"><span class="e">📚</span> Uygulamada yönlendirir</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- SESLİ DİNLE -->
+  <section id="voice" style="padding-top: 30px;">
+    <div class="container">
+      <div class="title-card">
+        <h3 class="flow-hero">🎙️ <span class="accent">Sesli Komut</span></h3>
+        <p class="flow-sub">
+          Konuş, kamera ile göster veya yaz — AI seninle birebir sohbet etsin.
+        </p>
+      </div>
+
+      <!-- 1. Sesli + Kameralı + Yazılı Sohbet (LiveAnalysisScreen) -->
+      <div class="tab-flow">
+        <div class="tab-head">
+          <div class="tab-num">1</div>
+          <h4 class="tab-title"><span class="tab-emoji">💬</span> Sesli + Kameralı Sohbet</h4>
+        </div>
+        <div class="mini-row">
+          <div class="mini-step">
+            <div class="em">🎙️</div>
+            <h5>Mikrofona konuş</h5>
+            <p>Ana sayfanın sol alt köşesindeki sesli butona bas; ne sormak istiyorsan söyle.</p>
+          </div>
+          <div class="mini-arrow">➜</div>
+          <div class="mini-step">
+            <div class="em">📷</div>
+            <h5>Veya kamerayı aç</h5>
+            <p>Aynı sayfadan kamerayı aç, soruyu kameraya tut; AI hem görür hem dinler.</p>
+          </div>
+          <div class="mini-arrow">➜</div>
+          <div class="mini-step">
+            <div class="em">⌨️</div>
+            <h5>Veya yazarak sor</h5>
+            <p>Konuşamadığın anlarda alttaki yazı paneline yaz — aynı sohbette devam eder.</p>
+          </div>
+        </div>
+        <div class="mini-down">▼</div>
+        <div class="tab-result">
+          <div class="lbl">Sohbet sırasında neler var</div>
+          <div class="chips">
+            <span class="tab-chip"><span class="e">🌊</span> Canlı ses dalgası</span>
+            <span class="tab-chip"><span class="e">🗣️</span> AI sana sesli cevap verir</span>
+            <span class="tab-chip"><span class="e">📝</span> Konuşma transkripti</span>
+            <span class="tab-chip"><span class="e">💬</span> Mesaj geçmişi</span>
+            <span class="tab-chip"><span class="e">⏸️</span> Duraklat / devam et</span>
+            <span class="tab-chip"><span class="e">🔁</span> Kamera + ses + yazı tek akışta</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Sesli özet okuma (TTS) -->
+      <div class="tab-flow">
+        <div class="tab-head">
+          <div class="tab-num">2</div>
+          <h4 class="tab-title"><span class="tab-emoji">📖</span> Konu Özetini Sesli Dinle</h4>
+        </div>
+        <div class="mini-row">
+          <div class="mini-step">
+            <div class="em">📚</div>
+            <h5>Konu özetini aç</h5>
+            <p>Kütüphanem → Konu Özetleri → istediğin özet sayfası.</p>
+          </div>
+          <div class="mini-arrow">➜</div>
+          <div class="mini-step">
+            <div class="em">▶️</div>
+            <h5>Sesli oku butonuna bas</h5>
+            <p>AI özetin tamamını net telaffuzla okumaya başlar.</p>
+          </div>
+          <div class="mini-arrow">➜</div>
+          <div class="mini-step">
+            <div class="em">🎧</div>
+            <h5>Dinle + takip et</h5>
+            <p>Okunan bölüm vurgulanır, istediğin yerde duraklatabilirsin.</p>
+          </div>
+        </div>
+        <div class="mini-down">▼</div>
+        <div class="tab-result">
+          <div class="lbl">Dinleme özellikleri</div>
+          <div class="chips">
+            <span class="tab-chip"><span class="e">⚡</span> Hız ayarı (0.75x – 1.5x)</span>
+            <span class="tab-chip"><span class="e">⏸️</span> Duraklat / devam et</span>
+            <span class="tab-chip"><span class="e">🔇</span> Arka planda çalışır</span>
+            <span class="tab-chip"><span class="e">🌐</span> 55 dilde okuma</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LEVELS -->
+  <section id="levels" >
+    <div class="container">
+      <div class="title-card">
+        <h2 class="section-title">Her Seviye İçin</h2>
+        <p class="section-sub">
+          İlkokuldan doktora seviyesine kadar her sınıf için özelleşmiş içerik
+          ve uygun dil seviyesi. İçerik kullanıcının ülkesine ve müfredatına
+          göre otomatik özelleşir — 131 ülke desteklenir.
+        </p>
+      </div>
+      <div class="levels">
+        <div class="level-card"><span class="level-emoji">🧒</span><span class="level-label">İlkokul (1–4. sınıf)</span></div>
+        <div class="level-card"><span class="level-emoji">👦</span><span class="level-label">Ortaokul (5–8. sınıf)</span></div>
+        <div class="level-card"><span class="level-emoji">📚</span><span class="level-label">Lise (9–12. sınıf)</span></div>
+        <div class="level-card"><span class="level-emoji">🎯</span><span class="level-label">Üniversite Hazırlığı</span></div>
+        <div class="level-card"><span class="level-emoji">🏫</span><span class="level-label">Üniversite (Lisans)</span></div>
+        <div class="level-card"><span class="level-emoji">📊</span><span class="level-label">Yüksek Lisans</span></div>
+        <div class="level-card"><span class="level-emoji">🔬</span><span class="level-label">Doktora</span></div>
+        <div class="level-card"><span class="level-emoji">👤</span><span class="level-label">Yetişkin / Kişisel</span></div>
+      </div>
+      <p style="text-align: center; margin-top: 18px; font-size: 12px; color: var(--muted);">
+        Ülkene özgü ulusal sınav hazırlıkları (LGS, YKS, SAT, GCSE, NEET, Gaokao, Baccalauréat, Abitur, vb.)
+        uygulamada otomatik aktive olur.
+      </p>
+    </div>
+  </section>
+
+  <!-- PREMIUM -->
+  <section id="premium">
+    <div class="container">
+      <div class="premium">
+        <h2>QuAlsar Premium</h2>
+        <p style="color: var(--muted); font-size: 15px; margin: 4px 0 0;">
+          Sınırsız çalışmanın anahtarı. Her şey, her an, sınır yok.
+        </p>
+        <div class="perks">
+          <div class="perk"><span class="perk-icon">📸</span><span class="perk-text">Sınırsız foto-soru çözümü</span></div>
+          <div class="perk"><span class="perk-icon">📚</span><span class="perk-text">Sınırsız konu özeti üretimi</span></div>
+          <div class="perk"><span class="perk-icon">📐</span><span class="perk-text">Sınırsız sınav sorusu üretimi</span></div>
+          <div class="perk"><span class="perk-icon">🤖</span><span class="perk-text">AI Koç ile sınırsız sohbet</span></div>
+          <div class="perk"><span class="perk-icon">⚔️</span><span class="perk-text">Bilgi Ligi & Arena sınırsız</span></div>
+          <div class="perk"><span class="perk-icon">🚫</span><span class="perk-text">Reklam yok</span></div>
+          <div class="perk"><span class="perk-icon">⚡</span><span class="perk-text">Öncelikli AI yanıt hızı</span></div>
+          <div class="perk"><span class="perk-icon">🎁</span><span class="perk-text">3 arkadaşını davet et: arkadaşların 7 gün, sen 30 gün Premium</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- KİM İÇİN? -->
+  <section id="audience">
+    <div class="container">
+      <div class="title-card">
+        <h2 class="section-title">Kim İçin?</h2>
+        <p class="section-sub">
+          QuAlsar üç farklı kullanıcı için tasarlandı — her biri farklı ihtiyaçlar.
+        </p>
+      </div>
+      <div class="audience">
+        <div class="aud-card b1">
+          <div class="aud-emoji">🎓</div>
+          <h3>Öğrenciler</h3>
+          <p>Sorularını anında çözebilen, sınava hazırlanan, dünyayla yarışan birey.</p>
+          <ul>
+            <li>Foto çek, AI saniyede çözsün</li>
+            <li>Konu özetlerini kişiselleştir</li>
+            <li>Test çöz + zayıf konunu gör</li>
+            <li>Dünyayla yarış, sırala</li>
+          </ul>
+        </div>
+        <div class="aud-card b2">
+          <div class="aud-emoji">👨‍👩‍👧</div>
+          <h3>Ebeveynler</h3>
+          <p>Çocuğunuzun çalışma süresini, başarısını ve eksiklerini görün.</p>
+          <ul>
+            <li>Çocuk profili + güvenli içerik</li>
+            <li>Çalışma takvimini izleyin</li>
+            <li>Test sonuçlarını gözlemleyin</li>
+            <li>Reklamsız, güvenli ortam</li>
+          </ul>
+        </div>
+        <div class="aud-card b3">
+          <div class="aud-emoji">👨‍🏫</div>
+          <h3>Öğretmenler</h3>
+          <p>Öğrencileriniz için içerik üretip topluca yönetebilirsiniz.</p>
+          <ul>
+            <li>Konu özeti + test hızlı üretim</li>
+            <li>Sınıf içi yarış düzenleyin</li>
+            <li>Müfredat uyumlu içerik</li>
+            <li>55 dilde anlatım imkânı</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- GÜVENLİK & ŞEFFAF -->
+  <section id="security" >
+    <div class="container">
+      <div class="title-card">
+        <h2 class="section-title">🔒 Güvenli ve Şeffaf</h2>
+        <p class="section-sub">
+          Verileriniz size aittir. Şifrelenir, dışarıya satılmaz, üçüncü taraflarla paylaşılmaz.
+        </p>
+      </div>
+      <div class="security">
+        <div class="sec-item">
+          <div class="em">🔐</div>
+          <h5>Şifreli İletişim</h5>
+          <p>Tüm veri trafiği HTTPS (TLS) ile uçtan uca şifrelenir.</p>
+        </div>
+        <div class="sec-item">
+          <div class="em">☁️</div>
+          <h5>Google Cloud Altyapı</h5>
+          <p>Firebase + Cloud Functions ile kurumsal güvenilirlik.</p>
+        </div>
+        <div class="sec-item">
+          <div class="em">📜</div>
+          <h5>KVKK Uyumlu</h5>
+          <p>Kişisel veriler Türkiye yasalarına ve GDPR'a uygun saklanır.</p>
+        </div>
+        <div class="sec-item">
+          <div class="em">🚫</div>
+          <h5>Reklam Yok, Satılmaz</h5>
+          <p>Verileriniz hiçbir reklam ağına satılmaz. Premium ile reklam tamamen yoktur.</p>
+        </div>
+        <div class="sec-item">
+          <div class="em">🗑️</div>
+          <h5>Hesap Silme</h5>
+          <p>İstediğin an uygulamadan tek tıkla tüm verilerini sil.</p>
+        </div>
+        <div class="sec-item">
+          <div class="em">👨‍👩‍👧</div>
+          <h5>Çocuk Güvenli</h5>
+          <p>İlkokul yaş grubu içerikleri ekstra filtrelenir, küfür/şiddet yok.</p>
+        </div>
+        <div class="sec-item">
+          <div class="em">🌐</div>
+          <h5>Açık Bilgilendirme</h5>
+          <p>Gizlilik politikası ve hizmet koşulları herkese açık, sade dilde.</p>
+        </div>
+        <div class="sec-item">
+          <div class="em">⚡</div>
+          <h5>Hızlı Erişim</h5>
+          <p>Cloud Functions optimizasyonu ile düşük gecikme, hızlı yanıt.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SSS -->
+  <section id="faq">
+    <div class="container">
+      <div class="title-card">
+        <h2 class="section-title">❓ Sıkça Sorulan Sorular</h2>
+        <p class="section-sub">Aklındaki en yaygın sorulara hızlı cevaplar.</p>
+      </div>
+      <div class="faq">
+        <details class="faq-item">
+          <summary class="faq-q">QuAlsar ücretsiz mi?</summary>
+          <div class="faq-a">
+            Evet, temel özellikler ücretsizdir — fotoğraf çek-çöz, konu özeti üret, test çöz.
+            Sınırsız kullanım, AI Koç ve diğer ileri özellikler için Premium aboneliği vardır.
+          </div>
+        </details>
+        <details class="faq-item">
+          <summary class="faq-q">Hangi yaş grubu için uygun?</summary>
+          <div class="faq-a">
+            İlkokul 1. sınıftan üniversite + lisansüstü seviyeye kadar 15 farklı eğitim
+            seviyesine adapte olur. Her sınıf için ayrı içerik dili ve plan üretir.
+          </div>
+        </details>
+        <details class="faq-item">
+          <summary class="faq-q">Hangi platformlarda var?</summary>
+          <div class="faq-a">
+            Android (Play Store, Huawei AppGallery, Samsung Galaxy Store, Xiaomi GetApps),
+            iOS (Apple App Store). Web sürümü yok — sadece bilgilendirme sitesi.
+          </div>
+        </details>
+        <details class="faq-item">
+          <summary class="faq-q">Hangi dersleri kapsıyor?</summary>
+          <div class="faq-a">
+            Matematik, Fizik, Kimya, Biyoloji, Geometri, Tarih, Coğrafya, Edebiyat,
+            Türkçe, İngilizce, Felsefe, Din Kültürü ve daha fazlası. 131 ülkenin
+            müfredatına göre dersler otomatik özelleşir.
+          </div>
+        </details>
+        <details class="faq-item">
+          <summary class="faq-q">İnternet olmadan çalışır mı?</summary>
+          <div class="faq-a">
+            AI çözümler ve canlı yarışmalar internet gerektirir. Daha önce çözdüğün
+            sorular, özetler ve testler offline'da görünür.
+          </div>
+        </details>
+        <details class="faq-item">
+          <summary class="faq-q">Premium'u nasıl iptal ederim?</summary>
+          <div class="faq-a">
+            Aboneliğin Apple App Store veya Google Play hesabından yönetilir. Mağaza
+            ayarları → Abonelikler → QuAlsar → İptal Et. İptal sonrası mevcut dönem
+            biter, otomatik yenilenmez.
+          </div>
+        </details>
+        <details class="faq-item">
+          <summary class="faq-q">Davet kodu nasıl çalışır?</summary>
+          <div class="faq-a">
+            Her kullanıcının kendi davet kodu var. Arkadaşın kodunu kullanarak
+            kaydolduğunda 7 gün Premium kazanır. 3 arkadaşın senin kodunla katıldığında
+            sen 30 gün Premium kazanırsın.
+          </div>
+        </details>
+        <details class="faq-item">
+          <summary class="faq-q">Verilerim güvende mi?</summary>
+          <div class="faq-a">
+            Tüm veriler Google Firebase üzerinde TLS şifrelemesi ile saklanır.
+            Kişisel verileriniz hiçbir reklam ağına satılmaz. KVKK ve GDPR uyumludur.
+            İstediğin zaman tek tıkla tüm verilerini silebilirsin.
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section id="how" >
+    <div class="container">
+      <div class="title-card">
+        <h2 class="section-title">Nasıl Çalışır?</h2>
+        <p class="section-sub">
+          Üç adımda QuAlsar deneyimine başlayın.
+        </p>
+      </div>
+      <div class="features" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="feature-card" style="text-align:center;">
+          <div class="feature-icon" style="font-size: 40px;">1️⃣</div>
+          <h3 class="feature-title">İndir & Kayıt Ol</h3>
+          <p class="feature-desc">Mağazadan uygulamayı indir, Google/Apple/Telefon ile kayıt ol.</p>
+        </div>
+        <div class="feature-card" style="text-align:center;">
+          <div class="feature-icon" style="font-size: 40px;">2️⃣</div>
+          <h3 class="feature-title">Seviyeni Seç</h3>
+          <p class="feature-desc">Sınıfını ve ülkeni seç — içerik otomatik müfredatına göre özelleşir.</p>
+        </div>
+        <div class="feature-card" style="text-align:center;">
+          <div class="feature-icon" style="font-size: 40px;">3️⃣</div>
+          <h3 class="feature-title">Öğren & Yarış</h3>
+          <p class="feature-desc">Konu özeti çıkar, test çöz, AI Koç ile çalış, Bilgi Ligi'nde sıralan.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DOWNLOAD -->
+  <section id="download">
+    <div class="container">
+      <div class="title-card">
+        <h2 class="section-title">İndir & Başla</h2>
+        <p class="section-sub">
+          QuAlsar Android, iOS ve diğer büyük platformlarda — telefonun ne olursa olsun yanında.
+        </p>
+      </div>
+      <div class="downloads">
+        <a class="dl dl-play"    href="https://play.google.com/store/apps/details?id=com.qualsar.ai">📲 Play Store</a>
+        <a class="dl dl-apple"   href="https://apps.apple.com/app/qualsar/id000000000">🍎 Apple Store</a>
+        <a class="dl dl-huawei"  href="https://appgallery.huawei.com/app/qualsar">🔴 Huawei AppGallery</a>
+        <a class="dl dl-samsung" href="https://galaxystore.samsung.com/detail/com.qualsar.ai">💙 Samsung Galaxy Store</a>
+        <a class="dl dl-xiaomi"  href="https://app.mi.com/details?id=com.qualsar.ai" style="grid-column: 1 / -1;">🟠 Xiaomi GetApps</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <a href="#" class="brand">
+      <span class="brand-dot"></span>
+      <span class="brand-text">Qu<span class="al">Al</span>sar</span>
+    </a>
+    <div class="links">
+      <a href="/privacy">Gizlilik (TR)</a>
+      <a href="/privacy-en.html">Privacy (EN)</a>
+      <a href="/terms">Koşullar (TR)</a>
+      <a href="/terms-en.html">Terms (EN)</a>
+      <a href="mailto:serhatdsme@gmail.com">İletişim</a>
+    </div>
+    <div class="copy">© 2026 QuAlsar · Tüm hakları saklıdır.</div>
+  </footer>
+
+  <!-- Gizli Google Translate elementi — dil çevirisi bunun üzerinden yapılır -->
+  <div id="google_translate_element"></div>
+
+  <!-- Dil seçici modal -->
+  <div class="modal-back" id="langModal" role="dialog" aria-modal="true">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-head">
+        <h3>🌐 Dil Seçimi</h3>
+        <button class="modal-close" id="langClose" aria-label="Kapat">×</button>
+      </div>
+      <div class="modal-search">
+        <span class="icon">🔎</span>
+        <input id="langSearch" type="text" placeholder="Dil ara..." autocomplete="off">
+      </div>
+      <div class="lang-list" id="langList"></div>
+      <div class="lang-hint">
+        Site: en yaygın 20 dilde · Uygulama: 55 dil
+      </div>
+    </div>
   </div>
+
+  <script>
+    // ── Hero logosunun merkezindeki dönen büyük harf (uygulamadaki gibi) ──
+    (function () {
+      const letters = ['A', 'M', 'F', 'K', 'B', 'T', 'E', 'Σ', 'π', '√', '∫', 'Δ', '∞', 'Q'];
+      let i = 0;
+      const el = document.getElementById('centerWord');
+      if (!el) return;
+      setInterval(() => {
+        i = (i + 1) % letters.length;
+        el.textContent = letters[i];
+      }, 800);
+    })();
+
+    // ── Hero logosunda sürekli akan semboller (kenardan merkeze) ──
+    // Uygulamadaki QuAlsarLogoMark ile aynı görsel davranış.
+    (function () {
+      const logo = document.getElementById('heroLogo');
+      if (!logo) return;
+      const symbols = [
+        // Matematik / fizik / kimya sembolleri
+        '∫','π','√','Σ','Δ','∞','∂','∇','α','β','γ','θ','λ','μ','Ω','φ','±','÷',
+        // Kısa kelimeler (uygulamadan)
+        'H₂O','E=mc²','F=ma','PV=nRT','1453','π²','x²','dy/dx',
+        // Türkçe ders harfleri
+        'Ç','A','G','L','S','K','B','M','T','F','Z','N','R','P',
+        // Türkçe kelimeler — tarih/edebiyat/sanat
+        'Sanat','Nous','Mısra','Öykü','tense','imparator','şair','olay','tema',
+        // Çince / Japonca / Korece harfler (uygulamada cycling)
+        '数','物','化','生','史','文','日','한','中','学',
+        // Arapça
+        'علم','رياض','تاريخ',
+      ];
+      const colors = [
+        '#FF3366','#06B6D4','#7C3AED','#FF6A00','#EC4899',
+        '#10B981','#2563EB','#FBBF24','#E53935','#A78BFA','#22D3EE',
+      ];
+
+      function spawn() {
+        if (!document.body.contains(logo)) return;
+        const sym = document.createElement('span');
+        sym.className = 'flow-sym';
+        const text = symbols[Math.floor(Math.random() * symbols.length)];
+        sym.textContent = text;
+        sym.style.color = colors[Math.floor(Math.random() * colors.length)];
+        // Boyut: kısa sembol büyük, uzun kelime küçük
+        const baseSize = text.length > 4 ? 11 : (text.length > 1 ? 14 : 16);
+        sym.style.fontSize = (baseSize + Math.random() * 3) + 'px';
+        // Başlangıç pozisyonu: dairenin iç kenarında, rastgele açı
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 95 + Math.random() * 20; // logo radius 140 — iç kenar
+        const sx = Math.cos(angle) * radius;
+        const sy = Math.sin(angle) * radius;
+        sym.style.setProperty('--sx', sx.toFixed(0) + 'px');
+        sym.style.setProperty('--sy', sy.toFixed(0) + 'px');
+        logo.appendChild(sym);
+        // Animasyon süresi sonunda kaldır (bellek sızıntısı engelle)
+        setTimeout(() => sym.remove(), 3700);
+      }
+
+      // İlk anda 3 sembol → boş ekran olmasın
+      spawn(); spawn(); spawn();
+      // Sonra her 250ms'de yeni sembol
+      setInterval(spawn, 250);
+    })();
+
+    // ── Google Translate init ──
+    // Sayfa Türkçe yazılı; kullanıcı dil seçince Google Translate
+    // tüm metinleri seçilen dile çevirir (cookie-based switcher).
+    function googleTranslateElementInit() {
+      new google.translate.TranslateElement({
+        pageLanguage: 'tr',
+        includedLanguages: 'en,es,fr,de,it,pt,ru,zh-CN,ja,ko,ar,hi,id,nl,pl,sv,vi,th,uk',
+        autoDisplay: false,
+      }, 'google_translate_element');
+    }
+    (function () {
+      const s = document.createElement('script');
+      s.src = 'https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit';
+      document.head.appendChild(s);
+    })();
+
+    // ── Dil seçici (en yaygın 20 dil — gerçek çeviri Google Translate ile) ──
+    (function () {
+      const langs = [
+        ['🇹🇷','Türkçe','Turkish','tr'],
+        ['🇺🇸','English','English','en'],
+        ['🇨🇳','中文','Chinese','zh-CN'],
+        ['🇮🇳','हिन्दी','Hindi','hi'],
+        ['🇪🇸','Español','Spanish','es'],
+        ['🇸🇦','العربية','Arabic','ar'],
+        ['🇫🇷','Français','French','fr'],
+        ['🇧🇷','Português','Portuguese','pt'],
+        ['🇷🇺','Русский','Russian','ru'],
+        ['🇯🇵','日本語','Japanese','ja'],
+        ['🇩🇪','Deutsch','German','de'],
+        ['🇰🇷','한국어','Korean','ko'],
+        ['🇮🇹','Italiano','Italian','it'],
+        ['🇻🇳','Tiếng Việt','Vietnamese','vi'],
+        ['🇹🇭','ภาษาไทย','Thai','th'],
+        ['🇳🇱','Nederlands','Dutch','nl'],
+        ['🇵🇱','Polski','Polish','pl'],
+        ['🇸🇪','Svenska','Swedish','sv'],
+        ['🇮🇩','Bahasa Indonesia','Indonesian','id'],
+        ['🇺🇦','Українська','Ukrainian','uk'],
+      ];
+
+      const btn = document.getElementById('langBtn');
+      const modal = document.getElementById('langModal');
+      const closeBtn = document.getElementById('langClose');
+      const list = document.getElementById('langList');
+      const search = document.getElementById('langSearch');
+      const flagEl = document.getElementById('langFlag');
+      const nameEl = document.getElementById('langName');
+
+      function readGoogtransCookie() {
+        const m = document.cookie.match(/googtrans=\/tr\/([\w-]+)/);
+        return m ? m[1] : 'tr';
+      }
+      let current = readGoogtransCookie();
+
+      function applyCurrent() {
+        const sel = langs.find(l => l[3] === current) || langs[0];
+        flagEl.textContent = sel[0];
+        nameEl.textContent = sel[1];
+      }
+
+      function setCookie(name, value) {
+        const expires = new Date(Date.now() + 365 * 24 * 3600 * 1000).toUTCString();
+        // Hem path hem domain — çoklu host'larda çalışsın diye
+        document.cookie = `${name}=${value}; expires=${expires}; path=/`;
+        const host = location.hostname;
+        if (host.indexOf('.') > 0) {
+          const root = host.replace(/^www\./, '');
+          document.cookie = `${name}=${value}; expires=${expires}; path=/; domain=.${root}`;
+        }
+      }
+
+      function switchLanguage(code) {
+        current = code;
+        if (code === 'tr') {
+          // Kaynağa dön — googtrans cookie'yi sil
+          setCookie('googtrans', '');
+        } else {
+          setCookie('googtrans', `/tr/${code}`);
+        }
+        applyCurrent();
+        location.reload();
+      }
+
+      function render(filter) {
+        const q = (filter || '').toLowerCase().trim();
+        list.innerHTML = '';
+        const filtered = q
+          ? langs.filter(l =>
+              l[1].toLowerCase().includes(q) ||
+              l[2].toLowerCase().includes(q) ||
+              l[3].toLowerCase().includes(q))
+          : langs;
+        if (filtered.length === 0) {
+          const empty = document.createElement('div');
+          empty.className = 'lang-empty';
+          empty.textContent = 'Sonuç bulunamadı';
+          list.appendChild(empty);
+          return;
+        }
+        filtered.forEach(([flag, native, eng, code]) => {
+          const item = document.createElement('div');
+          item.className = 'lang-item' + (code === current ? ' selected' : '');
+          item.innerHTML = `
+            <span class="flag">${flag}</span>
+            <div class="names">
+              <div class="native">${native}</div>
+              <div class="english">${eng}</div>
+            </div>
+            ${code === current ? '<span class="check">✓</span>' : ''}
+          `;
+          item.addEventListener('click', () => {
+            switchLanguage(code);
+            modal.classList.remove('active');
+            search.value = '';
+          });
+          list.appendChild(item);
+        });
+      }
+
+      function openModal() {
+        modal.classList.add('active');
+        render('');
+        setTimeout(() => search.focus(), 80);
+      }
+
+      btn.addEventListener('click', openModal);
+      closeBtn.addEventListener('click', () => modal.classList.remove('active'));
+      modal.addEventListener('click', () => modal.classList.remove('active'));
+      search.addEventListener('input', e => render(e.target.value));
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') modal.classList.remove('active');
+      });
+
+      applyCurrent();
+    })();
+  </script>
 </body>
 </html>

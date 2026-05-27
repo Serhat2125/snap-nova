@@ -1,19 +1,25 @@
-// ignore_for_file: unused_element
+﻿// ignore_for_file: unused_element
 
 import '../services/error_logger.dart';
 import '../services/runtime_translator.dart';
+import 'delete_account_screen.dart';
 import 'dart:io';
 import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'join_class_screen.dart';
+import 'notifications_inbox_screen.dart';
 import 'onboarding_screen.dart';
+import 'student_homeworks_screen.dart';
+import '../widgets/parent_invite_banner.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/locale_service.dart';
 import '../services/pricing_service.dart';
@@ -27,9 +33,12 @@ import '../services/auth_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:local_auth/local_auth.dart';
 import 'package:permission_handler/permission_handler.dart' as ph;
+import '../services/app_settings_service.dart';
 import '../services/friend_service.dart';
 import '../services/preferences_sync_service.dart';
+import '../services/user_profile_service.dart';
 import '../services/push_service.dart';
 import '../services/solutions_storage.dart';
 import '../theme/app_theme.dart';
@@ -147,6 +156,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           physics: BouncingScrollPhysics(),
           child: Column(
             children: [
+              // Bekleyen ebeveyn istek bildirimi (varsa).
+              const ParentInviteBanner(),
               SizedBox(height: 20),
 
               // ═════════════════════════════════════════════════════════════
@@ -261,6 +272,60 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         letterSpacing: -0.5,
                       ),
                     ),
+                    // Kullanıcı adı + kopyala — UserProfileService canlı dinler.
+                    AnimatedBuilder(
+                      animation: UserProfileService.instance,
+                      builder: (ctx, _) {
+                        final uname =
+                            UserProfileService.instance.username;
+                        if (uname.isEmpty) return const SizedBox.shrink();
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                uname,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color:
+                                      AppPalette.textSecondary(context),
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              InkWell(
+                                onTap: () async {
+                                  final messenger =
+                                      ScaffoldMessenger.of(context);
+                                  await Clipboard.setData(
+                                      ClipboardData(text: uname));
+                                  if (!mounted) return;
+                                  messenger.showSnackBar(SnackBar(
+                                    content: Text(
+                                        'Kullanıcı adın kopyalandı'.tr()),
+                                    behavior:
+                                        SnackBarBehavior.floating,
+                                    duration: const Duration(seconds: 2),
+                                  ));
+                                },
+                                borderRadius: BorderRadius.circular(20),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(4),
+                                  child: Icon(
+                                    Icons.content_copy_rounded,
+                                    size: 14,
+                                    color: AppPalette.textSecondary(
+                                        context),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
                     SizedBox(height: 12),
                     // Premium'a Yükselt — gösterim kuralları:
                     //   1) Yaptırım altındaki ülkelerde gizli (Apple/Google
@@ -289,13 +354,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               SizedBox(height: 24),
 
               // ═════════════════════════════════════════════════════════════
-              //  2. Davet — SADECE premium DEĞİL kullanıcılara göster.
-              //  Zaten premium olan bir kullanıcının arkadaş davet edip
-              //  premium kazanmasının mantığı yok (kullanıcı talebi).
-              //  Yaptırımlı ülkelerde de gizli (ödeme alamıyoruz).
+              //  2. Davet — HER ZAMAN görünür (kullanıcı talebi).
+              //  Eskiden `!_premium.isActive` koşuluyla premium olunca
+              //  veya 3 davet tamamlanınca sekme kayboluyordu; artık
+              //  premium olsa veya 3+ davet bitse bile görünmeye devam eder.
+              //  Yaptırımlı ülkelerde hâlâ gizli (ödeme alamıyoruz).
               // ═════════════════════════════════════════════════════════════
-              if (!_premium.isActive &&
-                  !PricingService.isSanctionedCountry(
+              if (!PricingService.isSanctionedCountry(
                       PricingService.countryFromLang(
                           localeService.localeCode))) ...[
                 _buildSectionTitle('Davet'.tr().toUpperCase()),
@@ -553,6 +618,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 title: 'Uygulama Ayarları'.tr(),
                 onTap: () => _showAppSettingsBottomSheet(context),
               ),
+              SizedBox(height: 10),
+              _buildOvalMenuItem(
+                emoji: '🏫',
+                title: 'Sınıfa Katıl'.tr(),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const JoinClassScreen(),
+                )),
+              ),
+              SizedBox(height: 10),
+              _buildOvalMenuItem(
+                emoji: '📋',
+                title: 'Sınıf Ödevlerim'.tr(),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const StudentHomeworksScreen(),
+                )),
+              ),
+              SizedBox(height: 10),
+              _buildOvalMenuItem(
+                emoji: '🔔',
+                title: 'Bildirimler'.tr(),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const NotificationsInboxScreen(),
+                )),
+              ),
 
               SizedBox(height: 24),
 
@@ -677,7 +766,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: GestureDetector(
-                  onTap: () => _showDeleteAccountDialog(),
+                  onTap: () => _openDeleteAccountScreen(),
                   child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(
@@ -855,7 +944,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     _faqTile(
                       'Davet kodum çalışmıyor, ne yapmalıyım?'.tr(),
-                      'Davet kodu QUALS-XXXXX formatında olmalıdır. '
+                      'Davet kodu QuAls-XXXXXX formatında olmalıdır. '
                               'Kendi kodunu kullanamazsın ve her cihazda '
                               'bir kez kullanılabilir.'
                           .tr(),
@@ -947,99 +1036,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   /// Hesap silme akışı — Apple Guideline 5.1.1(v) zorunlu.
-  /// İki adımlı onay: önce uyarı, sonra yazılı "SİL" onayı.
-  Future<void> _showDeleteAccountDialog() async {
-    final confirmCtrl = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx2, setS) {
-          final canDelete =
-              confirmCtrl.text.trim().toUpperCase() == 'SİL';
-          return AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: Row(
-              children: [
-                const Icon(Icons.warning_amber_rounded,
-                    color: Color(0xFFEF4444), size: 24),
-                const SizedBox(width: 8),
-                Text(
-                  'Hesabımı Sil'.tr(),
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Bu işlem geri alınamaz. Hesabın, profil verilerin, davet kayıtların ve çalışma geçmişin kalıcı olarak silinir.'
-                      .tr(),
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Aktif Premium aboneliğin varsa App Store / Play Store üzerinden ayrıca iptal etmelisin.'
-                      .tr(),
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: const Color(0xFFB91C1C),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Onaylamak için aşağıya "SİL" yaz:'.tr(),
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: AppPalette.textSecondary(context),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: confirmCtrl,
-                  textCapitalization: TextCapitalization.characters,
-                  onChanged: (_) => setS(() {}),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    hintText: 'SİL',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: Text('Vazgeç'.tr()),
-              ),
-              ElevatedButton(
-                onPressed:
-                    canDelete ? () => Navigator.pop(ctx, true) : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFEF4444),
-                  foregroundColor: Colors.white,
-                ),
-                child: Text('Sil'.tr()),
-              ),
-            ],
-          );
-        },
+  /// QandA tarzı tam ekran açar: önce duygusal/açıklayıcı sayfa, alttaki
+  /// "QuAlsar'dan Ayrıl" butonu bastıktan sonra ikinci güvenlik kapısı
+  /// (yazılı "SİL" onayı) DeleteAccountScreen içinde sorulur — onaylanırsa
+  /// onConfirmDelete callback'i (_performAccountDeletion) çağrılır.
+  void _openDeleteAccountScreen() {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => DeleteAccountScreen(
+        onConfirmDelete: _performAccountDeletion,
       ),
-    );
-    if (ok != true) return;
-    await _performAccountDeletion();
+    ));
   }
 
   Future<void> _performAccountDeletion() async {
@@ -2822,9 +2828,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const SizedBox(height: 10),
                         _socialLink(
                           icon: Icons.language_rounded,
-                          label: 'qualsar2-640f0.web.app',
+                          label: 'qualsar.app',
                           color: const Color(0xFF3B82F6),
-                          url: 'https://qualsar2-640f0.web.app',
+                          url: 'https://qualsar.app',
                         ),
                         const SizedBox(height: 8),
                         _socialLink(
@@ -2839,14 +2845,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           icon: Icons.privacy_tip_rounded,
                           label: 'Gizlilik Politikası'.tr(),
                           color: const Color(0xFF10B981),
-                          url: 'https://qualsar2-640f0.web.app/privacy',
+                          url: 'https://qualsar.app/privacy',
                         ),
                         const SizedBox(height: 8),
                         _socialLink(
                           icon: Icons.description_rounded,
                           label: 'Kullanım Koşulları'.tr(),
                           color: const Color(0xFF8B5CF6),
-                          url: 'https://qualsar2-640f0.web.app/terms',
+                          url: 'https://qualsar.app/terms',
                         ),
                         const SizedBox(height: 16),
                         Center(
@@ -4437,12 +4443,13 @@ class InvitePage extends StatefulWidget {
 
 class _InvitePageState extends State<InvitePage> {
   // Davet altyapısı: Firestore tabanlı ReferralService.
-  // Eski sürümde tamamen mock SharedPreferences'tı; arkadaş davet sayacı
-  // hiç artmıyordu.
   ReferralStats _stats = ReferralStats.empty;
   PremiumStatusSnapshot _premium = PremiumStatusSnapshot.inactive;
   bool _loading = true;
   bool _refreshing = false;
+  // Real-time listener — arkadaş kodu kullandığı an slot yeşillensin.
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _referralSub;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _premiumSub;
 
   int get _invitedCount => _stats.invitedUsers.length;
   int get _maxInvites => _stats.targetCount;
@@ -4453,6 +4460,57 @@ class _InvitePageState extends State<InvitePage> {
   void initState() {
     super.initState();
     _load();
+    _attachLiveListeners();
+  }
+
+  @override
+  void dispose() {
+    _referralSub?.cancel();
+    _premiumSub?.cancel();
+    super.dispose();
+  }
+
+  /// Firestore snapshot listener'ları kur — arkadaş davet kodunu kullandığı an
+  /// `referrals/{myUid}.invitedUsers` array büyür → bu listener tetiklenir →
+  /// slot anında yeşil olur, progress bar uzar.
+  /// Cloud Function 3. davette 30 gün Premium yazınca `users/{myUid}/premium/state`
+  /// değişir → premium listener tetiklenir → "Premium kazandın" kartı görünür.
+  void _attachLiveListeners() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    _referralSub = FirebaseFirestore.instance
+        .collection('referrals')
+        .doc(uid)
+        .snapshots()
+        .listen((snap) {
+      if (!mounted || !snap.exists) return;
+      final data = snap.data() ?? const <String, dynamic>{};
+      final raw = (data['invitedUsers'] as List?) ?? const [];
+      final invited = raw
+          .whereType<Map>()
+          .map((m) => InvitedUser.fromMap(Map<String, dynamic>.from(m)))
+          .toList();
+      setState(() {
+        _stats = ReferralStats(
+          myCode: (data['code'] as String?) ?? _stats.myCode,
+          invitedUsers: invited,
+          targetCount: _stats.targetCount,
+        );
+      });
+    }, onError: (e) => debugPrint('[InvitePage] referral stream: $e'));
+
+    _premiumSub = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('premium')
+        .doc('state')
+        .snapshots()
+        .listen((snap) async {
+      if (!mounted || !snap.exists) return;
+      final fresh = await PremiumStatus.read();
+      if (!mounted) return;
+      setState(() => _premium = fresh);
+    }, onError: (e) => debugPrint('[InvitePage] premium stream: $e'));
   }
 
   Future<void> _load() async {
@@ -4491,83 +4549,63 @@ class _InvitePageState extends State<InvitePage> {
   }
 
   Future<void> _shareCode() async {
-    // 1) Kod boşsa SESSIZCE return ETME — kullanıcıya bildir ve yeniden
-    //    yüklemeyi tetikle. Eskiden burada erken çıkış vardı, kullanıcı
-    //    "basınca bir şey olmuyor" diyordu.
+    // Kod hazır mı? Yoksa sessizce yeniden yüklemeyi dene (snackbar yok —
+    // kart üstündeki "Davet kodu yüklenemedi" hata UI'sı zaten kullanıcıya
+    // gerekli geri bildirimi veriyor, çift mesaj kafa karıştırır).
     var code = _stats.myCode;
     if (code.isEmpty) {
-      // Önce hızlı yeniden dene
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(
-            'Davet kodu hazırlanıyor, bir saniye…'.tr()),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ));
       await _load();
       code = _stats.myCode;
-      if (code.isEmpty) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-              'Davet kodu yüklenemedi. İnternetini kontrol et ve tekrar dene.'
-                  .tr()),
-          behavior: SnackBarBehavior.floating,
-          action: SnackBarAction(
-            label: 'Tekrar dene'.tr(),
-            onPressed: _load,
-          ),
-        ));
-        return;
-      }
+      // Hala boşsa yine sessizce çık — kart kullanıcıya "Tekrar dene"
+      // butonunu zaten gösteriyor.
+      if (code.isEmpty) return;
     }
-    // Tek deep link → mesaj kısa, link preview temiz, hem Android hem iOS
-    // kullanıcıları yakalanır.
-    final intro = 'QuAlsar — AI destekli ödev asistanı.'.tr();
-    final cta =
-        'Uygulamayı indir ve kaydolurken şu davet kodumu kullan:'.tr();
-    final reward = 'Sen 7 gün, ben 30 gün Premium kazanırız.'.tr();
-    final inviteUrl = 'https://qualsar2-640f0.web.app/i/$code';
-    final msg = '$intro\n\n'
-        '$cta\n'
-        '🎁 $code\n\n'
-        '$reward\n\n'
+    // Sade mesaj — uygulama tanıtımı WhatsApp link önizleme kartının
+    // og:description'ında görünür (hosting/davet.html). Burada sadece
+    // hediye satırı + kod + link.
+    final gift = '🎁 Sana 7 gün QuAlsar Premium hediyem var.'.tr();
+    final cta = 'Davet kodum:'.tr();
+    final inviteUrl = 'https://qualsar.app/i/$code';
+    final msg = '$gift\n\n'
+        '$cta $code\n\n'
         '$inviteUrl';
-    // iPad popover origin — async gap öncesi yakala. iOS'ta Share.share
-    // tablet'lerde popover gerektirir, yoksa exception fırlar.
+
+    if (!mounted) return;
+    // iPad popover origin — sistem share için, async gap öncesi yakala.
     Rect? origin;
-    if (mounted) {
-      try {
-        final box = context.findRenderObject() as RenderBox?;
-        if (box != null && box.attached) {
-          origin = box.localToGlobal(Offset.zero) & box.size;
-        }
-      } catch (_) {}
-    }
-    // Share sheet açılmazsa veya intent çökerse → metni panoya kopyala ki
-    // kullanıcı WhatsApp'a manuel yapıştırabilsin.
     try {
-      final result = await Share.share(
-        msg,
-        subject: 'QuAlsar davet kodum',
-        sharePositionOrigin: origin,
-      );
-      // Bazı cihazlarda result.status .dismissed / .unavailable döner —
-      // o durumda kullanıcının elinde hiçbir şey olmasın diye fallback'e geç.
-      if (result.status == ShareResultStatus.unavailable) {
-        throw Exception('share unavailable');
+      final box = context.findRenderObject() as RenderBox?;
+      if (box != null && box.attached) {
+        origin = box.localToGlobal(Offset.zero) & box.size;
       }
-    } catch (e) {
-      debugPrint('[Invite] share fail: $e');
-      await Clipboard.setData(ClipboardData(text: msg));
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(
-            'Paylaşım açılamadı — davet metni panoya kopyalandı.'.tr()),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
-      ));
-    }
+    } catch (_) {}
+
+    // Özel kanal sheet'i — sıralama: WhatsApp, Telegram, SMS, E-posta,
+    // Instagram, TikTok, X, Daha fazla. Brand renkleri, sade dairesel
+    // ikon, extra çerçeve yok. Sistem share'i sıralama yapamadığı için
+    // bu özel sheet ile kontrol ediyoruz.
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ShareChannelSheet(message: msg, origin: origin),
+    );
+  }
+
+  /// Kod string'ini parçalayıp "Al" hecesini kırmızı TextSpan olarak döndürür.
+  /// "QuAl-XXXXXX" → [Qu, **Al** (kırmızı), -XXXXXX].
+  /// "Al" geçmeyen eski/legacy formatlar tek parça döner.
+  List<InlineSpan> _buildCodeSpans(String code) {
+    final idx = code.indexOf('Al');
+    if (idx < 0) return [TextSpan(text: code)];
+    return [
+      if (idx > 0) TextSpan(text: code.substring(0, idx)),
+      TextSpan(
+        text: 'Al',
+        style: const TextStyle(color: Color(0xFFE53935)),
+      ),
+      if (idx + 2 < code.length) TextSpan(text: code.substring(idx + 2)),
+    ];
   }
 
   /// Davet kodu kartı — büyük tipografi + kopya butonu.
@@ -4674,13 +4712,17 @@ class _InvitePageState extends State<InvitePage> {
                   ),
                 ),
                 const SizedBox(height: 2),
-                SelectableText(
-                  code,
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    color: AppPalette.textPrimary(context),
-                    letterSpacing: 1.5,
+                // Kod render: "Qu" + "Al" (kırmızı) + "-XXXXXX". Kullanıcı
+                // talebi gereği "Al" hecesi daima kırmızı görünür.
+                SelectableText.rich(
+                  TextSpan(
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      color: AppPalette.textPrimary(context),
+                      letterSpacing: 1.5,
+                    ),
+                    children: _buildCodeSpans(code),
                   ),
                 ),
               ],
@@ -4832,7 +4874,7 @@ class _InvitePageState extends State<InvitePage> {
             ),
             SizedBox(height: 4),
             Text(
-              'Sen 7 gün, arkadaşın 7 gün, 3 davet sonrası sen 30 gün ekstra Premium kazan.'
+              'Her davet ettiğin arkadaşın 7 gün Premium kazanır. 3 arkadaşın uygulamayı kodunla indirdiğinde sen 30 gün ücretsiz Premium kazanırsın.'
                   .tr(),
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(
@@ -4847,8 +4889,6 @@ class _InvitePageState extends State<InvitePage> {
 
             // ══════════════════════════════════════════════════════════
             //  DAVET KODU — büyük, kopya butonu, paylaşılabilir.
-            //  Eski sürümde kod UI'da hiç görünmüyordu (sadece paylaşım
-            //  mesajına gömülüydü); kullanıcı manuel veremiyordu.
             // ══════════════════════════════════════════════════════════
             _buildCodeCard(),
             SizedBox(height: 20),
@@ -5370,6 +5410,241 @@ class _NoteItem extends StatelessWidget {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  _ShareChannelSheet — Davet kodu paylaşımı için sıralı kanal seçici.
+//
+//  Kullanıcı talebi: "önce WhatsApp, Telegram ve en çok kullanılan mesajlaşma
+//  / sosyal medya hesapları çıksın". Android sistem share sheet'i sıralamayı
+//  kendi belirlediği için kontrol edemeyiz; bu yüzden curated bir sheet.
+//
+//  Sıralama: WhatsApp · Telegram · SMS · E-posta · Instagram · TikTok · X
+//            · Daha fazla (sistem share fallback)
+//
+//  Davranış:
+//   • Text prefill destekleyen kanallar (WhatsApp/Telegram/SMS/Email/X) →
+//     direkt deep link açılır, mesaj önceden dolu gelir.
+//   • Prefill desteklemeyen (Instagram/TikTok) → mesaj panoya kopyalanır,
+//     uygulama açılır, kullanıcıya "yapıştır" toast gösterilir.
+//   • "Daha fazla" → sistem share sheet (yüklü tüm uygulamalar orijinal logolu).
+// ═══════════════════════════════════════════════════════════════════════════
+class _ShareChannelSheet extends StatelessWidget {
+  final String message;
+  final Rect? origin;
+  const _ShareChannelSheet({required this.message, this.origin});
+
+  /// Bir URI'yi platform external olarak aç. Başarısızsa snackbar.
+  Future<void> _openUri(BuildContext context, Uri uri, String label) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!context.mounted) return;
+      if (!ok) {
+        messenger.showSnackBar(SnackBar(
+          content: Text('$label açılamadı — uygulamayı yükle veya başka bir kanal seç'.tr()),
+          behavior: SnackBarBehavior.floating,
+        ));
+        return;
+      }
+      Navigator.of(context).pop();
+    } catch (e) {
+      debugPrint('[ShareChannel] $label fail: $e');
+      if (!context.mounted) return;
+      messenger.showSnackBar(SnackBar(
+        content: Text('$label yüklü değil'.tr()),
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+  }
+
+  /// Text prefill desteklemeyen uygulamalar için: mesajı panoya kopyala +
+  /// uygulamayı aç + kullanıcıya yapıştır toast'u göster.
+  Future<void> _copyAndOpen(BuildContext context, Uri uri, String label) async {
+    final messenger = ScaffoldMessenger.of(context);
+    await Clipboard.setData(ClipboardData(text: message));
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {}
+    if (!context.mounted) return;
+    Navigator.of(context).pop();
+    messenger.showSnackBar(SnackBar(
+      content: Text('Mesaj kopyalandı — $label\'da yapıştır'.tr()),
+      behavior: SnackBarBehavior.floating,
+      duration: const Duration(seconds: 4),
+    ));
+  }
+
+  Future<void> _systemShare(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await Share.share(
+        message,
+        subject: 'QuAlsar davet kodum',
+        sharePositionOrigin: origin,
+      );
+      if (!context.mounted) return;
+      Navigator.of(context).pop();
+    } catch (e) {
+      debugPrint('[ShareChannel] system share fail: $e');
+      if (!context.mounted) return;
+      messenger.showSnackBar(SnackBar(
+        content: Text('Sistem paylaşımı açılamadı'.tr()),
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final encoded = Uri.encodeComponent(message);
+    return SafeArea(
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppPalette.card(context),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 44,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppPalette.border(context),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Hangisiyle göndermek istersin?'.tr(),
+              style: GoogleFonts.poppins(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: AppPalette.textPrimary(context),
+              ),
+            ),
+            const SizedBox(height: 16),
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 4,
+              mainAxisSpacing: 14,
+              crossAxisSpacing: 12,
+              childAspectRatio: 0.82,
+              children: [
+                _channelTile(context,
+                    icon: FontAwesomeIcons.whatsapp,
+                    label: 'WhatsApp',
+                    color: const Color(0xFF25D366),
+                    onTap: () => _openUri(context,
+                        Uri.parse('https://wa.me/?text=$encoded'), 'WhatsApp')),
+                _channelTile(context,
+                    icon: FontAwesomeIcons.telegram,
+                    label: 'Telegram',
+                    color: const Color(0xFF229ED9),
+                    onTap: () => _openUri(context,
+                        Uri.parse('tg://msg?text=$encoded'), 'Telegram')),
+                _channelTile(context,
+                    icon: Icons.sms_rounded,
+                    label: 'SMS',
+                    color: const Color(0xFF7C3AED),
+                    onTap: () => _openUri(
+                        context, Uri.parse('sms:?body=$encoded'), 'SMS')),
+                _channelTile(context,
+                    icon: Icons.email_rounded,
+                    label: 'E-posta'.tr(),
+                    color: const Color(0xFFEA4335),
+                    onTap: () => _openUri(
+                        context,
+                        Uri.parse(
+                            'mailto:?subject=QuAlsar%20davet%20kodum&body=$encoded'),
+                        'E-posta'.tr())),
+                _channelTile(context,
+                    icon: FontAwesomeIcons.instagram,
+                    label: 'Instagram',
+                    gradient: const [Color(0xFFFEDA77), Color(0xFFE1306C), Color(0xFF833AB4)],
+                    onTap: () => _copyAndOpen(context,
+                        Uri.parse('instagram://app'), 'Instagram')),
+                _channelTile(context,
+                    icon: FontAwesomeIcons.tiktok,
+                    label: 'TikTok',
+                    color: const Color(0xFF111111),
+                    onTap: () => _copyAndOpen(context,
+                        Uri.parse('https://www.tiktok.com/'), 'TikTok')),
+                _channelTile(context,
+                    icon: FontAwesomeIcons.xTwitter,
+                    label: 'X',
+                    color: const Color(0xFF111111),
+                    onTap: () => _openUri(
+                        context,
+                        Uri.parse('https://twitter.com/intent/tweet?text=$encoded'),
+                        'X')),
+                _channelTile(context,
+                    icon: Icons.more_horiz_rounded,
+                    label: 'Daha fazla'.tr(),
+                    color: const Color(0xFFFF6A00),
+                    onTap: () => _systemShare(context)),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _channelTile(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    Color? color,
+    List<Color>? gradient,
+    required VoidCallback onTap,
+  }) {
+    final bg = gradient != null
+        ? BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              colors: gradient,
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          )
+        : BoxDecoration(shape: BoxShape.circle, color: color);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: bg,
+            alignment: Alignment.center,
+            child: Icon(icon, color: Colors.white, size: 26),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.poppins(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: AppPalette.textPrimary(context),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ── Nasıl Katılırsın — tek adım satırı ────────────────────────────────────
 class _HowItWorksStep extends StatelessWidget {
   final int index;
@@ -5475,11 +5750,9 @@ class _InviteSlot extends StatelessWidget {
 
   const _InviteSlot({required this.index, required this.filled});
 
-  static const _palettes = <List<Color>>[
-    [Color(0xFF10B981), Color(0xFF059669)], // yeşil
-    [Color(0xFF3B82F6), Color(0xFF1D4ED8)], // mavi
-    [Color(0xFF8B5CF6), Color(0xFF6D28D9)], // mor
-  ];
+  // Her dolu slot için aynı yeşil gradient — "her biri yeşil olsun"
+  // (kullanıcı isteği). 3 davet tamamlanınca 3 yeşil tik yan yana.
+  static const _greenGrad = <Color>[Color(0xFF10B981), Color(0xFF059669)];
 
   @override
   Widget build(BuildContext context) {
@@ -5515,19 +5788,18 @@ class _InviteSlot extends StatelessWidget {
       );
     }
 
-    final colors = _palettes[index % _palettes.length];
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: colors,
+          colors: _greenGrad,
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: colors.first.withValues(alpha: 0.32),
+            color: _greenGrad.first.withValues(alpha: 0.32),
             blurRadius: 12,
             offset: Offset(0, 4),
           ),
@@ -5867,158 +6139,704 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
     ));
   }
 
+  /// Parmak izi / Face ID açılırken: cihazda biyometrik kayıtlı mı kontrol et,
+  /// kullanıcıdan canlı doğrulama iste. Başarılıysa setting ON yapılır;
+  /// cihazda biyometrik yoksa kullanıcı sistem ayarlarına yönlendirilir.
+  Future<void> _enableBiometric() async {
+    final s = AppSettingsService.instance;
+    final messenger = ScaffoldMessenger.of(context);
+    final auth = LocalAuthentication();
+    try {
+      final canCheck = await auth.canCheckBiometrics;
+      final supported = await auth.isDeviceSupported();
+      if (!canCheck || !supported) {
+        messenger.showSnackBar(SnackBar(
+          content: Text(
+              'Bu cihaz biyometrik doğrulamayı desteklemiyor.'.tr()),
+          behavior: SnackBarBehavior.floating,
+        ));
+        return;
+      }
+      final available = await auth.getAvailableBiometrics();
+      if (available.isEmpty) {
+        // Cihaz destekliyor ama kullanıcı parmak izi/Face ID kaydetmemiş.
+        if (!mounted) return;
+        final go = await showDialog<bool>(
+          context: context,
+          builder: (dCtx) => AlertDialog(
+            backgroundColor: AppPalette.card(dCtx),
+            title: Text('Parmak izi kayıtlı değil'.tr()),
+            content: Text(
+              'Bu özelliği kullanmak için cihazının ayarlarından parmak izi veya yüz tanıma eklemen gerekir.'
+                  .tr(),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dCtx).pop(false),
+                child: Text('İptal'.tr()),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(dCtx).pop(true),
+                child: Text('Ayarları aç'.tr()),
+              ),
+            ],
+          ),
+        );
+        if (go == true) {
+          await ph.openAppSettings();
+        }
+        return;
+      }
+      final ok = await auth.authenticate(
+        localizedReason:
+            'Parmak izi / Face ID ile uygulamayı kilitlemeyi etkinleştir.'
+                .tr(),
+        options: const AuthenticationOptions(
+          stickyAuth: true,
+          biometricOnly: true,
+        ),
+      );
+      if (!mounted) return;
+      if (ok) {
+        await s.setBiometric(true);
+        messenger.showSnackBar(SnackBar(
+          content: Text('Biyometrik doğrulama aktif'.tr()),
+          behavior: SnackBarBehavior.floating,
+        ));
+      } else {
+        messenger.showSnackBar(SnackBar(
+          content: Text('Biyometrik doğrulama başarısız'.tr()),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } catch (e) {
+      debugPrint('[Profile] biometric enable fail: $e');
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(
+        content: Text('Biyometrik doğrulama açılamadı'.tr()),
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final s = AppSettingsService.instance;
     return DraggableScrollableSheet(
-      initialChildSize: 0.55,
-      minChildSize: 0.35,
-      maxChildSize: 0.85,
+      initialChildSize: 0.85,
+      minChildSize: 0.55,
+      maxChildSize: 0.95,
       expand: false,
-      builder: (_, sc) => Container(
-        decoration: BoxDecoration(
-          color: AppPalette.card(context),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-        child: !_loaded
-            ? const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(32),
-                  child: CircularProgressIndicator(),
-                ),
-              )
-            : ListView(
-                controller: sc,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: AppPalette.border(context),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
+      builder: (_, sc) => AnimatedBuilder(
+        animation: s,
+        builder: (ctx, _) => Container(
+          decoration: BoxDecoration(
+            color: AppPalette.card(context),
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          child: !_loaded
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: CircularProgressIndicator(),
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Uygulamayı Kişiselleştir'.tr(),
-                    style: GoogleFonts.poppins(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: AppPalette.textPrimary(context),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Uygulamayı her açtığında hangi sayfa önce çıksın?'.tr(),
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      color: AppPalette.textSecondary(context),
-                      height: 1.35,
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  _StartupOptionRow(
-                    emoji: '📷',
-                    title: 'Kamera ekranı'.tr(),
-                    subtitle: 'Soru tarama doğrudan açılır'.tr(),
-                    selected: _startupScreen == 'camera',
-                    color: const Color(0xFFFF6A00),
-                    onTap: () => _setStartupScreen('camera'),
-                  ),
-                  const SizedBox(height: 10),
-                  _StartupOptionRow(
-                    emoji: '📚',
-                    title: 'Kütüphanem ekranı'.tr(),
-                    subtitle: 'Dersler, testler, özetler açılır'.tr(),
-                    selected: _startupScreen == 'library',
-                    color: const Color(0xFF8B5CF6),
-                    onTap: () => _setStartupScreen('library'),
-                  ),
-                  const SizedBox(height: 20),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppPalette.border(context).withValues(alpha: 0.20),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(children: [
-                      Icon(Icons.info_outline_rounded,
-                          size: 18,
-                          color: AppPalette.textSecondary(context)),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Bu ayar uygulamayı bir sonraki açışında devreye girer.'
-                              .tr(),
-                          style: GoogleFonts.poppins(
-                            fontSize: 11.5,
-                            height: 1.35,
-                            color: AppPalette.textSecondary(context),
-                          ),
-                        ),
-                      ),
-                    ]),
-                  ),
-                  const SizedBox(height: 22),
-                  // Önbellek temizle — depolama yönetimi
-                  Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: _clearCache,
-                      borderRadius: BorderRadius.circular(14),
+                )
+              : ListView(
+                  controller: sc,
+                  children: [
+                    Center(
                       child: Container(
-                        padding: const EdgeInsets.all(14),
+                        width: 40,
+                        height: 4,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFEF4444).withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: const Color(0xFFEF4444)
-                                .withValues(alpha: 0.30),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            const Text('🗑️', style: TextStyle(fontSize: 22)),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Önbelleği Temizle'.tr(),
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w800,
-                                      color: const Color(0xFFEF4444),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'Geçici dosyalar — çözümlerin ve özetlerin korunur.'
-                                        .tr(),
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 11,
-                                      color:
-                                          AppPalette.textSecondary(context),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const Icon(Icons.chevron_right_rounded,
-                                color: Color(0xFFEF4444), size: 22),
-                          ],
+                          color: AppPalette.border(context),
+                          borderRadius: BorderRadius.circular(2),
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Uygulamayı Kişiselleştir'.tr(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: AppPalette.textPrimary(context),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // ═══ 🎯 Çalışma ─────────────────────────────────
+                    _sectionTitle('🎯', 'Çalışma'.tr()),
+                    _StartupOptionRow(
+                      emoji: '📷',
+                      title: 'Kamera ekranı'.tr(),
+                      subtitle: 'Soru tarama doğrudan açılır'.tr(),
+                      selected: _startupScreen == 'camera',
+                      color: const Color(0xFFFF6A00),
+                      onTap: () => _setStartupScreen('camera'),
+                    ),
+                    const SizedBox(height: 8),
+                    _StartupOptionRow(
+                      emoji: '📚',
+                      title: 'Kütüphanem ekranı'.tr(),
+                      subtitle: 'Dersler, testler, özetler açılır'.tr(),
+                      selected: _startupScreen == 'library',
+                      color: const Color(0xFF8B5CF6),
+                      onTap: () => _setStartupScreen('library'),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // ═══ 🔇 Sessiz Saatler ──────────────────────────
+                    _sectionTitle('🔇', 'Sessiz Saatler'.tr()),
+                    _toggleRow(
+                      icon: Icons.do_not_disturb_on_rounded,
+                      title: 'Sessiz saatleri aç'.tr(),
+                      subtitle:
+                          'Belirlediğin aralıkta hiç bildirim gelmez.'.tr(),
+                      value: s.quietEnabled,
+                      onChanged: (v) => s.setQuiet(v,
+                          startMin: s.quietStartMin,
+                          endMin: s.quietEndMin),
+                    ),
+                    if (s.quietEnabled) ...[
+                      const SizedBox(height: 8),
+                      _timeRangePicker(
+                        startMin: s.quietStartMin,
+                        endMin: s.quietEndMin,
+                        onChanged: (start, end) => s.setQuiet(true,
+                            startMin: start, endMin: end),
+                      ),
+                    ],
+                    const SizedBox(height: 18),
+
+                    // ═══ 🌙 Otomatik Karanlık Mod ───────────────────
+                    _sectionTitle('🌙', 'Otomatik Karanlık Mod'.tr()),
+                    _toggleRow(
+                      icon: Icons.brightness_4_rounded,
+                      title: 'Saat tabanlı karanlık'.tr(),
+                      subtitle:
+                          'Gece otomatik karanlık, sabah aydınlık moda geçer.'
+                              .tr(),
+                      value: s.autoDarkEnabled,
+                      onChanged: (v) => s.setAutoDark(v,
+                          startMin: s.autoDarkStartMin,
+                          endMin: s.autoDarkEndMin),
+                    ),
+                    if (s.autoDarkEnabled) ...[
+                      const SizedBox(height: 8),
+                      _timeRangePicker(
+                        startMin: s.autoDarkStartMin,
+                        endMin: s.autoDarkEndMin,
+                        startLabel: 'Karanlık başlangıç'.tr(),
+                        endLabel: 'Aydınlık başlangıç'.tr(),
+                        onChanged: (start, end) => s.setAutoDark(true,
+                            startMin: start, endMin: end),
+                      ),
+                    ],
+                    const SizedBox(height: 18),
+
+                    // ═══ 🔊 Ses & Titreşim ─────────────────────────
+                    _sectionTitle('🔊', 'Ses ve Titreşim'.tr()),
+                    _toggleRow(
+                      icon: Icons.volume_up_rounded,
+                      title: 'Buton tıklama sesi'.tr(),
+                      value: s.clickSound,
+                      onChanged: s.setClickSound,
+                    ),
+                    _toggleRow(
+                      icon: Icons.celebration_rounded,
+                      title: 'Başarı sesi'.tr(),
+                      subtitle: 'Test tamamlandığında çalar.'.tr(),
+                      value: s.successSound,
+                      onChanged: s.setSuccessSound,
+                    ),
+                    _toggleRow(
+                      icon: Icons.error_outline_rounded,
+                      title: 'Hata sesi'.tr(),
+                      value: s.errorSound,
+                      onChanged: s.setErrorSound,
+                    ),
+                    _toggleRow(
+                      icon: Icons.vibration_rounded,
+                      title: 'Titreşim (haptic)'.tr(),
+                      value: s.haptic,
+                      onChanged: s.setHaptic,
+                    ),
+                    _toggleRow(
+                      icon: Icons.headset_off_rounded,
+                      title: 'Test sırasında sessiz'.tr(),
+                      subtitle:
+                          'Sınav simülasyonu için ses/titreşim kapanır.'.tr(),
+                      value: s.testSilent,
+                      onChanged: s.setTestSilent,
+                    ),
+                    const SizedBox(height: 18),
+
+                    // ═══ 🔐 Uygulama Kilidi ────────────────────────
+                    _sectionTitle('🔐', 'Uygulama Kilidi'.tr()),
+                    _toggleRow(
+                      icon: Icons.lock_rounded,
+                      title: 'Uygulama kilidini aç'.tr(),
+                      subtitle: s.hasAppLockPin
+                          ? 'PIN aktif. Devre dışı bırakmak için kapat.'.tr()
+                          : 'PIN belirleyerek uygulamayı kilitle.'.tr(),
+                      value: s.appLockEnabled,
+                      onChanged: (v) async {
+                        if (v) {
+                          await _setupAppLockPin();
+                        } else {
+                          await s.clearAppLock();
+                        }
+                      },
+                    ),
+                    if (s.appLockEnabled && s.hasAppLockPin) ...[
+                      _toggleRow(
+                        icon: Icons.fingerprint_rounded,
+                        title: 'Parmak izi / Face ID'.tr(),
+                        subtitle:
+                            'PIN yerine biyometrik ile aç.'.tr(),
+                        value: s.appLockBiometric,
+                        onChanged: (v) async {
+                          if (v) {
+                            await _enableBiometric();
+                          } else {
+                            await s.setBiometric(false);
+                          }
+                        },
+                      ),
+                    ],
+                    const SizedBox(height: 18),
+
+                    // ═══ 🎯 Kişiselleştirme Verisi ─────────────────
+                    _sectionTitle('🎯', 'Kişiselleştirme'.tr()),
+                    _toggleRow(
+                      icon: Icons.auto_awesome_rounded,
+                      title: 'AI Koç önerileri'.tr(),
+                      subtitle:
+                          'Geçmişine göre günlük plan üret. Kapatırsan veri toplanmaz.'
+                              .tr(),
+                      value: s.aiCoachData,
+                      onChanged: s.setAiCoachData,
+                    ),
+                    _toggleRow(
+                      icon: Icons.groups_rounded,
+                      title: 'Topluluk önerileri'.tr(),
+                      subtitle:
+                          'Diğer öğrencilerin özet/test havuzunu kullan.'.tr(),
+                      value: s.communityData,
+                      onChanged: s.setCommunityData,
+                    ),
+                    const SizedBox(height: 18),
+
+                    // ═══ 📱 Yönlendirme ─────────────────────────────
+                    _sectionTitle('📱', 'Yönlendirme'.tr()),
+                    _segmentedRow(
+                      icon: Icons.screen_rotation_rounded,
+                      label: 'Ekran yönlendirme'.tr(),
+                      options: const [
+                        ('portrait', 'Sadece dikey'),
+                        ('system', 'Sistem'),
+                      ],
+                      value: s.orientationMode,
+                      onChanged: (v) => s.setOrientationMode(v),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // ═══ ⌨️ Klavye Tipi ────────────────────────────
+                    _sectionTitle('⌨️', 'Klavye Tipi'.tr()),
+                    _segmentedRow(
+                      icon: Icons.keyboard_rounded,
+                      label: 'Yazma sayfası klavyesi'.tr(),
+                      options: const [
+                        ('standard', 'Standart'),
+                        ('scientific', 'Bilimsel'),
+                        ('simple', 'Sade'),
+                      ],
+                      value: s.keyboardType,
+                      onChanged: (v) => s.setKeyboardType(v),
+                    ),
+                    const SizedBox(height: 22),
+
+                    // ═══ 🗑️ Önbellek ───────────────────────────────
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: _clearCache,
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEF4444)
+                                .withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: const Color(0xFFEF4444)
+                                  .withValues(alpha: 0.30),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Text('🗑️',
+                                  style: TextStyle(fontSize: 22)),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Önbelleği Temizle'.tr(),
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFFEF4444),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Geçici dosyalar — çözümlerin ve özetlerin korunur.'
+                                          .tr(),
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 11,
+                                        color: AppPalette.textSecondary(
+                                            context),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(Icons.chevron_right_rounded,
+                                  color: Color(0xFFEF4444), size: 22),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+        ),
       ),
     );
+  }
+
+  // ── UI helpers ────────────────────────────────────────────────────────────
+  Widget _sectionTitle(String emoji, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8, top: 2),
+      child: Row(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 16)),
+          const SizedBox(width: 6),
+          Text(text,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+                color: AppPalette.textPrimary(context),
+                letterSpacing: 0.3,
+              )),
+        ],
+      ),
+    );
+  }
+
+  Widget _toggleRow({
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: AppPalette.textPrimary(context)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppPalette.textPrimary(context),
+                    )),
+                if (subtitle != null && subtitle.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(subtitle,
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          color: AppPalette.textSecondary(context),
+                          height: 1.35,
+                        )),
+                  ),
+              ],
+            ),
+          ),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeThumbColor: Colors.white,
+            activeTrackColor: const Color(0xFF2563EB),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _segmentedRow({
+    required IconData icon,
+    required String label,
+    required List<(String, String)> options,
+    required String value,
+    required ValueChanged<String> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 18, color: AppPalette.textPrimary(context)),
+              const SizedBox(width: 8),
+              Text(label,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppPalette.textPrimary(context),
+                  )),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: AppPalette.cardMuted(context),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                for (final opt in options)
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => onChanged(opt.$1),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: value == opt.$1
+                              ? const Color(0xFFFF6A00)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          opt.$2.tr(),
+                          style: GoogleFonts.poppins(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                            color: value == opt.$1
+                                ? Colors.white
+                                : AppPalette.textPrimary(context),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _timeRangePicker({
+    required int startMin,
+    required int endMin,
+    String? startLabel,
+    String? endLabel,
+    required void Function(int start, int end) onChanged,
+  }) {
+    String fmt(int m) {
+      final h = (m ~/ 60).toString().padLeft(2, '0');
+      final mm = (m % 60).toString().padLeft(2, '0');
+      return '$h:$mm';
+    }
+
+    Future<void> pick(bool isStart) async {
+      final cur = isStart ? startMin : endMin;
+      final res = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay(hour: cur ~/ 60, minute: cur % 60),
+        helpText: isStart
+            ? (startLabel ?? 'Başlangıç saati'.tr())
+            : (endLabel ?? 'Bitiş saati'.tr()),
+      );
+      if (res == null) return;
+      final mins = res.hour * 60 + res.minute;
+      onChanged(isStart ? mins : startMin, isStart ? endMin : mins);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 28, bottom: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              onTap: () => pick(true),
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppPalette.cardMuted(context),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.access_time_rounded,
+                        size: 14,
+                        color: AppPalette.textSecondary(context)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        '${startLabel ?? "Başlangıç".tr()}: ${fmt(startMin)}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppPalette.textPrimary(context),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: InkWell(
+              onTap: () => pick(false),
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppPalette.cardMuted(context),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.access_time_rounded,
+                        size: 14,
+                        color: AppPalette.textSecondary(context)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        '${endLabel ?? "Bitiş".tr()}: ${fmt(endMin)}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppPalette.textPrimary(context),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// PIN belirleme akışı — 2 adım: önce gir + tekrar. Eşleşirse kaydet.
+  Future<void> _setupAppLockPin() async {
+    final s = AppSettingsService.instance;
+    final firstCtrl = TextEditingController();
+    final secondCtrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) {
+          String? err;
+          return AlertDialog(
+            title: Text('PIN belirle'.tr()),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('4-6 haneli rakam. Açılışta isteyeceğiz.'.tr(),
+                    style: const TextStyle(fontSize: 12)),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: firstCtrl,
+                  keyboardType: TextInputType.number,
+                  obscureText: true,
+                  maxLength: 6,
+                  decoration: InputDecoration(
+                    labelText: 'PIN'.tr(),
+                    counterText: '',
+                  ),
+                ),
+                TextField(
+                  controller: secondCtrl,
+                  keyboardType: TextInputType.number,
+                  obscureText: true,
+                  maxLength: 6,
+                  decoration: InputDecoration(
+                    labelText: 'PIN (tekrar)'.tr(),
+                    counterText: '',
+                    errorText: err,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text('İptal'.tr()),
+              ),
+              TextButton(
+                onPressed: () async {
+                  final a = firstCtrl.text.trim();
+                  final b = secondCtrl.text.trim();
+                  if (a.length < 4 || a.length > 6 ||
+                      !RegExp(r'^\d+$').hasMatch(a)) {
+                    setSt(() => err = '4-6 haneli rakam gir.'.tr());
+                    return;
+                  }
+                  if (a != b) {
+                    setSt(() => err = 'PIN\'ler eşleşmiyor.'.tr());
+                    return;
+                  }
+                  try {
+                    await s.setAppLockPin(a);
+                    if (ctx.mounted) Navigator.pop(ctx, true);
+                  } catch (e) {
+                    setSt(() => err = e.toString());
+                  }
+                },
+                child: Text('Kaydet'.tr()),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    if (ok == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Uygulama kilidi aktif.'.tr()),
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
   }
 }
 

@@ -4,6 +4,7 @@ import 'error_logger.dart';
 import 'friend_service.dart';
 import 'dart:io' show Platform;
 import 'dart:math' as math;
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -138,37 +139,43 @@ class AuthService {
   }
 
   /// users/{uid} public profile — FriendService araması ve arkadaşlık için.
-  /// Username yoksa email/name/uid'den deterministik türetilir.
+  /// Kullanıcı `user_username_v1` pref'inde bir username KAYDETMİŞSE
+  /// (yani onboarding'deki _UsernameCreateSheet'i tamamlamışsa) tam profil
+  /// upsert edilir. AKSİ TAKDİRDE `username` alanı yazılmaz — bu sayede
+  /// onboarding'in _needsUsernameSetup kontrolü username sheet'ini açar.
+  /// Eskiden burada email/name'den otomatik username türetiliyordu; bu
+  /// kullanıcının kendi adını seçmesini engelliyordu (sheet hiç açılmıyordu).
   static Future<void> _writePublicProfile(AppUser u) async {
     try {
-      String username;
-      // Kullanıcı önceden bir username belirlemişse onu kullan
       final prefs = await SharedPreferences.getInstance();
       final saved = prefs.getString('user_username_v1');
-      if (saved != null && saved.length >= 3) {
-        username = saved;
-      } else {
-        // email'in @ öncesi, yoksa name baş harfleri, yoksa uid son 6
-        final email = u.email ?? '';
-        final atIdx = email.indexOf('@');
-        if (atIdx > 0) {
-          username = email.substring(0, atIdx);
-        } else if ((u.name ?? '').isNotEmpty) {
-          username = (u.name ?? '').replaceAll(' ', '').toLowerCase();
-        } else {
-          username = 'user${u.id.substring(u.id.length - 6)}';
-        }
-        await prefs.setString('user_username_v1', username);
-      }
       final avatar = (u.photoUrl != null && u.photoUrl!.isNotEmpty)
           ? u.photoUrl!
           : _avatarEmojiFor(u.id);
-      await FriendService.upsertMyProfile(
-        username: username,
-        displayName: u.name ?? username,
-        avatar: avatar,
-        email: u.email,
-      );
+      if (saved != null && saved.length >= 3) {
+        // Kullanıcı zaten bir username belirlemiş → tam profil upsert.
+        await FriendService.upsertMyProfile(
+          username: saved,
+          displayName: u.name ?? saved,
+          avatar: avatar,
+          email: u.email,
+        );
+      } else {
+        // Username yok → username alanı YAZILMAZ; onboarding sheet'i açılır.
+        // Yine de avatar/email/lastSeen güncellenir.
+        final payload = <String, dynamic>{
+          'avatar': avatar,
+          if (u.name != null && u.name!.isNotEmpty) 'displayName': u.name,
+          if (u.email != null && u.email!.isNotEmpty)
+            'email': u.email!.trim().toLowerCase(),
+          'lastSeen': FieldValue.serverTimestamp(),
+          'createdAt': FieldValue.serverTimestamp(),
+        };
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(u.id)
+            .set(payload, SetOptions(merge: true));
+      }
     } catch (e) {
       debugPrint('[Auth] public profile write fail: $e');
     }
@@ -643,6 +650,9 @@ class AuthService {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_kUserKey);
+      // Username pref'ini de temizle → kullanıcı tekrar giriş yaparsa
+      // onboarding sheet'i yeniden açılır.
+      await prefs.remove('user_username_v1');
     } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'auth_service'); }
 
     // 2) Firebase Auth oturumunu kapat

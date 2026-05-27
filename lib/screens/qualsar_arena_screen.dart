@@ -1,4 +1,4 @@
-// ignore_for_file: unused_element, prefer_const_constructors_in_immutables
+﻿// ignore_for_file: unused_element, prefer_const_constructors_in_immutables
 
 import 'dart:async';
 import 'dart:convert';
@@ -23,6 +23,7 @@ import '../services/analytics.dart';
 import '../services/error_logger.dart';
 import '../services/runtime_translator.dart';
 import '../services/curriculum_catalog.dart';
+import '../services/user_profile_service.dart';
 import '../services/education_profile.dart';
 import '../services/usage_quota.dart';
 import '../services/gemini_service.dart';
@@ -2120,7 +2121,22 @@ class _ArenaHomeState extends State<_ArenaHome> {
                               overflow: TextOverflow.ellipsis,
                               style: _serif(size: 19, weight: FontWeight.w700, letterSpacing: -0.03)),
                           SizedBox(height: 1),
-                          Text('Merhaba Ahmet, yarış başlasın!'.tr(), style: _sans(size: 12, color: AppPalette.textSecondary(context))),
+                          AnimatedBuilder(
+                            animation: UserProfileService.instance,
+                            builder: (ctx, _) {
+                              final uname =
+                                  UserProfileService.instance.username;
+                              return Text(
+                                uname.isNotEmpty
+                                    ? 'Merhaba $uname, yarış başlasın!'.tr()
+                                    : 'Yarış başlasın!'.tr(),
+                                style: _sans(
+                                    size: 12,
+                                    color: AppPalette.textSecondary(
+                                        context)),
+                              );
+                            },
+                          ),
                         ],
                       ),
                     ),
@@ -7163,7 +7179,7 @@ KURALLAR:
         builder: (_) => _DueloShareModePage(
           caption:
               'QuAlsar uygulamasını indir — sen de istediğin derste, '
-              'istediğin konuda, dünyada veya ülkende yarış!\nqualsar2-640f0.web.app',
+              'istediğin konuda, dünyada veya ülkende yarış!\nqualsar.app',
           subjectName: r.subjectName,
           topicName: r.topicName,
           totalQuestions: r.totalQuestions,
@@ -8565,7 +8581,7 @@ class _DueloResultsScreen extends StatelessWidget {
     // Paylaşım mesajı: kazanç/kayıp detayı veya skor karşılaştırması yok.
     // Sadece sade bir davet — sonucun görseli zaten kartta.
     return 'QuAlsar uygulamasını indir — sen de istediğin derste, '
-        'istediğin konuda, dünyada veya ülkende yarış!\nqualsar2-640f0.web.app';
+        'istediğin konuda, dünyada veya ülkende yarış!\nqualsar.app';
   }
 
   void _openShareMode(BuildContext context, {required bool friendMode}) {
@@ -9458,7 +9474,7 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
     return '$outcomeEmoji ${widget.subjectName} · ${widget.topicName} '
         'yarışmasında $outcomeWord! Skorum: $score.\n'
         'Sıra sende — beni geçebilir misin?\n'
-        'qualsar2-640f0.web.app';
+        'qualsar.app';
   }
 
   @override
@@ -10116,7 +10132,7 @@ class _DueloShareCard extends StatelessWidget {
                     ),
                     SizedBox(height: 2),
                     Text(
-                      'qualsar2-640f0.web.app',
+                      'qualsar.app',
                       style: _sans(
                           size: 11,
                           weight: FontWeight.w900,
@@ -10151,7 +10167,7 @@ class _DueloShareCard extends StatelessWidget {
                             Border.all(color: AppPalette.border(context), width: 1),
                       ),
                       child: QrImageView(
-                        data: 'https://qualsar2-640f0.web.app',
+                        data: 'https://qualsar.app',
                         version: QrVersions.auto,
                         size: 54,
                         backgroundColor: AppPalette.card(context),
@@ -11596,7 +11612,7 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                       sub: 'Paylaş',
                       onTap: () async {
                         final link =
-                            'https://qualsar2-640f0.web.app/davet/$_currentUsername';
+                            'https://qualsar.app/davet/$_currentUsername';
                         try {
                           await Share.share(
                             'QuAlsar Arena\'da benimle yarış! 🏆\n'
@@ -11836,7 +11852,7 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
               onTap: () async {
                 final nav = Navigator.of(context);
                 final messenger = ScaffoldMessenger.of(context);
-                final link = 'https://qualsar2-640f0.web.app/davet/$_currentUsername';
+                final link = 'https://qualsar.app/davet/$_currentUsername';
                 final shareText = "QuAlsar Arena'da benimle yarış! 🏆\n"
                     '@$_currentUsername davet ediyor · $link';
                 try {
@@ -12814,7 +12830,7 @@ class _WrappedSheet extends StatelessWidget {
                     SizedBox(height: 12),
                     _wrappedStat('🏆', _leagues[_arenaState.league].name, 'Aktif lig'),
                     SizedBox(height: 18),
-                    Text('Sıra sende! @$_currentUsername · qualsar2-640f0.web.app'.tr(),
+                    Text('Sıra sende! @$_currentUsername · qualsar.app'.tr(),
                         style: _sans(size: 11, weight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.85))),
                   ],
                 ),
@@ -12831,7 +12847,7 @@ class _WrappedSheet extends StatelessWidget {
                     "⚡ ${_arenaState.qp} QP · 🔥 ${_arenaState.streak} gün seri\n"
                     "👑 En iyi konum: $topTopic\n"
                     "🏆 ${_leagues[_arenaState.league].name} Ligi\n\n"
-                    "Sen de dene! qualsar2-640f0.web.app";
+                    "Sen de dene! qualsar.app";
                 try {
                   await Share.share(shareText);
                 } catch (_) {
@@ -17905,7 +17921,7 @@ class _SocialShareSheetState extends State<_SocialShareSheet> {
         "🧠 Benzer sorular üret\n"
         "🎯 Kendi mini testini hazırla\n"
         "🎴 Bilgi kartları oluştur\n\n"
-        "👉 qualsar2-640f0.web.app";
+        "👉 qualsar.app";
   }
 
   Future<void> _shareVia(_SocialApp app) async {
