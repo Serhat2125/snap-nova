@@ -8,6 +8,7 @@ import '../main.dart' show themeService;
 import '../screens/account_type_screen.dart';
 import '../screens/onboarding_screen.dart';
 import '../screens/premium_screen.dart';
+import '../screens/topic_3d_list_screen.dart';
 import '../services/account_service.dart';
 import '../services/auth_service.dart';
 import '../services/subscription_service.dart';
@@ -179,6 +180,16 @@ class _MainMenu extends StatelessWidget {
                     title: 'Hesap Tipi'.tr(),
                     subtitle: _accountTypeLabel(AccountService.instance.type),
                     onTap: () => _openAccountTypeSwitcher(context)),
+                _Item(
+                    icon: Icons.view_in_ar_rounded,
+                    color: Color(0xFF06B6D4),
+                    title: '3D Konu Modelleri'.tr(),
+                    subtitle: 'Hücre, Güneş Sistemi, Yer Şekilleri'.tr(),
+                    onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const Topic3DListScreen()),
+                        )),
 
                 SizedBox(height: 10),
                 _divider(),

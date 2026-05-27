@@ -19,6 +19,7 @@ import '../services/image_share_service.dart';
 import '../widgets/adaptive_photo.dart';
 import '../widgets/latex_text.dart';
 import '../widgets/study_suite_sheet.dart';
+import '../widgets/topic_3d_button.dart';
 import '../main.dart' show localeService;
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -409,6 +410,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                     ] else ...[
                       SizedBox(height: 10),
                       _buildDoneRow(),
+                      Topic3DButton(topic: widget.result),
                     ],
 
                     for (final qa in _qaList) ...[
