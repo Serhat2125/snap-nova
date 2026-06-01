@@ -807,8 +807,8 @@ setTimeout(function() {
     const loading = document.getElementById('loading');
     if (loading) {
       loading.innerHTML = '<div style="text-align:center; padding:20px;">'+
-        '<h2 style="color:#ff6060;">⚠️ Three.js CDN Yüklenemiyor</h2>'+
-        '<p style="color:#ffdd88;">cdnjs.cloudflare.com erişilemiyor</p>'+
+        '<h2 style="color:#ff6060;">⚠️ 3D Motoru Yüklenemedi</h2>'+
+        '<p style="color:#ffdd88;">Yerel Three.js yüklenemedi (assets)</p>'+
         '</div>';
       loading.style.background = '#1a0a0a';
     }
@@ -819,7 +819,7 @@ setTimeout(function() {
 <script type="importmap">
 {
   "imports": {
-    "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js"
+    "three": "./three.module.min.js"
   }
 }
 </script>
