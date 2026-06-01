@@ -1,0 +1,2082 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Destek ve Hareket Sistemi · 3D Anatomi</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Baloo+2:wght@500;600;700;800&display=swap');
+
+  :root {
+    --bg:#0a0e1a;
+    --panel:#161b2e;
+    --panel-soft:#1f2540;
+    --panel-line:#2f3a5f;
+    --ink:#eef0ff;
+    --ink-soft:#a8b0d0;
+    --accent:#e89752;
+    --accent-glow:#ffb47a;
+    --bone:#f5e8c8;
+    --cartilage:#9d7fe6;
+    --muscle:#c45d5d;
+    --joint:#5fc8e0;
+    --warning:#ffd166;
+  }
+
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body {
+    margin:0; padding:0; overflow:hidden;
+    background:var(--bg); color:var(--ink);
+    font-family:'Fredoka',sans-serif; user-select:none;
+    width:100vw; height:100vh;
+  }
+  body { touch-action:none; }
+  #app { position:relative; width:100vw; height:100vh; overflow:hidden; }
+  canvas { display:block; cursor:grab; }
+  canvas:active { cursor:grabbing; }
+
+  .topbar {
+    position:absolute; top:0; left:0; right:0;
+    display:flex; align-items:center; gap:10px;
+    padding:3px 14px 9px;
+    background:linear-gradient(180deg,rgba(10,14,26,0.95),transparent);
+    z-index:30; pointer-events:none;
+  }
+  .topbar > * { pointer-events:auto; }
+  .level-badge {
+    font-family:'Baloo 2',cursive; font-weight:800;
+    font-size:12px; color:#fff;
+    background:linear-gradient(135deg,var(--accent),#cf752f);
+    padding:7px 12px; border-radius:14px;
+    border:none; cursor:pointer;
+    box-shadow:0 4px 12px rgba(232,151,82,.35);
+    display:flex; align-items:center; gap:5px;
+  }
+  .level-badge .lv-arrow { font-size:9px; opacity:.85; }
+  .topbar h1 {
+    margin:0; font-family:'Baloo 2',cursive; font-weight:800;
+    font-size:15px; color:#fff;
+    display:flex; align-items:center; gap:7px; flex:1;
+  }
+  .topbar h1 .ic {
+    background:linear-gradient(135deg,var(--accent),var(--muscle));
+    width:28px; height:28px; border-radius:8px;
+    display:grid; place-items:center;
+    font-size:15px;
+    box-shadow:0 4px 10px rgba(232,151,82,.4);
+  }
+  .reset-btn {
+    background:var(--panel-soft); color:var(--ink);
+    border:1.5px solid var(--panel-line);
+    border-radius:12px; padding:6px 10px;
+    font-family:'Fredoka',sans-serif; font-weight:600;
+    font-size:11px; cursor:pointer;
+  }
+  .tool-btn {
+    background:var(--panel-soft); color:var(--ink);
+    border:1.5px solid var(--panel-line);
+    border-radius:11px; padding:6px 9px;
+    font-size:13px; cursor:pointer; line-height:1;
+  }
+  .tool-btn:hover { background:var(--panel-line); border-color:var(--accent); }
+  .tool-btn:active { transform:scale(0.92); }
+  .user-btn {
+    display:flex; align-items:center; gap:5px;
+    background:var(--panel-soft); color:var(--ink);
+    border:1.5px solid var(--accent);
+    border-radius:11px; padding:5px 10px; cursor:pointer;
+    font-family:'Fredoka',sans-serif; font-weight:600; font-size:11px;
+    max-width:120px;
+  }
+  .user-btn:hover { background:var(--panel-line); }
+  .user-btn:active { transform:scale(0.95); }
+  .user-btn .user-ico { font-size:13px; flex-shrink:0; }
+  .user-btn .user-name {
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    color:var(--accent-glow);
+  }
+
+  .progress-wrap {
+    position:absolute; bottom:182px; left:50%; transform:translateX(-50%); z-index:14;
+    display:flex; align-items:center; gap:7px;
+    background:rgba(22,27,46,0.85); padding:4px 10px; border-radius:11px;
+    border:1px solid var(--panel-line); pointer-events:none;
+  }
+  .progress-bar {
+    width:70px; height:6px; background:var(--panel-line);
+    border-radius:3px; overflow:hidden;
+  }
+  .progress-fill {
+    height:100%; width:0%;
+    background:linear-gradient(90deg,var(--accent),var(--accent-glow));
+    border-radius:3px; transition:width .4s ease;
+  }
+  .progress-txt {
+    font-family:'Baloo 2',cursive; font-weight:700;
+    font-size:9.5px; color:var(--ink-soft); white-space:nowrap;
+  }
+
+  .compare-tab { background:var(--joint)!important; border-color:var(--joint)!important; color:#0a0e1a!important; }
+  .fav-tab { background:var(--warning)!important; border-color:var(--warning)!important; color:#0a0e1a!important; }
+
+  .fav-btn {
+    flex-shrink:0; width:32px; height:28px;
+    background:transparent; border:none; cursor:pointer;
+    font-size:20px; color:var(--warning); line-height:1;
+    align-self:center;
+  }
+  .fav-btn:active { transform:scale(1.3); }
+  .fav-btn.active { color:var(--warning); text-shadow:0 0 8px var(--warning); }
+
+  .compare-overlay, .fav-overlay {
+    position:absolute; inset:0; z-index:50;
+    background:rgba(10,14,26,0.82); backdrop-filter:blur(3px);
+    display:none; align-items:center; justify-content:center;
+    padding:20px;
+  }
+  .compare-overlay.show, .fav-overlay.show { display:flex; }
+    .compare-card {
+    background: #252b48;
+    border:2px solid var(--accent);
+    border-radius:18px; padding:18px;
+    max-width:min(580px,95vw); max-height:90vh;
+    width: 580px;
+    box-shadow:0 20px 60px rgba(0,0,0,.5);
+    display:flex; flex-direction:column;
+    position:relative;
+  }
+  .fav-card {
+    background:var(--panel); border:2px solid var(--accent);
+    border-radius:18px; padding:14px;
+    max-width:min(560px,92vw); max-height:82vh; overflow-y:auto;
+    box-shadow:0 20px 60px rgba(0,0,0,.5);
+  }
+  .compare-head, .fav-head {
+    display:flex; align-items:center; justify-content:space-between;
+    font-family:'Baloo 2',cursive; font-weight:800; font-size:17px;
+    color:var(--accent); margin-bottom:14px;
+    flex-shrink:0;
+  }
+  .compare-counter {
+    color: #c8b8f0; font-size:13px; font-weight:600;
+    background: rgba(122,95,214,0.25);
+    padding:2px 8px; border-radius:8px;
+    margin-left:6px;
+  }
+  .compare-close, .fav-close {
+    background:var(--panel-soft); border:1.5px solid var(--panel-line);
+    color:var(--ink); border-radius:9px; width:32px; height:32px;
+    cursor:pointer; font-size:15px;
+  }
+  .compare-body {
+    overflow-y:auto;
+    flex: 1 1 auto;
+    margin-bottom: 12px;
+    background: #2e3454;
+    border-radius: 12px;
+    padding: 4px;
+  }
+  .compare-table { width:100%; border-collapse:collapse; background: transparent; }
+  .compare-table th, .compare-table td {
+    padding:10px 11px; text-align:left; font-size:13.5px;
+    border-bottom:1px solid rgba(255,255,255,0.08);
+  }
+  .compare-table th {
+    font-family:'Baloo 2',cursive; font-weight:800; color:#fff;
+    background: #3a4168;
+    font-size:14px;
+  }
+  .compare-table td:first-child {
+    font-weight:700; color: #c8b8f0;
+    background: #353b5f;
+  }
+  .compare-table tr td { color: #f0f2ff; }
+  .compare-table tr:hover td { background: rgba(255,255,255,0.04); }
+
+  .compare-next-btn {
+    display:none;
+    align-items:center; justify-content:center;
+    gap:8px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-glow));
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 12px 18px;
+    font-family: 'Baloo 2', cursive;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    flex-shrink: 0;
+  }
+  .compare-next-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(0,0,0,0.5); }
+  .compare-next-btn:active { transform: scale(0.97); }
+  .compare-next-btn b { font-weight: 800; }
+
+  .fav-list { display:flex; flex-direction:column; gap:6px; }
+  .fav-item {
+    display:flex; align-items:center; gap:9px;
+    background:var(--panel-soft); border:1.5px solid var(--panel-line);
+    border-radius:10px; padding:9px 11px; cursor:pointer;
+    font-size:12.5px; color:var(--ink); font-weight:600;
+  }
+  .fav-item:hover { border-color:var(--accent); }
+  .fav-item .fav-emoji { font-size:18px; }
+  .fav-item .fav-rm { margin-left:auto; color:var(--muscle); font-size:14px; background:none; border:none; cursor:pointer; }
+  .fav-empty { color:var(--ink-soft); font-size:12px; text-align:center; padding:20px; }
+
+  .share-overlay {
+    position:absolute; inset:0; z-index:55;
+    background:rgba(10,14,26,0.82); backdrop-filter:blur(3px);
+    display:none; align-items:center; justify-content:center; padding:20px;
+  }
+  .share-overlay.show { display:flex; }
+  .share-card {
+    background:var(--panel); border:2px solid var(--accent);
+    border-radius:20px; padding:14px;
+    width:min(340px,92vw); max-height:88vh; overflow-y:auto;
+    box-shadow:0 20px 60px rgba(0,0,0,.55);
+    animation:shareIn .25s ease;
+  }
+  @keyframes shareIn { from{transform:translateY(20px) scale(.96);opacity:0;} to{transform:none;opacity:1;} }
+  .share-head {
+    display:flex; align-items:center; justify-content:space-between;
+    font-family:'Baloo 2',cursive; font-weight:800; font-size:15px;
+    color:var(--accent); margin-bottom:10px;
+  }
+  .share-close {
+    background:var(--panel-soft); border:1.5px solid var(--panel-line);
+    color:var(--ink); border-radius:9px; width:28px; height:28px;
+    cursor:pointer; font-size:13px;
+  }
+  .share-preview {
+    width:100%; border-radius:12px; border:1.5px solid var(--panel-line);
+    margin-bottom:12px; display:block; background:var(--bg);
+  }
+  .share-actions { display:flex; flex-direction:column; gap:8px; }
+  .share-act {
+    display:flex; align-items:center; gap:11px;
+    background:var(--panel-soft); border:1.5px solid var(--panel-line);
+    border-radius:13px; padding:11px 13px; cursor:pointer;
+    text-align:left; color:var(--ink);
+    font-family:'Fredoka',sans-serif;
+    transition:all .15s ease;
+  }
+  .share-act:hover { border-color:var(--accent); background:var(--panel-line); }
+  .share-act:active { transform:scale(.97); }
+  .share-act.primary {
+    background:linear-gradient(135deg,#25d366,#1da851); border-color:#25d366; color:#fff;
+  }
+  .share-act.primary:hover { filter:brightness(1.08); }
+  .share-act .sa-ico { font-size:24px; flex-shrink:0; }
+  .share-act .sa-txt { font-size:13px; line-height:1.3; }
+  .share-act .sa-txt small { font-size:10.5px; opacity:.75; }
+
+  .tabbar {
+    position:absolute; top:44px; left:0;
+    padding:5px 12px; z-index:25; pointer-events:none;
+  }
+  .tabbar > * { pointer-events:auto; }
+  .tab {
+    font-family:'Fredoka',sans-serif; font-weight:600;
+    font-size:12.5px; color:var(--ink);
+    background:var(--panel); border:1.5px solid var(--panel-line);
+    padding:7px 13px; border-radius:12px;
+    cursor:pointer; display:inline-flex; align-items:center; gap:5px;
+  }
+  .tab .ico { font-size:1.1em; }
+  .tab.active {
+    background:var(--accent); border-color:var(--accent); color:#0a0e1a;
+  }
+
+  .organ-panel {
+    position:absolute; top:96px; left:14px;
+    width:min(270px,82vw); max-height:calc(100vh - 280px);
+    background:var(--panel); border:2px solid var(--accent);
+    border-radius:16px; padding:10px; z-index:18;
+    box-shadow:0 16px 40px rgba(40,55,90,.25);
+    overflow-y:auto; display:none;
+  }
+  .organ-panel.show { display:block; }
+  .organ-cat {
+    font-family:'Baloo 2',cursive; font-weight:800; font-size:11px;
+    color:var(--accent-glow); padding:8px 4px 4px;
+    text-transform:uppercase; letter-spacing:0.5px;
+    border-top:1px solid var(--panel-line);
+    margin-top:6px;
+  }
+  .organ-cat:first-child { border-top:none; margin-top:0; }
+  .organ-item {
+    display:flex; align-items:center; gap:9px;
+    width:100%; text-align:left;
+    font-family:'Fredoka',sans-serif; font-weight:600; font-size:13px;
+    color:var(--ink); background:var(--panel-soft);
+    border:1.5px solid transparent; border-radius:10px;
+    padding:9px 10px; margin-bottom:4px; cursor:pointer;
+  }
+  .organ-item:hover { background:var(--panel-line); }
+  .organ-item.active {
+    border-color:var(--accent); background:var(--panel-line); color:#fff;
+  }
+  .organ-item .oico { font-size:18px; width:22px; text-align:center; }
+
+  .level-panel {
+    position:absolute; top:44px; left:14px;
+    width:max-content; max-width:min(200px,70vw);
+    background:var(--panel); border:2px solid var(--accent);
+    border-radius:16px; padding:10px; z-index:22;
+    display:none;
+    box-shadow:0 14px 36px rgba(40,55,90,.25);
+  }
+  .level-panel.show { display:block; }
+  .level-title {
+    font-family:'Baloo 2',cursive; font-weight:800; font-size:13px;
+    color:var(--accent); margin-bottom:5px;
+  }
+  .level-sub { font-size:10px; color:var(--ink-soft); margin-bottom:7px; }
+  .level-item {
+    display:flex; align-items:center; gap:7px;
+    width:100%; padding:6px 8px;
+    background:var(--panel-soft);
+    border:1.5px solid transparent; border-radius:10px;
+    cursor:pointer; margin-bottom:4px;
+    font-size:12px; color:var(--ink);
+  }
+  .level-item:hover { background:var(--panel-line); }
+  .level-item.active {
+    border-color:var(--accent); background:var(--panel-line); color:#fff;
+  }
+  .level-item .lemoji { font-size:16px; flex-shrink:0; }
+  .level-item .lname { font-weight:700; white-space:nowrap; }
+  .level-item .ldesc { font-size:10px; opacity:.65; margin-left:auto; padding-left:8px; white-space:nowrap; }
+
+  .info-hint {
+    position:absolute; top:79px; right:16px;
+    z-index:15; pointer-events:none;
+    font-family:'Fredoka',sans-serif; font-size:9.5px;
+    color:var(--ink-soft); opacity:0.55;
+    font-weight:500;
+    text-align:right;
+    animation:hintPulse 2.5s ease-in-out infinite;
+  }
+  @keyframes hintPulse { 0%,100%{opacity:0.4;} 50%{opacity:0.7;} }
+
+  .info {
+    position:absolute; top:96px; right:14px;
+    width:min(221px,37vw); padding:10px 11px;
+    background:var(--panel); border:2px solid var(--panel-line);
+    border-radius:14px; z-index:15;
+    max-height:calc(100vh - 280px); overflow-y:auto;
+    box-shadow:0 10px 30px rgba(40,55,90,.18);
+  }
+  .info::-webkit-scrollbar { width:5px; }
+  .info::-webkit-scrollbar-thumb { background:var(--panel-line); border-radius:5px; }
+  .i-head {
+    font-family:'Baloo 2',cursive; font-weight:800;
+    font-size:13px; color:var(--accent);
+    border-bottom:1.5px dashed var(--panel-line);
+    padding:5px 7px; margin-bottom:6px;
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    cursor:pointer; user-select:none;
+    background:var(--panel-soft); border-radius:9px;
+    border:1.5px solid var(--accent);
+    transition:background .15s ease;
+  }
+  .i-head:hover { background:var(--panel-line); }
+  .i-head:active { transform:scale(0.98); }
+  .i-head .i-head-txt { flex:1; }
+  .i-head .i-head-arrow {
+    font-size:14px; color:var(--accent-glow);
+    flex-shrink:0; transition:transform .2s ease;
+  }
+  .i-body { animation:fadeInBody .2s ease; }
+  @keyframes fadeInBody { from{opacity:0;} to{opacity:1;} }
+  .i-section { margin-bottom:8px; }
+  .i-stitle {
+    font-family:'Baloo 2',cursive; font-weight:700;
+    font-size:11px; color:var(--accent-glow); margin-bottom:4px;
+  }
+  .i-row {
+    font-size:11.5px; color:var(--ink); line-height:1.35;
+    padding:6px 7px; margin-bottom:3px;
+    background:var(--panel-soft);
+    border-radius:7px; cursor:pointer;
+    border:1.5px solid transparent;
+    transition:all .15s ease;
+    display:flex; align-items:center; gap:6px;
+  }
+  .i-row:hover { background:var(--panel-line); border-color:var(--accent); }
+  .i-row.active { border-color:var(--accent); background:var(--panel-line); color:#fff; }
+  .i-row b { color:#fff; }
+  .i-tag {
+    display:inline-flex; padding:1px 6px; border-radius:5px;
+    font-family:'Baloo 2',cursive; font-weight:800;
+    font-size:10px; color:#fff;
+    flex-shrink:0; min-width:18px; justify-content:center;
+  }
+  .i-emoji {
+    display:inline-flex; font-size:15px;
+    flex-shrink:0; width:20px; justify-content:center;
+  }
+
+  .panel {
+    position:absolute; bottom:0; left:0; right:0;
+    background:linear-gradient(180deg,transparent,rgba(10,14,26,0.97) 30%);
+    padding:24px 12px 10px; z-index:20;
+  }
+  .panel-card {
+    background:var(--panel); border:1.5px solid var(--panel-line);
+    border-radius:18px; padding:11px 13px;
+    box-shadow:0 -8px 30px rgba(0,0,0,0.35);
+    max-width:680px; margin:0 auto;
+    position:relative;
+  }
+  .info-box {
+    display:flex; align-items:center; gap:8px;
+    background:var(--panel-soft); border-radius:11px;
+    padding:9px 11px; margin-bottom:9px;
+    min-height:62px; position:relative;
+  }
+  .info-emoji {
+    width:24px; height:24px; border-radius:7px;
+    background:linear-gradient(135deg,var(--accent),var(--muscle));
+    display:grid; place-items:center;
+    font-size:14px; flex-shrink:0;
+    align-self:center;
+  }
+  .info-content { flex:1; min-width:0; }
+  .info-head {
+    font-family:'Baloo 2',cursive; font-weight:800;
+    font-size:14px; color:#fff; margin-bottom:2px;
+  }
+  .info-text { font-size:11.5px; line-height:1.45; color:var(--ink); }
+  .info-text b { color:var(--accent-glow); }
+
+  .nav-col {
+    display:flex; flex-direction:column; gap:5px;
+    flex-shrink:0; align-self:center;
+  }
+  .nav-arrow {
+    flex-shrink:0;
+    width:32px; height:28px;
+    background:var(--panel-line); border:1.5px solid var(--accent);
+    border-radius:9px; cursor:pointer;
+    display:grid; place-items:center;
+    color:var(--accent); font-size:13px; font-weight:800;
+  }
+  .nav-arrow:hover { background:var(--accent); color:#0a0e1a; }
+  .nav-arrow:active { transform:scale(0.92); }
+  .nav-arrow:disabled { opacity:0.3; cursor:not-allowed; }
+  .nav-arrow:disabled:hover { background:var(--panel-line); color:var(--accent); }
+
+  .info-page {
+    font-size:10px; color:var(--ink-soft);
+    margin-top:4px; opacity:0.75;
+    font-family:'Baloo 2',cursive; font-weight:600;
+  }
+  .info-page .pg-active { color:var(--accent-glow); font-weight:800; }
+
+  .controls { display:flex; flex-direction:column; gap:7px; }
+  .btn-row { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+  .big-btn {
+    font-family:'Baloo 2',cursive; font-weight:700;
+    font-size:11px; color:#fff;
+    border:none; border-radius:10px;
+    padding:3px 4px; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; gap:2px;
+  }
+  .big-btn:active { transform:scale(.96); }
+  .big-btn .row1 { display:flex; align-items:center; gap:4px; font-size:11.5px; }
+  .big-btn .row1 .ico { font-size:13px; }
+  .big-btn .row2 { display:none; }
+  .big-btn.spin   { background:linear-gradient(135deg,var(--warning),#dba830); color:#0a0e1a; }
+  .big-btn.label  { background:linear-gradient(135deg,var(--cartilage),#7a5fb8); }
+  .big-btn.anim   { background:linear-gradient(135deg,var(--muscle),#a04545); }
+  .big-btn.off    { filter:grayscale(.6) brightness(.85); }
+
+  .organ-label {
+    position:absolute; transform:translate(-50%,-50%);
+    pointer-events:none; z-index:9;
+    background:rgba(22,27,46,0.92); border:1.5px solid var(--accent);
+    border-radius:8px; padding:3px 8px;
+    font-family:'Baloo 2',cursive; font-weight:700;
+    font-size:10.5px; color:#fff;
+    white-space:nowrap;
+    box-shadow:0 4px 12px rgba(0,0,0,.45);
+    text-shadow:0 1px 2px rgba(0,0,0,.5);
+  }
+  .organ-label.bone     { border-color:var(--bone); }
+  .organ-label.cartilage{ border-color:var(--cartilage); }
+  .organ-label.muscle   { border-color:var(--muscle); }
+  .organ-label.joint    { border-color:var(--joint); }
+  .organ-label.warning  { border-color:var(--warning); }
+
+  .dir-arrow {
+    position:absolute; pointer-events:none; z-index:9;
+    font-family:'Baloo 2',cursive; font-weight:800;
+    font-size:10px; color:var(--warning);
+    background:rgba(22,27,46,0.85);
+    padding:3px 7px; border-radius:7px;
+    border:1.5px dashed var(--warning);
+  }
+
+  .toast {
+    position:absolute; top:160px; left:50%;
+    transform:translateX(-50%) translateY(-10px);
+    background:var(--panel); border:2px solid var(--accent);
+    border-radius:14px; padding:11px 16px;
+    font-size:12.5px; font-weight:600; line-height:1.4;
+    max-width:min(440px,86vw); text-align:left;
+    z-index:40; pointer-events:none; opacity:0;
+    transition:opacity .25s ease;
+  }
+  .toast.show { opacity:1; }
+  .toast b { color:var(--accent-glow); }
+
+  .skel-tools {
+    position:absolute; top:96px; left:14px; transform:none;
+    display:none; flex-direction:column; gap:7px; align-items:flex-start;
+    z-index:16; pointer-events:none;
+    width:min(180px,46vw);
+  }
+  .skel-tools > * { pointer-events:auto; }
+  .skel-search {
+    width:100%; padding:7px 10px;
+    background:var(--panel); border:1.5px solid var(--accent);
+    border-radius:12px; color:var(--ink);
+    font-family:'Fredoka',sans-serif; font-size:11.5px;
+    outline:none;
+  }
+  .skel-search::placeholder { color:var(--ink-soft); }
+  .skel-btn-grp {
+    display:flex; flex-direction:column; align-items:stretch; gap:4px;
+    background:rgba(22,27,46,0.88); padding:7px 9px; border-radius:12px;
+    border:1px solid var(--panel-line);
+    width:100%;
+  }
+  .skel-lbl {
+    font-size:10px; color:var(--accent-glow); font-weight:700;
+    margin-bottom:2px; font-family:'Baloo 2',cursive;
+  }
+  .skel-btn {
+    font-family:'Fredoka',sans-serif; font-weight:600; font-size:11px;
+    color:var(--ink); background:var(--panel-soft);
+    border:1.5px solid transparent; border-radius:9px;
+    padding:6px 10px; cursor:pointer; text-align:left;
+    width:100%;
+  }
+  .skel-btn:hover { background:var(--panel-line); }
+  .skel-btn.active { background:var(--accent); color:#0a0e1a; border-color:var(--accent); }
+
+  .hint {
+    position:absolute; bottom:215px; left:50%; transform:translateX(-50%);
+    font-size:10.5px; color:var(--ink-soft); opacity:.7;
+    text-align:center; pointer-events:none; z-index:5;
+    background:rgba(10,14,26,0.5); padding:4px 10px; border-radius:10px;
+  }
+
+  @media (max-width:600px){
+    .topbar h1 { font-size:13px; }
+    .level-badge { font-size:10.5px; padding:6px 10px; }
+    .info { width:min(136px,34vw); padding:7px 8px; }
+    .info-hint { font-size:8px; top:80px; }
+    .user-btn { max-width:80px; font-size:10px; padding:5px 7px; }
+    .i-row { font-size:9.5px; padding:4px 5px; }
+    .big-btn .row1 { font-size:10px; }
+    .big-btn .row2 { font-size:8px; }
+  }
+  @media (max-width:380px){
+    .topbar h1 span:not(.ic) { display:none; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <button class="level-badge" id="levelBadge">
+      <span id="levelEmoji">📘</span><span id="levelName">Lise</span><span class="lv-arrow">▼</span>
+    </button>
+    <button class="tool-btn cmp-top" id="compareBtn" title="Karşılaştır">⚖️</button>
+    <button class="user-btn" id="userBtn" style="margin-left:auto" title="Adını gir (paylaşımda görünür)">
+      <span class="user-ico">👤</span><span class="user-name" id="userName">Adın</span>
+    </button>
+    <button class="tool-btn" id="themeBtn" title="Tema değiştir">🌙</button>
+    <button class="tool-btn" id="shotBtn" title="Paylaş / Gönder">➤</button>
+    <button class="tool-btn" id="fsBtn" title="Tam ekran">⛶</button>
+    <button class="reset-btn" id="resetBtn" title="Başa al">↺</button>
+  </div>
+
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    <span class="progress-txt" id="progressTxt">0/8 konu</span>
+  </div>
+
+  <div class="tabbar">
+    <button class="tab active" id="organTab"><span class="ico">🧬</span>Konu Rehberi</button>
+    <button class="tab fav-tab" id="favListBtn"><span class="ico">⭐</span><span id="favCount">0</span></button>
+  </div>
+
+  <div class="organ-panel" id="organPanel"></div>
+
+  <div class="level-panel" id="levelPanel">
+    <div class="level-title">🎓 SINIF / SEVİYE</div>
+    <div class="level-sub">Bilgi detayı seviyene göre değişir</div>
+    <div class="level-list" id="levelList"></div>
+  </div>
+
+  <div class="info-hint" id="infoHint">👆 detay için buraya basın</div>
+  <div class="info" id="infoPanel"></div>
+
+  <div class="skel-tools" id="skelTools">
+    <input class="skel-search" id="skelSearch" type="text" placeholder="🔍 Kemik ara (örn. femur, kaval)..." />
+    <div class="skel-btn-grp">
+      <span class="skel-lbl">Katman:</span>
+      <button class="skel-btn active" data-layer="all">Tümü</button>
+      <button class="skel-btn" data-layer="axial">Eksenel</button>
+      <button class="skel-btn" data-layer="appendicular">Appendiküler</button>
+    </div>
+    <div class="skel-btn-grp">
+      <span class="skel-lbl">Renk:</span>
+      <button class="skel-btn active" data-color="realistic">Gerçekçi</button>
+      <button class="skel-btn" data-color="regional">Bölgesel</button>
+    </div>
+  </div>
+
+  <div class="hint">👆 Parçaya tıkla = adı görünür · Sürükle = döndür</div>
+  <div class="toast" id="toast"></div>
+
+  <div class="panel">
+    <div class="panel-card">
+      <div class="info-box">
+        <div class="info-emoji" id="infoEmoji">🦴</div>
+        <div class="info-content">
+          <div class="info-head" id="infoHead">İskelet Sistemi</div>
+          <div class="info-text" id="infoText">Vücudun destek yapısı.</div>
+          <div class="info-page" id="infoPage"></div>
+        </div>
+        <div class="nav-col">
+          <button class="fav-btn" id="favBtn" title="Favorilere ekle">☆</button>
+          <button class="nav-arrow nav-next" id="navNext" title="Sonraki">▶</button>
+          <button class="nav-arrow nav-prev" id="navPrev" title="Önceki">◀</button>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="btn-row">
+          <button class="big-btn spin" id="spinBtn">
+            <div class="row1"><span class="ico">🔄</span><span>Döndür</span></div>
+            <div class="row2">Otomatik dönüş</div>
+          </button>
+          <button class="big-btn label" id="labelBtn">
+            <div class="row1"><span class="ico">🏷️</span><span>Etiketler</span></div>
+            <div class="row2">Parça adları</div>
+          </button>
+          <button class="big-btn anim" id="animBtn">
+            <div class="row1"><span class="ico">▶️</span><span>Çalıştır</span></div>
+            <div class="row2" id="animDesc">Olayı göster</div>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="compare-overlay" id="compareOverlay">
+    <div class="compare-card">
+      <div class="compare-head">
+        <span id="compareTitle">Karşılaştırma</span>
+        <button class="compare-close" id="compareClose">✕</button>
+      </div>
+      <div class="compare-body" id="compareBody"></div>
+      <button class="compare-next-btn" id="compareNextBtn">
+        <span>Sonraki:</span> <b>—</b> <span>→</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="fav-overlay" id="favOverlay">
+    <div class="fav-card">
+      <div class="fav-head">
+        <span>⭐ Favorilerim</span>
+        <button class="fav-close" id="favClose">✕</button>
+      </div>
+      <div class="fav-list" id="favList"></div>
+    </div>
+  </div>
+
+  <div class="share-overlay" id="shareOverlay">
+    <div class="share-card">
+      <div class="share-head">
+        <span>📤 Ekranı Paylaş</span>
+        <button class="share-close" id="shareClose">✕</button>
+      </div>
+      <img class="share-preview" id="sharePreview" alt="önizleme" />
+      <div class="share-actions">
+        <button class="share-act primary" id="shareNative">
+          <span class="sa-ico">📲</span>
+          <span class="sa-txt"><b>Arkadaşına gönder</b><br><small>WhatsApp, Telegram, mesaj...</small></span>
+        </button>
+        <button class="share-act" id="shareSocial">
+          <span class="sa-ico">🌐</span>
+          <span class="sa-txt"><b>Sosyal medyada paylaş</b><br><small>Instagram, X, Facebook...</small></span>
+        </button>
+        <button class="share-act" id="shareDownload">
+          <span class="sa-ico">💾</span>
+          <span class="sa-txt"><b>Cihaza kaydet</b><br><small>Galeriye / indirilenlere</small></span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js"
+}}
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<script type="module">
+import * as THREE from 'three';
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0a0e1a);
+const camera=new THREE.PerspectiveCamera(50,innerWidth/innerHeight,0.1,200);
+const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+document.getElementById('app').appendChild(renderer.domElement);
+const cv=renderer.domElement;
+
+const shapeGroup=new THREE.Group();
+scene.add(shapeGroup);
+
+const grid=new THREE.GridHelper(40,40,0x1a2240,0x141a32);
+grid.position.y=-4.5; scene.add(grid);
+
+(function(){
+  const g=new THREE.BufferGeometry(),p=[];
+  for(let i=0;i<180;i++){
+    const r=60+Math.random()*60, t=Math.random()*6.28, ph=Math.acos(2*Math.random()-1);
+    p.push(r*Math.sin(ph)*Math.cos(t),r*Math.sin(ph)*Math.sin(t),r*Math.cos(ph));
+  }
+  g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));
+  scene.add(new THREE.Points(g,new THREE.PointsMaterial({color:0xc8a880,size:0.6,transparent:true,opacity:0.8})));
+})();
+
+scene.add(new THREE.AmbientLight(0xb0a8b8,0.85));
+const key=new THREE.DirectionalLight(0xfff4e8,1.7); key.position.set(7,10,8); scene.add(key);
+const fill=new THREE.DirectionalLight(0xd0e0ff,0.65); fill.position.set(-8,2,-4); scene.add(fill);
+const rim=new THREE.DirectionalLight(0xffc89b,0.7); rim.position.set(-2,-6,-9); scene.add(rim);
+const topL=new THREE.HemisphereLight(0xfff0e0, 0x2a2438, 0.55); scene.add(topL);
+
+function makeBoneMaterial(opts={}){
+  const base = opts.color || 0xede3c8;
+  return new THREE.MeshPhysicalMaterial({
+    color: base,
+    roughness: opts.roughness ?? 0.62,
+    metalness: 0.0,
+    clearcoat: 0.35,
+    clearcoatRoughness: 0.55,
+    sheen: 0.4,
+    sheenColor: new THREE.Color(0xfff6e6),
+    sheenRoughness: 0.7,
+    vertexColors: true,
+    flatShading: false
+  });
+}
+
+function applyBoneVertexColors(geo, baseHex=0xede3c8){
+  geo.computeVertexNormals();
+  const pos = geo.attributes.position;
+  const count = pos.count;
+  const colors = new Float32Array(count*3);
+  const base = new THREE.Color(baseHex);
+  for(let i=0;i<count;i++){
+    const x=pos.getX(i), y=pos.getY(i), z=pos.getZ(i);
+    const n = (Math.sin(x*4.1+y*2.3)*0.5 + Math.sin(y*5.7+z*3.1)*0.3 + Math.sin(z*6.2+x*1.7)*0.2);
+    const shade = 0.90 + n*0.10;
+    const warmth = 0.97 + Math.sin(x*3+z*2)*0.03;
+    colors[i*3]   = Math.min(1, base.r*shade*warmth);
+    colors[i*3+1] = Math.min(1, base.g*shade);
+    colors[i*3+2] = Math.min(1, base.b*shade*0.97);
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors,3));
+  return geo;
+}
+
+function makeLongBone(len, midR, endR, opts={}){
+  const half = len/2;
+  const pts = [];
+  const epi = opts.epiphysisRatio ?? 0.16;
+  pts.push(new THREE.Vector2(0, -half));
+  pts.push(new THREE.Vector2(endR*0.95, -half));
+  pts.push(new THREE.Vector2(endR, -half+len*epi*0.4));
+  pts.push(new THREE.Vector2(midR*1.15, -half+len*epi));
+  pts.push(new THREE.Vector2(midR, -half+len*0.30));
+  pts.push(new THREE.Vector2(midR*0.92, 0));
+  pts.push(new THREE.Vector2(midR, half-len*0.30));
+  pts.push(new THREE.Vector2(midR*1.15, half-len*epi));
+  pts.push(new THREE.Vector2(endR, half-len*epi*0.4));
+  pts.push(new THREE.Vector2(endR*0.95, half));
+  pts.push(new THREE.Vector2(0, half));
+  const geo = new THREE.LatheGeometry(pts, opts.segments||32);
+  applyBoneVertexColors(geo, opts.color||0xede3c8);
+  return geo;
+}
+
+function makeFlatBone(w, h, d, opts={}){
+  const geo = new THREE.BoxGeometry(w, h, d, opts.seg||4, opts.seg||4, 1);
+  const pos = geo.attributes.position;
+  for(let i=0;i<pos.count;i++){
+    const x=pos.getX(i), y=pos.getY(i);
+    pos.setZ(i, pos.getZ(i) + (x*x/(w*w) + y*y/(h*h))* (opts.curve||0.3));
+  }
+  geo.computeVertexNormals();
+  applyBoneVertexColors(geo, opts.color||0xede3c8);
+  return geo;
+}
+
+const ORGAN_DEFS={
+  kemikDoku:{name:'Kemik Dokusu',emoji:'🦴',cat:'iskelet',animDesc:'Havers kanalı dolaşımını göster'},
+  kemikCesitleri:{name:'Kemik Çeşitleri',emoji:'🧱',cat:'iskelet',animDesc:'4 kemik tipini sıra ile vurgula'},
+  iskeletBolumleri:{name:'İskeletin Bölümleri',emoji:'💀',cat:'iskelet',animDesc:'Kol kaldırma + baş dönme hareketi'},
+  kikirdak:{name:'Kıkırdak Dokusu',emoji:'🧊',cat:'iskelet',animDesc:'3 kıkırdak tipini göster'},
+  eklem:{name:'Eklem Yapısı',emoji:'🔗',cat:'iskelet',animDesc:'Oynar eklem hareketini göster'},
+  kasCesitleri:{name:'Kas Çeşitleri',emoji:'💪',cat:'kas',animDesc:'3 kas tipini sıra ile aydınlat'},
+  sarkomer:{name:'Sarkomer & Kayan İplikler',emoji:'🧬',cat:'kas',animDesc:'Kasılma anını canlı göster'},
+  kasilmaKimyasi:{name:'Kasılma Kimyası',emoji:'⚗️',cat:'kas',animDesc:'Ca²⁺ ve ATP döngüsünü göster'}
+};
+const ORGAN_ORDER=['kemikDoku','kemikCesitleri','iskeletBolumleri','kikirdak','eklem','kasCesitleri','sarkomer','kasilmaKimyasi'];
+const CATS={
+  iskelet:{label:'🦴 İskelet Sistemi',order:1},
+  kas:{label:'💪 Kas Sistemi',order:2}
+};
+const LEVELS=[
+  {id:'ilk',emoji:'🧒',name:'İlkokul',desc:'Tanıma',idx:0},
+  {id:'orta',emoji:'🎒',name:'Ortaokul',desc:'Görevler',idx:1},
+  {id:'lise',emoji:'📘',name:'Lise',desc:'Detaylar',idx:2},
+  {id:'tyt',emoji:'🎯',name:'TYT/AYT',desc:'Mekanizma',idx:3},
+  {id:'ayt',emoji:'🔬',name:'AYT ileri',desc:'Moleküler',idx:4}
+];
+let curLevel=2;
+
+const ORGAN_CONTENT={
+  kemikDoku:{
+    desc:['Kemik dokumuz vücudun en sert dokusudur.','Kemik canlı bir dokudur. İçinde damar ve sinirler vardır.','Kemik dokunun temel hücresi <b>osteosit</b>tir.','Kemik <b>ostein</b> ve kalsiyum tuzlarından oluşur.','Havers ve Volkmann kanalları kemiğin iletişim ağıdır.'],
+    parts:{osteosit:{name:'Osteosit',job:'Olgun kemik hücresi'},ostein:{name:'Ostein',job:'Lifli protein madde'},havers:{name:'Havers Kanalı',job:'Boyuna damar/sinir kanalı'},volkmann:{name:'Volkmann Kanalı',job:'Yatay damar/sinir kanalı'},lameller:{name:'Lameller',job:'Havers etrafında halka katmanlar'},kemikIligi:{name:'Kemik İliği',job:'Kan hücresi üretim merkezi'}},
+    info:[{minLevel:0,title:'🦴 Kemik Yapı Birimleri',rows:[
+      {key:'osteosit',tag:'O',tagcolor:'#f5e8c8',text:'Osteosit (Kemik Hücresi)',detail:['Olgun canlı kemik hücresidir.','Kemik dokunun temel yapı taşıdır.','Lakuna içinde yer alır.','Kanaliküller ile komşu hücrelerle bağlantı kurar.','Kemiğin yenilenmesinde rol oynar.']},
+      {key:'ostein',tag:'S',tagcolor:'#e89752',text:'Ostein (Organik Madde)',detail:['Kemiğin organik kısmıdır.','Kollajen lif içerir.','Esneklik verir.','Kemiğin %30\'unu oluşturur.','%70 kısım inorganik kalsiyum tuzudur.']},
+      {key:'havers',tag:'H',tagcolor:'#5fc8e0',text:'Havers Kanalı',detail:['Boyuna uzanan kanaldır.','Damar ve sinir bulunur.','Etrafında lameller halka şekilde sıralanır.','Bu yapıya Havers sistemi (osteon) denir.']},
+      {key:'volkmann',tag:'V',tagcolor:'#9d7fe6',text:'Volkmann Kanalı',detail:['Yatay kanallardır.','Havers sistemlerini birbirine bağlar.','Periost ile iç dokuyu bağlar.']}
+    ]}]
+  },
+  kemikCesitleri:{
+    desc:['Vücutta 4 tip kemik vardır.','Şekillerine göre: uzun, kısa, yassı, düzensiz.','Her tipin farklı görevi vardır.'],
+    parts:{uzun:{name:'Uzun Kemik',job:'Boyu eninden fazla — hareket'},kisa:{name:'Kısa Kemik',job:'Küp/silindir — destek'},yassi:{name:'Yassı Kemik',job:'Yaprak şeklinde — koruma'},duzensiz:{name:'Düzensiz Kemik',job:'Belirsiz şekilli'}},
+    info:[{minLevel:0,title:'🧱 4 Kemik Tipi',rows:[
+      {key:'uzun',tag:'1',tagcolor:'#e89752',text:'Uzun Kemikler',detail:['Boyu eninden fazladır.','Femur, humerus, tibia örnektir.','Hareket sağlar.']},
+      {key:'kisa',tag:'2',tagcolor:'#5fc8e0',text:'Kısa Kemikler',detail:['Küp şeklindedir.','El bileği, ayak bileği.','Esnek destek sağlar.']},
+      {key:'yassi',tag:'3',tagcolor:'#9d7fe6',text:'Yassı Kemikler',detail:['İnce yaprak şeklindedir.','Kafatası, kürek, kaburga.','Organları korur.']},
+      {key:'duzensiz',tag:'4',tagcolor:'#5fd99a',text:'Düzensiz Kemikler',detail:['Karmaşık şekillidir.','Omurlar, yüz kemikleri.','Özel görevler için.']}
+    ]}]
+  },
+  iskeletBolumleri:{
+    desc:['İnsan iskeletinde ~206 kemik vardır.','Eksenel (baş+gövde) ve appendiküler (kol+bacak) iskelet.','Her kemiğin Latince adı vardır.'],
+    parts:{
+      kafatasi:{name:'Kafatası',job:'Beyni koruyan kemik yapı'},
+      omurga:{name:'Omurga',job:'33 omurdan oluşur'},
+      kaburga:{name:'Kaburga',job:'12 çift, akciğer-kalbi korur'},
+      sternum:{name:'Göğüs Kemiği',job:'Sternum — önde kaburga birleştirici'},
+      humerus:{name:'Pazı Kemiği',job:'Humerus — üst kol'},
+      femur:{name:'Uyluk Kemiği',job:'Femur — en uzun kemik'},
+      tibia:{name:'Kaval Kemiği',job:'Tibia — baldır iç'},
+      kalca:{name:'Kalça Kemiği',job:'Os coxae — leğeni oluşturur'}
+    },
+    info:[{minLevel:0,title:'💀 Ana Kemikler',rows:[
+      {key:'kafatasi',tag:'1',tagcolor:'#e8d5a0',text:'Kafatası',detail:['Beyni korur.','Birden çok kemiğin birleşmesinden oluşur.','Sütürler ile birleşir.']},
+      {key:'omurga',tag:'2',tagcolor:'#5fc8e0',text:'Omurga (Columna vertebralis)',detail:['33 omurdan oluşur.','S kıvrımlıdır.','Omuriliği korur.']},
+      {key:'kaburga',tag:'3',tagcolor:'#7fa8e6',text:'Kaburga (Costae)',detail:['12 çift kaburga.','Akciğer ve kalbi korur.','Soluk almada genişler.']},
+      {key:'sternum',tag:'4',tagcolor:'#9d7fe6',text:'Göğüs Kemiği (Sternum)',detail:['Önde kaburgaları birleştirir.','Kalbi korur.']},
+      {key:'humerus',tag:'5',tagcolor:'#c45d5d',text:'Pazı Kemiği (Humerus)',detail:['Üst kolun tek kemiği.','Omuz ve dirsek eklemini yapar.']},
+      {key:'femur',tag:'6',tagcolor:'#ff7b54',text:'Uyluk Kemiği (Femur)',detail:['En uzun kemik.','Tüm vücut ağırlığını taşır.']},
+      {key:'tibia',tag:'7',tagcolor:'#5fd99a',text:'Kaval Kemiği (Tibia)',detail:['Baldırın iç-kalın kemiği.','Cilt altından öne hissedilir.']},
+      {key:'kalca',tag:'8',tagcolor:'#ffd166',text:'Kalça Kemiği (Os coxae)',detail:['Leğen kemiğini oluşturur.','Gövde ağırlığını bacaklara aktarır.']}
+    ]}]
+  },
+  kikirdak:{
+    desc:['Kıkırdak kemikten yumuşak destek dokusu.','Damarsız ve sinirsizdir.','3 çeşit: hiyalin, elastik, fibröz.'],
+    parts:{hiyalin:{name:'Hiyalin Kıkırdak',job:'Eklemler, soluk borusu'},elastik:{name:'Elastik Kıkırdak',job:'Kulak kepçesi, gırtlak'},fibroz:{name:'Fibröz Kıkırdak',job:'Omurlar arası diskler'}},
+    info:[{minLevel:0,title:'🧊 3 Kıkırdak Tipi',rows:[
+      {key:'hiyalin',tag:'H',tagcolor:'#5fc8e0',text:'Hiyalin Kıkırdak',detail:['En yaygın tip.','Cam gibi parlak görünür.','Eklem yüzeylerini kaplar.','Trakea, bronş, burun ucu.']},
+      {key:'elastik',tag:'E',tagcolor:'#9d7fe6',text:'Elastik Kıkırdak',detail:['Esnek lif içerir.','Kulak kepçesi bu tiptir.','Defalarca bükülüp eski haline döner.']},
+      {key:'fibroz',tag:'F',tagcolor:'#ff7b54',text:'Fibröz Kıkırdak',detail:['En sağlam tip.','Kalın kollajen demetleri içerir.','Omurlar arası diskler bu tiptir.']}
+    ]}]
+  },
+  eklem:{
+    desc:['Eklem iki kemiğin birleşim yeridir.','3 tipe ayrılır: oynamaz, az oynar, oynar.','Oynar eklemlerde sinovyal sıvı vardır.'],
+    parts:{eklemKikirdagi:{name:'Eklem Kıkırdağı',job:'Kemik uçlarını kaplar'},sinovyalSivi:{name:'Sinovyal Sıvı',job:'Eklemi kayganlaştırır'},eklemKapsulu:{name:'Eklem Kapsülü',job:'Eklemi saran zar'},baglar:{name:'Bağlar',job:'Kemikleri bağlar'}},
+    info:[{minLevel:0,title:'🔗 Oynar Eklem Yapıları',rows:[
+      {key:'eklemKikirdagi',tag:'K',tagcolor:'#5fc8e0',text:'Eklem Kıkırdağı',detail:['Kemik uçlarını kaplar.','Sürtünmeyi azaltır.','Şok emer.']},
+      {key:'sinovyalSivi',tag:'S',tagcolor:'#ffd166',text:'Sinovyal Sıvı',detail:['Kayganlaştırıcı sıvıdır.','Kıkırdağı besler.','Eklem zarı tarafından salgılanır.']},
+      {key:'eklemKapsulu',tag:'P',tagcolor:'#9d7fe6',text:'Eklem Kapsülü',detail:['Eklemi saran çift katlı yapıdır.','İç katmanı sıvı salgılar.']},
+      {key:'baglar',tag:'B',tagcolor:'#ff7b54',text:'Bağlar (Ligament)',detail:['Kemiği kemiğe bağlar.','Kollajen liflerden oluşur.','Eklem stabilitesini sağlar.']}
+    ]}]
+  },
+  kasCesitleri:{
+    desc:['Vücutta 3 çeşit kas vardır.','Çizgili, düz, kalp kası.','Her birinin farklı yapısı ve görevi vardır.'],
+    parts:{cizgili:{name:'Çizgili Kas',job:'İskelet kası — istemli'},duz:{name:'Düz Kas',job:'İç organlar — istemsiz'},kalp:{name:'Kalp Kası',job:'Sadece kalpte — istemsiz'}},
+    info:[{minLevel:0,title:'💪 3 Kas Tipi',rows:[
+      {key:'cizgili',tag:'Ç',tagcolor:'#c45d5d',text:'Çizgili Kas',detail:['İskelete bağlı.','Çok çekirdekli, silindirik.','İstemli çalışır.','Hızlı yorulur.']},
+      {key:'duz',tag:'D',tagcolor:'#9d7fe6',text:'Düz Kas',detail:['İç organlarda bulunur.','İğ şekilli, tek çekirdekli.','İstemsiz çalışır.','Yorulmaz.']},
+      {key:'kalp',tag:'K',tagcolor:'#ff6b9d',text:'Kalp Kası',detail:['Sadece kalpte.','Dallanmış yapı.','İnterkale diskler içerir.','Hiç yorulmaz.']}
+    ]}]
+  },
+  sarkomer:{
+    desc:['Sarkomer çizgili kasın en küçük kasılma birimidir.','Z çizgileri arasındaki bölgedir.','Aktin ve miyozin iplikleri içerir.','Kayan iplikler modeline göre kasılır.'],
+    parts:{zCizgisi:{name:'Z Çizgisi',job:'Sarkomerin sınırı'},aktin:{name:'Aktin',job:'İnce iplik'},miyozin:{name:'Miyozin',job:'Kalın iplik'}},
+    info:[{minLevel:0,title:'🧬 Sarkomer Yapıları',rows:[
+      {key:'zCizgisi',tag:'Z',tagcolor:'#ff7b54',text:'Z Çizgisi',detail:['Sarkomerin sınırıdır.','Aktin buraya tutunur.','Kasılma anında Z çizgileri yaklaşır.']},
+      {key:'aktin',tag:'A',tagcolor:'#5fd99a',text:'Aktin (İnce İplik)',detail:['İnce iplik.','Z çizgisine tutunur.','Tropomiyozin ve troponin içerir.']},
+      {key:'miyozin',tag:'M',tagcolor:'#c45d5d',text:'Miyozin (Kalın İplik)',detail:['Kalın iplik.','Çift sarmal yapılı.','Çapraz köprü başları var.','ATP parçalar.']}
+    ]}]
+  },
+  kasilmaKimyasi:{
+    desc:['Kasılma kimyasal süreçtir.','Kalsiyum tetikler.','ATP enerji sağlar.','Asetilkolin sinirden kasa iletim sağlar.'],
+    parts:{asetilkolin:{name:'Asetilkolin',job:'Sinir-kas iletisi'},kalsiyum:{name:'Kalsiyum',job:'Kasılmayı tetikler'},atp:{name:'ATP',job:'Enerji kaynağı'},kreatinFosfat:{name:'Kreatin Fosfat',job:'Hızlı ATP yedeği'}},
+    info:[{minLevel:0,title:'⚗️ Kasılma Aşamaları',rows:[
+      {key:'asetilkolin',tag:'1',tagcolor:'#5fc8e0',text:'1. Asetilkolin Salınımı',detail:['Motor nöron asetilkolin salar.','Kas hücresi zarındaki reseptöre bağlanır.','Aksiyon potansiyeli oluşur.']},
+      {key:'kalsiyum',tag:'2',tagcolor:'#ffd166',text:'2. Kalsiyum Salınımı',detail:['Sarkoplazmik retikulumdan Ca²⁺ salınır.','Troponine bağlanır.','Tropomiyozin kayar.']},
+      {key:'atp',tag:'3',tagcolor:'#5fd99a',text:'3. ATP ile Kasılma',detail:['Miyozin aktine bağlanır.','Çapraz köprü oluşur.','ATP parçalanır, enerji açığa çıkar.']},
+      {key:'kreatinFosfat',tag:'4',tagcolor:'#9d7fe6',text:'4. Kreatin Fosfat Yedeği',detail:['ATP hızlı tükenir.','Kreatin fosfat hızlı yedek ATP sağlar.','Kısa süreli yoğun aktivite için kritik.']}
+    ]}]
+  }
+};
+
+let current=null;
+let autoSpin=true, labelsVisible=true, animPlaying=false, animT=0;
+const pickList=[], labelAnchors=[], animatedItems=[];
+let highlightedKey=null;
+let darkTheme=true;
+let infoPanelCollapsed=false;
+let userDisplayName='';
+
+function clearShape(){
+  while(shapeGroup.children.length) shapeGroup.remove(shapeGroup.children[0]);
+  pickList.length=0;
+  labelAnchors.forEach(a=>a.elM.remove());
+  labelAnchors.length=0;
+  animatedItems.length=0;
+  highlightedKey=null;
+}
+function addPickable(mesh,partKey,color){
+  mesh.userData.partKey=partKey;
+  mesh.userData.baseColor=color;
+  mesh.userData.flash=0;
+  shapeGroup.add(mesh);
+  pickList.push(mesh);
+}
+function addLabel(pos,partKey,colorClass){
+  if(!current) return;
+  const part=ORGAN_CONTENT[current.key]&&ORGAN_CONTENT[current.key].parts[partKey];
+  if(!part) return;
+  const el=document.createElement('div');
+  el.className='organ-label '+(colorClass||'bone');
+  el.textContent=part.name;
+  document.getElementById('app').appendChild(el);
+  labelAnchors.push({pos:pos.clone(),partKey,elM:el});
+}
+
+function buildKemikDoku(){
+  const blok = new THREE.Mesh(
+    applyBoneVertexColors(new THREE.CylinderGeometry(2.0,2.0,1.4,48,1,false,0,Math.PI*1.35),0xede3c8),
+    makeBoneMaterial({roughness:0.7})
+  );
+  blok.rotation.x = Math.PI/2;
+  blok.rotation.z = -Math.PI*0.18;
+  addPickable(blok,'havers',0xede3c8);
+
+  const osteonPos = [[-0.9,0.7],[0.2,0.95],[1.1,0.4],[-1.1,-0.3],[0.0,-0.1],[1.0,-0.6],[-0.4,-1.0],[0.7,-1.2]];
+  const Zface=0.72;
+  osteonPos.forEach((p,idx)=>{
+    const havers=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,0.5,16),new THREE.MeshStandardMaterial({color:0xc94a5e,emissive:0xc94a5e,emissiveIntensity:0.5,roughness:.4}));
+    havers.position.set(p[0],p[1],Zface);
+    havers.rotation.x=Math.PI/2;
+    addPickable(havers,'havers',0xc94a5e);
+    for(let r=0;r<3;r++){
+      const lam=new THREE.Mesh(new THREE.TorusGeometry(0.16+r*0.11,0.028,8,28),makeBoneMaterial({roughness:0.55}));
+      lam.position.set(p[0],p[1],Zface);
+      if(idx===0 && r===1) addPickable(lam,'lameller',0xede3c8);
+      else shapeGroup.add(lam);
+    }
+    for(let o=0;o<4;o++){
+      const ang=(o/4)*Math.PI*2+idx;
+      const rad=0.22+(o%3)*0.12;
+      const ost=new THREE.Mesh(new THREE.SphereGeometry(0.045,10,10),new THREE.MeshStandardMaterial({color:0x5fd99a,emissive:0x5fd99a,emissiveIntensity:0.55}));
+      ost.position.set(p[0]+Math.cos(ang)*rad,p[1]+Math.sin(ang)*rad,Zface+0.02);
+      if(o===0) addPickable(ost,'osteosit',0x5fd99a);
+      else shapeGroup.add(ost);
+    }
+  });
+  const volk=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,2.0,12),new THREE.MeshStandardMaterial({color:0x9d7fe6,emissive:0x9d7fe6,emissiveIntensity:0.5,roughness:.4}));
+  volk.position.set(0,0.3,Zface);
+  volk.rotation.z=Math.PI/2;
+  addPickable(volk,'volkmann',0x9d7fe6);
+  const osteinPatch=new THREE.Mesh(new THREE.CircleGeometry(0.35,20),makeBoneMaterial({color:0xe0d2a8,roughness:0.7}));
+  osteinPatch.position.set(-1.5,1.0,Zface+0.01);
+  addPickable(osteinPatch,'ostein',0xe0d2a8);
+  const ilik=new THREE.Mesh(new THREE.CylinderGeometry(0.55,0.55,1.4,24),new THREE.MeshStandardMaterial({color:0xc94a5e,roughness:.7,transparent:true,opacity:0.45,emissive:0xc94a5e,emissiveIntensity:0.2}));
+  ilik.rotation.x=Math.PI/2;
+  addPickable(ilik,'kemikIligi',0xc94a5e);
+  addLabel(new THREE.Vector3(-0.9,1.4,Zface),'havers','muscle');
+  addLabel(new THREE.Vector3(1.6,0.6,Zface),'lameller','warning');
+  addLabel(new THREE.Vector3(1.3,-1.3,Zface),'osteosit','joint');
+  addLabel(new THREE.Vector3(-1.9,0.4,Zface),'volkmann','cartilage');
+  addLabel(new THREE.Vector3(-2.0,1.4,Zface),'ostein','bone');
+}
+
+function buildKemikCesitleri(){
+  const uzun=new THREE.Mesh(makeLongBone(3.2,0.26,0.52,{color:0xede3c8,segments:36}),makeBoneMaterial());
+  uzun.position.set(-3.0,0,0);
+  addPickable(uzun,'uzun',0xede3c8);
+  const kisaGrp=new THREE.Group();
+  [[0,0.3,0],[0.4,0,0.1],[-0.35,-0.05,-0.1],[0.05,-0.4,0.05]].forEach(p=>{
+    const k=new THREE.Mesh(applyBoneVertexColors(new THREE.BoxGeometry(0.55,0.5,0.55,3,3,3),0xede3c8),makeBoneMaterial());
+    k.position.set(p[0],p[1],p[2]);
+    kisaGrp.add(k);
+    pickList.push(k);
+    k.userData={partKey:'kisa',baseColor:0xede3c8,flash:0};
+  });
+  kisaGrp.position.set(-0.7,0,0);
+  shapeGroup.add(kisaGrp);
+  const yassi=new THREE.Mesh(makeFlatBone(1.4,1.8,0.2,{curve:0.4}),makeBoneMaterial());
+  yassi.position.set(1.3,0,0);
+  yassi.rotation.set(0.2,0.3,0.15);
+  addPickable(yassi,'yassi',0xede3c8);
+  const duzGrp=new THREE.Group();
+  const govde=new THREE.Mesh(applyBoneVertexColors(new THREE.CylinderGeometry(0.5,0.52,0.55,20),0xede3c8),makeBoneMaterial());
+  duzGrp.add(govde);
+  const halka=new THREE.Mesh(applyBoneVertexColors(new THREE.TorusGeometry(0.3,0.12,12,24),0xede3c8),makeBoneMaterial());
+  halka.position.set(0,0,-0.5);
+  halka.rotation.x=Math.PI/2;
+  duzGrp.add(halka);
+  duzGrp.position.set(3.2,0,0);
+  duzGrp.children.forEach(c=>{ if(c.isMesh){pickList.push(c); c.userData={partKey:'duzensiz',baseColor:0xede3c8,flash:0};}});
+  shapeGroup.add(duzGrp);
+  addLabel(new THREE.Vector3(-3.0,2.0,0),'uzun','bone');
+  addLabel(new THREE.Vector3(-0.7,0.95,0),'kisa','joint');
+  addLabel(new THREE.Vector3(1.3,1.15,0),'yassi','cartilage');
+  addLabel(new THREE.Vector3(3.2,0.95,0),'duzensiz','muscle');
+}
+
+function buildIskeletBolumleri(){
+  // Kafatası
+  const kafa=new THREE.Mesh(applyBoneVertexColors(new THREE.SphereGeometry(0.7,28,22),0xe8d5a0),makeBoneMaterial({color:0xe8d5a0}));
+  kafa.position.set(0,3.2,0);
+  addPickable(kafa,'kafatasi',0xe8d5a0);
+  const cene=new THREE.Mesh(applyBoneVertexColors(new THREE.BoxGeometry(0.55,0.2,0.45),0xe8d5a0),makeBoneMaterial({color:0xe8d5a0}));
+  cene.position.set(0,2.65,0.18);
+  shapeGroup.add(cene);
+  // Omurga
+  for(let i=0;i<10;i++){
+    const omur=new THREE.Mesh(applyBoneVertexColors(new THREE.CylinderGeometry(0.18,0.18,0.17,16),0xede3c8),makeBoneMaterial());
+    omur.position.set(0,2.3-i*0.32,0);
+    addPickable(omur,'omurga',0xede3c8);
+  }
+  // Sternum
+  const stern=new THREE.Mesh(makeFlatBone(0.25,1.0,0.13,{curve:0.1}),makeBoneMaterial());
+  stern.position.set(0,1.5,0.55);
+  addPickable(stern,'sternum',0xede3c8);
+  // Kaburgalar
+  for(let i=0;i<6;i++){
+    for(let s of [-1,1]){
+      const rib=new THREE.Mesh(applyBoneVertexColors(new THREE.TorusGeometry(0.55-i*0.02,0.045,8,28,Math.PI*0.9),0xede3c8),makeBoneMaterial());
+      rib.position.set(0,1.85-i*0.2,0.05);
+      rib.rotation.z=-Math.PI/2;
+      rib.rotation.y=s>0?-0.15:Math.PI+0.15;
+      rib.scale.set(1,1,0.6);
+      addPickable(rib,'kaburga',0xede3c8);
+    }
+  }
+  // Kalça
+  for(let s of [-1,1]){
+    const coxa=new THREE.Mesh(makeFlatBone(0.5,0.55,0.18,{curve:0.6}),makeBoneMaterial());
+    coxa.position.set(s*0.35,-0.55,0);
+    coxa.rotation.y=s*0.4;
+    addPickable(coxa,'kalca',0xede3c8);
+  }
+  // Pazı
+  for(let s of [-1,1]){
+    const hum=new THREE.Mesh(makeLongBone(1.5,0.10,0.18),makeBoneMaterial());
+    hum.position.set(s*0.95,1.2,0);
+    addPickable(hum,'humerus',0xede3c8);
+  }
+  // Femur
+  for(let s of [-1,1]){
+    const fem=new THREE.Mesh(makeLongBone(2.0,0.13,0.22),makeBoneMaterial());
+    fem.position.set(s*0.35,-1.7,0);
+    addPickable(fem,'femur',0xede3c8);
+  }
+  // Tibia
+  for(let s of [-1,1]){
+    const tib=new THREE.Mesh(makeLongBone(1.9,0.11,0.19),makeBoneMaterial());
+    tib.position.set(s*0.32,-3.75,0.02);
+    addPickable(tib,'tibia',0xede3c8);
+  }
+  addLabel(new THREE.Vector3(0,3.9,0),'kafatasi','bone');
+  addLabel(new THREE.Vector3(0.95,1.5,0),'sternum','cartilage');
+  addLabel(new THREE.Vector3(-0.95,1.2,0),'humerus','muscle');
+  addLabel(new THREE.Vector3(-0.6,0.6,0.5),'omurga','joint');
+  addLabel(new THREE.Vector3(1.1,-1.7,0),'femur','warning');
+  addLabel(new THREE.Vector3(0.95,-3.75,0),'tibia','joint');
+}
+
+function buildKikirdak(){
+  const hi=new THREE.Mesh(new THREE.SphereGeometry(0.85,40,28,0,Math.PI*2,0,Math.PI*0.6),new THREE.MeshPhysicalMaterial({color:0xbfe5f0,roughness:.18,clearcoat:0.8,clearcoatRoughness:0.2,transparent:true,opacity:0.92}));
+  hi.position.set(-2.4,0,0);
+  addPickable(hi,'hiyalin',0xbfe5f0);
+  const el=new THREE.Mesh(new THREE.TorusGeometry(0.55,0.22,16,32,Math.PI*1.5),new THREE.MeshPhysicalMaterial({color:0xe0d080,roughness:.45,transparent:true,opacity:0.9}));
+  el.position.set(0,0,0);
+  el.rotation.set(0.3,0.4,-0.3);
+  addPickable(el,'elastik',0xe0d080);
+  const fb=new THREE.Mesh(new THREE.CylinderGeometry(0.75,0.75,0.5,32),new THREE.MeshPhysicalMaterial({color:0xd4a574,roughness:.7}));
+  fb.position.set(2.4,0,0);
+  addPickable(fb,'fibroz',0xd4a574);
+  addLabel(new THREE.Vector3(-2.4,1.1,0),'hiyalin','joint');
+  addLabel(new THREE.Vector3(0,1.1,0),'elastik','cartilage');
+  addLabel(new THREE.Vector3(2.4,1.0,0),'fibroz','bone');
+}
+
+function buildEklem(){
+  const ust=new THREE.Mesh(makeLongBone(2.0,0.22,0.4),makeBoneMaterial());
+  ust.position.set(0,1.35,0);
+  shapeGroup.add(ust);
+  for(let s of [-1,1]){
+    const k=new THREE.Mesh(applyBoneVertexColors(new THREE.SphereGeometry(0.34,24,18),0xede3c8),makeBoneMaterial());
+    k.position.set(s*0.22,0.38,0);
+    k.scale.set(1,0.85,1.15);
+    shapeGroup.add(k);
+    const ki=new THREE.Mesh(new THREE.SphereGeometry(0.36,24,16,0,Math.PI*2,Math.PI*0.45,Math.PI*0.55),new THREE.MeshPhysicalMaterial({color:0xbfe5f0,roughness:.25,clearcoat:0.6,transparent:true,opacity:0.92}));
+    ki.position.set(s*0.22,0.34,0);
+    ki.scale.set(1,0.85,1.15);
+    addPickable(ki,'eklemKikirdagi',0xbfe5f0);
+  }
+  const alt=new THREE.Mesh(makeLongBone(2.0,0.21,0.42),makeBoneMaterial());
+  alt.position.set(0,-1.35,0);
+  shapeGroup.add(alt);
+  const sivi=new THREE.Mesh(new THREE.SphereGeometry(0.5,24,16),new THREE.MeshPhysicalMaterial({color:0xffd166,roughness:.15,transparent:true,opacity:0.4}));
+  sivi.scale.set(1.1,0.45,1.1);
+  addPickable(sivi,'sinovyalSivi',0xffd166);
+  const kap=new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.7,1.3,28,1,true),new THREE.MeshPhysicalMaterial({color:0x9d7fe6,roughness:.4,transparent:true,opacity:0.22,side:THREE.DoubleSide}));
+  addPickable(kap,'eklemKapsulu',0x9d7fe6);
+  for(let s of [-1,1]){
+    const b=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,1.2,10),new THREE.MeshStandardMaterial({color:0xe8916b,roughness:.6}));
+    b.position.set(s*0.6,0.02,0);
+    addPickable(b,'baglar',0xe8916b);
+  }
+  addLabel(new THREE.Vector3(1.0,0.4,0),'eklemKikirdagi','joint');
+  addLabel(new THREE.Vector3(-1.2,0.02,0),'sinovyalSivi','warning');
+  addLabel(new THREE.Vector3(1.3,0.02,0.4),'eklemKapsulu','cartilage');
+  addLabel(new THREE.Vector3(-1.1,0.5,0),'baglar','muscle');
+  animatedItems.push({mesh:ust,type:'jointBend',baseY:1.35});
+}
+
+function buildKasCesitleri(){
+  const ci=new THREE.Mesh(new THREE.CylinderGeometry(0.42,0.42,2.6,28),new THREE.MeshStandardMaterial({color:0xc45d5d,roughness:.5,emissive:0xc45d5d,emissiveIntensity:0.08}));
+  ci.position.set(-2.4,0,0);
+  addPickable(ci,'cizgili',0xc45d5d);
+  for(let i=0;i<14;i++){
+    const cz=new THREE.Mesh(new THREE.TorusGeometry(0.43,0.022,6,28),new THREE.MeshStandardMaterial({color:0x7a2e2e,roughness:.6}));
+    cz.position.set(-2.4,-1.2+i*0.185,0);
+    cz.rotation.x=Math.PI/2;
+    shapeGroup.add(cz);
+  }
+  for(let i=0;i<5;i++){
+    const yy=(i-2)*0.52;
+    const du=new THREE.Mesh(new THREE.SphereGeometry(0.5,24,16),new THREE.MeshStandardMaterial({color:0x9d7fe6,roughness:.55,emissive:0x9d7fe6,emissiveIntensity:0.06}));
+    du.position.set(0,yy,(i%2)*0.2-0.1);
+    du.scale.set(0.34,1.05,0.34);
+    addPickable(du,'duz',0x9d7fe6);
+  }
+  const kpGrp=new THREE.Group();
+  [[0,-0.8,0.2],[0,-0.1,0],[0.35,0.4,-0.1],[-0.3,0.5,0.1],[0,1.0,0]].forEach((s,i)=>{
+    const dal=new THREE.Mesh(new THREE.CylinderGeometry(0.17,0.17,0.7,16),new THREE.MeshStandardMaterial({color:0xff6b9d,roughness:.5,emissive:0xff6b9d,emissiveIntensity:0.1}));
+    dal.position.set(s[0],s[1],s[2]);
+    dal.rotation.z=(i%2===0)?0.25:-0.25;
+    kpGrp.add(dal);
+    pickList.push(dal);
+    dal.userData={partKey:'kalp',baseColor:0xff6b9d,flash:0};
+  });
+  kpGrp.position.set(2.4,0,0);
+  shapeGroup.add(kpGrp);
+  addLabel(new THREE.Vector3(-2.4,1.6,0),'cizgili','muscle');
+  addLabel(new THREE.Vector3(0,1.6,0),'duz','cartilage');
+  addLabel(new THREE.Vector3(2.4,1.7,0),'kalp','warning');
+}
+
+function buildSarkomer(){
+  const zMeshes=[];
+  [-2.0,2.0].forEach(x=>{
+    const z=new THREE.Mesh(new THREE.BoxGeometry(0.14,1.7,1.7),new THREE.MeshStandardMaterial({color:0xe8916b,emissive:0xe8916b,emissiveIntensity:0.35,roughness:.5}));
+    z.position.set(x,0,0);
+    addPickable(z,'zCizgisi',0xe8916b);
+    zMeshes.push(z);
+  });
+  const aktinL=new THREE.Group(); aktinL.position.set(-2.0,0,0); shapeGroup.add(aktinL);
+  const aktinR=new THREE.Group(); aktinR.position.set(2.0,0,0); shapeGroup.add(aktinR);
+  const rows=[-0.55,-0.18,0.18,0.55];
+  rows.forEach(y=>{
+    [[aktinL,1],[aktinR,-1]].forEach(([grp,dir])=>{
+      const a=new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.035,1.5,10),new THREE.MeshStandardMaterial({color:0x5fd99a,emissive:0x5fd99a,emissiveIntensity:0.4,roughness:.4}));
+      a.position.set(dir*0.75,y,0);
+      a.rotation.z=Math.PI/2;
+      grp.add(a);
+      a.userData={partKey:'aktin',baseColor:0x5fd99a,flash:0};
+      pickList.push(a);
+    });
+  });
+  rows.forEach(y=>{
+    const m=new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,2.0,14),new THREE.MeshStandardMaterial({color:0xc45d5d,emissive:0xc45d5d,emissiveIntensity:0.35,roughness:.4}));
+    m.position.set(0,y,0);
+    m.rotation.z=Math.PI/2;
+    addPickable(m,'miyozin',0xc45d5d);
+  });
+  animatedItems.push({type:'sarkomerSlide',zL:zMeshes[0],zR:zMeshes[1],aktinL,aktinR,baseZ:2.0});
+  addLabel(new THREE.Vector3(-2.0,1.15,0),'zCizgisi','muscle');
+  addLabel(new THREE.Vector3(0,1.15,0),'miyozin','muscle');
+  addLabel(new THREE.Vector3(-1.0,-1.05,0),'aktin','joint');
+}
+
+function buildKasilmaKimyasi(){
+  const lif=new THREE.Mesh(new THREE.CylinderGeometry(0.6,0.6,3.0,24),new THREE.MeshStandardMaterial({color:0xc45d5d,roughness:.55,transparent:true,opacity:0.7}));
+  lif.rotation.z=Math.PI/2;
+  shapeGroup.add(lif);
+  const akson=new THREE.Mesh(new THREE.SphereGeometry(0.4,20,16),new THREE.MeshStandardMaterial({color:0x9d7fe6,emissive:0x9d7fe6,emissiveIntensity:0.4}));
+  akson.position.set(-2.2,0.8,0);
+  addPickable(akson,'asetilkolin',0x9d7fe6);
+  for(let i=0;i<8;i++){
+    const ca=new THREE.Mesh(new THREE.SphereGeometry(0.10,12,12),new THREE.MeshStandardMaterial({color:0xffd166,emissive:0xffd166,emissiveIntensity:0.7,transparent:true,opacity:0.8}));
+    const a=(i/8)*Math.PI*2;
+    ca.position.set(Math.cos(a)*0.75,Math.sin(a)*0.5,0);
+    addPickable(ca,'kalsiyum',0xffd166);
+    animatedItems.push({mesh:ca,type:'calcium',angle:a});
+  }
+  for(let i=0;i<4;i++){
+    const atp=new THREE.Mesh(new THREE.BoxGeometry(0.18,0.18,0.18),new THREE.MeshStandardMaterial({color:0x5fd99a,emissive:0x5fd99a,emissiveIntensity:0.5}));
+    atp.position.set(-1.0+i*0.6,1.0,0.3);
+    addPickable(atp,'atp',0x5fd99a);
+  }
+  const kf=new THREE.Mesh(new THREE.OctahedronGeometry(0.25),new THREE.MeshStandardMaterial({color:0xff7b54,emissive:0xff7b54,emissiveIntensity:0.5}));
+  kf.position.set(1.5,1.0,0.3);
+  addPickable(kf,'kreatinFosfat',0xff7b54);
+  addLabel(new THREE.Vector3(-2.2,1.5,0),'asetilkolin','cartilage');
+  addLabel(new THREE.Vector3(-1.0,1.6,0),'atp','joint');
+  addLabel(new THREE.Vector3(1.5,1.6,0),'kreatinFosfat','muscle');
+}
+
+function loadOrgan(key){
+  clearShape();
+  current={key,def:ORGAN_DEFS[key]};
+  if(key==='kemikDoku') buildKemikDoku();
+  else if(key==='kemikCesitleri') buildKemikCesitleri();
+  else if(key==='iskeletBolumleri') buildIskeletBolumleri();
+  else if(key==='kikirdak') buildKikirdak();
+  else if(key==='eklem') buildEklem();
+  else if(key==='kasCesitleri') buildKasCesitleri();
+  else if(key==='sarkomer') buildSarkomer();
+  else if(key==='kasilmaKimyasi') buildKasilmaKimyasi();
+
+  if(key==='iskeletBolumleri'){ cam.radius=13; cam.targetY=-1.0; }
+  else if(key==='kemikCesitleri'){ cam.radius=12; cam.targetY=-0.3; }
+  else { cam.radius=10; cam.targetY=-0.3; }
+
+  animPlaying=false; animT=0;
+  document.getElementById('animBtn').classList.remove('off');
+  document.getElementById('animDesc').textContent=ORGAN_DEFS[key].animDesc;
+  document.getElementById('animBtn').querySelector('.row1').innerHTML='<span class="ico">▶️</span><span>Çalıştır</span>';
+
+  loadOverviewTopic();
+  refreshInfo();
+  markVisited(key);
+  updateFavUI();
+}
+
+let currentPages=[], pageIdx=0;
+const infoEmoji=document.getElementById('infoEmoji');
+const infoHead=document.getElementById('infoHead');
+const infoText=document.getElementById('infoText');
+const infoPageEl=document.getElementById('infoPage');
+const navPrev=document.getElementById('navPrev');
+const navNext=document.getElementById('navNext');
+
+function chunkDetailIntoPages(detail){
+  if(!detail||!detail.length) return [];
+  const n=detail.length;
+  let targetPages = n<=2?Math.max(1,n) : n<=3?2 : n<=5?3 : n<=7?4 : n<=9?5 : 6;
+  const pages=[];
+  const perPage=Math.ceil(n/targetPages);
+  for(let i=0;i<n;i+=perPage) pages.push(detail.slice(i,i+perPage).join(' '));
+  return pages;
+}
+
+function loadOverviewTopic(){
+  if(!current) return;
+  const def=current.def;
+  const content=ORGAN_CONTENT[current.key];
+  const descText=content.desc[curLevel]||content.desc[content.desc.length-1];
+  const sentences=descText.split(/(?<=\.)\s+/).filter(s=>s.trim().length>0);
+  const pageCount = sentences.length<=2?1 : sentences.length<=4?2 : 3;
+  const perPage=Math.ceil(sentences.length/pageCount);
+  currentPages=[];
+  for(let i=0;i<sentences.length;i+=perPage){
+    currentPages.push({emoji:def.emoji,head:def.name,text:sentences.slice(i,i+perPage).join(' ')});
+  }
+  if(currentPages.length===0) currentPages=[{emoji:def.emoji,head:def.name,text:descText}];
+  pageIdx=0;
+  applyPage();
+}
+
+function emojiForPart(rowKey){
+  const map={
+    kafatasi:'💀',omurga:'🧬',kaburga:'🫁',sternum:'🛡️',humerus:'💪',femur:'🦵',tibia:'🦵',kalca:'🦴',
+    osteosit:'🔬',ostein:'🧵',havers:'🩸',volkmann:'↔️',lameller:'🪐',kemikIligi:'🩸',
+    uzun:'🦴',kisa:'🧊',yassi:'🛡️',duzensiz:'🧩',
+    hiyalin:'🧊',elastik:'👂',fibroz:'💪',
+    eklemKikirdagi:'🧊',sinovyalSivi:'💧',eklemKapsulu:'🎁',baglar:'🪢',
+    cizgili:'💪',duz:'〰️',kalp:'❤️',
+    zCizgisi:'📏',aktin:'🧵',miyozin:'🧶',
+    asetilkolin:'⚡',kalsiyum:'🟡',atp:'🔋',kreatinFosfat:'🔶'
+  };
+  return map[rowKey]||null;
+}
+
+function loadRowTopic(rowKey){
+  if(!current) return;
+  const content=ORGAN_CONTENT[current.key];
+  let row=null;
+  for(const section of content.info){
+    for(const r of section.rows){ if(r.key===rowKey){ row=r; break; } }
+    if(row) break;
+  }
+  if(!row||!row.detail||!row.detail.length){ showToast('Bu madde için detay yok.'); return; }
+  const def=current.def;
+  const partEmoji=emojiForPart(rowKey)||def.emoji;
+  const pageTexts=chunkDetailIntoPages(row.detail);
+  currentPages=pageTexts.map(text=>({emoji:partEmoji,head:row.text,text:text}));
+  pageIdx=0;
+  applyPage();
+  highlightPart(rowKey);
+}
+
+function highlightPart(rowKey){
+  highlightedKey=rowKey;
+  pickList.forEach(p=>{
+    if(!p.material||!p.material.emissive) return;
+    if(p.userData.partKey===rowKey){
+      p.material.emissive.setHex(0xffd166);
+      p.material.emissiveIntensity=0.85;
+      p.userData.highlighted=true;
+    } else {
+      if(p.userData.flash<=0){
+        p.material.emissive.setHex(0x000000);
+        p.material.emissiveIntensity=0;
+      }
+      p.userData.highlighted=false;
+    }
+  });
+}
+
+function applyPage(){
+  if(!currentPages.length) return;
+  pageIdx=Math.max(0,Math.min(currentPages.length-1,pageIdx));
+  const p=currentPages[pageIdx];
+  infoEmoji.textContent=p.emoji;
+  infoHead.textContent=p.head;
+  infoText.innerHTML=p.text;
+  if(currentPages.length>1) infoPageEl.innerHTML=`<span class="pg-active">${pageIdx+1}</span> / ${currentPages.length} sayfa`;
+  else infoPageEl.innerHTML='<span style="opacity:0.7">Tek sayfa</span>';
+  navPrev.disabled=(pageIdx===0);
+  navNext.disabled=(pageIdx===currentPages.length-1);
+}
+
+navPrev.addEventListener('click',()=>{ if(pageIdx>0){pageIdx--; applyPage();} });
+navNext.addEventListener('click',()=>{ if(pageIdx<currentPages.length-1){pageIdx++; applyPage();} });
+
+function refreshInfo(){
+  const panel=document.getElementById('infoPanel');
+  if(!current){panel.innerHTML=''; return;}
+  const content=ORGAN_CONTENT[current.key];
+  if(!content){panel.innerHTML='<div class="i-head">Bilgi yok</div>'; return;}
+  let html=`<div class="i-head" id="infoHeadToggle">
+    <span class="i-head-txt">📚 ${current.def.name}</span>
+    <span class="i-head-arrow">${infoPanelCollapsed?'▸':'▾'}</span>
+  </div>`;
+  html+=`<div class="i-body" id="infoBody" style="display:${infoPanelCollapsed?'none':'block'}">`;
+  content.info.forEach(section=>{
+    if(curLevel<section.minLevel) return;
+    html+='<div class="i-section">';
+    html+='<div class="i-stitle">'+section.title+'</div>';
+    section.rows.forEach(row=>{
+      const pe=emojiForPart(row.key);
+      const tagHtml=pe?`<span class="i-emoji">${pe}</span>`:(row.tag?`<span class="i-tag" style="background:${row.tagcolor||'#e89752'}">${row.tag}</span>`:'');
+      html+=`<div class="i-row" data-key="${row.key}">${tagHtml}<span>${row.text}</span></div>`;
+    });
+    html+='</div>';
+  });
+  html+='</div>';
+  panel.innerHTML=html;
+  const headToggle=document.getElementById('infoHeadToggle');
+  if(headToggle){
+    headToggle.addEventListener('click',()=>{
+      infoPanelCollapsed=!infoPanelCollapsed;
+      const body=document.getElementById('infoBody');
+      const arr=headToggle.querySelector('.i-head-arrow');
+      if(body) body.style.display=infoPanelCollapsed?'none':'block';
+      if(arr) arr.textContent=infoPanelCollapsed?'▸':'▾';
+    });
+  }
+  panel.querySelectorAll('.i-row[data-key]').forEach(row=>{
+    row.addEventListener('click',()=>{ infoPanelCollapsed=true; loadRowTopic(row.dataset.key); });
+  });
+}
+
+const cam={theta:0.6,phi:1.15,radius:10,targetY:-0.3};
+const LOOK_OFFSET_X=1.6;
+let dragging=false,lastX=0,lastY=0,pinch=0;
+function P(e){return e.touches?e.touches[0]:e;}
+function tDist(e){
+  const dx=e.touches[0].clientX-e.touches[1].clientX;
+  const dy=e.touches[0].clientY-e.touches[1].clientY;
+  return Math.hypot(dx,dy);
+}
+function down(e){
+  const p=P(e); lastX=p.clientX; lastY=p.clientY; dragging=true;
+  if(e.touches&&e.touches.length===2) pinch=tDist(e);
+}
+function move(e){
+  if(!dragging) return;
+  if(e.touches&&e.touches.length===2){
+    const nd=tDist(e); if(pinch>0) cam.radius=Math.max(5,Math.min(22,cam.radius*pinch/nd));
+    pinch=nd; return;
+  }
+  const p=P(e);
+  const dx=(p.clientX-lastX)*0.01, dy=(p.clientY-lastY)*0.01;
+  cam.theta-=dx;
+  cam.phi=Math.max(0.2,Math.min(Math.PI-0.2,cam.phi-dy));
+  lastX=p.clientX; lastY=p.clientY;
+  autoSpin=false; document.getElementById('spinBtn').classList.add('off');
+}
+function up(){dragging=false; pinch=0;}
+cv.addEventListener('mousedown',down);
+cv.addEventListener('mousemove',move);
+window.addEventListener('mouseup',up);
+cv.addEventListener('touchstart',down,{passive:false});
+cv.addEventListener('touchmove',e=>{e.preventDefault();move(e);},{passive:false});
+cv.addEventListener('touchend',up);
+cv.addEventListener('wheel',e=>{e.preventDefault();cam.radius=Math.max(5,Math.min(22,cam.radius+e.deltaY*0.01));},{passive:false});
+
+const raycaster=new THREE.Raycaster();
+const ndc=new THREE.Vector2();
+let downX=0,downY=0,downT=0;
+cv.addEventListener('pointerdown',e=>{downX=e.clientX; downY=e.clientY; downT=performance.now();});
+cv.addEventListener('pointerup',e=>{
+  if(Math.hypot(e.clientX-downX,e.clientY-downY)>8) return;
+  if(performance.now()-downT>500) return;
+  ndc.x=(e.clientX/innerWidth)*2-1;
+  ndc.y=-(e.clientY/innerHeight)*2+1;
+  raycaster.setFromCamera(ndc,camera);
+  const hit=raycaster.intersectObjects(pickList,false)[0];
+  if(hit&&hit.object.userData.partKey){
+    const partKey=hit.object.userData.partKey;
+    const part=ORGAN_CONTENT[current.key]&&ORGAN_CONTENT[current.key].parts[partKey];
+    if(part){
+      showToast(`<b>${part.name}</b><br>${part.job}`);
+      loadRowTopic(partKey);
+      if(hit.object.material&&hit.object.material.emissive){
+        hit.object.material.emissive=new THREE.Color(hit.object.userData.baseColor||0xffffff);
+        hit.object.material.emissiveIntensity=0.8;
+        hit.object.userData.flash=1;
+      }
+    }
+  }
+});
+
+const toastEl=document.getElementById('toast');
+let toastTimer=null;
+function showToast(msg){
+  toastEl.innerHTML=msg;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>toastEl.classList.remove('show'),3500);
+}
+
+const organPanel=document.getElementById('organPanel');
+const organTab=document.getElementById('organTab');
+const levelBadge=document.getElementById('levelBadge');
+const levelPanel=document.getElementById('levelPanel');
+const levelList=document.getElementById('levelList');
+const spinBtn=document.getElementById('spinBtn');
+const labelBtn=document.getElementById('labelBtn');
+const animBtn=document.getElementById('animBtn');
+
+(function(){
+  const catsArr=Object.entries(CATS).sort((a,b)=>a[1].order-b[1].order);
+  catsArr.forEach(([catKey,catInfo])=>{
+    const head=document.createElement('div');
+    head.className='organ-cat';
+    head.textContent=catInfo.label;
+    organPanel.appendChild(head);
+    ORGAN_ORDER.filter(k=>ORGAN_DEFS[k].cat===catKey).forEach(key=>{
+      const def=ORGAN_DEFS[key];
+      const it=document.createElement('button');
+      it.className='organ-item';
+      it.dataset.key=key;
+      it.innerHTML=`<span class="oico">${def.emoji}</span><span>${def.name}</span>`;
+      it.addEventListener('click',()=>selectOrgan(key));
+      organPanel.appendChild(it);
+    });
+  });
+})();
+
+function selectOrgan(key){
+  loadOrgan(key);
+  document.querySelectorAll('.organ-item').forEach(it=>it.classList.toggle('active',it.dataset.key===key));
+  organPanel.classList.remove('show');
+  organTab.classList.remove('active');
+}
+
+organTab.addEventListener('click',function(){
+  const open=organPanel.classList.toggle('show');
+  this.classList.toggle('active',open);
+  levelPanel.classList.remove('show');
+});
+
+LEVELS.forEach(lv=>{
+  const b=document.createElement('button');
+  b.className='level-item';
+  b.dataset.idx=lv.idx;
+  b.innerHTML=`<span class="lemoji">${lv.emoji}</span><span class="lname">${lv.name}</span><span class="ldesc">${lv.desc}</span>`;
+  b.addEventListener('click',()=>setLevel(lv.idx));
+  levelList.appendChild(b);
+});
+
+function setLevel(idx){
+  curLevel=idx;
+  document.querySelectorAll('.level-item').forEach(li=>li.classList.toggle('active',parseInt(li.dataset.idx)===idx));
+  document.getElementById('levelEmoji').textContent=LEVELS[idx].emoji;
+  document.getElementById('levelName').textContent=LEVELS[idx].name;
+  levelPanel.classList.remove('show');
+  refreshInfo();
+  if(current) loadOverviewTopic();
+}
+
+levelBadge.addEventListener('click',()=>{
+  const open=levelPanel.classList.toggle('show');
+  if(open){ organPanel.classList.remove('show'); organTab.classList.remove('active'); }
+});
+
+spinBtn.addEventListener('click',()=>{
+  autoSpin=!autoSpin;
+  spinBtn.classList.toggle('off',!autoSpin);
+});
+
+labelBtn.addEventListener('click',()=>{
+  labelsVisible=!labelsVisible;
+  labelBtn.classList.toggle('off',!labelsVisible);
+});
+
+animBtn.addEventListener('click',()=>{
+  animPlaying=!animPlaying;
+  if(animPlaying){
+    animT=0;
+    animBtn.querySelector('.row1').innerHTML='<span class="ico">⏸️</span><span>Durdur</span>';
+    animBtn.classList.remove('off');
+  } else {
+    animT=0;
+    animBtn.querySelector('.row1').innerHTML='<span class="ico">▶️</span><span>Çalıştır</span>';
+    animBtn.classList.add('off');
+    animatedItems.forEach(it=>{
+      if(it.type==='sarkomerSlide'){
+        it.zL.position.x=-it.baseZ; it.zR.position.x=it.baseZ;
+        it.aktinL.position.x=-it.baseZ; it.aktinR.position.x=it.baseZ;
+      }
+      if(it.type==='jointBend'){ it.mesh.rotation.x=0; it.mesh.position.y=it.baseY; }
+    });
+  }
+});
+
+document.getElementById('resetBtn').addEventListener('click',()=>{
+  setLevel(2);
+  selectOrgan('kemikDoku');
+  cam.theta=0.6; cam.phi=1.15; cam.radius=10; cam.targetY=-0.3;
+  autoSpin=true; spinBtn.classList.remove('off');
+  showToast('↺ Her şey başa alındı.');
+});
+
+const visitedTopics=new Set();
+function markVisited(key){
+  visitedTopics.add(key);
+  const total=ORGAN_ORDER.length;
+  const done=visitedTopics.size;
+  const pct=Math.round((done/total)*100);
+  const fill=document.getElementById('progressFill');
+  const txt=document.getElementById('progressTxt');
+  if(fill) fill.style.width=pct+'%';
+  if(txt) txt.textContent=`${done}/${total} konu`;
+}
+
+const favorites=new Map();
+function toggleFav(){
+  if(!current) return;
+  const key=current.key;
+  if(favorites.has(key)){
+    favorites.delete(key);
+    showToast('☆ Favorilerden çıkarıldı.');
+  } else {
+    favorites.set(key,{organKey:key,name:current.def.name,emoji:current.def.emoji});
+    showToast(`⭐ <b>${current.def.name}</b> favorilere eklendi!`);
+  }
+  updateFavUI();
+}
+function updateFavUI(){
+  const favBtn=document.getElementById('favBtn');
+  const favCount=document.getElementById('favCount');
+  if(favBtn){
+    const on=current&&favorites.has(current.key);
+    favBtn.textContent=on?'★':'☆';
+    favBtn.classList.toggle('active',!!on);
+  }
+  if(favCount) favCount.textContent=favorites.size;
+}
+function renderFavList(){
+  const list=document.getElementById('favList');
+  if(!list) return;
+  if(favorites.size===0){
+    list.innerHTML='<div class="fav-empty">Henüz favori yok.</div>';
+    return;
+  }
+  let html='';
+  favorites.forEach((v,k)=>{
+    html+=`<div class="fav-item" data-key="${k}">
+      <span class="fav-emoji">${v.emoji}</span><span>${v.name}</span>
+      <button class="fav-rm" data-rm="${k}">🗑️</button>
+    </div>`;
+  });
+  list.innerHTML=html;
+  list.querySelectorAll('.fav-item').forEach(it=>{
+    it.addEventListener('click',e=>{
+      if(e.target.classList.contains('fav-rm')) return;
+      selectOrgan(it.dataset.key);
+      document.getElementById('favOverlay').classList.remove('show');
+    });
+  });
+  list.querySelectorAll('.fav-rm').forEach(b=>{
+    b.addEventListener('click',()=>{ favorites.delete(b.dataset.rm); updateFavUI(); renderFavList(); });
+  });
+}
+document.getElementById('favBtn').addEventListener('click',toggleFav);
+document.getElementById('favListBtn').addEventListener('click',()=>{
+  renderFavList();
+  document.getElementById('favOverlay').classList.add('show');
+});
+document.getElementById('favClose').addEventListener('click',()=>{
+  document.getElementById('favOverlay').classList.remove('show');
+});
+document.getElementById('favOverlay').addEventListener('click',e=>{
+  if(e.target.id==='favOverlay') e.currentTarget.classList.remove('show');
+});
+
+const userBtn=document.getElementById('userBtn');
+const userNameEl=document.getElementById('userName');
+function setUserName(name){
+  userDisplayName=(name||'').trim().slice(0,24);
+  userNameEl.textContent=userDisplayName||'Adın';
+}
+userBtn.addEventListener('click',()=>{
+  const name=prompt('Adını gir (paylaşımda görünür):',userDisplayName);
+  if(name!==null) setUserName(name);
+});
+
+let shareCanvas=null;
+const shareOverlay=document.getElementById('shareOverlay');
+function shareFileName(){
+  return (userDisplayName?userDisplayName.replace(/\s+/g,'_')+'-':'')+(current?current.def.name.replace(/\s+/g,'_'):'destek')+'-3d.png';
+}
+function shareText(){
+  return `${current?current.def.name:'Destek-Hareket'} · Qualsar 3D Anatomi`+(userDisplayName?` — ${userDisplayName}`:'');
+}
+
+async function captureFullScreen(){
+  renderer.render(scene,camera);
+  let glDataURL=null;
+  try{ glDataURL=renderer.domElement.toDataURL('image/png'); }catch(e){}
+  const app=document.getElementById('app');
+  if(typeof html2canvas!=='function'||!glDataURL){
+    const c=document.createElement('canvas');
+    c.width=renderer.domElement.width; c.height=renderer.domElement.height;
+    c.getContext('2d').drawImage(renderer.domElement,0,0);
+    return c;
+  }
+  try{
+    return await html2canvas(app,{
+      backgroundColor:darkTheme?'#0a0e1a':'#eef1f8',
+      scale:Math.min(window.devicePixelRatio||1,2),
+      logging:false,
+      useCORS:true,
+      ignoreElements:(el)=>el.classList&&(el.classList.contains('share-overlay')||el.classList.contains('toast')),
+      onclone:(doc)=>{
+        const cv2=doc.querySelector('#app canvas');
+        if(cv2&&glDataURL){
+          const img=doc.createElement('img');
+          img.src=glDataURL;
+          img.style.cssText=cv2.style.cssText+';width:'+cv2.clientWidth+'px;height:'+cv2.clientHeight+'px;display:block;position:absolute;top:0;left:0;';
+          cv2.parentNode.replaceChild(img,cv2);
+        }
+      }
+    });
+  }catch(e){
+    const c=document.createElement('canvas');
+    c.width=renderer.domElement.width; c.height=renderer.domElement.height;
+    c.getContext('2d').drawImage(renderer.domElement,0,0);
+    return c;
+  }
+}
+
+document.getElementById('shotBtn').addEventListener('click',async()=>{
+  showToast('📸 Ekran hazırlanıyor...');
+  try{
+    shareCanvas=await captureFullScreen();
+    document.getElementById('sharePreview').src=shareCanvas.toDataURL('image/png');
+    shareOverlay.classList.add('show');
+  }catch(e){ showToast('⚠️ Ekran görüntüsü alınamadı.'); }
+});
+document.getElementById('shareClose').addEventListener('click',()=>shareOverlay.classList.remove('show'));
+shareOverlay.addEventListener('click',e=>{ if(e.target.id==='shareOverlay') shareOverlay.classList.remove('show'); });
+
+function canvasToFile(cb){
+  if(!shareCanvas){ cb(null); return; }
+  shareCanvas.toBlob(blob=>{
+    if(!blob){ cb(null); return; }
+    try{ cb(new File([blob],shareFileName(),{type:'image/png'}),blob); }
+    catch(e){ cb(null,blob); }
+  },'image/png');
+}
+
+// Flutter WebView'de navigator.share yoktur; varsa Flutter köprüsüyle
+// native paylaşım sayfasını açarız.
+function shareViaFlutter(){
+  if(!shareCanvas) return false;
+  if(window.FlutterShare&&typeof window.FlutterShare.postMessage==='function'){
+    try{
+      window.FlutterShare.postMessage(JSON.stringify({
+        image:shareCanvas.toDataURL('image/png'),
+        text:shareText(),
+        file:shareFileName()
+      }));
+      shareOverlay.classList.remove('show');
+      return true;
+    }catch(e){}
+  }
+  return false;
+}
+
+document.getElementById('shareNative').addEventListener('click',()=>{
+  if(shareViaFlutter()) return;
+  canvasToFile(async(file)=>{
+    if(file&&navigator.canShare&&navigator.canShare({files:[file]})){
+      try{ await navigator.share({files:[file],title:'Qualsar 3D',text:shareText()}); shareOverlay.classList.remove('show'); return; }
+      catch(e){ if(e.name==='AbortError') return; }
+    }
+    if(navigator.share){
+      try{ await navigator.share({title:'Qualsar 3D',text:shareText()}); shareOverlay.classList.remove('show'); return; }
+      catch(e){ if(e.name==='AbortError') return; }
+    }
+    downloadShareImage();
+  });
+});
+document.getElementById('shareSocial').addEventListener('click',()=>{ document.getElementById('shareNative').click(); });
+document.getElementById('shareDownload').addEventListener('click',()=>{ if(!shareViaFlutter()) downloadShareImage(); });
+
+function downloadShareImage(){
+  if(!shareCanvas) return;
+  shareCanvas.toBlob(blob=>{
+    if(!blob) return;
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=shareFileName();
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),1500);
+    showToast('💾 Kaydedildi!');
+  },'image/png');
+}
+
+const themeBtn=document.getElementById('themeBtn');
+
+/* KARŞILAŞTIRMA MODU */
+const COMPARE_DATA={
+  kemikKikirdak:{ title:'⚖️ Kemik vs Kıkırdak', cols:['Kemik','Kıkırdak'], rows:[
+    ['Sertlik','Sert (kalsiyumlu)','Esnek (kalsiyumsuz)'],
+    ['Kan damarı','Var','Yok (difüzyonla beslenir)'],
+    ['Hücre','Osteosit','Kondrosit'],
+    ['Ara madde','Kalsiyum tuzları + kollajen','Kondrin (esnek)'],
+    ['Onarım','Hızlı','Yavaş'],
+    ['Örnek','Uzuv kemikleri','Kulak, burun ucu, eklem yüzeyi']
+  ]},
+  kemikCesit:{ title:'🦴 Kemik Çeşitleri', cols:['Tip','Özellik','Örnek'], rows:[
+    ['Uzun kemik','Boyu eninden uzun','Kol, bacak (femur)'],
+    ['Kısa kemik','Boy ≈ en','El/ayak bileği'],
+    ['Yassı kemik','İnce, yaprak gibi','Kafatası, kürek, kaburga'],
+    ['Düzensiz kemik','Belirsiz şekil','Omur, çene']
+  ]},
+  iskeletBolum:{ title:'🦴 İskeletin Bölümleri', cols:['Eksen İskelet','Üye İskelet'], rows:[
+    ['Konum','Vücudun ekseni (orta)','Kollar + bacaklar'],
+    ['İçerir','Kafatası, omurga, göğüs kafesi','Kol/bacak + kemerler'],
+    ['Görev','Koruma + destek','Hareket']
+  ]},
+  eklemTipleri:{ title:'⚖️ Eklem Tipleri', cols:['Oynamaz','Yarı Oynar','Oynar'], rows:[
+    ['Hareket','Yok','Çok az','Serbest'],
+    ['Yapı','Kaynaşmış kemik','Kıkırdak yastık','Kapsül + eklem sıvısı'],
+    ['Örnek','Kafatası dikişleri','Omurlar arası','Diz, omuz, dirsek']
+  ]},
+  kasTipleri:{ title:'⚖️ Kas Çeşitleri', cols:['Çizgili (İskelet)','Düz Kas','Kalp Kası'], rows:[
+    ['Çalışma','İstemli','İstemsiz','İstemsiz'],
+    ['Çizgilenme','Var','Yok','Var'],
+    ['Çekirdek','Çok, kenarda','Tek, ortada','Tek-iki, ortada'],
+    ['Konum','İskelete bağlı','İç organ duvarı','Sadece kalp'],
+    ['Yorulma','Çabuk','Geç','Yorulmaz']
+  ]},
+  kasilmaEvre:{ title:'🧬 Kasılma Mekanizması', cols:['Yapı / Olay','Açıklama'], rows:[
+    ['Sarkomer','İki Z çizgisi arası — kasılmanın birimi'],
+    ['Aktin','İnce flament'],
+    ['Miyozin','Kalın flament (baş kısmı aktine tutunur)'],
+    ['Kasılma','Aktin, miyozin üzerinde kayar → sarkomer kısalır'],
+    ['Enerji','ATP + kalsiyum (Ca²⁺) gerekir'],
+    ['Gevşeme','Ca²⁺ geri çekilir, bağ ATP ile çözülür']
+  ]}
+};
+const COMPARE_MAP={
+  kemikDoku:['kemikKikirdak','kemikCesit','iskeletBolum'],
+  kemikCesitleri:['kemikCesit','iskeletBolum','kemikKikirdak'],
+  iskeletBolumleri:['iskeletBolum','kemikCesit','eklemTipleri'],
+  kikirdak:['kemikKikirdak','eklemTipleri'],
+  eklem:['eklemTipleri','iskeletBolum','kemikKikirdak'],
+  kasCesitleri:['kasTipleri','kasilmaEvre'],
+  sarkomer:['kasilmaEvre','kasTipleri'],
+  kasilmaKimyasi:['kasilmaEvre','kasTipleri']
+};
+let currentCompareIndex = 0;
+let currentCompareKeys = [];
+function compareTablesFor(key){ return (COMPARE_MAP[key] || []).map(k => COMPARE_DATA[k]).filter(Boolean); }
+function compareTableFor(key){ const arr = compareTablesFor(key); return arr[0] || null; }
+function renderCompareTable(){
+  const d = currentCompareKeys[currentCompareIndex];
+  if(!d) return;
+  const total = currentCompareKeys.length;
+  const counter = total > 1 ? ` <span class="compare-counter">(${currentCompareIndex+1}/${total})</span>` : '';
+  document.getElementById('compareTitle').innerHTML = d.title + counter;
+  let html='<table class="compare-table"><thead><tr><th>Özellik</th>';
+  d.cols.forEach(c=>html+=`<th>${c}</th>`);
+  html+='</tr></thead><tbody>';
+  d.rows.forEach(r=>{
+    html+='<tr>';
+    r.forEach((cell,i)=>html+=`<td>${cell}</td>`);
+    html+='</tr>';
+  });
+  html+='</tbody></table>';
+  document.getElementById('compareBody').innerHTML=html;
+  const nextBtn = document.getElementById('compareNextBtn');
+  if(nextBtn){
+    if(total > 1){
+      nextBtn.style.display = 'flex';
+      const nextIdx = (currentCompareIndex + 1) % total;
+      const nextTitle = currentCompareKeys[nextIdx].title.replace(/[⚖️🏭🧬⚡🚪🦴🫀🫁🧠🍽️🌱🐾🌿]+\s*/g, '');
+      nextBtn.innerHTML = `<span>Sonraki:</span> <b>${nextTitle}</b> <span>→</span>`;
+    } else { nextBtn.style.display = 'none'; }
+  }
+}
+function openCompare(){
+  if(!current) return;
+  currentCompareKeys = compareTablesFor(current.key);
+  if(currentCompareKeys.length === 0){ showToast('Bu konu için karşılaştırma yok.'); return; }
+  currentCompareIndex = 0;
+  renderCompareTable();
+  document.getElementById('compareOverlay').classList.add('show');
+}
+document.getElementById('compareBtn').addEventListener('click',openCompare);
+document.getElementById('compareClose').addEventListener('click',()=>{ document.getElementById('compareOverlay').classList.remove('show'); });
+document.getElementById('compareOverlay').addEventListener('click',e=>{ if(e.target.id==='compareOverlay') e.currentTarget.classList.remove('show'); });
+document.getElementById('compareNextBtn').addEventListener('click',()=>{
+  if(currentCompareKeys.length <= 1) return;
+  currentCompareIndex = (currentCompareIndex + 1) % currentCompareKeys.length;
+  renderCompareTable();
+  document.getElementById('compareBody').parentElement.scrollTop = 0;
+});
+
+function applyTheme(){
+  const root=document.documentElement;
+  if(darkTheme){
+    root.style.setProperty('--bg','#0a0e1a');
+    root.style.setProperty('--panel','#161b2e');
+    root.style.setProperty('--panel-soft','#1f2540');
+    root.style.setProperty('--panel-line','#2f3a5f');
+    root.style.setProperty('--ink','#eef0ff');
+    root.style.setProperty('--ink-soft','#a8b0d0');
+    scene.background=new THREE.Color(0x0a0e1a);
+    themeBtn.textContent='🌙';
+  } else {
+    root.style.setProperty('--bg','#eef1f8');
+    root.style.setProperty('--panel','#ffffff');
+    root.style.setProperty('--panel-soft','#f0f3fa');
+    root.style.setProperty('--panel-line','#d2d9ec');
+    root.style.setProperty('--ink','#1a2038');
+    root.style.setProperty('--ink-soft','#6a7290');
+    scene.background=new THREE.Color(0xeef1f8);
+    themeBtn.textContent='☀️';
+  }
+}
+themeBtn.addEventListener('click',()=>{ darkTheme=!darkTheme; applyTheme(); });
+
+document.getElementById('fsBtn').addEventListener('click',()=>{
+  const el=document.documentElement;
+  try{
+    if(!document.fullscreenElement&&!document.webkitFullscreenElement){
+      const req=el.requestFullscreen||el.webkitRequestFullscreen;
+      if(req) req.call(el);
+    } else {
+      const ex=document.exitFullscreen||document.webkitExitFullscreen;
+      if(ex) ex.call(document);
+    }
+  }catch(e){}
+});
+
+const tmpV=new THREE.Vector3(), tmpW=new THREE.Vector3(), tmpC=new THREE.Vector3();
+function updateLabels(){
+  tmpC.set(0,0,0); shapeGroup.localToWorld(tmpC);
+  const dCenter=camera.position.distanceTo(tmpC);
+  labelAnchors.forEach(a=>{
+    if(!labelsVisible){a.elM.style.display='none'; return;}
+    tmpW.copy(a.pos); shapeGroup.localToWorld(tmpW);
+    const dLabel=camera.position.distanceTo(tmpW);
+    if(dLabel>dCenter+0.8){a.elM.style.display='none'; return;}
+    tmpV.copy(tmpW); tmpV.project(camera);
+    if(tmpV.z>=1){a.elM.style.display='none'; return;}
+    a.elM.style.display='block';
+    a.elM.style.left=((tmpV.x*0.5+0.5)*innerWidth)+'px';
+    a.elM.style.top=((-tmpV.y*0.5+0.5)*innerHeight)+'px';
+  });
+}
+
+function updateAnimations(dt){
+  if(!animPlaying) return;
+  animT+=dt;
+  if(animT>1) animT=0;
+  const key=current?.key;
+
+  if(key==='eklem'){
+    const bend=Math.sin(animT*Math.PI*2)*0.35;
+    animatedItems.forEach(it=>{
+      if(it.type==='jointBend'){
+        it.mesh.rotation.x=bend;
+        it.mesh.position.y=it.baseY+Math.abs(bend)*0.15;
+      }
+    });
+  }
+  if(key==='sarkomer'){
+    const contract=(Math.sin(animT*Math.PI*2-Math.PI/2)*0.5+0.5)*0.55;
+    animatedItems.forEach(it=>{
+      if(it.type==='sarkomerSlide'){
+        const x=it.baseZ-contract;
+        it.zL.position.x=-x; it.zR.position.x=x;
+        it.aktinL.position.x=-x; it.aktinR.position.x=x;
+      }
+    });
+  }
+  if(key==='kasilmaKimyasi'){
+    animatedItems.forEach(it=>{
+      if(it.type==='calcium'){
+        const spread=0.3+animT*0.8;
+        it.mesh.position.x=Math.cos(it.angle)*0.75*spread;
+        it.mesh.position.y=Math.sin(it.angle)*0.5*spread;
+      }
+    });
+  }
+  const seqMaps={kemikCesitleri:['uzun','kisa','yassi','duzensiz'],kikirdak:['hiyalin','elastik','fibroz'],kasCesitleri:['cizgili','duz','kalp']};
+  if(seqMaps[key]){
+    const order=seqMaps[key];
+    const phase=1.0/order.length;
+    const active=order[Math.floor(animT/phase)];
+    pickList.forEach(p=>{
+      if(!p.material||!p.material.emissive) return;
+      if(p.userData.flash>0) return;
+      if(order.includes(p.userData.partKey)){
+        if(p.userData.partKey===active){
+          p.material.emissive.setHex(p.userData.baseColor||0xffd166);
+          p.material.emissiveIntensity=0.6;
+        } else {
+          p.material.emissive.setHex(0x000000);
+          p.material.emissiveIntensity=0;
+        }
+      }
+    });
+  }
+}
+
+let lastTime=performance.now();
+function tick(){
+  requestAnimationFrame(tick);
+  const now=performance.now();
+  const dt=(now-lastTime)/1000;
+  lastTime=now;
+
+  if(autoSpin&&!dragging) shapeGroup.rotation.y+=0.006;
+
+  pickList.forEach(p=>{
+    if(p.userData.flash>0){
+      p.userData.flash-=0.03;
+      if(p.userData.flash<=0&&p.material&&p.material.emissive){
+        if(p.userData.highlighted){
+          p.material.emissive.setHex(0xffd166);
+          p.material.emissiveIntensity=0.85;
+        } else {
+          p.material.emissive.setHex(0x000000);
+          p.material.emissiveIntensity=0;
+        }
+      }
+    }
+  });
+  if(highlightedKey){
+    const pulse=0.7+Math.sin(performance.now()*0.005)*0.25;
+    pickList.forEach(p=>{
+      if(p.userData.highlighted&&p.userData.flash<=0&&p.material&&p.material.emissive){
+        p.material.emissiveIntensity=pulse;
+      }
+    });
+  }
+
+  updateAnimations(dt*0.4);
+
+  const r=cam.radius;
+  camera.position.set(
+    r*Math.sin(cam.phi)*Math.sin(cam.theta)+LOOK_OFFSET_X,
+    r*Math.cos(cam.phi)+0.5+cam.targetY,
+    r*Math.sin(cam.phi)*Math.cos(cam.theta)
+  );
+  camera.lookAt(LOOK_OFFSET_X,cam.targetY,0);
+
+  updateLabels();
+  renderer.render(scene,camera);
+}
+
+setLevel(2);
+selectOrgan('kemikDoku');
+tick();
+
+addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>

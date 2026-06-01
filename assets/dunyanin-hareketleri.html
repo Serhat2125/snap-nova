@@ -1,0 +1,2914 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Dünya'nın Hareketleri — 3D Eğitim Modülü</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Baloo+2:wght@500;600;700;800&display=swap');
+
+  :root {
+    --space-deep:#070b22; --space-mid:#101740;
+    --sun-gold:#ffb627; --sun-glow:#ff8c1a;
+    --panel:#161d49; --panel-light:#232c63; --panel-line:#2e3878;
+    --ink:#fff4dc; --ink-dim:#b9c2ee;
+    --accent-pink:#ff6b9d; --accent-green:#5fd99a; --accent-cyan:#4fd6e0;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body {
+    height:100%; overflow:hidden;
+    font-family:'Fredoka',sans-serif;
+    background:var(--space-deep); color:var(--ink);
+    user-select:none;
+  }
+  #app { position:relative; width:100vw; height:100vh; }
+  canvas { display:block; touch-action:none; }
+
+  .topbar {
+    position:absolute; top:0; left:0; right:0;
+    display:flex; align-items:center; gap:8px;
+    padding:12px 14px 8px;
+    background:linear-gradient(180deg,rgba(7,11,34,0.96),rgba(7,11,34,0.4) 70%,transparent);
+    z-index:20;
+  }
+  .badge {
+    font-family:'Baloo 2',cursive; font-weight:800; font-size:12px;
+    letter-spacing:.5px; background:var(--sun-gold); color:var(--space-deep);
+    padding:6px 11px; border-radius:20px; flex-shrink:0;
+  }
+  .level-badge {
+    margin-left:auto;
+    border:none; cursor:pointer;
+    transition:transform .12s ease, filter .2s ease;
+  }
+  .level-badge:active { transform:scale(.95); }
+  .level-badge:hover { filter:brightness(1.08); }
+
+  .level-panel {
+    position:absolute; top:46px; right:16px;
+    width:min(290px,80vw);
+    background:var(--panel); border:2px solid var(--sun-gold);
+    border-radius:16px; padding:12px; z-index:30;
+    box-shadow:0 18px 44px rgba(0,0,0,.7);
+    display:none; animation:slideIn .22s ease;
+  }
+  .level-panel.show { display:block; }
+  .level-title {
+    font-family:'Baloo 2',cursive; font-weight:800; font-size:14px;
+    color:var(--sun-gold); padding:0 2px;
+  }
+  .level-sub {
+    font-size:11px; color:var(--ink-dim); margin:2px 2px 9px;
+  }
+  .level-list { display:flex; flex-direction:column; gap:6px; }
+  .level-item {
+    display:flex; align-items:center; gap:9px;
+    width:100%; text-align:left; cursor:pointer;
+    font-family:'Fredoka',sans-serif; font-weight:600; font-size:13.5px;
+    color:var(--ink); background:var(--panel-light);
+    border:2px solid transparent; border-radius:12px;
+    padding:10px 11px; transition:all .15s ease;
+  }
+  .level-item:active { transform:scale(.97); }
+  .level-item.active { border-color:var(--sun-gold); background:var(--panel-line); }
+  .level-item .lemoji {
+    font-size:20px; flex-shrink:0;
+    width:34px; height:34px; display:grid; place-items:center;
+    background:var(--panel); border-radius:9px;
+  }
+  .level-item .ltext { flex:1; }
+  .level-item .lname { font-weight:700; }
+  .level-item .ldesc { font-size:10.5px; color:var(--ink-dim); }
+
+  /* SEÇ MENÜSÜ — sağ üstteki "Seç ▾" dropdown'u */
+  .view-menu-badge {
+    background:linear-gradient(135deg,#c5a3ff,#9b7fe0);
+    color:var(--space-deep);
+    border:none; cursor:pointer;
+    transition:transform .12s ease, filter .2s ease;
+  }
+  .view-menu-badge:active { transform:scale(.95); }
+  .view-menu-badge:hover { filter:brightness(1.08); }
+  .view-menu {
+    position:absolute; top:46px; left:16px;
+    width:min(240px,72vw);
+    background:var(--panel); border:2px solid #c5a3ff;
+    border-radius:16px; padding:10px; z-index:30;
+    box-shadow:0 18px 44px rgba(0,0,0,.7);
+    display:none; animation:slideIn .22s ease;
+  }
+  .view-menu.show { display:block; }
+  .view-item {
+    display:flex; align-items:center; gap:9px;
+    width:100%; text-align:left; cursor:pointer;
+    font-family:'Fredoka',sans-serif; font-weight:600; font-size:13.5px;
+    color:var(--ink); background:var(--panel-light);
+    border:2px solid transparent; border-radius:11px;
+    padding:10px 11px; margin-bottom:6px; transition:all .15s ease;
+  }
+  .view-item:last-child { margin-bottom:0; }
+  .view-item:active { transform:scale(.97); }
+  .view-item.active {
+    border-color:#c5a3ff; background:var(--panel-line);
+  }
+  .view-item .vico { font-size:18px; flex-shrink:0; }
+
+  /* NASIL ÇALIŞIR — sağ üstteki "?" yardım butonu */
+  .help-badge {
+    background:linear-gradient(135deg,#5fd99a,#3ab37a);
+    color:var(--space-deep);
+    border:none; cursor:pointer;
+    transition:transform .12s ease, filter .2s ease;
+    min-width:30px; padding:6px 11px;
+    font-size:15px; font-weight:900;
+  }
+  .help-badge:active { transform:scale(.95); }
+  .help-badge:hover { filter:brightness(1.08); }
+  .help-panel {
+    position:absolute; top:46px; left:16px;
+    width:min(360px,84vw);
+    max-height:calc(100vh - 120px);
+    background:#f3f4f6; /* soluk beyaz arka plan */
+    color:#1a1a1a;
+    border:2px solid #5fd99a;
+    border-radius:16px; padding:14px; z-index:30;
+    box-shadow:0 18px 44px rgba(0,0,0,.45);
+    display:none; animation:slideIn .22s ease;
+    overflow-y:auto;
+  }
+  .help-panel.show { display:block; }
+  .help-title {
+    font-family:'Baloo 2',cursive; font-weight:800; font-size:15px;
+    color:#0f5f3a; /* koyu yeşil — beyaz üzerinde kontrastlı */
+    margin-bottom:4px;
+  }
+  .help-sub {
+    font-size:11.5px; color:#4b5563; margin-bottom:10px;
+  }
+  .help-section { margin-bottom:11px; }
+  .help-section-title {
+    font-family:'Baloo 2',cursive; font-weight:700; font-size:12.5px;
+    color:#b8860b; /* koyu altın — beyaz üzerinde okunur */
+    margin-bottom:5px;
+  }
+  .help-row {
+    display:flex; gap:8px; align-items:flex-start;
+    background:#ffffff; /* tam beyaz kart */
+    border:1px solid #e5e7eb;
+    border-radius:9px;
+    padding:7px 9px; margin-bottom:5px;
+  }
+  .help-icon {
+    font-size:15px; flex-shrink:0;
+    min-width:28px; height:28px; display:grid; place-items:center;
+    background:#f3f4f6; border-radius:7px;
+    padding:0 4px;
+  }
+  .help-text {
+    flex:1; font-size:11.5px; line-height:1.4;
+    color:#1a1a1a; /* siyah yazı */
+  }
+  .help-text b { color:#0e7490; /* koyu cyan — vurgu */ font-weight:700; }
+  .help-panel::-webkit-scrollbar { width:6px; }
+  .help-panel::-webkit-scrollbar-thumb { background:#cbd5e0; border-radius:6px; }
+
+  .topbar h1 {
+    font-family:'Baloo 2',cursive; font-weight:800;
+    font-size:clamp(15px,4.2vw,24px);
+    text-shadow:0 2px 12px rgba(0,0,0,.7);
+    min-width:0; flex-shrink:1;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .cam-switch {
+    margin-left:auto; display:flex; gap:4px;
+    background:rgba(35,44,99,0.85); padding:3px;
+    border-radius:11px; flex-shrink:0;
+  }
+  .cam-btn {
+    font-family:'Baloo 2',cursive; font-weight:700;
+    font-size:11px; border:none; cursor:pointer;
+    background:transparent; color:var(--ink-dim);
+    padding:6px 9px; border-radius:8px;
+    transition:all .2s ease; white-space:nowrap;
+  }
+  .cam-btn.active {
+    background:linear-gradient(135deg,#c5a3ff,#9b7fe0);
+    color:var(--space-deep);
+  }
+  .reset-btn {
+    font-family:'Baloo 2',cursive; font-weight:700;
+    font-size:11px; border:none; cursor:pointer;
+    background:rgba(95,217,154,0.9); color:var(--space-deep);
+    padding:7px 10px; border-radius:9px; flex-shrink:0;
+    transition:transform .12s ease, filter .2s ease;
+    white-space:nowrap;
+  }
+  .reset-btn:active { transform:scale(.93); }
+  .reset-btn:hover { filter:brightness(1.1); }
+
+  .tabbar {
+    position:absolute; top:48px; left:0; right:0;
+    display:flex; justify-content:flex-end; gap:6px; padding:6px 16px; z-index:20;
+  }
+  .tab {
+    font-family:'Baloo 2',cursive; font-weight:700;
+    font-size:clamp(12px,3.2vw,15px);
+    border:none; background:rgba(35,44,99,0.9);
+    color:var(--ink-dim); padding:10px 14px;
+    border-radius:13px 13px 0 0; cursor:pointer;
+    transition:all .2s ease; white-space:nowrap;
+  }
+  .tab .ico { margin-right:4px; }
+  .tab.active {
+    background:linear-gradient(135deg,var(--sun-gold),var(--sun-glow));
+    color:var(--space-deep);
+  }
+
+  .dict {
+    position:absolute; top:92px; right:16px;
+    width:min(260px,72vw); max-height:calc(100vh - 250px);
+    background:var(--panel); border:2px solid var(--panel-line);
+    border-radius:16px; padding:10px; z-index:18;
+    box-shadow:0 16px 40px rgba(0,0,0,.6);
+    overflow-y:auto; display:none;
+    animation:slideIn .25s ease;
+  }
+  .dict.show { display:block; }
+  @keyframes slideIn { from{opacity:0;transform:translateX(-12px);} }
+  .dict-title {
+    font-family:'Baloo 2',cursive; font-weight:800; font-size:13px;
+    color:var(--sun-gold); margin-bottom:8px; padding:0 4px;
+  }
+  .dict-item {
+    display:flex; align-items:center; gap:8px;
+    width:100%; text-align:left;
+    font-family:'Fredoka',sans-serif; font-weight:600; font-size:14px;
+    color:var(--ink); background:var(--panel-light);
+    border:2px solid transparent; border-radius:11px;
+    padding:10px 11px; margin-bottom:6px; cursor:pointer;
+    transition:all .15s ease;
+  }
+  .dict-item:active { transform:scale(.97); }
+  .dict-item.active { border-color:var(--sun-gold); background:var(--panel-line); }
+  .dict-item .dico { font-size:18px; flex-shrink:0; }
+
+  .label3d {
+    position:absolute; transform:translate(-50%,-50%);
+    pointer-events:none; z-index:8;
+    font-family:'Baloo 2',cursive; font-weight:700;
+    font-size:12px; white-space:nowrap;
+    transition:opacity .15s ease;
+  }
+  .label3d .dot {
+    width:9px; height:9px; border-radius:50%;
+    background:#fff; display:inline-block;
+    margin-right:5px; vertical-align:middle;
+    box-shadow:0 0 8px currentColor;
+  }
+  .label3d .txt {
+    background:rgba(7,11,34,0.82);
+    padding:3px 9px; border-radius:11px;
+    border:1.5px solid currentColor;
+    vertical-align:middle;
+    pointer-events:auto; cursor:pointer;
+  }
+  .label3d .txt:active { transform:scale(.92); }
+  .label3d.hl .txt {
+    background:var(--sun-gold);
+    color:var(--space-deep)!important;
+    border-color:#fff;
+  }
+
+  .panel {
+    position:absolute; bottom:0; left:0; right:0;
+    background:linear-gradient(180deg,transparent,rgba(7,11,34,0.97) 30%);
+    padding:24px 12px 10px; z-index:20;
+    transition:background .2s ease;
+  }
+  .panel.floating {
+    background:transparent;
+    left:auto; right:auto; bottom:auto;
+    padding:0; width:auto;
+  }
+  .panel-card {
+    max-width:440px; margin:0 auto;
+    background:var(--panel); border:2px solid var(--panel-line);
+    border-radius:16px; padding:10px;
+    box-shadow:0 12px 30px rgba(0,0,0,.6);
+    position:relative;
+  }
+  .panel.floating .panel-card {
+    width:min(440px,90vw);
+    border-color:var(--sun-gold);
+  }
+  .move-btn {
+    position:absolute; top:-11px; right:-11px;
+    width:32px; height:32px; border-radius:50%;
+    border:2px solid var(--space-deep);
+    background:linear-gradient(135deg,var(--sun-gold),var(--sun-glow));
+    color:var(--space-deep); font-size:16px; font-weight:800;
+    cursor:grab; z-index:5;
+    display:grid; place-items:center;
+    box-shadow:0 3px 10px rgba(0,0,0,.5);
+    transition:transform .12s ease;
+    touch-action:none;
+  }
+  .move-btn:active { cursor:grabbing; transform:scale(1.15); }
+  .move-btn.dragging { transform:scale(1.2); box-shadow:0 0 0 4px rgba(255,182,39,.35); }
+  .mini-btn {
+    position:absolute; top:-11px; right:27px;
+    width:32px; height:32px; border-radius:50%;
+    border:2px solid var(--space-deep);
+    background:linear-gradient(135deg,#7fe3ff,#4fd6e0);
+    color:var(--space-deep); font-size:15px; font-weight:800;
+    cursor:pointer; z-index:5;
+    display:grid; place-items:center;
+    box-shadow:0 3px 10px rgba(0,0,0,.5);
+    transition:transform .12s ease;
+  }
+  .mini-btn:active { transform:scale(1.15); }
+  .panel.minified {
+    background:transparent;
+    left:10px; right:auto; bottom:10px; top:auto;
+    padding:0; width:auto;
+    transform:scale(0.5);
+    transform-origin:bottom left;
+  }
+  .panel.minified .panel-card {
+    width:min(440px,86vw);
+    border-color:var(--accent-cyan);
+  }
+  .info-box {
+    display:flex; gap:8px; align-items:flex-start;
+    background:transparent; padding:2px 2px; margin-bottom:8px; min-height:46px;
+  }
+  .info-content { flex:1; }
+  .info-head {
+    font-family:'Baloo 2',cursive; font-weight:800;
+    font-size:12.5px; color:var(--sun-gold); margin-bottom:1px;
+  }
+  .info-text { font-size:11.5px; line-height:1.35; font-weight:500; }
+  .info-text b { color:var(--accent-cyan); font-weight:700; }
+
+  /* SAYFA OKU — bilgi panelinde sağda, ileri (yeşil) ve hemen altında geri */
+  .info-nav {
+    flex-shrink:0; align-self:center;
+    display:flex; flex-direction:column; gap:6px;
+  }
+  .info-next, .info-prev {
+    width:34px; height:34px; border-radius:50%;
+    font-size:14px; font-weight:900;
+    cursor:pointer;
+    display:none; align-items:center; justify-content:center;
+    transition:transform .12s ease, filter .2s ease;
+  }
+  .info-next {
+    border:2px solid #3ab37a;
+    background:linear-gradient(135deg,#5fd99a,#3ab37a);
+    color:var(--space-deep);
+  }
+  .info-prev {
+    border:2px solid var(--ink-dim);
+    background:rgba(255,255,255,0.08);
+    color:var(--ink);
+  }
+  .info-next.show, .info-prev.show { display:flex; }
+  .info-next:active, .info-prev:active { transform:scale(.88); }
+  .info-next:hover, .info-prev:hover { filter:brightness(1.18); }
+  .info-page-num {
+    display:none;
+    font-size:10px; color:var(--sun-gold);
+    margin-top:4px; font-weight:800; letter-spacing:.5px;
+  }
+  .info-page-num.show { display:block; }
+
+  .controls { display:flex; flex-direction:column; gap:7px; }
+  .btn-row { display:flex; gap:7px; }
+  .big-btn {
+    flex:1; font-family:'Baloo 2',cursive; font-weight:700;
+    font-size:clamp(11px,2.8vw,13px); border:none; border-radius:11px;
+    padding:10px 5px; cursor:pointer; color:var(--space-deep);
+    transition:transform .1s ease,filter .2s ease;
+    display:flex; align-items:center; justify-content:center; gap:4px;
+  }
+  .big-btn .ico { font-size:1.2em; }
+  .big-btn:active { transform:scale(.96); }
+  .big-btn.spin  { background:linear-gradient(135deg,#ffd166,#ffb627); }
+  .big-btn.orbit { background:linear-gradient(135deg,#7fe3ff,#4fd6e0); }
+  .big-btn.guide { background:linear-gradient(135deg,#ff9ec0,#ff6b9d); }
+  .big-btn.view  { background:linear-gradient(135deg,#c5a3ff,#9b7fe0); }
+  .big-btn.view.active { box-shadow:0 0 0 2px #fff inset, 0 3px 10px rgba(155,127,224,.6); }
+  .big-btn.off   { filter:grayscale(.65) brightness(.7); }
+
+  .slider-wrap { display:flex; align-items:center; gap:9px; }
+  .slider-wrap label {
+    font-family:'Baloo 2',cursive; font-weight:700; font-size:12px; white-space:nowrap;
+  }
+  input[type=range] {
+    -webkit-appearance:none; appearance:none; flex:1;
+    height:10px; border-radius:8px;
+    background:linear-gradient(90deg,var(--accent-cyan),var(--sun-gold));
+    outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance:none; width:26px; height:26px; border-radius:50%;
+    background:#fff; border:3px solid var(--sun-glow); cursor:pointer;
+    box-shadow:0 2px 7px rgba(0,0,0,.5);
+  }
+  input[type=range]::-moz-range-thumb {
+    width:22px; height:22px; border-radius:50%;
+    background:#fff; border:3px solid var(--sun-glow); cursor:pointer;
+  }
+
+  .season-tags { display:flex; gap:4px; }
+  .season-tag {
+    flex:1; text-align:center;
+    font-family:'Baloo 2',cursive; font-weight:700; font-size:10px;
+    padding:5px 2px; border-radius:9px;
+    background:var(--panel-light); opacity:.4;
+    transition:all .3s ease; cursor:pointer;
+  }
+  .season-tag.active { opacity:1; transform:translateY(-3px); }
+  .season-tag.kis{background:#3a6ea5;} .season-tag.ilk{background:#5fa85f;}
+  .season-tag.yaz{background:#d99a3a;} .season-tag.son{background:#b5673a;}
+
+  .season-head {
+    font-family:'Baloo 2',cursive; font-weight:700;
+    font-size:10.5px; color:var(--ink-dim);
+    margin:7px 0 4px; text-align:center;
+  }
+  .season-head .season-which { color:var(--accent-cyan); }
+  .season-compare {
+    margin-top:5px; text-align:center;
+    font-family:'Baloo 2',cursive; font-weight:700; font-size:11px;
+    color:var(--ink); background:var(--panel-light);
+    border-radius:9px; padding:6px 4px;
+  }
+
+  .hidden { display:none!important; }
+  .hint {
+    position:absolute; bottom:240px; left:50%;
+    transform:translateX(-50%);
+    background:rgba(22,29,73,0.94); border:2px solid var(--sun-gold);
+    border-radius:16px; padding:9px 15px;
+    font-size:12.5px; font-weight:500; text-align:center;
+    pointer-events:none; z-index:15;
+    animation:fadeOut 1s ease 4.5s forwards;
+  }
+  @keyframes fadeOut { to{opacity:0;} }
+
+  .toast {
+    position:absolute; top:96px; left:50%;
+    transform:translateX(-50%) translateY(-10px);
+    background:rgba(22,29,73,0.97); border:2px solid var(--accent-cyan);
+    border-radius:14px; padding:10px 16px;
+    font-size:12.5px; font-weight:600; line-height:1.4;
+    max-width:min(420px,86vw); text-align:center;
+    z-index:40; pointer-events:none; opacity:0;
+    box-shadow:0 10px 30px rgba(0,0,0,.6);
+    transition:opacity .25s ease, transform .25s ease;
+  }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+  .dict::-webkit-scrollbar { width:6px; }
+  .dict::-webkit-scrollbar-thumb { background:var(--panel-line); border-radius:6px; }
+
+  @media (max-width:600px){
+    .topbar { gap:6px; padding:10px 10px 8px; }
+    .topbar h1 { font-size:15px; }
+    .badge { font-size:11px; padding:5px 9px; }
+    .cam-switch { gap:3px; padding:2px; }
+    .cam-btn { font-size:10px; padding:5px 7px; }
+    .reset-btn { font-size:10px; padding:6px 8px; }
+    .tabbar { top:46px; padding:6px 10px; }
+    .tab { font-size:12px; padding:9px 12px; }
+    .big-btn { font-size:11px; padding:9px 3px; }
+    .big-btn .lbl { font-size:10.5px; }
+  }
+  @media (max-width:380px){
+    .topbar h1 { display:none; }
+  }
+
+  /* KARŞILAŞTIR / BİLGİ TABLOSU — Seç ve ? ile aynı satırda (topbar içinde) */
+  .topbar-tab {
+    border-radius:13px;
+    padding:6px 11px;
+    font-size:12px;
+  }
+  .table-panel {
+    position:absolute; top:52px; left:16px;
+    width:min(400px,90vw); max-height:calc(100vh - 230px);
+    background:var(--panel); border:2px solid var(--panel-line);
+    border-radius:16px; padding:12px; z-index:19;
+    box-shadow:0 16px 40px rgba(0,0,0,.6);
+    overflow-y:auto; display:none; animation:slideIn .25s ease;
+  }
+  .table-panel.show { display:block; }
+  .table-title {
+    font-family:'Baloo 2',cursive; font-weight:800; font-size:13px;
+    color:var(--sun-gold); margin-bottom:9px; padding:0 2px;
+  }
+  .table-chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:11px; }
+  .table-chip {
+    font-family:'Fredoka',sans-serif; font-weight:600; font-size:11.5px;
+    color:var(--ink-dim); background:var(--panel-light);
+    border:2px solid transparent; border-radius:11px;
+    padding:6px 10px; cursor:pointer; transition:all .15s ease;
+  }
+  .table-chip:active { transform:scale(.96); }
+  .table-chip.active {
+    border-color:var(--sun-gold); color:var(--ink); background:var(--panel-line);
+  }
+  .data-cap {
+    font-size:11.5px; color:var(--ink-dim); margin-bottom:9px;
+    padding:0 2px; line-height:1.4;
+  }
+  .data-table {
+    width:100%; border-collapse:collapse;
+    font-family:'Fredoka',sans-serif;
+  }
+  .data-table th, .data-table td {
+    border:1px solid var(--panel-line); padding:7px 9px;
+    font-size:12px; text-align:left; vertical-align:top; line-height:1.42;
+  }
+  .data-table th {
+    background:var(--panel-light); color:var(--sun-gold);
+    font-weight:800; font-size:11.5px; position:sticky; top:0;
+  }
+  .data-table td:first-child {
+    color:var(--ink-dim); font-weight:700; width:30%;
+  }
+  .data-table tr:nth-child(even) td { background:rgba(255,255,255,.025); }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div class="topbar">
+    <button class="badge view-menu-badge" id="viewMenuBadge">⚙️ Seç ▾</button>
+    <button class="tab topbar-tab" id="cmpTab"><span class="ico">📊</span>Karşılaştır</button>
+    <button class="tab topbar-tab" id="infoTab"><span class="ico">📋</span>Bilgi Tablosu</button>
+    <button class="badge help-badge" id="helpBadge" title="Nasıl çalışır?">?</button>
+    <button class="badge level-badge" id="levelBadge">🎓 4. SINIF ▾</button>
+  </div>
+
+  <div class="tabbar">
+    <button class="tab" data-tab="dict" id="dictTab"><span class="ico">🗺️</span>Konu Rehberi</button>
+  </div>
+
+  <div class="level-panel" id="levelPanel">
+    <div class="level-title">🎓 SINIF / SEVİYE SEÇ</div>
+    <div class="level-sub">Aynı 3D model, senin seviyene göre anlatılır</div>
+    <div class="level-list" id="levelList"></div>
+  </div>
+
+  <div class="view-menu" id="viewMenu">
+    <button class="view-item active" id="nearBtn"><span class="vico">🔍</span><span>Yakın görünüş</span></button>
+    <button class="view-item" id="farBtn"><span class="vico">🔭</span><span>Uzak görünüş</span></button>
+    <button class="view-item" id="resetBtn"><span class="vico">↺</span><span>Sıfırla</span></button>
+  </div>
+
+  <div class="help-panel" id="helpPanel">
+    <div class="help-title">📖 Nasıl Çalışır?</div>
+    <div class="help-sub">3D Dünya'nın Hareketleri modülünü kullanma rehberi</div>
+
+    <div class="help-section">
+      <div class="help-section-title">🎓 Seviye / Sınıf</div>
+      <div class="help-row">
+        <div class="help-icon">🎓</div>
+        <div class="help-text">Sol üstteki <b>4. SINIF ▾</b> butonuna basarak İlkokul'dan KPSS'ye kadar 5 farklı seviye seçebilirsin. Aynı 3D model, seçtiğin seviyeye göre farklı anlatılır.</div>
+      </div>
+    </div>
+
+    <div class="help-section">
+      <div class="help-section-title">⚙️ Görünüş & Sıfırla</div>
+      <div class="help-row">
+        <div class="help-icon">🔍</div>
+        <div class="help-text"><b>Yakın görünüş:</b> Güneş + Dünya aynı karede, gece-gündüz net görünür.</div>
+      </div>
+      <div class="help-row">
+        <div class="help-icon">🔭</div>
+        <div class="help-text"><b>Uzak görünüş:</b> Tüm Güneş sistemi — 8 gezegen ve yörüngeleri görünür.</div>
+      </div>
+      <div class="help-row">
+        <div class="help-icon">↺</div>
+        <div class="help-text"><b>Sıfırla:</b> Hareketler, kamera, panel — her şey başlangıç durumuna döner.</div>
+      </div>
+    </div>
+
+    <div class="help-section">
+      <div class="help-section-title">🗺️ Konu Rehberi</div>
+      <div class="help-row">
+        <div class="help-icon">📚</div>
+        <div class="help-text">Soldaki <b>Konu Rehberi</b> sekmesine bas — Dünya, Ay, Mevsimler, Meridyenler, Paraleller, 21 Haziran… seviyene göre 13-30 konu çıkar. Bir konuya dokun: 3D model otomatik o konuya odaklanır, alt panelde bilgi açılır.</div>
+      </div>
+    </div>
+
+    <div class="help-section">
+      <div class="help-section-title">👆 3D Kontrol</div>
+      <div class="help-row">
+        <div class="help-icon">↔️</div>
+        <div class="help-text"><b>Tek parmak sürükle:</b> Kamerayı serbestçe döndür.</div>
+      </div>
+      <div class="help-row">
+        <div class="help-icon">🤏</div>
+        <div class="help-text"><b>İki parmak pinch:</b> Yakınlaştır / uzaklaştır. Parmakların ortasındaki noktaya doğru kamera kayar.</div>
+      </div>
+      <div class="help-row">
+        <div class="help-icon">👆</div>
+        <div class="help-text"><b>Tek dokunuş (gezegene):</b> O cisme odaklan + bilgi göster.</div>
+      </div>
+      <div class="help-row">
+        <div class="help-icon">⚡</div>
+        <div class="help-text"><b>Çift dokunuş:</b> Dokunduğun noktaya hızla zoom + odaklan.</div>
+      </div>
+      <div class="help-row">
+        <div class="help-icon">🏷️</div>
+        <div class="help-text"><b>Etikete dokun</b> (Güneş, Dünya, Ay, Meridyen, Paralel, Ekvator…): Konu sayfası açılır.</div>
+      </div>
+    </div>
+
+    <div class="help-section">
+      <div class="help-section-title">⏯️ Alt Panel Kontrolleri</div>
+      <div class="help-row">
+        <div class="help-icon">🔄</div>
+        <div class="help-text"><b>Eksen Dönüşü:</b> Dünya'nın kendi etrafında dönmesini aç/kapa (gece-gündüz oluşumu).</div>
+      </div>
+      <div class="help-row">
+        <div class="help-icon">🌍</div>
+        <div class="help-text"><b>Yörünge:</b> Güneş etrafında dolanımı aç/kapa (mevsimlerin oluşumu).</div>
+      </div>
+      <div class="help-row">
+        <div class="help-icon">📐</div>
+        <div class="help-text"><b>Eksen & Ekvator:</b> Dönme ekseni ve ekvator çizgilerini göster/gizle.</div>
+      </div>
+      <div class="help-row">
+        <div class="help-icon">⏱️</div>
+        <div class="help-text"><b>Hız slider:</b> Animasyon hızı (0 = duraklat, sağa kaydır = hızlandır).</div>
+      </div>
+      <div class="help-row">
+        <div class="help-icon">📅</div>
+        <div class="help-text"><b>Mevsim seçici:</b> Kış / İlkbahar / Yaz / Sonbahar — Dünya'yı yörüngede o ana atla. Kuzey & Güney yarımkürede karşıt mevsim alt yazıda görünür.</div>
+      </div>
+    </div>
+
+    <div class="help-section">
+      <div class="help-section-title">✥ Panel Taşıma</div>
+      <div class="help-row">
+        <div class="help-icon">✥</div>
+        <div class="help-text">Alt paneldeki <b>✥ butonunu</b> tut ve sürükle → paneli ekranda istediğin yere taşı.</div>
+      </div>
+      <div class="help-row">
+        <div class="help-icon">⊟</div>
+        <div class="help-text"><b>⊟ butonu:</b> Paneli %50 ölçeğe küçültür (3D'yi tam görmek için). Tekrar bas → büyüt.</div>
+      </div>
+    </div>
+
+    <div class="help-section">
+      <div class="help-section-title">💡 İpucu</div>
+      <div class="help-row">
+        <div class="help-icon">⭐</div>
+        <div class="help-text">21 Haziran, 21 Aralık gibi <b>tarih konuları</b> yörüngede o konuma atlar ve yörünge otomatik durur. Tekrar başlatmak için Yörünge butonuna bas.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dict" id="dictPanel">
+    <div class="dict-title">🗺️ BİR KONUYA DOKUN</div>
+  </div>
+
+  <div class="table-panel" id="cmpPanel">
+    <div class="table-title">📊 KARŞILAŞTIRMA TABLOSU</div>
+    <div class="table-chips" id="cmpChips"></div>
+    <div class="table-host" id="cmpHost"></div>
+  </div>
+
+  <div class="table-panel" id="infoPanel">
+    <div class="table-title">📋 BİLGİ TABLOSU</div>
+    <div class="table-chips" id="infoChips"></div>
+    <div class="table-host" id="infoHost"></div>
+  </div>
+
+  <div class="hint">👆 Sürükle = döndür · Nereye yaklaşırsan oraya bakar · Etikete / gezegene dokun = bilgi</div>
+  <div class="toast" id="toast"></div>
+
+  <div class="panel" id="panel">
+    <div class="panel-card" id="panelCard">
+      <button class="mini-btn" id="miniBtn" title="Küçült / Büyüt">⊟</button>
+      <button class="move-btn" id="moveBtn" title="Paneli taşı">✥</button>
+      <div class="info-box">
+        <div class="info-content">
+          <div class="info-head" id="infoHead">İki Hareket Birden</div>
+          <div class="info-text" id="infoText">
+            Dünya hem <b>kendi ekseni</b> etrafında döner (gece-gündüz) hem de <b>Güneş etrafında</b> dolanır (mevsimler). İkisi aynı anda olur!
+          </div>
+          <div class="info-page-num" id="infoPageNum"></div>
+        </div>
+        <div class="info-nav">
+          <button class="info-next" id="infoNext" title="Sonraki bilgi">▶</button>
+          <button class="info-prev" id="infoPrev" title="Önceki bilgi">◀</button>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="btn-row">
+          <button class="big-btn spin" id="spinBtn"><span class="ico">🔄</span><span class="lbl">Eksen Dönüşü</span></button>
+          <button class="big-btn orbit" id="orbitBtn"><span class="ico">🌍</span><span class="lbl">Yörünge</span></button>
+          <button class="big-btn guide" id="guideBtn"><span class="ico">📐</span><span class="lbl">Eksen & Ekvator</span></button>
+        </div>
+        <div class="slider-wrap">
+          <label>⏱️ Hız</label>
+          <input type="range" id="speedSlider" min="0" max="100" value="35" />
+        </div>
+        <div class="season-compare hidden" id="seasonCompare">
+          🔼 Kuzey: Kış &nbsp;·&nbsp; 🔽 Güney: Yaz
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js"
+}}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+const app = document.getElementById('app');
+const scene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 5000);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+app.appendChild(renderer.domElement);
+
+function makeStars(count, range, size, color){
+  const g=new THREE.BufferGeometry(); const pos=[];
+  for(let i=0;i<count;i++){
+    const r=range+Math.random()*range;
+    const t=Math.random()*Math.PI*2;
+    const p=Math.acos(2*Math.random()-1);
+    pos.push(r*Math.sin(p)*Math.cos(t), r*Math.sin(p)*Math.sin(t), r*Math.cos(p));
+  }
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+  return new THREE.Points(g,new THREE.PointsMaterial({color,size,sizeAttenuation:true,transparent:true,opacity:.9}));
+}
+scene.add(makeStars(2400, 600, 1.6, 0xffffff));
+scene.add(makeStars(600, 500, 3.0, 0xffe9b0));
+scene.add(makeStars(500, 450, 2.6, 0xa9c8ff));
+
+function makeGalaxy(cx,cy,cz, radius, tilt, hue){
+  const g=new THREE.BufferGeometry();
+  const pos=[], col=[];
+  const arms=Math.random()>0.4?2:3;
+  const N=900;
+  for(let i=0;i<N;i++){
+    const t=Math.pow(Math.random(),0.6);
+    const arm=Math.floor(Math.random()*arms);
+    const ang=t*5 + arm*(Math.PI*2/arms) + (Math.random()-0.5)*0.6;
+    const rad=t*radius;
+    let px=Math.cos(ang)*rad;
+    let pz=Math.sin(ang)*rad;
+    let py=(Math.random()-0.5)*radius*0.12;
+    const y2=py*Math.cos(tilt)-pz*Math.sin(tilt);
+    const z2=py*Math.sin(tilt)+pz*Math.cos(tilt);
+    pos.push(cx+px, cy+y2, cz+z2);
+    const c=new THREE.Color().setHSL(hue+(Math.random()-0.5)*0.08, 0.55, 0.55+t*0.3);
+    col.push(c.r,c.g,c.b);
+  }
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col,3));
+  const m=new THREE.PointsMaterial({
+    size:3.2, sizeAttenuation:true, vertexColors:true,
+    transparent:true, opacity:0.5, blending:THREE.AdditiveBlending,
+    depthWrite:false
+  });
+  return new THREE.Points(g,m);
+}
+const galaxyData=[
+  [ 900, 300,-1100, 130, 0.5, 0.62],
+  [-1200,-400, 800, 100, 1.1, 0.08],
+  [ 700,-600,-1400, 160, 0.3, 0.55],
+  [-900, 700, 1300, 110, 1.4, 0.75],
+  [ 1400, 100, 600, 90,  0.8, 0.12],
+  [-600,-800,-900,  120, 0.6, 0.5]
+];
+const galaxies=[];
+galaxyData.forEach(d=>{
+  const gx=makeGalaxy(d[0],d[1],d[2],d[3],d[4],d[5]);
+  scene.add(gx);
+  galaxies.push(gx);
+});
+
+const SUN_R     = 9;
+const EARTH_R   = 1.6;
+const MOON_R    = 0.44;
+const EARTH_ORBIT = 60;
+const MOON_ORBIT  = 4.2;
+
+const sunGroup = new THREE.Group();
+scene.add(sunGroup);
+
+function sunTexture(){
+  const c=document.createElement('canvas'); c.width=2048; c.height=1024;
+  const x=c.getContext('2d');
+  const base=x.createLinearGradient(0,0,0,1024);
+  base.addColorStop(0,'#ff7b00'); base.addColorStop(.5,'#ffa01a');
+  base.addColorStop(1,'#ff7b00');
+  x.fillStyle=base; x.fillRect(0,0,2048,1024);
+  for(let i=0;i<7000;i++){
+    const cx=Math.random()*2048, cy=Math.random()*1024;
+    const r=3+Math.random()*13;
+    const g=x.createRadialGradient(cx,cy,0,cx,cy,r);
+    const hot=Math.random();
+    if(hot>0.5){
+      g.addColorStop(0,'rgba(255,250,225,'+(0.45+Math.random()*0.45)+')');
+      g.addColorStop(1,'rgba(255,210,90,0)');
+    } else {
+      g.addColorStop(0,'rgba(210,80,0,'+(0.25+Math.random()*0.35)+')');
+      g.addColorStop(1,'rgba(210,80,0,0)');
+    }
+    x.fillStyle=g; x.beginPath(); x.arc(cx,cy,r,0,7); x.fill();
+  }
+  for(let i=0;i<55;i++){
+    const cx=Math.random()*2048, cy=Math.random()*1024;
+    const r=35+Math.random()*90;
+    const g=x.createRadialGradient(cx,cy,0,cx,cy,r);
+    g.addColorStop(0,'rgba(255,255,240,0.5)');
+    g.addColorStop(1,'rgba(255,235,140,0)');
+    x.fillStyle=g; x.beginPath(); x.arc(cx,cy,r,0,7); x.fill();
+  }
+  for(let i=0;i<9;i++){
+    const cx=Math.random()*2048, cy=200+Math.random()*624;
+    const r=18+Math.random()*30;
+    const g=x.createRadialGradient(cx,cy,0,cx,cy,r);
+    g.addColorStop(0,'rgba(60,20,0,0.9)');
+    g.addColorStop(0.45,'rgba(110,45,0,0.7)');
+    g.addColorStop(0.8,'rgba(170,75,0,0.35)');
+    g.addColorStop(1,'rgba(200,90,0,0)');
+    x.fillStyle=g; x.beginPath(); x.arc(cx,cy,r,0,7); x.fill();
+  }
+  x.strokeStyle='rgba(255,245,200,0.25)'; x.lineWidth=2;
+  for(let i=0;i<40;i++){
+    x.beginPath();
+    let px=Math.random()*2048, py=Math.random()*1024;
+    x.moveTo(px,py);
+    for(let s=0;s<5;s++){ px+=(Math.random()-0.5)*120; py+=(Math.random()-0.5)*80; x.lineTo(px,py); }
+    x.stroke();
+  }
+  return new THREE.CanvasTexture(c);
+}
+const sunTex=sunTexture(); sunTex.wrapS=THREE.RepeatWrapping;
+
+const sun=new THREE.Mesh(
+  new THREE.SphereGeometry(SUN_R,96,96),
+  new THREE.MeshBasicMaterial({map:sunTex})
+);
+sunGroup.add(sun);
+
+const sunInner=new THREE.Mesh(
+  new THREE.SphereGeometry(SUN_R*1.02,64,64),
+  new THREE.MeshBasicMaterial({color:0xffd24a,transparent:true,opacity:.35,blending:THREE.AdditiveBlending})
+);
+sunGroup.add(sunInner);
+
+for(let i=0;i<6;i++){
+  const glow=new THREE.Mesh(
+    new THREE.SphereGeometry(SUN_R+1+i*2.6,40,40),
+    new THREE.MeshBasicMaterial({
+      color:i<2?0xfff0b0:(i<4?0xff9d1c:0xff6a00),
+      transparent:true, opacity:0.16-i*0.024,
+      side:THREE.BackSide, blending:THREE.AdditiveBlending
+    })
+  );
+  sunGroup.add(glow);
+}
+
+const sunLight=new THREE.PointLight(0xfff4d6, 3.3, 0, 0);
+sunGroup.add(sunLight);
+scene.add(new THREE.AmbientLight(0x1a2542, 0.32));
+
+function planetTexture(base, accent, dark){
+  const c=document.createElement('canvas'); c.width=512; c.height=256;
+  const x=c.getContext('2d');
+  x.fillStyle=base; x.fillRect(0,0,512,256);
+  for(let i=0;i<70;i++){
+    const cx=Math.random()*512, cy=Math.random()*256;
+    const r=8+Math.random()*40;
+    x.fillStyle=Math.random()>.5?accent:dark;
+    x.globalAlpha=0.25+Math.random()*0.4;
+    x.beginPath(); x.ellipse(cx,cy,r,r*0.6,0,0,7); x.fill();
+  }
+  x.globalAlpha=1;
+  return new THREE.CanvasTexture(c);
+}
+
+const PLANET_DEFS = [
+  {key:'merkur', name:'Merkür', r:0.9,  orbit:22, spd:1.6,  tex:['#9c8d7a','#bcaa92','#6e6151'],
+   info:'Güneş\'e <b>en yakın</b> ve <b>en küçük</b> gezegendir. Atmosferi yok denecek kadar incedir; gündüz çok sıcak, gece çok soğuktur.'},
+  {key:'venus',  name:'Venüs',  r:1.45, orbit:36, spd:1.18, tex:['#d8a85a','#f0d090','#a07c3a'],
+   info:'Dünya\'ya en çok benzeyen, ona <b>en yakın</b> gezegendir. Kalın atmosferi yüzünden Güneş sistemindeki <b>en sıcak</b> gezegendir.'},
+  {key:'mars',   name:'Mars',   r:1.15, orbit:84, spd:0.8,  tex:['#c1502e','#e0764a','#7d3320'],
+   info:'Yüzeyindeki demir oksit yüzünden <b>Kızıl Gezegen</b> denir. İki küçük uydusu vardır; insanlı keşif için en umut verilen gezegendir.'},
+  {key:'jupiter',name:'Jüpiter',r:4.4,  orbit:120,spd:0.43, tex:['#c9a87c','#e3cba0','#9a7c54'],
+   info:'Güneş sisteminin <b>en büyük</b> gezegenidir. Bir gaz devidir; üzerindeki Büyük Kırmızı Leke dev bir fırtınadır.'},
+  {key:'saturn', name:'Satürn', r:3.7,  orbit:165,spd:0.32, tex:['#d8c89a','#efe2ba','#a99a72'], ring:true,
+   info:'Buz ve kayadan oluşan <b>muhteşem halkalarıyla</b> ünlüdür. İkinci en büyük gezegendir ve çok sayıda uydusu vardır.'},
+  {key:'uranus', name:'Uranüs', r:2.4,  orbit:205,spd:0.23, tex:['#a8dde0','#cdeef0','#7fb8bb'],
+   info:'Yan yatmış şekilde döner — ekseni neredeyse yörünge düzlemine paraleldir. Metan gazı ona <b>mavi-yeşil</b> rengini verir.'},
+  {key:'neptun', name:'Neptün', r:2.3,  orbit:240,spd:0.18, tex:['#3f63c4','#6f8ee0','#2c478f'],
+   info:'Güneş\'e <b>en uzak</b> gezegendir. Çok soğuktur ve Güneş sistemindeki <b>en güçlü rüzgarlara</b> sahiptir.'}
+];
+
+const planets=[];
+PLANET_DEFS.forEach(def=>{
+  const pivot=new THREE.Group();
+  sunGroup.add(pivot);
+  const mesh=new THREE.Mesh(
+    new THREE.SphereGeometry(def.r,48,48),
+    new THREE.MeshStandardMaterial({
+      map:planetTexture(def.tex[0],def.tex[1],def.tex[2]),
+      roughness:.85, metalness:.05
+    })
+  );
+  mesh.position.x=def.orbit;
+  pivot.add(mesh);
+  pivot.rotation.y=Math.random()*Math.PI*2;
+
+  if(def.ring){
+    const ring=new THREE.Mesh(
+      new THREE.RingGeometry(def.r*1.4, def.r*2.2, 64),
+      new THREE.MeshBasicMaterial({color:0xe8d9a8,transparent:true,opacity:.7,side:THREE.DoubleSide})
+    );
+    ring.rotation.x=Math.PI/2.4;
+    mesh.add(ring);
+  }
+  const orbitCol=new THREE.Color(def.tex[1]);
+  const orbitLine=new THREE.Mesh(
+    new THREE.RingGeometry(def.orbit-0.35, def.orbit+0.35, 256),
+    new THREE.MeshBasicMaterial({
+      color:orbitCol, transparent:true, opacity:.55,
+      side:THREE.DoubleSide, blending:THREE.AdditiveBlending, depthWrite:false
+    })
+  );
+  orbitLine.rotation.x=Math.PI/2;
+  sunGroup.add(orbitLine);
+  const orbitGlow=new THREE.Mesh(
+    new THREE.RingGeometry(def.orbit-0.08, def.orbit+0.08, 256),
+    new THREE.MeshBasicMaterial({
+      color:0xffffff, transparent:true, opacity:.35,
+      side:THREE.DoubleSide, blending:THREE.AdditiveBlending, depthWrite:false
+    })
+  );
+  orbitGlow.rotation.x=Math.PI/2;
+  sunGroup.add(orbitGlow);
+
+  planets.push({def,pivot,mesh,orbitLine});
+});
+
+const earthOrbit  = new THREE.Group();  sunGroup.add(earthOrbit);
+const earthHolder = new THREE.Group();  earthOrbit.add(earthHolder);
+earthHolder.position.x = EARTH_ORBIT;
+
+const earthOrbitLine=new THREE.Mesh(
+  new THREE.RingGeometry(EARTH_ORBIT-0.45, EARTH_ORBIT+0.45, 256),
+  new THREE.MeshBasicMaterial({
+    color:0x4fd6e0, transparent:true, opacity:.6,
+    side:THREE.DoubleSide, blending:THREE.AdditiveBlending, depthWrite:false
+  })
+);
+earthOrbitLine.rotation.x=Math.PI/2;
+sunGroup.add(earthOrbitLine);
+const earthOrbitGlow=new THREE.Mesh(
+  new THREE.RingGeometry(EARTH_ORBIT-0.1, EARTH_ORBIT+0.1, 256),
+  new THREE.MeshBasicMaterial({
+    color:0xffffff, transparent:true, opacity:.45,
+    side:THREE.DoubleSide, blending:THREE.AdditiveBlending, depthWrite:false
+  })
+);
+earthOrbitGlow.rotation.x=Math.PI/2;
+sunGroup.add(earthOrbitGlow);
+
+const tiltGroup=new THREE.Group();
+tiltGroup.rotation.z=THREE.MathUtils.degToRad(23.5);
+earthHolder.add(tiltGroup);
+
+const earthSpin=new THREE.Group();
+tiltGroup.add(earthSpin);
+
+function buildEarthMaps(){
+  const W=2048,H=1024;
+  const c=document.createElement('canvas'); c.width=W; c.height=H;
+  const x=c.getContext('2d');
+  const mC=document.createElement('canvas'); mC.width=W; mC.height=H;
+  const m=mC.getContext('2d');
+  m.fillStyle='#000'; m.fillRect(0,0,W,H);
+  const bC=document.createElement('canvas'); bC.width=W; bC.height=H;
+  const b=bC.getContext('2d');
+  b.fillStyle='#3c4651'; b.fillRect(0,0,W,H);
+
+  const og=x.createLinearGradient(0,0,0,H);
+  og.addColorStop(0,'#0a2f5e'); og.addColorStop(.2,'#13518f');
+  og.addColorStop(.5,'#1c6fb8'); og.addColorStop(.8,'#13518f');
+  og.addColorStop(1,'#0a2f5e');
+  x.fillStyle=og; x.fillRect(0,0,W,H);
+  for(let i=0;i<120;i++){
+    x.globalAlpha=0.12;
+    x.fillStyle=Math.random()>.5?'#0a2c54':'#2d86cc';
+    x.beginPath();
+    x.ellipse(Math.random()*W,Math.random()*H,40+Math.random()*120,30+Math.random()*80,0,0,7);
+    x.fill();
+  }
+  x.globalAlpha=1;
+
+  function px(lon,lat){ return [(lon+180)/360*W, (90-lat)/180*H]; }
+
+  const CONTINENTS={
+    kuzeyAmerika:[
+      [-168,66],[-156,71],[-130,70],[-95,70],[-82,73],[-65,60],[-56,52],
+      [-67,45],[-81,46],[-80,27],[-97,26],[-107,23],[-117,33],[-125,40],
+      [-125,48],[-135,58],[-150,59],[-165,55],[-168,66]
+    ],
+    guneyAmerika:[
+      [-79,9],[-60,11],[-50,0],[-35,-6],[-40,-23],[-49,-33],[-62,-41],
+      [-66,-52],[-73,-53],[-75,-46],[-71,-30],[-71,-18],[-77,-6],[-81,2],[-79,9]
+    ],
+    afrika:[
+      [-17,15],[-10,28],[10,37],[24,33],[33,31],[43,12],[51,12],[41,-2],
+      [40,-15],[35,-24],[20,-35],[15,-28],[12,-6],[8,4],[-8,5],[-17,15]
+    ],
+    avrupa:[
+      [-10,36],[-9,44],[-2,49],[2,51],[8,54],[5,61],[15,68],[28,71],
+      [40,68],[55,68],[60,55],[48,46],[28,45],[20,40],[10,38],[-10,36]
+    ],
+    asya:[
+      [40,68],[55,68],[60,55],[48,46],[44,40],[55,25],[60,25],[70,21],
+      [78,8],[80,15],[90,22],[97,16],[105,10],[110,20],[122,30],[127,35],
+      [130,43],[142,46],[160,60],[180,66],[170,70],[140,73],[105,78],
+      [70,76],[60,73],[40,68]
+    ],
+    avustralya:[
+      [114,-22],[122,-18],[130,-12],[137,-12],[142,-11],[146,-19],
+      [150,-25],[153,-28],[150,-38],[143,-39],[131,-32],[124,-34],
+      [116,-35],[113,-27],[114,-22]
+    ],
+    gronland:[
+      [-55,60],[-42,60],[-22,70],[-18,76],[-30,83],[-50,82],[-58,76],[-55,60]
+    ],
+    antarktika:[
+      [-180,-72],[-120,-74],[-60,-72],[0,-70],[60,-67],[120,-70],[180,-72],
+      [180,-85],[-180,-85],[-180,-72]
+    ]
+  };
+
+  function landPath(pts){
+    const path=new Path2D();
+    const P=pts.map(([lo,la])=>px(lo,la));
+    path.moveTo(P[0][0],P[0][1]);
+    for(let i=0;i<P.length;i++){
+      const a=P[i], n=P[(i+1)%P.length];
+      path.quadraticCurveTo(a[0],a[1],(a[0]+n[0])/2,(a[1]+n[1])/2);
+    }
+    path.closePath();
+    return path;
+  }
+
+  const paths=[];
+  for(const k in CONTINENTS){
+    const p=landPath(CONTINENTS[k]);
+    paths.push({key:k,path:p});
+    x.fillStyle='#3c8f42'; x.fill(p);
+    m.fillStyle='#fff'; m.fill(p);
+    b.fillStyle='#7e8893'; b.fill(p);
+  }
+
+  paths.forEach(o=>{
+    x.save(); x.lineWidth=6; x.strokeStyle='rgba(120,200,230,0.4)';
+    x.stroke(o.path); x.restore();
+  });
+
+  paths.forEach(o=>{
+    x.save(); x.clip(o.path);
+    const isPolar=(o.key==='gronland'||o.key==='antarktika');
+    if(isPolar){
+      x.fillStyle='#eef4fb'; x.fillRect(0,0,W,H);
+      for(let i=0;i<40;i++){
+        x.globalAlpha=0.3; x.fillStyle='#cdddee';
+        x.beginPath();
+        x.ellipse(Math.random()*W,Math.random()*H,20+Math.random()*50,15+Math.random()*30,0,0,7);
+        x.fill();
+      }
+    } else {
+      for(let i=0;i<110;i++){
+        x.globalAlpha=0.35+Math.random()*0.3;
+        x.fillStyle=Math.random()>.5?'#2f7d3a':'#46a050';
+        x.beginPath();
+        x.ellipse(Math.random()*W,Math.random()*H,14+Math.random()*42,11+Math.random()*30,Math.random()*3,0,7);
+        x.fill();
+      }
+      for(let i=0;i<55;i++){
+        x.globalAlpha=0.4+Math.random()*0.3;
+        x.fillStyle=Math.random()>.5?'#d8b878':'#c9a05e';
+        x.beginPath();
+        x.ellipse(Math.random()*W,Math.random()*H,18+Math.random()*46,13+Math.random()*30,Math.random()*3,0,7);
+        x.fill();
+      }
+      for(let i=0;i<36;i++){
+        const mx=Math.random()*W, my=Math.random()*H;
+        x.globalAlpha=0.5; x.fillStyle='#7c6242';
+        x.beginPath(); x.ellipse(mx,my,11+Math.random()*24,7+Math.random()*14,Math.random()*3,0,7); x.fill();
+        x.globalAlpha=0.55; x.fillStyle='#ede8dd';
+        x.beginPath(); x.arc(mx,my,3+Math.random()*5,0,7); x.fill();
+        b.globalAlpha=0.85; b.fillStyle='#ffffff';
+        b.beginPath(); b.arc(mx,my,5+Math.random()*9,0,7); b.fill();
+      }
+    }
+    x.globalAlpha=1; x.restore();
+    b.globalAlpha=1;
+  });
+
+  const np=x.createLinearGradient(0,0,0,H*0.1);
+  np.addColorStop(0,'rgba(240,248,255,0.95)');
+  np.addColorStop(1,'rgba(220,235,250,0)');
+  x.fillStyle=np; x.fillRect(0,0,W,H*0.1);
+  b.fillStyle='rgba(210,218,226,0.5)'; b.fillRect(0,0,W,H*0.07);
+
+  return {
+    map:new THREE.CanvasTexture(c),
+    bump:new THREE.CanvasTexture(bC),
+    mask:mC
+  };
+}
+function cloudTexture(){
+  const c=document.createElement('canvas'); c.width=2048; c.height=1024;
+  const x=c.getContext('2d'); x.clearRect(0,0,2048,1024);
+  for(let i=0;i<110;i++){
+    const cx=Math.random()*2048;
+    const band=[140,360,512,660,880][Math.floor(Math.random()*5)];
+    const cy=band+(Math.random()-0.5)*150;
+    const r=25+Math.random()*120;
+    const g=x.createRadialGradient(cx,cy,0,cx,cy,r);
+    g.addColorStop(0,'rgba(255,255,255,'+(0.55+Math.random()*0.35)+')');
+    g.addColorStop(1,'rgba(255,255,255,0)');
+    x.fillStyle=g; x.beginPath();
+    x.ellipse(cx,cy,r,r*0.5,Math.random()*3,0,7); x.fill();
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+function nightLightsTexture(){
+  const W=2048,H=1024;
+  const c=document.createElement('canvas'); c.width=W; c.height=H;
+  const x=c.getContext('2d');
+  x.fillStyle='#000000'; x.fillRect(0,0,W,H);
+  function px(lon,lat){ return [(lon+180)/360*W, (90-lat)/180*H]; }
+  const cities=[
+    [-74,40,55],[-87,41,40],[-118,34,45],[-99,19,35],
+    [-46,-23,40],[-58,-34,30],[-74,4,25],
+    [0,51,45],[2,48,35],[13,52,40],[37,55,40],[28,41,30],
+    [3,6,35],[31,30,30],[28,-26,25],
+    [77,28,55],[121,31,60],[116,39,55],[139,35,55],
+    [100,13,30],[106,-6,30],[72,19,40],
+    [151,-33,30],[144,-37,25]
+  ];
+  cities.forEach(([lon,lat,spread])=>{
+    const [cx,cy]=px(lon,lat);
+    const count=50+Math.random()*70;
+    for(let i=0;i<count;i++){
+      const ang=Math.random()*Math.PI*2;
+      const d=Math.pow(Math.random(),0.7)*spread;
+      const sx=cx+Math.cos(ang)*d, sy=cy+Math.sin(ang)*d*0.7;
+      const r=0.5+Math.random()*2.2;
+      const g=x.createRadialGradient(sx,sy,0,sx,sy,r*3);
+      g.addColorStop(0,'rgba(255,235,165,0.95)');
+      g.addColorStop(0.4,'rgba(255,205,100,0.5)');
+      g.addColorStop(1,'rgba(255,185,70,0)');
+      x.fillStyle=g; x.beginPath(); x.arc(sx,sy,r*3,0,7); x.fill();
+    }
+  });
+  return new THREE.CanvasTexture(c);
+}
+
+const earthMaps=buildEarthMaps();
+const earthMat=new THREE.MeshStandardMaterial({
+  map:earthMaps.map,
+  bumpMap:earthMaps.bump,
+  bumpScale:0.04,
+  roughness:.78, metalness:.12
+});
+
+const earth=new THREE.Mesh(
+  new THREE.SphereGeometry(EARTH_R,160,160),
+  earthMat
+);
+earthSpin.add(earth);
+
+const nightMat=new THREE.ShaderMaterial({
+  transparent:true, depthWrite:false,
+  blending:THREE.AdditiveBlending,
+  uniforms:{
+    nightTex:{value:nightLightsTexture()},
+    sunDir:{value:new THREE.Vector3(1,0,0)}
+  },
+  vertexShader:`
+    varying vec2 vUv;
+    varying vec3 vWorldN;
+    void main(){
+      vUv=uv;
+      vWorldN=normalize(mat3(modelMatrix)*normal);
+      gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);
+    }`,
+  fragmentShader:`
+    uniform sampler2D nightTex;
+    uniform vec3 sunDir;
+    varying vec2 vUv;
+    varying vec3 vWorldN;
+    void main(){
+      float d=dot(normalize(vWorldN),normalize(sunDir));
+      float night=smoothstep(0.15,-0.25,d);
+      vec3 lights=texture2D(nightTex,vUv).rgb;
+      gl_FragColor=vec4(lights*night*1.6,1.0);
+    }`
+});
+const nightLights=new THREE.Mesh(
+  new THREE.SphereGeometry(EARTH_R*1.002,160,160),
+  nightMat
+);
+earthSpin.add(nightLights);
+
+const clouds=new THREE.Mesh(
+  new THREE.SphereGeometry(EARTH_R*1.015,96,96),
+  new THREE.MeshStandardMaterial({map:cloudTexture(),transparent:true,opacity:.42,depthWrite:false,roughness:1})
+);
+earthSpin.add(clouds);
+
+const atmo=new THREE.Mesh(
+  new THREE.SphereGeometry(EARTH_R*1.025,64,64),
+  new THREE.ShaderMaterial({
+    transparent:true, side:THREE.BackSide, depthWrite:false,
+    blending:THREE.AdditiveBlending,
+    uniforms:{},
+    vertexShader:`
+      varying vec3 vN;
+      void main(){
+        vN=normalize(normalMatrix*normal);
+        gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);
+      }`,
+    fragmentShader:`
+      varying vec3 vN;
+      void main(){
+        float i=pow(0.72-dot(vN,vec3(0,0,1.0)),2.4);
+        gl_FragColor=vec4(0.36,0.66,1.0,1.0)*i;
+      }`
+  })
+);
+tiltGroup.add(atmo);
+
+const axisGroup=new THREE.Group();
+const axisRod=new THREE.Mesh(
+  new THREE.CylinderGeometry(0.04,0.04,EARTH_R*3.2,16),
+  new THREE.MeshStandardMaterial({color:0xff6b9d,emissive:0xff6b9d,emissiveIntensity:.5})
+);
+axisGroup.add(axisRod);
+[1,-1].forEach(s=>{
+  const tip=new THREE.Mesh(
+    new THREE.ConeGeometry(0.14,0.3,16),
+    new THREE.MeshStandardMaterial({color:0xff6b9d,emissive:0xff6b9d,emissiveIntensity:.6})
+  );
+  tip.position.y=s*EARTH_R*1.6; tip.rotation.x=s>0?0:Math.PI;
+  axisGroup.add(tip);
+});
+tiltGroup.add(axisGroup);
+
+const equator=new THREE.Mesh(
+  new THREE.TorusGeometry(EARTH_R*1.004,0.022,12,96),
+  new THREE.MeshStandardMaterial({color:0xffd166,emissive:0xffd166,emissiveIntensity:.6})
+);
+equator.rotation.x=Math.PI/2;
+earthSpin.add(equator);
+
+/* ============================================================
+   MERİDYENLER ve PARALELLER — coğrafya hayali çizgileri
+   Paraleller (mavi): ekvatora paralel yatay çemberler — enlem
+   Meridyenler (pembe): kutuptan kutba dikey yarım çemberler — boylam
+   ============================================================ */
+const gridGroup=new THREE.Group();
+earthSpin.add(gridGroup);
+
+// Paraleller — her 30 derecede bir (±60, ±30). Ekvator ayrı, altın renk.
+const parallelLats=[-60,-30,30,60];
+const parallelMeshes=[];
+parallelLats.forEach(lat=>{
+  const la=THREE.MathUtils.degToRad(lat);
+  const ringR=EARTH_R*Math.cos(la);
+  const y=EARTH_R*Math.sin(la);
+  const m=new THREE.Mesh(
+    new THREE.TorusGeometry(ringR*1.003,0.012,8,96),
+    new THREE.MeshStandardMaterial({
+      color:0x88c5ff, emissive:0x88c5ff, emissiveIntensity:.45,
+      transparent:true, opacity:.75
+    })
+  );
+  m.rotation.x=Math.PI/2;
+  m.position.y=y;
+  gridGroup.add(m);
+  parallelMeshes.push(m);
+});
+
+// Meridyenler — her 30 derecede bir (12 meridyen, ama 6'sı yeterli görünür)
+const meridianLons=[0,30,60,90,120,150];
+const meridianMeshes=[];
+meridianLons.forEach(lon=>{
+  const m=new THREE.Mesh(
+    new THREE.TorusGeometry(EARTH_R*1.003,0.012,8,96),
+    new THREE.MeshStandardMaterial({
+      color:0xff9bb5, emissive:0xff9bb5, emissiveIntensity:.45,
+      transparent:true, opacity:.7
+    })
+  );
+  // default torus XY düzleminde — kutuptan kutba bir meridyen çemberi
+  m.rotation.y=THREE.MathUtils.degToRad(lon);
+  gridGroup.add(m);
+  meridianMeshes.push(m);
+});
+
+const moonOrbit=new THREE.Group();
+earthHolder.add(moonOrbit);
+
+function moonTexture(){
+  const c=document.createElement('canvas'); c.width=512; c.height=256;
+  const x=c.getContext('2d');
+  x.fillStyle='#b8b3aa'; x.fillRect(0,0,512,256);
+  for(let i=0;i<90;i++){
+    const cx=Math.random()*512, cy=Math.random()*256;
+    const r=3+Math.random()*16;
+    x.fillStyle=Math.random()>.5?'#8f8a82':'#d2cdc4';
+    x.globalAlpha=0.4+Math.random()*0.4;
+    x.beginPath(); x.arc(cx,cy,r,0,7); x.fill();
+  }
+  for(let i=0;i<14;i++){
+    const cx=Math.random()*512, cy=Math.random()*256;
+    const r=8+Math.random()*20;
+    x.globalAlpha=0.6;
+    x.fillStyle='#7d7870';
+    x.beginPath(); x.arc(cx,cy,r,0,7); x.fill();
+    x.fillStyle='#cfcac1';
+    x.beginPath(); x.arc(cx-r*0.2,cy-r*0.2,r*0.7,0,7); x.fill();
+  }
+  x.globalAlpha=1;
+  return new THREE.CanvasTexture(c);
+}
+const moon=new THREE.Mesh(
+  new THREE.SphereGeometry(MOON_R,48,48),
+  new THREE.MeshStandardMaterial({map:moonTexture(),roughness:.95,metalness:0})
+);
+moon.position.x=MOON_ORBIT;
+moonOrbit.add(moon);
+
+const moonOrbitLine=new THREE.Mesh(
+  new THREE.RingGeometry(MOON_ORBIT-0.06,MOON_ORBIT+0.06,80),
+  new THREE.MeshBasicMaterial({color:0xb9c2ee,transparent:true,opacity:.4,side:THREE.DoubleSide})
+);
+moonOrbitLine.rotation.x=Math.PI/2;
+earthHolder.add(moonOrbitLine);
+
+const anchors=[];
+function makeAnchor(parent, pos, key, text, color, kind){
+  const holder=new THREE.Object3D();
+  holder.position.copy(pos);
+  parent.add(holder);
+  const el=document.createElement('div');
+  el.className='label3d';
+  el.style.color='#'+color.toString(16).padStart(6,'0');
+  el.innerHTML=`<span class="dot"></span><span class="txt">${text}</span>`;
+  app.appendChild(el);
+  el.querySelector('.txt').addEventListener('click',e=>{
+    e.stopPropagation();
+    onAnchorClick(key);
+  });
+  anchors.push({holder,el,key,color,kind:kind||'always'});
+}
+
+function onAnchorClick(key){
+  if(key.startsWith('planet:')){
+    const pk=key.split(':')[1];
+    const pl=planets.find(p=>p.def.key===pk);
+    if(pl){ showPlanetInfo(pl.def); focusTarget=pl.mesh; freePoint=null; cam.radius=pl.def.r*7; }
+  } else if(CONCEPTS[key]){
+    selectConcept(key);
+  } else {
+    if(CONCEPTS[key]) selectConcept(key);
+  }
+}
+function surf(latDeg,lonDeg,rMul=1.12){
+  const la=THREE.MathUtils.degToRad(latDeg), lo=THREE.MathUtils.degToRad(lonDeg);
+  const r=EARTH_R*rMul;
+  return new THREE.Vector3(
+    r*Math.cos(la)*Math.cos(lo), r*Math.sin(la), r*Math.cos(la)*Math.sin(lo)
+  );
+}
+makeAnchor(sun,        new THREE.Vector3(0,SUN_R*1.15,0), 'gunes',  'Güneş',        0xffb627,'always');
+makeAnchor(earth,      new THREE.Vector3(0,EARTH_R*1.5,0),'dunya',  'Dünya',        0x4fd6e0,'always');
+makeAnchor(moon,       new THREE.Vector3(0,MOON_R*2,0),   'ay',     'Ay',           0xd8d2c4,'always');
+makeAnchor(earthSpin,  surf(90,0,1.2),                    'kutup',  'Kuzey Kutbu',  0xeaf4ff,'always');
+makeAnchor(earthSpin,  surf(2,200,1.05),                  'ekvator','Ekvator',      0xffd166,'always');
+makeAnchor(tiltGroup,  new THREE.Vector3(0,EARTH_R*1.9,0),'eksen',  'Dönme Ekseni', 0xff6b9d,'always');
+makeAnchor(earthSpin,  surf(45,0,1.08),                   'meridyen','Meridyen',    0xff9bb5,'always');
+makeAnchor(earthSpin,  surf(30,-90,1.08),                 'paralel','Paralel',      0x88c5ff,'always');
+
+planets.forEach(p=>{
+  makeAnchor(p.mesh, new THREE.Vector3(0,p.def.r*1.5+1,0),
+             'planet:'+p.def.key, p.def.name, 0xcdd6ff, 'farOnly');
+});
+
+const cam={theta:0.7, phi:1.05, radius:14, target:new THREE.Vector3()};
+let dragging=false,lastX=0,lastY=0,pinch=0;
+function P(e){return e.touches?e.touches[0]:e;}
+function tDist(e){
+  const dx=e.touches[0].clientX-e.touches[1].clientX;
+  const dy=e.touches[0].clientY-e.touches[1].clientY;
+  return Math.hypot(dx,dy);
+}
+function tMid(e){
+  return {x:(e.touches[0].clientX+e.touches[1].clientX)/2,
+          y:(e.touches[0].clientY+e.touches[1].clientY)/2};
+}
+
+const zoomRay=new THREE.Raycaster();
+const zoomNdc=new THREE.Vector2();
+let camFreeTarget=null;
+
+function steerTowards(sx,sy,strength){
+  zoomNdc.x=(sx/innerWidth)*2-1;
+  zoomNdc.y=-(sy/innerHeight)*2+1;
+  zoomRay.setFromCamera(zoomNdc,camera);
+  const all=[sun,earth,moon,...planets.map(p=>p.mesh)];
+  const hits=zoomRay.intersectObjects(all,false);
+  let aim;
+  if(hits.length){
+    aim=hits[0].point.clone();
+  } else {
+    aim=new THREE.Vector3();
+    zoomRay.ray.at(cam.radius, aim);
+  }
+  if(!camFreeTarget) camFreeTarget=cam.target.clone();
+  camFreeTarget.lerp(aim, strength);
+  focusTarget=null; freePoint=null;
+}
+
+function down(e){
+  if(e.touches&&e.touches.length===2){pinch=tDist(e);dragging=false;return;}
+  dragging=true; const p=P(e); lastX=p.clientX; lastY=p.clientY;
+}
+function move(e){
+  if(e.touches&&e.touches.length===2){
+    const d=tDist(e);
+    const mid=tMid(e);
+    steerTowards(mid.x,mid.y,0.28);
+    // oransal zoom — adım mevcut mesafeyle ölçeklenir, böylece her
+    // yakınlık seviyesinde aynı hız hissi olur (yakındayken hassas,
+    // uzaktayken hızlı).
+    if(pinch>0){
+      const ratio=pinch/d;
+      cam.radius=THREE.MathUtils.clamp(cam.radius*Math.pow(ratio,1.8),2.5,420);
+    }
+    pinch=d; e.preventDefault(); return;
+  }
+  if(!dragging)return;
+  const p=P(e);
+  cam.theta-=(p.clientX-lastX)*0.006;
+  cam.phi  -=(p.clientY-lastY)*0.006;
+  cam.phi=THREE.MathUtils.clamp(cam.phi,0.15,Math.PI-0.15);
+  lastX=p.clientX; lastY=p.clientY; e.preventDefault();
+}
+function up(){dragging=false; pinch=0;}
+const cv=renderer.domElement;
+cv.addEventListener('mousedown',down);
+cv.addEventListener('mousemove',move);
+window.addEventListener('mouseup',up);
+cv.addEventListener('touchstart',down,{passive:false});
+cv.addEventListener('touchmove',move,{passive:false});
+window.addEventListener('touchend',up);
+cv.addEventListener('wheel',e=>{
+  if(e.deltaY<0) steerTowards(e.clientX,e.clientY,0.3);
+  // oransal wheel zoom — her tıkta %12 yakınlaş/uzaklaş
+  const factor=e.deltaY>0?1.15:0.87;
+  cam.radius=THREE.MathUtils.clamp(cam.radius*factor,2.5,420);
+},{passive:true});
+
+let lastMouseX=innerWidth/2, lastMouseY=innerHeight/2;
+cv.addEventListener('mousemove',e=>{ lastMouseX=e.clientX; lastMouseY=e.clientY; });
+
+window.addEventListener('keydown',e=>{
+  const rotStep=0.12, zoomStep=cam.radius*0.18;
+  switch(e.key){
+    case 'ArrowLeft':  cam.theta+=rotStep; break;
+    case 'ArrowRight': cam.theta-=rotStep; break;
+    case 'ArrowUp':
+      cam.phi=THREE.MathUtils.clamp(cam.phi-rotStep,0.15,Math.PI-0.15); break;
+    case 'ArrowDown':
+      cam.phi=THREE.MathUtils.clamp(cam.phi+rotStep,0.15,Math.PI-0.15); break;
+    case '+': case '=':
+      steerTowards(lastMouseX,lastMouseY,0.3);
+      cam.radius=THREE.MathUtils.clamp(cam.radius-zoomStep,2.5,420); break;
+    case '-': case '_':
+      cam.radius=THREE.MathUtils.clamp(cam.radius+zoomStep,2.5,420); break;
+    case ' ':
+      focusTarget=null; freePoint=null; camFreeTarget=null; break;
+    default: return;
+  }
+  e.preventDefault();
+});
+
+const raycaster=new THREE.Raycaster();
+const ndc=new THREE.Vector2();
+let downX=0,downY=0;
+let lastTapTime=0, lastTapX=0, lastTapY=0;
+
+cv.addEventListener('pointerdown',e=>{downX=e.clientX;downY=e.clientY;});
+
+cv.addEventListener('pointerup',e=>{
+  if(Math.hypot(e.clientX-downX,e.clientY-downY)>12) return;
+
+  const tnow=performance.now();
+  const isDouble = (tnow-lastTapTime<350) &&
+                   (Math.hypot(e.clientX-lastTapX,e.clientY-lastTapY)<40);
+  lastTapTime=tnow; lastTapX=e.clientX; lastTapY=e.clientY;
+
+  ndc.x=(e.clientX/innerWidth)*2-1;
+  ndc.y=-(e.clientY/innerHeight)*2+1;
+  raycaster.setFromCamera(ndc,camera);
+
+  if(isDouble){
+    freeFocusAt();
+    return;
+  }
+
+  const targets=[sun,earth,moon,...planets.map(p=>p.mesh)];
+  const hits=raycaster.intersectObjects(targets,false);
+  if(hits.length){
+    const obj=hits[0].object;
+    if(obj===earth) selectConcept('dunya');
+    else if(obj===sun) selectConcept('gunes');
+    else if(obj===moon) selectConcept('ay');
+    else {
+      const pl=planets.find(p=>p.mesh===obj);
+      if(pl){ showPlanetInfo(pl.def); focusTarget=pl.mesh; cam.radius=pl.def.r*7; }
+    }
+  }
+});
+
+function freeFocusAt(){
+  const all=[sun,earth,moon,...planets.map(p=>p.mesh)];
+  const hits=raycaster.intersectObjects(all,false);
+  if(hits.length){
+    const obj=hits[0].object;
+    const pl=planets.find(p=>p.mesh===obj);
+    if(obj===earth){ focusTarget=earth; cam.radius=EARTH_R*5; }
+    else if(obj===sun){ focusTarget=sun; cam.radius=SUN_R*3; }
+    else if(obj===moon){ focusTarget=moon; cam.radius=MOON_R*8; }
+    else if(pl){ focusTarget=pl.mesh; cam.radius=pl.def.r*6; }
+    freePoint=null;
+  } else {
+    focusTarget=null;
+    freePoint=new THREE.Vector3();
+    raycaster.ray.at(cam.radius, freePoint);
+    cam.radius=Math.max(cam.radius*0.6,9);
+  }
+}
+
+const LEVELS=[
+  {id:'ilk', emoji:'🧒', name:'İlkokul (1-4)',  desc:'Basit ve eğlenceli anlatım', idx:0},
+  {id:'orta',emoji:'🎒', name:'Ortaokul (5-8)', desc:'Temel kavramlar ve sebep-sonuç', idx:1},
+  {id:'lise',emoji:'📘', name:'Lise (9-11)',    desc:'Detaylı süreçler ve terimler', idx:2},
+  {id:'tyt', emoji:'🎯', name:'Lise 12 · TYT/AYT', desc:'Sınav odaklı, derinlemesine', idx:3},
+  {id:'kpss',emoji:'🏛️', name:'KPSS Hazırlık',  desc:'Sınav ipuçları ve ince ayrıntılar', idx:4}
+];
+let curLevel=0;
+
+const CONCEPTS={
+  ikiHareket:{ico:'🔄',head:'İki Hareket Birden',highlight:'dunya',minLevel:0,t:[
+    'Dünya iki türlü hareket eder: kendi etrafında <b>fırıl fırıl döner</b> ve Güneş\'in çevresinde <b>koşar</b>.',
+    'Dünya aynı anda <b>iki hareket</b> yapar: kendi ekseni etrafında döner ve Güneş etrafında dolanır.',
+    'Dünya iki temel hareketi eş zamanlı yürütür: <b>günlük hareket</b> (eksen dönüşü) ve <b>yıllık hareket</b> (Güneş çevresinde dolanım).',
+    'Dünya\'nın günlük hareketi gece-gündüzü, yıllık hareketi mevsimleri doğurur. İkisi <b>bağımsız</b> ama eş zamanlıdır.',
+    '<b>Günlük hareket:</b> batıdan doğuya, 24 saat. <b>Yıllık hareket:</b> batıdan doğuya, 365 gün 6 saat. KPSS\'de ikisinin sonuçları sık karıştırılır — ayırt et.'
+  ],more:[
+    ['<b>Günlük hareket:</b> Dünya kendi etrafında döner → gece-gündüz olur.','<b>Yıllık hareket:</b> Dünya Güneş etrafında dolanır → mevsimler olur.'],
+    ['Her iki hareket <b>batıdan doğuya</b> doğrudur. Bu yüzden Güneş hep doğudan doğar, batıdan batar.','İki hareket aynı anda olur ama <b>birbirinden bağımsızdır</b>.'],
+    ['Günlük hareket 24 saatte, yıllık hareket 365 gün 6 saatte tamamlanır.','Her ikisinin sonuçları farklıdır — gece-gündüz günlük, mevsimler yıllıktır.'],
+    ['Günlük sonuçlar: gece-gündüz, günlük sıcaklık farkı, yerel saat, gel-git, Coriolis.','Yıllık sonuçlar: mevsimler, gündönümleri, ekinokslar, artık yıl, yıllık görünen Güneş hareketi.'],
+    ['KPSS klasiği: Hangi sonuç hangi hareketin? — gece/gündüz GÜNLÜK, mevsim YILLIK hareketin.','KPSS tuzağı: "Mevsim dönmeden olur" → YANLIŞ. Mevsim dolanım + eksen eğikliği ile olur.']
+  ]},
+  eksen:{ico:'📍',head:'Dönme Ekseni',highlight:'eksen',minLevel:0,t:[
+    'Dünya\'nın ortasından geçen, görünmeyen bir <b>çubuk</b> gibidir. Dünya bunun etrafında döner.',
+    'Dünya\'nın içinden geçtiği düşünülen <b>hayali çizgidir</b>. Kuzey ve Güney kutuplarını birleştirir.',
+    'Kutuplardan geçen hayali eksen, Dünya\'nın günlük dönme hareketinin merkezidir.',
+    'Eksen, yörünge düzlemine <b>66.5°</b> eğiklikle durur (eksenin dikey ile açısı 23.5°).',
+    'Eksen eğikliği yörünge düzlemiyle 66.5°, dikeyle 23.5°. Bu değerler KPSS\'de doğrudan sorulur.'
+  ]},
+  eksenDonus:{ico:'🔄',head:'Eksen Etrafında Dönme',highlight:'eksen',minLevel:0,t:[
+    'Dünya kendi etrafında döner. Bir tam tur <b>bir gün</b> sürer. Bu yüzden gece ve gündüz olur.',
+    'Dünya ekseni etrafında <b>24 saatte</b> bir tur atar. Bu hareket <b>gece ve gündüzü</b> oluşturur.',
+    'Günlük hareket batıdan doğuya, 24 saatte tamamlanır. Sonuçları: gece-gündüz, Güneş\'in görünen hareketi.',
+    'Eksen dönüşü 24 saat sürer; sonuçları: gece-gündüz, yerel saat farkları, Coriolis (yön sapması), gel-git çizgisi kayması.',
+    'Günlük hareketin sonuçları KPSS klasiği: gece-gündüz, <b>günlük sıcaklık farkı</b>, yerel saat, dinamik basınç, Coriolis sapması.'
+  ],more:[
+    ['Dünya 24 saatte kendi etrafında bir tur atar — bu <b>bir gündür</b>.','Bu dönüş yüzünden Güneş gökyüzünde doğudan batıya kayıyor gibi görünür.'],
+    ['Dönüş yönü <b>batıdan doğuya</b>dır. Bu yüzden Güneş doğudan doğar, batıdan batar.','Eksen dönüşünün ana sonucu: <b>gece ve gündüz</b>.'],
+    ['Eksen dönüşü 24 saatte 360° tamamlanır → saatte <b>15°</b> dönüş.','Aynı meridyendeki tüm noktalarda yerel saat aynıdır; meridyenler arası 4 dk fark.'],
+    ['Sonuçlar: gece-gündüz, günlük sıcaklık farkı, yerel saat, <b>Coriolis kuvveti</b> (rüzgarların yön sapması).','Coriolis: Kuzey\'de cisimler sağa, güneyde sola sapar. Hava akımları, deniz akıntıları bu etkiyi gösterir.'],
+    ['Günlük hareketin 6 sonucu: gece-gündüz, günlük sıcaklık farkı, yerel saat, dinamik basınç, Coriolis, günlük gel-git ritmi.','KPSS klasik tuzak: "Hangisi günlük hareketin sonucu DEĞİL?" → cevap mevsim (mevsim yıllık harekete bağlı).']
+  ]},
+  eksenEgik:{ico:'📐',head:'Eksen Eğikliği',highlight:'eksen',minLevel:1,t:[
+    '',
+    'Dünya\'nın ekseni dik değil, <b>biraz yana yatıktır</b>. Bu yatıklık mevsimleri oluşturur.',
+    'Eksen, yörünge düzlemine <b>23.5°</b> eğiktir ve bu eğiklik yıl boyu aynı yöne bakar — paralellik.',
+    'Eksenin <b>23.5°</b> eğikliği + eksenin paralelliği = mevsimlerin tek gerçek sebebi. Eğiklik olmasa mevsim olmazdı.',
+    'Eğiklik 23.5°. <b>Eksen kayması</b> (presesyon) 26.000 yılda bir tur — KPSS\'de "eğiklik sabit mi" tuzağına dikkat: kısa vadede sabit kabul edilir.'
+  ],more:[
+    ['',''],
+    ['Eğiklik olmasaydı her yer yıl boyu <b>aynı havayı</b> yaşardı — mevsim olmazdı!','Yatık eksen yıl boyu aynı yöne bakar — sabittir.'],
+    ['Eksen eğikliği <b>23.5°</b>\'dir. Yörünge düzlemiyle 66.5° açı yapar.','Eksenin paralelliği: Dünya yörüngede her noktada eksenin aynı yöne bakmasıdır.'],
+    ['Eğiklik + paralellik birlikte mevsimleri yaratır. Eğiklik tek başına yetmez, paralellik de gerekir.','Eğer eksen 0° (dik) olsaydı: her gün her yer 12 saat gündüz, sıcaklık enleme bağlı sabit olurdu.'],
+    ['Mevsim sebebi = eksen eğikliği + paralellik. Mesafe değişimi (yörünge elipsi) DEĞİL.','Presesyon (eksen kayması) 26.000 yılda bir tur — kısa vadede sabit kabul edilir.']
+  ]},
+  gunduz:{ico:'☀️',head:'Gündüz',highlight:'dunya',minLevel:0,t:[
+    'Dünya\'nın <b>Güneş\'e bakan</b> tarafı aydınlıktır. Orada gündüz olur, hava aydınlık olur.',
+    'Dünya\'nın Güneş\'e bakan yarısı aydınlıktır; burada <b>gündüz</b> yaşanır.',
+    'Aydınlanma çemberinin Güneş\'e bakan tarafı gündüz yarısıdır.',
+    'Gündüz süresi enleme ve tarihe göre değişir; <b>aydınlanma çemberi</b> gündüz-gece sınırını çizer.',
+    'Gündüz süresi: Ekvator\'da hep 12 saat, kutuplara gidildikçe mevsime göre değişir. KPSS: 21 Haziran\'da Kuzey\'de en uzun gündüz.'
+  ]},
+  gece:{ico:'🌙',head:'Gece',highlight:'dunya',minLevel:0,t:[
+    'Dünya\'nın <b>Güneş\'i görmeyen</b> tarafı karanlıktır. Orada gece olur.',
+    'Dünya\'nın Güneş\'ten ışık almayan, gölgede kalan yarısıdır; burada <b>gece</b> olur.',
+    'Aydınlanma çemberinin Güneş\'e ters tarafı gece yarısıdır.',
+    'Gece süresi gündüzü tamamlar (toplam 24 saat); kutup bölgelerinde <b>kutup gecesi</b> aylarca sürebilir.',
+    'Kutup gecesi/gündüzü: Kutup dairelerinde (66.5°) başlar, kutup noktasında 6 ay sürer. KPSS\'de sık sorulur.'
+  ]},
+  yorunge:{ico:'🛸',head:'Yörünge',highlight:'dunya',minLevel:0,t:[
+    'Dünya\'nın Güneş çevresinde dolaşırken izlediği <b>yoldur</b>. Mavi çizgi ile gösterilir.',
+    'Dünya\'nın Güneş etrafında dolanırken izlediği <b>oval (elips) yoldur</b>.',
+    'Yörünge bir <b>elipstir</b>; Güneş elipsin odak noktalarından birindedir.',
+    'Elips yörünge → Dünya-Güneş mesafesi yıl boyu değişir (Günberi/Günöte). Bu, mevsim sebebi <b>değildir</b>.',
+    'KPSS tuzağı: Mevsimlerin sebebi yörüngenin elips olması <b>DEĞİL</b>, eksen eğikliğidir. Mesafe farkı mevsimi açıklamaz.'
+  ],more:[
+    ['Dünya Güneş\'in çevresinde <b>oval bir yolda</b> dolaşır. Bu yola "yörünge" denir.','Yörünge çizgisi 3D modelde <b>cyan/mavi</b> renkle gösterilir.'],
+    ['Yörünge bir <b>elipstir</b> (oval), tam daire değil. Güneş elipsin tam ortasında değildir, biraz kenardadır.','Dünya yörüngede sabit hızla dolanmaz — Güneş\'e yakınken hızlı, uzakken yavaştır.'],
+    ['Kepler\'in 1. yasası: Gezegenler elips yörüngeler izler; Güneş elipsin <b>odak noktalarından birindedir</b>.','Kepler\'in 2. yasası: Gezegen-Güneş çizgisi <b>eşit zamanlarda eşit alanlar</b> tarar.'],
+    ['Yörünge dış merkezliği (eccentricity) 0.017 — neredeyse daire. Günberi-Günöte mesafe farkı ~5 milyon km.','Yörünge düzlemine <b>ekliptik</b> denir. Gezegenlerin çoğu hemen hemen aynı düzlemde dolaşır.'],
+    ['KPSS tuzağı: Yörünge elips → mesafe yıl boyu değişir. AMA bu mevsim sebebi DEĞİL.','Kuzey\'de yaz uzun (~93 gün), kış kısa (~89 gün) — çünkü Günöte\'de yörünge hızı düşer.']
+  ]},
+  donanim:{ico:'🌍',head:'Güneş Etrafında Dolanma',highlight:'dunya',minLevel:0,t:[
+    'Dünya Güneş\'in çevresinde döner. Bir tam tur <b>bir yıl</b> sürer.',
+    'Dünya Güneş çevresinde <b>365 günde (1 yıl)</b> bir tur atar; bu hareket <b>mevsimleri</b> oluşturur.',
+    'Yıllık hareket batıdan doğuya, 365 gün 6 saatte tamamlanır; sonucu mevsimlerdir.',
+    'Yıllık hareket 365 gün 6 saat; artık 6 saat 4 yılda birikip <b>artık yıl</b> (366 gün) oluşturur.',
+    'Yıllık hareketin sonuçları: mevsimler, gündönümleri, ekinokslar, artık yıl, Güneş\'in <b>yıllık görünen hareketi</b> (Ekvator-dönenceler arası).'
+  ],more:[
+    ['Dünya Güneş\'in çevresinde 1 yılda bir tam tur atar.','1 yıl = 365 gün! Ama aslında biraz fazla...'],
+    ['1 yıl tam olarak <b>365 gün 6 saat</b>tır. Bu 6 saatler 4 yılda 1 günü doldurur.','4 yılda bir <b>artık yıl</b> olur (366 gün). Şubat 29 çeker!'],
+    ['Yörünge bir <b>elipstir</b>. Dünya-Güneş mesafesi yıl boyunca değişir.','3 Ocak\'ta en yakın (Günberi), 4 Temmuz\'da en uzak (Günöte).'],
+    ['Yıllık sonuçlar: mevsimler, gündönümleri, ekinokslar, artık yıl, Güneş\'in yıllık görünen hareketi.','Güneş\'in görünen yıllık hareketi: dönenceler arasında gidip gelir (23.5°K ↔ 23.5°G).'],
+    ['Yıllık hareket sideral yıl ~365.25 gün, tropikal yıl ~365.24 gün — küçük fark astronomide önemli.','Artık yıl: 4\'e bölünenler artık, ama 100\'e bölünüp 400\'e bölünmeyenler değil. 2000 artıktı, 2100 değil.']
+  ]},
+  mevsim:{ico:'🌤️',head:'Mevsimler',highlight:'eksen',minLevel:0,t:[
+    'Yılda dört mevsim olur: ilkbahar, yaz, sonbahar, kış. Hava sırayla değişir.',
+    'Eksen eğikliği yüzünden bir yarımküre Güneş\'e <b>eğik bakınca yaz</b>, <b>ters bakınca kış</b> yaşar.',
+    'Mevsimler, eksen eğikliği nedeniyle Güneş ışınlarının <b>geliş açısının</b> ve <b>gündüz süresinin</b> yıl boyu değişmesiyle oluşur.',
+    'Mevsim = ışın geliş açısı + gündüz süresi. İki yarımkürede mevsimler <b>terstir</b>. Eğiklik tek sebep.',
+    'KPSS: Mevsimin 2 sebebi — eksen eğikliği ve eksenin paralelliği. Sonuçları: ışın açısı, gündüz süresi, gölge boyu farkları.'
+  ],more:[
+    ['Yılda 4 mevsim olur. Her biri yaklaşık 3 ay sürer.','İki yarımkürede mevsimler <b>terstir</b>: Türkiye\'de yaz iken Arjantin\'de kış yaşanır!'],
+    ['Mevsimlerin sebebi <b>eksen eğikliği</b>dir. Eğiklik olmasa mevsim olmazdı.','Yarımkürelerden biri Güneş\'e eğik bakınca <b>yaz</b>, ters bakınca <b>kış</b> yaşar.'],
+    ['Mevsim oluşumunda iki şey değişir: <b>ışın açısı</b> ve <b>gündüz süresi</b>.','Dik ışın + uzun gündüz = yaz. Eğik ışın + kısa gündüz = kış.'],
+    ['Mevsim başlangıçları (Kuzey için): 21 Mart (ilkbahar), 21 Haziran (yaz), 23 Eylül (sonbahar), 21 Aralık (kış).','Astronomik mevsim 21\'lerde başlar; takvimsel mevsim ayın 1\'inde başlar.'],
+    ['Mevsim 2 sebebi: eksen eğikliği + paralellik. Sonuçları: ışın açısı, gündüz süresi, gölge boyu.','KPSS tuzağı: Yörünge elipsi mevsim sebebi DEĞİL. 3 Ocak\'ta Dünya Güneş\'e en yakındır ama Kuzey kıştadır!']
+  ]},
+  ekvator:{ico:'🔥',head:'Ekvator',highlight:'ekvator',minLevel:0,t:[
+    'Dünya\'yı tam ortadan saran <b>çizgidir</b>. Orası en sıcak yerdir.',
+    'Dünya\'yı ortadan ikiye bölen <b>hayali çizgidir</b>. Güneş ışığını dik aldığı için <b>en sıcak</b> kuşaktır.',
+    'Ekvator 0° enlemdir; en uzun paralel dairedir, gece-gündüz hep eşittir (12 saat).',
+    'Ekvator: 0° enlem, çizgisel hızın en yüksek olduğu yer, yıl boyu 12 saat gece-gündüz, yılda 2 kez tepe noktası.',
+    'KPSS: Ekvator\'da çizgisel hız en fazla (~1670 km/s), gece-gündüz hep eşit, ışınlar yılda 2 kez (21 Mart, 23 Eylül) dik gelir.'
+  ],more:[
+    ['Ekvator Dünya\'yı <b>tam ortadan</b> ikiye böler. Yukarısı Kuzey, aşağısı Güney Yarımküre\'dir.','Ekvator\'da hava genellikle <b>sıcak ve nemli</b>dir — tropik iklim!'],
+    ['Ekvator <b>0° enlemdir</b>. Tüm paralellerin en uzun olanıdır (~40.075 km).','Ekvator\'da gece-gündüz <b>her zaman 12\'şer saat</b> sürer.'],
+    ['Güneş ışınları Ekvator\'a yılda <b>2 kez</b> dik gelir: 21 Mart ve 23 Eylül.','Dünya\'nın <b>çizgisel hızı</b> Ekvator\'da en yüksektir: ~1670 km/saat!'],
+    ['Ekvator iklimi: yıl boyu yaklaşık 26°C, bol yağış. Gün boyu Güneş yüksek açıyla gelir.','Ekvator\'a yakın ülkeler: Ekvador, Brezilya, Endonezya, Kongo, Kenya, Uganda…'],
+    ['Ekvator\'da çizgisel hız max (~465 m/s), kutupta sıfır. Açısal hız her yerde aynı.','Ekvator\'da yıl boyu 12 saat gece-gündüz, ışın yılda 2 kez dik, sıcaklık değişmez. Tek mevsim sayılır.']
+  ]},
+  kutup:{ico:'❄️',head:'Kutuplar',highlight:'kutup',minLevel:0,t:[
+    'Dünya\'nın en üstü ve en altıdır. Çok soğuktur, hep buz vardır.',
+    'Dünya\'nın en kuzey ve en güney uçlarıdır; ışınları çok eğik aldıkları için <b>en soğuk</b> yerlerdir.',
+    'Kutuplar 90° enlemdir; çizgisel hız sıfırdır, ışınlar en eğik gelir.',
+    'Kutuplarda: çizgisel hız 0, 6 ay gündüz + 6 ay gece, ışın açısı en küçük.',
+    'KPSS: Kutupta çizgisel hız sıfır, açısal hız her yerde eşit. 6 ay aydınlık/karanlık kutup noktasına özgü.'
+  ],more:[
+    ['<b>Kuzey Kutbu</b> Dünya\'nın en üstü, <b>Güney Kutbu</b> en altıdır.','Kutuplar <b>çok soğuktur</b>. Yıl boyu kar ve buz vardır!'],
+    ['Kutuplar <b>90° enlemdir</b>. Burada çizgisel hız <b>sıfırdır</b> — sadece bir nokta!','Kutuplarda <b>6 ay gündüz</b>, 6 ay gece olur. Güneş hiç batmaz veya hiç doğmaz.'],
+    ['Kutup noktasında Güneş yıl boyu ufuk seviyesinin altında veya üstündedir — hiç tepe noktasına gelmez.','Kuzeyde 21 Mart - 23 Eylül arası 6 aylık gündüz, ters tarafta gece olur.'],
+    ['Çizgisel hız enleme bağlı: kutupta 0, ekvatorda 1670 km/s. Coriolis etkisi kutuplara doğru artar.','Kuzey kutbunda kara yoktur (Kuzey Buz Denizi). Güney kutbunda <b>Antarktika</b> kıtası vardır.'],
+    ['Kutup noktası: çizgisel hız 0, yer çekimi maksimum, paralel boyu 0, 6 ay aydınlık + 6 ay karanlık.','Kutuplarda Güneş 21 Mart - 23 Eylül arası (Kuzey) veya tersi (Güney) ufkun üzerinde kalır.']
+  ]},
+  gunes:{ico:'⭐',head:'Güneş',highlight:'gunes',minLevel:0,t:[
+    'Güneş bize <b>ışık ve sıcaklık</b> veren büyük bir ateş topudur.',
+    'Güneş sisteminin merkezindeki <b>yıldızdır</b>; Dünya\'ya ışık ve ısı verir.',
+    'Güneş, sistemin merkezindeki orta büyüklükte bir yıldızdır; enerjisini çekirdek füzyonundan alır.',
+    'Güneş gök cisimleri içinde tek <b>kendi ışığını üreten</b> (yıldız) cisimdir; gezegenler ışığı yansıtır.',
+    'KPSS: Güneş bir yıldız (kendi ışığı), Ay ve gezegenler ışığı yansıtır. Bu ayrım sık sorulur.'
+  ],more:[
+    ['Güneş <b>ateş</b> değildir — dev bir gaz topudur. Oksijensiz yanar!','İçi çok sıcaktır: <b>15 milyon derece</b>! Yüzeyi "sadece" 5500 derece.'],
+    ['Güneş bir <b>yıldızdır</b>. Geceleri gördüğümüz yıldızlar da Güneş gibidir ama çok uzaktadırlar.','Güneş\'in enerjisi <b>nükleer füzyon</b> ile üretilir: hidrojen → helyum.'],
+    ['Güneş\'in katmanları: <b>çekirdek</b> (füzyon), radyasyon zonu, konveksiyon zonu, fotosfer (yüzey), kromosfer, korona.','Güneş orta büyüklükte bir yıldızdır (G2V sınıfı, sarı cüce). Yaşı yaklaşık 4.6 milyar yıl.'],
+    ['Güneş\'in çapı Dünya\'nın yaklaşık <b>109 katı</b>; içine 1.3 milyon Dünya sığar.','Güneş ışığının Dünya\'ya ulaşması <b>8 dakika 20 saniye</b> sürer (ışık hızıyla 150 milyon km).'],
+    ['Güneş bir yıldızdır → kendi ışığını üretir. Ay ve gezegenler Güneş ışığını <b>yansıtır</b>.','Güneş, Samanyolu galaksisinde yer alır. Galaksi merkezini ~225 milyon yılda bir dolaşır.']
+  ]},
+  ay:{ico:'🌙',head:'Ay',highlight:'ay',minLevel:0,t:[
+    'Ay, geceleri gökyüzünde gördüğümüz Dünya\'nın <b>arkadaşıdır</b>. Dünya\'nın çevresinde döner.',
+    'Ay, Dünya\'nın tek <b>uydusudur</b>; Dünya etrafında yaklaşık 27 günde bir döner.',
+    'Ay, Dünya\'nın doğal uydusudur; dönme ve dolanma süresi eşit olduğu için hep aynı yüzünü gösterir.',
+    'Ay\'ın evreleri, tutulmalar ve gel-git olayları Ay-Dünya-Güneş konumuna bağlıdır.',
+    'KPSS: Ay\'ın günlük+yıllık hareketi gel-gite, evrelere ve tutulmalara yol açar. Ay\'da atmosfer yoktur.'
+  ],more:[
+    ['Ay <b>kendi ışığını üretmez</b>; Güneş\'ten aldığı ışığı bize yansıtır.','Ay\'da <b>hava (atmosfer) yoktur</b>. Bu yüzden ses yayılmaz, gökyüzü hep siyahtır.'],
+    ['Ay\'ın <b>evreleri</b> vardır: yeni ay, hilal, ilk dördün, dolunay, son dördün. Bu evreler Ay-Dünya-Güneş konumuna bağlıdır.','Ay\'ın dönme ve dolanma süresi eşit olduğu için <b>hep aynı yüzünü</b> bize gösterir.'],
+    ['Ay\'ın çapı Dünya\'nın yaklaşık <b>1/4</b>\'üdür (3.474 km). Dünya-Ay mesafesi ortalama 384.000 km.','Ay\'ın yer çekimi Dünya\'nın <b>1/6</b>\'sıdır. Ay\'da 60 kg insan 10 kg gibi olur!'],
+    ['Ay <b>gel-git</b> olayının ana sebebidir; Ay\'a yakın taraftaki sular yükselir.','Tutulmalar: <b>Ay tutulması</b> (Dünya, Güneş ile Ay arasındayken), <b>Güneş tutulması</b> (Ay, Dünya ile Güneş arasındayken).'],
+    ['Ay\'ın günlük ve yıllık hareketi vardır. Dünya etrafında 27.3 gün (yıldız ayı), evreler için 29.5 gün (kavuşum ayı).','Ay\'da atmosfer yok → meteorlar yanmaz (kraterler), mevsim yok, ses yok, gökyüzü hep siyah.']
+  ]},
+  dunya:{ico:'🌍',head:'Dünya',highlight:'dunya',minLevel:0,t:[
+    'Üzerinde yaşadığımız <b>gezegendir</b>. Yuvarlaktır ve sürekli döner.',
+    'Üzerinde yaşadığımız gezegendir; hem kendi ekseninde döner hem Güneş etrafında dolanır.',
+    'Dünya, Güneş\'e 3. gezegendir; <b>geoit</b> şeklindedir (kutuplardan basık).',
+    'Dünya geoittir: kutup yarıçapı ekvator yarıçapından kısadır → yer çekimi kutupta fazla.',
+    'KPSS: Dünya\'nın geoit şekli → kutuplarda çizgisel hız az, yer çekimi fazla; ekvatorda tersi.'
+  ],more:[
+    ['Dünya Güneş\'e <b>3. gezegendir</b>: Merkür, Venüs, sonra Dünya.','Dünya\'da hayat olmasının sebebi <b>su, atmosfer ve uygun sıcaklık</b>tır.'],
+    ['Dünya\'nın yarıçapı yaklaşık <b>6.371 km</b>; çevresi ~40.000 km.','Dünya tam yuvarlak <b>değildir</b> — kutuplardan basıktır (geoit şekli).'],
+    ['Dünya <b>iki hareket</b> yapar: günlük (24 saat) + yıllık (365 gün 6 saat).','Dünya\'nın <b>tek doğal uydusu</b> Ay\'dır.'],
+    ['Geoit sonuçları: ekvator yarıçapı (6378 km), kutup yarıçapı (6357 km) — ~21 km fark.','Bu yüzden <b>ekvatorda yer çekimi az</b>, kutupta fazla. Ekvatorda kilo daha hafif!'],
+    ['Dünya geoittir → kutuplarda yer çekimi fazla, çizgisel hız 0; ekvatorda yer çekimi az, çizgisel hız max (1670 km/s).','Yörünge düzlemine 23.5° eksen eğikliği + paralellik = mevsimlerin sebebidir.']
+  ]},
+  gunessistemi:{ico:'🪐',head:'Güneş Sistemi',highlight:'gunes',minLevel:0,t:[
+    'Güneş ve onun çevresinde dönen gezegenlerin <b>ailesidir</b>.',
+    'Güneş ve çevresinde dolanan <b>8 gezegen</b> ile uydularından oluşur. Dünya 3. gezegendir.',
+    'Güneş sistemi: 1 yıldız, 8 gezegen, cüce gezegenler, uydular, asteroitler ve kuyruklu yıldızlar.',
+    'İç gezegenler (kayaç) ve dış gezegenler (gaz devleri) farklı özellikler taşır.',
+    'KPSS: Sıra — Merkür, Venüs, Dünya, Mars, Jüpiter, Satürn, Uranüs, Neptün. Plüton cüce gezegen.'
+  ]},
+  mevsimOlusum:{ico:'🌗',head:'Mevsimlerin Oluşumu',highlight:'eksen',minLevel:1,t:[
+    '',
+    'Mevsimler, Dünya\'nın <b>yatık ekseni</b> ve Güneş etrafında dolanması yüzünden oluşur.',
+    'Eksen eğikliği + yıllık hareket → ışın açısı ve gündüz süresi değişir → mevsimler oluşur.',
+    'Mevsim oluşumu zinciri: eğik+paralel eksen → yıl boyu farklı ışın açısı → farklı ısınma → mevsim.',
+    'KPSS net cevabı: Mevsimlerin sebebi <b>eksen eğikliği ve eksenin paralelliği</b>. Mesafe ya da dönme hızı DEĞİL.'
+  ]},
+  haziran21:{ico:'☀️',head:'21 Haziran',highlight:'eksen',minLevel:1,jumpTo:180,t:[
+    '',
+    '<b>Yaz başlangıcı.</b> Güneş ışınları Kuzey Yarımküre\'ye dik gelir; Kuzey\'de yaz, Güney\'de kış.',
+    '21 Haziran: Güneş ışınları <b>Yengeç Dönencesi\'ne</b> (23.5° Kuzey) dik gelir; Kuzey\'de yaz gündönümü.',
+    '21 Haziran — Yengeç Dönencesi\'ne dik ışın. Kuzey\'de en uzun gündüz, en kısa gece; Güney\'de tersi.',
+    'KPSS: 21 Haziran — ışınlar Yengeç Dönencesi\'ne dik. Kuzey\'de yaz gündönümü, kutup noktasında 6 aylık gündüzün ortası.'
+  ]},
+  aralik21:{ico:'❄️',head:'21 Aralık',highlight:'eksen',minLevel:1,jumpTo:0,t:[
+    '',
+    '<b>Kış başlangıcı.</b> Güneş ışınları Güney Yarımküre\'ye dik gelir; Kuzey\'de kış, Güney\'de yaz.',
+    '21 Aralık: Güneş ışınları <b>Oğlak Dönencesi\'ne</b> (23.5° Güney) dik gelir; Kuzey\'de kış gündönümü.',
+    '21 Aralık — Oğlak Dönencesi\'ne dik ışın. Kuzey\'de en kısa gündüz, en uzun gece.',
+    'KPSS: 21 Aralık — ışınlar Oğlak Dönencesi\'ne dik. Kuzey Yarımküre\'de kış gündönümü, en uzun gece.'
+  ]},
+  mart21:{ico:'🌸',head:'21 Mart',highlight:'ekvator',minLevel:1,jumpTo:90,t:[
+    '',
+    '<b>İlkbahar başlangıcı.</b> Güneş ışınları Ekvator\'a dik gelir; her yerde gece-gündüz eşit.',
+    '21 Mart: ışınlar <b>Ekvator\'a</b> dik gelir — ilkbahar ekinoksu; tüm Dünya\'da gece-gündüz 12\'şer saat.',
+    '21 Mart ekinoksu — ışın Ekvator\'a dik, aydınlanma çemberi kutuplardan geçer, her yerde 12 saat gündüz.',
+    'KPSS: 21 Mart — ışın Ekvator\'a dik, gece-gündüz tüm Dünya\'da eşit; aydınlanma çemberi her iki kutba teğet.'
+  ]},
+  eylul23:{ico:'🍂',head:'23 Eylül',highlight:'ekvator',minLevel:1,jumpTo:270,t:[
+    '',
+    '<b>Sonbahar başlangıcı.</b> Güneş ışınları Ekvator\'a dik gelir; her yerde gece-gündüz eşit.',
+    '23 Eylül: ışınlar <b>Ekvator\'a</b> dik — sonbahar ekinoksu; gece-gündüz her yerde eşit.',
+    '23 Eylül ekinoksu — 21 Mart\'ın benzeri; ışın Ekvator\'a dik, her yerde 12 saat gündüz.',
+    'KPSS: 23 Eylül ekinoksu — ışın Ekvator\'da dik. İki ekinoks yılın tek "gece=gündüz" anlarıdır.'
+  ]},
+  ocak3:{ico:'🟡',head:'3 Ocak (Günberi)',highlight:'dunya',minLevel:2,t:[
+    '','',
+    'Dünya\'nın Güneş\'e <b>en yakın</b> olduğu konumdur (Günberi/Perihel).',
+    '3 Ocak Günberi — Dünya Güneş\'e en yakın; yörünge hızı en <b>yüksek</b>tir.',
+    'KPSS: 3 Ocak Günberi — en yakın konum, en hızlı yörünge hareketi → Kuzey\'de kış kısa sürer.'
+  ]},
+  temmuz4:{ico:'🟠',head:'4 Temmuz (Günöte)',highlight:'dunya',minLevel:2,t:[
+    '','',
+    'Dünya\'nın Güneş\'ten <b>en uzak</b> olduğu konumdur (Günöte/Aphel).',
+    '4 Temmuz Günöte — Dünya Güneş\'ten en uzak; yörünge hızı en <b>düşük</b>tür.',
+    'KPSS: 4 Temmuz Günöte — en uzak konum, en yavaş hareket → Kuzey\'de yaz uzun sürer.'
+  ]},
+  uzunGunduz:{ico:'🌅',head:'En Uzun Gündüz',highlight:'eksen',minLevel:1,jumpTo:180,t:[
+    '',
+    'Kuzey Yarımküre\'de <b>21 Haziran</b> en uzun gündüzdür; Güneş uzun süre gökyüzünde kalır.',
+    '21 Haziran Kuzey Yarımküre\'nin en uzun gündüzü; enlem arttıkça gündüz daha da uzar.',
+    'En uzun gündüz enleme bağlıdır: 21 Haziran\'da Kuzey\'de enlem arttıkça gündüz uzar, kutupta 24 saat.',
+    'KPSS: 21 Haziran Kuzey\'de en uzun gündüz; Kutup Dairesi\'nde (66.5°) gündüz 24 saate ulaşır.'
+  ]},
+  uzunGece:{ico:'🌃',head:'En Uzun Gece',highlight:'eksen',minLevel:1,jumpTo:0,t:[
+    '',
+    'Kuzey Yarımküre\'de <b>21 Aralık</b> en uzun gecedir; gündüz çok kısa olur.',
+    '21 Aralık Kuzey Yarımküre\'nin en uzun gecesi; enlem arttıkça gece daha da uzar.',
+    'En uzun gece: 21 Aralık\'ta Kuzey\'de enlem arttıkça gece uzar, Kutup Dairesi\'nde 24 saat.',
+    'KPSS: 21 Aralık Kuzey\'de en uzun gece; aynı tarihte Güney Yarımküre en uzun gündüzü yaşar.'
+  ]},
+  ekinoks:{ico:'⚖️',head:'Ekinoks (Eşitlik)',highlight:'ekvator',minLevel:1,t:[
+    '',
+    'Gece ile gündüzün <b>eşit olduğu</b> günlerdir: 21 Mart ve 23 Eylül.',
+    'Ekinoks: ışınların Ekvator\'a dik geldiği, tüm Dünya\'da gece-gündüzün eşit olduğu 2 gün.',
+    'Ekinokslarda aydınlanma çemberi kutuplardan geçer; her enlemde 12 saat gündüz.',
+    'KPSS: Ekinoks (21 Mart, 23 Eylül) — gece-gündüz her yerde eşit, aydınlanma çemberi kutuplara teğet, ışın Ekvator\'a dik.'
+  ]},
+  isinAci:{ico:'📐',head:'Güneş Işınlarının Açısı',highlight:'ekvator',minLevel:1,t:[
+    '',
+    'Işınlar bir yere <b>dik gelirse</b> orası çok ısınır, <b>yan gelirse</b> az ısınır.',
+    'Işın geliş açısı büyüdükçe (dike yaklaştıkça) birim alana düşen enerji artar → sıcaklık artar.',
+    'Dik ışın → dar alana yoğun enerji → fazla ısınma. Eğik ışın → geniş alana yayılır → az ısınma.',
+    'KPSS: Işın açısı enleme, tarihe, günün saatine ve bakı yönüne bağlı. Dik ışın = küçük gölge = fazla ısınma.'
+  ]},
+  donenceler:{ico:'📏',head:'Dönenceler',highlight:'ekvator',minLevel:2,t:[
+    '','',
+    'Güneş ışınlarının dik geldiği <b>en kuzey ve en güney</b> noktalardır: 23.5° enlemleri.',
+    'Yengeç Dönencesi (23.5°K) ve Oğlak Dönencesi (23.5°G) — ışınların dik gelebildiği son enlemler.',
+    'KPSS: Dönenceler 23.5° enlemde; ışın yılda 1 kez dik gelir. Aralarındaki kuşakta (Tropikal) ışın yılda 2 kez dik.'
+  ]},
+  kutupDaire:{ico:'🧭',head:'Kutup Daireleri',highlight:'kutup',minLevel:2,t:[
+    '','',
+    '<b>66.5°</b> enlemlerdir; bu çizgilerden sonra 24 saatlik gündüz/gece görülebilir.',
+    'Kutup Daireleri (66.5°) — kutup gündüzü ve kutup gecesinin başladığı enlemler.',
+    'KPSS: 66.5° Kutup Daireleri. Bu enlemde yılda 1 kez 24 saat gündüz / 24 saat gece görülür; kutba gidildikçe süre uzar.'
+  ]},
+  cizgiselHiz:{ico:'💨',head:'Çizgisel Hız',highlight:'ekvator',minLevel:2,t:[
+    '','',
+    'Dünya dönerken Ekvator\'daki bir nokta, kutuptaki noktadan <b>daha hızlı</b> yol alır.',
+    'Çizgisel hız Ekvator\'da en yüksek (~1670 km/s), kutuplara doğru azalır, kutupta sıfırdır.',
+    'KPSS: Çizgisel hız enleme bağlı — Ekvator\'da maksimum, kutupta sıfır. <b>Açısal hız</b> ise her yerde eşittir.'
+  ]},
+  aydinlanmaCember:{ico:'🌓',head:'Aydınlanma Çemberi',highlight:'dunya',minLevel:2,t:[
+    '','',
+    'Dünya\'nın <b>aydınlık ve karanlık</b> yarısını ayıran sınır çizgisidir.',
+    'Aydınlanma çemberi gece ile gündüzü ayırır; eksen eğikliği nedeniyle kutuplardan geçmez (ekinokslar hariç).',
+    'KPSS: Aydınlanma çemberi ekinokslarda kutuplara teğet, gündönümlerinde Kutup Dairelerine teğet geçer.'
+  ]},
+  meridyen:{ico:'📏',head:'Meridyenler',highlight:'meridyen',minLevel:0,t:[
+    'Meridyenler, Kuzey Kutbu ile Güney Kutbu arasında uzanan <b>hayali pembe çizgilerdir</b>. Toplam <b>360 tanedir</b> ve hepsi birbirine eşit uzunluktadır.',
+    'Meridyenler kutuplar arasında uzanan yarım çemberlerdir; <b>boylamı</b> ölçer. Toplam <b>360 meridyen</b> vardır (180 doğu + 180 batı); ardışık ikisi arası 1°\'dir.',
+    'Meridyenler kutuplardan geçen hayali yarım çemberlerdir, boylam ölçer. 360 meridyen vardır; ardışık 2 arası 1°. Başlangıç meridyeni <b>Greenwich (0°)</b>; 180° meridyeni Tarih Değiştirme Çizgisi\'dir.',
+    '360 meridyen, ardışık 2 arası 1°. Greenwich (0°) başlangıç; doğusu doğu boylamı (1°-180°D), batısı batı boylamı. 180° meridyeni Greenwich\'in tam karşısında ve <b>Tarih Değiştirme Çizgisi</b>\'dir.',
+    'Meridyen sistemi: <b>360 adet</b>, ardışık 2 arası 1°, hepsi eşit uzunlukta yarım çember. Greenwich (0°) referans, 180° tarih değiştirme çizgisi. UTC saati bu sisteme dayanır.'
+  ],more:[
+    [
+      'Meridyenler birbirine paralel <b>değildir</b>! Kutuplara gittikçe birbirine yaklaşır ve <b>kutup noktasında birleşirler</b>.',
+      'İki meridyen arası mesafe ekvatorda en geniştir; kutuplara doğru gittikçe <b>azalır</b> ve kutupta sıfır olur.',
+      'Aynı meridyen üzerindeki tüm şehirlerin <b>yerel saati aynıdır</b>. Yani aynı anda öğle olur, aynı anda akşam olur.',
+      'Ardışık iki meridyen arasında <b>4 dakika</b> yerel saat farkı vardır. Doğudaki şehirlerde saat ileri, batıdakilerde geridir.'
+    ],
+    [
+      'Meridyenler birbirine paralel değildir; kutuplara doğru birbirine yaklaşır, kutup noktasında <b>birleşirler</b>. Aralarındaki mesafe ekvatorda en geniş (~111 km), kutuplara doğru <b>sıfıra azalır</b>.',
+      'Ardışık 2 meridyen arası <b>4 dakika</b> yerel saat farkı yaratır. Çünkü Dünya 24 saatte 360° döner → 1 saat = 15° = 60 dakika, yani 1° = 4 dakika.',
+      'Aynı meridyendeki tüm noktalarda yerel saat <b>aynıdır</b>; ama enlem farklı olduğu için iklim ve gündüz süresi farklı olabilir.',
+      'Doğudaki şehirde saat ileri, batıdakinde geridir. Türkiye\'nin doğusu ile batısı arasında yaklaşık <b>76 dakika</b> yerel saat farkı vardır.',
+      'Başlangıç meridyeni Greenwich\'tir (Londra). 180° meridyeni dünyanın diğer tarafında, tarih değiştirme çizgisidir.'
+    ],
+    [
+      'Meridyenler kutuplarda birleşir; aralarındaki mesafe ekvatorda ~111 km, kutuplara doğru <b>sıfıra azalır</b>. Boyları her yerde eşittir (yarım çember = ~20.000 km).',
+      'Ardışık 2 meridyen arası <b>4 dakika</b> yerel saat farkı: 360° ÷ 24 saat = 15°/saat, dolayısıyla 1° = 4 dakika. Her saat dilimi 15° genişliktedir.',
+      '<b>Tarih Değiştirme Çizgisi (180° meridyeni):</b> doğusu ile batısı arasında tam 1 gün fark vardır. Doğusundan batısına geçen 1 gün kazanır, tersi 1 gün kaybeder.',
+      'Türkiye 26°-45° doğu boylamları arasında. En batı (Edirne ~26°D) ile en doğu (Iğdır ~45°D) arası 19° → yaklaşık <b>76 dakika</b> yerel saat farkı.',
+      'Türkiye\'de <b>ortak saat boylamı 45°</b>\'dir; tüm Türkiye UTC+3 saat dilimini kullanır, böylece yerel saat farkları pratikte ortadan kalkar.',
+      'Aynı meridyen üzerindeki noktalar aynı yerel saati paylaşır ama farklı enlemde oldukları için <b>farklı iklim</b> yaşayabilir.'
+    ],
+    [
+      'Yerel saat farkı formülü: <b>(boylam farkı) × 4 dakika</b>. 1° = 4 dakika, 15° = 1 saat. Sonuç dakika cinsindendir, 60\'a bölersen saat olur.',
+      '<b>Doğudaki ileri, batıdaki geridir.</b> Doğuda Güneş daha erken doğar; saat daha ileridir. Aynı anda doğudaki şehirde sabah, batıdaki şehirde gece olabilir.',
+      'Tarih Değiştirme Çizgisi 180° meridyeni — doğudan batıya geçen 1 gün kazanır (cuma → cumartesi), batıdan doğuya geçen 1 gün kaybeder (cumartesi → cuma).',
+      'Türkiye 26°-45°D arası, ortak saat 45° (UTC+3). Edirne-Iğdır arası boylam farkı 19° → 76 dakika fark; ama herkes saat 12:00\'da öğle vakti gibi davranır.',
+      'Meridyen boyları eşit (yarım çember), aralarındaki mesafe ekvatorda maksimum (~111 km) → kutuplara doğru sıfıra azalır. Bu paralellerden farkıdır.',
+      'KPSS klasiği: İki şehrin <b>boylam farkını bul → 4 ile çarp → doğudaki ileri yazıp ekle</b>. Aynı meridyen üzerinde olanlar aynı yerel saati paylaşır.'
+    ],
+    [
+      'Yerel saat formülü: <b>fark = (boylam farkı) × 4 dakika</b>. Dakika cinsinden çıkar, 60\'a böl → saate çevir. Doğusu ileri, batısı geridir.',
+      'Doğudaki ileri kuralı KPSS\'de sürekli sorulur: A şehri B\'nin doğusundaysa A\'da saat ileri (B\'ye saatten dakika ekle); batıdaysa A\'da saat geri (B\'den dakika çıkar).',
+      'Tarih Değiştirme Çizgisi <b>180° meridyeni</b>: doğusundan batısına geçince <b>1 gün kazanılır</b> (gün ileri); batısından doğusuna geçince 1 gün kaybedilir.',
+      'Meridyen özellikleri: 360 adet, hepsi yarım çember (eşit boy), kutuplarda birleşir, aralarındaki mesafe ekvatorda max → kutuplara doğru 0. Paralellerle karıştırılmaz.',
+      'Türkiye 26°-45°D; ortak saat boylamı <b>45°</b> (UTC+3). En doğu-batı arası 19° → 76 dakika yerel saat farkı. Yaz saati uygulaması bu farkı değiştirmez.',
+      'KPSS tuzakları: (1) Aynı meridyen ≠ aynı iklim (enlem farklı). (2) Aynı paralel ≠ aynı yerel saat (boylam farklı). <b>Boylam saati, enlem iklimi belirler.</b>'
+    ]
+  ]},
+  paralel:{ico:'➖',head:'Paraleller',highlight:'paralel',minLevel:0,t:[
+    'Paraleller, Dünya\'yı ekvatora paralel olarak saran <b>hayali mavi çemberlerdir</b>. Toplam <b>180 tane</b> paralel vardır (90 kuzey + 90 güney).',
+    'Paraleller ekvatora paralel kapalı çemberlerdir; <b>enlemi</b> ölçer. Toplam <b>180 paralel</b> vardır (90 K + 90 G); boyları kutuplara doğru kısalır, kutup noktasında sıfır olur.',
+    'Paraleller ekvatora paralel tam çemberlerdir, enlem ölçer. <b>180 paralel</b> vardır; en uzun ekvator (~40.075 km), 90° kutup noktasında 0. Ardışık 2 arası 1°.',
+    'Paraleller enlem dairesidir; 180 adet (90 K + 90 G), ardışık 2 arası 1°. <b>Önemli paraleller:</b> Ekvator (0°), Yengeç-Oğlak Dönenceleri (23.5°), Kutup Daireleri (66.5°), Kutup Noktaları (90°).',
+    'Paralel sistemi: <b>180 adet</b>, ardışık 2 arası 1°. En uzun ekvator (~40.075 km), 90° kutup noktasında sıfır. Önemli ezber: 0°, 23.5°, 66.5°, 90° enlemler.'
+  ],more:[
+    [
+      'En önemli paralel <b>Ekvator</b>\'dur, derecesi 0°\'dir. Dünya\'yı Kuzey ve Güney Yarımküre\'ye ayırır.',
+      'Paraleller <b>kapalı çemberlerdir</b> — meridyenler gibi kutuplarda birleşmez, her biri tam bir dairedir.',
+      'Ekvatordan kutuplara doğru gidildikçe paraleller <b>küçülür</b>; kutup noktasında sadece bir nokta olur.',
+      'Ardışık iki paralel arası mesafe <b>her yerde aynıdır</b> (yaklaşık 111 km). Bu meridyenlerden farklıdır — meridyenlerin arası kutba doğru azalır.'
+    ],
+    [
+      'Paraleller kapalı çemberlerdir; meridyenden farklı olarak kutuplarda birleşmezler. Her paralel kendi dairesini tamamlar.',
+      'Ardışık 2 paralel arası mesafe <b>her enlemde aynıdır</b>: yaklaşık <b>111 km</b>. (Meridyenlerle karıştırma — onlar kutba doğru daralır.)',
+      'En uzun paralel ekvatordur (~40.000 km). Kutuplara doğru gittikçe paralel boyu kısalır; kutup noktasında 0\'dır.',
+      'Aynı paralel üzerindeki tüm yerler <b>aynı gündüz süresi</b>ne, <b>aynı ışın açısı</b>na ve <b>aynı çizgisel hız</b>a sahiptir.',
+      'Önemli paraleller: Ekvator (0°), <b>Yengeç Dönencesi</b> (23.5°K), <b>Oğlak Dönencesi</b> (23.5°G), <b>Kutup Daireleri</b> (66.5°K ve G).'
+    ],
+    [
+      'Paraleller kapalı çemberlerdir; ardışık 2 arası mesafe <b>her enlemde sabit ~111 km</b>\'dir (Dünya küresel olduğu için 40.000 km / 360 ≈ 111 km).',
+      'En uzun paralel ekvatordur (~40.075 km). Kutuplara doğru çevre kısalır: 30°\'de ~34.700 km, 60°\'de ~20.000 km, 90°\'de 0.',
+      '<b>Önemli paraleller (ezber):</b> Ekvator (0°), Yengeç Dönencesi (23.5°K), Oğlak Dönencesi (23.5°G), Kuzey Kutup Dairesi (66.5°K), Güney Kutup Dairesi (66.5°G), Kutup Noktaları (90°).',
+      'Türkiye <b>36°-42° kuzey paralelleri</b> arasındadır — orta kuşak iklimi yaşar; mevsimler belirgindir.',
+      'Aynı paralel = aynı gündüz süresi, aynı ışın açısı, aynı çizgisel hız, benzer iklim. Aynı meridyen ≠ aynı iklim (enlem farklı).',
+      'Çizgisel hız enleme bağlı: ekvatorda max (~1670 km/saat), kutupta 0. <b>Açısal hız</b> her yerde aynıdır (15°/saat).'
+    ],
+    [
+      'Paraleller arası mesafe ekvatordan kutuplara <b>her yerde aynı (~111 km)</b>; meridyenlerle karıştırılmaz. 1° = 111 km demektir.',
+      'Çizgisel hız enleme bağlı: ekvatorda max ~1670 km/saat, kutupta 0. <b>Açısal hız</b> (15°/saat) her yerde aynıdır.',
+      'Işın geliş açısı: enlem arttıkça eğilir → birim alana düşen enerji azalır → sıcaklık düşer. Bu yüzden ekvator sıcak, kutuplar soğuktur.',
+      'Aynı paralel ortak özellikleri: aynı gündüz süresi, aynı ışın açısı, aynı çizgisel hız, benzer iklim. Aynı meridyen ortak özelliği: aynı yerel saat.',
+      'Türkiye 36°-42°K paralelleri → orta kuşak. Bu yüzden 4 mevsim belirgin yaşanır; en uzun ve en kısa gündüz süreleri ılımlıdır.',
+      'Önemli paraleller ezberi: 0° Ekvator, 23.5° Yengeç/Oğlak Dönenceleri, 66.5° Kutup Daireleri, 90° Kutup Noktaları. Bu derecelerin her birinin özel anlamı vardır.'
+    ],
+    [
+      'Ardışık 2 paralel arası mesafe ~<b>111 km sabit</b> — Dünya çevresi / 360 = 40.000 / 360 ≈ 111 km. Türkiye sınırından KPSS sorusu sıkça gelir.',
+      'Çizgisel hız ekvatorda ~1670 km/saat (max), kutupta 0. Açısal hız her yerde 15°/saat. Yer çekimi: kutupta max (geoit), ekvatorda min.',
+      'Önemli paraleller: <b>Ekvator (0°)</b>, Yengeç (23.5°K, 21 Haziran dik), Oğlak (23.5°G, 21 Aralık dik), Kutup Daireleri (66.5°, kutup gündüzü/gecesi başlar), Kutup Noktaları (90°).',
+      'Türkiye 36°-42°K paralelleri arası → orta kuşak iklimi; 4 mevsim belirgin, en uzun gündüz ~15 saat, en kısa ~9 saat civarı.',
+      'KPSS klasiği: <b>aynı paralel</b> → aynı gündüz, aynı ışın açısı, aynı çizgisel hız. <b>Aynı meridyen</b> → aynı yerel saat ama farklı enlem farklı iklim verebilir.',
+      'KPSS tuzakları: (1) "Aynı enlemde 2 nokta arasında saat farkı vardır" → YANLIŞ (boylam saati belirler). (2) Paraleller kutuplarda birleşmez (meridyenlerle karıştırma).'
+    ]
+  ]},
+  kis:{ico:'❄️',head:'Kış',highlight:'eksen',minLevel:0,jumpTo:0,t:[
+    'Kış, havanın <b>en soğuk</b> olduğu, gündüzlerin kısa olduğu mevsimdir. Karda kayak yapar, kar topu oynarız!',
+    'Kuzey Yarımküre\'de <b>21 Aralık - 21 Mart</b> arası yaşanır. Güneş ışınları daha eğik gelir, hava soğur, gündüzler kısalır.',
+    'Kuzey Yarımküre\'de kış, Güneş\'in en güneyde göründüğü dönemdir. Işın açısı küçük, gündüz süresi kısa, gölgeler en uzun olur.',
+    'Kuzey\'de kış: ışın açısı küçük, gündüz kısa, sıcaklık düşük. Güney\'de aynı anda <b>yaz</b> yaşanır — mevsimler her zaman terstir.',
+    'KPSS: Kuzey\'in kışı 21 Aralık\'ta başlar; ışınlar <b>Oğlak Dönencesi (23.5°G)</b>\'ne dik gelir. En uzun gece kuzeyde, en uzun gündüz güneyde.'
+  ],more:[
+    [
+      'Kış aylarında gündüz çok kısadır — bazen güneş daha 4-5 saat yukarıda kalır.',
+      'Kuzey\'de kış olunca, Güney\'de aynı anda yaz yaşanır! Arjantin\'de kış-Aralık değil, Temmuz-Ağustos\'tur.',
+      'Kışın güneş gökyüzünde alçaktan geçer; bu yüzden ışınlar bizi az ısıtır.'
+    ],
+    [
+      'Kuzey\'de kış 21 Aralık\'ta başlar (kış gündönümü) ve 21 Mart\'a kadar sürer.',
+      'Aynı anda Güney Yarımküre\'de yaz olur — mevsimler her zaman <b>zıttır</b>.',
+      'Kışın Güneş gökyüzünde alçakta görünür; ışın açısı küçük olduğu için birim alana az enerji düşer, hava soğur.',
+      'Kuzey\'de kış aylarında gündüz süresi enlem arttıkça kısalır; Kutup Dairesi\'nde (66.5°K) en az 1 gün 24 saat gece görülür.'
+    ],
+    [
+      '21 Aralık <b>kış gündönümü</b>: Kuzey\'de en kısa gündüz, en uzun gece. Işınlar Oğlak Dönencesi\'ne (23.5°G) dik gelir.',
+      'Kuzey\'de kış, Güney\'de yaz aynı anda yaşanır. Türkiye\'de Ocak iken Arjantin\'de Temmuz gibidir.',
+      'Kışın gölge boyları en uzundur; Güneş alçaktan geldiği için cisimlerin gölgesi sabah ve akşam çok uzar.',
+      'Kuzey kışı yaklaşık 89 gün sürer — yaz mevsiminden (~93 gün) <b>kısadır</b>, çünkü Günberi\'de (3 Ocak) yörünge hızı yüksektir.'
+    ],
+    [
+      '21 Aralık kış gündönümü → Oğlak Dönencesi\'ne (23.5°G) dik ışın. Kuzey\'de en uzun gece, en kısa gündüz.',
+      'Aydınlanma çemberi 21 Aralık\'ta <b>Kuzey Kutup Dairesi\'ne</b> (66.5°K) teğet → buranın kuzeyinde 24 saatlik gece.',
+      'Kuzey kışı 21 Aralık - 21 Mart, ~89 gün; Güney\'de aynı dönem yaz — ~93 gün. Yörünge elipsi yüzünden mevsim süreleri eşit değil.',
+      'Türkiye\'de kış: enlem arttıkça gece uzar, ışın açısı eğilir, sıcaklık düşer. Iğdır\'da kış İstanbul\'dan sert.',
+      '3 Ocak <b>Günberi</b>: Dünya Güneş\'e en yakın konumda. Mesafe yakın ama Kuzey kışında — mevsimin sebebi mesafe değil eksen eğikliği!'
+    ],
+    [
+      '21 Aralık <b>kış gündönümü</b>: ışınlar Oğlak Dönencesi\'ne dik. Kuzey\'de en uzun gece, en kısa gündüz; Güney\'de tersi.',
+      'Aydınlanma çemberi 21 Aralık\'ta Kuzey Kutup Dairesi\'ne teğet → 66.5°K kuzeyinde 24 saat gece, 66.5°G güneyinde 24 saat gündüz.',
+      'KPSS klasiği: Kuzey kışı (21 Aralık - 21 Mart) ~89 gün; Kuzey yazı (21 Haziran - 23 Eylül) ~93 gün. <b>Kuzey kışı daha kısadır</b> — Günberi yakınlığı.',
+      'Kuzey\'de kış başlangıcında Güney\'de yaz gündönümü; Güney Kutbu\'nda 6 aylık gündüzün ortası, Kuzey Kutbu\'nda 6 aylık gecenin ortası.',
+      '3 Ocak Günberi: Dünya Güneş\'e <b>en yakın</b> ama Kuzey kıştadır. Bu KPSS tuzağı — mevsim sebebi mesafe DEĞİL, eksen eğikliğidir.',
+      'Türkiye orta kuşak (36°-42°K) kışı: ılımlı, Karadeniz/Doğu Anadolu sert; iç kesimde karasal, kıyıda Akdeniz/Karadeniz ılıman.'
+    ]
+  ]},
+  ilkbahar:{ico:'🌸',head:'İlkbahar',highlight:'ekvator',minLevel:0,jumpTo:90,t:[
+    'İlkbahar, havanın <b>ısınmaya başladığı</b>, çiçeklerin açtığı, ağaçların yeşerdiği mevsimdir.',
+    'Kuzey Yarımküre\'de <b>21 Mart - 21 Haziran</b> arası yaşanır. Güneş ışınları daha dik gelmeye başlar, gündüzler uzar.',
+    '21 Mart <b>ekinoksu</b> ile başlar. Işın açısı büyür, gündüz süresi sürekli artar, hava ısınır.',
+    'İlkbahar, kıştan yaza geçiş dönemidir. <b>21 Mart ekinoksunda</b> gece ve gündüz tüm Dünya\'da eşitlenir (12\'şer saat).',
+    'KPSS: Kuzey\'de ilkbahar 21 Mart - 21 Haziran arası; ışınlar Ekvator\'dan Yengeç Dönencesi\'ne doğru kayar. Gündüz süresi artar, ışın açısı dikleşir.'
+  ],more:[
+    [
+      'İlkbaharda her şey canlanır: ağaçlar yeşillenir, çiçekler açar, kuşlar şarkı söyler.',
+      'Kuzey\'de ilkbahar olunca Güney\'de sonbahar yaşanır — her şey ters.',
+      'İlkbaharda gece ve gündüz neredeyse eşit uzundur; sonra gündüzler yavaş yavaş daha uzun olmaya başlar.'
+    ],
+    [
+      'Kuzey\'de ilkbahar 21 Mart\'ta başlar (ilkbahar ekinoksu) ve 21 Haziran\'a kadar sürer.',
+      '<b>21 Mart ekinoksunda</b> Güneş ışınları Ekvator\'a dik gelir → tüm Dünya\'da gece-gündüz <b>12 saat</b> eşittir.',
+      'İlkbahar sırasında gündüz süresi sürekli artar; Kuzey\'de gündüzler her gün biraz daha uzun, geceler biraz daha kısa olur.',
+      'Aynı anda Güney Yarımküre\'de <b>sonbahar</b> yaşanır.'
+    ],
+    [
+      '21 Mart <b>ilkbahar ekinoksu</b>: ışınlar Ekvator\'a dik, gece-gündüz tüm Dünya\'da eşit (12\'şer saat).',
+      'Aydınlanma çemberi 21 Mart\'ta her iki kutba teğet; tüm enlemler 12 saat gündüz alır.',
+      'İlkbahar boyunca Kuzey\'de: ışın açısı dikleşir, gündüz süresi uzar, sıcaklık yükselir.',
+      'Kuzey ilkbaharı yaklaşık 92 gün sürer; sonbahar (~90) ile yakın, yaz ve kıştan farklı.',
+      'Türkiye\'de ilkbahar: Mart-Mayıs ısınma dönemi, en yağışlı dönemlerden biri (özellikle iç bölgeler).'
+    ],
+    [
+      '21 Mart ekinoksu — ışın Ekvator\'a dik, gece-gündüz her yerde eşit. <b>Aydınlanma çemberi her iki kutuptan geçer</b>.',
+      'Sonraki 3 ayda Güneş Yengeç Dönencesi\'ne doğru kayar; Kuzey\'de gündüz uzar, sıcaklık artar.',
+      'İlkbahar = kıştan yaza geçiş; sonbahar = yazdan kışa geçiş. İki ekinoks: 21 Mart ve 23 Eylül.',
+      'Türkiye\'de ilkbahar: yağışlı, ısınma başlar, doğa canlanır. Tarımsal etkinlik en yüksek dönem.',
+      'Kuzey ilkbaharı ~92 gün; eksi 21 Mart\'ta gündüz=gece, 21 Haziran\'da en uzun gündüz.'
+    ],
+    [
+      '21 Mart <b>ilkbahar ekinoksu</b>: ışın Ekvator\'a dik (90° tepe açısı), gece-gündüz tüm Dünya\'da 12\'şer saat eşit.',
+      'Aydınlanma çemberi 21 Mart\'ta her iki kutba <b>teğet</b> → her enlem 12 saat aydınlık alır. 23 Eylül ekinoksu da aynı.',
+      'KPSS klasiği: ekinokslar (21 Mart, 23 Eylül) yılın tek "gece=gündüz" anlarıdır. Sadece ekvator için her gün böyledir.',
+      'Kuzey ilkbaharı (~92 gün): Güneş Ekvator → Yengeç Dönencesi arası kayar; gündüz uzar, ışın açısı dikleşir.',
+      'Aynı anda Güney Yarımküre\'de sonbahar yaşanır; mevsimler iki yarımkürede daima zıttır.',
+      'KPSS tuzağı: "İlkbahar ekinoksunda her yerde 12 saat gündüz" → DOĞRU, sadece kutup noktasında belirsizlik vardır (Güneş ufukta).'
+    ]
+  ]},
+  yaz:{ico:'☀️',head:'Yaz',highlight:'eksen',minLevel:0,jumpTo:180,t:[
+    'Yaz, havanın <b>en sıcak</b> olduğu, gündüzlerin uzun olduğu mevsimdir. Denize gireriz, dondurma yeriz!',
+    'Kuzey Yarımküre\'de <b>21 Haziran - 23 Eylül</b> arası yaşanır. Güneş ışınları dik gelir, hava ısınır, gündüzler uzar.',
+    'Kuzey\'de yaz Güneş\'in en kuzeyde göründüğü dönemdir. Işın açısı büyük, gündüzler uzun, geceler kısa.',
+    'Kuzey\'de yaz: ışın açısı büyük, gündüz uzun, sıcaklık yüksek. Güney\'de aynı anda <b>kış</b> yaşanır.',
+    'KPSS: Kuzey\'in yazı 21 Haziran\'da başlar; ışınlar <b>Yengeç Dönencesi (23.5°K)</b>\'ne dik gelir. En uzun gündüz kuzeyde, en uzun gece güneyde.'
+  ],more:[
+    [
+      'Yazın güneş gökyüzünde yüksekte parlar; bu yüzden bizi çok ısıtır.',
+      'Yaz aylarında gündüzler çok uzundur — geceler kısa, sabah erken aydınlanır.',
+      'Kuzey\'de yaz olunca Güney\'de kış vardır; örneğin Avustralya\'da Temmuz kıştır.'
+    ],
+    [
+      'Kuzey\'de yaz 21 Haziran\'da başlar (yaz gündönümü), 23 Eylül\'e kadar sürer.',
+      '<b>21 Haziran</b>: Kuzey\'in en uzun gündüzü, Güneş ışınları Yengeç Dönencesi\'ne (23.5°K) dik gelir.',
+      'Yazın Güneş gökyüzünde yükselir, ışın açısı büyür → birim alana çok enerji düşer, hava ısınır.',
+      'Kuzey\'de yaz aylarında gündüz süresi enlem arttıkça uzar; Kutup Dairesi\'nde 24 saatlik gündüz görülür.'
+    ],
+    [
+      '21 Haziran <b>yaz gündönümü</b>: Kuzey\'de en uzun gündüz, en kısa gece. Işınlar Yengeç Dönencesi\'ne (23.5°K) dik.',
+      'Yaz boyunca Güneş gökyüzünde yüksektedir; ışın açısı büyük → enerji yoğun, sıcaklık yüksek.',
+      'Kuzey\'de yaz, Güney\'de kış aynı anda yaşanır. Türkiye Temmuz\'unda Arjantin\'de kar yağıyor olabilir.',
+      'Kuzey yazı yaklaşık <b>93 gün</b> sürer — kıştan (~89) daha uzun, çünkü Günöte\'de (4 Temmuz) yörünge hızı düşüktür.',
+      'Yazın gölge boyları en kısadır; öğle vakti Güneş tepe noktasına yakın geldiği için gölgeler çok kısalır.'
+    ],
+    [
+      '21 Haziran yaz gündönümü → ışınlar Yengeç Dönencesi\'ne (23.5°K) dik. Kuzey\'de en uzun gündüz, en kısa gece.',
+      'Aydınlanma çemberi 21 Haziran\'da Güney Kutup Dairesi\'ne teğet → 66.5°K kuzeyinde 24 saat gündüz, 66.5°G güneyinde 24 saat gece.',
+      'Kuzey yazı 21 Haziran - 23 Eylül, ~93 gün; Güney\'de aynı dönem kış — ~89 gün. Yörünge elipsi yüzünden eşit değil.',
+      'Türkiye\'de yaz: güney sahillerde sıcak ve kuru (Akdeniz iklimi), iç kesimlerde sıcak ve kurak (karasal), Karadeniz\'de ılıman ve yağışlı.',
+      '4 Temmuz <b>Günöte</b>: Dünya Güneş\'ten en uzak konumda. Mesafe uzak ama Kuzey yazında — mevsim sebebi mesafe değil eksen eğikliği!'
+    ],
+    [
+      '21 Haziran <b>yaz gündönümü</b>: ışınlar Yengeç Dönencesi\'ne (23.5°K) dik. Kuzey\'de en uzun gündüz, en kısa gece; Güney\'de tersi.',
+      'Aydınlanma çemberi Güney Kutup Dairesi\'ne teğet; 66.5°K kuzeyinde 24 saat aydınlık, 66.5°G güneyinde 24 saat karanlık.',
+      'KPSS klasiği: Kuzey yazı (21 Haziran - 23 Eylül) ~93 gün; Kuzey kışı (21 Aralık - 21 Mart) ~89 gün. <b>Kuzey yazı daha uzundur</b> — Günöte\'de yavaş hareket.',
+      'Kuzey yarımküre yaz başlangıcında Güney\'de kış gündönümü. Kuzey Kutbu\'nda 6 aylık gündüzün ortası, Güney Kutbu\'nda 6 aylık gecenin ortası.',
+      '4 Temmuz Günöte: Dünya Güneş\'ten <b>en uzak</b> ama Kuzey yazdadır. Bu KPSS tuzağı — mevsim sebebi mesafe DEĞİL, eksen eğikliği.',
+      'Türkiye orta kuşak yazı: Akdeniz/Ege sıcak-kurak, iç bölge karasal sıcak-kurak, Karadeniz ılıman-yağışlı. Yaz mevsimi turizm yoğun dönem.'
+    ]
+  ]},
+  sonbahar:{ico:'🍂',head:'Sonbahar',highlight:'ekvator',minLevel:0,jumpTo:270,t:[
+    'Sonbahar, yaprakların <b>sarardığı</b>, döküldüğü, havanın soğumaya başladığı mevsimdir.',
+    'Kuzey Yarımküre\'de <b>23 Eylül - 21 Aralık</b> arası yaşanır. Güneş ışınları eğikleşir, gündüzler kısalır, hava soğur.',
+    '<b>23 Eylül ekinoksu</b> ile başlar. Işın açısı küçülür, gündüz süresi sürekli azalır, hava serinler.',
+    'Sonbahar, yazdan kışa geçiş dönemidir. 23 Eylül ekinoksunda gece-gündüz tüm Dünya\'da eşitlenir (12\'şer saat).',
+    'KPSS: Kuzey\'de sonbahar 23 Eylül - 21 Aralık. Bu dönemde gündüz süresi sürekli azalır, ışın açısı eğilir; Güneş Ekvator\'dan Oğlak Dönencesi\'ne kayar.'
+  ],more:[
+    [
+      'Sonbaharda yapraklar sararır, kızarır, sonra düşer — doğa kışa hazırlanır.',
+      'Kuzey\'de sonbahar olunca Güney\'de ilkbahar yaşanır — yine ters!',
+      'Sonbaharda gece ve gündüz birbirine yaklaşır, sonra geceler gündüzlerden daha uzun olmaya başlar.'
+    ],
+    [
+      'Kuzey\'de sonbahar 23 Eylül\'de başlar (sonbahar ekinoksu) ve 21 Aralık\'a kadar sürer.',
+      '<b>23 Eylül ekinoksunda</b> Güneş ışınları Ekvator\'a dik gelir → tüm Dünya\'da gece-gündüz <b>12 saat</b> eşittir.',
+      'Sonbahar boyunca gündüz süresi sürekli azalır; Kuzey\'de geceler her gün biraz daha uzun, gündüzler biraz daha kısa olur.',
+      'Aynı anda Güney Yarımküre\'de <b>ilkbahar</b> yaşanır.'
+    ],
+    [
+      '23 Eylül <b>sonbahar ekinoksu</b>: ışınlar Ekvator\'a dik, gece-gündüz tüm Dünya\'da 12\'şer saat eşit.',
+      'Aydınlanma çemberi 23 Eylül\'de her iki kutba teğet; tüm enlemler 12 saat gündüz alır.',
+      'Sonbahar boyunca Kuzey\'de: ışın açısı eğilir, gündüz kısalır, sıcaklık düşer; doğa kışa hazırlanır.',
+      'Kuzey sonbaharı yaklaşık 90 gün sürer — ilkbahar (~92) ile yakın.',
+      'Türkiye\'de sonbahar: Eylül-Kasım soğuma dönemi; iç bölgelerde gece-gündüz farkı artar, kıyılarda yağış başlar.'
+    ],
+    [
+      '23 Eylül ekinoksu — ışın Ekvator\'a dik, gece-gündüz her yerde eşit. <b>Aydınlanma çemberi her iki kutuptan geçer</b>.',
+      'Sonraki 3 ayda Güneş Oğlak Dönencesi\'ne doğru kayar; Kuzey\'de gündüz kısalır, sıcaklık azalır.',
+      'İki ekinoks: 21 Mart (ilkbahar) ve 23 Eylül (sonbahar). Sadece bu iki günde tüm Dünya\'da gece=gündüz.',
+      'Türkiye\'de sonbahar: yağışlar başlar, sıcaklık düşer, tarım hasat dönemi. Yaprak döken ağaçlar renk değiştirir.',
+      'Kuzey sonbaharı ~90 gün; 23 Eylül\'de gündüz=gece, 21 Aralık\'ta en uzun gece.'
+    ],
+    [
+      '23 Eylül <b>sonbahar ekinoksu</b>: ışın Ekvator\'a dik (90° tepe açısı), gece-gündüz tüm Dünya\'da 12\'şer saat eşit.',
+      'Aydınlanma çemberi 23 Eylül\'de her iki kutba <b>teğet</b> → her enlem 12 saat aydınlık alır. 21 Mart ekinoksu ile aynı.',
+      'KPSS klasiği: ekinokslar (21 Mart, 23 Eylül) yılın tek "gece=gündüz" anlarıdır. Aydınlanma çemberi kutuplara teğet geçer.',
+      'Kuzey sonbaharı (~90 gün): Güneş Ekvator → Oğlak Dönencesi arası kayar; gündüz kısalır, ışın açısı eğilir.',
+      'Aynı anda Güney Yarımküre\'de ilkbahar yaşanır; mevsimler iki yarımkürede daima zıttır.',
+      'KPSS tuzağı: "Ekinokslar yörüngenin elips olmasıyla ilgilidir" → YANLIŞ. Ekinokslar eksen eğikliğinden kaynaklanır; mesafe ile alakası yok.'
+    ]
+  ]}
+};
+
+const LEVEL_TOPICS=[
+  ['gunes','dunya','ay','ikiHareket','eksenDonus','gunduz','gece',
+   'donanim','mevsim','ilkbahar','yaz','sonbahar','kis',
+   'ekvator','meridyen','paralel','kutup','gunessistemi','yorunge'],
+  ['gunessistemi','gunes','dunya','ay','ikiHareket','eksen','eksenDonus',
+   'eksenEgik','gunduz','gece','yorunge','donanim','mevsim','mevsimOlusum',
+   'ilkbahar','yaz','sonbahar','kis',
+   'isinAci','haziran21','aralik21','mart21','eylul23','ekinoks',
+   'uzunGunduz','uzunGece','ekvator','meridyen','paralel','kutup'],
+  ['gunessistemi','gunes','dunya','ay','ikiHareket','eksen','eksenDonus',
+   'eksenEgik','gunduz','gece','yorunge','donanim','mevsim','mevsimOlusum',
+   'ilkbahar','yaz','sonbahar','kis',
+   'isinAci','donenceler','kutupDaire','cizgiselHiz','aydinlanmaCember',
+   'haziran21','aralik21','mart21','eylul23','ekinoks',
+   'uzunGunduz','uzunGece','ocak3','temmuz4','ekvator','meridyen','paralel','kutup'],
+  ['gunessistemi','gunes','dunya','ay','ikiHareket','eksen','eksenDonus',
+   'eksenEgik','gunduz','gece','yorunge','donanim','mevsim','mevsimOlusum',
+   'ilkbahar','yaz','sonbahar','kis',
+   'isinAci','donenceler','kutupDaire','cizgiselHiz','aydinlanmaCember',
+   'haziran21','aralik21','mart21','eylul23','ekinoks',
+   'uzunGunduz','uzunGece','ocak3','temmuz4','ekvator','meridyen','paralel','kutup'],
+  ['gunessistemi','gunes','dunya','ay','ikiHareket','eksen','eksenDonus',
+   'eksenEgik','gunduz','gece','yorunge','donanim','mevsim','mevsimOlusum',
+   'ilkbahar','yaz','sonbahar','kis',
+   'isinAci','donenceler','kutupDaire','cizgiselHiz','aydinlanmaCember',
+   'haziran21','aralik21','mart21','eylul23','ekinoks',
+   'uzunGunduz','uzunGece','ocak3','temmuz4','ekvator','meridyen','paralel','kutup']
+];
+
+function activeTopics(){ return LEVEL_TOPICS[curLevel]; }
+function conceptText(key){
+  const c=CONCEPTS[key];
+  const txt=c.t[curLevel];
+  if(txt) return txt;
+  for(let i=curLevel;i>=0;i--){ if(c.t[i]) return c.t[i]; }
+  for(let i=curLevel;i<c.t.length;i++){ if(c.t[i]) return c.t[i]; }
+  return '';
+}
+
+const dictPanel=document.getElementById('dictPanel');
+const infoHead=document.getElementById('infoHead');
+const infoText=document.getElementById('infoText');
+const spinBtn=document.getElementById('spinBtn');
+const orbitBtn=document.getElementById('orbitBtn');
+const guideBtn=document.getElementById('guideBtn');
+const nearBtn=document.getElementById('nearBtn');
+const farBtn=document.getElementById('farBtn');
+const speedSlider=document.getElementById('speedSlider');
+
+let highlightKey=null, highlightTimer=0;
+let spinOn=true, orbitOn=true;
+let viewMode='near';
+let focusTarget=null;
+let freePoint=null;
+let lastConcept='ikiHareket';
+
+function buildTopicList(){
+  dictPanel.querySelectorAll('.dict-item').forEach(el=>el.remove());
+  activeTopics().forEach(key=>{
+    const c=CONCEPTS[key];
+    if(!c) return;
+    const b=document.createElement('button');
+    b.className='dict-item'; b.dataset.key=key;
+    b.innerHTML=`<span class="dico">${c.ico}</span><span>${c.head}</span>`;
+    b.addEventListener('click',()=>selectConcept(key));
+    dictPanel.appendChild(b);
+  });
+}
+buildTopicList();
+
+const levelBadge=document.getElementById('levelBadge');
+const levelPanel=document.getElementById('levelPanel');
+const levelList=document.getElementById('levelList');
+
+LEVELS.forEach(lv=>{
+  const b=document.createElement('button');
+  b.className='level-item'; b.dataset.idx=lv.idx;
+  b.innerHTML=`<span class="lemoji">${lv.emoji}</span>
+    <span class="ltext"><span class="lname">${lv.name}</span><br>
+    <span class="ldesc">${lv.desc}</span></span>`;
+  b.addEventListener('click',()=>setLevel(lv.idx));
+  levelList.appendChild(b);
+});
+
+function setLevel(idx){
+  curLevel=idx;
+  const lv=LEVELS[idx];
+  levelBadge.textContent='🎓 '+lv.name.split(' ')[0]+(lv.name.includes('(')?' '+lv.name.match(/\(([^)]+)\)/)[0]:'')+' ▾';
+  if(lv.id==='kpss') levelBadge.textContent='🏛️ KPSS ▾';
+  if(lv.id==='tyt')  levelBadge.textContent='🎯 TYT/AYT ▾';
+  levelList.querySelectorAll('.level-item').forEach(el=>
+    el.classList.toggle('active', +el.dataset.idx===idx));
+  buildTopicList();
+  if(!activeTopics().includes(lastConcept)) lastConcept=activeTopics()[0];
+  selectConcept(lastConcept);
+  levelPanel.classList.remove('show');
+}
+
+const viewMenuBadge=document.getElementById('viewMenuBadge');
+const viewMenu=document.getElementById('viewMenu');
+const helpBadge=document.getElementById('helpBadge');
+const helpPanel=document.getElementById('helpPanel');
+
+levelBadge.addEventListener('click',()=>{
+  const open=levelPanel.classList.toggle('show');
+  if(open){
+    dictPanel.classList.remove('show');
+    viewMenu.classList.remove('show');
+    helpPanel.classList.remove('show');
+  }
+});
+
+viewMenuBadge.addEventListener('click',()=>{
+  const open=viewMenu.classList.toggle('show');
+  if(open){
+    dictPanel.classList.remove('show');
+    levelPanel.classList.remove('show');
+    helpPanel.classList.remove('show');
+  }
+});
+
+helpBadge.addEventListener('click',()=>{
+  const open=helpPanel.classList.toggle('show');
+  if(open){
+    dictPanel.classList.remove('show');
+    levelPanel.classList.remove('show');
+    viewMenu.classList.remove('show');
+  }
+});
+
+document.getElementById('dictTab').addEventListener('click',function(){
+  const open=dictPanel.classList.toggle('show');
+  this.classList.toggle('active',open);
+  levelPanel.classList.remove('show');
+  viewMenu.classList.remove('show');
+  helpPanel.classList.remove('show');
+});
+
+function focusObjectFor(key){
+  const c=CONCEPTS[key];
+  const h=c?c.highlight:null;
+  switch(h){
+    case 'gunes':    return {obj:sun,   dist:SUN_R*3.4};
+    case 'ay':       return {obj:moon,  dist:MOON_R*9};
+    case 'eksen':    return {obj:earth, dist:EARTH_R*7};
+    case 'ekvator':  return {obj:earth, dist:EARTH_R*6};
+    case 'kutup':    return {obj:earth, dist:EARTH_R*6};
+    case 'dunya':    return {obj:earth, dist:EARTH_R*6.5};
+    case 'meridyen': return {obj:earth, dist:EARTH_R*5.5};
+    case 'paralel':  return {obj:earth, dist:EARTH_R*5.5};
+    default:         return null;
+  }
+}
+
+/* ============================================================
+   ÇOKLU SAYFA — bir kavramın tüm sayfalarını topla.
+   t[curLevel] → ilk sayfa. more[curLevel] varsa ek sayfalar.
+   ============================================================ */
+function conceptPages(key){
+  const c=CONCEPTS[key];
+  if(!c) return [];
+  const base=conceptText(key);
+  const moreArr=(c.more && c.more[curLevel]) ? c.more[curLevel] : [];
+  const pages=[base, ...(moreArr||[])].filter(x=>x && x.length>0);
+  return pages;
+}
+
+let currentPages=[];
+let currentPageIdx=0;
+const infoNext=document.getElementById('infoNext');
+const infoPrev=document.getElementById('infoPrev');
+const infoPageNum=document.getElementById('infoPageNum');
+const SEASON_KEYS=new Set(['kis','ilkbahar','yaz','sonbahar','haziran21','aralik21','mart21','eylul23']);
+
+function updateInfoPage(){
+  if(currentPages.length===0){
+    infoText.innerHTML='';
+    infoNext.classList.remove('show');
+    infoPrev.classList.remove('show');
+    infoPageNum.classList.remove('show');
+    return;
+  }
+  infoText.innerHTML=currentPages[currentPageIdx];
+  if(currentPages.length>1){
+    infoNext.classList.add('show');
+    infoPrev.classList.add('show');
+    infoPageNum.textContent=(currentPageIdx+1)+' / '+currentPages.length;
+    infoPageNum.classList.add('show');
+  } else {
+    infoNext.classList.remove('show');
+    infoPrev.classList.remove('show');
+    infoPageNum.classList.remove('show');
+  }
+}
+
+infoNext.addEventListener('click',()=>{
+  if(currentPages.length<2) return;
+  currentPageIdx=(currentPageIdx+1)%currentPages.length;
+  updateInfoPage();
+});
+
+infoPrev.addEventListener('click',()=>{
+  if(currentPages.length<2) return;
+  currentPageIdx=(currentPageIdx-1+currentPages.length)%currentPages.length;
+  updateInfoPage();
+});
+
+function selectConcept(key){
+  const c=CONCEPTS[key]; if(!c) return;
+  infoHead.textContent=c.head;
+  currentPages=conceptPages(key);
+  currentPageIdx=0;
+  updateInfoPage();
+  document.querySelectorAll('.dict-item').forEach(di=>
+    di.classList.toggle('active',di.dataset.key===key));
+  highlightKey=c.highlight;
+  highlightTimer=6;
+  lastConcept=key;
+
+  // Mevsim/tarih konularında alt karşılaştırma göster, diğerlerinde gizle
+  if(SEASON_KEYS.has(key)){
+    seasonCompare.classList.remove('hidden');
+  } else {
+    seasonCompare.classList.add('hidden');
+  }
+
+  if(typeof c.jumpTo==='number'){
+    earthOrbit.rotation.y=THREE.MathUtils.degToRad(c.jumpTo);
+    orbitOn=false;
+    refreshButtons();
+    showToast('⏸️ Bu konumu göstermek için yörünge durduruldu. "Yörünge" butonuna basarak devam ettirebilirsin.');
+  }
+
+  freePoint=null;
+  camFreeTarget=null;
+  const f=focusObjectFor(key);
+  if(f){
+    focusTarget=f.obj;
+    cam.radius=f.dist;
+    cam.phi = (c.highlight==='gunes') ? 1.0 : 1.25;
+  } else {
+    focusTarget=null;
+  }
+
+  dictPanel.classList.remove('show');
+  document.getElementById('dictTab').classList.remove('active');
+}
+function showPlanetInfo(def){
+  infoHead.textContent=def.name;
+  currentPages=[def.info || (`<b>${def.name}</b>, Güneş etrafında dolanan bir gezegendir.`)];
+  currentPageIdx=0;
+  updateInfoPage();
+  seasonCompare.classList.add('hidden');
+  highlightKey=null;
+}
+
+function refreshButtons(){
+  const speedZero = parseFloat(speedSlider.value)<=0;
+  const spinActive = spinOn && !speedZero;
+  const orbitActive = orbitOn && !speedZero;
+  spinBtn.classList.toggle('off', !spinActive);
+  orbitBtn.classList.toggle('off', !orbitActive);
+  spinBtn.querySelector('.lbl').textContent =
+    spinOn ? (speedZero?'Hız 0 — Durdu':'Eksen Dönüşü') : 'Eksen: Kapalı';
+  orbitBtn.querySelector('.lbl').textContent =
+    orbitOn ? (speedZero?'Hız 0 — Durdu':'Yörünge') : 'Yörünge: Kapalı';
+}
+
+spinBtn.addEventListener('click',()=>{
+  spinOn=!spinOn;
+  refreshButtons();
+});
+orbitBtn.addEventListener('click',()=>{
+  orbitOn=!orbitOn;
+  refreshButtons();
+});
+speedSlider.addEventListener('input',refreshButtons);
+
+let guideOn=true;
+guideBtn.addEventListener('click',()=>{
+  guideOn=!guideOn;
+  guideBtn.classList.toggle('off',!guideOn);
+  axisGroup.visible=guideOn;
+  equator.visible=guideOn;
+});
+
+function setView(mode){
+  viewMode=mode;
+  focusTarget=null;
+  freePoint=null;
+  camFreeTarget=null;
+  nearBtn.classList.toggle('active', mode==='near');
+  farBtn.classList.toggle('active',  mode==='far');
+  if(mode==='near'){
+    cam.radius=78;
+    cam.phi=1.35;
+  } else {
+    cam.radius=360;
+    cam.phi=0.75;
+  }
+  viewMenu.classList.remove('show');
+  helpPanel.classList.remove('show');
+}
+nearBtn.addEventListener('click',()=>setView('near'));
+farBtn.addEventListener('click',()=>setView('far'));
+
+const seasonCompare=document.getElementById('seasonCompare');
+let lastSeasonIdx=-1;
+
+const toastEl=document.getElementById('toast');
+let toastTimer=null;
+function showToast(msg){
+  toastEl.innerHTML=msg;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>toastEl.classList.remove('show'),4000);
+}
+
+const resetBtn=document.getElementById('resetBtn');
+resetBtn.addEventListener('click',()=>{
+  spinOn=true; orbitOn=true;
+  speedSlider.value=35;
+  refreshButtons();
+  earthOrbit.rotation.y=0;
+  earthSpin.rotation.y=0;
+  focusTarget=null; freePoint=null; camFreeTarget=null;
+  cam.theta=0.7;
+  setView('near');
+  guideOn=true; guideBtn.classList.remove('off');
+  axisGroup.visible=true; equator.visible=true;
+  const panel=document.getElementById('panel');
+  panel.classList.remove('floating','minified');
+  panel.style.position=''; panel.style.left=''; panel.style.top='';
+  document.getElementById('miniBtn').textContent='⊟';
+  selectConcept('ikiHareket');
+  highlightKey=null;
+  document.getElementById('dictPanel').classList.remove('show');
+  document.getElementById('dictTab').classList.remove('active');
+  levelPanel.classList.remove('show');
+  viewMenu.classList.remove('show');
+  helpPanel.classList.remove('show');
+  showToast('↺ Her şey başa alındı.');
+});
+
+/* ============================================================
+   KARŞILAŞTIR & BİLGİ TABLOSU — Seç sekmesinin altındaki iki sekme
+   ============================================================ */
+const COMPARE_TABLES=[
+  {title:"Meridyen ↔ Paralel", aName:"Meridyen", bName:"Paralel",
+   cap:"Konum belirleyen çizgiler — boylam ve enlem.", rows:[
+    ["Doğrultu","Kutuptan kutba (K–G)","Ekvatora paralel (D–B)"],
+    ["Belirttiği","Boylam → yerel saat","Enlem → iklim kuşağı"],
+    ["Şekli","Yarım çember","Tam çember"],
+    ["Uzunlukları","Hepsi birbirine eşit","Ekvatordan kutba kısalır"],
+    ["Başlangıç (0°)","Greenwich meridyeni","Ekvator"],
+    ["Toplam sayı","360 (180 Doğu + 180 Batı)","180 (90 Kuzey + 90 Güney)"],
+    ["En uzun olan","Hepsi aynı","Ekvator (~40.000 km)"],
+    ["Aralarındaki uzaklık","Ekvatorda ~111 km, kutupta 0","Her yerde ~111 km (sabit)"]
+   ]},
+  {title:"Günlük ↔ Yıllık Hareket", aName:"Günlük Hareket", bName:"Yıllık Hareket",
+   cap:"Dünya'nın iki temel hareketi ve sonuçları.", rows:[
+    ["Hareket","Eksen etrafında dönme","Güneş etrafında dolanma"],
+    ["Süre","24 saat","365 gün 6 saat"],
+    ["Yön","Batıdan doğuya","Batıdan doğuya"],
+    ["Hız","Ekvatorda ~1.670 km/sa","~107.000 km/sa"],
+    ["Ana sonucu","Gece ve gündüz","Mevsimler"],
+    ["Diğer sonuçlar","Yerel saat, Coriolis, günlük sıcaklık farkı","Gündönümü/ekinoks, artık yıl, dönenceler"]
+   ]},
+  {title:"21 Haziran ↔ 21 Aralık", aName:"21 Haziran", bName:"21 Aralık",
+   cap:"Yaz ve kış gündönümlerinin karşılaştırması.", rows:[
+    ["Güneş dik açıyla","Yengeç Dönencesi (23,5° K)","Oğlak Dönencesi (23,5° G)"],
+    ["Kuzey Yarımküre","Yaz başlangıcı","Kış başlangıcı"],
+    ["Güney Yarımküre","Kış başlangıcı","Yaz başlangıcı"],
+    ["Kuzey Yarımkürede","En uzun gündüz","En uzun gece"],
+    ["Kuzey Kutbu","Kutup gündüzü (24 sa)","Kutup gecesi (24 sa)"],
+    ["Aydınlık kutup dairesi","Kuzey","Güney"],
+    ["Öğle gölgesi (Kuzey)","En kısa","En uzun"]
+   ]},
+  {title:"Gündönümü ↔ Ekinoks", aName:"Gündönümü", bName:"Ekinoks",
+   cap:"21 Haz/Ara ile 21 Mart/23 Eylül arasındaki fark.", rows:[
+    ["Tarihler","21 Haziran, 21 Aralık","21 Mart, 23 Eylül"],
+    ["Güneş'in dik geldiği yer","Dönenceler (23,5°)","Ekvator (0°)"],
+    ["Gece-gündüz","En büyük eşitsizlik","Her yerde eşit (12–12)"],
+    ["Aydınlanma çemberi","Kutup dairelerine teğet","Kutuplardan geçer"],
+    ["Başlattığı mevsim","Yaz / Kış","İlkbahar / Sonbahar"]
+   ]},
+  {title:"Kuzey ↔ Güney Yarımküre", aName:"Kuzey Yarımküre", bName:"Güney Yarımküre",
+   cap:"Aynı anda karşıt mevsimler yaşanır.", rows:[
+    ["21 Haziran","Yaz","Kış"],
+    ["21 Aralık","Kış","Yaz"],
+    ["21 Mart","İlkbahar","Sonbahar"],
+    ["23 Eylül","Sonbahar","İlkbahar"],
+    ["Kara / deniz oranı","Kara fazla","Deniz fazla"],
+    ["Coriolis sapması","Sağa","Sola"]
+   ]},
+  {title:"Ekvator ↔ Kutup", aName:"Ekvator (0°)", bName:"Kutup (90°)",
+   cap:"En sıcak ile en soğuk uç noktalar.", rows:[
+    ["Enlem","0°","90°"],
+    ["Güneş ışınları","Dike yakın gelir","Çok eğik gelir"],
+    ["Sıcaklık","En yüksek","En düşük"],
+    ["Gece-gündüz","Yıl boyu 12–12","6 ay gündüz / 6 ay gece"],
+    ["Çizgisel hız","En yüksek (~1.670 km/sa)","Sıfır"],
+    ["Yer çekimi","En az","En fazla"],
+    ["Paralel boyu","En uzun çember","Nokta"]
+   ]},
+  {title:"Yengeç ↔ Oğlak Dönencesi", aName:"Yengeç Dönencesi", bName:"Oğlak Dönencesi",
+   cap:"Güneş ışınlarının dik geldiği en uç paraleller.", rows:[
+    ["Enlem","23,5° Kuzey","23,5° Güney"],
+    ["Güneş dik gelir","21 Haziran","21 Aralık"],
+    ["Bulunduğu yarımküre","Kuzey","Güney"],
+    ["Anlamı","Güneş'in en kuzey noktası","Güneş'in en güney noktası"],
+    ["Sınırladığı kuşak","Tropikal kuşağın kuzey sınırı","Tropikal kuşağın güney sınırı"]
+   ]},
+  {title:"Dünya ↔ Ay", aName:"Dünya", bName:"Ay",
+   cap:"Dünya ve tek doğal uydusu Ay.", rows:[
+    ["Tür","Gezegen","Uydu"],
+    ["Çap","~12.742 km","~3.474 km"],
+    ["Eksen dönüşü","24 saat","~27,3 gün"],
+    ["Yörünge","Güneş çevresinde","Dünya çevresinde"],
+    ["Atmosfer","Var","Yok denecek kadar az"],
+    ["Yüzey","Kara + su + canlı yaşam","Kraterli, kuru, cansız"]
+   ]}
+];
+
+const INFO_TABLES=[
+  {title:"21 Haziran", cols:["Olay","Durum"],
+   cap:"Yaz gündönümü (Kuzey Yarımküre için).", rows:[
+    ["Güneş ışınları dik","Yengeç Dönencesi (23,5° K)"],
+    ["Kuzey Yarımküre","Yaz başlangıcı"],
+    ["Güney Yarımküre","Kış başlangıcı"],
+    ["Kuzey Yarımkürede","Yılın en uzun gündüzü"],
+    ["Güney Yarımkürede","Yılın en uzun gecesi"],
+    ["Kuzey Kutup Dairesi","24 saat gündüz"],
+    ["Güney Kutup Dairesi","24 saat gece"],
+    ["Öğle gölgesi (Kuzey)","Yılın en kısası"],
+    ["Sonrasında","Gündüzler kısalmaya başlar"]
+   ]},
+  {title:"21 Aralık", cols:["Olay","Durum"],
+   cap:"Kış gündönümü (Kuzey Yarımküre için).", rows:[
+    ["Güneş ışınları dik","Oğlak Dönencesi (23,5° G)"],
+    ["Kuzey Yarımküre","Kış başlangıcı"],
+    ["Güney Yarımküre","Yaz başlangıcı"],
+    ["Kuzey Yarımkürede","Yılın en uzun gecesi"],
+    ["Güney Yarımkürede","Yılın en uzun gündüzü"],
+    ["Kuzey Kutup Dairesi","24 saat gece"],
+    ["Güney Kutup Dairesi","24 saat gündüz"],
+    ["Öğle gölgesi (Kuzey)","Yılın en uzunu"],
+    ["Sonrasında","Gündüzler uzamaya başlar"]
+   ]},
+  {title:"21 Mart", cols:["Olay","Durum"],
+   cap:"İlkbahar ekinoksu (Kuzey Yarımküre için).", rows:[
+    ["Güneş ışınları dik","Ekvator (0°)"],
+    ["Gece-gündüz","Tüm Dünya'da eşit (12–12)"],
+    ["Kuzey Yarımküre","İlkbahar başlangıcı"],
+    ["Güney Yarımküre","Sonbahar başlangıcı"],
+    ["Aydınlanma çemberi","Her iki kutuptan geçer"],
+    ["Kutuplarda","6 aylık gündüz/gece sınırı"]
+   ]},
+  {title:"23 Eylül", cols:["Olay","Durum"],
+   cap:"Sonbahar ekinoksu (Kuzey Yarımküre için).", rows:[
+    ["Güneş ışınları dik","Ekvator (0°)"],
+    ["Gece-gündüz","Tüm Dünya'da eşit (12–12)"],
+    ["Kuzey Yarımküre","Sonbahar başlangıcı"],
+    ["Güney Yarımküre","İlkbahar başlangıcı"],
+    ["Aydınlanma çemberi","Her iki kutuptan geçer"],
+    ["Sonrasında (Kuzey)","Geceler gündüzden uzun"]
+   ]},
+  {title:"Özel Paraleller", cols:["Paralel","Enlem"],
+   cap:"Önemli enlem (paralel) çizgileri.", rows:[
+    ["Ekvator","0°"],
+    ["Yengeç Dönencesi","23,5° Kuzey"],
+    ["Oğlak Dönencesi","23,5° Güney"],
+    ["Kuzey Kutup Dairesi","66,5° Kuzey"],
+    ["Güney Kutup Dairesi","66,5° Güney"],
+    ["Kuzey Kutbu","90° Kuzey"],
+    ["Güney Kutbu","90° Güney"]
+   ]},
+  {title:"Dünya Verileri", cols:["Özellik","Değer"],
+   cap:"Dünya'nın temel sayısal verileri.", rows:[
+    ["Ekvator çapı","~12.756 km"],
+    ["Kutuplar arası çap","~12.714 km"],
+    ["Eksen eğikliği","23,5° (dikey ile)"],
+    ["Yörünge düzlemiyle açı","66,5°"],
+    ["Eksen dönüşü","24 saat"],
+    ["Güneş çevresinde dolanım","365 gün 6 saat"],
+    ["Güneş'e ortalama uzaklık","~150 milyon km"],
+    ["Doğal uydusu","Ay (1 adet)"]
+   ]},
+  {title:"Mevsimler (Kuzey)", cols:["Tarih","Olay"],
+   cap:"Kuzey Yarımküre için mevsim başlangıçları.", rows:[
+    ["21 Mart","İlkbahar başlar (ekinoks)"],
+    ["21 Haziran","Yaz başlar (gündönümü)"],
+    ["23 Eylül","Sonbahar başlar (ekinoks)"],
+    ["21 Aralık","Kış başlar (gündönümü)"]
+   ]},
+  {title:"Güneş'in Dik Geldiği Yer", cols:["Tarih","Işınların dik geldiği enlem"],
+   cap:"Yıl boyunca Güneş ışınlarının diklik noktası.", rows:[
+    ["21 Mart","Ekvator (0°)"],
+    ["21 Haziran","Yengeç Dönencesi (23,5° K)"],
+    ["23 Eylül","Ekvator (0°)"],
+    ["21 Aralık","Oğlak Dönencesi (23,5° G)"]
+   ]},
+  {title:"Günlük Hareketin Sonuçları", cols:["Sonuç","Açıklama"],
+   cap:"Eksen dönüşünün (24 saat) sonuçları.", rows:[
+    ["Gece-gündüz","Aydınlanan yüzün sürekli değişmesi"],
+    ["Yerel saat","Meridyenler arası 4 dakika fark"],
+    ["Günlük sıcaklık farkı","Gündüz ısınma, gece soğuma"],
+    ["Coriolis etkisi","Rüzgar ve akıntılarda yön sapması"],
+    ["Çizgisel hız farkı","Ekvatorda en yüksek, kutupta sıfır"],
+    ["Gel-git ritmi","Günlük yükselip alçalma"]
+   ]},
+  {title:"Yıllık Hareketin Sonuçları", cols:["Sonuç","Açıklama"],
+   cap:"Güneş çevresinde dolanımın (365 gün) sonuçları.", rows:[
+    ["Mevsimler","Eksen eğikliği + dolanım birlikte"],
+    ["Gündönümleri","21 Haziran ve 21 Aralık"],
+    ["Ekinokslar","21 Mart ve 23 Eylül"],
+    ["Gündüz süresi değişimi","Mevsime ve enleme göre"],
+    ["Artık yıl","4 yılda bir 366 gün"],
+    ["Güneş'in görünen yıllık yolu","Dönenceler arası salınım"]
+   ]}
+];
+
+function escTd(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+function buildCompareTable(t){
+  let h='<div class="data-cap">'+escTd(t.cap)+'</div>';
+  h+='<table class="data-table"><thead><tr><th>Özellik</th><th>'+escTd(t.aName)+'</th><th>'+escTd(t.bName)+'</th></tr></thead><tbody>';
+  t.rows.forEach(r=>{ h+='<tr><td>'+escTd(r[0])+'</td><td>'+escTd(r[1])+'</td><td>'+escTd(r[2])+'</td></tr>'; });
+  return h+'</tbody></table>';
+}
+function buildInfoTable(t){
+  let h='<div class="data-cap">'+escTd(t.cap)+'</div>';
+  h+='<table class="data-table"><thead><tr><th>'+escTd(t.cols[0])+'</th><th>'+escTd(t.cols[1])+'</th></tr></thead><tbody>';
+  t.rows.forEach(r=>{ h+='<tr><td>'+escTd(r[0])+'</td><td>'+escTd(r[1])+'</td></tr>'; });
+  return h+'</tbody></table>';
+}
+function renderChips(chipHost, host, list, builder){
+  chipHost.innerHTML='';
+  list.forEach((t,i)=>{
+    const b=document.createElement('button');
+    b.className='table-chip'+(i===0?' active':'');
+    b.textContent=t.title;
+    b.addEventListener('click',()=>{
+      chipHost.querySelectorAll('.table-chip').forEach(c=>c.classList.remove('active'));
+      b.classList.add('active');
+      host.innerHTML=builder(t);
+      host.parentElement.scrollTop=0;
+    });
+    chipHost.appendChild(b);
+  });
+  if(list.length) host.innerHTML=builder(list[0]);
+}
+
+const cmpTab=document.getElementById('cmpTab');
+const cmpPanel=document.getElementById('cmpPanel');
+const infoTab=document.getElementById('infoTab');
+const infoPanel=document.getElementById('infoPanel');
+renderChips(document.getElementById('cmpChips'), document.getElementById('cmpHost'), COMPARE_TABLES, buildCompareTable);
+renderChips(document.getElementById('infoChips'), document.getElementById('infoHost'), INFO_TABLES, buildInfoTable);
+
+function hideTablePanels(){
+  cmpPanel.classList.remove('show'); cmpTab.classList.remove('active');
+  infoPanel.classList.remove('show'); infoTab.classList.remove('active');
+}
+cmpTab.addEventListener('click',function(){
+  const open=cmpPanel.classList.toggle('show');
+  this.classList.toggle('active',open);
+  if(open){
+    infoPanel.classList.remove('show'); infoTab.classList.remove('active');
+    levelPanel.classList.remove('show');
+    viewMenu.classList.remove('show');
+    helpPanel.classList.remove('show');
+    dictPanel.classList.remove('show');
+    document.getElementById('dictTab').classList.remove('active');
+  }
+});
+infoTab.addEventListener('click',function(){
+  const open=infoPanel.classList.toggle('show');
+  this.classList.toggle('active',open);
+  if(open){
+    cmpPanel.classList.remove('show'); cmpTab.classList.remove('active');
+    levelPanel.classList.remove('show');
+    viewMenu.classList.remove('show');
+    helpPanel.classList.remove('show');
+    dictPanel.classList.remove('show');
+    document.getElementById('dictTab').classList.remove('active');
+  }
+});
+// Diğer paneller açılınca tabloları kapat
+[levelBadge,viewMenuBadge,helpBadge,document.getElementById('dictTab'),resetBtn].forEach(el=>{
+  el.addEventListener('click',hideTablePanels);
+});
+
+let lastT=performance.now();
+const earthWorld=new THREE.Vector3();
+const tmpFocus=new THREE.Vector3();
+const tmpEarthPos=new THREE.Vector3();
+const tmpSunPos=new THREE.Vector3();
+
+function tick(){
+  requestAnimationFrame(tick);
+  const now=performance.now();
+  const dt=Math.min((now-lastT)/1000,0.05); lastT=now;
+  const speed=parseFloat(speedSlider.value)/35;
+
+  if(spinOn) earthSpin.rotation.y += dt*1.2*speed;
+
+  if(orbitOn) earthOrbit.rotation.y += dt*0.12*speed;
+
+  moonOrbit.rotation.y += dt*0.5*speed;
+  moon.rotation.y += dt*0.5*speed;
+
+  planets.forEach(p=>{
+    p.pivot.rotation.y += dt*0.12*speed*p.def.spd;
+    p.mesh.rotation.y  += dt*0.4*speed;
+  });
+
+  clouds.rotation.y += dt*0.04;
+
+  earth.getWorldPosition(tmpEarthPos);
+  sun.getWorldPosition(tmpSunPos);
+  nightMat.uniforms.sunDir.value.copy(tmpSunPos).sub(tmpEarthPos).normalize();
+
+  sun.rotation.y += dt*0.03;
+  sunInner.rotation.y -= dt*0.02;
+  sunTex.offset.x=(sunTex.offset.x+dt*0.003)%1;
+  sunInner.material.opacity=0.3+Math.sin(now*0.0022)*0.08;
+  sun.scale.setScalar(1+Math.sin(now*0.0016)*0.01);
+
+  for(let i=0;i<galaxies.length;i++){
+    galaxies[i].rotation.y += dt*0.012*(i%2?1:-1);
+  }
+
+  const orbDeg=(THREE.MathUtils.radToDeg(earthOrbit.rotation.y)%360+360)%360;
+  const sIdx=Math.round(orbDeg/90)%4;
+  if(sIdx!==lastSeasonIdx){
+    lastSeasonIdx=sIdx;
+    const kuzey=['❄️ Kış','🌸 İlkbahar','☀️ Yaz','🍂 Sonbahar'];
+    const guney=['☀️ Yaz','🍂 Sonbahar','❄️ Kış','🌸 İlkbahar'];
+    seasonCompare.innerHTML=
+      '🔼 Kuzey: '+kuzey[sIdx]+
+      ' &nbsp;·&nbsp; 🔽 Güney: '+guney[sIdx];
+  }
+
+  earthHolder.getWorldPosition(earthWorld);
+  let focus;
+  if(focusTarget){
+    focusTarget.getWorldPosition(tmpFocus);
+    focus=tmpFocus;
+  } else if(freePoint){
+    focus=freePoint;
+  } else if(camFreeTarget){
+    focus=camFreeTarget;
+  } else if(viewMode==='near'){
+    focus=earthWorld.clone().multiplyScalar(0.5);
+  } else {
+    focus=new THREE.Vector3(0,0,0);
+  }
+  cam.target.lerp(focus,0.12);
+
+  const r=cam.radius;
+  const want=new THREE.Vector3(
+    cam.target.x+r*Math.sin(cam.phi)*Math.sin(cam.theta),
+    cam.target.y+r*Math.cos(cam.phi),
+    cam.target.z+r*Math.sin(cam.phi)*Math.cos(cam.theta)
+  );
+  camera.position.lerp(want,0.08);
+  camera.lookAt(cam.target);
+
+  if(highlightTimer>0){highlightTimer-=dt; if(highlightTimer<=0) highlightKey=null;}
+  updateLabels();
+
+  renderer.render(scene,camera);
+}
+
+const tmp=new THREE.Vector3();
+function updateLabels(){
+  anchors.forEach(a=>{
+    if(a.kind==='farOnly' && viewMode!=='far'){ a.el.style.opacity='0'; return; }
+    a.holder.getWorldPosition(tmp);
+    const dist=camera.position.distanceTo(tmp);
+    tmp.project(camera);
+    const onScreen=tmp.z<1&&tmp.x>-1.1&&tmp.x<1.1&&tmp.y>-1.1&&tmp.y<1.1;
+    if(!onScreen){a.el.style.opacity='0';return;}
+    a.el.style.left=((tmp.x*0.5+0.5)*innerWidth)+'px';
+    a.el.style.top =((-tmp.y*0.5+0.5)*innerHeight)+'px';
+    const isHL=highlightKey&&a.key===highlightKey;
+    a.el.classList.toggle('hl',!!isHL);
+    let op;
+    if(a.kind==='farOnly') op=THREE.MathUtils.clamp(2.2-dist/260,0.3,1);
+    else op=THREE.MathUtils.clamp(1.5-dist/120,0.15,1);
+    if(isHL) op=1;
+    a.el.style.opacity=op.toFixed(2);
+    a.el.style.fontSize=isHL?'13.5px':'11.5px';
+    a.el.style.zIndex=isHL?14:8;
+  });
+}
+
+(function(){
+  const panel=document.getElementById('panel');
+  const card=document.getElementById('panelCard');
+  const moveBtn=document.getElementById('moveBtn');
+  const miniBtn=document.getElementById('miniBtn');
+  let dragP=false, offX=0, offY=0;
+  let savedState=null;
+
+  function startDrag(e){
+    if(panel.classList.contains('minified')) return;
+    dragP=true;
+    moveBtn.classList.add('dragging');
+    const p=e.touches?e.touches[0]:e;
+    if(!panel.classList.contains('floating')){
+      const r=card.getBoundingClientRect();
+      panel.classList.add('floating');
+      panel.style.position='absolute';
+      panel.style.left=r.left+'px';
+      panel.style.top=r.top+'px';
+    }
+    const r=panel.getBoundingClientRect();
+    offX=p.clientX-r.left;
+    offY=p.clientY-r.top;
+    e.preventDefault();
+  }
+  function moveDrag(e){
+    if(!dragP) return;
+    const p=e.touches?e.touches[0]:e;
+    let nx=p.clientX-offX, ny=p.clientY-offY;
+    const w=panel.offsetWidth, h=panel.offsetHeight;
+    nx=Math.max(4,Math.min(nx,innerWidth-w-4));
+    ny=Math.max(60,Math.min(ny,innerHeight-h-4));
+    panel.style.left=nx+'px';
+    panel.style.top=ny+'px';
+    e.preventDefault();
+  }
+  function endDrag(){ dragP=false; moveBtn.classList.remove('dragging'); }
+
+  moveBtn.addEventListener('mousedown',startDrag);
+  window.addEventListener('mousemove',moveDrag);
+  window.addEventListener('mouseup',endDrag);
+  moveBtn.addEventListener('touchstart',startDrag,{passive:false});
+  window.addEventListener('touchmove',moveDrag,{passive:false});
+  window.addEventListener('touchend',endDrag);
+
+  moveBtn.addEventListener('dblclick',()=>{
+    if(panel.classList.contains('minified')) return;
+    panel.classList.remove('floating');
+    panel.style.position=''; panel.style.left=''; panel.style.top='';
+  });
+
+  miniBtn.addEventListener('click',()=>{
+    if(panel.classList.contains('minified')){
+      panel.classList.remove('minified');
+      miniBtn.textContent='⊟';
+      miniBtn.title='Küçült / Büyüt';
+      if(savedState){
+        panel.classList.toggle('floating',savedState.floating);
+        panel.style.position=savedState.position;
+        panel.style.left=savedState.left;
+        panel.style.top=savedState.top;
+      } else {
+        panel.classList.remove('floating');
+        panel.style.position=''; panel.style.left=''; panel.style.top='';
+      }
+    } else {
+      savedState={
+        floating:panel.classList.contains('floating'),
+        position:panel.style.position,
+        left:panel.style.left,
+        top:panel.style.top
+      };
+      panel.classList.remove('floating');
+      panel.style.position=''; panel.style.left=''; panel.style.top='';
+      panel.classList.add('minified');
+      miniBtn.textContent='⊞';
+      miniBtn.title='Büyüt';
+    }
+  });
+})();
+
+setLevel(0);
+selectConcept('ikiHareket');
+highlightKey=null;
+setView('near');
+refreshButtons();
+tick();
+
+addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>

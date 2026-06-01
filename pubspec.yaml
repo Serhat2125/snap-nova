@@ -103,6 +103,9 @@ dependencies:
   mobile_scanner: ^5.2.3
   flutter_contacts: ^1.1.9+2
 
+  # WebView — 3D Eğitim Modelleri (HTML + Three.js) çevrimdışı oynatma.
+  webview_flutter: ^4.7.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -128,3 +131,40 @@ flutter:
     - lib/assets/9ejrn (1).jpg
     - lib/assets/invite_hero.jpeg
     - assets/app_icon.png
+    # 3D Eğitim Modelleri — Coğrafya: Dünyanın Şekli ve Hareketi
+    - assets/dunyanin-hareketleri.html
+    # 3D Eğitim Modelleri — Coğrafya: Yer Şekilleri ve İzohipsler
+    - assets/yer-sekilleri-izohipsler.html
+    # 3D Eğitim Modelleri — Coğrafya: Yerin İç Yapısı ve Levha Tektoniği
+    - assets/yerin-ic-yapisi-levha-tektonigi.html
+    # 3D Eğitim Modelleri — Coğrafya: Atmosfer ve İklim (Rüzgarlar, Basınç)
+    - assets/atmosfer-iklim.html
+    - assets/three.module.min.js
+    # 3D Eğitim Modelleri — Geometrik Cisimler ve Hesaplamalar
+    - assets/geometrik-cisimler.html
+    # 3D Eğitim Modelleri — Biyoloji: Denetleyici ve Düzenleyici Sistem
+    - assets/denetleyici-duzenleyici-sistem.html
+    # 3D Eğitim Modelleri — Biyoloji: Destek ve Hareket Sistemi
+    - assets/destek-hareket-sistemi.html
+    # 3D Eğitim Modelleri — Biyoloji: Sindirim Sistemi
+    - assets/sindirim-sistemi.html
+    # 3D Eğitim Modelleri — Biyoloji: Dolaşım Sistemi
+    - assets/dolasim-sistemi.html
+    # 3D Eğitim Modelleri — Biyoloji: Boşaltım Sistemi
+    - assets/bosaltim-sistemi.html
+    # 3D Eğitim Modelleri — Biyoloji: Üreme Sistemi
+    - assets/ureme-sistemi.html
+    # 3D Eğitim Modelleri — Biyoloji: Hücre ve Organelleri
+    - assets/hucre-organeller.html
+    # 3D Eğitim Modelleri — Biyoloji: DNA Yapısı ve Replikasyon
+    - assets/dna-replikasyon.html
+    # 3D Eğitim Modelleri — Biyoloji: Mitoz ve Mayoz Bölünme
+    - assets/mitoz-mayoz.html
+    # 3D Eğitim Modelleri — Biyoloji: Bitki Anatomisi
+    - assets/bitki-anatomisi.html
+    # 3D Eğitim Modelleri — Biyoloji: Fotosentez
+    - assets/fotosentez.html
+    # 3D Eğitim Modelleri — Biyoloji: Ekosistem ve Besin Zinciri
+    - assets/ekosistem-besin-zinciri.html
+    # 3D Eğitim Modelleri — Biyoloji: Kalıtım, Genotip ve Fenotip
+    - assets/kalitim-genotip-fenotip.html

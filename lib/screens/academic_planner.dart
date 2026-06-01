@@ -41,6 +41,7 @@ import 'qualsar_arena_screen.dart';
 import 'bilgi_ligi_screen.dart';
 import '../widgets/study_toolbar.dart';
 import 'qualsar_mars_screen.dart';
+import 'edu_3d_screen.dart';
 import '../services/pomodoro_stats.dart';
 
 import '../theme/app_theme.dart';
@@ -2865,11 +2866,12 @@ class _LibraryLandingState extends State<LibraryLanding> {
     'summary': 'Konu Özeti',
     'questions': 'Sınav Soruları',
     'history': 'Çözümlerim',
+    'edu3d': '3D Eğitim Modelleri',
+    'league': 'Dünya Sıralaması',
     'contest': 'Bilgi Yarışı',
     'calendar': 'Çalışma Takvimi',
-    'league': 'Dünya Sıralaması',
-    'pomodoro': 'Pomodoro Tekniği',
     'ai_coach': 'AI Koç',
+    'pomodoro': 'Pomodoro Tekniği',
   };
 
   static const _libraryColorsKey = 'library_colors_v1';
@@ -3116,7 +3118,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
               ],
             ),
             SizedBox(height: 12),
-            // ── 2. satır: Çözümlerim (sol) | Bilgi Yarışı (sağ) ──────
+            // ── 2. satır: Çözümlerim (sol) | 3D Eğitim Modelleri (sağ) ─
             Row(
               children: [
                 Expanded(
@@ -3131,6 +3133,45 @@ class _LibraryLandingState extends State<LibraryLanding> {
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => HistoryScreen(),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 10),
+                Expanded(
+                  child: _LandingCard(
+                    icon: Icons.view_in_ar_rounded,
+                    title: '3D Eğitim Modelleri'.tr(),
+                    color: Color(0xFF06B6D4),
+                    customBg: _cardBgs['edu3d'],
+                    customTextColor: _cardInks['edu3d'],
+                    onColorAccept: (c) =>
+                        _applyLibraryColor('edu3d', c),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const Edu3DSubjectsScreen(),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 12),
+            // ── 3. satır: Dünya Sıralaması (sol) | Bilgi Yarışı (sağ) ─
+            Row(
+              children: [
+                Expanded(
+                  child: _LandingCard(
+                    icon: Icons.leaderboard_rounded,
+                    title: 'Dünya Sıralaması'.tr(),
+                    color: Color(0xFF7C3AED),
+                    customBg: _cardBgs['league'],
+                    customTextColor: _cardInks['league'],
+                    onColorAccept: (c) =>
+                        _applyLibraryColor('league', c),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const BilgiLigiScreen(),
                       ),
                     ),
                   ),
@@ -3155,7 +3196,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
               ],
             ),
             SizedBox(height: 12),
-            // ── 3. satır: Çalışma Takvimim (sol) | Bilgi Ligi (sağ) ──
+            // ── 4. satır: Çalışma Takvimim (sol) | AI Koç (sağ) ──────
             Row(
               children: [
                 Expanded(
@@ -3177,16 +3218,16 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 SizedBox(width: 10),
                 Expanded(
                   child: _LandingCard(
-                    icon: Icons.leaderboard_rounded,
-                    title: 'Dünya Sıralaması'.tr(),
+                    icon: Icons.support_agent_rounded,
+                    title: 'AI Koç'.tr(),
                     color: Color(0xFF7C3AED),
-                    customBg: _cardBgs['league'],
-                    customTextColor: _cardInks['league'],
+                    customBg: _cardBgs['ai_coach'],
+                    customTextColor: _cardInks['ai_coach'],
                     onColorAccept: (c) =>
-                        _applyLibraryColor('league', c),
+                        _applyLibraryColor('ai_coach', c),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => const BilgiLigiScreen(),
+                        builder: (_) => const AICoachScreen(),
                       ),
                     ),
                   ),
@@ -3194,10 +3235,9 @@ class _LibraryLandingState extends State<LibraryLanding> {
               ],
             ),
             SizedBox(height: 12),
-            // ── 4. satır: Pomodoro (sol) | boş yer (sağ) ─────────────
+            // ── 5. satır: Pomodoro (sol) | boş yer (sağ) ─────────────
             // Tek kart ama diğer satırlardaki kartlarla aynı genişlikte
             // olsun diye Row + Expanded(SizedBox) ile sağ yarı rezerve.
-            // Tıklanınca Yeşil Koloni + Mars Protokolü seçim sayfası açılır.
             Row(
               children: [
                 Expanded(
@@ -3217,22 +3257,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
                   ),
                 ),
                 SizedBox(width: 10),
-                Expanded(
-                  child: _LandingCard(
-                    icon: Icons.support_agent_rounded,
-                    title: 'AI Koç'.tr(),
-                    color: Color(0xFF7C3AED),
-                    customBg: _cardBgs['ai_coach'],
-                    customTextColor: _cardInks['ai_coach'],
-                    onColorAccept: (c) =>
-                        _applyLibraryColor('ai_coach', c),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const AICoachScreen(),
-                      ),
-                    ),
-                  ),
-                ),
+                const Expanded(child: SizedBox.shrink()),
               ],
             ),
           ],
