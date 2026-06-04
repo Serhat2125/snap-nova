@@ -52,7 +52,7 @@
 
   .left-stack {
     position:absolute;
-    top:14px; right:14px;
+    top:6px; right:14px;
     z-index:30;
     display:flex; flex-direction:column; gap:8px;
     align-items:flex-end;
@@ -140,7 +140,7 @@
 
   .right-tools {
     position:absolute;
-    top:14px; left:14px;
+    top:6px; left:8px;
     z-index:30;
     display:flex; gap:8px;
     flex-wrap:nowrap;
@@ -180,18 +180,43 @@
   .tool-icon-btn.table:hover { background:var(--bone); color:#0a1420; }
   .bottom-panel {
     position:absolute;
-    bottom:10px;
-    left:14px; right:14px;
+    bottom:6px;
+    left:3px; right:3px;
     z-index:25;
     background:var(--panel);
     border:2px solid var(--panel-line);
     border-radius:12px;
-    padding:9px 12px 8px;
+    padding:9px 10px 8px;
     box-shadow:0 -6px 24px rgba(0,0,0,0.4);
     display:flex; flex-direction:column; gap:8px;
     touch-action:auto;
   }
   .bottom-panel.hidden { display:none; }
+
+  /* Bilgi panelini yukari/asagi cekerek genisleten tutamac (ust cercevenin tam ustunde) */
+  .info-resize-handle {
+    position:absolute;
+    top:-15px; left:50%; transform:translateX(-50%);
+    width:64px; height:24px;
+    background:var(--panel);
+    border:2px solid var(--accent);
+    border-bottom:none;
+    border-radius:12px 12px 0 0;
+    display:flex; align-items:center; justify-content:center;
+    gap:3px;
+    color:var(--accent);
+    font-size:13px; line-height:1;
+    cursor:ns-resize; touch-action:none;
+    z-index:3;
+    box-shadow:0 -3px 10px rgba(0,0,0,0.3);
+  }
+  .info-resize-handle::before {
+    content:''; position:absolute; top:7px;
+    width:34px; height:4px; border-radius:3px;
+    background:var(--accent); opacity:0.55;
+  }
+  .info-resize-handle span { position:relative; top:4px; font-size:11px; opacity:0.9; }
+  .info-resize-handle:active { background:var(--panel-soft); }
 
   .info-close-btn {
     position:absolute;
@@ -244,19 +269,20 @@
     color:var(--accent-glow);
   }
   .nav-buttons {
-    display:flex; gap:4px;
+    display:flex; gap:8px;
   }
   .nav-mini-btn {
-    width:19px; height:19px;
+    width:34px; height:34px;
     background:var(--panel-soft);
-    border:1.5px solid var(--accent);
-    border-radius:5px;
+    border:2px solid var(--accent);
+    border-radius:9px;
     cursor:pointer;
     display:grid; place-items:center;
     color:var(--accent);
-    font-size:9px;
+    font-size:15px;
     transition:all 0.12s;
   }
+  .nav-mini-btn:active { transform:scale(0.9); }
   .nav-mini-btn:hover {
     background:var(--accent);
     color:#0a1420;
@@ -264,7 +290,7 @@
   .info-list {
     list-style:none;
     padding:0; margin:0;
-    max-height:22vh;
+    max-height:var(--info-h, 24vh);
     overflow-y:auto;
     overflow-x:hidden;
     -webkit-overflow-scrolling:touch;
@@ -601,11 +627,11 @@
     .stack-btn .sb-label { font-size:11px; }
     .right-tools { gap:5px; left:8px; }
     .tool-icon-btn { width:34px; height:34px; font-size:14px; border-radius:9px; }
-    .bottom-panel { padding:11px 12px 9px; gap:9px; }
+    .bottom-panel { padding:11px 10px 9px; gap:9px; }
     .info-emoji-box { width:36px; height:36px; font-size:20px; }
     .info-title { font-size:13px; }
     .info-list li { font-size:11.5px; padding:4px 7px; }
-    .info-list { max-height:26vh; }
+    .info-list { max-height:var(--info-h, 28vh); }
     .action-btn { font-size:11px; padding:7px 8px; }
     .dropdown-panel { min-width:200px; }
     .dropdown-item { font-size:11.5px; padding:7px 9px; }
@@ -630,20 +656,20 @@
 
   .scene-panel {
     position: fixed;
-    right: 12px;
-    top: 120px;
-    width: 280px;
-    max-height: calc(100vh - 120px - 220px);
+    right: 14px;
+    top: 98px;
+    width: 208px;
+    max-height: calc(100vh - 98px - 200px);
     overflow-y: auto;
     background: rgba(15, 20, 30, 0.88);
     border: 1px solid rgba(246, 185, 59, 0.35);
-    border-radius: 14px;
-    padding: 10px;
+    border-radius: 13px;
+    padding: 8px;
     z-index: 40;
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-    font-size: 11.5px;
+    font-size: 10px;
     color: rgba(255, 255, 255, 0.92);
     display: flex;
     flex-direction: column;
@@ -713,9 +739,9 @@
     background: rgba(246, 185, 59, 0.18);
     border: 1px solid rgba(246, 185, 59, 0.5);
     color: #fff;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
-    padding: 8px 12px;
+    padding: 6px 10px;
     border-radius: 10px;
     cursor: pointer;
     display: flex;
@@ -726,27 +752,27 @@
   }
   .sp-toggle:hover { background: rgba(246, 185, 59, 0.32); }
   .sp-section {
-    font-size: 10px; font-weight: 700;
+    font-size: 9px; font-weight: 700;
     color: rgba(255, 209, 90, 0.85);
     text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin: 6px 4px 2px 4px;
+    letter-spacing: 0.6px;
+    margin: 5px 4px 2px 4px;
   }
 
   .sp-slider-row {
     display: flex; flex-direction: column; gap: 4px;
-    padding: 8px 10px;
+    padding: 6px 8px;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 10px;
   }
   .sp-slider-row .sp-slider-head {
     display: flex; justify-content: space-between; align-items: center;
-    font-size: 11.5px; font-weight: 500;
+    font-size: 10.5px; font-weight: 500;
   }
   .sp-slider-row .sp-slider-head .sp-val {
     font-family: 'Consolas', monospace;
-    font-size: 12px; font-weight: 700;
+    font-size: 11px; font-weight: 700;
     color: #FFD54F;
     background: rgba(0,0,0,0.45);
     padding: 2px 8px;
@@ -789,16 +815,16 @@
 
   .sp-display {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 7px 10px;
+    padding: 6px 8px;
     background: rgba(246, 185, 59, 0.10);
     border: 1px solid rgba(246, 185, 59, 0.28);
     border-radius: 9px;
-    font-size: 11px;
+    font-size: 10px;
   }
   .sp-display .sp-label { color: rgba(255,255,255,0.85); }
   .sp-display .sp-val {
     font-family: 'Consolas', monospace;
-    font-size: 12px; font-weight: 700; color: #FFE082;
+    font-size: 11px; font-weight: 700; color: #FFE082;
     background: rgba(0,0,0,0.35); padding: 2px 8px; border-radius: 6px;
   }
   .sp-display.highlight {
@@ -840,13 +866,13 @@
 
   @media (max-width: 768px) {
     .scene-panel {
-      right: 8px;
-      top: 110px;
-      width: 200px;
-      font-size: 10.5px;
-      padding: 8px;
+      right: 12px;
+      top: 92px;
+      width: 178px;
+      font-size: 9.5px;
+      padding: 7px;
     }
-    .sp-slider-row { padding: 6px 8px; }
+    .sp-slider-row { padding: 5px 7px; }
     .sp-slider-row input[type=range] { height: 5px; }
   }
 
@@ -918,7 +944,7 @@
   </button>
 </div>
 
-<div class="dropdown-panel" id="panelLevel" style="top:60px; right:14px; max-height:70vh; overflow-y:auto;">
+<div class="dropdown-panel" id="panelLevel" style="top:48px; right:14px; max-height:70vh; overflow-y:auto;">
   <div class="dropdown-title">🎓 Eğitim Seviyesi</div>
   <button class="dropdown-item" data-level="ilkokul"><span class="di-emoji">🟢</span>İlkokul</button>
   <button class="dropdown-item" data-level="ortaokul"><span class="di-emoji">🟡</span>Ortaokul</button>
@@ -928,7 +954,7 @@
 </div>
 
 
-<div class="dropdown-panel" id="panelTopic" style="top:106px; right:14px;">
+<div class="dropdown-panel" id="panelTopic" style="top:92px; right:14px;">
   <div class="dropdown-title">📚 Konu Rehberi</div>
   <div id="topicList"></div>
 </div>
@@ -942,13 +968,14 @@
   <button class="tool-icon-btn fs" id="btnFs" title="Tam ekran">⛶</button>
 </div>
 
-<div class="dropdown-panel" id="panelMode" style="top:60px; left:14px;">
+<div class="dropdown-panel" id="panelMode" style="top:48px; left:8px;">
   <div class="dropdown-title">📚 Görünüm Modu</div>
   <button class="dropdown-item" data-mode="detayli"><span class="di-emoji">📚</span><span><b>Detaylı</b><br><small style="opacity:0.7;font-size:10.5px;">Daha çok bilgi</small></span></button>
   <button class="dropdown-item active" data-mode="sade"><span class="di-emoji">📄</span><span><b>Sade</b><br><small style="opacity:0.7;font-size:10.5px;">Sadece temel bilgiler</small></span></button>
 </div>
 
 <div class="bottom-panel" id="bottomPanel">
+  <div class="info-resize-handle" id="infoResizeHandle" title="Yukari/asagi cekerek genislet"><span>⇕</span></div>
   <button class="info-close-btn" id="infoCloseBtn" title="Bilgi panelini kapat">✕</button>
   <div class="info-area">
     <div class="info-emoji-box" id="infoEmoji" style="display:none;">🧪</div>
@@ -1241,6 +1268,26 @@ class OrbitControls extends THREE.EventDispatcher {
         Math.min(this.maxDistance, this._sphericalTarget.radius * factor));
     };
 
+    // Ekrandaki bir noktanin altindaki 3B noktayi, hedefi (ekran merkezini) ona
+    // dogru k oraninda kaydirarak yavasca merkeze getirir (pinch zoom-to-point).
+    this._panToScreenPoint = (screenX, screenY, k) => {
+      const rect = dom.getBoundingClientRect();
+      const ndcX = ((screenX - rect.left) / rect.width) * 2 - 1;
+      const ndcY = -((screenY - rect.top) / rect.height) * 2 + 1;
+      const ndc = new THREE.Vector3(ndcX, ndcY, 0.5);
+      ndc.unproject(this.object);
+      const dir = ndc.sub(this.object.position).normalize();
+      const t = (this.target.y - this.object.position.y) / dir.y;
+      if (t > 0 && isFinite(t)) {
+        const hit = new THREE.Vector3(
+          this.object.position.x + dir.x * t,
+          this.target.y,
+          this.object.position.z + dir.z * t
+        );
+        this.target.lerp(hit, k);
+      }
+    };
+
     let touchStart = null;
     let pinchStartDist = 0;
     let pinchStartRadius = 0;
@@ -1355,9 +1402,7 @@ class OrbitControls extends THREE.EventDispatcher {
         const dist = Math.hypot(dx, dy);
         const newCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
         const newCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        // İki parmak arası mesafe → zoom (yakınlaştır/uzaklaştır)
-        this._sphericalTarget.radius = Math.max(this.minDistance, Math.min(this.maxDistance, pinchStartRadius * (pinchStartDist / dist)));
-        // İki parmağın ortak hareketi → modeli sağa/sola/yukarı/aşağı taşı (pan)
+        // 1) Iki parmagin ortak kaymasi -> pan (modeli serbestce tasi)
         const panDx = newCenterX - pinchCenter.x;
         const panDy = newCenterY - pinchCenter.y;
         pinchCenter.x = newCenterX;
@@ -1368,6 +1413,10 @@ class OrbitControls extends THREE.EventDispatcher {
         const panFactor = this._sphericalTarget.radius * 0.0045;
         this.target.addScaledVector(right, -panDx * panFactor);
         this.target.addScaledVector(up, panDy * panFactor);
+        // 2) Parmak arasi acilma/kapanma -> zoom; iki parmagin ortasindaki nokta
+        //    yavasca ekran merkezine gelsin (oraya odaklanip yakinlas)
+        this._panToScreenPoint(newCenterX, newCenterY, 0.16);
+        this._sphericalTarget.radius = Math.max(this.minDistance, Math.min(this.maxDistance, pinchStartRadius * (pinchStartDist / dist)));
       }
     }, { passive: false });
 
@@ -1390,6 +1439,7 @@ class OrbitControls extends THREE.EventDispatcher {
       if (!this.enabled) return;
       e.preventDefault();
       const factor = e.deltaY > 0 ? 1.1 : 0.9;
+      this._panToScreenPoint(e.clientX, e.clientY, factor < 1 ? 0.22 : 0.12);
       this._sphericalTarget.radius = Math.max(this.minDistance,
         Math.min(this.maxDistance, this._sphericalTarget.radius * factor));
     }, { passive: false });
@@ -3454,8 +3504,10 @@ function selectSub(subKey) {
   // Kamerayı sahneye göre hafif yukarı + modeli belirgin şekilde sola kaydır
   // (sağdaki panel/menüler 3D modelin üstüne binmesin diye target sağa alınır → model sola öteler)
   if (controls) {
-    controls.target.set(3.2, 0.6, 0);
-    if (camera) camera.position.set(3.2, 5.0, 27.0);
+    // Sahne sabit bir yere bagli degil: ekranda serbest/ortada dursun, kullanici
+    // iki parmakla istedigi yeri ortaya getirip yakinlastirabilsin.
+    controls.target.set(0, 0.4, 0);
+    if (camera) camera.position.set(0, 3.4, 25.0);
     controls.captureInitialState && controls.captureInitialState();
   }
 
@@ -3757,7 +3809,54 @@ function attachEvents() {
     document.getElementById('bottomPanel').classList.add('hidden');
   };
 
-  // Aksiyon butonları
+  // -- Bilgi panelini yukari/asagi cekerek genislet/daralt --
+  (function(){
+    const handle = document.getElementById('infoResizeHandle');
+    const panel = document.getElementById('bottomPanel');
+    const list = document.getElementById('infoList');
+    if (!handle || !panel || !list) return;
+    const MIN_H = 90;
+    const maxH = () => Math.max(MIN_H, Math.round(window.innerHeight * 0.74));
+    let dragging = false, startY = 0, startH = 0;
+    function curH() {
+      const v = getComputedStyle(panel).getPropertyValue('--info-h').trim();
+      if (v.endsWith('px')) return parseFloat(v);
+      return list.getBoundingClientRect().height || Math.round(window.innerHeight * 0.24);
+    }
+    function setH(h) {
+      h = Math.max(MIN_H, Math.min(maxH(), h));
+      panel.style.setProperty('--info-h', h + 'px');
+      if (typeof updateInfoScrollbar === 'function') updateInfoScrollbar();
+    }
+    function onDown(e) {
+      dragging = true; startH = curH();
+      startY = (e.touches ? e.touches[0].clientY : e.clientY);
+      list.style.transition = 'none';
+      if (window._haptic) window._haptic(12);
+      e.preventDefault(); e.stopPropagation();
+    }
+    function onMove(e) {
+      if (!dragging) return;
+      const y = (e.touches ? e.touches[0].clientY : e.clientY);
+      setH(startH + (startY - y));
+      e.preventDefault();
+    }
+    function onUp() { if (!dragging) return; dragging = false; list.style.transition = ''; }
+    handle.addEventListener('touchstart', onDown, { passive: false });
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('touchend', onUp);
+    window.addEventListener('touchcancel', onUp);
+    handle.addEventListener('mousedown', onDown);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    let lastTap = 0;
+    handle.addEventListener('click', () => {
+      const now = Date.now();
+      if (now - lastTap < 320) { const big = maxH() - 40; setH(curH() > big - 30 ? Math.round(window.innerHeight*0.24) : big); }
+      lastTap = now;
+    });
+  })();
+
   const spinBtn = document.getElementById('spinBtn');
   spinBtn.onclick = () => {
     window._autoSpinActive = !window._autoSpinActive;
