@@ -1177,8 +1177,8 @@ setTimeout(function() {
 <!-- ===== GEÇİŞ MOTORU: Ayarlar'a (Geçiş Stüdyosu) göre sahne geçiş animasyonu + ses + geri bildirim ===== -->
 <script>
 (function(){
-  const DEF={ level:'lise', enterMode:'sagdan', exitMode:'soldan', speed:1.0, overlap:true, sound:true, stereo:true, emoji:true, title:true, confetti:true, calm:false };
-  function readS(){ let S=Object.assign({},DEF); try{ const v=localStorage.getItem('gecisAyar'); if(v) S=Object.assign({},DEF,JSON.parse(v)); }catch(e){} return S; }
+  const DEF={ level:'karisik', enterMode:'rastgele', exitMode:'rastgele', speed:1.0, overlap:true, sound:true, stereo:true, emoji:true, title:true, confetti:true, calm:false };
+  function readS(){ let S=Object.assign({},DEF); try{ const v=localStorage.getItem('gecisAyar2'); if(v) S=Object.assign({},DEF,JSON.parse(v)); }catch(e){} return S; }
 
   // CSS (emoji/uçan başlık/konfeti) bir kez enjekte
   if(!document.getElementById('gecisFxCss')){ const st=document.createElement('style'); st.id='gecisFxCss'; st.textContent=
