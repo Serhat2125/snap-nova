@@ -1983,6 +1983,15 @@ function setSceneSliders(items, opts = {}) {
       panel.appendChild(row);
     }
   });
+  // Varsayılan: panel KAPALI (sadece toggle görünür). Konu Rehberi'nden konu
+  // değiştirilip sahne yeniden kurulduğunda 1 sn açık kalıp otomatik kapanır →
+  // kullanıcı ne olduğunu görür; istediğinde toggle'a basıp tekrar açabilir.
+  const _peekChev = toggle.querySelector('.sp-chev');
+  clearTimeout(window._scenePeekTimer);
+  window._scenePeekTimer = setTimeout(() => {
+    panel.classList.add('collapsed');
+    if (_peekChev) _peekChev.textContent = '◀';
+  }, 1000);
 }
 
 function clearSceneSliders() {
