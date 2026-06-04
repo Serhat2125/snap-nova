@@ -143,6 +143,8 @@ flutter:
     - assets/dunya-cografyasi.html
     - assets/three.module.min.js
     - assets/three.global.js
+    # 3D Eğitim Modelleri — Ortak Ayarlar (Geçiş Stüdyosu)
+    - assets/gecis-studyosu.html
     # 3D Eğitim Modelleri — Fizik
     - assets/maddenin-yapisi.html
     - assets/golge-olusumu-isik-yayilmasi.html
