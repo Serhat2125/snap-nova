@@ -45,10 +45,12 @@
     width:100vw; height:100vh;
     transition:background 0.3s, color 0.3s;
   }
-  body { touch-action:none; }
+  /* touch-action:none YALNIZCA 3B alanda olmalı; body'de olursa alt panel
+     içindeki yazılar kaydırılamaz (atası none olan eleman pan-y olsa bile kayamaz). */
   canvas { display:block; cursor:grab; }
   canvas:active { cursor:grabbing; }
-  #canvasContainer { position:absolute; inset:0; width:100%; height:100%; z-index:1; }
+  #canvasContainer { position:absolute; inset:0; width:100%; height:100%; z-index:1; touch-action:none; }
+  #canvasContainer canvas { touch-action:none; }
 
   .left-stack {
     position:absolute;
@@ -213,26 +215,26 @@
   /* Bilgi panelini yukarı/aşağı çekerek genişleten tutamaç (üst çerçevenin tam üstünde) */
   .info-resize-handle {
     position:absolute;
-    top:-15px; left:50%; transform:translateX(-50%);
-    width:64px; height:24px;
+    top:-20px; left:50%; transform:translateX(-50%);
+    width:88px; height:30px;
     background:var(--panel);
     border:2px solid var(--accent);
     border-bottom:none;
-    border-radius:12px 12px 0 0;
+    border-radius:13px 13px 0 0;
     display:flex; align-items:center; justify-content:center;
     gap:3px;
     color:var(--accent);
-    font-size:13px; line-height:1;
+    font-size:14px; line-height:1;
     cursor:ns-resize; touch-action:none;
     z-index:3;
     box-shadow:0 -3px 10px rgba(0,0,0,0.3);
   }
   .info-resize-handle::before {
-    content:''; position:absolute; top:7px;
-    width:34px; height:4px; border-radius:3px;
-    background:var(--accent); opacity:0.55;
+    content:''; position:absolute; top:8px;
+    width:44px; height:4px; border-radius:3px;
+    background:var(--accent); opacity:0.6;
   }
-  .info-resize-handle span { position:relative; top:4px; font-size:11px; opacity:0.9; }
+  .info-resize-handle span { position:relative; top:5px; font-size:12px; opacity:0.95; }
   .info-resize-handle:active { background:var(--panel-soft); }
 
   .info-close-btn {
@@ -666,27 +668,26 @@
     display: none !important;
   }
 
+  /* Değişkenler: ŞEFFAF konumlandırıcı sarmal (kendi çerçevesi YOK → çift çerçeve olmaz).
+     Görünür çerçeve yalnızca sekmede (sp-toggle) ve açık gövdede (sp-body). */
   .scene-panel {
     position: fixed;
     right: 14px;
-    top: 98px;
-    width: 208px;
-    max-height: calc(100vh - 98px - 200px);
+    top: 96px;
+    width: 188px;
+    max-height: calc(100vh - 96px - 196px);
     overflow-y: auto;
-    background: rgba(15, 20, 30, 0.88);
-    border: 1px solid rgba(246, 185, 59, 0.35);
-    border-radius: 13px;
-    padding: 8px;
     z-index: 40;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
     font-size: 10px;
     color: rgba(255, 255, 255, 0.92);
     display: flex;
     flex-direction: column;
+    align-items: stretch;
     gap: 6px;
-    transition: all 0.3s ease;
   }
   .scene-panel.empty { display: none; }
   /* Değişkenler içeriği: konu değişince açık gelir, 1 sn sonra aşağıdan yukarıya
@@ -694,9 +695,16 @@
   .sp-body {
     display: flex; flex-direction: column; gap: 6px;
     overflow: hidden; opacity: 1;
-    transition: max-height 0.55s ease, opacity 0.4s ease;
+    background: rgba(15, 20, 30, 0.92);
+    border: 1px solid var(--panel-line);
+    border-radius: 12px;
+    padding: 8px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 8px 28px rgba(0,0,0,0.4);
+    transition: max-height 0.55s ease, opacity 0.4s ease, padding 0.45s ease;
   }
-  .sp-body.closed { opacity: 0; }
+  .sp-body.closed { opacity: 0; padding-top: 0; padding-bottom: 0; border-width: 0; }
 
   body.dropdown-open .scene-panel {
     transform: none;
@@ -750,22 +758,28 @@
     padding: 0 4px;
     font-size: 11px;
   }
+  /* Sekme: Konu Rehberi ile uyumlu kompakt pill (tek çerçeve) */
   .sp-toggle {
-    background: rgba(246, 185, 59, 0.18);
-    border: 1px solid rgba(246, 185, 59, 0.5);
-    color: #fff;
-    font-size: 11px;
+    background: var(--panel);
+    border: 1.5px solid var(--panel-line);
+    color: var(--ink);
+    font-family: 'Fredoka', sans-serif;
+    font-size: 10.5px;
     font-weight: 600;
-    padding: 6px 10px;
-    border-radius: 10px;
+    padding: 6px 11px;
+    border-radius: 11px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    gap: 7px;
     width: 100%;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.28);
+    transition: all 0.15s;
   }
-  .sp-toggle:hover { background: rgba(246, 185, 59, 0.32); }
+  .sp-toggle:hover { border-color: var(--accent); }
+  .sp-toggle:active { transform: scale(0.97); }
+  .sp-chev { font-size: 9px; opacity: 0.8; }
   .sp-section {
     font-size: 9px; font-weight: 700;
     color: rgba(255, 209, 90, 0.85);
@@ -2017,7 +2031,7 @@ function setSceneSliders(items, opts = {}) {
       void body.offsetHeight; // reflow
       requestAnimationFrame(() => { body.style.maxHeight = '0px'; body.classList.add('closed'); });
     }
-    if (_chev) _chev.textContent = open ? '▼' : '◀';
+    if (_chev) _chev.textContent = open ? '▲' : '▼';
   }
   window._setSceneOpen = setSceneOpen;
   toggle.onclick = () => {
@@ -4170,7 +4184,7 @@ function attachEvents() {
     // neredeyse tamamen kapansın (parmağın gittiği yere kadar).
     const MIN_H = 24;
     const maxH = () => Math.max(MIN_H, Math.round(window.innerHeight - 150));
-    let dragging = false, startY = 0, startH = 0, pid = null, moved = false;
+    let dragging = false, startY = 0, startH = 0, moved = false;
     function curH() {
       const v = getComputedStyle(panel).getPropertyValue('--info-h').trim();
       if (v.endsWith('px')) return parseFloat(v);
@@ -4182,29 +4196,22 @@ function attachEvents() {
       panel.style.setProperty('--info-h', h + 'px');
       if (typeof updateInfoScrollbar === 'function') updateInfoScrollbar();
     }
-    // Pointer Events + pointer capture → dokunmada güvenilir; parmak tutamaçtan
-    // çıksa bile sürükleme devam eder (eski touch/mouse sürümü cihazda çalışmıyordu).
-    handle.addEventListener('pointerdown', (e) => {
-      dragging = true; moved = false; startH = curH(); startY = e.clientY; pid = e.pointerId;
-      list.style.transition = 'none';
-      try { handle.setPointerCapture(pid); } catch(_){}
-      if (window._haptic) window._haptic(12);
-      e.preventDefault(); e.stopPropagation();
-    });
-    handle.addEventListener('pointermove', (e) => {
-      if (!dragging) return;
-      if (Math.abs(e.clientY - startY) > 2) moved = true;
-      setH(startH + (startY - e.clientY)); // yukarı çek → genişle, aşağı çek → daral
-      e.preventDefault();
-    });
-    function end() {
-      if (!dragging) return;
-      dragging = false; list.style.transition = '';
-      try { handle.releasePointerCapture(pid); } catch(_){}
-    }
-    handle.addEventListener('pointerup', end);
-    handle.addEventListener('pointercancel', end);
-    // Sürükleme değil sadece dokunuşsa: çift dokunuşta tam aç / varsayılana dön
+    const yOf = (e) => (e.touches && e.touches[0]) ? e.touches[0].clientY
+                     : (e.changedTouches && e.changedTouches[0]) ? e.changedTouches[0].clientY
+                     : e.clientY;
+    // Dokunma + fare; move/up BELGEYE bağlı ki parmak küçük tutamaçtan çıksa da
+    // sürükleme kesilmesin. Tutamaçta touch-action:none olduğu için sayfa kaymaz.
+    function down(e){ dragging=true; moved=false; startH=curH(); startY=yOf(e); list.style.transition='none'; document.body.style.userSelect='none'; if(window._haptic)window._haptic(12); if(e.cancelable)e.preventDefault(); e.stopPropagation(); }
+    function move(e){ if(!dragging)return; const y=yOf(e); if(Math.abs(y-startY)>2)moved=true; setH(startH+(startY-y)); if(e.cancelable)e.preventDefault(); }
+    function up(){ if(!dragging)return; dragging=false; list.style.transition=''; document.body.style.userSelect=''; }
+    handle.addEventListener('touchstart', down, {passive:false});
+    document.addEventListener('touchmove', move, {passive:false});
+    document.addEventListener('touchend', up);
+    document.addEventListener('touchcancel', up);
+    handle.addEventListener('mousedown', down);
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+    // Çift dokunuş: tam aç / varsayılana dön
     let lastTap = 0;
     handle.addEventListener('click', () => {
       if (moved) { moved = false; return; }
