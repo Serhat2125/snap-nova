@@ -522,6 +522,21 @@ class Edu3DKimyaScreen extends StatelessWidget {
               ),
             ),
           ),
+          _TopicCard(
+            emoji: '🔷',
+            title: 'Molekül Geometrisi (VSEPR)',
+            subtitle:
+                'Molekül şekilleri, elektron çiftleri, VSEPR, hibritleşme (sp/sp²/sp³), sigma/pi bağları, dipol momenti, polarite',
+            tint: const Color(0xFFE11D48),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/molekul-geometrisi.html',
+                  title: 'Molekül Geometrisi',
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

@@ -159,6 +159,7 @@ flutter:
     - assets/kimyasal-tepkimeler.html
     - assets/atom-periyodik.html
     - assets/organik-kimya.html
+    - assets/molekul-geometrisi.html
     # 3D Eğitim Modelleri — Geometrik Cisimler ve Hesaplamalar
     - assets/geometrik-cisimler.html
     # 3D Eğitim Modelleri — Biyoloji: Denetleyici ve Düzenleyici Sistem
