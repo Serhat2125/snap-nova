@@ -1,0 +1,3531 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>⚗️ Kimyasal Tepkimeler ve Tepkime Hızı</title>
+<style>
+  :root {
+    --bg:#0a0e1a;
+    --panel:#161b2e;
+    --panel-soft:#1f2540;
+    --panel-line:#2f3a5f;
+    --ink:#eef0ff;
+    --ink-soft:#a8b0d0;
+    --accent:#f6b93b;
+    --accent-glow:#ffd166;
+    --warning:#ffd166;
+    --cartilage:#9d7fe6;
+    --muscle:#c45d5d;
+    --joint:#5fc8e0;
+    --xylem:#d97043;
+    --phloem:#5fb8e8;
+    --chloro:#2ecc40;
+    --bone:#e0c088;
+  }
+
+  body.light-mode {
+    --bg:#f3f6fb;
+    --panel:#ffffff;
+    --panel-soft:#eef2f8;
+    --panel-line:#d0d8e3;
+    --ink:#1a2030;
+    --ink-soft:#5a6070;
+    --accent:#e0901b;
+    --accent-glow:#c47a10;
+  }
+
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; margin:0; padding:0; }
+  html, body {
+    overflow:hidden;
+    background:var(--bg); color:var(--ink);
+    font-family:'Fredoka',sans-serif; user-select:none;
+    width:100vw; height:100vh;
+    transition:background 0.3s, color 0.3s;
+  }
+  body { touch-action:none; }
+  canvas { display:block; cursor:grab; }
+  canvas:active { cursor:grabbing; }
+  #canvasContainer { position:absolute; inset:0; width:100%; height:100%; z-index:1; }
+
+  .left-stack {
+    position:absolute;
+    top:14px; right:14px;
+    z-index:30;
+    display:flex; flex-direction:column; gap:8px;
+    align-items:flex-end;
+  }
+
+  .stack-btn {
+    display:flex; align-items:center; gap:7px;
+    background:var(--panel);
+    border:2px solid var(--panel-line);
+    border-radius:12px;
+    padding:8px 14px;
+    font-family:'Fredoka',sans-serif; font-weight:600;
+    font-size:12.5px;
+    color:var(--ink);
+    cursor:pointer;
+    box-shadow:0 4px 12px rgba(0,0,0,0.25);
+    transition:all 0.15s;
+    min-width:170px;
+  }
+  .stack-btn:hover {
+    border-color:var(--accent);
+    transform:translateY(-1px);
+    box-shadow:0 6px 16px rgba(0,0,0,0.35);
+  }
+  .stack-btn:active { transform:scale(0.97); }
+  .stack-btn .sb-emoji { font-size:16px; line-height:1; flex-shrink:0; }
+  .stack-btn .sb-label { flex:1; text-align:left; }
+  .stack-btn .sb-arrow { font-size:10px; opacity:0.7; }
+
+  .stack-btn.level { background:linear-gradient(135deg, #f6b93b 0%, #ffd166 100%); color:#1a1410; border-color:#ffd166; }
+  .stack-btn.topic { background:linear-gradient(135deg, #5fc8e0 0%, #7adcf0 100%); color:#0a1420; border-color:#7adcf0; }
+
+  .dropdown-panel {
+    position:absolute;
+    background:var(--panel);
+    border:2px solid var(--accent);
+    border-radius:14px;
+    padding:8px;
+    z-index:50;
+    box-shadow:0 12px 32px rgba(0,0,0,0.5);
+    min-width:230px; max-width:300px;
+    max-height:60vh; overflow-y:auto;
+    display:none;
+  }
+  .dropdown-panel.show { display:block; }
+  .dropdown-title {
+    font-family:'Baloo 2', cursive; font-weight:800;
+    font-size:12px;
+    color:var(--accent-glow);
+    padding:6px 8px 8px;
+    text-transform:uppercase; letter-spacing:0.6px;
+    border-bottom:1px solid var(--panel-line);
+    margin-bottom:6px;
+  }
+  .dropdown-item {
+    display:flex; align-items:center; gap:8px;
+    width:100%; text-align:left;
+    background:var(--panel-soft);
+    border:1.5px solid transparent;
+    border-radius:9px;
+    padding:8px 11px; margin-bottom:4px;
+    font-family:'Fredoka',sans-serif; font-weight:500; font-size:12.5px;
+    color:var(--ink); cursor:pointer;
+    transition:all 0.12s;
+  }
+  .dropdown-item:hover {
+    background:var(--panel-line);
+    border-color:var(--accent);
+    transform:translateX(2px);
+  }
+  .dropdown-item.active {
+    background:linear-gradient(135deg, var(--accent), var(--accent-glow));
+    color:#0a1420; font-weight:700;
+    border-color:#fff;
+  }
+  .dropdown-item .di-emoji { font-size:15px; flex-shrink:0; }
+  .dropdown-cat-head {
+    font-size:10.5px; color:var(--accent-glow); font-weight:700;
+    padding:8px 10px 4px;
+    text-transform:uppercase; letter-spacing:0.5px;
+    border-top:1px solid var(--panel-line);
+    margin-top:4px;
+  }
+  .dropdown-cat-head:first-child { border-top:none; margin-top:0; }
+
+  .right-tools {
+    position:absolute;
+    top:14px; left:14px;
+    z-index:30;
+    display:flex; gap:8px;
+    flex-wrap:nowrap;
+  }
+  .tool-icon-btn {
+    width:42px; height:42px;
+    background:var(--panel);
+    border:2px solid var(--panel-line);
+    border-radius:12px;
+    cursor:pointer;
+    display:grid; place-items:center;
+    font-size:18px;
+    color:var(--ink);
+    box-shadow:0 4px 12px rgba(0,0,0,0.3);
+    transition:all 0.15s;
+    flex-shrink:0;
+  }
+  .tool-icon-btn:hover {
+    border-color:var(--accent);
+    transform:translateY(-1px);
+    box-shadow:0 6px 16px rgba(0,0,0,0.4);
+  }
+  .tool-icon-btn:active { transform:scale(0.92); }
+
+  .tool-icon-btn.fs { border-color:var(--joint); color:var(--joint); }
+  .tool-icon-btn.fs:hover { background:var(--joint); color:#0a1420; }
+  .tool-icon-btn.send { border-color:var(--warning); color:var(--warning); }
+  .tool-icon-btn.send:hover { background:var(--warning); color:#0a1420; }
+  .tool-icon-btn.theme { border-color:var(--cartilage); color:var(--cartilage); }
+  .tool-icon-btn.theme:hover { background:var(--cartilage); color:#0a1420; }
+  .tool-icon-btn.mode { border-color:var(--chloro); color:var(--chloro); }
+  .tool-icon-btn.mode:hover { background:var(--chloro); color:#0a1420; }
+  .tool-icon-btn.mode.active { background:var(--chloro); color:#0a1420; }
+  .tool-icon-btn.compare { border-color:var(--muscle); color:var(--muscle); }
+  .tool-icon-btn.compare:hover { background:var(--muscle); color:#fff; }
+  .tool-icon-btn.table { border-color:var(--bone); color:var(--bone); }
+  .tool-icon-btn.table:hover { background:var(--bone); color:#0a1420; }
+  .bottom-panel {
+    position:absolute;
+    bottom:10px;
+    left:14px; right:14px;
+    z-index:25;
+    background:var(--panel);
+    border:2px solid var(--panel-line);
+    border-radius:12px;
+    padding:9px 12px 8px;
+    box-shadow:0 -6px 24px rgba(0,0,0,0.4);
+    display:flex; flex-direction:column; gap:8px;
+    touch-action:auto;
+  }
+  .bottom-panel.hidden { display:none; }
+
+  .info-close-btn {
+    position:absolute;
+    top:-13px; left:4px;
+    width:22px; height:22px;
+    background:var(--panel);
+    border:2px solid var(--panel-line);
+    border-radius:50%;
+    color:var(--ink-soft);
+    font-size:11px;
+    font-weight:700;
+    cursor:pointer;
+    display:grid; place-items:center;
+    line-height:1;
+    padding:0;
+    z-index:2;
+    transition:all 0.12s;
+    box-shadow:0 2px 8px rgba(0,0,0,0.3);
+  }
+  .info-close-btn:hover {
+    background:var(--panel-soft);
+    border-color:var(--accent);
+    color:var(--accent);
+  }
+  .info-close-btn:active { transform:scale(0.9); }
+
+  .info-area {
+    display:flex; gap:9px;
+    align-items:flex-start;
+  }
+  .info-emoji-box {
+    width:30px; height:30px;
+    border-radius:8px;
+    background:linear-gradient(135deg, var(--accent), var(--cartilage));
+    display:grid; place-items:center;
+    font-size:17px;
+    flex-shrink:0;
+    box-shadow:0 3px 11px rgba(246,185,59,0.4);
+  }
+  .info-text-area {
+    flex:1; min-width:0;
+  }
+  .info-title-row {
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:3px;
+  }
+  .info-title {
+    font-family:'Baloo 2', cursive; font-weight:800;
+    font-size:12.5px;
+    color:var(--accent-glow);
+  }
+  .nav-buttons {
+    display:flex; gap:4px;
+  }
+  .nav-mini-btn {
+    width:19px; height:19px;
+    background:var(--panel-soft);
+    border:1.5px solid var(--accent);
+    border-radius:5px;
+    cursor:pointer;
+    display:grid; place-items:center;
+    color:var(--accent);
+    font-size:9px;
+    transition:all 0.12s;
+  }
+  .nav-mini-btn:hover {
+    background:var(--accent);
+    color:#0a1420;
+  }
+  .info-list {
+    list-style:none;
+    padding:0; margin:0;
+    max-height:22vh;
+    overflow-y:auto;
+    overflow-x:hidden;
+    -webkit-overflow-scrolling:touch;
+    touch-action:pan-y;
+    overscroll-behavior:contain;
+    scrollbar-width:thin;
+    scrollbar-color:var(--accent) rgba(255,255,255,0.15);
+    padding-right:6px;
+  }
+  .info-list::-webkit-scrollbar { width:9px; background:rgba(255,255,255,0.1); border-radius:5px; }
+  .info-list::-webkit-scrollbar-track { background:rgba(255,255,255,0.1); border-radius:5px; }
+  .info-list::-webkit-scrollbar-thumb { background:var(--accent); border-radius:5px; border:2px solid rgba(15,20,30,0.6); min-height:28px; }
+  .info-scroll-wrap { position:relative; }
+  .info-scrollbar {
+    position:absolute; top:2px; right:0; bottom:2px; width:7px;
+    background:rgba(255,255,255,0.15); border-radius:5px;
+    opacity:0; transition:opacity 0.2s; pointer-events:none; z-index:2;
+  }
+  .info-scrollbar.visible { opacity:1; }
+  .info-scrollthumb {
+    position:absolute; left:0; right:0; top:0; min-height:26px;
+    background:var(--accent); border-radius:5px;
+    border:1px solid rgba(0,0,0,0.3);
+  }
+  .info-list li {
+    padding:1px 0 1px 11px;
+    margin-bottom:0;
+    background:transparent;
+    border:none;
+    border-radius:0;
+    font-size:10.5px;
+    line-height:1.32;
+    color:var(--ink);
+    position:relative;
+  }
+  .info-list li::before {
+    content:'•';
+    position:absolute;
+    left:2px; top:1px;
+    color:var(--accent);
+    font-weight:700;
+    font-size:11px;
+  }
+  .info-list li b {
+    color:var(--accent-glow);
+    font-weight:700;
+  }
+  .info-list li.subhead {
+    background:transparent;
+    border-left:none;
+    color:var(--warning);
+    font-weight:700;
+    font-size:11.5px;
+    margin-top:5px;
+    margin-bottom:2px;
+    padding:0 0 1px 0;
+    font-style:normal;
+  }
+  .info-list li.subhead::before {
+    content:'';
+  }
+
+  .action-row {
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr;
+    gap:8px;
+  }
+  .action-btn {
+    display:flex; align-items:center; justify-content:center; gap:5px;
+    background:var(--panel-soft);
+    border:none;
+    border-radius:8px;
+    padding:6px 9px;
+    font-family:'Fredoka',sans-serif; font-weight:700;
+    font-size:10.5px;
+    color:#fff;
+    cursor:pointer;
+    transition:all 0.15s;
+  }
+  .action-btn:active { transform:scale(0.96); }
+  .action-btn .ico { font-size:12px; }
+
+  .action-btn.spin {
+    background:linear-gradient(135deg, var(--warning), #dba830);
+    color:#1a1410;
+  }
+  .action-btn.label {
+    background:linear-gradient(135deg, var(--cartilage), #7a5fb8);
+  }
+  .action-btn.anim {
+    background:linear-gradient(135deg, #2ecc71, #1ba85c);
+    color:#06281a;
+    box-shadow:0 0 14px rgba(46,204,113,0.5);
+    animation:animPulse 1.8s ease-in-out infinite;
+  }
+  @keyframes animPulse {
+    0%,100% { box-shadow:0 0 10px rgba(46,204,113,0.4); }
+    50% { box-shadow:0 0 18px rgba(46,204,113,0.75); transform:scale(1.02); }
+  }
+  .action-btn.anim.active {
+    background:linear-gradient(135deg, #e74c3c, #c0392b);
+    color:#fff;
+    animation:none;
+  }
+  .action-btn.active {
+    box-shadow:0 0 0 2px #fff, 0 0 12px rgba(255,255,255,0.4);
+  }
+
+  .slider-bar {
+    position:absolute;
+    top:62px;
+    left:14px;
+    background:var(--panel);
+    border:2px solid var(--joint);
+    border-radius:10px;
+    padding:8px 11px;
+    z-index:20;
+    display:none;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:6px;
+    box-shadow:0 4px 16px rgba(0,0,0,0.4);
+    max-width:230px;
+  }
+  .slider-bar.show { display:flex; }
+
+  .label3d {
+    color:#ffffff; font-size:11.5px;
+    padding:3px 8px;
+    background:rgba(10, 14, 26, 0.92);
+    border:1.5px solid var(--accent);
+    border-radius:6px;
+    pointer-events:none; white-space:nowrap;
+    font-family:'Fredoka', sans-serif; font-weight:500;
+    text-shadow:0 1px 2px rgba(0,0,0,0.85);
+    box-shadow:0 2px 8px rgba(0,0,0,0.5);
+  }
+  .label3d.xylem { border-color:var(--xylem); color:#ffd4b0; }
+  .label3d.phloem { border-color:var(--phloem); color:#b8e0ff; }
+  .label3d.chloro { border-color:var(--chloro); color:#b8ffc8; }
+  .label3d.epi { border-color:#a8d0b0; color:#dfe8e2; }
+  .label3d.endo { border-color:#e69138; color:#ffd4a0; }
+  .label3d.warn { border-color:#e74c3c; color:#ffb0a0; }
+
+  .share-overlay {
+    position:absolute; inset:0; z-index:60;
+    background:rgba(10,14,26,0.82); backdrop-filter:blur(4px);
+    display:none; align-items:center; justify-content:center; padding:20px;
+  }
+  .share-overlay.show { display:flex; }
+  .share-card {
+    background:var(--panel);
+    border:2px solid var(--accent);
+    border-radius:20px;
+    padding:18px;
+    width:min(360px, 92vw);
+    box-shadow:0 20px 60px rgba(0,0,0,0.6);
+  }
+  .share-head {
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:14px;
+  }
+  .share-head-text {
+    font-family:'Baloo 2', cursive; font-weight:800;
+    font-size:16px; color:var(--accent);
+  }
+  .share-close-btn {
+    width:30px; height:30px;
+    background:var(--panel-soft);
+    border:1.5px solid var(--panel-line);
+    border-radius:9px;
+    color:var(--ink);
+    cursor:pointer;
+    font-size:14px;
+  }
+  .share-actions {
+    display:flex; flex-direction:column; gap:9px;
+  }
+  .share-action-btn {
+    display:flex; align-items:center; gap:12px;
+    background:var(--panel-soft);
+    border:1.5px solid var(--panel-line);
+    border-radius:13px;
+    padding:11px 14px;
+    cursor:pointer;
+    text-align:left;
+    color:var(--ink);
+    font-family:'Fredoka', sans-serif;
+    transition:all 0.15s;
+  }
+  .share-action-btn:hover {
+    border-color:var(--accent);
+    background:var(--panel-line);
+  }
+  .share-action-btn .sa-ico {
+    font-size:22px; flex-shrink:0;
+  }
+  .share-action-btn .sa-text b {
+    display:block; font-weight:700; font-size:13px;
+  }
+  .share-action-btn .sa-text small {
+    font-size:11px; opacity:0.7;
+  }
+  .share-action-btn.primary {
+    background:linear-gradient(135deg, #25d366, #1da851);
+    border-color:#25d366;
+    color:#fff;
+  }
+
+  .cmp-card {
+    width:min(540px, 92vw) !important;
+    max-height:85vh; overflow-y:auto;
+  }
+  .cmp-body {
+    overflow-x:auto;
+    padding:4px 0 8px;
+  }
+  .cmp-table {
+    width:100%;
+    border-collapse:collapse;
+    font-size:12.5px;
+    border-radius:8px;
+    overflow:hidden;
+  }
+  .cmp-table th, .cmp-table td {
+    padding:9px 11px;
+    text-align:left;
+    border-bottom:1px solid var(--panel-line);
+  }
+  .cmp-table th {
+    background:linear-gradient(135deg, var(--accent) 0%, var(--accent-glow) 100%);
+    color:#0a1420;
+    font-family:'Baloo 2', cursive;
+    font-weight:800;
+    font-size:12px;
+    position:sticky; top:0;
+    text-shadow:0 1px 0 rgba(255,255,255,0.2);
+  }
+  .cmp-table th:first-child { border-radius:7px 0 0 0; }
+  .cmp-table th:last-child { border-radius:0 7px 0 0; }
+  .cmp-table tbody tr:nth-child(odd) td { background:rgba(246,185,59,0.04); }
+  .cmp-table tbody tr:nth-child(even) td { background:rgba(246,185,59,0.10); }
+  .cmp-table td { color:var(--ink); line-height:1.4; }
+  .cmp-table td:first-child {
+    font-weight:700;
+    color:var(--warning);
+    white-space:nowrap;
+    border-right:2px solid var(--accent);
+  }
+  .cmp-table.compare-style td:nth-child(2) { color:#ffd166; font-weight:600; }
+  .cmp-table.compare-style td:nth-child(3) { color:#7adcf0; font-weight:600; }
+  .cmp-table.compare-style td:nth-child(4) { color:#9d7fe6; font-weight:600; }
+  .cmp-table th:nth-child(2),
+  .cmp-table th:nth-child(3),
+  .cmp-table th:nth-child(4) { border-left:1px dashed rgba(255,255,255,0.3); }
+  .cmp-table tr:hover td { background:rgba(246,185,59,0.20) !important; }
+  .cmp-no-data {
+    text-align:center;
+    padding:24px 12px;
+    color:var(--ink-soft);
+    font-style:italic;
+    font-size:13px;
+  }
+
+  .cmp-nav {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:8px 4px 0;
+    margin-top:8px;
+    border-top:1px solid var(--panel-line);
+  }
+  .cmp-nav.hidden { display:none; }
+  .cmp-nav-btn {
+    background:var(--panel-soft);
+    border:1.5px solid var(--accent);
+    color:var(--accent);
+    border-radius:8px;
+    padding:6px 12px;
+    font-family:'Fredoka',sans-serif;
+    font-weight:600;
+    font-size:12px;
+    cursor:pointer;
+    transition:all 0.12s;
+    display:flex; align-items:center; gap:5px;
+  }
+  .cmp-nav-btn:hover { background:var(--accent); color:#0a1420; }
+  .cmp-nav-btn:active { transform:scale(0.96); }
+  .cmp-nav-btn:disabled {
+    opacity:0.35;
+    cursor:not-allowed;
+    background:var(--panel-soft);
+    color:var(--ink-soft);
+    border-color:var(--panel-line);
+  }
+  .cmp-nav-counter {
+    font-family:'Baloo 2', cursive;
+    font-weight:700;
+    font-size:12px;
+    color:var(--accent-glow);
+    background:var(--panel-soft);
+    padding:4px 10px;
+    border-radius:8px;
+    border:1px solid var(--panel-line);
+  }
+
+  ::-webkit-scrollbar { width:6px; height:6px; }
+  ::-webkit-scrollbar-thumb { background:var(--panel-line); border-radius:3px; }
+  ::-webkit-scrollbar-track { background:rgba(0,0,0,0.15); }
+
+  #loading {
+    position:fixed; inset:0; background:var(--bg);
+    display:flex; align-items:center; justify-content:center;
+    z-index:200; color:var(--accent-glow); font-size:18px;
+    font-family:'Baloo 2', sans-serif; font-weight:700;
+    transition:opacity 0.5s;
+  }
+  #loading.hide { opacity:0; pointer-events:none; }
+
+  #errorBox {
+    display:none; position:fixed; top:80px; left:50%;
+    transform:translateX(-50%);
+    background:rgba(180,30,30,0.95); color:white;
+    padding:20px; border-radius:8px; z-index:9999;
+    max-width:80%; font-family:monospace; font-size:13px;
+    white-space:pre-wrap;
+    box-shadow:0 4px 20px rgba(0,0,0,0.8);
+    border:2px solid #ff6060;
+  }
+
+  @media (max-width:600px) {
+    .stack-btn { min-width:140px; font-size:11px; padding:7px 11px; }
+    .stack-btn .sb-label { font-size:11px; }
+    .right-tools { gap:5px; left:8px; }
+    .tool-icon-btn { width:34px; height:34px; font-size:14px; border-radius:9px; }
+    .bottom-panel { padding:11px 12px 9px; gap:9px; }
+    .info-emoji-box { width:36px; height:36px; font-size:20px; }
+    .info-title { font-size:13px; }
+    .info-list li { font-size:11.5px; padding:4px 7px; }
+    .info-list { max-height:26vh; }
+    .action-btn { font-size:11px; padding:7px 8px; }
+    .dropdown-panel { min-width:200px; }
+    .dropdown-item { font-size:11.5px; padding:7px 9px; }
+    #panelMode { left:8px !important; }
+  }
+  @media (max-width:420px) {
+    .stack-btn { min-width:130px; font-size:10.5px; padding:6px 9px; }
+    .right-tools { gap:4px; left:6px; }
+    .tool-icon-btn { width:30px; height:30px; font-size:13px; border-radius:8px; border-width:1.5px; }
+    #panelMode { left:6px !important; }
+  }
+  @media (max-width:360px) {
+    .stack-btn { min-width:115px; font-size:10px; padding:5px 8px; }
+    .right-tools { gap:3px; left:5px; }
+    .tool-icon-btn { width:28px; height:28px; font-size:12px; }
+    #panelMode { left:5px !important; }
+  }
+
+  .region-list {
+    display: none !important;
+  }
+
+  .scene-panel {
+    position: fixed;
+    right: 12px;
+    top: 120px;
+    width: 280px;
+    max-height: calc(100vh - 120px - 220px);
+    overflow-y: auto;
+    background: rgba(15, 20, 30, 0.88);
+    border: 1px solid rgba(246, 185, 59, 0.35);
+    border-radius: 14px;
+    padding: 10px;
+    z-index: 40;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    font-size: 11.5px;
+    color: rgba(255, 255, 255, 0.92);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: all 0.3s ease;
+  }
+  .scene-panel.collapsed {
+    width: auto;
+    padding: 6px 10px;
+  }
+  .scene-panel.collapsed > *:not(.sp-toggle) { display: none; }
+  .scene-panel.empty { display: none; }
+
+  body.dropdown-open .scene-panel {
+    transform: none;
+  }
+
+  @media (min-width: 768px) {
+    canvas {
+      transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    body.scene-panel-open canvas {
+      transform: translateX(-15vw);
+    }
+    body.panel-open canvas {
+      transform: translateX(-22vw);
+    }
+  }
+
+  .sp-stepper {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 6px;
+    padding: 2px 3px;
+  }
+  .sp-step-btn {
+    width: 22px;
+    height: 22px;
+    background: rgba(246, 185, 59, 0.3);
+    border: 1px solid rgba(246, 185, 59, 0.6);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    transition: all 0.15s;
+    padding: 0;
+  }
+  .sp-step-btn:hover {
+    background: rgba(246, 185, 59, 0.55);
+    transform: scale(1.1);
+  }
+  .sp-step-btn:active { transform: scale(0.92); }
+  .sp-slider-row .sp-stepper .sp-val {
+    min-width: 40px;
+    background: transparent;
+    padding: 0 4px;
+    font-size: 11px;
+  }
+  .sp-toggle {
+    background: rgba(246, 185, 59, 0.18);
+    border: 1px solid rgba(246, 185, 59, 0.5);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+  }
+  .sp-toggle:hover { background: rgba(246, 185, 59, 0.32); }
+  .sp-section {
+    font-size: 10px; font-weight: 700;
+    color: rgba(255, 209, 90, 0.85);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin: 6px 4px 2px 4px;
+  }
+
+  .sp-slider-row {
+    display: flex; flex-direction: column; gap: 4px;
+    padding: 8px 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+  }
+  .sp-slider-row .sp-slider-head {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11.5px; font-weight: 500;
+  }
+  .sp-slider-row .sp-slider-head .sp-val {
+    font-family: 'Consolas', monospace;
+    font-size: 12px; font-weight: 700;
+    color: #FFD54F;
+    background: rgba(0,0,0,0.45);
+    padding: 2px 8px;
+    border-radius: 6px;
+    min-width: 50px; text-align: center;
+  }
+  .sp-slider-row .sp-sub {
+    font-size: 9.5px;
+    color: rgba(255, 255, 255, 0.5);
+    margin-top: -2px;
+    line-height: 1.2;
+  }
+  .sp-slider-row input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 6px;
+    background: linear-gradient(to right, #42A5F5, #FFCA28, #EF5350);
+    border-radius: 3px;
+    outline: none;
+    margin: 6px 0 2px 0;
+  }
+  .sp-slider-row input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    background: #fff;
+    border: 2px solid #f6b93b;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    transition: transform 0.1s;
+  }
+  .sp-slider-row input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+  .sp-slider-row input[type=range]::-moz-range-thumb {
+    width: 18px; height: 18px;
+    background: #fff;
+    border: 2px solid #f6b93b;
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  .sp-display {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 7px 10px;
+    background: rgba(246, 185, 59, 0.10);
+    border: 1px solid rgba(246, 185, 59, 0.28);
+    border-radius: 9px;
+    font-size: 11px;
+  }
+  .sp-display .sp-label { color: rgba(255,255,255,0.85); }
+  .sp-display .sp-val {
+    font-family: 'Consolas', monospace;
+    font-size: 12px; font-weight: 700; color: #FFE082;
+    background: rgba(0,0,0,0.35); padding: 2px 8px; border-radius: 6px;
+  }
+  .sp-display.highlight {
+    background: rgba(255, 175, 50, 0.15);
+    border-color: rgba(255, 175, 50, 0.5);
+  }
+  .sp-display.highlight .sp-val { color: #FFC107; }
+
+  .sp-presets {
+    display: flex; gap: 4px; flex-wrap: wrap;
+  }
+  .sp-preset-btn {
+    flex: 1; min-width: 50px;
+    padding: 6px 6px; font-size: 10.5px; font-weight: 500;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.18);
+    color: rgba(255,255,255,0.8);
+    border-radius: 6px; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .sp-preset-btn:hover { background: rgba(246,185,59,0.25); color: #fff; }
+  .sp-preset-btn.active {
+    background: rgba(246,185,59,0.5);
+    border-color: rgba(246,185,59,0.8);
+    color: #fff; font-weight: 600;
+  }
+
+  .sp-formula {
+    padding: 8px 10px;
+    background: rgba(255, 200, 50, 0.10);
+    border: 1px solid rgba(255, 200, 50, 0.35);
+    border-radius: 9px;
+    text-align: center;
+    font-family: 'Consolas', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: #FFE082;
+  }
+
+  @media (max-width: 768px) {
+    .scene-panel {
+      right: 8px;
+      top: 110px;
+      width: 200px;
+      font-size: 10.5px;
+      padding: 8px;
+    }
+    .sp-slider-row { padding: 6px 8px; }
+    .sp-slider-row input[type=range] { height: 5px; }
+  }
+
+  body.panel-open .scene-panel { }
+</style>
+</head>
+<body>
+
+<div id="loading">⚗️ Kimyasal Tepkimeler yükleniyor...</div>
+
+<div id="touchHintOverlay" style="
+  position:fixed; bottom:128px; left:50%; transform:translateX(-50%) translateY(20px);
+  background:rgba(15,25,40,0.96); color:#fff; padding:14px 18px;
+  border-radius:18px; z-index:95; pointer-events:auto;
+  border:1.5px solid rgba(246, 185, 59, 0.55);
+  box-shadow:0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05);
+  opacity:0; transition:all 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  font-size:12.5px; max-width:340px; line-height:1.5;
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+">
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; padding-bottom:7px; border-bottom:1px solid rgba(255,255,255,0.1);">
+    <span style="font-weight:600; font-size:13px; color:#f6b93b;">🤏 Dokunma Hareketleri</span>
+    <button id="touchHintClose" style="background:none; border:none; color:rgba(255,255,255,0.6); font-size:18px; cursor:pointer; padding:0 4px; line-height:1;">×</button>
+  </div>
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px 12px;">
+    <div style="display:flex; align-items:center; gap:8px;"><span style="font-size:16px;">👆</span><span style="opacity:0.92;">Sürükle → döndür</span></div>
+    <div style="display:flex; align-items:center; gap:8px;"><span style="font-size:16px;">✌️</span><span style="opacity:0.92;">Pinch → zoom</span></div>
+    <div style="display:flex; align-items:center; gap:8px;"><span style="font-size:16px;">🖐️</span><span style="opacity:0.92;">3 parmak → reset</span></div>
+    <div style="display:flex; align-items:center; gap:8px;"><span style="font-size:16px;">⏱️</span><span style="opacity:0.92;">Basılı tut → bilgi</span></div>
+  </div>
+</div>
+
+<div id="resetPulse" style="
+  position:fixed; top:50%; left:50%; transform:translate(-50%, -50%) scale(0);
+  width:100px; height:100px; border-radius:50%;
+  background:radial-gradient(circle, rgba(246,185,59,0.5) 0%, rgba(246,185,59,0) 70%);
+  pointer-events:none; z-index:200; opacity:0;
+  transition:transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease;
+">
+  <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:42px;">🔄</div>
+</div>
+
+<div id="regionList" class="region-list"></div>
+<div id="scenePanel" class="scene-panel"></div>
+
+<div id="gestureToast" style="
+  position:fixed; top:90px; left:50%; transform:translateX(-50%) translateY(-20px);
+  background:rgba(15,25,40,0.95); color:#fff; padding:10px 18px;
+  border-radius:22px; z-index:180; pointer-events:none;
+  border:1.5px solid rgba(246, 185, 59, 0.7);
+  box-shadow:0 4px 22px rgba(0,0,0,0.5);
+  font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+  font-size:12.5px; font-weight:500;
+  opacity:0; transition:all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space:nowrap;
+"></div>
+
+<div class="left-stack">
+  <button class="stack-btn level" id="btnLevel">
+    <span class="sb-emoji">🎓</span>
+    <span class="sb-label" id="levelLabel">Lise</span>
+    <span class="sb-arrow">▼</span>
+  </button>
+  <button class="stack-btn topic" id="btnTopic">
+    <span class="sb-emoji">📚</span>
+    <span class="sb-label">Konu Rehberi</span>
+    <span class="sb-arrow">▼</span>
+  </button>
+</div>
+
+<div class="dropdown-panel" id="panelLevel" style="top:60px; right:14px; max-height:70vh; overflow-y:auto;">
+  <div class="dropdown-title">🎓 Eğitim Seviyesi</div>
+  <button class="dropdown-item" data-level="ilkokul"><span class="di-emoji">🟢</span>İlkokul</button>
+  <button class="dropdown-item" data-level="ortaokul"><span class="di-emoji">🟡</span>Ortaokul</button>
+  <button class="dropdown-item active" data-level="lise"><span class="di-emoji">🔵</span>Lise</button>
+  <div class="dropdown-cat-head">🎯 Sınav Modu</div>
+  <button class="dropdown-item" data-level="sinav"><span class="di-emoji">🎯</span>Sınavlara Hazırlık</button>
+</div>
+
+
+<div class="dropdown-panel" id="panelTopic" style="top:106px; right:14px;">
+  <div class="dropdown-title">📚 Konu Rehberi</div>
+  <div id="topicList"></div>
+</div>
+
+<div class="right-tools">
+  <button class="tool-icon-btn mode active" id="btnMode" title="Görünüm Modu: Sade">📄</button>
+  <button class="tool-icon-btn compare" id="btnCompare" title="Karşılaştırma">⚖️</button>
+  <button class="tool-icon-btn table" id="btnTable" title="Bilgi Tablosu">📋</button>
+  <button class="tool-icon-btn theme" id="btnTheme" title="Tema değiştir">🌙</button>
+  <button class="tool-icon-btn send" id="btnSend" title="Gönder/Paylaş">📤</button>
+  <button class="tool-icon-btn fs" id="btnFs" title="Tam ekran">⛶</button>
+</div>
+
+<div class="dropdown-panel" id="panelMode" style="top:60px; left:14px;">
+  <div class="dropdown-title">📚 Görünüm Modu</div>
+  <button class="dropdown-item" data-mode="detayli"><span class="di-emoji">📚</span><span><b>Detaylı</b><br><small style="opacity:0.7;font-size:10.5px;">Daha çok bilgi</small></span></button>
+  <button class="dropdown-item active" data-mode="sade"><span class="di-emoji">📄</span><span><b>Sade</b><br><small style="opacity:0.7;font-size:10.5px;">Sadece temel bilgiler</small></span></button>
+</div>
+
+<div class="bottom-panel" id="bottomPanel">
+  <button class="info-close-btn" id="infoCloseBtn" title="Bilgi panelini kapat">✕</button>
+  <div class="info-area">
+    <div class="info-emoji-box" id="infoEmoji" style="display:none;">🔗</div>
+    <div class="info-text-area">
+      <div class="info-title-row">
+        <div class="info-title" id="infoTitle">Kimyasal Bağlar</div>
+        <div class="nav-buttons">
+          <button class="nav-mini-btn" id="navPrev" title="Önceki">◀</button>
+          <button class="nav-mini-btn" id="navNext" title="Sonraki">▶</button>
+        </div>
+      </div>
+      <div class="info-scroll-wrap">
+        <ul class="info-list" id="infoList"></ul>
+        <div class="info-scrollbar" id="infoScrollbar"><div class="info-scrollthumb" id="infoScrollThumb"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="action-row">
+    <button class="action-btn spin" id="spinBtn">
+      <span class="ico">🔄</span>
+      <span>Döndür</span>
+    </button>
+    <button class="action-btn label" id="labelBtn">
+      <span class="ico">🏷️</span>
+      <span>Etiketler</span>
+    </button>
+    <button class="action-btn anim" id="animBtn">
+      <span class="ico">▶️</span>
+      <span>Çalıştır</span>
+    </button>
+  </div>
+</div>
+
+<div id="bottomControl" class="slider-bar">
+  <label>💡 Kontrol:</label>
+  <input type="range" id="turgorSlider" min="0" max="100" value="80">
+  <span id="turgorValue">80%</span>
+  <span id="stomaDurum">AÇIK</span>
+</div>
+
+<div class="share-overlay" id="shareOverlay">
+  <div class="share-card">
+    <div class="share-head">
+      <div class="share-head-text">📤 Paylaş</div>
+      <button class="share-close-btn" id="shareClose">✕</button>
+    </div>
+    <div class="share-actions">
+      <button class="share-action-btn primary" id="shareWhatsApp">
+        <span class="sa-ico">💬</span>
+        <span class="sa-text">
+          <b>WhatsApp ile gönder</b>
+          <small>Arkadaşlarınıza paylaşın</small>
+        </span>
+      </button>
+      <button class="share-action-btn" id="shareCopy">
+        <span class="sa-ico">📋</span>
+        <span class="sa-text">
+          <b>Bağlantıyı kopyala</b>
+          <small>Panoya kopyala</small>
+        </span>
+      </button>
+      <button class="share-action-btn" id="shareDownload">
+        <span class="sa-ico">💾</span>
+        <span class="sa-text">
+          <b>Ekran görüntüsü kaydet</b>
+          <small>Cihaza indir</small>
+        </span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="share-overlay" id="compareOverlay">
+  <div class="share-card cmp-card">
+    <div class="share-head">
+      <div class="share-head-text"><span id="compareTitle">⚖️ Karşılaştırma</span></div>
+      <button class="share-close-btn" id="compareClose">✕</button>
+    </div>
+    <div class="cmp-body" id="compareBody"></div>
+    <div class="cmp-nav hidden" id="compareNav">
+      <button class="cmp-nav-btn" id="comparePrev">◀ Önceki</button>
+      <span class="cmp-nav-counter" id="compareCounter">1 / 1</span>
+      <button class="cmp-nav-btn" id="compareNext">Sonraki ▶</button>
+    </div>
+  </div>
+</div>
+
+<div class="share-overlay" id="tableOverlay">
+  <div class="share-card cmp-card">
+    <div class="share-head">
+      <div class="share-head-text" style="color:var(--bone);"><span id="tableTitle">📋 Bilgi Tablosu</span></div>
+      <button class="share-close-btn" id="tableClose">✕</button>
+    </div>
+    <div class="cmp-body" id="tableBody"></div>
+    <div class="cmp-nav hidden" id="tableNav">
+      <button class="cmp-nav-btn" id="tablePrev">◀ Önceki</button>
+      <span class="cmp-nav-counter" id="tableCounter">1 / 1</span>
+      <button class="cmp-nav-btn" id="tableNext">Sonraki ▶</button>
+    </div>
+  </div>
+</div>
+
+<div id="canvasContainer">
+  <svg id="leaderLines" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:9;"></svg>
+</div>
+
+<div id="errorBox"></div>
+
+<script>
+window.addEventListener('error', function(e) {
+  const box = document.getElementById('errorBox');
+  if (!box) return;
+  box.style.display = 'block';
+  box.textContent = '❌ HATA: ' + e.message + '\n\n📍 ' + (e.filename || 'inline') + ':' + e.lineno + ':' + e.colno;
+});
+window.addEventListener('unhandledrejection', function(e) {
+  const box = document.getElementById('errorBox');
+  if (!box) return;
+  box.style.display = 'block';
+  box.textContent = '❌ PROMISE HATASI: ' + (e.reason && e.reason.message ? e.reason.message : e.reason);
+});
+window.__moduleLoaded = false;
+</script>
+
+<!-- Three.js OFFLINE: klasik global script (window.THREE) — file:// altında ES modül yok -->
+<script src="three.global.js"></script>
+
+<script>
+const THREE = window.THREE;
+window.__moduleLoaded = true;
+console.log('✓ Three.js yüklendi (offline):', THREE && THREE.REVISION);
+
+window.addEventListener('error', (e) => {
+  const msg = `❌ HATA\n${e.message}\nDosya: ${e.filename || '?'}\nSatır: ${e.lineno || '?'}:${e.colno || '?'}\nStack: ${(e.error && e.error.stack) ? e.error.stack.slice(0, 600) : 'yok'}`;
+  console.error(msg);
+});
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('❌ Promise hatası:', e.reason);
+});
+</script>
+
+<script>
+// ============== INLINE: CSS2DObject + CSS2DRenderer ==============
+class CSS2DObject extends THREE.Object3D {
+  constructor(element) {
+    super();
+    this.isCSS2DObject = true;
+    this.element = element || document.createElement('div');
+    this.element.style.position = 'absolute';
+    this.element.style.userSelect = 'none';
+    this.addEventListener('removed', () => {
+      this.traverse(obj => {
+        if (obj.element instanceof Element && obj.element.parentNode) {
+          obj.element.parentNode.removeChild(obj.element);
+        }
+      });
+    });
+  }
+}
+
+class CSS2DRenderer {
+  constructor() {
+    this.domElement = document.createElement('div');
+    this.domElement.style.position = 'absolute';
+    this.domElement.style.top = '0';
+    this.domElement.style.left = '0';
+    this.domElement.style.pointerEvents = 'none';
+    this.domElement.style.width = '100%';
+    this.domElement.style.height = '100%';
+    this._w = window.innerWidth;
+    this._h = window.innerHeight;
+    this._vec = new THREE.Vector3();
+  }
+  setSize(w, h) { this._w = w; this._h = h; }
+  render(scene, camera) {
+    const vec = this._vec;
+    const renderer = this;
+    const seen = new Set();
+    scene.traverse(obj => {
+      if (obj.isCSS2DObject) {
+        const el = obj.element;
+        seen.add(el);
+        obj.getWorldPosition(vec);
+        vec.project(camera);
+        if (vec.z > 1 || vec.z < -1) {
+          el.style.display = 'none';
+          return;
+        }
+        if (!el.parentNode) renderer.domElement.appendChild(el);
+        const x = (vec.x + 1) / 2 * renderer._w;
+        const y = (1 - vec.y) / 2 * renderer._h;
+        if (el.dataset.userHidden !== '1' && el.dataset.labelHidden !== '1') el.style.display = 'block';
+        el.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px)`;
+      }
+    });
+    const kids = renderer.domElement.children;
+    for (let i = kids.length - 1; i >= 0; i--) {
+      if (!seen.has(kids[i])) renderer.domElement.removeChild(kids[i]);
+    }
+  }
+}
+
+// ============== INLINE: OrbitControls (Minimal) ==============
+class OrbitControls extends THREE.EventDispatcher {
+  constructor(camera, domElement) {
+    super();
+    this.object = camera;
+    this.domElement = domElement;
+    this.target = new THREE.Vector3(0, 0, 0);
+    this.enableDamping = true;
+    this.dampingFactor = 0.08;
+    this.minDistance = 1;
+    this.maxDistance = 100;
+    this.enabled = true;
+
+    this._spherical = { theta: 0, phi: Math.PI/3, radius: 20 };
+    this._sphericalDelta = { theta: 0, phi: 0, radius: 1 };
+    this._sphericalTarget = { theta: 0, phi: Math.PI/3, radius: 20 };
+    this._lastCamPos = camera.position.clone();
+    this._lastTarget = this.target.clone();
+
+    this._state = 'NONE';
+    this._lastX = 0;
+    this._lastY = 0;
+    this._panOffset = new THREE.Vector3();
+
+    const dom = domElement;
+
+    const onMouseDown = (e) => {
+      if (!this.enabled) return;
+      this._state = (e.button === 2 || e.shiftKey) ? 'PAN' : 'ROTATE';
+      this._lastX = e.clientX;
+      this._lastY = e.clientY;
+    };
+    const onMouseMove = (e) => {
+      if (this._state === 'NONE' || !this.enabled) return;
+      const dx = e.clientX - this._lastX;
+      const dy = e.clientY - this._lastY;
+      this._lastX = e.clientX;
+      this._lastY = e.clientY;
+      if (this._state === 'ROTATE') {
+        this._sphericalTarget.theta -= dx * 0.005;
+        this._sphericalTarget.phi -= dy * 0.005;
+        this._sphericalTarget.phi = Math.max(0.05, Math.min(Math.PI - 0.05, this._sphericalTarget.phi));
+      } else if (this._state === 'PAN') {
+        const right = new THREE.Vector3();
+        const up = new THREE.Vector3();
+        this.object.matrix.extractBasis(right, up, new THREE.Vector3());
+        const panFactor = this._sphericalTarget.radius * 0.002;
+        this.target.addScaledVector(right, -dx * panFactor);
+        this.target.addScaledVector(up, dy * panFactor);
+      }
+    };
+    const onMouseUp = () => { this._state = 'NONE'; };
+
+    dom.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+
+    this._zoomToScreenPoint = (screenX, screenY, factor) => {
+      const rect = dom.getBoundingClientRect();
+      const ndcX = ((screenX - rect.left) / rect.width) * 2 - 1;
+      const ndcY = -((screenY - rect.top) / rect.height) * 2 + 1;
+      const ndc = new THREE.Vector3(ndcX, ndcY, 0.5);
+      ndc.unproject(this.object);
+      const dir = ndc.sub(this.object.position).normalize();
+      const t = (this.target.y - this.object.position.y) / dir.y;
+      if (t > 0 && isFinite(t)) {
+        const hit = new THREE.Vector3(
+          this.object.position.x + dir.x * t,
+          this.target.y,
+          this.object.position.z + dir.z * t
+        );
+        this.target.lerp(hit, 0.65);
+      }
+      this._sphericalTarget.radius = Math.max(this.minDistance,
+        Math.min(this.maxDistance, this._sphericalTarget.radius * factor));
+    };
+
+    let touchStart = null;
+    let pinchStartDist = 0;
+    let pinchStartRadius = 0;
+    let pinchCenter = { x: 0, y: 0 };
+    let lastTapTime = 0;
+    let lastTapX = 0, lastTapY = 0;
+    let touchStartTime = 0;
+    let longPressTimer = null;
+    let touchMoved = false;
+
+    this._initialCameraState = {
+      position: this.object.position.clone(),
+      target: this.target.clone(),
+      radius: this._sphericalTarget.radius
+    };
+    this.captureInitialState = () => {
+      this._initialCameraState = {
+        position: this.object.position.clone(),
+        target: this.target.clone(),
+        radius: this._sphericalTarget.radius,
+        theta: this._sphericalTarget.theta,
+        phi: this._sphericalTarget.phi
+      };
+    };
+    this.resetView = () => {
+      const init = this._initialCameraState;
+      if (!init) return;
+      this._sphericalTarget.radius = init.radius;
+      if (init.theta !== undefined) this._sphericalTarget.theta = init.theta;
+      if (init.phi !== undefined) this._sphericalTarget.phi = init.phi;
+      this.target.copy(init.target);
+      if (window._showResetPulse) window._showResetPulse();
+      if (window._showGestureToast) window._showGestureToast('🔄 Görünüm sıfırlandı');
+      if (window._haptic) window._haptic(35);
+    };
+
+    dom.addEventListener('touchstart', (e) => {
+      if (!this.enabled) return;
+      touchMoved = false;
+      touchStartTime = Date.now();
+      if (e.touches.length === 3) {
+        e.preventDefault && e.preventDefault();
+        this._state = 'RESET';
+        this.resetView();
+        return;
+      }
+      if (e.touches.length === 1) {
+        const now = Date.now();
+        const tx = e.touches[0].clientX;
+        const ty = e.touches[0].clientY;
+        if (now - lastTapTime < 300 && Math.hypot(tx - lastTapX, ty - lastTapY) < 60) {
+          this._zoomToScreenPoint(tx, ty, 0.6);
+          lastTapTime = 0;
+          this._state = 'NONE';
+          if (window._haptic) window._haptic(15);
+          if (window._showGestureToast) window._showGestureToast('🔍 Yakınlaştı');
+          return;
+        }
+        lastTapTime = now;
+        lastTapX = tx; lastTapY = ty;
+        this._state = 'ROTATE';
+        this._lastX = tx;
+        this._lastY = ty;
+        longPressTimer = setTimeout(() => {
+          if (!touchMoved) {
+            const bp = document.getElementById('bottomPanel');
+            if (bp) {
+              bp.classList.toggle('open');
+              if (window._haptic) window._haptic(25);
+              if (window._showGestureToast) {
+                window._showGestureToast(bp.classList.contains('open') ? '📖 Bilgi açıldı' : '📕 Bilgi kapandı');
+              }
+            }
+            this._state = 'NONE';
+          }
+        }, 600);
+      } else if (e.touches.length === 2) {
+        if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+        this._state = 'PINCH';
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        pinchStartDist = Math.hypot(dx, dy);
+        pinchStartRadius = this._sphericalTarget.radius;
+        pinchCenter.x = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        pinchCenter.y = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      }
+    }, { passive: true });
+
+    dom.addEventListener('touchmove', (e) => {
+      if (!this.enabled || this._state === 'NONE') return;
+      e.preventDefault();
+      if (longPressTimer) {
+        const t = e.touches[0];
+        const dxMove = Math.hypot(t.clientX - lastTapX, t.clientY - lastTapY);
+        if (dxMove > 8) {
+          touchMoved = true;
+          clearTimeout(longPressTimer);
+          longPressTimer = null;
+        }
+      }
+      if (this._state === 'ROTATE' && e.touches.length === 1) {
+        const dx = e.touches[0].clientX - this._lastX;
+        const dy = e.touches[0].clientY - this._lastY;
+        this._lastX = e.touches[0].clientX;
+        this._lastY = e.touches[0].clientY;
+        this._sphericalTarget.theta -= dx * 0.005;
+        this._sphericalTarget.phi -= dy * 0.005;
+        this._sphericalTarget.phi = Math.max(0.05, Math.min(Math.PI - 0.05, this._sphericalTarget.phi));
+      } else if (this._state === 'PINCH' && e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.hypot(dx, dy);
+        const newCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const newCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        this._sphericalTarget.radius = Math.max(this.minDistance, Math.min(this.maxDistance, pinchStartRadius * (pinchStartDist / dist)));
+        const panDx = newCenterX - pinchCenter.x;
+        const panDy = newCenterY - pinchCenter.y;
+        pinchCenter.x = newCenterX;
+        pinchCenter.y = newCenterY;
+        const right = new THREE.Vector3();
+        const up = new THREE.Vector3();
+        this.object.matrix.extractBasis(right, up, new THREE.Vector3());
+        const panFactor = this._sphericalTarget.radius * 0.0045;
+        this.target.addScaledVector(right, -panDx * panFactor);
+        this.target.addScaledVector(up, panDy * panFactor);
+      }
+    }, { passive: false });
+
+    dom.addEventListener('touchend', (e) => {
+      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+      if (this._state === 'PINCH' && e.touches.length === 1) {
+        this._state = 'ROTATE';
+        this._lastX = e.touches[0].clientX;
+        this._lastY = e.touches[0].clientY;
+        return;
+      }
+      this._state = 'NONE';
+    });
+    dom.addEventListener('touchcancel', () => {
+      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+      this._state = 'NONE';
+    });
+
+    dom.addEventListener('wheel', (e) => {
+      if (!this.enabled) return;
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 1.1 : 0.9;
+      this._sphericalTarget.radius = Math.max(this.minDistance,
+        Math.min(this.maxDistance, this._sphericalTarget.radius * factor));
+    }, { passive: false });
+
+    dom.addEventListener('dblclick', (e) => {
+      if (!this.enabled) return;
+      this._zoomToScreenPoint(e.clientX, e.clientY, 0.55);
+    });
+
+    dom.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    this._syncFromCamera();
+  }
+
+  _syncFromCamera() {
+    const dx = this.object.position.x - this.target.x;
+    const dy = this.object.position.y - this.target.y;
+    const dz = this.object.position.z - this.target.z;
+    const r = Math.sqrt(dx*dx + dy*dy + dz*dz) || 1;
+    this._spherical.radius = this._sphericalTarget.radius = r;
+    this._spherical.theta = this._sphericalTarget.theta = Math.atan2(dx, dz);
+    this._spherical.phi = this._sphericalTarget.phi = Math.acos(Math.max(-1, Math.min(1, dy / r)));
+    this._lastCamPos.copy(this.object.position);
+    this._lastTarget.copy(this.target);
+  }
+
+  update() {
+    if (!this._lastCamPos.equals(this.object.position) || !this._lastTarget.equals(this.target)) {
+      this._syncFromCamera();
+    }
+    if (this.enableDamping) {
+      this._spherical.theta += (this._sphericalTarget.theta - this._spherical.theta) * this.dampingFactor;
+      this._spherical.phi += (this._sphericalTarget.phi - this._spherical.phi) * this.dampingFactor;
+      this._spherical.radius += (this._sphericalTarget.radius - this._spherical.radius) * this.dampingFactor;
+    } else {
+      this._spherical.theta = this._sphericalTarget.theta;
+      this._spherical.phi = this._sphericalTarget.phi;
+      this._spherical.radius = this._sphericalTarget.radius;
+    }
+    const s = this._spherical;
+    this.object.position.set(
+      this.target.x + s.radius * Math.sin(s.phi) * Math.sin(s.theta),
+      this.target.y + s.radius * Math.cos(s.phi),
+      this.target.z + s.radius * Math.sin(s.phi) * Math.cos(s.theta)
+    );
+    this.object.lookAt(this.target);
+    this._lastCamPos.copy(this.object.position);
+    this._lastTarget.copy(this.target);
+  }
+}
+
+// ============== GLOBAL STATE ==============
+let scene, camera, renderer, labelRenderer, controls;
+let dynamicObjects = [];
+let labelsVisible = true;
+let currentModule = 1, currentSub = '';
+
+// ============== INIT ==============
+function init() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x1e2740);
+  scene.fog = new THREE.Fog(0x1e2740, 45, 110);
+
+  const W = window.innerWidth, H = window.innerHeight;
+  camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 200);
+  camera.position.set(0.0, 5.0, 28.0);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(W, H);
+  window.scene = scene; window.camera = camera; window.renderer = renderer;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+  if (THREE.SRGBColorSpace !== undefined) {
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+  } else if (THREE.sRGBEncoding !== undefined) {
+    renderer.outputEncoding = THREE.sRGBEncoding;
+  }
+  document.getElementById('canvasContainer').appendChild(renderer.domElement);
+
+  labelRenderer = new CSS2DRenderer();
+  labelRenderer.setSize(W, H);
+  labelRenderer.domElement.style.position = 'absolute';
+  labelRenderer.domElement.style.top = '0';
+  labelRenderer.domElement.style.pointerEvents = 'none';
+  document.getElementById('canvasContainer').appendChild(labelRenderer.domElement);
+
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.minDistance = 1.2;
+  controls.maxDistance = 90;
+
+  const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+  ambient.userData._isInitial = true;
+  scene.add(ambient);
+
+  const keyLight = new THREE.DirectionalLight(0xfff4e6, 0.6);
+  keyLight.position.set(8, 14, 10);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.width = 2048;
+  keyLight.shadow.mapSize.height = 2048;
+  keyLight.shadow.camera.near = 0.5;
+  keyLight.shadow.camera.far = 60;
+  keyLight.shadow.camera.left = -20;
+  keyLight.shadow.camera.right = 20;
+  keyLight.shadow.camera.top = 20;
+  keyLight.shadow.camera.bottom = -20;
+  keyLight.shadow.bias = -0.0005;
+  keyLight.shadow.radius = 4;
+  keyLight.userData._isInitial = true;
+  scene.add(keyLight);
+
+  const rimLight = new THREE.DirectionalLight(0x90b8ff, 0.35);
+  rimLight.position.set(-6, 4, -12);
+  rimLight.userData._isInitial = true;
+  scene.add(rimLight);
+
+  const hemi = new THREE.HemisphereLight(0x99bbff, 0x202028, 0.25);
+  hemi.userData._isInitial = true;
+  scene.add(hemi);
+
+  window.addEventListener('resize', onResize);
+  document.getElementById('loading').classList.add('hide');
+
+  (function() {
+    const bp = document.getElementById('bottomPanel');
+    if (!bp) return;
+    const observer = new MutationObserver(() => {
+      if (bp.classList.contains('open')) {
+        document.body.classList.add('panel-open');
+      } else {
+        document.body.classList.remove('panel-open');
+      }
+    });
+    observer.observe(bp, { attributes: true, attributeFilter: ['class'] });
+  })();
+
+  const hint = document.getElementById('touchHintOverlay');
+  const hintClose = document.getElementById('touchHintClose');
+  let hintShown = false;
+  try { hintShown = sessionStorage.getItem('qhintShown') === '1'; } catch(e){}
+  const isMobile = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+  if (isMobile && hint && !hintShown) {
+    setTimeout(() => {
+      hint.style.opacity = '1';
+      hint.style.transform = 'translateX(-50%) translateY(0)';
+    }, 800);
+    setTimeout(() => {
+      hint.style.opacity = '0';
+      hint.style.transform = 'translateX(-50%) translateY(20px)';
+      setTimeout(() => { hint.style.pointerEvents = 'none'; }, 400);
+    }, 8000);
+  }
+  if (hintClose && hint) {
+    hintClose.onclick = () => {
+      hint.style.opacity = '0';
+      hint.style.transform = 'translateX(-50%) translateY(20px)';
+      setTimeout(() => { hint.style.pointerEvents = 'none'; }, 400);
+      try { sessionStorage.setItem('qhintShown', '1'); } catch(e){}
+    };
+  }
+
+  window._showGestureToast = function(msg, duration = 1400) {
+    const toast = document.getElementById('gestureToast');
+    if (!toast) return;
+    toast.textContent = msg;
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+    clearTimeout(window._toastTimer);
+    window._toastTimer = setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(-50%) translateY(-20px)';
+    }, duration);
+  };
+
+  window._showResetPulse = function() {
+    const pulse = document.getElementById('resetPulse');
+    if (!pulse) return;
+    pulse.style.transform = 'translate(-50%, -50%) scale(1)';
+    pulse.style.opacity = '1';
+    setTimeout(() => {
+      pulse.style.opacity = '0';
+      setTimeout(() => { pulse.style.transform = 'translate(-50%, -50%) scale(0)'; }, 500);
+    }, 400);
+  };
+
+  window._haptic = function(ms = 18) {
+    try { if (navigator.vibrate) navigator.vibrate(ms); } catch(e){}
+  };
+}
+
+function onResize() {
+  const W = window.innerWidth, H = window.innerHeight;
+  camera.aspect = W / H;
+  camera.updateProjectionMatrix();
+  renderer.setSize(W, H);
+  labelRenderer.setSize(W, H);
+  if (typeof updateInfoScrollbar === 'function') updateInfoScrollbar();
+}
+
+// ============== HELPERS ==============
+function clearScene() {
+  if (typeof clearSceneSliders === 'function') clearSceneSliders();
+  if (labelRenderer && labelRenderer.domElement) {
+    labelRenderer.domElement.innerHTML = '';
+  }
+  const _keepTypes = ['AmbientLight', 'HemisphereLight'];
+  const _toClean = [];
+  scene.children.forEach(obj => {
+    if (obj.userData._isInitial === true) return;
+    if (_keepTypes.includes(obj.type) && obj.userData._isInitial === undefined) {
+      obj.userData._isInitial = true;
+      return;
+    }
+    _toClean.push(obj);
+  });
+  _toClean.forEach(obj => {
+    if (obj.parent) obj.parent.remove(obj);
+    if (typeof obj.traverse === 'function') {
+      obj.traverse(o => {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) {
+          if (Array.isArray(o.material)) o.material.forEach(m => m.dispose());
+          else o.material.dispose();
+        }
+      });
+    }
+  });
+  const toRemove = [];
+  scene.traverse(obj => { if (obj.userData.dynamic) toRemove.push(obj); });
+  toRemove.forEach(obj => {
+    obj.parent && obj.parent.remove(obj);
+    if (obj.geometry) obj.geometry.dispose();
+    if (obj.material) {
+      if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+      else obj.material.dispose();
+    }
+  });
+  dynamicObjects = [];
+  window._labelRefs = [];
+  window._labelPlaced = [];
+  window._currentModelGroup = null;
+  window._customAnim = null;
+  window._flowRays = [];
+  window._arrowMaterials = [];
+  const svg = document.getElementById('leaderLines');
+  if (svg) svg.innerHTML = '';
+}
+
+window._labelRefs = [];
+window._currentModelGroup = null;
+
+function addLabel(target, text, className = '', anchorTarget = null, minLevel = 1) {
+  const levelMap = { ilkokul: 1, ortaokul: 2, lise: 3, tyt_ayt: 4 };
+  const curr = levelMap[currentLevel] || 3;
+  if (curr < minLevel) return null;
+
+  const div = document.createElement('div');
+  div.className = 'label3d ' + className;
+  div.innerHTML = text;
+  div.style.display = labelsVisible ? 'block' : 'none';
+  div.dataset.userHidden = labelsVisible ? '0' : '1';
+  const lbl = new CSS2DObject(div);
+  lbl.userData.dynamic = true;
+  lbl.userData.isLabel = true;
+
+  let anchorLocal;
+  if (anchorTarget) {
+    anchorLocal = anchorTarget.isVector3 ? anchorTarget.clone() : anchorTarget.getWorldPosition(new THREE.Vector3());
+  } else if (target.isVector3) {
+    anchorLocal = target.clone();
+  } else {
+    anchorLocal = target.getWorldPosition(new THREE.Vector3());
+  }
+
+  const anchorObj = new THREE.Object3D();
+  anchorObj.position.copy(anchorLocal);
+  anchorObj.userData.dynamic = true;
+
+  if (target.isVector3) {
+    lbl.position.copy(target);
+    if (window._currentModelGroup) {
+      window._currentModelGroup.add(lbl);
+      window._currentModelGroup.add(anchorObj);
+    } else {
+      scene.add(lbl);
+      scene.add(anchorObj);
+    }
+  } else {
+    target.add(lbl);
+    target.add(anchorObj);
+  }
+
+  window._labelRefs.push({ div, labelObj: lbl, anchorObj, className });
+  return lbl;
+}
+
+function markDynamic(obj) {
+  obj.userData.dynamic = true;
+  obj.traverse(c => c.userData.dynamic = true);
+  if (obj.isGroup && !window._currentModelGroup) {
+    window._currentModelGroup = obj;
+  }
+  return obj;
+}
+// ============== ANIMATE ==============
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = clock.getDelta();
+  const t = clock.getElapsedTime();
+
+  controls.update();
+
+  dynamicObjects.forEach(obj => {
+    if (obj.userData.spin && window._autoSpinActive) {
+      obj.rotation.y += obj.userData.spin * dt;
+    }
+    if (obj.userData.bob) {
+      obj.position.y = obj.userData.baseY + Math.sin(t * obj.userData.bob.speed + obj.userData.bob.phase) * obj.userData.bob.amp;
+    }
+  });
+
+  if (window._isPlayingActive && window._flowRays && window._flowRays.length) {
+    window._flowRays.forEach(fr => { try { updateFlowRay(fr, t); } catch(e){} });
+  }
+
+  if (window._arrowMaterials && window._arrowMaterials.length) {
+    const pulse = window._isPlayingActive ? (0.45 + 0.4 * (0.5 + 0.5 * Math.sin(t * 4))) : 0.45;
+    window._arrowMaterials.forEach(m => { try { m.emissiveIntensity = pulse; } catch(e){} });
+  }
+
+  if (window._isPlayingActive && typeof window._customAnim === 'function') {
+    try { window._customAnim(t, dt); } catch(e) {}
+  }
+
+  if (typeof _updateSceneDisplays === 'function') _updateSceneDisplays();
+
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+
+  updateLeaderLines();
+}
+
+const _projVec = new THREE.Vector3();
+function updateLeaderLines() {
+  const svg = document.getElementById('leaderLines');
+  if (!svg || !window._labelRefs || window._leaderLinesVisible === false) {
+    if (svg) svg.innerHTML = '';
+    return;
+  }
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const paths = [];
+
+  window._labelRefs.forEach((ref) => {
+    if (!ref.div || ref.div.dataset.userHidden === '1' || ref.div.style.display === 'none') return;
+    if (!ref.div.parentNode) return;
+    if (!ref.anchorObj) return;
+
+    ref.anchorObj.getWorldPosition(_projVec);
+    _projVec.project(camera);
+    if (_projVec.z > 1 || _projVec.z < -1) return;
+    const ax = (_projVec.x + 1) / 2 * w;
+    const ay = (1 - _projVec.y) / 2 * h;
+
+    const rect = ref.div.getBoundingClientRect();
+    const lx = rect.left + rect.width / 2;
+    const ly = rect.top + rect.height / 2;
+
+    const dist = Math.hypot(ax - lx, ay - ly);
+    if (dist < 18) return;
+
+    const dx = ax - lx;
+    const dy = ay - ly;
+    const halfW = rect.width / 2;
+    const halfH = rect.height / 2;
+    const tx = dx === 0 ? Infinity : (Math.abs(dx) > halfW ? halfW / Math.abs(dx) : 1);
+    const ty = dy === 0 ? Infinity : (Math.abs(dy) > halfH ? halfH / Math.abs(dy) : 1);
+    const tEdge = Math.min(tx, ty);
+    const edgeX = lx + dx * tEdge;
+    const edgeY = ly + dy * tEdge;
+
+    const colorMap = {
+      'xylem': '#d97043',
+      'phloem': '#5fb8e8',
+      'chloro': '#2ecc40',
+      'epi': '#a8d0b0',
+      'endo': '#e69138',
+      'warn': '#e74c3c'
+    };
+    const color = ref.color || colorMap[ref.className] || '#ffd166';
+
+    const midX = (edgeX + ax) / 2;
+    const midY = (edgeY + ay) / 2;
+    const distLine = Math.hypot(ax - edgeX, ay - edgeY);
+    const normalX = -(ay - edgeY) / distLine;
+    const normalY = (ax - edgeX) / distLine;
+    const curveAmount = Math.min(distLine * 0.18, 35);
+    const ctrlX = midX + normalX * curveAmount;
+    const ctrlY = midY + normalY * curveAmount;
+
+    const tipBack = 8;
+    const dirX = (ax - ctrlX) / Math.hypot(ax - ctrlX, ay - ctrlY);
+    const dirY = (ay - ctrlY) / Math.hypot(ax - ctrlX, ay - ctrlY);
+    const tipX = ax - dirX * tipBack;
+    const tipY = ay - dirY * tipBack;
+
+    const d = `M ${edgeX} ${edgeY} Q ${ctrlX} ${ctrlY} ${tipX} ${tipY}`;
+    const arrowSize = 7;
+    const angle = Math.atan2(ay - ctrlY, ax - ctrlX);
+    const aHead1X = tipX - arrowSize * Math.cos(angle - 0.5);
+    const aHead1Y = tipY - arrowSize * Math.sin(angle - 0.5);
+    const aHead2X = tipX - arrowSize * Math.cos(angle + 0.5);
+    const aHead2Y = tipY - arrowSize * Math.sin(angle + 0.5);
+
+    paths.push(`<path d="${d}" stroke="${color}" stroke-width="1.8" fill="none" stroke-opacity="0.92" stroke-linecap="round" />`);
+    paths.push(`<path d="M ${ax} ${ay} L ${aHead1X} ${aHead1Y} L ${aHead2X} ${aHead2Y} Z" fill="${color}" stroke="${color}" stroke-width="0.8" stroke-linejoin="round" />`);
+    paths.push(`<circle cx="${ax}" cy="${ay}" r="2.5" fill="${color}" stroke="#fff" stroke-width="1" opacity="0.7" />`);
+  });
+
+  svg.innerHTML = paths.join('');
+}
+
+// ============== SCENE STATE & PANELS ==============
+window._sceneState = {
+  mode: null,
+  _displayUpdaters: []
+};
+
+function setSceneSliders(items, opts = {}) {
+  const panel = document.getElementById('scenePanel');
+  if (!panel) return;
+  panel.innerHTML = '';
+  panel.classList.remove('empty', 'collapsed');
+  document.body.classList.add('scene-panel-open');
+  window._sceneState._displayUpdaters = [];
+
+  const toggle = document.createElement('button');
+  toggle.className = 'sp-toggle';
+  toggle.innerHTML = `<span>🎛️ ${opts.title || 'Kontroller'}</span><span class="sp-chev">▼</span>`;
+  toggle.onclick = () => {
+    panel.classList.toggle('collapsed');
+    toggle.querySelector('.sp-chev').textContent = panel.classList.contains('collapsed') ? '◀' : '▼';
+    if (window._haptic) window._haptic(10);
+  };
+  panel.appendChild(toggle);
+
+  items.forEach(item => {
+    if (item.type === 'section') {
+      const t = document.createElement('div');
+      t.className = 'sp-section';
+      t.textContent = item.label;
+      panel.appendChild(t);
+      return;
+    }
+    if (item.type === 'slider') {
+      const row = document.createElement('div');
+      row.className = 'sp-slider-row';
+      const head = document.createElement('div');
+      head.className = 'sp-slider-head';
+      head.innerHTML = `<span>${item.label}</span>
+        <div class="sp-stepper">
+          <button class="sp-step-btn sp-minus">−</button>
+          <span class="sp-val"></span>
+          <button class="sp-step-btn sp-plus">+</button>
+        </div>`;
+      const valEl = head.querySelector('.sp-val');
+      const minusBtn = head.querySelector('.sp-minus');
+      const plusBtn = head.querySelector('.sp-plus');
+      row.appendChild(head);
+      const slider = document.createElement('input');
+      slider.type = 'range';
+      slider.min = item.min;
+      slider.max = item.max;
+      slider.step = item.step || 1;
+      slider.value = item.getValue();
+      row.appendChild(slider);
+      if (item.sub) {
+        const sub = document.createElement('div');
+        sub.className = 'sp-sub';
+        sub.textContent = item.sub;
+        row.appendChild(sub);
+      }
+      const updateVal = () => {
+        const v = parseFloat(slider.value);
+        valEl.textContent = (item.format ? item.format(v) : v) + (item.unit || '');
+      };
+      slider.addEventListener('input', () => {
+        const v = parseFloat(slider.value);
+        item.setValue(v);
+        updateVal();
+      });
+      const step = parseFloat(item.step) || 1;
+      minusBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const v = parseFloat(slider.value);
+        const nv = Math.max(parseFloat(item.min), v - step);
+        slider.value = nv; item.setValue(nv); updateVal();
+        if (window._haptic) window._haptic(8);
+      });
+      plusBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const v = parseFloat(slider.value);
+        const nv = Math.min(parseFloat(item.max), v + step);
+        slider.value = nv; item.setValue(nv); updateVal();
+        if (window._haptic) window._haptic(8);
+      });
+      panel.appendChild(row);
+      updateVal();
+      window._sceneState._displayUpdaters.push(() => {
+        const v = item.getValue();
+        if (parseFloat(slider.value) !== v) { slider.value = v; updateVal(); }
+      });
+    }
+    if (item.type === 'display') {
+      const row = document.createElement('div');
+      row.className = 'sp-display' + (item.highlight ? ' highlight' : '');
+      row.innerHTML = `<span class="sp-label">${item.label}</span><span class="sp-val"></span>`;
+      const val = row.querySelector('.sp-val');
+      val.textContent = item.getValue();
+      panel.appendChild(row);
+      window._sceneState._displayUpdaters.push(() => { val.textContent = item.getValue(); });
+    }
+    if (item.type === 'formula') {
+      const hasMath = /[=√÷×²·]|sin|cos|1\//.test(item.text || '') || /q₁|q₂|kq|k·q|qE|qV|ε₀|½|Σ|ΔV|N\/C|qE\/m|V\/d/.test(item.text||'');
+      const skip = (currentLevel === 'ilkokul' || currentLevel === 'ortaokul') && hasMath && !item.keepSimple;
+      if (!skip) {
+        const row = document.createElement('div');
+        row.className = 'sp-formula';
+        row.innerHTML = item.text;
+        panel.appendChild(row);
+        if (item.getValue && !((currentLevel === 'ilkokul' || currentLevel === 'ortaokul') && hasMath)) {
+          window._sceneState._displayUpdaters.push(() => { row.innerHTML = item.getValue(); });
+        }
+      }
+    }
+    if (item.type === 'presets') {
+      const row = document.createElement('div');
+      row.className = 'sp-presets';
+      item.options.forEach((opt, i) => {
+        const b = document.createElement('button');
+        b.className = 'sp-preset-btn';
+        b.textContent = opt.label;
+        if (i === (item.activeIdx || 0)) b.classList.add('active');
+        b.onclick = () => {
+          row.querySelectorAll('.sp-preset-btn').forEach(x => x.classList.remove('active'));
+          b.classList.add('active');
+          opt.action();
+          if (window._haptic) window._haptic(10);
+        };
+        row.appendChild(b);
+      });
+      panel.appendChild(row);
+    }
+  });
+}
+
+function clearSceneSliders() {
+  const panel = document.getElementById('scenePanel');
+  if (panel) { panel.innerHTML = ''; panel.classList.add('empty'); }
+  document.body.classList.remove('scene-panel-open');
+  if (window._sceneState) window._sceneState._displayUpdaters = [];
+}
+
+function _updateSceneDisplays() {
+  if (window._sceneState && window._sceneState._displayUpdaters) {
+    window._sceneState._displayUpdaters.forEach(fn => { try { fn(); } catch(e){} });
+  }
+}
+
+// ============== 3D INFO LABELS (CSS2D + leader) ==============
+const _LV = { ilkokul: 1, ortaokul: 2, lise: 3, tyt_ayt: 4 };
+function _labelTextForLevel(text) {
+  if (typeof text === 'string') return text;
+  if (text && typeof text === 'object') {
+    const order = ['ilkokul','ortaokul','lise','tyt_ayt'];
+    if (text[currentLevel]) return text[currentLevel];
+    const idx = order.indexOf(currentLevel);
+    for (let i = idx; i >= 0; i--) if (text[order[i]]) return text[order[i]];
+    for (let i = idx + 1; i < order.length; i++) if (text[order[i]]) return text[order[i]];
+  }
+  return '';
+}
+
+function addInfo3DLabels(labels) {
+  if (window._currentModelGroup) {
+    const _oldGroups = window._currentModelGroup.children.filter(c => c.userData && c.userData.isLabelGroup);
+    _oldGroups.forEach(g => {
+      g.traverse(o => {
+        if (o.element && o.element.parentNode) o.element.parentNode.removeChild(o.element);
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) { Array.isArray(o.material) ? o.material.forEach(m => m.dispose()) : o.material.dispose(); }
+      });
+      window._currentModelGroup.remove(g);
+    });
+  }
+  window._labelRefs = [];
+  window._labelPlaced = [];
+  const grp = new THREE.Group();
+  grp.userData.dynamic = true;
+  grp.userData.isLabelGroup = true;
+  const curLv = _LV[currentLevel] || 3;
+  if (!window._labelPlaced) window._labelPlaced = [];
+  const placed = window._labelPlaced;
+  labels.forEach(L => {
+    if (L.minLevel && curLv < L.minLevel) return;
+    if (L.maxLevel && curLv > L.maxLevel) return;
+    const labelText = _labelTextForLevel(L.text);
+    if (!labelText) return;
+    const color = L.color || '#ffd166';
+    const div = document.createElement('div');
+    div.className = 'info3d-label';
+    div.style.cssText = `
+      background: rgba(15, 25, 40, 0.92);
+      border: 2px solid ${color};
+      color: #fff;
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+      pointer-events: none;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.5);
+      transform: translate(-50%, -50%);
+      text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+    `;
+    div.innerHTML = labelText;
+    div.style.display = labelsVisible ? 'block' : 'none';
+    div.dataset.userHidden = labelsVisible ? '0' : '1';
+    const obj = new CSS2DObject(div);
+    let px = L.position[0], py = L.position[1], pz = L.position[2];
+    if (L.target) {
+      const dx = px - L.target[0], dy = py - L.target[1], dz = pz - L.target[2];
+      const dlen = Math.sqrt(dx*dx + dy*dy + dz*dz);
+      const minGap = (L.minGap !== undefined) ? L.minGap : 2.4;
+      const maxGap = (L.maxGap !== undefined) ? L.maxGap : 4.5;
+      if (dlen > 0.001 && dlen < minGap) {
+        const s = minGap / dlen;
+        px = L.target[0] + dx*s; py = L.target[1] + dy*s; pz = L.target[2] + dz*s;
+      } else if (dlen > maxGap) {
+        const s = maxGap / dlen;
+        px = L.target[0] + dx*s; py = L.target[1] + dy*s; pz = L.target[2] + dz*s;
+      }
+    }
+    const labelGap = 1.7;
+    let guard = 0;
+    while (guard++ < 24) {
+      let collided = false;
+      for (const p of placed) {
+        const ddx = px - p.x, ddy = py - p.y;
+        const dd = Math.sqrt(ddx*ddx + ddy*ddy);
+        if (dd < labelGap) {
+          collided = true;
+          if (L.target) {
+            const ux = px - L.target[0], uy = py - L.target[1];
+            const ul = Math.sqrt(ux*ux + uy*uy) || 1;
+            px += (ux/ul) * (labelGap - dd + 0.1);
+            py += (uy/ul) * (labelGap - dd + 0.1) + (py >= p.y ? 0.5 : -0.5);
+          } else {
+            py += (py >= p.y ? labelGap : -labelGap);
+          }
+          break;
+        }
+      }
+      if (!collided) break;
+    }
+    placed.push({ x: px, y: py });
+    obj.position.set(px, py, pz);
+    obj.userData.isLabel = true;
+    obj.userData.dynamic = true;
+    grp.add(obj);
+
+    if (L.target) {
+      const dotGeo = new THREE.SphereGeometry(0.08, 16, 12);
+      const dotMat = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(color), transparent: true, opacity: 0.95,
+        toneMapped: false, depthTest: false
+      });
+      const dot = new THREE.Mesh(dotGeo, dotMat);
+      dot.position.set(L.target[0], L.target[1], L.target[2]);
+      dot.renderOrder = 999;
+      dot.userData.isLabel = true;
+      dot.userData.dynamic = true;
+      grp.add(dot);
+
+      const anchorObj = new THREE.Object3D();
+      anchorObj.position.set(L.target[0], L.target[1], L.target[2]);
+      anchorObj.userData.dynamic = true;
+      grp.add(anchorObj);
+
+      const classMap = {
+        '#ffe17a':'', '#ffd166':'', '#ffcc33':'',
+        '#5fc8e0':'joint', '#7adcf0':'joint',
+        '#9d7fe6':'cartilage', '#2e7dd6':'phloem',
+        '#ff7043':'xylem', '#d0563a':'xylem', '#d97043':'xylem',
+        '#9a9aa2':'', '#ffd54f':''
+      };
+      window._labelRefs.push({ div, labelObj: obj, anchorObj, color, className: classMap[color] || '' });
+    }
+  });
+  if (window._currentModelGroup) {
+    window._currentModelGroup.add(grp);
+  } else {
+    scene.add(grp);
+  }
+  return grp;
+}
+// ============== MODULE SYSTEM (Sınıf 1-12, grades ile) ==============
+const MODULES = {
+  1: { title: '🟢 İlkokul: Maddenin Değişimi', subs: [
+    { key:'tepkimeBelirti', label:'🫧 Kimyasal Tepkime Belirtileri', builder:'buildTepkimeBelirti', grades:[4] },
+    { key:'degisimHizi',    label:'⏱️ Maddenin Değişim Hızı', builder:'buildDegisimHizi', grades:[4] }
+  ]},
+  2: { title: '🟡 Ortaokul: Korunum ve Tepkime Hızı', subs: [
+    { key:'kutleKorunumu', label:'⚖️ Atomun (Kütlenin) Korunumu', builder:'buildKutleKorunumu', grades:[7] },
+    { key:'bayatlamaHiz',  label:'🌡️ Hıza Sıcaklık Etkisi (Bayatlama)', builder:'buildBayatlamaHiz', grades:[8] },
+    { key:'temasYuzeyi',   label:'🪵 Hıza Temas Yüzeyi Etkisi (Odun/Talaş)', builder:'buildTemasYuzeyi', grades:[8] }
+  ]},
+  3: { title: '🔵 Lise/TYT: Bağ Enerjisi ve Tepkime Türleri', subs: [
+    { key:'bagEnerjisi',  label:'🔓 Bağ Kırma/Oluşum (Endo/Ekzo)', builder:'buildBagEnerjisi', grades:[9] },
+    { key:'sentezAnaliz', label:'🔗 Sentez ve Analiz Tepkimeleri', builder:'buildSentezAnaliz', grades:[10] },
+    { key:'yanmaTepkime', label:'🔥 Yanma Tepkimeleri', builder:'buildYanmaTepkime', grades:[10] },
+    { key:'notrlesme',    label:'💧 Asit-Baz (Nötrleşme)', builder:'buildNotrlesme', grades:[10] }
+  ]},
+  4: { title: '🟣 Lise/AYT: Tepkime Hızı ve Kinetik', subs: [
+    { key:'carpismaTeorisi',  label:'💥 Çarpışma Teorisi', builder:'buildCarpismaTeorisi', grades:[11] },
+    { key:'aktivasyonEnerji', label:'⛰️ Aktivasyon Enerjisi (Eₐ)', builder:'buildAktivasyonEnerji', grades:[11] },
+    { key:'maxwellBoltzmann', label:'📈 Maxwell-Boltzmann Dağılımı', builder:'buildMaxwellBoltzmann', grades:[11] },
+    { key:'derisimEtki',      label:'🧱 Hıza Derişim Etkisi', builder:'buildDerisimEtki', grades:[11] },
+    { key:'basincHacim',      label:'⬇️ Hıza Basınç/Hacim Etkisi', builder:'buildBasincHacim', grades:[11] },
+    { key:'sicaklikEtki',     label:'🌡️ Hıza Sıcaklık Etkisi', builder:'buildSicaklikEtki', grades:[11] },
+    { key:'katalizor',        label:'⚡ Katalizör Etkisi', builder:'buildKatalizor', grades:[11] },
+    { key:'mekanizma',        label:'🐢 Mekanizma & Hız Belirleyen Basamak', builder:'buildMekanizma', grades:[11] }
+  ]}
+};
+
+const INFO_DATA = {
+  tepkimeBelirti: { ilkokul: { emoji:'🫧', title:'Kimyasal Tepkime Belirtileri', points:[
+    '🫧 Gaz çıkışı: kabarcık/köpük oluşur (sirke + karbonat).',
+    '🎨 Renk değişimi: yeni bir madde oluştuğunu gösterir (kararan elma).',
+    '🔥 Isı/ışık: bazı tepkimelerde ortam ısınır veya ışık çıkar (yanan mum).',
+    '👃 Koku değişimi de bir belirti olabilir (bozulan yumurta).',
+    '🧊 Çökelek: berrak sıvının bulanıklaşıp katı tanecik oluşturması.',
+    '⚠️ Bu belirtiler "yeni madde oluştu" yani kimyasal değişim demektir.',
+    '🔁 Fiziksel değişimde (buz erimesi) madde aynı kalır, yeni madde oluşmaz.' ]} },
+  degisimHizi: { ilkokul: { emoji:'⏱️', title:'Maddenin Değişim Hızı', points:[
+    '🪤 Paslanma çok yavaştır (günler, aylar, yıllar).',
+    '🔥 Yanma hızlıdır (saniyeler).',
+    '💥 Patlama çok hızlıdır (anlık).',
+    '⚛️ Hepsinde atomlar yeni bağ kurar; fark sadece hızdadır.',
+    '🌬️ Daha çok oksijen ve yüksek sıcaklık değişimi hızlandırır.',
+    '🧱 Büyük parça yavaş, küçük/toz parça daha hızlı değişir.',
+    '🍎 Günlük: kesilen elmanın kararması da yavaş bir kimyasal değişimdir.' ]} },
+  kutleKorunumu: { ortaokul: { emoji:'⚖️', title:'Atomun (Kütlenin) Korunumu', points:[
+    '⚖️ Tepkimede atomlar yok olmaz, sadece yeniden dizilir.',
+    '🔢 Girenlerdeki atom sayısı = ürünlerdeki atom sayısı.',
+    '📏 Bu yüzden giren kütle = oluşan kütle (Kütlenin Korunumu Yasası).',
+    '🫙 Kapalı kapta yapılırsa terazi her zaman dengede kalır.',
+    '🌫️ Açık kapta gaz çıkarsa kütle azalmış GİBİ görünür (gaz uçtuğu için).',
+    '🧪 Bu yasayı Lavoisier ortaya koymuştur.',
+    '🔁 Bu yüzden tepkime denklemleri iki tarafta eşitlenir (denkleştirilir).' ]} },
+  bayatlamaHiz: { ortaokul: { emoji:'🌡️', title:'Hıza Sıcaklık Etkisi', points:[
+    '🌡️ Sıcaklık artınca tanecikler hızlanır, tepkimeler hızlanır.',
+    '❄️ Soğukta tanecikler yavaşlar, bozulma yavaşlar.',
+    '🍞 Bu yüzden yiyecekler buzdolabında daha uzun dayanır.',
+    '🦠 Bakteri ve küf de sıcakta hızlı çoğalır.',
+    '🧊 Dondurucuda tepkimeler neredeyse durma noktasına gelir.',
+    '⏱️ Genel kural: ~10°C artış birçok tepkimeyi yaklaşık 2 katına çıkarır.',
+    '🥛 Günlük: sıcakta bırakılan süt çabuk ekşir.' ]} },
+  temasYuzeyi: { ortaokul: { emoji:'🪵', title:'Hıza Temas Yüzeyi Etkisi', points:[
+    '🪵 Büyük kütlede ateş sadece dış yüzeye değer → yavaş yanar.',
+    '🔥 Talaşta her parçacık oksijenle sarılır → çok hızlı yanar.',
+    '📐 Temas yüzeyi arttıkça tepkime hızlanır.',
+    '🧂 Toz şeker, kesme şekerden daha hızlı çözünür/tepkir.',
+    '💨 Un/şeker tozları havada çok hızlı yandığı için patlama riski taşır.',
+    '🪚 Aynı odun; kütük geç, talaş hemen tutuşur.',
+    '⚗️ Katı maddelerin tepkimelerinde yüzey alanı çok önemlidir.' ]} },
+  bagEnerjisi: { lise: { emoji:'🔓', title:'Bağ Enerjisi', points:[
+    '🔓 Bağ kırmak için dışarıdan enerji gerekir (endotermik).',
+    '🔒 Bağ oluşurken dışarıya enerji verilir (ekzotermik).',
+    '⚖️ Net enerji = (kırılan bağ enerjileri) - (oluşan bağ enerjileri).',
+    '📉 Net negatifse tepkime ekzotermiktir (ısı verir).',
+    '📈 Net pozitifse tepkime endotermiktir (ısı alır).',
+    '💪 Bağ ne kadar güçlüyse kırmak o kadar çok enerji ister.',
+    '🔥 Yanma ekzotermiktir çünkü oluşan bağlar girenlerden daha güçlüdür.' ]} },
+  sentezAnaliz: { lise: { emoji:'🔗', title:'Sentez ve Analiz', points:[
+    '🔗 Sentez: birden çok madde birleşip tek bir madde oluşturur.',
+    '✂️ Analiz: tek madde, daha küçük maddelere ayrışır.',
+    '🧪 Sentez örneği: 2H₂ + O₂ → 2H₂O.',
+    '🔥 Analiz örneği: CaCO₃ → CaO + CO₂ (ısı ile).',
+    '⚛️ Her iki türde de atom sayısı korunur.',
+    '⚡ Analiz genelde enerji ister; sentez sıklıkla enerji verir.',
+    '🌱 Fotosentez de bir sentez (kurulum) tepkimesidir.' ]} },
+  yanmaTepkime: { lise: { emoji:'🔥', title:'Yanma Tepkimeleri', points:[
+    '🔥 Yanma: bir maddenin oksijenle ekzotermik tepkimesidir.',
+    '🌫️ Tam yanmada CO₂ ve H₂O oluşur.',
+    '⚠️ Eksik yanmada (yetersiz O₂) zehirli CO ve is (C) oluşur.',
+    '🧯 Yanma üçgeni: yakıt + oksijen + ısı (biri yoksa yanma olmaz).',
+    '🚗 Yakıtların depoladığı enerji yanma ile açığa çıkar.',
+    '💨 Hızlı yanma alev verir; yavaş yanma (paslanma) alev vermez.',
+    '🌳 Yanma, karbon döngüsünün bir parçasıdır.' ]} },
+  notrlesme: { lise: { emoji:'💧', title:'Asit-Baz (Nötrleşme)', points:[
+    '💧 Asitteki H⁺ ile bazdaki OH⁻ birleşerek su oluşturur.',
+    '🧂 Ayrıca tuz oluşur (örn. HCl + NaOH → NaCl + H₂O).',
+    '⚖️ Asit ve baz birbirinin etkisini nötrler; pH 7\'ye yaklaşır.',
+    '🔥 Nötrleşme ekzotermiktir (ısı açığa çıkar).',
+    '🧪 Mide ekşimesinde antasit (baz), fazla mide asidini nötrler.',
+    '🐝 Arı sokması asidiktir; baz iyi gelir.',
+    '📊 Eşit mol asit ve baz tam nötrleşme verir.' ]} },
+  carpismaTeorisi: { lise: { emoji:'💥', title:'Çarpışma Teorisi', points:[
+    '💥 Tepkime olması için tanecikler çarpışmalıdır.',
+    '📐 Doğru geometri (açı) şarttır; yanlış açıda çarpışma etkisizdir.',
+    '⚡ Yeterli enerji (eşik/aktivasyon) şarttır; yavaş tanecikler tepkimeden geri döner.',
+    '✅ İki şart da sağlanırsa "etkin çarpışma" olur ve ürün oluşur.',
+    '🔢 Etkin çarpışma sayısı arttıkça tepkime hızlanır.',
+    '🌡️🧱 Sıcaklık, derişim, yüzey ve katalizör etkin çarpışmayı artırır.',
+    '🧪 NO + O₃ → NO₂ + O₂ klasik bir örnektir.' ]} },
+  aktivasyonEnerji: { lise: { emoji:'⛰️', title:'Aktivasyon Enerjisi', points:[
+    '⛰️ Eₐ: tepkimenin başlaması için aşılması gereken enerji engelidir.',
+    '🌀 Tepede aktifleşmiş kompleks oluşur (eski bağ kopuyor, yeni bağ oluşuyor).',
+    '⚖️ Aktifleşmiş kompleks çok kararsızdır, hemen dağılır.',
+    '📉 Engel aşılınca kararlı ürünler oluşur ve enerji düşer.',
+    '🟢 Düşük Eₐ → hızlı tepkime; 🔴 yüksek Eₐ → yavaş tepkime.',
+    '⚡ Katalizör Eₐ\'yı düşürerek tepkimeyi hızlandırır.',
+    '🔁 ΔH (giren-ürün enerji farkı) tepkimenin ekzo/endo olduğunu söyler.' ]} },
+  maxwellBoltzmann: { lise: { emoji:'📈', title:'Maxwell-Boltzmann Dağılımı', points:[
+    '📈 Tanecikler farklı kinetik enerjilere sahiptir; eğri bu dağılımı gösterir.',
+    '🔴 Yalnızca eşik (Eₐ) enerjisini aşan tanecikler tepkime verebilir.',
+    '🌡️ Sıcaklık artınca eğri sağa kayar ve yayvanlaşır.',
+    '🔢 Eşiği aşan tanecik sayısı artar → tepkime hızlanır.',
+    '⚡ Katalizör eşik çizgisini sola çeker → daha çok tanecik tepkir.',
+    '📐 Eğri altındaki toplam alan = toplam tanecik sayısı (sabit kalır).',
+    '🚀 Eğrinin tepesi en olası (en sık görülen) enerjiye karşılık gelir.' ]} },
+  derisimEtki: { lise: { emoji:'🧱', title:'Derişim Etkisi', points:[
+    '🧱 Derişim artınca birim hacimde daha çok tanecik bulunur.',
+    '💥 Çarpışma sıklığı artar → tepkime hızlanır.',
+    '📉 Tepkime ilerledikçe giren derişimi azalır, hız yavaşlar.',
+    '🧪 Bu etki hem çözeltiler hem gazlar için geçerlidir.',
+    '⚗️ Hız bağıntısı genelde derişimin bir kuvvetiyle değişir.',
+    '🌫️ Saf katı/sıvının derişimi sabit kabul edilir, hız bağıntısına yazılmaz.',
+    '🔥 Saf oksijende yanma, havadakinden daha hızlıdır (O₂ derişimi yüksek).' ]} },
+  basincHacim: { lise: { emoji:'⬇️', title:'Basınç / Hacim Etkisi', points:[
+    '⬇️ Gazda hacim azalınca (piston iner) tanecikler birbirine yaklaşır.',
+    '💥 Basınç (derişim) artar → etkin çarpışma sıklığı artar.',
+    '🫧 Bu etki özellikle gaz tepkimelerinde önemlidir.',
+    '🧱 Sıvı ve katılarda basıncın hıza etkisi çok azdır.',
+    '📊 Hacim yarıya inerse derişim iki katına çıkar.',
+    '⚖️ Basınç artırmak, gazda derişim artırmanın başka bir yoludur.',
+    '🚗 Motor silindirinde sıkıştırma, yanmayı kolaylaştırır.' ]} },
+  sicaklikEtki: { lise: { emoji:'🌡️', title:'Sıcaklık Etkisi', points:[
+    '🌡️ Sıcaklık artınca tanecikler hızlanır.',
+    '💥 Hem çarpışma sayısı hem çarpışma şiddeti (etkinliği) artar.',
+    '📈 Eşiği aşan tanecik oranı belirgin biçimde artar.',
+    '⏫ Sıcaklık hem yavaş hem hızlı tepkimelerin hızını artırır.',
+    '❄️ Soğutmak tepkimeyi yavaşlatır (gıda saklama mantığı).',
+    '🔢 Kaba kural: her ~10°C artış hızı yaklaşık 2 katına çıkarır.',
+    '⚡ Sıcaklık, hız sabitini (k) büyütür.' ]} },
+  katalizor: { lise: { emoji:'⚡', title:'Katalizör Etkisi', points:[
+    '⚡ Katalizör, aktivasyon enerjisini düşürerek tepkimeyi hızlandırır.',
+    '🧲 Reaktifleri yüzeyinde tutup yan yana getirir (yeni, kolay bir yol açar).',
+    '♻️ Tepkimede tükenmez; sonunda geri kazanılır.',
+    '🔁 İleri ve geri tepkimeyi aynı oranda hızlandırır (dengeyi kaydırmaz).',
+    '🌿 Enzimler vücuttaki biyolojik katalizörlerdir.',
+    '🚗 Egzozdaki katalitik konvertör zararlı gazları dönüştürür.',
+    '🛑 İnhibitör (negatif katalizör) tepkimeyi yavaşlatır.' ]} },
+  mekanizma: { lise: { emoji:'🐢', title:'Mekanizma ve Hız Belirleyen Basamak', points:[
+    '🔗 Çoğu tepkime tek adımda değil, ardışık basamaklarda gerçekleşir.',
+    '🐢 En yavaş basamak tüm tepkimenin hızını belirler.',
+    '🚦 Darboğaz benzetmesi: en dar nokta tüm akışı sınırlar.',
+    '🧮 Hız bağıntısı yalnızca hız belirleyen (yavaş) basamağa göre yazılır.',
+    '👻 Ara ürünler (oluşup tükenen) hız bağıntısında yer almaz.',
+    '➕ Basamakların toplamı net tepkimeyi verir.',
+    '⚡ Katalizör genelde yavaş basamağı hızlandırarak işe yarar.' ]} }
+};
+
+const COMPARE_DATA = {
+  tepkimeBelirti: { ilkokul: { title:'Fiziksel mi, Kimyasal mı?', cols:['Özellik','Fiziksel değişim','Kimyasal değişim'], rows:[
+    ['Yeni madde','Oluşmaz','Oluşur'],['Örnek','Buz erimesi','Demir paslanması'],['Belirti','Şekil/hal değişir','Gaz, renk, ısı, koku'],['Geri dönüş','Genelde kolay','Genelde zor'] ]} },
+  degisimHizi: { ilkokul: { title:'Değişim Hızları', cols:['Olay','Hız','Süre','Örnek'], rows:[
+    ['Paslanma','Çok yavaş','Günler-yıllar','Demir çivi'],['Çürüme','Yavaş','Günler','Meyve'],['Yanma','Hızlı','Saniyeler','Kağıt/odun'],['Patlama','Çok hızlı','Anlık','Havai fişek'] ]} },
+  kutleKorunumu: { ortaokul: { title:'Kapalı Kap / Açık Kap', cols:['Durum','Kapalı kap','Açık kap'], rows:[
+    ['Gaz çıkışı','Kapta kalır','Dışarı uçar'],['Terazi','Dengede kalır','Azalmış görünür'],['Gerçek kütle','Korunur','Korunur'],['Örnek','Kapalı şişede gazoz','Açık kapta yanma'] ]} },
+  bayatlamaHiz: { ortaokul: { title:'Sıcaklık ve Bozulma', cols:['Ortam','Tanecik hızı','Bozulma','Örnek'], rows:[
+    ['Dondurucu','Çok yavaş','Neredeyse durur','Donmuş et'],['Buzdolabı','Yavaş','Yavaş','Süt ~1 hafta'],['Oda','Orta','Orta','Ekmek 2-3 gün'],['Sıcak ortam','Hızlı','Hızlı','Süt saatlerde ekşir'] ]} },
+  temasYuzeyi: { ortaokul: { title:'Temas Yüzeyi ve Yanma', cols:['Biçim','Temas yüzeyi','Yanma hızı','Örnek'], rows:[
+    ['Bütün kütle','Küçük','Yavaş','Kütük'],['Parçalı','Orta','Orta','Odun parçaları'],['Toz/talaş','Çok büyük','Çok hızlı','Talaş, un'] ]} },
+  bagEnerjisi: { lise: { title:'Endotermik / Ekzotermik', cols:['Özellik','Endotermik','Ekzotermik'], rows:[
+    ['Enerji','Alır','Verir'],['Baskın olay','Bağ kırma','Bağ oluşumu'],['Ortam sıcaklığı','Azalır','Artar'],['ΔH işareti','+','-'],['Örnek','Fotosentez','Yanma, nötrleşme'] ]} },
+  sentezAnaliz: { lise: { title:'Sentez / Analiz', cols:['Özellik','Sentez','Analiz'], rows:[
+    ['Yön','Birleşme','Ayrışma'],['Giren → ürün','Çok → tek','Tek → çok'],['Enerji (genel)','Verir','Alır'],['Örnek','2H₂+O₂→2H₂O','CaCO₃→CaO+CO₂'] ]} },
+  yanmaTepkime: { lise: { title:'Tam / Eksik Yanma', cols:['Özellik','Tam yanma','Eksik yanma'], rows:[
+    ['Oksijen','Yeterli','Yetersiz'],['Ürünler','CO₂ + H₂O','CO, C(is) + H₂O'],['Alev','Mavi, temiz','Sarı, isli'],['Tehlike','Az','Zehirli CO'] ]} },
+  notrlesme: { lise: { title:'Asit / Baz / Nötr', cols:['Özellik','Asit','Baz','Nötr (ürün)'], rows:[
+    ['pH','< 7','> 7','= 7'],['Baskın iyon','H⁺','OH⁻','Eşit'],['Tat','Ekşi','Acı/sabunsu','—'],['Örnek','Limon, sirke','Sabun, çamaşır sodası','Tuzlu su'] ]} },
+  carpismaTeorisi: { lise: { title:'Etkisiz / Etkin Çarpışma', cols:['Çarpışma','Geometri','Enerji','Sonuç'], rows:[
+    ['Yanlış açı','Uygun değil','Yeterli','Tepkime YOK'],['Yavaş gelme','Uygun','Yetersiz','Tepkime YOK'],['Etkin','Uygun','Yeterli','Ürün oluşur'] ]} },
+  aktivasyonEnerji: { lise: { title:'Eₐ ve Hız', cols:['Durum','Eₐ','Hız','Kompleks'], rows:[
+    ['Düşük Eₐ','Küçük engel','Hızlı','Kolay oluşur'],['Yüksek Eₐ','Büyük engel','Yavaş','Zor oluşur'],['Katalizörlü','Daha düşük','Daha hızlı','Daha kolay'] ]} },
+  maxwellBoltzmann: { lise: { title:'Düşük / Yüksek Sıcaklık', cols:['Özellik','Düşük sıcaklık','Yüksek sıcaklık'], rows:[
+    ['Eğri tepesi','Solda, sivri','Sağda, yayvan'],['Ortalama enerji','Düşük','Yüksek'],['Eşiği aşan','Az','Çok'],['Tepkime hızı','Yavaş','Hızlı'] ]} },
+  derisimEtki: { lise: { title:'Derişim ve Hız', cols:['Derişim','Tanecik','Çarpışma','Hız'], rows:[
+    ['Düşük','Az','Seyrek','Yavaş'],['Orta','Orta','Orta','Orta'],['Yüksek','Çok','Sık','Hızlı'] ]} },
+  basincHacim: { lise: { title:'Basınç / Hacim', cols:['Hacim','Basınç','Derişim','Hız'], rows:[
+    ['Büyük','Düşük','Düşük','Yavaş'],['Orta','Orta','Orta','Orta'],['Küçük','Yüksek','Yüksek','Hızlı'] ]} },
+  sicaklikEtki: { lise: { title:'Sıcaklık ve Hız', cols:['Sıcaklık','Tanecik hızı','Çarpışma','Hız'], rows:[
+    ['Düşük','Yavaş','Seyrek/zayıf','Yavaş'],['Orta','Orta','Orta','Orta'],['Yüksek','Hızlı','Sık/şiddetli','Hızlı'] ]} },
+  katalizor: { lise: { title:'Katalizörsüz / Katalizörlü', cols:['Özellik','Katalizörsüz','Katalizörlü'], rows:[
+    ['Aktivasyon enerjisi','Yüksek','Düşük'],['Hız','Yavaş','Hızlı'],['Tepkime yolu','Tek/zor','Yeni/kolay'],['Katalizör','—','Tükenmez'] ]} },
+  mekanizma: { lise: { title:'Basamakların Rolü', cols:['Basamak','Hız','Rolü'], rows:[
+    ['1. basamak','Hızlı','—'],['2. basamak','Yavaş','Hız belirleyen'],['3. basamak','Hızlı','—'],['Toplam','Yavaşa bağlı','Net tepkime'] ]} }
+};
+
+const TABLE_DATA = {
+  tepkimeBelirti: { ilkokul: { title:'Belirti Kartı', cols:['Belirti','Günlük örnek','Ne olur?'], rows:[
+    ['Gaz çıkışı','Sirke + karbonat','Köpük/kabarcık'],['Renk değişimi','Kararan elma','Yeni madde'],['Isı/ışık','Yanan mum','Enerji açığa çıkar'],['Koku','Bozulan yumurta','Yeni madde kokusu'],['Çökelek','Bulanıklaşma','Katı tanecik oluşur'] ]} },
+  degisimHizi: { ilkokul: { title:'Süre ve Enerji', cols:['Olay','Süre','Enerji'], rows:[
+    ['Demir paslanması','Aylar-yıllar','Yavaş'],['Meyve çürümesi','Günler','Yavaş'],['Mum yanması','Dakikalar','Sürekli ısı'],['Kağıt yanması','Saniyeler','Hızlı ısı/ışık'],['Havai fişek','Anlık','Ani patlama'] ]} },
+  kutleKorunumu: { ortaokul: [
+    { title:'Atom Sayımı', cols:['Atom','Girenler','Ürünler'], rows:[ ['Mavi','4','4'],['Kırmızı','2','2'],['Toplam','6','6'],['Kütle','m','m (aynı)'] ] },
+    { title:'Örnek Denklemler', cols:['Tepkime','Giren kütle','Ürün kütle'], rows:[ ['C + O₂ → CO₂','12 + 32 g','44 g'],['2H₂ + O₂ → 2H₂O','4 + 32 g','36 g'],['Mg + S → MgS','24 + 32 g','56 g'] ] }
+  ] },
+  bayatlamaHiz: { ortaokul: { title:'Saklama Koşulları', cols:['Ortam','Sıcaklık','Dayanma (örnek)'], rows:[
+    ['Dondurucu','-18°C','Aylar'],['Buzdolabı','+4°C','Günler-hafta'],['Oda','+20°C','1-3 gün'],['Sıcak','+35°C','Saatler'] ]} },
+  temasYuzeyi: { ortaokul: { title:'Yüzey ve Hız', cols:['Biçim','Yüzey','Yanma'], rows:[
+    ['Kütük','Az','Çok yavaş'],['Parça','Orta','Orta'],['Talaş','Çok','Hızlı'],['Toz (un)','Çok yüksek','Patlayıcı hızlı'] ]} },
+  bagEnerjisi: { lise: { title:'Bağ ve Enerji', cols:['Süreç','Enerji yönü','İşaret','Örnek'], rows:[
+    ['Bağ kırma','Alır','+','H-H kopması'],['Bağ oluşumu','Verir','-','O-H oluşumu'],['Net ekzotermik','Verir','ΔH < 0','Yanma'],['Net endotermik','Alır','ΔH > 0','Fotosentez'] ]} },
+  sentezAnaliz: { lise: { title:'Şema ve Örnek', cols:['Tür','Genel şema','Örnek'], rows:[
+    ['Sentez','A + B → AB','2H₂ + O₂ → 2H₂O'],['Sentez','A + B → AB','N₂ + 3H₂ → 2NH₃'],['Analiz','AB → A + B','CaCO₃ → CaO + CO₂'],['Analiz','AB → A + B','2H₂O → 2H₂ + O₂'] ]} },
+  yanmaTepkime: { lise: { title:'Yanma Türleri', cols:['Tür','Oksijen','Ürünler','Alev'], rows:[
+    ['Tam yanma','Yeterli','CO₂ + H₂O','Mavi'],['Eksik yanma','Az','CO + H₂O','Sarı'],['Çok eksik','Çok az','C (is) + H₂O','İsli/dumanlı'] ]} },
+  notrlesme: { lise: [
+    { title:'Bileşenler', cols:['Bileşen','Sembol','Rolü'], rows:[ ['Asit','H⁺','Proton verir'],['Baz','OH⁻','Proton/OH verir'],['Ürün','H₂O + Tuz','Nötr karışım'] ] },
+    { title:'Asit + Baz → Tuz', cols:['Asit','Baz','Tuz'], rows:[ ['HCl','NaOH','NaCl'],['H₂SO₄','KOH','K₂SO₄'],['HNO₃','NaOH','NaNO₃'] ] }
+  ] },
+  carpismaTeorisi: { lise: { title:'İki Şart', cols:['Şart','Açıklama','Sağlanmazsa'], rows:[
+    ['Geometri','Doğru açıyla çarpışma','Molekül seker'],['Enerji','Eₐ aşılmalı','Geri döner'],['İkisi birden','Etkin çarpışma','Tepkime olmaz'] ]} },
+  aktivasyonEnerji: { lise: { title:'Terimler', cols:['Terim','Anlamı'], rows:[
+    ['Eₐ','Aşılması gereken enerji engeli'],['Aktifleşmiş kompleks','Kararsız ara form (tepe)'],['ΔH','Giren-ürün enerji farkı'],['Katalizör','Eₐ\'yı düşürür'] ]} },
+  maxwellBoltzmann: { lise: { title:'Etkenler', cols:['Etken','Eğriye etkisi','Eşiği aşan'], rows:[
+    ['Sıcaklık ↑','Sağa-yayvan','Artar'],['Sıcaklık ↓','Sola-sivri','Azalır'],['Katalizör','Eşik sola','Artar'] ]} },
+  derisimEtki: { lise: { title:'Derişim-Hız', cols:['Derişim','Çarpışma/s','Hız'], rows:[
+    ['Düşük','Az','Yavaş'],['Orta','Orta','Orta'],['Yüksek','Çok','Hızlı'],['Tükenince','Azalır','Yavaşlar'] ]} },
+  basincHacim: { lise: { title:'Basınç-Hız', cols:['Hacim','Basınç','Hız'], rows:[
+    ['Büyük','Düşük','Yavaş'],['Yarıya','İki kat','Daha hızlı'],['Küçük','Yüksek','Hızlı'] ]} },
+  sicaklikEtki: { lise: { title:'Sıcaklık-Hız (kabaca)', cols:['Sıcaklık artışı','Yaklaşık hız'], rows:[
+    ['+0°C','x1'],['+10°C','~x2'],['+20°C','~x4'],['+30°C','~x8'] ]} },
+  katalizor: { lise: { title:'Katalizör Türleri', cols:['Tür','Etki','Örnek'], rows:[
+    ['Pozitif','Hızlandırır (Eₐ↓)','Pt, Ni'],['Biyolojik','Enzim','Amilaz, pepsin'],['Negatif (inhibitör)','Yavaşlatır','Koruyucular'] ]} },
+  mekanizma: { lise: { title:'Basamak Analizi', cols:['Öğe','Hız','Hız bağıntısı'], rows:[
+    ['Hızlı basamak','Hızlı','Yazılmaz'],['Yavaş basamak','Yavaş','Belirler'],['Ara ürün','—','Yazılmaz'],['Katalizör','—','Yazılmaz'] ]} }
+};
+
+// ============================================================
+// ====== 3D HELPER KÜTÜPHANESİ ==============================
+// ============================================================
+function setupVectorLighting() {
+  const grp = new THREE.Group();
+  grp.userData.dynamic = true;
+  grp.add(new THREE.AmbientLight(0xc2cce8, 0.85));
+  const key = new THREE.DirectionalLight(0xffffff, 1.15);
+  key.position.set(7, 12, 8);
+  key.castShadow = true;
+  key.shadow.mapSize.width = 2048; key.shadow.mapSize.height = 2048;
+  key.shadow.camera.near = 0.5; key.shadow.camera.far = 60;
+  key.shadow.camera.left = -16; key.shadow.camera.right = 16;
+  key.shadow.camera.top = 16; key.shadow.camera.bottom = -16;
+  key.shadow.bias = -0.0004; key.shadow.radius = 5;
+  grp.add(key);
+  const fill = new THREE.DirectionalLight(0x9fc0ff, 0.5); fill.position.set(-8,5,6); grp.add(fill);
+  const rim = new THREE.DirectionalLight(0xa8d0ff, 0.4); rim.position.set(3,4,-10); grp.add(rim);
+  grp.add(new THREE.HemisphereLight(0xdce8ff, 0x3a4260, 0.6));
+  return grp;
+}
+function makeGridSystem(opts = {}) {
+  const size = opts.size || 20, divisions = opts.divisions || 20;
+  const grp = new THREE.Group(); grp.userData.dynamic = true;
+  const isLight = window._lightMode === true;
+  const cMain = isLight ? 0x5a6a88 : 0x9fb0d8;
+  const cSub = isLight ? 0x8090aa : 0x39425e;
+  const gWall = new THREE.GridHelper(size, divisions, cMain, cSub);
+  gWall.rotation.x = Math.PI / 2; gWall.position.z = -0.05;
+  gWall.material.transparent = true; gWall.material.opacity = isLight ? 0.35 : 0.18;
+  grp.add(gWall);
+  return grp;
+}
+function makeMeasureLabel(text, pos, color) {
+  const div = document.createElement('div');
+  div.style.cssText = 'background:' + (color || 'rgba(20,28,46,0.92)') +
+    ';color:#fff;font-weight:700;font-size:14px;padding:2px 8px;border-radius:8px;' +
+    'border:1.5px solid rgba(255,255,255,0.35);font-family:system-ui,sans-serif;' +
+    'box-shadow:0 2px 8px rgba(0,0,0,0.4);white-space:nowrap;pointer-events:none;';
+  div.textContent = text;
+  const lbl = new CSS2DObject(div);
+  lbl.position.set(pos[0], pos[1], pos[2]);
+  lbl.userData.dynamic = true;
+  return lbl;
+}
+function makeFlowRay(path, opts = {}) {
+  const grp = new THREE.Group(); grp.userData.dynamic = true;
+  const color = opts.color || 0xffe14d;
+  const count = opts.count || 5;
+  const r = opts.r || 0.11;
+  const segLen = [];
+  let total = 0;
+  for (let k = 0; k < path.length - 1; k++) { const d = path[k+1].distanceTo(path[k]); segLen.push(d); total += d; }
+  const dots = [];
+  for (let n = 0; n < count; n++) {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95, toneMapped: false }));
+    m.userData.dynamic = true; m.visible = false;
+    grp.add(m); dots.push(m);
+  }
+  const fr = { grp, path, segLen, total, dots, color, speed: opts.speed || 0.55, count };
+  registerFlowRay(fr);
+  return grp;
+}
+function registerFlowRay(fr) {
+  if (!window._flowRays) window._flowRays = [];
+  window._flowRays.push(fr);
+}
+function _pointOnPath(path, segLen, total, frac) {
+  let d = frac * total;
+  for (let k = 0; k < segLen.length; k++) {
+    if (d <= segLen[k]) {
+      const t = segLen[k] > 0 ? d / segLen[k] : 0;
+      return path[k].clone().lerp(path[k+1], t);
+    }
+    d -= segLen[k];
+  }
+  return path[path.length - 1].clone();
+}
+function updateFlowRay(fr, t) {
+  if (!fr || !fr.dots) return;
+  const playing = window._isPlayingActive;
+  for (let n = 0; n < fr.dots.length; n++) {
+    const dot = fr.dots[n];
+    if (!playing) { dot.visible = false; continue; }
+    dot.visible = true;
+    let frac = ((t * fr.speed) + (n / fr.count)) % 1;
+    const p = _pointOnPath(fr.path, fr.segLen, fr.total, frac);
+    dot.position.copy(p);
+    const fade = Math.sin(frac * Math.PI);
+    dot.material.opacity = 0.4 + 0.55 * fade;
+  }
+}
+window._flowRays = [];
+
+// ====== ATOM HELPER'LARI ======
+const ACOL = { proton: 0xff5252, neutron: 0x9e9e9e, electron: 0x42a5f5, nucleus: 0xffa726, shell: 0x5b8fd6, photon: 0xffe14d, pos: 0xff5252, neg: 0x42a5f5, label: 0xcfd6e0 };
+function makeProtonNeutron(r, isProton) {
+  return new THREE.Mesh(new THREE.SphereGeometry(r, 14, 12),
+    new THREE.MeshStandardMaterial({ color: isProton ? ACOL.proton : ACOL.neutron, emissive: isProton ? ACOL.proton : ACOL.neutron, emissiveIntensity: 0.18, roughness: 0.5, toneMapped: false }));
+}
+function makeElectron(r = 0.18) {
+  const g = new THREE.Group();
+  const core = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), new THREE.MeshBasicMaterial({ color: ACOL.electron, toneMapped: false }));
+  g.add(core);
+  const halo = new THREE.Mesh(new THREE.SphereGeometry(r * 2.1, 14, 10), new THREE.MeshBasicMaterial({ color: ACOL.electron, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+  g.add(halo);
+  return g;
+}
+function makeRing(R, color = ACOL.shell, tilt = 0, op = 0.45) {
+  const pts = [];
+  for (let i = 0; i <= 72; i++) { const a = i / 72 * Math.PI * 2; pts.push(new THREE.Vector3(Math.cos(a) * R, Math.sin(a) * R * Math.cos(tilt), Math.sin(a) * R * Math.sin(tilt))); }
+  return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color, transparent: true, opacity: op }));
+}
+function electronPos(R, a, tilt = 0) {
+  return new THREE.Vector3(Math.cos(a) * R, Math.sin(a) * R * Math.cos(tilt), Math.sin(a) * R * Math.sin(tilt));
+}
+function makeBond(p1, p2, color = 0xcfd6e0, r = 0.05) {
+  const grp = new THREE.Group();
+  const dir = new THREE.Vector3().subVectors(p2, p1);
+  const len = dir.length(); if (len < 0.001) return grp;
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 8), new THREE.MeshStandardMaterial({ color, roughness: 0.6, toneMapped: false }));
+  m.position.copy(p1).add(dir.clone().multiplyScalar(0.5));
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+  grp.add(m); return grp;
+}
+
+// ====== KİMYA HELPER'LARI ======
+const BCOL = { metal:0xb0bec5, na:0x9575cd, cl:0x66bb6a, o:0xe2504a, h:0xeceff1, c:0x546e7a, n:0x5c6bc0,
+  posIon:0xff7043, negIon:0x42a5f5, dPos:0xff5252, dNeg:0x42a5f5, bond:0xcfd6e0, weak:0xffd166, hbond:0x7e57c2, esea:0x42a5f5 };
+function makeAtom(r,color){ return new THREE.Mesh(new THREE.SphereGeometry(r,24,18), new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:0.18,roughness:0.42,toneMapped:false})); }
+function makeDashed(p1,p2,color=BCOL.hbond,dash=0.16){ const g=new THREE.BufferGeometry().setFromPoints([p1,p2]); const l=new THREE.Line(g,new THREE.LineDashedMaterial({color,dashSize:dash,gapSize:dash*0.7,transparent:true,opacity:0.95})); l.computeLineDistances(); return l; }
+function makeSharedDot(color){ return new THREE.Mesh(new THREE.SphereGeometry(0.13,12,10), new THREE.MeshBasicMaterial({color:color||BCOL.negIon,toneMapped:false})); }
+
+const SubBuilders = {};
+window.SubBuilders = SubBuilders;
+// ===== KİMYASAL TEPKİMELER & HIZ HELPER'LARI =====
+function ezz(u){u=u<0?0:u>1?1:u;return u*u*(3-2*u);}
+function ppong(t,p){const u=((t%p)+p)%p/p;return u<0.5?u*2:2-u*2;}
+// react-hold-reset: 0->1 tepki ver, sonra tut; döngü başında yeni moleküllerle başla (geri sarmaz)
+function rhr(t,p){const u=((t%p)+p)%p/p;return u<0.8?ezz(u/0.8):1;}
+// döngü başında belir / sonunda kaybol (geri-sarma teleportunu gizler)
+function spawnF(t,p){const u=((t%p)+p)%p/p;if(u<0.06)return u/0.06;if(u>0.94)return (1-u)/0.06;return 1;}
+function atomGlow(mesh,color,k=1.85,op=0.16){ const r=mesh.geometry.parameters.radius; const h=new THREE.Mesh(new THREE.SphereGeometry(r*k,16,12), new THREE.MeshBasicMaterial({color,transparent:true,opacity:op,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false})); mesh.add(h); return mesh; }
+function mkA(r,color){ return atomGlow(makeAtom(r,color),color); }
+function makeWaterX(s=1){ const g=new THREE.Group(); const L=1.25*s,half=52.25*Math.PI/180; g.add(mkA(0.55*s,BCOL.o)); const Hp=[new THREE.Vector3(-Math.sin(half)*L,-Math.cos(half)*L,0),new THREE.Vector3(Math.sin(half)*L,-Math.cos(half)*L,0)]; Hp.forEach(p=>{ const H=mkA(0.32*s,BCOL.h); H.position.copy(p); g.add(H); g.add(makeBond(new THREE.Vector3(0,0,0),p,BCOL.bond,0.07*s)); }); return g; }
+function clr(dyn){ [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();}); }
+const CCOL={ cam:0x8fd0f0, sicak:0xff5252, soguk:0x42a5f5, isin:0xffb300, gaz:0x80deea, ag:0xb0bec5, pt:0xcfd8dc, kirmizi:0xef5350, mavi:0x42a5f5, yesil:0x66bb6a, sari:0xffee58, mor:0xba68c8, demir:0x78909c, odun:0x8d6e63 };
+function makeBeaker(w=2.9,h=4.2){ const g=new THREE.Group();
+  const wall=new THREE.Mesh(new THREE.CylinderGeometry(w,w,h,40,1,true), new THREE.MeshStandardMaterial({color:CCOL.cam,transparent:true,opacity:0.13,roughness:0.08,side:THREE.DoubleSide,toneMapped:false}));
+  const base=new THREE.Mesh(new THREE.CylinderGeometry(w,w*0.98,0.16,40), new THREE.MeshStandardMaterial({color:CCOL.cam,transparent:true,opacity:0.3,toneMapped:false})); base.position.y=-h/2;
+  g.add(wall,base); g.userData={w,h}; return g; }
+function pcl(r,color){ return mkA(r,color); }
+function makeLiquid(r,h,color,op=0.3){ const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,40),new THREE.MeshStandardMaterial({color,transparent:true,opacity:op,toneMapped:false})); m.position.y=-0.4; return m; }
+// enerji/ısı oku
+function energyArrow(from,to,color){ const g=new THREE.Group(); const dir=new THREE.Vector3().subVectors(to,from),len=dir.length(); if(len<0.01)return g; const nd=dir.clone().normalize(); g.add(makeBond(from,from.clone().add(nd.clone().multiplyScalar(len-0.24)),color,0.045)); const head=new THREE.Mesh(new THREE.ConeGeometry(0.13,0.28,10),new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:0.4,toneMapped:false})); head.position.copy(to).add(nd.clone().multiplyScalar(-0.12)); head.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),nd); g.add(head); return g; }
+// çizgi (grafik eğrisi/eksen)
+function makePoly(pts,color,op=0.95){ const g=new THREE.BufferGeometry().setFromPoints(pts); const l=new THREE.Line(g,new THREE.LineBasicMaterial({color,transparent:true,opacity:op,toneMapped:false})); return l; }
+// piston
+function makePiston(w,y){ const m=new THREE.Mesh(new THREE.BoxGeometry(w*2,0.3,1.2),new THREE.MeshStandardMaterial({color:CCOL.ag,metalness:0.5,roughness:0.4,toneMapped:false})); m.position.y=y; return m; }
+// katalizör plakası (Pt)
+function makePlate(w=3.0){ const m=new THREE.Mesh(new THREE.BoxGeometry(w*2,0.3,1.4),new THREE.MeshStandardMaterial({color:CCOL.pt,metalness:0.7,roughness:0.25,emissive:0xb0bec5,emissiveIntensity:0.1,toneMapped:false})); return m; }
+// 2 atomlu molekül
+function diatom(r1,c1,r2,c2,sep=1.0){ const g=new THREE.Group(); const a=mkA(r1,c1); a.position.x=-sep/2; const b=mkA(r2,c2); b.position.x=sep/2; g.add(a,b,makeBond(a.position,b.position,BCOL.bond,0.08)); g.userData={a,b}; return g; }
+
+// --- Günlük hayat eşya prop'ları ---
+function makeJar(w=2.2,h=3.4){ const g=makeBeaker(w,h); const lid=new THREE.Mesh(new THREE.CylinderGeometry(w*1.04,w*1.04,0.34,40),new THREE.MeshStandardMaterial({color:CCOL.ag,metalness:0.4,roughness:0.4,toneMapped:false})); lid.position.y=h/2+0.05; g.add(lid); return g; }
+function makeCandle(){ const g=new THREE.Group(); const body=new THREE.Mesh(new THREE.CylinderGeometry(0.45,0.5,1.8,24),new THREE.MeshStandardMaterial({color:0xfff3e0,roughness:0.6,toneMapped:false})); body.position.y=-0.5; const wick=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.3,8),new THREE.MeshStandardMaterial({color:0x4e342e,toneMapped:false})); wick.position.y=0.55; const flame=new THREE.Mesh(new THREE.ConeGeometry(0.22,0.7,16),new THREE.MeshBasicMaterial({color:CCOL.isin,transparent:true,opacity:0.95,toneMapped:false})); flame.position.y=1.05; g.add(body,wick,flame); g.userData={flame}; return g; }
+function makeBread(){ const g=new THREE.Group(); const loaf=new THREE.Mesh(new THREE.BoxGeometry(2.6,1.2,1.4),new THREE.MeshStandardMaterial({color:0xd9a066,roughness:0.9,toneMapped:false})); const top=new THREE.Mesh(new THREE.CylinderGeometry(1.3,1.3,2.6,24,1,false,0,Math.PI),new THREE.MeshStandardMaterial({color:0xc8884c,roughness:0.9,toneMapped:false})); top.rotation.z=Math.PI/2; top.position.y=0.6; g.add(loaf,top); g.userData={loaf,top}; return g; }
+function makeBalance(){ const g=new THREE.Group(); const stand=new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.18,3.8,14),new THREE.MeshStandardMaterial({color:CCOL.ag,metalness:0.5,toneMapped:false})); stand.position.y=-0.5; const beam=new THREE.Group(); const bar=new THREE.Mesh(new THREE.BoxGeometry(5.2,0.18,0.32),new THREE.MeshStandardMaterial({color:CCOL.ag,metalness:0.5,toneMapped:false})); beam.add(bar); beam.position.y=1.4; const panL=new THREE.Mesh(new THREE.CylinderGeometry(1.0,0.75,0.18,28),new THREE.MeshStandardMaterial({color:CCOL.pt,metalness:0.45,toneMapped:false})); panL.position.set(-2.4,-0.8,0); const panR=new THREE.Mesh(new THREE.CylinderGeometry(1.0,0.75,0.18,28),new THREE.MeshStandardMaterial({color:CCOL.pt,metalness:0.45,toneMapped:false})); panR.position.set(2.4,-0.8,0); beam.add(panL,panR); g.add(stand,beam); g.userData={beam,panL,panR}; return g; }
+
+// ============================ İLKOKUL ============================
+// 1: Tepkime Belirtileri (gaz / renk / ısı-ışık)
+SubBuilders.buildTepkimeBelirti = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  const S=window._sceneState; if(S.tb_tip===undefined)S.tb_tip=0;
+  let bubbles=[],oldL,newL,candle,arrows=[],halo,acc=0;
+  function rebuild(){ clr(dyn); acc=0; bubbles=[]; arrows=[];
+    if(S.tb_tip===0){ const jar=makeJar(2.4,3.6); dyn.add(jar); dyn.add(makeLiquid(2.28,2.4,0xfff59d,0.3));
+      for(let i=0;i<12;i++){ const b=new THREE.Mesh(new THREE.SphereGeometry(0.15+Math.random()*0.08,12,10),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.55,toneMapped:false})); b.position.set((Math.random()*2-1)*2.0,-1.4,0); b.userData.ph=Math.random(); dyn.add(b); bubbles.push(b);}
+      addInfo3DLabels([ {text:{ilkokul:'🫧 Sirke + karbonat → gaz çıkışı (kabarcık)'},position:[0,3.8,0],target:[0,0.4,0],color:'#4fc3f7'} ]);
+    } else if(S.tb_tip===1){ const jar=makeJar(2.4,3.6); dyn.add(jar);
+      oldL=new THREE.Mesh(new THREE.CylinderGeometry(2.28,2.28,2.4,40),new THREE.MeshStandardMaterial({color:0xfff176,transparent:true,opacity:0.55,toneMapped:false})); oldL.position.y=-0.4; dyn.add(oldL);
+      newL=new THREE.Mesh(new THREE.CylinderGeometry(2.28,2.28,2.4,40),new THREE.MeshStandardMaterial({color:0x8d6e63,transparent:true,opacity:0,toneMapped:false})); newL.position.y=-0.4; dyn.add(newL);
+      addInfo3DLabels([ {text:{ilkokul:'🍎 Renk değişimi: elma kararır (yeni madde)'},position:[0,3.8,0],target:[0,0,0],color:'#8d6e63'} ]);
+    } else { candle=makeCandle(); candle.position.y=-0.2; dyn.add(candle);
+      halo=new THREE.Mesh(new THREE.SphereGeometry(1.3,18,14),new THREE.MeshBasicMaterial({color:CCOL.isin,transparent:true,opacity:0.22,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false})); halo.position.y=1.0; dyn.add(halo);
+      for(let i=0;i<6;i++){ const a=i/6*Math.PI*2; const ar=energyArrow(new THREE.Vector3(Math.cos(a)*1.0,1.0+Math.sin(a)*1.0,0),new THREE.Vector3(Math.cos(a)*3.0,1.0+Math.sin(a)*3.0,0),CCOL.sicak); dyn.add(ar); arrows.push(ar);}
+      addInfo3DLabels([ {text:{ilkokul:'🔥 Mum yanması: ısı ve ışık çıkar'},position:[0,3.8,0],target:[0,1.0,0],color:'#ff9800'} ]);
+    }
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt;
+    if(S.tb_tip===0){ bubbles.forEach(b=>{ b.position.y=-1.4+((b.userData.ph+acc*0.45)%1)*2.4; b.position.x+=Math.sin(acc*3+b.userData.ph*6)*0.004; }); }
+    else if(S.tb_tip===1){ const p=rhr(acc,6); if(oldL)oldL.material.opacity=0.55*(1-p); if(newL)newL.material.opacity=0.55*p; }
+    else { if(candle&&candle.userData.flame){const fl=candle.userData.flame; fl.scale.set(1+Math.sin(acc*8)*0.12,1+Math.cos(acc*6)*0.15,1);} if(halo)halo.material.opacity=0.18+0.16*Math.abs(Math.sin(acc*4)); arrows.forEach((ar,i)=>ar.scale.setScalar(0.8+0.3*Math.abs(Math.sin(acc*3+i)))); } };
+  setSceneSliders([ {type:'section',label:'Tepkime Belirtileri'},
+    {type:'presets',activeIdx:S.tb_tip,options:[ {label:'🫧 Gaz çıkışı',action:()=>{S.tb_tip=0;rebuild();}}, {label:'🍎 Renk değişimi',action:()=>{S.tb_tip=1;rebuild();}}, {label:'🔥 Isı/ışık',action:()=>{S.tb_tip=2;rebuild();}} ]},
+    {type:'display',label:'Belirti',highlight:true,getValue:()=>['Gaz çıkışı (kabarcık)','Renk değişimi','Isı ve ışık'][S.tb_tip]},
+    {type:'display',label:'Günlük örnek',getValue:()=>['Sirke + karbonat','Kararan elma','Yanan mum'][S.tb_tip]},
+    {type:'display',label:'Ne anlama gelir?',getValue:()=>'Kimyasal tepkime olmuş demektir'} ],{title:'Kimyasal Tepkime Belirtileri'});
+};
+
+// 2: Değişim Hızı (paslanma / yanma / patlama)
+SubBuilders.buildDegisimHizi = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  const S=window._sceneState; if(S.dh_tip===undefined)S.dh_tip=0;
+  let obj,objAlt,atoms=[],bonds=[],burst=[],flame,acc=0; const PER=[14,5,3.2];
+  function rebuild(){ clr(dyn); acc=0; atoms=[]; bonds=[]; burst=[]; objAlt=null; flame=null;
+    if(S.dh_tip===0){ obj=new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.22,3.0,16),new THREE.MeshStandardMaterial({color:CCOL.ag,metalness:0.7,roughness:0.3,toneMapped:false})); obj.rotation.z=0.5; obj.position.set(0,1.6,0); const head=new THREE.Mesh(new THREE.CylinderGeometry(0.45,0.45,0.2,16),new THREE.MeshStandardMaterial({color:CCOL.ag,metalness:0.7,toneMapped:false})); head.position.y=1.5; obj.add(head); dyn.add(obj);
+      objAlt=new THREE.Mesh(new THREE.CylinderGeometry(0.24,0.24,3.0,16),new THREE.MeshStandardMaterial({color:0x8d5a2b,roughness:1,transparent:true,opacity:0,toneMapped:false})); objAlt.rotation.z=0.5; objAlt.position.set(0,1.6,0); dyn.add(objAlt);
+    } else if(S.dh_tip===1){ obj=new THREE.Mesh(new THREE.BoxGeometry(2.4,3.0,0.12),new THREE.MeshStandardMaterial({color:0xfafafa,roughness:0.9,toneMapped:false})); obj.position.set(0,1.6,0); dyn.add(obj);
+      flame=new THREE.Mesh(new THREE.ConeGeometry(1.2,1.6,18),new THREE.MeshBasicMaterial({color:CCOL.isin,transparent:true,opacity:0,toneMapped:false})); flame.position.set(0,1.6,0.2); dyn.add(flame);
+    } else { obj=new THREE.Mesh(new THREE.SphereGeometry(0.6,18,14),new THREE.MeshStandardMaterial({color:CCOL.sari,emissive:CCOL.isin,emissiveIntensity:0.4,toneMapped:false})); obj.position.set(0,1.8,0); dyn.add(obj);
+      for(let i=0;i<10;i++){ const a=i/10*Math.PI*2; const ar=energyArrow(new THREE.Vector3(0,1.8,0),new THREE.Vector3(Math.cos(a)*3.4,1.8+Math.sin(a)*2.6,0),CCOL.sicak); ar.visible=false; dyn.add(ar); burst.push(ar);} }
+    const N=5; for(let i=0;i<N;i++){ const a=i/N*Math.PI*2; const c=i%2?CCOL.demir:BCOL.o; const at=mkA(0.26,c); const sp=new THREE.Vector3(Math.cos(a)*1.8,-2.0+Math.sin(a)*0.9,0); at.position.copy(sp); at.userData={start:sp.clone(),end:new THREE.Vector3(Math.cos(a)*0.6,-2.0+Math.sin(a)*0.4,0)}; dyn.add(at); atoms.push(at); }
+    for(let i=0;i<N;i++){ const b=makeBond(atoms[i].userData.end,atoms[(i+1)%N].userData.end,BCOL.bond,0.06); b.scale.setScalar(0.001); dyn.add(b); bonds.push(b); }
+    const ad=['🔩 Çivi paslanır: çok yavaş değişim','📄 Kağıt yanar: hızlı değişim','🎆 Havai fişek: çok hızlı değişim'];
+    addInfo3DLabels([ {text:{ilkokul:ad[S.dh_tip]},position:[0,4.0,0],target:[0,1.6,0],color:['#8d5a2b','#ff9800','#ff5252'][S.dh_tip]}, {text:{ilkokul:'⚛️ Atomlar yeni bağ kurar'},position:[0,-3.4,0],target:[0,-2.0,0],color:'#90caf9'} ]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; const p=rhr(acc,PER[S.dh_tip]), sf=spawnF(acc,PER[S.dh_tip]);
+    atoms.forEach(at=>{ at.position.lerpVectors(at.userData.start,at.userData.end,p); at.scale.setScalar(sf); }); bonds.forEach(b=>b.scale.setScalar(Math.max(0.001,p*sf)));
+    if(S.dh_tip===0&&objAlt)objAlt.material.opacity=0.85*p;
+    if(S.dh_tip===1){ if(obj)obj.scale.set(1,Math.max(0.05,1-p),1); if(flame)flame.material.opacity=0.8*p*Math.abs(Math.sin(acc*6)); }
+    if(S.dh_tip===2){ if(obj)obj.scale.setScalar(1+p*0.4); burst.forEach(ar=>{ar.visible=p>0.6;ar.scale.setScalar(0.6+0.8*p);}); } };
+  setSceneSliders([ {type:'section',label:'Değişim Hızı'},
+    {type:'presets',activeIdx:S.dh_tip,options:[ {label:'🔩 Paslanma',action:()=>{S.dh_tip=0;rebuild();}}, {label:'📄 Yanma',action:()=>{S.dh_tip=1;rebuild();}}, {label:'🎆 Patlama',action:()=>{S.dh_tip=2;rebuild();}} ]},
+    {type:'display',label:'Ne kadar sürer?',highlight:true,getValue:()=>['Çok yavaş (günler/yıllar)','Hızlı (saniyeler)','Çok hızlı (anlık)'][S.dh_tip]},
+    {type:'display',label:'Ortak nokta',getValue:()=>'Hepsi kimyasal değişimdir'} ],{title:'Maddenin Değişim Hızı'});
+};
+
+// ============================ ORTAOKUL ============================
+// 3: Kütlenin Korunumu (atom sayımı)
+SubBuilders.buildKutleKorunumu = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  let bal,atoms=[],acc=0;
+  function rebuild(){ clr(dyn); acc=0; atoms=[];
+    bal=makeBalance(); bal.position.y=-0.6; dyn.add(bal);
+    const jar=makeJar(1.15,1.7); jar.position.set(-2.4,1.4,0); dyn.add(jar);
+    const cx=-2.4,cy=1.4; const reac=[[-0.55,0.5],[0.55,0.5],[-0.55,-0.4],[0.55,-0.4],[0,0.9],[0,-0.8]];
+    const prod=[[-0.4,0.4],[-0.6,-0.3],[0.5,0.45],[0.65,-0.35],[-0.5,0.05],[0.58,0.05]];
+    const cols=[CCOL.mavi,CCOL.mavi,CCOL.mavi,CCOL.mavi,CCOL.kirmizi,CCOL.kirmizi];
+    for(let i=0;i<6;i++){ const at=mkA(i<4?0.22:0.26,cols[i]); at.position.set(cx+reac[i][0],cy+reac[i][1],0); at.userData={start:new THREE.Vector3(cx+reac[i][0],cy+reac[i][1],0),end:new THREE.Vector3(cx+prod[i][0],cy+prod[i][1],0)}; dyn.add(at); atoms.push(at); }
+    const w=new THREE.Mesh(new THREE.BoxGeometry(1.3,1.3,1.3),new THREE.MeshStandardMaterial({color:CCOL.demir,metalness:0.4,roughness:0.5,toneMapped:false})); w.position.set(2.4,1.3,0); dyn.add(w);
+    addInfo3DLabels([ {text:{ortaokul:'⚖️ Kapalı kavanozda tepkime: terazi dengede kalır'},position:[0,4.0,0],target:[0,1.4,0],color:'#90caf9'}, {text:{ortaokul:'Kütle değişmez'},position:[2.4,-2.6,0],target:[2.4,1.3,0],color:'#78909c'} ]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; const p=rhr(acc,7); atoms.forEach(at=>at.position.lerpVectors(at.userData.start,at.userData.end,p)); if(bal&&bal.userData.beam)bal.userData.beam.rotation.z=Math.sin(acc*1.5)*0.012; };
+  setSceneSliders([ {type:'section',label:'Kütlenin Korunumu'},
+    {type:'display',label:'Tepkime öncesi',highlight:true,getValue:()=>'4 mavi + 2 kırmızı atom'},
+    {type:'display',label:'Tepkime sonrası',getValue:()=>'4 mavi + 2 kırmızı atom'},
+    {type:'display',label:'Terazi',getValue:()=>'Dengede kalır (kütle aynı)'},
+    {type:'display',label:'Kural',getValue:()=>'Atomlar yok olmaz, yeniden dizilir'} ],{title:'Kapalı Kapta Kütlenin Korunumu'});
+};
+
+// 4: Bayatlama/Bozulma Hızı (sıcaklık)
+SubBuilders.buildBayatlamaHiz = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  const S=window._sceneState; if(S.by_tip===undefined)S.by_tip=0;
+  let bread,mold=[],agents=[],acc=0;
+  function rebuild(){ clr(dyn); acc=0; mold=[]; agents=[];
+    bread=makeBread(); bread.position.set(0,-0.4,0); dyn.add(bread);
+    for(let i=0;i<10;i++){ const m=mkA(0.16+Math.random()*0.08,0x558b2f); m.position.set((Math.random()*2-1)*1.3,0.2+Math.random()*0.6,0.75); m.userData.k=0.7+0.5*Math.abs(Math.sin(i)); m.scale.setScalar(0.001); dyn.add(m); mold.push(m);}
+    const col=S.by_tip===0?CCOL.soguk:CCOL.sicak; for(let i=0;i<8;i++){ const a=mkA(0.16,col); a.position.set((Math.random()*2-1)*3.8,(Math.random()*2-1)*2.6,0); a.userData.v=new THREE.Vector3((Math.random()*2-1),(Math.random()*2-1),0); dyn.add(a); agents.push(a);}
+    addInfo3DLabels([ {text:{ortaokul:(S.by_tip===0?'❄️ Buzdolabı: tanecikler yavaş → ekmek geç bayatlar':'🌡️ Sıcakta: tanecikler hızlı → ekmek çabuk küflenir')},position:[0,4.0,0],target:[0,0,0],color:S.by_tip===0?'#42a5f5':'#ff5252'}, {text:{ortaokul:'🍞 Ekmek'},position:[0,-2.8,0],target:[0,-0.4,0],color:'#d9a066'} ]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; const sp=S.by_tip===0?0.55:2.6;
+    agents.forEach(a=>{ a.position.addScaledVector(a.userData.v,dt*sp); ['x','y'].forEach(ax=>{const lim=ax==='x'?3.9:2.8; if(Math.abs(a.position[ax])>lim){a.position[ax]=Math.sign(a.position[ax])*lim;a.userData.v[ax]*=-1;}});});
+    const f=S.by_tip===0?ezz(Math.min(1,acc/24))*0.15:rhr(acc,8); mold.forEach(m=>m.scale.setScalar(Math.max(0.001,f*m.userData.k))); };
+  setSceneSliders([ {type:'section',label:'Bozulma Hızı (Sıcaklık)'},
+    {type:'presets',activeIdx:S.by_tip,options:[ {label:'❄️ Buzdolabı',action:()=>{S.by_tip=0;rebuild();}}, {label:'🌡️ Sıcak ortam',action:()=>{S.by_tip=1;rebuild();}} ]},
+    {type:'display',label:'Tanecik hızı',highlight:true,getValue:()=>S.by_tip===0?'Yavaş':'Hızlı'},
+    {type:'display',label:'Sonuç',getValue:()=>S.by_tip===0?'Ekmek uzun süre dayanır':'Ekmek çabuk küflenir'},
+    {type:'display',label:'Günlük ipucu',getValue:()=>'Yiyecekleri soğukta saklarız'} ],{title:'Tepkime Hızı: Sıcaklık (Bayatlama)'});
+};
+
+// 5: Temas Yüzeyi (odun vs talaş)
+SubBuilders.buildTemasYuzeyi = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  const S=window._sceneState; if(S.ty_tip===undefined)S.ty_tip=0;
+  let blocks=[],oxy=[],flames=[],acc=0;
+  function rebuild(){ clr(dyn); acc=0; blocks=[]; oxy=[]; flames=[];
+    let centers=[];
+    if(S.ty_tip===0){ const b=new THREE.Mesh(new THREE.BoxGeometry(2.4,2.4,1.5),new THREE.MeshStandardMaterial({color:CCOL.odun,roughness:0.95,toneMapped:false})); dyn.add(b); blocks.push(b); centers.push({c:new THREE.Vector3(0,0,0),r:1.7});
+      addInfo3DLabels([ {text:{ortaokul:'🪵 Odun kütlesi: ateş sadece dış yüzeye değer → yavaş yanar'},position:[0,4.0,0],target:[0,0,0],color:'#8d6e63'} ]);
+    } else { const pos=[[-1.7,1.1],[1.7,1.1],[-1.7,-1.1],[1.7,-1.1],[0,0],[0,1.7],[0,-1.7],[-1.7,0],[1.7,0]]; pos.forEach(p=>{ const b=new THREE.Mesh(new THREE.BoxGeometry(0.65,0.65,0.55),new THREE.MeshStandardMaterial({color:CCOL.odun,roughness:0.95,toneMapped:false})); b.position.set(p[0],p[1],0); dyn.add(b); blocks.push(b); centers.push({c:new THREE.Vector3(p[0],p[1],0),r:0.6}); });
+      addInfo3DLabels([ {text:{ortaokul:'🔥 Talaş: ateş her parçayı sarar → çok hızlı yanar'},position:[0,4.0,0],target:[0,0,0],color:'#ff9800'} ]);
+    }
+    centers.forEach(ct=>{ const fl=new THREE.Mesh(new THREE.ConeGeometry(ct.r*0.5,ct.r*0.9,12),new THREE.MeshBasicMaterial({color:CCOL.isin,transparent:true,opacity:0,toneMapped:false})); fl.position.copy(ct.c); fl.position.y+=ct.r*0.6; dyn.add(fl); flames.push(fl); });
+    const N=S.ty_tip===0?8:16; for(let i=0;i<N;i++){ const tg=centers[i%centers.length]; const o=mkA(0.15,BCOL.o); o.userData={tg,a:Math.random()*Math.PI*2,ph:Math.random()}; dyn.add(o); oxy.push(o);}
+    blocks.forEach((b,i)=>b.userData=centers[i]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; const p=rhr(acc,S.ty_tip===0?10:4.5);
+    oxy.forEach(o=>{ const tg=o.userData.tg; const R=tg.r+0.35+Math.sin(acc*3+o.userData.ph*6)*0.12; const a=o.userData.a+acc*1.3; o.position.set(tg.c.x+Math.cos(a)*R,tg.c.y+Math.sin(a)*R,0); });
+    blocks.forEach(b=>b.scale.setScalar(Math.max(0.08,1-p))); flames.forEach((fl,i)=>{ fl.material.opacity=p*0.85*Math.abs(Math.sin(acc*7+i)); fl.scale.set(1,Math.max(0.1,1-p*0.5),1); }); };
+  setSceneSliders([ {type:'section',label:'Temas Yüzeyi (Yanma)'},
+    {type:'presets',activeIdx:S.ty_tip,options:[ {label:'🪵 Odun kütlesi',action:()=>{S.ty_tip=0;rebuild();}}, {label:'🔥 Talaş',action:()=>{S.ty_tip=1;rebuild();}} ]},
+    {type:'display',label:'Temas yüzeyi',highlight:true,getValue:()=>S.ty_tip===0?'Küçük (sadece dış yüzey)':'Çok büyük (her parça)'},
+    {type:'display',label:'Yanma hızı',getValue:()=>S.ty_tip===0?'Yavaş':'Çok hızlı'},
+    {type:'display',label:'Günlük örnek',getValue:()=>S.ty_tip===0?'Kütük geç tutuşur':'Talaş/çıra hemen tutuşur'} ],{title:'Tepkime Hızı: Temas Yüzeyi'});
+};
+
+// ============================ LİSE / TYT ============================
+// 6: Bağ Enerjisi (kırma endo / oluşum ekzo)
+SubBuilders.buildBagEnerjisi = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  const S=window._sceneState; if(S.be_tip===undefined)S.be_tip=0;
+  let a1,a2,bond,arrows=[],burst,acc=0;
+  function rebuild(){ clr(dyn); acc=0; arrows=[];
+    a1=mkA(0.5,BCOL.h); a2=mkA(0.5,BCOL.h); dyn.add(a1,a2);
+    bond=makeBond(new THREE.Vector3(-0.9,0,0),new THREE.Vector3(0.9,0,0),BCOL.bond,0.1); dyn.add(bond);
+    if(S.be_tip===0){ for(let i=0;i<4;i++){ const a=i/4*Math.PI*2; const ar=energyArrow(new THREE.Vector3(Math.cos(a)*3.4,Math.sin(a)*3.4,0),new THREE.Vector3(Math.cos(a)*1.4,Math.sin(a)*1.4,0),CCOL.sicak); dyn.add(ar); arrows.push(ar);}
+      addInfo3DLabels([ {text:{lise:'🔓 Bağ kırma: enerji YUTULUR (endotermik)'},position:[0,3.4,0],target:[0,0,0],color:'#ff5252'} ]);
+    } else { burst=new THREE.Mesh(new THREE.SphereGeometry(1.2,18,14),new THREE.MeshBasicMaterial({color:CCOL.isin,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false})); dyn.add(burst);
+      for(let i=0;i<4;i++){ const a=i/4*Math.PI*2; const ar=energyArrow(new THREE.Vector3(Math.cos(a)*1.4,Math.sin(a)*1.4,0),new THREE.Vector3(Math.cos(a)*3.4,Math.sin(a)*3.4,0),CCOL.isin); ar.visible=false; dyn.add(ar); arrows.push(ar);}
+      addInfo3DLabels([ {text:{lise:'🔒 Bağ oluşumu: enerji AÇIĞA ÇIKAR (ekzotermik)'},position:[0,3.4,0],target:[0,0,0],color:'#ffb300'} ]);
+    }
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; const p=rhr(acc,5);
+    if(S.be_tip===0){ const d=0.9+p*2.4; a1.position.x=-d; a2.position.x=d; bond.scale.setScalar(Math.max(0.001,1-p)); arrows.forEach((ar,i)=>ar.scale.setScalar(0.7+0.4*Math.abs(Math.sin(acc*3+i)))); }
+    else { const d=0.9+(1-p)*2.4; a1.position.x=-d; a2.position.x=d; bond.scale.setScalar(Math.max(0.001,p)); if(burst)burst.material.opacity=0.4*p*Math.abs(Math.sin(acc*4)); arrows.forEach(ar=>{ar.visible=p>0.7;ar.scale.setScalar(0.6+0.6*p);}); } };
+  setSceneSliders([ {type:'section',label:'Bağ Enerjisi'},
+    {type:'presets',activeIdx:S.be_tip,options:[ {label:'🔓 Bağ kırma',action:()=>{S.be_tip=0;rebuild();}}, {label:'🔒 Bağ oluşumu',action:()=>{S.be_tip=1;rebuild();}} ]},
+    {type:'display',label:'Enerji',highlight:true,getValue:()=>S.be_tip===0?'Dışarıdan alınır (endotermik)':'Dışarı verilir (ekzotermik)'},
+    {type:'display',label:'Kural',getValue:()=>'Bağ kırmak enerji ister, kurmak enerji verir'} ],{title:'Bağların Kopması ve Oluşması'});
+};
+
+// 7: Sentez ve Analiz Tepkimeleri
+SubBuilders.buildSentezAnaliz = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  const S=window._sceneState; if(S.sa_tip===undefined)S.sa_tip=0;
+  let groups=[],acc=0;
+  function rebuild(){ clr(dyn); acc=0; groups=[];
+    if(S.sa_tip===0){ const o=mkA(0.5,BCOL.o); o.userData={start:new THREE.Vector3(0,2.6,0),end:new THREE.Vector3(0,0.2,0)}; dyn.add(o);
+      const h1=mkA(0.3,BCOL.h); h1.userData={start:new THREE.Vector3(-3.0,-1.0,0),end:new THREE.Vector3(-1.05,-0.6,0)};
+      const h2=mkA(0.3,BCOL.h); h2.userData={start:new THREE.Vector3(3.0,-1.0,0),end:new THREE.Vector3(1.05,-0.6,0)}; dyn.add(h1,h2);
+      groups=[o,h1,h2];
+      addInfo3DLabels([ {text:{lise:'🔗 Sentez: H₂ + O → H₂O (birleşme)'},position:[0,3.6,0],target:[0,0,0],color:'#66bb6a'} ]);
+    } else { const ca=mkA(0.5,CCOL.yesil); ca.userData={start:new THREE.Vector3(-0.7,0.3,0),end:new THREE.Vector3(-3.0,0.6,0)};
+      const o1=mkA(0.42,BCOL.o); o1.userData={start:new THREE.Vector3(0.4,0.6,0),end:new THREE.Vector3(-2.0,0.0,0)};
+      const c=mkA(0.4,BCOL.c); c.userData={start:new THREE.Vector3(0.7,-0.6,0),end:new THREE.Vector3(2.6,0.4,0)};
+      const o2=mkA(0.42,BCOL.o); o2.userData={start:new THREE.Vector3(-0.2,-0.8,0),end:new THREE.Vector3(1.8,0.4,0)};
+      const o3=mkA(0.42,BCOL.o); o3.userData={start:new THREE.Vector3(1.2,0.0,0),end:new THREE.Vector3(3.4,0.4,0)};
+      dyn.add(ca,o1,c,o2,o3); groups=[ca,o1,c,o2,o3];
+      addInfo3DLabels([ {text:{lise:'✂️ Analiz: CaCO₃ → CaO + CO₂ (ayrışma)'},position:[0,3.6,0],target:[0,0.3,0],color:'#ffb74d'} ]);
+    }
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; const p=rhr(acc,6), sf=spawnF(acc,6); groups.forEach(g=>{ g.position.lerpVectors(g.userData.start,g.userData.end,p); g.scale.setScalar(sf); }); };
+  setSceneSliders([ {type:'section',label:'Tepkime Türleri'},
+    {type:'presets',activeIdx:S.sa_tip,options:[ {label:'🔗 Sentez',action:()=>{S.sa_tip=0;rebuild();}}, {label:'✂️ Analiz',action:()=>{S.sa_tip=1;rebuild();}} ]},
+    {type:'display',label:'Tür',highlight:true,getValue:()=>S.sa_tip===0?'Sentez (oluşum)':'Analiz (ayrışma)'},
+    {type:'formula',text:()=>S.sa_tip===0?'2H₂ + O₂ → 2H₂O':'CaCO₃ → CaO + CO₂',getValue:()=>S.sa_tip===0?'2H₂ + O₂ → 2H₂O':'CaCO₃ → CaO + CO₂'} ],{title:'Sentez ve Analiz Tepkimeleri'});
+};
+
+// 8: Yanma Tepkimesi (CH4 + O2)
+SubBuilders.buildYanmaTepkime = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  let parts=[],flame,acc=0;
+  function rebuild(){ clr(dyn); acc=0; parts=[];
+    const c=mkA(0.44,BCOL.c); c.userData={start:new THREE.Vector3(-2.6,0,0),end:new THREE.Vector3(-2.4,0.4,0)};
+    const hs=[]; for(let i=0;i<4;i++){ const a=i/4*Math.PI*2+0.5; const h=mkA(0.26,BCOL.h); h.userData={start:new THREE.Vector3(-2.6+Math.cos(a)*0.9,Math.sin(a)*0.9,0),end:new THREE.Vector3((i<2?2.0:3.4),(i%2?0.7:-0.7),0)}; dyn.add(h); hs.push(h);}
+    const os=[]; for(let i=0;i<4;i++){ const o=mkA(0.42,BCOL.o); o.userData={start:new THREE.Vector3(2.4+(i%2)*0.9,(i<2?0.9:-0.9),0),end:new THREE.Vector3(i===0?-3.0:i===1?-1.8:(i<2?0:2.7),i<2?0.4:(i%2?0.7:-0.7),0)}; dyn.add(o); os.push(o);}
+    dyn.add(c); parts=[c,...hs,...os];
+    flame=new THREE.Mesh(new THREE.SphereGeometry(1.4,18,14),new THREE.MeshBasicMaterial({color:CCOL.isin,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false})); dyn.add(flame);
+    addInfo3DLabels([ {text:{lise:'🔥 Yanma: CH₄ + 2O₂ → CO₂ + 2H₂O + ısı'},position:[0,3.6,0],target:[0,0,0],color:'#ff9800'} ]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; const p=rhr(acc,6), sf=spawnF(acc,6); parts.forEach(g=>{ g.position.lerpVectors(g.userData.start,g.userData.end,p); g.scale.setScalar(sf); }); if(flame)flame.material.opacity=0.45*p*Math.abs(Math.sin(acc*4)); };
+  setSceneSliders([ {type:'section',label:'Yanma Tepkimesi'},
+    {type:'formula',text:'CH₄ + 2O₂ → CO₂ + 2H₂O'},
+    {type:'display',label:'Tür',highlight:true,getValue:()=>'Yanma (ekzotermik)'},
+    {type:'display',label:'Ürünler',getValue:()=>'Karbondioksit + su + ısı/ışık'} ],{title:'Yanma Tepkimeleri'});
+};
+
+// 9: Asit-Baz Nötrleşme (H+ + OH- -> H2O)
+SubBuilders.buildNotrlesme = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  let pairs=[],acc=0; const N=4;
+  function rebuild(){ clr(dyn); acc=0; pairs=[];
+    const bk=makeBeaker(3.6,4.4); dyn.add(bk);
+    for(let i=0;i<N;i++){ const lane=1.6-i*0.85;
+      const hp=mkA(0.26,BCOL.posIon);
+      const oh=new THREE.Group(); const o=mkA(0.42,BCOL.o); const h=mkA(0.24,BCOL.h); h.position.set(0.5,-0.32,0); oh.add(o,h,makeBond(new THREE.Vector3(0,0,0),h.position,BCOL.bond,0.06));
+      dyn.add(hp,oh); pairs.push({hp,oh,lane,ph:i/N,sx:-1.6+i*1.05}); }
+    addInfo3DLabels([ {text:{lise:'💧 Nötrleşme: H⁺ + OH⁻ → H₂O (su oluşur, dibe iner)'},position:[0,3.8,0],target:[0,0.4,0],color:'#42a5f5'}, {text:{lise:'H⁺ (asit)'},position:[-3.4,-3.0,0],target:[-2.6,1.0,0],color:'#ff7043'}, {text:{lise:'OH⁻ (baz)'},position:[3.4,-3.0,0],target:[2.6,1.0,0],color:'#42a5f5'} ]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt;
+    pairs.forEach(pr=>{ let u=((acc*0.32+pr.ph)%1+1)%1; const sc=u<0.05?u/0.05:(u>0.93?(1-u)/0.07:1); pr.hp.scale.setScalar(sc); pr.oh.scale.setScalar(sc);
+      if(u<0.45){ const t2=u/0.45; pr.oh.position.set(3.0-2.5*t2,pr.lane,0); pr.hp.position.set(-3.0+2.3*t2,pr.lane,0); pr.hp.visible=true; }
+      else if(u<0.55){ const t2=(u-0.45)/0.1; const ox=0.5-0.5*t2; pr.oh.position.set(ox,pr.lane,0); pr.hp.position.set(pr.oh.position.x-0.5,pr.lane-0.32,0); }
+      else { const t2=ezz((u-0.55)/0.45); pr.oh.position.set(0*(1-t2)+pr.sx*t2,pr.lane*(1-t2)+(-2.7)*t2,0); pr.hp.position.set(pr.oh.position.x-0.5,pr.oh.position.y-0.32,0); }
+    }); };
+  setSceneSliders([ {type:'section',label:'Asit-Baz Nötrleşme'},
+    {type:'formula',text:'H⁺ + OH⁻ → H₂O'},
+    {type:'display',label:'Tür',highlight:true,getValue:()=>'Nötrleşme (ekzotermik)'},
+    {type:'display',label:'Ürün',getValue:()=>'Su (+ tuz)'},
+    {type:'display',label:'pH',getValue:()=>'7\'ye yaklaşır (nötr)'} ],{title:'Asit-Baz (Nötrleşme) Tepkimeleri'});
+};
+
+// ============================ LİSE / AYT ============================
+// 10: Çarpışma Teorisi (yanlış açı / yetersiz enerji / etkin)
+SubBuilders.buildCarpismaTeorisi = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  const S=window._sceneState; if(S.ct_tip===undefined)S.ct_tip=2;
+  let gL,gR,atoms=[],burst,acc=0;
+  function rebuild(){ clr(dyn); acc=0; atoms=[];
+    if(S.ct_tip<2){ gL=new THREE.Group(); const n=mkA(0.4,BCOL.n),o=mkA(0.42,BCOL.o); o.position.x=0.95; gL.add(n,o,makeBond(n.position,o.position,BCOL.bond,0.08)); gL.position.set(-4.2,0,0); if(S.ct_tip===0)gL.rotation.z=Math.PI/2;
+      gR=new THREE.Group(); for(let i=0;i<3;i++){ const oo=mkA(0.4,BCOL.o); oo.position.set((i-1)*0.85,0,0); gR.add(oo); } gR.add(makeBond(new THREE.Vector3(-0.85,0,0),new THREE.Vector3(0,0,0),BCOL.bond,0.07),makeBond(new THREE.Vector3(0,0,0),new THREE.Vector3(0.85,0,0),BCOL.bond,0.07)); gR.position.set(4.2,0,0);
+      dyn.add(gL,gR);
+      addInfo3DLabels([ {text:{lise:(S.ct_tip===0?'❌ Yanlış açı: çarpışır ama bağ kuramaz, seker':'❌ Yetersiz enerji: yaklaşır, itilip geri döner')},position:[0,3.4,0],target:[0,0,0],color:'#ff5252'} ]);
+    } else { const n=mkA(0.4,BCOL.n), oA=mkA(0.42,BCOL.o), oB=mkA(0.42,BCOL.o), oC=mkA(0.42,BCOL.o), oD=mkA(0.42,BCOL.o);
+      n.userData ={s:new THREE.Vector3(-4.2,0.0,0), m:new THREE.Vector3(-0.5,0.25,0), e:new THREE.Vector3(-2.4,0.5,0)};
+      oA.userData={s:new THREE.Vector3(-3.25,0.0,0),m:new THREE.Vector3(-0.05,0.25,0),e:new THREE.Vector3(-2.9,0.5,0)};
+      oB.userData={s:new THREE.Vector3(4.2,0.0,0),  m:new THREE.Vector3(0.4,0.0,0),   e:new THREE.Vector3(-1.45,-0.2,0)};
+      oC.userData={s:new THREE.Vector3(5.05,0.0,0), m:new THREE.Vector3(0.85,0.25,0), e:new THREE.Vector3(2.5,0.3,0)};
+      oD.userData={s:new THREE.Vector3(3.35,0.0,0), m:new THREE.Vector3(0.0,-0.35,0), e:new THREE.Vector3(3.4,0.3,0)};
+      dyn.add(n,oA,oB,oC,oD); atoms=[n,oA,oB,oC,oD];
+      burst=new THREE.Mesh(new THREE.SphereGeometry(1.0,16,12),new THREE.MeshBasicMaterial({color:CCOL.isin,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false})); burst.position.set(0.2,0.0,0); dyn.add(burst);
+      addInfo3DLabels([ {text:{lise:'✅ Etkin çarpışma: doğru açı + yeterli enerji → ürün oluşur'},position:[0,3.4,0],target:[0,0,0],color:'#66bb6a'}, {text:{lise:'NO₂ + O₂'},position:[3.2,-2.6,0],target:[2.8,0.3,0],color:'#90caf9'} ]);
+    }
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt;
+    if(S.ct_tip<2){ const f=ezz(ppong(acc,4)); const app=S.ct_tip===0?3.5:2.3; gL.position.x=-4.2+app*f; gR.position.x=4.2-app*f; if(S.ct_tip===0)gL.rotation.z=Math.PI/2+Math.sin(acc*6)*0.08*f; }
+    else { const p=rhr(acc,5), sf=spawnF(acc,5); atoms.forEach(a=>{ const u=a.userData; let pos; if(p<0.45){ const t2=p/0.45; pos=new THREE.Vector3().lerpVectors(u.s,u.m,t2); } else { const t2=(p-0.45)/0.55; pos=new THREE.Vector3().lerpVectors(u.m,u.e,t2); } a.position.copy(pos); a.scale.setScalar(sf); }); if(burst)burst.material.opacity=0.6*Math.max(0,1-Math.abs(p-0.47)*7); } };
+  setSceneSliders([ {type:'section',label:'Çarpışma Teorisi'},
+    {type:'presets',activeIdx:S.ct_tip,options:[ {label:'❌ Yanlış açı',action:()=>{S.ct_tip=0;rebuild();}}, {label:'❌ Yetersiz enerji',action:()=>{S.ct_tip=1;rebuild();}}, {label:'✅ Etkin',action:()=>{S.ct_tip=2;rebuild();}} ]},
+    {type:'display',label:'Şart',highlight:true,getValue:()=>['Uygun geometri YOK','Yeterli enerji YOK','Geometri + enerji TAMAM'][S.ct_tip]},
+    {type:'display',label:'Sonuç',getValue:()=>S.ct_tip===2?'Tepkime gerçekleşir':'Tepkime olmaz (seker)'} ],{title:'Çarpışma Teorisi'});
+};
+
+// 11: Aktivasyon Enerjisi ve Aktifleşmiş Kompleks
+SubBuilders.buildAktivasyonEnerji = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  let marker,mA,mB,mBond,acc=0;
+  function Y(u){ return 1.6 + 1.9*Math.exp(-Math.pow((u-0.5)/0.15,2)) - 0.5*ezz(Math.max(0,(u-0.5)/0.5)); }
+  function rebuild(){ clr(dyn); acc=0;
+    const pts=[]; for(let i=0;i<=48;i++){ const u=i/48; pts.push(new THREE.Vector3(-4.2+8.4*u,Y(u),0)); } dyn.add(makePoly(pts,CCOL.sari));
+    dyn.add(makePoly([new THREE.Vector3(-4.2,0.6,0),new THREE.Vector3(4.4,0.6,0)],CCOL.ag,0.5));
+    dyn.add(makePoly([new THREE.Vector3(-4.2,0.6,0),new THREE.Vector3(-4.2,4.0,0)],CCOL.ag,0.5));
+    marker=mkA(0.2,CCOL.kirmizi); marker.position.set(-4.2,Y(0),0); dyn.add(marker);
+    mA=mkA(0.36,BCOL.n); mB=mkA(0.38,BCOL.o); dyn.add(mA,mB); mBond=makeBond(new THREE.Vector3(-0.8,-1.6,0),new THREE.Vector3(0.8,-1.6,0),BCOL.weak,0.06); dyn.add(mBond);
+    addInfo3DLabels([ {text:{lise:'⛰️ Eₐ: aşılması gereken enerji bariyeri'},position:[0,4.2,0],target:[0,Y(0.5),0],color:'#ffee58'}, {text:{lise:'🌀 Tepe = aktifleşmiş kompleks (kararsız)'},position:[0,-3.0,0],target:[0,-1.6,0],color:'#ff5252'}, {text:{lise:'Enerji ↑'},position:[-4.6,3.6,0],target:[-4.2,2.6,0],color:'#b0bec5'}, {text:{lise:'Tepkime ilerlemesi →'},position:[4.4,0.2,0],target:[3.8,0.6,0],color:'#b0bec5'} ]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; const u=ppong(acc,6);
+    if(marker)marker.position.set(-4.2+8.4*u,Y(u),0);
+    const near=1-Math.abs(u-0.5)*2; const d=0.8-0.4*near; if(mA)mA.position.set(-d,-1.6+Math.sin(acc*8)*0.05*near,0); if(mB)mB.position.set(d,-1.6+Math.cos(acc*8)*0.05*near,0); if(mBond)mBond.scale.setScalar(0.3+0.7*near); };
+  setSceneSliders([ {type:'section',label:'Aktivasyon Enerjisi'},
+    {type:'display',label:'Eₐ',highlight:true,getValue:()=>'Tepe noktası (en yüksek enerji)'},
+    {type:'display',label:'Aktifleşmiş kompleks',getValue:()=>'Eski bağ kopuyor, yeni bağ oluşuyor'},
+    {type:'display',label:'Tepe sonrası',getValue:()=>'Kararlı ürünler, enerji düşer'} ],{title:'Aktivasyon Enerjisi ve Aktifleşmiş Kompleks'});
+};
+
+// 12: Maxwell-Boltzmann Dağılımı
+SubBuilders.buildMaxwellBoltzmann = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  const S=window._sceneState; if(S.mb_T===undefined)S.mb_T=400;
+  let dots=[],acc=0; const X0=-4.2,X1=3.0,Y0=-1.8,EaE=4.6;
+  const xOf=E=>X0+(X1-X0)*Math.min(1,E/7.2);
+  const EaX=xOf(EaE);
+  function curveY(E,T){ const k=T/360; const v=(E/(k*k))*Math.exp(-E/k); return Y0+Math.min(3.7,v*2.4); }
+  function curvePts(T){ const pts=[]; for(let i=0;i<=60;i++){ const E=i/60*7.2; pts.push(new THREE.Vector3(xOf(E),curveY(E,T),0)); } return pts; }
+  function rebuild(){ clr(dyn); acc=0; dots=[];
+    dyn.add(makePoly([new THREE.Vector3(X0,Y0,0),new THREE.Vector3(X1+0.4,Y0,0)],CCOL.ag,0.6));
+    dyn.add(makePoly([new THREE.Vector3(X0,Y0,0),new THREE.Vector3(X0,Y0+4.3,0)],CCOL.ag,0.6));
+    dyn.add(makePoly(curvePts(320),CCOL.soguk,0.4));
+    dyn.add(makePoly(curvePts(S.mb_T),CCOL.sari,0.97));
+    dyn.add(makePoly([new THREE.Vector3(EaX,Y0,0),new THREE.Vector3(EaX,Y0+4.0,0)],CCOL.kirmizi,0.85));
+    const k=S.mb_T/360; let fast=0;
+    for(let i=0;i<26;i++){ const E=Math.max(0.25,(-Math.log(Math.random())-Math.log(Math.random()))*k*0.85); const past=E>EaE; if(past)fast++;
+      const ce=Math.min(7.1,E); const cx=xOf(ce); const ch=curveY(ce,S.mb_T); const dot=mkA(0.13,past?CCOL.kirmizi:CCOL.mavi);
+      dot.userData={bx:cx,by:Y0+0.2+Math.random()*Math.max(0.2,ch-Y0-0.35),ph:Math.random()*6,sp:0.4+E*0.1};
+      dot.position.set(dot.userData.bx,dot.userData.by,0); dyn.add(dot); dots.push(dot); }
+    S._mbFast=fast;
+    addInfo3DLabels([
+      {text:{lise:'📈 Sıcaklık artınca eğri sağa-yayvanlaşır, eşiği aşan tanecik artar'},position:[0,4.2,0],target:[0.4,Y0+2.6,0],color:'#ffee58'},
+      {text:{lise:'🔴 Eₐ eşiği: sadece sağındaki tanecikler tepkir'},position:[2.6,3.1,0],target:[EaX,Y0+2.0,0],color:'#ff5252'},
+      {text:{lise:'Enerji →'},position:[X1+0.2,Y0-0.5,0],target:[X1,Y0,0],color:'#b0bec5'},
+      {text:{lise:'Tanecik sayısı ↑'},position:[X0+0.2,Y0+4.6,0],target:[X0,Y0+3.6,0],color:'#b0bec5'}
+    ]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; dots.forEach(d=>{ d.position.x=d.userData.bx+Math.sin(acc*d.userData.sp+d.userData.ph)*0.12; d.position.y=d.userData.by+Math.cos(acc*d.userData.sp*1.1+d.userData.ph)*0.08; }); };
+  setSceneSliders([ {type:'section',label:'Maxwell-Boltzmann Dağılımı'},
+    {type:'slider',label:'Sıcaklık',min:250,max:900,step:50,getValue:()=>S.mb_T,setValue:v=>{S.mb_T=v;rebuild();},unit:' K'},
+    {type:'display',label:'Eşiği (Eₐ) aşan',highlight:true,getValue:()=>(S._mbFast||0)+' / 26 tanecik'},
+    {type:'display',label:'Sıcaklık artınca',getValue:()=>'Eğri sağa kayar → hız artar'},
+    {type:'display',label:'Anlam',getValue:()=>'Sadece eşiği aşan tanecikler tepkir'} ],{title:'Maxwell-Boltzmann Kinetik Enerji Dağılımı'});
+};
+
+// 13: Derişim Etkisi
+SubBuilders.buildDerisimEtki = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  const S=window._sceneState; if(S.de_n===undefined)S.de_n=10;
+  let parts=[],acc=0; const W=4.2,H=3.0;
+  function rebuild(){ clr(dyn); acc=0; parts=[];
+    dyn.add(makePoly([new THREE.Vector3(-W,-H,0),new THREE.Vector3(W,-H,0),new THREE.Vector3(W,H,0),new THREE.Vector3(-W,H,0),new THREE.Vector3(-W,-H,0)],CCOL.cam,0.6));
+    for(let i=0;i<S.de_n;i++){ const p=mkA(0.2,i%2?CCOL.mavi:CCOL.kirmizi); p.position.set((Math.random()*2-1)*(W-0.3),(Math.random()*2-1)*(H-0.3),0); p.userData.v=new THREE.Vector3((Math.random()*2-1)*1.6,(Math.random()*2-1)*1.6,0); dyn.add(p); parts.push(p);}
+    addInfo3DLabels([ {text:{lise:'🧱 Derişim ↑ → çarpışma sıklığı ↑ → hız ↑'},position:[0,3.6,0],target:[0,0,0],color:'#90caf9'} ]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; parts.forEach(p=>{ p.position.addScaledVector(p.userData.v,dt); if(Math.abs(p.position.x)>W-0.2){p.position.x=Math.sign(p.position.x)*(W-0.2);p.userData.v.x*=-1;} if(Math.abs(p.position.y)>H-0.2){p.position.y=Math.sign(p.position.y)*(H-0.2);p.userData.v.y*=-1;} }); };
+  setSceneSliders([ {type:'section',label:'Derişim Etkisi'},
+    {type:'slider',label:'Tanecik (derişim)',min:4,max:30,step:1,getValue:()=>S.de_n,setValue:v=>{S.de_n=v;rebuild();}},
+    {type:'display',label:'Çarpışma sıklığı',highlight:true,getValue:()=>S.de_n<10?'Az':(S.de_n<20?'Orta':'Çok')},
+    {type:'display',label:'Tepkime hızı',getValue:()=>S.de_n<10?'Yavaş':(S.de_n<20?'Orta':'Hızlı')} ],{title:'Tepkime Hızı: Derişim'});
+};
+
+// 14: Basınç / Hacim Etkisi (gazlar)
+SubBuilders.buildBasincHacim = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  const S=window._sceneState; if(S.bh_v===undefined)S.bh_v=4;
+  let parts=[],piston,acc=0; const W=2.6;
+  function rebuild(){ clr(dyn); acc=0; parts=[];
+    const topY=-3.4+S.bh_v*1.0;
+    const wall=new THREE.Mesh(new THREE.CylinderGeometry(W,W,8,32,1,true),new THREE.MeshStandardMaterial({color:CCOL.cam,transparent:true,opacity:0.12,side:THREE.DoubleSide,toneMapped:false})); dyn.add(wall);
+    piston=makePiston(W,topY+0.15); dyn.add(piston);
+    const base=new THREE.Mesh(new THREE.CylinderGeometry(W,W,0.2,32),new THREE.MeshStandardMaterial({color:CCOL.ag,toneMapped:false})); base.position.y=-3.4; dyn.add(base);
+    for(let i=0;i<10;i++){ const p=mkA(0.18,CCOL.gaz); p.position.set((Math.random()*2-1)*(W-0.3),-3.2+Math.random()*(topY+3.2),0); p.userData.v=new THREE.Vector3((Math.random()*2-1)*1.8,(Math.random()*2-1)*1.8,0); dyn.add(p); parts.push({p,topY}); }
+    addInfo3DLabels([ {text:{lise:'⬇️ Hacim ↓ (piston iner) → tanecikler sıkışır → çarpışma ↑'},position:[0,3.6,0],target:[0,topY,0],color:'#80deea'} ]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; parts.forEach(o=>{ const p=o.p; p.position.addScaledVector(p.userData.v,dt); if(Math.abs(p.position.x)>W-0.25){p.position.x=Math.sign(p.position.x)*(W-0.25);p.userData.v.x*=-1;} if(p.position.y<-3.2){p.position.y=-3.2;p.userData.v.y*=-1;} if(p.position.y>o.topY-0.2){p.position.y=o.topY-0.2;p.userData.v.y*=-1;} }); };
+  setSceneSliders([ {type:'section',label:'Basınç / Hacim (Gazlar)'},
+    {type:'slider',label:'Hacim',min:2,max:6,step:1,getValue:()=>S.bh_v,setValue:v=>{S.bh_v=v;rebuild();}},
+    {type:'display',label:'Basınç',highlight:true,getValue:()=>S.bh_v<=3?'Yüksek':'Düşük'},
+    {type:'display',label:'Çarpışma',getValue:()=>S.bh_v<=3?'Sık → hızlı':'Seyrek → yavaş'} ],{title:'Tepkime Hızı: Basınç / Hacim'});
+};
+
+// 15: Sıcaklık Etkisi
+SubBuilders.buildSicaklikEtki = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  const S=window._sceneState; if(S.se_tip===undefined)S.se_tip=0;
+  let parts=[],acc=0; const W=4.0,H=2.8;
+  function rebuild(){ clr(dyn); acc=0; parts=[];
+    dyn.add(makePoly([new THREE.Vector3(-W,-H,0),new THREE.Vector3(W,-H,0),new THREE.Vector3(W,H,0),new THREE.Vector3(-W,H,0),new THREE.Vector3(-W,-H,0)],CCOL.cam,0.6));
+    for(let i=0;i<12;i++){ const p=mkA(0.2,i%2?CCOL.mavi:CCOL.kirmizi); p.position.set((Math.random()*2-1)*(W-0.3),(Math.random()*2-1)*(H-0.3),0); p.userData.v=new THREE.Vector3((Math.random()*2-1),(Math.random()*2-1),0); dyn.add(p); parts.push(p);}
+    if(S.se_tip===1){ const halo=new THREE.Mesh(new THREE.PlaneGeometry(W*2,H*2),new THREE.MeshBasicMaterial({color:CCOL.sicak,transparent:true,opacity:0.08,toneMapped:false})); dyn.add(halo); }
+    addInfo3DLabels([ {text:{lise:(S.se_tip===0?'❄️ Düşük sıcaklık: yavaş, seyrek çarpışma':'🌡️ Yüksek sıcaklık: hızlı + şiddetli çarpışma')},position:[0,3.6,0],target:[0,0,0],color:S.se_tip===0?'#42a5f5':'#ff5252'} ]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; const sp=S.se_tip===0?0.9:3.0; parts.forEach(p=>{ p.position.addScaledVector(p.userData.v,dt*sp); if(Math.abs(p.position.x)>W-0.2){p.position.x=Math.sign(p.position.x)*(W-0.2);p.userData.v.x*=-1;} if(Math.abs(p.position.y)>H-0.2){p.position.y=Math.sign(p.position.y)*(H-0.2);p.userData.v.y*=-1;} }); };
+  setSceneSliders([ {type:'section',label:'Sıcaklık Etkisi'},
+    {type:'presets',activeIdx:S.se_tip,options:[ {label:'❄️ Düşük',action:()=>{S.se_tip=0;rebuild();}}, {label:'🌡️ Yüksek',action:()=>{S.se_tip=1;rebuild();}} ]},
+    {type:'display',label:'Tanecik hızı',highlight:true,getValue:()=>S.se_tip===0?'Yavaş':'Çok hızlı'},
+    {type:'display',label:'Etki',getValue:()=>'Hem çarpışma sayısı hem şiddeti artar'} ],{title:'Tepkime Hızı: Sıcaklık'});
+};
+
+// 16: Katalizör Etkisi
+SubBuilders.buildKatalizor = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  const S=window._sceneState; if(S.ka_tip===undefined)S.ka_tip=0;
+  let mols=[],plate,acc=0;
+  function rebuild(){ clr(dyn); acc=0; mols=[];
+    if(S.ka_tip===0){ for(let i=0;i<6;i++){ const m=mkA(0.3,i%2?CCOL.mavi:CCOL.kirmizi); m.position.set((Math.random()*2-1)*3.6,(Math.random()*2-1)*2.6,0); m.userData.v=new THREE.Vector3((Math.random()*2-1),(Math.random()*2-1),0); dyn.add(m); mols.push(m);}
+      addInfo3DLabels([ {text:{lise:'🚧 Katalizörsüz: yüksek Eₐ, moleküller zor tepkir'},position:[0,3.6,0],target:[0,0,0],color:'#ff5252'} ]);
+    } else { plate=makePlate(3.2); plate.position.y=-2.4; dyn.add(plate);
+      for(let i=0;i<6;i++){ const m=mkA(0.3,i%2?CCOL.mavi:CCOL.kirmizi); m.userData={x:-2.6+i*1.05,ph:i*0.16}; m.position.set(m.userData.x,2.2,0); dyn.add(m); mols.push(m);}
+      addInfo3DLabels([ {text:{lise:'⚡ Katalizör (Pt): molekülleri tutar, Eₐ düşer → kolay tepkir'},position:[0,3.6,0],target:[0,-2.0,0],color:'#66bb6a'} ]);
+    }
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt;
+    if(S.ka_tip===0){ mols.forEach(m=>{ m.position.addScaledVector(m.userData.v,dt*1.0); ['x','y'].forEach(ax=>{const lim=ax==='x'?3.8:2.8; if(Math.abs(m.position[ax])>lim){m.position[ax]=Math.sign(m.position[ax])*lim;m.userData.v[ax]*=-1;}});}); }
+    else { const land=ezz(Math.min(1,acc/2.0)); mols.forEach(m=>{ m.position.x=m.userData.x; m.position.y=2.2+(-4.1)*land+Math.sin(acc*4+m.userData.ph*6)*0.05*land; }); } };
+  setSceneSliders([ {type:'section',label:'Katalizör Etkisi'},
+    {type:'presets',activeIdx:S.ka_tip,options:[ {label:'🚧 Katalizörsüz',action:()=>{S.ka_tip=0;rebuild();}}, {label:'⚡ Katalizörlü',action:()=>{S.ka_tip=1;rebuild();}} ]},
+    {type:'display',label:'Aktivasyon enerjisi',highlight:true,getValue:()=>S.ka_tip===0?'Yüksek (bariyer büyük)':'Düşük (bariyer küçük)'},
+    {type:'display',label:'Mekanizma',getValue:()=>S.ka_tip===1?'Yüzeyde tutar, yan yana getirir':'Serbest çarpışma'} ],{title:'Tepkime Hızı: Katalizör'});
+};
+
+// 17: Mekanizmalı Tepkime ve Hız Belirleyen Basamak
+SubBuilders.buildMekanizma = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  let flow=[],acc=0;
+  function rebuild(){ clr(dyn); acc=0; flow=[];
+    [-3.5,0,3.5].forEach((x,i)=>{ const ch=makeBeaker(1.2,2.4); ch.position.set(x,0,0); dyn.add(ch); });
+    dyn.add(makePoly([new THREE.Vector3(-2.3,0.4,0),new THREE.Vector3(-1.2,0.4,0)],CCOL.ag,0.7)); dyn.add(makePoly([new THREE.Vector3(-2.3,-0.4,0),new THREE.Vector3(-1.2,-0.4,0)],CCOL.ag,0.7));
+    dyn.add(makePoly([new THREE.Vector3(1.2,0.12,0),new THREE.Vector3(2.3,0.12,0)],CCOL.kirmizi,0.9)); dyn.add(makePoly([new THREE.Vector3(1.2,-0.12,0),new THREE.Vector3(2.3,-0.12,0)],CCOL.kirmizi,0.9));
+    for(let i=0;i<10;i++){ const p=mkA(0.16,i<6?CCOL.mavi:CCOL.yesil); p.userData={ph:i/10}; dyn.add(p); flow.push(p);}
+    addInfo3DLabels([ {text:{lise:'⚡ 1. ve 3. basamak hızlı (geniş boru)'},position:[-2.4,3.0,0],target:[-1.7,0.4,0],color:'#42a5f5'}, {text:{lise:'🐢 2. basamak yavaş = hız belirleyen (dar boru)'},position:[2.4,-3.0,0],target:[1.7,0,0],color:'#ff5252'} ]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; flow.forEach(p=>{ let u=(p.userData.ph+acc*0.12)%1; let pos; if(u<0.3){const lt=u/0.3;pos=[-3.5+3.5*lt,0.4];} else if(u<0.78){const lt=(u-0.3)/0.48;pos=[0,0.4-0.8*lt];} else {const lt=(u-0.78)/0.22;pos=[3.5*lt,-0.12];} p.position.set(pos[0],pos[1],0); p.scale.setScalar(u>=0.3&&u<0.78?0.78:1); }); };
+  setSceneSliders([ {type:'section',label:'Mekanizmalı Tepkime'},
+    {type:'display',label:'Hız belirleyen',highlight:true,getValue:()=>'En yavaş basamak (dar boru)'},
+    {type:'display',label:'Hız bağıntısı',getValue:()=>'Sadece yavaş basamağın reaktiflerine bağlı'},
+    {type:'display',label:'Benzetme',getValue:()=>'Darboğaz: en dar nokta hızı belirler'} ],{title:'Mekanizmalı Tepkimeler ve Hız Belirleyen Basamak'});
+};
+
+// ====== SİSTEM: SEVİYE, MOD, NAVİGASYON, UI ================
+// ============================================================
+let currentLevel = 'lise';
+let currentExamMode = false;
+function _subLevel(sub) {
+  if (sub.grades && sub.grades.length) {
+    const g = sub.grades[0];
+    if (g <= 4) return 'ilkokul';
+    if (g <= 8) return 'ortaokul';
+    return 'lise';
+  }
+  const lvNum = sub.minLv || 1;
+  return lvNum === 1 ? 'ilkokul' : lvNum === 2 ? 'ortaokul' : 'lise';
+}
+let currentMode = 'sade';
+window._autoSpinActive = false;
+window._isPlayingActive = false;
+
+const LEVEL_ORDER = ['ilkokul', 'ortaokul', 'lise', 'tyt_ayt'];
+
+function _resolveLevelData(dataObj) {
+  if (!dataObj) return null;
+  if (dataObj[currentLevel]) return dataObj[currentLevel];
+  if (currentLevel === 'tyt_ayt' && dataObj['ayt']) return dataObj['ayt'];
+  if (currentLevel === 'ayt' && dataObj['tyt_ayt']) return dataObj['tyt_ayt'];
+  const idx = LEVEL_ORDER.indexOf(currentLevel);
+  for (let i = idx; i >= 0; i--) {
+    if (dataObj[LEVEL_ORDER[i]]) return dataObj[LEVEL_ORDER[i]];
+  }
+  for (let i = idx + 1; i < LEVEL_ORDER.length; i++) {
+    if (dataObj[LEVEL_ORDER[i]]) return dataObj[LEVEL_ORDER[i]];
+  }
+  const keys = Object.keys(dataObj);
+  return keys.length ? dataObj[keys[0]] : null;
+}
+
+function _subVisibleByGrade(sub) {
+  if (currentExamMode) return _subLevel(sub) === 'lise';
+  return _subLevel(sub) === currentLevel;
+}
+
+// ---------- DROPDOWN: KONU REHBERİ ----------
+function buildTopicDropdown() {
+  const list = document.getElementById('topicList');
+  if (!list) return;
+  list.innerHTML = '';
+  const seenBuilders = new Set();
+  Object.keys(MODULES).forEach(modKey => {
+    const mod = MODULES[modKey];
+    let visibleSubs = mod.subs.filter(s => _subVisibleByGrade(s));
+    if (currentExamMode) {
+      visibleSubs = visibleSubs.filter(s => {
+        if (seenBuilders.has(s.builder)) return false;
+        seenBuilders.add(s.builder); return true;
+      });
+    }
+    if (visibleSubs.length === 0) return;
+    const head = document.createElement('div');
+    head.className = 'dropdown-cat-head';
+    head.textContent = mod.title;
+    list.appendChild(head);
+    visibleSubs.forEach(sub => {
+      const btn = document.createElement('button');
+      btn.className = 'dropdown-item';
+      btn.dataset.module = modKey;
+      btn.dataset.sub = sub.key;
+      btn.innerHTML = `<span class="di-emoji">${sub.label.split(' ')[0]}</span><span>${sub.label.substring(sub.label.indexOf(' ')+1)}</span>`;
+      btn.onclick = () => {
+        currentModule = parseInt(modKey);
+        selectSub(sub.key);
+        closeAllDropdowns();
+      };
+      list.appendChild(btn);
+    });
+  });
+}
+
+function _subVisibleAtLevel(subKey) {
+  for (const mk of Object.keys(MODULES)) {
+    const s = MODULES[mk].subs.find(x => x.key === subKey);
+    if (s) return _subVisibleByGrade(s);
+  }
+  return true;
+}
+function _firstSubAtLevel() {
+  for (const mk of Object.keys(MODULES)) {
+    const s = MODULES[mk].subs.find(x => _subVisibleByGrade(x));
+    if (s) return s.key;
+  }
+  return 'bagEnerjisi';
+}
+
+function highlightActiveTopic() {
+  document.querySelectorAll('#topicList .dropdown-item').forEach(b => {
+    b.classList.toggle('active', b.dataset.sub === currentSub);
+  });
+}
+
+// ---------- SAHNE SEÇİMİ ----------
+function applySceneTheme() {
+  if (!scene) return;
+  const isLight = window._lightMode === true;
+  let bgColor, fogColor, fogNear, fogFar;
+  if (isLight) {
+    bgColor = 0xe4ecf6; fogColor = 0xe4ecf6; fogNear = 45; fogFar = 110;
+  } else {
+    bgColor = 0x1e2740; fogColor = 0x1e2740; fogNear = 45; fogFar = 110;
+  }
+  scene.background = new THREE.Color(bgColor);
+  scene.fog = new THREE.Fog(fogColor, fogNear, fogFar);
+}
+
+function selectSub(subKey) {
+  currentSub = subKey;
+  clearScene();
+  applySceneTheme();
+
+  const builderName = (function() {
+    for (const mk of Object.keys(MODULES)) {
+      const s = MODULES[mk].subs.find(x => x.key === subKey);
+      if (s) { currentModule = parseInt(mk); return s.builder; }
+    }
+    return null;
+  })();
+
+  if (builderName && typeof SubBuilders[builderName] === 'function') {
+    try {
+      SubBuilders[builderName]();
+    } catch (e) {
+      console.error('Builder hatası:', builderName, e);
+    }
+  }
+
+  const _bp = document.getElementById('bottomPanel');
+  if (_bp) _bp.classList.remove('hidden');
+  updateInfoPanel(subKey);
+  highlightActiveTopic();
+
+  applyModeToLabels();
+
+  if (controls) {
+    controls.target.set(3.2, 0.6, 0);
+    if (camera) camera.position.set(3.2, 5.0, 27.0);
+    controls.captureInitialState && controls.captureInitialState();
+  }
+
+  if (window._showGestureToast) {
+    const allSubs = [];
+    Object.keys(MODULES).forEach(mk => MODULES[mk].subs.forEach(s => allSubs.push(s)));
+    const cur = allSubs.find(s => s.key === subKey);
+    if (cur) window._showGestureToast('📍 ' + cur.label);
+  }
+}
+
+function applyModeToLabels() {
+  if (!window._labelRefs) return;
+  const info3d = document.querySelectorAll('.info3d-label');
+  info3d.forEach((el, i) => {
+    if (currentMode === 'sade' && i % 2 === 1) {
+      el.dataset.userHidden = '1';
+      el.style.display = 'none';
+    } else {
+      el.dataset.userHidden = '0';
+      el.style.display = labelsVisible ? 'block' : 'none';
+    }
+  });
+}
+
+// ---------- BİLGİ PANELİ ----------
+const _SUB_ALIAS = {};
+function _dataKey(subKey) { return _SUB_ALIAS[subKey] || subKey; }
+
+function updateInfoPanel(subKey) {
+  const data = _resolveLevelData(INFO_DATA[_dataKey(subKey)]);
+  if (!data) return;
+  document.getElementById('infoEmoji').textContent = data.emoji || '🔗';
+  let mainTitle = '', subTitle = '';
+  for (const mk of Object.keys(MODULES)) {
+    const s = MODULES[mk].subs.find(x => x.key === subKey);
+    if (s) {
+      mainTitle = (MODULES[mk].title || '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]*Modül\s*\d+:\s*/i, '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]+/, '').trim();
+      subTitle = (s.label || '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]+/, '').trim();
+      break;
+    }
+  }
+  const titleHtml = mainTitle ? (mainTitle + ' / ' + subTitle) : (data.title || subTitle);
+  document.getElementById('infoTitle').textContent = titleHtml;
+  const list = document.getElementById('infoList');
+  list.innerHTML = '';
+  let points = data.points || [];
+  const showCount = (currentMode === 'sade') ? 3 : points.length;
+  points.slice(0, showCount).forEach(p => {
+    const li = document.createElement('li');
+    if (p.startsWith('##')) { li.className = 'subhead'; li.innerHTML = p.replace('##','').trim(); }
+    else li.innerHTML = p;
+    list.appendChild(li);
+  });
+  list.scrollTop = 0;
+  setTimeout(updateInfoScrollbar, 30);
+  setTimeout(updateInfoScrollbar, 150);
+  setTimeout(updateInfoScrollbar, 400);
+}
+
+function updateInfoScrollbar() {
+  const list = document.getElementById('infoList');
+  const bar = document.getElementById('infoScrollbar');
+  const thumb = document.getElementById('infoScrollThumb');
+  if (!list || !bar || !thumb) return;
+  const sh = list.scrollHeight, ch = list.clientHeight;
+  if (ch < 5) return;
+  if (sh <= ch + 3) { bar.classList.remove('visible'); return; }
+  bar.classList.add('visible');
+  const trackH = bar.clientHeight || ch;
+  const thumbH = Math.max(26, trackH * ch / sh);
+  const maxScroll = sh - ch;
+  const maxThumb = trackH - thumbH;
+  const top = maxScroll > 0 ? (list.scrollTop / maxScroll) * maxThumb : 0;
+  thumb.style.height = thumbH + 'px';
+  thumb.style.top = top + 'px';
+}
+// ---------- NAVİGASYON (önceki/sonraki sahne) ----------
+function getAllSubs() {
+  const arr = [];
+  Object.keys(MODULES).forEach(mk => MODULES[mk].subs.forEach(s => arr.push(s)));
+  return arr;
+}
+function navigate(dir) {
+  let all = getAllSubs().filter(s => _subVisibleByGrade(s));
+  if (currentExamMode) {
+    const seen = new Set();
+    all = all.filter(s => { if (seen.has(s.builder)) return false; seen.add(s.builder); return true; });
+  }
+  if (all.length === 0) return;
+  let idx = all.findIndex(s => s.key === currentSub);
+  if (idx < 0) idx = 0;
+  idx = (idx + dir + all.length) % all.length;
+  selectSub(all[idx].key);
+}
+
+// ---------- DROPDOWN AÇ/KAPA ----------
+function closeAllDropdowns() {
+  document.querySelectorAll('.dropdown-panel').forEach(p => p.classList.remove('show'));
+  document.body.classList.remove('dropdown-open');
+}
+function toggleDropdown(id) {
+  const panel = document.getElementById(id);
+  if (!panel) return;
+  const wasOpen = panel.classList.contains('show');
+  closeAllDropdowns();
+  if (!wasOpen) {
+    panel.classList.add('show');
+    document.body.classList.add('dropdown-open');
+  }
+}
+
+// ---------- KARŞILAŞTIRMA POPUP ----------
+window._cmpPages = []; window._cmpIdx = 0;
+window._tblPages = []; window._tblIdx = 0;
+
+function _normalizePages(data) {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  return [data];
+}
+
+function _renderTableHTML(data, styleClass) {
+  let html = '<table class="cmp-table ' + (styleClass||'') + '"><thead><tr>';
+  data.cols.forEach(c => html += `<th>${c}</th>`);
+  html += '</tr></thead><tbody>';
+  data.rows.forEach(row => {
+    html += '<tr>';
+    row.forEach(cell => html += `<td>${cell}</td>`);
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  return html;
+}
+
+function renderCompareTable() {
+  window._cmpPages = _normalizePages(_resolveLevelData(COMPARE_DATA[_dataKey(currentSub)]));
+  window._cmpIdx = 0;
+  _showComparePage();
+}
+function _showComparePage() {
+  const body = document.getElementById('compareBody');
+  const titleEl = document.getElementById('compareTitle');
+  const nav = document.getElementById('compareNav');
+  const counter = document.getElementById('compareCounter');
+  const pages = window._cmpPages;
+  if (!pages.length) {
+    body.innerHTML = '<div class="cmp-no-data">Bu konu için karşılaştırma verisi yok.</div>';
+    if (titleEl) titleEl.textContent = '⚖️ Karşılaştırma';
+    if (nav) nav.classList.add('hidden');
+    return;
+  }
+  const i = window._cmpIdx;
+  const data = pages[i];
+  if (titleEl) titleEl.textContent = '⚖️ ' + (data.title || 'Karşılaştırma');
+  body.innerHTML = _renderTableHTML(data, 'compare-style');
+  if (nav) {
+    if (pages.length > 1) {
+      nav.classList.remove('hidden');
+      counter.textContent = (i+1) + ' / ' + pages.length;
+      document.getElementById('comparePrev').disabled = (i === 0);
+      document.getElementById('compareNext').disabled = (i === pages.length - 1);
+    } else {
+      nav.classList.add('hidden');
+    }
+  }
+}
+
+// ---------- BİLGİ TABLOSU POPUP ----------
+function renderInfoTable() {
+  window._tblPages = _normalizePages(_resolveLevelData(TABLE_DATA[_dataKey(currentSub)]));
+  window._tblIdx = 0;
+  _showTablePage();
+}
+function _showTablePage() {
+  const body = document.getElementById('tableBody');
+  const titleEl = document.getElementById('tableTitle');
+  const nav = document.getElementById('tableNav');
+  const counter = document.getElementById('tableCounter');
+  const pages = window._tblPages;
+  if (!pages.length) {
+    body.innerHTML = '<div class="cmp-no-data">Bu konu için tablo verisi yok.</div>';
+    if (titleEl) titleEl.textContent = '📋 Bilgi Tablosu';
+    if (nav) nav.classList.add('hidden');
+    return;
+  }
+  const i = window._tblIdx;
+  const data = pages[i];
+  if (titleEl) titleEl.textContent = '📋 ' + (data.title || 'Bilgi Tablosu');
+  body.innerHTML = _renderTableHTML(data, '');
+  if (nav) {
+    if (pages.length > 1) {
+      nav.classList.remove('hidden');
+      counter.textContent = (i+1) + ' / ' + pages.length;
+      document.getElementById('tablePrev').disabled = (i === 0);
+      document.getElementById('tableNext').disabled = (i === pages.length - 1);
+    } else {
+      nav.classList.add('hidden');
+    }
+  }
+}
+// ============================================================
+// ====== EVENT LISTENERS =====================================
+// ============================================================
+function attachEvents() {
+  (function(){
+    const infoList = document.getElementById('infoList');
+    if (infoList) {
+      ['touchstart','touchmove','touchend','wheel'].forEach(ev => {
+        infoList.addEventListener(ev, (e) => { e.stopPropagation(); }, { passive: true });
+      });
+      infoList.addEventListener('scroll', updateInfoScrollbar, { passive: true });
+    }
+    ['compareBody','tableBody','scenePanel'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) ['touchstart','touchmove','touchend','wheel'].forEach(ev => {
+        el.addEventListener(ev, (e) => { e.stopPropagation(); }, { passive: true });
+      });
+    });
+  })();
+
+  document.getElementById('btnLevel').onclick = () => toggleDropdown('panelLevel');
+  document.getElementById('btnTopic').onclick = () => {
+    const bp = document.getElementById('bottomPanel');
+    if (bp) bp.classList.remove('hidden');
+    toggleDropdown('panelTopic');
+  };
+
+  document.querySelectorAll('#panelLevel .dropdown-item').forEach(item => {
+    item.onclick = () => {
+      const lv = item.dataset.level;
+      if (lv === 'sinav') { currentExamMode = true; currentLevel = 'lise'; }
+      else { currentExamMode = false; currentLevel = lv; }
+      document.querySelectorAll('#panelLevel .dropdown-item').forEach(x => x.classList.remove('active'));
+      item.classList.add('active');
+      const _labels = { ilkokul:'🟢 İlkokul', ortaokul:'🟡 Ortaokul', lise:'🔵 Lise' };
+      document.getElementById('levelLabel').textContent = currentExamMode ? '🎯 Sınavlara Hazırlık' : (lv === 'ilkokul' ? 'İlkokul' : lv === 'ortaokul' ? 'Ortaokul' : 'Lise');
+      closeAllDropdowns();
+      buildTopicDropdown();
+      if (currentSub && !_subVisibleAtLevel(currentSub)) {
+        selectSub(_firstSubAtLevel());
+      } else if (currentSub) {
+        selectSub(currentSub);
+      }
+      if (document.getElementById('compareOverlay').classList.contains('show')) renderCompareTable();
+      if (document.getElementById('tableOverlay').classList.contains('show')) renderInfoTable();
+      if (window._showGestureToast) window._showGestureToast(currentExamMode ? '🎯 Sınavlara Hazırlık' : (_labels[lv] || lv));
+      if (window._haptic) window._haptic(15);
+    };
+  });
+
+  document.getElementById('btnMode').onclick = () => toggleDropdown('panelMode');
+  document.querySelectorAll('#panelMode .dropdown-item').forEach(item => {
+    item.onclick = () => {
+      currentMode = item.dataset.mode;
+      document.querySelectorAll('#panelMode .dropdown-item').forEach(x => x.classList.remove('active'));
+      item.classList.add('active');
+      const btnMode = document.getElementById('btnMode');
+      if (currentMode === 'sade') {
+        btnMode.textContent = '📄'; btnMode.classList.add('active');
+        btnMode.title = 'Görünüm Modu: Sade';
+      } else {
+        btnMode.textContent = '📚'; btnMode.classList.remove('active');
+        btnMode.title = 'Görünüm Modu: Detaylı';
+      }
+      closeAllDropdowns();
+      if (currentSub) { updateInfoPanel(currentSub); applyModeToLabels(); }
+      if (window._haptic) window._haptic(15);
+    };
+  });
+
+  document.getElementById('navPrev').onclick = () => navigate(-1);
+  document.getElementById('navNext').onclick = () => navigate(1);
+
+  document.getElementById('infoCloseBtn').onclick = () => {
+    document.getElementById('bottomPanel').classList.add('hidden');
+  };
+
+  const spinBtn = document.getElementById('spinBtn');
+  spinBtn.onclick = () => {
+    window._autoSpinActive = !window._autoSpinActive;
+    spinBtn.classList.toggle('active', window._autoSpinActive);
+    if (window._currentModelGroup) {
+      window._currentModelGroup.userData.spin = window._autoSpinActive ? 0.3 : 0;
+      if (!dynamicObjects.includes(window._currentModelGroup)) dynamicObjects.push(window._currentModelGroup);
+    }
+    if (window._haptic) window._haptic(15);
+  };
+
+  const labelBtn = document.getElementById('labelBtn');
+  labelBtn.onclick = () => {
+    labelsVisible = !labelsVisible;
+    window._leaderLinesVisible = labelsVisible;
+    labelBtn.classList.toggle('active', labelsVisible);
+    document.querySelectorAll('.info3d-label, .label3d').forEach(el => {
+      if (labelsVisible) {
+        el.dataset.labelHidden = '0';
+        if (el.dataset.userHidden !== '1') el.style.display = 'block';
+      } else {
+        el.dataset.labelHidden = '1';
+        el.style.display = 'none';
+      }
+    });
+    if (!labelsVisible) {
+      const svg = document.getElementById('leaderLines');
+      if (svg) svg.innerHTML = '';
+    }
+    if (window._haptic) window._haptic(15);
+  };
+  window._leaderLinesVisible = true;
+  labelBtn.classList.add('active');
+
+  const animBtn = document.getElementById('animBtn');
+  animBtn.onclick = () => {
+    window._isPlayingActive = !window._isPlayingActive;
+    animBtn.classList.toggle('active', window._isPlayingActive);
+    animBtn.querySelector('.ico').textContent = window._isPlayingActive ? '⏸️' : '▶️';
+    const lbl = animBtn.querySelector('span:last-child');
+    if (lbl) lbl.textContent = window._isPlayingActive ? 'Durdur' : 'Çalıştır';
+    if (window._showGestureToast) {
+      window._showGestureToast(window._isPlayingActive ? '▶️ Animasyon başladı' : '⏸️ Duraklatıldı');
+    }
+    if (window._haptic) window._haptic(15);
+  };
+  animBtn.classList.remove('active');
+  animBtn.querySelector('.ico').textContent = '▶️';
+
+  document.getElementById('btnTheme').onclick = () => {
+    document.body.classList.toggle('light-mode');
+    const isLight = document.body.classList.contains('light-mode');
+    document.getElementById('btnTheme').textContent = isLight ? '☀️' : '🌙';
+    window._lightMode = isLight;
+    applySceneTheme();
+    if (currentSub) selectSub(currentSub);
+    if (window._haptic) window._haptic(15);
+  };
+
+  document.getElementById('btnFs').onclick = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+    } else {
+      document.exitFullscreen && document.exitFullscreen();
+    }
+    if (window._haptic) window._haptic(15);
+  };
+
+  document.getElementById('btnSend').onclick = () => {
+    document.getElementById('shareOverlay').classList.add('show');
+  };
+  document.getElementById('shareClose').onclick = () => {
+    document.getElementById('shareOverlay').classList.remove('show');
+  };
+  document.getElementById('shareWhatsApp').onclick = () => {
+    const txt = encodeURIComponent('🔗 Kimyasal Türler Arası Etkileşimler (Bağlar) — 3D interaktif kimya simülasyonu (ilkokuldan liseye)!');
+    window.open('https://wa.me/?text=' + txt, '_blank');
+  };
+  document.getElementById('shareCopy').onclick = () => {
+    try { navigator.clipboard.writeText(window.location.href); } catch(e){}
+    if (window._showGestureToast) window._showGestureToast('📋 Bağlantı kopyalandı');
+    document.getElementById('shareOverlay').classList.remove('show');
+  };
+  document.getElementById('shareDownload').onclick = () => {
+    try {
+      const link = document.createElement('a');
+      link.download = 'kimyasal-tepkimeler.png';
+      link.href = renderer.domElement.toDataURL('image/png');
+      link.click();
+    } catch(e){}
+    document.getElementById('shareOverlay').classList.remove('show');
+  };
+
+  document.getElementById('btnCompare').onclick = () => {
+    renderCompareTable();
+    document.getElementById('compareOverlay').classList.add('show');
+  };
+  document.getElementById('compareClose').onclick = () => {
+    document.getElementById('compareOverlay').classList.remove('show');
+  };
+  document.getElementById('comparePrev').onclick = () => {
+    if (window._cmpIdx > 0) { window._cmpIdx--; _showComparePage(); if (window._haptic) window._haptic(10); }
+  };
+  document.getElementById('compareNext').onclick = () => {
+    if (window._cmpIdx < window._cmpPages.length - 1) { window._cmpIdx++; _showComparePage(); if (window._haptic) window._haptic(10); }
+  };
+
+  document.getElementById('btnTable').onclick = () => {
+    renderInfoTable();
+    document.getElementById('tableOverlay').classList.add('show');
+  };
+  document.getElementById('tableClose').onclick = () => {
+    document.getElementById('tableOverlay').classList.remove('show');
+  };
+  document.getElementById('tablePrev').onclick = () => {
+    if (window._tblIdx > 0) { window._tblIdx--; _showTablePage(); if (window._haptic) window._haptic(10); }
+  };
+  document.getElementById('tableNext').onclick = () => {
+    if (window._tblIdx < window._tblPages.length - 1) { window._tblIdx++; _showTablePage(); if (window._haptic) window._haptic(10); }
+  };
+
+  ['shareOverlay','compareOverlay','tableOverlay'].forEach(id => {
+    const ov = document.getElementById(id);
+    ov.onclick = (e) => { if (e.target === ov) ov.classList.remove('show'); };
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.dropdown-panel') && !e.target.closest('.stack-btn') && !e.target.closest('.tool-icon-btn')) {
+      closeAllDropdowns();
+    }
+  });
+}
+
+// ============================================================
+// ====== BAŞLATMA ============================================
+// ============================================================
+init();
+attachEvents();
+buildTopicDropdown();
+const _le = document.getElementById('levelLabel'); if (_le) _le.textContent = 'Lise';
+selectSub(_firstSubAtLevel());
+animate();
+
+console.log('Kimyasal Tepkimeler ve Tepkime Hizi simulasyonu baslatildi');
+</script>
+</body>
+</html>

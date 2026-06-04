@@ -1,0 +1,4039 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>🧭 Bileşke Kuvvet ve Vektörler (TYT/AYT)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Baloo+2:wght@500;600;700;800&display=swap');
+
+  :root {
+    --bg:#0a0e1a;
+    --panel:#161b2e;
+    --panel-soft:#1f2540;
+    --panel-line:#2f3a5f;
+    --ink:#eef0ff;
+    --ink-soft:#a8b0d0;
+    --accent:#f6b93b;
+    --accent-glow:#ffd166;
+    --warning:#ffd166;
+    --cartilage:#9d7fe6;
+    --muscle:#c45d5d;
+    --joint:#5fc8e0;
+    --xylem:#d97043;
+    --phloem:#5fb8e8;
+    --chloro:#2ecc40;
+    --bone:#e0c088;
+  }
+
+  body.light-mode {
+    --bg:#f3f6fb;
+    --panel:#ffffff;
+    --panel-soft:#eef2f8;
+    --panel-line:#d0d8e3;
+    --ink:#1a2030;
+    --ink-soft:#5a6070;
+    --accent:#e0901b;
+    --accent-glow:#c47a10;
+  }
+
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; margin:0; padding:0; }
+  html, body {
+    overflow:hidden;
+    background:var(--bg); color:var(--ink);
+    font-family:'Fredoka',sans-serif; user-select:none;
+    width:100vw; height:100vh;
+    transition:background 0.3s, color 0.3s;
+  }
+  body { touch-action:none; }
+  canvas { display:block; cursor:grab; }
+  canvas:active { cursor:grabbing; }
+  #canvasContainer { position:absolute; inset:0; width:100%; height:100%; z-index:1; }
+
+  .left-stack {
+    position:absolute;
+    top:14px; right:14px;
+    z-index:30;
+    display:flex; flex-direction:column; gap:8px;
+    align-items:flex-end;
+  }
+
+  .stack-btn {
+    display:flex; align-items:center; gap:7px;
+    background:var(--panel);
+    border:2px solid var(--panel-line);
+    border-radius:12px;
+    padding:8px 14px;
+    font-family:'Fredoka',sans-serif; font-weight:600;
+    font-size:12.5px;
+    color:var(--ink);
+    cursor:pointer;
+    box-shadow:0 4px 12px rgba(0,0,0,0.25);
+    transition:all 0.15s;
+    min-width:170px;
+  }
+  .stack-btn:hover {
+    border-color:var(--accent);
+    transform:translateY(-1px);
+    box-shadow:0 6px 16px rgba(0,0,0,0.35);
+  }
+  .stack-btn:active { transform:scale(0.97); }
+  .stack-btn .sb-emoji { font-size:16px; line-height:1; flex-shrink:0; }
+  .stack-btn .sb-label { flex:1; text-align:left; }
+  .stack-btn .sb-arrow { font-size:10px; opacity:0.7; }
+
+  .stack-btn.level { background:linear-gradient(135deg, #f6b93b 0%, #ffd166 100%); color:#1a1410; border-color:#ffd166; }
+  .stack-btn.topic { background:linear-gradient(135deg, #5fc8e0 0%, #7adcf0 100%); color:#0a1420; border-color:#7adcf0; }
+
+  .dropdown-panel {
+    position:absolute;
+    background:var(--panel);
+    border:2px solid var(--accent);
+    border-radius:14px;
+    padding:8px;
+    z-index:50;
+    box-shadow:0 12px 32px rgba(0,0,0,0.5);
+    min-width:230px; max-width:300px;
+    max-height:60vh; overflow-y:auto;
+    display:none;
+  }
+  .dropdown-panel.show { display:block; }
+  .dropdown-title {
+    font-family:'Baloo 2', cursive; font-weight:800;
+    font-size:12px;
+    color:var(--accent-glow);
+    padding:6px 8px 8px;
+    text-transform:uppercase; letter-spacing:0.6px;
+    border-bottom:1px solid var(--panel-line);
+    margin-bottom:6px;
+  }
+  .dropdown-item {
+    display:flex; align-items:center; gap:8px;
+    width:100%; text-align:left;
+    background:var(--panel-soft);
+    border:1.5px solid transparent;
+    border-radius:9px;
+    padding:8px 11px; margin-bottom:4px;
+    font-family:'Fredoka',sans-serif; font-weight:500; font-size:12.5px;
+    color:var(--ink); cursor:pointer;
+    transition:all 0.12s;
+  }
+  .dropdown-item:hover {
+    background:var(--panel-line);
+    border-color:var(--accent);
+    transform:translateX(2px);
+  }
+  .dropdown-item.active {
+    background:linear-gradient(135deg, var(--accent), var(--accent-glow));
+    color:#0a1420; font-weight:700;
+    border-color:#fff;
+  }
+  .dropdown-item .di-emoji { font-size:15px; flex-shrink:0; }
+  .dropdown-cat-head {
+    font-size:10.5px; color:var(--accent-glow); font-weight:700;
+    padding:8px 10px 4px;
+    text-transform:uppercase; letter-spacing:0.5px;
+    border-top:1px solid var(--panel-line);
+    margin-top:4px;
+  }
+  .dropdown-cat-head:first-child { border-top:none; margin-top:0; }
+
+  .right-tools {
+    position:absolute;
+    top:14px; left:14px;
+    z-index:30;
+    display:flex; gap:8px;
+    flex-wrap:nowrap;
+  }
+  .tool-icon-btn {
+    width:42px; height:42px;
+    background:var(--panel);
+    border:2px solid var(--panel-line);
+    border-radius:12px;
+    cursor:pointer;
+    display:grid; place-items:center;
+    font-size:18px;
+    color:var(--ink);
+    box-shadow:0 4px 12px rgba(0,0,0,0.3);
+    transition:all 0.15s;
+    flex-shrink:0;
+  }
+  .tool-icon-btn:hover {
+    border-color:var(--accent);
+    transform:translateY(-1px);
+    box-shadow:0 6px 16px rgba(0,0,0,0.4);
+  }
+  .tool-icon-btn:active { transform:scale(0.92); }
+
+  .tool-icon-btn.fs { border-color:var(--joint); color:var(--joint); }
+  .tool-icon-btn.fs:hover { background:var(--joint); color:#0a1420; }
+  .tool-icon-btn.send { border-color:var(--warning); color:var(--warning); }
+  .tool-icon-btn.send:hover { background:var(--warning); color:#0a1420; }
+  .tool-icon-btn.theme { border-color:var(--cartilage); color:var(--cartilage); }
+  .tool-icon-btn.theme:hover { background:var(--cartilage); color:#0a1420; }
+  .tool-icon-btn.mode { border-color:var(--chloro); color:var(--chloro); }
+  .tool-icon-btn.mode:hover { background:var(--chloro); color:#0a1420; }
+  .tool-icon-btn.mode.active { background:var(--chloro); color:#0a1420; }
+  .tool-icon-btn.compare { border-color:var(--muscle); color:var(--muscle); }
+  .tool-icon-btn.compare:hover { background:var(--muscle); color:#fff; }
+  .tool-icon-btn.table { border-color:var(--bone); color:var(--bone); }
+  .tool-icon-btn.table:hover { background:var(--bone); color:#0a1420; }
+  .bottom-panel {
+    position:absolute;
+    bottom:10px;
+    left:14px; right:14px;
+    z-index:25;
+    background:var(--panel);
+    border:2px solid var(--panel-line);
+    border-radius:12px;
+    padding:9px 12px 8px;
+    box-shadow:0 -6px 24px rgba(0,0,0,0.4);
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .bottom-panel.hidden { display:none; }
+
+  .info-close-btn {
+    position:absolute;
+    top:-13px; left:4px;
+    width:22px; height:22px;
+    background:var(--panel);
+    border:2px solid var(--panel-line);
+    border-radius:50%;
+    color:var(--ink-soft);
+    font-size:11px;
+    font-weight:700;
+    cursor:pointer;
+    display:grid; place-items:center;
+    line-height:1;
+    padding:0;
+    z-index:2;
+    transition:all 0.12s;
+    box-shadow:0 2px 8px rgba(0,0,0,0.3);
+  }
+  .info-close-btn:hover {
+    background:var(--panel-soft);
+    border-color:var(--accent);
+    color:var(--accent);
+  }
+  .info-close-btn:active { transform:scale(0.9); }
+
+  .info-area {
+    display:flex; gap:9px;
+    align-items:flex-start;
+  }
+  .info-emoji-box {
+    width:30px; height:30px;
+    border-radius:8px;
+    background:linear-gradient(135deg, var(--accent), var(--cartilage));
+    display:grid; place-items:center;
+    font-size:17px;
+    flex-shrink:0;
+    box-shadow:0 3px 11px rgba(246,185,59,0.4);
+  }
+  .info-text-area {
+    flex:1; min-width:0;
+  }
+  .info-title-row {
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:3px;
+  }
+  .info-title {
+    font-family:'Baloo 2', cursive; font-weight:800;
+    font-size:12.5px;
+    color:var(--accent-glow);
+  }
+  .nav-buttons {
+    display:flex; gap:4px;
+  }
+  .nav-mini-btn {
+    width:19px; height:19px;
+    background:var(--panel-soft);
+    border:1.5px solid var(--accent);
+    border-radius:5px;
+    cursor:pointer;
+    display:grid; place-items:center;
+    color:var(--accent);
+    font-size:9px;
+    transition:all 0.12s;
+  }
+  .nav-mini-btn:hover {
+    background:var(--accent);
+    color:#0a1420;
+  }
+  .info-list {
+    list-style:none;
+    padding:0; margin:0;
+    max-height:22vh;
+    overflow-y:auto;
+    overflow-x:hidden;
+    -webkit-overflow-scrolling:touch;
+    touch-action:pan-y;
+    overscroll-behavior:contain;
+    scrollbar-width:thin;
+    scrollbar-color:var(--accent) transparent;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%);
+    mask-image: linear-gradient(to bottom, transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%);
+    padding-right:4px;
+  }
+  .info-list::-webkit-scrollbar { width:5px; }
+  .info-list::-webkit-scrollbar-thumb { background:var(--accent); border-radius:3px; }
+  .info-list::-webkit-scrollbar-track { background:rgba(255,255,255,0.06); border-radius:3px; }
+  .info-list li {
+    padding:1px 0 1px 11px;
+    margin-bottom:0;
+    background:transparent;
+    border:none;
+    border-radius:0;
+    font-size:10.5px;
+    line-height:1.32;
+    color:var(--ink);
+    position:relative;
+  }
+  .info-list li::before {
+    content:'•';
+    position:absolute;
+    left:2px; top:1px;
+    color:var(--accent);
+    font-weight:700;
+    font-size:11px;
+  }
+  .info-list li b {
+    color:var(--accent-glow);
+    font-weight:700;
+  }
+  .info-list li.subhead {
+    background:transparent;
+    border-left:none;
+    color:var(--warning);
+    font-weight:700;
+    font-size:11.5px;
+    margin-top:5px;
+    margin-bottom:2px;
+    padding:0 0 1px 0;
+    font-style:normal;
+  }
+  .info-list li.subhead::before {
+    content:'';
+  }
+
+  .action-row {
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr;
+    gap:8px;
+  }
+  .action-btn {
+    display:flex; align-items:center; justify-content:center; gap:5px;
+    background:var(--panel-soft);
+    border:none;
+    border-radius:8px;
+    padding:6px 9px;
+    font-family:'Fredoka',sans-serif; font-weight:700;
+    font-size:10.5px;
+    color:#fff;
+    cursor:pointer;
+    transition:all 0.15s;
+  }
+  .action-btn:active { transform:scale(0.96); }
+  .action-btn .ico { font-size:12px; }
+
+  .action-btn.spin {
+    background:linear-gradient(135deg, var(--warning), #dba830);
+    color:#1a1410;
+  }
+  .action-btn.label {
+    background:linear-gradient(135deg, var(--cartilage), #7a5fb8);
+  }
+  .action-btn.anim {
+    background:linear-gradient(135deg, var(--muscle), #a04545);
+  }
+  .action-btn.active {
+    box-shadow:0 0 0 2px #fff, 0 0 12px rgba(255,255,255,0.4);
+  }
+
+  .slider-bar {
+    position:absolute;
+    top:62px;
+    left:14px;
+    background:var(--panel);
+    border:2px solid var(--joint);
+    border-radius:10px;
+    padding:8px 11px;
+    z-index:20;
+    display:none;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:6px;
+    box-shadow:0 4px 16px rgba(0,0,0,0.4);
+    max-width:230px;
+  }
+  .slider-bar.show { display:flex; }
+
+  .label3d {
+    color:#ffffff; font-size:11.5px;
+    padding:3px 8px;
+    background:rgba(10, 14, 26, 0.92);
+    border:1.5px solid var(--accent);
+    border-radius:6px;
+    pointer-events:none; white-space:nowrap;
+    font-family:'Fredoka', sans-serif; font-weight:500;
+    text-shadow:0 1px 2px rgba(0,0,0,0.85);
+    box-shadow:0 2px 8px rgba(0,0,0,0.5);
+  }
+  .label3d.xylem { border-color:var(--xylem); color:#ffd4b0; }
+  .label3d.phloem { border-color:var(--phloem); color:#b8e0ff; }
+  .label3d.chloro { border-color:var(--chloro); color:#b8ffc8; }
+  .label3d.epi { border-color:#a8d0b0; color:#dfe8e2; }
+  .label3d.endo { border-color:#e69138; color:#ffd4a0; }
+  .label3d.warn { border-color:#e74c3c; color:#ffb0a0; }
+
+  .share-overlay {
+    position:absolute; inset:0; z-index:60;
+    background:rgba(10,14,26,0.82); backdrop-filter:blur(4px);
+    display:none; align-items:center; justify-content:center; padding:20px;
+  }
+  .share-overlay.show { display:flex; }
+  .share-card {
+    background:var(--panel);
+    border:2px solid var(--accent);
+    border-radius:20px;
+    padding:18px;
+    width:min(360px, 92vw);
+    box-shadow:0 20px 60px rgba(0,0,0,0.6);
+  }
+  .share-head {
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:14px;
+  }
+  .share-head-text {
+    font-family:'Baloo 2', cursive; font-weight:800;
+    font-size:16px; color:var(--accent);
+  }
+  .share-close-btn {
+    width:30px; height:30px;
+    background:var(--panel-soft);
+    border:1.5px solid var(--panel-line);
+    border-radius:9px;
+    color:var(--ink);
+    cursor:pointer;
+    font-size:14px;
+  }
+  .share-actions {
+    display:flex; flex-direction:column; gap:9px;
+  }
+  .share-action-btn {
+    display:flex; align-items:center; gap:12px;
+    background:var(--panel-soft);
+    border:1.5px solid var(--panel-line);
+    border-radius:13px;
+    padding:11px 14px;
+    cursor:pointer;
+    text-align:left;
+    color:var(--ink);
+    font-family:'Fredoka', sans-serif;
+    transition:all 0.15s;
+  }
+  .share-action-btn:hover {
+    border-color:var(--accent);
+    background:var(--panel-line);
+  }
+  .share-action-btn .sa-ico {
+    font-size:22px; flex-shrink:0;
+  }
+  .share-action-btn .sa-text b {
+    display:block; font-weight:700; font-size:13px;
+  }
+  .share-action-btn .sa-text small {
+    font-size:11px; opacity:0.7;
+  }
+  .share-action-btn.primary {
+    background:linear-gradient(135deg, #25d366, #1da851);
+    border-color:#25d366;
+    color:#fff;
+  }
+
+  .cmp-card {
+    width:min(540px, 92vw) !important;
+    max-height:85vh; overflow-y:auto;
+  }
+  .cmp-body {
+    overflow-x:auto;
+    padding:4px 0 8px;
+  }
+  .cmp-table {
+    width:100%;
+    border-collapse:collapse;
+    font-size:12.5px;
+    border-radius:8px;
+    overflow:hidden;
+  }
+  .cmp-table th, .cmp-table td {
+    padding:9px 11px;
+    text-align:left;
+    border-bottom:1px solid var(--panel-line);
+  }
+  .cmp-table th {
+    background:linear-gradient(135deg, var(--accent) 0%, var(--accent-glow) 100%);
+    color:#0a1420;
+    font-family:'Baloo 2', cursive;
+    font-weight:800;
+    font-size:12px;
+    position:sticky; top:0;
+    text-shadow:0 1px 0 rgba(255,255,255,0.2);
+  }
+  .cmp-table th:first-child { border-radius:7px 0 0 0; }
+  .cmp-table th:last-child { border-radius:0 7px 0 0; }
+  .cmp-table tbody tr:nth-child(odd) td { background:rgba(246,185,59,0.04); }
+  .cmp-table tbody tr:nth-child(even) td { background:rgba(246,185,59,0.10); }
+  .cmp-table td { color:var(--ink); line-height:1.4; }
+  .cmp-table td:first-child {
+    font-weight:700;
+    color:var(--warning);
+    white-space:nowrap;
+    border-right:2px solid var(--accent);
+  }
+  .cmp-table.compare-style td:nth-child(2) { color:#ffd166; font-weight:600; }
+  .cmp-table.compare-style td:nth-child(3) { color:#7adcf0; font-weight:600; }
+  .cmp-table.compare-style td:nth-child(4) { color:#9d7fe6; font-weight:600; }
+  .cmp-table th:nth-child(2),
+  .cmp-table th:nth-child(3),
+  .cmp-table th:nth-child(4) { border-left:1px dashed rgba(255,255,255,0.3); }
+  .cmp-table tr:hover td { background:rgba(246,185,59,0.20) !important; }
+  .cmp-no-data {
+    text-align:center;
+    padding:24px 12px;
+    color:var(--ink-soft);
+    font-style:italic;
+    font-size:13px;
+  }
+
+  .cmp-nav {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:8px 4px 0;
+    margin-top:8px;
+    border-top:1px solid var(--panel-line);
+  }
+  .cmp-nav.hidden { display:none; }
+  .cmp-nav-btn {
+    background:var(--panel-soft);
+    border:1.5px solid var(--accent);
+    color:var(--accent);
+    border-radius:8px;
+    padding:6px 12px;
+    font-family:'Fredoka',sans-serif;
+    font-weight:600;
+    font-size:12px;
+    cursor:pointer;
+    transition:all 0.12s;
+    display:flex; align-items:center; gap:5px;
+  }
+  .cmp-nav-btn:hover { background:var(--accent); color:#0a1420; }
+  .cmp-nav-btn:active { transform:scale(0.96); }
+  .cmp-nav-btn:disabled {
+    opacity:0.35;
+    cursor:not-allowed;
+    background:var(--panel-soft);
+    color:var(--ink-soft);
+    border-color:var(--panel-line);
+  }
+  .cmp-nav-counter {
+    font-family:'Baloo 2', cursive;
+    font-weight:700;
+    font-size:12px;
+    color:var(--accent-glow);
+    background:var(--panel-soft);
+    padding:4px 10px;
+    border-radius:8px;
+    border:1px solid var(--panel-line);
+  }
+
+  ::-webkit-scrollbar { width:6px; height:6px; }
+  ::-webkit-scrollbar-thumb { background:var(--panel-line); border-radius:3px; }
+  ::-webkit-scrollbar-track { background:rgba(0,0,0,0.15); }
+
+  #loading {
+    position:fixed; inset:0; background:var(--bg);
+    display:flex; align-items:center; justify-content:center;
+    z-index:200; color:var(--accent-glow); font-size:18px;
+    font-family:'Baloo 2', sans-serif; font-weight:700;
+    transition:opacity 0.5s;
+  }
+  #loading.hide { opacity:0; pointer-events:none; }
+
+  #errorBox {
+    display:none; position:fixed; top:80px; left:50%;
+    transform:translateX(-50%);
+    background:rgba(180,30,30,0.95); color:white;
+    padding:20px; border-radius:8px; z-index:9999;
+    max-width:80%; font-family:monospace; font-size:13px;
+    white-space:pre-wrap;
+    box-shadow:0 4px 20px rgba(0,0,0,0.8);
+    border:2px solid #ff6060;
+  }
+
+  @media (max-width:600px) {
+    .stack-btn { min-width:140px; font-size:11px; padding:7px 11px; }
+    .stack-btn .sb-label { font-size:11px; }
+    .right-tools { gap:5px; left:8px; }
+    .tool-icon-btn { width:34px; height:34px; font-size:14px; border-radius:9px; }
+    .bottom-panel { padding:11px 12px 9px; gap:9px; }
+    .info-emoji-box { width:36px; height:36px; font-size:20px; }
+    .info-title { font-size:13px; }
+    .info-list li { font-size:11.5px; padding:4px 7px; }
+    .info-list { max-height:26vh; }
+    .action-btn { font-size:11px; padding:7px 8px; }
+    .dropdown-panel { min-width:200px; }
+    .dropdown-item { font-size:11.5px; padding:7px 9px; }
+    #panelMode { left:8px !important; }
+  }
+  @media (max-width:420px) {
+    .stack-btn { min-width:130px; font-size:10.5px; padding:6px 9px; }
+    .right-tools { gap:4px; left:6px; }
+    .tool-icon-btn { width:30px; height:30px; font-size:13px; border-radius:8px; border-width:1.5px; }
+    #panelMode { left:6px !important; }
+  }
+  @media (max-width:360px) {
+    .stack-btn { min-width:115px; font-size:10px; padding:5px 8px; }
+    .right-tools { gap:3px; left:5px; }
+    .tool-icon-btn { width:28px; height:28px; font-size:12px; }
+    #panelMode { left:5px !important; }
+  }
+
+  .region-list {
+    display: none !important;
+  }
+
+  .scene-panel {
+    position: fixed;
+    right: 12px;
+    top: 120px;
+    width: 280px;
+    max-height: calc(100vh - 120px - 220px);
+    overflow-y: auto;
+    background: rgba(15, 20, 30, 0.88);
+    border: 1px solid rgba(246, 185, 59, 0.35);
+    border-radius: 14px;
+    padding: 10px;
+    z-index: 40;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    font-size: 11.5px;
+    color: rgba(255, 255, 255, 0.92);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: all 0.3s ease;
+  }
+  .scene-panel.collapsed {
+    width: auto;
+    padding: 6px 10px;
+  }
+  .scene-panel.collapsed > *:not(.sp-toggle) { display: none; }
+  .scene-panel.empty { display: none; }
+
+  body.dropdown-open .scene-panel {
+    transform: none;
+  }
+
+  @media (min-width: 768px) {
+    canvas {
+      transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    body.scene-panel-open canvas {
+      transform: translateX(-15vw);
+    }
+    body.panel-open canvas {
+      transform: translateX(-22vw);
+    }
+  }
+
+  .sp-stepper {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 6px;
+    padding: 2px 3px;
+  }
+  .sp-step-btn {
+    width: 22px;
+    height: 22px;
+    background: rgba(246, 185, 59, 0.3);
+    border: 1px solid rgba(246, 185, 59, 0.6);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    transition: all 0.15s;
+    padding: 0;
+  }
+  .sp-step-btn:hover {
+    background: rgba(246, 185, 59, 0.55);
+    transform: scale(1.1);
+  }
+  .sp-step-btn:active { transform: scale(0.92); }
+  .sp-slider-row .sp-stepper .sp-val {
+    min-width: 40px;
+    background: transparent;
+    padding: 0 4px;
+    font-size: 11px;
+  }
+  .sp-toggle {
+    background: rgba(246, 185, 59, 0.18);
+    border: 1px solid rgba(246, 185, 59, 0.5);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+  }
+  .sp-toggle:hover { background: rgba(246, 185, 59, 0.32); }
+  .sp-section {
+    font-size: 10px; font-weight: 700;
+    color: rgba(255, 209, 90, 0.85);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin: 6px 4px 2px 4px;
+  }
+
+  .sp-slider-row {
+    display: flex; flex-direction: column; gap: 4px;
+    padding: 8px 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+  }
+  .sp-slider-row .sp-slider-head {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11.5px; font-weight: 500;
+  }
+  .sp-slider-row .sp-slider-head .sp-val {
+    font-family: 'Consolas', monospace;
+    font-size: 12px; font-weight: 700;
+    color: #FFD54F;
+    background: rgba(0,0,0,0.45);
+    padding: 2px 8px;
+    border-radius: 6px;
+    min-width: 50px; text-align: center;
+  }
+  .sp-slider-row .sp-sub {
+    font-size: 9.5px;
+    color: rgba(255, 255, 255, 0.5);
+    margin-top: -2px;
+    line-height: 1.2;
+  }
+  .sp-slider-row input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 6px;
+    background: linear-gradient(to right, #42A5F5, #FFCA28, #EF5350);
+    border-radius: 3px;
+    outline: none;
+    margin: 6px 0 2px 0;
+  }
+  .sp-slider-row input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    background: #fff;
+    border: 2px solid #f6b93b;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    transition: transform 0.1s;
+  }
+  .sp-slider-row input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+  .sp-slider-row input[type=range]::-moz-range-thumb {
+    width: 18px; height: 18px;
+    background: #fff;
+    border: 2px solid #f6b93b;
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  .sp-display {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 7px 10px;
+    background: rgba(246, 185, 59, 0.10);
+    border: 1px solid rgba(246, 185, 59, 0.28);
+    border-radius: 9px;
+    font-size: 11px;
+  }
+  .sp-display .sp-label { color: rgba(255,255,255,0.85); }
+  .sp-display .sp-val {
+    font-family: 'Consolas', monospace;
+    font-size: 12px; font-weight: 700; color: #FFE082;
+    background: rgba(0,0,0,0.35); padding: 2px 8px; border-radius: 6px;
+  }
+  .sp-display.highlight {
+    background: rgba(255, 175, 50, 0.15);
+    border-color: rgba(255, 175, 50, 0.5);
+  }
+  .sp-display.highlight .sp-val { color: #FFC107; }
+
+  .sp-presets {
+    display: flex; gap: 4px; flex-wrap: wrap;
+  }
+  .sp-preset-btn {
+    flex: 1; min-width: 50px;
+    padding: 6px 6px; font-size: 10.5px; font-weight: 500;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.18);
+    color: rgba(255,255,255,0.8);
+    border-radius: 6px; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .sp-preset-btn:hover { background: rgba(246,185,59,0.25); color: #fff; }
+  .sp-preset-btn.active {
+    background: rgba(246,185,59,0.5);
+    border-color: rgba(246,185,59,0.8);
+    color: #fff; font-weight: 600;
+  }
+
+  .sp-formula {
+    padding: 8px 10px;
+    background: rgba(255, 200, 50, 0.10);
+    border: 1px solid rgba(255, 200, 50, 0.35);
+    border-radius: 9px;
+    text-align: center;
+    font-family: 'Consolas', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: #FFE082;
+  }
+
+  @media (max-width: 768px) {
+    .scene-panel {
+      right: 8px;
+      top: 110px;
+      width: 200px;
+      font-size: 10.5px;
+      padding: 8px;
+    }
+    .sp-slider-row { padding: 6px 8px; }
+    .sp-slider-row input[type=range] { height: 5px; }
+  }
+
+  body.panel-open .scene-panel { }
+</style>
+</head>
+<body>
+
+<div id="loading">🧭 Bileşke Kuvvet ve Vektörler yükleniyor...</div>
+
+<div id="touchHintOverlay" style="
+  position:fixed; bottom:128px; left:50%; transform:translateX(-50%) translateY(20px);
+  background:rgba(15,25,40,0.96); color:#fff; padding:14px 18px;
+  border-radius:18px; z-index:95; pointer-events:auto;
+  border:1.5px solid rgba(246, 185, 59, 0.55);
+  box-shadow:0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05);
+  opacity:0; transition:all 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  font-size:12.5px; max-width:340px; line-height:1.5;
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+">
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; padding-bottom:7px; border-bottom:1px solid rgba(255,255,255,0.1);">
+    <span style="font-weight:600; font-size:13px; color:#f6b93b;">🤏 Dokunma Hareketleri</span>
+    <button id="touchHintClose" style="background:none; border:none; color:rgba(255,255,255,0.6); font-size:18px; cursor:pointer; padding:0 4px; line-height:1;">×</button>
+  </div>
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px 12px;">
+    <div style="display:flex; align-items:center; gap:8px;"><span style="font-size:16px;">👆</span><span style="opacity:0.92;">Sürükle → döndür</span></div>
+    <div style="display:flex; align-items:center; gap:8px;"><span style="font-size:16px;">✌️</span><span style="opacity:0.92;">Pinch → zoom</span></div>
+    <div style="display:flex; align-items:center; gap:8px;"><span style="font-size:16px;">🖐️</span><span style="opacity:0.92;">3 parmak → reset</span></div>
+    <div style="display:flex; align-items:center; gap:8px;"><span style="font-size:16px;">⏱️</span><span style="opacity:0.92;">Basılı tut → bilgi</span></div>
+  </div>
+</div>
+
+<div id="resetPulse" style="
+  position:fixed; top:50%; left:50%; transform:translate(-50%, -50%) scale(0);
+  width:100px; height:100px; border-radius:50%;
+  background:radial-gradient(circle, rgba(246,185,59,0.5) 0%, rgba(246,185,59,0) 70%);
+  pointer-events:none; z-index:200; opacity:0;
+  transition:transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease;
+">
+  <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:42px;">🔄</div>
+</div>
+
+<div id="regionList" class="region-list"></div>
+<div id="scenePanel" class="scene-panel"></div>
+
+<div id="gestureToast" style="
+  position:fixed; top:90px; left:50%; transform:translateX(-50%) translateY(-20px);
+  background:rgba(15,25,40,0.95); color:#fff; padding:10px 18px;
+  border-radius:22px; z-index:180; pointer-events:none;
+  border:1.5px solid rgba(246, 185, 59, 0.7);
+  box-shadow:0 4px 22px rgba(0,0,0,0.5);
+  font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+  font-size:12.5px; font-weight:500;
+  opacity:0; transition:all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space:nowrap;
+"></div>
+
+<div class="left-stack">
+  <button class="stack-btn level" id="btnLevel">
+    <span class="sb-emoji">🎓</span>
+    <span class="sb-label" id="levelLabel">Lise</span>
+    <span class="sb-arrow">▼</span>
+  </button>
+  <button class="stack-btn topic" id="btnTopic">
+    <span class="sb-emoji">📚</span>
+    <span class="sb-label">Konu Rehberi</span>
+    <span class="sb-arrow">▼</span>
+  </button>
+</div>
+
+<div class="dropdown-panel" id="panelLevel" style="top:60px; right:14px;">
+  <div class="dropdown-title">🎓 Eğitim Seviyesi</div>
+  <button class="dropdown-item" data-level="ilkokul"><span class="di-emoji">🧒</span>İlkokul</button>
+  <button class="dropdown-item" data-level="ortaokul"><span class="di-emoji">🎒</span>Ortaokul</button>
+  <button class="dropdown-item active" data-level="lise"><span class="di-emoji">📘</span>Lise</button>
+  <button class="dropdown-item" data-level="tyt_ayt"><span class="di-emoji">🎯</span>TYT-AYT</button>
+</div>
+
+<div class="dropdown-panel" id="panelTopic" style="top:106px; right:14px;">
+  <div class="dropdown-title">📚 Konu Rehberi</div>
+  <div id="topicList"></div>
+</div>
+
+<div class="right-tools">
+  <button class="tool-icon-btn mode active" id="btnMode" title="Görünüm Modu: Sade">📄</button>
+  <button class="tool-icon-btn compare" id="btnCompare" title="Karşılaştırma">⚖️</button>
+  <button class="tool-icon-btn table" id="btnTable" title="Bilgi Tablosu">📋</button>
+  <button class="tool-icon-btn theme" id="btnTheme" title="Tema değiştir">🌙</button>
+  <button class="tool-icon-btn send" id="btnSend" title="Gönder/Paylaş">📤</button>
+  <button class="tool-icon-btn fs" id="btnFs" title="Tam ekran">⛶</button>
+</div>
+
+<div class="dropdown-panel" id="panelMode" style="top:60px; left:14px;">
+  <div class="dropdown-title">📚 Görünüm Modu</div>
+  <button class="dropdown-item" data-mode="detayli"><span class="di-emoji">📚</span><span><b>Detaylı</b><br><small style="opacity:0.7;font-size:10.5px;">Daha çok bilgi</small></span></button>
+  <button class="dropdown-item active" data-mode="sade"><span class="di-emoji">📄</span><span><b>Sade</b><br><small style="opacity:0.7;font-size:10.5px;">Sadece temel bilgiler</small></span></button>
+</div>
+
+<div class="bottom-panel" id="bottomPanel">
+  <button class="info-close-btn" id="infoCloseBtn" title="Bilgi panelini kapat">✕</button>
+  <div class="info-area">
+    <div class="info-emoji-box" id="infoEmoji" style="display:none;">🔦</div>
+    <div class="info-text-area">
+      <div class="info-title-row">
+        <div class="info-title" id="infoTitle">Vektör ve Skaler</div>
+        <div class="nav-buttons">
+          <button class="nav-mini-btn" id="navPrev" title="Önceki">◀</button>
+          <button class="nav-mini-btn" id="navNext" title="Sonraki">▶</button>
+        </div>
+      </div>
+      <ul class="info-list" id="infoList"></ul>
+    </div>
+  </div>
+
+  <div class="action-row">
+    <button class="action-btn spin" id="spinBtn">
+      <span class="ico">🔄</span>
+      <span>Döndür</span>
+    </button>
+    <button class="action-btn label" id="labelBtn">
+      <span class="ico">🏷️</span>
+      <span>Etiketler</span>
+    </button>
+    <button class="action-btn anim" id="animBtn">
+      <span class="ico">▶️</span>
+      <span>Çalıştır</span>
+    </button>
+  </div>
+</div>
+
+<div id="bottomControl" class="slider-bar">
+  <label>💡 Kontrol:</label>
+  <input type="range" id="turgorSlider" min="0" max="100" value="80">
+  <span id="turgorValue">80%</span>
+  <span id="stomaDurum">AÇIK</span>
+</div>
+
+<div class="share-overlay" id="shareOverlay">
+  <div class="share-card">
+    <div class="share-head">
+      <div class="share-head-text">📤 Paylaş</div>
+      <button class="share-close-btn" id="shareClose">✕</button>
+    </div>
+    <div class="share-actions">
+      <button class="share-action-btn primary" id="shareWhatsApp">
+        <span class="sa-ico">💬</span>
+        <span class="sa-text">
+          <b>WhatsApp ile gönder</b>
+          <small>Arkadaşlarınıza paylaşın</small>
+        </span>
+      </button>
+      <button class="share-action-btn" id="shareCopy">
+        <span class="sa-ico">📋</span>
+        <span class="sa-text">
+          <b>Bağlantıyı kopyala</b>
+          <small>Panoya kopyala</small>
+        </span>
+      </button>
+      <button class="share-action-btn" id="shareDownload">
+        <span class="sa-ico">💾</span>
+        <span class="sa-text">
+          <b>Ekran görüntüsü kaydet</b>
+          <small>Cihaza indir</small>
+        </span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="share-overlay" id="compareOverlay">
+  <div class="share-card cmp-card">
+    <div class="share-head">
+      <div class="share-head-text"><span id="compareTitle">⚖️ Karşılaştırma</span></div>
+      <button class="share-close-btn" id="compareClose">✕</button>
+    </div>
+    <div class="cmp-body" id="compareBody"></div>
+    <div class="cmp-nav hidden" id="compareNav">
+      <button class="cmp-nav-btn" id="comparePrev">◀ Önceki</button>
+      <span class="cmp-nav-counter" id="compareCounter">1 / 1</span>
+      <button class="cmp-nav-btn" id="compareNext">Sonraki ▶</button>
+    </div>
+  </div>
+</div>
+
+<div class="share-overlay" id="tableOverlay">
+  <div class="share-card cmp-card">
+    <div class="share-head">
+      <div class="share-head-text" style="color:var(--bone);"><span id="tableTitle">📋 Bilgi Tablosu</span></div>
+      <button class="share-close-btn" id="tableClose">✕</button>
+    </div>
+    <div class="cmp-body" id="tableBody"></div>
+    <div class="cmp-nav hidden" id="tableNav">
+      <button class="cmp-nav-btn" id="tablePrev">◀ Önceki</button>
+      <span class="cmp-nav-counter" id="tableCounter">1 / 1</span>
+      <button class="cmp-nav-btn" id="tableNext">Sonraki ▶</button>
+    </div>
+  </div>
+</div>
+
+<div id="canvasContainer">
+  <svg id="leaderLines" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:9;"></svg>
+</div>
+
+<div id="errorBox"></div>
+
+<script>
+window.addEventListener('error', function(e) {
+  const box = document.getElementById('errorBox');
+  if (!box) return;
+  box.style.display = 'block';
+  box.textContent = '❌ HATA: ' + e.message + '\n\n📍 ' + (e.filename || 'inline') + ':' + e.lineno + ':' + e.colno;
+});
+window.addEventListener('unhandledrejection', function(e) {
+  const box = document.getElementById('errorBox');
+  if (!box) return;
+  box.style.display = 'block';
+  box.textContent = '❌ PROMISE HATASI: ' + (e.reason && e.reason.message ? e.reason.message : e.reason);
+});
+
+window.__moduleLoaded = false;
+setTimeout(function() {
+  if (!window.__moduleLoaded) {
+    const loading = document.getElementById('loading');
+    if (loading) {
+      loading.innerHTML = '<div style="text-align:center; padding:20px;">'+
+        '<h2 style="color:#ff6060;">⚠️ Three.js Yüklenemiyor</h2>'+
+        '<p style="color:#ffdd88;">three.module.min.js erişilemiyor</p>'+
+        '</div>';
+      loading.style.background = '#1a0a0a';
+    }
+  }
+}, 8000);
+</script>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./three.module.min.js"
+  }
+}
+</script>
+
+<script src="./three.global.js"></script>
+<script type="module">
+const THREE = window.THREE;
+
+window.__moduleLoaded = true;
+console.log('✓ Three.js yüklendi:', THREE.REVISION);
+
+window.addEventListener('error', (e) => {
+  const msg = `❌ HATA\n${e.message}\nDosya: ${e.filename || '?'}\nSatır: ${e.lineno || '?'}:${e.colno || '?'}\nStack: ${(e.error && e.error.stack) ? e.error.stack.slice(0, 600) : 'yok'}`;
+  console.error(msg);
+  const ld = document.getElementById('loading');
+  if (ld) {
+    ld.style.display = 'block';
+    ld.style.whiteSpace = 'pre-wrap';
+    ld.style.fontSize = '11px';
+    ld.style.textAlign = 'left';
+    ld.style.maxWidth = '90vw';
+    ld.style.background = 'rgba(120,0,0,0.95)';
+    ld.style.color = '#fff';
+    ld.style.padding = '12px';
+    ld.style.fontFamily = 'monospace';
+    ld.textContent = msg;
+  }
+});
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('❌ Promise hatası:', e.reason);
+});
+// ============== INLINE: CSS2DObject + CSS2DRenderer ==============
+class CSS2DObject extends THREE.Object3D {
+  constructor(element) {
+    super();
+    this.isCSS2DObject = true;
+    this.element = element || document.createElement('div');
+    this.element.style.position = 'absolute';
+    this.element.style.userSelect = 'none';
+    this.addEventListener('removed', () => {
+      this.traverse(obj => {
+        if (obj.element instanceof Element && obj.element.parentNode) {
+          obj.element.parentNode.removeChild(obj.element);
+        }
+      });
+    });
+  }
+}
+
+class CSS2DRenderer {
+  constructor() {
+    this.domElement = document.createElement('div');
+    this.domElement.style.position = 'absolute';
+    this.domElement.style.top = '0';
+    this.domElement.style.left = '0';
+    this.domElement.style.pointerEvents = 'none';
+    this.domElement.style.width = '100%';
+    this.domElement.style.height = '100%';
+    this._w = window.innerWidth;
+    this._h = window.innerHeight;
+    this._vec = new THREE.Vector3();
+  }
+  setSize(w, h) { this._w = w; this._h = h; }
+  render(scene, camera) {
+    const vec = this._vec;
+    const renderer = this;
+    scene.traverse(obj => {
+      if (obj.isCSS2DObject) {
+        obj.getWorldPosition(vec);
+        vec.project(camera);
+        const el = obj.element;
+        if (vec.z > 1 || vec.z < -1) {
+          el.style.display = 'none';
+          return;
+        }
+        if (!el.parentNode) renderer.domElement.appendChild(el);
+        const x = (vec.x + 1) / 2 * renderer._w;
+        const y = (1 - vec.y) / 2 * renderer._h;
+        if (el.dataset.userHidden !== '1' && el.dataset.labelHidden !== '1') el.style.display = 'block';
+        el.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px)`;
+      }
+    });
+  }
+}
+
+// ============== INLINE: OrbitControls (Minimal) ==============
+class OrbitControls extends THREE.EventDispatcher {
+  constructor(camera, domElement) {
+    super();
+    this.object = camera;
+    this.domElement = domElement;
+    this.target = new THREE.Vector3(0, 0, 0);
+    this.enableDamping = true;
+    this.dampingFactor = 0.08;
+    this.minDistance = 1;
+    this.maxDistance = 100;
+    this.enabled = true;
+
+    this._spherical = { theta: 0, phi: Math.PI/3, radius: 20 };
+    this._sphericalDelta = { theta: 0, phi: 0, radius: 1 };
+    this._sphericalTarget = { theta: 0, phi: Math.PI/3, radius: 20 };
+    this._lastCamPos = camera.position.clone();
+    this._lastTarget = this.target.clone();
+
+    this._state = 'NONE';
+    this._lastX = 0;
+    this._lastY = 0;
+    this._panOffset = new THREE.Vector3();
+
+    const dom = domElement;
+
+    const onMouseDown = (e) => {
+      if (!this.enabled) return;
+      this._state = (e.button === 2 || e.shiftKey) ? 'PAN' : 'ROTATE';
+      this._lastX = e.clientX;
+      this._lastY = e.clientY;
+    };
+    const onMouseMove = (e) => {
+      if (this._state === 'NONE' || !this.enabled) return;
+      const dx = e.clientX - this._lastX;
+      const dy = e.clientY - this._lastY;
+      this._lastX = e.clientX;
+      this._lastY = e.clientY;
+      if (this._state === 'ROTATE') {
+        this._sphericalTarget.theta -= dx * 0.005;
+        this._sphericalTarget.phi -= dy * 0.005;
+        this._sphericalTarget.phi = Math.max(0.05, Math.min(Math.PI - 0.05, this._sphericalTarget.phi));
+      } else if (this._state === 'PAN') {
+        const right = new THREE.Vector3();
+        const up = new THREE.Vector3();
+        this.object.matrix.extractBasis(right, up, new THREE.Vector3());
+        const panFactor = this._sphericalTarget.radius * 0.002;
+        this.target.addScaledVector(right, -dx * panFactor);
+        this.target.addScaledVector(up, dy * panFactor);
+      }
+    };
+    const onMouseUp = () => { this._state = 'NONE'; };
+
+    dom.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+
+    this._zoomToScreenPoint = (screenX, screenY, factor) => {
+      const rect = dom.getBoundingClientRect();
+      const ndcX = ((screenX - rect.left) / rect.width) * 2 - 1;
+      const ndcY = -((screenY - rect.top) / rect.height) * 2 + 1;
+      const ndc = new THREE.Vector3(ndcX, ndcY, 0.5);
+      ndc.unproject(this.object);
+      const dir = ndc.sub(this.object.position).normalize();
+      const t = (this.target.y - this.object.position.y) / dir.y;
+      if (t > 0 && isFinite(t)) {
+        const hit = new THREE.Vector3(
+          this.object.position.x + dir.x * t,
+          this.target.y,
+          this.object.position.z + dir.z * t
+        );
+        this.target.lerp(hit, 0.65);
+      }
+      this._sphericalTarget.radius = Math.max(this.minDistance,
+        Math.min(this.maxDistance, this._sphericalTarget.radius * factor));
+    };
+
+    let touchStart = null;
+    let pinchStartDist = 0;
+    let pinchStartRadius = 0;
+    let pinchCenter = { x: 0, y: 0 };
+    let lastTapTime = 0;
+    let lastTapX = 0, lastTapY = 0;
+    let touchStartTime = 0;
+    let longPressTimer = null;
+    let touchMoved = false;
+
+    this._initialCameraState = {
+      position: this.object.position.clone(),
+      target: this.target.clone(),
+      radius: this._sphericalTarget.radius
+    };
+    this.captureInitialState = () => {
+      this._initialCameraState = {
+        position: this.object.position.clone(),
+        target: this.target.clone(),
+        radius: this._sphericalTarget.radius,
+        theta: this._sphericalTarget.theta,
+        phi: this._sphericalTarget.phi
+      };
+    };
+    this.resetView = () => {
+      const init = this._initialCameraState;
+      if (!init) return;
+      this._sphericalTarget.radius = init.radius;
+      if (init.theta !== undefined) this._sphericalTarget.theta = init.theta;
+      if (init.phi !== undefined) this._sphericalTarget.phi = init.phi;
+      this.target.copy(init.target);
+      if (window._showResetPulse) window._showResetPulse();
+      if (window._showGestureToast) window._showGestureToast('🔄 Görünüm sıfırlandı');
+      if (window._haptic) window._haptic(35);
+    };
+
+    dom.addEventListener('touchstart', (e) => {
+      if (!this.enabled) return;
+      touchMoved = false;
+      touchStartTime = Date.now();
+      if (e.touches.length === 3) {
+        e.preventDefault && e.preventDefault();
+        this._state = 'RESET';
+        this.resetView();
+        return;
+      }
+      if (e.touches.length === 1) {
+        const now = Date.now();
+        const tx = e.touches[0].clientX;
+        const ty = e.touches[0].clientY;
+        if (now - lastTapTime < 300 && Math.hypot(tx - lastTapX, ty - lastTapY) < 60) {
+          this._zoomToScreenPoint(tx, ty, 0.6);
+          lastTapTime = 0;
+          this._state = 'NONE';
+          if (window._haptic) window._haptic(15);
+          if (window._showGestureToast) window._showGestureToast('🔍 Yakınlaştı');
+          return;
+        }
+        lastTapTime = now;
+        lastTapX = tx; lastTapY = ty;
+        this._state = 'ROTATE';
+        this._lastX = tx;
+        this._lastY = ty;
+        longPressTimer = setTimeout(() => {
+          if (!touchMoved) {
+            const bp = document.getElementById('bottomPanel');
+            if (bp) {
+              bp.classList.toggle('open');
+              if (window._haptic) window._haptic(25);
+              if (window._showGestureToast) {
+                window._showGestureToast(bp.classList.contains('open') ? '📖 Bilgi açıldı' : '📕 Bilgi kapandı');
+              }
+            }
+            this._state = 'NONE';
+          }
+        }, 600);
+      } else if (e.touches.length === 2) {
+        if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+        this._state = 'PINCH';
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        pinchStartDist = Math.hypot(dx, dy);
+        pinchStartRadius = this._sphericalTarget.radius;
+        pinchCenter.x = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        pinchCenter.y = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      }
+    }, { passive: true });
+
+    dom.addEventListener('touchmove', (e) => {
+      if (!this.enabled || this._state === 'NONE') return;
+      e.preventDefault();
+      if (longPressTimer) {
+        const t = e.touches[0];
+        const dxMove = Math.hypot(t.clientX - lastTapX, t.clientY - lastTapY);
+        if (dxMove > 8) {
+          touchMoved = true;
+          clearTimeout(longPressTimer);
+          longPressTimer = null;
+        }
+      }
+      if (this._state === 'ROTATE' && e.touches.length === 1) {
+        const dx = e.touches[0].clientX - this._lastX;
+        const dy = e.touches[0].clientY - this._lastY;
+        this._lastX = e.touches[0].clientX;
+        this._lastY = e.touches[0].clientY;
+        this._sphericalTarget.theta -= dx * 0.005;
+        this._sphericalTarget.phi -= dy * 0.005;
+        this._sphericalTarget.phi = Math.max(0.05, Math.min(Math.PI - 0.05, this._sphericalTarget.phi));
+      } else if (this._state === 'PINCH' && e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.hypot(dx, dy);
+        const newCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const newCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        this._sphericalTarget.radius = Math.max(this.minDistance, Math.min(this.maxDistance, pinchStartRadius * (pinchStartDist / dist)));
+        const panDx = newCenterX - pinchCenter.x;
+        const panDy = newCenterY - pinchCenter.y;
+        pinchCenter.x = newCenterX;
+        pinchCenter.y = newCenterY;
+        const right = new THREE.Vector3();
+        const up = new THREE.Vector3();
+        this.object.matrix.extractBasis(right, up, new THREE.Vector3());
+        const panFactor = this._sphericalTarget.radius * 0.0045;
+        this.target.addScaledVector(right, -panDx * panFactor);
+        this.target.addScaledVector(up, panDy * panFactor);
+      }
+    }, { passive: false });
+
+    dom.addEventListener('touchend', (e) => {
+      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+      if (this._state === 'PINCH' && e.touches.length === 1) {
+        this._state = 'ROTATE';
+        this._lastX = e.touches[0].clientX;
+        this._lastY = e.touches[0].clientY;
+        return;
+      }
+      this._state = 'NONE';
+    });
+    dom.addEventListener('touchcancel', () => {
+      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+      this._state = 'NONE';
+    });
+
+    dom.addEventListener('wheel', (e) => {
+      if (!this.enabled) return;
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 1.1 : 0.9;
+      this._sphericalTarget.radius = Math.max(this.minDistance,
+        Math.min(this.maxDistance, this._sphericalTarget.radius * factor));
+    }, { passive: false });
+
+    dom.addEventListener('dblclick', (e) => {
+      if (!this.enabled) return;
+      this._zoomToScreenPoint(e.clientX, e.clientY, 0.55);
+    });
+
+    dom.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    this._syncFromCamera();
+  }
+
+  _syncFromCamera() {
+    const dx = this.object.position.x - this.target.x;
+    const dy = this.object.position.y - this.target.y;
+    const dz = this.object.position.z - this.target.z;
+    const r = Math.sqrt(dx*dx + dy*dy + dz*dz) || 1;
+    this._spherical.radius = this._sphericalTarget.radius = r;
+    this._spherical.theta = this._sphericalTarget.theta = Math.atan2(dx, dz);
+    this._spherical.phi = this._sphericalTarget.phi = Math.acos(Math.max(-1, Math.min(1, dy / r)));
+    this._lastCamPos.copy(this.object.position);
+    this._lastTarget.copy(this.target);
+  }
+
+  update() {
+    if (!this._lastCamPos.equals(this.object.position) || !this._lastTarget.equals(this.target)) {
+      this._syncFromCamera();
+    }
+    if (this.enableDamping) {
+      this._spherical.theta += (this._sphericalTarget.theta - this._spherical.theta) * this.dampingFactor;
+      this._spherical.phi += (this._sphericalTarget.phi - this._spherical.phi) * this.dampingFactor;
+      this._spherical.radius += (this._sphericalTarget.radius - this._spherical.radius) * this.dampingFactor;
+    } else {
+      this._spherical.theta = this._sphericalTarget.theta;
+      this._spherical.phi = this._sphericalTarget.phi;
+      this._spherical.radius = this._sphericalTarget.radius;
+    }
+    const s = this._spherical;
+    this.object.position.set(
+      this.target.x + s.radius * Math.sin(s.phi) * Math.sin(s.theta),
+      this.target.y + s.radius * Math.cos(s.phi),
+      this.target.z + s.radius * Math.sin(s.phi) * Math.cos(s.theta)
+    );
+    this.object.lookAt(this.target);
+    this._lastCamPos.copy(this.object.position);
+    this._lastTarget.copy(this.target);
+  }
+}
+
+// ============== GLOBAL STATE ==============
+let scene, camera, renderer, labelRenderer, controls;
+let dynamicObjects = [];
+let labelsVisible = true;
+let currentModule = 1, currentSub = '';
+
+const COLORS = {
+  light: 0xfff3b0,
+  lightCore: 0xffffff,
+  ray: 0xffe17a,
+  rayDim: 0xb8a050,
+  object: 0x3a4252,
+  objectEdge: 0x5a6478,
+  screen: 0x2a3142,
+  umbra: 0x1a1a2e,
+  penumbra: 0x6b6b8a,
+  lit: 0xfff0a0,
+  earth: 0x2e7dd6,
+  moon: 0xb0b0b8,
+  sun: 0xffcc33
+};
+
+// ============== INIT ==============
+function init() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x121726);
+  scene.fog = new THREE.Fog(0x121726, 35, 95);
+
+  const W = window.innerWidth, H = window.innerHeight;
+  camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 200);
+  camera.position.set(0.0, 5.0, 28.0);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(W, H);
+  window.scene = scene; window.camera = camera; window.renderer = renderer;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+  if (THREE.SRGBColorSpace !== undefined) {
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+  } else if (THREE.sRGBEncoding !== undefined) {
+    renderer.outputEncoding = THREE.sRGBEncoding;
+  }
+  document.getElementById('canvasContainer').appendChild(renderer.domElement);
+
+  labelRenderer = new CSS2DRenderer();
+  labelRenderer.setSize(W, H);
+  labelRenderer.domElement.style.position = 'absolute';
+  labelRenderer.domElement.style.top = '0';
+  labelRenderer.domElement.style.pointerEvents = 'none';
+  document.getElementById('canvasContainer').appendChild(labelRenderer.domElement);
+
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.minDistance = 1.2;
+  controls.maxDistance = 90;
+
+  const ambient = new THREE.AmbientLight(0xffffff, 0.48);
+  ambient.userData._isInitial = true;
+  scene.add(ambient);
+
+  const keyLight = new THREE.DirectionalLight(0xfff4e6, 0.6);
+  keyLight.position.set(8, 14, 10);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.width = 2048;
+  keyLight.shadow.mapSize.height = 2048;
+  keyLight.shadow.camera.near = 0.5;
+  keyLight.shadow.camera.far = 60;
+  keyLight.shadow.camera.left = -20;
+  keyLight.shadow.camera.right = 20;
+  keyLight.shadow.camera.top = 20;
+  keyLight.shadow.camera.bottom = -20;
+  keyLight.shadow.bias = -0.0005;
+  keyLight.shadow.radius = 4;
+  keyLight.userData._isInitial = true;
+  scene.add(keyLight);
+
+  const rimLight = new THREE.DirectionalLight(0x90b8ff, 0.35);
+  rimLight.position.set(-6, 4, -12);
+  rimLight.userData._isInitial = true;
+  scene.add(rimLight);
+
+  const hemi = new THREE.HemisphereLight(0x99bbff, 0x202028, 0.25);
+  hemi.userData._isInitial = true;
+  scene.add(hemi);
+
+  window.addEventListener('resize', onResize);
+  document.getElementById('loading').classList.add('hide');
+
+  (function() {
+    const bp = document.getElementById('bottomPanel');
+    if (!bp) return;
+    const observer = new MutationObserver(() => {
+      if (bp.classList.contains('open')) {
+        document.body.classList.add('panel-open');
+      } else {
+        document.body.classList.remove('panel-open');
+      }
+    });
+    observer.observe(bp, { attributes: true, attributeFilter: ['class'] });
+  })();
+
+  const hint = document.getElementById('touchHintOverlay');
+  const hintClose = document.getElementById('touchHintClose');
+  let hintShown = false;
+  try { hintShown = sessionStorage.getItem('qhintShown') === '1'; } catch(e){}
+  const isMobile = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+  if (isMobile && hint && !hintShown) {
+    setTimeout(() => {
+      hint.style.opacity = '1';
+      hint.style.transform = 'translateX(-50%) translateY(0)';
+    }, 800);
+    setTimeout(() => {
+      hint.style.opacity = '0';
+      hint.style.transform = 'translateX(-50%) translateY(20px)';
+      setTimeout(() => { hint.style.pointerEvents = 'none'; }, 400);
+    }, 8000);
+  }
+  if (hintClose && hint) {
+    hintClose.onclick = () => {
+      hint.style.opacity = '0';
+      hint.style.transform = 'translateX(-50%) translateY(20px)';
+      setTimeout(() => { hint.style.pointerEvents = 'none'; }, 400);
+      try { sessionStorage.setItem('qhintShown', '1'); } catch(e){}
+    };
+  }
+
+  window._showGestureToast = function(msg, duration = 1400) {
+    const toast = document.getElementById('gestureToast');
+    if (!toast) return;
+    toast.textContent = msg;
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+    clearTimeout(window._toastTimer);
+    window._toastTimer = setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(-50%) translateY(-20px)';
+    }, duration);
+  };
+
+  window._showResetPulse = function() {
+    const pulse = document.getElementById('resetPulse');
+    if (!pulse) return;
+    pulse.style.transform = 'translate(-50%, -50%) scale(1)';
+    pulse.style.opacity = '1';
+    setTimeout(() => {
+      pulse.style.opacity = '0';
+      setTimeout(() => { pulse.style.transform = 'translate(-50%, -50%) scale(0)'; }, 500);
+    }, 400);
+  };
+
+  window._haptic = function(ms = 18) {
+    try { if (navigator.vibrate) navigator.vibrate(ms); } catch(e){}
+  };
+}
+
+function onResize() {
+  const W = window.innerWidth, H = window.innerHeight;
+  camera.aspect = W / H;
+  camera.updateProjectionMatrix();
+  renderer.setSize(W, H);
+  labelRenderer.setSize(W, H);
+}
+
+// ============== HELPERS ==============
+function clearScene() {
+  if (typeof clearSceneSliders === 'function') clearSceneSliders();
+  if (labelRenderer && labelRenderer.domElement) {
+    labelRenderer.domElement.innerHTML = '';
+  }
+  const _keepTypes = ['AmbientLight', 'HemisphereLight'];
+  const _toClean = [];
+  scene.children.forEach(obj => {
+    if (obj.userData._isInitial === true) return;
+    if (_keepTypes.includes(obj.type) && obj.userData._isInitial === undefined) {
+      obj.userData._isInitial = true;
+      return;
+    }
+    _toClean.push(obj);
+  });
+  _toClean.forEach(obj => {
+    if (obj.parent) obj.parent.remove(obj);
+    if (typeof obj.traverse === 'function') {
+      obj.traverse(o => {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) {
+          if (Array.isArray(o.material)) o.material.forEach(m => m.dispose());
+          else o.material.dispose();
+        }
+      });
+    }
+  });
+  const toRemove = [];
+  scene.traverse(obj => { if (obj.userData.dynamic) toRemove.push(obj); });
+  toRemove.forEach(obj => {
+    obj.parent && obj.parent.remove(obj);
+    if (obj.geometry) obj.geometry.dispose();
+    if (obj.material) {
+      if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+      else obj.material.dispose();
+    }
+  });
+  dynamicObjects = [];
+  window._labelRefs = [];
+  window._currentModelGroup = null;
+  window._customAnim = null;
+  window._flowRays = [];
+  const svg = document.getElementById('leaderLines');
+  if (svg) svg.innerHTML = '';
+}
+
+window._labelRefs = [];
+window._currentModelGroup = null;
+
+function addLabel(target, text, className = '', anchorTarget = null, minLevel = 1) {
+  const levelMap = { ilkokul: 1, ortaokul: 2, lise: 3, tyt_ayt: 4 };
+  const curr = levelMap[currentLevel] || 3;
+  if (curr < minLevel) return null;
+
+  const div = document.createElement('div');
+  div.className = 'label3d ' + className;
+  div.innerHTML = text;
+  div.style.display = labelsVisible ? 'block' : 'none';
+  div.dataset.userHidden = labelsVisible ? '0' : '1';
+  const lbl = new CSS2DObject(div);
+  lbl.userData.dynamic = true;
+  lbl.userData.isLabel = true;
+
+  let anchorLocal;
+  if (anchorTarget) {
+    anchorLocal = anchorTarget.isVector3 ? anchorTarget.clone() : anchorTarget.getWorldPosition(new THREE.Vector3());
+  } else if (target.isVector3) {
+    anchorLocal = target.clone();
+  } else {
+    anchorLocal = target.getWorldPosition(new THREE.Vector3());
+  }
+
+  const anchorObj = new THREE.Object3D();
+  anchorObj.position.copy(anchorLocal);
+  anchorObj.userData.dynamic = true;
+
+  if (target.isVector3) {
+    lbl.position.copy(target);
+    if (window._currentModelGroup) {
+      window._currentModelGroup.add(lbl);
+      window._currentModelGroup.add(anchorObj);
+    } else {
+      scene.add(lbl);
+      scene.add(anchorObj);
+    }
+  } else {
+    target.add(lbl);
+    target.add(anchorObj);
+  }
+
+  window._labelRefs.push({ div, labelObj: lbl, anchorObj, className });
+  return lbl;
+}
+
+function markDynamic(obj) {
+  obj.userData.dynamic = true;
+  obj.traverse(c => c.userData.dynamic = true);
+  if (obj.isGroup && !window._currentModelGroup) {
+    window._currentModelGroup = obj;
+  }
+  return obj;
+}
+// ============== ANIMATE ==============
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = clock.getDelta();
+  const t = clock.getElapsedTime();
+
+  controls.update();
+
+  dynamicObjects.forEach(obj => {
+    if (obj.userData.spin && window._autoSpinActive) {
+      obj.rotation.y += obj.userData.spin * dt;
+    }
+    if (obj.userData.bob) {
+      obj.position.y = obj.userData.baseY + Math.sin(t * obj.userData.bob.speed + obj.userData.bob.phase) * obj.userData.bob.amp;
+    }
+  });
+
+  if (window._isPlayingActive && window._flowRays && window._flowRays.length) {
+    window._flowRays.forEach(fr => { try { updateFlowRay(fr, t); } catch(e){} });
+  }
+
+  if (window._isPlayingActive && typeof window._customAnim === 'function') {
+    try { window._customAnim(t, dt); } catch(e) {}
+  }
+
+  if (typeof _updateSceneDisplays === 'function') _updateSceneDisplays();
+
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+
+  updateLeaderLines();
+}
+
+const _projVec = new THREE.Vector3();
+function updateLeaderLines() {
+  const svg = document.getElementById('leaderLines');
+  if (!svg || !window._labelRefs || window._leaderLinesVisible === false) {
+    if (svg) svg.innerHTML = '';
+    return;
+  }
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const paths = [];
+
+  window._labelRefs.forEach((ref) => {
+    if (!ref.div || ref.div.dataset.userHidden === '1' || ref.div.style.display === 'none') return;
+    if (!ref.div.parentNode) return;
+    if (!ref.anchorObj) return;
+
+    ref.anchorObj.getWorldPosition(_projVec);
+    _projVec.project(camera);
+    if (_projVec.z > 1 || _projVec.z < -1) return;
+    const ax = (_projVec.x + 1) / 2 * w;
+    const ay = (1 - _projVec.y) / 2 * h;
+
+    const rect = ref.div.getBoundingClientRect();
+    const lx = rect.left + rect.width / 2;
+    const ly = rect.top + rect.height / 2;
+
+    const dist = Math.hypot(ax - lx, ay - ly);
+    if (dist < 18) return;
+
+    const dx = ax - lx;
+    const dy = ay - ly;
+    const halfW = rect.width / 2;
+    const halfH = rect.height / 2;
+    const tx = dx === 0 ? Infinity : (Math.abs(dx) > halfW ? halfW / Math.abs(dx) : 1);
+    const ty = dy === 0 ? Infinity : (Math.abs(dy) > halfH ? halfH / Math.abs(dy) : 1);
+    const tEdge = Math.min(tx, ty);
+    const edgeX = lx + dx * tEdge;
+    const edgeY = ly + dy * tEdge;
+
+    const colorMap = {
+      'xylem': '#d97043',
+      'phloem': '#5fb8e8',
+      'chloro': '#2ecc40',
+      'epi': '#a8d0b0',
+      'endo': '#e69138',
+      'warn': '#e74c3c'
+    };
+    const color = ref.color || colorMap[ref.className] || '#ffd166';
+
+    const midX = (edgeX + ax) / 2;
+    const midY = (edgeY + ay) / 2;
+    const distLine = Math.hypot(ax - edgeX, ay - edgeY);
+    const normalX = -(ay - edgeY) / distLine;
+    const normalY = (ax - edgeX) / distLine;
+    const curveAmount = Math.min(distLine * 0.18, 35);
+    const ctrlX = midX + normalX * curveAmount;
+    const ctrlY = midY + normalY * curveAmount;
+
+    const tipBack = 8;
+    const dirX = (ax - ctrlX) / Math.hypot(ax - ctrlX, ay - ctrlY);
+    const dirY = (ay - ctrlY) / Math.hypot(ax - ctrlX, ay - ctrlY);
+    const tipX = ax - dirX * tipBack;
+    const tipY = ay - dirY * tipBack;
+
+    const d = `M ${edgeX} ${edgeY} Q ${ctrlX} ${ctrlY} ${tipX} ${tipY}`;
+    const arrowSize = 7;
+    const angle = Math.atan2(ay - ctrlY, ax - ctrlX);
+    const aHead1X = tipX - arrowSize * Math.cos(angle - 0.5);
+    const aHead1Y = tipY - arrowSize * Math.sin(angle - 0.5);
+    const aHead2X = tipX - arrowSize * Math.cos(angle + 0.5);
+    const aHead2Y = tipY - arrowSize * Math.sin(angle + 0.5);
+
+    paths.push(`<path d="${d}" stroke="${color}" stroke-width="1.8" fill="none" stroke-opacity="0.92" stroke-linecap="round" />`);
+    paths.push(`<path d="M ${ax} ${ay} L ${aHead1X} ${aHead1Y} L ${aHead2X} ${aHead2Y} Z" fill="${color}" stroke="${color}" stroke-width="0.8" stroke-linejoin="round" />`);
+    paths.push(`<circle cx="${ax}" cy="${ay}" r="2.5" fill="${color}" stroke="#fff" stroke-width="1" opacity="0.7" />`);
+  });
+
+  svg.innerHTML = paths.join('');
+}
+
+// ============== SCENE STATE & PANELS ==============
+window._sceneState = {
+  R: 1.0,
+  r: 1.0,
+  d1: 5.0,
+  d2: 5.0,
+  mode: null,
+  _displayUpdaters: []
+};
+
+function setSceneSliders(items, opts = {}) {
+  const panel = document.getElementById('scenePanel');
+  if (!panel) return;
+  panel.innerHTML = '';
+  panel.classList.remove('empty', 'collapsed');
+  document.body.classList.add('scene-panel-open');
+  window._sceneState._displayUpdaters = [];
+
+  const toggle = document.createElement('button');
+  toggle.className = 'sp-toggle';
+  toggle.innerHTML = `<span>🎛️ ${opts.title || 'Kontroller'}</span><span class="sp-chev">▼</span>`;
+  toggle.onclick = () => {
+    panel.classList.toggle('collapsed');
+    toggle.querySelector('.sp-chev').textContent = panel.classList.contains('collapsed') ? '◀' : '▼';
+    if (window._haptic) window._haptic(10);
+  };
+  panel.appendChild(toggle);
+
+  items.forEach(item => {
+    if (item.type === 'section') {
+      const t = document.createElement('div');
+      t.className = 'sp-section';
+      t.textContent = item.label;
+      panel.appendChild(t);
+      return;
+    }
+    if (item.type === 'slider') {
+      const row = document.createElement('div');
+      row.className = 'sp-slider-row';
+      const head = document.createElement('div');
+      head.className = 'sp-slider-head';
+      head.innerHTML = `<span>${item.label}</span>
+        <div class="sp-stepper">
+          <button class="sp-step-btn sp-minus">−</button>
+          <span class="sp-val"></span>
+          <button class="sp-step-btn sp-plus">+</button>
+        </div>`;
+      const valEl = head.querySelector('.sp-val');
+      const minusBtn = head.querySelector('.sp-minus');
+      const plusBtn = head.querySelector('.sp-plus');
+      row.appendChild(head);
+      const slider = document.createElement('input');
+      slider.type = 'range';
+      slider.min = item.min;
+      slider.max = item.max;
+      slider.step = item.step || 1;
+      slider.value = item.getValue();
+      row.appendChild(slider);
+      if (item.sub) {
+        const sub = document.createElement('div');
+        sub.className = 'sp-sub';
+        sub.textContent = item.sub;
+        row.appendChild(sub);
+      }
+      const updateVal = () => {
+        const v = parseFloat(slider.value);
+        valEl.textContent = (item.format ? item.format(v) : v) + (item.unit || '');
+      };
+      slider.addEventListener('input', () => {
+        const v = parseFloat(slider.value);
+        item.setValue(v);
+        updateVal();
+      });
+      const step = parseFloat(item.step) || 1;
+      minusBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const v = parseFloat(slider.value);
+        const nv = Math.max(parseFloat(item.min), v - step);
+        slider.value = nv; item.setValue(nv); updateVal();
+        if (window._haptic) window._haptic(8);
+      });
+      plusBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const v = parseFloat(slider.value);
+        const nv = Math.min(parseFloat(item.max), v + step);
+        slider.value = nv; item.setValue(nv); updateVal();
+        if (window._haptic) window._haptic(8);
+      });
+      panel.appendChild(row);
+      updateVal();
+      window._sceneState._displayUpdaters.push(() => {
+        const v = item.getValue();
+        if (parseFloat(slider.value) !== v) { slider.value = v; updateVal(); }
+      });
+    }
+    if (item.type === 'display') {
+      const row = document.createElement('div');
+      row.className = 'sp-display' + (item.highlight ? ' highlight' : '');
+      row.innerHTML = `<span class="sp-label">${item.label}</span><span class="sp-val"></span>`;
+      const val = row.querySelector('.sp-val');
+      val.textContent = item.getValue();
+      panel.appendChild(row);
+      window._sceneState._displayUpdaters.push(() => { val.textContent = item.getValue(); });
+    }
+    if (item.type === 'formula') {
+      const row = document.createElement('div');
+      row.className = 'sp-formula';
+      row.innerHTML = item.text;
+      panel.appendChild(row);
+      if (item.getValue) {
+        window._sceneState._displayUpdaters.push(() => { row.innerHTML = item.getValue(); });
+      }
+    }
+    if (item.type === 'presets') {
+      const row = document.createElement('div');
+      row.className = 'sp-presets';
+      item.options.forEach((opt, i) => {
+        const b = document.createElement('button');
+        b.className = 'sp-preset-btn';
+        b.textContent = opt.label;
+        if (i === (item.activeIdx || 0)) b.classList.add('active');
+        b.onclick = () => {
+          row.querySelectorAll('.sp-preset-btn').forEach(x => x.classList.remove('active'));
+          b.classList.add('active');
+          opt.action();
+          if (window._haptic) window._haptic(10);
+        };
+        row.appendChild(b);
+      });
+      panel.appendChild(row);
+    }
+  });
+}
+
+function clearSceneSliders() {
+  const panel = document.getElementById('scenePanel');
+  if (panel) { panel.innerHTML = ''; panel.classList.add('empty'); }
+  document.body.classList.remove('scene-panel-open');
+  if (window._sceneState) window._sceneState._displayUpdaters = [];
+}
+
+function _updateSceneDisplays() {
+  if (window._sceneState && window._sceneState._displayUpdaters) {
+    window._sceneState._displayUpdaters.forEach(fn => { try { fn(); } catch(e){} });
+  }
+}
+
+// ============== 3D INFO LABELS (CSS2D + leader) ==============
+const _LV = { ilkokul: 1, ortaokul: 2, lise: 3, tyt_ayt: 4 };
+function _labelTextForLevel(text) {
+  if (typeof text === 'string') return text;
+  if (text && typeof text === 'object') {
+    const order = ['ilkokul','ortaokul','lise','tyt_ayt'];
+    if (text[currentLevel]) return text[currentLevel];
+    const idx = order.indexOf(currentLevel);
+    for (let i = idx; i >= 0; i--) if (text[order[i]]) return text[order[i]];
+    for (let i = idx + 1; i < order.length; i++) if (text[order[i]]) return text[order[i]];
+  }
+  return '';
+}
+
+function addInfo3DLabels(labels) {
+  const grp = new THREE.Group();
+  grp.userData.dynamic = true;
+  grp.userData.isLabelGroup = true;
+  const curLv = _LV[currentLevel] || 3;
+  labels.forEach(L => {
+    if (L.minLevel && curLv < L.minLevel) return;
+    if (L.maxLevel && curLv > L.maxLevel) return;
+    const labelText = _labelTextForLevel(L.text);
+    if (!labelText) return;
+    const color = L.color || '#ffd166';
+    const div = document.createElement('div');
+    div.className = 'info3d-label';
+    div.style.cssText = `
+      background: rgba(15, 25, 40, 0.92);
+      border: 2px solid ${color};
+      color: #fff;
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+      pointer-events: none;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.5);
+      transform: translate(-50%, -50%);
+      text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+    `;
+    div.innerHTML = labelText;
+    div.style.display = labelsVisible ? 'block' : 'none';
+    div.dataset.userHidden = labelsVisible ? '0' : '1';
+    const obj = new CSS2DObject(div);
+    obj.position.set(L.position[0], L.position[1], L.position[2]);
+    obj.userData.isLabel = true;
+    obj.userData.dynamic = true;
+    grp.add(obj);
+
+    if (L.target) {
+      const dotGeo = new THREE.SphereGeometry(0.08, 16, 12);
+      const dotMat = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(color), transparent: true, opacity: 0.95,
+        toneMapped: false, depthTest: false
+      });
+      const dot = new THREE.Mesh(dotGeo, dotMat);
+      dot.position.set(L.target[0], L.target[1], L.target[2]);
+      dot.renderOrder = 999;
+      dot.userData.isLabel = true;
+      dot.userData.dynamic = true;
+      grp.add(dot);
+
+      const anchorObj = new THREE.Object3D();
+      anchorObj.position.set(L.target[0], L.target[1], L.target[2]);
+      anchorObj.userData.dynamic = true;
+      grp.add(anchorObj);
+
+      const classMap = {
+        '#ffe17a':'', '#ffd166':'', '#ffcc33':'',
+        '#5fc8e0':'joint', '#7adcf0':'joint',
+        '#9d7fe6':'cartilage', '#2e7dd6':'phloem',
+        '#ff7043':'xylem', '#d0563a':'xylem', '#d97043':'xylem',
+        '#9a9aa2':'', '#ffd54f':''
+      };
+      window._labelRefs.push({ div, labelObj: obj, anchorObj, color, className: classMap[color] || '' });
+    }
+  });
+  if (window._currentModelGroup) {
+    window._currentModelGroup.add(grp);
+  } else {
+    scene.add(grp);
+  }
+  return grp;
+}
+
+
+// ============== MODULE SYSTEM (BileÅŸke Kuvvet ve VektÃ¶rler) ==============
+const MODULES = {
+  1: {
+    title: 'ğŸ“ ModÃ¼l 1: VektÃ¶rler',
+    subs: [
+      { key: 'vektorTanim',        label: 'â¡ï¸ VektÃ¶r ve Skaler', builder: 'buildVektorTanim' },
+      { key: 'vektorBilesenleri',  label: 'ğŸ“ VektÃ¶rÃ¼n BileÅŸenleri', builder: 'buildVektorBilesenleri' },
+      { key: 'ucUca',              label: 'ğŸ”— UÃ§ Uca Ekleme YÃ¶ntemi', builder: 'buildUcUca' },
+      { key: 'paralelkenar',       label: 'ğŸ”· Paralelkenar YÃ¶ntemi', builder: 'buildParalelkenar' }
+    ]
+  },
+  2: {
+    title: 'ğŸ§² ModÃ¼l 2: BileÅŸke Kuvvet',
+    subs: [
+      { key: 'ayniZitYon',     label: 'â†”ï¸ AynÄ± ve ZÄ±t YÃ¶nlÃ¼ Kuvvetler', builder: 'buildAyniZitYon' },
+      { key: 'dikKuvvetler',   label: 'âŸ‚ Birbirine Dik Kuvvetler', builder: 'buildDikKuvvetler' },
+      { key: 'aciliKuvvetler', label: 'ğŸ“ AÃ§Ä±lÄ± Ä°ki Kuvvet (KosinÃ¼s)', builder: 'buildAciliKuvvetler' }
+    ]
+  },
+  3: {
+    title: 'âš–ï¸ ModÃ¼l 3: Denge ve Uygulamalar',
+    subs: [
+      { key: 'denge',      label: 'âš–ï¸ Kuvvet Dengesi', builder: 'buildDenge' },
+      { key: 'egikDuzlem', label: 'â›°ï¸ EÄŸik DÃ¼zlemde Kuvvet', builder: 'buildEgikDuzlem' },
+      { key: 'bagilHiz',   label: 'ğŸš¤ BaÄŸÄ±l HÄ±z (VektÃ¶rel)', builder: 'buildBagilHiz' }
+    ]
+  }
+};
+
+// ============== INFO DATA (4 seviye) ==============
+const INFO_DATA = {
+  vektorTanim: {
+    ilkokul: { emoji: 'â¡ï¸', title: 'YÃ¶n ve BÃ¼yÃ¼klÃ¼k', points: [
+      'â¡ï¸ VektÃ¶r: hem yÃ¶nÃ¼ hem bÃ¼yÃ¼klÃ¼ÄŸÃ¼ olan ok',
+      'ğŸ”¢ Skaler: sadece sayÄ±dÄ±r, yÃ¶nÃ¼ yoktur',
+      'ğŸƒ HÄ±z ve kuvvet â†’ ok ile gÃ¶sterilir',
+      'ğŸ“ Okun uzunluÄŸu bÃ¼yÃ¼klÃ¼ÄŸÃ¼, ucu yÃ¶nÃ¼ gÃ¶sterir'
+    ]},
+    ortaokul: { emoji: 'â¡ï¸', title: 'VektÃ¶r ve Skaler', points: [
+      'â¡ï¸ <b>VektÃ¶r</b>: yÃ¶nÃ¼ ve bÃ¼yÃ¼klÃ¼ÄŸÃ¼ olan nicelik (ok ile Ã§izilir)',
+      'ğŸ”¢ <b>Skaler</b>: yalnÄ±zca bÃ¼yÃ¼klÃ¼ÄŸÃ¼ olan nicelik',
+      'ğŸ§² Kuvvet, hÄ±z, yer deÄŸiÅŸtirme â†’ vektÃ¶rel',
+      'âš–ï¸ KÃ¼tle, zaman, sÄ±caklÄ±k, yol â†’ skaler',
+      'ğŸ“ Ok uzunluÄŸu = bÃ¼yÃ¼klÃ¼k, ok yÃ¶nÃ¼ = yÃ¶n'
+    ]},
+    lise: { emoji: 'â¡ï¸', title: 'VektÃ¶rel ve Skaler Nicelikler', points: [
+      'â¡ï¸ VektÃ¶r: bÃ¼yÃ¼klÃ¼k + doÄŸrultu + yÃ¶n bilgisi taÅŸÄ±r',
+      'ğŸ”¤ GÃ¶sterim: Fâƒ— ; bÃ¼yÃ¼klÃ¼ÄŸÃ¼ |Fâƒ—| = F',
+      'ğŸ§² VektÃ¶rel: kuvvet, hÄ±z, ivme, momentum, yer deÄŸiÅŸtirme',
+      'ğŸ”¢ Skaler: kÃ¼tle, zaman, sÄ±caklÄ±k, enerji, yol',
+      'ğŸŸ° EÅŸit vektÃ¶r: aynÄ± bÃ¼yÃ¼klÃ¼k, aynÄ± doÄŸrultu, aynÄ± yÃ¶n',
+      'â– ZÄ±t vektÃ¶r: aynÄ± bÃ¼yÃ¼klÃ¼k, zÄ±t yÃ¶n (180Â°)'
+    ]},
+    tyt_ayt: { emoji: 'â¡ï¸', title: 'VektÃ¶rler (TYT/AYT)', points: [
+      'â¡ï¸ VektÃ¶r 3 bilgi taÅŸÄ±r: bÃ¼yÃ¼klÃ¼k, doÄŸrultu, yÃ¶n',
+      'ğŸ”¤ Fâƒ— = Fâ‚“ Ã® + F_y Äµ (birim vektÃ¶r gÃ¶sterimi)',
+      'ğŸ“ BÃ¼yÃ¼klÃ¼k: |Fâƒ—| = âˆš(Fâ‚“Â² + F_yÂ²)',
+      'ğŸ§² VektÃ¶rel: kuvvet, hÄ±z, ivme; Skaler: iÅŸ, enerji, gÃ¼Ã§',
+      'â– âˆ’Fâƒ—: aynÄ± bÃ¼yÃ¼klÃ¼k, zÄ±t yÃ¶n',
+      'ğŸŸ° EÅŸ vektÃ¶rler Ã¶telenebilir; doÄŸrultu ve yÃ¶n korunur'
+    ]}
+  },
+  vektorBilesenleri: {
+    ilkokul: { emoji: 'ğŸ“', title: 'SaÄŸa ve YukarÄ±', points: [
+      'ğŸ“ EÄŸik oku "saÄŸa giden" ve "yukarÄ± giden" parÃ§alara ayÄ±rÄ±rÄ±z',
+      'â¡ï¸ Yatay parÃ§a: Fâ‚“',
+      'â¬†ï¸ Dikey parÃ§a: F_y',
+      'ğŸ§© Ä°ki parÃ§a birleÅŸince asÄ±l oku verir'
+    ]},
+    ortaokul: { emoji: 'ğŸ“', title: 'VektÃ¶rÃ¼n BileÅŸenleri', points: [
+      'ğŸ“ EÄŸik vektÃ¶r, yatay (Fâ‚“) ve dikey (F_y) bileÅŸenlere ayrÄ±lÄ±r',
+      'â¡ï¸ Fâ‚“ = yatay etki, â¬†ï¸ F_y = dikey etki',
+      'ğŸ§± BileÅŸenler birbirine diktir (90Â°)',
+      'ğŸ§© Fâ‚“ ve F_y birleÅŸince vektÃ¶rÃ¼ oluÅŸturur',
+      'ğŸ“Š AÃ§Ä± bÃ¼yÃ¼dÃ¼kÃ§e dikey bileÅŸen artar'
+    ]},
+    lise: { emoji: 'ğŸ“', title: 'BileÅŸenlere AyÄ±rma', points: [
+      'ğŸ“ Yatayla Î¸ aÃ§Ä±sÄ± yapan F iÃ§in: Fâ‚“ = FÂ·cos Î¸',
+      'â¬†ï¸ Dikey bileÅŸen: F_y = FÂ·sin Î¸',
+      'ğŸ” Geri birleÅŸtirme: F = âˆš(Fâ‚“Â² + F_yÂ²)',
+      'ğŸ§­ YÃ¶n: tan Î¸ = F_y / Fâ‚“',
+      'ğŸ§± BileÅŸenler dik olduÄŸu iÃ§in ayrÄ± ayrÄ± iÅŸlem yapÄ±lÄ±r',
+      'ğŸšï¸ KaydÄ±rÄ±cÄ±yla aÃ§Ä±yÄ± deÄŸiÅŸtir, bileÅŸenleri izle'
+    ]},
+    tyt_ayt: { emoji: 'ğŸ“', title: 'BileÅŸenlere AyÄ±rma (TYT/AYT)', points: [
+      'ğŸ“ Fâ‚“ = FÂ·cos Î¸, F_y = FÂ·sin Î¸ (Î¸: +x ekseni ile aÃ§Ä±)',
+      'ğŸ” |F| = âˆš(Fâ‚“Â² + F_yÂ²), yÃ¶n: Î¸ = arctan(F_y/Fâ‚“)',
+      'â• Ã‡ok vektÃ¶r: Î£Fâ‚“ ve Î£F_y ayrÄ± toplanÄ±r',
+      'ğŸ§­ BileÅŸenler iÅŸaretlidir (yÃ¶ne gÃ¶re + / âˆ’)',
+      'ğŸ”¢ Ã–rnek: F=10 N, Î¸=37Â° â†’ Fâ‚“=8 N, F_y=6 N',
+      'ğŸ“Š cos37Â°â‰ˆ0,8 ; sin37Â°â‰ˆ0,6 ; cos53Â°â‰ˆ0,6 ; sin53Â°â‰ˆ0,8'
+    ]}
+  },
+  ucUca: {
+    ilkokul: { emoji: 'ğŸ”—', title: 'OklarÄ± UÃ§ Uca Ekle', points: [
+      'ğŸ”— Ä°lk okun ucundan ikinci oku baÅŸlat',
+      'ğŸ BaÅŸtan son uca Ã§izilen yeni ok = bileÅŸke',
+      'ğŸš¶ Ã–nce 3 adÄ±m, sonra 2 adÄ±m â†’ 5 adÄ±m gibi'
+    ]},
+    ortaokul: { emoji: 'ğŸ”—', title: 'UÃ§ Uca Ekleme YÃ¶ntemi', points: [
+      'ğŸ”— VektÃ¶rler uÃ§ uca eklenir (biri biterken diÄŸeri baÅŸlar)',
+      'ğŸ <b>BileÅŸke</b>: ilk baÅŸlangÄ±Ã§tan son uca Ã§izilen ok',
+      'ğŸ” SÄ±ra Ã¶nemli deÄŸil: A + B = B + A',
+      'â• Ä°kiden fazla vektÃ¶r iÃ§in de aynÄ± yÃ¶ntem',
+      'â­• KapalÄ± ÅŸekil oluÅŸursa bileÅŸke sÄ±fÄ±rdÄ±r (denge)'
+    ]},
+    lise: { emoji: 'ğŸ”—', title: 'UÃ§ Uca (Poligon) YÃ¶ntemi', points: [
+      'ğŸ”— Her vektÃ¶r bir Ã¶ncekinin ucundan baÅŸlatÄ±lÄ±r',
+      'ğŸ BileÅŸke R: ilk kuyruk â†’ son baÅŸ',
+      'ğŸ” Toplama deÄŸiÅŸmelidir: A + B = B + A',
+      'â­• VektÃ¶rler kapalÄ± Ã§okgen oluÅŸturursa R = 0',
+      'ğŸ§® BÃ¼yÃ¼klÃ¼k iÃ§in bileÅŸenlere ayÄ±rmak en gÃ¼venlisi'
+    ]},
+    tyt_ayt: { emoji: 'ğŸ”—', title: 'Poligon YÃ¶ntemi (TYT/AYT)', points: [
+      'ğŸ”— Râƒ— = Aâƒ— + Bâƒ— + Câƒ— + â€¦ (uÃ§ uca eklenir)',
+      'ğŸ§® Râƒ— = (Î£Aâ‚“) Ã® + (Î£A_y) Äµ',
+      'â­• KapalÄ± poligon â†’ Râƒ— = 0 (kuvvet dengesi)',
+      'ğŸ“ DÃ¼zgÃ¼n Ã§okgenin kenar vektÃ¶rlerinin toplamÄ± sÄ±fÄ±rdÄ±r',
+      'ğŸ”¢ Ã–nce bileÅŸenlere ayÄ±r, sonra topla, sonra birleÅŸtir'
+    ]}
+  },
+  paralelkenar: {
+    ilkokul: { emoji: 'ğŸ”·', title: 'Ä°ki Oktan KÃ¶ÅŸegen', points: [
+      'ğŸ”· Ä°ki oku aynÄ± noktadan baÅŸlat',
+      'ğŸŸ¦ Bir eÄŸik dÃ¶rtgen (paralelkenar) Ã§iz',
+      'â†—ï¸ KÃ¶ÅŸegen = bileÅŸke ok'
+    ]},
+    ortaokul: { emoji: 'ğŸ”·', title: 'Paralelkenar YÃ¶ntemi', points: [
+      'ğŸ”· Ä°ki vektÃ¶r <b>aynÄ± baÅŸlangÄ±Ã§</b> noktasÄ±ndan Ã§izilir',
+      'ğŸŸ¦ UÃ§lardan paralel Ã§izgilerle paralelkenar tamamlanÄ±r',
+      'â†—ï¸ <b>BileÅŸke</b>: ortak kÃ¶ÅŸeden Ã§Ä±kan kÃ¶ÅŸegen',
+      'ğŸ“ AralarÄ±ndaki aÃ§Ä± kÃ¼Ã§Ã¼kse bileÅŸke bÃ¼yÃ¼k olur',
+      'ğŸ” Ä°ki vektÃ¶rde uÃ§ uca ile aynÄ± sonucu verir'
+    ]},
+    lise: { emoji: 'ğŸ”·', title: 'Paralelkenar KuralÄ±', points: [
+      'ğŸ”· AynÄ± noktadan Ã§Ä±kan A ve B paralelkenar oluÅŸturur',
+      'â†—ï¸ BileÅŸke = ortak kÃ¶ÅŸeden Ã§Ä±kan kÃ¶ÅŸegen',
+      'ğŸ“ |R|Â² = AÂ² + BÂ² + 2Â·AÂ·BÂ·cos Î± (Î±: aradaki aÃ§Ä±)',
+      'ğŸ”º Î±=0Â° â†’ R=A+B (maksimum); Î±=180Â° â†’ R=|Aâˆ’B| (minimum)',
+      'âŸ‚ Î±=90Â° â†’ R = âˆš(AÂ²+BÂ²)',
+      'ğŸ§­ BileÅŸkenin yÃ¶nÃ¼ kÃ¶ÅŸegen doÄŸrultusundadÄ±r'
+    ]},
+    tyt_ayt: { emoji: 'ğŸ”·', title: 'Paralelkenar (TYT/AYT)', points: [
+      'ğŸ“ |R| = âˆš(AÂ² + BÂ² + 2Â·AÂ·BÂ·cos Î±)',
+      'ğŸ”º Maksimum bileÅŸke: Î±=0Â° â†’ R = A+B',
+      'ğŸ”» Minimum bileÅŸke: Î±=180Â° â†’ R = |Aâˆ’B|',
+      'âŸ‚ Î±=90Â° â†’ R = âˆš(AÂ²+BÂ²) (Pisagor)',
+      'ğŸ§­ YÃ¶n: tan Î² = (BÂ·sin Î±)/(A + BÂ·cos Î±)',
+      'ğŸŸ° EÅŸit iki vektÃ¶r (A=B): R = 2AÂ·cos(Î±/2)'
+    ]}
+  },
+  ayniZitYon: {
+    ilkokul: { emoji: 'â†”ï¸', title: 'AynÄ± / ZÄ±t YÃ¶n', points: [
+      'â¡ï¸â¡ï¸ AynÄ± yÃ¶ne Ã§ekersek kuvvetler toplanÄ±r',
+      'â¡ï¸â¬…ï¸ ZÄ±t yÃ¶ne Ã§ekersek birbirini azaltÄ±r',
+      'ğŸ’ª Halat Ã§ekme oyunu gibi'
+    ]},
+    ortaokul: { emoji: 'â†”ï¸', title: 'AynÄ± ve ZÄ±t YÃ¶nlÃ¼ Kuvvetler', points: [
+      'â¡ï¸â¡ï¸ AynÄ± yÃ¶n: R = Fâ‚ + Fâ‚‚',
+      'â¡ï¸â¬…ï¸ ZÄ±t yÃ¶n: R = |Fâ‚ âˆ’ Fâ‚‚|',
+      'ğŸ§­ BileÅŸkenin yÃ¶nÃ¼ bÃ¼yÃ¼k kuvvetin yÃ¶nÃ¼ndedir',
+      'âš–ï¸ EÅŸit ve zÄ±t iki kuvvet â†’ R = 0 (denge)',
+      'ğŸ’ª Halat Ã§ekmede net kuvvet farktan doÄŸar'
+    ]},
+    lise: { emoji: 'â†”ï¸', title: 'DoÄŸrusal (Kolineer) Kuvvetler', points: [
+      'â¡ï¸â¡ï¸ AynÄ± yÃ¶n: R = Fâ‚ + Fâ‚‚ (en bÃ¼yÃ¼k bileÅŸke)',
+      'â¡ï¸â¬…ï¸ ZÄ±t yÃ¶n: R = |Fâ‚ âˆ’ Fâ‚‚| (en kÃ¼Ã§Ã¼k bileÅŸke)',
+      'ğŸ§­ YÃ¶n daima bÃ¼yÃ¼k kuvvet tarafÄ±ndadÄ±r',
+      'âš–ï¸ Fâ‚ = Fâ‚‚ ve zÄ±t â†’ R = 0, cisim dengede',
+      'â• Ã‡ok kuvvet: yÃ¶nleri iÅŸaretle, cebirsel topla'
+    ]},
+    tyt_ayt: { emoji: 'â†”ï¸', title: 'Kolineer Kuvvetler (TYT/AYT)', points: [
+      'â¡ï¸ Tek doÄŸrultuda: R = Î£F (iÅŸaretli toplam)',
+      'ğŸ”º BileÅŸke aralÄ±ÄŸÄ±: |Fâ‚âˆ’Fâ‚‚| â‰¤ R â‰¤ Fâ‚+Fâ‚‚',
+      'âš–ï¸ Denge: Î£F = 0 â†’ a = 0 (Newton I. yasa)',
+      'ğŸ§® Net kuvvet ivme doÄŸurur: Î£F = mÂ·a',
+      'ğŸ”¢ Ã–rnek: 12 N saÄŸ, 5 N sol â†’ R = 7 N saÄŸ'
+    ]}
+  },
+  dikKuvvetler: {
+    ilkokul: { emoji: 'âŸ‚', title: 'Dik Ä°ki Kuvvet', points: [
+      'âŸ‚ Biri saÄŸa, biri yukarÄ± iki kuvvet',
+      'ğŸ“ BileÅŸke kÃ¶ÅŸegen boyunca olur',
+      'ğŸ”º Dik Ã¼Ã§genin kenarlarÄ± gibi dÃ¼ÅŸÃ¼n'
+    ]},
+    ortaokul: { emoji: 'âŸ‚', title: 'Birbirine Dik Kuvvetler', points: [
+      'âŸ‚ AralarÄ±nda 90Â° olan Fâ‚ ve Fâ‚‚',
+      'ğŸ“ BileÅŸke: R = âˆš(Fâ‚Â² + Fâ‚‚Â²) (Pisagor)',
+      'ğŸ”º Fâ‚ ve Fâ‚‚ dik Ã¼Ã§genin kenarlarÄ±, R hipotenÃ¼sÃ¼',
+      'ğŸ”¢ 3 N ve 4 N â†’ R = 5 N',
+      'ğŸ§­ YÃ¶n: tan Î¸ = Fâ‚‚ / Fâ‚'
+    ]},
+    lise: { emoji: 'âŸ‚', title: 'Dik Kuvvetlerin BileÅŸkesi', points: [
+      'âŸ‚ 90Â° aÃ§Ä±lÄ± iki kuvvette Pisagor geÃ§erli',
+      'ğŸ“ R = âˆš(Fâ‚Â² + Fâ‚‚Â²)',
+      'ğŸ§­ YÃ¶n: tan Î¸ = Fâ‚‚/Fâ‚ (Fâ‚ ekseni ile)',
+      'ğŸ”¢ Pisagor Ã¼Ã§lÃ¼leri: (3,4,5), (6,8,10), (5,12,13)',
+      'ğŸ”º BileÅŸke her zaman bileÅŸenlerden bÃ¼yÃ¼ktÃ¼r'
+    ]},
+    tyt_ayt: { emoji: 'âŸ‚', title: 'Dik BileÅŸke (TYT/AYT)', points: [
+      'ğŸ“ R = âˆš(Fâ‚Â² + Fâ‚‚Â²), tan Î¸ = Fâ‚‚/Fâ‚',
+      'ğŸ§© Paralelkenarda Î±=90Â° Ã¶zel hÃ¢li',
+      'ğŸ”¢ ÃœÃ§lÃ¼ler: 3-4-5, 5-12-13, 8-15-17, 7-24-25',
+      'ğŸ§­ Î¸ = arctan(Fâ‚‚/Fâ‚); eksenle yapÄ±lan aÃ§Ä±',
+      'ğŸšï¸ KaydÄ±rÄ±cÄ±yla Fâ‚, Fâ‚‚ deÄŸiÅŸtir; R ve Î¸ canlÄ±'
+    ]}
+  },
+  aciliKuvvetler: {
+    ilkokul: { emoji: 'ğŸ“', title: 'AÃ§Ä±lÄ± Ä°ki Kuvvet', points: [
+      'ğŸ“ Ä°ki ok arasÄ±nda bir aÃ§Ä± var',
+      'â†—ï¸ BileÅŸke ortadan Ã§Ä±kar',
+      'ğŸ“ AÃ§Ä± kÃ¼Ã§Ã¼kse bileÅŸke bÃ¼yÃ¼k olur'
+    ]},
+    ortaokul: { emoji: 'ğŸ“', title: 'AÃ§Ä±lÄ± Ä°ki Kuvvet', points: [
+      'ğŸ“ AralarÄ±nda Î± aÃ§Ä±sÄ± olan Fâ‚ ve Fâ‚‚',
+      'â†—ï¸ BileÅŸke paralelkenarÄ±n kÃ¶ÅŸegenidir',
+      'ğŸ”¼ Î± kÃ¼Ã§Ã¼ldÃ¼kÃ§e bileÅŸke bÃ¼yÃ¼r',
+      'ğŸ”½ Î± bÃ¼yÃ¼dÃ¼kÃ§e bileÅŸke kÃ¼Ã§Ã¼lÃ¼r',
+      'ğŸšï¸ AÃ§Ä±yÄ± deÄŸiÅŸtir, bileÅŸkeyi gÃ¶r'
+    ]},
+    lise: { emoji: 'ğŸ“', title: 'KosinÃ¼s Teoremi ile BileÅŸke', points: [
+      'ğŸ“ R = âˆš(Fâ‚Â² + Fâ‚‚Â² + 2Â·Fâ‚Â·Fâ‚‚Â·cos Î±)',
+      'ğŸ”º Î±=0Â° â†’ R=Fâ‚+Fâ‚‚ (maksimum)',
+      'ğŸ”» Î±=180Â° â†’ R=|Fâ‚âˆ’Fâ‚‚| (minimum)',
+      'âŸ‚ Î±=90Â° â†’ R=âˆš(Fâ‚Â²+Fâ‚‚Â²)',
+      'ğŸ§­ YÃ¶n: tan Î² = (Fâ‚‚Â·sin Î±)/(Fâ‚ + Fâ‚‚Â·cos Î±)'
+    ]},
+    tyt_ayt: { emoji: 'ğŸ“', title: 'AÃ§Ä±lÄ± BileÅŸke (TYT/AYT)', points: [
+      'ğŸ“ |R| = âˆš(Fâ‚Â² + Fâ‚‚Â² + 2Â·Fâ‚Â·Fâ‚‚Â·cos Î±)',
+      'ğŸŸ° EÅŸit kuvvetler: R = 2FÂ·cos(Î±/2)',
+      'ğŸ“Š EÅŸit F\'de Î±=60Â° â†’ R=Fâˆš3 ; Î±=120Â° â†’ R=F',
+      'ğŸ§­ YÃ¶n: tan Î² = Fâ‚‚Â·sin Î±/(Fâ‚ + Fâ‚‚Â·cos Î±)',
+      'ğŸ” cos Î± arttÄ±kÃ§a (Î±â†“) bileÅŸke artar',
+      'ğŸšï¸ Î± kaydÄ±rÄ±cÄ±sÄ±yla R\'nin deÄŸiÅŸimini izle'
+    ]}
+  },
+  denge: {
+    ilkokul: { emoji: 'âš–ï¸', title: 'Dengede Durmak', points: [
+      'âš–ï¸ Kuvvetler birbirini dengelerse cisim durur',
+      'ğŸŸ° Toplam kuvvet sÄ±fÄ±r olur',
+      'ğŸª¢ Ä°pler eÅŸit Ã§ekerse dÃ¼ÄŸÃ¼m kÄ±pÄ±rdamaz'
+    ]},
+    ortaokul: { emoji: 'âš–ï¸', title: 'Kuvvet Dengesi', points: [
+      'âš–ï¸ Kuvvetlerin bileÅŸkesi sÄ±fÄ±rsa cisim dengededir',
+      'ğŸŸ° Î£F = 0 (net kuvvet yok)',
+      'ğŸ›‘ Dengedeki cisim durur ya da sabit hÄ±zla gider',
+      'ğŸ”» Dengeleyici kuvvet: bileÅŸkeye eÅŸit, zÄ±t yÃ¶nlÃ¼',
+      'ğŸª¢ Kuvvetler kapalÄ± Ã¼Ã§gen oluÅŸturur'
+    ]},
+    lise: { emoji: 'âš–ï¸', title: 'Denge ve Dengeleyici Kuvvet', points: [
+      'âš–ï¸ Denge koÅŸulu: Î£Fâ‚“ = 0 ve Î£F_y = 0',
+      'ğŸ”» <b>Dengeleyici</b> = âˆ’BileÅŸke (eÅŸit bÃ¼yÃ¼k, zÄ±t yÃ¶n)',
+      'ğŸª¢ Kuvvetler kapalÄ± Ã§okgen oluÅŸturur',
+      'ğŸ›‘ a = 0: durur veya sabit hÄ±zlÄ± (Newton I)',
+      'ğŸ“ ÃœÃ§ kuvvet dengede ise kuvvet Ã¼Ã§geni Ã§izilir'
+    ]},
+    tyt_ayt: { emoji: 'âš–ï¸', title: 'Denge KoÅŸulu (TYT/AYT)', points: [
+      'âš–ï¸ Ã–teleme dengesi: Î£Fâ‚“ = 0, Î£F_y = 0',
+      'ğŸª¢ Lami teoremi: Fâ‚/sin Î± = Fâ‚‚/sin Î² = Fâ‚ƒ/sin Î³',
+      'ğŸ”» Dengeleyici kuvvet = âˆ’Râƒ—',
+      'ğŸ“ ÃœÃ§ kuvvet dengede â†’ kapalÄ± kuvvet Ã¼Ã§geni',
+      'ğŸ”¢ AÃ§Ä±lar, kuvvetlerin karÅŸÄ±sÄ±ndaki aÃ§Ä±lardÄ±r'
+    ]}
+  },
+  egikDuzlem: {
+    ilkokul: { emoji: 'â›°ï¸', title: 'Kaygan Rampa', points: [
+      'â›°ï¸ EÄŸimli yÃ¼zeyde cisim aÅŸaÄŸÄ± kaymak ister',
+      'â¬‡ï¸ AÄŸÄ±rlÄ±k onu aÅŸaÄŸÄ± Ã§eker',
+      'ğŸ“ Rampa dikleÅŸince daha hÄ±zlÄ± kayar'
+    ]},
+    ortaokul: { emoji: 'â›°ï¸', title: 'EÄŸik DÃ¼zlemde Kuvvet', points: [
+      'â›°ï¸ EÄŸik dÃ¼zlemde aÄŸÄ±rlÄ±k (G) iki bileÅŸene ayrÄ±lÄ±r',
+      'â¬‡ï¸ YÃ¼zey boyunca: cisimi aÅŸaÄŸÄ± kaydÄ±ran bileÅŸen',
+      'âŸ‚ YÃ¼zeye dik: cisimi yÃ¼zeye bastÄ±ran bileÅŸen',
+      'ğŸ“ EÄŸim aÃ§Ä±sÄ± arttÄ±kÃ§a kaydÄ±ran kuvvet artar',
+      'ğŸ§± YÃ¼zeye dik bileÅŸen eÄŸim arttÄ±kÃ§a azalÄ±r'
+    ]},
+    lise: { emoji: 'â›°ï¸', title: 'EÄŸik DÃ¼zlemde AÄŸÄ±rlÄ±ÄŸÄ±n BileÅŸenleri', points: [
+      'â›°ï¸ EÄŸim aÃ§Ä±sÄ± Î¸, aÄŸÄ±rlÄ±k G = mÂ·g',
+      'â¬‡ï¸ YÃ¼zeye paralel: GÂ·sin Î¸ (kaydÄ±ran)',
+      'âŸ‚ YÃ¼zeye dik: GÂ·cos Î¸ (bastÄ±ran = Normal)',
+      'ğŸ“ Î¸=0 â†’ kaydÄ±ran=0; Î¸=90Â° â†’ serbest dÃ¼ÅŸme',
+      'ğŸ§² SÃ¼rtÃ¼nmesizse ivme: a = gÂ·sin Î¸'
+    ]},
+    tyt_ayt: { emoji: 'â›°ï¸', title: 'EÄŸik DÃ¼zlem (TYT/AYT)', points: [
+      'â¬‡ï¸ G_paralel = mÂ·gÂ·sin Î¸, G_dik = mÂ·gÂ·cos Î¸',
+      'ğŸ§± Normal kuvvet: N = mÂ·gÂ·cos Î¸',
+      'ğŸ§² SÃ¼rtÃ¼nmeli: F_s = Î¼Â·N = Î¼Â·mÂ·gÂ·cos Î¸',
+      'ğŸƒ SÃ¼rtÃ¼nmesiz ivme: a = gÂ·sin Î¸',
+      'ğŸ”¢ Î¸=37Â° â†’ sin=0,6 cos=0,8 ; Î¸=53Â° â†’ sin=0,8 cos=0,6',
+      'ğŸšï¸ EÄŸimi deÄŸiÅŸtir, bileÅŸenleri izle'
+    ]}
+  },
+  bagilHiz: {
+    ilkokul: { emoji: 'ğŸš¤', title: 'AkÄ±ntÄ±da Tekne', points: [
+      'ğŸš¤ Tekne karÅŸÄ±ya geÃ§mek ister',
+      'ğŸŒŠ AkÄ±ntÄ± onu yana sÃ¼rÃ¼kler',
+      'â†—ï¸ GerÃ§ek yol Ã§apraz olur'
+    ]},
+    ortaokul: { emoji: 'ğŸš¤', title: 'BaÄŸÄ±l HÄ±z', points: [
+      'ğŸš¤ Teknenin hÄ±zÄ± + akÄ±ntÄ± hÄ±zÄ± vektÃ¶rel toplanÄ±r',
+      'â†—ï¸ GerÃ§ek (bileÅŸke) hÄ±z Ã§apraz yÃ¶nde olur',
+      'âŸ‚ Dik akÄ±ntÄ±da: bileÅŸke = âˆš(v_tekneÂ² + v_akÄ±ntÄ±Â²)',
+      'ğŸ§­ Tekne biraz akÄ±ntÄ±ya karÅŸÄ± kÃ¼rek Ã§ekmeli',
+      'â±ï¸ GeÃ§iÅŸ sÃ¼resi yalnÄ±z teknenin dik hÄ±zÄ±na baÄŸlÄ±'
+    ]},
+    lise: { emoji: 'ğŸš¤', title: 'BaÄŸÄ±l HÄ±z (VektÃ¶rel Toplama)', points: [
+      'ğŸš¤ v_yer = v_tekne + v_akÄ±ntÄ± (vektÃ¶rel)',
+      'âŸ‚ Dik akÄ±ntÄ±: |v| = âˆš(v_tÂ² + v_aÂ²)',
+      'â±ï¸ GeÃ§iÅŸ sÃ¼resi: t = geniÅŸlik / v_tekne',
+      'â¡ï¸ SÃ¼rÃ¼klenme: x = v_akÄ±ntÄ± Â· t',
+      'ğŸ§­ En kÄ±sa yol iÃ§in tekne akÄ±ntÄ±ya karÅŸÄ± aÃ§Ä±lanmalÄ±'
+    ]},
+    tyt_ayt: { emoji: 'ğŸš¤', title: 'BaÄŸÄ±l Hareket (TYT/AYT)', points: [
+      'ğŸ§® vâƒ—_AB = vâƒ—_A âˆ’ vâƒ—_B (A\'nÄ±n B\'ye gÃ¶re hÄ±zÄ±)',
+      'ğŸš¤ vâƒ—_yer = vâƒ—_tekne + vâƒ—_akÄ±ntÄ±',
+      'â±ï¸ t = d/v_dik (yalnÄ±z karÅŸÄ±ya bileÅŸeni sÃ¼reyi belirler)',
+      'â¡ï¸ SÃ¼rÃ¼klenme = v_akÄ±ntÄ± Â· t',
+      'ğŸ§­ En kÄ±sa sÃ¼rede karÅŸÄ±ya: pruva tam dik tutulur',
+      'ğŸ“ En kÄ±sa yolda karÅŸÄ±ya: sin Î± = v_akÄ±ntÄ±/v_tekne'
+    ]}
+  }
+};
+const SubBuilders = {};
+window.SubBuilders = SubBuilders;
+
+// ============== KARÅILAÅTIRMA VERÄ°LERÄ° ==============
+const COMPARE_DATA = {
+  vektorTanim: {
+    ilkokul: { title: 'VektÃ¶r mÃ¼ Skaler mi?', cols: ['Nicelik', 'TÃ¼r'],
+      rows: [['Kuvvet ğŸ§²', 'VektÃ¶r'], ['HÄ±z ğŸƒ', 'VektÃ¶r'], ['KÃ¼tle âš–ï¸', 'Skaler'], ['Zaman â±ï¸', 'Skaler']] },
+    ortaokul: { title: 'VektÃ¶rel vs Skaler', cols: ['VektÃ¶rel', 'Skaler'],
+      rows: [['Kuvvet', 'KÃ¼tle'], ['HÄ±z', 'SÃ¼rat (yol/zaman)'], ['Yer deÄŸiÅŸtirme', 'Yol'], ['Ä°vme', 'Zaman']] },
+    lise: { title: 'Nicelik SÄ±nÄ±flandÄ±rma', cols: ['TÃ¼r', 'Ã–rnekler', 'Bilgi'],
+      rows: [['VektÃ¶rel', 'Kuvvet, hÄ±z, ivme, momentum', 'BÃ¼yÃ¼klÃ¼k + yÃ¶n'], ['Skaler', 'KÃ¼tle, zaman, enerji, yol', 'YalnÄ±z bÃ¼yÃ¼klÃ¼k']] },
+    tyt_ayt: { title: 'VektÃ¶r Ã–zellikleri', cols: ['Kavram', 'TanÄ±m'],
+      rows: [['EÅŸit vektÃ¶r', 'AynÄ± bÃ¼yÃ¼klÃ¼k, doÄŸrultu, yÃ¶n'], ['ZÄ±t vektÃ¶r (âˆ’Fâƒ—)', 'AynÄ± bÃ¼yÃ¼klÃ¼k, zÄ±t yÃ¶n'], ['Birim vektÃ¶r', 'BÃ¼yÃ¼klÃ¼ÄŸÃ¼ 1 olan vektÃ¶r'], ['BileÅŸen', 'Fâ‚“ = FÂ·cos Î¸, F_y = FÂ·sin Î¸']] }
+  },
+  vektorBilesenleri: {
+    ortaokul: { title: 'AÃ§Ä± ve BileÅŸenler', cols: ['AÃ§Ä± Î¸', 'Yatay Fâ‚“', 'Dikey F_y'],
+      rows: [['KÃ¼Ã§Ã¼k', 'BÃ¼yÃ¼k', 'KÃ¼Ã§Ã¼k'], ['45Â°', 'EÅŸit', 'EÅŸit'], ['BÃ¼yÃ¼k', 'KÃ¼Ã§Ã¼k', 'BÃ¼yÃ¼k']] },
+    lise: { title: 'BileÅŸen FormÃ¼lleri', cols: ['BÃ¼yÃ¼klÃ¼k', 'FormÃ¼l'],
+      rows: [['Yatay', 'Fâ‚“ = FÂ·cos Î¸'], ['Dikey', 'F_y = FÂ·sin Î¸'], ['BÃ¼yÃ¼klÃ¼k', 'F = âˆš(Fâ‚“Â²+F_yÂ²)'], ['YÃ¶n', 'tan Î¸ = F_y/Fâ‚“']] },
+    tyt_ayt: { title: 'Ã–zel AÃ§Ä± DeÄŸerleri', cols: ['Î¸', 'cos Î¸', 'sin Î¸'],
+      rows: [['30Â°', 'âˆš3/2 â‰ˆ 0,87', '0,5'], ['37Â°', '0,8', '0,6'], ['45Â°', 'âˆš2/2 â‰ˆ 0,71', 'âˆš2/2 â‰ˆ 0,71'], ['53Â°', '0,6', '0,8'], ['60Â°', '0,5', 'âˆš3/2 â‰ˆ 0,87']] }
+  },
+  ucUca: {
+    ortaokul: { title: 'Toplama YÃ¶ntemleri', cols: ['YÃ¶ntem', 'NasÄ±l'],
+      rows: [['UÃ§ uca', 'Biri biterken diÄŸeri baÅŸlar'], ['Paralelkenar', 'AynÄ± noktadan, kÃ¶ÅŸegen'], ['BileÅŸke', 'Ä°lk baÅŸtan son uca']] },
+    lise: { title: 'UÃ§ Uca vs Paralelkenar', cols: ['Ã–zellik', 'UÃ§ Uca', 'Paralelkenar'],
+      rows: [['BaÅŸlangÄ±Ã§', 'SÄ±ralÄ±', 'Ortak nokta'], ['Ã‡ok vektÃ¶r', 'Uygun', 'Zor'], ['SonuÃ§', 'AynÄ±', 'AynÄ±']] },
+    tyt_ayt: { title: 'Poligon KuralÄ±', cols: ['Durum', 'BileÅŸke'],
+      rows: [['AÃ§Ä±k poligon', 'Ä°lk kuyruk â†’ son baÅŸ'], ['KapalÄ± poligon', 'Râƒ— = 0'], ['DÃ¼zgÃ¼n Ã§okgen kenarlarÄ±', 'Toplam = 0']] }
+  },
+  paralelkenar: {
+    ortaokul: { title: 'AÃ§Ä± ve BileÅŸke', cols: ['AÃ§Ä± Î±', 'BileÅŸke'],
+      rows: [['0Â° (aynÄ± yÃ¶n)', 'En bÃ¼yÃ¼k: A+B'], ['90Â° (dik)', 'âˆš(AÂ²+BÂ²)'], ['180Â° (zÄ±t)', 'En kÃ¼Ã§Ã¼k: |Aâˆ’B|']] },
+    lise: { title: 'EÅŸit Kuvvetler (A=B=F)', cols: ['AÃ§Ä± Î±', 'BileÅŸke R'],
+      rows: [['0Â°', '2F'], ['60Â°', 'Fâˆš3 â‰ˆ 1,73F'], ['90Â°', 'Fâˆš2 â‰ˆ 1,41F'], ['120Â°', 'F'], ['180Â°', '0']] },
+    tyt_ayt: { title: 'BileÅŸke FormÃ¼lleri', cols: ['BÃ¼yÃ¼klÃ¼k', 'Ä°fade'],
+      rows: [['BileÅŸke', 'R = âˆš(AÂ²+BÂ²+2ABÂ·cos Î±)'], ['EÅŸit kuvvet', 'R = 2FÂ·cos(Î±/2)'], ['YÃ¶n', 'tan Î² = BÂ·sin Î±/(A+BÂ·cos Î±)']] }
+  },
+  ayniZitYon: {
+    ilkokul: { title: 'Hangi YÃ¶n KazanÄ±r?', cols: ['Durum', 'SonuÃ§'],
+      rows: [['AynÄ± yÃ¶n', 'ToplanÄ±r'], ['ZÄ±t yÃ¶n, eÅŸit', 'Durur (0)'], ['ZÄ±t yÃ¶n, farklÄ±', 'BÃ¼yÃ¼k olan kazanÄ±r']] },
+    ortaokul: { title: 'Kolineer Kuvvetler', cols: ['YÃ¶n', 'BileÅŸke'],
+      rows: [['AynÄ±', 'Fâ‚ + Fâ‚‚'], ['ZÄ±t', '|Fâ‚ âˆ’ Fâ‚‚|'], ['EÅŸit ve zÄ±t', '0 (denge)']] },
+    lise: { title: 'BileÅŸke AralÄ±ÄŸÄ±', cols: ['Durum', 'BileÅŸke'],
+      rows: [['Maksimum (aynÄ± yÃ¶n)', 'Fâ‚ + Fâ‚‚'], ['Minimum (zÄ±t yÃ¶n)', '|Fâ‚ âˆ’ Fâ‚‚|'], ['Denge', 'Î£F = 0']] },
+    tyt_ayt: { title: 'Ã–rnek Hesaplar', cols: ['Fâ‚', 'Fâ‚‚', 'YÃ¶n', 'R'],
+      rows: [['8 N â†’', '5 N â†’', 'AynÄ±', '13 N â†’'], ['8 N â†’', '5 N â†', 'ZÄ±t', '3 N â†’'], ['6 N â†’', '6 N â†', 'ZÄ±t', '0']] }
+  },
+  dikKuvvetler: {
+    ortaokul: { title: 'Pisagor ÃœÃ§lÃ¼leri', cols: ['Fâ‚', 'Fâ‚‚', 'BileÅŸke R'],
+      rows: [['3 N', '4 N', '5 N'], ['6 N', '8 N', '10 N'], ['5 N', '12 N', '13 N']] },
+    lise: { title: 'Dik BileÅŸke', cols: ['BÃ¼yÃ¼klÃ¼k', 'FormÃ¼l'],
+      rows: [['BileÅŸke', 'R = âˆš(Fâ‚Â²+Fâ‚‚Â²)'], ['YÃ¶n', 'tan Î¸ = Fâ‚‚/Fâ‚'], ['EÅŸit F', 'R = Fâˆš2']] },
+    tyt_ayt: { title: 'Pisagor ÃœÃ§lÃ¼leri', cols: ['ÃœÃ§lÃ¼', 'HipotenÃ¼s'],
+      rows: [['3-4', '5'], ['5-12', '13'], ['8-15', '17'], ['7-24', '25'], ['20-21', '29']] }
+  },
+  aciliKuvvetler: {
+    ortaokul: { title: 'AÃ§Ä±nÄ±n Etkisi', cols: ['AÃ§Ä± Î±', 'BileÅŸke'],
+      rows: [['KÃ¼Ã§Ã¼k (0Â°)', 'BÃ¼yÃ¼k'], ['Orta (90Â°)', 'Orta'], ['BÃ¼yÃ¼k (180Â°)', 'KÃ¼Ã§Ã¼k']] },
+    lise: { title: 'EÅŸit Kuvvet (F=F)', cols: ['Î±', 'R = 2FÂ·cos(Î±/2)'],
+      rows: [['0Â°', '2F'], ['60Â°', 'Fâˆš3'], ['90Â°', 'Fâˆš2'], ['120Â°', 'F'], ['180Â°', '0']] },
+    tyt_ayt: { title: 'KosinÃ¼s Teoremi', cols: ['Durum', 'BileÅŸke R'],
+      rows: [['Genel', 'âˆš(Fâ‚Â²+Fâ‚‚Â²+2Fâ‚Fâ‚‚cos Î±)'], ['Î±=90Â°', 'âˆš(Fâ‚Â²+Fâ‚‚Â²)'], ['EÅŸit, Î±', '2FÂ·cos(Î±/2)']] }
+  },
+  denge: {
+    ortaokul: { title: 'Denge Durumu', cols: ['KoÅŸul', 'SonuÃ§'],
+      rows: [['Î£F = 0', 'Dengede'], ['Î£F â‰  0', 'Hareketlenir'], ['EÅŸit zÄ±t kuvvet', 'Durur']] },
+    lise: { title: 'Denge KoÅŸullarÄ±', cols: ['KoÅŸul', 'AnlamÄ±'],
+      rows: [['Î£Fâ‚“ = 0', 'Yatay denge'], ['Î£F_y = 0', 'Dikey denge'], ['Dengeleyici', 'âˆ’BileÅŸke']] },
+    tyt_ayt: { title: 'Lami Teoremi', cols: ['Oran', 'EÅŸitlik'],
+      rows: [['Fâ‚/sin Î±', '= Fâ‚‚/sin Î²'], ['Fâ‚‚/sin Î²', '= Fâ‚ƒ/sin Î³'], ['AÃ§Ä±lar', 'Kuvvet karÅŸÄ±sÄ±']] }
+  },
+  egikDuzlem: {
+    ortaokul: { title: 'EÄŸim ve Kuvvet', cols: ['EÄŸim Î¸', 'KaydÄ±ran', 'BastÄ±ran'],
+      rows: [['KÃ¼Ã§Ã¼k', 'KÃ¼Ã§Ã¼k', 'BÃ¼yÃ¼k'], ['45Â°', 'EÅŸit', 'EÅŸit'], ['BÃ¼yÃ¼k', 'BÃ¼yÃ¼k', 'KÃ¼Ã§Ã¼k']] },
+    lise: { title: 'AÄŸÄ±rlÄ±k BileÅŸenleri', cols: ['BileÅŸen', 'FormÃ¼l'],
+      rows: [['KaydÄ±ran', 'GÂ·sin Î¸'], ['BastÄ±ran (Normal)', 'GÂ·cos Î¸'], ['Ä°vme (sÃ¼rtÃ¼nmesiz)', 'gÂ·sin Î¸']] },
+    tyt_ayt: { title: 'EÄŸik DÃ¼zlem (Î¸)', cols: ['Î¸', 'sin Î¸', 'cos Î¸'],
+      rows: [['30Â°', '0,5', '0,87'], ['37Â°', '0,6', '0,8'], ['45Â°', '0,71', '0,71'], ['53Â°', '0,8', '0,6']] }
+  },
+  bagilHiz: {
+    ortaokul: { title: 'Tekne ve AkÄ±ntÄ±', cols: ['BÃ¼yÃ¼klÃ¼k', 'Etki'],
+      rows: [['Teknenin hÄ±zÄ±', 'KarÅŸÄ±ya gÃ¶tÃ¼rÃ¼r'], ['AkÄ±ntÄ± hÄ±zÄ±', 'Yana sÃ¼rÃ¼kler'], ['BileÅŸke', 'Ã‡apraz yol']] },
+    lise: { title: 'Dik AkÄ±ntÄ±', cols: ['BÃ¼yÃ¼klÃ¼k', 'FormÃ¼l'],
+      rows: [['BileÅŸke hÄ±z', 'âˆš(v_tÂ²+v_aÂ²)'], ['GeÃ§iÅŸ sÃ¼resi', 't = d/v_t'], ['SÃ¼rÃ¼klenme', 'x = v_aÂ·t']] },
+    tyt_ayt: { title: 'BaÄŸÄ±l HÄ±z', cols: ['AmaÃ§', 'YÃ¶ntem'],
+      rows: [['En kÄ±sa sÃ¼re', 'Pruva tam dik'], ['En kÄ±sa yol', 'AkÄ±ntÄ±ya karÅŸÄ± aÃ§Ä±'], ['AÃ§Ä±', 'sin Î± = v_a/v_t']] }
+  }
+};
+
+// ============== TABLO VERÄ°LERÄ° ==============
+const TABLE_DATA = {
+  vektorTanim: {
+    ortaokul: { title: 'VektÃ¶rel ve Skaler Nicelikler', cols: ['Nicelik', 'TÃ¼r', 'Birim'],
+      rows: [['Kuvvet', 'VektÃ¶rel', 'N'], ['HÄ±z', 'VektÃ¶rel', 'm/s'], ['KÃ¼tle', 'Skaler', 'kg'], ['Zaman', 'Skaler', 's'], ['Enerji', 'Skaler', 'J']] },
+    lise: { title: 'VektÃ¶r GÃ¶sterimi', cols: ['Kavram', 'GÃ¶sterim'],
+      rows: [['VektÃ¶r', 'Fâƒ— veya koyu F'], ['BÃ¼yÃ¼klÃ¼k', '|Fâƒ—| = F'], ['BileÅŸen', 'Fâ‚“, F_y'], ['Birim vektÃ¶r', 'Ã®, Äµ']] },
+    tyt_ayt: { title: 'Temel TanÄ±mlar', cols: ['Terim', 'AÃ§Ä±klama'],
+      rows: [['DoÄŸrultu', 'VektÃ¶rÃ¼n Ã¼zerinde bulunduÄŸu doÄŸru'], ['YÃ¶n', 'DoÄŸrultu Ã¼zerinde ileri/geri'], ['EÅŸit vektÃ¶r', 'ÃœÃ§ Ã¶zelliÄŸi de aynÄ±'], ['BileÅŸke', 'VektÃ¶rlerin toplamÄ±']] }
+  },
+  vektorBilesenleri: {
+    lise: { title: 'BileÅŸen HesabÄ± (F=10 N)', cols: ['Î¸', 'Fâ‚“', 'F_y'],
+      rows: [['37Â°', '8 N', '6 N'], ['45Â°', '7,1 N', '7,1 N'], ['53Â°', '6 N', '8 N'], ['60Â°', '5 N', '8,7 N']] },
+    tyt_ayt: { title: 'BileÅŸen FormÃ¼lleri', cols: ['BÃ¼yÃ¼klÃ¼k', 'FormÃ¼l', 'Not'],
+      rows: [['Yatay', 'Fâ‚“ = FÂ·cos Î¸', 'x ekseni'], ['Dikey', 'F_y = FÂ·sin Î¸', 'y ekseni'], ['BÃ¼yÃ¼klÃ¼k', 'âˆš(Fâ‚“Â²+F_yÂ²)', 'Geri birleÅŸtirme'], ['YÃ¶n', 'arctan(F_y/Fâ‚“)', 'AÃ§Ä±']] }
+  },
+  ucUca: {
+    lise: { title: 'Toplama KurallarÄ±', cols: ['Ã–zellik', 'Ä°fade'],
+      rows: [['DeÄŸiÅŸme', 'A + B = B + A'], ['BirleÅŸme', '(A+B)+C = A+(B+C)'], ['KapalÄ± poligon', 'R = 0']] },
+    tyt_ayt: { title: 'BileÅŸen ToplamÄ±', cols: ['Eksen', 'Toplam'],
+      rows: [['Yatay', 'Râ‚“ = Î£Fâ‚“'], ['Dikey', 'R_y = Î£F_y'], ['BileÅŸke', 'R = âˆš(Râ‚“Â²+R_yÂ²)']] }
+  },
+  paralelkenar: {
+    lise: { title: 'EÅŸit Kuvvetler (A=B=F)', cols: ['Î±', 'R', 'Oran'],
+      rows: [['0Â°', '2F', '2,00'], ['60Â°', 'Fâˆš3', '1,73'], ['90Â°', 'Fâˆš2', '1,41'], ['120Â°', 'F', '1,00'], ['180Â°', '0', '0,00']] },
+    tyt_ayt: { title: 'BileÅŸke SÄ±nÄ±rlarÄ±', cols: ['AÃ§Ä±', 'BileÅŸke'],
+      rows: [['Î± = 0Â°', 'R = A+B (max)'], ['Î± = 180Â°', 'R = |Aâˆ’B| (min)'], ['Genel', '|Aâˆ’B| â‰¤ R â‰¤ A+B']] }
+  },
+  ayniZitYon: {
+    lise: { title: 'Kolineer Ã–rnekler', cols: ['Fâ‚', 'Fâ‚‚', 'YÃ¶n', 'R'],
+      rows: [['10 N', '6 N', 'AynÄ±', '16 N'], ['10 N', '6 N', 'ZÄ±t', '4 N'], ['7 N', '7 N', 'ZÄ±t', '0']] },
+    tyt_ayt: { title: 'Newton I', cols: ['Durum', 'Î£F', 'SonuÃ§'],
+      rows: [['Denge', '0', 'a = 0 (durur/sabit hÄ±z)'], ['Net kuvvet var', 'â‰  0', 'a = Î£F/m']] }
+  },
+  dikKuvvetler: {
+    lise: { title: 'Dik BileÅŸke Ã–rnekleri', cols: ['Fâ‚', 'Fâ‚‚', 'R'],
+      rows: [['3 N', '4 N', '5 N'], ['6 N', '8 N', '10 N'], ['5 N', '12 N', '13 N'], ['9 N', '12 N', '15 N']] },
+    tyt_ayt: { title: 'Dik BileÅŸke', cols: ['BÃ¼yÃ¼klÃ¼k', 'FormÃ¼l', 'EÅŸit F'],
+      rows: [['BileÅŸke', 'âˆš(Fâ‚Â²+Fâ‚‚Â²)', 'Fâˆš2'], ['YÃ¶n', 'tan Î¸=Fâ‚‚/Fâ‚', '45Â°']] }
+  },
+  aciliKuvvetler: {
+    lise: { title: 'AÃ§Ä±-BileÅŸke (Fâ‚=Fâ‚‚=F)', cols: ['Î±', 'R'],
+      rows: [['0Â°', '2F'], ['60Â°', 'Fâˆš3'], ['90Â°', 'Fâˆš2'], ['120Â°', 'F'], ['180Â°', '0']] },
+    tyt_ayt: { title: 'KosinÃ¼s Teoremi', cols: ['Terim', 'Ä°fade'],
+      rows: [['BileÅŸke', 'R=âˆš(Fâ‚Â²+Fâ‚‚Â²+2Fâ‚Fâ‚‚cos Î±)'], ['YÃ¶n', 'tan Î²=Fâ‚‚sin Î±/(Fâ‚+Fâ‚‚cos Î±)'], ['EÅŸit kuvvet', 'R=2FÂ·cos(Î±/2)']] }
+  },
+  denge: {
+    lise: { title: 'Denge KoÅŸullarÄ±', cols: ['KoÅŸul', 'AnlamÄ±'],
+      rows: [['Î£Fâ‚“ = 0', 'Yatayda denge'], ['Î£F_y = 0', 'Dikeyde denge'], ['Dengeleyici', 'âˆ’Râƒ— (zÄ±t)']] },
+    tyt_ayt: { title: 'Lami Teoremi', cols: ['Kuvvet', 'KarÅŸÄ± AÃ§Ä±', 'Oran'],
+      rows: [['Fâ‚', 'Î±', 'Fâ‚/sin Î±'], ['Fâ‚‚', 'Î²', 'Fâ‚‚/sin Î²'], ['Fâ‚ƒ', 'Î³', 'Fâ‚ƒ/sin Î³']] }
+  },
+  egikDuzlem: {
+    lise: { title: 'BileÅŸenler (G=100 N)', cols: ['Î¸', 'KaydÄ±ran', 'Normal'],
+      rows: [['30Â°', '50 N', '87 N'], ['37Â°', '60 N', '80 N'], ['45Â°', '71 N', '71 N'], ['53Â°', '80 N', '60 N']] },
+    tyt_ayt: { title: 'EÄŸik DÃ¼zlem FormÃ¼lleri', cols: ['BÃ¼yÃ¼klÃ¼k', 'FormÃ¼l'],
+      rows: [['KaydÄ±ran', 'mÂ·gÂ·sin Î¸'], ['Normal', 'mÂ·gÂ·cos Î¸'], ['SÃ¼rtÃ¼nme', 'Î¼Â·mÂ·gÂ·cos Î¸'], ['Ä°vme (sÃ¼rtÃ¼nmesiz)', 'gÂ·sin Î¸']] }
+  },
+  bagilHiz: {
+    lise: { title: 'Dik AkÄ±ntÄ± (d=60 m)', cols: ['v_tekne', 'v_akÄ±ntÄ±', 'SÃ¼re', 'SÃ¼rÃ¼klenme'],
+      rows: [['6 m/s', '0', '10 s', '0'], ['6 m/s', '4 m/s', '10 s', '40 m'], ['6 m/s', '8 m/s', '10 s', '80 m']] },
+    tyt_ayt: { title: 'BaÄŸÄ±l HÄ±z Stratejileri', cols: ['AmaÃ§', 'Pruva YÃ¶nÃ¼', 'SonuÃ§'],
+      rows: [['En kÄ±sa sÃ¼re', 'Tam dik', 't=d/v_t, sÃ¼rÃ¼klenir'], ['En kÄ±sa yol', 'AkÄ±ntÄ±ya karÅŸÄ± aÃ§Ä±', 'sin Î±=v_a/v_t']] }
+  }
+};
+
+// ============================================================
+// ====== GÖLGE FİZİĞİ — 3D HELPER KÜTÜPHANESİ ===============
+// ============================================================
+
+function setupShadowLighting() {
+  const grp = new THREE.Group();
+  grp.userData.dynamic = true;
+  const amb = new THREE.AmbientLight(0x6a7aa0, 0.62);
+  grp.add(amb);
+  const fill = new THREE.DirectionalLight(0x8aa8d8, 0.45);
+  fill.position.set(-6, 8, 10);
+  grp.add(fill);
+  const rim = new THREE.DirectionalLight(0xa8c8ff, 0.38);
+  rim.position.set(4, 3, -8);
+  grp.add(rim);
+  const top = new THREE.HemisphereLight(0xbcd0ff, 0x303040, 0.45);
+  grp.add(top);
+  return grp;
+}
+
+function makePointSource(opts = {}) {
+  const grp = new THREE.Group();
+  const radius = opts.radius || 0.22;
+  const color = opts.color || 0xffe17a;
+  const core = new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 24, 18),
+    new THREE.MeshStandardMaterial({
+      color: 0xffffff, emissive: 0xfff3b0,
+      emissiveIntensity: 1.6, toneMapped: false
+    })
+  );
+  grp.add(core);
+  for (let i = 0; i < 3; i++) {
+    const halo = new THREE.Mesh(
+      new THREE.SphereGeometry(radius * (1.5 + i * 0.7), 20, 14),
+      new THREE.MeshBasicMaterial({
+        color: color, transparent: true,
+        opacity: 0.18 - i * 0.05,
+        blending: THREE.AdditiveBlending, depthWrite: false
+      })
+    );
+    grp.add(halo);
+  }
+  const pl = new THREE.PointLight(color, 1.2, 60, 1.5);
+  grp.add(pl);
+  grp.userData._isSource = true;
+  grp.userData._radius = radius;
+  return grp;
+}
+
+function makeSphericalSource(opts = {}) {
+  const grp = new THREE.Group();
+  const R = opts.R || 1.2;
+  const color = opts.color || 0xffcc33;
+  const core = new THREE.Mesh(
+    new THREE.SphereGeometry(R, 48, 32),
+    new THREE.MeshStandardMaterial({
+      color: 0xffd966, emissive: 0xffcc33,
+      emissiveIntensity: 1.3, toneMapped: false,
+      roughness: 0.4
+    })
+  );
+  grp.add(core);
+  const inner = new THREE.Mesh(
+    new THREE.SphereGeometry(R * 0.7, 32, 24),
+    new THREE.MeshBasicMaterial({ color: 0xfff8e0, transparent: true, opacity: 0.5 })
+  );
+  grp.add(inner);
+  for (let i = 0; i < 3; i++) {
+    const halo = new THREE.Mesh(
+      new THREE.SphereGeometry(R * (1.15 + i * 0.35), 28, 18),
+      new THREE.MeshBasicMaterial({
+        color: color, transparent: true,
+        opacity: 0.15 - i * 0.04,
+        blending: THREE.AdditiveBlending, depthWrite: false
+      })
+    );
+    grp.add(halo);
+  }
+  const pl = new THREE.PointLight(color, 1.6, 80, 1.2);
+  grp.add(pl);
+  grp.userData._isSource = true;
+  grp.userData._isSpherical = true;
+  grp.userData._R = R;
+  return grp;
+}
+
+function makeObstacle(opts = {}) {
+  const r = opts.r || 1.0;
+  const type = opts.type || 'cylinder';
+  let mesh;
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0x3a4252, roughness: 0.65, metalness: 0.25,
+    emissive: 0x12161f, emissiveIntensity: 0.15
+  });
+  if (type === 'sphere') {
+    mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 40, 28), mat);
+  } else {
+    mesh = new THREE.Mesh(new THREE.CylinderGeometry(r, r, r * 2.4, 36), mat);
+  }
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  const grp = new THREE.Group();
+  grp.add(mesh);
+  const edge = new THREE.Mesh(
+    (type === 'sphere') ? new THREE.SphereGeometry(r * 1.02, 40, 28)
+                        : new THREE.CylinderGeometry(r * 1.02, r * 1.02, r * 2.42, 36),
+    new THREE.MeshBasicMaterial({ color: 0x5a6478, transparent: true, opacity: 0.18, side: THREE.BackSide })
+  );
+  grp.add(edge);
+  grp.userData._isObstacle = true;
+  grp.userData._r = r;
+  return grp;
+}
+
+function makeScreen(opts = {}) {
+  const w = opts.w || 9;
+  const h = opts.h || 9;
+  const grp = new THREE.Group();
+  const frameMat = new THREE.MeshStandardMaterial({
+    color: 0x2a3142, roughness: 0.7, metalness: 0.3
+  });
+  const frameThick = 0.18;
+  const frameDepth = 0.25;
+  const top = new THREE.Mesh(new THREE.BoxGeometry(w + frameThick*2, frameThick, frameDepth), frameMat);
+  top.position.y = h/2 + frameThick/2;
+  grp.add(top);
+  const bot = top.clone(); bot.position.y = -h/2 - frameThick/2; grp.add(bot);
+  const left = new THREE.Mesh(new THREE.BoxGeometry(frameThick, h, frameDepth), frameMat);
+  left.position.x = -w/2 - frameThick/2; grp.add(left);
+  const right = left.clone(); right.position.x = w/2 + frameThick/2; grp.add(right);
+  const surfGeo = new THREE.PlaneGeometry(w, h, 1, 1);
+  const surfMat = new THREE.MeshStandardMaterial({
+    color: 0xeae4d0, roughness: 0.9, metalness: 0.0,
+    side: THREE.DoubleSide,
+    emissive: 0x2a2820, emissiveIntensity: 0.1
+  });
+  const surf = new THREE.Mesh(surfGeo, surfMat);
+  surf.receiveShadow = true;
+  surf.userData._isScreenSurface = true;
+  grp.add(surf);
+  grp.userData._isScreen = true;
+  grp.userData._w = w;
+  grp.userData._h = h;
+  grp.userData._surf = surf;
+  return grp;
+}
+
+function makeRay(from, to, opts = {}) {
+  const color = opts.color || 0xffe17a;
+  const width = opts.width || 0.018;
+  const dim = opts.dim || false;
+  const dir = new THREE.Vector3().subVectors(to, from);
+  const len = dir.length();
+  const geo = new THREE.CylinderGeometry(width, width, len, 6);
+  const mat = new THREE.MeshBasicMaterial({
+    color: color,
+    transparent: true,
+    opacity: dim ? 0.32 : 0.78,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    toneMapped: false
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.copy(from).add(to).multiplyScalar(0.5);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+  return mesh;
+}
+
+function makeRayArrow(at, dir, opts = {}) {
+  const color = opts.color || 0xffe17a;
+  const size = opts.size || 0.14;
+  const cone = new THREE.Mesh(
+    new THREE.ConeGeometry(size * 0.5, size * 1.6, 8),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, toneMapped: false })
+  );
+  cone.position.copy(at);
+  cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+  return cone;
+}
+
+function makeShadowDisk(radius, color, opacity, opts = {}) {
+  const seg = opts.seg || 48;
+  const inner = opts.inner || 0;
+  let geo;
+  if (inner > 0) {
+    geo = new THREE.RingGeometry(inner, radius, seg);
+  } else {
+    geo = new THREE.CircleGeometry(radius, seg);
+  }
+  const mat = new THREE.MeshBasicMaterial({
+    color: color, transparent: true, opacity: opacity,
+    side: THREE.DoubleSide, depthWrite: false
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  return mesh;
+}
+
+function makeOpticalAxis(from, to, color = 0x5a6478) {
+  const pts = [from.clone(), to.clone()];
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const mat = new THREE.LineDashedMaterial({
+    color, dashSize: 0.25, gapSize: 0.18,
+    transparent: true, opacity: 0.5
+  });
+  const line = new THREE.Line(geo, mat);
+  line.computeLineDistances();
+  return line;
+}
+
+function makeFloor(opts = {}) {
+  const size = opts.size || 40;
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(size, size),
+    new THREE.MeshStandardMaterial({
+      color: 0x0c1018, roughness: 0.85, metalness: 0.1,
+      transparent: true, opacity: 0.55
+    })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -4.2;
+  floor.receiveShadow = true;
+  return floor;
+}
+
+function makeFlowRay(from, to, opts = {}) {
+  const count = opts.count || 8;
+  const color = opts.color || 0xfff0a0;
+  const positions = new Float32Array(count * 3);
+  const offsets = new Float32Array(count);
+  const dir = new THREE.Vector3().subVectors(to, from);
+  for (let i = 0; i < count; i++) {
+    const t = i / count;
+    positions[i*3] = from.x + dir.x * t;
+    positions[i*3+1] = from.y + dir.y * t;
+    positions[i*3+2] = from.z + dir.z * t;
+    offsets[i] = t;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const mat = new THREE.PointsMaterial({
+    size: 0.16, color: color, transparent: true, opacity: 0.9,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+    sizeAttenuation: true
+  });
+  const pts = new THREE.Points(geo, mat);
+  pts.userData._from = from.clone();
+  pts.userData._to = to.clone();
+  pts.userData._offsets = offsets;
+  pts.userData._count = count;
+  pts.userData._isFlowRay = true;
+  return pts;
+}
+
+function updateFlowRay(pts, t) {
+  if (!pts.userData._isFlowRay) return;
+  const from = pts.userData._from;
+  const to = pts.userData._to;
+  const count = pts.userData._count;
+  const offsets = pts.userData._offsets;
+  const pos = pts.geometry.attributes.position.array;
+  const dir = new THREE.Vector3().subVectors(to, from);
+  const speed = 0.35;
+  for (let i = 0; i < count; i++) {
+    const tt = (offsets[i] + t * speed) % 1.0;
+    pos[i*3] = from.x + dir.x * tt;
+    pos[i*3+1] = from.y + dir.y * tt;
+    pos[i*3+2] = from.z + dir.z * tt;
+  }
+  pts.geometry.attributes.position.needsUpdate = true;
+}
+
+window._flowRays = [];
+function registerFlowRay(pts) { window._flowRays.push(pts); }
+function clearFlowRays() { window._flowRays = []; }
+
+function makeStarfield() {
+  const count = 600;
+  const positions = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = 60;
+    positions[i*3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[i*3+2] = r * Math.cos(phi);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const mat = new THREE.PointsMaterial({
+    color: 0xffffff, size: 0.12, sizeAttenuation: true,
+    transparent: true, opacity: 0.6, depthWrite: false
+  });
+  return new THREE.Points(geo, mat);
+}
+
+function makeCelestial(opts = {}) {
+  const r = opts.r || 1;
+  const color = opts.color || 0x2e7dd6;
+  const grp = new THREE.Group();
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(r, 48, 32),
+    new THREE.MeshStandardMaterial({
+      color: color, roughness: 0.8, metalness: 0.1,
+      emissive: new THREE.Color(color).multiplyScalar(0.12),
+      emissiveIntensity: 0.5
+    })
+  );
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  grp.add(mesh);
+  grp.userData._r = r;
+  grp.userData._mesh = mesh;
+  return grp;
+}
+
+function makeSunBody(opts = {}) {
+  const r = opts.r || 2.2;
+  const grp = new THREE.Group();
+  const core = new THREE.Mesh(
+    new THREE.SphereGeometry(r, 48, 32),
+    new THREE.MeshStandardMaterial({
+      color: 0xffd54f, emissive: 0xffb300,
+      emissiveIntensity: 1.4, toneMapped: false
+    })
+  );
+  grp.add(core);
+  for (let i = 0; i < 3; i++) {
+    const halo = new THREE.Mesh(
+      new THREE.SphereGeometry(r * (1.12 + i * 0.3), 32, 20),
+      new THREE.MeshBasicMaterial({
+        color: 0xffcc33, transparent: true, opacity: 0.14 - i*0.04,
+        blending: THREE.AdditiveBlending, depthWrite: false
+      })
+    );
+    grp.add(halo);
+  }
+  const pl = new THREE.PointLight(0xfff0c0, 2.0, 120, 1.0);
+  grp.add(pl);
+  grp.userData._r = r;
+  return grp;
+}
+
+
+// ============================================================
+// ====== VEKTÃ–R FÄ°ZÄ°ÄÄ° â€” 3D HELPER KÃœTÃœPHANESÄ° ==============
+// ============================================================
+const _AXIS_Y = 0;
+
+const VCOL = {
+  f1: 0x5fc8e0,   // mavi  (Fâ‚ / yatay / tekne)
+  f2: 0xc45d5d,   // kÄ±rmÄ±zÄ± (Fâ‚‚ / dikey / akÄ±ntÄ± / aÄŸÄ±rlÄ±k)
+  res: 0xf6b93b,  // sarÄ±  (bileÅŸke R)
+  comp: 0x9d7fe6, // mor   (bileÅŸen)
+  g: 0x2ecc40     // yeÅŸil (Ã¼Ã§Ã¼ncÃ¼ kuvvet / normal)
+};
+
+function _fmt(v, d) {
+  d = (d === undefined) ? 1 : d;
+  return v.toFixed(d).replace('.', ',');
+}
+
+function makeDot(pos, colorHex, r) {
+  const m = new THREE.Mesh(
+    new THREE.SphereGeometry(r || 0.13, 18, 14),
+    new THREE.MeshBasicMaterial({ color: colorHex, toneMapped: false })
+  );
+  m.position.copy(pos);
+  return m;
+}
+
+// from / to: THREE.Vector3
+function makeArrow3D(from, to, colorHex, opts) {
+  opts = opts || {};
+  const grp = new THREE.Group();
+  const color = new THREE.Color(colorHex);
+  const dir = new THREE.Vector3().subVectors(to, from);
+  const len = dir.length();
+  if (len < 0.0001) return grp;
+  const ndir = dir.clone().normalize();
+  const width = opts.width || 0.075;
+  let headLen = opts.head || (width * 5.5);
+  headLen = Math.min(headLen, len * 0.45);
+  const shaftLen = Math.max(0.001, len - headLen);
+
+  const mat = new THREE.MeshStandardMaterial({
+    color: color, emissive: color, emissiveIntensity: 0.4,
+    roughness: 0.4, metalness: 0.2, toneMapped: false
+  });
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(width, width, shaftLen, 16), mat);
+  shaft.position.copy(from).add(ndir.clone().multiplyScalar(shaftLen / 2));
+  shaft.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), ndir);
+  shaft.castShadow = true;
+  grp.add(shaft);
+
+  const head = new THREE.Mesh(new THREE.ConeGeometry(width * 2.7, headLen, 22), mat.clone());
+  head.position.copy(to).sub(ndir.clone().multiplyScalar(headLen / 2));
+  head.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), ndir);
+  head.castShadow = true;
+  grp.add(head);
+
+  grp.userData.dynamic = true;
+  return grp;
+}
+
+function makeGridXY(opts) {
+  opts = opts || {};
+  const size = opts.size || 11;
+  const step = opts.step || 1;
+  const grp = new THREE.Group();
+  const pts = [];
+  for (let i = -size; i <= size; i += step) {
+    pts.push(new THREE.Vector3(-size, i, 0), new THREE.Vector3(size, i, 0));
+    pts.push(new THREE.Vector3(i, -size, 0), new THREE.Vector3(i, size, 0));
+  }
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  grp.add(new THREE.LineSegments(geo, new THREE.LineBasicMaterial({
+    color: 0x2f3a5f, transparent: true, opacity: 0.45
+  })));
+  const axGeo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-size, 0, 0), new THREE.Vector3(size, 0, 0),
+    new THREE.Vector3(0, -size, 0), new THREE.Vector3(0, size, 0)
+  ]);
+  grp.add(new THREE.LineSegments(axGeo, new THREE.LineBasicMaterial({
+    color: 0x5a6478, transparent: true, opacity: 0.8
+  })));
+  grp.userData.dynamic = true;
+  return grp;
+}
+
+function makeDashedSeg(a, b, colorHex, opts) {
+  opts = opts || {};
+  const geo = new THREE.BufferGeometry().setFromPoints([a, b]);
+  const mat = new THREE.LineDashedMaterial({
+    color: colorHex, dashSize: opts.dash || 0.3, gapSize: opts.gap || 0.2,
+    transparent: true, opacity: opts.opacity || 0.75
+  });
+  const l = new THREE.Line(geo, mat);
+  l.computeLineDistances();
+  l.userData.dynamic = true;
+  return l;
+}
+
+function makeAngleArc(center, r, a0, a1, colorHex) {
+  const pts = [];
+  const seg = 40;
+  for (let i = 0; i <= seg; i++) {
+    const a = a0 + (a1 - a0) * i / seg;
+    pts.push(new THREE.Vector3(center.x + r * Math.cos(a), center.y + r * Math.sin(a), center.z));
+  }
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const l = new THREE.Line(geo, new THREE.LineBasicMaterial({
+    color: colorHex, transparent: true, opacity: 0.95, toneMapped: false
+  }));
+  l.userData.dynamic = true;
+  return l;
+}
+
+// dik aÃ§Ä± iÅŸareti (saÄŸ aÃ§Ä± karesi) kÃ¶ÅŸe c, iki yÃ¶n u,v birim
+function makeRightAngle(c, u, v, s, colorHex) {
+  s = s || 0.5;
+  const p0 = c.clone().add(u.clone().multiplyScalar(s));
+  const p1 = p0.clone().add(v.clone().multiplyScalar(s));
+  const p2 = c.clone().add(v.clone().multiplyScalar(s));
+  const geo = new THREE.BufferGeometry().setFromPoints([p0, p1, p2]);
+  const l = new THREE.Line(geo, new THREE.LineBasicMaterial({
+    color: colorHex || 0xffffff, transparent: true, opacity: 0.8
+  }));
+  l.userData.dynamic = true;
+  return l;
+}
+
+function _disposeGroup(g) {
+  while (g.children.length) {
+    const c = g.children[0];
+    g.remove(c);
+    if (c.children && c.children.length) _disposeGroup(c);
+    if (c.geometry) c.geometry.dispose();
+    if (c.material) { Array.isArray(c.material) ? c.material.forEach(m => m.dispose()) : c.material.dispose(); }
+  }
+}
+
+function _newRoot() {
+  const root = new THREE.Group();
+  markDynamic(root);
+  scene.add(root);
+  window._currentModelGroup = root;
+  root.add(setupShadowLighting());
+  root.add(makeGridXY({ size: 11, step: 1 }));
+  return root;
+}
+
+// ============================================================
+// ====== SUBBUILDERS â€” 3D SAHNE KURUCULAR ===================
+// ============================================================
+
+SubBuilders.buildVektorTanim = function() {
+  const root = _newRoot();
+  const O = new THREE.Vector3(0, 0, 0);
+  const tip = new THREE.Vector3(6, 4, 0);
+
+  root.add(makeDot(O, 0xffffff, 0.16));
+  root.add(makeArrow3D(O, tip, VCOL.res, { width: 0.1 }));
+
+  // bÃ¼yÃ¼klÃ¼k gÃ¶stergesi (kesikli uzunluk Ã§izgisi)
+  root.add(makeDashedSeg(O, tip, 0xffd166, { opacity: 0.0 }));
+
+  // eÅŸ vektÃ¶r (Ã¶teleme): aynÄ± bÃ¼yÃ¼klÃ¼k + yÃ¶n, farklÄ± konum
+  const eO = new THREE.Vector3(-7, -2.5, 0);
+  const eTip = eO.clone().add(new THREE.Vector3(6, 4, 0));
+  root.add(makeArrow3D(eO, eTip, 0xffe39a, { width: 0.07 }));
+
+  // zÄ±t vektÃ¶r (âˆ’F): aynÄ± bÃ¼yÃ¼klÃ¼k, zÄ±t yÃ¶n
+  const zO = new THREE.Vector3(-1.2, 6.5, 0);
+  const zTip = zO.clone().add(new THREE.Vector3(-6, -4, 0));
+  root.add(makeArrow3D(zO, zTip, VCOL.f2, { width: 0.07 }));
+
+  addInfo3DLabels([
+    { text: { ilkokul: 'â¡ï¸ VektÃ¶r (ok)', ortaokul: 'â¡ï¸ VektÃ¶r Fâƒ—', lise: 'â¡ï¸ VektÃ¶r Fâƒ—', tyt_ayt: 'â¡ï¸ Fâƒ— = Fâ‚“ Ã® + F_y Äµ' },
+      position: [3.2, 3.0, 0], target: [3, 2, 0], color: '#f6b93b' },
+    { text: { ilkokul: 'ğŸ“ Uzunluk = bÃ¼yÃ¼klÃ¼k', ortaokul: 'ğŸ“ BÃ¼yÃ¼klÃ¼k |Fâƒ—|', lise: 'ğŸ“ BÃ¼yÃ¼klÃ¼k |Fâƒ—| = F', tyt_ayt: 'ğŸ“ |Fâƒ—| = âˆš(Fâ‚“Â²+F_yÂ²)' },
+      position: [6.6, 4.6, 0], target: [6, 4, 0], color: '#ffd166' },
+    { text: { ortaokul: 'ğŸŸ° EÅŸ vektÃ¶r (Ã¶teleme)', lise: 'ğŸŸ° EÅŸ vektÃ¶r: aynÄ± bÃ¼yÃ¼klÃ¼k+yÃ¶n', tyt_ayt: 'ğŸŸ° EÅŸ vektÃ¶r (Ã¶telenebilir)' },
+      position: [-4, -3.4, 0], target: [-4, -0.5, 0], color: '#ffe39a', minLevel: 2 },
+    { text: { ortaokul: 'â– ZÄ±t vektÃ¶r', lise: 'â– ZÄ±t vektÃ¶r (âˆ’Fâƒ—)', tyt_ayt: 'â– âˆ’Fâƒ—: zÄ±t yÃ¶n (180Â°)' },
+      position: [-5.4, 3.2, 0], target: [-4.2, 4.4, 0], color: '#c45d5d', minLevel: 2 }
+  ]);
+
+  setSceneSliders([
+    { type: 'section', label: 'VektÃ¶r Bilgisi' },
+    { type: 'display', label: 'BÃ¼yÃ¼klÃ¼k', getValue: () => 'Okun uzunluÄŸu' },
+    { type: 'display', label: 'DoÄŸrultu', getValue: () => 'Okun Ã¼zerindeki doÄŸru' },
+    { type: 'display', label: 'YÃ¶n', getValue: () => 'Okun gÃ¶sterdiÄŸi taraf' },
+    { type: 'formula', text: 'VektÃ¶r = bÃ¼yÃ¼klÃ¼k + yÃ¶n' }
+  ], { title: 'VektÃ¶r ve Skaler' });
+};
+
+SubBuilders.buildVektorBilesenleri = function() {
+  const root = _newRoot();
+  const S = window._sceneState;
+  S.vb_F = 8;
+  S.vb_ang = 37;
+  const O = new THREE.Vector3(-4, -3, 0);
+  const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+
+  root.add(makeDot(O, 0xffffff, 0.15));
+
+  function rebuild() {
+    _disposeGroup(dyn);
+    const a = S.vb_ang * Math.PI / 180;
+    const F = S.vb_F;
+    const fx = F * Math.cos(a);
+    const fy = F * Math.sin(a);
+    const corner = new THREE.Vector3(O.x + fx, O.y, 0);
+    const tip = new THREE.Vector3(O.x + fx, O.y + fy, 0);
+
+    // bileÅŸke vektÃ¶r (sarÄ±)
+    dyn.add(makeArrow3D(O, tip, VCOL.res, { width: 0.085 }));
+    // yatay bileÅŸen Fx (mavi)
+    if (fx > 0.2) dyn.add(makeArrow3D(O, corner, VCOL.f1, { width: 0.07 }));
+    // dikey bileÅŸen Fy (kÄ±rmÄ±zÄ±)
+    if (fy > 0.2) dyn.add(makeArrow3D(corner, tip, VCOL.f2, { width: 0.07 }));
+    // kesikli kÄ±lavuzlar
+    dyn.add(makeDashedSeg(tip, corner, VCOL.f1));
+    dyn.add(makeDashedSeg(tip, new THREE.Vector3(O.x, tip.y, 0), VCOL.f2));
+    // aÃ§Ä± yayÄ± + dik aÃ§Ä±
+    dyn.add(makeAngleArc(O, 1.3, 0, a, '#ffd166'));
+    dyn.add(makeRightAngle(corner, new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 1, 0), 0.45, '#9d7fe6'));
+  }
+  rebuild();
+
+  addInfo3DLabels([
+    { text: { ilkokul: 'â¡ï¸ EÄŸik ok', ortaokul: 'â¡ï¸ VektÃ¶r F', lise: 'â¡ï¸ VektÃ¶r F', tyt_ayt: 'â¡ï¸ F (bÃ¼yÃ¼klÃ¼k)' },
+      position: [0, 2.5, 0], target: [-1.5, 0, 0], color: '#f6b93b' },
+    { text: { ilkokul: 'â¡ï¸ Yatay parÃ§a', ortaokul: 'â¡ï¸ Yatay Fâ‚“', lise: 'â¡ï¸ Fâ‚“ = FÂ·cos Î¸', tyt_ayt: 'â¡ï¸ Fâ‚“ = FÂ·cos Î¸' },
+      position: [-0.5, -3.9, 0], target: [-1, -3, 0], color: '#5fc8e0' },
+    { text: { ilkokul: 'â¬†ï¸ Dikey parÃ§a', ortaokul: 'â¬†ï¸ Dikey F_y', lise: 'â¬†ï¸ F_y = FÂ·sin Î¸', tyt_ayt: 'â¬†ï¸ F_y = FÂ·sin Î¸' },
+      position: [3.4, 0.5, 0], target: [2.4, -1, 0], color: '#c45d5d' },
+    { text: { ortaokul: 'ğŸ“ Î¸ aÃ§Ä±sÄ±', lise: 'ğŸ“ Î¸ (yatay ile aÃ§Ä±)', tyt_ayt: 'ğŸ“ Î¸ = arctan(F_y/Fâ‚“)' },
+      position: [-2.2, -1.6, 0], target: [-3, -2.6, 0], color: '#ffd166', minLevel: 2 }
+  ]);
+
+  setSceneSliders([
+    { type: 'section', label: 'VektÃ¶rÃ¼ Ayarla' },
+    { type: 'slider', label: 'ğŸ“ BÃ¼yÃ¼klÃ¼k F', min: 3, max: 9, step: 0.5, unit: ' N',
+      getValue: () => S.vb_F, setValue: (v) => { S.vb_F = v; rebuild(); }, format: (v) => _fmt(v, 1) },
+    { type: 'slider', label: 'ğŸ“ AÃ§Ä± Î¸', min: 0, max: 90, step: 1, unit: 'Â°',
+      getValue: () => S.vb_ang, setValue: (v) => { S.vb_ang = v; rebuild(); }, format: (v) => v.toFixed(0),
+      sub: 'Yatay eksenle yapÄ±lan aÃ§Ä±' },
+    { type: 'section', label: 'BileÅŸenler' },
+    { type: 'display', label: 'Yatay Fâ‚“', getValue: () => _fmt(S.vb_F * Math.cos(S.vb_ang * Math.PI / 180), 2) + ' N' },
+    { type: 'display', label: 'Dikey F_y', getValue: () => _fmt(S.vb_F * Math.sin(S.vb_ang * Math.PI / 180), 2) + ' N' },
+    { type: 'display', label: 'Kontrol âˆš(Fâ‚“Â²+F_yÂ²)', highlight: true, getValue: () => _fmt(S.vb_F, 2) + ' N' },
+    { type: 'formula', getValue: () => {
+        const a = S.vb_ang * Math.PI / 180;
+        return 'Fâ‚“=' + _fmt(S.vb_F * Math.cos(a), 1) + ' &nbsp; F_y=' + _fmt(S.vb_F * Math.sin(a), 1);
+      }, text: 'Fâ‚“ = FÂ·cos Î¸, F_y = FÂ·sin Î¸' }
+  ], { title: 'VektÃ¶rÃ¼n BileÅŸenleri' });
+};
+
+SubBuilders.buildUcUca = function() {
+  const root = _newRoot();
+  const O = new THREE.Vector3(-5, -3, 0);
+  const A = new THREE.Vector3(5, 1, 0);   // 1. vektÃ¶r
+  const B = new THREE.Vector3(1, 4, 0);   // 2. vektÃ¶r
+  const p1 = O.clone().add(A);
+  const p2 = p1.clone().add(B);
+
+  root.add(makeDot(O, 0xffffff, 0.15));
+  root.add(makeArrow3D(O, p1, VCOL.f1, { width: 0.08 }));    // A mavi
+  root.add(makeArrow3D(p1, p2, VCOL.f2, { width: 0.08 }));   // B kÄ±rmÄ±zÄ± (uÃ§ uca)
+  root.add(makeArrow3D(O, p2, VCOL.res, { width: 0.1 }));    // R bileÅŸke sarÄ±
+
+  addInfo3DLabels([
+    { text: { ilkokul: 'â‘ . ok', ortaokul: 'â¡ï¸ 1. vektÃ¶r A', lise: 'â¡ï¸ Aâƒ—', tyt_ayt: 'â¡ï¸ Aâƒ—' },
+      position: [-0.5, -3.6, 0], target: [0, -2.5, 0], color: '#5fc8e0' },
+    { text: { ilkokul: 'â‘¡. ok (ucundan)', ortaokul: 'â¡ï¸ 2. vektÃ¶r B', lise: 'â¡ï¸ Bâƒ— (A\'nÄ±n ucundan)', tyt_ayt: 'â¡ï¸ Bâƒ—' },
+      position: [1.5, 0.5, 0], target: [0.5, -0.5, 0], color: '#c45d5d' },
+    { text: { ilkokul: 'ğŸ Yeni ok = sonuÃ§', ortaokul: 'ğŸ BileÅŸke (baÅŸtan sona)', lise: 'ğŸ BileÅŸke Râƒ— = Aâƒ—+Bâƒ—', tyt_ayt: 'ğŸ Râƒ— = Aâƒ— + Bâƒ—' },
+      position: [-3, 1.5, 0], target: [-1, -0.8, 0], color: '#f6b93b' }
+  ]);
+
+  setSceneSliders([
+    { type: 'section', label: 'UÃ§ Uca Ekleme' },
+    { type: 'display', label: 'YÃ¶ntem', getValue: () => 'BaÅŸtan son uca' },
+    { type: 'display', label: 'A + B', getValue: () => 'B + A (eÅŸit)' },
+    { type: 'formula', text: 'Râƒ— = Aâƒ— + Bâƒ—' }
+  ], { title: 'UÃ§ Uca Ekleme' });
+};
+
+SubBuilders.buildParalelkenar = function() {
+  const root = _newRoot();
+  const S = window._sceneState;
+  S.pk_alpha = 60;
+  const A = 6;   // 1. vektÃ¶r bÃ¼yÃ¼klÃ¼ÄŸÃ¼ (yatay)
+  const B = 5;   // 2. vektÃ¶r bÃ¼yÃ¼klÃ¼ÄŸÃ¼
+  const O = new THREE.Vector3(-3, -2.5, 0);
+  const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+  root.add(makeDot(O, 0xffffff, 0.15));
+
+  function rebuild() {
+    _disposeGroup(dyn);
+    const a = S.pk_alpha * Math.PI / 180;
+    const va = new THREE.Vector3(A, 0, 0);
+    const vb = new THREE.Vector3(B * Math.cos(a), B * Math.sin(a), 0);
+    const pa = O.clone().add(va);
+    const pb = O.clone().add(vb);
+    const pr = O.clone().add(va).add(vb);
+
+    // paralelkenar kenarlarÄ± (kesikli)
+    dyn.add(makeDashedSeg(pa, pr, VCOL.f2));
+    dyn.add(makeDashedSeg(pb, pr, VCOL.f1));
+    // vektÃ¶rler
+    dyn.add(makeArrow3D(O, pa, VCOL.f1, { width: 0.08 }));   // A
+    dyn.add(makeArrow3D(O, pb, VCOL.f2, { width: 0.08 }));   // B
+    dyn.add(makeArrow3D(O, pr, VCOL.res, { width: 0.1 }));   // R kÃ¶ÅŸegen
+    dyn.add(makeAngleArc(O, 1.2, 0, a, '#ffd166'));
+  }
+  rebuild();
+
+  addInfo3DLabels([
+    { text: { ilkokul: 'â¡ï¸ 1. ok', ortaokul: 'â¡ï¸ A', lise: 'â¡ï¸ Aâƒ—', tyt_ayt: 'â¡ï¸ Aâƒ—' },
+      position: [0.5, -3.1, 0], target: [0, -2.5, 0], color: '#5fc8e0' },
+    { text: { ilkokul: 'â¡ï¸ 2. ok', ortaokul: 'â¡ï¸ B', lise: 'â¡ï¸ Bâƒ—', tyt_ayt: 'â¡ï¸ Bâƒ—' },
+      position: [-2.5, 1.5, 0], target: [-1.5, 0, 0], color: '#c45d5d' },
+    { text: { ilkokul: 'â†—ï¸ KÃ¶ÅŸegen = sonuÃ§', ortaokul: 'â†—ï¸ BileÅŸke (kÃ¶ÅŸegen)', lise: 'â†—ï¸ BileÅŸke Râƒ—', tyt_ayt: 'â†—ï¸ R=âˆš(AÂ²+BÂ²+2ABÂ·cos Î±)' },
+      position: [4, 2.5, 0], target: [2, 0.5, 0], color: '#f6b93b' },
+    { text: { ortaokul: 'ğŸ“ Î± aÃ§Ä±sÄ±', lise: 'ğŸ“ Î± (aradaki aÃ§Ä±)', tyt_ayt: 'ğŸ“ Î±' },
+      position: [-1.5, -1.5, 0], target: [-2.2, -2.2, 0], color: '#ffd166', minLevel: 2 }
+  ]);
+
+  setSceneSliders([
+    { type: 'section', label: 'Aradaki AÃ§Ä±' },
+    { type: 'slider', label: 'ğŸ“ AÃ§Ä± Î±', min: 0, max: 180, step: 1, unit: 'Â°',
+      getValue: () => S.pk_alpha, setValue: (v) => { S.pk_alpha = v; rebuild(); }, format: (v) => v.toFixed(0),
+      sub: '0Â°=aynÄ± yÃ¶n, 180Â°=zÄ±t yÃ¶n' },
+    { type: 'section', label: 'SonuÃ§ (A=6, B=5)' },
+    { type: 'display', label: 'BileÅŸke R', highlight: true, getValue: () => {
+        const a = S.pk_alpha * Math.PI / 180;
+        return _fmt(Math.sqrt(36 + 25 + 60 * Math.cos(a)), 2);
+      } },
+    { type: 'formula', getValue: () => {
+        const a = S.pk_alpha * Math.PI / 180;
+        return 'R = âˆš(36+25+60Â·cos ' + S.pk_alpha + 'Â°) = <b>' + _fmt(Math.sqrt(36 + 25 + 60 * Math.cos(a)), 2) + '</b>';
+      }, text: 'R = âˆš(AÂ²+BÂ²+2ABÂ·cos Î±)' }
+  ], { title: 'Paralelkenar YÃ¶ntemi' });
+};
+
+SubBuilders.buildAyniZitYon = function() {
+  const root = _newRoot();
+  const S = window._sceneState;
+  S.az_f1 = 8;
+  S.az_f2 = 5;
+  S.az_dir = 1; // 1 = aynÄ± yÃ¶n, -1 = zÄ±t yÃ¶n
+  const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+
+  function rebuild() {
+    _disposeGroup(dyn);
+    const sc = 0.6;
+    const f1 = S.az_f1, f2 = S.az_f2 * S.az_dir;
+    const O1 = new THREE.Vector3(-6, 2.5, 0);
+    dyn.add(makeArrow3D(O1, new THREE.Vector3(O1.x + f1 * sc, O1.y, 0), VCOL.f1, { width: 0.09 }));
+    const O2 = new THREE.Vector3(-6, 0, 0);
+    dyn.add(makeArrow3D(O2, new THREE.Vector3(O2.x + f2 * sc, O2.y, 0), VCOL.f2, { width: 0.09 }));
+    const R = S.az_f1 + f2;
+    const O3 = new THREE.Vector3(-6, -2.5, 0);
+    if (Math.abs(R) > 0.1) {
+      dyn.add(makeArrow3D(O3, new THREE.Vector3(O3.x + R * sc, O3.y, 0), VCOL.res, { width: 0.11 }));
+    } else {
+      dyn.add(makeDot(O3, VCOL.res, 0.22));
+    }
+  }
+  rebuild();
+
+  addInfo3DLabels([
+    { text: { ilkokul: 'â¡ï¸ 1. kuvvet', ortaokul: 'â¡ï¸ Fâ‚', lise: 'â¡ï¸ Fâ‚', tyt_ayt: 'â¡ï¸ Fâ‚' },
+      position: [-6.5, 3.4, 0], target: [-5, 2.5, 0], color: '#5fc8e0' },
+    { text: { ilkokul: 'â¡ï¸ 2. kuvvet', ortaokul: 'â¡ï¸ Fâ‚‚', lise: 'â¡ï¸ Fâ‚‚', tyt_ayt: 'â¡ï¸ Fâ‚‚' },
+      position: [-6.5, 0.9, 0], target: [-5, 0, 0], color: '#c45d5d' },
+    { text: { ilkokul: 'ğŸ Toplam kuvvet', ortaokul: 'ğŸ BileÅŸke R', lise: 'ğŸ BileÅŸke R', tyt_ayt: 'ğŸ R = Î£F' },
+      position: [-6.5, -1.6, 0], target: [-4, -2.5, 0], color: '#f6b93b' }
+  ]);
+
+  setSceneSliders([
+    { type: 'section', label: 'Kuvvetler' },
+    { type: 'slider', label: 'ğŸ”µ Fâ‚', min: 1, max: 12, step: 1, unit: ' N',
+      getValue: () => S.az_f1, setValue: (v) => { S.az_f1 = v; rebuild(); }, format: (v) => v.toFixed(0) },
+    { type: 'slider', label: 'ğŸ”´ Fâ‚‚', min: 1, max: 12, step: 1, unit: ' N',
+      getValue: () => S.az_f2, setValue: (v) => { S.az_f2 = v; rebuild(); }, format: (v) => v.toFixed(0) },
+    { type: 'presets', activeIdx: 0, options: [
+        { label: 'AynÄ± yÃ¶n', action: () => { S.az_dir = 1; rebuild(); } },
+        { label: 'ZÄ±t yÃ¶n', action: () => { S.az_dir = -1; rebuild(); } }
+      ] },
+    { type: 'section', label: 'SonuÃ§' },
+    { type: 'display', label: 'BileÅŸke R', highlight: true, getValue: () => {
+        const R = S.az_f1 + S.az_f2 * S.az_dir;
+        return _fmt(Math.abs(R), 0) + ' N ' + (R >= 0 ? 'â†’' : 'â†');
+      } },
+    { type: 'formula', getValue: () => (S.az_dir === 1
+        ? 'R = Fâ‚+Fâ‚‚ = ' + (S.az_f1 + S.az_f2) + ' N'
+        : 'R = |Fâ‚âˆ’Fâ‚‚| = ' + Math.abs(S.az_f1 - S.az_f2) + ' N'),
+      text: 'R = Fâ‚ Â± Fâ‚‚' }
+  ], { title: 'AynÄ±/ZÄ±t YÃ¶n' });
+};
+
+SubBuilders.buildDikKuvvetler = function() {
+  const root = _newRoot();
+  const S = window._sceneState;
+  S.dk_f1 = 4;
+  S.dk_f2 = 3;
+  const O = new THREE.Vector3(-3, -3, 0);
+  const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+  root.add(makeDot(O, 0xffffff, 0.15));
+
+  function rebuild() {
+    _disposeGroup(dyn);
+    const sc = 0.85;
+    const f1 = S.dk_f1, f2 = S.dk_f2;
+    const pa = new THREE.Vector3(O.x + f1 * sc, O.y, 0);
+    const pb = new THREE.Vector3(O.x, O.y + f2 * sc, 0);
+    const pr = new THREE.Vector3(O.x + f1 * sc, O.y + f2 * sc, 0);
+    dyn.add(makeArrow3D(O, pa, VCOL.f1, { width: 0.085 }));  // F1 yatay
+    dyn.add(makeArrow3D(O, pb, VCOL.f2, { width: 0.085 }));  // F2 dikey
+    dyn.add(makeArrow3D(O, pr, VCOL.res, { width: 0.11 }));  // R
+    dyn.add(makeDashedSeg(pa, pr, VCOL.f2));
+    dyn.add(makeDashedSeg(pb, pr, VCOL.f1));
+    dyn.add(makeRightAngle(O, new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), 0.5, '#ffffff'));
+  }
+  rebuild();
+
+  addInfo3DLabels([
+    { text: { ilkokul: 'â¡ï¸ SaÄŸa kuvvet', ortaokul: 'â¡ï¸ Fâ‚ (yatay)', lise: 'â¡ï¸ Fâ‚', tyt_ayt: 'â¡ï¸ Fâ‚' },
+      position: [0.5, -3.6, 0], target: [-1, -3, 0], color: '#5fc8e0' },
+    { text: { ilkokul: 'â¬†ï¸ YukarÄ± kuvvet', ortaokul: 'â¬†ï¸ Fâ‚‚ (dikey)', lise: 'â¬†ï¸ Fâ‚‚', tyt_ayt: 'â¬†ï¸ Fâ‚‚' },
+      position: [-4.2, 0, 0], target: [-3, -1.5, 0], color: '#c45d5d' },
+    { text: { ilkokul: 'â†—ï¸ KÃ¶ÅŸegen', ortaokul: 'â†—ï¸ BileÅŸke R', lise: 'â†—ï¸ R = âˆš(Fâ‚Â²+Fâ‚‚Â²)', tyt_ayt: 'â†—ï¸ R=âˆš(Fâ‚Â²+Fâ‚‚Â²), tan Î¸=Fâ‚‚/Fâ‚' },
+      position: [2.5, 1.5, 0], target: [0.5, -1, 0], color: '#f6b93b' }
+  ]);
+
+  setSceneSliders([
+    { type: 'section', label: 'Dik Kuvvetler' },
+    { type: 'slider', label: 'ğŸ”µ Fâ‚ (yatay)', min: 1, max: 8, step: 1, unit: ' N',
+      getValue: () => S.dk_f1, setValue: (v) => { S.dk_f1 = v; rebuild(); }, format: (v) => v.toFixed(0) },
+    { type: 'slider', label: 'ğŸ”´ Fâ‚‚ (dikey)', min: 1, max: 8, step: 1, unit: ' N',
+      getValue: () => S.dk_f2, setValue: (v) => { S.dk_f2 = v; rebuild(); }, format: (v) => v.toFixed(0) },
+    { type: 'section', label: 'SonuÃ§' },
+    { type: 'display', label: 'BileÅŸke R', highlight: true,
+      getValue: () => _fmt(Math.sqrt(S.dk_f1 * S.dk_f1 + S.dk_f2 * S.dk_f2), 2) + ' N' },
+    { type: 'display', label: 'YÃ¶n Î¸',
+      getValue: () => _fmt(Math.atan2(S.dk_f2, S.dk_f1) * 180 / Math.PI, 1) + 'Â°' },
+    { type: 'formula', getValue: () => 'R = âˆš(' + S.dk_f1 + 'Â²+' + S.dk_f2 + 'Â²) = <b>' +
+        _fmt(Math.sqrt(S.dk_f1 * S.dk_f1 + S.dk_f2 * S.dk_f2), 2) + '</b> N',
+      text: 'R = âˆš(Fâ‚Â²+Fâ‚‚Â²)' }
+  ], { title: 'Dik Kuvvetler' });
+};
+
+SubBuilders.buildAciliKuvvetler = function() {
+  const root = _newRoot();
+  const S = window._sceneState;
+  S.ac_f1 = 6;
+  S.ac_f2 = 5;
+  S.ac_alpha = 60;
+  const O = new THREE.Vector3(-3, -2.5, 0);
+  const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+  root.add(makeDot(O, 0xffffff, 0.15));
+
+  function rebuild() {
+    _disposeGroup(dyn);
+    const sc = 0.7;
+    const a = S.ac_alpha * Math.PI / 180;
+    const va = new THREE.Vector3(S.ac_f1 * sc, 0, 0);
+    const vb = new THREE.Vector3(S.ac_f2 * Math.cos(a) * sc, S.ac_f2 * Math.sin(a) * sc, 0);
+    const pa = O.clone().add(va);
+    const pb = O.clone().add(vb);
+    const pr = O.clone().add(va).add(vb);
+    dyn.add(makeDashedSeg(pa, pr, VCOL.f2));
+    dyn.add(makeDashedSeg(pb, pr, VCOL.f1));
+    dyn.add(makeArrow3D(O, pa, VCOL.f1, { width: 0.08 }));
+    dyn.add(makeArrow3D(O, pb, VCOL.f2, { width: 0.08 }));
+    dyn.add(makeArrow3D(O, pr, VCOL.res, { width: 0.11 }));
+    dyn.add(makeAngleArc(O, 1.2, 0, a, '#ffd166'));
+  }
+  rebuild();
+
+  addInfo3DLabels([
+    { text: { ilkokul: 'â¡ï¸ 1. kuvvet', ortaokul: 'â¡ï¸ Fâ‚', lise: 'â¡ï¸ Fâ‚', tyt_ayt: 'â¡ï¸ Fâ‚' },
+      position: [0.5, -3.1, 0], target: [0, -2.5, 0], color: '#5fc8e0' },
+    { text: { ilkokul: 'â¡ï¸ 2. kuvvet', ortaokul: 'â¡ï¸ Fâ‚‚', lise: 'â¡ï¸ Fâ‚‚', tyt_ayt: 'â¡ï¸ Fâ‚‚' },
+      position: [-2, 1.5, 0], target: [-1.5, 0, 0], color: '#c45d5d' },
+    { text: { ilkokul: 'â†—ï¸ BileÅŸke', ortaokul: 'â†—ï¸ BileÅŸke R', lise: 'â†—ï¸ R (kosinÃ¼s teoremi)', tyt_ayt: 'â†—ï¸ R=âˆš(Fâ‚Â²+Fâ‚‚Â²+2Fâ‚Fâ‚‚cos Î±)' },
+      position: [3.5, 2, 0], target: [1.5, 0, 0], color: '#f6b93b' },
+    { text: { ortaokul: 'ğŸ“ Î±', lise: 'ğŸ“ Î± (aradaki aÃ§Ä±)', tyt_ayt: 'ğŸ“ Î±' },
+      position: [-1.4, -1.5, 0], target: [-2.2, -2.2, 0], color: '#ffd166', minLevel: 2 }
+  ]);
+
+  setSceneSliders([
+    { type: 'section', label: 'Kuvvetler ve AÃ§Ä±' },
+    { type: 'slider', label: 'ğŸ”µ Fâ‚', min: 2, max: 8, step: 1, unit: ' N',
+      getValue: () => S.ac_f1, setValue: (v) => { S.ac_f1 = v; rebuild(); }, format: (v) => v.toFixed(0) },
+    { type: 'slider', label: 'ğŸ”´ Fâ‚‚', min: 2, max: 8, step: 1, unit: ' N',
+      getValue: () => S.ac_f2, setValue: (v) => { S.ac_f2 = v; rebuild(); }, format: (v) => v.toFixed(0) },
+    { type: 'slider', label: 'ğŸ“ AÃ§Ä± Î±', min: 0, max: 180, step: 5, unit: 'Â°',
+      getValue: () => S.ac_alpha, setValue: (v) => { S.ac_alpha = v; rebuild(); }, format: (v) => v.toFixed(0) },
+    { type: 'section', label: 'SonuÃ§' },
+    { type: 'display', label: 'BileÅŸke R', highlight: true, getValue: () => {
+        const a = S.ac_alpha * Math.PI / 180;
+        return _fmt(Math.sqrt(S.ac_f1 * S.ac_f1 + S.ac_f2 * S.ac_f2 + 2 * S.ac_f1 * S.ac_f2 * Math.cos(a)), 2) + ' N';
+      } },
+    { type: 'formula', text: 'R = âˆš(Fâ‚Â²+Fâ‚‚Â²+2Fâ‚Fâ‚‚Â·cos Î±)' }
+  ], { title: 'AÃ§Ä±lÄ± Ä°ki Kuvvet' });
+};
+
+SubBuilders.buildDenge = function() {
+  const root = _newRoot();
+  const O = new THREE.Vector3(0, 1.5, 0);
+  // AsÄ±lÄ± cisim: G aÅŸaÄŸÄ±, iki ip simetrik yukarÄ± (53Â°-53Â°)
+  const G = 8;
+  const th = 53 * Math.PI / 180;
+  const sc = 0.55;
+  // T1 sol-yukarÄ±, T2 saÄŸ-yukarÄ±; dengede: 2TÂ·sin(th)=G yatay denge saÄŸlanÄ±r (simetri)
+  const T = G / (2 * Math.sin(th));
+  const t1 = new THREE.Vector3(-Math.cos(th), Math.sin(th), 0).multiplyScalar(T * sc);
+  const t2 = new THREE.Vector3(Math.cos(th), Math.sin(th), 0).multiplyScalar(T * sc);
+  const g = new THREE.Vector3(0, -1, 0).multiplyScalar(G * sc);
+
+  root.add(makeDot(O, 0xffffff, 0.2));
+  root.add(makeArrow3D(O, O.clone().add(t1), VCOL.f1, { width: 0.085 }));
+  root.add(makeArrow3D(O, O.clone().add(t2), VCOL.g, { width: 0.085 }));
+  root.add(makeArrow3D(O, O.clone().add(g), VCOL.f2, { width: 0.095 }));
+
+  // kÃ¼Ã§Ã¼k asÄ±lÄ± kÃ¼tle
+  const box = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 1, 1),
+    new THREE.MeshStandardMaterial({ color: 0x3a4252, roughness: 0.6, metalness: 0.3 })
+  );
+  box.position.copy(O.clone().add(g)).add(new THREE.Vector3(0, -0.6, 0));
+  box.castShadow = true;
+  root.add(box);
+
+  addInfo3DLabels([
+    { text: { ilkokul: 'ğŸª¢ Ä°p 1', ortaokul: 'â¬†ï¸ Tâ‚ (ip gerilimi)', lise: 'â¬†ï¸ Tâ‚', tyt_ayt: 'â¬†ï¸ Tâ‚' },
+      position: [-3.5, 4, 0], target: [-1.5, 3, 0], color: '#5fc8e0' },
+    { text: { ilkokul: 'ğŸª¢ Ä°p 2', ortaokul: 'â¬†ï¸ Tâ‚‚ (ip gerilimi)', lise: 'â¬†ï¸ Tâ‚‚', tyt_ayt: 'â¬†ï¸ Tâ‚‚' },
+      position: [3.5, 4, 0], target: [1.5, 3, 0], color: '#2ecc40' },
+    { text: { ilkokul: 'â¬‡ï¸ AÄŸÄ±rlÄ±k', ortaokul: 'â¬‡ï¸ G (aÄŸÄ±rlÄ±k)', lise: 'â¬‡ï¸ G = mÂ·g', tyt_ayt: 'â¬‡ï¸ G = mÂ·g' },
+      position: [1.8, -2, 0], target: [0, -1.5, 0], color: '#c45d5d' },
+    { text: { ortaokul: 'âš–ï¸ Î£F = 0', lise: 'âš–ï¸ Î£Fâ‚“=0, Î£F_y=0', tyt_ayt: 'âš–ï¸ Lami: F/sin(karÅŸÄ± aÃ§Ä±) sabit' },
+      position: [-3.5, 0.5, 0], target: [0, 1.5, 0], color: '#f6b93b', minLevel: 2 }
+  ]);
+
+  setSceneSliders([
+    { type: 'section', label: 'Denge Durumu' },
+    { type: 'display', label: 'BileÅŸke', getValue: () => 'R = 0' },
+    { type: 'display', label: 'KoÅŸul', highlight: true, getValue: () => 'Î£F = 0' },
+    { type: 'display', label: 'Ä°vme', getValue: () => 'a = 0' },
+    { type: 'formula', text: 'Tâ‚ + Tâ‚‚ + Gâƒ— = 0' }
+  ], { title: 'Kuvvet Dengesi' });
+};
+
+SubBuilders.buildEgikDuzlem = function() {
+  const root = _newRoot();
+  const S = window._sceneState;
+  S.eg_theta = 30;
+  const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+
+  function rebuild() {
+    _disposeGroup(dyn);
+    const th = S.eg_theta * Math.PI / 180;
+    const baseY = -4;
+    const L = 11;                         // taban uzunluÄŸu
+    const x0 = -5.5;
+    const A = new THREE.Vector3(x0, baseY, 0);             // sol alt kÃ¶ÅŸe
+    const Bc = new THREE.Vector3(x0 + L, baseY, 0);        // saÄŸ alt kÃ¶ÅŸe
+    const C = new THREE.Vector3(x0 + L, baseY + L * Math.tan(th), 0); // Ã¼st kÃ¶ÅŸe (saÄŸda)
+    // eÄŸik dÃ¼zlem Ã¼Ã§geni
+    const triGeo = new THREE.BufferGeometry();
+    triGeo.setFromPoints([A, Bc, C]);
+    triGeo.setIndex([0, 1, 2]);
+    triGeo.computeVertexNormals();
+    const tri = new THREE.Mesh(triGeo, new THREE.MeshStandardMaterial({
+      color: 0x2a3142, roughness: 0.8, metalness: 0.2, side: THREE.DoubleSide
+    }));
+    tri.userData.dynamic = true;
+    dyn.add(tri);
+    dyn.add(makeDashedSeg(A, C, 0x5a6478, { opacity: 0.5 }));
+
+    // blok eÄŸik yÃ¼zeyin ortasÄ±nda
+    const t = 0.55;
+    const onSurf = new THREE.Vector3().lerpVectors(C, A, t); // yÃ¼zey Ã¼stÃ¼nde nokta
+    const slopeDir = new THREE.Vector3().subVectors(A, C).normalize(); // aÅŸaÄŸÄ± eÄŸim yÃ¶nÃ¼
+    const normalDir = new THREE.Vector3(-Math.sin(th), Math.cos(th), 0); // yÃ¼zeye dik (dÄ±ÅŸa)
+    const P = onSurf.clone().add(normalDir.clone().multiplyScalar(0.55));
+
+    const box = new THREE.Mesh(
+      new THREE.BoxGeometry(1.1, 1.1, 1.1),
+      new THREE.MeshStandardMaterial({ color: 0x6b5bd0, roughness: 0.5, metalness: 0.25 })
+    );
+    box.position.copy(P);
+    box.rotation.z = th;
+    box.castShadow = true;
+    box.userData.dynamic = true;
+    dyn.add(box);
+
+    // kuvvetler (blok merkezinden)
+    const G = 6;
+    const gv = new THREE.Vector3(0, -1, 0).multiplyScalar(G * 0.6);
+    const gpar = slopeDir.clone().multiplyScalar(G * Math.sin(th) * 0.6);   // G sin Î¸
+    const gdik = normalDir.clone().multiplyScalar(-G * Math.cos(th) * 0.6); // G cos Î¸ (yÃ¼zeye doÄŸru)
+    const norm = normalDir.clone().multiplyScalar(G * Math.cos(th) * 0.6);  // Normal (dÄ±ÅŸa)
+    dyn.add(makeArrow3D(P, P.clone().add(gv), VCOL.f2, { width: 0.08 }));     // aÄŸÄ±rlÄ±k (kÄ±rmÄ±zÄ±)
+    dyn.add(makeArrow3D(P, P.clone().add(gpar), VCOL.res, { width: 0.08 }));  // kaydÄ±ran (sarÄ±)
+    dyn.add(makeArrow3D(P, P.clone().add(gdik), VCOL.comp, { width: 0.07 })); // dik bileÅŸen (mor)
+    dyn.add(makeArrow3D(P, P.clone().add(norm), VCOL.g, { width: 0.07 }));    // normal (yeÅŸil)
+    dyn.add(makeAngleArc(Bc, 1.4, Math.PI - th, Math.PI, '#ffd166'));
+  }
+  rebuild();
+
+  addInfo3DLabels([
+    { text: { ilkokul: 'â¬‡ï¸ AÄŸÄ±rlÄ±k', ortaokul: 'â¬‡ï¸ G (aÄŸÄ±rlÄ±k)', lise: 'â¬‡ï¸ G = mÂ·g', tyt_ayt: 'â¬‡ï¸ G = mÂ·g' },
+      position: [2.5, -1, 0], target: [0.5, -1.5, 0], color: '#c45d5d' },
+    { text: { ilkokul: 'â†˜ï¸ KaydÄ±ran', ortaokul: 'â†˜ï¸ KaydÄ±ran kuvvet', lise: 'â†˜ï¸ GÂ·sin Î¸', tyt_ayt: 'â†˜ï¸ GÂ·sin Î¸' },
+      position: [-3.5, 1.5, 0], target: [-1.5, 0.5, 0], color: '#f6b93b' },
+    { text: { lise: 'âŸ‚ Normal N = GÂ·cos Î¸', tyt_ayt: 'âŸ‚ N = mÂ·gÂ·cos Î¸' },
+      position: [4, 3, 0], target: [1.5, 1.5, 0], color: '#2ecc40', minLevel: 3 },
+    { text: { ortaokul: 'ğŸ“ EÄŸim aÃ§Ä±sÄ±', lise: 'ğŸ“ Î¸ (eÄŸim)', tyt_ayt: 'ğŸ“ Î¸' },
+      position: [4.8, -3, 0], target: [4, -3.6, 0], color: '#ffd166', minLevel: 2 }
+  ]);
+
+  setSceneSliders([
+    { type: 'section', label: 'EÄŸim' },
+    { type: 'slider', label: 'ğŸ“ EÄŸim aÃ§Ä±sÄ± Î¸', min: 10, max: 70, step: 1, unit: 'Â°',
+      getValue: () => S.eg_theta, setValue: (v) => { S.eg_theta = v; rebuild(); }, format: (v) => v.toFixed(0) },
+    { type: 'section', label: 'BileÅŸenler (G=100 N)' },
+    { type: 'display', label: 'KaydÄ±ran GÂ·sin Î¸', highlight: true,
+      getValue: () => _fmt(100 * Math.sin(S.eg_theta * Math.PI / 180), 1) + ' N' },
+    { type: 'display', label: 'Normal GÂ·cos Î¸',
+      getValue: () => _fmt(100 * Math.cos(S.eg_theta * Math.PI / 180), 1) + ' N' },
+    { type: 'formula', text: 'GÂ·sin Î¸ (kaydÄ±ran), GÂ·cos Î¸ (normal)' }
+  ], { title: 'EÄŸik DÃ¼zlem' });
+};
+
+SubBuilders.buildBagilHiz = function() {
+  const root = _newRoot();
+  const S = window._sceneState;
+  S.bh_vt = 6;  // tekne hÄ±zÄ± (dik)
+  S.bh_va = 4;  // akÄ±ntÄ± hÄ±zÄ± (yatay)
+  const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+
+  // nehir bandÄ± (iki kÄ±yÄ± Ã§izgisi)
+  const bankMat = new THREE.MeshBasicMaterial({ color: 0x1b4a6b, transparent: true, opacity: 0.35, side: THREE.DoubleSide });
+  const river = new THREE.Mesh(new THREE.PlaneGeometry(22, 7), bankMat);
+  river.position.set(0, 1.5, -0.05);
+  root.add(river);
+
+  const O = new THREE.Vector3(-4, -2, 0); // tekne baÅŸlangÄ±Ã§
+
+  function rebuild() {
+    _disposeGroup(dyn);
+    const sc = 0.7;
+    const vt = new THREE.Vector3(0, S.bh_vt * sc, 0);   // tekne dik
+    const va = new THREE.Vector3(S.bh_va * sc, 0, 0);   // akÄ±ntÄ± yatay
+    const vr = vt.clone().add(va);                       // bileÅŸke
+    dyn.add(makeArrow3D(O, O.clone().add(vt), VCOL.f1, { width: 0.085 }));
+    dyn.add(makeArrow3D(O, O.clone().add(va), VCOL.f2, { width: 0.085 }));
+    dyn.add(makeArrow3D(O, O.clone().add(vr), VCOL.res, { width: 0.1 }));
+    dyn.add(makeDashedSeg(O.clone().add(vt), O.clone().add(vr), VCOL.f2));
+    dyn.add(makeDashedSeg(O.clone().add(va), O.clone().add(vr), VCOL.f1));
+    // tekne
+    const boat = new THREE.Mesh(
+      new THREE.ConeGeometry(0.35, 0.9, 4),
+      new THREE.MeshStandardMaterial({ color: 0xd0a040, roughness: 0.5 })
+    );
+    boat.position.copy(O);
+    boat.rotation.z = -Math.atan2(va.x, vt.y);
+    boat.userData.dynamic = true;
+    dyn.add(boat);
+  }
+  rebuild();
+
+  addInfo3DLabels([
+    { text: { ilkokul: 'ğŸš¤ Tekne', ortaokul: 'â¬†ï¸ Tekne hÄ±zÄ±', lise: 'â¬†ï¸ v_tekne', tyt_ayt: 'â¬†ï¸ vâƒ—_tekne' },
+      position: [-5.5, 1, 0], target: [-4, 0, 0], color: '#5fc8e0' },
+    { text: { ilkokul: 'ğŸŒŠ AkÄ±ntÄ±', ortaokul: 'â¡ï¸ AkÄ±ntÄ± hÄ±zÄ±', lise: 'â¡ï¸ v_akÄ±ntÄ±', tyt_ayt: 'â¡ï¸ vâƒ—_akÄ±ntÄ±' },
+      position: [-1.5, -2.8, 0], target: [-2.5, -2, 0], color: '#c45d5d' },
+    { text: { ilkokul: 'â†—ï¸ GerÃ§ek yol', ortaokul: 'â†—ï¸ GerÃ§ek (bileÅŸke) hÄ±z', lise: 'â†—ï¸ v_yer = âˆš(v_tÂ²+v_aÂ²)', tyt_ayt: 'â†—ï¸ vâƒ—_yer = vâƒ—_t + vâƒ—_a' },
+      position: [2, 1.5, 0], target: [-1, 0, 0], color: '#f6b93b' }
+  ]);
+
+  setSceneSliders([
+    { type: 'section', label: 'HÄ±zlar' },
+    { type: 'slider', label: 'ğŸš¤ Tekne hÄ±zÄ±', min: 2, max: 9, step: 1, unit: ' m/s',
+      getValue: () => S.bh_vt, setValue: (v) => { S.bh_vt = v; rebuild(); }, format: (v) => v.toFixed(0) },
+    { type: 'slider', label: 'ğŸŒŠ AkÄ±ntÄ± hÄ±zÄ±', min: 0, max: 9, step: 1, unit: ' m/s',
+      getValue: () => S.bh_va, setValue: (v) => { S.bh_va = v; rebuild(); }, format: (v) => v.toFixed(0) },
+    { type: 'section', label: 'SonuÃ§ (geniÅŸlik=60 m)' },
+    { type: 'display', label: 'BileÅŸke hÄ±z', highlight: true,
+      getValue: () => _fmt(Math.sqrt(S.bh_vt * S.bh_vt + S.bh_va * S.bh_va), 2) + ' m/s' },
+    { type: 'display', label: 'GeÃ§iÅŸ sÃ¼resi', getValue: () => _fmt(60 / S.bh_vt, 1) + ' s' },
+    { type: 'display', label: 'SÃ¼rÃ¼klenme', getValue: () => _fmt(S.bh_va * 60 / S.bh_vt, 1) + ' m' },
+    { type: 'formula', text: 'v = âˆš(v_tÂ² + v_aÂ²),  t = d/v_t' }
+  ], { title: 'BaÄŸÄ±l HÄ±z' });
+};
+
+// ============================================================
+// ====== SİSTEM: SEVİYE, MOD, NAVİGASYON, UI ================
+// ============================================================
+let currentLevel = 'lise';
+let currentMode = 'sade';
+window._autoSpinActive = false;
+window._isPlayingActive = false;
+
+const LEVEL_ORDER = ['ilkokul', 'ortaokul', 'lise', 'tyt_ayt'];
+
+function _resolveLevelData(dataObj) {
+  if (!dataObj) return null;
+  if (dataObj[currentLevel]) return dataObj[currentLevel];
+  if (currentLevel === 'tyt_ayt' && dataObj['ayt']) return dataObj['ayt'];
+  if (currentLevel === 'ayt' && dataObj['tyt_ayt']) return dataObj['tyt_ayt'];
+  const idx = LEVEL_ORDER.indexOf(currentLevel);
+  for (let i = idx; i >= 0; i--) {
+    if (dataObj[LEVEL_ORDER[i]]) return dataObj[LEVEL_ORDER[i]];
+  }
+  for (let i = idx + 1; i < LEVEL_ORDER.length; i++) {
+    if (dataObj[LEVEL_ORDER[i]]) return dataObj[LEVEL_ORDER[i]];
+  }
+  const keys = Object.keys(dataObj);
+  return keys.length ? dataObj[keys[0]] : null;
+}
+
+function buildTopicDropdown() {
+  const list = document.getElementById('topicList');
+  if (!list) return;
+  list.innerHTML = '';
+  Object.keys(MODULES).forEach(modKey => {
+    const mod = MODULES[modKey];
+    const head = document.createElement('div');
+    head.className = 'dropdown-cat-head';
+    head.textContent = mod.title;
+    list.appendChild(head);
+    mod.subs.forEach(sub => {
+      const btn = document.createElement('button');
+      btn.className = 'dropdown-item';
+      btn.dataset.module = modKey;
+      btn.dataset.sub = sub.key;
+      btn.innerHTML = `<span class="di-emoji">${sub.label.split(' ')[0]}</span><span>${sub.label.substring(sub.label.indexOf(' ')+1)}</span>`;
+      btn.onclick = () => {
+        currentModule = parseInt(modKey);
+        selectSub(sub.key);
+        closeAllDropdowns();
+      };
+      list.appendChild(btn);
+    });
+  });
+}
+
+function highlightActiveTopic() {
+  document.querySelectorAll('#topicList .dropdown-item').forEach(b => {
+    b.classList.toggle('active', b.dataset.sub === currentSub);
+  });
+}
+
+function applySceneTheme() {
+  if (!scene) return;
+  const isLight = window._lightMode === true;
+  const isSpace = window._isSpaceScene === true;
+  let bgColor, fogColor, fogNear, fogFar;
+  if (isSpace) {
+    bgColor = isLight ? 0x1a2138 : 0x02030a;
+    fogColor = bgColor; fogNear = 40; fogFar = 110;
+    scene.background = new THREE.Color(bgColor);
+    scene.fog = null;
+    return;
+  }
+  if (isLight) {
+    bgColor = 0xdfe7f2; fogColor = 0xdfe7f2; fogNear = 38; fogFar = 100;
+  } else {
+    bgColor = 0x121726; fogColor = 0x121726; fogNear = 35; fogFar = 95;
+  }
+  scene.background = new THREE.Color(bgColor);
+  scene.fog = new THREE.Fog(fogColor, fogNear, fogFar);
+}
+
+function selectSub(subKey) {
+  currentSub = subKey;
+  clearScene();
+  window._isSpaceScene = false;
+  applySceneTheme();
+
+  const builderName = (function() {
+    for (const mk of Object.keys(MODULES)) {
+      const s = MODULES[mk].subs.find(x => x.key === subKey);
+      if (s) { currentModule = parseInt(mk); return s.builder; }
+    }
+    return null;
+  })();
+
+  if (builderName && typeof SubBuilders[builderName] === 'function') {
+    try {
+      SubBuilders[builderName]();
+    } catch (e) {
+      console.error('Builder hatası:', builderName, e);
+    }
+  }
+
+  const _bp = document.getElementById('bottomPanel');
+  if (_bp) _bp.classList.remove('hidden');
+  updateInfoPanel(subKey);
+  highlightActiveTopic();
+
+  applyModeToLabels();
+
+  if (controls) {
+    controls.target.set(1.2, _AXIS_Y - 0.5, 0);
+    controls.captureInitialState && controls.captureInitialState();
+  }
+
+  if (window._showGestureToast) {
+    const allSubs = [];
+    Object.keys(MODULES).forEach(mk => MODULES[mk].subs.forEach(s => allSubs.push(s)));
+    const cur = allSubs.find(s => s.key === subKey);
+    if (cur) window._showGestureToast('📍 ' + cur.label);
+  }
+}
+
+function applyModeToLabels() {
+  if (!window._labelRefs) return;
+  const info3d = document.querySelectorAll('.info3d-label');
+  info3d.forEach((el, i) => {
+    if (currentMode === 'sade' && i % 2 === 1) {
+      el.dataset.userHidden = '1';
+      el.style.display = 'none';
+    } else {
+      el.dataset.userHidden = '0';
+      el.style.display = labelsVisible ? 'block' : 'none';
+    }
+  });
+}
+
+function updateInfoPanel(subKey) {
+  const data = _resolveLevelData(INFO_DATA[subKey]);
+  if (!data) return;
+  document.getElementById('infoEmoji').textContent = data.emoji || '🔦';
+  let mainTitle = '', subTitle = '';
+  for (const mk of Object.keys(MODULES)) {
+    const s = MODULES[mk].subs.find(x => x.key === subKey);
+    if (s) {
+      mainTitle = (MODULES[mk].title || '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]*Modül\s*\d+:\s*/i, '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]+/, '').trim();
+      subTitle = (s.label || '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]+/, '').trim();
+      break;
+    }
+  }
+  const titleHtml = mainTitle ? (mainTitle + ' / ' + subTitle) : (data.title || subTitle);
+  document.getElementById('infoTitle').textContent = titleHtml;
+  const list = document.getElementById('infoList');
+  list.innerHTML = '';
+  let points = data.points || [];
+  const showCount = (currentMode === 'sade') ? 3 : points.length;
+  points.slice(0, showCount).forEach(p => {
+    const li = document.createElement('li');
+    if (p.startsWith('##')) { li.className = 'subhead'; li.innerHTML = p.replace('##','').trim(); }
+    else li.innerHTML = p;
+    list.appendChild(li);
+  });
+}
+
+function getAllSubs() {
+  const arr = [];
+  Object.keys(MODULES).forEach(mk => MODULES[mk].subs.forEach(s => arr.push(s)));
+  return arr;
+}
+function navigate(dir) {
+  const all = getAllSubs();
+  let idx = all.findIndex(s => s.key === currentSub);
+  if (idx < 0) idx = 0;
+  idx = (idx + dir + all.length) % all.length;
+  selectSub(all[idx].key);
+}
+
+function closeAllDropdowns() {
+  document.querySelectorAll('.dropdown-panel').forEach(p => p.classList.remove('show'));
+  document.body.classList.remove('dropdown-open');
+}
+function toggleDropdown(id) {
+  const panel = document.getElementById(id);
+  if (!panel) return;
+  const wasOpen = panel.classList.contains('show');
+  closeAllDropdowns();
+  if (!wasOpen) {
+    panel.classList.add('show');
+    document.body.classList.add('dropdown-open');
+  }
+}
+
+window._cmpPages = []; window._cmpIdx = 0;
+window._tblPages = []; window._tblIdx = 0;
+
+function _normalizePages(data) {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  return [data];
+}
+
+function _renderTableHTML(data, styleClass) {
+  let html = '<table class="cmp-table ' + (styleClass||'') + '"><thead><tr>';
+  data.cols.forEach(c => html += `<th>${c}</th>`);
+  html += '</tr></thead><tbody>';
+  data.rows.forEach(row => {
+    html += '<tr>';
+    row.forEach(cell => html += `<td>${cell}</td>`);
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  return html;
+}
+
+function renderCompareTable() {
+  window._cmpPages = _normalizePages(_resolveLevelData(COMPARE_DATA[currentSub]));
+  window._cmpIdx = 0;
+  _showComparePage();
+}
+function _showComparePage() {
+  const body = document.getElementById('compareBody');
+  const titleEl = document.getElementById('compareTitle');
+  const nav = document.getElementById('compareNav');
+  const counter = document.getElementById('compareCounter');
+  const pages = window._cmpPages;
+  if (!pages.length) {
+    body.innerHTML = '<div class="cmp-no-data">Bu konu için karşılaştırma verisi yok.</div>';
+    if (titleEl) titleEl.textContent = '⚖️ Karşılaştırma';
+    if (nav) nav.classList.add('hidden');
+    return;
+  }
+  const i = window._cmpIdx;
+  const data = pages[i];
+  if (titleEl) titleEl.textContent = '⚖️ ' + (data.title || 'Karşılaştırma');
+  body.innerHTML = _renderTableHTML(data, 'compare-style');
+  if (nav) {
+    if (pages.length > 1) {
+      nav.classList.remove('hidden');
+      counter.textContent = (i+1) + ' / ' + pages.length;
+      document.getElementById('comparePrev').disabled = (i === 0);
+      document.getElementById('compareNext').disabled = (i === pages.length - 1);
+    } else {
+      nav.classList.add('hidden');
+    }
+  }
+}
+
+function renderInfoTable() {
+  window._tblPages = _normalizePages(_resolveLevelData(TABLE_DATA[currentSub]));
+  window._tblIdx = 0;
+  _showTablePage();
+}
+function _showTablePage() {
+  const body = document.getElementById('tableBody');
+  const titleEl = document.getElementById('tableTitle');
+  const nav = document.getElementById('tableNav');
+  const counter = document.getElementById('tableCounter');
+  const pages = window._tblPages;
+  if (!pages.length) {
+    body.innerHTML = '<div class="cmp-no-data">Bu konu için tablo verisi yok.</div>';
+    if (titleEl) titleEl.textContent = '📋 Bilgi Tablosu';
+    if (nav) nav.classList.add('hidden');
+    return;
+  }
+  const i = window._tblIdx;
+  const data = pages[i];
+  if (titleEl) titleEl.textContent = '📋 ' + (data.title || 'Bilgi Tablosu');
+  body.innerHTML = _renderTableHTML(data, '');
+  if (nav) {
+    if (pages.length > 1) {
+      nav.classList.remove('hidden');
+      counter.textContent = (i+1) + ' / ' + pages.length;
+      document.getElementById('tablePrev').disabled = (i === 0);
+      document.getElementById('tableNext').disabled = (i === pages.length - 1);
+    } else {
+      nav.classList.add('hidden');
+    }
+  }
+}
+
+function attachEvents() {
+  document.getElementById('btnLevel').onclick = () => toggleDropdown('panelLevel');
+  document.getElementById('btnTopic').onclick = () => {
+    const bp = document.getElementById('bottomPanel');
+    if (bp) bp.classList.remove('hidden');
+    toggleDropdown('panelTopic');
+  };
+
+  document.querySelectorAll('#panelLevel .dropdown-item').forEach(item => {
+    item.onclick = () => {
+      currentLevel = item.dataset.level;
+      document.querySelectorAll('#panelLevel .dropdown-item').forEach(x => x.classList.remove('active'));
+      item.classList.add('active');
+      const labels = { ilkokul: 'İlkokul', ortaokul: 'Ortaokul', lise: 'Lise', tyt_ayt: 'TYT-AYT' };
+      document.getElementById('levelLabel').textContent = labels[currentLevel] || 'Lise';
+      closeAllDropdowns();
+      if (currentSub) selectSub(currentSub);
+      if (document.getElementById('compareOverlay').classList.contains('show')) renderCompareTable();
+      if (document.getElementById('tableOverlay').classList.contains('show')) renderInfoTable();
+      if (window._showGestureToast) window._showGestureToast('🎓 Seviye: ' + (labels[currentLevel] || 'Lise'));
+      if (window._haptic) window._haptic(15);
+    };
+  });
+
+  document.getElementById('btnMode').onclick = () => toggleDropdown('panelMode');
+  document.querySelectorAll('#panelMode .dropdown-item').forEach(item => {
+    item.onclick = () => {
+      currentMode = item.dataset.mode;
+      document.querySelectorAll('#panelMode .dropdown-item').forEach(x => x.classList.remove('active'));
+      item.classList.add('active');
+      const btnMode = document.getElementById('btnMode');
+      if (currentMode === 'sade') {
+        btnMode.textContent = '📄'; btnMode.classList.add('active');
+        btnMode.title = 'Görünüm Modu: Sade';
+      } else {
+        btnMode.textContent = '📚'; btnMode.classList.remove('active');
+        btnMode.title = 'Görünüm Modu: Detaylı';
+      }
+      closeAllDropdowns();
+      if (currentSub) { updateInfoPanel(currentSub); applyModeToLabels(); }
+      if (window._haptic) window._haptic(15);
+    };
+  });
+
+  document.getElementById('navPrev').onclick = () => navigate(-1);
+  document.getElementById('navNext').onclick = () => navigate(1);
+
+  document.getElementById('infoCloseBtn').onclick = () => {
+    document.getElementById('bottomPanel').classList.add('hidden');
+  };
+
+  const spinBtn = document.getElementById('spinBtn');
+  spinBtn.onclick = () => {
+    window._autoSpinActive = !window._autoSpinActive;
+    spinBtn.classList.toggle('active', window._autoSpinActive);
+    if (window._currentModelGroup) {
+      window._currentModelGroup.userData.spin = window._autoSpinActive ? 0.3 : 0;
+      if (!dynamicObjects.includes(window._currentModelGroup)) dynamicObjects.push(window._currentModelGroup);
+    }
+    if (window._haptic) window._haptic(15);
+  };
+
+  const labelBtn = document.getElementById('labelBtn');
+  labelBtn.onclick = () => {
+    labelsVisible = !labelsVisible;
+    window._leaderLinesVisible = labelsVisible;
+    labelBtn.classList.toggle('active', labelsVisible);
+    document.querySelectorAll('.info3d-label, .label3d').forEach(el => {
+      if (labelsVisible) {
+        el.dataset.labelHidden = '0';
+        if (el.dataset.userHidden !== '1') el.style.display = 'block';
+      } else {
+        el.dataset.labelHidden = '1';
+        el.style.display = 'none';
+      }
+    });
+    if (!labelsVisible) {
+      const svg = document.getElementById('leaderLines');
+      if (svg) svg.innerHTML = '';
+    }
+    if (window._haptic) window._haptic(15);
+  };
+  window._leaderLinesVisible = true;
+  labelBtn.classList.add('active');
+
+  const animBtn = document.getElementById('animBtn');
+  animBtn.onclick = () => {
+    window._isPlayingActive = !window._isPlayingActive;
+    animBtn.classList.toggle('active', window._isPlayingActive);
+    animBtn.querySelector('.ico').textContent = window._isPlayingActive ? '⏸️' : '▶️';
+    const lbl = animBtn.querySelector('span:last-child');
+    if (lbl) lbl.textContent = window._isPlayingActive ? 'Durdur' : 'Çalıştır';
+    if (window._showGestureToast) {
+      window._showGestureToast(window._isPlayingActive ? '▶️ Animasyon başladı' : '⏸️ Duraklatıldı');
+    }
+    if (window._haptic) window._haptic(15);
+  };
+  animBtn.classList.remove('active');
+  animBtn.querySelector('.ico').textContent = '▶️';
+
+  document.getElementById('btnTheme').onclick = () => {
+    document.body.classList.toggle('light-mode');
+    const isLight = document.body.classList.contains('light-mode');
+    document.getElementById('btnTheme').textContent = isLight ? '☀️' : '🌙';
+    window._lightMode = isLight;
+    applySceneTheme();
+    if (window._haptic) window._haptic(15);
+  };
+
+  document.getElementById('btnFs').onclick = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+    } else {
+      document.exitFullscreen && document.exitFullscreen();
+    }
+    if (window._haptic) window._haptic(15);
+  };
+
+  document.getElementById('btnSend').onclick = () => {
+    document.getElementById('shareOverlay').classList.add('show');
+  };
+  document.getElementById('shareClose').onclick = () => {
+    document.getElementById('shareOverlay').classList.remove('show');
+  };
+  document.getElementById('shareWhatsApp').onclick = () => {
+    const txt = encodeURIComponent('🧭 Bileşke Kuvvet ve Vektörler — 3D interaktif fizik simülasyonu!');
+    window.open('https://wa.me/?text=' + txt, '_blank');
+  };
+  document.getElementById('shareCopy').onclick = () => {
+    try { navigator.clipboard.writeText(window.location.href); } catch(e){}
+    if (window._showGestureToast) window._showGestureToast('📋 Bağlantı kopyalandı');
+    document.getElementById('shareOverlay').classList.remove('show');
+  };
+  document.getElementById('shareDownload').onclick = () => {
+    try {
+      const link = document.createElement('a');
+      link.download = 'bileske-kuvvet-simulasyon.png';
+      link.href = renderer.domElement.toDataURL('image/png');
+      link.click();
+    } catch(e){}
+    document.getElementById('shareOverlay').classList.remove('show');
+  };
+
+  document.getElementById('btnCompare').onclick = () => {
+    renderCompareTable();
+    document.getElementById('compareOverlay').classList.add('show');
+  };
+  document.getElementById('compareClose').onclick = () => {
+    document.getElementById('compareOverlay').classList.remove('show');
+  };
+  document.getElementById('comparePrev').onclick = () => {
+    if (window._cmpIdx > 0) { window._cmpIdx--; _showComparePage(); if (window._haptic) window._haptic(10); }
+  };
+  document.getElementById('compareNext').onclick = () => {
+    if (window._cmpIdx < window._cmpPages.length - 1) { window._cmpIdx++; _showComparePage(); if (window._haptic) window._haptic(10); }
+  };
+
+  document.getElementById('btnTable').onclick = () => {
+    renderInfoTable();
+    document.getElementById('tableOverlay').classList.add('show');
+  };
+  document.getElementById('tableClose').onclick = () => {
+    document.getElementById('tableOverlay').classList.remove('show');
+  };
+  document.getElementById('tablePrev').onclick = () => {
+    if (window._tblIdx > 0) { window._tblIdx--; _showTablePage(); if (window._haptic) window._haptic(10); }
+  };
+  document.getElementById('tableNext').onclick = () => {
+    if (window._tblIdx < window._tblPages.length - 1) { window._tblIdx++; _showTablePage(); if (window._haptic) window._haptic(10); }
+  };
+
+  ['shareOverlay','compareOverlay','tableOverlay'].forEach(id => {
+    const ov = document.getElementById(id);
+    ov.onclick = (e) => { if (e.target === ov) ov.classList.remove('show'); };
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.dropdown-panel') && !e.target.closest('.stack-btn') && !e.target.closest('.tool-icon-btn')) {
+      closeAllDropdowns();
+    }
+  });
+}
+
+// ============================================================
+// ====== BAÅLATMA ============================================
+// ============================================================
+init();
+attachEvents();
+buildTopicDropdown();
+selectSub('vektorTanim');
+animate();
+
+console.log('âœ“ BileÅŸke kuvvet ve vektÃ¶rler simÃ¼lasyonu baÅŸlatÄ±ldÄ±');
+</script>
+</body>
+</html>

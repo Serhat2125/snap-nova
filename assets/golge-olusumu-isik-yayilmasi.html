@@ -1,0 +1,4420 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>🔦 Gölge Oluşumu ve Işığın Yayılması (TYT/AYT)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Baloo+2:wght@500;600;700;800&display=swap');
+
+  :root {
+    --bg:#0a0e1a;
+    --panel:#161b2e;
+    --panel-soft:#1f2540;
+    --panel-line:#2f3a5f;
+    --ink:#eef0ff;
+    --ink-soft:#a8b0d0;
+    --accent:#f6b93b;
+    --accent-glow:#ffd166;
+    --warning:#ffd166;
+    --cartilage:#9d7fe6;
+    --muscle:#c45d5d;
+    --joint:#5fc8e0;
+    --xylem:#d97043;
+    --phloem:#5fb8e8;
+    --chloro:#2ecc40;
+    --bone:#e0c088;
+  }
+
+  body.light-mode {
+    --bg:#f3f6fb;
+    --panel:#ffffff;
+    --panel-soft:#eef2f8;
+    --panel-line:#d0d8e3;
+    --ink:#1a2030;
+    --ink-soft:#5a6070;
+    --accent:#e0901b;
+    --accent-glow:#c47a10;
+  }
+
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; margin:0; padding:0; }
+  html, body {
+    overflow:hidden;
+    background:var(--bg); color:var(--ink);
+    font-family:'Fredoka',sans-serif; user-select:none;
+    width:100vw; height:100vh;
+    transition:background 0.3s, color 0.3s;
+  }
+  body { touch-action:none; }
+  canvas { display:block; cursor:grab; }
+  canvas:active { cursor:grabbing; }
+  #canvasContainer { position:absolute; inset:0; width:100%; height:100%; z-index:1; }
+
+  .left-stack {
+    position:absolute;
+    top:14px; right:14px;
+    z-index:30;
+    display:flex; flex-direction:column; gap:8px;
+    align-items:flex-end;
+  }
+
+  .stack-btn {
+    display:flex; align-items:center; gap:7px;
+    background:var(--panel);
+    border:2px solid var(--panel-line);
+    border-radius:12px;
+    padding:8px 14px;
+    font-family:'Fredoka',sans-serif; font-weight:600;
+    font-size:12.5px;
+    color:var(--ink);
+    cursor:pointer;
+    box-shadow:0 4px 12px rgba(0,0,0,0.25);
+    transition:all 0.15s;
+    min-width:170px;
+  }
+  .stack-btn:hover {
+    border-color:var(--accent);
+    transform:translateY(-1px);
+    box-shadow:0 6px 16px rgba(0,0,0,0.35);
+  }
+  .stack-btn:active { transform:scale(0.97); }
+  .stack-btn .sb-emoji { font-size:16px; line-height:1; flex-shrink:0; }
+  .stack-btn .sb-label { flex:1; text-align:left; }
+  .stack-btn .sb-arrow { font-size:10px; opacity:0.7; }
+
+  .stack-btn.level { background:linear-gradient(135deg, #f6b93b 0%, #ffd166 100%); color:#1a1410; border-color:#ffd166; }
+  .stack-btn.topic { background:linear-gradient(135deg, #5fc8e0 0%, #7adcf0 100%); color:#0a1420; border-color:#7adcf0; }
+
+  .dropdown-panel {
+    position:absolute;
+    background:var(--panel);
+    border:2px solid var(--accent);
+    border-radius:14px;
+    padding:8px;
+    z-index:50;
+    box-shadow:0 12px 32px rgba(0,0,0,0.5);
+    min-width:230px; max-width:300px;
+    max-height:60vh; overflow-y:auto;
+    display:none;
+  }
+  .dropdown-panel.show { display:block; }
+  .dropdown-title {
+    font-family:'Baloo 2', cursive; font-weight:800;
+    font-size:12px;
+    color:var(--accent-glow);
+    padding:6px 8px 8px;
+    text-transform:uppercase; letter-spacing:0.6px;
+    border-bottom:1px solid var(--panel-line);
+    margin-bottom:6px;
+  }
+  .dropdown-item {
+    display:flex; align-items:center; gap:8px;
+    width:100%; text-align:left;
+    background:var(--panel-soft);
+    border:1.5px solid transparent;
+    border-radius:9px;
+    padding:8px 11px; margin-bottom:4px;
+    font-family:'Fredoka',sans-serif; font-weight:500; font-size:12.5px;
+    color:var(--ink); cursor:pointer;
+    transition:all 0.12s;
+  }
+  .dropdown-item:hover {
+    background:var(--panel-line);
+    border-color:var(--accent);
+    transform:translateX(2px);
+  }
+  .dropdown-item.active {
+    background:linear-gradient(135deg, var(--accent), var(--accent-glow));
+    color:#0a1420; font-weight:700;
+    border-color:#fff;
+  }
+  .dropdown-item .di-emoji { font-size:15px; flex-shrink:0; }
+  .dropdown-cat-head {
+    font-size:10.5px; color:var(--accent-glow); font-weight:700;
+    padding:8px 10px 4px;
+    text-transform:uppercase; letter-spacing:0.5px;
+    border-top:1px solid var(--panel-line);
+    margin-top:4px;
+  }
+  .dropdown-cat-head:first-child { border-top:none; margin-top:0; }
+
+  .right-tools {
+    position:absolute;
+    top:14px; left:14px;
+    z-index:30;
+    display:flex; gap:8px;
+    flex-wrap:nowrap;
+  }
+  .tool-icon-btn {
+    width:42px; height:42px;
+    background:var(--panel);
+    border:2px solid var(--panel-line);
+    border-radius:12px;
+    cursor:pointer;
+    display:grid; place-items:center;
+    font-size:18px;
+    color:var(--ink);
+    box-shadow:0 4px 12px rgba(0,0,0,0.3);
+    transition:all 0.15s;
+    flex-shrink:0;
+  }
+  .tool-icon-btn:hover {
+    border-color:var(--accent);
+    transform:translateY(-1px);
+    box-shadow:0 6px 16px rgba(0,0,0,0.4);
+  }
+  .tool-icon-btn:active { transform:scale(0.92); }
+
+  .tool-icon-btn.fs { border-color:var(--joint); color:var(--joint); }
+  .tool-icon-btn.fs:hover { background:var(--joint); color:#0a1420; }
+  .tool-icon-btn.send { border-color:var(--warning); color:var(--warning); }
+  .tool-icon-btn.send:hover { background:var(--warning); color:#0a1420; }
+  .tool-icon-btn.theme { border-color:var(--cartilage); color:var(--cartilage); }
+  .tool-icon-btn.theme:hover { background:var(--cartilage); color:#0a1420; }
+  .tool-icon-btn.mode { border-color:var(--chloro); color:var(--chloro); }
+  .tool-icon-btn.mode:hover { background:var(--chloro); color:#0a1420; }
+  .tool-icon-btn.mode.active { background:var(--chloro); color:#0a1420; }
+  .tool-icon-btn.compare { border-color:var(--muscle); color:var(--muscle); }
+  .tool-icon-btn.compare:hover { background:var(--muscle); color:#fff; }
+  .tool-icon-btn.table { border-color:var(--bone); color:var(--bone); }
+  .tool-icon-btn.table:hover { background:var(--bone); color:#0a1420; }
+  .bottom-panel {
+    position:absolute;
+    bottom:10px;
+    left:14px; right:14px;
+    z-index:25;
+    background:var(--panel);
+    border:2px solid var(--panel-line);
+    border-radius:12px;
+    padding:9px 12px 8px;
+    box-shadow:0 -6px 24px rgba(0,0,0,0.4);
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .bottom-panel.hidden { display:none; }
+
+  .info-close-btn {
+    position:absolute;
+    top:-13px; left:4px;
+    width:22px; height:22px;
+    background:var(--panel);
+    border:2px solid var(--panel-line);
+    border-radius:50%;
+    color:var(--ink-soft);
+    font-size:11px;
+    font-weight:700;
+    cursor:pointer;
+    display:grid; place-items:center;
+    line-height:1;
+    padding:0;
+    z-index:2;
+    transition:all 0.12s;
+    box-shadow:0 2px 8px rgba(0,0,0,0.3);
+  }
+  .info-close-btn:hover {
+    background:var(--panel-soft);
+    border-color:var(--accent);
+    color:var(--accent);
+  }
+  .info-close-btn:active { transform:scale(0.9); }
+
+  .info-area {
+    display:flex; gap:9px;
+    align-items:flex-start;
+  }
+  .info-emoji-box {
+    width:30px; height:30px;
+    border-radius:8px;
+    background:linear-gradient(135deg, var(--accent), var(--cartilage));
+    display:grid; place-items:center;
+    font-size:17px;
+    flex-shrink:0;
+    box-shadow:0 3px 11px rgba(246,185,59,0.4);
+  }
+  .info-text-area {
+    flex:1; min-width:0;
+  }
+  .info-title-row {
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:3px;
+  }
+  .info-title {
+    font-family:'Baloo 2', cursive; font-weight:800;
+    font-size:12.5px;
+    color:var(--accent-glow);
+  }
+  .nav-buttons {
+    display:flex; gap:4px;
+  }
+  .nav-mini-btn {
+    width:19px; height:19px;
+    background:var(--panel-soft);
+    border:1.5px solid var(--accent);
+    border-radius:5px;
+    cursor:pointer;
+    display:grid; place-items:center;
+    color:var(--accent);
+    font-size:9px;
+    transition:all 0.12s;
+  }
+  .nav-mini-btn:hover {
+    background:var(--accent);
+    color:#0a1420;
+  }
+  .info-list {
+    list-style:none;
+    padding:0; margin:0;
+    max-height:22vh;
+    overflow-y:auto;
+    overflow-x:hidden;
+    -webkit-overflow-scrolling:touch;
+    touch-action:pan-y;
+    overscroll-behavior:contain;
+    scrollbar-width:thin;
+    scrollbar-color:var(--accent) transparent;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%);
+    mask-image: linear-gradient(to bottom, transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%);
+    padding-right:4px;
+  }
+  .info-list::-webkit-scrollbar { width:5px; }
+  .info-list::-webkit-scrollbar-thumb { background:var(--accent); border-radius:3px; }
+  .info-list::-webkit-scrollbar-track { background:rgba(255,255,255,0.06); border-radius:3px; }
+  .info-list li {
+    padding:1px 0 1px 11px;
+    margin-bottom:0;
+    background:transparent;
+    border:none;
+    border-radius:0;
+    font-size:10.5px;
+    line-height:1.32;
+    color:var(--ink);
+    position:relative;
+  }
+  .info-list li::before {
+    content:'•';
+    position:absolute;
+    left:2px; top:1px;
+    color:var(--accent);
+    font-weight:700;
+    font-size:11px;
+  }
+  .info-list li b {
+    color:var(--accent-glow);
+    font-weight:700;
+  }
+  .info-list li.subhead {
+    background:transparent;
+    border-left:none;
+    color:var(--warning);
+    font-weight:700;
+    font-size:11.5px;
+    margin-top:5px;
+    margin-bottom:2px;
+    padding:0 0 1px 0;
+    font-style:normal;
+  }
+  .info-list li.subhead::before {
+    content:'';
+  }
+
+  .action-row {
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr;
+    gap:8px;
+  }
+  .action-btn {
+    display:flex; align-items:center; justify-content:center; gap:5px;
+    background:var(--panel-soft);
+    border:none;
+    border-radius:8px;
+    padding:6px 9px;
+    font-family:'Fredoka',sans-serif; font-weight:700;
+    font-size:10.5px;
+    color:#fff;
+    cursor:pointer;
+    transition:all 0.15s;
+  }
+  .action-btn:active { transform:scale(0.96); }
+  .action-btn .ico { font-size:12px; }
+
+  .action-btn.spin {
+    background:linear-gradient(135deg, var(--warning), #dba830);
+    color:#1a1410;
+  }
+  .action-btn.label {
+    background:linear-gradient(135deg, var(--cartilage), #7a5fb8);
+  }
+  .action-btn.anim {
+    background:linear-gradient(135deg, var(--muscle), #a04545);
+  }
+  .action-btn.active {
+    box-shadow:0 0 0 2px #fff, 0 0 12px rgba(255,255,255,0.4);
+  }
+
+  .slider-bar {
+    position:absolute;
+    top:62px;
+    left:14px;
+    background:var(--panel);
+    border:2px solid var(--joint);
+    border-radius:10px;
+    padding:8px 11px;
+    z-index:20;
+    display:none;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:6px;
+    box-shadow:0 4px 16px rgba(0,0,0,0.4);
+    max-width:230px;
+  }
+  .slider-bar.show { display:flex; }
+
+  .label3d {
+    color:#ffffff; font-size:11.5px;
+    padding:3px 8px;
+    background:rgba(10, 14, 26, 0.92);
+    border:1.5px solid var(--accent);
+    border-radius:6px;
+    pointer-events:none; white-space:nowrap;
+    font-family:'Fredoka', sans-serif; font-weight:500;
+    text-shadow:0 1px 2px rgba(0,0,0,0.85);
+    box-shadow:0 2px 8px rgba(0,0,0,0.5);
+  }
+  .label3d.xylem { border-color:var(--xylem); color:#ffd4b0; }
+  .label3d.phloem { border-color:var(--phloem); color:#b8e0ff; }
+  .label3d.chloro { border-color:var(--chloro); color:#b8ffc8; }
+  .label3d.epi { border-color:#a8d0b0; color:#dfe8e2; }
+  .label3d.endo { border-color:#e69138; color:#ffd4a0; }
+  .label3d.warn { border-color:#e74c3c; color:#ffb0a0; }
+
+  .share-overlay {
+    position:absolute; inset:0; z-index:60;
+    background:rgba(10,14,26,0.82); backdrop-filter:blur(4px);
+    display:none; align-items:center; justify-content:center; padding:20px;
+  }
+  .share-overlay.show { display:flex; }
+  .share-card {
+    background:var(--panel);
+    border:2px solid var(--accent);
+    border-radius:20px;
+    padding:18px;
+    width:min(360px, 92vw);
+    box-shadow:0 20px 60px rgba(0,0,0,0.6);
+  }
+  .share-head {
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:14px;
+  }
+  .share-head-text {
+    font-family:'Baloo 2', cursive; font-weight:800;
+    font-size:16px; color:var(--accent);
+  }
+  .share-close-btn {
+    width:30px; height:30px;
+    background:var(--panel-soft);
+    border:1.5px solid var(--panel-line);
+    border-radius:9px;
+    color:var(--ink);
+    cursor:pointer;
+    font-size:14px;
+  }
+  .share-actions {
+    display:flex; flex-direction:column; gap:9px;
+  }
+  .share-action-btn {
+    display:flex; align-items:center; gap:12px;
+    background:var(--panel-soft);
+    border:1.5px solid var(--panel-line);
+    border-radius:13px;
+    padding:11px 14px;
+    cursor:pointer;
+    text-align:left;
+    color:var(--ink);
+    font-family:'Fredoka', sans-serif;
+    transition:all 0.15s;
+  }
+  .share-action-btn:hover {
+    border-color:var(--accent);
+    background:var(--panel-line);
+  }
+  .share-action-btn .sa-ico {
+    font-size:22px; flex-shrink:0;
+  }
+  .share-action-btn .sa-text b {
+    display:block; font-weight:700; font-size:13px;
+  }
+  .share-action-btn .sa-text small {
+    font-size:11px; opacity:0.7;
+  }
+  .share-action-btn.primary {
+    background:linear-gradient(135deg, #25d366, #1da851);
+    border-color:#25d366;
+    color:#fff;
+  }
+
+  .cmp-card {
+    width:min(540px, 92vw) !important;
+    max-height:85vh; overflow-y:auto;
+  }
+  .cmp-body {
+    overflow-x:auto;
+    padding:4px 0 8px;
+  }
+  .cmp-table {
+    width:100%;
+    border-collapse:collapse;
+    font-size:12.5px;
+    border-radius:8px;
+    overflow:hidden;
+  }
+  .cmp-table th, .cmp-table td {
+    padding:9px 11px;
+    text-align:left;
+    border-bottom:1px solid var(--panel-line);
+  }
+  .cmp-table th {
+    background:linear-gradient(135deg, var(--accent) 0%, var(--accent-glow) 100%);
+    color:#0a1420;
+    font-family:'Baloo 2', cursive;
+    font-weight:800;
+    font-size:12px;
+    position:sticky; top:0;
+    text-shadow:0 1px 0 rgba(255,255,255,0.2);
+  }
+  .cmp-table th:first-child { border-radius:7px 0 0 0; }
+  .cmp-table th:last-child { border-radius:0 7px 0 0; }
+  .cmp-table tbody tr:nth-child(odd) td { background:rgba(246,185,59,0.04); }
+  .cmp-table tbody tr:nth-child(even) td { background:rgba(246,185,59,0.10); }
+  .cmp-table td { color:var(--ink); line-height:1.4; }
+  .cmp-table td:first-child {
+    font-weight:700;
+    color:var(--warning);
+    white-space:nowrap;
+    border-right:2px solid var(--accent);
+  }
+  .cmp-table.compare-style td:nth-child(2) { color:#ffd166; font-weight:600; }
+  .cmp-table.compare-style td:nth-child(3) { color:#7adcf0; font-weight:600; }
+  .cmp-table.compare-style td:nth-child(4) { color:#9d7fe6; font-weight:600; }
+  .cmp-table th:nth-child(2),
+  .cmp-table th:nth-child(3),
+  .cmp-table th:nth-child(4) { border-left:1px dashed rgba(255,255,255,0.3); }
+  .cmp-table tr:hover td { background:rgba(246,185,59,0.20) !important; }
+  .cmp-no-data {
+    text-align:center;
+    padding:24px 12px;
+    color:var(--ink-soft);
+    font-style:italic;
+    font-size:13px;
+  }
+
+  .cmp-nav {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:8px 4px 0;
+    margin-top:8px;
+    border-top:1px solid var(--panel-line);
+  }
+  .cmp-nav.hidden { display:none; }
+  .cmp-nav-btn {
+    background:var(--panel-soft);
+    border:1.5px solid var(--accent);
+    color:var(--accent);
+    border-radius:8px;
+    padding:6px 12px;
+    font-family:'Fredoka',sans-serif;
+    font-weight:600;
+    font-size:12px;
+    cursor:pointer;
+    transition:all 0.12s;
+    display:flex; align-items:center; gap:5px;
+  }
+  .cmp-nav-btn:hover { background:var(--accent); color:#0a1420; }
+  .cmp-nav-btn:active { transform:scale(0.96); }
+  .cmp-nav-btn:disabled {
+    opacity:0.35;
+    cursor:not-allowed;
+    background:var(--panel-soft);
+    color:var(--ink-soft);
+    border-color:var(--panel-line);
+  }
+  .cmp-nav-counter {
+    font-family:'Baloo 2', cursive;
+    font-weight:700;
+    font-size:12px;
+    color:var(--accent-glow);
+    background:var(--panel-soft);
+    padding:4px 10px;
+    border-radius:8px;
+    border:1px solid var(--panel-line);
+  }
+
+  ::-webkit-scrollbar { width:6px; height:6px; }
+  ::-webkit-scrollbar-thumb { background:var(--panel-line); border-radius:3px; }
+  ::-webkit-scrollbar-track { background:rgba(0,0,0,0.15); }
+
+  #loading {
+    position:fixed; inset:0; background:var(--bg);
+    display:flex; align-items:center; justify-content:center;
+    z-index:200; color:var(--accent-glow); font-size:18px;
+    font-family:'Baloo 2', sans-serif; font-weight:700;
+    transition:opacity 0.5s;
+  }
+  #loading.hide { opacity:0; pointer-events:none; }
+
+  #errorBox {
+    display:none; position:fixed; top:80px; left:50%;
+    transform:translateX(-50%);
+    background:rgba(180,30,30,0.95); color:white;
+    padding:20px; border-radius:8px; z-index:9999;
+    max-width:80%; font-family:monospace; font-size:13px;
+    white-space:pre-wrap;
+    box-shadow:0 4px 20px rgba(0,0,0,0.8);
+    border:2px solid #ff6060;
+  }
+
+  @media (max-width:600px) {
+    .stack-btn { min-width:140px; font-size:11px; padding:7px 11px; }
+    .stack-btn .sb-label { font-size:11px; }
+    .right-tools { gap:5px; left:8px; }
+    .tool-icon-btn { width:34px; height:34px; font-size:14px; border-radius:9px; }
+    .bottom-panel { padding:11px 12px 9px; gap:9px; }
+    .info-emoji-box { width:36px; height:36px; font-size:20px; }
+    .info-title { font-size:13px; }
+    .info-list li { font-size:11.5px; padding:4px 7px; }
+    .info-list { max-height:26vh; }
+    .action-btn { font-size:11px; padding:7px 8px; }
+    .dropdown-panel { min-width:200px; }
+    .dropdown-item { font-size:11.5px; padding:7px 9px; }
+    #panelMode { left:8px !important; }
+  }
+  @media (max-width:420px) {
+    .stack-btn { min-width:130px; font-size:10.5px; padding:6px 9px; }
+    .right-tools { gap:4px; left:6px; }
+    .tool-icon-btn { width:30px; height:30px; font-size:13px; border-radius:8px; border-width:1.5px; }
+    #panelMode { left:6px !important; }
+  }
+  @media (max-width:360px) {
+    .stack-btn { min-width:115px; font-size:10px; padding:5px 8px; }
+    .right-tools { gap:3px; left:5px; }
+    .tool-icon-btn { width:28px; height:28px; font-size:12px; }
+    #panelMode { left:5px !important; }
+  }
+
+  .region-list {
+    display: none !important;
+  }
+
+  .scene-panel {
+    position: fixed;
+    right: 12px;
+    top: 120px;
+    width: 280px;
+    max-height: calc(100vh - 120px - 220px);
+    overflow-y: auto;
+    background: rgba(15, 20, 30, 0.88);
+    border: 1px solid rgba(246, 185, 59, 0.35);
+    border-radius: 14px;
+    padding: 10px;
+    z-index: 40;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    font-size: 11.5px;
+    color: rgba(255, 255, 255, 0.92);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: all 0.3s ease;
+  }
+  .scene-panel.collapsed {
+    width: auto;
+    padding: 6px 10px;
+  }
+  .scene-panel.collapsed > *:not(.sp-toggle) { display: none; }
+  .scene-panel.empty { display: none; }
+
+  body.dropdown-open .scene-panel {
+    transform: none;
+  }
+
+  @media (min-width: 768px) {
+    canvas {
+      transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    body.scene-panel-open canvas {
+      transform: translateX(-15vw);
+    }
+    body.panel-open canvas {
+      transform: translateX(-22vw);
+    }
+  }
+
+  .sp-stepper {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 6px;
+    padding: 2px 3px;
+  }
+  .sp-step-btn {
+    width: 22px;
+    height: 22px;
+    background: rgba(246, 185, 59, 0.3);
+    border: 1px solid rgba(246, 185, 59, 0.6);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    transition: all 0.15s;
+    padding: 0;
+  }
+  .sp-step-btn:hover {
+    background: rgba(246, 185, 59, 0.55);
+    transform: scale(1.1);
+  }
+  .sp-step-btn:active { transform: scale(0.92); }
+  .sp-slider-row .sp-stepper .sp-val {
+    min-width: 40px;
+    background: transparent;
+    padding: 0 4px;
+    font-size: 11px;
+  }
+  .sp-toggle {
+    background: rgba(246, 185, 59, 0.18);
+    border: 1px solid rgba(246, 185, 59, 0.5);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+  }
+  .sp-toggle:hover { background: rgba(246, 185, 59, 0.32); }
+  .sp-section {
+    font-size: 10px; font-weight: 700;
+    color: rgba(255, 209, 90, 0.85);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin: 6px 4px 2px 4px;
+  }
+
+  .sp-slider-row {
+    display: flex; flex-direction: column; gap: 4px;
+    padding: 8px 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+  }
+  .sp-slider-row .sp-slider-head {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11.5px; font-weight: 500;
+  }
+  .sp-slider-row .sp-slider-head .sp-val {
+    font-family: 'Consolas', monospace;
+    font-size: 12px; font-weight: 700;
+    color: #FFD54F;
+    background: rgba(0,0,0,0.45);
+    padding: 2px 8px;
+    border-radius: 6px;
+    min-width: 50px; text-align: center;
+  }
+  .sp-slider-row .sp-sub {
+    font-size: 9.5px;
+    color: rgba(255, 255, 255, 0.5);
+    margin-top: -2px;
+    line-height: 1.2;
+  }
+  .sp-slider-row input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 6px;
+    background: linear-gradient(to right, #42A5F5, #FFCA28, #EF5350);
+    border-radius: 3px;
+    outline: none;
+    margin: 6px 0 2px 0;
+  }
+  .sp-slider-row input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    background: #fff;
+    border: 2px solid #f6b93b;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    transition: transform 0.1s;
+  }
+  .sp-slider-row input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+  .sp-slider-row input[type=range]::-moz-range-thumb {
+    width: 18px; height: 18px;
+    background: #fff;
+    border: 2px solid #f6b93b;
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  .sp-display {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 7px 10px;
+    background: rgba(246, 185, 59, 0.10);
+    border: 1px solid rgba(246, 185, 59, 0.28);
+    border-radius: 9px;
+    font-size: 11px;
+  }
+  .sp-display .sp-label { color: rgba(255,255,255,0.85); }
+  .sp-display .sp-val {
+    font-family: 'Consolas', monospace;
+    font-size: 12px; font-weight: 700; color: #FFE082;
+    background: rgba(0,0,0,0.35); padding: 2px 8px; border-radius: 6px;
+  }
+  .sp-display.highlight {
+    background: rgba(255, 175, 50, 0.15);
+    border-color: rgba(255, 175, 50, 0.5);
+  }
+  .sp-display.highlight .sp-val { color: #FFC107; }
+
+  .sp-presets {
+    display: flex; gap: 4px; flex-wrap: wrap;
+  }
+  .sp-preset-btn {
+    flex: 1; min-width: 50px;
+    padding: 6px 6px; font-size: 10.5px; font-weight: 500;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.18);
+    color: rgba(255,255,255,0.8);
+    border-radius: 6px; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .sp-preset-btn:hover { background: rgba(246,185,59,0.25); color: #fff; }
+  .sp-preset-btn.active {
+    background: rgba(246,185,59,0.5);
+    border-color: rgba(246,185,59,0.8);
+    color: #fff; font-weight: 600;
+  }
+
+  .sp-formula {
+    padding: 8px 10px;
+    background: rgba(255, 200, 50, 0.10);
+    border: 1px solid rgba(255, 200, 50, 0.35);
+    border-radius: 9px;
+    text-align: center;
+    font-family: 'Consolas', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: #FFE082;
+  }
+
+  @media (max-width: 768px) {
+    .scene-panel {
+      right: 8px;
+      top: 110px;
+      width: 200px;
+      font-size: 10.5px;
+      padding: 8px;
+    }
+    .sp-slider-row { padding: 6px 8px; }
+    .sp-slider-row input[type=range] { height: 5px; }
+  }
+
+  body.panel-open .scene-panel { }
+</style>
+</head>
+<body>
+
+<div id="loading">🔦 Gölge ve Işığın Yayılması yükleniyor...</div>
+
+<div id="touchHintOverlay" style="
+  position:fixed; bottom:128px; left:50%; transform:translateX(-50%) translateY(20px);
+  background:rgba(15,25,40,0.96); color:#fff; padding:14px 18px;
+  border-radius:18px; z-index:95; pointer-events:auto;
+  border:1.5px solid rgba(246, 185, 59, 0.55);
+  box-shadow:0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05);
+  opacity:0; transition:all 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  font-size:12.5px; max-width:340px; line-height:1.5;
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+">
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; padding-bottom:7px; border-bottom:1px solid rgba(255,255,255,0.1);">
+    <span style="font-weight:600; font-size:13px; color:#f6b93b;">🤏 Dokunma Hareketleri</span>
+    <button id="touchHintClose" style="background:none; border:none; color:rgba(255,255,255,0.6); font-size:18px; cursor:pointer; padding:0 4px; line-height:1;">×</button>
+  </div>
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px 12px;">
+    <div style="display:flex; align-items:center; gap:8px;"><span style="font-size:16px;">👆</span><span style="opacity:0.92;">Sürükle → döndür</span></div>
+    <div style="display:flex; align-items:center; gap:8px;"><span style="font-size:16px;">✌️</span><span style="opacity:0.92;">Pinch → zoom</span></div>
+    <div style="display:flex; align-items:center; gap:8px;"><span style="font-size:16px;">🖐️</span><span style="opacity:0.92;">3 parmak → reset</span></div>
+    <div style="display:flex; align-items:center; gap:8px;"><span style="font-size:16px;">⏱️</span><span style="opacity:0.92;">Basılı tut → bilgi</span></div>
+  </div>
+</div>
+
+<div id="resetPulse" style="
+  position:fixed; top:50%; left:50%; transform:translate(-50%, -50%) scale(0);
+  width:100px; height:100px; border-radius:50%;
+  background:radial-gradient(circle, rgba(246,185,59,0.5) 0%, rgba(246,185,59,0) 70%);
+  pointer-events:none; z-index:200; opacity:0;
+  transition:transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease;
+">
+  <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:42px;">🔄</div>
+</div>
+
+<div id="regionList" class="region-list"></div>
+<div id="scenePanel" class="scene-panel"></div>
+
+<div id="gestureToast" style="
+  position:fixed; top:90px; left:50%; transform:translateX(-50%) translateY(-20px);
+  background:rgba(15,25,40,0.95); color:#fff; padding:10px 18px;
+  border-radius:22px; z-index:180; pointer-events:none;
+  border:1.5px solid rgba(246, 185, 59, 0.7);
+  box-shadow:0 4px 22px rgba(0,0,0,0.5);
+  font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+  font-size:12.5px; font-weight:500;
+  opacity:0; transition:all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space:nowrap;
+"></div>
+
+<div class="left-stack">
+  <button class="stack-btn level" id="btnLevel">
+    <span class="sb-emoji">🎓</span>
+    <span class="sb-label" id="levelLabel">Lise</span>
+    <span class="sb-arrow">▼</span>
+  </button>
+  <button class="stack-btn topic" id="btnTopic">
+    <span class="sb-emoji">📚</span>
+    <span class="sb-label">Konu Rehberi</span>
+    <span class="sb-arrow">▼</span>
+  </button>
+</div>
+
+<div class="dropdown-panel" id="panelLevel" style="top:60px; right:14px;">
+  <div class="dropdown-title">🎓 Eğitim Seviyesi</div>
+  <button class="dropdown-item" data-level="ilkokul"><span class="di-emoji">🧒</span>İlkokul</button>
+  <button class="dropdown-item" data-level="ortaokul"><span class="di-emoji">🎒</span>Ortaokul</button>
+  <button class="dropdown-item active" data-level="lise"><span class="di-emoji">📘</span>Lise</button>
+  <button class="dropdown-item" data-level="tyt_ayt"><span class="di-emoji">🎯</span>TYT-AYT</button>
+</div>
+
+<div class="dropdown-panel" id="panelTopic" style="top:106px; right:14px;">
+  <div class="dropdown-title">📚 Konu Rehberi</div>
+  <div id="topicList"></div>
+</div>
+
+<div class="right-tools">
+  <button class="tool-icon-btn mode active" id="btnMode" title="Görünüm Modu: Sade">📄</button>
+  <button class="tool-icon-btn compare" id="btnCompare" title="Karşılaştırma">⚖️</button>
+  <button class="tool-icon-btn table" id="btnTable" title="Bilgi Tablosu">📋</button>
+  <button class="tool-icon-btn theme" id="btnTheme" title="Tema değiştir">🌙</button>
+  <button class="tool-icon-btn send" id="btnSend" title="Gönder/Paylaş">📤</button>
+  <button class="tool-icon-btn fs" id="btnFs" title="Tam ekran">⛶</button>
+</div>
+
+<div class="dropdown-panel" id="panelMode" style="top:60px; left:14px;">
+  <div class="dropdown-title">📚 Görünüm Modu</div>
+  <button class="dropdown-item" data-mode="detayli"><span class="di-emoji">📚</span><span><b>Detaylı</b><br><small style="opacity:0.7;font-size:10.5px;">Daha çok bilgi</small></span></button>
+  <button class="dropdown-item active" data-mode="sade"><span class="di-emoji">📄</span><span><b>Sade</b><br><small style="opacity:0.7;font-size:10.5px;">Sadece temel bilgiler</small></span></button>
+</div>
+
+<div class="bottom-panel" id="bottomPanel">
+  <button class="info-close-btn" id="infoCloseBtn" title="Bilgi panelini kapat">✕</button>
+  <div class="info-area">
+    <div class="info-emoji-box" id="infoEmoji" style="display:none;">🔦</div>
+    <div class="info-text-area">
+      <div class="info-title-row">
+        <div class="info-title" id="infoTitle">Işığın Doğrusal Yayılması</div>
+        <div class="nav-buttons">
+          <button class="nav-mini-btn" id="navPrev" title="Önceki">◀</button>
+          <button class="nav-mini-btn" id="navNext" title="Sonraki">▶</button>
+        </div>
+      </div>
+      <ul class="info-list" id="infoList"></ul>
+    </div>
+  </div>
+
+  <div class="action-row">
+    <button class="action-btn spin" id="spinBtn">
+      <span class="ico">🔄</span>
+      <span>Döndür</span>
+    </button>
+    <button class="action-btn label" id="labelBtn">
+      <span class="ico">🏷️</span>
+      <span>Etiketler</span>
+    </button>
+    <button class="action-btn anim" id="animBtn">
+      <span class="ico">▶️</span>
+      <span>Çalıştır</span>
+    </button>
+  </div>
+</div>
+
+<div id="bottomControl" class="slider-bar">
+  <label>💡 Kontrol:</label>
+  <input type="range" id="turgorSlider" min="0" max="100" value="80">
+  <span id="turgorValue">80%</span>
+  <span id="stomaDurum">AÇIK</span>
+</div>
+
+<div class="share-overlay" id="shareOverlay">
+  <div class="share-card">
+    <div class="share-head">
+      <div class="share-head-text">📤 Paylaş</div>
+      <button class="share-close-btn" id="shareClose">✕</button>
+    </div>
+    <div class="share-actions">
+      <button class="share-action-btn primary" id="shareWhatsApp">
+        <span class="sa-ico">💬</span>
+        <span class="sa-text">
+          <b>WhatsApp ile gönder</b>
+          <small>Arkadaşlarınıza paylaşın</small>
+        </span>
+      </button>
+      <button class="share-action-btn" id="shareCopy">
+        <span class="sa-ico">📋</span>
+        <span class="sa-text">
+          <b>Bağlantıyı kopyala</b>
+          <small>Panoya kopyala</small>
+        </span>
+      </button>
+      <button class="share-action-btn" id="shareDownload">
+        <span class="sa-ico">💾</span>
+        <span class="sa-text">
+          <b>Ekran görüntüsü kaydet</b>
+          <small>Cihaza indir</small>
+        </span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="share-overlay" id="compareOverlay">
+  <div class="share-card cmp-card">
+    <div class="share-head">
+      <div class="share-head-text"><span id="compareTitle">⚖️ Karşılaştırma</span></div>
+      <button class="share-close-btn" id="compareClose">✕</button>
+    </div>
+    <div class="cmp-body" id="compareBody"></div>
+    <div class="cmp-nav hidden" id="compareNav">
+      <button class="cmp-nav-btn" id="comparePrev">◀ Önceki</button>
+      <span class="cmp-nav-counter" id="compareCounter">1 / 1</span>
+      <button class="cmp-nav-btn" id="compareNext">Sonraki ▶</button>
+    </div>
+  </div>
+</div>
+
+<div class="share-overlay" id="tableOverlay">
+  <div class="share-card cmp-card">
+    <div class="share-head">
+      <div class="share-head-text" style="color:var(--bone);"><span id="tableTitle">📋 Bilgi Tablosu</span></div>
+      <button class="share-close-btn" id="tableClose">✕</button>
+    </div>
+    <div class="cmp-body" id="tableBody"></div>
+    <div class="cmp-nav hidden" id="tableNav">
+      <button class="cmp-nav-btn" id="tablePrev">◀ Önceki</button>
+      <span class="cmp-nav-counter" id="tableCounter">1 / 1</span>
+      <button class="cmp-nav-btn" id="tableNext">Sonraki ▶</button>
+    </div>
+  </div>
+</div>
+
+<div id="canvasContainer">
+  <svg id="leaderLines" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:9;"></svg>
+</div>
+
+<div id="errorBox"></div>
+
+<script>
+window.addEventListener('error', function(e) {
+  const box = document.getElementById('errorBox');
+  if (!box) return;
+  box.style.display = 'block';
+  box.textContent = '❌ HATA: ' + e.message + '\n\n📍 ' + (e.filename || 'inline') + ':' + e.lineno + ':' + e.colno;
+});
+window.addEventListener('unhandledrejection', function(e) {
+  const box = document.getElementById('errorBox');
+  if (!box) return;
+  box.style.display = 'block';
+  box.textContent = '❌ PROMISE HATASI: ' + (e.reason && e.reason.message ? e.reason.message : e.reason);
+});
+
+window.__moduleLoaded = false;
+setTimeout(function() {
+  if (!window.__moduleLoaded) {
+    const loading = document.getElementById('loading');
+    if (loading) {
+      loading.innerHTML = '<div style="text-align:center; padding:20px;">'+
+        '<h2 style="color:#ff6060;">⚠️ Three.js Yüklenemiyor</h2>'+
+        '<p style="color:#ffdd88;">three.module.min.js erişilemiyor</p>'+
+        '</div>';
+      loading.style.background = '#1a0a0a';
+    }
+  }
+}, 8000);
+</script>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./three.module.min.js"
+  }
+}
+</script>
+
+<script src="./three.global.js"></script>
+<script type="module">
+const THREE = window.THREE;
+
+window.__moduleLoaded = true;
+console.log('✓ Three.js yüklendi:', THREE.REVISION);
+
+window.addEventListener('error', (e) => {
+  const msg = `❌ HATA\n${e.message}\nDosya: ${e.filename || '?'}\nSatır: ${e.lineno || '?'}:${e.colno || '?'}\nStack: ${(e.error && e.error.stack) ? e.error.stack.slice(0, 600) : 'yok'}`;
+  console.error(msg);
+  const ld = document.getElementById('loading');
+  if (ld) {
+    ld.style.display = 'block';
+    ld.style.whiteSpace = 'pre-wrap';
+    ld.style.fontSize = '11px';
+    ld.style.textAlign = 'left';
+    ld.style.maxWidth = '90vw';
+    ld.style.background = 'rgba(120,0,0,0.95)';
+    ld.style.color = '#fff';
+    ld.style.padding = '12px';
+    ld.style.fontFamily = 'monospace';
+    ld.textContent = msg;
+  }
+});
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('❌ Promise hatası:', e.reason);
+});
+// ============== INLINE: CSS2DObject + CSS2DRenderer ==============
+class CSS2DObject extends THREE.Object3D {
+  constructor(element) {
+    super();
+    this.isCSS2DObject = true;
+    this.element = element || document.createElement('div');
+    this.element.style.position = 'absolute';
+    this.element.style.userSelect = 'none';
+    this.addEventListener('removed', () => {
+      this.traverse(obj => {
+        if (obj.element instanceof Element && obj.element.parentNode) {
+          obj.element.parentNode.removeChild(obj.element);
+        }
+      });
+    });
+  }
+}
+
+class CSS2DRenderer {
+  constructor() {
+    this.domElement = document.createElement('div');
+    this.domElement.style.position = 'absolute';
+    this.domElement.style.top = '0';
+    this.domElement.style.left = '0';
+    this.domElement.style.pointerEvents = 'none';
+    this.domElement.style.width = '100%';
+    this.domElement.style.height = '100%';
+    this._w = window.innerWidth;
+    this._h = window.innerHeight;
+    this._vec = new THREE.Vector3();
+  }
+  setSize(w, h) { this._w = w; this._h = h; }
+  render(scene, camera) {
+    const vec = this._vec;
+    const renderer = this;
+    scene.traverse(obj => {
+      if (obj.isCSS2DObject) {
+        obj.getWorldPosition(vec);
+        vec.project(camera);
+        const el = obj.element;
+        if (vec.z > 1 || vec.z < -1) {
+          el.style.display = 'none';
+          return;
+        }
+        if (!el.parentNode) renderer.domElement.appendChild(el);
+        const x = (vec.x + 1) / 2 * renderer._w;
+        const y = (1 - vec.y) / 2 * renderer._h;
+        if (el.dataset.userHidden !== '1' && el.dataset.labelHidden !== '1') el.style.display = 'block';
+        el.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px)`;
+      }
+    });
+  }
+}
+
+// ============== INLINE: OrbitControls (Minimal) ==============
+class OrbitControls extends THREE.EventDispatcher {
+  constructor(camera, domElement) {
+    super();
+    this.object = camera;
+    this.domElement = domElement;
+    this.target = new THREE.Vector3(0, 0, 0);
+    this.enableDamping = true;
+    this.dampingFactor = 0.08;
+    this.minDistance = 1;
+    this.maxDistance = 100;
+    this.enabled = true;
+
+    this._spherical = { theta: 0, phi: Math.PI/3, radius: 20 };
+    this._sphericalDelta = { theta: 0, phi: 0, radius: 1 };
+    this._sphericalTarget = { theta: 0, phi: Math.PI/3, radius: 20 };
+    this._lastCamPos = camera.position.clone();
+    this._lastTarget = this.target.clone();
+
+    this._state = 'NONE';
+    this._lastX = 0;
+    this._lastY = 0;
+    this._panOffset = new THREE.Vector3();
+
+    const dom = domElement;
+
+    const onMouseDown = (e) => {
+      if (!this.enabled) return;
+      this._state = (e.button === 2 || e.shiftKey) ? 'PAN' : 'ROTATE';
+      this._lastX = e.clientX;
+      this._lastY = e.clientY;
+    };
+    const onMouseMove = (e) => {
+      if (this._state === 'NONE' || !this.enabled) return;
+      const dx = e.clientX - this._lastX;
+      const dy = e.clientY - this._lastY;
+      this._lastX = e.clientX;
+      this._lastY = e.clientY;
+      if (this._state === 'ROTATE') {
+        this._sphericalTarget.theta -= dx * 0.005;
+        this._sphericalTarget.phi -= dy * 0.005;
+        this._sphericalTarget.phi = Math.max(0.05, Math.min(Math.PI - 0.05, this._sphericalTarget.phi));
+      } else if (this._state === 'PAN') {
+        const right = new THREE.Vector3();
+        const up = new THREE.Vector3();
+        this.object.matrix.extractBasis(right, up, new THREE.Vector3());
+        const panFactor = this._sphericalTarget.radius * 0.002;
+        this.target.addScaledVector(right, -dx * panFactor);
+        this.target.addScaledVector(up, dy * panFactor);
+      }
+    };
+    const onMouseUp = () => { this._state = 'NONE'; };
+
+    dom.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+
+    this._zoomToScreenPoint = (screenX, screenY, factor) => {
+      const rect = dom.getBoundingClientRect();
+      const ndcX = ((screenX - rect.left) / rect.width) * 2 - 1;
+      const ndcY = -((screenY - rect.top) / rect.height) * 2 + 1;
+      const ndc = new THREE.Vector3(ndcX, ndcY, 0.5);
+      ndc.unproject(this.object);
+      const dir = ndc.sub(this.object.position).normalize();
+      const t = (this.target.y - this.object.position.y) / dir.y;
+      if (t > 0 && isFinite(t)) {
+        const hit = new THREE.Vector3(
+          this.object.position.x + dir.x * t,
+          this.target.y,
+          this.object.position.z + dir.z * t
+        );
+        this.target.lerp(hit, 0.65);
+      }
+      this._sphericalTarget.radius = Math.max(this.minDistance,
+        Math.min(this.maxDistance, this._sphericalTarget.radius * factor));
+    };
+
+    let touchStart = null;
+    let pinchStartDist = 0;
+    let pinchStartRadius = 0;
+    let pinchCenter = { x: 0, y: 0 };
+    let lastTapTime = 0;
+    let lastTapX = 0, lastTapY = 0;
+    let touchStartTime = 0;
+    let longPressTimer = null;
+    let touchMoved = false;
+
+    this._initialCameraState = {
+      position: this.object.position.clone(),
+      target: this.target.clone(),
+      radius: this._sphericalTarget.radius
+    };
+    this.captureInitialState = () => {
+      this._initialCameraState = {
+        position: this.object.position.clone(),
+        target: this.target.clone(),
+        radius: this._sphericalTarget.radius,
+        theta: this._sphericalTarget.theta,
+        phi: this._sphericalTarget.phi
+      };
+    };
+    this.resetView = () => {
+      const init = this._initialCameraState;
+      if (!init) return;
+      this._sphericalTarget.radius = init.radius;
+      if (init.theta !== undefined) this._sphericalTarget.theta = init.theta;
+      if (init.phi !== undefined) this._sphericalTarget.phi = init.phi;
+      this.target.copy(init.target);
+      if (window._showResetPulse) window._showResetPulse();
+      if (window._showGestureToast) window._showGestureToast('🔄 Görünüm sıfırlandı');
+      if (window._haptic) window._haptic(35);
+    };
+
+    dom.addEventListener('touchstart', (e) => {
+      if (!this.enabled) return;
+      touchMoved = false;
+      touchStartTime = Date.now();
+      if (e.touches.length === 3) {
+        e.preventDefault && e.preventDefault();
+        this._state = 'RESET';
+        this.resetView();
+        return;
+      }
+      if (e.touches.length === 1) {
+        const now = Date.now();
+        const tx = e.touches[0].clientX;
+        const ty = e.touches[0].clientY;
+        if (now - lastTapTime < 300 && Math.hypot(tx - lastTapX, ty - lastTapY) < 60) {
+          this._zoomToScreenPoint(tx, ty, 0.6);
+          lastTapTime = 0;
+          this._state = 'NONE';
+          if (window._haptic) window._haptic(15);
+          if (window._showGestureToast) window._showGestureToast('🔍 Yakınlaştı');
+          return;
+        }
+        lastTapTime = now;
+        lastTapX = tx; lastTapY = ty;
+        this._state = 'ROTATE';
+        this._lastX = tx;
+        this._lastY = ty;
+        longPressTimer = setTimeout(() => {
+          if (!touchMoved) {
+            const bp = document.getElementById('bottomPanel');
+            if (bp) {
+              bp.classList.toggle('open');
+              if (window._haptic) window._haptic(25);
+              if (window._showGestureToast) {
+                window._showGestureToast(bp.classList.contains('open') ? '📖 Bilgi açıldı' : '📕 Bilgi kapandı');
+              }
+            }
+            this._state = 'NONE';
+          }
+        }, 600);
+      } else if (e.touches.length === 2) {
+        if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+        this._state = 'PINCH';
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        pinchStartDist = Math.hypot(dx, dy);
+        pinchStartRadius = this._sphericalTarget.radius;
+        pinchCenter.x = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        pinchCenter.y = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      }
+    }, { passive: true });
+
+    dom.addEventListener('touchmove', (e) => {
+      if (!this.enabled || this._state === 'NONE') return;
+      e.preventDefault();
+      if (longPressTimer) {
+        const t = e.touches[0];
+        const dxMove = Math.hypot(t.clientX - lastTapX, t.clientY - lastTapY);
+        if (dxMove > 8) {
+          touchMoved = true;
+          clearTimeout(longPressTimer);
+          longPressTimer = null;
+        }
+      }
+      if (this._state === 'ROTATE' && e.touches.length === 1) {
+        const dx = e.touches[0].clientX - this._lastX;
+        const dy = e.touches[0].clientY - this._lastY;
+        this._lastX = e.touches[0].clientX;
+        this._lastY = e.touches[0].clientY;
+        this._sphericalTarget.theta -= dx * 0.005;
+        this._sphericalTarget.phi -= dy * 0.005;
+        this._sphericalTarget.phi = Math.max(0.05, Math.min(Math.PI - 0.05, this._sphericalTarget.phi));
+      } else if (this._state === 'PINCH' && e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.hypot(dx, dy);
+        const newCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const newCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        this._sphericalTarget.radius = Math.max(this.minDistance, Math.min(this.maxDistance, pinchStartRadius * (pinchStartDist / dist)));
+        const panDx = newCenterX - pinchCenter.x;
+        const panDy = newCenterY - pinchCenter.y;
+        pinchCenter.x = newCenterX;
+        pinchCenter.y = newCenterY;
+        const right = new THREE.Vector3();
+        const up = new THREE.Vector3();
+        this.object.matrix.extractBasis(right, up, new THREE.Vector3());
+        const panFactor = this._sphericalTarget.radius * 0.0045;
+        this.target.addScaledVector(right, -panDx * panFactor);
+        this.target.addScaledVector(up, panDy * panFactor);
+      }
+    }, { passive: false });
+
+    dom.addEventListener('touchend', (e) => {
+      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+      if (this._state === 'PINCH' && e.touches.length === 1) {
+        this._state = 'ROTATE';
+        this._lastX = e.touches[0].clientX;
+        this._lastY = e.touches[0].clientY;
+        return;
+      }
+      this._state = 'NONE';
+    });
+    dom.addEventListener('touchcancel', () => {
+      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+      this._state = 'NONE';
+    });
+
+    dom.addEventListener('wheel', (e) => {
+      if (!this.enabled) return;
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 1.1 : 0.9;
+      this._sphericalTarget.radius = Math.max(this.minDistance,
+        Math.min(this.maxDistance, this._sphericalTarget.radius * factor));
+    }, { passive: false });
+
+    dom.addEventListener('dblclick', (e) => {
+      if (!this.enabled) return;
+      this._zoomToScreenPoint(e.clientX, e.clientY, 0.55);
+    });
+
+    dom.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    this._syncFromCamera();
+  }
+
+  _syncFromCamera() {
+    const dx = this.object.position.x - this.target.x;
+    const dy = this.object.position.y - this.target.y;
+    const dz = this.object.position.z - this.target.z;
+    const r = Math.sqrt(dx*dx + dy*dy + dz*dz) || 1;
+    this._spherical.radius = this._sphericalTarget.radius = r;
+    this._spherical.theta = this._sphericalTarget.theta = Math.atan2(dx, dz);
+    this._spherical.phi = this._sphericalTarget.phi = Math.acos(Math.max(-1, Math.min(1, dy / r)));
+    this._lastCamPos.copy(this.object.position);
+    this._lastTarget.copy(this.target);
+  }
+
+  update() {
+    if (!this._lastCamPos.equals(this.object.position) || !this._lastTarget.equals(this.target)) {
+      this._syncFromCamera();
+    }
+    if (this.enableDamping) {
+      this._spherical.theta += (this._sphericalTarget.theta - this._spherical.theta) * this.dampingFactor;
+      this._spherical.phi += (this._sphericalTarget.phi - this._spherical.phi) * this.dampingFactor;
+      this._spherical.radius += (this._sphericalTarget.radius - this._spherical.radius) * this.dampingFactor;
+    } else {
+      this._spherical.theta = this._sphericalTarget.theta;
+      this._spherical.phi = this._sphericalTarget.phi;
+      this._spherical.radius = this._sphericalTarget.radius;
+    }
+    const s = this._spherical;
+    this.object.position.set(
+      this.target.x + s.radius * Math.sin(s.phi) * Math.sin(s.theta),
+      this.target.y + s.radius * Math.cos(s.phi),
+      this.target.z + s.radius * Math.sin(s.phi) * Math.cos(s.theta)
+    );
+    this.object.lookAt(this.target);
+    this._lastCamPos.copy(this.object.position);
+    this._lastTarget.copy(this.target);
+  }
+}
+
+// ============== GLOBAL STATE ==============
+let scene, camera, renderer, labelRenderer, controls;
+let dynamicObjects = [];
+let labelsVisible = true;
+let currentModule = 1, currentSub = '';
+
+const COLORS = {
+  light: 0xfff3b0,
+  lightCore: 0xffffff,
+  ray: 0xffe17a,
+  rayDim: 0xb8a050,
+  object: 0x3a4252,
+  objectEdge: 0x5a6478,
+  screen: 0x2a3142,
+  umbra: 0x1a1a2e,
+  penumbra: 0x6b6b8a,
+  lit: 0xfff0a0,
+  earth: 0x2e7dd6,
+  moon: 0xb0b0b8,
+  sun: 0xffcc33
+};
+
+// ============== INIT ==============
+function init() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x121726);
+  scene.fog = new THREE.Fog(0x121726, 35, 95);
+
+  const W = window.innerWidth, H = window.innerHeight;
+  camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 200);
+  camera.position.set(0.0, 5.0, 28.0);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(W, H);
+  window.scene = scene; window.camera = camera; window.renderer = renderer;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+  if (THREE.SRGBColorSpace !== undefined) {
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+  } else if (THREE.sRGBEncoding !== undefined) {
+    renderer.outputEncoding = THREE.sRGBEncoding;
+  }
+  document.getElementById('canvasContainer').appendChild(renderer.domElement);
+
+  labelRenderer = new CSS2DRenderer();
+  labelRenderer.setSize(W, H);
+  labelRenderer.domElement.style.position = 'absolute';
+  labelRenderer.domElement.style.top = '0';
+  labelRenderer.domElement.style.pointerEvents = 'none';
+  document.getElementById('canvasContainer').appendChild(labelRenderer.domElement);
+
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.minDistance = 1.2;
+  controls.maxDistance = 90;
+
+  const ambient = new THREE.AmbientLight(0xffffff, 0.48);
+  ambient.userData._isInitial = true;
+  scene.add(ambient);
+
+  const keyLight = new THREE.DirectionalLight(0xfff4e6, 0.6);
+  keyLight.position.set(8, 14, 10);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.width = 2048;
+  keyLight.shadow.mapSize.height = 2048;
+  keyLight.shadow.camera.near = 0.5;
+  keyLight.shadow.camera.far = 60;
+  keyLight.shadow.camera.left = -20;
+  keyLight.shadow.camera.right = 20;
+  keyLight.shadow.camera.top = 20;
+  keyLight.shadow.camera.bottom = -20;
+  keyLight.shadow.bias = -0.0005;
+  keyLight.shadow.radius = 4;
+  keyLight.userData._isInitial = true;
+  scene.add(keyLight);
+
+  const rimLight = new THREE.DirectionalLight(0x90b8ff, 0.35);
+  rimLight.position.set(-6, 4, -12);
+  rimLight.userData._isInitial = true;
+  scene.add(rimLight);
+
+  const hemi = new THREE.HemisphereLight(0x99bbff, 0x202028, 0.25);
+  hemi.userData._isInitial = true;
+  scene.add(hemi);
+
+  window.addEventListener('resize', onResize);
+  document.getElementById('loading').classList.add('hide');
+
+  (function() {
+    const bp = document.getElementById('bottomPanel');
+    if (!bp) return;
+    const observer = new MutationObserver(() => {
+      if (bp.classList.contains('open')) {
+        document.body.classList.add('panel-open');
+      } else {
+        document.body.classList.remove('panel-open');
+      }
+    });
+    observer.observe(bp, { attributes: true, attributeFilter: ['class'] });
+  })();
+
+  const hint = document.getElementById('touchHintOverlay');
+  const hintClose = document.getElementById('touchHintClose');
+  let hintShown = false;
+  try { hintShown = sessionStorage.getItem('qhintShown') === '1'; } catch(e){}
+  const isMobile = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+  if (isMobile && hint && !hintShown) {
+    setTimeout(() => {
+      hint.style.opacity = '1';
+      hint.style.transform = 'translateX(-50%) translateY(0)';
+    }, 800);
+    setTimeout(() => {
+      hint.style.opacity = '0';
+      hint.style.transform = 'translateX(-50%) translateY(20px)';
+      setTimeout(() => { hint.style.pointerEvents = 'none'; }, 400);
+    }, 8000);
+  }
+  if (hintClose && hint) {
+    hintClose.onclick = () => {
+      hint.style.opacity = '0';
+      hint.style.transform = 'translateX(-50%) translateY(20px)';
+      setTimeout(() => { hint.style.pointerEvents = 'none'; }, 400);
+      try { sessionStorage.setItem('qhintShown', '1'); } catch(e){}
+    };
+  }
+
+  window._showGestureToast = function(msg, duration = 1400) {
+    const toast = document.getElementById('gestureToast');
+    if (!toast) return;
+    toast.textContent = msg;
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+    clearTimeout(window._toastTimer);
+    window._toastTimer = setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(-50%) translateY(-20px)';
+    }, duration);
+  };
+
+  window._showResetPulse = function() {
+    const pulse = document.getElementById('resetPulse');
+    if (!pulse) return;
+    pulse.style.transform = 'translate(-50%, -50%) scale(1)';
+    pulse.style.opacity = '1';
+    setTimeout(() => {
+      pulse.style.opacity = '0';
+      setTimeout(() => { pulse.style.transform = 'translate(-50%, -50%) scale(0)'; }, 500);
+    }, 400);
+  };
+
+  window._haptic = function(ms = 18) {
+    try { if (navigator.vibrate) navigator.vibrate(ms); } catch(e){}
+  };
+}
+
+function onResize() {
+  const W = window.innerWidth, H = window.innerHeight;
+  camera.aspect = W / H;
+  camera.updateProjectionMatrix();
+  renderer.setSize(W, H);
+  labelRenderer.setSize(W, H);
+}
+
+// ============== HELPERS ==============
+function clearScene() {
+  if (typeof clearSceneSliders === 'function') clearSceneSliders();
+  if (labelRenderer && labelRenderer.domElement) {
+    labelRenderer.domElement.innerHTML = '';
+  }
+  const _keepTypes = ['AmbientLight', 'HemisphereLight'];
+  const _toClean = [];
+  scene.children.forEach(obj => {
+    if (obj.userData._isInitial === true) return;
+    if (_keepTypes.includes(obj.type) && obj.userData._isInitial === undefined) {
+      obj.userData._isInitial = true;
+      return;
+    }
+    _toClean.push(obj);
+  });
+  _toClean.forEach(obj => {
+    if (obj.parent) obj.parent.remove(obj);
+    if (typeof obj.traverse === 'function') {
+      obj.traverse(o => {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) {
+          if (Array.isArray(o.material)) o.material.forEach(m => m.dispose());
+          else o.material.dispose();
+        }
+      });
+    }
+  });
+  const toRemove = [];
+  scene.traverse(obj => { if (obj.userData.dynamic) toRemove.push(obj); });
+  toRemove.forEach(obj => {
+    obj.parent && obj.parent.remove(obj);
+    if (obj.geometry) obj.geometry.dispose();
+    if (obj.material) {
+      if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+      else obj.material.dispose();
+    }
+  });
+  dynamicObjects = [];
+  window._labelRefs = [];
+  window._currentModelGroup = null;
+  window._customAnim = null;
+  window._flowRays = [];
+  const svg = document.getElementById('leaderLines');
+  if (svg) svg.innerHTML = '';
+}
+
+window._labelRefs = [];
+window._currentModelGroup = null;
+
+function addLabel(target, text, className = '', anchorTarget = null, minLevel = 1) {
+  const levelMap = { ilkokul: 1, ortaokul: 2, lise: 3, tyt_ayt: 4 };
+  const curr = levelMap[currentLevel] || 3;
+  if (curr < minLevel) return null;
+
+  const div = document.createElement('div');
+  div.className = 'label3d ' + className;
+  div.innerHTML = text;
+  div.style.display = labelsVisible ? 'block' : 'none';
+  div.dataset.userHidden = labelsVisible ? '0' : '1';
+  const lbl = new CSS2DObject(div);
+  lbl.userData.dynamic = true;
+  lbl.userData.isLabel = true;
+
+  let anchorLocal;
+  if (anchorTarget) {
+    anchorLocal = anchorTarget.isVector3 ? anchorTarget.clone() : anchorTarget.getWorldPosition(new THREE.Vector3());
+  } else if (target.isVector3) {
+    anchorLocal = target.clone();
+  } else {
+    anchorLocal = target.getWorldPosition(new THREE.Vector3());
+  }
+
+  const anchorObj = new THREE.Object3D();
+  anchorObj.position.copy(anchorLocal);
+  anchorObj.userData.dynamic = true;
+
+  if (target.isVector3) {
+    lbl.position.copy(target);
+    if (window._currentModelGroup) {
+      window._currentModelGroup.add(lbl);
+      window._currentModelGroup.add(anchorObj);
+    } else {
+      scene.add(lbl);
+      scene.add(anchorObj);
+    }
+  } else {
+    target.add(lbl);
+    target.add(anchorObj);
+  }
+
+  window._labelRefs.push({ div, labelObj: lbl, anchorObj, className });
+  return lbl;
+}
+
+function markDynamic(obj) {
+  obj.userData.dynamic = true;
+  obj.traverse(c => c.userData.dynamic = true);
+  if (obj.isGroup && !window._currentModelGroup) {
+    window._currentModelGroup = obj;
+  }
+  return obj;
+}
+// ============== ANIMATE ==============
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = clock.getDelta();
+  const t = clock.getElapsedTime();
+
+  controls.update();
+
+  dynamicObjects.forEach(obj => {
+    if (obj.userData.spin && window._autoSpinActive) {
+      obj.rotation.y += obj.userData.spin * dt;
+    }
+    if (obj.userData.bob) {
+      obj.position.y = obj.userData.baseY + Math.sin(t * obj.userData.bob.speed + obj.userData.bob.phase) * obj.userData.bob.amp;
+    }
+  });
+
+  if (window._isPlayingActive && window._flowRays && window._flowRays.length) {
+    window._flowRays.forEach(fr => { try { updateFlowRay(fr, t); } catch(e){} });
+  }
+
+  if (window._isPlayingActive && typeof window._customAnim === 'function') {
+    try { window._customAnim(t, dt); } catch(e) {}
+  }
+
+  if (typeof _updateSceneDisplays === 'function') _updateSceneDisplays();
+
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+
+  updateLeaderLines();
+}
+
+const _projVec = new THREE.Vector3();
+function updateLeaderLines() {
+  const svg = document.getElementById('leaderLines');
+  if (!svg || !window._labelRefs || window._leaderLinesVisible === false) {
+    if (svg) svg.innerHTML = '';
+    return;
+  }
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const paths = [];
+
+  window._labelRefs.forEach((ref) => {
+    if (!ref.div || ref.div.dataset.userHidden === '1' || ref.div.style.display === 'none') return;
+    if (!ref.div.parentNode) return;
+    if (!ref.anchorObj) return;
+
+    ref.anchorObj.getWorldPosition(_projVec);
+    _projVec.project(camera);
+    if (_projVec.z > 1 || _projVec.z < -1) return;
+    const ax = (_projVec.x + 1) / 2 * w;
+    const ay = (1 - _projVec.y) / 2 * h;
+
+    const rect = ref.div.getBoundingClientRect();
+    const lx = rect.left + rect.width / 2;
+    const ly = rect.top + rect.height / 2;
+
+    const dist = Math.hypot(ax - lx, ay - ly);
+    if (dist < 18) return;
+
+    const dx = ax - lx;
+    const dy = ay - ly;
+    const halfW = rect.width / 2;
+    const halfH = rect.height / 2;
+    const tx = dx === 0 ? Infinity : (Math.abs(dx) > halfW ? halfW / Math.abs(dx) : 1);
+    const ty = dy === 0 ? Infinity : (Math.abs(dy) > halfH ? halfH / Math.abs(dy) : 1);
+    const tEdge = Math.min(tx, ty);
+    const edgeX = lx + dx * tEdge;
+    const edgeY = ly + dy * tEdge;
+
+    const colorMap = {
+      'xylem': '#d97043',
+      'phloem': '#5fb8e8',
+      'chloro': '#2ecc40',
+      'epi': '#a8d0b0',
+      'endo': '#e69138',
+      'warn': '#e74c3c'
+    };
+    const color = ref.color || colorMap[ref.className] || '#ffd166';
+
+    const midX = (edgeX + ax) / 2;
+    const midY = (edgeY + ay) / 2;
+    const distLine = Math.hypot(ax - edgeX, ay - edgeY);
+    const normalX = -(ay - edgeY) / distLine;
+    const normalY = (ax - edgeX) / distLine;
+    const curveAmount = Math.min(distLine * 0.18, 35);
+    const ctrlX = midX + normalX * curveAmount;
+    const ctrlY = midY + normalY * curveAmount;
+
+    const tipBack = 8;
+    const dirX = (ax - ctrlX) / Math.hypot(ax - ctrlX, ay - ctrlY);
+    const dirY = (ay - ctrlY) / Math.hypot(ax - ctrlX, ay - ctrlY);
+    const tipX = ax - dirX * tipBack;
+    const tipY = ay - dirY * tipBack;
+
+    const d = `M ${edgeX} ${edgeY} Q ${ctrlX} ${ctrlY} ${tipX} ${tipY}`;
+    const arrowSize = 7;
+    const angle = Math.atan2(ay - ctrlY, ax - ctrlX);
+    const aHead1X = tipX - arrowSize * Math.cos(angle - 0.5);
+    const aHead1Y = tipY - arrowSize * Math.sin(angle - 0.5);
+    const aHead2X = tipX - arrowSize * Math.cos(angle + 0.5);
+    const aHead2Y = tipY - arrowSize * Math.sin(angle + 0.5);
+
+    paths.push(`<path d="${d}" stroke="${color}" stroke-width="1.8" fill="none" stroke-opacity="0.92" stroke-linecap="round" />`);
+    paths.push(`<path d="M ${ax} ${ay} L ${aHead1X} ${aHead1Y} L ${aHead2X} ${aHead2Y} Z" fill="${color}" stroke="${color}" stroke-width="0.8" stroke-linejoin="round" />`);
+    paths.push(`<circle cx="${ax}" cy="${ay}" r="2.5" fill="${color}" stroke="#fff" stroke-width="1" opacity="0.7" />`);
+  });
+
+  svg.innerHTML = paths.join('');
+}
+
+// ============== SCENE STATE & PANELS ==============
+window._sceneState = {
+  R: 1.0,
+  r: 1.0,
+  d1: 5.0,
+  d2: 5.0,
+  mode: null,
+  _displayUpdaters: []
+};
+
+function setSceneSliders(items, opts = {}) {
+  const panel = document.getElementById('scenePanel');
+  if (!panel) return;
+  panel.innerHTML = '';
+  panel.classList.remove('empty', 'collapsed');
+  document.body.classList.add('scene-panel-open');
+  window._sceneState._displayUpdaters = [];
+
+  const toggle = document.createElement('button');
+  toggle.className = 'sp-toggle';
+  toggle.innerHTML = `<span>🎛️ ${opts.title || 'Kontroller'}</span><span class="sp-chev">▼</span>`;
+  toggle.onclick = () => {
+    panel.classList.toggle('collapsed');
+    toggle.querySelector('.sp-chev').textContent = panel.classList.contains('collapsed') ? '◀' : '▼';
+    if (window._haptic) window._haptic(10);
+  };
+  panel.appendChild(toggle);
+
+  items.forEach(item => {
+    if (item.type === 'section') {
+      const t = document.createElement('div');
+      t.className = 'sp-section';
+      t.textContent = item.label;
+      panel.appendChild(t);
+      return;
+    }
+    if (item.type === 'slider') {
+      const row = document.createElement('div');
+      row.className = 'sp-slider-row';
+      const head = document.createElement('div');
+      head.className = 'sp-slider-head';
+      head.innerHTML = `<span>${item.label}</span>
+        <div class="sp-stepper">
+          <button class="sp-step-btn sp-minus">−</button>
+          <span class="sp-val"></span>
+          <button class="sp-step-btn sp-plus">+</button>
+        </div>`;
+      const valEl = head.querySelector('.sp-val');
+      const minusBtn = head.querySelector('.sp-minus');
+      const plusBtn = head.querySelector('.sp-plus');
+      row.appendChild(head);
+      const slider = document.createElement('input');
+      slider.type = 'range';
+      slider.min = item.min;
+      slider.max = item.max;
+      slider.step = item.step || 1;
+      slider.value = item.getValue();
+      row.appendChild(slider);
+      if (item.sub) {
+        const sub = document.createElement('div');
+        sub.className = 'sp-sub';
+        sub.textContent = item.sub;
+        row.appendChild(sub);
+      }
+      const updateVal = () => {
+        const v = parseFloat(slider.value);
+        valEl.textContent = (item.format ? item.format(v) : v) + (item.unit || '');
+      };
+      slider.addEventListener('input', () => {
+        const v = parseFloat(slider.value);
+        item.setValue(v);
+        updateVal();
+      });
+      const step = parseFloat(item.step) || 1;
+      minusBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const v = parseFloat(slider.value);
+        const nv = Math.max(parseFloat(item.min), v - step);
+        slider.value = nv; item.setValue(nv); updateVal();
+        if (window._haptic) window._haptic(8);
+      });
+      plusBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const v = parseFloat(slider.value);
+        const nv = Math.min(parseFloat(item.max), v + step);
+        slider.value = nv; item.setValue(nv); updateVal();
+        if (window._haptic) window._haptic(8);
+      });
+      panel.appendChild(row);
+      updateVal();
+      window._sceneState._displayUpdaters.push(() => {
+        const v = item.getValue();
+        if (parseFloat(slider.value) !== v) { slider.value = v; updateVal(); }
+      });
+    }
+    if (item.type === 'display') {
+      const row = document.createElement('div');
+      row.className = 'sp-display' + (item.highlight ? ' highlight' : '');
+      row.innerHTML = `<span class="sp-label">${item.label}</span><span class="sp-val"></span>`;
+      const val = row.querySelector('.sp-val');
+      val.textContent = item.getValue();
+      panel.appendChild(row);
+      window._sceneState._displayUpdaters.push(() => { val.textContent = item.getValue(); });
+    }
+    if (item.type === 'formula') {
+      const row = document.createElement('div');
+      row.className = 'sp-formula';
+      row.innerHTML = item.text;
+      panel.appendChild(row);
+      if (item.getValue) {
+        window._sceneState._displayUpdaters.push(() => { row.innerHTML = item.getValue(); });
+      }
+    }
+    if (item.type === 'presets') {
+      const row = document.createElement('div');
+      row.className = 'sp-presets';
+      item.options.forEach((opt, i) => {
+        const b = document.createElement('button');
+        b.className = 'sp-preset-btn';
+        b.textContent = opt.label;
+        if (i === (item.activeIdx || 0)) b.classList.add('active');
+        b.onclick = () => {
+          row.querySelectorAll('.sp-preset-btn').forEach(x => x.classList.remove('active'));
+          b.classList.add('active');
+          opt.action();
+          if (window._haptic) window._haptic(10);
+        };
+        row.appendChild(b);
+      });
+      panel.appendChild(row);
+    }
+  });
+}
+
+function clearSceneSliders() {
+  const panel = document.getElementById('scenePanel');
+  if (panel) { panel.innerHTML = ''; panel.classList.add('empty'); }
+  document.body.classList.remove('scene-panel-open');
+  if (window._sceneState) window._sceneState._displayUpdaters = [];
+}
+
+function _updateSceneDisplays() {
+  if (window._sceneState && window._sceneState._displayUpdaters) {
+    window._sceneState._displayUpdaters.forEach(fn => { try { fn(); } catch(e){} });
+  }
+}
+
+// ============== 3D INFO LABELS (CSS2D + leader) ==============
+const _LV = { ilkokul: 1, ortaokul: 2, lise: 3, tyt_ayt: 4 };
+function _labelTextForLevel(text) {
+  if (typeof text === 'string') return text;
+  if (text && typeof text === 'object') {
+    const order = ['ilkokul','ortaokul','lise','tyt_ayt'];
+    if (text[currentLevel]) return text[currentLevel];
+    const idx = order.indexOf(currentLevel);
+    for (let i = idx; i >= 0; i--) if (text[order[i]]) return text[order[i]];
+    for (let i = idx + 1; i < order.length; i++) if (text[order[i]]) return text[order[i]];
+  }
+  return '';
+}
+
+function addInfo3DLabels(labels) {
+  const grp = new THREE.Group();
+  grp.userData.dynamic = true;
+  grp.userData.isLabelGroup = true;
+  const curLv = _LV[currentLevel] || 3;
+  labels.forEach(L => {
+    if (L.minLevel && curLv < L.minLevel) return;
+    if (L.maxLevel && curLv > L.maxLevel) return;
+    const labelText = _labelTextForLevel(L.text);
+    if (!labelText) return;
+    const color = L.color || '#ffd166';
+    const div = document.createElement('div');
+    div.className = 'info3d-label';
+    div.style.cssText = `
+      background: rgba(15, 25, 40, 0.92);
+      border: 2px solid ${color};
+      color: #fff;
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+      pointer-events: none;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.5);
+      transform: translate(-50%, -50%);
+      text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+    `;
+    div.innerHTML = labelText;
+    div.style.display = labelsVisible ? 'block' : 'none';
+    div.dataset.userHidden = labelsVisible ? '0' : '1';
+    const obj = new CSS2DObject(div);
+    obj.position.set(L.position[0], L.position[1], L.position[2]);
+    obj.userData.isLabel = true;
+    obj.userData.dynamic = true;
+    grp.add(obj);
+
+    if (L.target) {
+      const dotGeo = new THREE.SphereGeometry(0.08, 16, 12);
+      const dotMat = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(color), transparent: true, opacity: 0.95,
+        toneMapped: false, depthTest: false
+      });
+      const dot = new THREE.Mesh(dotGeo, dotMat);
+      dot.position.set(L.target[0], L.target[1], L.target[2]);
+      dot.renderOrder = 999;
+      dot.userData.isLabel = true;
+      dot.userData.dynamic = true;
+      grp.add(dot);
+
+      const anchorObj = new THREE.Object3D();
+      anchorObj.position.set(L.target[0], L.target[1], L.target[2]);
+      anchorObj.userData.dynamic = true;
+      grp.add(anchorObj);
+
+      const classMap = {
+        '#ffe17a':'', '#ffd166':'', '#ffcc33':'',
+        '#5fc8e0':'joint', '#7adcf0':'joint',
+        '#9d7fe6':'cartilage', '#2e7dd6':'phloem',
+        '#ff7043':'xylem', '#d0563a':'xylem', '#d97043':'xylem',
+        '#9a9aa2':'', '#ffd54f':''
+      };
+      window._labelRefs.push({ div, labelObj: obj, anchorObj, color, className: classMap[color] || '' });
+    }
+  });
+  if (window._currentModelGroup) {
+    window._currentModelGroup.add(grp);
+  } else {
+    scene.add(grp);
+  }
+  return grp;
+}
+
+// ============== MODULE SYSTEM (Gölge Oluşumu) ==============
+const MODULES = {
+  1: {
+    title: '🔦 Modül 1: Işığın Yayılması',
+    subs: [
+      { key: 'dogrusalYayilma', label: '➡️ Işığın Doğrusal Yayılması', builder: 'buildDogrusalYayilma' },
+      { key: 'noktasalGolge',   label: '💡 Noktasal Kaynakta Gölge', builder: 'buildNoktasalGolge' },
+      { key: 'kaynakKonum',     label: '🕹️ Kaynağın Konumu ve Gölge', builder: 'buildKaynakKonum' },
+      { key: 'cokluKaynak',     label: '💡💡 İki Noktasal Kaynak', builder: 'buildCokluKaynak' }
+    ]
+  },
+  2: {
+    title: '🌗 Modül 2: Tam Gölge ve Yarı Gölge',
+    subs: [
+      { key: 'kureselKaynak', label: '🔆 Küresel Kaynakta Gölge', builder: 'buildKureselKaynak' },
+      { key: 'parametreler',  label: '🎚️ R ve d Etkisi (TYT/AYT)', builder: 'buildParametreler' },
+      { key: 'golgeBoyu',     label: '📐 Gölge Boyu Hesabı (Benzerlik)', builder: 'buildGolgeBoyu' }
+    ]
+  },
+  3: {
+    title: '🌍 Modül 3: Doğadaki Uygulamalar',
+    subs: [
+      { key: 'gunesTutulmasi', label: '🌑 Güneş Tutulması', builder: 'buildGunesTutulmasi' },
+      { key: 'ayTutulmasi',    label: '🌕 Ay Tutulması', builder: 'buildAyTutulmasi' },
+      { key: 'ignaDeligi',     label: '📷 İğne Deliği Kamerası', builder: 'buildIgneDeligi' }
+    ]
+  }
+};
+
+// ============== INFO DATA (4 seviye) ==============
+const INFO_DATA = {
+  dogrusalYayilma: {
+    ilkokul: { emoji: '➡️', title: 'Işık Düz Gider', points: [
+      '🔦 Işık her zaman düz bir çizgi boyunca gider',
+      '➡️ Köşeden dönmez, eğilmez',
+      '🌑 Önüne bir cisim çıkarsa arkasında gölge oluşur',
+      '👀 Bu yüzden saklambaçta duvar arkasını göremeyiz'
+    ]},
+    ortaokul: { emoji: '➡️', title: 'Işığın Doğrusal Yayılması', points: [
+      '🔦 Işık, saydam ortamda <b>doğru boyunca</b> yayılır',
+      '➡️ Işık ışını: ışığın izlediği yolu gösteren oktur',
+      '🌑 Saydam olmayan cisim ışığı geçirmez → gölge oluşur',
+      '📏 Gölgenin şekli, cismin en geniş kesitine benzer',
+      '☀️ Örnek: güneşte ağacın gölgesi, el feneri'
+    ]},
+    lise: { emoji: '➡️', title: 'Işığın Doğrusal Yayılması', points: [
+      '🔦 Işık homojen saydam ortamda doğrusal yayılır',
+      '➡️ <b>Işık ışını</b>: yayılma doğrultusunu gösteren yönlü doğru',
+      '📐 Işık demeti: paralel, ıraksak (dağılan) veya yakınsak (toplanan)',
+      '🌑 Saydam olmayan engel → arkasında <b>gölge</b> bölgesi',
+      '👁️ Cisimleri görmemiz, ışığın gözümüze doğrusal gelmesiyle',
+      '🚫 Işık tek başına görünmez; ancak bir yüzeye çarpınca algılanır'
+    ]},
+    tyt_ayt: { emoji: '➡️', title: 'Doğrusal Yayılma (TYT/AYT)', points: [
+      '🔦 Homojen ortamda ışık doğrusal yayılır (Fermat ilkesi: en kısa süreli yol)',
+      '➡️ Işın modeli: dalga boyu, engel boyutundan çok küçükken geçerli (geometrik optik)',
+      '📐 Demet türleri: paralel (∞ kaynak), ıraksak (noktasal), yakınsak (mercek sonrası)',
+      '🌑 Saydam / yarı saydam / opak madde ayrımı gölgeyi belirler',
+      '⚠️ Kırınım (difraksiyon): delik çok küçülünce doğrusal model bozulur',
+      '💡 Aydınlanma şiddeti E = I/d² (ters kare yasası) — kaynaktan uzaklaştıkça azalır'
+    ]}
+  },
+  noktasalGolge: {
+    ilkokul: { emoji: '💡', title: 'Tek Lamba ile Gölge', points: [
+      '💡 Küçük bir lamba (noktasal kaynak) tek bir gölge yapar',
+      '🌑 Gölge tamamen karanlıktır → buna <b>tam gölge</b> denir',
+      '📏 Lamba cisme yaklaşınca gölge büyür',
+      '📏 Perde uzaklaşınca gölge büyür'
+    ]},
+    ortaokul: { emoji: '💡', title: 'Noktasal Kaynakta Gölge', points: [
+      '💡 <b>Noktasal kaynak</b>: çok küçük tek bir ışık noktası',
+      '🌑 Perdede sadece <b>tam gölge</b> oluşur (yarı gölge yok)',
+      '📐 Kaynaktan cismin uçlarına ışınlar çizilir',
+      '📏 Kaynak cisme yaklaşırsa → gölge <b>büyür</b>',
+      '📏 Cisim perdeye yaklaşırsa → gölge <b>küçülür</b>',
+      '📏 Perde uzaklaşırsa → gölge <b>büyür</b>'
+    ]},
+    lise: { emoji: '💡', title: 'Noktasal Kaynakta Gölge', points: [
+      '💡 Noktasal kaynak: yüzeye uzaklığı, çapının 3 katından büyük kaynak',
+      '🌑 Perdede yalnızca <b>tam gölge</b> görülür',
+      '📐 Gölge boyu üçgen benzerliği ile bulunur',
+      '📏 Tam gölge yarıçapı = r · (kaynak-perde / kaynak-cisim)',
+      '🔄 Kaynak yaklaşır → gölge büyür; perde uzaklaşır → gölge büyür',
+      '🔄 Cisim perdeye yaklaşır → gölge küçülür'
+    ]},
+    tyt_ayt: { emoji: '💡', title: 'Noktasal Kaynak (TYT/AYT)', points: [
+      '💡 Noktasal kaynaktan ıraksak ışık demeti çıkar',
+      '📐 Benzerlik: ABC ~ ADE → AC/AE = BC/DE',
+      '📏 d₁ = kaynak-cisim, d₂ = cisim-perde ise: gölge = r·(d₁+d₂)/d₁',
+      '🔢 Örnek: r=2 cm, d₁=d, d₂=d → gölge yarıçapı 2·(2d)/d = 4 cm',
+      '📊 Gölge alanı yarıçapın karesiyle: 2× yarıçap → 4× alan',
+      '⚠️ Kaynak gerçekte küçük küre ise penumbra çok ince; ideal halde ihmal edilir'
+    ]}
+  },
+  kaynakKonum: {
+    ilkokul: { emoji: '🕹️', title: 'Lambayı Oynat!', points: [
+      '🕹️ Lambayı sağa-sola, yukarı-aşağı kaydır',
+      '↔️ Lamba sağa giderse gölge sola kayar',
+      '↕️ Lamba yukarı çıkarsa gölge aşağı iner',
+      '🔍 Lamba cisme yaklaşınca gölge büyür'
+    ]},
+    ortaokul: { emoji: '🕹️', title: 'Kaynağın Konumu', points: [
+      '🕹️ Kaynağı <b>yatay (X)</b>, <b>dikey (Y)</b> ve <b>uzaklık</b> ile oynat',
+      '↔️ Kaynak yana kayınca gölge ters yöne kayar (ışık düz gider)',
+      '↕️ Kaynak yükselince gölge aşağıya doğru uzar',
+      '🔍 Kaynak cisme <b>yaklaşınca</b> gölge büyür',
+      '🔭 Kaynak <b>uzaklaşınca</b> gölge küçülür (ışınlar paralelleşir)'
+    ]},
+    lise: { emoji: '🕹️', title: 'Kaynağın Konumu ve Gölge', points: [
+      '🕹️ Kaynağın konumu gölgenin yerini ve boyunu belirler',
+      '↔️ Yatay kayma: gölge kaynağın tersi yönde kayar (doğrusal yayılma)',
+      '↕️ Dikey kayma: gölge simetrik olarak ters yöne uzar',
+      '🔍 d₁ (kaynak-cisim) azalır → büyütme m=(d₁+d₂)/d₁ artar → gölge büyür',
+      '🔭 d₁ artar → m→1 yaklaşır → gölge cisim boyuna yaklaşır',
+      '📐 Gölge yönü, kaynak-cisim doğrusunun perdedeki izdüşümüdür'
+    ]},
+    tyt_ayt: { emoji: '🕹️', title: 'Kaynak Konumu (TYT/AYT)', points: [
+      '🕹️ Kaynak konumu (x_k, y_k) ve d₁ gölgeyi tam belirler',
+      '📐 Gölge merkezi: kaynak-cisim doğrusunun perdeyle kesişimi',
+      '↔️ Yatay öteleme Δx → gölge merkezi −Δx·(d₂/d₁) kadar kayar',
+      '🔍 Büyütme m = (d₁+d₂)/d₁ = 1 + d₂/d₁; d₁↓ ⇒ m↑ ⇒ gölge büyür',
+      '🔭 d₁→∞ (paralel ışık) ⇒ m→1 ⇒ gölge = cisim kesiti',
+      '🔢 Örnek: d₂=6 sabit, d₁: 6→3 ⇒ m: 2→3 ⇒ gölge 1.5 kat büyür'
+    ]}
+  },
+  cokluKaynak: {
+    ilkokul: { emoji: '💡', title: 'İki Lamba', points: [
+      '💡💡 İki lamba yakınca cismin iki gölgesi oluşur',
+      '⚫ Ortada hiç ışık almayan koyu yer → tam gölge',
+      '⬜ Yanlarda az ışık alan açık yer → yarı gölge'
+    ]},
+    ortaokul: { emoji: '💡', title: 'İki Noktasal Kaynak', points: [
+      '💡💡 İki noktasal kaynak alt alta tutulur',
+      '⚫ İki kaynaktan da ışık almayan bölge: <b>tam gölge</b>',
+      '⬜ Sadece bir kaynaktan ışık alan bölge: <b>yarı gölge</b>',
+      '📐 Her kaynak için ayrı ışınlar çizilir, kesişimler bulunur',
+      '🔆 Bir kaynak, diğerinin gölgesini kısmen aydınlatır'
+    ]},
+    lise: { emoji: '💡', title: 'İki Noktasal Kaynak', points: [
+      '💡💡 İki noktasal kaynak → tam gölge + yarı gölge',
+      '⚫ Tam gölge: iki kaynağın gölgelerinin <b>kesişimi</b>',
+      '⬜ Yarı gölge: yalnızca bir kaynaktan ışık alan bölge',
+      '📐 K₁ ve K₂ için cismin uçlarına ışınlar ayrı ayrı çizilir',
+      '🔆 K₁\'in tam gölgesinin bir kısmını K₂ aydınlatır → yarı gölge',
+      '🌗 Bu, küresel kaynağın davranışına benzer model oluşturur'
+    ]},
+    tyt_ayt: { emoji: '💡', title: 'İki Kaynak (TYT/AYT)', points: [
+      '💡💡 İki noktasal kaynak küresel kaynağın iki ucu gibi düşünülebilir',
+      '⚫ Tam gölge = ∩ (iki gölgenin kesişim bölgesi), hiç ışık almaz',
+      '⬜ Yarı gölge = simetrik fark; tek kaynaktan ışık alan kısımlar',
+      '📐 Kaynaklar eşit uzaklıkta değilse gölgeler asimetrik olur',
+      '🔢 Kaynak ayrımı arttıkça tam gölge daralır, yarı gölge genişler',
+      '🌑 Bu kurgu güneş tutulmasındaki umbra/penumbra modelinin temelidir'
+    ]}
+  },
+  kureselKaynak: {
+    ilkokul: { emoji: '🔆', title: 'Büyük Işık Topu', points: [
+      '🔆 Büyük yuvarlak bir lamba (küresel kaynak)',
+      '⚫ Ortada karanlık: tam gölge',
+      '⬜ Kenarda yarı karanlık: yarı gölge',
+      '🌗 Hem tam hem yarı gölge birlikte oluşur'
+    ]},
+    ortaokul: { emoji: '🔆', title: 'Küresel Kaynakta Gölge', points: [
+      '🔆 <b>Küresel kaynak</b>: yarıçapı olan büyük ışık kaynağı',
+      '⚫ <b>Tam gölge</b>: kaynağın hiçbir noktasından ışık almaz',
+      '⬜ <b>Yarı gölge</b>: kaynağın bir kısmından ışık alır',
+      '📐 Kaynağın üst ve alt uçlarından ışınlar çizilir',
+      '🌗 Perdede ortada tam gölge, çevresinde yarı gölge oluşur'
+    ]},
+    lise: { emoji: '🔆', title: 'Küresel Kaynakta Gölge', points: [
+      '🔆 Küresel kaynak: her noktası noktasal kaynak gibi davranır',
+      '⚫ Tam gölge: kaynağın <b>hiçbir</b> noktasından ışık gelmeyen alan',
+      '⬜ Yarı gölge: kaynağın <b>bir bölümünden</b> ışık alan geçiş alanı',
+      '📐 Kaynağın üst ucu → cismin alt ucu, alt uç → üst uç (çapraz ışın)',
+      '📊 R < r ise tam gölge geniş; R > r ise tam gölge daralır/kaybolur',
+      '🌑 R = r durumunda tam gölge yarıçapı ≈ cisim yarıçapı'
+    ]},
+    tyt_ayt: { emoji: '🔆', title: 'Küresel Kaynak (TYT/AYT)', points: [
+      '🔆 Küresel kaynak (R), opak küre/silindir (r), perde uzaklığı d',
+      '⚫ Tam gölge (umbra): dış teğet ışınların kesiştiği koni içi',
+      '⬜ Yarı gölge (penumbra): iç ve dış teğetler arası geçiş bölgesi',
+      '📐 İç teğet: kaynak üst ucu → cisim alt ucu (çapraz) → tam gölge sınırı',
+      '📐 Dış teğet: kaynak üst ucu → cisim üst ucu (paralel) → yarı gölge dışı',
+      '📊 R>r: umbra koni bir noktada kapanır; ötesinde antumbra (halka tutulma)',
+      '🌑 R<r: umbra ışınsal genişler (gerçek gölge artar)'
+    ]}
+  },
+  parametreler: {
+    ilkokul: { emoji: '🎚️', title: 'Kaydırarak Dene', points: [
+      '🎚️ Işık topunu büyüt/küçült',
+      '📏 Engeli perdeye yaklaştır/uzaklaştır',
+      '👀 Gölgenin nasıl değiştiğini izle',
+      '⚫ Büyük lamba → küçük tam gölge'
+    ]},
+    ortaokul: { emoji: '🎚️', title: 'R ve d Etkisi', points: [
+      '🎚️ <b>R</b>: ışık kaynağının yarıçapı (slider ile)',
+      '📏 <b>d</b>: engelin perdeye uzaklığı (slider ile)',
+      '🔆 R büyürse → tam gölge küçülür, yarı gölge büyür',
+      '📏 d büyürse → hem tam hem yarı gölge büyür',
+      '👁️ Değişimi gerçek zamanlı perdede izle'
+    ]},
+    lise: { emoji: '🎚️', title: 'R ve d Etkisi', points: [
+      '🎚️ Kaynak yarıçapı R ve perde uzaklığı d ayarlanabilir',
+      '🔆 R ↑ → tam gölge yarıçapı azalır (penumbra genişler)',
+      '📏 d ↑ → gölge bölgeleri büyür (ışınlar ıraksar)',
+      '⚫ R = r kritik durum: tam gölge sabit kalır (cisim yarıçapı kadar)',
+      '📐 Tam gölge sınırı iç teğet ışınlarla belirlenir'
+    ]},
+    tyt_ayt: { emoji: '🎚️', title: 'Parametrik Analiz (TYT/AYT)', points: [
+      '🎚️ Canlı formül: kaynak (R), engel (r), uzaklıklar (d₁, d₂)',
+      '📐 Tam gölge yarıçapı: r_u = r + (r − R)·d₂/d₁',
+      '📐 Yarı gölge dış yarıçapı: r_p = r + (r + R)·d₂/d₁',
+      '⚫ R = r → r_u = r (sabit), r_p = r + 2r·d₂/d₁',
+      '🔢 R > r → r_u < r, belli d₂\'de umbra kapanır (r_u = 0)',
+      '📊 Umbra kapanma uzaklığı: d₂ = r·d₁/(R − r)  (R>r için)'
+    ]}
+  },
+  golgeBoyu: {
+    ilkokul: { emoji: '📐', title: 'Gölge Ne Kadar Büyür?', points: [
+      '📐 Cisim küçük ama gölgesi büyük olabilir',
+      '📏 Perde uzaksa gölge daha büyük',
+      '🔺 Üçgenlere benzeterek boyunu buluruz'
+    ]},
+    ortaokul: { emoji: '📐', title: 'Gölge Boyu Hesabı', points: [
+      '📐 Gölge boyu <b>üçgen benzerliği</b> ile bulunur',
+      '📏 Kaynak-cisim = d₁, kaynak-perde = d₁+d₂',
+      '🔺 Gölge / Cisim = (kaynak-perde) / (kaynak-cisim)',
+      '🔢 Örnek: d₁=d, perde 2d uzakta → gölge 2 katı',
+      '📊 Cisim 2h ise, 3d uzaklıkta gölge 6h olur'
+    ]},
+    lise: { emoji: '📐', title: 'Gölge Boyu Hesabı', points: [
+      '📐 Benzer üçgenler: ABC ~ ADE → AC/AE = BC/DE',
+      '📏 Tam gölge boyu = cisim boyu × (kaynak-perde)/(kaynak-cisim)',
+      '🔺 Büyütme oranı m = (d₁+d₂)/d₁',
+      '🔢 r=2cm, d₁=d, d₂=d → gölge = 2·(2d/d) = 4 cm',
+      '📊 Alan büyütmesi = m² (boy 2× → alan 4×)'
+    ]},
+    tyt_ayt: { emoji: '📐', title: 'Benzerlik & Büyütme (TYT/AYT)', points: [
+      '📐 Geometri: kaynak K, cisim yarıçapı r (d₁ uzakta), perde (d₂ ötede)',
+      '📏 Gölge yarıçapı R_g = r·(d₁+d₂)/d₁ = r·m',
+      '🔺 Büyütme m = (d₁+d₂)/d₁ = 1 + d₂/d₁',
+      '📊 Alan oranı = m² ; A_gölge = π·r²·m²',
+      '🔢 Örnek: r=3, d₁=4, d₂=8 → m=3 → R_g=9, alan 9× artar',
+      '⚙️ İğne deliği kamerasında görüntü büyütmesi de aynı orana dayanır'
+    ]}
+  },
+  gunesTutulmasi: {
+    ilkokul: { emoji: '🌑', title: 'Güneş Tutulması', points: [
+      '🌑 Ay, Güneş ile Dünya arasına girer',
+      '☀️ Ay, Güneş\'in ışığını engeller',
+      '🌍 Dünya\'da gündüz birden kararır',
+      '👀 Özel gözlükle bakmak gerekir'
+    ]},
+    ortaokul: { emoji: '🌑', title: 'Güneş Tutulması', points: [
+      '🌑 Sıralama: <b>Güneş — Ay — Dünya</b>',
+      '☀️ Ay, Güneş ışığını engelleyerek Dünya\'ya gölge düşürür',
+      '⚫ Tam gölgenin düştüğü yerde: <b>tam güneş tutulması</b>',
+      '⬜ Yarı gölgenin düştüğü yerde: <b>parçalı tutulma</b>',
+      '🌙 Yeni Ay evresinde gerçekleşir'
+    ]},
+    lise: { emoji: '🌑', title: 'Güneş Tutulması', points: [
+      '🌑 Güneş–Ay–Dünya aynı doğrultuda (Yeni Ay)',
+      '☀️ Güneş = küresel kaynak, Ay = opak engel, Dünya = perde',
+      '⚫ Umbra (tam gölge) bölgesi: tam tutulma',
+      '⬜ Penumbra (yarı gölge): parçalı tutulma',
+      '💍 Ay uzaktayken umbra yetişmez → halkalı (annüler) tutulma',
+      '📐 Ay yörünge düzlemi ~5° eğik olduğu için her ay olmaz'
+    ]},
+    tyt_ayt: { emoji: '🌑', title: 'Güneş Tutulması (TYT/AYT)', points: [
+      '🌑 Geometri: Güneş(R_büyük) – Ay(r) – Dünya, küresel kaynak modeli',
+      '⚫ Umbra konisi: dış teğetler bir noktada kapanır (R>r olduğundan)',
+      '💍 Umbra Dünya yüzeyine ulaşmazsa antumbra → halkalı tutulma',
+      '⬜ Penumbra geniştir → büyük alanda parçalı tutulma görülür',
+      '📐 Tutulma sadece Yeni Ay + düğüm noktası hizasında olur',
+      '🔢 Ay-Dünya mesafesi değişimi (eliptik yörünge) tutulma tipini belirler'
+    ]}
+  },
+  ayTutulmasi: {
+    ilkokul: { emoji: '🌕', title: 'Ay Tutulması', points: [
+      '🌕 Dünya, Güneş ile Ay arasına girer',
+      '🌍 Dünya\'nın gölgesi Ay\'ın üstüne düşer',
+      '🔴 Ay kızılımsı görünebilir ("Kanlı Ay")',
+      '👀 Çıplak gözle güvenle izlenir'
+    ]},
+    ortaokul: { emoji: '🌕', title: 'Ay Tutulması', points: [
+      '🌕 Sıralama: <b>Güneş — Dünya — Ay</b>',
+      '🌍 Dünya\'nın gölgesi Ay\'ın üzerine düşer',
+      '⚫ Ay tam gölgeye girerse: <b>tam ay tutulması</b>',
+      '⬜ Yarı gölgeye girerse: <b>yarı/parçalı tutulma</b>',
+      '🌝 Dolunay evresinde gerçekleşir'
+    ]},
+    lise: { emoji: '🌕', title: 'Ay Tutulması', points: [
+      '🌕 Güneş–Dünya–Ay aynı doğrultuda (Dolunay)',
+      '🌍 Dünya = opak engel, Ay = perde rolünde',
+      '⚫ Ay, Dünya\'nın umbrasına girerse tam tutulma',
+      '🔴 Atmosferden kırılan kırmızı ışık Ay\'a düşer (Kanlı Ay)',
+      '⏱️ Dünya gölgesi büyük olduğu için ay tutulması daha uzun sürer'
+    ]},
+    tyt_ayt: { emoji: '🌕', title: 'Ay Tutulması (TYT/AYT)', points: [
+      '🌕 Geometri: Güneş – Dünya(büyük engel) – Ay, Dolunay + düğüm',
+      '⚫ Dünya umbrası Ay yörüngesinde Ay\'dan çok daha geniştir',
+      '🔴 Rayleigh saçılması: atmosfer mavi ışığı saçar, kırmızı kırılarak umbraya girer',
+      '⬜ Penumbral tutulma: gözle zor fark edilen hafif kararma',
+      '⏱️ Tam tutulma totalitesi saatlerce sürebilir (güneş tut. dakikalar)',
+      '🌍 Dünya\'nın yarısından görülebilir (güneş tut. dar bir şerit)'
+    ]}
+  },
+  ignaDeligi: {
+    ilkokul: { emoji: '📷', title: 'İğne Deliği Kamera', points: [
+      '📷 Bir kutuya iğneyle küçük delik açılır',
+      '🔄 Görüntü ters döner (baş aşağı)',
+      '🕯️ Mum gibi parlak şeyler görülebilir',
+      '💡 Işık düz gittiği için görüntü oluşur'
+    ]},
+    ortaokul: { emoji: '📷', title: 'İğne Deliği Kamerası', points: [
+      '📷 Karanlık kutu + küçük delik = <b>iğne deliği kamerası</b>',
+      '🔄 Görüntü <b>ters</b> oluşur (alt-üst, sağ-sol)',
+      '💡 Işığın doğrusal yayılmasının kanıtıdır',
+      '📏 Kutu uzunsa görüntü büyük ve sönük olur',
+      '🔆 Delik büyürse görüntü parlak ama bulanık olur'
+    ]},
+    lise: { emoji: '📷', title: 'İğne Deliği Kamerası', points: [
+      '📷 Camera obscura: tek küçük delikten görüntü oluşur',
+      '🔄 Görüntü ters ve gerçek (perde üzerinde)',
+      '📐 Büyütme = perde uzaklığı / cisim uzaklığı',
+      '🔆 Delik küçük → keskin ama sönük; büyük → parlak ama bulanık',
+      '💡 Doğrusal yayılma ilkesinin doğrudan kanıtı'
+    ]},
+    tyt_ayt: { emoji: '📷', title: 'İğne Deliği (TYT/AYT)', points: [
+      '📷 Her cisim noktası delikten geçip perdede tek nokta oluşturur',
+      '🔄 Görüntü ters: üst ışınlar alta, alt ışınlar üste gider',
+      '📐 Büyütme m = v/u (v: delik-perde, u: cisim-delik uzaklığı)',
+      '🔆 Optimum delik: çok küçükse kırınım bulandırır (denge noktası var)',
+      '🔢 Boy oranı: h_görüntü/h_cisim = v/u',
+      '⚠️ Mercek yok → her aydınlık seviyesinde çalışır, sonsuz "alan derinliği"'
+    ]}
+  }
+};
+const SubBuilders = {};
+window.SubBuilders = SubBuilders;
+
+// ============== KARŞILAŞTIRMA VERİLERİ ==============
+const COMPARE_DATA = {
+  dogrusalYayilma: {
+    ilkokul: { title: 'Saydam mı Değil mi?', cols: ['Cisim', 'Işığı Geçirir mi?'],
+      rows: [['Cam 🪟', '✅ Geçirir'], ['Tahta 🪵', '❌ Geçirmez'], ['Su 💧', '✅ Geçirir'], ['Kitap 📖', '❌ Geçirmez']] },
+    ortaokul: { title: 'Madde Türleri', cols: ['Tür', 'Örnek', 'Gölge'],
+      rows: [['Saydam', 'Cam, su, hava', 'Yok'], ['Yarı saydam', 'Buzlu cam, sis', 'Bulanık'], ['Opak (saydam değil)', 'Tahta, metal', 'Belirgin']] },
+    lise: { title: 'Işık Demeti Türleri', cols: ['Demet', 'Kaynak', 'Özellik'],
+      rows: [['Paralel', 'Çok uzak (Güneş)', 'Işınlar paralel'], ['Iraksak', 'Noktasal', 'Dağılan'], ['Yakınsak', 'Mercek sonrası', 'Bir noktada toplanır']] },
+    tyt_ayt: { title: 'Optik Model Sınırı', cols: ['Durum', 'Geçerli Model', 'Açıklama'],
+      rows: [['Engel >> λ', 'Geometrik optik', 'Doğrusal ışın, gölge keskin'], ['Engel ≈ λ', 'Dalga optiği', 'Kırınım (difraksiyon)'], ['Çok küçük delik', 'Kırınım baskın', 'Görüntü bulanır']] }
+  },
+  noktasalGolge: {
+    ilkokul: { title: 'Lamba ve Gölge', cols: ['Ne Yaparım', 'Gölge'],
+      rows: [['Lambayı yaklaştır', 'Büyür'], ['Lambayı uzaklaştır', 'Küçülür'], ['Duvarı geri çek', 'Büyür']] },
+    ortaokul: { title: 'Hareketin Gölgeye Etkisi', cols: ['Hareket', 'Tam Gölge'],
+      rows: [['Kaynak → cisme yaklaşır', 'Büyür'], ['Cisim → perdeye yaklaşır', 'Küçülür'], ['Perde → uzaklaşır', 'Büyür']] },
+    lise: { title: 'Gölge Boyu (r=2cm)', cols: ['d₁ (kaynak-cisim)', 'd₂ (cisim-perde)', 'Gölge r'],
+      rows: [['d', 'd', '4 cm'], ['d', '2d', '6 cm'], ['2d', 'd', '3 cm'], ['d', '3d', '8 cm']] },
+    tyt_ayt: [
+      { title: 'Benzerlik Hesabı', cols: ['Büyüklük', 'Formül', 'Not'],
+        rows: [['Gölge yarıçapı', 'r·(d₁+d₂)/d₁', 'Üçgen benzerliği'], ['Büyütme m', '1 + d₂/d₁', 'Boy oranı'], ['Alan oranı', 'm²', 'Yarıçap karesi']] },
+      { title: 'Sayısal Örnek (r=2)', cols: ['d₁', 'd₂', 'm', 'Gölge r'],
+        rows: [['d', 'd', '2', '4'], ['d', '2d', '3', '6'], ['2d', 'd', '1.5', '3'], ['d', '4d', '5', '10']] }
+    ]
+  },
+  kaynakKonum: {
+    ilkokul: { title: 'Lamba Nereye?', cols: ['Lambayı Oynat', 'Gölge Ne Yapar'],
+      rows: [['Sağa kaydır →', 'Sola kayar ←'], ['Yukarı kaldır ↑', 'Aşağı iner ↓'], ['Yaklaştır 🔍', 'Büyür'], ['Uzaklaştır 🔭', 'Küçülür']] },
+    ortaokul: { title: 'Kaynak Hareketi → Gölge', cols: ['Hareket', 'Gölge Konumu', 'Gölge Boyu'],
+      rows: [['Yatay (sağa)', 'Ters yöne (sola)', 'Değişmez'], ['Dikey (yukarı)', 'Ters yöne (aşağı)', 'Değişmez'], ['Yaklaşma', 'Aynı', 'Büyür'], ['Uzaklaşma', 'Aynı', 'Küçülür']] },
+    lise: { title: 'Konum Etkisi', cols: ['Değişken', 'Etki', 'Sebep'],
+      rows: [['x_kaynak ↑', 'Gölge −x yönüne kayar', 'Doğrusal yayılma'], ['y_kaynak ↑', 'Gölge −y yönüne kayar', 'Çapraz ışınlar'], ['d₁ ↓', 'Gölge büyür', 'm = (d₁+d₂)/d₁ artar'], ['d₁ ↑', 'Gölge küçülür', 'm → 1']] },
+    tyt_ayt: { title: 'Parametrik İlişki', cols: ['Büyüklük', 'İfade', 'Limit'],
+      rows: [['Büyütme m', '1 + d₂/d₁', 'd₁→∞ ⇒ m→1'], ['Gölge kayması', '−Δx·(d₂/d₁)', 'Yatay öteleme'], ['Gölge yarıçapı', 'r·m', 'm büyür ⇒ r·m büyür'], ['Alan', 'π·r²·m²', 'm² ile artar']] }
+  },
+  cokluKaynak: {
+    ilkokul: { title: 'Kaç Gölge?', cols: ['Lamba Sayısı', 'Gölge'],
+      rows: [['1 lamba', 'Tek tam gölge'], ['2 lamba', 'Tam + yarı gölge']] },
+    ortaokul: { title: 'İki Kaynakta Bölgeler', cols: ['Bölge', 'Işık Durumu', 'Sonuç'],
+      rows: [['Tam gölge', 'Hiç ışık yok', 'En karanlık'], ['Yarı gölge', 'Tek kaynaktan', 'Kısmen aydınlık'], ['Aydınlık', 'İki kaynaktan', 'Tam aydınlık']] },
+    lise: { title: 'Kaynak Konumu Etkisi', cols: ['Durum', 'Tam Gölge', 'Yarı Gölge'],
+      rows: [['Kaynaklar yakın', 'Geniş', 'Dar'], ['Kaynaklar uzak', 'Dar', 'Geniş'], ['Eşit uzaklık', 'Simetrik', 'Simetrik']] },
+    tyt_ayt: { title: 'Küresel Kaynak Analojisi', cols: ['İki Kaynak', 'Küresel Kaynak', 'Karşılık'],
+      rows: [['K₁, K₂ uçları', 'Kaynağın 2 ucu', 'Eşdeğer'], ['Kesişim', 'Umbra', 'Tam gölge'], ['Fark bölgesi', 'Penumbra', 'Yarı gölge']] }
+  },
+  kureselKaynak: {
+    ortaokul: { title: 'Tam vs Yarı Gölge', cols: ['Özellik', 'Tam Gölge', 'Yarı Gölge'],
+      rows: [['Işık', 'Hiç almaz', 'Kısmen alır'], ['Renk', 'En koyu', 'Açık gri'], ['Konum', 'Ortada', 'Çevrede']] },
+    lise: { title: 'R ve r İlişkisi', cols: ['Durum', 'Tam Gölge', 'Sonuç'],
+      rows: [['R < r', 'Genişler', 'Büyük tam gölge'], ['R = r', 'Cisim kadar', 'Sabit'], ['R > r', 'Daralır', 'Bir noktada kapanır']] },
+    tyt_ayt: { title: 'Teğet Işınlar', cols: ['Işın', 'Yol', 'Belirler'],
+      rows: [['İç teğet', 'Üst uç → alt uç (çapraz)', 'Tam gölge sınırı'], ['Dış teğet', 'Üst uç → üst uç (paralel)', 'Yarı gölge dışı'], ['R>r ötesi', 'Umbra kapanır', 'Antumbra (halka)']] }
+  },
+  parametreler: {
+    lise: { title: 'R Etkisi (d sabit)', cols: ['R (kaynak)', 'Tam Gölge', 'Yarı Gölge'],
+      rows: [['Küçük', 'Büyük', 'Dar'], ['Orta (=r)', 'Cisim kadar', 'Orta'], ['Büyük', 'Küçük/yok', 'Geniş']] },
+    tyt_ayt: { title: 'Formüller', cols: ['Büyüklük', 'Formül'],
+      rows: [['Tam gölge r_u', 'r + (r−R)·d₂/d₁'], ['Yarı gölge r_p', 'r + (r+R)·d₂/d₁'], ['Umbra kapanma', 'd₂ = r·d₁/(R−r)']] }
+  },
+  golgeBoyu: {
+    ortaokul: { title: 'Örnek Hesaplar', cols: ['Cisim', 'Uzaklık Oranı', 'Gölge'],
+      rows: [['2h kalem', 'perde 3d', '6h'], ['r top', 'perde 2d', '2r'], ['h çubuk', 'perde 4d', '4h']] },
+    lise: { title: 'Büyütme Tablosu', cols: ['d₁', 'd₂', 'm', 'Gölge (r=3)'],
+      rows: [['d', 'd', '2', '6'], ['d', '2d', '3', '9'], ['2d', 'd', '1.5', '4.5'], ['d', '4d', '5', '15']] },
+    tyt_ayt: { title: 'Benzerlik & Alan', cols: ['Büyüklük', 'İfade', 'Örnek (r=3,d₁=4,d₂=8)'],
+      rows: [['Büyütme m', '1+d₂/d₁', '3'], ['Gölge yarıçapı', 'r·m', '9'], ['Alan oranı', 'm²', '9×']] }
+  },
+  gunesTutulmasi: {
+    ilkokul: { title: 'Güneş Tutulması', cols: ['Soru', 'Cevap'],
+      rows: [['Ne araya girer?', 'Ay'], ['Ne kararır?', 'Gündüz'], ['Nasıl bakılır?', 'Özel gözlükle']] },
+    ortaokul: { title: 'Tutulma Türleri', cols: ['Bölge', 'Tutulma'],
+      rows: [['Tam gölge', 'Tam tutulma'], ['Yarı gölge', 'Parçalı tutulma']] },
+    lise: [
+      { title: 'Tutulma Tipleri', cols: ['Tip', 'Sebep', 'Görünüm'],
+        rows: [['Tam', 'Umbra yüzeye ulaşır', 'Güneş tamamen kapanır'], ['Parçalı', 'Penumbra', 'Güneş kısmen kapanır'], ['Halkalı', 'Umbra yetişmez', 'Halka kalır']] },
+      { title: 'Gölge Bölgeleri', cols: ['Bölge', 'Tutulma'],
+        rows: [['Umbra (tam gölge)', 'Tam tutulma'], ['Penumbra (yarı gölge)', 'Parçalı'], ['Antumbra', 'Halkalı']] }
+    ],
+    tyt_ayt: [
+      { title: 'Güneş vs Ay Tutulması', cols: ['Özellik', 'Güneş Tut.', 'Ay Tut.'],
+        rows: [['Dizilim', 'Güneş-Ay-Dünya', 'Güneş-Dünya-Ay'], ['Ay evresi', 'Yeni Ay', 'Dolunay'], ['Süre', 'Dakikalar', 'Saatler'], ['Görülen alan', 'Dar şerit', 'Yarım Dünya']] },
+      { title: 'Tutulma Geometrisi', cols: ['Kavram', 'Açıklama'],
+        rows: [['R_güneş > r_ay', 'Umbra konisi kapanır'], ['Umbra Dünya\'ya değer', 'Tam tutulma'], ['Umbra yetişmez', 'Antumbra → halkalı'], ['~5° eğim', 'Her ay olmaz']] }
+    ]
+  },
+  ayTutulmasi: {
+    ilkokul: { title: 'Ay Tutulması', cols: ['Soru', 'Cevap'],
+      rows: [['Ne araya girer?', 'Dünya'], ['Ay ne renk olur?', 'Kırmızı'], ['Nasıl bakılır?', 'Çıplak gözle']] },
+    ortaokul: { title: 'Ay Tutulması Bölgeleri', cols: ['Durum', 'Sonuç'],
+      rows: [['Tam gölgede', 'Tam ay tutulması'], ['Yarı gölgede', 'Yarı tutulma'], ['Kırmızı ışık', 'Kanlı Ay']] },
+    lise: { title: 'Neden Daha Uzun?', cols: ['Özellik', 'Açıklama'],
+      rows: [['Dünya gölgesi', 'Ay\'dan çok büyük'], ['Süre', 'Saatlerce sürer'], ['Renk', 'Kırmızı (atmosfer kırılması)']] },
+    tyt_ayt: { title: 'Tutulma Karşılaştırma', cols: ['Özellik', 'Güneş Tut.', 'Ay Tut.'],
+      rows: [['Engel', 'Ay', 'Dünya'], ['Perde', 'Dünya', 'Ay'], ['Evre', 'Yeni Ay', 'Dolunay'], ['Renk olayı', '—', 'Rayleigh (kırmızı)']] }
+  },
+  ignaDeligi: {
+    ortaokul: { title: 'Delik Boyu Etkisi', cols: ['Delik', 'Görüntü'],
+      rows: [['Küçük', 'Keskin ama sönük'], ['Büyük', 'Parlak ama bulanık']] },
+    lise: { title: 'Görüntü Özellikleri', cols: ['Özellik', 'Durum'],
+      rows: [['Yön', 'Ters (alt-üst)'], ['Tür', 'Gerçek görüntü'], ['Büyütme', 'v/u oranı']] },
+    tyt_ayt: { title: 'Büyütme Analizi', cols: ['Büyüklük', 'Formül', 'Not'],
+      rows: [['Büyütme m', 'v/u', 'v: delik-perde'], ['Boy oranı', "h'/h = v/u", 'Ters'], ['Optimum delik', '√(2λv)', 'Kırınım dengesi']] }
+  }
+};
+
+// ============== TABLO VERİLERİ ==============
+const TABLE_DATA = {
+  dogrusalYayilma: {
+    ortaokul: { title: 'Işık Kaynakları', cols: ['Kaynak', 'Tür'],
+      rows: [['Güneş ☀️', 'Doğal'], ['Yıldız ⭐', 'Doğal (noktasal)'], ['Ampul 💡', 'Yapay'], ['Mum 🕯️', 'Yapay']] },
+    lise: { title: 'Kaynak Sınıflandırma', cols: ['Tür', 'Tanım', 'Örnek'],
+      rows: [['Noktasal', 'Uzaklık > 3× çap', 'Uzak ampul, yıldız'], ['Küresel', 'Uzaklık < 3× çap', 'Yakın lamba, Güneş*'], ['*Güneş', 'Çok uzak → noktasal', 'Pratikte paralel']] },
+    tyt_ayt: { title: 'Fiziksel Büyüklükler', cols: ['Büyüklük', 'Sembol', 'Birim'],
+      rows: [['Işık şiddeti', 'I', 'cd (kandela)'], ['Aydınlanma şid.', 'E', 'lux (lm/m²)'], ['Işık akısı', 'Φ', 'lm (lümen)'], ['Ters kare', 'E∝1/d²', '—']] }
+  },
+  noktasalGolge: {
+    lise: { title: 'Gölge Boyu (r=2cm, d₁=d)', cols: ['Perde uzaklığı', 'm', 'Gölge'],
+      rows: [['2d', '2', '4 cm'], ['3d', '3', '6 cm'], ['4d', '4', '8 cm'], ['5d', '5', '10 cm']] },
+    tyt_ayt: { title: 'Hareket Kuralları', cols: ['Hareket', 'Tam Gölge', 'Sebep'],
+      rows: [['Kaynak yaklaşır', '↑ Büyür', 'Işınlar daha ıraksak'], ['Cisim perdeye yakın', '↓ Küçülür', 'm azalır'], ['Perde uzaklaşır', '↑ Büyür', 'd₂ artar']] }
+  },
+  kaynakKonum: {
+    ilkokul: { title: 'Lambayı Oynat', cols: ['Ne Yaparsam', 'Ne Olur'],
+      rows: [['Sağa kaydırırsam', 'Gölge sola gider'], ['Yukarı kaldırırsam', 'Gölge aşağı iner'], ['Yaklaştırırsam', 'Gölge kocaman olur'], ['Uzaklaştırırsam', 'Gölge küçülür']] },
+    ortaokul: { title: 'Konum ve Gölge', cols: ['Kaynak Hareketi', 'Gölge Yönü', 'Gölge Boyutu'],
+      rows: [['Sağa →', 'Sola ←', 'Aynı'], ['Yukarı ↑', 'Aşağı ↓', 'Aynı'], ['Yaklaşır', 'Aynı yön', 'Büyür'], ['Uzaklaşır', 'Aynı yön', 'Küçülür']] },
+    lise: { title: 'd₁ ve Büyütme', cols: ['d₁ (d₂=6 sabit)', 'm', 'Gölge (r=1)'],
+      rows: [['12', '1.5', '1.5'], ['6', '2.0', '2.0'], ['3', '3.0', '3.0'], ['2', '4.0', '4.0']] },
+    tyt_ayt: { title: 'Konum-Gölge İlişkisi', cols: ['Değişken', 'Formül', 'Etki'],
+      rows: [['Büyütme', 'm=1+d₂/d₁', 'd₁↓ ⇒ büyür'], ['Gölge kayması', '−Δx·d₂/d₁', 'Ters yön'], ['Gölge yarıçapı', 'r·m', 'm ile orantılı'], ['Paralel limit', 'd₁→∞', 'm→1, gölge=cisim']] }
+  },
+  cokluKaynak: {
+    lise: { title: 'Bölge Sayısı', cols: ['Kaynak', 'Bölge Türleri'],
+      rows: [['1 noktasal', 'Tam gölge + aydınlık'], ['2 noktasal', 'Tam + yarı + aydınlık'], ['Küresel', 'Tam + yarı + aydınlık']] },
+    tyt_ayt: { title: 'Tam Gölge Konumu', cols: ['Konfigürasyon', 'Tam Gölge', 'Açıklama'],
+      rows: [['2 kaynak yakın', 'Geniş', 'Gölgeler çok örtüşür'], ['2 kaynak uzak', 'Dar', 'Az örtüşme'], ['Kaynaklar simetrik', 'Ortada', 'Eşit yarı gölge']] }
+  },
+  kureselKaynak: {
+    lise: { title: 'R-r Durumları', cols: ['Koşul', 'Tam Gölge', 'Örnek'],
+      rows: [['R < r', 'Büyük (genişler)', 'Küçük lamba, büyük top'], ['R = r', 'Cisim kadar sabit', 'Eşit boyut'], ['R > r', 'Daralır, kapanır', 'Güneş-Ay']] },
+    tyt_ayt: { title: 'Gölge Bölgeleri', cols: ['Bölge', 'Tanım', 'Işık'],
+      rows: [['Umbra', 'Tam gölge konisi', 'Hiç'], ['Penumbra', 'Yarı gölge geçişi', 'Kısmi'], ['Antumbra', 'Umbra ötesi', 'Halka şeklinde']] }
+  },
+  parametreler: {
+    lise: { title: 'R Değişimi (d₂ sabit)', cols: ['R', 'Tam Gölge', 'Yarı Gölge'],
+      rows: [['0.5r', 'Geniş', 'Dar'], ['r', 'Cisim kadar', 'Orta'], ['2r', 'Daralır', 'Geniş'], ['3r', 'Çok dar/yok', 'Çok geniş']] },
+    tyt_ayt: { title: 'Parametrik Formüller', cols: ['Büyüklük', 'Formül', 'R=r Hali'],
+      rows: [['Tam gölge r_u', 'r+(r−R)d₂/d₁', 'r (sabit)'], ['Yarı gölge r_p', 'r+(r+R)d₂/d₁', 'r+2r·d₂/d₁'], ['Kapanma d₂', 'r·d₁/(R−r)', '∞ (kapanmaz)']] }
+  },
+  golgeBoyu: {
+    lise: { title: 'Büyütme Hesabı', cols: ['d₁', 'd₂', 'm=(d₁+d₂)/d₁'],
+      rows: [['1', '1', '2'], ['1', '2', '3'], ['2', '2', '2'], ['1', '4', '5']] },
+    tyt_ayt: { title: 'Boy ve Alan', cols: ['Büyütme m', 'Boy', 'Alan'],
+      rows: [['2', '2×', '4×'], ['3', '3×', '9×'], ['4', '4×', '16×'], ['5', '5×', '25×']] }
+  },
+  gunesTutulmasi: {
+    lise: { title: 'Güneş Tutulması Tipleri', cols: ['Tip', 'Koşul', 'Görünüm'],
+      rows: [['Tam', 'Umbra Dünya\'ya değer', 'Tam karanlık'], ['Halkalı', 'Ay uzakta (antumbra)', 'Halka kalır'], ['Parçalı', 'Penumbra bölgesi', 'Kısmi']] },
+    tyt_ayt: { title: 'Tutulma Koşulları', cols: ['Koşul', 'Açıklama'],
+      rows: [['Yeni Ay', 'Ay, Güneş-Dünya arasında'], ['Düğüm noktası', 'Yörüngeler kesişir'], ['~5° eğim', 'Bu yüzden her ay olmaz'], ['Yörünge eliptik', 'Tam/halkalı belirler']] }
+  },
+  ayTutulmasi: {
+    lise: { title: 'Ay Tutulması', cols: ['Özellik', 'Değer'],
+      rows: [['Dizilim', 'Güneş-Dünya-Ay'], ['Evre', 'Dolunay'], ['Renk', 'Kızıl (Kanlı Ay)'], ['Süre', 'Saatlerce']] },
+    tyt_ayt: { title: 'Güneş vs Ay Tutulması', cols: ['Kriter', 'Güneş', 'Ay'],
+      rows: [['Engel', 'Ay (küçük)', 'Dünya (büyük)'], ['Gölge çapı', 'Dar', 'Geniş'], ['Görülebilirlik', 'Dar şerit', 'Gece yarısı yarım Dünya'], ['Güvenlik', 'Gözlük şart', 'Çıplak gözle']] }
+  },
+  ignaDeligi: {
+    lise: { title: 'Kamera Özellikleri', cols: ['Parametre', 'Etki'],
+      rows: [['Delik küçük', 'Keskin, sönük'], ['Delik büyük', 'Parlak, bulanık'], ['Kutu uzun', 'Büyük görüntü'], ['Kutu kısa', 'Küçük görüntü']] },
+    tyt_ayt: { title: 'Optik İlişkiler', cols: ['Büyüklük', 'Formül', 'Not'],
+      rows: [['Büyütme', 'm = v/u', 'v:delik-perde'], ['Görüntü boyu', 'h·v/u', 'Ters'], ['Optimum delik', 'd≈√(2λv)', 'Kırınım minimumu'], ['Alan derinliği', 'Sonsuz', 'Mercek yok']] }
+  }
+};
+
+// ============================================================
+// ====== GÖLGE FİZİĞİ — 3D HELPER KÜTÜPHANESİ ===============
+// ============================================================
+
+function setupShadowLighting() {
+  const grp = new THREE.Group();
+  grp.userData.dynamic = true;
+  const amb = new THREE.AmbientLight(0x6a7aa0, 0.62);
+  grp.add(amb);
+  const fill = new THREE.DirectionalLight(0x8aa8d8, 0.45);
+  fill.position.set(-6, 8, 10);
+  grp.add(fill);
+  const rim = new THREE.DirectionalLight(0xa8c8ff, 0.38);
+  rim.position.set(4, 3, -8);
+  grp.add(rim);
+  const top = new THREE.HemisphereLight(0xbcd0ff, 0x303040, 0.45);
+  grp.add(top);
+  return grp;
+}
+
+function makePointSource(opts = {}) {
+  const grp = new THREE.Group();
+  const radius = opts.radius || 0.22;
+  const color = opts.color || 0xffe17a;
+  const core = new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 24, 18),
+    new THREE.MeshStandardMaterial({
+      color: 0xffffff, emissive: 0xfff3b0,
+      emissiveIntensity: 1.6, toneMapped: false
+    })
+  );
+  grp.add(core);
+  for (let i = 0; i < 3; i++) {
+    const halo = new THREE.Mesh(
+      new THREE.SphereGeometry(radius * (1.5 + i * 0.7), 20, 14),
+      new THREE.MeshBasicMaterial({
+        color: color, transparent: true,
+        opacity: 0.18 - i * 0.05,
+        blending: THREE.AdditiveBlending, depthWrite: false
+      })
+    );
+    grp.add(halo);
+  }
+  const pl = new THREE.PointLight(color, 1.2, 60, 1.5);
+  grp.add(pl);
+  grp.userData._isSource = true;
+  grp.userData._radius = radius;
+  return grp;
+}
+
+function makeSphericalSource(opts = {}) {
+  const grp = new THREE.Group();
+  const R = opts.R || 1.2;
+  const color = opts.color || 0xffcc33;
+  const core = new THREE.Mesh(
+    new THREE.SphereGeometry(R, 48, 32),
+    new THREE.MeshStandardMaterial({
+      color: 0xffd966, emissive: 0xffcc33,
+      emissiveIntensity: 1.3, toneMapped: false,
+      roughness: 0.4
+    })
+  );
+  grp.add(core);
+  const inner = new THREE.Mesh(
+    new THREE.SphereGeometry(R * 0.7, 32, 24),
+    new THREE.MeshBasicMaterial({ color: 0xfff8e0, transparent: true, opacity: 0.5 })
+  );
+  grp.add(inner);
+  for (let i = 0; i < 3; i++) {
+    const halo = new THREE.Mesh(
+      new THREE.SphereGeometry(R * (1.15 + i * 0.35), 28, 18),
+      new THREE.MeshBasicMaterial({
+        color: color, transparent: true,
+        opacity: 0.15 - i * 0.04,
+        blending: THREE.AdditiveBlending, depthWrite: false
+      })
+    );
+    grp.add(halo);
+  }
+  const pl = new THREE.PointLight(color, 1.6, 80, 1.2);
+  grp.add(pl);
+  grp.userData._isSource = true;
+  grp.userData._isSpherical = true;
+  grp.userData._R = R;
+  return grp;
+}
+
+function makeObstacle(opts = {}) {
+  const r = opts.r || 1.0;
+  const type = opts.type || 'cylinder';
+  let mesh;
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0x3a4252, roughness: 0.65, metalness: 0.25,
+    emissive: 0x12161f, emissiveIntensity: 0.15
+  });
+  if (type === 'sphere') {
+    mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 40, 28), mat);
+  } else {
+    mesh = new THREE.Mesh(new THREE.CylinderGeometry(r, r, r * 2.4, 36), mat);
+  }
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  const grp = new THREE.Group();
+  grp.add(mesh);
+  const edge = new THREE.Mesh(
+    (type === 'sphere') ? new THREE.SphereGeometry(r * 1.02, 40, 28)
+                        : new THREE.CylinderGeometry(r * 1.02, r * 1.02, r * 2.42, 36),
+    new THREE.MeshBasicMaterial({ color: 0x5a6478, transparent: true, opacity: 0.18, side: THREE.BackSide })
+  );
+  grp.add(edge);
+  grp.userData._isObstacle = true;
+  grp.userData._r = r;
+  return grp;
+}
+
+function makeScreen(opts = {}) {
+  const w = opts.w || 9;
+  const h = opts.h || 9;
+  const grp = new THREE.Group();
+  const frameMat = new THREE.MeshStandardMaterial({
+    color: 0x2a3142, roughness: 0.7, metalness: 0.3
+  });
+  const frameThick = 0.18;
+  const frameDepth = 0.25;
+  const top = new THREE.Mesh(new THREE.BoxGeometry(w + frameThick*2, frameThick, frameDepth), frameMat);
+  top.position.y = h/2 + frameThick/2;
+  grp.add(top);
+  const bot = top.clone(); bot.position.y = -h/2 - frameThick/2; grp.add(bot);
+  const left = new THREE.Mesh(new THREE.BoxGeometry(frameThick, h, frameDepth), frameMat);
+  left.position.x = -w/2 - frameThick/2; grp.add(left);
+  const right = left.clone(); right.position.x = w/2 + frameThick/2; grp.add(right);
+  const surfGeo = new THREE.PlaneGeometry(w, h, 1, 1);
+  const surfMat = new THREE.MeshStandardMaterial({
+    color: 0xeae4d0, roughness: 0.9, metalness: 0.0,
+    side: THREE.DoubleSide,
+    emissive: 0x2a2820, emissiveIntensity: 0.1
+  });
+  const surf = new THREE.Mesh(surfGeo, surfMat);
+  surf.receiveShadow = true;
+  surf.userData._isScreenSurface = true;
+  grp.add(surf);
+  grp.userData._isScreen = true;
+  grp.userData._w = w;
+  grp.userData._h = h;
+  grp.userData._surf = surf;
+  return grp;
+}
+
+function makeRay(from, to, opts = {}) {
+  const color = opts.color || 0xffe17a;
+  const width = opts.width || 0.018;
+  const dim = opts.dim || false;
+  const dir = new THREE.Vector3().subVectors(to, from);
+  const len = dir.length();
+  const geo = new THREE.CylinderGeometry(width, width, len, 6);
+  const mat = new THREE.MeshBasicMaterial({
+    color: color,
+    transparent: true,
+    opacity: dim ? 0.32 : 0.78,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    toneMapped: false
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.copy(from).add(to).multiplyScalar(0.5);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+  return mesh;
+}
+
+function makeRayArrow(at, dir, opts = {}) {
+  const color = opts.color || 0xffe17a;
+  const size = opts.size || 0.14;
+  const cone = new THREE.Mesh(
+    new THREE.ConeGeometry(size * 0.5, size * 1.6, 8),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, toneMapped: false })
+  );
+  cone.position.copy(at);
+  cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+  return cone;
+}
+
+function makeShadowDisk(radius, color, opacity, opts = {}) {
+  const seg = opts.seg || 48;
+  const inner = opts.inner || 0;
+  let geo;
+  if (inner > 0) {
+    geo = new THREE.RingGeometry(inner, radius, seg);
+  } else {
+    geo = new THREE.CircleGeometry(radius, seg);
+  }
+  const mat = new THREE.MeshBasicMaterial({
+    color: color, transparent: true, opacity: opacity,
+    side: THREE.DoubleSide, depthWrite: false
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  return mesh;
+}
+
+function makeOpticalAxis(from, to, color = 0x5a6478) {
+  const pts = [from.clone(), to.clone()];
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const mat = new THREE.LineDashedMaterial({
+    color, dashSize: 0.25, gapSize: 0.18,
+    transparent: true, opacity: 0.5
+  });
+  const line = new THREE.Line(geo, mat);
+  line.computeLineDistances();
+  return line;
+}
+
+function makeFloor(opts = {}) {
+  const size = opts.size || 40;
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(size, size),
+    new THREE.MeshStandardMaterial({
+      color: 0x0c1018, roughness: 0.85, metalness: 0.1,
+      transparent: true, opacity: 0.55
+    })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -4.2;
+  floor.receiveShadow = true;
+  return floor;
+}
+
+function makeFlowRay(from, to, opts = {}) {
+  const count = opts.count || 8;
+  const color = opts.color || 0xfff0a0;
+  const positions = new Float32Array(count * 3);
+  const offsets = new Float32Array(count);
+  const dir = new THREE.Vector3().subVectors(to, from);
+  for (let i = 0; i < count; i++) {
+    const t = i / count;
+    positions[i*3] = from.x + dir.x * t;
+    positions[i*3+1] = from.y + dir.y * t;
+    positions[i*3+2] = from.z + dir.z * t;
+    offsets[i] = t;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const mat = new THREE.PointsMaterial({
+    size: 0.16, color: color, transparent: true, opacity: 0.9,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+    sizeAttenuation: true
+  });
+  const pts = new THREE.Points(geo, mat);
+  pts.userData._from = from.clone();
+  pts.userData._to = to.clone();
+  pts.userData._offsets = offsets;
+  pts.userData._count = count;
+  pts.userData._isFlowRay = true;
+  return pts;
+}
+
+function updateFlowRay(pts, t) {
+  if (!pts.userData._isFlowRay) return;
+  const from = pts.userData._from;
+  const to = pts.userData._to;
+  const count = pts.userData._count;
+  const offsets = pts.userData._offsets;
+  const pos = pts.geometry.attributes.position.array;
+  const dir = new THREE.Vector3().subVectors(to, from);
+  const speed = 0.35;
+  for (let i = 0; i < count; i++) {
+    const tt = (offsets[i] + t * speed) % 1.0;
+    pos[i*3] = from.x + dir.x * tt;
+    pos[i*3+1] = from.y + dir.y * tt;
+    pos[i*3+2] = from.z + dir.z * tt;
+  }
+  pts.geometry.attributes.position.needsUpdate = true;
+}
+
+window._flowRays = [];
+function registerFlowRay(pts) { window._flowRays.push(pts); }
+function clearFlowRays() { window._flowRays = []; }
+
+function makeStarfield() {
+  const count = 600;
+  const positions = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = 60;
+    positions[i*3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[i*3+2] = r * Math.cos(phi);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const mat = new THREE.PointsMaterial({
+    color: 0xffffff, size: 0.12, sizeAttenuation: true,
+    transparent: true, opacity: 0.6, depthWrite: false
+  });
+  return new THREE.Points(geo, mat);
+}
+
+function makeCelestial(opts = {}) {
+  const r = opts.r || 1;
+  const color = opts.color || 0x2e7dd6;
+  const grp = new THREE.Group();
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(r, 48, 32),
+    new THREE.MeshStandardMaterial({
+      color: color, roughness: 0.8, metalness: 0.1,
+      emissive: new THREE.Color(color).multiplyScalar(0.12),
+      emissiveIntensity: 0.5
+    })
+  );
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  grp.add(mesh);
+  grp.userData._r = r;
+  grp.userData._mesh = mesh;
+  return grp;
+}
+
+function makeSunBody(opts = {}) {
+  const r = opts.r || 2.2;
+  const grp = new THREE.Group();
+  const core = new THREE.Mesh(
+    new THREE.SphereGeometry(r, 48, 32),
+    new THREE.MeshStandardMaterial({
+      color: 0xffd54f, emissive: 0xffb300,
+      emissiveIntensity: 1.4, toneMapped: false
+    })
+  );
+  grp.add(core);
+  for (let i = 0; i < 3; i++) {
+    const halo = new THREE.Mesh(
+      new THREE.SphereGeometry(r * (1.12 + i * 0.3), 32, 20),
+      new THREE.MeshBasicMaterial({
+        color: 0xffcc33, transparent: true, opacity: 0.14 - i*0.04,
+        blending: THREE.AdditiveBlending, depthWrite: false
+      })
+    );
+    grp.add(halo);
+  }
+  const pl = new THREE.PointLight(0xfff0c0, 2.0, 120, 1.0);
+  grp.add(pl);
+  grp.userData._r = r;
+  return grp;
+}
+
+// ============================================================
+// ====== SUBBUILDERS — 3D SAHNE KURUCULAR ===================
+// ============================================================
+const _AXIS_Y = 0;
+
+SubBuilders.buildDogrusalYayilma = function() {
+  const root = new THREE.Group();
+  markDynamic(root);
+  scene.add(root);
+  window._currentModelGroup = root;
+
+  root.add(setupShadowLighting());
+  root.add(makeFloor());
+
+  const srcX = -8;
+  const src = makePointSource({ radius: 0.3, color: 0xffe17a });
+  src.position.set(srcX, _AXIS_Y, 0);
+  root.add(src);
+
+  const rayColor = 0xffe17a;
+  const targets = [
+    [7, 3.2, 0], [7, 1.6, 0], [7, 0, 0], [7, -1.6, 0], [7, -3.2, 0],
+    [7, 1.6, 2.2], [7, -1.6, 2.2], [7, 1.6, -2.2], [7, -1.6, -2.2]
+  ];
+  const flowRays = [];
+  targets.forEach(t => {
+    const from = new THREE.Vector3(srcX, _AXIS_Y, 0);
+    const to = new THREE.Vector3(t[0], t[1], t[2]);
+    root.add(makeRay(from, to, { color: rayColor, width: 0.02 }));
+    const dir = new THREE.Vector3().subVectors(to, from).normalize();
+    root.add(makeRayArrow(new THREE.Vector3(t[0]-dir.x*0.3, t[1]-dir.y*0.3, t[2]-dir.z*0.3), dir, { color: rayColor, size: 0.18 }));
+    const fr = makeFlowRay(from, to, { count: 6, color: 0xfff3b0 });
+    root.add(fr); flowRays.push(fr); registerFlowRay(fr);
+  });
+
+  const wall = new THREE.Mesh(
+    new THREE.BoxGeometry(0.3, 3, 3),
+    new THREE.MeshStandardMaterial({ color: 0x3a4252, roughness: 0.7 })
+  );
+  wall.position.set(2.5, _AXIS_Y, 0);
+  wall.castShadow = true;
+  root.add(wall);
+
+  addInfo3DLabels([
+    { text: { ilkokul:'💡 Işık', ortaokul:'💡 Işık kaynağı', lise:'💡 Işık kaynağı', tyt_ayt:'💡 Kaynak' },
+      position: [srcX, 2.2, 0], target: [srcX, 0.4, 0], color: '#ffe17a' },
+    { text: { ilkokul:'➡️ Işık düz gider', ortaokul:'➡️ Işık doğrusal yayılır', lise:'➡️ Doğrusal yayılma', tyt_ayt:'➡️ Doğrusal yayılma (geometrik optik)' },
+      position: [-1, 4.2, 0], target: [-1, 0.1, 0], color: '#ffd166' },
+    { text: { ilkokul:'🌑 Arkası karanlık', ortaokul:'🌑 Engel arkası karanlık', lise:'🌑 Gölge bölgesi', tyt_ayt:'🌑 Opak engel → gölge' },
+      position: [4.5, -2.5, 0], target: [3, -0.5, 0], color: '#9d7fe6' }
+  ]);
+
+  setSceneSliders([
+    { type: 'section', label: 'Bilgi' },
+    { type: 'display', label: 'Yayılma', getValue: () => 'Doğrusal' },
+    { type: 'display', label: 'Ortam', getValue: () => 'Homojen saydam' },
+    { type: 'formula', text: 'Işık = en kısa süreli yol' }
+  ], { title: 'Doğrusal Yayılma' });
+};
+
+SubBuilders.buildNoktasalGolge = function() {
+  const root = new THREE.Group();
+  markDynamic(root);
+  scene.add(root);
+  window._currentModelGroup = root;
+
+  root.add(setupShadowLighting());
+  root.add(makeFloor());
+
+  const srcX = -9, objX = 0, scrX = 8;
+  const r = 1.2;
+  const d1 = objX - srcX;
+  const d2 = scrX - objX;
+  const m = (d1 + d2) / d1;
+  const shadowR = r * m;
+
+  const src = makePointSource({ radius: 0.28 });
+  src.position.set(srcX, _AXIS_Y, 0);
+  root.add(src);
+
+  const obj = makeObstacle({ r: r, type: 'sphere' });
+  obj.position.set(objX, _AXIS_Y, 0);
+  root.add(obj);
+
+  const screen = makeScreen({ w: 11, h: 11 });
+  screen.position.set(scrX, _AXIS_Y, 0);
+  screen.rotation.y = -Math.PI / 2;
+  root.add(screen);
+
+  const tangentColor = 0xffd166;
+  const ringPts = [];
+  const N = 16;
+  for (let i = 0; i < N; i++) {
+    const ang = (i / N) * Math.PI * 2;
+    const ty = Math.sin(ang) * r;
+    const tz = Math.cos(ang) * r;
+    const tangentPt = new THREE.Vector3(objX, _AXIS_Y + ty, tz);
+    const dir = new THREE.Vector3().subVectors(tangentPt, new THREE.Vector3(srcX, _AXIS_Y, 0)).normalize();
+    const tHit = (scrX - srcX) / dir.x;
+    const hit = new THREE.Vector3(srcX, _AXIS_Y, 0).add(dir.clone().multiplyScalar(tHit));
+    ringPts.push(hit);
+    root.add(makeRay(new THREE.Vector3(srcX, _AXIS_Y, 0), hit, { color: tangentColor, width: 0.014, dim: false }));
+  }
+
+  [[3.5,0],[-3.5,0],[0,3.5],[0,-3.5]].forEach(([yy,zz]) => {
+    const from = new THREE.Vector3(srcX, _AXIS_Y, 0);
+    const to = new THREE.Vector3(scrX, _AXIS_Y + yy, zz);
+    root.add(makeRay(from, to, { color: 0xfff0a0, width: 0.012, dim: true }));
+    const fr = makeFlowRay(from, to, { count: 7, color: 0xfff3b0 });
+    root.add(fr); registerFlowRay(fr);
+  });
+
+  const umbra = makeShadowDisk(shadowR, COLORS.umbra, 0.92, { seg: 48 });
+  umbra.position.set(scrX - 0.02, _AXIS_Y, 0);
+  umbra.rotation.y = Math.PI / 2;
+  root.add(umbra);
+  const umbraEdge = makeShadowDisk(shadowR, 0x000000, 0, { seg: 48 });
+  root.add(umbraEdge);
+
+  root.add(makeOpticalAxis(new THREE.Vector3(srcX, _AXIS_Y, 0), new THREE.Vector3(scrX, _AXIS_Y, 0)));
+
+  addInfo3DLabels([
+    { text: { ilkokul:'💡 Lamba', ortaokul:'💡 Noktasal kaynak', lise:'💡 Noktasal kaynak', tyt_ayt:'💡 Noktasal kaynak (ıraksak demet)' },
+      position: [srcX, 2.4, 0], target: [srcX, 0.4, 0], color: '#ffe17a' },
+    { text: { ilkokul:'⚫ Engel', ortaokul:'⚫ Opak engel', lise:'⚫ Opak engel (r)', tyt_ayt:'⚫ Engel yarıçapı r' },
+      position: [objX, 2.6, 0], target: [objX, r, 0], color: '#9d7fe6' },
+    { text: { ilkokul:'🌑 Karanlık (gölge)', ortaokul:'🌑 Tam gölge', lise:'🌑 Tam gölge', tyt_ayt:'🌑 Tam gölge: r_g = r·(d₁+d₂)/d₁' },
+      position: [scrX, -shadowR - 1, 0], target: [scrX - 0.1, -shadowR + 0.3, 0], color: '#5fc8e0' },
+    { text: { ilkokul:'🟡 Duvar', ortaokul:'🟡 Perde', lise:'🟡 Perde', tyt_ayt:'🟡 Perde (d₂ ötede)' },
+      position: [scrX, 4.5, 0], target: [scrX, 3.5, 0], color: '#f6b93b' }
+  ]);
+
+  setSceneSliders([
+    { type: 'section', label: 'Ölçüler' },
+    { type: 'display', label: 'Engel yarıçapı r', getValue: () => r.toFixed(1) },
+    { type: 'display', label: 'Kaynak–cisim d₁', getValue: () => d1.toFixed(0) },
+    { type: 'display', label: 'Cisim–perde d₂', getValue: () => d2.toFixed(0) },
+    { type: 'display', label: 'Büyütme m', getValue: () => m.toFixed(2), highlight: true },
+    { type: 'formula', text: 'Gölge = r·(d₁+d₂)/d₁ = ' + shadowR.toFixed(1) }
+  ], { title: 'Noktasal Gölge' });
+};
+
+SubBuilders.buildKaynakKonum = function() {
+  const root = new THREE.Group();
+  markDynamic(root);
+  scene.add(root);
+  window._currentModelGroup = root;
+
+  root.add(setupShadowLighting());
+  root.add(makeFloor());
+
+  const objX = 0, scrX = 8;
+  const r = 1.1;
+
+  const S = window._sceneState;
+  S.kx = -8;
+  S.ky = 0;
+
+  const obj = makeObstacle({ r: r, type: 'sphere' });
+  obj.position.set(objX, _AXIS_Y, 0);
+  root.add(obj);
+
+  const screen = makeScreen({ w: 13, h: 13 });
+  screen.position.set(scrX, _AXIS_Y, 0);
+  screen.rotation.y = -Math.PI / 2;
+  root.add(screen);
+
+  root.add(makeOpticalAxis(new THREE.Vector3(-12, _AXIS_Y, 0), new THREE.Vector3(scrX, _AXIS_Y, 0)));
+
+  let src = makePointSource({ radius: 0.28, color: 0xffe17a });
+  root.add(src);
+  const rayGroup = new THREE.Group(); rayGroup.userData.dynamic = true; root.add(rayGroup);
+  const shadowGroup = new THREE.Group(); shadowGroup.userData.dynamic = true; root.add(shadowGroup);
+
+  function disposeGroup(g) {
+    while (g.children.length) {
+      const c = g.children[0]; g.remove(c);
+      if (c.geometry) c.geometry.dispose();
+      if (c.material) { Array.isArray(c.material) ? c.material.forEach(m=>m.dispose()) : c.material.dispose(); }
+    }
+    if (window._flowRays) window._flowRays = window._flowRays.filter(fr => fr.parent);
+  }
+
+  function rebuild() {
+    const kx = S.kx, ky = S.ky;
+    const srcPos = new THREE.Vector3(kx, _AXIS_Y + ky, 0);
+    const d1 = objX - kx;
+    const d2 = scrX - objX;
+    const m = (d1 + d2) / d1;
+
+    src.position.copy(srcPos);
+
+    disposeGroup(rayGroup);
+    disposeGroup(shadowGroup);
+
+    const N = 14;
+    const hits = [];
+    for (let i = 0; i < N; i++) {
+      const ang = (i / N) * Math.PI * 2;
+      const ty = Math.sin(ang) * r;
+      const tz = Math.cos(ang) * r;
+      const tangentPt = new THREE.Vector3(objX, _AXIS_Y + ty, tz);
+      const dir = new THREE.Vector3().subVectors(tangentPt, srcPos).normalize();
+      if (Math.abs(dir.x) < 1e-3) continue;
+      const tHit = (scrX - srcPos.x) / dir.x;
+      if (tHit <= 0) continue;
+      const hit = srcPos.clone().add(dir.clone().multiplyScalar(tHit));
+      hits.push(hit);
+      rayGroup.add(makeRay(srcPos.clone(), hit, { color: 0xffd166, width: 0.012 }));
+    }
+
+    const centerDir = new THREE.Vector3().subVectors(new THREE.Vector3(objX, _AXIS_Y, 0), srcPos).normalize();
+    const tC = (scrX - srcPos.x) / centerDir.x;
+    const shadowCenter = srcPos.clone().add(centerDir.clone().multiplyScalar(tC));
+    const fr = makeFlowRay(srcPos.clone(), shadowCenter.clone(), { count: 8, color: 0xfff3b0 });
+    rayGroup.add(fr); registerFlowRay(fr);
+
+    const shadowR = r * m;
+    const umbra = makeShadowDisk(shadowR, COLORS.umbra, 0.9, { seg: 48 });
+    umbra.position.set(scrX - 0.02, shadowCenter.y, shadowCenter.z);
+    umbra.rotation.y = Math.PI / 2;
+    shadowGroup.add(umbra);
+
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(shadowR, 0.04, 8, 40),
+      new THREE.MeshBasicMaterial({ color: 0x5fc8e0, transparent: true, opacity: 0.8, toneMapped: false })
+    );
+    ring.position.set(scrX - 0.01, shadowCenter.y, shadowCenter.z);
+    ring.rotation.y = Math.PI / 2;
+    shadowGroup.add(ring);
+  }
+
+  rebuild();
+
+  setSceneSliders([
+    { type: 'section', label: 'Kaynağı Hareket Ettir' },
+    { type: 'slider', label: '↔️ Yatay (uzaklık)', min: -12, max: -2.5, step: 0.5, unit: '',
+      getValue: () => S.kx, setValue: (v) => { S.kx = v; rebuild(); }, format: (v)=>v.toFixed(1),
+      sub: 'Sola = uzak, sağa = cisme yakın' },
+    { type: 'slider', label: '↕️ Dikey konum', min: -4, max: 4, step: 0.25, unit: '',
+      getValue: () => S.ky, setValue: (v) => { S.ky = v; rebuild(); }, format: (v)=>v.toFixed(2),
+      sub: 'Kaynağı yukarı/aşağı taşır' },
+    { type: 'section', label: 'Sonuç' },
+    { type: 'display', label: 'Kaynak–cisim d₁', getValue: () => (objX - S.kx).toFixed(1) },
+    { type: 'display', label: 'Büyütme m', highlight: true,
+      getValue: () => { const d1 = objX - S.kx; return ((d1 + (scrX-objX)) / d1).toFixed(2); } },
+    { type: 'display', label: 'Gölge yarıçapı',
+      getValue: () => { const d1 = objX - S.kx; return (r * (d1 + (scrX-objX)) / d1).toFixed(2); } },
+    { type: 'formula',
+      text: 'm = (d₁+d₂)/d₁',
+      getValue: () => {
+        const d1 = objX - S.kx, d2 = scrX - objX;
+        return 'm = (' + d1.toFixed(1) + '+' + d2 + ')/' + d1.toFixed(1) + ' = <b>' + ((d1+d2)/d1).toFixed(2) + '</b>';
+      }
+    }
+  ], { title: 'Kaynağın Konumu' });
+
+  addInfo3DLabels([
+    { text: { ilkokul: '💡 Lambayı kaydır', ortaokul: '💡 Kaynak (oynat)', lise: '💡 Noktasal kaynak', tyt_ayt: '💡 Kaynak (x_k, y_k)' },
+      position: [-9, 2.6, 0], target: [-8, 0.3, 0], color: '#ffe17a' },
+    { text: { ilkokul: '⚫ Engel', ortaokul: '⚫ Opak cisim', lise: '⚫ Engel (r sabit)', tyt_ayt: '⚫ Engel r=1.1' },
+      position: [objX, 2.4, 0], target: [objX, r, 0], color: '#9d7fe6' },
+    { text: { ilkokul: '🌑 Gölge', ortaokul: '🌑 Tam gölge (kayar)', lise: '🌑 Gölge: konum+boyut değişir', tyt_ayt: '🌑 Gölge merkezi = kaynak-cisim doğrusu' },
+      position: [scrX, -4, 0], target: [scrX - 0.1, -1, 0], color: '#5fc8e0', minLevel: 1 },
+    { text: { lise: '📐 Kaynak yana kayınca gölge ters yöne kayar', tyt_ayt: '📐 Δgölge = −Δx·(d₂/d₁)' },
+      position: [-2, 4.4, 0], target: [-2, 0.1, 0], color: '#ffd166', minLevel: 3 }
+  ]);
+};
+
+SubBuilders.buildCokluKaynak = function() {
+  const root = new THREE.Group();
+  markDynamic(root);
+  scene.add(root);
+  window._currentModelGroup = root;
+
+  root.add(setupShadowLighting());
+  root.add(makeFloor());
+
+  const srcX = -9, objX = 0, scrX = 8;
+  const r = 1.0;
+  const sep = 2.2;
+
+  const k1 = makePointSource({ radius: 0.24, color: 0xffd166 });
+  k1.position.set(srcX, _AXIS_Y + sep, 0); root.add(k1);
+  const k2 = makePointSource({ radius: 0.24, color: 0x7adcf0 });
+  k2.position.set(srcX, _AXIS_Y - sep, 0); root.add(k2);
+
+  const obj = makeObstacle({ r: r, type: 'sphere' });
+  obj.position.set(objX, _AXIS_Y, 0); root.add(obj);
+
+  const screen = makeScreen({ w: 12, h: 12 });
+  screen.position.set(scrX, _AXIS_Y, 0);
+  screen.rotation.y = -Math.PI / 2;
+  root.add(screen);
+
+  function castTangents(srcPos, color) {
+    const hits = [];
+    [r, -r].forEach(off => {
+      const tangentPt = new THREE.Vector3(objX, _AXIS_Y + off, 0);
+      const dir = new THREE.Vector3().subVectors(tangentPt, srcPos).normalize();
+      const tHit = (scrX - srcPos.x) / dir.x;
+      const hit = srcPos.clone().add(dir.clone().multiplyScalar(tHit));
+      hits.push(hit);
+      root.add(makeRay(srcPos, hit, { color, width: 0.014 }));
+      const fr = makeFlowRay(srcPos.clone(), hit.clone(), { count: 7, color });
+      root.add(fr); registerFlowRay(fr);
+    });
+    return hits;
+  }
+  const h1 = castTangents(new THREE.Vector3(srcX, _AXIS_Y + sep, 0), 0xffd166);
+  const h2 = castTangents(new THREE.Vector3(srcX, _AXIS_Y - sep, 0), 0x7adcf0);
+
+  function shadowBar(yTop, yBot, color, opacity) {
+    const h = Math.abs(yTop - yBot);
+    const geo = new THREE.PlaneGeometry(0.1 + 3, h);
+    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(scrX - 0.03, (yTop + yBot) / 2, 0);
+    mesh.rotation.y = Math.PI / 2;
+    return mesh;
+  }
+  root.add(shadowBar(h1[0].y, h1[1].y, COLORS.penumbra, 0.5));
+  root.add(shadowBar(h2[0].y, h2[1].y, COLORS.penumbra, 0.5));
+  const interTop = Math.min(h1[0].y, h2[0].y);
+  const interBot = Math.max(h1[1].y, h2[1].y);
+  if (interTop > interBot) {
+    root.add(shadowBar(interTop, interBot, COLORS.umbra, 0.92));
+  }
+
+  addInfo3DLabels([
+    { text: { ilkokul:'💡 1. Lamba', ortaokul:'💡 K₁ kaynağı', lise:'💡 K₁ kaynağı', tyt_ayt:'💡 K₁' },
+      position: [srcX, _AXIS_Y + sep + 1.6, 0], target: [srcX, _AXIS_Y + sep + 0.3, 0], color: '#ffd166' },
+    { text: { ilkokul:'💡 2. Lamba', ortaokul:'💡 K₂ kaynağı', lise:'💡 K₂ kaynağı', tyt_ayt:'💡 K₂' },
+      position: [srcX, _AXIS_Y - sep - 1.6, 0], target: [srcX, _AXIS_Y - sep - 0.3, 0], color: '#7adcf0' },
+    { text: { ilkokul:'⚫ En karanlık yer', ortaokul:'⚫ Tam gölge', lise:'⚫ Tam gölge (kesişim)', tyt_ayt:'⚫ Tam gölge = K₁∩K₂' },
+      position: [scrX, 3.5, 0], target: [scrX - 0.1, (interTop+interBot)/2, 0], color: '#5fc8e0' },
+    { text: { ilkokul:'⬜ Az karanlık', ortaokul:'⬜ Yarı gölge', lise:'⬜ Yarı gölge', tyt_ayt:'⬜ Yarı gölge (tek kaynak)' },
+      position: [scrX, -4.2, 0], target: [scrX - 0.1, h2[1].y + 0.5, 0], color: '#9d7fe6' }
+  ]);
+
+  setSceneSliders([
+    { type: 'section', label: 'İki Kaynak' },
+    { type: 'display', label: 'Kaynak sayısı', getValue: () => '2 noktasal' },
+    { type: 'display', label: 'Tam gölge', getValue: () => 'Kesişim bölgesi' },
+    { type: 'display', label: 'Yarı gölge', getValue: () => 'Tek kaynaktan' },
+    { type: 'formula', text: 'Tam gölge = K₁ ∩ K₂' }
+  ], { title: 'İki Kaynak' });
+};
+
+SubBuilders.buildKureselKaynak = function() {
+  const root = new THREE.Group();
+  markDynamic(root);
+  scene.add(root);
+  window._currentModelGroup = root;
+
+  root.add(setupShadowLighting());
+  root.add(makeFloor());
+
+  const srcX = -9, objX = 0, scrX = 9;
+  const d1 = objX - srcX;
+  const d2 = scrX - objX;
+
+  const S = window._sceneState;
+  S.kk_R = 1.6;
+  S.kk_r = 1.0;
+
+  const screen = makeScreen({ w: 13, h: 13 });
+  screen.position.set(scrX, _AXIS_Y, 0);
+  screen.rotation.y = -Math.PI / 2;
+  root.add(screen);
+  root.add(makeOpticalAxis(new THREE.Vector3(srcX, _AXIS_Y, 0), new THREE.Vector3(scrX, _AXIS_Y, 0)));
+
+  let src = makeSphericalSource({ R: S.kk_R, color: 0xffcc33 });
+  root.add(src);
+  let obj = makeObstacle({ r: S.kk_r, type: 'sphere' });
+  root.add(obj);
+  const rayGroup = new THREE.Group(); rayGroup.userData.dynamic = true; root.add(rayGroup);
+  const shadowGroup = new THREE.Group(); shadowGroup.userData.dynamic = true; root.add(shadowGroup);
+
+  function disposeGroup(g) {
+    while (g.children.length) {
+      const c = g.children[0]; g.remove(c);
+      if (c.geometry) c.geometry.dispose();
+      if (c.material) { Array.isArray(c.material) ? c.material.forEach(m=>m.dispose()) : c.material.dispose(); }
+    }
+    if (window._flowRays) window._flowRays = window._flowRays.filter(fr => fr.parent);
+  }
+
+  function rebuild() {
+    const R = S.kk_R, r = S.kk_r;
+
+    root.remove(src);
+    src.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { Array.isArray(o.material)?o.material.forEach(m=>m.dispose()):o.material.dispose(); } });
+    src = makeSphericalSource({ R: R, color: 0xffcc33 });
+    src.position.set(srcX, _AXIS_Y, 0); src.userData.dynamic = true;
+    root.add(src);
+
+    root.remove(obj);
+    obj.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { Array.isArray(o.material)?o.material.forEach(m=>m.dispose()):o.material.dispose(); } });
+    obj = makeObstacle({ r: r, type: 'sphere' });
+    obj.position.set(objX, _AXIS_Y, 0); obj.userData.dynamic = true;
+    root.add(obj);
+
+    disposeGroup(rayGroup);
+    disposeGroup(shadowGroup);
+
+    const srcTop = new THREE.Vector3(srcX, _AXIS_Y + R, 0);
+    const srcBot = new THREE.Vector3(srcX, _AXIS_Y - R, 0);
+    const objTop = new THREE.Vector3(objX, _AXIS_Y + r, 0);
+    const objBot = new THREE.Vector3(objX, _AXIS_Y - r, 0);
+    function ext(from, through) {
+      const dir = new THREE.Vector3().subVectors(through, from).normalize();
+      const tHit = (scrX - from.x) / dir.x;
+      return from.clone().add(dir.clone().multiplyScalar(tHit));
+    }
+    rayGroup.add(makeRay(srcTop, ext(srcTop, objBot), { color: 0x5fc8e0, width: 0.016 }));
+    rayGroup.add(makeRay(srcBot, ext(srcBot, objTop), { color: 0x5fc8e0, width: 0.016 }));
+    rayGroup.add(makeRay(srcTop, ext(srcTop, objTop), { color: 0xffd166, width: 0.016 }));
+    rayGroup.add(makeRay(srcBot, ext(srcBot, objBot), { color: 0xffd166, width: 0.016 }));
+
+    const r_u = r + (r - R) * d2 / d1;
+    const r_p = r + (r + R) * d2 / d1;
+
+    const pen = makeShadowDisk(Math.abs(r_p), COLORS.penumbra, 0.5, { seg: 56 });
+    pen.position.set(scrX - 0.04, _AXIS_Y, 0); pen.rotation.y = Math.PI / 2;
+    shadowGroup.add(pen);
+    if (r_u > 0.05) {
+      const umb = makeShadowDisk(r_u, COLORS.umbra, 0.92, { seg: 48 });
+      umb.position.set(scrX - 0.02, _AXIS_Y, 0); umb.rotation.y = Math.PI / 2;
+      shadowGroup.add(umb);
+    } else {
+      const anti = makeShadowDisk(Math.abs(r_p), 0x6b6b8a, 0.25, { seg: 48, inner: Math.max(0.1, Math.abs(r_u)) });
+      anti.position.set(scrX - 0.01, _AXIS_Y, 0); anti.rotation.y = Math.PI / 2;
+      shadowGroup.add(anti);
+    }
+  }
+
+  rebuild();
+
+  addInfo3DLabels([
+    { text: { ilkokul:'🔆 Büyük ışık', ortaokul:'🔆 Küresel kaynak', lise:'🔆 Küresel kaynak (R ayarla)', tyt_ayt:'🔆 Küresel kaynak R (değişken)' },
+      position: [srcX, 3.6, 0], target: [srcX, 0.5, 0], color: '#ffcc33' },
+    { text: { ilkokul:'⚫ Engel', ortaokul:'⚫ Opak engel (büyüt/küçült)', lise:'⚫ Engel (r ayarla)', tyt_ayt:'⚫ Engel r (değişken)' },
+      position: [objX, 3.0, 0], target: [objX, 0.8, 0], color: '#9d7fe6' },
+    { text: { ortaokul:'🔵 Tam gölge çizgisi', lise:'🔵 İç teğet → tam gölge sınırı', tyt_ayt:'🔵 İç teğet (çapraz) → umbra' },
+      position: [-2, -3.8, 0], target: [objX, -1, 0], color: '#5fc8e0', minLevel: 2 },
+    { text: { ortaokul:'🟡 Yarı gölge çizgisi', lise:'🟡 Dış teğet → yarı gölge', tyt_ayt:'🟡 Dış teğet (paralel) → penumbra' },
+      position: [-2, 4.4, 0], target: [objX, 1, 0], color: '#ffd166', minLevel: 2 }
+  ]);
+
+  setSceneSliders([
+    { type: 'section', label: 'Yarıçapları Değiştir' },
+    { type: 'slider', label: '🔆 Kaynak R', min: 0.4, max: 2.6, step: 0.1, unit: '',
+      getValue: () => S.kk_R, setValue: (v) => { S.kk_R = v; rebuild(); }, format: (v)=>v.toFixed(1),
+      sub: 'R büyürse tam gölge daralır' },
+    { type: 'slider', label: '⚫ Engel r', min: 0.4, max: 2.6, step: 0.1, unit: '',
+      getValue: () => S.kk_r, setValue: (v) => { S.kk_r = v; rebuild(); }, format: (v)=>v.toFixed(1),
+      sub: 'r büyürse tam gölge genişler' },
+    { type: 'section', label: 'Canlı Hesap' },
+    { type: 'display', label: 'R - r durumu', highlight: true,
+      getValue: () => { const d = S.kk_R - S.kk_r; return Math.abs(d)<0.05 ? 'R = r' : (d>0 ? 'R > r' : 'R < r'); } },
+    { type: 'display', label: 'Tam gölge r_u',
+      getValue: () => { const v = S.kk_r + (S.kk_r - S.kk_R) * d2 / d1; return v > 0.05 ? v.toFixed(2) : 'kapandı'; } },
+    { type: 'display', label: 'Yarı gölge r_p',
+      getValue: () => (S.kk_r + (S.kk_r + S.kk_R) * d2 / d1).toFixed(2) },
+    { type: 'formula', text: 'r_u = r + (r−R)·d₂/d₁',
+      getValue: () => {
+        const v = S.kk_r + (S.kk_r - S.kk_R) * d2 / d1;
+        return 'r_u = <b>' + (v>0.05?v.toFixed(2):'0 (kapandı)') + '</b>';
+      }
+    }
+  ], { title: 'Küresel Kaynak' });
+};
+
+SubBuilders.buildParametreler = function() {
+  const root = new THREE.Group();
+  markDynamic(root);
+  scene.add(root);
+  window._currentModelGroup = root;
+
+  root.add(setupShadowLighting());
+  root.add(makeFloor());
+
+  const srcX = -9, objX = 0;
+  const r = 1.0;
+
+  const S = window._sceneState;
+  S.R = 0.6;
+  S.d2 = 7;
+  const d1 = objX - srcX;
+
+  let src = makeSphericalSource({ R: S.R, color: 0xffcc33 });
+  src.position.set(srcX, _AXIS_Y, 0);
+  root.add(src);
+
+  const obj = makeObstacle({ r: r, type: 'sphere' });
+  obj.position.set(objX, _AXIS_Y, 0);
+  root.add(obj);
+
+  let screen = makeScreen({ w: 14, h: 14 });
+  root.add(screen);
+
+  const rayGroup = new THREE.Group(); rayGroup.userData.dynamic = true; root.add(rayGroup);
+  const shadowGroup = new THREE.Group(); shadowGroup.userData.dynamic = true; root.add(shadowGroup);
+
+  function disposeGroup(g) {
+    while (g.children.length) {
+      const c = g.children[0];
+      g.remove(c);
+      if (c.geometry) c.geometry.dispose();
+      if (c.material) { Array.isArray(c.material) ? c.material.forEach(m=>m.dispose()) : c.material.dispose(); }
+    }
+  }
+
+  function rebuild() {
+    const R = S.R;
+    const d2 = S.d2;
+    const scrX = objX + d2;
+
+    root.remove(src);
+    src.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { Array.isArray(o.material)?o.material.forEach(m=>m.dispose()):o.material.dispose(); } });
+    src = makeSphericalSource({ R: R, color: 0xffcc33 });
+    src.position.set(srcX, _AXIS_Y, 0);
+    src.userData.dynamic = true;
+    root.add(src);
+
+    screen.position.set(scrX, _AXIS_Y, 0);
+    screen.rotation.y = -Math.PI / 2;
+
+    disposeGroup(rayGroup);
+    disposeGroup(shadowGroup);
+
+    const srcTop = new THREE.Vector3(srcX, _AXIS_Y + R, 0);
+    const srcBot = new THREE.Vector3(srcX, _AXIS_Y - R, 0);
+    const objTop = new THREE.Vector3(objX, _AXIS_Y + r, 0);
+    const objBot = new THREE.Vector3(objX, _AXIS_Y - r, 0);
+
+    function ext(from, through) {
+      const dir = new THREE.Vector3().subVectors(through, from).normalize();
+      const tHit = (scrX - from.x) / dir.x;
+      return from.clone().add(dir.clone().multiplyScalar(tHit));
+    }
+
+    rayGroup.add(makeRay(srcTop, ext(srcTop, objBot), { color: 0x5fc8e0, width: 0.015 }));
+    rayGroup.add(makeRay(srcBot, ext(srcBot, objTop), { color: 0x5fc8e0, width: 0.015 }));
+    rayGroup.add(makeRay(srcTop, ext(srcTop, objTop), { color: 0xffd166, width: 0.015 }));
+    rayGroup.add(makeRay(srcBot, ext(srcBot, objBot), { color: 0xffd166, width: 0.015 }));
+
+    const r_u = r + (r - R) * d2 / d1;
+    const r_p = r + (r + R) * d2 / d1;
+
+    const pen = makeShadowDisk(Math.abs(r_p), COLORS.penumbra, 0.5, { seg: 56 });
+    pen.position.set(scrX - 0.04, _AXIS_Y, 0); pen.rotation.y = Math.PI / 2;
+    shadowGroup.add(pen);
+    if (r_u > 0.05) {
+      const umb = makeShadowDisk(r_u, COLORS.umbra, 0.92, { seg: 48 });
+      umb.position.set(scrX - 0.02, _AXIS_Y, 0); umb.rotation.y = Math.PI / 2;
+      shadowGroup.add(umb);
+    } else {
+      const anti = makeShadowDisk(Math.abs(r_p), 0x6b6b8a, 0.25, { seg: 48, inner: Math.max(0.1, Math.abs(r_u)) });
+      anti.position.set(scrX - 0.01, _AXIS_Y, 0); anti.rotation.y = Math.PI / 2;
+      shadowGroup.add(anti);
+    }
+  }
+
+  rebuild();
+
+  setSceneSliders([
+    { type: 'section', label: 'Parametreler' },
+    { type: 'slider', label: 'Kaynak R', min: 0.3, max: 2.5, step: 0.1, unit: '',
+      getValue: () => S.R, setValue: (v) => { S.R = v; rebuild(); }, format: (v)=>v.toFixed(1),
+      sub: 'Engel r = 1.0 (sabit)' },
+    { type: 'slider', label: 'Perde uzaklığı d₂', min: 3, max: 12, step: 0.5, unit: '',
+      getValue: () => S.d2, setValue: (v) => { S.d2 = v; rebuild(); }, format: (v)=>v.toFixed(1),
+      sub: 'd₁ = ' + d1.toFixed(0) + ' (sabit)' },
+    { type: 'section', label: 'Canlı Hesap' },
+    { type: 'display', label: 'Tam gölge r_u', highlight: true,
+      getValue: () => { const v = r + (r - S.R) * S.d2 / d1; return v > 0.05 ? v.toFixed(2) : '0 (kapandı)'; } },
+    { type: 'display', label: 'Yarı gölge r_p',
+      getValue: () => (r + (r + S.R) * S.d2 / d1).toFixed(2) },
+    { type: 'formula',
+      text: 'r_u = r + (r−R)·d₂/d₁',
+      getValue: () => {
+        const v = r + (r - S.R) * S.d2 / d1;
+        return 'r_u = 1 + (1−' + S.R.toFixed(1) + ')·' + S.d2.toFixed(1) + '/' + d1.toFixed(0) + ' = <b>' + (v>0?v.toFixed(2):'0') + '</b>';
+      }
+    }
+  ], { title: 'R ve d Etkisi (TYT/AYT)' });
+
+  addInfo3DLabels([
+    { text: { ilkokul:'🎚️ Işığı büyüt/küçült', ortaokul:'🎚️ R değiştir → gölgeyi izle', lise:'🎚️ Kaynak R (ayarla)', tyt_ayt:'🎚️ R: kaynak yarıçapı' },
+      position: [srcX, 3.5, 0], target: [srcX, S.R + 0.2, 0], color: '#ffcc33' },
+    { text: { ilkokul:'⚫ Engel', ortaokul:'⚫ Engel r=1.0', lise:'⚫ Engel r=1.0 (sabit)', tyt_ayt:'⚫ Engel r=1.0' },
+      position: [objX, 2.6, 0], target: [objX, r, 0], color: '#9d7fe6' }
+  ]);
+};
+
+SubBuilders.buildGolgeBoyu = function() {
+  const root = new THREE.Group();
+  markDynamic(root);
+  scene.add(root);
+  window._currentModelGroup = root;
+
+  root.add(setupShadowLighting());
+  root.add(makeFloor());
+
+  const scrX = 9;
+
+  const S = window._sceneState;
+  S.gb_srcX = -10;
+  S.gb_objX = -2;
+  S.gb_r = 1.2;
+  S.gb_shape = 'cylinder';
+
+  const screen = makeScreen({ w: 13, h: 13 });
+  screen.position.set(scrX, _AXIS_Y, 0);
+  screen.rotation.y = -Math.PI / 2;
+  root.add(screen);
+
+  let src = makePointSource({ radius: 0.26 });
+  root.add(src);
+  let obj = makeObstacle({ r: S.gb_r, type: S.gb_shape });
+  root.add(obj);
+
+  const rayGroup = new THREE.Group(); rayGroup.userData.dynamic = true; root.add(rayGroup);
+  const shadowGroup = new THREE.Group(); shadowGroup.userData.dynamic = true; root.add(shadowGroup);
+  const axisGroup = new THREE.Group(); axisGroup.userData.dynamic = true; root.add(axisGroup);
+
+  function disposeGroup(g) {
+    while (g.children.length) {
+      const c = g.children[0]; g.remove(c);
+      if (c.geometry) c.geometry.dispose();
+      if (c.material) { Array.isArray(c.material) ? c.material.forEach(m=>m.dispose()) : c.material.dispose(); }
+    }
+    if (window._flowRays) window._flowRays = window._flowRays.filter(fr => fr.parent);
+  }
+
+  function vLine(parent, x, yTop, yBot, color) {
+    const geo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(x, yBot, 0), new THREE.Vector3(x, yTop, 0)
+    ]);
+    const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 });
+    parent.add(new THREE.Line(geo, mat));
+  }
+
+  function rebuild() {
+    const srcX = S.gb_srcX, objX = S.gb_objX, r = S.gb_r;
+    const d1 = objX - srcX;
+    const d2 = scrX - objX;
+    const m = (d1 + d2) / d1;
+    const shadowR = r * m;
+
+    src.position.set(srcX, _AXIS_Y, 0);
+
+    root.remove(obj);
+    obj.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { Array.isArray(o.material)?o.material.forEach(mm=>mm.dispose()):o.material.dispose(); } });
+    obj = makeObstacle({ r: r, type: S.gb_shape });
+    obj.position.set(objX, _AXIS_Y, 0);
+    obj.userData.dynamic = true;
+    root.add(obj);
+
+    disposeGroup(rayGroup);
+    disposeGroup(shadowGroup);
+    disposeGroup(axisGroup);
+
+    const srcP = new THREE.Vector3(srcX, _AXIS_Y, 0);
+    const objTop = new THREE.Vector3(objX, _AXIS_Y + r, 0);
+    const objBot = new THREE.Vector3(objX, _AXIS_Y - r, 0);
+    function ext(from, through) {
+      const dir = new THREE.Vector3().subVectors(through, from).normalize();
+      const tHit = (scrX - from.x) / dir.x;
+      return from.clone().add(dir.clone().multiplyScalar(tHit));
+    }
+    const scrTop = ext(srcP, objTop);
+    const scrBot = ext(srcP, objBot);
+
+    rayGroup.add(makeRay(srcP, scrTop, { color: 0xffd166, width: 0.02 }));
+    rayGroup.add(makeRay(srcP, scrBot, { color: 0xffd166, width: 0.02 }));
+    const fr = makeFlowRay(srcP.clone(), new THREE.Vector3(scrX, _AXIS_Y, 0), { count: 8, color: 0xfff3b0 });
+    rayGroup.add(fr); registerFlowRay(fr);
+
+    axisGroup.add(makeOpticalAxis(srcP, new THREE.Vector3(scrX, _AXIS_Y, 0)));
+    vLine(axisGroup, objX, _AXIS_Y + r, _AXIS_Y - r, 0x9d7fe6);
+    vLine(axisGroup, scrX - 0.05, scrTop.y, scrBot.y, 0x5fc8e0);
+
+    const umbra = makeShadowDisk(shadowR, COLORS.umbra, 0.9, { seg: 48 });
+    umbra.position.set(scrX - 0.02, _AXIS_Y, 0); umbra.rotation.y = Math.PI / 2;
+    shadowGroup.add(umbra);
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(shadowR, 0.04, 8, 44),
+      new THREE.MeshBasicMaterial({ color: 0x5fc8e0, transparent: true, opacity: 0.85, toneMapped: false })
+    );
+    ring.position.set(scrX - 0.01, _AXIS_Y, 0); ring.rotation.y = Math.PI / 2;
+    shadowGroup.add(ring);
+  }
+
+  rebuild();
+
+  setSceneSliders([
+    { type: 'section', label: 'Ayarlar' },
+    { type: 'slider', label: '💡 Kaynak uzaklığı', min: -14, max: -5, step: 0.5, unit: '',
+      getValue: () => S.gb_srcX, setValue: (v) => { S.gb_srcX = Math.min(v, S.gb_objX - 1.5); rebuild(); }, format: (v)=>(S.gb_objX - v).toFixed(1),
+      sub: 'd₁ = kaynak–cisim uzaklığı' },
+    { type: 'slider', label: '⚫ Cisim konumu', min: -6, max: 5, step: 0.5, unit: '',
+      getValue: () => S.gb_objX, setValue: (v) => { S.gb_objX = Math.max(S.gb_srcX + 1.5, Math.min(v, scrX - 1.5)); rebuild(); }, format: (v)=>v.toFixed(1),
+      sub: 'Kaynak ile perde arası' },
+    { type: 'slider', label: '📏 Cisim yarıçapı r', min: 0.4, max: 2.5, step: 0.1, unit: '',
+      getValue: () => S.gb_r, setValue: (v) => { S.gb_r = v; rebuild(); }, format: (v)=>v.toFixed(1),
+      sub: 'Cismin büyüklüğü' },
+    { type: 'presets', activeIdx: 0, options: [
+      { label: '⬤ Küre', action: () => { S.gb_shape = 'sphere'; rebuild(); } },
+      { label: '▮ Silindir', action: () => { S.gb_shape = 'cylinder'; rebuild(); } }
+    ]},
+    { type: 'section', label: 'Canlı Hesap' },
+    { type: 'display', label: 'Büyütme m', highlight: true,
+      getValue: () => { const d1 = S.gb_objX - S.gb_srcX, d2 = scrX - S.gb_objX; return ((d1+d2)/d1).toFixed(2); } },
+    { type: 'display', label: 'Gölge yarıçapı',
+      getValue: () => { const d1 = S.gb_objX - S.gb_srcX, d2 = scrX - S.gb_objX; return (S.gb_r*(d1+d2)/d1).toFixed(2); } },
+    { type: 'display', label: 'Alan oranı m²',
+      getValue: () => { const d1 = S.gb_objX - S.gb_srcX, d2 = scrX - S.gb_objX; const m=(d1+d2)/d1; return (m*m).toFixed(1) + '×'; } },
+    { type: 'formula', text: 'm = (d₁+d₂)/d₁',
+      getValue: () => {
+        const d1 = S.gb_objX - S.gb_srcX, d2 = scrX - S.gb_objX, m=(d1+d2)/d1;
+        return 'Alan = π·r²·m² → <b>' + (m*m).toFixed(1) + '×</b>';
+      }
+    }
+  ], { title: 'Gölge Boyu' });
+
+  addInfo3DLabels([
+    { text: { ilkokul:'💡 Işık', ortaokul:'💡 Kaynak (uzaklık)', lise:'💡 Kaynak — d₁ ayarla', tyt_ayt:'💡 Kaynak (d₁ değişken)' },
+      position: [-10, 2.4, 0], target: [-10, 0.3, 0], color: '#ffe17a' },
+    { text: { ilkokul:'⚫ Cisim', ortaokul:'⚫ Cisim (büyüt/küçült)', lise:'⚫ Cisim r — ayarla', tyt_ayt:'⚫ Cisim r (değişken)' },
+      position: [-2, 3.0, 0], target: [-2, 1.0, 0], color: '#9d7fe6' },
+    { text: { ilkokul:'📏 Gölge', ortaokul:'📐 Gölge alanı', lise:'📐 Gölge = r·m', tyt_ayt:'📐 Alan = π·r²·m²' },
+      position: [scrX, 4.5, 0], target: [scrX - 0.1, 1.5, 0], color: '#5fc8e0' },
+    { text: { lise:'🔺 Benzer üçgenler', tyt_ayt:'🔺 ABC ~ ADE' },
+      position: [-2, -4.2, 0], target: [-2, -1.0, 0], color: '#ffd166', minLevel: 3 }
+  ]);
+};
+
+SubBuilders.buildGunesTutulmasi = function() {
+  const root = new THREE.Group();
+  markDynamic(root);
+  scene.add(root);
+  window._currentModelGroup = root;
+
+  window._isSpaceScene = true;
+  applySceneTheme();
+  root.add(makeStarfield());
+
+  const amb = new THREE.AmbientLight(0x2d3a52, 0.42);
+  amb.userData.dynamic = true;
+  root.add(amb);
+
+  const sunX = -13, moonX = 1, earthX = 9;
+  const Rsun = 2.6, rMoon = 0.55, rEarth = 1.8;
+
+  const sun = makeSunBody({ r: Rsun });
+  sun.position.set(sunX, _AXIS_Y, 0); root.add(sun);
+
+  const moon = makeCelestial({ r: rMoon, color: 0x9a9aa2 });
+  moon.position.set(moonX, _AXIS_Y, 0); root.add(moon);
+
+  const earth = makeCelestial({ r: rEarth, color: 0x2e7dd6 });
+  earth.position.set(earthX, _AXIS_Y, 0); root.add(earth);
+
+  const sunTop = new THREE.Vector3(sunX, _AXIS_Y + Rsun, 0);
+  const sunBot = new THREE.Vector3(sunX, _AXIS_Y - Rsun, 0);
+  const moonTop = new THREE.Vector3(moonX, _AXIS_Y + rMoon, 0);
+  const moonBot = new THREE.Vector3(moonX, _AXIS_Y - rMoon, 0);
+
+  function ext(from, through, toX) {
+    const dir = new THREE.Vector3().subVectors(through, from).normalize();
+    const tHit = (toX - from.x) / dir.x;
+    return from.clone().add(dir.clone().multiplyScalar(tHit));
+  }
+  const innerA = ext(sunTop, moonBot, earthX + 2);
+  const innerB = ext(sunBot, moonTop, earthX + 2);
+  root.add(makeRay(sunTop, innerA, { color: 0x5fc8e0, width: 0.02 }));
+  root.add(makeRay(sunBot, innerB, { color: 0x5fc8e0, width: 0.02 }));
+  const outerA = ext(sunTop, moonTop, earthX + 2);
+  const outerB = ext(sunBot, moonBot, earthX + 2);
+  root.add(makeRay(sunTop, outerA, { color: 0xffd166, width: 0.018, dim: true }));
+  root.add(makeRay(sunBot, outerB, { color: 0xffd166, width: 0.018, dim: true }));
+
+  function intersect2D(p1, p2, p3, p4) {
+    const d = (p1.x-p2.x)*(p3.y-p4.y)-(p1.y-p2.y)*(p3.x-p4.x);
+    if (Math.abs(d) < 1e-6) return null;
+    const t = ((p1.x-p3.x)*(p3.y-p4.y)-(p1.y-p3.y)*(p3.x-p4.x))/d;
+    return new THREE.Vector3(p1.x+t*(p2.x-p1.x), p1.y+t*(p2.y-p1.y), 0);
+  }
+  const apex = intersect2D(sunTop, moonBot, sunBot, moonTop);
+
+  if (apex) {
+    const umbraGeo = new THREE.BufferGeometry();
+    const verts = new Float32Array([
+      moonX, _AXIS_Y + rMoon, 0,
+      moonX, _AXIS_Y - rMoon, 0,
+      apex.x, apex.y, 0
+    ]);
+    umbraGeo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+    umbraGeo.setIndex([0,1,2]);
+    const umbraMat = new THREE.MeshBasicMaterial({ color: 0x0a0a18, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false });
+    root.add(new THREE.Mesh(umbraGeo, umbraMat));
+  }
+
+  addInfo3DLabels([
+    { text: { ilkokul:'☀️ Güneş', ortaokul:'☀️ Güneş (kaynak)', lise:'☀️ Güneş (ışık kaynağı)', tyt_ayt:'☀️ Güneş (küresel kaynak)' },
+      position: [sunX, Rsun + 2, 0], target: [sunX, Rsun, 0], color: '#ffd54f' },
+    { text: { ilkokul:'🌑 Ay', ortaokul:'🌑 Ay (engel)', lise:'🌑 Ay (opak engel)', tyt_ayt:'🌑 Ay (engel r)' },
+      position: [moonX, rMoon + 1.6, 0], target: [moonX, rMoon, 0], color: '#9a9aa2' },
+    { text: { ilkokul:'🌍 Dünya', ortaokul:'🌍 Dünya (perde)', lise:'🌍 Dünya (perde)', tyt_ayt:'🌍 Dünya (perde)' },
+      position: [earthX, rEarth + 1.6, 0], target: [earthX, rEarth, 0], color: '#2e7dd6' },
+    { text: { ilkokul:'⚫ Tam karanlık', ortaokul:'⚫ Tam gölge → tam tutulma', lise:'⚫ Umbra → tam tutulma', tyt_ayt:'⚫ Umbra → tam tutulma' },
+      position: [moonX + 3, -2.5, 0], target: [moonX + 2, -0.3, 0], color: '#5fc8e0' },
+    { text: { ortaokul:'⬜ Yarı gölge → parçalı', lise:'⬜ Penumbra → parçalı tutulma', tyt_ayt:'⬜ Penumbra → parçalı tutulma' },
+      position: [moonX + 1, 3.5, 0], target: [moonX + 2, 1.2, 0], color: '#ffd166', minLevel: 2 }
+  ]);
+
+  setSceneSliders([
+    { type: 'section', label: 'Güneş Tutulması' },
+    { type: 'display', label: 'Dizilim', getValue: () => 'Güneş–Ay–Dünya' },
+    { type: 'display', label: 'Ay evresi', getValue: () => 'Yeni Ay' },
+    { type: 'display', label: 'Tam gölge', getValue: () => 'Tam tutulma' },
+    { type: 'display', label: 'Yarı gölge', getValue: () => 'Parçalı tutulma' },
+    { type: 'formula', text: 'R_güneş ≫ r_ay → umbra konisi' }
+  ], { title: 'Güneş Tutulması' });
+};
+
+SubBuilders.buildAyTutulmasi = function() {
+  const root = new THREE.Group();
+  markDynamic(root);
+  scene.add(root);
+  window._currentModelGroup = root;
+
+  window._isSpaceScene = true;
+  applySceneTheme();
+  root.add(makeStarfield());
+  const amb = new THREE.AmbientLight(0x2d3a52, 0.42);
+  amb.userData.dynamic = true; root.add(amb);
+
+  const sunX = -13, earthX = 1, moonX = 9;
+  const Rsun = 2.6, rEarth = 1.6, rMoon = 0.7;
+
+  const sun = makeSunBody({ r: Rsun });
+  sun.position.set(sunX, _AXIS_Y, 0); root.add(sun);
+
+  const earth = makeCelestial({ r: rEarth, color: 0x2e7dd6 });
+  earth.position.set(earthX, _AXIS_Y, 0); root.add(earth);
+
+  const moon = makeCelestial({ r: rMoon, color: 0xc0563a });
+  moon.position.set(moonX, _AXIS_Y, 0); root.add(moon);
+  const moonGlow = new THREE.Mesh(
+    new THREE.SphereGeometry(rMoon * 1.3, 24, 16),
+    new THREE.MeshBasicMaterial({ color: 0xd0402a, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false })
+  );
+  moonGlow.position.set(moonX, _AXIS_Y, 0); root.add(moonGlow);
+
+  const sunTop = new THREE.Vector3(sunX, _AXIS_Y + Rsun, 0);
+  const sunBot = new THREE.Vector3(sunX, _AXIS_Y - Rsun, 0);
+  const earthTop = new THREE.Vector3(earthX, _AXIS_Y + rEarth, 0);
+  const earthBot = new THREE.Vector3(earthX, _AXIS_Y - rEarth, 0);
+
+  function ext(from, through, toX) {
+    const dir = new THREE.Vector3().subVectors(through, from).normalize();
+    const tHit = (toX - from.x) / dir.x;
+    return from.clone().add(dir.clone().multiplyScalar(tHit));
+  }
+  root.add(makeRay(sunTop, ext(sunTop, earthBot, moonX + 2), { color: 0x5fc8e0, width: 0.02 }));
+  root.add(makeRay(sunBot, ext(sunBot, earthTop, moonX + 2), { color: 0x5fc8e0, width: 0.02 }));
+  root.add(makeRay(sunTop, ext(sunTop, earthTop, moonX + 2), { color: 0xffd166, width: 0.016, dim: true }));
+  root.add(makeRay(sunBot, ext(sunBot, earthBot, moonX + 2), { color: 0xffd166, width: 0.016, dim: true }));
+
+  function intersect2D(p1, p2, p3, p4) {
+    const d = (p1.x-p2.x)*(p3.y-p4.y)-(p1.y-p2.y)*(p3.x-p4.x);
+    if (Math.abs(d) < 1e-6) return null;
+    const t = ((p1.x-p3.x)*(p3.y-p4.y)-(p1.y-p3.y)*(p3.x-p4.x))/d;
+    return new THREE.Vector3(p1.x+t*(p2.x-p1.x), p1.y+t*(p2.y-p1.y), 0);
+  }
+  const apex = intersect2D(sunTop, earthBot, sunBot, earthTop);
+  if (apex) {
+    const umbraGeo = new THREE.BufferGeometry();
+    const verts = new Float32Array([
+      earthX, _AXIS_Y + rEarth, 0,
+      earthX, _AXIS_Y - rEarth, 0,
+      apex.x, apex.y, 0
+    ]);
+    umbraGeo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+    umbraGeo.setIndex([0,1,2]);
+    const umbraMat = new THREE.MeshBasicMaterial({ color: 0x1a0808, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
+    root.add(new THREE.Mesh(umbraGeo, umbraMat));
+  }
+
+  addInfo3DLabels([
+    { text: { ilkokul:'☀️ Güneş', ortaokul:'☀️ Güneş', lise:'☀️ Güneş (kaynak)', tyt_ayt:'☀️ Güneş (kaynak)' },
+      position: [sunX, Rsun + 2, 0], target: [sunX, Rsun, 0], color: '#ffd54f' },
+    { text: { ilkokul:'🌍 Dünya', ortaokul:'🌍 Dünya (engel)', lise:'🌍 Dünya (engel)', tyt_ayt:'🌍 Dünya (opak engel)' },
+      position: [earthX, rEarth + 1.6, 0], target: [earthX, rEarth, 0], color: '#2e7dd6' },
+    { text: { ilkokul:'🔴 Kızıl Ay', ortaokul:'🔴 Ay (Kanlı Ay)', lise:'🔴 Ay (Kanlı Ay)', tyt_ayt:'🔴 Ay (Rayleigh saçılması)' },
+      position: [moonX, rMoon + 1.8, 0], target: [moonX, rMoon, 0], color: '#d0563a' },
+    { text: { ortaokul:'⚫ Dünya gölgesi büyük', lise:'⚫ Dünya umbrası geniş', tyt_ayt:'⚫ Dünya umbrası ≫ Ay' },
+      position: [earthX + 3, -3, 0], target: [earthX + 3, -0.3, 0], color: '#5fc8e0', minLevel: 2 }
+  ]);
+
+  setSceneSliders([
+    { type: 'section', label: 'Ay Tutulması' },
+    { type: 'display', label: 'Dizilim', getValue: () => 'Güneş–Dünya–Ay' },
+    { type: 'display', label: 'Ay evresi', getValue: () => 'Dolunay' },
+    { type: 'display', label: 'Renk', getValue: () => 'Kızıl (Rayleigh)' },
+    { type: 'display', label: 'Süre', getValue: () => 'Saatlerce' },
+    { type: 'formula', text: 'Dünya umbrası ≫ Ay → uzun süre' }
+  ], { title: 'Ay Tutulması' });
+};
+
+SubBuilders.buildIgneDeligi = function() {
+  const root = new THREE.Group();
+  markDynamic(root);
+  scene.add(root);
+  window._currentModelGroup = root;
+
+  root.add(setupShadowLighting());
+  root.add(makeFloor());
+
+  const holeX = 0;
+  const arrowH = 2.4;
+
+  const S = window._sceneState;
+  S.id_objX = -7;
+  S.id_scrX = 6;
+
+  const boxMat = new THREE.MeshStandardMaterial({ color: 0x2a3142, roughness: 0.7, metalness: 0.3, transparent: true, opacity: 0.55, side: THREE.DoubleSide });
+  const frontPanel = new THREE.Mesh(new THREE.PlaneGeometry(7, 7), boxMat);
+  frontPanel.position.set(holeX, _AXIS_Y, 0);
+  frontPanel.rotation.y = Math.PI / 2;
+  root.add(frontPanel);
+  const holeRing = new THREE.Mesh(
+    new THREE.TorusGeometry(0.18, 0.05, 12, 24),
+    new THREE.MeshBasicMaterial({ color: 0xffe17a, toneMapped: false })
+  );
+  holeRing.position.set(holeX, _AXIS_Y, 0);
+  holeRing.rotation.y = Math.PI / 2;
+  root.add(holeRing);
+
+  let objGrp = new THREE.Group(); root.add(objGrp);
+  let screen = makeScreen({ w: 8, h: 8 }); root.add(screen);
+  const rayGroup = new THREE.Group(); rayGroup.userData.dynamic = true; root.add(rayGroup);
+  const imgGroup = new THREE.Group(); imgGroup.userData.dynamic = true; root.add(imgGroup);
+  const axisGroup = new THREE.Group(); axisGroup.userData.dynamic = true; root.add(axisGroup);
+
+  function disposeGroup(g) {
+    while (g.children.length) {
+      const c = g.children[0]; g.remove(c);
+      if (c.geometry) c.geometry.dispose();
+      if (c.material) { Array.isArray(c.material) ? c.material.forEach(m=>m.dispose()) : c.material.dispose(); }
+    }
+    if (window._flowRays) window._flowRays = window._flowRays.filter(fr => fr.parent);
+  }
+
+  function buildArrow(parent, h, color1, color2, sx, sy, flip) {
+    const g = new THREE.Group();
+    const shaft = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.1, 0.1, h, 12),
+      new THREE.MeshStandardMaterial({ color: color1, emissive: color1, emissiveIntensity: 0.8, toneMapped: false })
+    );
+    shaft.position.y = h / 2;
+    g.add(shaft);
+    const head = new THREE.Mesh(
+      new THREE.ConeGeometry(0.25, 0.5, 12),
+      new THREE.MeshStandardMaterial({ color: color2, emissive: color2, emissiveIntensity: 0.7, toneMapped: false })
+    );
+    head.position.y = h + 0.25;
+    g.add(head);
+    if (flip) g.rotation.z = Math.PI;
+    g.position.set(sx, sy, 0);
+    parent.add(g);
+    return g;
+  }
+
+  function rebuild() {
+    const objX = S.id_objX, scrX = S.id_scrX;
+    const u = holeX - objX;
+    const v = scrX - holeX;
+
+    disposeGroup(objGrp);
+    buildArrow(objGrp, arrowH, 0xffd54f, 0xff7043, objX, _AXIS_Y - 1, false);
+
+    screen.position.set(scrX, _AXIS_Y, 0);
+    screen.rotation.y = -Math.PI / 2;
+
+    disposeGroup(rayGroup);
+    disposeGroup(imgGroup);
+    disposeGroup(axisGroup);
+
+    const objTipTop = new THREE.Vector3(objX, _AXIS_Y - 1 + arrowH + 0.5, 0);
+    const objTipBot = new THREE.Vector3(objX, _AXIS_Y - 1, 0);
+    const hole = new THREE.Vector3(holeX, _AXIS_Y, 0);
+    function through(from, hole, toX) {
+      const dir = new THREE.Vector3().subVectors(hole, from).normalize();
+      const tHit = (toX - from.x) / dir.x;
+      return from.clone().add(dir.clone().multiplyScalar(tHit));
+    }
+    const imgBot = through(objTipTop, hole, scrX);
+    const imgTop = through(objTipBot, hole, scrX);
+
+    rayGroup.add(makeRay(objTipTop, hole, { color: 0xff7043, width: 0.014 }));
+    rayGroup.add(makeRay(hole, imgBot, { color: 0xff7043, width: 0.014 }));
+    rayGroup.add(makeRay(objTipBot, hole, { color: 0xffd54f, width: 0.014 }));
+    rayGroup.add(makeRay(hole, imgTop, { color: 0xffd54f, width: 0.014 }));
+    const fr = makeFlowRay(objTipTop.clone(), imgBot.clone(), { count: 6, color: 0xfff3b0 });
+    rayGroup.add(fr); registerFlowRay(fr);
+
+    const imgLen = Math.abs(imgTop.y - imgBot.y);
+    const g = buildArrow(imgGroup, imgLen * 0.75, 0xffd54f, 0xff7043, scrX - 0.1, (imgTop.y + imgBot.y) / 2, true);
+
+    axisGroup.add(makeOpticalAxis(new THREE.Vector3(objX, _AXIS_Y, 0), new THREE.Vector3(scrX, _AXIS_Y, 0)));
+  }
+
+  rebuild();
+
+  addInfo3DLabels([
+    { text: { ilkokul:'🔼 Şekil (düz)', ortaokul:'🔼 Cisim (uzaklık değişir)', lise:'🔼 Cisim (u ayarla)', tyt_ayt:'🔼 Cisim (u değişken)' },
+      position: [S.id_objX, arrowH + 1, 0], target: [S.id_objX, arrowH - 0.5, 0], color: '#ff7043' },
+    { text: { ilkokul:'📍 Küçük delik', ortaokul:'📍 İğne deliği', lise:'📍 İğne deliği', tyt_ayt:'📍 Delik (tek nokta)' },
+      position: [holeX, 2.6, 0], target: [holeX, 0.2, 0], color: '#ffe17a' },
+    { text: { ilkokul:'🔽 Ters görüntü', ortaokul:'🔽 Görüntü ters döner', lise:'🔽 Ters & gerçek görüntü', tyt_ayt:'🔽 Ters görüntü (m=v/u)' },
+      position: [S.id_scrX, -3, 0], target: [S.id_scrX - 0.1, -1, 0], color: '#5fc8e0' }
+  ]);
+
+  setSceneSliders([
+    { type: 'section', label: 'Kamera Ayarları' },
+    { type: 'slider', label: '🔼 Cisim uzaklığı u', min: -12, max: -3, step: 0.5, unit: '',
+      getValue: () => S.id_objX, setValue: (v) => { S.id_objX = v; rebuild(); }, format: (v)=>(holeX - v).toFixed(1),
+      sub: 'Cisim–delik arası' },
+    { type: 'slider', label: '🔽 Perde uzaklığı v', min: 3, max: 11, step: 0.5, unit: '',
+      getValue: () => S.id_scrX, setValue: (v) => { S.id_scrX = v; rebuild(); }, format: (v)=>(v - holeX).toFixed(1),
+      sub: 'Delik–perde arası (kutu boyu)' },
+    { type: 'section', label: 'Canlı Hesap' },
+    { type: 'display', label: 'Büyütme m=v/u', highlight: true,
+      getValue: () => { const u = holeX - S.id_objX, v = S.id_scrX - holeX; return (v/u).toFixed(2); } },
+    { type: 'display', label: 'Görüntü', getValue: () => 'Ters & gerçek' },
+    { type: 'formula', text: "h'/h = v/u",
+      getValue: () => { const u = holeX - S.id_objX, v = S.id_scrX - holeX; return "m = v/u = " + (v/u).toFixed(2); } }
+  ], { title: 'İğne Deliği' });
+};
+
+// ============================================================
+// ====== SİSTEM: SEVİYE, MOD, NAVİGASYON, UI ================
+// ============================================================
+let currentLevel = 'lise';
+let currentMode = 'sade';
+window._autoSpinActive = false;
+window._isPlayingActive = false;
+
+const LEVEL_ORDER = ['ilkokul', 'ortaokul', 'lise', 'tyt_ayt'];
+
+function _resolveLevelData(dataObj) {
+  if (!dataObj) return null;
+  if (dataObj[currentLevel]) return dataObj[currentLevel];
+  if (currentLevel === 'tyt_ayt' && dataObj['ayt']) return dataObj['ayt'];
+  if (currentLevel === 'ayt' && dataObj['tyt_ayt']) return dataObj['tyt_ayt'];
+  const idx = LEVEL_ORDER.indexOf(currentLevel);
+  for (let i = idx; i >= 0; i--) {
+    if (dataObj[LEVEL_ORDER[i]]) return dataObj[LEVEL_ORDER[i]];
+  }
+  for (let i = idx + 1; i < LEVEL_ORDER.length; i++) {
+    if (dataObj[LEVEL_ORDER[i]]) return dataObj[LEVEL_ORDER[i]];
+  }
+  const keys = Object.keys(dataObj);
+  return keys.length ? dataObj[keys[0]] : null;
+}
+
+function buildTopicDropdown() {
+  const list = document.getElementById('topicList');
+  if (!list) return;
+  list.innerHTML = '';
+  Object.keys(MODULES).forEach(modKey => {
+    const mod = MODULES[modKey];
+    const head = document.createElement('div');
+    head.className = 'dropdown-cat-head';
+    head.textContent = mod.title;
+    list.appendChild(head);
+    mod.subs.forEach(sub => {
+      const btn = document.createElement('button');
+      btn.className = 'dropdown-item';
+      btn.dataset.module = modKey;
+      btn.dataset.sub = sub.key;
+      btn.innerHTML = `<span class="di-emoji">${sub.label.split(' ')[0]}</span><span>${sub.label.substring(sub.label.indexOf(' ')+1)}</span>`;
+      btn.onclick = () => {
+        currentModule = parseInt(modKey);
+        selectSub(sub.key);
+        closeAllDropdowns();
+      };
+      list.appendChild(btn);
+    });
+  });
+}
+
+function highlightActiveTopic() {
+  document.querySelectorAll('#topicList .dropdown-item').forEach(b => {
+    b.classList.toggle('active', b.dataset.sub === currentSub);
+  });
+}
+
+function applySceneTheme() {
+  if (!scene) return;
+  const isLight = window._lightMode === true;
+  const isSpace = window._isSpaceScene === true;
+  let bgColor, fogColor, fogNear, fogFar;
+  if (isSpace) {
+    bgColor = isLight ? 0x1a2138 : 0x02030a;
+    fogColor = bgColor; fogNear = 40; fogFar = 110;
+    scene.background = new THREE.Color(bgColor);
+    scene.fog = null;
+    return;
+  }
+  if (isLight) {
+    bgColor = 0xdfe7f2; fogColor = 0xdfe7f2; fogNear = 38; fogFar = 100;
+  } else {
+    bgColor = 0x121726; fogColor = 0x121726; fogNear = 35; fogFar = 95;
+  }
+  scene.background = new THREE.Color(bgColor);
+  scene.fog = new THREE.Fog(fogColor, fogNear, fogFar);
+}
+
+function selectSub(subKey) {
+  currentSub = subKey;
+  clearScene();
+  window._isSpaceScene = false;
+  applySceneTheme();
+
+  const builderName = (function() {
+    for (const mk of Object.keys(MODULES)) {
+      const s = MODULES[mk].subs.find(x => x.key === subKey);
+      if (s) { currentModule = parseInt(mk); return s.builder; }
+    }
+    return null;
+  })();
+
+  if (builderName && typeof SubBuilders[builderName] === 'function') {
+    try {
+      SubBuilders[builderName]();
+    } catch (e) {
+      console.error('Builder hatası:', builderName, e);
+    }
+  }
+
+  const _bp = document.getElementById('bottomPanel');
+  if (_bp) _bp.classList.remove('hidden');
+  updateInfoPanel(subKey);
+  highlightActiveTopic();
+
+  applyModeToLabels();
+
+  if (controls) {
+    controls.target.set(1.2, _AXIS_Y - 0.5, 0);
+    controls.captureInitialState && controls.captureInitialState();
+  }
+
+  if (window._showGestureToast) {
+    const allSubs = [];
+    Object.keys(MODULES).forEach(mk => MODULES[mk].subs.forEach(s => allSubs.push(s)));
+    const cur = allSubs.find(s => s.key === subKey);
+    if (cur) window._showGestureToast('📍 ' + cur.label);
+  }
+}
+
+function applyModeToLabels() {
+  if (!window._labelRefs) return;
+  const info3d = document.querySelectorAll('.info3d-label');
+  info3d.forEach((el, i) => {
+    if (currentMode === 'sade' && i % 2 === 1) {
+      el.dataset.userHidden = '1';
+      el.style.display = 'none';
+    } else {
+      el.dataset.userHidden = '0';
+      el.style.display = labelsVisible ? 'block' : 'none';
+    }
+  });
+}
+
+function updateInfoPanel(subKey) {
+  const data = _resolveLevelData(INFO_DATA[subKey]);
+  if (!data) return;
+  document.getElementById('infoEmoji').textContent = data.emoji || '🔦';
+  let mainTitle = '', subTitle = '';
+  for (const mk of Object.keys(MODULES)) {
+    const s = MODULES[mk].subs.find(x => x.key === subKey);
+    if (s) {
+      mainTitle = (MODULES[mk].title || '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]*Modül\s*\d+:\s*/i, '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]+/, '').trim();
+      subTitle = (s.label || '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]+/, '').trim();
+      break;
+    }
+  }
+  const titleHtml = mainTitle ? (mainTitle + ' / ' + subTitle) : (data.title || subTitle);
+  document.getElementById('infoTitle').textContent = titleHtml;
+  const list = document.getElementById('infoList');
+  list.innerHTML = '';
+  let points = data.points || [];
+  const showCount = (currentMode === 'sade') ? 3 : points.length;
+  points.slice(0, showCount).forEach(p => {
+    const li = document.createElement('li');
+    if (p.startsWith('##')) { li.className = 'subhead'; li.innerHTML = p.replace('##','').trim(); }
+    else li.innerHTML = p;
+    list.appendChild(li);
+  });
+}
+
+function getAllSubs() {
+  const arr = [];
+  Object.keys(MODULES).forEach(mk => MODULES[mk].subs.forEach(s => arr.push(s)));
+  return arr;
+}
+function navigate(dir) {
+  const all = getAllSubs();
+  let idx = all.findIndex(s => s.key === currentSub);
+  if (idx < 0) idx = 0;
+  idx = (idx + dir + all.length) % all.length;
+  selectSub(all[idx].key);
+}
+
+function closeAllDropdowns() {
+  document.querySelectorAll('.dropdown-panel').forEach(p => p.classList.remove('show'));
+  document.body.classList.remove('dropdown-open');
+}
+function toggleDropdown(id) {
+  const panel = document.getElementById(id);
+  if (!panel) return;
+  const wasOpen = panel.classList.contains('show');
+  closeAllDropdowns();
+  if (!wasOpen) {
+    panel.classList.add('show');
+    document.body.classList.add('dropdown-open');
+  }
+}
+
+window._cmpPages = []; window._cmpIdx = 0;
+window._tblPages = []; window._tblIdx = 0;
+
+function _normalizePages(data) {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  return [data];
+}
+
+function _renderTableHTML(data, styleClass) {
+  let html = '<table class="cmp-table ' + (styleClass||'') + '"><thead><tr>';
+  data.cols.forEach(c => html += `<th>${c}</th>`);
+  html += '</tr></thead><tbody>';
+  data.rows.forEach(row => {
+    html += '<tr>';
+    row.forEach(cell => html += `<td>${cell}</td>`);
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  return html;
+}
+
+function renderCompareTable() {
+  window._cmpPages = _normalizePages(_resolveLevelData(COMPARE_DATA[currentSub]));
+  window._cmpIdx = 0;
+  _showComparePage();
+}
+function _showComparePage() {
+  const body = document.getElementById('compareBody');
+  const titleEl = document.getElementById('compareTitle');
+  const nav = document.getElementById('compareNav');
+  const counter = document.getElementById('compareCounter');
+  const pages = window._cmpPages;
+  if (!pages.length) {
+    body.innerHTML = '<div class="cmp-no-data">Bu konu için karşılaştırma verisi yok.</div>';
+    if (titleEl) titleEl.textContent = '⚖️ Karşılaştırma';
+    if (nav) nav.classList.add('hidden');
+    return;
+  }
+  const i = window._cmpIdx;
+  const data = pages[i];
+  if (titleEl) titleEl.textContent = '⚖️ ' + (data.title || 'Karşılaştırma');
+  body.innerHTML = _renderTableHTML(data, 'compare-style');
+  if (nav) {
+    if (pages.length > 1) {
+      nav.classList.remove('hidden');
+      counter.textContent = (i+1) + ' / ' + pages.length;
+      document.getElementById('comparePrev').disabled = (i === 0);
+      document.getElementById('compareNext').disabled = (i === pages.length - 1);
+    } else {
+      nav.classList.add('hidden');
+    }
+  }
+}
+
+function renderInfoTable() {
+  window._tblPages = _normalizePages(_resolveLevelData(TABLE_DATA[currentSub]));
+  window._tblIdx = 0;
+  _showTablePage();
+}
+function _showTablePage() {
+  const body = document.getElementById('tableBody');
+  const titleEl = document.getElementById('tableTitle');
+  const nav = document.getElementById('tableNav');
+  const counter = document.getElementById('tableCounter');
+  const pages = window._tblPages;
+  if (!pages.length) {
+    body.innerHTML = '<div class="cmp-no-data">Bu konu için tablo verisi yok.</div>';
+    if (titleEl) titleEl.textContent = '📋 Bilgi Tablosu';
+    if (nav) nav.classList.add('hidden');
+    return;
+  }
+  const i = window._tblIdx;
+  const data = pages[i];
+  if (titleEl) titleEl.textContent = '📋 ' + (data.title || 'Bilgi Tablosu');
+  body.innerHTML = _renderTableHTML(data, '');
+  if (nav) {
+    if (pages.length > 1) {
+      nav.classList.remove('hidden');
+      counter.textContent = (i+1) + ' / ' + pages.length;
+      document.getElementById('tablePrev').disabled = (i === 0);
+      document.getElementById('tableNext').disabled = (i === pages.length - 1);
+    } else {
+      nav.classList.add('hidden');
+    }
+  }
+}
+
+function attachEvents() {
+  document.getElementById('btnLevel').onclick = () => toggleDropdown('panelLevel');
+  document.getElementById('btnTopic').onclick = () => {
+    const bp = document.getElementById('bottomPanel');
+    if (bp) bp.classList.remove('hidden');
+    toggleDropdown('panelTopic');
+  };
+
+  document.querySelectorAll('#panelLevel .dropdown-item').forEach(item => {
+    item.onclick = () => {
+      currentLevel = item.dataset.level;
+      document.querySelectorAll('#panelLevel .dropdown-item').forEach(x => x.classList.remove('active'));
+      item.classList.add('active');
+      const labels = { ilkokul: 'İlkokul', ortaokul: 'Ortaokul', lise: 'Lise', tyt_ayt: 'TYT-AYT' };
+      document.getElementById('levelLabel').textContent = labels[currentLevel] || 'Lise';
+      closeAllDropdowns();
+      if (currentSub) selectSub(currentSub);
+      if (document.getElementById('compareOverlay').classList.contains('show')) renderCompareTable();
+      if (document.getElementById('tableOverlay').classList.contains('show')) renderInfoTable();
+      if (window._showGestureToast) window._showGestureToast('🎓 Seviye: ' + (labels[currentLevel] || 'Lise'));
+      if (window._haptic) window._haptic(15);
+    };
+  });
+
+  document.getElementById('btnMode').onclick = () => toggleDropdown('panelMode');
+  document.querySelectorAll('#panelMode .dropdown-item').forEach(item => {
+    item.onclick = () => {
+      currentMode = item.dataset.mode;
+      document.querySelectorAll('#panelMode .dropdown-item').forEach(x => x.classList.remove('active'));
+      item.classList.add('active');
+      const btnMode = document.getElementById('btnMode');
+      if (currentMode === 'sade') {
+        btnMode.textContent = '📄'; btnMode.classList.add('active');
+        btnMode.title = 'Görünüm Modu: Sade';
+      } else {
+        btnMode.textContent = '📚'; btnMode.classList.remove('active');
+        btnMode.title = 'Görünüm Modu: Detaylı';
+      }
+      closeAllDropdowns();
+      if (currentSub) { updateInfoPanel(currentSub); applyModeToLabels(); }
+      if (window._haptic) window._haptic(15);
+    };
+  });
+
+  document.getElementById('navPrev').onclick = () => navigate(-1);
+  document.getElementById('navNext').onclick = () => navigate(1);
+
+  document.getElementById('infoCloseBtn').onclick = () => {
+    document.getElementById('bottomPanel').classList.add('hidden');
+  };
+
+  const spinBtn = document.getElementById('spinBtn');
+  spinBtn.onclick = () => {
+    window._autoSpinActive = !window._autoSpinActive;
+    spinBtn.classList.toggle('active', window._autoSpinActive);
+    if (window._currentModelGroup) {
+      window._currentModelGroup.userData.spin = window._autoSpinActive ? 0.3 : 0;
+      if (!dynamicObjects.includes(window._currentModelGroup)) dynamicObjects.push(window._currentModelGroup);
+    }
+    if (window._haptic) window._haptic(15);
+  };
+
+  const labelBtn = document.getElementById('labelBtn');
+  labelBtn.onclick = () => {
+    labelsVisible = !labelsVisible;
+    window._leaderLinesVisible = labelsVisible;
+    labelBtn.classList.toggle('active', labelsVisible);
+    document.querySelectorAll('.info3d-label, .label3d').forEach(el => {
+      if (labelsVisible) {
+        el.dataset.labelHidden = '0';
+        if (el.dataset.userHidden !== '1') el.style.display = 'block';
+      } else {
+        el.dataset.labelHidden = '1';
+        el.style.display = 'none';
+      }
+    });
+    if (!labelsVisible) {
+      const svg = document.getElementById('leaderLines');
+      if (svg) svg.innerHTML = '';
+    }
+    if (window._haptic) window._haptic(15);
+  };
+  window._leaderLinesVisible = true;
+  labelBtn.classList.add('active');
+
+  const animBtn = document.getElementById('animBtn');
+  animBtn.onclick = () => {
+    window._isPlayingActive = !window._isPlayingActive;
+    animBtn.classList.toggle('active', window._isPlayingActive);
+    animBtn.querySelector('.ico').textContent = window._isPlayingActive ? '⏸️' : '▶️';
+    const lbl = animBtn.querySelector('span:last-child');
+    if (lbl) lbl.textContent = window._isPlayingActive ? 'Durdur' : 'Çalıştır';
+    if (window._showGestureToast) {
+      window._showGestureToast(window._isPlayingActive ? '▶️ Animasyon başladı' : '⏸️ Duraklatıldı');
+    }
+    if (window._haptic) window._haptic(15);
+  };
+  animBtn.classList.remove('active');
+  animBtn.querySelector('.ico').textContent = '▶️';
+
+  document.getElementById('btnTheme').onclick = () => {
+    document.body.classList.toggle('light-mode');
+    const isLight = document.body.classList.contains('light-mode');
+    document.getElementById('btnTheme').textContent = isLight ? '☀️' : '🌙';
+    window._lightMode = isLight;
+    applySceneTheme();
+    if (window._haptic) window._haptic(15);
+  };
+
+  document.getElementById('btnFs').onclick = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+    } else {
+      document.exitFullscreen && document.exitFullscreen();
+    }
+    if (window._haptic) window._haptic(15);
+  };
+
+  document.getElementById('btnSend').onclick = () => {
+    document.getElementById('shareOverlay').classList.add('show');
+  };
+  document.getElementById('shareClose').onclick = () => {
+    document.getElementById('shareOverlay').classList.remove('show');
+  };
+  document.getElementById('shareWhatsApp').onclick = () => {
+    const txt = encodeURIComponent('🔦 Gölge Oluşumu ve Işığın Yayılması — 3D interaktif fizik simülasyonu!');
+    window.open('https://wa.me/?text=' + txt, '_blank');
+  };
+  document.getElementById('shareCopy').onclick = () => {
+    try { navigator.clipboard.writeText(window.location.href); } catch(e){}
+    if (window._showGestureToast) window._showGestureToast('📋 Bağlantı kopyalandı');
+    document.getElementById('shareOverlay').classList.remove('show');
+  };
+  document.getElementById('shareDownload').onclick = () => {
+    try {
+      const link = document.createElement('a');
+      link.download = 'golge-simulasyon.png';
+      link.href = renderer.domElement.toDataURL('image/png');
+      link.click();
+    } catch(e){}
+    document.getElementById('shareOverlay').classList.remove('show');
+  };
+
+  document.getElementById('btnCompare').onclick = () => {
+    renderCompareTable();
+    document.getElementById('compareOverlay').classList.add('show');
+  };
+  document.getElementById('compareClose').onclick = () => {
+    document.getElementById('compareOverlay').classList.remove('show');
+  };
+  document.getElementById('comparePrev').onclick = () => {
+    if (window._cmpIdx > 0) { window._cmpIdx--; _showComparePage(); if (window._haptic) window._haptic(10); }
+  };
+  document.getElementById('compareNext').onclick = () => {
+    if (window._cmpIdx < window._cmpPages.length - 1) { window._cmpIdx++; _showComparePage(); if (window._haptic) window._haptic(10); }
+  };
+
+  document.getElementById('btnTable').onclick = () => {
+    renderInfoTable();
+    document.getElementById('tableOverlay').classList.add('show');
+  };
+  document.getElementById('tableClose').onclick = () => {
+    document.getElementById('tableOverlay').classList.remove('show');
+  };
+  document.getElementById('tablePrev').onclick = () => {
+    if (window._tblIdx > 0) { window._tblIdx--; _showTablePage(); if (window._haptic) window._haptic(10); }
+  };
+  document.getElementById('tableNext').onclick = () => {
+    if (window._tblIdx < window._tblPages.length - 1) { window._tblIdx++; _showTablePage(); if (window._haptic) window._haptic(10); }
+  };
+
+  ['shareOverlay','compareOverlay','tableOverlay'].forEach(id => {
+    const ov = document.getElementById(id);
+    ov.onclick = (e) => { if (e.target === ov) ov.classList.remove('show'); };
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.dropdown-panel') && !e.target.closest('.stack-btn') && !e.target.closest('.tool-icon-btn')) {
+      closeAllDropdowns();
+    }
+  });
+}
+
+// ============================================================
+// ====== BAŞLATMA ============================================
+// ============================================================
+init();
+attachEvents();
+buildTopicDropdown();
+selectSub('dogrusalYayilma');
+animate();
+
+console.log('✓ Gölge simülasyonu başlatıldı');
+</script>
+</body>
+</html>

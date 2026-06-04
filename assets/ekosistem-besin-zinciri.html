@@ -825,8 +825,9 @@ setTimeout(function() {
 }
 </script>
 
+<script src="./three.global.js"></script>
 <script type="module">
-import * as THREE from 'three';
+const THREE = window.THREE;
 
 window.__moduleLoaded = true;
 console.log('✓ Three.js yüklendi:', THREE.REVISION);

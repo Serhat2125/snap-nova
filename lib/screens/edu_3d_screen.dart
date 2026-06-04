@@ -63,6 +63,24 @@ class Edu3DSubjectsScreen extends StatelessWidget {
               MaterialPageRoute(builder: (_) => const Edu3DBiyolojiScreen()),
             ),
           ),
+          const SizedBox(height: 10),
+          _SubjectCard(
+            icon: Icons.science_rounded,
+            title: 'Fizik',
+            color: const Color(0xFF7C3AED),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const Edu3DFizikScreen()),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _SubjectCard(
+            icon: Icons.science_outlined,
+            title: 'Kimya',
+            color: const Color(0xFFE11D48),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const Edu3DKimyaScreen()),
+            ),
+          ),
         ],
       ),
     );
@@ -156,6 +174,20 @@ class Edu3DCografyaScreen extends StatelessWidget {
               ),
             ),
           ),
+          _TopicCard(
+            emoji: '🌍',
+            title: 'Dünya Coğrafyası',
+            subtitle: 'İklim bölgeleri, kıtalar, dağlar, nehirler, boğazlar, kanallar, nüfus',
+            tint: const Color(0xFF22C55E),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/dunya-cografyasi.html',
+                  title: 'Dünya Coğrafyası',
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -203,6 +235,274 @@ class Edu3DGeometriScreen extends StatelessWidget {
                 builder: (_) => const Lesson3DScreen(
                   assetHtml: 'assets/geometrik-cisimler.html',
                   title: 'Geometrik Cisimler ve Hesaplamalar',
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Fizik dersinin 3D konu listesi.
+class Edu3DFizikScreen extends StatelessWidget {
+  const Edu3DFizikScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppPalette.bg(context),
+      appBar: AppBar(
+        backgroundColor: AppPalette.card(context),
+        elevation: 0,
+        foregroundColor: AppPalette.textPrimary(context),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.science_rounded,
+                color: Color(0xFF7C3AED), size: 22),
+            const SizedBox(width: 8),
+            Text(
+              'Fizik',
+              style: GoogleFonts.poppins(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        children: [
+          _TopicCard(
+            emoji: '⚛️',
+            title: 'Maddenin Yapısı ve Özellikleri',
+            subtitle: 'K-12 sınıf bazlı: İlkokul/Ortaokul/Lise — duyular, haller, tanecikler, atom, basınç, kuantum',
+            tint: const Color(0xFF7C3AED),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/maddenin-yapisi.html',
+                  title: 'Maddenin Yapısı',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _TopicCard(
+            emoji: '🔦',
+            title: 'Gölge Oluşumu ve Işığın Yayılması',
+            subtitle: 'Doğrusal yayılma, tam/yarı gölge, tutulmalar, iğne deliği kamerası',
+            tint: const Color(0xFF7C3AED),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/golge-olusumu-isik-yayilmasi.html',
+                  title: 'Gölge Oluşumu ve Işığın Yayılması',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _TopicCard(
+            emoji: '🧭',
+            title: 'Bileşke Kuvvet ve Vektörler',
+            subtitle: 'Vektörün bileşenleri, paralelkenar, dik/açılı kuvvetler, denge, eğik düzlem, bağıl hız',
+            tint: const Color(0xFF7C3AED),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/bileske-kuvvet-vektorler.html',
+                  title: 'Bileşke Kuvvet ve Vektörler',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _TopicCard(
+            emoji: '⚙️',
+            title: 'Basit Makineler',
+            subtitle: 'Kaldıraç, makara, palanga, eğik düzlem, vida, çıkrık, dişli — kuvvet kazancı ve verim',
+            tint: const Color(0xFF7C3AED),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/basit-makineler.html',
+                  title: 'Basit Makineler',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _TopicCard(
+            emoji: '🌊',
+            title: 'Dalgalar',
+            subtitle: 'Temel kavramlar, dalga hızı, yansıma/kırılma/kırınım/girişim, ses/deprem dalgaları, Doppler, EM spektrum',
+            tint: const Color(0xFF7C3AED),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/dalgalar.html',
+                  title: 'Dalgalar',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _TopicCard(
+            emoji: '🔍',
+            title: 'Işığın Kırılması ve Mercekler',
+            subtitle: 'Kırılma, Snell, tam yansıma, prizma, mercekler, aynalar, göz, aydınlanma ve renk',
+            tint: const Color(0xFF7C3AED),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/optik-mercekler.html',
+                  title: 'Işığın Kırılması ve Mercekler',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _TopicCard(
+            emoji: '⚡',
+            title: 'Elektrik',
+            subtitle: 'Elektrostatik, yük, alan, potansiyel, devreler, Ohm, direnç, kondansatör, güç',
+            tint: const Color(0xFF7C3AED),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/elektrik.html',
+                  title: 'Elektrik',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _TopicCard(
+            emoji: '🌊',
+            title: 'Basınç ve Kaldırma Kuvveti',
+            subtitle: 'Batma/yüzme, özkütle, Arşimet, katı/sıvı/açık hava basıncı, Pascal, bileşik kaplar, Bernoulli',
+            tint: const Color(0xFF7C3AED),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/akiskanlar-mekanigi.html',
+                  title: 'Basınç ve Kaldırma Kuvveti',
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Kimya dersinin 3D konu listesi.
+class Edu3DKimyaScreen extends StatelessWidget {
+  const Edu3DKimyaScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppPalette.bg(context),
+      appBar: AppBar(
+        backgroundColor: AppPalette.card(context),
+        elevation: 0,
+        foregroundColor: AppPalette.textPrimary(context),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.science_outlined,
+                color: Color(0xFFE11D48), size: 22),
+            const SizedBox(width: 8),
+            Text(
+              'Kimya',
+              style: GoogleFonts.poppins(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        children: [
+          // ── KİMYA KONULARI ──
+          _TopicCard(
+            emoji: '⚛️',
+            title: 'Atom Teorisi ve Kuantum Orbitalleri',
+            subtitle: 'Atom yapısı, modeller (Dalton→Bohr→Modern), Rutherford, izotop, iyon, Bohr/spektrum, kuantum sayıları, s/p/d/f orbitalleri',
+            tint: const Color(0xFFE11D48),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/atom-teorisi-orbitaller.html',
+                  title: 'Atom Teorisi ve Orbitaller',
+                ),
+              ),
+            ),
+          ),
+          _TopicCard(
+            emoji: '🔗',
+            title: 'Kimyasal Türler Arası Etkileşimler (Bağlar)',
+            subtitle:
+                'İyonik/kovalent/metalik bağ, polar-apolar, NaCl örgü, London/dipol/iyon-dipol, hidrojen bağı, su ve buz',
+            tint: const Color(0xFFE11D48),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/kimyasal-baglar.html',
+                  title: 'Kimyasal Bağlar',
+                ),
+              ),
+            ),
+          ),
+          _TopicCard(
+            emoji: '🧪',
+            title: 'Karışımlar ve Çözeltiler',
+            subtitle:
+                'Saf madde/karışım, homojen-heterojen, çözünme, ayırma teknikleri, Tyndall, derişim, koligatif, ozmos, çözünürlük dengesi',
+            tint: const Color(0xFFE11D48),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/karisimlar-cozeltiler.html',
+                  title: 'Karışımlar ve Çözeltiler',
+                ),
+              ),
+            ),
+          ),
+          _TopicCard(
+            emoji: '⚗️',
+            title: 'Kimyasal Tepkimeler ve Tepkime Hızı',
+            subtitle:
+                'Tepkime belirtileri, kütlenin korunumu, bağ enerjisi, sentez/analiz/yanma/nötrleşme, çarpışma teorisi, aktivasyon enerjisi, katalizör',
+            tint: const Color(0xFFE11D48),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/kimyasal-tepkimeler.html',
+                  title: 'Kimyasal Tepkimeler',
+                ),
+              ),
+            ),
+          ),
+          _TopicCard(
+            emoji: '⚛️',
+            title: 'Atom ve Periyodik Sistem',
+            subtitle:
+                'Atomun yapısı, atom modelleri (Dalton→Bohr), katman dizilimi, spektrum, yörünge/orbital, kuantum sayıları, elektron dizilimi, periyodik bloklar',
+            tint: const Color(0xFFE11D48),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/atom-periyodik.html',
+                  title: 'Atom ve Periyodik Sistem',
                 ),
               ),
             ),

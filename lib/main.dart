@@ -406,6 +406,27 @@ class _StartupRouterState extends State<_StartupRouter> {
     final minSplash = Future<void>.delayed(const Duration(milliseconds: 5000));
     final prefs = await SharedPreferences.getInstance();
 
+    // ── GELİŞTİRME BYPASS (yapım aşaması) ──────────────────────────────
+    // Debug modda (flutter run) onboarding + giriş yöntemleri + eğitim
+    // seçimi ekranlarını atlayıp doğrudan ana uygulamaya (CameraScreen) gir.
+    // Release/profile build'i ETKİLEMEZ. Yayına çıkarken bu blok kalabilir.
+    if (kDebugMode) {
+      // İçerik EduProfile'a bağlı olduğundan eksikse varsayılan profil tohumla.
+      if ((prefs.getString('mini_test_grade') ?? '').isEmpty) {
+        await prefs.setString('mini_test_country', 'tr');
+        await prefs.setString('mini_test_level', 'lise');
+        await prefs.setString('mini_test_grade', '11');
+      }
+      await prefs.setBool(OnboardingScreen.prefKey, true);
+      try {
+        await EduProfile.load();
+      } catch (_) {/* yok say */}
+      // Kısa splash (animasyonu görmeden hızlı gir)
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      return _StartupState.home;
+    }
+    // ───────────────────────────────────────────────────────────────────
+
     // Launch counter — her açılışta artar.
     final count = (prefs.getInt('app_launch_count_v2') ?? 0) + 1;
     await prefs.setInt('app_launch_count_v2', count);

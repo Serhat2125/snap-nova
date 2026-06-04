@@ -1,0 +1,4667 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>🌊 Dalgalar - Giriş ve Yayılım (TYT/AYT)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Baloo+2:wght@500;600;700;800&display=swap');
+
+  :root {
+    --bg:#0a0e1a;
+    --panel:#161b2e;
+    --panel-soft:#1f2540;
+    --panel-line:#2f3a5f;
+    --ink:#eef0ff;
+    --ink-soft:#a8b0d0;
+    --accent:#f6b93b;
+    --accent-glow:#ffd166;
+    --warning:#ffd166;
+    --cartilage:#9d7fe6;
+    --muscle:#c45d5d;
+    --joint:#5fc8e0;
+    --xylem:#d97043;
+    --phloem:#5fb8e8;
+    --chloro:#2ecc40;
+    --bone:#e0c088;
+  }
+
+  body.light-mode {
+    --bg:#f3f6fb;
+    --panel:#ffffff;
+    --panel-soft:#eef2f8;
+    --panel-line:#d0d8e3;
+    --ink:#1a2030;
+    --ink-soft:#5a6070;
+    --accent:#e0901b;
+    --accent-glow:#c47a10;
+  }
+
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; margin:0; padding:0; }
+  html, body {
+    overflow:hidden;
+    background:var(--bg); color:var(--ink);
+    font-family:'Fredoka',sans-serif; user-select:none;
+    width:100vw; height:100vh;
+    transition:background 0.3s, color 0.3s;
+  }
+  body { touch-action:none; }
+  canvas { display:block; cursor:grab; }
+  canvas:active { cursor:grabbing; }
+  #canvasContainer { position:absolute; inset:0; width:100%; height:100%; z-index:1; }
+
+  .left-stack {
+    position:absolute;
+    top:14px; right:14px;
+    z-index:30;
+    display:flex; flex-direction:column; gap:8px;
+    align-items:flex-end;
+  }
+
+  .stack-btn {
+    display:flex; align-items:center; gap:7px;
+    background:var(--panel);
+    border:2px solid var(--panel-line);
+    border-radius:12px;
+    padding:8px 14px;
+    font-family:'Fredoka',sans-serif; font-weight:600;
+    font-size:12.5px;
+    color:var(--ink);
+    cursor:pointer;
+    box-shadow:0 4px 12px rgba(0,0,0,0.25);
+    transition:all 0.15s;
+    min-width:170px;
+  }
+  .stack-btn:hover {
+    border-color:var(--accent);
+    transform:translateY(-1px);
+    box-shadow:0 6px 16px rgba(0,0,0,0.35);
+  }
+  .stack-btn:active { transform:scale(0.97); }
+  .stack-btn .sb-emoji { font-size:16px; line-height:1; flex-shrink:0; }
+  .stack-btn .sb-label { flex:1; text-align:left; }
+  .stack-btn .sb-arrow { font-size:10px; opacity:0.7; }
+
+  .stack-btn.level { background:linear-gradient(135deg, #f6b93b 0%, #ffd166 100%); color:#1a1410; border-color:#ffd166; }
+  .stack-btn.topic { background:linear-gradient(135deg, #5fc8e0 0%, #7adcf0 100%); color:#0a1420; border-color:#7adcf0; }
+
+  .dropdown-panel {
+    position:absolute;
+    background:var(--panel);
+    border:2px solid var(--accent);
+    border-radius:14px;
+    padding:8px;
+    z-index:50;
+    box-shadow:0 12px 32px rgba(0,0,0,0.5);
+    min-width:230px; max-width:300px;
+    max-height:60vh; overflow-y:auto;
+    display:none;
+  }
+  .dropdown-panel.show { display:block; }
+  .dropdown-title {
+    font-family:'Baloo 2', cursive; font-weight:800;
+    font-size:12px;
+    color:var(--accent-glow);
+    padding:6px 8px 8px;
+    text-transform:uppercase; letter-spacing:0.6px;
+    border-bottom:1px solid var(--panel-line);
+    margin-bottom:6px;
+  }
+  .dropdown-item {
+    display:flex; align-items:center; gap:8px;
+    width:100%; text-align:left;
+    background:var(--panel-soft);
+    border:1.5px solid transparent;
+    border-radius:9px;
+    padding:8px 11px; margin-bottom:4px;
+    font-family:'Fredoka',sans-serif; font-weight:500; font-size:12.5px;
+    color:var(--ink); cursor:pointer;
+    transition:all 0.12s;
+  }
+  .dropdown-item:hover {
+    background:var(--panel-line);
+    border-color:var(--accent);
+    transform:translateX(2px);
+  }
+  .dropdown-item.active {
+    background:linear-gradient(135deg, var(--accent), var(--accent-glow));
+    color:#0a1420; font-weight:700;
+    border-color:#fff;
+  }
+  .dropdown-item .di-emoji { font-size:15px; flex-shrink:0; }
+  .dropdown-cat-head {
+    font-size:10.5px; color:var(--accent-glow); font-weight:700;
+    padding:8px 10px 4px;
+    text-transform:uppercase; letter-spacing:0.5px;
+    border-top:1px solid var(--panel-line);
+    margin-top:4px;
+  }
+  .dropdown-cat-head:first-child { border-top:none; margin-top:0; }
+
+  .right-tools {
+    position:absolute;
+    top:14px; left:14px;
+    z-index:30;
+    display:flex; gap:8px;
+    flex-wrap:nowrap;
+  }
+  .tool-icon-btn {
+    width:42px; height:42px;
+    background:var(--panel);
+    border:2px solid var(--panel-line);
+    border-radius:12px;
+    cursor:pointer;
+    display:grid; place-items:center;
+    font-size:18px;
+    color:var(--ink);
+    box-shadow:0 4px 12px rgba(0,0,0,0.3);
+    transition:all 0.15s;
+    flex-shrink:0;
+  }
+  .tool-icon-btn:hover {
+    border-color:var(--accent);
+    transform:translateY(-1px);
+    box-shadow:0 6px 16px rgba(0,0,0,0.4);
+  }
+  .tool-icon-btn:active { transform:scale(0.92); }
+
+  .tool-icon-btn.fs { border-color:var(--joint); color:var(--joint); }
+  .tool-icon-btn.fs:hover { background:var(--joint); color:#0a1420; }
+  .tool-icon-btn.send { border-color:var(--warning); color:var(--warning); }
+  .tool-icon-btn.send:hover { background:var(--warning); color:#0a1420; }
+  .tool-icon-btn.theme { border-color:var(--cartilage); color:var(--cartilage); }
+  .tool-icon-btn.theme:hover { background:var(--cartilage); color:#0a1420; }
+  .tool-icon-btn.mode { border-color:var(--chloro); color:var(--chloro); }
+  .tool-icon-btn.mode:hover { background:var(--chloro); color:#0a1420; }
+  .tool-icon-btn.mode.active { background:var(--chloro); color:#0a1420; }
+  .tool-icon-btn.compare { border-color:var(--muscle); color:var(--muscle); }
+  .tool-icon-btn.compare:hover { background:var(--muscle); color:#fff; }
+  .tool-icon-btn.table { border-color:var(--bone); color:var(--bone); }
+  .tool-icon-btn.table:hover { background:var(--bone); color:#0a1420; }
+  .bottom-panel {
+    position:absolute;
+    bottom:10px;
+    left:14px; right:14px;
+    z-index:25;
+    background:var(--panel);
+    border:2px solid var(--panel-line);
+    border-radius:12px;
+    padding:9px 12px 8px;
+    box-shadow:0 -6px 24px rgba(0,0,0,0.4);
+    display:flex; flex-direction:column; gap:8px;
+    touch-action:auto;
+  }
+  .bottom-panel.hidden { display:none; }
+
+  .info-close-btn {
+    position:absolute;
+    top:-13px; left:4px;
+    width:22px; height:22px;
+    background:var(--panel);
+    border:2px solid var(--panel-line);
+    border-radius:50%;
+    color:var(--ink-soft);
+    font-size:11px;
+    font-weight:700;
+    cursor:pointer;
+    display:grid; place-items:center;
+    line-height:1;
+    padding:0;
+    z-index:2;
+    transition:all 0.12s;
+    box-shadow:0 2px 8px rgba(0,0,0,0.3);
+  }
+  .info-close-btn:hover {
+    background:var(--panel-soft);
+    border-color:var(--accent);
+    color:var(--accent);
+  }
+  .info-close-btn:active { transform:scale(0.9); }
+
+  .info-area {
+    display:flex; gap:9px;
+    align-items:flex-start;
+  }
+  .info-emoji-box {
+    width:30px; height:30px;
+    border-radius:8px;
+    background:linear-gradient(135deg, var(--accent), var(--cartilage));
+    display:grid; place-items:center;
+    font-size:17px;
+    flex-shrink:0;
+    box-shadow:0 3px 11px rgba(246,185,59,0.4);
+  }
+  .info-text-area {
+    flex:1; min-width:0;
+  }
+  .info-title-row {
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:3px;
+  }
+  .info-title {
+    font-family:'Baloo 2', cursive; font-weight:800;
+    font-size:12.5px;
+    color:var(--accent-glow);
+  }
+  .nav-buttons {
+    display:flex; gap:4px;
+  }
+  .nav-mini-btn {
+    width:19px; height:19px;
+    background:var(--panel-soft);
+    border:1.5px solid var(--accent);
+    border-radius:5px;
+    cursor:pointer;
+    display:grid; place-items:center;
+    color:var(--accent);
+    font-size:9px;
+    transition:all 0.12s;
+  }
+  .nav-mini-btn:hover {
+    background:var(--accent);
+    color:#0a1420;
+  }
+  .info-list {
+    list-style:none;
+    padding:0; margin:0;
+    max-height:22vh;
+    overflow-y:auto;
+    overflow-x:hidden;
+    -webkit-overflow-scrolling:touch;
+    touch-action:pan-y;
+    overscroll-behavior:contain;
+    scrollbar-width:thin;
+    scrollbar-color:var(--accent) rgba(255,255,255,0.15);
+    padding-right:6px;
+  }
+  .info-list::-webkit-scrollbar { width:9px; background:rgba(255,255,255,0.1); border-radius:5px; }
+  .info-list::-webkit-scrollbar-track { background:rgba(255,255,255,0.1); border-radius:5px; }
+  .info-list::-webkit-scrollbar-thumb { background:var(--accent); border-radius:5px; border:2px solid rgba(15,20,30,0.6); min-height:28px; }
+  .info-scroll-wrap { position:relative; }
+  /* özel görsel çubuk (native gizlenen platformlar için yedek) */
+  .info-scrollbar {
+    position:absolute; top:2px; right:0; bottom:2px; width:7px;
+    background:rgba(255,255,255,0.15); border-radius:5px;
+    opacity:0; transition:opacity 0.2s; pointer-events:none; z-index:2;
+  }
+  .info-scrollbar.visible { opacity:1; }
+  .info-scrollthumb {
+    position:absolute; left:0; right:0; top:0; min-height:26px;
+    background:var(--accent); border-radius:5px;
+    border:1px solid rgba(0,0,0,0.3);
+  }
+  .info-list li {
+    padding:1px 0 1px 11px;
+    margin-bottom:0;
+    background:transparent;
+    border:none;
+    border-radius:0;
+    font-size:10.5px;
+    line-height:1.32;
+    color:var(--ink);
+    position:relative;
+  }
+  .info-list li::before {
+    content:'•';
+    position:absolute;
+    left:2px; top:1px;
+    color:var(--accent);
+    font-weight:700;
+    font-size:11px;
+  }
+  .info-list li b {
+    color:var(--accent-glow);
+    font-weight:700;
+  }
+  .info-list li.subhead {
+    background:transparent;
+    border-left:none;
+    color:var(--warning);
+    font-weight:700;
+    font-size:11.5px;
+    margin-top:5px;
+    margin-bottom:2px;
+    padding:0 0 1px 0;
+    font-style:normal;
+  }
+  .info-list li.subhead::before {
+    content:'';
+  }
+
+  .action-row {
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr;
+    gap:8px;
+  }
+  .action-btn {
+    display:flex; align-items:center; justify-content:center; gap:5px;
+    background:var(--panel-soft);
+    border:none;
+    border-radius:8px;
+    padding:6px 9px;
+    font-family:'Fredoka',sans-serif; font-weight:700;
+    font-size:10.5px;
+    color:#fff;
+    cursor:pointer;
+    transition:all 0.15s;
+  }
+  .action-btn:active { transform:scale(0.96); }
+  .action-btn .ico { font-size:12px; }
+
+  .action-btn.spin {
+    background:linear-gradient(135deg, var(--warning), #dba830);
+    color:#1a1410;
+  }
+  .action-btn.label {
+    background:linear-gradient(135deg, var(--cartilage), #7a5fb8);
+  }
+  .action-btn.anim {
+    background:linear-gradient(135deg, var(--muscle), #a04545);
+  }
+  .action-btn.active {
+    box-shadow:0 0 0 2px #fff, 0 0 12px rgba(255,255,255,0.4);
+  }
+
+  .slider-bar {
+    position:absolute;
+    top:62px;
+    left:14px;
+    background:var(--panel);
+    border:2px solid var(--joint);
+    border-radius:10px;
+    padding:8px 11px;
+    z-index:20;
+    display:none;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:6px;
+    box-shadow:0 4px 16px rgba(0,0,0,0.4);
+    max-width:230px;
+  }
+  .slider-bar.show { display:flex; }
+
+  .label3d {
+    color:#ffffff; font-size:11.5px;
+    padding:3px 8px;
+    background:rgba(10, 14, 26, 0.92);
+    border:1.5px solid var(--accent);
+    border-radius:6px;
+    pointer-events:none; white-space:nowrap;
+    font-family:'Fredoka', sans-serif; font-weight:500;
+    text-shadow:0 1px 2px rgba(0,0,0,0.85);
+    box-shadow:0 2px 8px rgba(0,0,0,0.5);
+  }
+  .label3d.xylem { border-color:var(--xylem); color:#ffd4b0; }
+  .label3d.phloem { border-color:var(--phloem); color:#b8e0ff; }
+  .label3d.chloro { border-color:var(--chloro); color:#b8ffc8; }
+  .label3d.epi { border-color:#a8d0b0; color:#dfe8e2; }
+  .label3d.endo { border-color:#e69138; color:#ffd4a0; }
+  .label3d.warn { border-color:#e74c3c; color:#ffb0a0; }
+
+  .share-overlay {
+    position:absolute; inset:0; z-index:60;
+    background:rgba(10,14,26,0.82); backdrop-filter:blur(4px);
+    display:none; align-items:center; justify-content:center; padding:20px;
+  }
+  .share-overlay.show { display:flex; }
+  .share-card {
+    background:var(--panel);
+    border:2px solid var(--accent);
+    border-radius:20px;
+    padding:18px;
+    width:min(360px, 92vw);
+    box-shadow:0 20px 60px rgba(0,0,0,0.6);
+  }
+  .share-head {
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:14px;
+  }
+  .share-head-text {
+    font-family:'Baloo 2', cursive; font-weight:800;
+    font-size:16px; color:var(--accent);
+  }
+  .share-close-btn {
+    width:30px; height:30px;
+    background:var(--panel-soft);
+    border:1.5px solid var(--panel-line);
+    border-radius:9px;
+    color:var(--ink);
+    cursor:pointer;
+    font-size:14px;
+  }
+  .share-actions {
+    display:flex; flex-direction:column; gap:9px;
+  }
+  .share-action-btn {
+    display:flex; align-items:center; gap:12px;
+    background:var(--panel-soft);
+    border:1.5px solid var(--panel-line);
+    border-radius:13px;
+    padding:11px 14px;
+    cursor:pointer;
+    text-align:left;
+    color:var(--ink);
+    font-family:'Fredoka', sans-serif;
+    transition:all 0.15s;
+  }
+  .share-action-btn:hover {
+    border-color:var(--accent);
+    background:var(--panel-line);
+  }
+  .share-action-btn .sa-ico {
+    font-size:22px; flex-shrink:0;
+  }
+  .share-action-btn .sa-text b {
+    display:block; font-weight:700; font-size:13px;
+  }
+  .share-action-btn .sa-text small {
+    font-size:11px; opacity:0.7;
+  }
+  .share-action-btn.primary {
+    background:linear-gradient(135deg, #25d366, #1da851);
+    border-color:#25d366;
+    color:#fff;
+  }
+
+  .cmp-card {
+    width:min(540px, 92vw) !important;
+    max-height:85vh; overflow-y:auto;
+  }
+  .cmp-body {
+    overflow-x:auto;
+    padding:4px 0 8px;
+  }
+  .cmp-table {
+    width:100%;
+    border-collapse:collapse;
+    font-size:12.5px;
+    border-radius:8px;
+    overflow:hidden;
+  }
+  .cmp-table th, .cmp-table td {
+    padding:9px 11px;
+    text-align:left;
+    border-bottom:1px solid var(--panel-line);
+  }
+  .cmp-table th {
+    background:linear-gradient(135deg, var(--accent) 0%, var(--accent-glow) 100%);
+    color:#0a1420;
+    font-family:'Baloo 2', cursive;
+    font-weight:800;
+    font-size:12px;
+    position:sticky; top:0;
+    text-shadow:0 1px 0 rgba(255,255,255,0.2);
+  }
+  .cmp-table th:first-child { border-radius:7px 0 0 0; }
+  .cmp-table th:last-child { border-radius:0 7px 0 0; }
+  .cmp-table tbody tr:nth-child(odd) td { background:rgba(246,185,59,0.04); }
+  .cmp-table tbody tr:nth-child(even) td { background:rgba(246,185,59,0.10); }
+  .cmp-table td { color:var(--ink); line-height:1.4; }
+  .cmp-table td:first-child {
+    font-weight:700;
+    color:var(--warning);
+    white-space:nowrap;
+    border-right:2px solid var(--accent);
+  }
+  .cmp-table.compare-style td:nth-child(2) { color:#ffd166; font-weight:600; }
+  .cmp-table.compare-style td:nth-child(3) { color:#7adcf0; font-weight:600; }
+  .cmp-table.compare-style td:nth-child(4) { color:#9d7fe6; font-weight:600; }
+  .cmp-table th:nth-child(2),
+  .cmp-table th:nth-child(3),
+  .cmp-table th:nth-child(4) { border-left:1px dashed rgba(255,255,255,0.3); }
+  .cmp-table tr:hover td { background:rgba(246,185,59,0.20) !important; }
+  .cmp-no-data {
+    text-align:center;
+    padding:24px 12px;
+    color:var(--ink-soft);
+    font-style:italic;
+    font-size:13px;
+  }
+
+  .cmp-nav {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:8px 4px 0;
+    margin-top:8px;
+    border-top:1px solid var(--panel-line);
+  }
+  .cmp-nav.hidden { display:none; }
+  .cmp-nav-btn {
+    background:var(--panel-soft);
+    border:1.5px solid var(--accent);
+    color:var(--accent);
+    border-radius:8px;
+    padding:6px 12px;
+    font-family:'Fredoka',sans-serif;
+    font-weight:600;
+    font-size:12px;
+    cursor:pointer;
+    transition:all 0.12s;
+    display:flex; align-items:center; gap:5px;
+  }
+  .cmp-nav-btn:hover { background:var(--accent); color:#0a1420; }
+  .cmp-nav-btn:active { transform:scale(0.96); }
+  .cmp-nav-btn:disabled {
+    opacity:0.35;
+    cursor:not-allowed;
+    background:var(--panel-soft);
+    color:var(--ink-soft);
+    border-color:var(--panel-line);
+  }
+  .cmp-nav-counter {
+    font-family:'Baloo 2', cursive;
+    font-weight:700;
+    font-size:12px;
+    color:var(--accent-glow);
+    background:var(--panel-soft);
+    padding:4px 10px;
+    border-radius:8px;
+    border:1px solid var(--panel-line);
+  }
+
+  ::-webkit-scrollbar { width:6px; height:6px; }
+  ::-webkit-scrollbar-thumb { background:var(--panel-line); border-radius:3px; }
+  ::-webkit-scrollbar-track { background:rgba(0,0,0,0.15); }
+
+  #loading {
+    position:fixed; inset:0; background:var(--bg);
+    display:flex; align-items:center; justify-content:center;
+    z-index:200; color:var(--accent-glow); font-size:18px;
+    font-family:'Baloo 2', sans-serif; font-weight:700;
+    transition:opacity 0.5s;
+  }
+  #loading.hide { opacity:0; pointer-events:none; }
+
+  #errorBox {
+    display:none; position:fixed; top:80px; left:50%;
+    transform:translateX(-50%);
+    background:rgba(180,30,30,0.95); color:white;
+    padding:20px; border-radius:8px; z-index:9999;
+    max-width:80%; font-family:monospace; font-size:13px;
+    white-space:pre-wrap;
+    box-shadow:0 4px 20px rgba(0,0,0,0.8);
+    border:2px solid #ff6060;
+  }
+
+  @media (max-width:600px) {
+    .stack-btn { min-width:140px; font-size:11px; padding:7px 11px; }
+    .stack-btn .sb-label { font-size:11px; }
+    .right-tools { gap:5px; left:8px; }
+    .tool-icon-btn { width:34px; height:34px; font-size:14px; border-radius:9px; }
+    .bottom-panel { padding:11px 12px 9px; gap:9px; }
+    .info-emoji-box { width:36px; height:36px; font-size:20px; }
+    .info-title { font-size:13px; }
+    .info-list li { font-size:11.5px; padding:4px 7px; }
+    .info-list { max-height:26vh; }
+    .action-btn { font-size:11px; padding:7px 8px; }
+    .dropdown-panel { min-width:200px; }
+    .dropdown-item { font-size:11.5px; padding:7px 9px; }
+    #panelMode { left:8px !important; }
+  }
+  @media (max-width:420px) {
+    .stack-btn { min-width:130px; font-size:10.5px; padding:6px 9px; }
+    .right-tools { gap:4px; left:6px; }
+    .tool-icon-btn { width:30px; height:30px; font-size:13px; border-radius:8px; border-width:1.5px; }
+    #panelMode { left:6px !important; }
+  }
+  @media (max-width:360px) {
+    .stack-btn { min-width:115px; font-size:10px; padding:5px 8px; }
+    .right-tools { gap:3px; left:5px; }
+    .tool-icon-btn { width:28px; height:28px; font-size:12px; }
+    #panelMode { left:5px !important; }
+  }
+
+  .region-list {
+    display: none !important;
+  }
+
+  .scene-panel {
+    position: fixed;
+    right: 12px;
+    top: 120px;
+    width: 280px;
+    max-height: calc(100vh - 120px - 220px);
+    overflow-y: auto;
+    background: rgba(15, 20, 30, 0.88);
+    border: 1px solid rgba(246, 185, 59, 0.35);
+    border-radius: 14px;
+    padding: 10px;
+    z-index: 40;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    font-size: 11.5px;
+    color: rgba(255, 255, 255, 0.92);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: all 0.3s ease;
+  }
+  .scene-panel.collapsed {
+    width: auto;
+    padding: 6px 10px;
+  }
+  .scene-panel.collapsed > *:not(.sp-toggle) { display: none; }
+  .scene-panel.empty { display: none; }
+
+  body.dropdown-open .scene-panel {
+    transform: none;
+  }
+
+  @media (min-width: 768px) {
+    canvas {
+      transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    body.scene-panel-open canvas {
+      transform: translateX(-15vw);
+    }
+    body.panel-open canvas {
+      transform: translateX(-22vw);
+    }
+  }
+
+  .sp-stepper {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 6px;
+    padding: 2px 3px;
+  }
+  .sp-step-btn {
+    width: 22px;
+    height: 22px;
+    background: rgba(246, 185, 59, 0.3);
+    border: 1px solid rgba(246, 185, 59, 0.6);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    transition: all 0.15s;
+    padding: 0;
+  }
+  .sp-step-btn:hover {
+    background: rgba(246, 185, 59, 0.55);
+    transform: scale(1.1);
+  }
+  .sp-step-btn:active { transform: scale(0.92); }
+  .sp-slider-row .sp-stepper .sp-val {
+    min-width: 40px;
+    background: transparent;
+    padding: 0 4px;
+    font-size: 11px;
+  }
+  .sp-toggle {
+    background: rgba(246, 185, 59, 0.18);
+    border: 1px solid rgba(246, 185, 59, 0.5);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+  }
+  .sp-toggle:hover { background: rgba(246, 185, 59, 0.32); }
+  .sp-section {
+    font-size: 10px; font-weight: 700;
+    color: rgba(255, 209, 90, 0.85);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin: 6px 4px 2px 4px;
+  }
+
+  .sp-slider-row {
+    display: flex; flex-direction: column; gap: 4px;
+    padding: 8px 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+  }
+  .sp-slider-row .sp-slider-head {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11.5px; font-weight: 500;
+  }
+  .sp-slider-row .sp-slider-head .sp-val {
+    font-family: 'Consolas', monospace;
+    font-size: 12px; font-weight: 700;
+    color: #FFD54F;
+    background: rgba(0,0,0,0.45);
+    padding: 2px 8px;
+    border-radius: 6px;
+    min-width: 50px; text-align: center;
+  }
+  .sp-slider-row .sp-sub {
+    font-size: 9.5px;
+    color: rgba(255, 255, 255, 0.5);
+    margin-top: -2px;
+    line-height: 1.2;
+  }
+  .sp-slider-row input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 6px;
+    background: linear-gradient(to right, #42A5F5, #FFCA28, #EF5350);
+    border-radius: 3px;
+    outline: none;
+    margin: 6px 0 2px 0;
+  }
+  .sp-slider-row input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    background: #fff;
+    border: 2px solid #f6b93b;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    transition: transform 0.1s;
+  }
+  .sp-slider-row input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+  .sp-slider-row input[type=range]::-moz-range-thumb {
+    width: 18px; height: 18px;
+    background: #fff;
+    border: 2px solid #f6b93b;
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  .sp-display {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 7px 10px;
+    background: rgba(246, 185, 59, 0.10);
+    border: 1px solid rgba(246, 185, 59, 0.28);
+    border-radius: 9px;
+    font-size: 11px;
+  }
+  .sp-display .sp-label { color: rgba(255,255,255,0.85); }
+  .sp-display .sp-val {
+    font-family: 'Consolas', monospace;
+    font-size: 12px; font-weight: 700; color: #FFE082;
+    background: rgba(0,0,0,0.35); padding: 2px 8px; border-radius: 6px;
+  }
+  .sp-display.highlight {
+    background: rgba(255, 175, 50, 0.15);
+    border-color: rgba(255, 175, 50, 0.5);
+  }
+  .sp-display.highlight .sp-val { color: #FFC107; }
+
+  .sp-presets {
+    display: flex; gap: 4px; flex-wrap: wrap;
+  }
+  .sp-preset-btn {
+    flex: 1; min-width: 50px;
+    padding: 6px 6px; font-size: 10.5px; font-weight: 500;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.18);
+    color: rgba(255,255,255,0.8);
+    border-radius: 6px; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .sp-preset-btn:hover { background: rgba(246,185,59,0.25); color: #fff; }
+  .sp-preset-btn.active {
+    background: rgba(246,185,59,0.5);
+    border-color: rgba(246,185,59,0.8);
+    color: #fff; font-weight: 600;
+  }
+
+  .sp-formula {
+    padding: 8px 10px;
+    background: rgba(255, 200, 50, 0.10);
+    border: 1px solid rgba(255, 200, 50, 0.35);
+    border-radius: 9px;
+    text-align: center;
+    font-family: 'Consolas', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: #FFE082;
+  }
+
+  @media (max-width: 768px) {
+    .scene-panel {
+      right: 8px;
+      top: 110px;
+      width: 200px;
+      font-size: 10.5px;
+      padding: 8px;
+    }
+    .sp-slider-row { padding: 6px 8px; }
+    .sp-slider-row input[type=range] { height: 5px; }
+  }
+
+  body.panel-open .scene-panel { }
+</style>
+</head>
+
+<body>
+
+<div id="loading">🌊 Dalgalar yükleniyor...</div>
+
+<div id="touchHintOverlay" style="
+  position:fixed; bottom:128px; left:50%; transform:translateX(-50%) translateY(20px);
+  background:rgba(15,25,40,0.96); color:#fff; padding:14px 18px;
+  border-radius:18px; z-index:95; pointer-events:auto;
+  border:1.5px solid rgba(246, 185, 59, 0.55);
+  box-shadow:0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05);
+  opacity:0; transition:all 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  font-size:12.5px; max-width:340px; line-height:1.5;
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+">
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; padding-bottom:7px; border-bottom:1px solid rgba(255,255,255,0.1);">
+    <span style="font-weight:600; font-size:13px; color:#f6b93b;">🤏 Dokunma Hareketleri</span>
+    <button id="touchHintClose" style="background:none; border:none; color:rgba(255,255,255,0.6); font-size:18px; cursor:pointer; padding:0 4px; line-height:1;">×</button>
+  </div>
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px 12px;">
+    <div style="display:flex; align-items:center; gap:8px;"><span style="font-size:16px;">👆</span><span style="opacity:0.92;">Sürükle → döndür</span></div>
+    <div style="display:flex; align-items:center; gap:8px;"><span style="font-size:16px;">✌️</span><span style="opacity:0.92;">Pinch → zoom</span></div>
+    <div style="display:flex; align-items:center; gap:8px;"><span style="font-size:16px;">🖐️</span><span style="opacity:0.92;">3 parmak → reset</span></div>
+    <div style="display:flex; align-items:center; gap:8px;"><span style="font-size:16px;">⏱️</span><span style="opacity:0.92;">Basılı tut → bilgi</span></div>
+  </div>
+</div>
+
+<div id="resetPulse" style="
+  position:fixed; top:50%; left:50%; transform:translate(-50%, -50%) scale(0);
+  width:100px; height:100px; border-radius:50%;
+  background:radial-gradient(circle, rgba(246,185,59,0.5) 0%, rgba(246,185,59,0) 70%);
+  pointer-events:none; z-index:200; opacity:0;
+  transition:transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease;
+">
+  <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:42px;">🔄</div>
+</div>
+
+<div id="regionList" class="region-list"></div>
+<div id="scenePanel" class="scene-panel"></div>
+
+<div id="gestureToast" style="
+  position:fixed; top:90px; left:50%; transform:translateX(-50%) translateY(-20px);
+  background:rgba(15,25,40,0.95); color:#fff; padding:10px 18px;
+  border-radius:22px; z-index:180; pointer-events:none;
+  border:1.5px solid rgba(246, 185, 59, 0.7);
+  box-shadow:0 4px 22px rgba(0,0,0,0.5);
+  font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+  font-size:12.5px; font-weight:500;
+  opacity:0; transition:all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space:nowrap;
+"></div>
+
+<div class="left-stack">
+  <button class="stack-btn level" id="btnLevel">
+    <span class="sb-emoji">🎓</span>
+    <span class="sb-label" id="levelLabel">Lise</span>
+    <span class="sb-arrow">▼</span>
+  </button>
+  <button class="stack-btn topic" id="btnTopic">
+    <span class="sb-emoji">📚</span>
+    <span class="sb-label">Konu Rehberi</span>
+    <span class="sb-arrow">▼</span>
+  </button>
+</div>
+
+<div class="dropdown-panel" id="panelLevel" style="top:60px; right:14px;">
+  <div class="dropdown-title">🎓 Eğitim Seviyesi</div>
+  <button class="dropdown-item" data-level="ilkokul"><span class="di-emoji">🧒</span>İlkokul</button>
+  <button class="dropdown-item" data-level="ortaokul"><span class="di-emoji">🎒</span>Ortaokul</button>
+  <button class="dropdown-item active" data-level="lise"><span class="di-emoji">📘</span>Lise</button>
+  <button class="dropdown-item" data-level="tyt_ayt"><span class="di-emoji">🎯</span>TYT-AYT</button>
+</div>
+
+<div class="dropdown-panel" id="panelTopic" style="top:106px; right:14px;">
+  <div class="dropdown-title">📚 Konu Rehberi</div>
+  <div id="topicList"></div>
+</div>
+
+<div class="right-tools">
+  <button class="tool-icon-btn mode active" id="btnMode" title="Görünüm Modu: Sade">📄</button>
+  <button class="tool-icon-btn compare" id="btnCompare" title="Karşılaştırma">⚖️</button>
+  <button class="tool-icon-btn table" id="btnTable" title="Bilgi Tablosu">📋</button>
+  <button class="tool-icon-btn theme" id="btnTheme" title="Tema değiştir">🌙</button>
+  <button class="tool-icon-btn send" id="btnSend" title="Gönder/Paylaş">📤</button>
+  <button class="tool-icon-btn fs" id="btnFs" title="Tam ekran">⛶</button>
+</div>
+
+<div class="dropdown-panel" id="panelMode" style="top:60px; left:14px;">
+  <div class="dropdown-title">📚 Görünüm Modu</div>
+  <button class="dropdown-item" data-mode="detayli"><span class="di-emoji">📚</span><span><b>Detaylı</b><br><small style="opacity:0.7;font-size:10.5px;">Daha çok bilgi</small></span></button>
+  <button class="dropdown-item active" data-mode="sade"><span class="di-emoji">📄</span><span><b>Sade</b><br><small style="opacity:0.7;font-size:10.5px;">Sadece temel bilgiler</small></span></button>
+</div>
+
+<div class="bottom-panel" id="bottomPanel">
+  <button class="info-close-btn" id="infoCloseBtn" title="Bilgi panelini kapat">✕</button>
+  <div class="info-area">
+    <div class="info-emoji-box" id="infoEmoji" style="display:none;">🌊</div>
+    <div class="info-text-area">
+      <div class="info-title-row">
+        <div class="info-title" id="infoTitle">Temel Kavramlar / Dalga Nedir</div>
+        <div class="nav-buttons">
+          <button class="nav-mini-btn" id="navPrev" title="Önceki">◀</button>
+          <button class="nav-mini-btn" id="navNext" title="Sonraki">▶</button>
+        </div>
+      </div>
+      <div class="info-scroll-wrap">
+        <ul class="info-list" id="infoList"></ul>
+        <div class="info-scrollbar" id="infoScrollbar"><div class="info-scrollthumb" id="infoScrollThumb"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="action-row">
+    <button class="action-btn spin" id="spinBtn">
+      <span class="ico">🔄</span>
+      <span>Döndür</span>
+    </button>
+    <button class="action-btn label" id="labelBtn">
+      <span class="ico">🏷️</span>
+      <span>Etiketler</span>
+    </button>
+    <button class="action-btn anim" id="animBtn">
+      <span class="ico">▶️</span>
+      <span>Çalıştır</span>
+    </button>
+  </div>
+</div>
+
+<div id="bottomControl" class="slider-bar">
+  <label>💡 Kontrol:</label>
+  <input type="range" id="turgorSlider" min="0" max="100" value="80">
+  <span id="turgorValue">80%</span>
+  <span id="stomaDurum">AÇIK</span>
+</div>
+
+<div class="share-overlay" id="shareOverlay">
+  <div class="share-card">
+    <div class="share-head">
+      <div class="share-head-text">📤 Paylaş</div>
+      <button class="share-close-btn" id="shareClose">✕</button>
+    </div>
+    <div class="share-actions">
+      <button class="share-action-btn primary" id="shareWhatsApp">
+        <span class="sa-ico">💬</span>
+        <span class="sa-text">
+          <b>WhatsApp ile gönder</b>
+          <small>Arkadaşlarınıza paylaşın</small>
+        </span>
+      </button>
+      <button class="share-action-btn" id="shareCopy">
+        <span class="sa-ico">📋</span>
+        <span class="sa-text">
+          <b>Bağlantıyı kopyala</b>
+          <small>Panoya kopyala</small>
+        </span>
+      </button>
+      <button class="share-action-btn" id="shareDownload">
+        <span class="sa-ico">💾</span>
+        <span class="sa-text">
+          <b>Ekran görüntüsü kaydet</b>
+          <small>Cihaza indir</small>
+        </span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="share-overlay" id="compareOverlay">
+  <div class="share-card cmp-card">
+    <div class="share-head">
+      <div class="share-head-text"><span id="compareTitle">⚖️ Karşılaştırma</span></div>
+      <button class="share-close-btn" id="compareClose">✕</button>
+    </div>
+    <div class="cmp-body" id="compareBody"></div>
+    <div class="cmp-nav hidden" id="compareNav">
+      <button class="cmp-nav-btn" id="comparePrev">◀ Önceki</button>
+      <span class="cmp-nav-counter" id="compareCounter">1 / 1</span>
+      <button class="cmp-nav-btn" id="compareNext">Sonraki ▶</button>
+    </div>
+  </div>
+</div>
+
+<div class="share-overlay" id="tableOverlay">
+  <div class="share-card cmp-card">
+    <div class="share-head">
+      <div class="share-head-text" style="color:var(--bone);"><span id="tableTitle">📋 Bilgi Tablosu</span></div>
+      <button class="share-close-btn" id="tableClose">✕</button>
+    </div>
+    <div class="cmp-body" id="tableBody"></div>
+    <div class="cmp-nav hidden" id="tableNav">
+      <button class="cmp-nav-btn" id="tablePrev">◀ Önceki</button>
+      <span class="cmp-nav-counter" id="tableCounter">1 / 1</span>
+      <button class="cmp-nav-btn" id="tableNext">Sonraki ▶</button>
+    </div>
+  </div>
+</div>
+
+<div id="canvasContainer">
+  <svg id="leaderLines" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:9;"></svg>
+</div>
+
+<div id="errorBox"></div>
+
+<script>
+window.addEventListener('error', function(e) {
+  const box = document.getElementById('errorBox');
+  if (!box) return;
+  box.style.display = 'block';
+  box.textContent = '❌ HATA: ' + e.message + '\n\n📍 ' + (e.filename || 'inline') + ':' + e.lineno + ':' + e.colno;
+});
+window.addEventListener('unhandledrejection', function(e) {
+  const box = document.getElementById('errorBox');
+  if (!box) return;
+  box.style.display = 'block';
+  box.textContent = '❌ PROMISE HATASI: ' + (e.reason && e.reason.message ? e.reason.message : e.reason);
+});
+
+window.__moduleLoaded = false;
+setTimeout(function() {
+  if (!window.__moduleLoaded) {
+    const loading = document.getElementById('loading');
+    if (loading) {
+      loading.innerHTML = '<div style="text-align:center; padding:20px;">'+
+        '<h2 style="color:#ff6060;">⚠️ Three.js Yüklenemiyor</h2>'+
+        '<p style="color:#ffdd88;">three.module.min.js erişilemiyor</p>'+
+        '</div>';
+      loading.style.background = '#1a0a0a';
+    }
+  }
+}, 8000);
+</script>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./three.module.min.js"
+  }
+}
+</script>
+
+<script src="./three.global.js"></script>
+<script type="module">
+const THREE = window.THREE;
+
+window.__moduleLoaded = true;
+console.log('✓ Three.js yüklendi:', THREE.REVISION);
+
+window.addEventListener('error', (e) => {
+  const msg = `❌ HATA\n${e.message}\nDosya: ${e.filename || '?'}\nSatır: ${e.lineno || '?'}:${e.colno || '?'}\nStack: ${(e.error && e.error.stack) ? e.error.stack.slice(0, 600) : 'yok'}`;
+  console.error(msg);
+  const ld = document.getElementById('loading');
+  if (ld) {
+    ld.style.display = 'block';
+    ld.style.whiteSpace = 'pre-wrap';
+    ld.style.fontSize = '11px';
+    ld.style.textAlign = 'left';
+    ld.style.maxWidth = '90vw';
+    ld.style.background = 'rgba(120,0,0,0.95)';
+    ld.style.color = '#fff';
+    ld.style.padding = '12px';
+    ld.style.fontFamily = 'monospace';
+    ld.textContent = msg;
+  }
+});
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('❌ Promise hatası:', e.reason);
+});
+
+// ============== INLINE: CSS2DObject + CSS2DRenderer ==============
+class CSS2DObject extends THREE.Object3D {
+  constructor(element) {
+    super();
+    this.isCSS2DObject = true;
+    this.element = element || document.createElement('div');
+    this.element.style.position = 'absolute';
+    this.element.style.userSelect = 'none';
+    this.addEventListener('removed', () => {
+      this.traverse(obj => {
+        if (obj.element instanceof Element && obj.element.parentNode) {
+          obj.element.parentNode.removeChild(obj.element);
+        }
+      });
+    });
+  }
+}
+
+class CSS2DRenderer {
+  constructor() {
+    this.domElement = document.createElement('div');
+    this.domElement.style.position = 'absolute';
+    this.domElement.style.top = '0';
+    this.domElement.style.left = '0';
+    this.domElement.style.pointerEvents = 'none';
+    this.domElement.style.width = '100%';
+    this.domElement.style.height = '100%';
+    this._w = window.innerWidth;
+    this._h = window.innerHeight;
+    this._vec = new THREE.Vector3();
+  }
+  setSize(w, h) { this._w = w; this._h = h; }
+  render(scene, camera) {
+    const vec = this._vec;
+    const renderer = this;
+    scene.traverse(obj => {
+      if (obj.isCSS2DObject) {
+        obj.getWorldPosition(vec);
+        vec.project(camera);
+        const el = obj.element;
+        if (vec.z > 1 || vec.z < -1) {
+          el.style.display = 'none';
+          return;
+        }
+        if (!el.parentNode) renderer.domElement.appendChild(el);
+        const x = (vec.x + 1) / 2 * renderer._w;
+        const y = (1 - vec.y) / 2 * renderer._h;
+        if (el.dataset.userHidden !== '1' && el.dataset.labelHidden !== '1') el.style.display = 'block';
+        el.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px)`;
+      }
+    });
+  }
+}
+
+// ============== INLINE: OrbitControls (Minimal) ==============
+class OrbitControls extends THREE.EventDispatcher {
+  constructor(camera, domElement) {
+    super();
+    this.object = camera;
+    this.domElement = domElement;
+    this.target = new THREE.Vector3(0, 0, 0);
+    this.enableDamping = true;
+    this.dampingFactor = 0.08;
+    this.minDistance = 1;
+    this.maxDistance = 100;
+    this.enabled = true;
+
+    this._spherical = { theta: 0, phi: Math.PI/3, radius: 20 };
+    this._sphericalDelta = { theta: 0, phi: 0, radius: 1 };
+    this._sphericalTarget = { theta: 0, phi: Math.PI/3, radius: 20 };
+    this._lastCamPos = camera.position.clone();
+    this._lastTarget = this.target.clone();
+
+    this._state = 'NONE';
+    this._lastX = 0;
+    this._lastY = 0;
+    this._panOffset = new THREE.Vector3();
+
+    const dom = domElement;
+
+    const onMouseDown = (e) => {
+      if (!this.enabled) return;
+      this._state = (e.button === 2 || e.shiftKey) ? 'PAN' : 'ROTATE';
+      this._lastX = e.clientX;
+      this._lastY = e.clientY;
+    };
+    const onMouseMove = (e) => {
+      if (this._state === 'NONE' || !this.enabled) return;
+      const dx = e.clientX - this._lastX;
+      const dy = e.clientY - this._lastY;
+      this._lastX = e.clientX;
+      this._lastY = e.clientY;
+      if (this._state === 'ROTATE') {
+        this._sphericalTarget.theta -= dx * 0.005;
+        this._sphericalTarget.phi -= dy * 0.005;
+        this._sphericalTarget.phi = Math.max(0.05, Math.min(Math.PI - 0.05, this._sphericalTarget.phi));
+      } else if (this._state === 'PAN') {
+        const right = new THREE.Vector3();
+        const up = new THREE.Vector3();
+        this.object.matrix.extractBasis(right, up, new THREE.Vector3());
+        const panFactor = this._sphericalTarget.radius * 0.002;
+        this.target.addScaledVector(right, -dx * panFactor);
+        this.target.addScaledVector(up, dy * panFactor);
+      }
+    };
+    const onMouseUp = () => { this._state = 'NONE'; };
+
+    dom.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+
+    this._zoomToScreenPoint = (screenX, screenY, factor) => {
+      const rect = dom.getBoundingClientRect();
+      const ndcX = ((screenX - rect.left) / rect.width) * 2 - 1;
+      const ndcY = -((screenY - rect.top) / rect.height) * 2 + 1;
+      const ndc = new THREE.Vector3(ndcX, ndcY, 0.5);
+      ndc.unproject(this.object);
+      const dir = ndc.sub(this.object.position).normalize();
+      const t = (this.target.y - this.object.position.y) / dir.y;
+      if (t > 0 && isFinite(t)) {
+        const hit = new THREE.Vector3(
+          this.object.position.x + dir.x * t,
+          this.target.y,
+          this.object.position.z + dir.z * t
+        );
+        this.target.lerp(hit, 0.65);
+      }
+      this._sphericalTarget.radius = Math.max(this.minDistance,
+        Math.min(this.maxDistance, this._sphericalTarget.radius * factor));
+    };
+
+    let touchStart = null;
+    let pinchStartDist = 0;
+    let pinchStartRadius = 0;
+    let pinchCenter = { x: 0, y: 0 };
+    let lastTapTime = 0;
+    let lastTapX = 0, lastTapY = 0;
+    let touchStartTime = 0;
+    let longPressTimer = null;
+    let touchMoved = false;
+
+    this._initialCameraState = {
+      position: this.object.position.clone(),
+      target: this.target.clone(),
+      radius: this._sphericalTarget.radius
+    };
+    this.captureInitialState = () => {
+      this._initialCameraState = {
+        position: this.object.position.clone(),
+        target: this.target.clone(),
+        radius: this._sphericalTarget.radius,
+        theta: this._sphericalTarget.theta,
+        phi: this._sphericalTarget.phi
+      };
+    };
+    this.resetView = () => {
+      const init = this._initialCameraState;
+      if (!init) return;
+      this._sphericalTarget.radius = init.radius;
+      if (init.theta !== undefined) this._sphericalTarget.theta = init.theta;
+      if (init.phi !== undefined) this._sphericalTarget.phi = init.phi;
+      this.target.copy(init.target);
+      if (window._showResetPulse) window._showResetPulse();
+      if (window._showGestureToast) window._showGestureToast('🔄 Görünüm sıfırlandı');
+      if (window._haptic) window._haptic(35);
+    };
+
+    dom.addEventListener('touchstart', (e) => {
+      if (!this.enabled) return;
+      touchMoved = false;
+      touchStartTime = Date.now();
+      if (e.touches.length === 3) {
+        e.preventDefault && e.preventDefault();
+        this._state = 'RESET';
+        this.resetView();
+        return;
+      }
+      if (e.touches.length === 1) {
+        const now = Date.now();
+        const tx = e.touches[0].clientX;
+        const ty = e.touches[0].clientY;
+        if (now - lastTapTime < 300 && Math.hypot(tx - lastTapX, ty - lastTapY) < 60) {
+          this._zoomToScreenPoint(tx, ty, 0.6);
+          lastTapTime = 0;
+          this._state = 'NONE';
+          if (window._haptic) window._haptic(15);
+          if (window._showGestureToast) window._showGestureToast('🔍 Yakınlaştı');
+          return;
+        }
+        lastTapTime = now;
+        lastTapX = tx; lastTapY = ty;
+        this._state = 'ROTATE';
+        this._lastX = tx;
+        this._lastY = ty;
+        longPressTimer = setTimeout(() => {
+          if (!touchMoved) {
+            const bp = document.getElementById('bottomPanel');
+            if (bp) {
+              bp.classList.toggle('open');
+              if (window._haptic) window._haptic(25);
+              if (window._showGestureToast) {
+                window._showGestureToast(bp.classList.contains('open') ? '📖 Bilgi açıldı' : '📕 Bilgi kapandı');
+              }
+            }
+            this._state = 'NONE';
+          }
+        }, 600);
+      } else if (e.touches.length === 2) {
+        if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+        this._state = 'PINCH';
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        pinchStartDist = Math.hypot(dx, dy);
+        pinchStartRadius = this._sphericalTarget.radius;
+        pinchCenter.x = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        pinchCenter.y = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      }
+    }, { passive: true });
+
+    dom.addEventListener('touchmove', (e) => {
+      if (!this.enabled || this._state === 'NONE') return;
+      e.preventDefault();
+      if (longPressTimer) {
+        const t = e.touches[0];
+        const dxMove = Math.hypot(t.clientX - lastTapX, t.clientY - lastTapY);
+        if (dxMove > 8) {
+          touchMoved = true;
+          clearTimeout(longPressTimer);
+          longPressTimer = null;
+        }
+      }
+      if (this._state === 'ROTATE' && e.touches.length === 1) {
+        const dx = e.touches[0].clientX - this._lastX;
+        const dy = e.touches[0].clientY - this._lastY;
+        this._lastX = e.touches[0].clientX;
+        this._lastY = e.touches[0].clientY;
+        this._sphericalTarget.theta -= dx * 0.005;
+        this._sphericalTarget.phi -= dy * 0.005;
+        this._sphericalTarget.phi = Math.max(0.05, Math.min(Math.PI - 0.05, this._sphericalTarget.phi));
+      } else if (this._state === 'PINCH' && e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.hypot(dx, dy);
+        const newCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const newCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        this._sphericalTarget.radius = Math.max(this.minDistance, Math.min(this.maxDistance, pinchStartRadius * (pinchStartDist / dist)));
+        const panDx = newCenterX - pinchCenter.x;
+        const panDy = newCenterY - pinchCenter.y;
+        pinchCenter.x = newCenterX;
+        pinchCenter.y = newCenterY;
+        const right = new THREE.Vector3();
+        const up = new THREE.Vector3();
+        this.object.matrix.extractBasis(right, up, new THREE.Vector3());
+        const panFactor = this._sphericalTarget.radius * 0.0045;
+        this.target.addScaledVector(right, -panDx * panFactor);
+        this.target.addScaledVector(up, panDy * panFactor);
+      }
+    }, { passive: false });
+
+    dom.addEventListener('touchend', (e) => {
+      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+      if (this._state === 'PINCH' && e.touches.length === 1) {
+        this._state = 'ROTATE';
+        this._lastX = e.touches[0].clientX;
+        this._lastY = e.touches[0].clientY;
+        return;
+      }
+      this._state = 'NONE';
+    });
+    dom.addEventListener('touchcancel', () => {
+      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+      this._state = 'NONE';
+    });
+
+    dom.addEventListener('wheel', (e) => {
+      if (!this.enabled) return;
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 1.1 : 0.9;
+      this._sphericalTarget.radius = Math.max(this.minDistance,
+        Math.min(this.maxDistance, this._sphericalTarget.radius * factor));
+    }, { passive: false });
+
+    dom.addEventListener('dblclick', (e) => {
+      if (!this.enabled) return;
+      this._zoomToScreenPoint(e.clientX, e.clientY, 0.55);
+    });
+
+    dom.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    this._syncFromCamera();
+  }
+
+  _syncFromCamera() {
+    const dx = this.object.position.x - this.target.x;
+    const dy = this.object.position.y - this.target.y;
+    const dz = this.object.position.z - this.target.z;
+    const r = Math.sqrt(dx*dx + dy*dy + dz*dz) || 1;
+    this._spherical.radius = this._sphericalTarget.radius = r;
+    this._spherical.theta = this._sphericalTarget.theta = Math.atan2(dx, dz);
+    this._spherical.phi = this._sphericalTarget.phi = Math.acos(Math.max(-1, Math.min(1, dy / r)));
+    this._lastCamPos.copy(this.object.position);
+    this._lastTarget.copy(this.target);
+  }
+
+  update() {
+    if (!this._lastCamPos.equals(this.object.position) || !this._lastTarget.equals(this.target)) {
+      this._syncFromCamera();
+    }
+    if (this.enableDamping) {
+      this._spherical.theta += (this._sphericalTarget.theta - this._spherical.theta) * this.dampingFactor;
+      this._spherical.phi += (this._sphericalTarget.phi - this._spherical.phi) * this.dampingFactor;
+      this._spherical.radius += (this._sphericalTarget.radius - this._spherical.radius) * this.dampingFactor;
+    } else {
+      this._spherical.theta = this._sphericalTarget.theta;
+      this._spherical.phi = this._sphericalTarget.phi;
+      this._spherical.radius = this._sphericalTarget.radius;
+    }
+    const s = this._spherical;
+    this.object.position.set(
+      this.target.x + s.radius * Math.sin(s.phi) * Math.sin(s.theta),
+      this.target.y + s.radius * Math.cos(s.phi),
+      this.target.z + s.radius * Math.sin(s.phi) * Math.cos(s.theta)
+    );
+    this.object.lookAt(this.target);
+    this._lastCamPos.copy(this.object.position);
+    this._lastTarget.copy(this.target);
+  }
+}
+
+// ============== GLOBAL STATE ==============
+let scene, camera, renderer, labelRenderer, controls;
+let dynamicObjects = [];
+let labelsVisible = true;
+let currentModule = 1, currentSub = '';
+
+const COLORS = {
+  light: 0xfff3b0,
+  lightCore: 0xffffff,
+  ray: 0xffe17a,
+  rayDim: 0xb8a050,
+  object: 0x3a4252,
+  objectEdge: 0x5a6478,
+  screen: 0x2a3142,
+  umbra: 0x1a1a2e,
+  penumbra: 0x6b6b8a,
+  lit: 0xfff0a0,
+  earth: 0x2e7dd6,
+  moon: 0xb0b0b8,
+  sun: 0xffcc33
+};
+
+// ============== INIT ==============
+function init() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x121726);
+  scene.fog = new THREE.Fog(0x121726, 35, 95);
+
+  const W = window.innerWidth, H = window.innerHeight;
+  camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 200);
+  camera.position.set(0.0, 5.0, 28.0);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(W, H);
+  window.scene = scene; window.camera = camera; window.renderer = renderer;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+  if (THREE.SRGBColorSpace !== undefined) {
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+  } else if (THREE.sRGBEncoding !== undefined) {
+    renderer.outputEncoding = THREE.sRGBEncoding;
+  }
+  document.getElementById('canvasContainer').appendChild(renderer.domElement);
+
+  labelRenderer = new CSS2DRenderer();
+  labelRenderer.setSize(W, H);
+  labelRenderer.domElement.style.position = 'absolute';
+  labelRenderer.domElement.style.top = '0';
+  labelRenderer.domElement.style.pointerEvents = 'none';
+  document.getElementById('canvasContainer').appendChild(labelRenderer.domElement);
+
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.minDistance = 1.2;
+  controls.maxDistance = 90;
+
+  const ambient = new THREE.AmbientLight(0xffffff, 0.48);
+  ambient.userData._isInitial = true;
+  scene.add(ambient);
+
+  const keyLight = new THREE.DirectionalLight(0xfff4e6, 0.6);
+  keyLight.position.set(8, 14, 10);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.width = 2048;
+  keyLight.shadow.mapSize.height = 2048;
+  keyLight.shadow.camera.near = 0.5;
+  keyLight.shadow.camera.far = 60;
+  keyLight.shadow.camera.left = -20;
+  keyLight.shadow.camera.right = 20;
+  keyLight.shadow.camera.top = 20;
+  keyLight.shadow.camera.bottom = -20;
+  keyLight.shadow.bias = -0.0005;
+  keyLight.shadow.radius = 4;
+  keyLight.userData._isInitial = true;
+  scene.add(keyLight);
+
+  const rimLight = new THREE.DirectionalLight(0x90b8ff, 0.35);
+  rimLight.position.set(-6, 4, -12);
+  rimLight.userData._isInitial = true;
+  scene.add(rimLight);
+
+  const hemi = new THREE.HemisphereLight(0x99bbff, 0x202028, 0.25);
+  hemi.userData._isInitial = true;
+  scene.add(hemi);
+
+  window.addEventListener('resize', onResize);
+  document.getElementById('loading').classList.add('hide');
+
+  (function() {
+    const bp = document.getElementById('bottomPanel');
+    if (!bp) return;
+    const observer = new MutationObserver(() => {
+      if (bp.classList.contains('open')) {
+        document.body.classList.add('panel-open');
+      } else {
+        document.body.classList.remove('panel-open');
+      }
+    });
+    observer.observe(bp, { attributes: true, attributeFilter: ['class'] });
+  })();
+
+  const hint = document.getElementById('touchHintOverlay');
+  const hintClose = document.getElementById('touchHintClose');
+  let hintShown = false;
+  try { hintShown = sessionStorage.getItem('qhintShown') === '1'; } catch(e){}
+  const isMobile = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+  if (isMobile && hint && !hintShown) {
+    setTimeout(() => {
+      hint.style.opacity = '1';
+      hint.style.transform = 'translateX(-50%) translateY(0)';
+    }, 800);
+    setTimeout(() => {
+      hint.style.opacity = '0';
+      hint.style.transform = 'translateX(-50%) translateY(20px)';
+      setTimeout(() => { hint.style.pointerEvents = 'none'; }, 400);
+    }, 8000);
+  }
+  if (hintClose && hint) {
+    hintClose.onclick = () => {
+      hint.style.opacity = '0';
+      hint.style.transform = 'translateX(-50%) translateY(20px)';
+      setTimeout(() => { hint.style.pointerEvents = 'none'; }, 400);
+      try { sessionStorage.setItem('qhintShown', '1'); } catch(e){}
+    };
+  }
+
+  window._showGestureToast = function(msg, duration = 1400) {
+    const toast = document.getElementById('gestureToast');
+    if (!toast) return;
+    toast.textContent = msg;
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+    clearTimeout(window._toastTimer);
+    window._toastTimer = setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(-50%) translateY(-20px)';
+    }, duration);
+  };
+
+  window._showResetPulse = function() {
+    const pulse = document.getElementById('resetPulse');
+    if (!pulse) return;
+    pulse.style.transform = 'translate(-50%, -50%) scale(1)';
+    pulse.style.opacity = '1';
+    setTimeout(() => {
+      pulse.style.opacity = '0';
+      setTimeout(() => { pulse.style.transform = 'translate(-50%, -50%) scale(0)'; }, 500);
+    }, 400);
+  };
+
+  window._haptic = function(ms = 18) {
+    try { if (navigator.vibrate) navigator.vibrate(ms); } catch(e){}
+  };
+}
+
+function onResize() {
+  const W = window.innerWidth, H = window.innerHeight;
+  camera.aspect = W / H;
+  camera.updateProjectionMatrix();
+  renderer.setSize(W, H);
+  labelRenderer.setSize(W, H);
+  if (typeof updateInfoScrollbar === 'function') updateInfoScrollbar();
+}
+
+// ============== HELPERS ==============
+function clearScene() {
+  if (typeof clearSceneSliders === 'function') clearSceneSliders();
+  if (labelRenderer && labelRenderer.domElement) {
+    labelRenderer.domElement.innerHTML = '';
+  }
+  const _keepTypes = ['AmbientLight', 'HemisphereLight'];
+  const _toClean = [];
+  scene.children.forEach(obj => {
+    if (obj.userData._isInitial === true) return;
+    if (_keepTypes.includes(obj.type) && obj.userData._isInitial === undefined) {
+      obj.userData._isInitial = true;
+      return;
+    }
+    _toClean.push(obj);
+  });
+  _toClean.forEach(obj => {
+    if (obj.parent) obj.parent.remove(obj);
+    if (typeof obj.traverse === 'function') {
+      obj.traverse(o => {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) {
+          if (Array.isArray(o.material)) o.material.forEach(m => m.dispose());
+          else o.material.dispose();
+        }
+      });
+    }
+  });
+  const toRemove = [];
+  scene.traverse(obj => { if (obj.userData.dynamic) toRemove.push(obj); });
+  toRemove.forEach(obj => {
+    obj.parent && obj.parent.remove(obj);
+    if (obj.geometry) obj.geometry.dispose();
+    if (obj.material) {
+      if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+      else obj.material.dispose();
+    }
+  });
+  dynamicObjects = [];
+  window._labelRefs = [];
+  window._currentModelGroup = null;
+  window._customAnim = null;
+  window._flowRays = [];
+  window._arrowMaterials = [];
+  const svg = document.getElementById('leaderLines');
+  if (svg) svg.innerHTML = '';
+}
+
+window._labelRefs = [];
+window._currentModelGroup = null;
+
+function addLabel(target, text, className = '', anchorTarget = null, minLevel = 1) {
+  const levelMap = { ilkokul: 1, ortaokul: 2, lise: 3, tyt_ayt: 4 };
+  const curr = levelMap[currentLevel] || 3;
+  if (curr < minLevel) return null;
+
+  const div = document.createElement('div');
+  div.className = 'label3d ' + className;
+  div.innerHTML = text;
+  div.style.display = labelsVisible ? 'block' : 'none';
+  div.dataset.userHidden = labelsVisible ? '0' : '1';
+  const lbl = new CSS2DObject(div);
+  lbl.userData.dynamic = true;
+  lbl.userData.isLabel = true;
+
+  let anchorLocal;
+  if (anchorTarget) {
+    anchorLocal = anchorTarget.isVector3 ? anchorTarget.clone() : anchorTarget.getWorldPosition(new THREE.Vector3());
+  } else if (target.isVector3) {
+    anchorLocal = target.clone();
+  } else {
+    anchorLocal = target.getWorldPosition(new THREE.Vector3());
+  }
+
+  const anchorObj = new THREE.Object3D();
+  anchorObj.position.copy(anchorLocal);
+  anchorObj.userData.dynamic = true;
+
+  if (target.isVector3) {
+    lbl.position.copy(target);
+    if (window._currentModelGroup) {
+      window._currentModelGroup.add(lbl);
+      window._currentModelGroup.add(anchorObj);
+    } else {
+      scene.add(lbl);
+      scene.add(anchorObj);
+    }
+  } else {
+    target.add(lbl);
+    target.add(anchorObj);
+  }
+
+  window._labelRefs.push({ div, labelObj: lbl, anchorObj, className });
+  return lbl;
+}
+
+function markDynamic(obj) {
+  obj.userData.dynamic = true;
+  obj.traverse(c => c.userData.dynamic = true);
+  if (obj.isGroup && !window._currentModelGroup) {
+    window._currentModelGroup = obj;
+  }
+  return obj;
+}
+// ============== ANIMATE ==============
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = clock.getDelta();
+  const t = clock.getElapsedTime();
+
+  controls.update();
+
+  dynamicObjects.forEach(obj => {
+    if (obj.userData.spin && window._autoSpinActive) {
+      obj.rotation.y += obj.userData.spin * dt;
+    }
+    if (obj.userData.bob) {
+      obj.position.y = obj.userData.baseY + Math.sin(t * obj.userData.bob.speed + obj.userData.bob.phase) * obj.userData.bob.amp;
+    }
+  });
+
+  if (window._isPlayingActive && window._flowRays && window._flowRays.length) {
+    window._flowRays.forEach(fr => { try { updateFlowRay(fr, t); } catch(e){} });
+  }
+
+  if (window._arrowMaterials && window._arrowMaterials.length) {
+    const pulse = window._isPlayingActive ? (0.45 + 0.4 * (0.5 + 0.5 * Math.sin(t * 4))) : 0.45;
+    window._arrowMaterials.forEach(m => { try { m.emissiveIntensity = pulse; } catch(e){} });
+  }
+
+  if (window._isPlayingActive && typeof window._customAnim === 'function') {
+    try { window._customAnim(t, dt); } catch(e) {}
+  }
+
+  if (typeof _updateSceneDisplays === 'function') _updateSceneDisplays();
+
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+
+  updateLeaderLines();
+}
+
+const _projVec = new THREE.Vector3();
+function updateLeaderLines() {
+  const svg = document.getElementById('leaderLines');
+  if (!svg || !window._labelRefs || window._leaderLinesVisible === false) {
+    if (svg) svg.innerHTML = '';
+    return;
+  }
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const paths = [];
+
+  window._labelRefs.forEach((ref) => {
+    if (!ref.div || ref.div.dataset.userHidden === '1' || ref.div.style.display === 'none') return;
+    if (!ref.div.parentNode) return;
+    if (!ref.anchorObj) return;
+
+    ref.anchorObj.getWorldPosition(_projVec);
+    _projVec.project(camera);
+    if (_projVec.z > 1 || _projVec.z < -1) return;
+    const ax = (_projVec.x + 1) / 2 * w;
+    const ay = (1 - _projVec.y) / 2 * h;
+
+    const rect = ref.div.getBoundingClientRect();
+    const lx = rect.left + rect.width / 2;
+    const ly = rect.top + rect.height / 2;
+
+    const dist = Math.hypot(ax - lx, ay - ly);
+    if (dist < 18) return;
+
+    const dx = ax - lx;
+    const dy = ay - ly;
+    const halfW = rect.width / 2;
+    const halfH = rect.height / 2;
+    const tx = dx === 0 ? Infinity : (Math.abs(dx) > halfW ? halfW / Math.abs(dx) : 1);
+    const ty = dy === 0 ? Infinity : (Math.abs(dy) > halfH ? halfH / Math.abs(dy) : 1);
+    const tEdge = Math.min(tx, ty);
+    const edgeX = lx + dx * tEdge;
+    const edgeY = ly + dy * tEdge;
+
+    const colorMap = {
+      'xylem': '#d97043',
+      'phloem': '#5fb8e8',
+      'chloro': '#2ecc40',
+      'epi': '#a8d0b0',
+      'endo': '#e69138',
+      'warn': '#e74c3c'
+    };
+    const color = ref.color || colorMap[ref.className] || '#ffd166';
+
+    const midX = (edgeX + ax) / 2;
+    const midY = (edgeY + ay) / 2;
+    const distLine = Math.hypot(ax - edgeX, ay - edgeY);
+    const normalX = -(ay - edgeY) / distLine;
+    const normalY = (ax - edgeX) / distLine;
+    const curveAmount = Math.min(distLine * 0.18, 35);
+    const ctrlX = midX + normalX * curveAmount;
+    const ctrlY = midY + normalY * curveAmount;
+
+    const tipBack = 8;
+    const dirX = (ax - ctrlX) / Math.hypot(ax - ctrlX, ay - ctrlY);
+    const dirY = (ay - ctrlY) / Math.hypot(ax - ctrlX, ay - ctrlY);
+    const tipX = ax - dirX * tipBack;
+    const tipY = ay - dirY * tipBack;
+
+    const d = `M ${edgeX} ${edgeY} Q ${ctrlX} ${ctrlY} ${tipX} ${tipY}`;
+    const arrowSize = 7;
+    const angle = Math.atan2(ay - ctrlY, ax - ctrlX);
+    const aHead1X = tipX - arrowSize * Math.cos(angle - 0.5);
+    const aHead1Y = tipY - arrowSize * Math.sin(angle - 0.5);
+    const aHead2X = tipX - arrowSize * Math.cos(angle + 0.5);
+    const aHead2Y = tipY - arrowSize * Math.sin(angle + 0.5);
+
+    paths.push(`<path d="${d}" stroke="${color}" stroke-width="1.8" fill="none" stroke-opacity="0.92" stroke-linecap="round" />`);
+    paths.push(`<path d="M ${ax} ${ay} L ${aHead1X} ${aHead1Y} L ${aHead2X} ${aHead2Y} Z" fill="${color}" stroke="${color}" stroke-width="0.8" stroke-linejoin="round" />`);
+    paths.push(`<circle cx="${ax}" cy="${ay}" r="2.5" fill="${color}" stroke="#fff" stroke-width="1" opacity="0.7" />`);
+  });
+
+  svg.innerHTML = paths.join('');
+}
+
+// ============== SCENE STATE & PANELS ==============
+window._sceneState = {
+  R: 1.0,
+  r: 1.0,
+  d1: 5.0,
+  d2: 5.0,
+  mode: null,
+  _displayUpdaters: []
+};
+
+function setSceneSliders(items, opts = {}) {
+  const panel = document.getElementById('scenePanel');
+  if (!panel) return;
+  panel.innerHTML = '';
+  panel.classList.remove('empty', 'collapsed');
+  document.body.classList.add('scene-panel-open');
+  window._sceneState._displayUpdaters = [];
+
+  const toggle = document.createElement('button');
+  toggle.className = 'sp-toggle';
+  toggle.innerHTML = `<span>🎛️ ${opts.title || 'Kontroller'}</span><span class="sp-chev">▼</span>`;
+  toggle.onclick = () => {
+    panel.classList.toggle('collapsed');
+    toggle.querySelector('.sp-chev').textContent = panel.classList.contains('collapsed') ? '◀' : '▼';
+    if (window._haptic) window._haptic(10);
+  };
+  panel.appendChild(toggle);
+
+  items.forEach(item => {
+    if (item.type === 'section') {
+      const t = document.createElement('div');
+      t.className = 'sp-section';
+      t.textContent = item.label;
+      panel.appendChild(t);
+      return;
+    }
+    if (item.type === 'slider') {
+      const row = document.createElement('div');
+      row.className = 'sp-slider-row';
+      const head = document.createElement('div');
+      head.className = 'sp-slider-head';
+      head.innerHTML = `<span>${item.label}</span>
+        <div class="sp-stepper">
+          <button class="sp-step-btn sp-minus">−</button>
+          <span class="sp-val"></span>
+          <button class="sp-step-btn sp-plus">+</button>
+        </div>`;
+      const valEl = head.querySelector('.sp-val');
+      const minusBtn = head.querySelector('.sp-minus');
+      const plusBtn = head.querySelector('.sp-plus');
+      row.appendChild(head);
+      const slider = document.createElement('input');
+      slider.type = 'range';
+      slider.min = item.min;
+      slider.max = item.max;
+      slider.step = item.step || 1;
+      slider.value = item.getValue();
+      row.appendChild(slider);
+      if (item.sub) {
+        const sub = document.createElement('div');
+        sub.className = 'sp-sub';
+        sub.textContent = item.sub;
+        row.appendChild(sub);
+      }
+      const updateVal = () => {
+        const v = parseFloat(slider.value);
+        valEl.textContent = (item.format ? item.format(v) : v) + (item.unit || '');
+      };
+      slider.addEventListener('input', () => {
+        const v = parseFloat(slider.value);
+        item.setValue(v);
+        updateVal();
+      });
+      const step = parseFloat(item.step) || 1;
+      minusBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const v = parseFloat(slider.value);
+        const nv = Math.max(parseFloat(item.min), v - step);
+        slider.value = nv; item.setValue(nv); updateVal();
+        if (window._haptic) window._haptic(8);
+      });
+      plusBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const v = parseFloat(slider.value);
+        const nv = Math.min(parseFloat(item.max), v + step);
+        slider.value = nv; item.setValue(nv); updateVal();
+        if (window._haptic) window._haptic(8);
+      });
+      panel.appendChild(row);
+      updateVal();
+      window._sceneState._displayUpdaters.push(() => {
+        const v = item.getValue();
+        if (parseFloat(slider.value) !== v) { slider.value = v; updateVal(); }
+      });
+    }
+    if (item.type === 'display') {
+      const row = document.createElement('div');
+      row.className = 'sp-display' + (item.highlight ? ' highlight' : '');
+      row.innerHTML = `<span class="sp-label">${item.label}</span><span class="sp-val"></span>`;
+      const val = row.querySelector('.sp-val');
+      val.textContent = item.getValue();
+      panel.appendChild(row);
+      window._sceneState._displayUpdaters.push(() => { val.textContent = item.getValue(); });
+    }
+    if (item.type === 'formula') {
+      const row = document.createElement('div');
+      row.className = 'sp-formula';
+      row.innerHTML = item.text;
+      panel.appendChild(row);
+      if (item.getValue) {
+        window._sceneState._displayUpdaters.push(() => { row.innerHTML = item.getValue(); });
+      }
+    }
+    if (item.type === 'presets') {
+      const row = document.createElement('div');
+      row.className = 'sp-presets';
+      item.options.forEach((opt, i) => {
+        const b = document.createElement('button');
+        b.className = 'sp-preset-btn';
+        b.textContent = opt.label;
+        if (i === (item.activeIdx || 0)) b.classList.add('active');
+        b.onclick = () => {
+          row.querySelectorAll('.sp-preset-btn').forEach(x => x.classList.remove('active'));
+          b.classList.add('active');
+          opt.action();
+          if (window._haptic) window._haptic(10);
+        };
+        row.appendChild(b);
+      });
+      panel.appendChild(row);
+    }
+  });
+}
+
+function clearSceneSliders() {
+  const panel = document.getElementById('scenePanel');
+  if (panel) { panel.innerHTML = ''; panel.classList.add('empty'); }
+  document.body.classList.remove('scene-panel-open');
+  if (window._sceneState) window._sceneState._displayUpdaters = [];
+}
+
+function _updateSceneDisplays() {
+  if (window._sceneState && window._sceneState._displayUpdaters) {
+    window._sceneState._displayUpdaters.forEach(fn => { try { fn(); } catch(e){} });
+  }
+}
+
+// ============== 3D INFO LABELS (CSS2D + leader) ==============
+const _LV = { ilkokul: 1, ortaokul: 2, lise: 3, tyt_ayt: 4 };
+function _labelTextForLevel(text) {
+  if (typeof text === 'string') return text;
+  if (text && typeof text === 'object') {
+    const order = ['ilkokul','ortaokul','lise','tyt_ayt'];
+    if (text[currentLevel]) return text[currentLevel];
+    const idx = order.indexOf(currentLevel);
+    for (let i = idx; i >= 0; i--) if (text[order[i]]) return text[order[i]];
+    for (let i = idx + 1; i < order.length; i++) if (text[order[i]]) return text[order[i]];
+  }
+  return '';
+}
+
+function addInfo3DLabels(labels) {
+  const grp = new THREE.Group();
+  grp.userData.dynamic = true;
+  grp.userData.isLabelGroup = true;
+  const curLv = _LV[currentLevel] || 3;
+  labels.forEach(L => {
+    if (L.minLevel && curLv < L.minLevel) return;
+    if (L.maxLevel && curLv > L.maxLevel) return;
+    const labelText = _labelTextForLevel(L.text);
+    if (!labelText) return;
+    const color = L.color || '#ffd166';
+    const div = document.createElement('div');
+    div.className = 'info3d-label';
+    div.style.cssText = `
+      background: rgba(15, 25, 40, 0.92);
+      border: 2px solid ${color};
+      color: #fff;
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+      pointer-events: none;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.5);
+      transform: translate(-50%, -50%);
+      text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+    `;
+    div.innerHTML = labelText;
+    div.style.display = labelsVisible ? 'block' : 'none';
+    div.dataset.userHidden = labelsVisible ? '0' : '1';
+    const obj = new CSS2DObject(div);
+    obj.position.set(L.position[0], L.position[1], L.position[2]);
+    obj.userData.isLabel = true;
+    obj.userData.dynamic = true;
+    grp.add(obj);
+
+    if (L.target) {
+      const dotGeo = new THREE.SphereGeometry(0.08, 16, 12);
+      const dotMat = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(color), transparent: true, opacity: 0.95,
+        toneMapped: false, depthTest: false
+      });
+      const dot = new THREE.Mesh(dotGeo, dotMat);
+      dot.position.set(L.target[0], L.target[1], L.target[2]);
+      dot.renderOrder = 999;
+      dot.userData.isLabel = true;
+      dot.userData.dynamic = true;
+      grp.add(dot);
+
+      const anchorObj = new THREE.Object3D();
+      anchorObj.position.set(L.target[0], L.target[1], L.target[2]);
+      anchorObj.userData.dynamic = true;
+      grp.add(anchorObj);
+
+      const classMap = {
+        '#ffe17a':'', '#ffd166':'', '#ffcc33':'',
+        '#5fc8e0':'joint', '#7adcf0':'joint',
+        '#9d7fe6':'cartilage', '#2e7dd6':'phloem',
+        '#ff7043':'xylem', '#d0563a':'xylem', '#d97043':'xylem',
+        '#9a9aa2':'', '#ffd54f':''
+      };
+      window._labelRefs.push({ div, labelObj: obj, anchorObj, color, className: classMap[color] || '' });
+    }
+  });
+  if (window._currentModelGroup) {
+    window._currentModelGroup.add(grp);
+  } else {
+    scene.add(grp);
+  }
+  return grp;
+}
+
+
+
+// ============== MODULE SYSTEM (Dalgalar) ==============
+const MODULES = {
+  1: {
+    title: '🌊 Modül 1: Dalga Nedir ve Temel Kavramlar',
+    subs: [
+      { key: 'dalgaNedir',   label: '🌊 Dalga Nedir', builder: 'buildDalgaNedir' },
+      { key: 'dalgaBuyukluk', label: '📏 Temel Büyüklükler (A, λ)', builder: 'buildDalgaBuyukluk' },
+      { key: 'enineBoyuna',  label: '↕️ Enine ve Boyuna Dalga', builder: 'buildEnineBoyuna' }
+    ]
+  },
+  2: {
+    title: '📐 Modül 2: Dalga Denklemi ve Yayılım',
+    subs: [
+      { key: 'dalgaHizi',    label: '⚡ Dalga Hızı (v=λ·f)', builder: 'buildDalgaHizi' },
+      { key: 'periyotFrekans', label: '🔄 Periyot ve Frekans', builder: 'buildPeriyotFrekans' },
+      { key: 'suDalgasi',    label: '💧 Su Dalgaları', builder: 'buildSuDalgasi' }
+    ]
+  },
+  3: {
+    title: '🔀 Modül 3: Dalga Olayları',
+    subs: [
+      { key: 'yansima',      label: '↩️ Yansıma', builder: 'buildYansima' },
+      { key: 'kirilma',      label: '🌗 Kırılma (Derin↔Sığ)', builder: 'buildKirilma' },
+      { key: 'kirinim',      label: '🌀 Kırınım (Difraksiyon)', builder: 'buildKirinim' },
+      { key: 'girisim',      label: '✨ Girişim', builder: 'buildGirisim' }
+    ]
+  },
+  4: {
+    title: '🎸 Modül 4: Mekanik Dalga Türleri',
+    subs: [
+      { key: 'yayDalgasi',   label: '🪢 Yay / Atma Dalgaları', builder: 'buildYayDalgasi' },
+      { key: 'sesDalgasi',   label: '🔊 Ses Dalgaları', builder: 'buildSesDalgasi' },
+      { key: 'depremDalgasi', label: '🌍 Deprem Dalgaları (P/S)', builder: 'buildDepremDalgasi' }
+    ]
+  },
+  5: {
+    title: '📡 Modül 5: İleri Konular',
+    subs: [
+      { key: 'doppler',      label: '🚑 Doppler Olayı', builder: 'buildDoppler' },
+      { key: 'emDalga',      label: '📡 Elektromanyetik Dalgalar', builder: 'buildEmDalga' }
+    ]
+  }
+};
+
+// ============== INFO DATA (4 seviye) ==============
+const INFO_DATA = {
+  dalgaNedir: {
+    ilkokul: { emoji: '🌊', title: 'Dalga Nedir', points: [
+      '🌊 Suya taş atınca oluşan halkalar bir dalgadır',
+      '⚡ Dalga, enerjiyi bir yerden başka yere taşır',
+      '💧 Su yukarı-aşağı oynar ama yerinden gitmez',
+      '🔊 Ses de bir dalgadır, kulağımıza ulaşır'
+    ]},
+    ortaokul: { emoji: '🌊', title: 'Dalga Nedir', points: [
+      '🌊 Titreşimin bir ortamda yayılmasına dalga denir',
+      '⚡ Dalga <b>enerji taşır</b>, madde taşımaz',
+      '💧 Ortamdaki parçacıklar yerinde titreşir',
+      '🔊 Örnek: su dalgası, ses, deprem, ışık',
+      '🌀 Kaynak titreşir → dalga yayılır'
+    ]},
+    lise: { emoji: '🌊', title: 'Dalga Hareketi', points: [
+      '🌊 Dalga: enerjinin ortamda madde taşınmadan iletilmesi',
+      '⚡ Enerji yayılır, ortam parçacıkları denge etrafında titreşir',
+      '🔧 Mekanik dalga: ortam gerekir (ses, su, yay)',
+      '💡 Elektromanyetik dalga: boşlukta yayılır (ışık)',
+      '🌀 Kaynağın titreşimi dalgayı oluşturur'
+    ]},
+    tyt_ayt: { emoji: '🌊', title: 'Dalga Hareketi (TYT/AYT)', points: [
+      '🌊 Dalga = enerji ve momentum iletimi (madde iletimi yok)',
+      '⚡ Ortam parçacıkları denge konumu etrafında titreşir',
+      '🔧 Mekanik (ortam şart) vs EM (boşlukta yayılır)',
+      '📊 Enerji ∝ genlik² (A²) ile orantılıdır',
+      '🌀 Kaynak frekansı = dalga frekansı (değişmez)',
+      '💡 EM dalgalar boşlukta c=3×10⁸ m/s ile yayılır'
+    ]}
+  },
+  dalgaBuyukluk: {
+    ilkokul: { emoji: '📏', title: 'Dalganın Parçaları', points: [
+      '⛰️ Tepe: dalganın en yüksek yeri',
+      '🕳️ Çukur: dalganın en alçak yeri',
+      '📏 Genlik: ne kadar yükseldiği (yükseklik)',
+      '🌊 Dalga boyu: iki tepe arası uzaklık'
+    ]},
+    ortaokul: { emoji: '📏', title: 'Temel Büyüklükler', points: [
+      '⛰️ <b>Tepe</b>: en yüksek nokta, <b>Çukur</b>: en alçak nokta',
+      '📏 <b>Genlik (A)</b>: denge ile tepe arası dikey mesafe',
+      '🌊 <b>Dalga boyu (λ)</b>: ardışık iki tepe (veya çukur) arası',
+      '💪 Genlik büyükse dalga daha çok enerji taşır',
+      '🎚️ Genliği ve dalga boyunu değiştir, izle'
+    ]},
+    lise: { emoji: '📏', title: 'Temel Büyüklükler', points: [
+      '⛰️ Tepe / 🕳️ Çukur: denge konumundan en uzak noktalar',
+      '📏 Genlik A: denge–tepe dikey uzaklık (enerji ∝ A²)',
+      '🌊 Dalga boyu λ: ardışık aynı fazlı iki nokta arası',
+      '🔄 Frekans f: birim zamanda geçen dalga sayısı (Hz)',
+      '⏱️ Periyot T = 1/f: bir tam dalga süresi'
+    ]},
+    tyt_ayt: { emoji: '📏', title: 'Temel Büyüklükler (TYT/AYT)', points: [
+      '📏 Genlik A: maksimum yer değiştirme; enerji E ∝ A²',
+      '🌊 Dalga boyu λ: bir periyotta alınan yol = ardışık faz',
+      '🔄 Frekans f (Hz) = kaynak belirler, ortamda değişmez',
+      '⏱️ Periyot T = 1/f (saniye)',
+      '⚡ Hız v = λ·f = λ/T (tüm dalga türlerinde geçerli)',
+      '📊 λ hem kaynağa hem ortama bağlı; v yalnız ortama bağlı'
+    ]}
+  },
+  enineBoyuna: {
+    ilkokul: { emoji: '↕️', title: 'Dalga Çeşitleri', points: [
+      '↕️ Enine dalga: yukarı-aşağı sallanır (su, ip)',
+      '↔️ Boyuna dalga: ileri-geri sıkışır (ses, yay)',
+      '🌊 Denizdeki dalgalar enine dalgadır',
+      '🔊 Ses boyuna dalgadır, havayı sıkıştırır'
+    ]},
+    ortaokul: { emoji: '↕️', title: 'Enine ve Boyuna Dalga', points: [
+      '↕️ <b>Enine</b>: titreşim, yayılmaya <b>dik</b> (su, ışık, ip)',
+      '↔️ <b>Boyuna</b>: titreşim, yayılmaya <b>paralel</b> (ses, yay)',
+      '🌊 Enine: tepe ve çukurlar oluşur',
+      '🔊 Boyuna: sıkışma ve genleşme bölgeleri oluşur',
+      '🎚️ İki türü karşılaştır'
+    ]},
+    lise: { emoji: '↕️', title: 'Enine ve Boyuna Dalga', points: [
+      '↕️ Enine: parçacık titreşimi ⊥ yayılma yönü',
+      '↔️ Boyuna: parçacık titreşimi ∥ yayılma yönü',
+      '🌊 Enine örnek: su yüzeyi, ip, EM dalgalar (ışık)',
+      '🔊 Boyuna örnek: ses, yayda itme dalgası',
+      '📊 Boyuna: sıkışma (yoğun) + seyrelme (seyrek) bölgeleri'
+    ]},
+    tyt_ayt: { emoji: '↕️', title: 'Enine/Boyuna (TYT/AYT)', points: [
+      '↕️ Enine: titreşim ⊥ yayılma (su, ip, tüm EM dalgalar)',
+      '↔️ Boyuna: titreşim ∥ yayılma (ses, basınç dalgaları)',
+      '🌊 Enine: tepe/çukur; Boyuna: sıkışma/seyrelme',
+      '💡 Işık enine EM dalgadır → polarlanabilir',
+      '🔊 Ses boyunadır → polarlanamaz',
+      '📊 Her ikisinde de v = λ·f geçerli'
+    ]}
+  },
+  dalgaHizi: {
+    ilkokul: { emoji: '⚡', title: 'Dalga Ne Kadar Hızlı', points: [
+      '⚡ Dalga bir saniyede ne kadar yol gider',
+      '🌊 Uzun dalgalar daha hızlı gibi görünür',
+      '🔢 Hız = dalga boyu × saniyedeki dalga sayısı',
+      '🎚️ Değerleri değiştir, hızı gör'
+    ]},
+    ortaokul: { emoji: '⚡', title: 'Dalga Hızı', points: [
+      '⚡ <b>v = λ · f</b> (hız = dalga boyu × frekans)',
+      '🌊 λ: dalga boyu (m), f: frekans (Hz)',
+      '🔢 Örnek: λ=2m, f=3Hz → v=6 m/s',
+      '📏 Frekans artarsa (λ sabit) hız artar',
+      '🎚️ λ ve f kaydırıcılarını dene'
+    ]},
+    lise: { emoji: '⚡', title: 'Dalga Hızı v=λ·f', points: [
+      '⚡ v = λ·f = λ/T (temel dalga denklemi)',
+      '🌊 Tüm dalga türlerinde geçerlidir',
+      '📊 Hız yalnız ortama bağlıdır',
+      '🔄 Frekans kaynağa bağlı, ortamda değişmez',
+      '🔢 λ = v/f; ortam değişince v ve λ değişir, f sabit'
+    ]},
+    tyt_ayt: { emoji: '⚡', title: 'Dalga Hızı (TYT/AYT)', points: [
+      '⚡ v = λ·f = λ/T (her dalga için)',
+      '📊 v yalnız ortama bağlı (yoğunluk, gerginlik, sıcaklık)',
+      '🔄 f kaynağa bağlı → ortam değişse de SABİT',
+      '🌊 Ortam değişince: v değişir → λ değişir (f sabit)',
+      '🧵 Yayda: v = √(F/µ) (F gerginlik, µ birim kütle)',
+      '🔢 λ₁/λ₂ = v₁/v₂ (frekans sabit olduğundan)'
+    ]}
+  },
+  periyotFrekans: {
+    ilkokul: { emoji: '🔄', title: 'Tekrar Eden Hareket', points: [
+      '🔄 Frekans: bir saniyede kaç dalga geçer',
+      '⏱️ Periyot: bir dalganın geçme süresi',
+      '🏃 Hızlı titreşim = çok dalga = yüksek frekans',
+      '🎚️ Frekansı değiştir, dalgaları say'
+    ]},
+    ortaokul: { emoji: '🔄', title: 'Periyot ve Frekans', points: [
+      '🔄 <b>Frekans (f)</b>: 1 saniyedeki dalga sayısı (Hz)',
+      '⏱️ <b>Periyot (T)</b>: 1 dalga için geçen süre (s)',
+      '🔢 <b>T = 1/f</b> (ters orantılı)',
+      '🏃 Frekans büyükse periyot küçüktür',
+      '🎚️ Frekansı ayarla, periyodu izle'
+    ]},
+    lise: { emoji: '🔄', title: 'Periyot ve Frekans', points: [
+      '🔄 f: birim zamanda titreşim/dalga sayısı (Hz)',
+      '⏱️ T: bir tam titreşim süresi (s)',
+      '🔢 T = 1/f, f = 1/T',
+      '🌊 Bir periyotta dalga bir λ yol alır',
+      '📊 f kaynağa bağlıdır, ortamdan bağımsızdır'
+    ]},
+    tyt_ayt: { emoji: '🔄', title: 'Periyot/Frekans (TYT/AYT)', points: [
+      '🔄 f = 1/T = N/t (N: sayı, t: süre)',
+      '⏱️ T = 1/f; açısal frekans ω = 2πf',
+      '🌊 Bir T sürede dalga λ kadar ilerler → v=λ/T',
+      '📊 f yalnız kaynak belirler (ortam değiştiremez)',
+      '🔢 Kaynak frekansı = gözlenen frekans (Doppler hariç)',
+      '⚡ Stroboskop: fd = n·fs (dalga durağan görünür)'
+    ]}
+  },
+  suDalgasi: {
+    ilkokul: { emoji: '💧', title: 'Su Dalgaları', points: [
+      '💧 Suya taş atınca daire şeklinde dalgalar olur',
+      '🌊 Düz bir çubukla doğrusal dalgalar olur',
+      '🏖️ Sığ suda dalgalar yavaşlar',
+      '🎚️ Dalga türünü değiştir'
+    ]},
+    ortaokul: { emoji: '💧', title: 'Su Dalgaları', points: [
+      '💧 <b>Dairesel</b>: nokta kaynaktan (taş) halka halka',
+      '〰️ <b>Doğrusal</b>: çubuk kaynaktan düz çizgiler',
+      '🏖️ Derin suda hızlı, sığ suda yavaş',
+      '🌊 Sığ suda dalga boyu küçülür',
+      '🎚️ Kaynak türünü ve derinliği dene'
+    ]},
+    lise: { emoji: '💧', title: 'Su Dalgaları', points: [
+      '💧 Dairesel (nokta kaynak) / Doğrusal (çizgi kaynak)',
+      '🏖️ Derin ortam: v büyük, λ büyük',
+      '🌊 Sığ ortam: v küçük, λ küçük (f sabit)',
+      '📊 Su dalgaları yansıma/kırılma/girişim gösterir',
+      '🔬 Dalga olaylarını incelemek için model ortam'
+    ]},
+    tyt_ayt: { emoji: '💧', title: 'Su Dalgaları (TYT/AYT)', points: [
+      '💧 Dairesel/doğrusal; derinlik dalga hızını belirler',
+      '🏖️ Derin→sığ: v↓, λ↓, f sabit (v=λf)',
+      '🌊 Dalga cepheleri kırılır (hız değişince doğrultu döner)',
+      '📊 Derin ortam = "az yoğun", sığ = "yoğun" (optik analojisi)',
+      '🔬 Dalga leğeni (ripple tank) ile incelenir',
+      '🔢 λ_derin/λ_sığ = v_derin/v_sığ'
+    ]}
+  },
+  yansima: {
+    ilkokul: { emoji: '↩️', title: 'Yansıma', points: [
+      '↩️ Dalga bir duvara çarpınca geri döner',
+      '🪞 Aynadaki görüntü ışığın yansımasıdır',
+      '🏔️ Yankı sesin yansımasıdır',
+      '🎚️ Dalgayı gönder, geri dönüşünü izle'
+    ]},
+    ortaokul: { emoji: '↩️', title: 'Yansıma', points: [
+      '↩️ Dalganın engele çarpıp geri dönmesidir',
+      '📐 Geliş açısı = yansıma açısı',
+      '🪞 Işık, ses, su dalgaları yansır',
+      '🌊 Yansımada hız, dalga boyu, frekans değişmez',
+      '🎚️ Engele çarpan dalgayı gözlemle'
+    ]},
+    lise: { emoji: '↩️', title: 'Yansıma', points: [
+      '↩️ Dalga aynı ortama geri döner',
+      '📐 Geliş açısı = yansıma açısı (normale göre)',
+      '🌊 Yansımada v, λ, f değişmez (ortam aynı)',
+      '🪞 Sabit uçtan yansıma: faz terslenir (atma ters döner)',
+      '🔄 Serbest uçtan yansıma: faz korunur'
+    ]},
+    tyt_ayt: { emoji: '↩️', title: 'Yansıma (TYT/AYT)', points: [
+      '↩️ Yansıma: dalga aynı ortamda geri döner; v,λ,f sabit',
+      '📐 θ_geliş = θ_yansıma (normale göre eşit)',
+      '🧵 Sabit (sert) uç: faz π terslenir (tepe→çukur)',
+      '🧵 Serbest uç: faz korunur (tepe→tepe)',
+      '🌊 Su/ses/ışık tüm dalgalar yansır',
+      '🔬 Düzlem/çukur/tümsek engellerde dalga cephesi davranışı'
+    ]}
+  },
+  kirilma: {
+    ilkokul: { emoji: '🌗', title: 'Kırılma', points: [
+      '🌗 Dalga sığ suya geçince yavaşlar',
+      '🥤 Bardaktaki kaşık kırık görünür (ışık kırılması)',
+      '🌊 Yavaşlayınca dalga boyu küçülür',
+      '🎚️ Derin↔sığ geçişini izle'
+    ]},
+    ortaokul: { emoji: '🌗', title: 'Kırılma', points: [
+      '🌗 Dalga ortam değiştirince hızı değişir',
+      '🌊 <b>Frekans sabit kalır</b>, hız ve λ değişir',
+      '🏖️ Sığ suya geçince: yavaşlar, λ küçülür',
+      '📐 Yön (doğrultu) değişebilir',
+      '🎚️ Derin ve sığ ortamı karşılaştır'
+    ]},
+    lise: { emoji: '🌗', title: 'Kırılma', points: [
+      '🌗 Ortam değişince hız değişir → kırılma',
+      '🔑 Frekans SABİT (kaynak belirler), v ve λ değişir',
+      '🏖️ Yoğun ortama (sığ) geçiş: v↓, λ↓, normale yaklaşır',
+      '🌊 Az yoğun ortama (derin): v↑, λ↑, normalden uzaklaşır',
+      '🔢 v₁/v₂ = λ₁/λ₂ (f ortak)'
+    ]},
+    tyt_ayt: { emoji: '🌗', title: 'Kırılma (TYT/AYT)', points: [
+      '🌗 Kırılma: ortam değişince v değişir, doğrultu döner',
+      '🔑 f SABİT (kaynağa bağlı) → λ = v/f ile λ değişir',
+      '🏖️ Sığ (yoğun): v↓ λ↓, normale yaklaşır',
+      '🌊 Derin (az yoğun): v↑ λ↑, normalden uzaklaşır',
+      '🔢 sinθ₁/sinθ₂ = v₁/v₂ = λ₁/λ₂ (Snell analojisi)',
+      '⚠️ Frekans hiçbir kırılmada değişmez!'
+    ]}
+  },
+  girisim: {
+    ilkokul: { emoji: '✨', title: 'Girişim', points: [
+      '✨ İki dalga buluşunca birleşir',
+      '⬆️ İki tepe buluşursa daha büyük dalga olur (karın)',
+      '⬇️ Tepe ve çukur buluşursa birbirini yok eder (düğüm)',
+      '🎚️ İki dalgayı buluştur, çizgileri izle'
+    ]},
+    ortaokul: { emoji: '✨', title: 'Girişim', points: [
+      '✨ İki dalganın üst üste binmesidir',
+      '⬆️ <b>Yapıcı (karın)</b>: tepe+tepe → genlik artar',
+      '⬇️ <b>Yıkıcı (düğüm)</b>: tepe+çukur → söner',
+      '🟢 Karın noktaları → karın çizgisi (katar)',
+      '🔴 Düğüm noktaları → düğüm çizgisi (durağan)',
+      '🌊 Dalgalar geçtikten sonra değişmeden devam eder'
+    ]},
+    lise: { emoji: '✨', title: 'Girişim', points: [
+      '✨ İki+ dalganın üst üste binmesi (süperpozisyon)',
+      '⬆️ Yapıcı (karın/katar): aynı faz → genlik 2A',
+      '⬇️ Yıkıcı (düğüm): zıt faz → genlik 0 (durağan)',
+      '🟢 Karın çizgisi: çift tepe/çift çukur noktaları',
+      '🔴 Düğüm çizgisi: titreşimsiz noktalar (hiperbol)',
+      '📊 Merkezi çizgi kaynakların tam ortasındadır'
+    ]},
+    tyt_ayt: { emoji: '✨', title: 'Girişim (TYT/AYT)', points: [
+      '✨ Süperpozisyon: y = y₁ + y₂ (aynı fazlı kaynaklar)',
+      '🟢 Karın (katar): yol farkı = n·λ → A_max=2A',
+      '🔴 Düğüm: yol farkı = (n+½)·λ → A=0 (durağan)',
+      '📐 Çizgiler hiperbol; merkezi karın çizgisi ortada',
+      '⚠️ Kaynaklar üzerinde girişim deseni oluşmaz',
+      '🔬 Işıkta aydınlık/karanlık saçak; seste vurum'
+    ]}
+  },
+  kirinim: {
+    ilkokul: { emoji: '🌀', title: 'Kırınım', points: [
+      '🌀 Dalga, dar bir aralıktan geçince yayılır',
+      '🚪 Kapı aralığından sesi duyarız (köşeden döner)',
+      '🌊 Engelin arkasına dolanır',
+      '🎚️ Aralığı değiştir, yayılmayı izle'
+    ]},
+    ortaokul: { emoji: '🌀', title: 'Kırınım (Difraksiyon)', points: [
+      '🌀 Dalganın engel/yarık kenarından bükülmesidir',
+      '🚪 Dar yarıktan geçince dairesel yayılır',
+      '📏 Yarık küçükse kırınım <b>belirgin</b>',
+      '🔊 Sesi köşeden duymamızın nedeni budur',
+      '🎚️ Yarık genişliğini dene'
+    ]},
+    lise: { emoji: '🌀', title: 'Kırınım', points: [
+      '🌀 Dalga, yarık/engel kenarında bükülür (yayılır)',
+      '📏 Yarık ≈ λ olunca kırınım en belirgin',
+      '🌊 Yarık genişse: az kırınım (düz devam)',
+      '🔬 Tüm dalga türlerinde görülür',
+      '💡 Işıkta saçak deseni oluşturur'
+    ]},
+    tyt_ayt: { emoji: '🌀', title: 'Kırınım (TYT/AYT)', points: [
+      '🌀 Kırınım: dalganın engel/yarıktan bükülerek yayılması',
+      '📏 Etki, yarık genişliği λ ile karşılaştırılınca belirgin',
+      '🌊 d ≤ λ → güçlü kırınım; d ≫ λ → zayıf',
+      '🔬 Huygens ilkesi: her nokta yeni dalga kaynağı',
+      '💡 Tek yarık: merkezi parlak + yan saçaklar',
+      '⚠️ f, λ, v kırınımda değişmez (sadece doğrultu yayılır)'
+    ]}
+  },
+  yayDalgasi: {
+    ilkokul: { emoji: '🪢', title: 'Yay Dalgası', points: [
+      '🪢 Gergin ipi sallayınca dalga oluşur',
+      '👋 Bir kez sallarsan tek bir "atma" gider',
+      '💪 İp gergin olunca dalga hızlı gider',
+      '🎚️ Gerginliği değiştir, hızı izle'
+    ]},
+    ortaokul: { emoji: '🪢', title: 'Yay / Atma Dalgaları', points: [
+      '🪢 Gergin yayda ilerleyen tek sarsıntıya <b>atma</b> denir',
+      '📏 Atmanın genişliği (x) ve genliği (y) vardır',
+      '💪 Yay daha gergin → dalga daha hızlı',
+      '⚖️ İnce yay (hafif) → daha hızlı',
+      '🎚️ Gerginlik ve kütleyi dene'
+    ]},
+    lise: { emoji: '🪢', title: 'Yay Dalgaları', points: [
+      '🪢 Atma: yayda ilerleyen tek darbe',
+      '⚡ Hız: v = √(F/µ)',
+      '💪 F: yayın gerginliği (N), µ: birim boy kütlesi (kg/m)',
+      '📏 Genlik y, genişlik x atmayı tanımlar',
+      '🔄 Atma hızı yalnız yaya bağlı (genlikten bağımsız)'
+    ]},
+    tyt_ayt: { emoji: '🪢', title: 'Yay Dalgaları (TYT/AYT)', points: [
+      '🪢 Atma: gergin telde ilerleyen tek bozulma',
+      '⚡ v = √(F/µ) (F: gerginlik, µ = m/L)',
+      '💪 Gerginlik ↑ → hız ↑; µ ↑ → hız ↓',
+      '📏 Hız genlikten bağımsız (sadece ortama bağlı)',
+      '🔄 Sabit uçtan yansıma: faz π döner; serbest uç: korunur',
+      '🔢 İki telin ek yerinde kısmi yansıma + iletim olur'
+    ]}
+  },
+  sesDalgasi: {
+    ilkokul: { emoji: '🔊', title: 'Ses Dalgaları', points: [
+      '🔊 Ses, havayı titreştirerek yayılır',
+      '👂 Kulağımız bu titreşimi duyar',
+      '🚫 Boşlukta (uzayda) ses duyulmaz',
+      '🎚️ Sesi incele'
+    ]},
+    ortaokul: { emoji: '🔊', title: 'Ses Dalgaları', points: [
+      '🔊 Ses bir <b>boyuna</b> dalgadır (havayı sıkıştırır)',
+      '🌫️ Yayılmak için ortam gerekir (boşlukta yayılmaz)',
+      '🌡️ Sıcaklık artarsa sesin hızı artar',
+      '👂 İnsan 20 Hz – 20.000 Hz arası duyar',
+      '🎚️ Frekansı dene (incelik/kalınlık)'
+    ]},
+    lise: { emoji: '🔊', title: 'Ses Dalgaları', points: [
+      '🔊 Boyuna mekanik dalga (sıkışma/seyrelme)',
+      '🏃 Hız: katı > sıvı > gaz (ortama bağlı)',
+      '🌡️ Havada sıcaklık ↑ → hız ↑ (≈340 m/s, 20°C)',
+      '🎵 Frekans → ses inceliği; genlik → ses şiddeti',
+      '👂 İşitilebilir: 20 Hz – 20 kHz; altı infrases, üstü ultrases'
+    ]},
+    tyt_ayt: { emoji: '🔊', title: 'Ses Dalgaları (TYT/AYT)', points: [
+      '🔊 Boyuna dalga; v = λ·f; boşlukta yayılmaz',
+      '🏃 v_katı > v_sıvı > v_gaz (esneklik/yoğunluk)',
+      '🌡️ Havada v ≈ 331 + 0.6·T(°C) m/s',
+      '🎵 Yükseklik=frekans, şiddet=genlik (∝A²), tını=kaynak',
+      '👂 20 Hz–20 kHz işitilebilir; <20 infra, >20k ultra',
+      '🔬 Ses boyuna olduğu için polarlanamaz'
+    ]}
+  },
+  depremDalgasi: {
+    ilkokul: { emoji: '🌍', title: 'Deprem Dalgaları', points: [
+      '🌍 Yer altında oluşan enerji dalgalar halinde yayılır',
+      '〰️ Bazıları sallar, bazıları iter',
+      '🏠 Bu dalgalar yeri sarsar',
+      '🎚️ Dalga türlerini izle'
+    ]},
+    ortaokul: { emoji: '🌍', title: 'Deprem Dalgaları', points: [
+      '🌍 Yer kabuğundaki enerji boşalması dalga oluşturur',
+      '⚡ <b>P dalgası</b>: boyuna, en hızlı, önce gelir',
+      '🌊 <b>S dalgası</b>: enine, daha yavaş, sonra gelir',
+      '💥 Yüzey dalgaları en çok hasarı verir',
+      '🎚️ P ve S dalgalarını karşılaştır'
+    ]},
+    lise: { emoji: '🌍', title: 'Deprem Dalgaları', points: [
+      '🌍 Sismik dalgalar: cisim + yüzey dalgaları',
+      '⚡ P (primer): boyuna, hızlı (katı+sıvıda yayılır)',
+      '🌊 S (sekonder): enine, yavaş (sadece katıda)',
+      '📏 P-S varış farkından merkez uzaklığı bulunur',
+      '💥 Yüzey dalgaları (Love, Rayleigh) en yıkıcı'
+    ]},
+    tyt_ayt: { emoji: '🌍', title: 'Deprem Dalgaları (TYT/AYT)', points: [
+      '🌍 Cisim dalgaları (P, S) + yüzey dalgaları',
+      '⚡ P: boyuna, v büyük, katı/sıvı/gazda yayılır',
+      '🌊 S: enine, v küçük, yalnız katıda yayılır',
+      '📏 Δt(P-S) ile odak uzaklığı: d = Δt·(vP·vS)/(vP−vS)',
+      '🔬 S dalgasının sıvıda yayılmaması → dış çekirdek sıvı kanıtı',
+      '💥 Hem enine hem boyuna içerir (karma)'
+    ]}
+  },
+  doppler: {
+    ilkokul: { emoji: '🚑', title: 'Doppler Olayı', points: [
+      '🚑 Yaklaşan ambulansın sesi tizleşir',
+      '📉 Uzaklaşınca sesi kalınlaşır',
+      '🌊 Hareket, dalgaları sıkıştırır/açar',
+      '🎚️ Kaynağı hareket ettir'
+    ]},
+    ortaokul: { emoji: '🚑', title: 'Doppler Olayı', points: [
+      '🚑 Kaynak/gözlemci hareket edince frekans değişir',
+      '📈 Yaklaşırken: dalgalar sıkışır → frekans artar (tiz)',
+      '📉 Uzaklaşırken: dalgalar açılır → frekans azalır (kalın)',
+      '🚓 Siren sesinin değişmesi buna örnektir',
+      '🎚️ Kaynak hızını dene'
+    ]},
+    lise: { emoji: '🚑', title: 'Doppler Olayı', points: [
+      '🚑 Bağıl hareket gözlenen frekansı değiştirir',
+      '📈 Yaklaşma: f_gözlenen > f_kaynak (λ küçülür)',
+      '📉 Uzaklaşma: f_gözlenen < f_kaynak (λ büyür)',
+      '🌊 Önde dalga sıkışır, arkada seyrelir',
+      '🔭 Işıkta: kırmızıya/maviye kayma (uzay gözlemi)'
+    ]},
+    tyt_ayt: { emoji: '🚑', title: 'Doppler Olayı (TYT/AYT)', points: [
+      '🚑 f\' = f·(v ± v_g)/(v ∓ v_k) (ses için)',
+      '📈 Yaklaşma → f artar; uzaklaşma → f azalır',
+      '🌊 Kaynak hareketi λ\'yı değiştirir (önde sıkışma)',
+      '🔭 Işıkta kırmızıya kayma → evrenin genişlemesi kanıtı',
+      '⚠️ Gerçek kaynak frekansı değişmez, GÖZLENEN değişir',
+      '🩺 Tıpta Doppler USG, radarlarda hız ölçümü'
+    ]}
+  },
+  emDalga: {
+    ilkokul: { emoji: '📡', title: 'Elektromanyetik Dalgalar', points: [
+      '📡 Işık, radyo, röntgen birer EM dalgadır',
+      '🚀 Boşlukta (uzayda) yayılabilirler',
+      '☀️ Güneş ışığı uzaydan bize EM dalgayla gelir',
+      '🎚️ Spektrumu incele'
+    ]},
+    ortaokul: { emoji: '📡', title: 'Elektromanyetik Dalgalar', points: [
+      '📡 Ortam gerektirmeyen, boşlukta yayılan dalgalar',
+      '💡 Işık, radyo, mikrodalga, röntgen, gama hepsi EM',
+      '🚀 Hepsi boşlukta ışık hızıyla gider (c)',
+      '🌈 Spektrum: radyo→...→gama (frekans artar)',
+      '🎚️ Spektrum bölgelerini gez'
+    ]},
+    lise: { emoji: '📡', title: 'Elektromanyetik Spektrum', points: [
+      '📡 EM dalga: enine, boşlukta c=3×10⁸ m/s',
+      '🌈 Radyo → Mikrodalga → Kızılötesi → Görünür → Morötesi → X → Gama',
+      '📈 Bu sırada: frekans ↑, dalga boyu ↓, enerji ↑',
+      '💡 Görünür ışık: 400–700 nm (mor→kırmızı)',
+      '⚡ Enerji E = h·f (frekansla doğru orantılı)'
+    ]},
+    tyt_ayt: { emoji: '📡', title: 'EM Dalgalar (TYT/AYT)', points: [
+      '📡 Enine EM dalga; boşlukta c=3×10⁸ m/s, ortam gerekmez',
+      '🌈 Radyo→Mikro→IR→Görünür→UV→X→Gama (f↑, λ↓, E↑)',
+      '⚡ E = h·f = h·c/λ (h: Planck sabiti)',
+      '💡 Görünür: ~400 nm (mor) – 700 nm (kırmızı)',
+      '🔬 Hepsi aynı hızda (c); yalnız f ve λ farklı',
+      '🩻 Kullanım: radyo(iletişim), X(görüntüleme), gama(tedavi)'
+    ]}
+  }
+};
+
+const SubBuilders = {};
+window.SubBuilders = SubBuilders;
+
+// ============== KARŞILAŞTIRMA VERİLERİ ==============
+const COMPARE_DATA = {
+  dalgaNedir: {
+    ilkokul: { title: 'Dalga Örnekleri', cols: ['Dalga', 'Nerede'],
+      rows: [['Su', 'Gölde, denizde'], ['Ses', 'Havada'], ['Işık', 'Her yerde']] },
+    ortaokul: { title: 'Dalga Türleri', cols: ['Tür', 'Ortam'],
+      rows: [['Su', 'Su gerekir'], ['Ses', 'Hava/su/katı'], ['Işık', 'Boşlukta da']] },
+    lise: { title: 'Mekanik vs EM', cols: ['Özellik', 'Mekanik', 'EM'],
+      rows: [['Ortam', 'Gerekir', 'Gerekmez'], ['Örnek', 'Ses, su', 'Işık'], ['Boşlukta', 'Yayılmaz', 'Yayılır']] },
+    tyt_ayt: { title: 'Dalga (TYT/AYT)', cols: ['Büyüklük', 'Taşınan'],
+      rows: [['Madde', 'Taşınmaz'], ['Enerji', 'Taşınır'], ['Momentum', 'Taşınır'], ['Enerji∝', 'A²']] }
+  },
+  dalgaBuyukluk: {
+    ilkokul: { title: 'Parçalar', cols: ['Parça', 'Anlamı'],
+      rows: [['Tepe', 'En yüksek'], ['Çukur', 'En alçak'], ['Genlik', 'Yükseklik']] },
+    ortaokul: { title: 'Büyüklükler', cols: ['Büyüklük', 'Tanım'],
+      rows: [['Genlik A', 'Denge-tepe'], ['Dalga boyu λ', 'İki tepe arası'], ['Frekans f', 'Saniyedeki sayı']] },
+    lise: { title: 'Büyüklükler', cols: ['Sembol', 'Birim', 'Anlam'],
+      rows: [['A', 'm', 'Genlik'], ['λ', 'm', 'Dalga boyu'], ['f', 'Hz', 'Frekans'], ['T', 's', 'Periyot']] },
+    tyt_ayt: { title: 'Bağıntılar (TYT/AYT)', cols: ['Büyüklük', 'Bağıntı'],
+      rows: [['Hız', 'v=λf=λ/T'], ['Periyot', 'T=1/f'], ['Enerji', 'E∝A²'], ['λ', 'kaynak+ortam']] }
+  },
+  enineBoyuna: {
+    ilkokul: { title: 'İki Çeşit', cols: ['Tür', 'Hareket'],
+      rows: [['Enine', 'Yukarı-aşağı'], ['Boyuna', 'İleri-geri']] },
+    ortaokul: { title: 'Enine/Boyuna', cols: ['Tür', 'Titreşim', 'Örnek'],
+      rows: [['Enine', 'Dik', 'Su, ışık'], ['Boyuna', 'Paralel', 'Ses, yay']] },
+    lise: { title: 'Karşılaştırma', cols: ['Özellik', 'Enine', 'Boyuna'],
+      rows: [['Titreşim', '⊥ yayılma', '∥ yayılma'], ['Şekil', 'Tepe/çukur', 'Sıkışma'], ['Örnek', 'Işık', 'Ses']] },
+    tyt_ayt: { title: 'Enine/Boyuna (TYT/AYT)', cols: ['Özellik', 'Enine', 'Boyuna'],
+      rows: [['Titreşim', '⊥', '∥'], ['Polarlanma', 'Olur', 'Olmaz'], ['Işık', 'Enine', '—'], ['Ses', '—', 'Boyuna']] }
+  },
+  dalgaHizi: {
+    ilkokul: { title: 'Hız', cols: ['Değişim', 'Hız'],
+      rows: [['Uzun dalga', 'Hızlı'], ['Çok dalga', 'Hızlı']] },
+    ortaokul: { title: 'v = λ·f', cols: ['λ', 'f', 'v'],
+      rows: [['2', '3', '6'], ['4', '2', '8'], ['1', '5', '5']] },
+    lise: { title: 'Dalga Hızı', cols: ['Büyüklük', 'Bağlı olduğu'],
+      rows: [['v', 'Sadece ortam'], ['f', 'Sadece kaynak'], ['λ', 'Kaynak + ortam']] },
+    tyt_ayt: { title: 'Hız (TYT/AYT)', cols: ['Durum', 'Bağıntı'],
+      rows: [['Genel', 'v=λf'], ['Yay', 'v=√(F/µ)'], ['Ortam değişimi', 'λ₁/λ₂=v₁/v₂'], ['f', 'Sabit']] }
+  },
+  periyotFrekans: {
+    ilkokul: { title: 'Frekans', cols: ['Titreşim', 'Frekans'],
+      rows: [['Hızlı', 'Yüksek'], ['Yavaş', 'Düşük']] },
+    ortaokul: { title: 'T = 1/f', cols: ['f (Hz)', 'T (s)'],
+      rows: [['1', '1'], ['2', '0.5'], ['4', '0.25'], ['5', '0.2']] },
+    lise: { title: 'Periyot/Frekans', cols: ['Büyüklük', 'Formül'],
+      rows: [['T', '1/f'], ['f', '1/T'], ['ω', '2πf']] },
+    tyt_ayt: { title: 'Periyot/Frekans (TYT/AYT)', cols: ['Büyüklük', 'İfade'],
+      rows: [['f', '1/T = N/t'], ['T', '1/f'], ['ω', '2πf'], ['Stroboskop', 'fd=n·fs']] }
+  },
+  suDalgasi: {
+    ilkokul: { title: 'Su Dalgası', cols: ['Tür', 'Şekil'],
+      rows: [['Taş', 'Daire'], ['Çubuk', 'Düz çizgi']] },
+    ortaokul: { title: 'Derin/Sığ', cols: ['Ortam', 'Hız', 'λ'],
+      rows: [['Derin', 'Hızlı', 'Büyük'], ['Sığ', 'Yavaş', 'Küçük']] },
+    lise: { title: 'Su Dalgaları', cols: ['Ortam', 'v', 'λ', 'f'],
+      rows: [['Derin', 'Büyük', 'Büyük', 'Sabit'], ['Sığ', 'Küçük', 'Küçük', 'Sabit']] },
+    tyt_ayt: { title: 'Su Dalgası (TYT/AYT)', cols: ['Geçiş', 'Sonuç'],
+      rows: [['Derin→Sığ', 'v↓ λ↓'], ['Sığ→Derin', 'v↑ λ↑'], ['f', 'Daima sabit'], ['Oran', 'λd/λs=vd/vs']] }
+  },
+  yansima: {
+    ilkokul: { title: 'Yansıma', cols: ['Dalga', 'Olur'],
+      rows: [['Işık', 'Ayna'], ['Ses', 'Yankı'], ['Su', 'Duvar']] },
+    ortaokul: { title: 'Yansıma', cols: ['Özellik', 'Durum'],
+      rows: [['Açı', 'Geliş=yansıma'], ['Hız', 'Değişmez'], ['λ', 'Değişmez']] },
+    lise: { title: 'Yansıma', cols: ['Uç', 'Faz'],
+      rows: [['Sabit uç', 'Terslenir (π)'], ['Serbest uç', 'Korunur'], ['Açı', 'Eşit']] },
+    tyt_ayt: { title: 'Yansıma (TYT/AYT)', cols: ['Durum', 'Sonuç'],
+      rows: [['θ', 'Geliş=yansıma'], ['v,λ,f', 'Sabit'], ['Sabit uç', 'Faz π döner'], ['Serbest uç', 'Faz korunur']] }
+  },
+  kirilma: {
+    ilkokul: { title: 'Kırılma', cols: ['Geçiş', 'Sonuç'],
+      rows: [['Sığ suya', 'Yavaşlar'], ['λ', 'Küçülür']] },
+    ortaokul: { title: 'Kırılma', cols: ['Büyüklük', 'Değişim'],
+      rows: [['Frekans', 'SABİT'], ['Hız', 'Değişir'], ['Dalga boyu', 'Değişir']] },
+    lise: { title: 'Kırılma', cols: ['Geçiş', 'v', 'λ', 'f'],
+      rows: [['Yoğuna', 'Azalır', 'Azalır', 'Sabit'], ['Az yoğuna', 'Artar', 'Artar', 'Sabit']] },
+    tyt_ayt: { title: 'Kırılma (TYT/AYT)', cols: ['Büyüklük', 'Davranış'],
+      rows: [['f', 'SABİT (her zaman)'], ['v', 'Ortama bağlı'], ['λ', 'v/f ile değişir'], ['Oran', 'sinθ₁/sinθ₂=v₁/v₂']] }
+  },
+  girisim: {
+    ilkokul: { title: 'Girişim', cols: ['Buluşma', 'Sonuç'],
+      rows: [['Tepe+Tepe', 'Büyür'], ['Tepe+Çukur', 'Yok olur']] },
+    ortaokul: { title: 'Girişim', cols: ['Tür', 'Sonuç'],
+      rows: [['Yapıcı', 'Genlik artar'], ['Yıkıcı', 'Söner']] },
+    lise: { title: 'Girişim', cols: ['Tür', 'Faz', 'Genlik'],
+      rows: [['Yapıcı', 'Aynı', '2A'], ['Yıkıcı', 'Zıt', '0']] },
+    tyt_ayt: { title: 'Girişim (TYT/AYT)', cols: ['Tür', 'Yol farkı'],
+      rows: [['Yapıcı', 'n·λ'], ['Yıkıcı', '(n+½)·λ'], ['Genlik', 'y=y₁+y₂'], ['Sonra', 'Bağımsız devam']] }
+  },
+  kirinim: {
+    ilkokul: { title: 'Kırınım', cols: ['Aralık', 'Yayılma'],
+      rows: [['Dar', 'Çok'], ['Geniş', 'Az']] },
+    ortaokul: { title: 'Kırınım', cols: ['Yarık', 'Etki'],
+      rows: [['Küçük', 'Belirgin'], ['Büyük', 'Zayıf']] },
+    lise: { title: 'Kırınım', cols: ['Durum', 'Sonuç'],
+      rows: [['d ≈ λ', 'Güçlü'], ['d ≫ λ', 'Zayıf'], ['f,λ,v', 'Değişmez']] },
+    tyt_ayt: { title: 'Kırınım (TYT/AYT)', cols: ['Büyüklük', 'Davranış'],
+      rows: [['Yarık d≤λ', 'Güçlü kırınım'], ['d≫λ', 'Düz devam'], ['λ,f,v', 'Sabit'], ['İlke', 'Huygens']] }
+  },
+  yayDalgasi: {
+    ilkokul: { title: 'Yay Dalgası', cols: ['Durum', 'Hız'],
+      rows: [['Gergin', 'Hızlı'], ['Gevşek', 'Yavaş']] },
+    ortaokul: { title: 'Atma Hızı', cols: ['Etken', 'Etki'],
+      rows: [['Gerginlik ↑', 'Hız ↑'], ['Kütle ↑', 'Hız ↓']] },
+    lise: { title: 'v=√(F/µ)', cols: ['Değişen', 'Hıza etki'],
+      rows: [['F ↑', 'v ↑'], ['µ ↑', 'v ↓'], ['Genlik', 'Etkisiz']] },
+    tyt_ayt: { title: 'Yay (TYT/AYT)', cols: ['Büyüklük', 'İfade'],
+      rows: [['Hız', 'v=√(F/µ)'], ['F', 'Gerginlik'], ['µ', 'm/L'], ['Sabit uç', 'Faz π döner']] }
+  },
+  sesDalgasi: {
+    ilkokul: { title: 'Ses', cols: ['Özellik', 'Durum'],
+      rows: [['Tür', 'Boyuna'], ['Boşlukta', 'Duyulmaz']] },
+    ortaokul: { title: 'Ses Dalgası', cols: ['Ortam', 'Hız'],
+      rows: [['Katı', 'En hızlı'], ['Sıvı', 'Orta'], ['Gaz', 'En yavaş']] },
+    lise: { title: 'Ses Hızı', cols: ['Etken', 'Etki'],
+      rows: [['Katı>Sıvı>Gaz', 'Ortam'], ['Sıcaklık ↑', 'Hız ↑'], ['Frekans', 'İncelik']] },
+    tyt_ayt: { title: 'Ses (TYT/AYT)', cols: ['Özellik', 'Belirleyen'],
+      rows: [['Yükseklik', 'Frekans'], ['Şiddet', 'Genlik (A²)'], ['Tını', 'Kaynak'], ['Hız', 'Ortam+sıcaklık']] }
+  },
+  depremDalgasi: {
+    ilkokul: { title: 'Deprem', cols: ['Dalga', 'Etki'],
+      rows: [['İten (P)', 'Hızlı'], ['Sallayan (S)', 'Yavaş']] },
+    ortaokul: { title: 'P ve S', cols: ['Dalga', 'Tür', 'Hız'],
+      rows: [['P', 'Boyuna', 'Hızlı'], ['S', 'Enine', 'Yavaş']] },
+    lise: { title: 'Sismik Dalgalar', cols: ['Dalga', 'Tür', 'Ortam'],
+      rows: [['P', 'Boyuna', 'Katı+sıvı'], ['S', 'Enine', 'Sadece katı'], ['Yüzey', 'Karma', 'Yüzey']] },
+    tyt_ayt: { title: 'Deprem (TYT/AYT)', cols: ['Dalga', 'Özellik'],
+      rows: [['P', 'Boyuna, en hızlı'], ['S', 'Enine, katıda'], ['S sıvıda', 'Yayılmaz'], ['Δt(P-S)', 'Uzaklık verir']] }
+  },
+  doppler: {
+    ilkokul: { title: 'Doppler', cols: ['Hareket', 'Ses'],
+      rows: [['Yaklaşır', 'Tizleşir'], ['Uzaklaşır', 'Kalınlaşır']] },
+    ortaokul: { title: 'Doppler', cols: ['Durum', 'Frekans'],
+      rows: [['Yaklaşma', 'Artar'], ['Uzaklaşma', 'Azalır']] },
+    lise: { title: 'Doppler', cols: ['Hareket', 'f', 'λ'],
+      rows: [['Yaklaşma', 'Artar', 'Azalır'], ['Uzaklaşma', 'Azalır', 'Artar']] },
+    tyt_ayt: { title: 'Doppler (TYT/AYT)', cols: ['Büyüklük', 'İfade'],
+      rows: [["f'", 'f(v±vg)/(v∓vk)'], ['Yaklaşma', 'f artar'], ['Işık', 'Kırmızı/mavi kayma'], ['Kaynak f', 'Değişmez']] }
+  },
+  emDalga: {
+    ilkokul: { title: 'EM Dalga', cols: ['Örnek', 'Nerede'],
+      rows: [['Işık', 'Her yer'], ['Radyo', 'Hava+uzay']] },
+    ortaokul: { title: 'EM Dalga', cols: ['Özellik', 'Durum'],
+      rows: [['Ortam', 'Gerekmez'], ['Hız', 'Işık hızı c'], ['Örnek', 'Işık, radyo, X']] },
+    lise: { title: 'EM Spektrum', cols: ['Bölge', 'Frekans'],
+      rows: [['Radyo', 'En düşük'], ['Görünür', 'Orta'], ['Gama', 'En yüksek']] },
+    tyt_ayt: { title: 'EM Spektrum (TYT/AYT)', cols: ['Sıra', 'Değişim'],
+      rows: [['Radyo→Gama', 'f artar'], ['Radyo→Gama', 'λ azalır'], ['E', 'h·f'], ['Hız', 'Hepsi c']] }
+  }
+};
+const TABLE_DATA = {
+  dalgaNedir: {
+    ortaokul: { title: 'Dalga Özeti', cols: ['Soru', 'Cevap'],
+      rows: [['Ne taşır?', 'Enerji'], ['Madde?', 'Taşımaz'], ['Kaynak?', 'Titreşim']] },
+    lise: { title: 'Dalga Türleri', cols: ['Tür', 'Ortam', 'Örnek'],
+      rows: [['Mekanik', 'Gerekir', 'Ses, su, yay'], ['EM', 'Gerekmez', 'Işık, radyo']] },
+    tyt_ayt: { title: 'Dalga İlkeleri', cols: ['İlke', 'Açıklama'],
+      rows: [['Enerji iletimi', 'Madde taşınmaz'], ['E ∝ A²', 'Genlik karesi'], ['EM hız', 'c=3×10⁸ m/s']] }
+  },
+  dalgaBuyukluk: {
+    ortaokul: { title: 'Büyüklükler', cols: ['Ad', 'Sembol', 'Birim'],
+      rows: [['Genlik', 'A', 'm'], ['Dalga boyu', 'λ', 'm'], ['Frekans', 'f', 'Hz'], ['Periyot', 'T', 's']] },
+    lise: { title: 'İlişkiler', cols: ['Bağıntı', 'Anlam'],
+      rows: [['v=λf', 'Hız'], ['T=1/f', 'Periyot'], ['E∝A²', 'Enerji']] },
+    tyt_ayt: { title: 'Bağımlılık', cols: ['Büyüklük', 'Bağlı'],
+      rows: [['v', 'Ortam'], ['f', 'Kaynak'], ['λ', 'Ortam+kaynak'], ['A', 'Kaynak enerjisi']] }
+  },
+  enineBoyuna: {
+    lise: { title: 'Türler', cols: ['Tür', 'Titreşim', 'Örnek'],
+      rows: [['Enine', '⊥ yayılma', 'Su, ışık, ip'], ['Boyuna', '∥ yayılma', 'Ses, yay']] },
+    tyt_ayt: { title: 'Ayırt Edici', cols: ['Özellik', 'Sonuç'],
+      rows: [['Polarlanma', 'Sadece enine'], ['Işık', 'Enine (EM)'], ['Ses', 'Boyuna']] }
+  },
+  dalgaHizi: {
+    ortaokul: { title: 'v=λ·f', cols: ['λ (m)', 'f (Hz)', 'v (m/s)'],
+      rows: [['2', '3', '6'], ['3', '4', '12'], ['5', '2', '10']] },
+    lise: { title: 'Hız Bağımlılığı', cols: ['Değişen', 'Etki'],
+      rows: [['Ortam', 'v değişir'], ['Kaynak', 'f değişir'], ['f↑ (v sabit)', 'λ↓']] },
+    tyt_ayt: { title: 'Hız Formülleri', cols: ['Ortam', 'Formül'],
+      rows: [['Genel', 'v=λf'], ['Gergin tel', 'v=√(F/µ)'], ['Geçiş', 'λ₁/λ₂=v₁/v₂']] }
+  },
+  periyotFrekans: {
+    ortaokul: { title: 'T=1/f', cols: ['f (Hz)', 'T (s)'],
+      rows: [['2', '0.5'], ['4', '0.25'], ['10', '0.1']] },
+    lise: { title: 'Bağıntılar', cols: ['Büyüklük', 'Formül'],
+      rows: [['T', '1/f'], ['f', '1/T'], ['v', 'λ/T']] },
+    tyt_ayt: { title: 'Frekans (TYT/AYT)', cols: ['Konu', 'İfade'],
+      rows: [['f', 'N/t'], ['ω', '2πf'], ['Stroboskop', 'fd=n·fs']] }
+  },
+  suDalgasi: {
+    ortaokul: { title: 'Derin/Sığ', cols: ['Ortam', 'Hız', 'λ'],
+      rows: [['Derin', 'Büyük', 'Büyük'], ['Sığ', 'Küçük', 'Küçük']] },
+    lise: { title: 'Su Dalgası', cols: ['Geçiş', 'v', 'λ'],
+      rows: [['Derin→Sığ', 'Azalır', 'Azalır'], ['f', 'Sabit', 'Sabit']] },
+    tyt_ayt: { title: 'Su Dalgası (TYT/AYT)', cols: ['Büyüklük', 'Davranış'],
+      rows: [['Derinlik↓', 'v↓ λ↓'], ['f', 'Sabit'], ['Cephe', 'Kırılır']] }
+  },
+  yansima: {
+    lise: { title: 'Yansıma', cols: ['Tür', 'Faz'],
+      rows: [['Sabit uç', 'Terslenir'], ['Serbest uç', 'Korunur'], ['Açı', 'Eşit']] },
+    tyt_ayt: { title: 'Yansıma (TYT/AYT)', cols: ['Büyüklük', 'Durum'],
+      rows: [['v,λ,f', 'Değişmez'], ['Açı', 'Geliş=yansıma'], ['Sabit uç', 'Faz π']] }
+  },
+  kirilma: {
+    ortaokul: { title: 'Kırılma', cols: ['Büyüklük', 'Değişir mi'],
+      rows: [['Frekans', 'Hayır'], ['Hız', 'Evet'], ['λ', 'Evet']] },
+    lise: { title: 'Kırılma', cols: ['Geçiş', 'v', 'λ'],
+      rows: [['Yoğuna', '↓', '↓'], ['Az yoğuna', '↑', '↑'], ['f', 'Sabit', 'Sabit']] },
+    tyt_ayt: { title: 'Kırılma (TYT/AYT)', cols: ['Büyüklük', 'Kural'],
+      rows: [['f', 'SABİT'], ['v', 'Ortam belirler'], ['λ=v/f', 'Değişir'], ['Snell', 'sinθ₁/sinθ₂=v₁/v₂']] }
+  },
+  girisim: {
+    lise: { title: 'Girişim', cols: ['Tür', 'Faz', 'Genlik'],
+      rows: [['Yapıcı', 'Aynı', '2A'], ['Yıkıcı', 'Zıt', '0']] },
+    tyt_ayt: { title: 'Girişim (TYT/AYT)', cols: ['Tür', 'Yol farkı'],
+      rows: [['Yapıcı', 'nλ'], ['Yıkıcı', '(n+½)λ'], ['Toplam', 'y=y₁+y₂']] }
+  },
+  kirinim: {
+    lise: { title: 'Kırınım', cols: ['Yarık', 'Kırınım'],
+      rows: [['d≈λ', 'Güçlü'], ['d≫λ', 'Zayıf']] },
+    tyt_ayt: { title: 'Kırınım (TYT/AYT)', cols: ['Büyüklük', 'Durum'],
+      rows: [['d≤λ', 'Belirgin'], ['λ,f,v', 'Sabit'], ['İlke', 'Huygens']] }
+  },
+  yayDalgasi: {
+    ortaokul: { title: 'Atma', cols: ['Etken', 'Hız'],
+      rows: [['Gergin', 'Artar'], ['Ağır yay', 'Azalır']] },
+    lise: { title: 'v=√(F/µ)', cols: ['F', 'µ', 'v'],
+      rows: [['Artar', 'Sabit', 'Artar'], ['Sabit', 'Artar', 'Azalır']] },
+    tyt_ayt: { title: 'Yay (TYT/AYT)', cols: ['Büyüklük', 'İfade'],
+      rows: [['v', '√(F/µ)'], ['µ', 'm/L'], ['Genlik', 'Hızı etkilemez']] }
+  },
+  sesDalgasi: {
+    ortaokul: { title: 'Ses Hızı', cols: ['Ortam', 'Hız'],
+      rows: [['Katı', 'En hızlı'], ['Sıvı', 'Orta'], ['Gaz', 'En yavaş']] },
+    lise: { title: 'Ses', cols: ['Özellik', 'Belirleyen'],
+      rows: [['Yükseklik', 'Frekans'], ['Şiddet', 'Genlik'], ['Hız', 'Ortam']] },
+    tyt_ayt: { title: 'Ses (TYT/AYT)', cols: ['Konu', 'Değer'],
+      rows: [['İşitilebilir', '20Hz-20kHz'], ['Hava hızı', '≈340 m/s'], ['Sıcaklık', 'v artar']] }
+  },
+  depremDalgasi: {
+    ortaokul: { title: 'P/S Dalgaları', cols: ['Dalga', 'Tür'],
+      rows: [['P', 'Boyuna (hızlı)'], ['S', 'Enine (yavaş)']] },
+    lise: { title: 'Sismik', cols: ['Dalga', 'Ortam'],
+      rows: [['P', 'Katı+sıvı'], ['S', 'Sadece katı'], ['Yüzey', 'En yıkıcı']] },
+    tyt_ayt: { title: 'Deprem (TYT/AYT)', cols: ['Dalga', 'Özellik'],
+      rows: [['P', 'En hızlı, boyuna'], ['S', 'Enine, katıda'], ['Δt(P-S)', 'Uzaklık']] }
+  },
+  doppler: {
+    ortaokul: { title: 'Doppler', cols: ['Hareket', 'Frekans'],
+      rows: [['Yaklaşma', 'Artar (tiz)'], ['Uzaklaşma', 'Azalır (kalın)']] },
+    lise: { title: 'Doppler', cols: ['Durum', 'Sonuç'],
+      rows: [['Yaklaşma', 'f↑ λ↓'], ['Uzaklaşma', 'f↓ λ↑']] },
+    tyt_ayt: { title: 'Doppler (TYT/AYT)', cols: ['Konu', 'İfade'],
+      rows: [["f'", 'f(v±vg)/(v∓vk)'], ['Işık', 'Kırmızı kayma'], ['Kaynak f', 'Sabit']] }
+  },
+  emDalga: {
+    ortaokul: { title: 'EM Dalga', cols: ['Özellik', 'Durum'],
+      rows: [['Ortam', 'Gerekmez'], ['Hız', 'c (ışık hızı)']] },
+    lise: { title: 'Spektrum', cols: ['Bölge', 'Özellik'],
+      rows: [['Radyo', 'λ büyük'], ['Görünür', '400-700nm'], ['Gama', 'f en büyük']] },
+    tyt_ayt: { title: 'EM (TYT/AYT)', cols: ['Büyüklük', 'İfade'],
+      rows: [['Hız', 'c=3×10⁸'], ['Enerji', 'E=hf'], ['Radyo→Gama', 'f↑ λ↓ E↑']] }
+  }
+};
+
+// ============================================================
+// ====== DALGALAR — 3D HELPER KÜTÜPHANESİ ===================
+// ============================================================
+
+function setupVectorLighting() {
+  const grp = new THREE.Group();
+  grp.userData.dynamic = true;
+  grp.add(new THREE.AmbientLight(0xaab4d4, 0.55));
+  const key = new THREE.DirectionalLight(0xffffff, 1.05);
+  key.position.set(7, 12, 8);
+  key.castShadow = true;
+  key.shadow.mapSize.width = 2048; key.shadow.mapSize.height = 2048;
+  key.shadow.camera.near = 0.5; key.shadow.camera.far = 60;
+  key.shadow.camera.left = -16; key.shadow.camera.right = 16;
+  key.shadow.camera.top = 16; key.shadow.camera.bottom = -16;
+  key.shadow.bias = -0.0004; key.shadow.radius = 5;
+  grp.add(key);
+  const fill = new THREE.DirectionalLight(0x88a8ff, 0.35); fill.position.set(-8,5,6); grp.add(fill);
+  const rim = new THREE.DirectionalLight(0xa8d0ff, 0.3); rim.position.set(3,4,-10); grp.add(rim);
+  grp.add(new THREE.HemisphereLight(0xcfe0ff, 0x2a3048, 0.4));
+  return grp;
+}
+
+function makeGridSystem(opts = {}) {
+  const size = opts.size || 20, divisions = opts.divisions || 20;
+  const floorY = (opts.floorY !== undefined) ? opts.floorY : 0;
+  const grp = new THREE.Group(); grp.userData.dynamic = true;
+  const gFloor = new THREE.GridHelper(size, divisions, 0x9fb0d8, 0x39425e);
+  gFloor.position.y = floorY; gFloor.material.transparent = true; gFloor.material.opacity = 0.35;
+  grp.add(gFloor);
+  const gWall = new THREE.GridHelper(size, divisions, 0x9fb0d8, 0x39425e);
+  gWall.rotation.x = Math.PI / 2; gWall.position.z = -size/2; gWall.position.y = size/2 + floorY;
+  gWall.material.transparent = true; gWall.material.opacity = 0.28;
+  grp.add(gWall);
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x12182a, roughness: 0.92, metalness: 0.05, transparent: true, opacity: 0.5 });
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(size, size), floorMat);
+  floor.rotation.x = -Math.PI/2; floor.position.y = floorY - 0.01; floor.receiveShadow = true;
+  grp.add(floor);
+  return grp;
+}
+
+// === DALGA HAVUZU: çok segmentli PlaneGeometry esnek ağ ===
+// opts: { w, d, segX, segZ, color, wire }
+function makeWaveMesh(opts = {}) {
+  const w = opts.w || 10, d = opts.d || 8;
+  const segX = opts.segX || 60, segZ = opts.segZ || 48;
+  const geo = new THREE.PlaneGeometry(w, d, segX, segZ);
+  geo.rotateX(-Math.PI/2); // yatay düzleme yatır (xz düzlemi, y yukarı)
+  const mat = new THREE.MeshStandardMaterial({
+    color: opts.color || 0x2a8ad4,
+    roughness: 0.3, metalness: 0.4,
+    transparent: true, opacity: opts.opacity || 0.92,
+    side: THREE.DoubleSide,
+    emissive: opts.emissive || 0x0a2540, emissiveIntensity: 0.25,
+    flatShading: false
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.castShadow = true; mesh.receiveShadow = true;
+  // başlangıç dikey konumları sakla (vertex animasyonu için)
+  const pos = geo.attributes.position;
+  const base = new Float32Array(pos.count * 2); // (x,z) düzlem koordinatları
+  for (let i = 0; i < pos.count; i++) {
+    base[i*2] = pos.getX(i);
+    base[i*2+1] = pos.getZ(i);
+  }
+  mesh.userData._base = base;
+  mesh.userData._geo = geo;
+  mesh.userData._w = w; mesh.userData._d = d;
+  // tel kafes overlay (dalga sırtlarını belirginleştirir)
+  if (opts.wire !== false) {
+    const wireMat = new THREE.MeshBasicMaterial({ color: opts.wireColor || 0x6ad6ff, wireframe: true, transparent: true, opacity: 0.18 });
+    const wire = new THREE.Mesh(geo, wireMat);
+    mesh.add(wire);
+  }
+  return mesh;
+}
+
+// Dalga mesh'inin vertex'lerini sinüs fonksiyonuyla güncelle
+// params: { t, A, k, omega, dir2D:[dx,dz], type:'plane'|'radial', srcX, srcZ, twoMedia, splitX, kFactor, ampFactor }
+function updateWaveMesh(mesh, params) {
+  const geo = mesh.userData._geo;
+  const base = mesh.userData._base;
+  const pos = geo.attributes.position;
+  const A = params.A || 0.5;
+  const k = params.k || 1.0;          // dalga sayısı 2π/λ
+  const omega = params.omega || 2.0;  // açısal frekans
+  const t = params.t || 0;
+  const type = params.type || 'plane';
+  const dir = params.dir2D || [1, 0];
+  for (let i = 0; i < pos.count; i++) {
+    const x = base[i*2], z = base[i*2+1];
+    let y = 0;
+    if (type === 'radial') {
+      const dx = x - (params.srcX||0), dz = z - (params.srcZ||0);
+      const r = Math.sqrt(dx*dx + dz*dz);
+      const damp = 1 / (1 + r*0.25);
+      y = A * damp * Math.sin(k*r - omega*t);
+    } else if (type === 'twoMedia') {
+      // sol: derin (k1), sağ: sığ (k2 daha büyük, λ küçük); faz sürekliliği splitX'te
+      const splitX = params.splitX || 0;
+      if (x < splitX) {
+        y = A * Math.sin(k*(x) - omega*t + (params.phase0||0));
+      } else {
+        const k2 = k * (params.kFactor || 1.7);
+        const phaseAtSplit = k*(splitX) ;
+        const A2 = A * (params.ampFactor || 0.85);
+        y = A2 * Math.sin(phaseAtSplit + k2*(x - splitX) - omega*t + (params.phase0||0));
+      }
+    } else {
+      // düzlem dalga, dir yönünde
+      const proj = x*dir[0] + z*dir[1];
+      y = A * Math.sin(k*proj - omega*t + (params.phase0||0));
+    }
+    pos.setY(i, y);
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+}
+
+// İki dalga süperpozisyonu (girişim) için özel güncelleyici
+function updateWaveInterference(mesh, params) {
+  const geo = mesh.userData._geo;
+  const base = mesh.userData._base;
+  const pos = geo.attributes.position;
+  const A = params.A || 0.5, k = params.k || 1.5, omega = params.omega || 2.0, t = params.t || 0;
+  const s1 = params.src1 || [-2.5, 0], s2 = params.src2 || [2.5, 0];
+  for (let i = 0; i < pos.count; i++) {
+    const x = base[i*2], z = base[i*2+1];
+    const r1 = Math.sqrt((x-s1[0])**2 + (z-s1[1])**2);
+    const r2 = Math.sqrt((x-s2[0])**2 + (z-s2[1])**2);
+    const d1 = 1/(1+r1*0.3), d2 = 1/(1+r2*0.3);
+    const y = A*d1*Math.sin(k*r1 - omega*t) + A*d2*Math.sin(k*r2 - omega*t);
+    pos.setY(i, y);
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+}
+
+// 1B sinüs eğrisi (yan profil çizgisi — tepe/çukur/λ göstermek için)
+function makeWaveCurve(opts = {}) {
+  const w = opts.w || 10, segs = opts.segs || 120;
+  const pts = [];
+  for (let i = 0; i <= segs; i++) {
+    const x = -w/2 + (i/segs)*w;
+    pts.push(new THREE.Vector3(x, 0, 0));
+  }
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const mat = new THREE.LineBasicMaterial({ color: opts.color || 0x6ad6ff, transparent: true, opacity: 0.95 });
+  const line = new THREE.Line(geo, mat);
+  line.userData._segs = segs; line.userData._w = w;
+  return line;
+}
+function updateWaveCurve(line, params) {
+  const segs = line.userData._segs, w = line.userData._w;
+  const A = params.A || 1, k = params.k || 1, omega = params.omega || 0, t = params.t || 0;
+  const pos = line.geometry.attributes.position;
+  for (let i = 0; i <= segs; i++) {
+    const x = -w/2 + (i/segs)*w;
+    pos.setY(i, A*Math.sin(k*x - omega*t + (params.phase0||0)));
+  }
+  pos.needsUpdate = true;
+}
+
+// Yön/kuvvet oku
+function makeVectorArrow(origin, vec, opts = {}) {
+  const color = opts.color || 0x4a90e2;
+  const shaftR = opts.shaftR || 0.05, headR = opts.headR || 0.15, headLen = opts.headLen || 0.35;
+  const grp = new THREE.Group();
+  const len = vec.length(); if (len < 0.001) return grp;
+  const dir = vec.clone().normalize();
+  const shaftLen = Math.max(0.01, len - headLen);
+  const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.45, roughness: 0.35, metalness: 0.4, toneMapped: false });
+  if (!window._arrowMaterials) window._arrowMaterials = [];
+  window._arrowMaterials.push(mat);
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(shaftR, shaftR, shaftLen, 14), mat);
+  shaft.position.copy(origin).add(dir.clone().multiplyScalar(shaftLen/2));
+  shaft.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir); grp.add(shaft);
+  const head = new THREE.Mesh(new THREE.ConeGeometry(headR, headLen, 16), mat);
+  head.position.copy(origin).add(dir.clone().multiplyScalar(shaftLen + headLen/2));
+  head.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir); grp.add(head);
+  return grp;
+}
+
+function makeDashedLine(from, to, opts = {}) {
+  const color = opts.color || 0xffe14d;
+  const geo = new THREE.BufferGeometry().setFromPoints([from.clone(), to.clone()]);
+  const mat = new THREE.LineDashedMaterial({ color, dashSize: opts.dash || 0.18, gapSize: opts.gap || 0.12, transparent: true, opacity: opts.opacity || 0.85 });
+  const line = new THREE.Line(geo, mat); line.computeLineDistances(); return line;
+}
+
+function makeSolidLine(from, to, opts = {}) {
+  const geo = new THREE.BufferGeometry().setFromPoints([from.clone(), to.clone()]);
+  const mat = new THREE.LineBasicMaterial({ color: opts.color || 0xffe14d, transparent: true, opacity: opts.opacity || 0.9 });
+  return new THREE.Line(geo, mat);
+}
+
+// Küçük küre (tepe/çukur/parçacık işaretçisi)
+function makeMarker(pos, opts = {}) {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(opts.r || 0.12, 12, 10),
+    new THREE.MeshStandardMaterial({ color: opts.color || 0xff5252, emissive: opts.color || 0xff5252, emissiveIntensity: 0.5, toneMapped: false }));
+  m.position.copy(pos); return m;
+}
+
+// ÖLÇÜ ETİKETİ
+function makeMeasureLabel(text, pos, color) {
+  const div = document.createElement('div');
+  div.style.cssText = 'background:' + (color || 'rgba(20,28,46,0.92)') +
+    ';color:#fff;font-weight:700;font-size:14px;padding:2px 8px;border-radius:8px;' +
+    'border:1.5px solid rgba(255,255,255,0.35);font-family:system-ui,sans-serif;' +
+    'box-shadow:0 2px 8px rgba(0,0,0,0.4);white-space:nowrap;pointer-events:none;';
+  div.textContent = text;
+  const lbl = new CSS2DObject(div);
+  lbl.position.set(pos[0], pos[1], pos[2]);
+  lbl.userData.dynamic = true;
+  return lbl;
+}
+
+// ÖLÇÜ ÇİZGİSİ
+function makeDimension(from, to, text, opts = {}) {
+  const grp = new THREE.Group(); grp.userData.dynamic = true;
+  const color = opts.color || 0xffe14d;
+  const geo = new THREE.BufferGeometry().setFromPoints([from.clone(), to.clone()]);
+  grp.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.95 })));
+  [from, to].forEach(p => {
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), new THREE.MeshBasicMaterial({ color, toneMapped: false }));
+    dot.position.copy(p); grp.add(dot);
+  });
+  const mid = from.clone().add(to).multiplyScalar(0.5);
+  if (opts.offset) mid.add(new THREE.Vector3(opts.offset[0], opts.offset[1], opts.offset[2] || 0));
+  grp.add(makeMeasureLabel(text, [mid.x, mid.y, mid.z], opts.labelBg || 'rgba(20,28,46,0.92)'));
+  return grp;
+}
+
+// Kaynak (titreşim üreten nokta/çubuk)
+function makeSource(opts = {}) {
+  const grp = new THREE.Group();
+  if (opts.type === 'bar') {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(opts.len || 6, 0.3, 0.3),
+      new THREE.MeshStandardMaterial({ color: 0xffb84d, emissive: 0xffb84d, emissiveIntensity: 0.4, roughness: 0.4, toneMapped: false }));
+    grp.add(bar);
+  } else {
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(opts.r || 0.3, 16, 12),
+      new THREE.MeshStandardMaterial({ color: 0xffb84d, emissive: 0xffb84d, emissiveIntensity: 0.5, roughness: 0.3, toneMapped: false }));
+    grp.add(ball);
+  }
+  return grp;
+}
+
+function makeFlowRay(){ return new THREE.Group(); } // dalga sahnelerinde flow ray kullanılmıyor
+function registerFlowRay(){}
+function updateFlowRay(){}
+window._flowRays = [];
+function _deg2rad(d){ return d*Math.PI/180; }
+
+// ============================================================
+// ====== SUBBUILDERS — DALGALAR 3D SAHNELERİ ================
+
+// ============================================================
+// ====== MODÜL 4: MEKANİK DALGA TÜRLERİ ====================
+// ============================================================
+
+// ---------- MODÜL 4.1: Yay / Atma Dalgaları (v=√(F/µ)) ----------
+SubBuilders.buildYayDalgasi = function() {
+  const root = new THREE.Group();
+  markDynamic(root); scene.add(root); window._currentModelGroup = root;
+  root.add(setupVectorLighting());
+  root.add(makeGridSystem({ size: 16, divisions: 16, floorY: -3 }));
+
+  const S = window._sceneState;
+  S.yd_F = 100;  // gerginlik (N)
+  S.yd_mu = 0.5; // birim kütle (kg/m)
+  S._ydT = 0;
+
+  const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+  const W = 11;
+  // yay/ip (yan profil) — üzerinde tek atma ilerler
+  const curve = makeWaveCurve({ w: W, segs: 220, color: WCOL.wave });
+  dyn.add(curve);
+  dyn.add(makeSolidLine(new THREE.Vector3(-W/2,0,0), new THREE.Vector3(W/2,0,0), { color: 0x9fb0d8, opacity: 0.3 }));
+  // el (sol uçta titreşim kaynağı)
+  const hand = makeSource({ type:'point', r:0.25 }); hand.position.set(-W/2, 0, 0); dyn.add(hand);
+  const annot = new THREE.Group(); annot.userData.dynamic = true; dyn.add(annot);
+
+  function v(){ return Math.sqrt(S.yd_F / S.yd_mu); }
+
+  function frame(t) {
+    const segs = curve.userData._segs, pos = curve.geometry.attributes.position;
+    const A = 0.9, width = 0.9, speed = v()*0.25;
+    const c = -W/2 + (t*speed) % (W+3); // atma merkezi soldan sağa
+    for (let i = 0; i <= segs; i++) {
+      const x = -W/2 + (i/segs)*W;
+      pos.setY(i, A*Math.exp(-Math.pow((x-c)/width, 2)));
+    }
+    pos.needsUpdate = true;
+    hand.position.y = (c < -W/2+1) ? A*Math.exp(-Math.pow((-W/2-c)/width,2)) : 0;
+  }
+  frame(0);
+  window._customAnim = function(t, dt){ S._ydT += dt; frame(S._ydT); };
+
+  setSceneSliders([
+    { type: 'section', label: 'Atma Hızı v=√(F/µ)' },
+    { type: 'slider', label: 'Gerginlik F', min: 20, max: 200, step: 20, unit: ' N',
+      getValue: () => S.yd_F, setValue: (val)=>{ S.yd_F=val; }, format:(x)=>x.toFixed(0) },
+    { type: 'slider', label: 'Birim kütle µ', min: 0.2, max: 2, step: 0.2, unit: ' kg/m',
+      getValue: () => S.yd_mu, setValue: (val)=>{ S.yd_mu=val; }, format:(x)=>x.toFixed(1) },
+    { type: 'section', label: 'Sonuç' },
+    { type: 'display', label: 'Atma hızı v', highlight: true, getValue: () => v().toFixed(1) + ' m/s' },
+    { type: 'display', label: 'Genlik', getValue: () => 'Hızı etkilemez' },
+    { type: 'formula', text: 'v = √(F/µ)',
+      getValue: () => 'v = √(' + S.yd_F + '/' + S.yd_mu.toFixed(1) + ') = <b>' + v().toFixed(1) + ' m/s</b>' }
+  ], { title: 'Yay / Atma Dalgaları' });
+
+  addInfo3DLabels([
+    { text: { ilkokul:'👋 El sallar', ortaokul:'👋 Atma kaynağı', lise:'👋 Kaynak (atma)', tyt_ayt:'👋 Atma üreteci' },
+      position: [-W/2-2, 1.4, 0], target: [-W/2, 0.2, 0], color: '#ffb84d' },
+    { text: { ilkokul:'🪢 Tek dalga gider', ortaokul:'🪢 Atma ilerler', lise:'🪢 Atma (tek darbe)', tyt_ayt:'🪢 v=√(F/µ)' },
+      position: [2, 2, 0], target: [1, 0.9, 0], color: '#6ad6ff' }
+  ]);
+};
+
+// ---------- MODÜL 4.2: Ses Dalgaları ----------
+SubBuilders.buildSesDalgasi = function() {
+  const root = new THREE.Group();
+  markDynamic(root); scene.add(root); window._currentModelGroup = root;
+  root.add(setupVectorLighting());
+  root.add(makeGridSystem({ size: 16, divisions: 16, floorY: -3 }));
+
+  const S = window._sceneState;
+  S.se_f = 2.0;     // frekans göstergesi
+  S.se_ortam = 0;   // 0: hava, 1: su, 2: katı
+  S._seT = 0;
+
+  const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+  const N = 60, W = 11;
+  let parts = [];
+  function build() {
+    [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
+    parts = [];
+    // hoparlör (sol)
+    const spk = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 1.0, 0.6, 20),
+      new THREE.MeshStandardMaterial({ color: 0x444a5a, roughness:0.5 }));
+    spk.rotation.z = Math.PI/2; spk.position.set(-W/2-0.5, 0, 0); dyn.add(spk);
+    // parçacık dizisi (boyuna: x'te sıkışır)
+    for (let i = 0; i < N; i++) {
+      const x0 = -W/2 + (i/(N-1))*W;
+      const p = makeMarker(new THREE.Vector3(x0, 0, 0), { color: 0x6ad6ff, r: 0.1 });
+      p.userData._x0 = x0; dyn.add(p); parts.push(p);
+    }
+    dyn.add(makeVectorArrow(new THREE.Vector3(-W/2-0.5, 1.6, 0), new THREE.Vector3(W+1, 0, 0), { color: 0x9fb0d8, shaftR: 0.025, headR: 0.1 }));
+  }
+  build();
+
+  function ortamHiz(){ return [340, 1480, 5000][S.se_ortam]; }
+  function frame(t) {
+    const k = 2*Math.PI/2.0, omega = 2*Math.PI*S.se_f, A = 0.5*(0.6+ortamHiz()/5000);
+    parts.forEach(p => {
+      const x0 = p.userData._x0;
+      p.position.x = x0 + A*Math.sin(k*x0 - omega*t); // boyuna sıkışma
+    });
+  }
+  frame(0);
+  window._customAnim = function(t, dt){ S._seT += dt; frame(S._seT); };
+
+  setSceneSliders([
+    { type: 'section', label: 'Ses Dalgası (Boyuna)' },
+    { type: 'slider', label: 'Frekans f', min: 1, max: 4, step: 0.5, unit: ' (göreli)',
+      getValue: () => S.se_f, setValue: (v)=>{ S.se_f=v; }, format:(x)=>x.toFixed(1) },
+    { type: 'presets', activeIdx: 0, options: [
+      { label: '💨 Hava (340 m/s)', action: ()=>{ S.se_ortam=0; } },
+      { label: '💧 Su (1480 m/s)', action: ()=>{ S.se_ortam=1; } },
+      { label: '🪨 Katı (5000 m/s)', action: ()=>{ S.se_ortam=2; } }
+    ]},
+    { type: 'section', label: 'Bilgi' },
+    { type: 'display', label: 'Ses hızı', highlight: true, getValue: () => ortamHiz() + ' m/s' },
+    { type: 'display', label: 'Tür', getValue: () => 'Boyuna (sıkışma)' },
+    { type: 'display', label: 'İşitilebilir', getValue: () => '20 Hz – 20 kHz' },
+    { type: 'formula', text: 'Hız: katı > sıvı > gaz · Boşlukta yayılmaz' }
+  ], { title: 'Ses Dalgaları' });
+
+  addInfo3DLabels([
+    { text: { ilkokul:'🔊 Hoparlör', ortaokul:'🔊 Ses kaynağı', lise:'🔊 Kaynak', tyt_ayt:'🔊 Kaynak (f)' },
+      position: [-W/2-2.5, 1.4, 0], target: [-W/2-0.5, 0, 0], color: '#ffb84d' },
+    { text: { ilkokul:'💨 Hava sıkışır', ortaokul:'💨 Sıkışma/seyrelme', lise:'💨 Boyuna dalga', tyt_ayt:'💨 Sıkışma (yoğun) bölge' },
+      position: [2, 1.4, 0], target: [1, 0, 0], color: '#6ad6ff' }
+  ]);
+};
+
+// ---------- MODÜL 4.3: Deprem Dalgaları (P / S) ----------
+SubBuilders.buildDepremDalgasi = function() {
+  const root = new THREE.Group();
+  markDynamic(root); scene.add(root); window._currentModelGroup = root;
+  root.add(setupVectorLighting());
+  root.add(makeGridSystem({ size: 16, divisions: 16, floorY: -3 }));
+
+  const S = window._sceneState;
+  S.dp_tur = 0; // 0: P (boyuna), 1: S (enine)
+  S._dpT = 0;
+
+  const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+  const N = 60, W = 11;
+  let parts = [];
+  function build() {
+    [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
+    parts = [];
+    // odak (sol, deprem kaynağı)
+    const focus = makeMarker(new THREE.Vector3(-W/2, 0, 0), { color: 0xff3030, r: 0.35 });
+    dyn.add(focus);
+    for (let i = 0; i < N; i++) {
+      const x0 = -W/2 + (i/(N-1))*W;
+      const p = makeMarker(new THREE.Vector3(x0, 0, 0), { color: S.dp_tur===0 ? 0xffb84d : 0x6ad6ff, r: 0.11 });
+      p.userData._x0 = x0; dyn.add(p); parts.push(p);
+    }
+    dyn.add(makeVectorArrow(new THREE.Vector3(-W/2, 1.8, 0), new THREE.Vector3(W+0.5, 0, 0), { color: 0x9fb0d8, shaftR: 0.025, headR: 0.1 }));
+  }
+  build();
+
+  function frame(t) {
+    const k = 2*Math.PI/2.2, omega = 3.0, A = 0.6;
+    parts.forEach(p => {
+      const x0 = p.userData._x0;
+      if (S.dp_tur === 0) { p.position.y = 0; p.position.x = x0 + A*0.5*Math.sin(k*x0 - omega*t); } // P: boyuna
+      else { p.position.x = x0; p.position.y = A*Math.sin(k*x0 - omega*t); } // S: enine
+    });
+  }
+  frame(0);
+  window._customAnim = function(t, dt){ S._dpT += dt; frame(S._dpT); };
+
+  setSceneSliders([
+    { type: 'section', label: 'Deprem Dalgası Türü' },
+    { type: 'presets', activeIdx: 0, options: [
+      { label: '⚡ P dalgası (boyuna, hızlı)', action: ()=>{ S.dp_tur=0; build(); frame(S._dpT); } },
+      { label: '🌊 S dalgası (enine, yavaş)', action: ()=>{ S.dp_tur=1; build(); frame(S._dpT); } }
+    ]},
+    { type: 'section', label: 'Bu Dalga' },
+    { type: 'display', label: 'Tür', highlight: true, getValue: () => S.dp_tur===0 ? 'P: Boyuna (primer)' : 'S: Enine (sekonder)' },
+    { type: 'display', label: 'Hız', getValue: () => S.dp_tur===0 ? 'Hızlı (önce gelir)' : 'Yavaş (sonra gelir)' },
+    { type: 'display', label: 'Yayıldığı ortam', getValue: () => S.dp_tur===0 ? 'Katı + sıvı' : 'Sadece katı' },
+    { type: 'formula', text: 'P-S varış farkı → merkez uzaklığı' }
+  ], { title: 'Deprem Dalgaları' });
+
+  addInfo3DLabels([
+    { text: { ilkokul:'💥 Deprem kaynağı', ortaokul:'💥 Odak (merkez)', lise:'💥 Odak (hiposantr)', tyt_ayt:'💥 Odak' },
+      position: [-W/2-2, 1.4, 0], target: [-W/2, 0, 0], color: '#ff3030' },
+    { text: { ilkokul:'〰️ Yer sarsılır', ortaokul:'〰️ Dalga yayılır', lise:'〰️ Sismik dalga', tyt_ayt:'〰️ P boyuna / S enine' },
+      position: [2, 1.6, 0], target: [1, 0, 0], color: '#6ad6ff' }
+  ]);
+};
+
+// ============================================================
+// ====== MODÜL 5: İLERİ KONULAR =============================
+// ============================================================
+
+// ---------- MODÜL 5.1: Doppler Olayı ----------
+SubBuilders.buildDoppler = function() {
+  const root = new THREE.Group();
+  markDynamic(root); scene.add(root); window._currentModelGroup = root;
+  root.add(setupVectorLighting());
+  root.add(makeGridSystem({ size: 16, divisions: 16, floorY: -2.5 }));
+
+  const S = window._sceneState;
+  S.do_vk = 1.5; // kaynak hızı (sağa)
+  S._doT = 0;
+  S._doSrcX = 0;
+
+  const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+  const mesh = makeWaveMesh({ w: 13, d: 9, segX: 100, segZ: 56, color: WCOL.water });
+  dyn.add(mesh);
+  const src = makeSource({ type:'point', r:0.35 }); dyn.add(src);
+  // hareketli kaynaktan yayılan dalga: kaynak konumu zamanla sağa kayar,
+  // her dalga cephesi yayıldığı andaki kaynak konumundan çıkar → önde sıkışma
+  function frame(t) {
+    const geo = mesh.userData._geo, base = mesh.userData._base, pos = geo.attributes.position;
+    const k = 2.4, omega = 3.0, A = 0.45, vk = S.do_vk;
+    // kaynak x konumu (havuz içinde ileri-geri)
+    const srcX = ((t*vk) % 10) - 5;
+    S._doSrcX = srcX;
+    src.position.set(srcX, 0.4 + 0.12*Math.sin(omega*t), 0);
+    for (let i = 0; i < pos.count; i++) {
+      const x = base[i*2], z = base[i*2+1];
+      const dx = x - srcX, dz = z;
+      const r = Math.sqrt(dx*dx + dz*dz);
+      // önde (x>srcX) dalga sıkışır: efektif k artar; arkada azalır
+      const dirFactor = dx >= 0 ? (1 + vk*0.18) : (1 - vk*0.12);
+      const damp = 1/(1+r*0.2);
+      pos.setY(i, A*damp*Math.sin(k*dirFactor*r - omega*t));
+    }
+    pos.needsUpdate = true; geo.computeVertexNormals();
+  }
+  frame(0);
+  window._customAnim = function(t, dt){ S._doT += dt; frame(S._doT); };
+
+  setSceneSliders([
+    { type: 'section', label: 'Doppler Olayı' },
+    { type: 'slider', label: 'Kaynak hızı', min: 0.5, max: 3, step: 0.5, unit: '',
+      getValue: () => S.do_vk, setValue: (v)=>{ S.do_vk=v; }, format:(x)=>x.toFixed(1) },
+    { type: 'section', label: 'Bilgi' },
+    { type: 'display', label: 'Önde (yaklaşan)', highlight: true, getValue: () => 'Sıkışır → f artar (tiz)' },
+    { type: 'display', label: 'Arkada (uzaklaşan)', getValue: () => 'Açılır → f azalır (kalın)' },
+    { type: 'display', label: 'Kaynak frekansı', getValue: () => 'Değişmez (gözlenen değişir)' },
+    { type: 'formula', text: "f' = f·(v ± v_g)/(v ∓ v_k)" }
+  ], { title: 'Doppler Olayı' });
+
+  addInfo3DLabels([
+    { text: { ilkokul:'🚑 Hareketli kaynak', ortaokul:'🚑 Hareket eden kaynak', lise:'🚑 Kaynak (hareketli)', tyt_ayt:'🚑 Kaynak v_k' },
+      position: [0, 1.8, -1.5], target: [0, 0.4, 0], color: '#ffb84d' },
+    { text: { ilkokul:'📈 Önde sık', ortaokul:'📈 Önde: f artar', lise:'📈 Yaklaşma: f↑ λ↓', tyt_ayt:'📈 Önde sıkışma (f↑)' },
+      position: [4.5, 1.6, 2], target: [3.5, 0.1, 1], color: '#ff6b4a' },
+    { text: { ilkokul:'📉 Arkada seyrek', ortaokul:'📉 Arkada: f azalır', lise:'📉 Uzaklaşma: f↓ λ↑', tyt_ayt:'📉 Arkada seyrelme (f↓)' },
+      position: [-4.5, 1.6, 2], target: [-3.5, 0.1, 1], color: '#3ed673' }
+  ]);
+};
+
+// ---------- MODÜL 5.2: Elektromanyetik Dalgalar ve Spektrum ----------
+SubBuilders.buildEmDalga = function() {
+  const root = new THREE.Group();
+  markDynamic(root); scene.add(root); window._currentModelGroup = root;
+  root.add(setupVectorLighting());
+  root.add(makeGridSystem({ size: 16, divisions: 16, floorY: -3 }));
+
+  const S = window._sceneState;
+  S.em_band = 3; // 0:radyo ... 6:gama (başlangıç: görünür)
+  S._emT = 0;
+  const BANDS = [
+    { ad: 'Radyo', f: 0.5, renk: 0x8a6aff },
+    { ad: 'Mikrodalga', f: 0.8, renk: 0x4a90e2 },
+    { ad: 'Kızılötesi (IR)', f: 1.2, renk: 0xff6b4a },
+    { ad: 'Görünür Işık', f: 1.8, renk: 0x6ad673 },
+    { ad: 'Morötesi (UV)', f: 2.6, renk: 0xc04aff },
+    { ad: 'X-ışını', f: 3.6, renk: 0x4ad8ff },
+    { ad: 'Gama', f: 4.8, renk: 0xff3060 }
+  ];
+
+  const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+  const W = 11;
+  // E alanı (dikey sinüs) ve B alanı (yatay, z'de) — enine EM dalga
+  let curveE = makeWaveCurve({ w: W, segs: 240, color: BANDS[S.em_band].renk });
+  dyn.add(curveE);
+  // B alanı için ikinci eğri (xz düzleminde)
+  let curveB = makeWaveCurve({ w: W, segs: 240, color: 0xffe14d });
+  curveB.rotation.x = Math.PI/2; dyn.add(curveB);
+  dyn.add(makeVectorArrow(new THREE.Vector3(-W/2-0.4, 0, 0), new THREE.Vector3(W+0.8, 0, 0), { color: 0x9fb0d8, shaftR: 0.025, headR: 0.1 }));
+
+  function applyColor() {
+    curveE.material.color.setHex(BANDS[S.em_band].renk);
+  }
+  function frame(t) {
+    const f = BANDS[S.em_band].f;
+    const k = 2*Math.PI/(3.5/f), omega = 2.5;
+    updateWaveCurve(curveE, { A: 0.9, k, omega, t });
+    updateWaveCurve(curveB, { A: 0.6, k, omega, t });
+  }
+  applyColor(); frame(0);
+  window._customAnim = function(t, dt){ S._emT += dt; frame(S._emT); };
+
+  setSceneSliders([
+    { type: 'section', label: 'EM Spektrum' },
+    { type: 'slider', label: 'Bölge', min: 0, max: 6, step: 1, unit: '',
+      getValue: () => S.em_band, setValue: (v)=>{ S.em_band=v; applyColor(); }, format:(x)=>BANDS[x].ad },
+    { type: 'section', label: 'Bu Bölge' },
+    { type: 'display', label: 'Tür', highlight: true, getValue: () => BANDS[S.em_band].ad },
+    { type: 'display', label: 'Frekans', getValue: () => S.em_band <= 2 ? 'Düşük' : (S.em_band >= 4 ? 'Yüksek' : 'Orta') },
+    { type: 'display', label: 'Dalga boyu', getValue: () => S.em_band <= 2 ? 'Büyük' : (S.em_band >= 4 ? 'Küçük' : 'Orta') },
+    { type: 'display', label: 'Hız', getValue: () => 'c = 3×10⁸ m/s' },
+    { type: 'formula', text: 'Radyo→Gama: f↑, λ↓, E↑ (E=h·f)' }
+  ], { title: 'Elektromanyetik Dalgalar' });
+
+  addInfo3DLabels([
+    { text: { ilkokul:'🌈 Işık türü', ortaokul:'🌈 EM dalga bölgesi', lise:'🌈 Spektrum bölgesi', tyt_ayt:'🌈 EM bant' },
+      position: [0, 2.2, 0], target: [0, 0.9, 0], color: '#6ad673' },
+    { text: { ilkokul:'⚡ E alanı', ortaokul:'⚡ Elektrik alan', lise:'⚡ Elektrik alanı (E)', tyt_ayt:'⚡ E alanı (dikey)' },
+      position: [-3.5, 1.6, 0], target: [-2.5, 0.6, 0], color: '#6ad6ff' },
+    { text: { ilkokul:'🧲 B alanı', ortaokul:'🧲 Manyetik alan', lise:'🧲 Manyetik alan (B)', tyt_ayt:'🧲 B alanı (yatay)' },
+      position: [3.5, 0.5, 1.5], target: [2.5, 0, 0.6], color: '#ffe14d' }
+  ]);
+};
+
+// ============================================================
+const WCOL = { water: 0x2a8ad4, wave: 0x6ad6ff, crest: 0xff6b4a, trough: 0x3ed673, amp: 0xffe14d, source: 0xffb84d, deep: 0x1a6aa8, shallow: 0x4aa8d8 };
+
+// ---------- MODÜL 1.1: Dalga Nedir ----------
+SubBuilders.buildDalgaNedir = function() {
+  const root = new THREE.Group();
+  markDynamic(root); scene.add(root); window._currentModelGroup = root;
+  root.add(setupVectorLighting());
+  root.add(makeGridSystem({ size: 16, divisions: 16, floorY: -2.5 }));
+
+  const S = window._sceneState;
+  S._dnT = 0;
+
+  const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+  // dairesel dalga havuzu (taş atılmış gibi) — enerji yayılımı
+  const mesh = makeWaveMesh({ w: 11, d: 9, segX: 70, segZ: 56, color: WCOL.water });
+  dyn.add(mesh);
+  // kaynak (merkez)
+  const src = makeSource({ type: 'point', r: 0.3 }); src.position.set(0, 0.4, 0); dyn.add(src);
+  // bir parçacık işaretçisi (yerinde titreşir, ilerlemez)
+  const particle = makeMarker(new THREE.Vector3(2.5, 0, 0), { color: 0xff5252, r: 0.16 });
+  dyn.add(particle);
+
+  function frame(t) {
+    updateWaveMesh(mesh, { t, A: 0.55, k: 2.0, omega: 3.0, type: 'radial', srcX: 0, srcZ: 0 });
+    // parçacık sadece y'de hareket eder (madde taşınmaz mesajı)
+    const r = 2.5, damp = 1/(1+r*0.25);
+    particle.position.y = 0.55*damp*Math.sin(2.0*r - 3.0*t) + 0.05;
+    src.position.y = 0.4 + 0.2*Math.sin(3.0*t);
+  }
+  frame(0);
+  window._customAnim = function(t, dt){ S._dnT += dt; frame(S._dnT); };
+
+  setSceneSliders([
+    { type: 'section', label: 'Dalga Nedir' },
+    { type: 'display', label: 'Taşınan', highlight: true, getValue: () => 'Enerji (madde değil)' },
+    { type: 'display', label: 'Parçacık', getValue: () => 'Yerinde titreşir' },
+    { type: 'display', label: 'Kaynak', getValue: () => 'Titreşim üretir' },
+    { type: 'formula', text: 'Enerji ∝ Genlik² (A²)' }
+  ], { title: 'Dalga Nedir' });
+
+  addInfo3DLabels([
+    { text: { ilkokul:'⚡ Kaynak (taş)', ortaokul:'⚡ Titreşim kaynağı', lise:'⚡ Kaynak (titreşim)', tyt_ayt:'⚡ Kaynak: f belirler' },
+      position: [-2, 1.6, 0], target: [0, 0.4, 0], color: '#ffb84d' },
+    { text: { ilkokul:'💧 Su yerinde zıplar', ortaokul:'💧 Parçacık yerinde titreşir', lise:'💧 Parçacık denge etrafında', tyt_ayt:'💧 Madde taşınmaz' },
+      position: [4.5, 1.4, 0], target: [2.5, 0.2, 0], color: '#ff5252' },
+    { text: { ilkokul:'🌊 Dalga dışa yayılır', ortaokul:'🌊 Enerji dışa yayılır', lise:'🌊 Enerji iletimi', tyt_ayt:'🌊 Enerji+momentum iletimi' },
+      position: [3, 2.2, -3], target: [2, 0.1, -2.5], color: '#6ad6ff' }
+  ]);
+};
+
+// ---------- MODÜL 1.2: Temel Büyüklükler (A, λ, tepe, çukur) ----------
+SubBuilders.buildDalgaBuyukluk = function() {
+  const root = new THREE.Group();
+  markDynamic(root); scene.add(root); window._currentModelGroup = root;
+  root.add(setupVectorLighting());
+  root.add(makeGridSystem({ size: 16, divisions: 16, floorY: -2.5 }));
+
+  const S = window._sceneState;
+  S.db_A = 1.0;     // genlik
+  S.db_lambda = 3.0; // dalga boyu
+  S.db_freeze = true; // lise giriş: dondurulmuş gösterim
+  S._dbT = 0;
+
+  const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+  const W = 11;
+  // ana dalga eğrisi (kalın), yan profilden tepe/çukur görünür
+  const curve = makeWaveCurve({ w: W, segs: 160, color: WCOL.wave });
+  dyn.add(curve);
+  // denge ekseni
+  dyn.add(makeSolidLine(new THREE.Vector3(-W/2, 0, 0), new THREE.Vector3(W/2, 0, 0), { color: 0x9fb0d8, opacity: 0.5 }));
+
+  const annot = new THREE.Group(); annot.userData.dynamic = true; dyn.add(annot);
+
+  function k() { return 2*Math.PI / S.db_lambda; }
+
+  function rebuildAnnot() {
+    [...annot.children].forEach(c=>{annot.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
+    const kk = k(), A = S.db_A;
+    // ilk tepe konumu: sin maks → k*x = π/2 → x = (π/2)/k
+    const xCrest1 = (Math.PI/2)/kk;
+    const xCrest2 = xCrest1 + S.db_lambda; // bir λ sonraki tepe
+    const xTrough = xCrest1 + S.db_lambda/2; // çukur
+    // tepe işaretçileri
+    annot.add(makeMarker(new THREE.Vector3(xCrest1, A, 0), { color: WCOL.crest, r: 0.13 }));
+    annot.add(makeMarker(new THREE.Vector3(xCrest2, A, 0), { color: WCOL.crest, r: 0.13 }));
+    annot.add(makeMarker(new THREE.Vector3(xTrough, -A, 0), { color: WCOL.trough, r: 0.13 }));
+    // GENLİK ölçü çizgisi (denge → tepe), dikey
+    annot.add(makeDimension(new THREE.Vector3(xCrest1, 0, 0), new THREE.Vector3(xCrest1, A, 0), 'A = ' + A.toFixed(1), { color: 0xffe14d, offset: [-0.55, 0, 0] }));
+    // DALGA BOYU ölçü çizgisi (tepe → tepe), yatay (tepelerin üstünde)
+    annot.add(makeDimension(new THREE.Vector3(xCrest1, A+0.5, 0), new THREE.Vector3(xCrest2, A+0.5, 0), 'λ = ' + S.db_lambda.toFixed(1), { color: 0x6ad6ff, offset: [0, 0.4, 0] }));
+  }
+
+  function frame(t) {
+    updateWaveCurve(curve, { A: S.db_A, k: k(), omega: S.db_freeze ? 0 : 2.5, t });
+    if (!S.db_freeze) rebuildAnnot(); // hareketliyken etiketleri de güncelle (basit: dondurulmuşta sabit)
+  }
+  rebuildAnnot();
+  frame(0);
+  window._customAnim = function(t, dt){ if(!S.db_freeze){ S._dbT += dt; frame(S._dbT);} };
+
+  setSceneSliders([
+    { type: 'section', label: 'Temel Büyüklükler' },
+    { type: 'slider', label: 'Genlik A', min: 0.4, max: 1.6, step: 0.2, unit: '',
+      getValue: () => S.db_A, setValue: (v)=>{ S.db_A=v; rebuildAnnot(); frame(S._dbT); }, format:(v)=>v.toFixed(1) },
+    { type: 'slider', label: 'Dalga boyu λ', min: 1.5, max: 5, step: 0.5, unit: '',
+      getValue: () => S.db_lambda, setValue: (v)=>{ S.db_lambda=v; rebuildAnnot(); frame(S._dbT); }, format:(v)=>v.toFixed(1) },
+    { type: 'section', label: 'Görünüm' },
+    { type: 'presets', activeIdx: 0, options: [
+      { label: '🧊 Dondur (incele)', action: ()=>{ S.db_freeze=true; frame(0); rebuildAnnot(); } },
+      { label: '▶️ Hareket et', action: ()=>{ S.db_freeze=false; } }
+    ]},
+    { type: 'display', label: 'Tepe', getValue: () => 'En yüksek nokta' },
+    { type: 'display', label: 'Çukur', getValue: () => 'En alçak nokta' },
+    { type: 'formula', text: 'Genlik = denge ↔ tepe;  λ = tepe ↔ tepe' }
+  ], { title: 'Temel Büyüklükler' });
+
+  addInfo3DLabels([
+    { text: { ilkokul:'⛰️ Tepe', ortaokul:'⛰️ Tepe (en yüksek)', lise:'⛰️ Tepe', tyt_ayt:'⛰️ Tepe (maks +)' },
+      position: [-3.5, 2.2, 0], target: [(Math.PI/2)/(2*Math.PI/S.db_lambda), S.db_A, 0], color: '#ff6b4a', minLevel:'ilkokul' },
+    { text: { ilkokul:'🕳️ Çukur', ortaokul:'🕳️ Çukur (en alçak)', lise:'🕳️ Çukur', tyt_ayt:'🕳️ Çukur (maks −)' },
+      position: [-3.5, -2, 0], target: [(Math.PI/2)/(2*Math.PI/S.db_lambda)+S.db_lambda/2, -S.db_A, 0], color: '#3ed673' }
+  ]);
+};
+
+// ---------- MODÜL 1.3: Enine ve Boyuna Dalga ----------
+SubBuilders.buildEnineBoyuna = function() {
+  const root = new THREE.Group();
+  markDynamic(root); scene.add(root); window._currentModelGroup = root;
+  root.add(setupVectorLighting());
+  root.add(makeGridSystem({ size: 16, divisions: 16, floorY: -3 }));
+
+  const S = window._sceneState;
+  S.eb_type = 0; // 0: enine, 1: boyuna
+  S._ebT = 0;
+
+  const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+  const N = 36, W = 10;
+  let parts = [];
+
+  function build() {
+    [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
+    parts = [];
+    // yayılma yönü çizgisi
+    dyn.add(makeVectorArrow(new THREE.Vector3(-W/2-0.5, S.eb_type===0?2.2:0, 0), new THREE.Vector3(W+1, 0, 0), { color: 0x9fb0d8, shaftR: 0.03, headR: 0.12 }));
+    // parçacık dizisi
+    for (let i = 0; i < N; i++) {
+      const x0 = -W/2 + (i/(N-1))*W;
+      const p = makeMarker(new THREE.Vector3(x0, S.eb_type===0 ? 2.2 : 0, 0), { color: 0x6ad6ff, r: 0.14 });
+      p.userData._x0 = x0; dyn.add(p); parts.push(p);
+    }
+  }
+  build();
+
+  function frame(t) {
+    const k = 2*Math.PI/2.5, omega = 3.0, A = 0.7;
+    parts.forEach(p => {
+      const x0 = p.userData._x0;
+      if (S.eb_type === 0) {
+        // enine: y'de titreşir (yayılmaya dik)
+        p.position.x = x0;
+        p.position.y = 2.2 + A*Math.sin(k*x0 - omega*t);
+      } else {
+        // boyuna: x'te titreşir (yayılmaya paralel) → sıkışma/seyrelme
+        p.position.y = 0;
+        p.position.x = x0 + A*0.6*Math.sin(k*x0 - omega*t);
+      }
+    });
+  }
+  frame(0);
+  window._customAnim = function(t, dt){ S._ebT += dt; frame(S._ebT); };
+
+  setSceneSliders([
+    { type: 'section', label: 'Dalga Türü' },
+    { type: 'presets', activeIdx: 0, options: [
+      { label: '↕️ Enine (su, ışık)', action: ()=>{ S.eb_type=0; build(); frame(S._ebT); } },
+      { label: '↔️ Boyuna (ses, yay)', action: ()=>{ S.eb_type=1; build(); frame(S._ebT); } }
+    ]},
+    { type: 'section', label: 'Bu Tür' },
+    { type: 'display', label: 'Titreşim', highlight: true, getValue: () => S.eb_type===0 ? 'Yayılmaya DİK' : 'Yayılmaya PARALEL' },
+    { type: 'display', label: 'Oluşan', getValue: () => S.eb_type===0 ? 'Tepe / Çukur' : 'Sıkışma / Seyrelme' },
+    { type: 'display', label: 'Örnek', getValue: () => S.eb_type===0 ? 'Su, ışık, ip' : 'Ses, yay' },
+    { type: 'formula', text: 'Her ikisinde de v = λ·f' }
+  ], { title: 'Enine ve Boyuna Dalga' });
+
+  addInfo3DLabels([
+    { text: { ilkokul:'➡️ Dalga bu yöne gider', ortaokul:'➡️ Yayılma yönü', lise:'➡️ Yayılma doğrultusu', tyt_ayt:'➡️ Yayılma yönü' },
+      position: [3, 3.4, 0], target: [4, S.eb_type===0?2.2:0, 0], color: '#9fb0d8' },
+    { text: { ilkokul:'🔵 Noktalar titreşir', ortaokul:'🔵 Parçacık titreşimi', lise:'🔵 Parçacık hareketi', tyt_ayt:'🔵 Parçacık titreşimi' },
+      position: [-4.5, 0.5, 0], target: [-3, S.eb_type===0?2.2:0, 0], color: '#6ad6ff' }
+  ]);
+};
+
+// ---------- MODÜL 2.1: Dalga Hızı (v = λ·f) ----------
+SubBuilders.buildDalgaHizi = function() {
+  const root = new THREE.Group();
+  markDynamic(root); scene.add(root); window._currentModelGroup = root;
+  root.add(setupVectorLighting());
+  root.add(makeGridSystem({ size: 16, divisions: 16, floorY: -3 }));
+
+  const S = window._sceneState;
+  S.dh_lambda = 2.5; // dalga boyu
+  S.dh_f = 1.0;      // frekans (Hz)
+  S._dhT = 0;
+
+  const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+  const W = 11;
+  const mesh = makeWaveMesh({ w: W, d: 7, segX: 80, segZ: 40, color: WCOL.water });
+  dyn.add(mesh);
+  const annot = new THREE.Group(); annot.userData.dynamic = true; dyn.add(annot);
+
+  function k(){ return 2*Math.PI / S.dh_lambda; }
+  function omega(){ return 2*Math.PI * S.dh_f; }
+  function v(){ return S.dh_lambda * S.dh_f; }
+
+  function rebuildAnnot() {
+    [...annot.children].forEach(c=>{annot.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
+    // λ ölçü çizgisi (ön kenarda, z = +3.5)
+    const x0 = -W/2 + 1;
+    annot.add(makeDimension(new THREE.Vector3(x0, 1.2, 3.6), new THREE.Vector3(x0+S.dh_lambda, 1.2, 3.6), 'λ = ' + S.dh_lambda.toFixed(1) + ' m', { color: 0x6ad6ff, offset: [0, 0.4, 0] }));
+    // hız oku (yayılma yönü, uzunluk v'ye orantılı)
+    annot.add(makeVectorArrow(new THREE.Vector3(-W/2, 1.8, 0), new THREE.Vector3(Math.min(W, 1 + v()*1.2), 0, 0), { color: WCOL.amp, shaftR: 0.05, headR: 0.16 }));
+    annot.add(makeMeasureLabel('v = λ·f = ' + v().toFixed(1) + ' m/s', [-W/2 + 0.5, 2.4, 0], 'rgba(255,225,77,0.95)'));
+  }
+
+  function frame(t) {
+    updateWaveMesh(mesh, { t, A: 0.5, k: k(), omega: omega(), type: 'plane', dir2D: [1, 0] });
+  }
+  rebuildAnnot(); frame(0);
+  window._customAnim = function(t, dt){ S._dhT += dt; frame(S._dhT); };
+
+  setSceneSliders([
+    { type: 'section', label: 'Dalga Hızı (v=λ·f)' },
+    { type: 'slider', label: 'Dalga boyu λ', min: 1.5, max: 4, step: 0.5, unit: ' m',
+      getValue: () => S.dh_lambda, setValue: (v)=>{ S.dh_lambda=v; rebuildAnnot(); }, format:(x)=>x.toFixed(1) },
+    { type: 'slider', label: 'Frekans f', min: 0.5, max: 3, step: 0.5, unit: ' Hz',
+      getValue: () => S.dh_f, setValue: (v)=>{ S.dh_f=v; rebuildAnnot(); }, format:(x)=>x.toFixed(1) },
+    { type: 'section', label: 'Sonuç' },
+    { type: 'display', label: 'Hız v', highlight: true, getValue: () => v().toFixed(2) + ' m/s' },
+    { type: 'display', label: 'Periyot T', getValue: () => (1/S.dh_f).toFixed(2) + ' s' },
+    { type: 'formula', text: 'v = λ·f',
+      getValue: () => 'v = ' + S.dh_lambda.toFixed(1) + '·' + S.dh_f.toFixed(1) + ' = <b>' + v().toFixed(2) + ' m/s</b>' }
+  ], { title: 'Dalga Hızı' });
+
+  addInfo3DLabels([
+    { text: { ilkokul:'➡️ Dalga hızı', ortaokul:'⚡ Hız v', lise:'⚡ v = λ·f', tyt_ayt:'⚡ v=λf (ortam belirler)' },
+      position: [3, 3.2, 0], target: [3, 1.8, 0], color: '#ffe14d' },
+    { text: { ilkokul:'🌊 Dalga boyu', ortaokul:'🌊 Dalga boyu λ', lise:'🌊 λ (tepe-tepe)', tyt_ayt:'🌊 λ = v/f' },
+      position: [-3, 2.2, 3.6], target: [-3, 1.2, 3.6], color: '#6ad6ff' }
+  ]);
+};
+
+// ---------- MODÜL 2.2: Periyot ve Frekans (T=1/f) ----------
+SubBuilders.buildPeriyotFrekans = function() {
+  const root = new THREE.Group();
+  markDynamic(root); scene.add(root); window._currentModelGroup = root;
+  root.add(setupVectorLighting());
+  root.add(makeGridSystem({ size: 16, divisions: 16, floorY: -3 }));
+
+  const S = window._sceneState;
+  S.pf_f = 1.0; // frekans
+  S._pfT = 0;
+
+  const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+  const W = 11;
+  // yan profil dalga (frekansla sıklığı değişir)
+  const curve = makeWaveCurve({ w: W, segs: 200, color: WCOL.wave });
+  dyn.add(curve);
+  dyn.add(makeSolidLine(new THREE.Vector3(-W/2,0,0), new THREE.Vector3(W/2,0,0), { color: 0x9fb0d8, opacity: 0.4 }));
+  // titreşen kaynak topu (solda)
+  const src = makeSource({ type:'point', r: 0.3 }); src.position.set(-W/2 - 0.6, 0, 0); dyn.add(src);
+  const annot = new THREE.Group(); annot.userData.dynamic = true; dyn.add(annot);
+
+  function lambda(){ return 5.0 / S.pf_f; } // sabit hız varsayımı (v=5): f artarsa λ azalır
+  function k(){ return 2*Math.PI/lambda(); }
+
+  function rebuildAnnot() {
+    [...annot.children].forEach(c=>{annot.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
+    const L = lambda();
+    const x0 = -W/2 + 0.5 + (Math.PI/2)/k();
+    annot.add(makeDimension(new THREE.Vector3(x0, 1.4, 0), new THREE.Vector3(x0+L, 1.4, 0), 'λ', { color: 0x6ad6ff, offset:[0,0.4,0] }));
+  }
+
+  function frame(t) {
+    updateWaveCurve(curve, { A: 1.0, k: k(), omega: 2*Math.PI*S.pf_f, t });
+    src.position.y = 1.0*Math.sin(2*Math.PI*S.pf_f*t);
+  }
+  rebuildAnnot(); frame(0);
+  window._customAnim = function(t, dt){ S._pfT += dt; frame(S._pfT); };
+
+  setSceneSliders([
+    { type: 'section', label: 'Periyot ve Frekans' },
+    { type: 'slider', label: 'Frekans f', min: 0.5, max: 4, step: 0.5, unit: ' Hz',
+      getValue: () => S.pf_f, setValue: (v)=>{ S.pf_f=v; rebuildAnnot(); }, format:(x)=>x.toFixed(1) },
+    { type: 'section', label: 'Sonuç' },
+    { type: 'display', label: 'Periyot T', highlight: true, getValue: () => (1/S.pf_f).toFixed(2) + ' s' },
+    { type: 'display', label: 'Saniyedeki dalga', getValue: () => S.pf_f.toFixed(1) + ' adet' },
+    { type: 'formula', text: 'T = 1/f',
+      getValue: () => 'T = 1/' + S.pf_f.toFixed(1) + ' = <b>' + (1/S.pf_f).toFixed(2) + ' s</b>' }
+  ], { title: 'Periyot ve Frekans' });
+
+  addInfo3DLabels([
+    { text: { ilkokul:'🔵 Kaynak zıplar', ortaokul:'🔄 Titreşen kaynak', lise:'🔄 Kaynak (f)', tyt_ayt:'🔄 Kaynak frekansı f' },
+      position: [-W/2-2.5, 1.5, 0], target: [-W/2-0.6, 0, 0], color: '#ffb84d' },
+    { text: { ilkokul:'🌊 Çok zıplama = sık dalga', ortaokul:'🌊 f artarsa λ azalır', lise:'🌊 f↑ → T↓, λ↓', tyt_ayt:'🌊 T=1/f, λ=v/f' },
+      position: [3, 2.4, 0], target: [2, 1.0, 0], color: '#6ad6ff' }
+  ]);
+};
+
+// ---------- MODÜL 2.3: Su Dalgaları (dairesel/doğrusal + derin/sığ) ----------
+SubBuilders.buildSuDalgasi = function() {
+  const root = new THREE.Group();
+  markDynamic(root); scene.add(root); window._currentModelGroup = root;
+  root.add(setupVectorLighting());
+  root.add(makeGridSystem({ size: 16, divisions: 16, floorY: -2.5 }));
+
+  const S = window._sceneState;
+  S.sd_mode = 0; // 0: dairesel, 1: doğrusal
+  S._sdT = 0;
+
+  const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+  const mesh = makeWaveMesh({ w: 11, d: 9, segX: 72, segZ: 58, color: WCOL.water });
+  dyn.add(mesh);
+  let src = makeSource({ type:'point', r:0.3 }); dyn.add(src);
+
+  function build() {
+    dyn.remove(src);
+    if (S.sd_mode === 0) { src = makeSource({ type:'point', r:0.3 }); src.position.set(0,0.4,0); }
+    else { src = makeSource({ type:'bar', len: 8 }); src.position.set(-5,0.4,0); src.rotation.y = Math.PI/2; }
+    dyn.add(src);
+  }
+  build();
+
+  function frame(t) {
+    if (S.sd_mode === 0) {
+      updateWaveMesh(mesh, { t, A: 0.5, k: 2.2, omega: 3.0, type:'radial', srcX:0, srcZ:0 });
+      src.position.y = 0.4 + 0.15*Math.sin(3*t);
+    } else {
+      updateWaveMesh(mesh, { t, A: 0.5, k: 2.2, omega: 3.0, type:'plane', dir2D:[1,0] });
+      src.position.y = 0.4 + 0.15*Math.sin(3*t);
+    }
+  }
+  frame(0);
+  window._customAnim = function(t, dt){ S._sdT += dt; frame(S._sdT); };
+
+  setSceneSliders([
+    { type: 'section', label: 'Su Dalgası Türü' },
+    { type: 'presets', activeIdx: 0, options: [
+      { label: '⭕ Dairesel (nokta)', action: ()=>{ S.sd_mode=0; build(); frame(S._sdT); } },
+      { label: '〰️ Doğrusal (çubuk)', action: ()=>{ S.sd_mode=1; build(); frame(S._sdT); } }
+    ]},
+    { type: 'section', label: 'Bilgi' },
+    { type: 'display', label: 'Kaynak', highlight: true, getValue: () => S.sd_mode===0 ? 'Nokta (taş)' : 'Çizgi (çubuk)' },
+    { type: 'display', label: 'Dalga cephesi', getValue: () => S.sd_mode===0 ? 'Daire (halka)' : 'Düz çizgi' },
+    { type: 'formula', text: 'Derin: hızlı, λ büyük · Sığ: yavaş, λ küçük' }
+  ], { title: 'Su Dalgaları' });
+
+  addInfo3DLabels([
+    { text: { ilkokul:'⚡ Kaynak', ortaokul:'⚡ Dalga kaynağı', lise:'⚡ Kaynak', tyt_ayt:'⚡ Kaynak (f sabit)' },
+      position: [0, 1.8, -1.5], target: [S.sd_mode===0?0:-5, 0.4, 0], color: '#ffb84d' },
+    { text: { ilkokul:'🌊 Dalgalar yayılır', ortaokul:'🌊 Dalga cepheleri', lise:'🌊 Dalga cephesi', tyt_ayt:'🌊 Cephe (eş fazlı noktalar)' },
+      position: [3.5, 1.6, 2.5], target: [2.5, 0.1, 2], color: '#6ad6ff' }
+  ]);
+};
+
+// ---------- MODÜL 3.1: Yansıma ----------
+SubBuilders.buildYansima = function() {
+  const root = new THREE.Group();
+  markDynamic(root); scene.add(root); window._currentModelGroup = root;
+  root.add(setupVectorLighting());
+  root.add(makeGridSystem({ size: 16, divisions: 16, floorY: -2.5 }));
+
+  const S = window._sceneState;
+  S.ya_uc = 0; // 0: sabit uç (faz terslenir), 1: serbest uç
+  S._yaT = 0;
+
+  const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+  const W = 11;
+  // yay/ip (yan profil), sağ uçta duvar
+  const curve = makeWaveCurve({ w: W, segs: 200, color: WCOL.wave });
+  dyn.add(curve);
+  // duvar (sağda)
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(0.3, 3, 1.2), new THREE.MeshStandardMaterial({ color: 0x5a6b8a, roughness:0.6 }));
+  wall.position.set(W/2 + 0.2, 0, 0); dyn.add(wall);
+
+  function frame(t) {
+    // gelen atma (sağa giden) + yansıyan atma (sola giden, sabit uçta ters)
+    const segs = curve.userData._segs;
+    const pos = curve.geometry.attributes.position;
+    const A = 0.9, width = 1.2, speed = 2.5;
+    const tcyc = (t * speed) % (W*2);
+    for (let i = 0; i <= segs; i++) {
+      const x = -W/2 + (i/segs)*W;
+      // gelen: tepe konumu soldan sağa
+      const cIn = -W/2 + tcyc;
+      const yIn = A*Math.exp(-Math.pow((x-cIn)/width,2));
+      // yansıyan: duvardan sonra geri (x ekseni W/2'de yansır)
+      const cRef = W/2 + (W/2 - (-W/2 + (tcyc - W)));
+      let yRef = 0;
+      if (tcyc > W) {
+        const cR = W/2 - (tcyc - W);
+        yRef = (S.ya_uc===0 ? -1 : 1) * A*Math.exp(-Math.pow((x-cR)/width,2));
+      }
+      pos.setY(i, yIn*(tcyc<=W?1:0) + yRef);
+    }
+    pos.needsUpdate = true;
+  }
+  frame(0);
+  window._customAnim = function(t, dt){ S._yaT += dt; frame(S._yaT); };
+
+  setSceneSliders([
+    { type: 'section', label: 'Yansıma — Uç Türü' },
+    { type: 'presets', activeIdx: 0, options: [
+      { label: '📍 Sabit uç (ters döner)', action: ()=>{ S.ya_uc=0; S._yaT=0; } },
+      { label: '🔄 Serbest uç (aynı)', action: ()=>{ S.ya_uc=1; S._yaT=0; } }
+    ]},
+    { type: 'section', label: 'Bilgi' },
+    { type: 'display', label: 'Yansımada', highlight: true, getValue: () => 'v, λ, f değişmez' },
+    { type: 'display', label: 'Faz', getValue: () => S.ya_uc===0 ? 'Terslenir (π)' : 'Korunur' },
+    { type: 'formula', text: 'Geliş açısı = Yansıma açısı' }
+  ], { title: 'Yansıma' });
+
+  addInfo3DLabels([
+    { text: { ilkokul:'🧱 Duvar (engel)', ortaokul:'🧱 Sabit engel', lise:'🧱 Yansıtıcı yüzey', tyt_ayt:'🧱 Engel (uç)' },
+      position: [W/2+1.5, 2, 0], target: [W/2+0.2, 0.5, 0], color: '#9fb0d8' },
+    { text: { ilkokul:'↩️ Geri döner', ortaokul:'↩️ Dalga geri yansır', lise:'↩️ Yansıyan dalga', tyt_ayt:'↩️ Sabit uç: faz π döner' },
+      position: [-3, 2.2, 0], target: [0, 0.5, 0], color: '#6ad6ff' }
+  ]);
+};
+
+// ---------- MODÜL 3.2: Kırılma (Derin ↔ Sığ, v ve λ senkron) ----------
+SubBuilders.buildKirilma = function() {
+  const root = new THREE.Group();
+  markDynamic(root); scene.add(root); window._currentModelGroup = root;
+  root.add(setupVectorLighting());
+  root.add(makeGridSystem({ size: 16, divisions: 16, floorY: -2.5 }));
+
+  const S = window._sceneState;
+  S.ki_f = 1.0;       // frekans (SABİT kalır mesajı — ama slider'la kaynak frekansı ayarlanır)
+  S.ki_shallow = 1.8; // sığ ortam "yoğunluğu" (λ küçülme faktörü)
+  S._kiT = 0;
+
+  const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+  const W = 12, splitX = 0;
+  const mesh = makeWaveMesh({ w: W, d: 9, segX: 96, segZ: 58, color: WCOL.water });
+  dyn.add(mesh);
+
+  // derin/sığ ortam zemin renklendirmesi (yarı saydam paneller)
+  const deepPanel = new THREE.Mesh(new THREE.PlaneGeometry(W/2, 9), new THREE.MeshBasicMaterial({ color: WCOL.deep, transparent:true, opacity:0.18, side:THREE.DoubleSide }));
+  deepPanel.rotation.x = -Math.PI/2; deepPanel.position.set(-W/4, -0.4, 0); dyn.add(deepPanel);
+  const shallowPanel = new THREE.Mesh(new THREE.PlaneGeometry(W/2, 9), new THREE.MeshBasicMaterial({ color: WCOL.shallow, transparent:true, opacity:0.28, side:THREE.DoubleSide }));
+  shallowPanel.rotation.x = -Math.PI/2; shallowPanel.position.set(W/4, -0.4, 0); dyn.add(shallowPanel);
+  // sınır çizgisi
+  dyn.add(makeSolidLine(new THREE.Vector3(splitX, 0.05, -4.5), new THREE.Vector3(splitX, 0.05, 4.5), { color: 0xffe14d, opacity: 0.8 }));
+
+  const annot = new THREE.Group(); annot.userData.dynamic = true; dyn.add(annot);
+
+  function lambdaDeep(){ return 3.0; }
+  function lambdaShallow(){ return lambdaDeep() / S.ki_shallow; }
+
+  function rebuildAnnot() {
+    [...annot.children].forEach(c=>{annot.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
+    // derin λ ölçü (sol)
+    annot.add(makeDimension(new THREE.Vector3(-W/2+0.5, 1.3, 4), new THREE.Vector3(-W/2+0.5+lambdaDeep(), 1.3, 4), 'λ_derin = ' + lambdaDeep().toFixed(1), { color: 0x6ad6ff, offset:[0,0.4,0] }));
+    // sığ λ ölçü (sağ, daha kısa)
+    annot.add(makeDimension(new THREE.Vector3(splitX+0.3, 1.3, 4), new THREE.Vector3(splitX+0.3+lambdaShallow(), 1.3, 4), 'λ_sığ = ' + lambdaShallow().toFixed(1), { color: 0x4aa8d8, offset:[0,0.4,0] }));
+  }
+
+  function frame(t) {
+    const kDeep = 2*Math.PI/lambdaDeep();
+    const omega = 2*Math.PI*S.ki_f; // f SABİT → her iki ortamda aynı omega
+    updateWaveMesh(mesh, { t, A: 0.45, k: kDeep, omega, type:'twoMedia', splitX, kFactor: S.ki_shallow, ampFactor: 0.9 });
+  }
+  rebuildAnnot(); frame(0);
+  window._customAnim = function(t, dt){ S._kiT += dt; frame(S._kiT); };
+
+  setSceneSliders([
+    { type: 'section', label: 'Kırılma (Derin↔Sığ)' },
+    { type: 'slider', label: 'Kaynak frekansı f', min: 0.5, max: 2.5, step: 0.5, unit: ' Hz',
+      getValue: () => S.ki_f, setValue: (v)=>{ S.ki_f=v; }, format:(x)=>x.toFixed(1) },
+    { type: 'slider', label: 'Sığlık (λ küçülme)', min: 1.2, max: 2.6, step: 0.2, unit: '×',
+      getValue: () => S.ki_shallow, setValue: (v)=>{ S.ki_shallow=v; rebuildAnnot(); }, format:(x)=>x.toFixed(1) },
+    { type: 'section', label: 'Sonuç' },
+    { type: 'display', label: 'Frekans f', highlight: true, getValue: () => S.ki_f.toFixed(1) + ' Hz (SABİT)' },
+    { type: 'display', label: 'λ derin → sığ', getValue: () => lambdaDeep().toFixed(1) + ' → ' + lambdaShallow().toFixed(1) },
+    { type: 'display', label: 'Hız', getValue: () => 'Sığda azalır (v=λf)' },
+    { type: 'formula', text: 'f SABİT, v ve λ değişir',
+      getValue: () => 'λ_sığ/λ_derin = v_sığ/v_derin = <b>1/' + S.ki_shallow.toFixed(1) + '</b>' }
+  ], { title: 'Kırılma' });
+
+  addInfo3DLabels([
+    { text: { ilkokul:'🌊 Derin su (hızlı)', ortaokul:'🌊 Derin: hızlı, λ büyük', lise:'🌊 Derin ortam (v büyük)', tyt_ayt:'🌊 Derin: v↑ λ↑' },
+      position: [-4, 2, -2], target: [-3, 0.2, 0], color: '#1a6aa8' },
+    { text: { ilkokul:'🏖️ Sığ su (yavaş)', ortaokul:'🏖️ Sığ: yavaş, λ küçük', lise:'🏖️ Sığ ortam (v küçük)', tyt_ayt:'🏖️ Sığ: v↓ λ↓, f sabit' },
+      position: [4, 2, -2], target: [3, 0.2, 0], color: '#4aa8d8' },
+    { text: { ilkokul:'➖ Sınır', ortaokul:'➖ Ortam sınırı', lise:'➖ Ortam sınırı', tyt_ayt:'➖ Sınır (f sabit geçer)' },
+      position: [0, 2.4, 2.5], target: [0, 0.1, 2], color: '#ffe14d' }
+  ]);
+};
+
+// ---------- MODÜL 3.3: Kırınım (Difraksiyon) ----------
+SubBuilders.buildKirinim = function() {
+  const root = new THREE.Group();
+  markDynamic(root); scene.add(root); window._currentModelGroup = root;
+  root.add(setupVectorLighting());
+  root.add(makeGridSystem({ size: 16, divisions: 16, floorY: -2.5 }));
+
+  const S = window._sceneState;
+  S.kr_slit = 1.2; // yarık genişliği
+  S._krT = 0;
+
+  const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+  const W = 12, D = 10;
+  const mesh = makeWaveMesh({ w: W, d: D, segX: 96, segZ: 72, color: WCOL.water });
+  dyn.add(mesh);
+  // engel duvarı (ortada, yarıklı) — iki blok arası boşluk
+  let wallL, wallR;
+  function buildWall() {
+    if (wallL) dyn.remove(wallL); if (wallR) dyn.remove(wallR);
+    const half = (D - S.kr_slit) / 2;
+    const mat = new THREE.MeshStandardMaterial({ color: 0x5a6b8a, roughness: 0.6 });
+    wallL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.2, half), mat);
+    wallL.position.set(0, 0.4, -(S.kr_slit/2 + half/2)); dyn.add(wallL);
+    wallR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.2, half), mat.clone());
+    wallR.position.set(0, 0.4, (S.kr_slit/2 + half/2)); dyn.add(wallR);
+  }
+  buildWall();
+
+  function frame(t) {
+    const geo = mesh.userData._geo, base = mesh.userData._base, pos = geo.attributes.position;
+    const A = 0.5, k = 2.4, omega = 3.0, slitHalf = S.kr_slit/2;
+    for (let i = 0; i < pos.count; i++) {
+      const x = base[i*2], z = base[i*2+1];
+      let y = 0;
+      if (x < 0) {
+        // sol: düzlem dalga (soldan gelir)
+        y = A * Math.sin(k*x - omega*t);
+      } else {
+        // sağ: yarıktan dairesel yayılım (kırınım). Yarık ≈ λ ise geniş yayılır
+        // yarık merkezinden (0,0) dairesel; dar yarık → güçlü yayılma
+        const r = Math.sqrt(x*x + z*z);
+        const spread = Math.min(1, (2*Math.PI/k) / Math.max(0.3, S.kr_slit)); // λ/d
+        const angle = Math.atan2(Math.abs(z), x);
+        const angAtten = 1 - (1-spread)*Math.min(1, angle/(Math.PI/2));
+        y = A * 0.9 * angAtten / (1+r*0.12) * Math.sin(k*r - omega*t);
+      }
+      pos.setY(i, y);
+    }
+    pos.needsUpdate = true; geo.computeVertexNormals();
+  }
+  frame(0);
+  window._customAnim = function(t, dt){ S._krT += dt; frame(S._krT); };
+
+  setSceneSliders([
+    { type: 'section', label: 'Kırınım (Yarık)' },
+    { type: 'slider', label: 'Yarık genişliği', min: 0.6, max: 3, step: 0.3, unit: ' m',
+      getValue: () => S.kr_slit, setValue: (v)=>{ S.kr_slit=v; buildWall(); }, format:(x)=>x.toFixed(1) },
+    { type: 'section', label: 'Sonuç' },
+    { type: 'display', label: 'Yarık ≈ λ ise', highlight: true, getValue: () => 'Kırınım belirgin' },
+    { type: 'display', label: 'Yarık geniş ise', getValue: () => 'Düz devam eder' },
+    { type: 'display', label: 'Frekans/λ/hız', getValue: () => 'Değişmez' },
+    { type: 'formula', text: 'Yarık küçüldükçe dalga daha çok bükülür' }
+  ], { title: 'Kırınım' });
+
+  addInfo3DLabels([
+    { text: { ilkokul:'➡️ Gelen dalga', ortaokul:'➡️ Düzlem dalga', lise:'➡️ Gelen düzlem dalga', tyt_ayt:'➡️ Gelen cephe' },
+      position: [-4.5, 1.8, 0], target: [-3.5, 0.2, 0], color: '#6ad6ff' },
+    { text: { ilkokul:'🚪 Aralık', ortaokul:'🚪 Yarık', lise:'🚪 Yarık (≈λ)', tyt_ayt:'🚪 Yarık d' },
+      position: [0, 2, 2.5], target: [0, 0.4, 0], color: '#9fb0d8' },
+    { text: { ilkokul:'🌀 Yayılır', ortaokul:'🌀 Dairesel yayılır', lise:'🌀 Kırınım (bükülme)', tyt_ayt:'🌀 Huygens: yeni kaynak' },
+      position: [4, 1.8, 2.5], target: [3, 0.1, 1.5], color: '#ffe14d' }
+  ]);
+};
+
+// ---------- MODÜL 3.4: Girişim (yapıcı/yıkıcı) ----------
+SubBuilders.buildGirisim = function() {
+  const root = new THREE.Group();
+  markDynamic(root); scene.add(root); window._currentModelGroup = root;
+  root.add(setupVectorLighting());
+  root.add(makeGridSystem({ size: 16, divisions: 16, floorY: -2.5 }));
+
+  const S = window._sceneState;
+  S.gi_ayrik = 2.5;   // iki kaynak arası yarı mesafe
+  S.gi_lambda = 2.6;  // dalga boyu (karın/düğüm sayısını belirler)
+  S.gi_cizgi = true;  // karın/düğüm çizgilerini göster
+  S._giT = 0;
+
+  const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+  const W = 12, D = 10;
+  const mesh = makeWaveMesh({ w: W, d: D, segX: 100, segZ: 76, color: WCOL.water });
+  dyn.add(mesh);
+  let src1, src2;
+  const lines = new THREE.Group(); lines.userData.dynamic = true; dyn.add(lines);
+
+  function k(){ return 2*Math.PI / S.gi_lambda; }
+
+  // Bir karın/düğüm çizgisini analitik çiz: |r1 - r2| = Δ (sabit) → hiperbol
+  // z'yi tara, her z için x'i çöz (Newton benzeri basit tarama yerine x tarayıp Δ eşitliğini ara)
+  function hyperbolaPoints(delta) {
+    // |dist(P,S1) - dist(P,S2)| = delta ; S1=(-a,0), S2=(a,0)
+    const a = S.gi_ayrik;
+    const pts = [];
+    // z ekseni boyunca tara (-D/2..D/2), her z için x'i analitik bul
+    // hiperbol: x = ±(delta/2)*sqrt(1 + z²/(a² - (delta/2)²)) — delta<2a olmalı
+    const c = delta/2;
+    if (Math.abs(c) >= a) return pts; // geçerli hiperbol yok
+    const bb = a*a - c*c;
+    for (let zi = -D/2; zi <= D/2; zi += 0.2) {
+      const x = c * Math.sqrt(1 + (zi*zi)/bb);
+      // iki kol: +x ve -x (delta işaretine göre); delta>0 → S2'ye yakın taraf
+      pts.push(new THREE.Vector3(x, 0.06, zi));
+    }
+    return pts;
+  }
+
+  function buildLines() {
+    [...lines.children].forEach(c=>{lines.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
+    if (!S.gi_cizgi) return;
+    const lam = S.gi_lambda, a = S.gi_ayrik;
+    // KARIN (yapıcı): yol farkı = n·λ  (n=0 merkezi çizgi)
+    // DÜĞÜM (yıkıcı): yol farkı = (n+½)·λ
+    const maxDelta = 2*a - 0.05;
+    // merkezi karın çizgisi (n=0, delta=0 → x=0 düz çizgi)
+    const mid = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0.06,-D/2), new THREE.Vector3(0,0.06,D/2)]);
+    lines.add(new THREE.Line(mid, new THREE.LineBasicMaterial({ color: 0x3ed673, transparent:true, opacity:0.9 })));
+    for (let n = 1; n*lam <= maxDelta; n++) {
+      [1,-1].forEach(sgn => {
+        const pts = hyperbolaPoints(n*lam).map(p=>new THREE.Vector3(sgn*p.x, p.y, p.z));
+        if (pts.length>1) { const g=new THREE.BufferGeometry().setFromPoints(pts); lines.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0x3ed673, transparent:true, opacity:0.85 }))); }
+      });
+    }
+    // düğüm çizgileri (kesikli kırmızı)
+    for (let n = 0; (n+0.5)*lam <= maxDelta; n++) {
+      [1,-1].forEach(sgn => {
+        const pts = hyperbolaPoints((n+0.5)*lam).map(p=>new THREE.Vector3(sgn*p.x, p.y, p.z));
+        if (pts.length>1) { const g=new THREE.BufferGeometry().setFromPoints(pts); const ln=new THREE.Line(g, new THREE.LineDashedMaterial({ color: 0xff5252, dashSize:0.25, gapSize:0.15, transparent:true, opacity:0.9 })); ln.computeLineDistances(); lines.add(ln); }
+      });
+    }
+  }
+
+  function countLines() {
+    const lam = S.gi_lambda, a = S.gi_ayrik, maxDelta = 2*a;
+    let karin = 1; for (let n=1; n*lam < maxDelta; n++) karin += 2;
+    let dugum = 0; for (let n=0; (n+0.5)*lam < maxDelta; n++) dugum += 2;
+    return { karin, dugum };
+  }
+
+  function build() {
+    if (src1) dyn.remove(src1); if (src2) dyn.remove(src2);
+    src1 = makeSource({ type:'point', r:0.28 }); src1.position.set(-S.gi_ayrik, 0.4, 0); dyn.add(src1);
+    src2 = makeSource({ type:'point', r:0.28 }); src2.position.set(S.gi_ayrik, 0.4, 0); dyn.add(src2);
+    buildLines();
+  }
+  build();
+
+  function frame(t) {
+    updateWaveInterference(mesh, { t, A: 0.45, k: k(), omega: 3.0, src1:[-S.gi_ayrik,0], src2:[S.gi_ayrik,0] });
+    const yb = 0.4 + 0.12*Math.sin(3*t);
+    src1.position.y = yb; src2.position.y = yb;
+  }
+  frame(0);
+  window._customAnim = function(t, dt){ S._giT += dt; frame(S._giT); };
+
+  setSceneSliders([
+    { type: 'section', label: 'Girişim (İki Kaynak)' },
+    { type: 'slider', label: 'Kaynaklar arası', min: 1.5, max: 4, step: 0.5, unit: ' m',
+      getValue: () => S.gi_ayrik*2, setValue: (v)=>{ S.gi_ayrik=v/2; build(); frame(S._giT); }, format:(x)=>x.toFixed(1) },
+    { type: 'slider', label: 'Dalga boyu λ', min: 1.5, max: 3.5, step: 0.5, unit: ' m',
+      getValue: () => S.gi_lambda, setValue: (v)=>{ S.gi_lambda=v; buildLines(); frame(S._giT); }, format:(x)=>x.toFixed(1) },
+    { type: 'presets', activeIdx: 0, options: [
+      { label: '📈 Çizgileri göster', action: ()=>{ S.gi_cizgi=true; buildLines(); } },
+      { label: '🌊 Sadece dalga', action: ()=>{ S.gi_cizgi=false; buildLines(); } }
+    ]},
+    { type: 'section', label: 'Sonuç' },
+    { type: 'display', label: 'Karın (katar) çizgisi', highlight: true, getValue: () => countLines().karin + ' adet' },
+    { type: 'display', label: 'Düğüm çizgisi', getValue: () => countLines().dugum + ' adet' },
+    { type: 'display', label: 'Yapıcı (karın)', getValue: () => 'yol farkı = n·λ' },
+    { type: 'display', label: 'Yıkıcı (düğüm)', getValue: () => 'yol farkı = (n+½)·λ' },
+    { type: 'formula', text: 'y = y₁ + y₂ · Kaynak üstünde desen oluşmaz' }
+  ], { title: 'Girişim' });
+
+  addInfo3DLabels([
+    { text: { ilkokul:'⚡ 1. kaynak', ortaokul:'⚡ Kaynak 1', lise:'⚡ Kaynak S₁', tyt_ayt:'⚡ S₁ (aynı faz)' },
+      position: [-S.gi_ayrik-1.5, 1.6, 0], target: [-S.gi_ayrik, 0.4, 0], color: '#ffb84d' },
+    { text: { ilkokul:'⚡ 2. kaynak', ortaokul:'⚡ Kaynak 2', lise:'⚡ Kaynak S₂', tyt_ayt:'⚡ S₂ (aynı faz)' },
+      position: [S.gi_ayrik+1.5, 1.6, 0], target: [S.gi_ayrik, 0.4, 0], color: '#ffb84d' },
+    { text: { ilkokul:'⬆️ Büyük dalga', ortaokul:'⬆️ Karın (çift tepe)', lise:'⬆️ Karın çizgisi (yapıcı)', tyt_ayt:'⬆️ Karın: yol farkı=n·λ' },
+      position: [0, 2.2, 3.8], target: [0, 0.1, 3.5], color: '#3ed673' },
+    { text: { ilkokul:'⬇️ Durgun çizgi', ortaokul:'⬇️ Düğüm (sönme)', lise:'⬇️ Düğüm çizgisi (yıkıcı)', tyt_ayt:'⬇️ Düğüm: (n+½)·λ' },
+      position: [3.5, 2, 3.5], target: [S.gi_lambda*0.5+0.3, 0.1, 3], color: '#ff5252' }
+  ]);
+};
+
+// ============================================================
+// ====== SİSTEM: SEVİYE, MOD, NAVİGASYON, UI ================
+// ============================================================
+let currentLevel = 'lise';
+let currentMode = 'sade';
+window._autoSpinActive = false;
+window._isPlayingActive = false;
+
+// Seviye sıralaması (en yakın mevcut veriyi bulmak için)
+const LEVEL_ORDER = ['ilkokul', 'ortaokul', 'lise', 'tyt_ayt'];
+
+function _resolveLevelData(dataObj) {
+  if (!dataObj) return null;
+  // tam eşleşme
+  if (dataObj[currentLevel]) return dataObj[currentLevel];
+  // 'ayt' eski anahtar uyumluluğu
+  if (currentLevel === 'tyt_ayt' && dataObj['ayt']) return dataObj['ayt'];
+  if (currentLevel === 'ayt' && dataObj['tyt_ayt']) return dataObj['tyt_ayt'];
+  // en yakın alt seviyeye düş
+  const idx = LEVEL_ORDER.indexOf(currentLevel);
+  for (let i = idx; i >= 0; i--) {
+    if (dataObj[LEVEL_ORDER[i]]) return dataObj[LEVEL_ORDER[i]];
+  }
+  for (let i = idx + 1; i < LEVEL_ORDER.length; i++) {
+    if (dataObj[LEVEL_ORDER[i]]) return dataObj[LEVEL_ORDER[i]];
+  }
+  // herhangi biri
+  const keys = Object.keys(dataObj);
+  return keys.length ? dataObj[keys[0]] : null;
+}
+
+// ---------- DROPDOWN: KONU REHBERİ ----------
+function buildTopicDropdown() {
+  const list = document.getElementById('topicList');
+  if (!list) return;
+  list.innerHTML = '';
+  Object.keys(MODULES).forEach(modKey => {
+    const mod = MODULES[modKey];
+    const head = document.createElement('div');
+    head.className = 'dropdown-cat-head';
+    head.textContent = mod.title;
+    list.appendChild(head);
+    mod.subs.forEach(sub => {
+      const btn = document.createElement('button');
+      btn.className = 'dropdown-item';
+      btn.dataset.module = modKey;
+      btn.dataset.sub = sub.key;
+      btn.innerHTML = `<span class="di-emoji">${sub.label.split(' ')[0]}</span><span>${sub.label.substring(sub.label.indexOf(' ')+1)}</span>`;
+      btn.onclick = () => {
+        currentModule = parseInt(modKey);
+        selectSub(sub.key);
+        closeAllDropdowns();
+      };
+      list.appendChild(btn);
+    });
+  });
+}
+
+function highlightActiveTopic() {
+  document.querySelectorAll('#topicList .dropdown-item').forEach(b => {
+    b.classList.toggle('active', b.dataset.sub === currentSub);
+  });
+}
+
+// ---------- SAHNE SEÇİMİ ----------
+// 3D arka planı temaya göre ayarla (tutulmalar uzay → koyu kalır)
+function applySceneTheme() {
+  if (!scene) return;
+  const isLight = window._lightMode === true;
+  const isSpace = window._isSpaceScene === true;
+  let bgColor, fogColor, fogNear, fogFar;
+  if (isSpace) {
+    // Tutulma sahneleri: aydınlık modda biraz açık gece, karanlıkta derin uzay
+    bgColor = isLight ? 0x1a2138 : 0x02030a;
+    fogColor = bgColor; fogNear = 40; fogFar = 110;
+    scene.background = new THREE.Color(bgColor);
+    scene.fog = null;
+    return;
+  }
+  if (isLight) {
+    bgColor = 0xdfe7f2; fogColor = 0xdfe7f2; fogNear = 38; fogFar = 100;
+  } else {
+    bgColor = 0x121726; fogColor = 0x121726; fogNear = 35; fogFar = 95;
+  }
+  scene.background = new THREE.Color(bgColor);
+  scene.fog = new THREE.Fog(fogColor, fogNear, fogFar);
+}
+
+function selectSub(subKey) {
+  currentSub = subKey;
+  clearScene();
+  window._isSpaceScene = false;
+  applySceneTheme();
+
+  const builderName = (function() {
+    for (const mk of Object.keys(MODULES)) {
+      const s = MODULES[mk].subs.find(x => x.key === subKey);
+      if (s) { currentModule = parseInt(mk); return s.builder; }
+    }
+    return null;
+  })();
+
+  if (builderName && typeof SubBuilders[builderName] === 'function') {
+    try {
+      SubBuilders[builderName]();
+    } catch (e) {
+      console.error('Builder hatası:', builderName, e);
+    }
+  }
+
+  // Bilgi panelini güncelle (kapalıysa tekrar aç — konu seçilince bilgi görünür olsun)
+  const _bp = document.getElementById('bottomPanel');
+  if (_bp) _bp.classList.remove('hidden');
+  updateInfoPanel(subKey);
+  highlightActiveTopic();
+
+  // Sade modda bazı 3D etiketleri gizle (her ikincisi)
+  applyModeToLabels();
+
+  // Kamerayı sahneye göre hafif yukarı + model biraz sola kaysın (target sağa)
+  if (controls) {
+    controls.target.set(1.5, 0.8, 0);
+    controls.captureInitialState && controls.captureInitialState();
+  }
+
+  if (window._showGestureToast) {
+    const allSubs = [];
+    Object.keys(MODULES).forEach(mk => MODULES[mk].subs.forEach(s => allSubs.push(s)));
+    const cur = allSubs.find(s => s.key === subKey);
+    if (cur) window._showGestureToast('📍 ' + cur.label);
+  }
+}
+
+function applyModeToLabels() {
+  if (!window._labelRefs) return;
+  // info3d etiketleri (CSS2D, scene içinde) — sade modda her ikinciyi gizle
+  const info3d = document.querySelectorAll('.info3d-label');
+  info3d.forEach((el, i) => {
+    if (currentMode === 'sade' && i % 2 === 1) {
+      el.dataset.userHidden = '1';
+      el.style.display = 'none';
+    } else {
+      el.dataset.userHidden = '0';
+      el.style.display = labelsVisible ? 'block' : 'none';
+    }
+  });
+}
+
+// ---------- BİLGİ PANELİ ----------
+function updateInfoPanel(subKey) {
+  const data = _resolveLevelData(INFO_DATA[subKey]);
+  if (!data) return;
+  document.getElementById('infoEmoji').textContent = data.emoji || '🔦';
+  // Başlık: "Modül ana başlığı / alt başlık" (eğitim seviyesi gösterilmez)
+  let mainTitle = '', subTitle = '';
+  for (const mk of Object.keys(MODULES)) {
+    const s = MODULES[mk].subs.find(x => x.key === subKey);
+    if (s) {
+      // Modül ana başlığından emoji ve "Modül N:" kısmını temizle
+      mainTitle = (MODULES[mk].title || '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]*Modül\s*\d+:\s*/i, '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]+/, '').trim();
+      // Alt başlık: sahne etiketinden baştaki emojiyi at
+      subTitle = (s.label || '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]+/, '').trim();
+      break;
+    }
+  }
+  const titleHtml = mainTitle ? (mainTitle + ' / ' + subTitle) : (data.title || subTitle);
+  document.getElementById('infoTitle').textContent = titleHtml;
+  const list = document.getElementById('infoList');
+  list.innerHTML = '';
+  let points = data.points || [];
+  // Sade modda ilk 3, detaylıda hepsi
+  const showCount = (currentMode === 'sade') ? 3 : points.length;
+  points.slice(0, showCount).forEach(p => {
+    const li = document.createElement('li');
+    if (p.startsWith('##')) { li.className = 'subhead'; li.innerHTML = p.replace('##','').trim(); }
+    else li.innerHTML = p;
+    list.appendChild(li);
+  });
+  // içerik değişti → kaydırma çubuğunu yeniden hesapla (layout için çoklu deneme)
+  list.scrollTop = 0;
+  setTimeout(updateInfoScrollbar, 30);
+  setTimeout(updateInfoScrollbar, 150);
+  setTimeout(updateInfoScrollbar, 400);
+}
+
+// Özel kaydırma çubuğu: içerik taşınca görünür, kaydırınca thumb hareket eder
+function updateInfoScrollbar() {
+  const list = document.getElementById('infoList');
+  const bar = document.getElementById('infoScrollbar');
+  const thumb = document.getElementById('infoScrollThumb');
+  if (!list || !bar || !thumb) return;
+  const sh = list.scrollHeight, ch = list.clientHeight;
+  if (ch < 5) return; // panel henüz görünür değil, sonraki denemede tekrar bak
+  if (sh <= ch + 3) { bar.classList.remove('visible'); return; }
+  bar.classList.add('visible');
+  const trackH = bar.clientHeight || ch;
+  const thumbH = Math.max(26, trackH * ch / sh);
+  const maxScroll = sh - ch;
+  const maxThumb = trackH - thumbH;
+  const top = maxScroll > 0 ? (list.scrollTop / maxScroll) * maxThumb : 0;
+  thumb.style.height = thumbH + 'px';
+  thumb.style.top = top + 'px';
+}
+
+// ---------- NAVİGASYON (önceki/sonraki sahne) ----------
+function getAllSubs() {
+  const arr = [];
+  Object.keys(MODULES).forEach(mk => MODULES[mk].subs.forEach(s => arr.push(s)));
+  return arr;
+}
+function navigate(dir) {
+  const all = getAllSubs();
+  let idx = all.findIndex(s => s.key === currentSub);
+  if (idx < 0) idx = 0;
+  idx = (idx + dir + all.length) % all.length;
+  selectSub(all[idx].key);
+}
+
+// ---------- DROPDOWN AÇ/KAPA ----------
+function closeAllDropdowns() {
+  document.querySelectorAll('.dropdown-panel').forEach(p => p.classList.remove('show'));
+  document.body.classList.remove('dropdown-open');
+}
+function toggleDropdown(id) {
+  const panel = document.getElementById(id);
+  if (!panel) return;
+  const wasOpen = panel.classList.contains('show');
+  closeAllDropdowns();
+  if (!wasOpen) {
+    panel.classList.add('show');
+    document.body.classList.add('dropdown-open');
+  }
+}
+
+// ---------- KARŞILAŞTIRMA POPUP ----------
+window._cmpPages = []; window._cmpIdx = 0;
+window._tblPages = []; window._tblIdx = 0;
+
+function _normalizePages(data) {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  return [data];
+}
+
+function _renderTableHTML(data, styleClass) {
+  let html = '<table class="cmp-table ' + (styleClass||'') + '"><thead><tr>';
+  data.cols.forEach(c => html += `<th>${c}</th>`);
+  html += '</tr></thead><tbody>';
+  data.rows.forEach(row => {
+    html += '<tr>';
+    row.forEach(cell => html += `<td>${cell}</td>`);
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  return html;
+}
+
+function renderCompareTable() {
+  window._cmpPages = _normalizePages(_resolveLevelData(COMPARE_DATA[currentSub]));
+  window._cmpIdx = 0;
+  _showComparePage();
+}
+function _showComparePage() {
+  const body = document.getElementById('compareBody');
+  const titleEl = document.getElementById('compareTitle');
+  const nav = document.getElementById('compareNav');
+  const counter = document.getElementById('compareCounter');
+  const pages = window._cmpPages;
+  if (!pages.length) {
+    body.innerHTML = '<div class="cmp-no-data">Bu konu için karşılaştırma verisi yok.</div>';
+    if (titleEl) titleEl.textContent = '⚖️ Karşılaştırma';
+    if (nav) nav.classList.add('hidden');
+    return;
+  }
+  const i = window._cmpIdx;
+  const data = pages[i];
+  if (titleEl) titleEl.textContent = '⚖️ ' + (data.title || 'Karşılaştırma');
+  body.innerHTML = _renderTableHTML(data, 'compare-style');
+  if (nav) {
+    if (pages.length > 1) {
+      nav.classList.remove('hidden');
+      counter.textContent = (i+1) + ' / ' + pages.length;
+      document.getElementById('comparePrev').disabled = (i === 0);
+      document.getElementById('compareNext').disabled = (i === pages.length - 1);
+    } else {
+      nav.classList.add('hidden');
+    }
+  }
+}
+
+// ---------- BİLGİ TABLOSU POPUP ----------
+function renderInfoTable() {
+  window._tblPages = _normalizePages(_resolveLevelData(TABLE_DATA[currentSub]));
+  window._tblIdx = 0;
+  _showTablePage();
+}
+function _showTablePage() {
+  const body = document.getElementById('tableBody');
+  const titleEl = document.getElementById('tableTitle');
+  const nav = document.getElementById('tableNav');
+  const counter = document.getElementById('tableCounter');
+  const pages = window._tblPages;
+  if (!pages.length) {
+    body.innerHTML = '<div class="cmp-no-data">Bu konu için tablo verisi yok.</div>';
+    if (titleEl) titleEl.textContent = '📋 Bilgi Tablosu';
+    if (nav) nav.classList.add('hidden');
+    return;
+  }
+  const i = window._tblIdx;
+  const data = pages[i];
+  if (titleEl) titleEl.textContent = '📋 ' + (data.title || 'Bilgi Tablosu');
+  body.innerHTML = _renderTableHTML(data, '');
+  if (nav) {
+    if (pages.length > 1) {
+      nav.classList.remove('hidden');
+      counter.textContent = (i+1) + ' / ' + pages.length;
+      document.getElementById('tablePrev').disabled = (i === 0);
+      document.getElementById('tableNext').disabled = (i === pages.length - 1);
+    } else {
+      nav.classList.add('hidden');
+    }
+  }
+}
+
+// ============================================================
+// ====== EVENT LISTENERS =====================================
+// ============================================================
+function attachEvents() {
+  // Bilgi listesi içinde parmakla kaydırma: touch olaylarını panel içinde tut
+  (function(){
+    const infoList = document.getElementById('infoList');
+    if (infoList) {
+      ['touchstart','touchmove','touchend','wheel'].forEach(ev => {
+        infoList.addEventListener(ev, (e) => { e.stopPropagation(); }, { passive: true });
+      });
+      // kaydırdıkça özel çubuğu güncelle
+      infoList.addEventListener('scroll', updateInfoScrollbar, { passive: true });
+    }
+    // tüm popup/panel gövdeleri için de aynı koruma (kaydırılabilir alanlar)
+    ['compareBody','tableBody','scenePanel'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) ['touchstart','touchmove','touchend','wheel'].forEach(ev => {
+        el.addEventListener(ev, (e) => { e.stopPropagation(); }, { passive: true });
+      });
+    });
+  })();
+
+  // Seviye dropdown
+  document.getElementById('btnLevel').onclick = () => toggleDropdown('panelLevel');
+  document.getElementById('btnTopic').onclick = () => {
+    // Konu Rehberi'ne basıldığında bilgi paneli kapalıysa geri getir
+    const bp = document.getElementById('bottomPanel');
+    if (bp) bp.classList.remove('hidden');
+    toggleDropdown('panelTopic');
+  };
+
+  document.querySelectorAll('#panelLevel .dropdown-item').forEach(item => {
+    item.onclick = () => {
+      currentLevel = item.dataset.level;
+      document.querySelectorAll('#panelLevel .dropdown-item').forEach(x => x.classList.remove('active'));
+      item.classList.add('active');
+      const labels = { ilkokul: 'İlkokul', ortaokul: 'Ortaokul', lise: 'Lise', tyt_ayt: 'TYT-AYT' };
+      document.getElementById('levelLabel').textContent = labels[currentLevel] || 'Lise';
+      closeAllDropdowns();
+      // sahneyi yeniden kur (etiket seviyeleri değişir)
+      if (currentSub) selectSub(currentSub);
+      // Açık olan popup'ları da yeni seviyeye göre yenile
+      if (document.getElementById('compareOverlay').classList.contains('show')) renderCompareTable();
+      if (document.getElementById('tableOverlay').classList.contains('show')) renderInfoTable();
+      if (window._showGestureToast) window._showGestureToast('🎓 Seviye: ' + (labels[currentLevel] || 'Lise'));
+      if (window._haptic) window._haptic(15);
+    };
+  });
+
+  // Mod (sade/detaylı)
+  document.getElementById('btnMode').onclick = () => toggleDropdown('panelMode');
+  document.querySelectorAll('#panelMode .dropdown-item').forEach(item => {
+    item.onclick = () => {
+      currentMode = item.dataset.mode;
+      document.querySelectorAll('#panelMode .dropdown-item').forEach(x => x.classList.remove('active'));
+      item.classList.add('active');
+      const btnMode = document.getElementById('btnMode');
+      if (currentMode === 'sade') {
+        btnMode.textContent = '📄'; btnMode.classList.add('active');
+        btnMode.title = 'Görünüm Modu: Sade';
+      } else {
+        btnMode.textContent = '📚'; btnMode.classList.remove('active');
+        btnMode.title = 'Görünüm Modu: Detaylı';
+      }
+      closeAllDropdowns();
+      if (currentSub) { updateInfoPanel(currentSub); applyModeToLabels(); }
+      if (window._haptic) window._haptic(15);
+    };
+  });
+
+  // Navigasyon
+  document.getElementById('navPrev').onclick = () => navigate(-1);
+  document.getElementById('navNext').onclick = () => navigate(1);
+
+  // Bilgi paneli kapat
+  document.getElementById('infoCloseBtn').onclick = () => {
+    document.getElementById('bottomPanel').classList.add('hidden');
+  };
+
+  // Aksiyon butonları
+  const spinBtn = document.getElementById('spinBtn');
+  spinBtn.onclick = () => {
+    window._autoSpinActive = !window._autoSpinActive;
+    spinBtn.classList.toggle('active', window._autoSpinActive);
+    // tüm model gruplarına spin ver
+    if (window._currentModelGroup) {
+      window._currentModelGroup.userData.spin = window._autoSpinActive ? 0.3 : 0;
+      if (!dynamicObjects.includes(window._currentModelGroup)) dynamicObjects.push(window._currentModelGroup);
+    }
+    if (window._haptic) window._haptic(15);
+  };
+
+  const labelBtn = document.getElementById('labelBtn');
+  labelBtn.onclick = () => {
+    // Etiket yazıları VE okları birlikte aç/kapa
+    labelsVisible = !labelsVisible;
+    window._leaderLinesVisible = labelsVisible;
+    labelBtn.classList.toggle('active', labelsVisible);
+    document.querySelectorAll('.info3d-label, .label3d').forEach(el => {
+      if (labelsVisible) {
+        el.dataset.labelHidden = '0';
+        if (el.dataset.userHidden !== '1') el.style.display = 'block';
+      } else {
+        el.dataset.labelHidden = '1';
+        el.style.display = 'none';
+      }
+    });
+    if (!labelsVisible) {
+      const svg = document.getElementById('leaderLines');
+      if (svg) svg.innerHTML = '';
+    }
+    if (window._haptic) window._haptic(15);
+  };
+  window._leaderLinesVisible = true;
+  labelBtn.classList.add('active');
+
+  const animBtn = document.getElementById('animBtn');
+  animBtn.onclick = () => {
+    window._isPlayingActive = !window._isPlayingActive;
+    animBtn.classList.toggle('active', window._isPlayingActive);
+    animBtn.querySelector('.ico').textContent = window._isPlayingActive ? '⏸️' : '▶️';
+    const lbl = animBtn.querySelector('span:last-child');
+    if (lbl) lbl.textContent = window._isPlayingActive ? 'Durdur' : 'Çalıştır';
+    if (window._showGestureToast) {
+      window._showGestureToast(window._isPlayingActive ? '▶️ Animasyon başladı' : '⏸️ Duraklatıldı');
+    }
+    if (window._haptic) window._haptic(15);
+  };
+  // Başlangıçta durakta
+  animBtn.classList.remove('active');
+  animBtn.querySelector('.ico').textContent = '▶️';
+
+  // Tema
+  document.getElementById('btnTheme').onclick = () => {
+    document.body.classList.toggle('light-mode');
+    const isLight = document.body.classList.contains('light-mode');
+    document.getElementById('btnTheme').textContent = isLight ? '☀️' : '🌙';
+    window._lightMode = isLight;
+    applySceneTheme();
+    if (window._haptic) window._haptic(15);
+  };
+
+  // Tam ekran
+  document.getElementById('btnFs').onclick = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+    } else {
+      document.exitFullscreen && document.exitFullscreen();
+    }
+    if (window._haptic) window._haptic(15);
+  };
+
+  // Paylaş
+  document.getElementById('btnSend').onclick = () => {
+    document.getElementById('shareOverlay').classList.add('show');
+  };
+  document.getElementById('shareClose').onclick = () => {
+    document.getElementById('shareOverlay').classList.remove('show');
+  };
+  document.getElementById('shareWhatsApp').onclick = () => {
+    const txt = encodeURIComponent('🌊 Dalgalar — 3D interaktif fizik simülasyonu!');
+    window.open('https://wa.me/?text=' + txt, '_blank');
+  };
+  document.getElementById('shareCopy').onclick = () => {
+    try { navigator.clipboard.writeText(window.location.href); } catch(e){}
+    if (window._showGestureToast) window._showGestureToast('📋 Bağlantı kopyalandı');
+    document.getElementById('shareOverlay').classList.remove('show');
+  };
+  document.getElementById('shareDownload').onclick = () => {
+    try {
+      const link = document.createElement('a');
+      link.download = 'dalgalar-simulasyon.png';
+      link.href = renderer.domElement.toDataURL('image/png');
+      link.click();
+    } catch(e){}
+    document.getElementById('shareOverlay').classList.remove('show');
+  };
+
+  // Karşılaştırma
+  document.getElementById('btnCompare').onclick = () => {
+    renderCompareTable();
+    document.getElementById('compareOverlay').classList.add('show');
+  };
+  document.getElementById('compareClose').onclick = () => {
+    document.getElementById('compareOverlay').classList.remove('show');
+  };
+  document.getElementById('comparePrev').onclick = () => {
+    if (window._cmpIdx > 0) { window._cmpIdx--; _showComparePage(); if (window._haptic) window._haptic(10); }
+  };
+  document.getElementById('compareNext').onclick = () => {
+    if (window._cmpIdx < window._cmpPages.length - 1) { window._cmpIdx++; _showComparePage(); if (window._haptic) window._haptic(10); }
+  };
+
+  // Tablo
+  document.getElementById('btnTable').onclick = () => {
+    renderInfoTable();
+    document.getElementById('tableOverlay').classList.add('show');
+  };
+  document.getElementById('tableClose').onclick = () => {
+    document.getElementById('tableOverlay').classList.remove('show');
+  };
+  document.getElementById('tablePrev').onclick = () => {
+    if (window._tblIdx > 0) { window._tblIdx--; _showTablePage(); if (window._haptic) window._haptic(10); }
+  };
+  document.getElementById('tableNext').onclick = () => {
+    if (window._tblIdx < window._tblPages.length - 1) { window._tblIdx++; _showTablePage(); if (window._haptic) window._haptic(10); }
+  };
+
+  // Overlay dışına tıkla → kapat
+  ['shareOverlay','compareOverlay','tableOverlay'].forEach(id => {
+    const ov = document.getElementById(id);
+    ov.onclick = (e) => { if (e.target === ov) ov.classList.remove('show'); };
+  });
+
+  // Dışarı tıkla → dropdown kapat
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.dropdown-panel') && !e.target.closest('.stack-btn') && !e.target.closest('.tool-icon-btn')) {
+      closeAllDropdowns();
+    }
+  });
+}
+
+// ============================================================
+// ====== BAŞLATMA ============================================
+// ============================================================
+init();
+attachEvents();
+buildTopicDropdown();
+selectSub('dalgaNedir');
+animate();
+
+console.log('✓ Dalgalar simülasyonu başlatıldı');
+</script>
+</body>
+</html>

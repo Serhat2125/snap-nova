@@ -12,10 +12,16 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+
+// Web'de webview_flutter desteklenmediği için HTML asset iframe ile gösterilir.
+// Mobil/masaüstünde stub döner (kIsWeb ile dallanılır, çağrılmaz).
+import 'html_asset_view_stub.dart'
+    if (dart.library.html) 'html_asset_view_web.dart';
 
 class Lesson3DScreen extends StatefulWidget {
   /// pubspec.yaml assets listesindeki HTML yolu
@@ -36,13 +42,24 @@ class Lesson3DScreen extends StatefulWidget {
 }
 
 class _Lesson3DScreenState extends State<Lesson3DScreen> {
-  late final WebViewController _controller;
+  // Web'de WebViewController KULLANILMAZ (platform implementasyonu yok →
+  // assertion hatası). Bu yüzden nullable ve sadece mobil/masaüstünde kurulur.
+  WebViewController? _controller;
   bool _loading = true;
   String? _error;
+
+  /// Web hedefinde iframe src'i: Flutter web asset'leri `assets/<assetKey>`
+  /// yolundan sunar (assetKey zaten 'assets/...' ile başladığı için çift olur).
+  String get _webAssetUrl => 'assets/${widget.assetHtml}';
 
   @override
   void initState() {
     super.initState();
+    if (kIsWeb) {
+      // iframe anında yüklenir; yükleme katmanı gösterme.
+      _loading = false;
+      return;
+    }
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFF070B22))
@@ -111,7 +128,9 @@ class _Lesson3DScreenState extends State<Lesson3DScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            if (_error == null) WebViewWidget(controller: _controller),
+            if (_error == null && kIsWeb) htmlAssetView(_webAssetUrl),
+            if (_error == null && !kIsWeb && _controller != null)
+              WebViewWidget(controller: _controller!),
             if (_error != null)
               Center(
                 child: Padding(

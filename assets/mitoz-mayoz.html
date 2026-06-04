@@ -885,8 +885,9 @@
 }}
 </script>
 
+<script src="./three.global.js"></script>
 <script type="module">
-import * as THREE from 'three';
+const THREE = window.THREE;
 
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0xf8faff);
