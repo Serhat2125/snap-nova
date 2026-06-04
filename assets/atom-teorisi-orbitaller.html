@@ -54,9 +54,9 @@
 
   .left-stack {
     position:absolute;
-    top:6px; right:14px;
+    top:2px; right:14px;
     z-index:30;
-    display:flex; flex-direction:column; gap:8px;
+    display:flex; flex-direction:column; gap:14px;
     align-items:flex-end;
   }
 
@@ -142,7 +142,7 @@
 
   .right-tools {
     position:absolute;
-    top:6px; left:8px;
+    top:2px; left:8px;
     z-index:30;
     display:flex; gap:8px;
     flex-wrap:nowrap;
@@ -638,6 +638,7 @@
 
   @media (max-width:600px) {
     .stack-btn { min-width:140px; font-size:11px; padding:7px 11px; }
+    .scene-panel { width:140px; }
     .stack-btn .sb-label { font-size:11px; }
     .right-tools { gap:5px; left:8px; }
     .tool-icon-btn { width:34px; height:34px; font-size:14px; border-radius:9px; }
@@ -653,12 +654,14 @@
   }
   @media (max-width:420px) {
     .stack-btn { min-width:130px; font-size:10.5px; padding:6px 9px; }
+    .scene-panel { width:130px; }
     .right-tools { gap:4px; left:6px; }
     .tool-icon-btn { width:30px; height:30px; font-size:13px; border-radius:8px; border-width:1.5px; }
     #panelMode { left:6px !important; }
   }
   @media (max-width:360px) {
     .stack-btn { min-width:115px; font-size:10px; padding:5px 8px; }
+    .scene-panel { width:115px; }
     .right-tools { gap:3px; left:5px; }
     .tool-icon-btn { width:28px; height:28px; font-size:12px; }
     #panelMode { left:5px !important; }
@@ -673,9 +676,9 @@
   .scene-panel {
     position: fixed;
     right: 14px;
-    top: 96px;
-    width: 188px;
-    max-height: calc(100vh - 96px - 196px);
+    top: 88px;
+    width: 170px; /* Konu Rehberi (stack-btn) ile aynı genişlik */
+    max-height: calc(100vh - 88px - 190px);
     overflow-y: auto;
     z-index: 40;
     background: transparent;
@@ -1191,8 +1194,8 @@ setTimeout(function() {
 <!-- ===== GEÇİŞ MOTORU: Ayarlar'a (Geçiş Stüdyosu) göre sahne geçiş animasyonu + ses + geri bildirim ===== -->
 <script>
 (function(){
-  const DEF={ level:'karisik', enterMode:'rastgele', exitMode:'rastgele', speed:1.0, overlap:true, sound:true, stereo:true, emoji:true, title:true, confetti:true, calm:false };
-  function readS(){ let S=Object.assign({},DEF); try{ const v=localStorage.getItem('gecisAyar2'); if(v) S=Object.assign({},DEF,JSON.parse(v)); }catch(e){} return S; }
+  const DEF={ level:'karisik', enterMode:'rastgele', exitMode:'rastgele', speed:1.0, overlap:true, sound:true, stereo:true, emoji:false, title:false, confetti:false, calm:false };
+  function readS(){ let S=Object.assign({},DEF); try{ const v=localStorage.getItem('gecisAyar3'); if(v) S=Object.assign({},DEF,JSON.parse(v)); }catch(e){} return S; }
 
   // CSS (emoji/uçan başlık/konfeti) bir kez enjekte
   if(!document.getElementById('gecisFxCss')){ const st=document.createElement('style'); st.id='gecisFxCss'; st.textContent=
@@ -2180,10 +2183,15 @@ function setSceneSliders(items, opts = {}) {
       body.appendChild(row);
     }
   });
-  // Konu değiştirilip sahne kurulduğunda panel 1 sn AÇIK kalır; sonra hemen
-  // kaybolmaz, aşağıdan yukarıya YAVAŞÇA kapanır. Kullanıcı isterse toggle'a basar.
+  // Değişkenler varsayılan KAPALI; konu değişince OTOMATİK AÇILMAZ.
+  // Anlık kapat (animasyonsuz), sonra transition'ı geri ver → toggle yine animasyonlu.
   clearTimeout(window._scenePeekTimer);
-  window._scenePeekTimer = setTimeout(() => { setSceneOpen(false); }, 1000);
+  body.style.transition = 'none';
+  body.classList.add('closed');
+  body.style.maxHeight = '0px';
+  void body.offsetHeight;
+  body.style.transition = '';
+  if (_chev) _chev.textContent = '▼';
 }
 
 function clearSceneSliders() {
@@ -3922,8 +3930,9 @@ function selectSub(subKey) {
   if (controls) {
     // Sahne sabit bir yere bağlı değil: ekranda serbest/ortada dursun, kullanıcı
     // iki parmakla istediği yeri ortaya getirip yakınlaştırabilsin.
-    controls.target.set(0, 0.4, 0);
-    if (camera) camera.position.set(0, 3.4, 25.0);
+    // Hedefi biraz aşağı al → model ekranda biraz daha YUKARIDA dursun
+    controls.target.set(0, -0.3, 0);
+    if (camera) camera.position.set(0, 2.7, 25.0);
     controls.captureInitialState && controls.captureInitialState();
   }
   if (window._showGestureToast) {

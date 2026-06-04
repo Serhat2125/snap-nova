@@ -126,10 +126,10 @@ class OrbitControls {
 }
 
 // ---------- AYARLAR ----------
-const DEF={ level:'karisik', enterMode:'rastgele', exitMode:'rastgele', speed:1.0, overlap:true, sound:true, stereo:true, emoji:true, shadow:true, bloom:true, trails:true, atmos:true, title:true, confetti:true, calm:false };
+const DEF={ level:'karisik', enterMode:'rastgele', exitMode:'rastgele', speed:1.0, overlap:true, sound:true, stereo:true, emoji:false, shadow:true, bloom:true, trails:true, atmos:true, title:false, confetti:false, calm:false };
 let S=Object.assign({},DEF);
-try{ const sv=localStorage.getItem('gecisAyar2'); if(sv) S=Object.assign({},DEF,JSON.parse(sv)); }catch(e){}
-function saveS(){ try{ localStorage.setItem('gecisAyar2', JSON.stringify(S)); }catch(e){} }
+try{ const sv=localStorage.getItem('gecisAyar3'); if(sv) S=Object.assign({},DEF,JSON.parse(sv)); }catch(e){}
+function saveS(){ try{ localStorage.setItem('gecisAyar3', JSON.stringify(S)); }catch(e){} }
 const effSpeed =()=> S.calm? S.speed*1.5 : S.speed;
 const effOverlap=()=> S.calm? false : S.overlap;
 const effBloom  =()=> S.bloom && !S.calm;
