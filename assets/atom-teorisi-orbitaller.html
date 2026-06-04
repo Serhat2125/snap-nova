@@ -1868,7 +1868,7 @@ function setSceneSliders(items, opts = {}) {
   window._sceneState._displayUpdaters = [];
   const toggle = document.createElement('button');
   toggle.className = 'sp-toggle';
-  toggle.innerHTML = `<span>🎛️ ${opts.title || 'Kontroller'}</span><span class="sp-chev">▼</span>`;
+  toggle.innerHTML = `<span>🎛️ Değişkenler</span><span class="sp-chev">▼</span>`;
   toggle.onclick = () => {
     panel.classList.toggle('collapsed');
     toggle.querySelector('.sp-chev').textContent = panel.classList.contains('collapsed') ? '◀' : '▼';
