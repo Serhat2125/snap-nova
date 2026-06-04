@@ -54,7 +54,7 @@
   /* =========== SAĞ ÜST: Dikey dropdown butonları (Lise/Modül/Konu) =========== */
   .left-stack {
     position:absolute;
-    top:14px; right:14px;
+    top:6px; right:14px;
     z-index:30;
     display:flex; flex-direction:column; gap:8px;
     align-items:flex-end;
@@ -146,7 +146,7 @@
   /* =========== SOL ÜST: Tool butonları =========== */
   .right-tools {
     position:absolute;
-    top:14px; left:14px;
+    top:6px; left:8px;
     z-index:30;
     display:flex; gap:8px;
     flex-wrap:nowrap;
@@ -187,17 +187,43 @@
   /* =========== ALT KART (Bilgi + butonlar) =========== */
   .bottom-panel {
     position:absolute;
-    bottom:10px;
-    left:14px; right:14px;
+    bottom:6px;
+    left:3px; right:3px;
     z-index:25;
     background:var(--panel);
     border:2px solid var(--panel-line);
     border-radius:12px;
-    padding:9px 12px 8px;
+    padding:9px 10px 8px;
     box-shadow:0 -6px 24px rgba(0,0,0,0.4);
     display:flex; flex-direction:column; gap:8px;
+    touch-action:auto;
   }
   .bottom-panel.hidden { display:none; }
+
+  /* Bilgi panelini yukari/asagi cekerek genisleten tutamac */
+  .info-resize-handle {
+    position:absolute;
+    top:-15px; left:50%; transform:translateX(-50%);
+    width:64px; height:24px;
+    background:var(--panel);
+    border:2px solid var(--accent);
+    border-bottom:none;
+    border-radius:12px 12px 0 0;
+    display:flex; align-items:center; justify-content:center;
+    gap:3px;
+    color:var(--accent);
+    font-size:13px; line-height:1;
+    cursor:ns-resize; touch-action:none;
+    z-index:3;
+    box-shadow:0 -3px 10px rgba(0,0,0,0.3);
+  }
+  .info-resize-handle::before {
+    content:''; position:absolute; top:7px;
+    width:34px; height:4px; border-radius:3px;
+    background:var(--accent); opacity:0.55;
+  }
+  .info-resize-handle span { position:relative; top:4px; font-size:11px; opacity:0.9; }
+  .info-resize-handle:active { background:var(--panel-soft); }
 
   .info-close-btn {
     position:absolute;
@@ -251,19 +277,20 @@
     color:var(--accent-glow);
   }
   .nav-buttons {
-    display:flex; gap:4px;
+    display:flex; gap:8px;
   }
   .nav-mini-btn {
-    width:19px; height:19px;
+    width:34px; height:34px;
     background:var(--panel-soft);
-    border:1.5px solid var(--accent);
-    border-radius:5px;
+    border:2px solid var(--accent);
+    border-radius:9px;
     cursor:pointer;
     display:grid; place-items:center;
     color:var(--accent);
-    font-size:9px;
+    font-size:15px;
     transition:all 0.12s;
   }
+  .nav-mini-btn:active { transform:scale(0.9); }
   .nav-mini-btn:hover {
     background:var(--accent);
     color:#0a1420;
@@ -271,7 +298,7 @@
   .info-list {
     list-style:none;
     padding:0; margin:0;
-    max-height:18vh; overflow-y:auto;
+    max-height:var(--info-h, 24vh); overflow-y:auto;
   }
   /* Maddeler doğrudan panel zeminine - kendi çerçeveleri yok */
   .info-list li {
@@ -596,7 +623,7 @@
     .stack-btn .sb-label { font-size:11px; }
     .right-tools { gap:5px; left:8px; }
     .tool-icon-btn { width:34px; height:34px; font-size:14px; border-radius:9px; }
-    .bottom-panel { padding:11px 12px 9px; gap:9px; }
+    .bottom-panel { padding:11px 10px 9px; gap:9px; }
     .info-emoji-box { width:36px; height:36px; font-size:20px; }
     .info-title { font-size:13px; }
     .info-list li { font-size:11.5px; padding:4px 7px; }
@@ -652,7 +679,7 @@
 </div>
 
 <!-- Dropdown panelleri -->
-<div class="dropdown-panel" id="panelLevel" style="top:60px; right:14px;">
+<div class="dropdown-panel" id="panelLevel" style="top:48px; right:14px;">
   <div class="dropdown-title">🎓 Eğitim Seviyesi</div>
   <button class="dropdown-item" data-level="ilkokul"><span class="di-emoji">🧒</span>İlkokul</button>
   <button class="dropdown-item" data-level="ortaokul"><span class="di-emoji">🎒</span>Ortaokul</button>
@@ -660,7 +687,7 @@
   <button class="dropdown-item" data-level="tyt_ayt"><span class="di-emoji">🎯</span>TYT-AYT</button>
 </div>
 
-<div class="dropdown-panel" id="panelTopic" style="top:106px; right:14px;">
+<div class="dropdown-panel" id="panelTopic" style="top:92px; right:14px;">
   <div class="dropdown-title">📚 Konu Rehberi</div>
   <div id="topicList"></div>
 </div>
@@ -676,7 +703,7 @@
 </div>
 
 <!-- Görünüm Modu dropdown'ı (btnMode'un altında) -->
-<div class="dropdown-panel" id="panelMode" style="top:60px; left:14px;">
+<div class="dropdown-panel" id="panelMode" style="top:48px; left:8px;">
   <div class="dropdown-title">📚 Görünüm Modu</div>
   <button class="dropdown-item active" data-mode="detayli"><span class="di-emoji">📚</span><span><b>Detaylı</b><br><small style="opacity:0.7;font-size:10.5px;">Tüm bilgiler ve etiketler</small></span></button>
   <button class="dropdown-item" data-mode="sade"><span class="di-emoji">📄</span><span><b>Sade</b><br><small style="opacity:0.7;font-size:10.5px;">Sadece temel bilgiler</small></span></button>
@@ -684,6 +711,7 @@
 
 <!-- =========== ALT KART =========== -->
 <div class="bottom-panel" id="bottomPanel">
+  <div class="info-resize-handle" id="infoResizeHandle" title="Yukari/asagi cekerek genislet"><span>⇕</span></div>
   <button class="info-close-btn" id="infoCloseBtn" title="Bilgi panelini kapat">✕</button>
   <div class="info-area">
     <div class="info-emoji-box" id="infoEmoji">🌱</div>
@@ -954,6 +982,26 @@ class OrbitControls extends THREE.EventDispatcher {
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
 
+    // Ekrandaki bir noktanin altindaki 3B noktayi, hedefi (ekran merkezini) ona
+    // dogru k oraninda kaydirir (pinch/tekerlek zoom-to-point).
+    this._panToScreenPoint = (screenX, screenY, k) => {
+      const rect = dom.getBoundingClientRect();
+      const ndcX = ((screenX - rect.left) / rect.width) * 2 - 1;
+      const ndcY = -((screenY - rect.top) / rect.height) * 2 + 1;
+      const ndc = new THREE.Vector3(ndcX, ndcY, 0.5);
+      ndc.unproject(this.object);
+      const dir = ndc.sub(this.object.position).normalize();
+      const t = (this.target.y - this.object.position.y) / dir.y;
+      if (t > 0 && isFinite(t)) {
+        const hit = new THREE.Vector3(
+          this.object.position.x + dir.x * t,
+          this.target.y,
+          this.object.position.z + dir.z * t
+        );
+        this.target.lerp(hit, k);
+      }
+    };
+
     // Touch
     let touchStart = null;
     let pinchStartDist = 0;
@@ -1014,6 +1062,7 @@ class OrbitControls extends THREE.EventDispatcher {
         const panDy = newCenterY - pinchCenter.y;
         pinchCenter.x = newCenterX;
         pinchCenter.y = newCenterY;
+        this._panToScreenPoint(newCenterX, newCenterY, 0.16);
         // Target'ı kameranın right/up vektörlerinde kaydır
         const right = new THREE.Vector3();
         const up = new THREE.Vector3();
@@ -1039,6 +1088,7 @@ class OrbitControls extends THREE.EventDispatcher {
       if (!this.enabled) return;
       e.preventDefault();
       const factor = e.deltaY > 0 ? 1.1 : 0.9;
+      this._panToScreenPoint(e.clientX, e.clientY, factor < 1 ? 0.22 : 0.12);
       this._sphericalTarget.radius *= factor;
       this._sphericalTarget.radius = Math.max(this.minDistance, Math.min(this.maxDistance, this._sphericalTarget.radius));
     }, { passive: false });
@@ -6407,6 +6457,54 @@ document.querySelectorAll('#panelLevel .dropdown-item').forEach(btn => {
 document.getElementById('infoCloseBtn').onclick = () => {
   document.getElementById('bottomPanel').classList.add('hidden');
 };
+
+// Bilgi panelini yukari/asagi cekerek genislet/daralt
+(function(){
+  const handle = document.getElementById('infoResizeHandle');
+  const panel = document.getElementById('bottomPanel');
+  const list = document.getElementById('infoList');
+  if (!handle || !panel || !list) return;
+  const MIN_H = 90;
+  const maxH = () => Math.max(MIN_H, Math.round(window.innerHeight * 0.74));
+  let dragging = false, startY = 0, startH = 0;
+  function curH() {
+    const v = getComputedStyle(panel).getPropertyValue('--info-h').trim();
+    if (v.endsWith('px')) return parseFloat(v);
+    return list.getBoundingClientRect().height || Math.round(window.innerHeight * 0.18);
+  }
+  function setH(h) {
+    h = Math.max(MIN_H, Math.min(maxH(), h));
+    panel.style.setProperty('--info-h', h + 'px');
+    if (typeof updateInfoScrollbar === 'function') updateInfoScrollbar();
+  }
+  function onDown(e) {
+    dragging = true; startH = curH();
+    startY = (e.touches ? e.touches[0].clientY : e.clientY);
+    list.style.transition = 'none';
+    if (window._haptic) window._haptic(12);
+    e.preventDefault(); e.stopPropagation();
+  }
+  function onMove(e) {
+    if (!dragging) return;
+    const y = (e.touches ? e.touches[0].clientY : e.clientY);
+    setH(startH + (startY - y));
+    e.preventDefault();
+  }
+  function onUp() { if (!dragging) return; dragging = false; list.style.transition = ''; }
+  handle.addEventListener('touchstart', onDown, { passive: false });
+  window.addEventListener('touchmove', onMove, { passive: false });
+  window.addEventListener('touchend', onUp);
+  window.addEventListener('touchcancel', onUp);
+  handle.addEventListener('mousedown', onDown);
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+  let lastTap = 0;
+  handle.addEventListener('click', () => {
+    const now = Date.now();
+    if (now - lastTap < 320) { const big = maxH() - 40; setH(curH() > big - 30 ? Math.round(window.innerHeight*0.18) : big); }
+    lastTap = now;
+  });
+})();
 
 document.getElementById('btnMode').onclick = (e) => {
   e.stopPropagation();
