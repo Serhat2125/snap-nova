@@ -537,6 +537,21 @@ class Edu3DKimyaScreen extends StatelessWidget {
               ),
             ),
           ),
+          _TopicCard(
+            emoji: '🧮',
+            title: 'Mol ve Stokiyometri',
+            subtitle:
+                'Mol kavramı, Avogadro sayısı, molar kütle/hacim, denklem denkleştirme, mol oranları, sınırlayıcı bileşen, verim, kütle hesabı',
+            tint: const Color(0xFFE11D48),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/mol-stokiyometri.html',
+                  title: 'Mol ve Stokiyometri',
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
