@@ -507,6 +507,21 @@ class Edu3DKimyaScreen extends StatelessWidget {
               ),
             ),
           ),
+          _TopicCard(
+            emoji: '🧪',
+            title: 'Organik Kimya',
+            subtitle:
+                'Karbon kimyası, hidrokarbonlar, alkan/alken/alkin, fonksiyonel gruplar, izomeri, kiralite, benzen, polimerler, biyomoleküller',
+            tint: const Color(0xFFE11D48),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/organik-kimya.html',
+                  title: 'Organik Kimya',
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

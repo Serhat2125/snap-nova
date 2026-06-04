@@ -1,0 +1,3918 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>🧪 Organik Kimya</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Baloo+2:wght@500;600;700;800&display=swap');
+
+  :root {
+    --bg:#0a0e1a;
+    --panel:#161b2e;
+    --panel-soft:#1f2540;
+    --panel-line:#2f3a5f;
+    --ink:#eef0ff;
+    --ink-soft:#a8b0d0;
+    --accent:#f6b93b;
+    --accent-glow:#ffd166;
+    --warning:#ffd166;
+    --cartilage:#9d7fe6;
+    --muscle:#c45d5d;
+    --joint:#5fc8e0;
+    --xylem:#d97043;
+    --phloem:#5fb8e8;
+    --chloro:#2ecc40;
+    --bone:#e0c088;
+  }
+
+  body.light-mode {
+    --bg:#f3f6fb;
+    --panel:#ffffff;
+    --panel-soft:#eef2f8;
+    --panel-line:#d0d8e3;
+    --ink:#1a2030;
+    --ink-soft:#5a6070;
+    --accent:#e0901b;
+    --accent-glow:#c47a10;
+  }
+
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; margin:0; padding:0; }
+  html, body {
+    overflow:hidden;
+    background:var(--bg); color:var(--ink);
+    font-family:'Fredoka',sans-serif; user-select:none;
+    width:100vw; height:100vh;
+    transition:background 0.3s, color 0.3s;
+  }
+  body { touch-action:none; }
+  canvas { display:block; cursor:grab; }
+  canvas:active { cursor:grabbing; }
+  #canvasContainer { position:absolute; inset:0; width:100%; height:100%; z-index:1; }
+
+  .left-stack {
+    position:absolute;
+    top:14px; right:14px;
+    z-index:30;
+    display:flex; flex-direction:column; gap:8px;
+    align-items:flex-end;
+  }
+
+  .stack-btn {
+    display:flex; align-items:center; gap:7px;
+    background:var(--panel);
+    border:2px solid var(--panel-line);
+    border-radius:12px;
+    padding:8px 14px;
+    font-family:'Fredoka',sans-serif; font-weight:600;
+    font-size:12.5px;
+    color:var(--ink);
+    cursor:pointer;
+    box-shadow:0 4px 12px rgba(0,0,0,0.25);
+    transition:all 0.15s;
+    min-width:170px;
+  }
+  .stack-btn:hover {
+    border-color:var(--accent);
+    transform:translateY(-1px);
+    box-shadow:0 6px 16px rgba(0,0,0,0.35);
+  }
+  .stack-btn:active { transform:scale(0.97); }
+  .stack-btn .sb-emoji { font-size:16px; line-height:1; flex-shrink:0; }
+  .stack-btn .sb-label { flex:1; text-align:left; }
+  .stack-btn .sb-arrow { font-size:10px; opacity:0.7; }
+
+  .stack-btn.level { background:linear-gradient(135deg, #f6b93b 0%, #ffd166 100%); color:#1a1410; border-color:#ffd166; }
+  .stack-btn.topic { background:linear-gradient(135deg, #5fc8e0 0%, #7adcf0 100%); color:#0a1420; border-color:#7adcf0; }
+
+  .dropdown-panel {
+    position:absolute;
+    background:var(--panel);
+    border:2px solid var(--accent);
+    border-radius:14px;
+    padding:8px;
+    z-index:50;
+    box-shadow:0 12px 32px rgba(0,0,0,0.5);
+    min-width:230px; max-width:300px;
+    max-height:60vh; overflow-y:auto;
+    display:none;
+  }
+  .dropdown-panel.show { display:block; }
+  .dropdown-title {
+    font-family:'Baloo 2', cursive; font-weight:800;
+    font-size:12px;
+    color:var(--accent-glow);
+    padding:6px 8px 8px;
+    text-transform:uppercase; letter-spacing:0.6px;
+    border-bottom:1px solid var(--panel-line);
+    margin-bottom:6px;
+  }
+  .dropdown-item {
+    display:flex; align-items:center; gap:8px;
+    width:100%; text-align:left;
+    background:var(--panel-soft);
+    border:1.5px solid transparent;
+    border-radius:9px;
+    padding:8px 11px; margin-bottom:4px;
+    font-family:'Fredoka',sans-serif; font-weight:500; font-size:12.5px;
+    color:var(--ink); cursor:pointer;
+    transition:all 0.12s;
+  }
+  .dropdown-item:hover {
+    background:var(--panel-line);
+    border-color:var(--accent);
+    transform:translateX(2px);
+  }
+  .dropdown-item.active {
+    background:linear-gradient(135deg, var(--accent), var(--accent-glow));
+    color:#0a1420; font-weight:700;
+    border-color:#fff;
+  }
+  .dropdown-item .di-emoji { font-size:15px; flex-shrink:0; }
+  .dropdown-cat-head {
+    font-size:10.5px; color:var(--accent-glow); font-weight:700;
+    padding:8px 10px 4px;
+    text-transform:uppercase; letter-spacing:0.5px;
+    border-top:1px solid var(--panel-line);
+    margin-top:4px;
+  }
+  .dropdown-cat-head:first-child { border-top:none; margin-top:0; }
+
+  .right-tools {
+    position:absolute;
+    top:14px; left:14px;
+    z-index:30;
+    display:flex; gap:8px;
+    flex-wrap:nowrap;
+  }
+  .tool-icon-btn {
+    width:42px; height:42px;
+    background:var(--panel);
+    border:2px solid var(--panel-line);
+    border-radius:12px;
+    cursor:pointer;
+    display:grid; place-items:center;
+    font-size:18px;
+    color:var(--ink);
+    box-shadow:0 4px 12px rgba(0,0,0,0.3);
+    transition:all 0.15s;
+    flex-shrink:0;
+  }
+  .tool-icon-btn:hover {
+    border-color:var(--accent);
+    transform:translateY(-1px);
+    box-shadow:0 6px 16px rgba(0,0,0,0.4);
+  }
+  .tool-icon-btn:active { transform:scale(0.92); }
+
+  .tool-icon-btn.fs { border-color:var(--joint); color:var(--joint); }
+  .tool-icon-btn.fs:hover { background:var(--joint); color:#0a1420; }
+  .tool-icon-btn.send { border-color:var(--warning); color:var(--warning); }
+  .tool-icon-btn.send:hover { background:var(--warning); color:#0a1420; }
+  .tool-icon-btn.theme { border-color:var(--cartilage); color:var(--cartilage); }
+  .tool-icon-btn.theme:hover { background:var(--cartilage); color:#0a1420; }
+  .tool-icon-btn.mode { border-color:var(--chloro); color:var(--chloro); }
+  .tool-icon-btn.mode:hover { background:var(--chloro); color:#0a1420; }
+  .tool-icon-btn.mode.active { background:var(--chloro); color:#0a1420; }
+  .tool-icon-btn.compare { border-color:var(--muscle); color:var(--muscle); }
+  .tool-icon-btn.compare:hover { background:var(--muscle); color:#fff; }
+  .tool-icon-btn.table { border-color:var(--bone); color:var(--bone); }
+  .tool-icon-btn.table:hover { background:var(--bone); color:#0a1420; }
+  .bottom-panel {
+    position:absolute;
+    bottom:10px;
+    left:14px; right:14px;
+    z-index:25;
+    background:var(--panel);
+    border:2px solid var(--panel-line);
+    border-radius:12px;
+    padding:9px 12px 8px;
+    box-shadow:0 -6px 24px rgba(0,0,0,0.4);
+    display:flex; flex-direction:column; gap:8px;
+    touch-action:auto;
+  }
+  .bottom-panel.hidden { display:none; }
+
+  .info-close-btn {
+    position:absolute;
+    top:-13px; left:4px;
+    width:22px; height:22px;
+    background:var(--panel);
+    border:2px solid var(--panel-line);
+    border-radius:50%;
+    color:var(--ink-soft);
+    font-size:11px;
+    font-weight:700;
+    cursor:pointer;
+    display:grid; place-items:center;
+    line-height:1;
+    padding:0;
+    z-index:2;
+    transition:all 0.12s;
+    box-shadow:0 2px 8px rgba(0,0,0,0.3);
+  }
+  .info-close-btn:hover {
+    background:var(--panel-soft);
+    border-color:var(--accent);
+    color:var(--accent);
+  }
+  .info-close-btn:active { transform:scale(0.9); }
+
+  .info-area {
+    display:flex; gap:9px;
+    align-items:flex-start;
+  }
+  .info-emoji-box {
+    width:30px; height:30px;
+    border-radius:8px;
+    background:linear-gradient(135deg, var(--accent), var(--cartilage));
+    display:grid; place-items:center;
+    font-size:17px;
+    flex-shrink:0;
+    box-shadow:0 3px 11px rgba(246,185,59,0.4);
+  }
+  .info-text-area {
+    flex:1; min-width:0;
+  }
+  .info-title-row {
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:3px;
+  }
+  .info-title {
+    font-family:'Baloo 2', cursive; font-weight:800;
+    font-size:12.5px;
+    color:var(--accent-glow);
+  }
+  .nav-buttons {
+    display:flex; gap:4px;
+  }
+  .nav-mini-btn {
+    width:19px; height:19px;
+    background:var(--panel-soft);
+    border:1.5px solid var(--accent);
+    border-radius:5px;
+    cursor:pointer;
+    display:grid; place-items:center;
+    color:var(--accent);
+    font-size:9px;
+    transition:all 0.12s;
+  }
+  .nav-mini-btn:hover {
+    background:var(--accent);
+    color:#0a1420;
+  }
+  .info-list {
+    list-style:none;
+    padding:0; margin:0;
+    max-height:22vh;
+    overflow-y:auto;
+    overflow-x:hidden;
+    -webkit-overflow-scrolling:touch;
+    touch-action:pan-y;
+    overscroll-behavior:contain;
+    scrollbar-width:thin;
+    scrollbar-color:var(--accent) rgba(255,255,255,0.15);
+    padding-right:6px;
+  }
+  .info-list::-webkit-scrollbar { width:9px; background:rgba(255,255,255,0.1); border-radius:5px; }
+  .info-list::-webkit-scrollbar-track { background:rgba(255,255,255,0.1); border-radius:5px; }
+  .info-list::-webkit-scrollbar-thumb { background:var(--accent); border-radius:5px; border:2px solid rgba(15,20,30,0.6); min-height:28px; }
+  .info-scroll-wrap { position:relative; }
+  /* özel görsel çubuk (native gizlenen platformlar için yedek) */
+  .info-scrollbar {
+    position:absolute; top:2px; right:0; bottom:2px; width:7px;
+    background:rgba(255,255,255,0.15); border-radius:5px;
+    opacity:0; transition:opacity 0.2s; pointer-events:none; z-index:2;
+  }
+  .info-scrollbar.visible { opacity:1; }
+  .info-scrollthumb {
+    position:absolute; left:0; right:0; top:0; min-height:26px;
+    background:var(--accent); border-radius:5px;
+    border:1px solid rgba(0,0,0,0.3);
+  }
+  .info-list li {
+    padding:1px 0 1px 11px;
+    margin-bottom:0;
+    background:transparent;
+    border:none;
+    border-radius:0;
+    font-size:10.5px;
+    line-height:1.32;
+    color:var(--ink);
+    position:relative;
+  }
+  .info-list li::before {
+    content:'•';
+    position:absolute;
+    left:2px; top:1px;
+    color:var(--accent);
+    font-weight:700;
+    font-size:11px;
+  }
+  .info-list li b {
+    color:var(--accent-glow);
+    font-weight:700;
+  }
+  .info-list li.subhead {
+    background:transparent;
+    border-left:none;
+    color:var(--warning);
+    font-weight:700;
+    font-size:11.5px;
+    margin-top:5px;
+    margin-bottom:2px;
+    padding:0 0 1px 0;
+    font-style:normal;
+  }
+  .info-list li.subhead::before {
+    content:'';
+  }
+
+  .action-row {
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr;
+    gap:8px;
+  }
+  .action-btn {
+    display:flex; align-items:center; justify-content:center; gap:5px;
+    background:var(--panel-soft);
+    border:none;
+    border-radius:8px;
+    padding:6px 9px;
+    font-family:'Fredoka',sans-serif; font-weight:700;
+    font-size:10.5px;
+    color:#fff;
+    cursor:pointer;
+    transition:all 0.15s;
+  }
+  .action-btn:active { transform:scale(0.96); }
+  .action-btn .ico { font-size:12px; }
+
+  .action-btn.spin {
+    background:linear-gradient(135deg, var(--warning), #dba830);
+    color:#1a1410;
+  }
+  .action-btn.label {
+    background:linear-gradient(135deg, var(--cartilage), #7a5fb8);
+  }
+  .action-btn.anim {
+    background:linear-gradient(135deg, #2ecc71, #1ba85c);
+    color:#06281a;
+    box-shadow:0 0 14px rgba(46,204,113,0.5);
+    animation:animPulse 1.8s ease-in-out infinite;
+  }
+  @keyframes animPulse {
+    0%,100% { box-shadow:0 0 10px rgba(46,204,113,0.4); }
+    50% { box-shadow:0 0 18px rgba(46,204,113,0.75); transform:scale(1.02); }
+  }
+  .action-btn.anim.active {
+    background:linear-gradient(135deg, #e74c3c, #c0392b);
+    color:#fff;
+    animation:none;
+  }
+  .action-btn.active {
+    box-shadow:0 0 0 2px #fff, 0 0 12px rgba(255,255,255,0.4);
+  }
+
+  .slider-bar {
+    position:absolute;
+    top:62px;
+    left:14px;
+    background:var(--panel);
+    border:2px solid var(--joint);
+    border-radius:10px;
+    padding:8px 11px;
+    z-index:20;
+    display:none;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:6px;
+    box-shadow:0 4px 16px rgba(0,0,0,0.4);
+    max-width:230px;
+  }
+  .slider-bar.show { display:flex; }
+
+  .label3d {
+    color:#ffffff; font-size:11.5px;
+    padding:3px 8px;
+    background:rgba(10, 14, 26, 0.92);
+    border:1.5px solid var(--accent);
+    border-radius:6px;
+    pointer-events:none; white-space:nowrap;
+    font-family:'Fredoka', sans-serif; font-weight:500;
+    text-shadow:0 1px 2px rgba(0,0,0,0.85);
+    box-shadow:0 2px 8px rgba(0,0,0,0.5);
+  }
+  .label3d.xylem { border-color:var(--xylem); color:#ffd4b0; }
+  .label3d.phloem { border-color:var(--phloem); color:#b8e0ff; }
+  .label3d.chloro { border-color:var(--chloro); color:#b8ffc8; }
+  .label3d.epi { border-color:#a8d0b0; color:#dfe8e2; }
+  .label3d.endo { border-color:#e69138; color:#ffd4a0; }
+  .label3d.warn { border-color:#e74c3c; color:#ffb0a0; }
+
+  .share-overlay {
+    position:absolute; inset:0; z-index:60;
+    background:rgba(10,14,26,0.82); backdrop-filter:blur(4px);
+    display:none; align-items:center; justify-content:center; padding:20px;
+  }
+  .share-overlay.show { display:flex; }
+  .share-card {
+    background:var(--panel);
+    border:2px solid var(--accent);
+    border-radius:20px;
+    padding:18px;
+    width:min(360px, 92vw);
+    box-shadow:0 20px 60px rgba(0,0,0,0.6);
+  }
+  .share-head {
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:14px;
+  }
+  .share-head-text {
+    font-family:'Baloo 2', cursive; font-weight:800;
+    font-size:16px; color:var(--accent);
+  }
+  .share-close-btn {
+    width:30px; height:30px;
+    background:var(--panel-soft);
+    border:1.5px solid var(--panel-line);
+    border-radius:9px;
+    color:var(--ink);
+    cursor:pointer;
+    font-size:14px;
+  }
+  .share-actions {
+    display:flex; flex-direction:column; gap:9px;
+  }
+  .share-action-btn {
+    display:flex; align-items:center; gap:12px;
+    background:var(--panel-soft);
+    border:1.5px solid var(--panel-line);
+    border-radius:13px;
+    padding:11px 14px;
+    cursor:pointer;
+    text-align:left;
+    color:var(--ink);
+    font-family:'Fredoka', sans-serif;
+    transition:all 0.15s;
+  }
+  .share-action-btn:hover {
+    border-color:var(--accent);
+    background:var(--panel-line);
+  }
+  .share-action-btn .sa-ico {
+    font-size:22px; flex-shrink:0;
+  }
+  .share-action-btn .sa-text b {
+    display:block; font-weight:700; font-size:13px;
+  }
+  .share-action-btn .sa-text small {
+    font-size:11px; opacity:0.7;
+  }
+  .share-action-btn.primary {
+    background:linear-gradient(135deg, #25d366, #1da851);
+    border-color:#25d366;
+    color:#fff;
+  }
+
+  .cmp-card {
+    width:min(540px, 92vw) !important;
+    max-height:85vh; overflow-y:auto;
+  }
+  .cmp-body {
+    overflow-x:auto;
+    padding:4px 0 8px;
+  }
+  .cmp-table {
+    width:100%;
+    border-collapse:collapse;
+    font-size:12.5px;
+    border-radius:8px;
+    overflow:hidden;
+  }
+  .cmp-table th, .cmp-table td {
+    padding:9px 11px;
+    text-align:left;
+    border-bottom:1px solid var(--panel-line);
+  }
+  .cmp-table th {
+    background:linear-gradient(135deg, var(--accent) 0%, var(--accent-glow) 100%);
+    color:#0a1420;
+    font-family:'Baloo 2', cursive;
+    font-weight:800;
+    font-size:12px;
+    position:sticky; top:0;
+    text-shadow:0 1px 0 rgba(255,255,255,0.2);
+  }
+  .cmp-table th:first-child { border-radius:7px 0 0 0; }
+  .cmp-table th:last-child { border-radius:0 7px 0 0; }
+  .cmp-table tbody tr:nth-child(odd) td { background:rgba(246,185,59,0.04); }
+  .cmp-table tbody tr:nth-child(even) td { background:rgba(246,185,59,0.10); }
+  .cmp-table td { color:var(--ink); line-height:1.4; }
+  .cmp-table td:first-child {
+    font-weight:700;
+    color:var(--warning);
+    white-space:nowrap;
+    border-right:2px solid var(--accent);
+  }
+  .cmp-table.compare-style td:nth-child(2) { color:#ffd166; font-weight:600; }
+  .cmp-table.compare-style td:nth-child(3) { color:#7adcf0; font-weight:600; }
+  .cmp-table.compare-style td:nth-child(4) { color:#9d7fe6; font-weight:600; }
+  .cmp-table th:nth-child(2),
+  .cmp-table th:nth-child(3),
+  .cmp-table th:nth-child(4) { border-left:1px dashed rgba(255,255,255,0.3); }
+  .cmp-table tr:hover td { background:rgba(246,185,59,0.20) !important; }
+  .cmp-no-data {
+    text-align:center;
+    padding:24px 12px;
+    color:var(--ink-soft);
+    font-style:italic;
+    font-size:13px;
+  }
+
+  .cmp-nav {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:8px 4px 0;
+    margin-top:8px;
+    border-top:1px solid var(--panel-line);
+  }
+  .cmp-nav.hidden { display:none; }
+  .cmp-nav-btn {
+    background:var(--panel-soft);
+    border:1.5px solid var(--accent);
+    color:var(--accent);
+    border-radius:8px;
+    padding:6px 12px;
+    font-family:'Fredoka',sans-serif;
+    font-weight:600;
+    font-size:12px;
+    cursor:pointer;
+    transition:all 0.12s;
+    display:flex; align-items:center; gap:5px;
+  }
+  .cmp-nav-btn:hover { background:var(--accent); color:#0a1420; }
+  .cmp-nav-btn:active { transform:scale(0.96); }
+  .cmp-nav-btn:disabled {
+    opacity:0.35;
+    cursor:not-allowed;
+    background:var(--panel-soft);
+    color:var(--ink-soft);
+    border-color:var(--panel-line);
+  }
+  .cmp-nav-counter {
+    font-family:'Baloo 2', cursive;
+    font-weight:700;
+    font-size:12px;
+    color:var(--accent-glow);
+    background:var(--panel-soft);
+    padding:4px 10px;
+    border-radius:8px;
+    border:1px solid var(--panel-line);
+  }
+
+  ::-webkit-scrollbar { width:6px; height:6px; }
+  ::-webkit-scrollbar-thumb { background:var(--panel-line); border-radius:3px; }
+  ::-webkit-scrollbar-track { background:rgba(0,0,0,0.15); }
+
+  #loading {
+    position:fixed; inset:0; background:var(--bg);
+    display:flex; align-items:center; justify-content:center;
+    z-index:200; color:var(--accent-glow); font-size:18px;
+    font-family:'Baloo 2', sans-serif; font-weight:700;
+    transition:opacity 0.5s;
+  }
+  #loading.hide { opacity:0; pointer-events:none; }
+
+  #errorBox {
+    display:none; position:fixed; top:80px; left:50%;
+    transform:translateX(-50%);
+    background:rgba(180,30,30,0.95); color:white;
+    padding:20px; border-radius:8px; z-index:9999;
+    max-width:80%; font-family:monospace; font-size:13px;
+    white-space:pre-wrap;
+    box-shadow:0 4px 20px rgba(0,0,0,0.8);
+    border:2px solid #ff6060;
+  }
+
+  @media (max-width:600px) {
+    .stack-btn { min-width:140px; font-size:11px; padding:7px 11px; }
+    .stack-btn .sb-label { font-size:11px; }
+    .right-tools { gap:5px; left:8px; }
+    .tool-icon-btn { width:34px; height:34px; font-size:14px; border-radius:9px; }
+    .bottom-panel { padding:11px 12px 9px; gap:9px; }
+    .info-emoji-box { width:36px; height:36px; font-size:20px; }
+    .info-title { font-size:13px; }
+    .info-list li { font-size:11.5px; padding:4px 7px; }
+    .info-list { max-height:26vh; }
+    .action-btn { font-size:11px; padding:7px 8px; }
+    .dropdown-panel { min-width:200px; }
+    .dropdown-item { font-size:11.5px; padding:7px 9px; }
+    #panelMode { left:8px !important; }
+  }
+  @media (max-width:420px) {
+    .stack-btn { min-width:130px; font-size:10.5px; padding:6px 9px; }
+    .right-tools { gap:4px; left:6px; }
+    .tool-icon-btn { width:30px; height:30px; font-size:13px; border-radius:8px; border-width:1.5px; }
+    #panelMode { left:6px !important; }
+  }
+  @media (max-width:360px) {
+    .stack-btn { min-width:115px; font-size:10px; padding:5px 8px; }
+    .right-tools { gap:3px; left:5px; }
+    .tool-icon-btn { width:28px; height:28px; font-size:12px; }
+    #panelMode { left:5px !important; }
+  }
+
+  .region-list {
+    display: none !important;
+  }
+
+  .scene-panel {
+    position: fixed;
+    right: 12px;
+    top: 120px;
+    width: 280px;
+    max-height: calc(100vh - 120px - 220px);
+    overflow-y: auto;
+    background: rgba(15, 20, 30, 0.88);
+    border: 1px solid rgba(246, 185, 59, 0.35);
+    border-radius: 14px;
+    padding: 10px;
+    z-index: 40;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    font-size: 11.5px;
+    color: rgba(255, 255, 255, 0.92);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: all 0.3s ease;
+  }
+  .scene-panel.collapsed {
+    width: auto;
+    padding: 6px 10px;
+  }
+  .scene-panel.collapsed > *:not(.sp-toggle) { display: none; }
+  .scene-panel.empty { display: none; }
+
+  body.dropdown-open .scene-panel {
+    transform: none;
+  }
+
+  @media (min-width: 768px) {
+    canvas {
+      transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    body.scene-panel-open canvas {
+      transform: translateX(-15vw);
+    }
+    body.panel-open canvas {
+      transform: translateX(-22vw);
+    }
+  }
+
+  .sp-stepper {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 6px;
+    padding: 2px 3px;
+  }
+  .sp-step-btn {
+    width: 22px;
+    height: 22px;
+    background: rgba(246, 185, 59, 0.3);
+    border: 1px solid rgba(246, 185, 59, 0.6);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    transition: all 0.15s;
+    padding: 0;
+  }
+  .sp-step-btn:hover {
+    background: rgba(246, 185, 59, 0.55);
+    transform: scale(1.1);
+  }
+  .sp-step-btn:active { transform: scale(0.92); }
+  .sp-slider-row .sp-stepper .sp-val {
+    min-width: 40px;
+    background: transparent;
+    padding: 0 4px;
+    font-size: 11px;
+  }
+  .sp-toggle {
+    background: rgba(246, 185, 59, 0.18);
+    border: 1px solid rgba(246, 185, 59, 0.5);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+  }
+  .sp-toggle:hover { background: rgba(246, 185, 59, 0.32); }
+  .sp-section {
+    font-size: 10px; font-weight: 700;
+    color: rgba(255, 209, 90, 0.85);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin: 6px 4px 2px 4px;
+  }
+
+  .sp-slider-row {
+    display: flex; flex-direction: column; gap: 4px;
+    padding: 8px 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+  }
+  .sp-slider-row .sp-slider-head {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11.5px; font-weight: 500;
+  }
+  .sp-slider-row .sp-slider-head .sp-val {
+    font-family: 'Consolas', monospace;
+    font-size: 12px; font-weight: 700;
+    color: #FFD54F;
+    background: rgba(0,0,0,0.45);
+    padding: 2px 8px;
+    border-radius: 6px;
+    min-width: 50px; text-align: center;
+  }
+  .sp-slider-row .sp-sub {
+    font-size: 9.5px;
+    color: rgba(255, 255, 255, 0.5);
+    margin-top: -2px;
+    line-height: 1.2;
+  }
+  .sp-slider-row input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 6px;
+    background: linear-gradient(to right, #42A5F5, #FFCA28, #EF5350);
+    border-radius: 3px;
+    outline: none;
+    margin: 6px 0 2px 0;
+  }
+  .sp-slider-row input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    background: #fff;
+    border: 2px solid #f6b93b;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    transition: transform 0.1s;
+  }
+  .sp-slider-row input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+  .sp-slider-row input[type=range]::-moz-range-thumb {
+    width: 18px; height: 18px;
+    background: #fff;
+    border: 2px solid #f6b93b;
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  .sp-display {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 7px 10px;
+    background: rgba(246, 185, 59, 0.10);
+    border: 1px solid rgba(246, 185, 59, 0.28);
+    border-radius: 9px;
+    font-size: 11px;
+  }
+  .sp-display .sp-label { color: rgba(255,255,255,0.85); }
+  .sp-display .sp-val {
+    font-family: 'Consolas', monospace;
+    font-size: 12px; font-weight: 700; color: #FFE082;
+    background: rgba(0,0,0,0.35); padding: 2px 8px; border-radius: 6px;
+  }
+  .sp-display.highlight {
+    background: rgba(255, 175, 50, 0.15);
+    border-color: rgba(255, 175, 50, 0.5);
+  }
+  .sp-display.highlight .sp-val { color: #FFC107; }
+
+  .sp-presets {
+    display: flex; gap: 4px; flex-wrap: wrap;
+  }
+  .sp-preset-btn {
+    flex: 1; min-width: 50px;
+    padding: 6px 6px; font-size: 10.5px; font-weight: 500;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.18);
+    color: rgba(255,255,255,0.8);
+    border-radius: 6px; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .sp-preset-btn:hover { background: rgba(246,185,59,0.25); color: #fff; }
+  .sp-preset-btn.active {
+    background: rgba(246,185,59,0.5);
+    border-color: rgba(246,185,59,0.8);
+    color: #fff; font-weight: 600;
+  }
+
+  .sp-formula {
+    padding: 8px 10px;
+    background: rgba(255, 200, 50, 0.10);
+    border: 1px solid rgba(255, 200, 50, 0.35);
+    border-radius: 9px;
+    text-align: center;
+    font-family: 'Consolas', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: #FFE082;
+  }
+
+  @media (max-width: 768px) {
+    .scene-panel {
+      right: 8px;
+      top: 110px;
+      width: 200px;
+      font-size: 10.5px;
+      padding: 8px;
+    }
+    .sp-slider-row { padding: 6px 8px; }
+    .sp-slider-row input[type=range] { height: 5px; }
+  }
+
+  body.panel-open .scene-panel { }
+</style>
+</head>
+<body>
+
+<div id="loading">🧪 Organik Kimya yükleniyor...</div>
+
+<div id="touchHintOverlay" style="
+  position:fixed; bottom:128px; left:50%; transform:translateX(-50%) translateY(20px);
+  background:rgba(15,25,40,0.96); color:#fff; padding:14px 18px;
+  border-radius:18px; z-index:95; pointer-events:auto;
+  border:1.5px solid rgba(246, 185, 59, 0.55);
+  box-shadow:0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05);
+  opacity:0; transition:all 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  font-size:12.5px; max-width:340px; line-height:1.5;
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+">
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; padding-bottom:7px; border-bottom:1px solid rgba(255,255,255,0.1);">
+    <span style="font-weight:600; font-size:13px; color:#f6b93b;">🤏 Dokunma Hareketleri</span>
+    <button id="touchHintClose" style="background:none; border:none; color:rgba(255,255,255,0.6); font-size:18px; cursor:pointer; padding:0 4px; line-height:1;">×</button>
+  </div>
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px 12px;">
+    <div style="display:flex; align-items:center; gap:8px;"><span style="font-size:16px;">👆</span><span style="opacity:0.92;">Sürükle → döndür</span></div>
+    <div style="display:flex; align-items:center; gap:8px;"><span style="font-size:16px;">✌️</span><span style="opacity:0.92;">Pinch → zoom</span></div>
+    <div style="display:flex; align-items:center; gap:8px;"><span style="font-size:16px;">🖐️</span><span style="opacity:0.92;">3 parmak → reset</span></div>
+    <div style="display:flex; align-items:center; gap:8px;"><span style="font-size:16px;">⏱️</span><span style="opacity:0.92;">Basılı tut → bilgi</span></div>
+  </div>
+</div>
+
+<div id="resetPulse" style="
+  position:fixed; top:50%; left:50%; transform:translate(-50%, -50%) scale(0);
+  width:100px; height:100px; border-radius:50%;
+  background:radial-gradient(circle, rgba(246,185,59,0.5) 0%, rgba(246,185,59,0) 70%);
+  pointer-events:none; z-index:200; opacity:0;
+  transition:transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease;
+">
+  <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:42px;">🔄</div>
+</div>
+
+<div id="regionList" class="region-list"></div>
+<div id="scenePanel" class="scene-panel"></div>
+
+<div id="gestureToast" style="
+  position:fixed; top:90px; left:50%; transform:translateX(-50%) translateY(-20px);
+  background:rgba(15,25,40,0.95); color:#fff; padding:10px 18px;
+  border-radius:22px; z-index:180; pointer-events:none;
+  border:1.5px solid rgba(246, 185, 59, 0.7);
+  box-shadow:0 4px 22px rgba(0,0,0,0.5);
+  font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+  font-size:12.5px; font-weight:500;
+  opacity:0; transition:all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space:nowrap;
+"></div>
+
+<div class="left-stack">
+  <button class="stack-btn level" id="btnLevel">
+    <span class="sb-emoji">🎓</span>
+    <span class="sb-label" id="levelLabel">Lise</span>
+    <span class="sb-arrow">▼</span>
+  </button>
+  <button class="stack-btn topic" id="btnTopic">
+    <span class="sb-emoji">📚</span>
+    <span class="sb-label">Konu Rehberi</span>
+    <span class="sb-arrow">▼</span>
+  </button>
+</div>
+
+<div class="dropdown-panel" id="panelLevel" style="top:60px; right:14px; max-height:70vh; overflow-y:auto;">
+  <div class="dropdown-title">🎓 Eğitim Seviyesi</div>
+  <button class="dropdown-item" data-level="ilkokul"><span class="di-emoji">🟢</span>İlkokul</button>
+  <button class="dropdown-item" data-level="ortaokul"><span class="di-emoji">🟡</span>Ortaokul</button>
+  <button class="dropdown-item active" data-level="lise"><span class="di-emoji">🔵</span>Lise</button>
+  <div class="dropdown-cat-head">🎯 Sınav Modu</div>
+  <button class="dropdown-item" data-level="sinav"><span class="di-emoji">🎯</span>Sınavlara Hazırlık</button>
+</div>
+
+
+<div class="dropdown-panel" id="panelTopic" style="top:106px; right:14px;">
+  <div class="dropdown-title">📚 Konu Rehberi</div>
+  <div id="topicList"></div>
+</div>
+
+<div class="right-tools">
+  <button class="tool-icon-btn mode active" id="btnMode" title="Görünüm Modu: Sade">📄</button>
+  <button class="tool-icon-btn compare" id="btnCompare" title="Karşılaştırma">⚖️</button>
+  <button class="tool-icon-btn table" id="btnTable" title="Bilgi Tablosu">📋</button>
+  <button class="tool-icon-btn theme" id="btnTheme" title="Tema değiştir">🌙</button>
+  <button class="tool-icon-btn send" id="btnSend" title="Gönder/Paylaş">📤</button>
+  <button class="tool-icon-btn fs" id="btnFs" title="Tam ekran">⛶</button>
+</div>
+
+<div class="dropdown-panel" id="panelMode" style="top:60px; left:14px;">
+  <div class="dropdown-title">📚 Görünüm Modu</div>
+  <button class="dropdown-item" data-mode="detayli"><span class="di-emoji">📚</span><span><b>Detaylı</b><br><small style="opacity:0.7;font-size:10.5px;">Daha çok bilgi</small></span></button>
+  <button class="dropdown-item active" data-mode="sade"><span class="di-emoji">📄</span><span><b>Sade</b><br><small style="opacity:0.7;font-size:10.5px;">Sadece temel bilgiler</small></span></button>
+</div>
+
+<div class="bottom-panel" id="bottomPanel">
+  <button class="info-close-btn" id="infoCloseBtn" title="Bilgi panelini kapat">✕</button>
+  <div class="info-area">
+    <div class="info-emoji-box" id="infoEmoji" style="display:none;">🧪</div>
+    <div class="info-text-area">
+      <div class="info-title-row">
+        <div class="info-title" id="infoTitle">Organik Kimya</div>
+        <div class="nav-buttons">
+          <button class="nav-mini-btn" id="navPrev" title="Önceki">◀</button>
+          <button class="nav-mini-btn" id="navNext" title="Sonraki">▶</button>
+        </div>
+      </div>
+      <div class="info-scroll-wrap">
+        <ul class="info-list" id="infoList"></ul>
+        <div class="info-scrollbar" id="infoScrollbar"><div class="info-scrollthumb" id="infoScrollThumb"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="action-row">
+    <button class="action-btn spin" id="spinBtn">
+      <span class="ico">🔄</span>
+      <span>Döndür</span>
+    </button>
+    <button class="action-btn label" id="labelBtn">
+      <span class="ico">🏷️</span>
+      <span>Etiketler</span>
+    </button>
+    <button class="action-btn anim" id="animBtn">
+      <span class="ico">▶️</span>
+      <span>Çalıştır</span>
+    </button>
+  </div>
+</div>
+
+<div id="bottomControl" class="slider-bar">
+  <label>💡 Kontrol:</label>
+  <input type="range" id="turgorSlider" min="0" max="100" value="80">
+  <span id="turgorValue">80%</span>
+  <span id="stomaDurum">AÇIK</span>
+</div>
+
+<div class="share-overlay" id="shareOverlay">
+  <div class="share-card">
+    <div class="share-head">
+      <div class="share-head-text">📤 Paylaş</div>
+      <button class="share-close-btn" id="shareClose">✕</button>
+    </div>
+    <div class="share-actions">
+      <button class="share-action-btn primary" id="shareWhatsApp">
+        <span class="sa-ico">💬</span>
+        <span class="sa-text">
+          <b>WhatsApp ile gönder</b>
+          <small>Arkadaşlarınıza paylaşın</small>
+        </span>
+      </button>
+      <button class="share-action-btn" id="shareCopy">
+        <span class="sa-ico">📋</span>
+        <span class="sa-text">
+          <b>Bağlantıyı kopyala</b>
+          <small>Panoya kopyala</small>
+        </span>
+      </button>
+      <button class="share-action-btn" id="shareDownload">
+        <span class="sa-ico">💾</span>
+        <span class="sa-text">
+          <b>Ekran görüntüsü kaydet</b>
+          <small>Cihaza indir</small>
+        </span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="share-overlay" id="compareOverlay">
+  <div class="share-card cmp-card">
+    <div class="share-head">
+      <div class="share-head-text"><span id="compareTitle">⚖️ Karşılaştırma</span></div>
+      <button class="share-close-btn" id="compareClose">✕</button>
+    </div>
+    <div class="cmp-body" id="compareBody"></div>
+    <div class="cmp-nav hidden" id="compareNav">
+      <button class="cmp-nav-btn" id="comparePrev">◀ Önceki</button>
+      <span class="cmp-nav-counter" id="compareCounter">1 / 1</span>
+      <button class="cmp-nav-btn" id="compareNext">Sonraki ▶</button>
+    </div>
+  </div>
+</div>
+
+<div class="share-overlay" id="tableOverlay">
+  <div class="share-card cmp-card">
+    <div class="share-head">
+      <div class="share-head-text" style="color:var(--bone);"><span id="tableTitle">📋 Bilgi Tablosu</span></div>
+      <button class="share-close-btn" id="tableClose">✕</button>
+    </div>
+    <div class="cmp-body" id="tableBody"></div>
+    <div class="cmp-nav hidden" id="tableNav">
+      <button class="cmp-nav-btn" id="tablePrev">◀ Önceki</button>
+      <span class="cmp-nav-counter" id="tableCounter">1 / 1</span>
+      <button class="cmp-nav-btn" id="tableNext">Sonraki ▶</button>
+    </div>
+  </div>
+</div>
+
+<div id="canvasContainer">
+  <svg id="leaderLines" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:9;"></svg>
+</div>
+
+<div id="errorBox"></div>
+
+<script>
+window.addEventListener('error', function(e) {
+  const box = document.getElementById('errorBox');
+  if (!box) return;
+  box.style.display = 'block';
+  box.textContent = '❌ HATA: ' + e.message + '\n\n📍 ' + (e.filename || 'inline') + ':' + e.lineno + ':' + e.colno;
+});
+window.addEventListener('unhandledrejection', function(e) {
+  const box = document.getElementById('errorBox');
+  if (!box) return;
+  box.style.display = 'block';
+  box.textContent = '❌ PROMISE HATASI: ' + (e.reason && e.reason.message ? e.reason.message : e.reason);
+});
+window.__moduleLoaded = false;
+</script>
+
+<!-- Three.js OFFLINE: klasik global script (window.THREE) — file:// altında ES modül yok -->
+<script src="three.global.js"></script>
+
+<script>
+const THREE = window.THREE;
+window.__moduleLoaded = true;
+console.log('✓ Three.js yüklendi (offline):', THREE && THREE.REVISION);
+
+window.addEventListener('error', (e) => {
+  const msg = `❌ HATA\n${e.message}\nDosya: ${e.filename || '?'}\nSatır: ${e.lineno || '?'}:${e.colno || '?'}\nStack: ${(e.error && e.error.stack) ? e.error.stack.slice(0, 600) : 'yok'}`;
+  console.error(msg);
+  const ld = document.getElementById('loading');
+  if (ld) {
+    ld.style.display = 'block';
+    ld.style.whiteSpace = 'pre-wrap';
+    ld.style.fontSize = '11px';
+    ld.style.textAlign = 'left';
+    ld.style.maxWidth = '90vw';
+    ld.style.background = 'rgba(120,0,0,0.95)';
+    ld.style.color = '#fff';
+    ld.style.padding = '12px';
+    ld.style.fontFamily = 'monospace';
+    ld.textContent = msg;
+  }
+});
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('❌ Promise hatası:', e.reason);
+});
+// ============== INLINE: CSS2DObject + CSS2DRenderer ==============
+class CSS2DObject extends THREE.Object3D {
+  constructor(element) {
+    super();
+    this.isCSS2DObject = true;
+    this.element = element || document.createElement('div');
+    this.element.style.position = 'absolute';
+    this.element.style.userSelect = 'none';
+    this.addEventListener('removed', () => {
+      this.traverse(obj => {
+        if (obj.element instanceof Element && obj.element.parentNode) {
+          obj.element.parentNode.removeChild(obj.element);
+        }
+      });
+    });
+  }
+}
+
+class CSS2DRenderer {
+  constructor() {
+    this.domElement = document.createElement('div');
+    this.domElement.style.position = 'absolute';
+    this.domElement.style.top = '0';
+    this.domElement.style.left = '0';
+    this.domElement.style.pointerEvents = 'none';
+    this.domElement.style.width = '100%';
+    this.domElement.style.height = '100%';
+    this._w = window.innerWidth;
+    this._h = window.innerHeight;
+    this._vec = new THREE.Vector3();
+  }
+  setSize(w, h) { this._w = w; this._h = h; }
+  render(scene, camera) {
+    const vec = this._vec;
+    const renderer = this;
+    const seen = new Set();
+    scene.traverse(obj => {
+      if (obj.isCSS2DObject) {
+        const el = obj.element;
+        seen.add(el);
+        obj.getWorldPosition(vec);
+        vec.project(camera);
+        if (vec.z > 1 || vec.z < -1) {
+          el.style.display = 'none';
+          return;
+        }
+        if (!el.parentNode) renderer.domElement.appendChild(el);
+        const x = (vec.x + 1) / 2 * renderer._w;
+        const y = (1 - vec.y) / 2 * renderer._h;
+        if (el.dataset.userHidden !== '1' && el.dataset.labelHidden !== '1') el.style.display = 'block';
+        el.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px)`;
+      }
+    });
+    // Sahneden çıkarılmış (artık grafikte olmayan) etiketlerin DOM düğümlerini temizle.
+    // Bu, rebuild/slider/animasyon sırasında etiketlerin ekranda birikmesini KÖKTEN önler.
+    const kids = renderer.domElement.children;
+    for (let i = kids.length - 1; i >= 0; i--) {
+      if (!seen.has(kids[i])) renderer.domElement.removeChild(kids[i]);
+    }
+  }
+}
+
+// ============== INLINE: OrbitControls (Minimal) ==============
+class OrbitControls extends THREE.EventDispatcher {
+  constructor(camera, domElement) {
+    super();
+    this.object = camera;
+    this.domElement = domElement;
+    this.target = new THREE.Vector3(0, 0, 0);
+    this.enableDamping = true;
+    this.dampingFactor = 0.08;
+    this.minDistance = 1;
+    this.maxDistance = 100;
+    this.enabled = true;
+
+    this._spherical = { theta: 0, phi: Math.PI/3, radius: 20 };
+    this._sphericalDelta = { theta: 0, phi: 0, radius: 1 };
+    this._sphericalTarget = { theta: 0, phi: Math.PI/3, radius: 20 };
+    this._lastCamPos = camera.position.clone();
+    this._lastTarget = this.target.clone();
+
+    this._state = 'NONE';
+    this._lastX = 0;
+    this._lastY = 0;
+    this._panOffset = new THREE.Vector3();
+
+    const dom = domElement;
+
+    const onMouseDown = (e) => {
+      if (!this.enabled) return;
+      this._state = (e.button === 2 || e.shiftKey) ? 'PAN' : 'ROTATE';
+      this._lastX = e.clientX;
+      this._lastY = e.clientY;
+    };
+    const onMouseMove = (e) => {
+      if (this._state === 'NONE' || !this.enabled) return;
+      const dx = e.clientX - this._lastX;
+      const dy = e.clientY - this._lastY;
+      this._lastX = e.clientX;
+      this._lastY = e.clientY;
+      if (this._state === 'ROTATE') {
+        this._sphericalTarget.theta -= dx * 0.005;
+        this._sphericalTarget.phi -= dy * 0.005;
+        this._sphericalTarget.phi = Math.max(0.05, Math.min(Math.PI - 0.05, this._sphericalTarget.phi));
+      } else if (this._state === 'PAN') {
+        const right = new THREE.Vector3();
+        const up = new THREE.Vector3();
+        this.object.matrix.extractBasis(right, up, new THREE.Vector3());
+        const panFactor = this._sphericalTarget.radius * 0.002;
+        this.target.addScaledVector(right, -dx * panFactor);
+        this.target.addScaledVector(up, dy * panFactor);
+      }
+    };
+    const onMouseUp = () => { this._state = 'NONE'; };
+
+    dom.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+
+    this._zoomToScreenPoint = (screenX, screenY, factor) => {
+      const rect = dom.getBoundingClientRect();
+      const ndcX = ((screenX - rect.left) / rect.width) * 2 - 1;
+      const ndcY = -((screenY - rect.top) / rect.height) * 2 + 1;
+      const ndc = new THREE.Vector3(ndcX, ndcY, 0.5);
+      ndc.unproject(this.object);
+      const dir = ndc.sub(this.object.position).normalize();
+      const t = (this.target.y - this.object.position.y) / dir.y;
+      if (t > 0 && isFinite(t)) {
+        const hit = new THREE.Vector3(
+          this.object.position.x + dir.x * t,
+          this.target.y,
+          this.object.position.z + dir.z * t
+        );
+        this.target.lerp(hit, 0.65);
+      }
+      this._sphericalTarget.radius = Math.max(this.minDistance,
+        Math.min(this.maxDistance, this._sphericalTarget.radius * factor));
+    };
+
+    let touchStart = null;
+    let pinchStartDist = 0;
+    let pinchStartRadius = 0;
+    let pinchCenter = { x: 0, y: 0 };
+    let lastTapTime = 0;
+    let lastTapX = 0, lastTapY = 0;
+    let touchStartTime = 0;
+    let longPressTimer = null;
+    let touchMoved = false;
+
+    this._initialCameraState = {
+      position: this.object.position.clone(),
+      target: this.target.clone(),
+      radius: this._sphericalTarget.radius
+    };
+    this.captureInitialState = () => {
+      this._initialCameraState = {
+        position: this.object.position.clone(),
+        target: this.target.clone(),
+        radius: this._sphericalTarget.radius,
+        theta: this._sphericalTarget.theta,
+        phi: this._sphericalTarget.phi
+      };
+    };
+    this.resetView = () => {
+      const init = this._initialCameraState;
+      if (!init) return;
+      this._sphericalTarget.radius = init.radius;
+      if (init.theta !== undefined) this._sphericalTarget.theta = init.theta;
+      if (init.phi !== undefined) this._sphericalTarget.phi = init.phi;
+      this.target.copy(init.target);
+      if (window._showResetPulse) window._showResetPulse();
+      if (window._showGestureToast) window._showGestureToast('🔄 Görünüm sıfırlandı');
+      if (window._haptic) window._haptic(35);
+    };
+
+    dom.addEventListener('touchstart', (e) => {
+      if (!this.enabled) return;
+      touchMoved = false;
+      touchStartTime = Date.now();
+      if (e.touches.length === 3) {
+        e.preventDefault && e.preventDefault();
+        this._state = 'RESET';
+        this.resetView();
+        return;
+      }
+      if (e.touches.length === 1) {
+        const now = Date.now();
+        const tx = e.touches[0].clientX;
+        const ty = e.touches[0].clientY;
+        if (now - lastTapTime < 300 && Math.hypot(tx - lastTapX, ty - lastTapY) < 60) {
+          this._zoomToScreenPoint(tx, ty, 0.6);
+          lastTapTime = 0;
+          this._state = 'NONE';
+          if (window._haptic) window._haptic(15);
+          if (window._showGestureToast) window._showGestureToast('🔍 Yakınlaştı');
+          return;
+        }
+        lastTapTime = now;
+        lastTapX = tx; lastTapY = ty;
+        this._state = 'ROTATE';
+        this._lastX = tx;
+        this._lastY = ty;
+        longPressTimer = setTimeout(() => {
+          if (!touchMoved) {
+            const bp = document.getElementById('bottomPanel');
+            if (bp) {
+              bp.classList.toggle('open');
+              if (window._haptic) window._haptic(25);
+              if (window._showGestureToast) {
+                window._showGestureToast(bp.classList.contains('open') ? '📖 Bilgi açıldı' : '📕 Bilgi kapandı');
+              }
+            }
+            this._state = 'NONE';
+          }
+        }, 600);
+      } else if (e.touches.length === 2) {
+        if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+        this._state = 'PINCH';
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        pinchStartDist = Math.hypot(dx, dy);
+        pinchStartRadius = this._sphericalTarget.radius;
+        pinchCenter.x = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        pinchCenter.y = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      }
+    }, { passive: true });
+
+    dom.addEventListener('touchmove', (e) => {
+      if (!this.enabled || this._state === 'NONE') return;
+      e.preventDefault();
+      if (longPressTimer) {
+        const t = e.touches[0];
+        const dxMove = Math.hypot(t.clientX - lastTapX, t.clientY - lastTapY);
+        if (dxMove > 8) {
+          touchMoved = true;
+          clearTimeout(longPressTimer);
+          longPressTimer = null;
+        }
+      }
+      if (this._state === 'ROTATE' && e.touches.length === 1) {
+        const dx = e.touches[0].clientX - this._lastX;
+        const dy = e.touches[0].clientY - this._lastY;
+        this._lastX = e.touches[0].clientX;
+        this._lastY = e.touches[0].clientY;
+        this._sphericalTarget.theta -= dx * 0.005;
+        this._sphericalTarget.phi -= dy * 0.005;
+        this._sphericalTarget.phi = Math.max(0.05, Math.min(Math.PI - 0.05, this._sphericalTarget.phi));
+      } else if (this._state === 'PINCH' && e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.hypot(dx, dy);
+        const newCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const newCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        // İki parmak arası mesafe → zoom (yakınlaştır/uzaklaştır)
+        this._sphericalTarget.radius = Math.max(this.minDistance, Math.min(this.maxDistance, pinchStartRadius * (pinchStartDist / dist)));
+        // İki parmağın ortak hareketi → modeli sağa/sola/yukarı/aşağı taşı (pan)
+        const panDx = newCenterX - pinchCenter.x;
+        const panDy = newCenterY - pinchCenter.y;
+        pinchCenter.x = newCenterX;
+        pinchCenter.y = newCenterY;
+        const right = new THREE.Vector3();
+        const up = new THREE.Vector3();
+        this.object.matrix.extractBasis(right, up, new THREE.Vector3());
+        const panFactor = this._sphericalTarget.radius * 0.0045;
+        this.target.addScaledVector(right, -panDx * panFactor);
+        this.target.addScaledVector(up, panDy * panFactor);
+      }
+    }, { passive: false });
+
+    dom.addEventListener('touchend', (e) => {
+      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+      if (this._state === 'PINCH' && e.touches.length === 1) {
+        this._state = 'ROTATE';
+        this._lastX = e.touches[0].clientX;
+        this._lastY = e.touches[0].clientY;
+        return;
+      }
+      this._state = 'NONE';
+    });
+    dom.addEventListener('touchcancel', () => {
+      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+      this._state = 'NONE';
+    });
+
+    dom.addEventListener('wheel', (e) => {
+      if (!this.enabled) return;
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 1.1 : 0.9;
+      this._sphericalTarget.radius = Math.max(this.minDistance,
+        Math.min(this.maxDistance, this._sphericalTarget.radius * factor));
+    }, { passive: false });
+
+    dom.addEventListener('dblclick', (e) => {
+      if (!this.enabled) return;
+      this._zoomToScreenPoint(e.clientX, e.clientY, 0.55);
+    });
+
+    dom.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    this._syncFromCamera();
+  }
+
+  _syncFromCamera() {
+    const dx = this.object.position.x - this.target.x;
+    const dy = this.object.position.y - this.target.y;
+    const dz = this.object.position.z - this.target.z;
+    const r = Math.sqrt(dx*dx + dy*dy + dz*dz) || 1;
+    this._spherical.radius = this._sphericalTarget.radius = r;
+    this._spherical.theta = this._sphericalTarget.theta = Math.atan2(dx, dz);
+    this._spherical.phi = this._sphericalTarget.phi = Math.acos(Math.max(-1, Math.min(1, dy / r)));
+    this._lastCamPos.copy(this.object.position);
+    this._lastTarget.copy(this.target);
+  }
+
+  update() {
+    if (!this._lastCamPos.equals(this.object.position) || !this._lastTarget.equals(this.target)) {
+      this._syncFromCamera();
+    }
+    if (this.enableDamping) {
+      this._spherical.theta += (this._sphericalTarget.theta - this._spherical.theta) * this.dampingFactor;
+      this._spherical.phi += (this._sphericalTarget.phi - this._spherical.phi) * this.dampingFactor;
+      this._spherical.radius += (this._sphericalTarget.radius - this._spherical.radius) * this.dampingFactor;
+    } else {
+      this._spherical.theta = this._sphericalTarget.theta;
+      this._spherical.phi = this._sphericalTarget.phi;
+      this._spherical.radius = this._sphericalTarget.radius;
+    }
+    const s = this._spherical;
+    this.object.position.set(
+      this.target.x + s.radius * Math.sin(s.phi) * Math.sin(s.theta),
+      this.target.y + s.radius * Math.cos(s.phi),
+      this.target.z + s.radius * Math.sin(s.phi) * Math.cos(s.theta)
+    );
+    this.object.lookAt(this.target);
+    this._lastCamPos.copy(this.object.position);
+    this._lastTarget.copy(this.target);
+  }
+}
+
+// ============== GLOBAL STATE ==============
+let scene, camera, renderer, labelRenderer, controls;
+let dynamicObjects = [];
+let labelsVisible = true;
+let currentModule = 1, currentSub = '';
+
+const COLORS = {
+  light: 0xfff3b0,
+  lightCore: 0xffffff,
+  ray: 0xffe17a,
+  rayDim: 0xb8a050,
+  object: 0x3a4252,
+  objectEdge: 0x5a6478,
+  screen: 0x2a3142,
+  umbra: 0x1a1a2e,
+  penumbra: 0x6b6b8a,
+  lit: 0xfff0a0,
+  earth: 0x2e7dd6,
+  moon: 0xb0b0b8,
+  sun: 0xffcc33
+};
+
+// ============== INIT ==============
+function init() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x1e2740);
+  scene.fog = new THREE.Fog(0x1e2740, 45, 110);
+
+  const W = window.innerWidth, H = window.innerHeight;
+  camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 200);
+  camera.position.set(0.0, 5.0, 28.0);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(W, H);
+  window.scene = scene; window.camera = camera; window.renderer = renderer;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+  if (THREE.SRGBColorSpace !== undefined) {
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+  } else if (THREE.sRGBEncoding !== undefined) {
+    renderer.outputEncoding = THREE.sRGBEncoding;
+  }
+  document.getElementById('canvasContainer').appendChild(renderer.domElement);
+
+  labelRenderer = new CSS2DRenderer();
+  labelRenderer.setSize(W, H);
+  labelRenderer.domElement.style.position = 'absolute';
+  labelRenderer.domElement.style.top = '0';
+  labelRenderer.domElement.style.pointerEvents = 'none';
+  document.getElementById('canvasContainer').appendChild(labelRenderer.domElement);
+
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.minDistance = 1.2;
+  controls.maxDistance = 90;
+
+  const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+  ambient.userData._isInitial = true;
+  scene.add(ambient);
+
+  const keyLight = new THREE.DirectionalLight(0xfff4e6, 0.6);
+  keyLight.position.set(8, 14, 10);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.width = 2048;
+  keyLight.shadow.mapSize.height = 2048;
+  keyLight.shadow.camera.near = 0.5;
+  keyLight.shadow.camera.far = 60;
+  keyLight.shadow.camera.left = -20;
+  keyLight.shadow.camera.right = 20;
+  keyLight.shadow.camera.top = 20;
+  keyLight.shadow.camera.bottom = -20;
+  keyLight.shadow.bias = -0.0005;
+  keyLight.shadow.radius = 4;
+  keyLight.userData._isInitial = true;
+  scene.add(keyLight);
+
+  const rimLight = new THREE.DirectionalLight(0x90b8ff, 0.35);
+  rimLight.position.set(-6, 4, -12);
+  rimLight.userData._isInitial = true;
+  scene.add(rimLight);
+
+  const hemi = new THREE.HemisphereLight(0x99bbff, 0x202028, 0.25);
+  hemi.userData._isInitial = true;
+  scene.add(hemi);
+
+  window.addEventListener('resize', onResize);
+  document.getElementById('loading').classList.add('hide');
+
+  (function() {
+    const bp = document.getElementById('bottomPanel');
+    if (!bp) return;
+    const observer = new MutationObserver(() => {
+      if (bp.classList.contains('open')) {
+        document.body.classList.add('panel-open');
+      } else {
+        document.body.classList.remove('panel-open');
+      }
+    });
+    observer.observe(bp, { attributes: true, attributeFilter: ['class'] });
+  })();
+
+  const hint = document.getElementById('touchHintOverlay');
+  const hintClose = document.getElementById('touchHintClose');
+  let hintShown = false;
+  try { hintShown = sessionStorage.getItem('qhintShown') === '1'; } catch(e){}
+  const isMobile = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+  if (isMobile && hint && !hintShown) {
+    setTimeout(() => {
+      hint.style.opacity = '1';
+      hint.style.transform = 'translateX(-50%) translateY(0)';
+    }, 800);
+    setTimeout(() => {
+      hint.style.opacity = '0';
+      hint.style.transform = 'translateX(-50%) translateY(20px)';
+      setTimeout(() => { hint.style.pointerEvents = 'none'; }, 400);
+    }, 8000);
+  }
+  if (hintClose && hint) {
+    hintClose.onclick = () => {
+      hint.style.opacity = '0';
+      hint.style.transform = 'translateX(-50%) translateY(20px)';
+      setTimeout(() => { hint.style.pointerEvents = 'none'; }, 400);
+      try { sessionStorage.setItem('qhintShown', '1'); } catch(e){}
+    };
+  }
+
+  window._showGestureToast = function(msg, duration = 1400) {
+    const toast = document.getElementById('gestureToast');
+    if (!toast) return;
+    toast.textContent = msg;
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+    clearTimeout(window._toastTimer);
+    window._toastTimer = setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(-50%) translateY(-20px)';
+    }, duration);
+  };
+
+  window._showResetPulse = function() {
+    const pulse = document.getElementById('resetPulse');
+    if (!pulse) return;
+    pulse.style.transform = 'translate(-50%, -50%) scale(1)';
+    pulse.style.opacity = '1';
+    setTimeout(() => {
+      pulse.style.opacity = '0';
+      setTimeout(() => { pulse.style.transform = 'translate(-50%, -50%) scale(0)'; }, 500);
+    }, 400);
+  };
+
+  window._haptic = function(ms = 18) {
+    try { if (navigator.vibrate) navigator.vibrate(ms); } catch(e){}
+  };
+}
+
+function onResize() {
+  const W = window.innerWidth, H = window.innerHeight;
+  camera.aspect = W / H;
+  camera.updateProjectionMatrix();
+  renderer.setSize(W, H);
+  labelRenderer.setSize(W, H);
+  if (typeof updateInfoScrollbar === 'function') updateInfoScrollbar();
+}
+
+// ============== HELPERS ==============
+function clearScene() {
+  if (typeof clearSceneSliders === 'function') clearSceneSliders();
+  if (labelRenderer && labelRenderer.domElement) {
+    labelRenderer.domElement.innerHTML = '';
+  }
+  const _keepTypes = ['AmbientLight', 'HemisphereLight'];
+  const _toClean = [];
+  scene.children.forEach(obj => {
+    if (obj.userData._isInitial === true) return;
+    if (_keepTypes.includes(obj.type) && obj.userData._isInitial === undefined) {
+      obj.userData._isInitial = true;
+      return;
+    }
+    _toClean.push(obj);
+  });
+  _toClean.forEach(obj => {
+    if (obj.parent) obj.parent.remove(obj);
+    if (typeof obj.traverse === 'function') {
+      obj.traverse(o => {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) {
+          if (Array.isArray(o.material)) o.material.forEach(m => m.dispose());
+          else o.material.dispose();
+        }
+      });
+    }
+  });
+  const toRemove = [];
+  scene.traverse(obj => { if (obj.userData.dynamic) toRemove.push(obj); });
+  toRemove.forEach(obj => {
+    obj.parent && obj.parent.remove(obj);
+    if (obj.geometry) obj.geometry.dispose();
+    if (obj.material) {
+      if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+      else obj.material.dispose();
+    }
+  });
+  dynamicObjects = [];
+  window._labelRefs = [];
+  window._labelPlaced = []; // etiket çakışma önleme: yerleşmiş etiket konumları
+  window._currentModelGroup = null;
+  window._customAnim = null;
+  window._flowRays = [];
+  window._arrowMaterials = [];
+  const svg = document.getElementById('leaderLines');
+  if (svg) svg.innerHTML = '';
+}
+
+window._labelRefs = [];
+window._currentModelGroup = null;
+
+function addLabel(target, text, className = '', anchorTarget = null, minLevel = 1) {
+  const levelMap = { ilkokul: 1, ortaokul: 2, lise: 3, tyt_ayt: 4 };
+  const curr = levelMap[currentLevel] || 3;
+  if (curr < minLevel) return null;
+
+  const div = document.createElement('div');
+  div.className = 'label3d ' + className;
+  div.innerHTML = text;
+  div.style.display = labelsVisible ? 'block' : 'none';
+  div.dataset.userHidden = labelsVisible ? '0' : '1';
+  const lbl = new CSS2DObject(div);
+  lbl.userData.dynamic = true;
+  lbl.userData.isLabel = true;
+
+  let anchorLocal;
+  if (anchorTarget) {
+    anchorLocal = anchorTarget.isVector3 ? anchorTarget.clone() : anchorTarget.getWorldPosition(new THREE.Vector3());
+  } else if (target.isVector3) {
+    anchorLocal = target.clone();
+  } else {
+    anchorLocal = target.getWorldPosition(new THREE.Vector3());
+  }
+
+  const anchorObj = new THREE.Object3D();
+  anchorObj.position.copy(anchorLocal);
+  anchorObj.userData.dynamic = true;
+
+  if (target.isVector3) {
+    lbl.position.copy(target);
+    if (window._currentModelGroup) {
+      window._currentModelGroup.add(lbl);
+      window._currentModelGroup.add(anchorObj);
+    } else {
+      scene.add(lbl);
+      scene.add(anchorObj);
+    }
+  } else {
+    target.add(lbl);
+    target.add(anchorObj);
+  }
+
+  window._labelRefs.push({ div, labelObj: lbl, anchorObj, className });
+  return lbl;
+}
+
+function markDynamic(obj) {
+  obj.userData.dynamic = true;
+  obj.traverse(c => c.userData.dynamic = true);
+  if (obj.isGroup && !window._currentModelGroup) {
+    window._currentModelGroup = obj;
+  }
+  return obj;
+}
+// ============== ANIMATE ==============
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = clock.getDelta();
+  const t = clock.getElapsedTime();
+
+  controls.update();
+
+  dynamicObjects.forEach(obj => {
+    if (obj.userData.spin && window._autoSpinActive) {
+      obj.rotation.y += obj.userData.spin * dt;
+    }
+    if (obj.userData.bob) {
+      obj.position.y = obj.userData.baseY + Math.sin(t * obj.userData.bob.speed + obj.userData.bob.phase) * obj.userData.bob.amp;
+    }
+  });
+
+  // ÇALIŞTIR aktifse: ışık ışınları boyunca akan parçacıkları güncelle
+  if (window._isPlayingActive && window._flowRays && window._flowRays.length) {
+    window._flowRays.forEach(fr => { try { updateFlowRay(fr, t); } catch(e){} });
+  }
+
+  // ÇALIŞTIR aktifse: vektör oklarını nabız gibi parlat (her sahnede görünür efekt)
+  if (window._arrowMaterials && window._arrowMaterials.length) {
+    const pulse = window._isPlayingActive ? (0.45 + 0.4 * (0.5 + 0.5 * Math.sin(t * 4))) : 0.45;
+    window._arrowMaterials.forEach(m => { try { m.emissiveIntensity = pulse; } catch(e){} });
+  }
+
+  if (window._isPlayingActive && typeof window._customAnim === 'function') {
+    try { window._customAnim(t, dt); } catch(e) {}
+  }
+
+  if (typeof _updateSceneDisplays === 'function') _updateSceneDisplays();
+
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+
+  updateLeaderLines();
+}
+
+const _projVec = new THREE.Vector3();
+function updateLeaderLines() {
+  const svg = document.getElementById('leaderLines');
+  if (!svg || !window._labelRefs || window._leaderLinesVisible === false) {
+    if (svg) svg.innerHTML = '';
+    return;
+  }
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const paths = [];
+
+  window._labelRefs.forEach((ref) => {
+    if (!ref.div || ref.div.dataset.userHidden === '1' || ref.div.style.display === 'none') return;
+    if (!ref.div.parentNode) return;
+    if (!ref.anchorObj) return;
+
+    ref.anchorObj.getWorldPosition(_projVec);
+    _projVec.project(camera);
+    if (_projVec.z > 1 || _projVec.z < -1) return;
+    const ax = (_projVec.x + 1) / 2 * w;
+    const ay = (1 - _projVec.y) / 2 * h;
+
+    const rect = ref.div.getBoundingClientRect();
+    const lx = rect.left + rect.width / 2;
+    const ly = rect.top + rect.height / 2;
+
+    const dist = Math.hypot(ax - lx, ay - ly);
+    if (dist < 18) return;
+
+    const dx = ax - lx;
+    const dy = ay - ly;
+    const halfW = rect.width / 2;
+    const halfH = rect.height / 2;
+    const tx = dx === 0 ? Infinity : (Math.abs(dx) > halfW ? halfW / Math.abs(dx) : 1);
+    const ty = dy === 0 ? Infinity : (Math.abs(dy) > halfH ? halfH / Math.abs(dy) : 1);
+    const tEdge = Math.min(tx, ty);
+    const edgeX = lx + dx * tEdge;
+    const edgeY = ly + dy * tEdge;
+
+    const colorMap = {
+      'xylem': '#d97043',
+      'phloem': '#5fb8e8',
+      'chloro': '#2ecc40',
+      'epi': '#a8d0b0',
+      'endo': '#e69138',
+      'warn': '#e74c3c'
+    };
+    const color = ref.color || colorMap[ref.className] || '#ffd166';
+
+    const midX = (edgeX + ax) / 2;
+    const midY = (edgeY + ay) / 2;
+    const distLine = Math.hypot(ax - edgeX, ay - edgeY);
+    const normalX = -(ay - edgeY) / distLine;
+    const normalY = (ax - edgeX) / distLine;
+    const curveAmount = Math.min(distLine * 0.18, 35);
+    const ctrlX = midX + normalX * curveAmount;
+    const ctrlY = midY + normalY * curveAmount;
+
+    const tipBack = 8;
+    const dirX = (ax - ctrlX) / Math.hypot(ax - ctrlX, ay - ctrlY);
+    const dirY = (ay - ctrlY) / Math.hypot(ax - ctrlX, ay - ctrlY);
+    const tipX = ax - dirX * tipBack;
+    const tipY = ay - dirY * tipBack;
+
+    const d = `M ${edgeX} ${edgeY} Q ${ctrlX} ${ctrlY} ${tipX} ${tipY}`;
+    const arrowSize = 7;
+    const angle = Math.atan2(ay - ctrlY, ax - ctrlX);
+    const aHead1X = tipX - arrowSize * Math.cos(angle - 0.5);
+    const aHead1Y = tipY - arrowSize * Math.sin(angle - 0.5);
+    const aHead2X = tipX - arrowSize * Math.cos(angle + 0.5);
+    const aHead2Y = tipY - arrowSize * Math.sin(angle + 0.5);
+
+    paths.push(`<path d="${d}" stroke="${color}" stroke-width="1.8" fill="none" stroke-opacity="0.92" stroke-linecap="round" />`);
+    paths.push(`<path d="M ${ax} ${ay} L ${aHead1X} ${aHead1Y} L ${aHead2X} ${aHead2Y} Z" fill="${color}" stroke="${color}" stroke-width="0.8" stroke-linejoin="round" />`);
+    paths.push(`<circle cx="${ax}" cy="${ay}" r="2.5" fill="${color}" stroke="#fff" stroke-width="1" opacity="0.7" />`);
+  });
+
+  svg.innerHTML = paths.join('');
+}
+
+// ============== SCENE STATE & PANELS ==============
+window._sceneState = {
+  R: 1.0,      // ışık kaynağı yarıçapı
+  r: 1.0,      // engel yarıçapı
+  d1: 5.0,     // kaynak-engel uzaklığı
+  d2: 5.0,     // engel-perde uzaklığı
+  mode: null,
+  _displayUpdaters: []
+};
+
+function setSceneSliders(items, opts = {}) {
+  const panel = document.getElementById('scenePanel');
+  if (!panel) return;
+  panel.innerHTML = '';
+  panel.classList.remove('empty', 'collapsed');
+  document.body.classList.add('scene-panel-open');
+  window._sceneState._displayUpdaters = [];
+
+  const toggle = document.createElement('button');
+  toggle.className = 'sp-toggle';
+  toggle.innerHTML = `<span>🎛️ ${opts.title || 'Kontroller'}</span><span class="sp-chev">▼</span>`;
+  toggle.onclick = () => {
+    panel.classList.toggle('collapsed');
+    toggle.querySelector('.sp-chev').textContent = panel.classList.contains('collapsed') ? '◀' : '▼';
+    if (window._haptic) window._haptic(10);
+  };
+  panel.appendChild(toggle);
+
+  items.forEach(item => {
+    if (item.type === 'section') {
+      const t = document.createElement('div');
+      t.className = 'sp-section';
+      t.textContent = item.label;
+      panel.appendChild(t);
+      return;
+    }
+    if (item.type === 'slider') {
+      const row = document.createElement('div');
+      row.className = 'sp-slider-row';
+      const head = document.createElement('div');
+      head.className = 'sp-slider-head';
+      head.innerHTML = `<span>${item.label}</span>
+        <div class="sp-stepper">
+          <button class="sp-step-btn sp-minus">-</button>
+          <span class="sp-val"></span>
+          <button class="sp-step-btn sp-plus">+</button>
+        </div>`;
+      const valEl = head.querySelector('.sp-val');
+      const minusBtn = head.querySelector('.sp-minus');
+      const plusBtn = head.querySelector('.sp-plus');
+      row.appendChild(head);
+      const slider = document.createElement('input');
+      slider.type = 'range';
+      slider.min = item.min;
+      slider.max = item.max;
+      slider.step = item.step || 1;
+      slider.value = item.getValue();
+      row.appendChild(slider);
+      if (item.sub) {
+        const sub = document.createElement('div');
+        sub.className = 'sp-sub';
+        sub.textContent = item.sub;
+        row.appendChild(sub);
+      }
+      const updateVal = () => {
+        const v = parseFloat(slider.value);
+        valEl.textContent = (item.format ? item.format(v) : v) + (item.unit || '');
+      };
+      slider.addEventListener('input', () => {
+        const v = parseFloat(slider.value);
+        item.setValue(v);
+        updateVal();
+      });
+      const step = parseFloat(item.step) || 1;
+      minusBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const v = parseFloat(slider.value);
+        const nv = Math.max(parseFloat(item.min), v - step);
+        slider.value = nv; item.setValue(nv); updateVal();
+        if (window._haptic) window._haptic(8);
+      });
+      plusBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const v = parseFloat(slider.value);
+        const nv = Math.min(parseFloat(item.max), v + step);
+        slider.value = nv; item.setValue(nv); updateVal();
+        if (window._haptic) window._haptic(8);
+      });
+      panel.appendChild(row);
+      updateVal();
+      window._sceneState._displayUpdaters.push(() => {
+        const v = item.getValue();
+        if (parseFloat(slider.value) !== v) { slider.value = v; updateVal(); }
+      });
+    }
+    if (item.type === 'display') {
+      const row = document.createElement('div');
+      row.className = 'sp-display' + (item.highlight ? ' highlight' : '');
+      row.innerHTML = `<span class="sp-label">${item.label}</span><span class="sp-val"></span>`;
+      const val = row.querySelector('.sp-val');
+      val.textContent = item.getValue();
+      panel.appendChild(row);
+      window._sceneState._displayUpdaters.push(() => { val.textContent = item.getValue(); });
+    }
+    if (item.type === 'formula') {
+      // İlkokul/ortaokul: karmaşık formülleri gösterme (matematiksel sembol içeriyorsa atla)
+      const hasMath = /[=√÷×²·]|sin|cos|1\//.test(item.text || '') || /q₁|q₂|kq|k·q|qE|qV|ε₀|½|Σ|ΔV|N\/C|qE\/m|V\/d/.test(item.text||'');
+      const skip = (currentLevel === 'ilkokul' || currentLevel === 'ortaokul') && hasMath && !item.keepSimple;
+      if (!skip) {
+        const row = document.createElement('div');
+        row.className = 'sp-formula';
+        row.innerHTML = item.text;
+        panel.appendChild(row);
+        if (item.getValue && !((currentLevel === 'ilkokul' || currentLevel === 'ortaokul') && hasMath)) {
+          window._sceneState._displayUpdaters.push(() => { row.innerHTML = item.getValue(); });
+        }
+      }
+    }
+    if (item.type === 'presets') {
+      const row = document.createElement('div');
+      row.className = 'sp-presets';
+      item.options.forEach((opt, i) => {
+        const b = document.createElement('button');
+        b.className = 'sp-preset-btn';
+        b.textContent = opt.label;
+        if (i === (item.activeIdx || 0)) b.classList.add('active');
+        b.onclick = () => {
+          row.querySelectorAll('.sp-preset-btn').forEach(x => x.classList.remove('active'));
+          b.classList.add('active');
+          opt.action();
+          if (window._haptic) window._haptic(10);
+        };
+        row.appendChild(b);
+      });
+      panel.appendChild(row);
+    }
+  });
+}
+
+function clearSceneSliders() {
+  const panel = document.getElementById('scenePanel');
+  if (panel) { panel.innerHTML = ''; panel.classList.add('empty'); }
+  document.body.classList.remove('scene-panel-open');
+  if (window._sceneState) window._sceneState._displayUpdaters = [];
+}
+
+function _updateSceneDisplays() {
+  if (window._sceneState && window._sceneState._displayUpdaters) {
+    window._sceneState._displayUpdaters.forEach(fn => { try { fn(); } catch(e){} });
+  }
+}
+
+// ============== 3D INFO LABELS (CSS2D + leader) ==============
+// Seviye sırası: ilkokul(1) < ortaokul(2) < lise(3) < tyt_ayt(4)
+const _LV = { ilkokul: 1, ortaokul: 2, lise: 3, tyt_ayt: 4 };
+// Bir etiketin metnini seviyeye göre çöz: string ise direkt; obje ise en uygun seviye
+function _labelTextForLevel(text) {
+  if (typeof text === 'string') return text;
+  if (text && typeof text === 'object') {
+    const order = ['ilkokul','ortaokul','lise','tyt_ayt'];
+    if (text[currentLevel]) return text[currentLevel];
+    const idx = order.indexOf(currentLevel);
+    for (let i = idx; i >= 0; i--) if (text[order[i]]) return text[order[i]];
+    for (let i = idx + 1; i < order.length; i++) if (text[order[i]]) return text[order[i]];
+  }
+  return '';
+}
+
+function addInfo3DLabels(labels) {
+  // --- İDEMPOTENT: önceki etiket gruplarını (DOM dahil) + referansları temizle.
+  // rebuild() her çağrıldığında (slider/preset) etiketler birikmesin / yelpaze yapmasın.
+  if (window._currentModelGroup) {
+    const _oldGroups = window._currentModelGroup.children.filter(c => c.userData && c.userData.isLabelGroup);
+    _oldGroups.forEach(g => {
+      g.traverse(o => {
+        if (o.element && o.element.parentNode) o.element.parentNode.removeChild(o.element);
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) { Array.isArray(o.material) ? o.material.forEach(m => m.dispose()) : o.material.dispose(); }
+      });
+      window._currentModelGroup.remove(g);
+    });
+  }
+  window._labelRefs = [];      // leader-line referansları sıfırla (eskiler için çizilmesin)
+  window._labelPlaced = [];    // çakışma-önleme izini sıfırla (yeni set temiz yerleşsin)
+  const grp = new THREE.Group();
+  grp.userData.dynamic = true;
+  grp.userData.isLabelGroup = true;
+  const curLv = _LV[currentLevel] || 3;
+  if (!window._labelPlaced) window._labelPlaced = [];
+  const placed = window._labelPlaced; // global çakışma takip (makeLabeledPoint ile paylaşımlı)
+  labels.forEach(L => {
+    // Seviye filtresi: minLevel'den düşük seviyede bu etiketi atla
+    if (L.minLevel && curLv < L.minLevel) return;
+    // maxLevel: bu seviyeden yüksekte gizle (örn. çok basit etiketi lisede gösterme)
+    if (L.maxLevel && curLv > L.maxLevel) return;
+    const labelText = _labelTextForLevel(L.text);
+    if (!labelText) return;
+    const color = L.color || '#ffd166';
+    const div = document.createElement('div');
+    div.className = 'info3d-label';
+    div.style.cssText = `
+      background: rgba(15, 25, 40, 0.92);
+      border: 2px solid ${color};
+      color: #fff;
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+      pointer-events: none;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.5);
+      transform: translate(-50%, -50%);
+      text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+    `;
+    div.innerHTML = labelText;
+    div.style.display = labelsVisible ? 'block' : 'none';
+    div.dataset.userHidden = labelsVisible ? '0' : '1';
+    const obj = new CSS2DObject(div);
+    // Etiketi hedeften yeterince uzağa it: yazı modele binmesin, leader-line belirgin olsun
+    let px = L.position[0], py = L.position[1], pz = L.position[2];
+    if (L.target) {
+      const dx = px - L.target[0], dy = py - L.target[1], dz = pz - L.target[2];
+      const dlen = Math.sqrt(dx*dx + dy*dy + dz*dz);
+      // daha uzakta göster: minimum boşluk 2.4 (oklar belirgin), ama maks 4.5 (ok aşırı uzamasın)
+      const minGap = (L.minGap !== undefined) ? L.minGap : 2.4;
+      const maxGap = (L.maxGap !== undefined) ? L.maxGap : 4.5;
+      if (dlen > 0.001 && dlen < minGap) {
+        const s = minGap / dlen;
+        px = L.target[0] + dx*s; py = L.target[1] + dy*s; pz = L.target[2] + dz*s;
+      } else if (dlen > maxGap) {
+        const s = maxGap / dlen;
+        px = L.target[0] + dx*s; py = L.target[1] + dy*s; pz = L.target[2] + dz*s;
+      }
+    }
+    // ETİKETLER ARASI ÇAKIŞMA ÖNLEME: bu çağrıda önceki etiketlere çok yakınsa kaydır
+    const labelGap = 1.7; // iki etiket merkezi arası minimum (XY düzleminde)
+    let guard = 0;
+    while (guard++ < 24) {
+      let collided = false;
+      for (const p of placed) {
+        const ddx = px - p.x, ddy = py - p.y;
+        const dd = Math.sqrt(ddx*ddx + ddy*ddy);
+        if (dd < labelGap) {
+          collided = true;
+          // çakışıyorsa: hedefe göre dışa doğru iterek ve dikeyde ayırarak uzaklaştır
+          if (L.target) {
+            const ux = px - L.target[0], uy = py - L.target[1];
+            const ul = Math.sqrt(ux*ux + uy*uy) || 1;
+            px += (ux/ul) * (labelGap - dd + 0.1);
+            py += (uy/ul) * (labelGap - dd + 0.1) + (py >= p.y ? 0.5 : -0.5);
+          } else {
+            py += (py >= p.y ? labelGap : -labelGap);
+          }
+          break;
+        }
+      }
+      if (!collided) break;
+    }
+    placed.push({ x: px, y: py });
+    obj.position.set(px, py, pz);
+    obj.userData.isLabel = true;
+    obj.userData.dynamic = true;
+    grp.add(obj);
+
+    // Hedef noktası (etiketin tam olarak işaret ettiği yer)
+    if (L.target) {
+      // Hedefe yapışık küçük nokta — etiketin tam neyi gösterdiğini belirtir
+      const dotGeo = new THREE.SphereGeometry(0.08, 16, 12);
+      const dotMat = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(color), transparent: true, opacity: 0.95,
+        toneMapped: false, depthTest: false
+      });
+      const dot = new THREE.Mesh(dotGeo, dotMat);
+      dot.position.set(L.target[0], L.target[1], L.target[2]);
+      dot.renderOrder = 999;
+      dot.userData.isLabel = true;
+      dot.userData.dynamic = true;
+      grp.add(dot);
+
+      // Anchor (hedef) ve etiket DIV'ini SVG leader-line sistemine kaydet.
+      // Bu sayede çizgi her karede ekran koordinatında etiketten hedefe kadar
+      // tam olarak çizilir; model döndüğünde anchor 3D'de döndüğü için
+      // çizgi de hedefin yeni konumunu takip eder.
+      const anchorObj = new THREE.Object3D();
+      anchorObj.position.set(L.target[0], L.target[1], L.target[2]);
+      anchorObj.userData.dynamic = true;
+      grp.add(anchorObj);
+
+      const classMap = {
+        '#ffe17a':'', '#ffd166':'', '#ffcc33':'',
+        '#5fc8e0':'joint', '#7adcf0':'joint',
+        '#9d7fe6':'cartilage', '#2e7dd6':'phloem',
+        '#ff7043':'xylem', '#d0563a':'xylem', '#d97043':'xylem',
+        '#9a9aa2':'', '#ffd54f':''
+      };
+      window._labelRefs.push({ div, labelObj: obj, anchorObj, color, className: classMap[color] || '' });
+    }
+  });
+  // Etiketleri DÖNEN modele bağla (varsa) → model dönünce etiketler de döner
+  if (window._currentModelGroup) {
+    window._currentModelGroup.add(grp);
+  } else {
+    scene.add(grp);
+  }
+  return grp;
+}
+// ============== MODULE SYSTEM (Sınıf 1-12, grades ile) ==============
+const MODULES = {
+  1: { title:'⚫ Modül 1: Karbon ve Günlük Hayat (İlkokul)', subs:[
+    { key:'karbonHerYerde', label:'⚫ Karbon Her Yerde', builder:'buildKarbonHerYerde', grades:[4] },
+    { key:'yakitlar', label:'🔥 Yakıtlar ve Yanma', builder:'buildYakitlar', grades:[4] },
+    { key:'plastikGunluk', label:'🧴 Plastikler Hayatımızda', builder:'buildPlastikGunluk', grades:[4] },
+    { key:'dogalYapay', label:'🍃 Doğal ve Yapay Maddeler', builder:'buildDogalYapay', grades:[4] } ]},
+  2: { title:'🔗 Modül 2: Karbon Kimyasına Giriş (Ortaokul)', subs:[
+    { key:'karbonBaglari', label:'⚫ Karbonun 4 Bağı', builder:'buildKarbonBaglari', grades:[7] },
+    { key:'hidrokarbonGiris', label:'⛓️ Hidrokarbonlara Giriş', builder:'buildHidrokarbonGiris', grades:[8] },
+    { key:'fosilYakitlar', label:'🛢️ Fosil Yakıtlar ve Çevre', builder:'buildFosilYakitlar', grades:[8] },
+    { key:'polimerOrtaokul', label:'🔗 Monomerden Polimere', builder:'buildPolimerOrtaokul', grades:[8] } ]},
+  3: { title:'🧪 Modül 3: Organik Kimya (Lise)', subs:[
+    { key:'alkanlar', label:'➖ Alkanlar (Tekli Bağ)', builder:'buildAlkanlar', grades:[11] },
+    { key:'alkenler', label:'🟰 Alkenler (İkili Bağ)', builder:'buildAlkenler', grades:[11] },
+    { key:'alkinler', label:'📏 Alkinler (Üçlü Bağ)', builder:'buildAlkinler', grades:[11] },
+    { key:'fonksiyonelGruplar', label:'🎨 Fonksiyonel Gruplar', builder:'buildFonksiyonelGruplar', grades:[11] },
+    { key:'yapiIzomeri', label:'🔀 Yapı İzomerliği', builder:'buildYapiIzomeri', grades:[11] },
+    { key:'kiralite', label:'🪞 Kiralite (Enantiyomerler)', builder:'buildKiralite', grades:[12] },
+    { key:'cisTrans', label:'↔️ Cis-Trans İzomerliği', builder:'buildCisTrans', grades:[11] },
+    { key:'benzen', label:'⬡ Benzen ve Aromatiklik', builder:'buildBenzen', grades:[12] },
+    { key:'polimerler', label:'🧬 Polimerleşme', builder:'buildPolimerler', grades:[12] },
+    { key:'organikTepkimeler', label:'⚗️ Organik Tepkimeler', builder:'buildOrganikTepkimeler', grades:[12] },
+    { key:'biyomolekuller', label:'🧬 Biyomoleküller (DNA, Protein)', builder:'buildBiyomolekuller', grades:[12] } ]}
+};
+
+const INFO_DATA = {
+  karbonHerYerde: { ilkokul:{ emoji:'⚫', title:'Karbon Her Yerde', points:[
+    '⚫ Karbon, doğadaki en önemli atomlardan biridir.',
+    '💎 Elmas saf karbondur (çok sert, parlak).',
+    '✏️ Kurşun kalemin ucu da karbondur (grafit, yumuşak).',
+    '🍬 Şeker, ekmek, meyve... besinlerde karbon vardır.',
+    '🪵 Odun, kömür ve yakıtlar karbon içerir.',
+    '🧍 Senin vücudun da büyük oranda karbondan oluşur.',
+    '🌍 Karbon, canlı yaşamın temel taşıdır.' ]} },
+  yakitlar: { ilkokul:{ emoji:'🔥', title:'Yakıtlar', points:[
+    '🔥 Yakıtlar yandığında enerji (ısı ve ışık) verir.',
+    '🪵 Odun, kömür, doğalgaz ve mum birer yakıttır.',
+    '🌬️ Yanma için oksijen (hava) gerekir.',
+    '💨 Yakıt yanınca karbondioksit ve su buharı oluşur.',
+    '🍳 Ocakta yemek pişirirken doğalgaz yakarız.',
+    '🚗 Arabalar benzin/motorin yakarak çalışır.',
+    '⚠️ Yakıtlar dikkatli kullanılmalıdır (yangın riski).' ]} },
+  plastikGunluk: { ilkokul:{ emoji:'🧴', title:'Plastikler', points:[
+    '🧴 Plastik, küçük parçaların uzun bir zincir oluşturmasıyla yapılır.',
+    '🛍️ Şişe, poşet, oyuncak, kalem... çoğu plastiktir.',
+    '🪶 Plastikler hafif, ucuz ve dayanıklıdır.',
+    '🌈 İstenilen renk ve şekle kolayca girer.',
+    '🌊 Ama doğada çok zor çözünür (yıllarca kalır).',
+    '♻️ Bu yüzden plastikleri geri dönüştürmeliyiz.',
+    '🛢️ Plastikler genellikle petrolden üretilir.' ]} },
+  dogalYapay: { ilkokul:{ emoji:'🍃', title:'Doğal ve Yapay', points:[
+    '🍃 Doğal maddeler doğadan elde edilir.',
+    '🪵 Odun, pamuk, yün, kauçuk doğal maddelerdir.',
+    '🏭 Yapay maddeler fabrikalarda üretilir.',
+    '🧴 Plastik, naylon, polyester yapay maddelerdir.',
+    '👕 Pamuklu tişört doğal, naylon mont yapaydır.',
+    '🔬 İkisinin de yapısında çoğunlukla karbon bulunur.',
+    '🌍 Doğal maddeler genelde çevre dostudur.' ]} },
+  karbonBaglari: { ortaokul:{ emoji:'⚫', title:'Karbonun Bağları', points:[
+    '⚫ Karbon atomunun en dış katmanında 4 elektron vardır.',
+    '🔗 Bu yüzden karbon 4 tane bağ yapabilir.',
+    '📐 Bu 4 bağ dört yöne (dört yüzlü) yönelir.',
+    '⛓️ Karbon, başka karbonlarla uzun zincirler kurabilir.',
+    '🔵 Halka ve dallanmış yapılar da oluşturabilir.',
+    '🌟 Bu özellik milyonlarca farklı bileşik sağlar.',
+    '🧬 İşte bu yüzden yaşam karbon temellidir.' ]} },
+  hidrokarbonGiris: { ortaokul:{ emoji:'⛓️', title:'Hidrokarbonlar', points:[
+    '⛓️ Hidrokarbonlar yalnızca karbon (C) ve hidrojen (H) içerir.',
+    '🔥 En önemli yakıtlar hidrokarbondur.',
+    '💨 Metan (CH₄) en basit hidrokarbon, doğalgazın ana maddesidir.',
+    '⛽ Benzin, mazot, tüpgaz da hidrokarbon karışımıdır.',
+    '🔗 Karbon sayısı arttıkça molekül büyür ve ağırlaşır.',
+    '🪨 Çoğu hidrokarbon petrol ve doğalgazdan elde edilir.',
+    '🌡️ Yandıklarında çok enerji açığa çıkar.' ]} },
+  fosilYakitlar: { ortaokul:{ emoji:'🛢️', title:'Fosil Yakıtlar', points:[
+    '🛢️ Fosil yakıtlar: petrol, kömür ve doğalgazdır.',
+    '🦕 Milyonlarca yıl önceki canlı kalıntılarından oluşmuştur.',
+    '⛓️ Yapıları uzun hidrokarbon zincirleridir.',
+    '🔥 Yandıklarında bol enerji + karbondioksit (CO₂) verir.',
+    '🌡️ Açığa çıkan CO₂ sera etkisini ve küresel ısınmayı artırır.',
+    '⏳ Fosil yakıtlar tükenir; yenilenemez kaynaklardır.',
+    '🌱 Bu yüzden yenilenebilir enerjiye geçiş önemlidir.' ]} },
+  polimerOrtaokul: { ortaokul:{ emoji:'🔗', title:'Polimerler', points:[
+    '🔗 Polimer, çok sayıda küçük birimin (monomer) zinciridir.',
+    '🧱 Monomer = tek tuğla, polimer = tuğlalardan yapılan duvar.',
+    '🧴 Plastik, naylon, kauçuk birer polimerdir.',
+    '🌿 Doğada da polimer vardır: nişasta, selüloz, DNA.',
+    '🪢 Zincir uzadıkça malzeme dayanıklı ve esnek olur.',
+    '🏭 Yapay polimerler petrolden üretilir.',
+    '♻️ Çoğu plastik geri dönüştürülebilir.' ]} },
+  alkanlar: { lise:{ emoji:'➖', title:'Alkanlar', points:[
+    '➖ Alkanlar sadece TEKLİ bağ içerir (doymuş hidrokarbon).',
+    '📐 Karbon sp³ hibritleşir; bağ açısı 109,5° (dört yüzlü).',
+    '🪜 Zincir düz değil, "zig-zag" şeklindedir.',
+    '🔄 Tekli bağ etrafında serbest dönme olur.',
+    '🧮 Genel formül: CₙH₂ₙ₊₂.',
+    '⛽ Metan, etan, propan, bütan ilk üyelerdir (yakıtlar).',
+    '🐢 Doymuş oldukları için tepkimeye az girerler.' ]} },
+  alkenler: { lise:{ emoji:'🟰', title:'Alkenler', points:[
+    '🟰 Alkenlerde en az bir İKİLİ bağ (C=C) bulunur (doymamış).',
+    '📐 İkili bağdaki karbonlar sp² hibritleşir, açı ~120°.',
+    '🟪 İkili bağ düzlemseldir; bir π (pi) bağı içerir.',
+    '🔒 İkili bağ DÖNEMEZ → cis-trans izomeri ortaya çıkar.',
+    '🧮 Genel formül: CₙH₂ₙ.',
+    '⚡ İkili bağ reaktiftir; katılma tepkimesi verir.',
+    '🍌 Eten (etilen) meyveleri olgunlaştıran gazdır.' ]} },
+  alkinler: { lise:{ emoji:'📏', title:'Alkinler', points:[
+    '📏 Alkinlerde ÜÇLÜ bağ (C≡C) bulunur (en doymamış).',
+    '📐 Üçlü bağdaki karbonlar sp hibritleşir, açı 180° (doğrusal).',
+    '🟪 Üçlü bağ bir σ + iki π bağından oluşur.',
+    '⚡ Çok reaktiftirler; katılma tepkimelerine yatkındırlar.',
+    '🧮 Genel formül: CₙH₂ₙ₋₂.',
+    '🔥 Etin (asetilen) kaynak işlerinde kullanılır.',
+    '🧊 Üçlü bağ molekülün o bölümünü doğrusal yapar.' ]} },
+  fonksiyonelGruplar: { lise:{ emoji:'🎨', title:'Fonksiyonel Gruplar', points:[
+    '🎨 Fonksiyonel grup, molekülün kimyasal davranışını belirler.',
+    '💧 Alkol (-OH): etanol (içki, dezenfektan).',
+    '🍋 Karboksilli asit (-COOH): asetik asit (sirke).',
+    '🌸 Ester: meyve/çiçek kokularını verir.',
+    '🧪 Aldehit (-CHO) ve keton (C=O): koku, çözücü.',
+    '🧬 Amin (-NH₂): amino asitler, proteinlerin yapı taşı.',
+    '🌈 Renk kodu: O kırmızı, N mavi, H beyaz, C gri.' ]} },
+  yapiIzomeri: { lise:{ emoji:'🔀', title:'Yapı İzomerliği', points:[
+    '🔀 İzomerler aynı molekül formülüne sahip farklı maddelerdir.',
+    '⛓️ Yapı (zincir) izomerinde atomların bağlanışı farklıdır.',
+    '🧮 Örnek: C₄H₁₀ → n-bütan (düz) ve izobütan (dallı).',
+    '🌡️ Yapı farkı, kaynama/erime noktası gibi özellikleri değiştirir.',
+    '🔢 Karbon sayısı arttıkça izomer sayısı hızla artar.',
+    '🧩 Aynı parçalar, farklı dizilim → farklı molekül.',
+    '🔬 Fonksiyonel grup ve konum izomerleri de vardır.' ]} },
+  kiralite: { lise:{ emoji:'🪞', title:'Kiralite', points:[
+    '🪞 Kiral molekül, ayna görüntüsüyle ÜST ÜSTE ÇAKIŞMAZ.',
+    '✋ Tıpkı sağ ve sol elin çakışmaması gibi.',
+    '⚫ Kiral merkez: 4 FARKLI grup bağlı karbon atomudur.',
+    '👯 Bu ayna görüntüsü çiftine enantiyomer denir.',
+    '💊 İlaçlarda kritiktir: biri iyileştirir, diğeri zarar verebilir.',
+    '🔬 Enantiyomerler ışığı zıt yönlere çevirir (optik aktiflik).',
+    '🌿 Doğadaki çoğu biyomolekül kiraldir (şeker, amino asit).' ]} },
+  cisTrans: { lise:{ emoji:'↔️', title:'Cis-Trans', points:[
+    '↔️ Cis-trans (geometrik) izomeri ikili bağ nedeniyle oluşur.',
+    '🔒 İkili bağ dönemediği için gruplar sabit kalır.',
+    '👬 Cis: aynı gruplar bağın AYNI tarafında.',
+    '🚻 Trans: aynı gruplar bağın ZIT tarafında.',
+    '🌡️ Cis ve trans farklı fiziksel özelliklere sahiptir.',
+    '🧈 Trans yağlar (margarin) sağlık açısından önemlidir.',
+    '👁️ Görme olayında retinal molekülünün cis-trans dönüşümü rol oynar.' ]} },
+  benzen: { lise:{ emoji:'⬡', title:'Benzen', points:[
+    '⬡ Benzen (C₆H₆) altı karbonlu düzlemsel bir halkadır.',
+    '🌀 π elektronları tek bir bağa ait değil; halka boyunca yayılır (delokalize).',
+    '☁️ Bu elektronlar halkanın ALT ve ÜST yüzünü bir bulut gibi sarar.',
+    '💪 Delokalizasyon benzeni olağanüstü kararlı yapar (aromatiklik).',
+    '📏 Tüm karbon-karbon bağları eşit uzunluktadır.',
+    '🛢️ Benzen ve türevleri sanayide çok kullanılır (boya, plastik, ilaç).',
+    '⚠️ Benzen buharı zehirli ve kanserojendir.' ]} },
+  polimerler: { lise:{ emoji:'🧬', title:'Polimerleşme', points:[
+    '🧬 Polimerleşme: monomerlerin birleşip dev moleküller oluşturmasıdır.',
+    '➕ Katılma polimerleşmesi: çift bağlı monomerler açılıp eklenir.',
+    '🧴 Katılma ürünleri: polietilen (PE), PVC, polistiren.',
+    '💧 Kondensasyon polimerleşmesi: her bağda küçük molekül (su) ayrılır.',
+    '🧵 Kondensasyon ürünleri: naylon, polyester, protein.',
+    '🪢 Zincir uzunluğu malzemenin sertlik/esnekliğini belirler.',
+    '♻️ Polimer atıkları çevre için önemli bir sorundur.' ]} },
+  organikTepkimeler: { lise:{ emoji:'⚗️', title:'Organik Tepkimeler', points:[
+    '⚗️ Organik tepkimeler birkaç temel türe ayrılır.',
+    '➕ Katılma: ikili/üçlü bağ açılır, atom eklenir (doymamış → doymuş).',
+    '🔁 Yer değiştirme (sübstitüsyon): bir atom/grup başkasıyla değişir.',
+    '➖ Ayrılma (eliminasyon): molekülden parça kopar, çift bağ oluşur.',
+    '🧪 Örnek katılma: alken + H₂ → alkan (hidrojenlenme).',
+    '🧪 Örnek yer değiştirme: alkan + Cl₂ → alkil klorür + HCl.',
+    '🧪 Örnek ayrılma: alkol → alken + su (dehidrasyon).' ]} },
+  biyomolekuller: { lise:{ emoji:'🧬', title:'Biyomoleküller', points:[
+    '🧬 Biyomoleküller, yaşamın temelini oluşturan organik moleküllerdir.',
+    '🧬 DNA: çift sarmal yapıda, kalıtsal bilgiyi taşıyan nükleik asittir.',
+    '🧶 Proteinler: amino asit zincirlerinin katlanmasıyla oluşur.',
+    '💪 Proteinin 3 boyutlu şekli görevini belirler (enzim, kas, hormon).',
+    '🍬 Karbonhidratlar: glikoz gibi şekerlerden oluşan enerji kaynağıdır.',
+    '🧈 Lipitler (yağlar): enerji depolar, hücre zarını oluşturur.',
+    '⚫ Hepsinin ortak noktası karbon temelli olmalarıdır.' ]} }
+};
+
+const COMPARE_DATA = {
+  karbonHerYerde: { ilkokul:{ title:'Karbon Nerede?', cols:['Madde','Karbon var mı?'], rows:[
+    ['Elmas','Evet (saf karbon)'],['Kurşun kalem','Evet (grafit)'],['Şeker / ekmek','Evet'],['Demir / cam','Hayır'] ]} },
+  yakitlar: { ilkokul:{ title:'Yanma', cols:['Aşama','Ne olur?'], rows:[
+    ['Yakıt + oksijen','Yanma başlar'],['Yanma sırasında','Isı + ışık çıkar'],['Sonuç','CO₂ + su buharı'],['Örnek','Mum, doğalgaz, odun'] ]} },
+  plastikGunluk: { ilkokul:{ title:'Plastik', cols:['Özellik','Plastik'], rows:[
+    ['Ağırlık','Hafif'],['Şekil','İstenilen şekle girer'],['Dayanıklılık','Uzun ömürlü'],['Doğa','Zor çözünür (kirletir)'] ]} },
+  dogalYapay: { ilkokul:{ title:'Doğal / Yapay', cols:['Madde','Tür'], rows:[
+    ['Odun, pamuk','Doğal'],['Yün, kauçuk','Doğal'],['Plastik, naylon','Yapay'],['Polyester','Yapay'] ]} },
+  karbonBaglari: { ortaokul:{ title:'Karbonun Bağ Sayısı', cols:['Atom','Bağ sayısı'], rows:[
+    ['Karbon (C)','4'],['Hidrojen (H)','1'],['Oksijen (O)','2'],['Azot (N)','3'] ]} },
+  hidrokarbonGiris: { ortaokul:{ title:'Hidrokarbon Örnekleri', cols:['Ad','Formül','Kullanım'], rows:[
+    ['Metan','CH₄','Doğalgaz'],['Etan','C₂H₆','Yakıt'],['Propan','C₃H₈','Tüpgaz'],['Bütan','C₄H₁₀','Çakmak gazı'] ]} },
+  fosilYakitlar: { ortaokul:{ title:'Fosil Yakıtlar', cols:['Yakıt','Hâli','Çevre etkisi'], rows:[
+    ['Kömür','Katı','Çok CO₂ + is'],['Petrol','Sıvı','CO₂ + kirlilik'],['Doğalgaz','Gaz','Daha temiz ama yine CO₂'],['Ortak sorun','—','Sera etkisi, tükenme'] ]} },
+  polimerOrtaokul: { ortaokul:{ title:'Monomer / Polimer', cols:['Kavram','Açıklama'], rows:[
+    ['Monomer','Tek küçük birim'],['Polimer','Birimlerin uzun zinciri'],['Yapay örnek','Plastik, naylon'],['Doğal örnek','Nişasta, DNA'] ]} },
+  alkanlar: { lise:{ title:'Alkan Özellikleri', cols:['Özellik','Alkan'], rows:[
+    ['Bağ','Sadece tekli'],['Hibritleşme','sp³'],['Açı','109,5°'],['Dönme','Serbest'],['Formül','CₙH₂ₙ₊₂'] ]} },
+  alkenler: { lise:{ title:'Alkan / Alken', cols:['Özellik','Alkan','Alken'], rows:[
+    ['Bağ','Tekli','İkili (C=C)'],['Doymuşluk','Doymuş','Doymamış'],['Hibrit','sp³','sp²'],['Açı','109,5°','120°'],['Dönme','Var','Yok (rijit)'] ]} },
+  alkinler: { lise:{ title:'Alken / Alkin', cols:['Özellik','Alken','Alkin'], rows:[
+    ['Bağ','İkili','Üçlü'],['Hibrit','sp²','sp'],['Açı','120°','180°'],['Şekil','Düzlemsel','Doğrusal'],['Formül','CₙH₂ₙ','CₙH₂ₙ₋₂'] ]} },
+  fonksiyonelGruplar: { lise:{ title:'Fonksiyonel Gruplar', cols:['Grup','Formül','Sınıf'], rows:[
+    ['Hidroksil','-OH','Alkol'],['Karboksil','-COOH','Asit'],['Karbonil','-CHO / C=O','Aldehit/keton'],['Amino','-NH₂','Amin'] ]} },
+  yapiIzomeri: { lise:{ title:'C₄H₁₀ İzomerleri', cols:['İzomer','Yapı','Kaynama °C'], rows:[
+    ['n-Bütan','Düz zincir','-0,5'],['İzobütan','Dallanmış','-12'],['Ortak','Aynı formül','C₄H₁₀'],['Sonuç','Farklı madde','Farklı özellik'] ]} },
+  kiralite: { lise:{ title:'Kiralite', cols:['Kavram','Açıklama'], rows:[
+    ['Kiral merkez','4 farklı grup bağlı C'],['Enantiyomer','Ayna görüntüsü çifti'],['Çakışma','Çakışmaz (sağ/sol el)'],['Optik etki','Işığı zıt çevirir'] ]} },
+  cisTrans: { lise:{ title:'Cis / Trans', cols:['Özellik','Cis','Trans'], rows:[
+    ['Gruplar','Aynı tarafta','Zıt tarafta'],['Şart','İkili bağ','İkili bağ'],['Dönme','Yok','Yok'],['Özellik','Farklı','Farklı'] ]} },
+  benzen: { lise:{ title:'Benzen', cols:['Özellik','Benzen'], rows:[
+    ['Karbon sayısı','6 (halka)'],['π elektronları','Delokalize'],['Bağ uzunlukları','Hepsi eşit'],['Kararlılık','Çok yüksek (aromatik)'] ]} },
+  polimerler: { lise:{ title:'Katılma / Kondensasyon', cols:['Özellik','Katılma','Kondensasyon'], rows:[
+    ['Monomer','Çift bağlı','İki uçlu fonksiyonel'],['Yan ürün','Yok','Su (küçük molekül)'],['Örnek','PE, PVC','Naylon, protein'],['Mekanizma','Bağ açılır','Gruplar birleşir'] ]} },
+  organikTepkimeler: { lise:{ title:'Tepkime Türleri', cols:['Tür','Olan','Örnek'], rows:[
+    ['Katılma','Bağ açılır, atom eklenir','Alken + H₂ → alkan'],['Yer değiştirme','Atom/grup değişir','Alkan + Cl₂'],['Ayrılma','Parça kopar, çift bağ','Alkol → alken + su'] ]} },
+  biyomolekuller: { lise:{ title:'Biyomoleküller', cols:['Tür','Yapı taşı','Görev'], rows:[
+    ['Karbonhidrat','Glikoz','Enerji'],['Protein','Amino asit','Yapı, enzim'],['Lipit','Yağ asidi','Enerji deposu, zar'],['Nükleik asit','Nükleotit','Kalıtım (DNA)'] ]} }
+};
+
+const TABLE_DATA = {
+  karbonHerYerde: { ilkokul:{ title:'Karbon İçeren Şeyler', cols:['Nesne','Açıklama'], rows:[
+    ['Elmas','En sert doğal madde'],['Grafit','Kalem ucu, kaygan'],['Şeker','Tatlı besin'],['Vücudumuz','Karbon temellidir'] ]} },
+  yakitlar: { ilkokul:{ title:'Yakıt Kartı', cols:['Yakıt','Nerede?'], rows:[
+    ['Doğalgaz','Mutfak ocağı, kombi'],['Mum','Aydınlatma'],['Odun/kömür','Soba, şömine'],['Benzin','Araba'] ]} },
+  plastikGunluk: { ilkokul:{ title:'Plastik Eşyalar', cols:['Eşya','Plastik mi?'], rows:[
+    ['Su şişesi','Evet'],['Poşet','Evet'],['Oyuncak','Çoğu evet'],['Cam bardak','Hayır'] ]} },
+  dogalYapay: { ilkokul:{ title:'Doğal / Yapay', cols:['Madde','Tür'], rows:[
+    ['Pamuk','Doğal'],['Yün','Doğal'],['Naylon','Yapay'],['Plastik','Yapay'] ]} },
+  karbonBaglari: { ortaokul:{ title:'Karbon Bileşikleri', cols:['Yapı','Örnek'], rows:[
+    ['Düz zincir','Bütan'],['Dallanmış','İzobütan'],['Halka','Benzen'],['Hidrojenli','Metan CH₄'] ]} },
+  hidrokarbonGiris: { ortaokul:{ title:'İlk Hidrokarbonlar', cols:['Ad','Formül'], rows:[
+    ['Metan','CH₄'],['Etan','C₂H₆'],['Propan','C₃H₈'],['Bütan','C₄H₁₀'] ]} },
+  fosilYakitlar: { ortaokul:{ title:'Fosil Yakıt Kartı', cols:['Kavram','Açıklama'], rows:[
+    ['Kaynak','Eski canlı kalıntıları'],['Yapı','Hidrokarbon zinciri'],['Ürün','Enerji + CO₂'],['Sorun','Tükenir + ısınma'] ]} },
+  polimerOrtaokul: { ortaokul:{ title:'Polimer Örnekleri', cols:['Polimer','Tür'], rows:[
+    ['Plastik','Yapay'],['Naylon','Yapay'],['Kauçuk','Doğal/yapay'],['Nişasta, DNA','Doğal'] ]} },
+  alkanlar: { lise:[
+    { title:'Hidrokarbon Aileleri', cols:['Sınıf','Bağ','Formül'], rows:[ ['Alkan','Tekli','CₙH₂ₙ₊₂'],['Alken','İkili','CₙH₂ₙ'],['Alkin','Üçlü','CₙH₂ₙ₋₂'] ]},
+    { title:'İlk Alkanlar', cols:['Ad','Formül','C sayısı'], rows:[ ['Metan','CH₄','1'],['Etan','C₂H₆','2'],['Propan','C₃H₈','3'],['Bütan','C₄H₁₀','4'] ]}
+  ]},
+  alkenler: { lise:{ title:'Alken Özellikleri', cols:['Özellik','Değer'], rows:[
+    ['Bağ','İkili C=C'],['Hibrit','sp²'],['Açı','120°'],['Formül','CₙH₂ₙ'],['Örnek','Eten C₂H₄'] ]} },
+  alkinler: { lise:{ title:'Alkin Özellikleri', cols:['Özellik','Değer'], rows:[
+    ['Bağ','Üçlü C≡C'],['Hibrit','sp'],['Açı','180°'],['Formül','CₙH₂ₙ₋₂'],['Örnek','Etin C₂H₂'] ]} },
+  fonksiyonelGruplar: { lise:{ title:'Grup Tablosu', cols:['Grup','Formül','Örnek'], rows:[
+    ['Alkol','-OH','Etanol'],['Asit','-COOH','Asetik asit'],['Aldehit','-CHO','Formaldehit'],['Amin','-NH₂','Metilamin'],['Ester','-COO-','Meyve kokusu'] ]} },
+  yapiIzomeri: { lise:{ title:'İzomer Türleri', cols:['Tür','Fark'], rows:[
+    ['Zincir izomeri','Düz / dallı zincir'],['Konum izomeri','Grubun yeri farklı'],['Fonksiyonel izomer','Farklı grup'],['Ortak','Aynı formül'] ]} },
+  kiralite: { lise:{ title:'Kiralite Kartı', cols:['Kavram','Açıklama'], rows:[
+    ['Kiral merkez','4 farklı grup bağlı C'],['Enantiyomer','Ayna görüntüsü'],['Özellik','Çakışmaz'],['Örnek','Amino asitler, ilaçlar'] ]} },
+  cisTrans: { lise:{ title:'Cis / Trans', cols:['İzomer','Gruplar'], rows:[
+    ['Cis','Aynı tarafta'],['Trans','Zıt tarafta'],['Şart','İkili bağ (dönmez)'],['Örnek','But-2-en'] ]} },
+  benzen: { lise:{ title:'Benzen Kartı', cols:['Özellik','Açıklama'], rows:[
+    ['Formül','C₆H₆'],['Şekil','Düzlemsel halka'],['π bulutu','Alt + üst'],['Kararlılık','Aromatik (yüksek)'] ]} },
+  polimerler: { lise:[
+    { title:'Polimer Türleri', cols:['Tür','Yan ürün','Örnek'], rows:[ ['Katılma','Yok','PE, PVC, PS'],['Kondensasyon','Su','Naylon, polyester'] ]},
+    { title:'Günlük Polimerler', cols:['Polimer','Kullanım'], rows:[ ['Polietilen','Poşet, şişe'],['PVC','Boru, yer döşemesi'],['Naylon','Kumaş, halat'],['Polyester','Giysi, pet şişe'] ]}
+  ]},
+  organikTepkimeler: { lise:{ title:'Tepkime Örnekleri', cols:['Tür','Denklem'], rows:[
+    ['Katılma','Alken + H₂ → alkan'],['Yer değiştirme','Alkan + Cl₂ → R-Cl + HCl'],['Ayrılma','Alkol → alken + H₂O'],['Yanma','Hidrokarbon + O₂ → CO₂ + H₂O'] ]} },
+  biyomolekuller: { lise:[
+    { title:'Dört Ana Grup', cols:['Grup','Yapı taşı','Görev'], rows:[ ['Karbonhidrat','Glikoz','Enerji'],['Protein','Amino asit','Yapı/enzim'],['Lipit','Yağ asidi','Depo/zar'],['Nükleik asit','Nükleotit','Kalıtım'] ]},
+    { title:'DNA', cols:['Özellik','Açıklama'], rows:[ ['Yapı','Çift sarmal'],['Bazlar','A-T, G-C eşleşir'],['Görev','Genetik bilgi'],['Polimer','Nükleotit zinciri'] ]}
+  ]}
+};
+
+
+
+// ============================================================
+// ====== OPTİK — 3D HELPER KÜTÜPHANESİ ======================
+// ============================================================
+
+function setupVectorLighting() {
+  const grp = new THREE.Group();
+  grp.userData.dynamic = true;
+  grp.add(new THREE.AmbientLight(0xc2cce8, 0.85));
+  const key = new THREE.DirectionalLight(0xffffff, 1.15);
+  key.position.set(7, 12, 8);
+  key.castShadow = true;
+  key.shadow.mapSize.width = 2048; key.shadow.mapSize.height = 2048;
+  key.shadow.camera.near = 0.5; key.shadow.camera.far = 60;
+  key.shadow.camera.left = -16; key.shadow.camera.right = 16;
+  key.shadow.camera.top = 16; key.shadow.camera.bottom = -16;
+  key.shadow.bias = -0.0004; key.shadow.radius = 5;
+  grp.add(key);
+  const fill = new THREE.DirectionalLight(0x9fc0ff, 0.5); fill.position.set(-8,5,6); grp.add(fill);
+  const rim = new THREE.DirectionalLight(0xa8d0ff, 0.4); rim.position.set(3,4,-10); grp.add(rim);
+  grp.add(new THREE.HemisphereLight(0xdce8ff, 0x3a4260, 0.6));
+  return grp;
+}
+
+function makeGridSystem(opts = {}) {
+  const size = opts.size || 20, divisions = opts.divisions || 20;
+  const floorY = (opts.floorY !== undefined) ? opts.floorY : 0;
+  const grp = new THREE.Group(); grp.userData.dynamic = true;
+  const isLight = window._lightMode === true;
+  const cMain = isLight ? 0x5a6a88 : 0x9fb0d8;
+  const cSub = isLight ? 0x8090aa : 0x39425e;
+  const gWall = new THREE.GridHelper(size, divisions, cMain, cSub);
+  gWall.rotation.x = Math.PI / 2; gWall.position.z = -0.05;
+  gWall.material.transparent = true; gWall.material.opacity = isLight ? 0.35 : 0.18;
+  grp.add(gWall);
+  return grp;
+}
+
+// === İKİ ORTAM: üst (hava/şeffaf) + alt (su/cam, renkli yarı saydam) ===
+function makeTwoMedia(opts = {}) {
+  const w = opts.w || 14, h = opts.h || 8;
+  const grp = new THREE.Group(); grp.userData.dynamic = true;
+  const isLight = window._lightMode === true;
+  // alt ortam (yoğun) — yarı saydam panel (açık modda biraz daha opak)
+  const lowOp = (opts.lowOpacity || 0.22) + (isLight ? 0.16 : 0);
+  const lowMat = new THREE.MeshBasicMaterial({ color: opts.lowColor || 0x2a8ad4, transparent: true, opacity: lowOp, side: THREE.DoubleSide });
+  const low = new THREE.Mesh(new THREE.PlaneGeometry(w, h/2), lowMat);
+  low.position.set(0, -h/4, 0); grp.add(low);
+  // üst ortam (hafif)
+  if (opts.topColor !== null) {
+    const topOp = (opts.topOpacity || 0.07) + (isLight ? 0.1 : 0);
+    const topMat = new THREE.MeshBasicMaterial({ color: opts.topColor || 0xcfe6ff, transparent: true, opacity: topOp, side: THREE.DoubleSide });
+    const top = new THREE.Mesh(new THREE.PlaneGeometry(w, h/2), topMat);
+    top.position.set(0, h/4, 0); grp.add(top);
+  }
+  // sınır çizgisi (ayırıcı yüzey) — açık modda daha koyu sarı
+  grp.add(makeSolidLine(new THREE.Vector3(-w/2, 0, 0.02), new THREE.Vector3(w/2, 0, 0.02), { color: isLight ? 0xd9a300 : 0xffe14d, opacity: 0.9 }));
+  // normal (dik kesikli çizgi, merkezde)
+  grp.add(makeDashedLine(new THREE.Vector3(0, h/2, 0.02), new THREE.Vector3(0, -h/2, 0.02), { color: isLight ? 0x5a6a88 : 0x9fb0d8, dash: 0.2, gap: 0.15, opacity: 0.8 }));
+  return grp;
+}
+
+// === IŞIN: kalın, parlak çizgi (silindir tüp ile, parlama efektli) ===
+function makeRay(from, to, opts = {}) {
+  const color = opts.color || 0xffe14d, r = opts.r || 0.045;
+  const grp = new THREE.Group();
+  const dir = new THREE.Vector3().subVectors(to, from);
+  const len = dir.length(); if (len < 0.001) return grp;
+  const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.7, roughness: 0.3, toneMapped: false });
+  if (!window._arrowMaterials) window._arrowMaterials = [];
+  window._arrowMaterials.push(mat);
+  const tube = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 10), mat);
+  tube.position.copy(from).add(dir.clone().multiplyScalar(0.5));
+  tube.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.clone().normalize());
+  grp.add(tube);
+  // ışın yönü oku (ortada küçük koni)
+  if (opts.arrow !== false) {
+    const head = new THREE.Mesh(new THREE.ConeGeometry(r*2.6, r*7, 12), mat);
+    head.position.copy(from).add(dir.clone().multiplyScalar(opts.arrowAt || 0.55));
+    head.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.clone().normalize());
+    grp.add(head);
+  }
+  return grp;
+}
+
+// çok parçalı ışın yolu (kırık çizgi: gelen+kırılan+yansıyan)
+function makeRayPath(points, opts = {}) {
+  const grp = new THREE.Group();
+  for (let i = 0; i < points.length-1; i++) {
+    grp.add(makeRay(points[i], points[i+1], opts));
+  }
+  return grp;
+}
+
+function makeSolidLine(from, to, opts = {}) {
+  const geo = new THREE.BufferGeometry().setFromPoints([from.clone(), to.clone()]);
+  const mat = new THREE.LineBasicMaterial({ color: opts.color || 0xffe14d, transparent: true, opacity: opts.opacity || 0.9 });
+  return new THREE.Line(geo, mat);
+}
+function makeDashedLine(from, to, opts = {}) {
+  const color = opts.color || 0xffe14d;
+  const geo = new THREE.BufferGeometry().setFromPoints([from.clone(), to.clone()]);
+  const mat = new THREE.LineDashedMaterial({ color, dashSize: opts.dash || 0.18, gapSize: opts.gap || 0.12, transparent: true, opacity: opts.opacity || 0.85 });
+  const line = new THREE.Line(geo, mat); line.computeLineDistances(); return line;
+}
+
+// === MERCEK: ince kenarlı (dışbükey) veya kalın kenarlı (içbükey) ===
+// type: 'convex' (ince kenarlı/yakınsak) | 'concave' (kalın kenarlı/ıraksak)
+function makeLens(type, opts = {}) {
+  const H = opts.h || 4, maxW = opts.w || 0.8;
+  const grp = new THREE.Group();
+  const segs = 28;
+  const shape = new THREE.Shape();
+  // sol kenar profili + sağ kenar profili (simetrik) — Shape ile dikey kesit
+  const pts = [];
+  if (type === 'convex') {
+    // dışbükey: ortası şişkin (sol yay sola, sağ yay sağa)
+    for (let i = 0; i <= segs; i++) { const ty = -H/2 + (i/segs)*H; const bulge = Math.cos((ty/H)*Math.PI)*maxW*0.5; pts.push([ -bulge, ty ]); }
+    for (let i = segs; i >= 0; i--) { const ty = -H/2 + (i/segs)*H; const bulge = Math.cos((ty/H)*Math.PI)*maxW*0.5; pts.push([ bulge, ty ]); }
+  } else {
+    // içbükey: ortası ince (kenarları kalın) — kenar düz, orta oyuk
+    const edge = maxW*0.5;
+    for (let i = 0; i <= segs; i++) { const ty = -H/2 + (i/segs)*H; const concave = -edge + (1-Math.cos((ty/H)*Math.PI))*edge*0.7; pts.push([ -edge + concave*0+ (-(edge - (Math.cos((ty/H)*Math.PI))*edge*0.6)) , ty ]); }
+    // basitleştir: içbükey profil
+    pts.length = 0;
+    for (let i = 0; i <= segs; i++) { const ty = -H/2 + (i/segs)*H; const c = Math.cos((ty/H)*Math.PI); const x = -(edge - c*edge*0.7); pts.push([x, ty]); }
+    for (let i = segs; i >= 0; i--) { const ty = -H/2 + (i/segs)*H; const c = Math.cos((ty/H)*Math.PI); const x = (edge - c*edge*0.7); pts.push([x, ty]); }
+  }
+  shape.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) shape.lineTo(pts[i][0], pts[i][1]);
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: 1.4, bevelEnabled: false });
+  geo.translate(0, 0, -0.7);
+  const mat = new THREE.MeshPhysicalMaterial ? new THREE.MeshPhysicalMaterial({ color: 0xaadfff, transparent: true, opacity: 0.4, roughness: 0.1, metalness: 0, transmission: 0.6, ior: 1.5 }) : new THREE.MeshStandardMaterial({ color: 0xaadfff, transparent: true, opacity: 0.42, roughness: 0.12, metalness: 0.1 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.castShadow = true; grp.add(mesh);
+  // kenar çizgisi
+  const edge = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: 0x7fc8ff, transparent: true, opacity: 0.5 }));
+  grp.add(edge);
+  grp.userData._type = type; grp.userData._h = H;
+  return grp;
+}
+
+// === GÖZ KÜRESİ MODELİ ===
+function makeEye(opts = {}) {
+  const grp = new THREE.Group();
+  const R = opts.r || 1.6;
+  // göz küresi (yarı saydam)
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(R, 28, 20),
+    new THREE.MeshStandardMaterial({ color: 0xf0f4ff, transparent: true, opacity: 0.2, roughness: 0.3, side: THREE.DoubleSide }));
+  grp.add(ball);
+  // kornea/mercek (ön, ince kenarlı)
+  const lens = new THREE.Mesh(new THREE.SphereGeometry(0.5, 20, 16),
+    new THREE.MeshStandardMaterial({ color: 0xaadfff, transparent: true, opacity: 0.5, roughness: 0.1 }));
+  lens.scale.set(0.5, 1, 1); lens.position.set(-R+0.3, 0, 0); grp.add(lens);
+  // retina (arka iç yüzey, sarı yay)
+  const retGeo = new THREE.TorusGeometry(R*0.7, 0.06, 8, 24, Math.PI);
+  const ret = new THREE.Mesh(retGeo, new THREE.MeshStandardMaterial({ color: 0xffb84d, emissive: 0xffb84d, emissiveIntensity: 0.3, toneMapped: false }));
+  ret.rotation.z = Math.PI/2; ret.position.set(R*0.3, 0, 0); grp.add(ret);
+  grp.userData._R = R;
+  return grp;
+}
+
+// Cisim (ok şeklinde — mercek görüntü için)
+function makeObjectArrow(height, opts = {}) {
+  const color = opts.color || 0x3ed673;
+  const grp = new THREE.Group();
+  const dir = height >= 0 ? 1 : -1;
+  const h = Math.abs(height);
+  const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.4, roughness: 0.4, toneMapped: false });
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, h, 10), mat);
+  shaft.position.y = dir*h/2; grp.add(shaft);
+  const head = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.35, 12), mat);
+  head.position.y = dir*h; head.rotation.x = dir>0?0:Math.PI; grp.add(head);
+  return grp;
+}
+
+// ÖLÇÜ ETİKETİ
+function makeMeasureLabel(text, pos, color) {
+  const div = document.createElement('div');
+  div.style.cssText = 'background:' + (color || 'rgba(20,28,46,0.92)') +
+    ';color:#fff;font-weight:700;font-size:14px;padding:2px 8px;border-radius:8px;' +
+    'border:1.5px solid rgba(255,255,255,0.35);font-family:system-ui,sans-serif;' +
+    'box-shadow:0 2px 8px rgba(0,0,0,0.4);white-space:nowrap;pointer-events:none;';
+  div.textContent = text;
+  const lbl = new CSS2DObject(div);
+  lbl.position.set(pos[0], pos[1], pos[2]);
+  lbl.userData.dynamic = true;
+  return lbl;
+}
+
+// === ETİKETLİ NOKTA: hedefi gösterir, yazıyı uzağa koyar, ok/çizgi ile bağlar ===
+// target: gösterilen 3B nokta [x,y,z]; labelPos: yazının konumu [x,y,z] (hedeften uzak);
+// hedefe küçük bir işaret noktası konur ve leader-line sistemine kaydedilir.
+function makeLabeledPoint(grpParent, target, labelPos, text, opts = {}) {
+  const color = opts.color || '#ffe14d';
+  const div = document.createElement('div');
+  div.style.cssText = 'background:' + (opts.bg || 'rgba(15,25,40,0.92)') +
+    ';color:#fff;font-weight:700;font-size:13px;padding:3px 9px;border-radius:8px;' +
+    'border:1.5px solid ' + color + ';font-family:system-ui,sans-serif;' +
+    'box-shadow:0 2px 10px rgba(0,0,0,0.5);white-space:nowrap;pointer-events:none;' +
+    'transform:translate(-50%,-50%);text-shadow:0 1px 2px rgba(0,0,0,0.6);';
+  div.textContent = text;
+  div.style.display = (typeof labelsVisible !== 'undefined' && labelsVisible) ? 'block' : 'block';
+  // Etiket konumu: hedeften yeterince uzakta + diğer etiketlerle çakışmasın
+  let lx = labelPos[0], ly = labelPos[1], lz = labelPos[2];
+  // hedeften minimum uzaklık (oklar belirgin uzun olsun), maks sınır (aşırı uzun ok engelle)
+  const dx0 = lx - target[0], dy0 = ly - target[1];
+  const dl0 = Math.sqrt(dx0*dx0 + dy0*dy0);
+  const minGap = opts.minGap || 2.0;
+  const maxGap = opts.maxGap || 5.0;
+  if (dl0 > 0.001 && dl0 < minGap) { const s = minGap/dl0; lx = target[0]+dx0*s; ly = target[1]+dy0*s; }
+  else if (dl0 > maxGap) { const s = maxGap/dl0; lx = target[0]+dx0*s; ly = target[1]+dy0*s; }
+  // çakışma önleme (global liste)
+  if (!window._labelPlaced) window._labelPlaced = [];
+  const labelGap = 1.7;
+  let guard = 0;
+  while (guard++ < 24) {
+    let collided = false;
+    for (const p of window._labelPlaced) {
+      const ddx = lx - p.x, ddy = ly - p.y, dd = Math.sqrt(ddx*ddx + ddy*ddy);
+      if (dd < labelGap) {
+        collided = true;
+        const ux = lx - target[0], uy = ly - target[1], ul = Math.sqrt(ux*ux+uy*uy)||1;
+        lx += (ux/ul)*(labelGap-dd+0.1);
+        ly += (uy/ul)*(labelGap-dd+0.1) + (ly >= p.y ? 0.5 : -0.5);
+        break;
+      }
+    }
+    if (!collided) break;
+  }
+  window._labelPlaced.push({ x: lx, y: ly });
+  const lbl = new CSS2DObject(div);
+  lbl.position.set(lx, ly, lz);
+  lbl.userData.dynamic = true; lbl.userData.isLabel = true;
+  grpParent.add(lbl);
+  // hedef işaret noktası (küçük halka)
+  if (opts.dot !== false) {
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(opts.dotR || 0.07, 12, 8),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color(color), toneMapped: false, depthTest: false }));
+    dot.position.set(target[0], target[1], target[2]); dot.renderOrder = 999;
+    dot.userData.dynamic = true; dot.userData.isLabel = true;
+    grpParent.add(dot);
+  }
+  // leader-line kaydı (anchor = hedef)
+  const anchorObj = new THREE.Object3D();
+  anchorObj.position.set(target[0], target[1], target[2]);
+  anchorObj.userData.dynamic = true; grpParent.add(anchorObj);
+  if (window._labelRefs) window._labelRefs.push({ div, labelObj: lbl, anchorObj, color, className: '' });
+  return lbl;
+}
+function makeDimension(from, to, text, opts = {}) {
+  const grp = new THREE.Group(); grp.userData.dynamic = true;
+  const color = opts.color || 0xffe14d;
+  const geo = new THREE.BufferGeometry().setFromPoints([from.clone(), to.clone()]);
+  grp.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.95 })));
+  [from, to].forEach(p => {
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), new THREE.MeshBasicMaterial({ color, toneMapped: false }));
+    dot.position.copy(p); grp.add(dot);
+  });
+  const mid = from.clone().add(to).multiplyScalar(0.5);
+  if (opts.offset) mid.add(new THREE.Vector3(opts.offset[0], opts.offset[1], opts.offset[2] || 0));
+  grp.add(makeMeasureLabel(text, [mid.x, mid.y, mid.z], opts.labelBg || 'rgba(20,28,46,0.92)'));
+  return grp;
+}
+
+// nokta işaretçi (odak F, görüntü vb.)
+function makeMarker(pos, opts = {}) {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(opts.r || 0.12, 12, 10),
+    new THREE.MeshStandardMaterial({ color: opts.color || 0xff5252, emissive: opts.color || 0xff5252, emissiveIntensity: 0.6, toneMapped: false }));
+  m.position.copy(pos); return m;
+}
+
+// === AÇI YAYI: bir merkez etrafında startAngle→endAngle arası yay + etiket ===
+// merkez O'da, açılar +x ekseninden saat yönü tersine radyan. xy düzleminde.
+function makeAngleArc(center, startAngle, endAngle, opts = {}) {
+  const grp = new THREE.Group(); grp.userData.dynamic = true;
+  const r = opts.r || 0.9, color = opts.color || 0xffe14d;
+  const segs = 40;
+  let a0 = startAngle, a1 = endAngle;
+  const cz = center.z + 0.005;
+  // 1) DOLGULU SEKTÖR (pasta dilimi) — açıyı renkli yarı saydam alanla vurgular
+  if (!opts.noFill) {
+    const shape = new THREE.Shape();
+    shape.moveTo(0, 0);
+    for (let i = 0; i <= segs; i++) {
+      const a = a0 + (a1-a0)*(i/segs);
+      shape.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+    }
+    shape.lineTo(0, 0);
+    const fillGeo = new THREE.ShapeGeometry(shape);
+    const fillMesh = new THREE.Mesh(fillGeo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.22, side: THREE.DoubleSide, toneMapped: false }));
+    fillMesh.position.set(center.x, center.y, cz - 0.002); grp.add(fillMesh);
+  }
+  // 2) KALIN YAY ÇİZGİSİ (tüp) — yayı belirgin yapar
+  const arcPts = [];
+  for (let i = 0; i <= segs; i++) {
+    const a = a0 + (a1-a0)*(i/segs);
+    arcPts.push(new THREE.Vector3(center.x + Math.cos(a)*r, center.y + Math.sin(a)*r, cz));
+  }
+  const arcCurve = new THREE.CatmullRomCurve3(arcPts);
+  const tubeGeo = new THREE.TubeGeometry(arcCurve, segs, opts.noFill ? 0.022 : 0.035, 6, false);
+  grp.add(new THREE.Mesh(tubeGeo, new THREE.MeshBasicMaterial({ color, toneMapped: false })));
+  // etiket: yayın ortasındaki noktayı işaret eder, yazı daha uzakta + leader-line ile bağlı
+  if (opts.label) {
+    const am = (a0+a1)/2;
+    // yay üzerindeki orta nokta (etiketin gösterdiği yer)
+    const arcMid = [center.x + Math.cos(am)*r, center.y + Math.sin(am)*r, cz];
+    let lpos;
+    if (opts.labelDirX !== undefined) {
+      // YATAY AYIRMA: etiketi sabit yatay yöne it, dikey ofset sabit ve küçük
+      // → küçük açıda (yay dikeye yakın) bile etiket normalden/diğer etiketten net ayrılır
+      const horiz = (r + 1.4) * Math.sign(opts.labelDirX);
+      const vert = Math.sin(am) * (r * 0.55) + (opts.labelDY || 0);
+      lpos = [center.x + horiz, center.y + vert, cz];
+    } else {
+      const lr = r + (opts.labelOut || 0.45) + 1.1;
+      lpos = [center.x + Math.cos(am)*lr, center.y + Math.sin(am)*lr, cz];
+    }
+    makeLabeledPoint(grp, arcMid, lpos, opts.label, { color: '#' + (color).toString(16).padStart(6,'0'), bg: opts.labelBg || 'rgba(15,25,40,0.92)', dot: false });
+  }
+  return grp;
+}
+
+// === MESAFE OKU (span): iki nokta arası çift yönlü ok + etiket (f, d, d' için) ===
+function makeSpan(from, to, text, opts = {}) {
+  const grp = new THREE.Group(); grp.userData.dynamic = true;
+  const color = opts.color || 0xff5252;
+  const dir = new THREE.Vector3().subVectors(to, from); const len = dir.length();
+  if (len < 0.001) return grp;
+  const nd = dir.clone().normalize();
+  const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.95 });
+  grp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([from.clone(), to.clone()]), mat));
+  // uç okları (küçük koniler, içe bakan)
+  const coneMat = new THREE.MeshBasicMaterial({ color, toneMapped: false });
+  const c1 = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.22, 10), coneMat);
+  c1.position.copy(from); c1.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), nd); grp.add(c1);
+  const c2 = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.22, 10), coneMat);
+  c2.position.copy(to); c2.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), nd.clone().negate()); grp.add(c2);
+  // uç çentikleri (dikey küçük çizgiler)
+  const perp = new THREE.Vector3(-nd.y, nd.x, 0).multiplyScalar(opts.tick || 0.2);
+  [from, to].forEach(p => {
+    grp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([p.clone().add(perp), p.clone().sub(perp)]), mat));
+  });
+  const mid = from.clone().add(to).multiplyScalar(0.5);
+  if (opts.offset) mid.add(new THREE.Vector3(opts.offset[0], opts.offset[1], opts.offset[2]||0));
+  grp.add(makeMeasureLabel(text, [mid.x, mid.y, mid.z], opts.labelBg || 'rgba(20,28,46,0.92)'));
+  return grp;
+}
+
+function _deg2rad(d){ return d*Math.PI/180; }
+function makeVectorArrow(origin, vec, opts = {}) {
+  const color = opts.color || 0x4a90e2;
+  const shaftR = opts.shaftR || 0.05, headR = opts.headR || 0.15, headLen = opts.headLen || 0.35;
+  const grp = new THREE.Group();
+  const len = vec.length(); if (len < 0.001) return grp;
+  const dir = vec.clone().normalize();
+  const shaftLen = Math.max(0.01, len - headLen);
+  const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.45, roughness: 0.35, metalness: 0.4, toneMapped: false });
+  if (!window._arrowMaterials) window._arrowMaterials = [];
+  window._arrowMaterials.push(mat);
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(shaftR, shaftR, shaftLen, 14), mat);
+  shaft.position.copy(origin).add(dir.clone().multiplyScalar(shaftLen/2));
+  shaft.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir); grp.add(shaft);
+  const head = new THREE.Mesh(new THREE.ConeGeometry(headR, headLen, 16), mat);
+  head.position.copy(origin).add(dir.clone().multiplyScalar(shaftLen + headLen/2));
+  head.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir); grp.add(head);
+  return grp;
+}
+// === AKAN FOTONLAR: bir ışın yolu boyunca hareket eden parlak parçacıklar ===
+function makeFlowRay(path, opts = {}) {
+  const grp = new THREE.Group(); grp.userData.dynamic = true;
+  const color = opts.color || 0xffe14d;
+  const count = opts.count || 5;
+  const r = opts.r || 0.11;
+  const segLen = [];
+  let total = 0;
+  for (let k = 0; k < path.length - 1; k++) { const d = path[k+1].distanceTo(path[k]); segLen.push(d); total += d; }
+  const dots = [];
+  for (let n = 0; n < count; n++) {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95, toneMapped: false }));
+    m.userData.dynamic = true; m.visible = false;
+    grp.add(m); dots.push(m);
+  }
+  const fr = { grp, path, segLen, total, dots, color, speed: opts.speed || 0.55, count };
+  registerFlowRay(fr);
+  return grp;
+}
+function registerFlowRay(fr) {
+  if (!window._flowRays) window._flowRays = [];
+  window._flowRays.push(fr);
+}
+function _pointOnPath(path, segLen, total, frac) {
+  let d = frac * total;
+  for (let k = 0; k < segLen.length; k++) {
+    if (d <= segLen[k]) {
+      const t = segLen[k] > 0 ? d / segLen[k] : 0;
+      return path[k].clone().lerp(path[k+1], t);
+    }
+    d -= segLen[k];
+  }
+  return path[path.length - 1].clone();
+}
+function updateFlowRay(fr, t) {
+  if (!fr || !fr.dots) return;
+  const playing = window._isPlayingActive;
+  for (let n = 0; n < fr.dots.length; n++) {
+    const dot = fr.dots[n];
+    if (!playing) { dot.visible = false; continue; }
+    dot.visible = true;
+    let frac = ((t * fr.speed) + (n / fr.count)) % 1;
+    const p = _pointOnPath(fr.path, fr.segLen, fr.total, frac);
+    dot.position.copy(p);
+    const fade = Math.sin(frac * Math.PI);
+    dot.material.opacity = 0.4 + 0.55 * fade;
+  }
+}
+window._flowRays = [];
+
+const SubBuilders = {};
+function ezz(u){u=u<0?0:u>1?1:u;return u*u*(3-2*u);}
+function ppong(t,p){const u=((t%p)+p)%p/p;return u<0.5?u*2:2-u*2;}
+function rhr(t,p){const u=((t%p)+p)%p/p;return u<0.8?ezz(u/0.8):1;}
+function spawnF(t,p){const u=((t%p)+p)%p/p;if(u<0.06)return u/0.06;if(u>0.94)return (1-u)/0.06;return 1;}
+function atomGlow(mesh,color,k=1.8,op=0.14){ const r=mesh.geometry.parameters.radius; const h=new THREE.Mesh(new THREE.SphereGeometry(r*k,16,12), new THREE.MeshBasicMaterial({color,transparent:true,opacity:op,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false})); mesh.add(h); return mesh; }
+function mkA(r,color){ return atomGlow(makeAtom(r,color),color); }
+function clr(dyn){ [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();}); }
+function makePoly(pts,color,op=0.95){ const g=new THREE.BufferGeometry().setFromPoints(pts); return new THREE.Line(g,new THREE.LineBasicMaterial({color,transparent:true,opacity:op,toneMapped:false})); }
+const OATOM={ C:{c:0x607d8b,r:0.42}, H:{c:0xeceff1,r:0.25}, O:{c:0xef5350,r:0.40}, N:{c:0x5c6bc0,r:0.40}, Cl:{c:0x66bb6a,r:0.46}, Br:{c:0xa1887f,r:0.5}, P:{c:0xffb74d,r:0.45} };
+function obond(p1,p2,order,col){ const g=new THREE.Group(); const dir=new THREE.Vector3().subVectors(p2,p1); const ref=(Math.abs(dir.y)>0.9*(dir.length()||1))?new THREE.Vector3(1,0,0):new THREE.Vector3(0,1,0); const perp=new THREE.Vector3().crossVectors(dir,ref).normalize(); const offs=order>=3?[-0.15,0,0.15]:order===2?[-0.11,0.11]:[0]; offs.forEach(o=>g.add(makeBond(p1.clone().addScaledVector(perp,o),p2.clone().addScaledVector(perp,o),col||0x90a4ae,0.06))); return g; }
+function V3(a){ return new THREE.Vector3(a[0],a[1],a[2]); }
+function mkMol(atoms,bonds){ const g=new THREE.Group(); const ps=atoms.map(a=>V3(a.pos)); (bonds||[]).forEach(b=>g.add(obond(ps[b[0]],ps[b[1]],b[2]||1,b[3]))); atoms.forEach((a,i)=>{ const A=OATOM[a.el]||OATOM.C; const m=mkA(a.r||A.r,a.col||A.c); m.position.copy(ps[i]); g.add(m); }); return g; }
+const TET=[[0.63,0.63,0.63],[0.63,-0.63,-0.63],[-0.63,0.63,-0.63],[-0.63,-0.63,0.63]];
+
+// makeAtom + makeBond (kimyasal bağ helper'larından, organik kimya için gerekli)
+function makeAtom(r,color){ return new THREE.Mesh(new THREE.SphereGeometry(r,24,18), new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:0.18,roughness:0.42,toneMapped:false})); }
+function makeBond(p1, p2, color = 0xcfd6e0, r = 0.05) {
+  const grp = new THREE.Group();
+  const dir = new THREE.Vector3().subVectors(p2, p1);
+  const len = dir.length(); if (len < 0.001) return grp;
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 8),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.6, toneMapped: false }));
+  m.position.copy(p1).add(dir.clone().multiplyScalar(0.5));
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+  grp.add(m); return grp;
+}
+
+// ============================================================
+// MODÜL 1 — İLKOKUL (günlük hayat)
+// ============================================================
+SubBuilders.buildKarbonHerYerde = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  let items=[],acc=0;
+  function rebuild(){ clr(dyn); acc=0; items=[];
+    const defs=[ {n:'💎 Elmas',col:0x80deea,x:-4.2}, {n:'✏️ Kalem (grafit)',col:0x546e7a,x:-1.4}, {n:'🍬 Şeker',col:0xfff59d,x:1.4}, {n:'🪵 Odun',col:0x8d6e63,x:4.2} ];
+    defs.forEach(d=>{ const o=new THREE.Mesh(new THREE.IcosahedronGeometry(0.9,0),new THREE.MeshStandardMaterial({color:d.col,roughness:0.5,metalness:0.2,toneMapped:false})); o.position.set(d.x,0.6,0); dyn.add(o); const c=mkA(0.22,0x607d8b); c.position.set(d.x,0.6,0.95); dyn.add(c); o.userData.ph=Math.random()*6; items.push(o); });
+    addInfo3DLabels([ {text:{ilkokul:'⚫ Karbon her yerde! Elmasta, kalemde, şekerde, odunda...'},position:[0,3.4,0],target:[0,0.6,0],color:'#607d8b'}, {text:{ilkokul:'🌍 Canlıların ve birçok maddenin yapısında karbon vardır'},position:[0,-3.2,0],target:[0,0.6,0],color:'#90caf9'} ]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; items.forEach(o=>{ o.rotation.y+=dt*0.8; o.position.y=0.6+Math.sin(acc*1.5+o.userData.ph)*0.12; }); };
+  setSceneSliders([ {type:'section',label:'Karbon Her Yerde'},
+    {type:'display',label:'Elmas / kalem',highlight:true,getValue:()=>'İkisi de saf karbon!'},
+    {type:'display',label:'Şeker / odun',getValue:()=>'Karbon + başka atomlar'},
+    {type:'display',label:'Senin vücudun',getValue:()=>'Büyük oranda karbon içerir'} ],{title:'Karbon Her Yerde'});
+};
+
+SubBuilders.buildYakitlar = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  let flame,products=[],fuel,acc=0;
+  function rebuild(){ clr(dyn); acc=0; products=[];
+    fuel=mkMol([{el:'C',pos:[-3.2,0,0]},{el:'H',pos:[-3.2+TET[0][0],TET[0][1],TET[0][2]]},{el:'H',pos:[-3.2+TET[1][0],TET[1][1],TET[1][2]]},{el:'H',pos:[-3.2+TET[2][0],TET[2][1],TET[2][2]]},{el:'H',pos:[-3.2+TET[3][0],TET[3][1],TET[3][2]]}],[[0,1],[0,2],[0,3],[0,4]]); dyn.add(fuel);
+    flame=new THREE.Mesh(new THREE.ConeGeometry(0.6,1.6,16),new THREE.MeshBasicMaterial({color:0xff9800,transparent:true,opacity:0.85,toneMapped:false})); flame.position.set(0,0.4,0); dyn.add(flame);
+    const inner=new THREE.Mesh(new THREE.ConeGeometry(0.3,0.9,12),new THREE.MeshBasicMaterial({color:0xffeb3b,transparent:true,opacity:0.9,toneMapped:false})); inner.position.set(0,0.2,0); flame.userData.inner=inner; dyn.add(inner);
+    for(let i=0;i<4;i++){ const co2=mkMol([{el:'C',pos:[0,0,0]},{el:'O',pos:[-0.95,0,0]},{el:'O',pos:[0.95,0,0]}],[[0,1,2],[0,2,2]]); co2.scale.setScalar(0.5); co2.userData={s:new THREE.Vector3(2.6,0.4,0),ph:i/4}; dyn.add(co2); products.push(co2); }
+    addInfo3DLabels([ {text:{ilkokul:'🔥 Yakıtlar (doğalgaz, mum) yanınca enerji verir'},position:[0,3.4,0],target:[0,0.4,0],color:'#ff9800'}, {text:{ilkokul:'🪵 Yakıt + oksijen → karbondioksit + su + ısı/ışık'},position:[0,-3.2,0],target:[2.6,0.4,0],color:'#90caf9'} ]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt;
+    if(flame){ const s=1+Math.sin(acc*8)*0.12; flame.scale.set(s,1+Math.sin(acc*6)*0.15,s); if(flame.userData.inner)flame.userData.inner.scale.set(s,s,s); }
+    products.forEach(c=>{ const u=(acc*0.3+c.userData.ph)%1; c.position.set(c.userData.s.x+u*1.6,c.userData.s.y+u*2.4,Math.sin(u*6)*0.3); c.scale.setScalar(0.5*spawnF(acc,3.33)); c.rotation.y+=dt; }); };
+  setSceneSliders([ {type:'section',label:'Yakıtlar ve Yanma'},
+    {type:'display',label:'Yakıt örneği',highlight:true,getValue:()=>'Doğalgaz (metan), mum, odun'},
+    {type:'display',label:'Yanınca',getValue:()=>'Enerji (ısı + ışık) verir'},
+    {type:'display',label:'Çıkan',getValue:()=>'Karbondioksit + su buharı'} ],{title:'Yakıtlar ve Yanma'});
+};
+
+SubBuilders.buildPlastikGunluk = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  let beads=[],acc=0;
+  function rebuild(){ clr(dyn); acc=0; beads=[];
+    const bottle=new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.8,2.4,20),new THREE.MeshStandardMaterial({color:0x4fc3f7,transparent:true,opacity:0.4,toneMapped:false})); bottle.position.set(-3.4,0.4,0); dyn.add(bottle); const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.4,0.4,16),new THREE.MeshStandardMaterial({color:0xfff,toneMapped:false})); cap.position.set(-3.4,1.7,0); dyn.add(cap);
+    for(let i=0;i<10;i++){ const b=mkA(0.3,i%2?0x66bb6a:0x42a5f5); b.userData={i,base:new THREE.Vector3(-1.0+i*0.62,0.4,0)}; b.position.copy(b.userData.base); dyn.add(b); beads.push(b); if(i>0)dyn.add(makeBond(beads[i-1].userData.base,b.userData.base,0x90a4ae,0.06)); }
+    addInfo3DLabels([ {text:{ilkokul:'🧴 Plastikler küçük parçaların uzun zincir oluşturmasıyla yapılır'},position:[0,3.4,0],target:[1.8,0.4,0],color:'#66bb6a'}, {text:{ilkokul:'🛍️ Şişe, poşet, oyuncak... hepsi plastiktir'},position:[0,-3.2,0],target:[-3.4,0.4,0],color:'#4fc3f7'} ]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; beads.forEach(b=>{ b.position.y=b.userData.base.y+Math.sin(acc*2+b.userData.i*0.6)*0.18; }); };
+  setSceneSliders([ {type:'section',label:'Plastikler Hayatımızda'},
+    {type:'display',label:'Plastik nedir?',highlight:true,getValue:()=>'Küçük parçaların uzun zinciri'},
+    {type:'display',label:'Nerede?',getValue:()=>'Şişe, poşet, oyuncak, kalem'},
+    {type:'display',label:'Dikkat',getValue:()=>'Doğada zor çözünür; geri dönüştürelim'} ],{title:'Plastikler Hayatımızda'});
+};
+
+SubBuilders.buildDogalYapay = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  let items=[],acc=0;
+  function rebuild(){ clr(dyn); acc=0; items=[];
+    const defs=[ {n:'🍃',col:0x66bb6a,x:-4.0,nat:1},{n:'🧶',col:0xfff176,x:-1.5,nat:1},{n:'🧴',col:0x4fc3f7,x:1.5,nat:0},{n:'🧪',col:0xba68c8,x:4.0,nat:0} ];
+    dyn.add(makePoly([new THREE.Vector3(0,3.0,0),new THREE.Vector3(0,-3.0,0)],0x90a4ae,0.4));
+    defs.forEach(d=>{ const o=new THREE.Mesh(new THREE.DodecahedronGeometry(0.85,0),new THREE.MeshStandardMaterial({color:d.col,roughness:0.6,toneMapped:false})); o.position.set(d.x,0.6,0); o.userData.ph=Math.random()*6; dyn.add(o); items.push(o); });
+    addInfo3DLabels([ {text:{ilkokul:'🍃 Doğal maddeler (odun, pamuk, yün) doğadan gelir'},position:[-2.6,3.2,0],target:[-2.7,0.6,0],color:'#66bb6a'}, {text:{ilkokul:'🧴 Yapay maddeler (plastik, naylon) fabrikada yapılır'},position:[2.6,3.2,0],target:[2.7,0.6,0],color:'#ba68c8'} ]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; items.forEach(o=>{ o.rotation.y+=dt*0.9; o.position.y=0.6+Math.sin(acc*1.6+o.userData.ph)*0.14; }); };
+  setSceneSliders([ {type:'section',label:'Doğal ve Yapay Maddeler'},
+    {type:'display',label:'Doğal',highlight:true,getValue:()=>'Odun, pamuk, yün, kauçuk'},
+    {type:'display',label:'Yapay',getValue:()=>'Plastik, naylon, polyester'},
+    {type:'display',label:'Ortak nokta',getValue:()=>'Çoğu karbon içerir (organiktir)'} ],{title:'Doğal ve Yapay Maddeler'});
+};
+
+// ============================================================
+// MODÜL 2 — ORTAOKUL (daha açıklayıcı)
+// ============================================================
+SubBuilders.buildKarbonBaglari = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  let mol,acc=0;
+  function rebuild(){ clr(dyn); acc=0;
+    mol=mkMol([{el:'C',pos:[0,0,0],r:0.55},{el:'H',pos:[TET[0][0]*1.7,TET[0][1]*1.7,TET[0][2]*1.7]},{el:'H',pos:[TET[1][0]*1.7,TET[1][1]*1.7,TET[1][2]*1.7]},{el:'H',pos:[TET[2][0]*1.7,TET[2][1]*1.7,TET[2][2]*1.7]},{el:'H',pos:[TET[3][0]*1.7,TET[3][1]*1.7,TET[3][2]*1.7]}],[[0,1],[0,2],[0,3],[0,4]]); dyn.add(mol);
+    addInfo3DLabels([ {text:{ortaokul:'⚫ Karbon atomu 4 bağ yapabilir (en dış katmanında 4 elektron)'},position:[0,3.6,0],target:[0,0,0],color:'#607d8b'}, {text:{ortaokul:'🔗 Bu yüzden milyonlarca farklı karbon bileşiği vardır'},position:[0,-3.6,0],target:[0,0,0],color:'#90caf9'} ]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(mol){ mol.rotation.y+=dt*0.6; mol.rotation.x=Math.sin(acc*0.5)*0.2; } };
+  setSceneSliders([ {type:'section',label:'Karbonun Bağları'},
+    {type:'display',label:'Karbonun bağı',highlight:true,getValue:()=>'4 tane (dört yönde)'},
+    {type:'display',label:'Örnek',getValue:()=>'Metan (CH₄): 1 karbon + 4 hidrojen'},
+    {type:'display',label:'Sonuç',getValue:()=>'Zincir, halka, dallanma yapabilir'} ],{title:'Karbonun 4 Bağı'});
+};
+
+SubBuilders.buildHidrokarbonGiris = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  const S=window._sceneState; if(S.hk_tip===undefined)S.hk_tip=0;
+  let mol,acc=0;
+  function rebuild(){ clr(dyn); acc=0;
+    if(S.hk_tip===0){ mol=mkMol([{el:'C',pos:[0,0,0]},{el:'H',pos:[TET[0][0]*1.5,TET[0][1]*1.5,TET[0][2]*1.5]},{el:'H',pos:[TET[1][0]*1.5,TET[1][1]*1.5,TET[1][2]*1.5]},{el:'H',pos:[TET[2][0]*1.5,TET[2][1]*1.5,TET[2][2]*1.5]},{el:'H',pos:[TET[3][0]*1.5,TET[3][1]*1.5,TET[3][2]*1.5]}],[[0,1],[0,2],[0,3],[0,4]]); }
+    else { mol=mkMol([{el:'C',pos:[-0.75,0,0]},{el:'C',pos:[0.75,0,0]},{el:'H',pos:[-1.3,0.9,0.3]},{el:'H',pos:[-1.3,-0.6,0.8]},{el:'H',pos:[-1.3,-0.3,-0.9]},{el:'H',pos:[1.3,0.9,-0.3]},{el:'H',pos:[1.3,-0.6,-0.8]},{el:'H',pos:[1.3,-0.3,0.9]}],[[0,1],[0,2],[0,3],[0,4],[1,5],[1,6],[1,7]]); }
+    dyn.add(mol);
+    addInfo3DLabels([ {text:{ortaokul:'⛓️ Hidrokarbon: yalnızca karbon (C) ve hidrojen (H) içerir'},position:[0,3.6,0],target:[0,0,0],color:'#607d8b'}, {text:{ortaokul:(S.hk_tip===0?'Metan CH₄ — doğalgazın ana maddesi':'Etan C₂H₆ — 2 karbonlu zincir')},position:[0,-3.6,0],target:[0,0,0],color:'#90caf9'} ]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(mol){ mol.rotation.y+=dt*0.6; mol.position.y=Math.sin(acc*1.5)*0.12; } };
+  setSceneSliders([ {type:'section',label:'Hidrokarbonlar'},
+    {type:'presets',activeIdx:S.hk_tip,options:[ {label:'Metan (CH₄)',action:()=>{S.hk_tip=0;rebuild();}}, {label:'Etan (C₂H₆)',action:()=>{S.hk_tip=1;rebuild();}} ]},
+    {type:'display',label:'İçeriği',highlight:true,getValue:()=>'Sadece karbon + hidrojen'},
+    {type:'display',label:'Kullanım',getValue:()=>'Yakıt (doğalgaz, tüpgaz, benzin)'} ],{title:'Hidrokarbonlara Giriş'});
+};
+
+SubBuilders.buildFosilYakitlar = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  let chain,products=[],flame,acc=0;
+  function rebuild(){ clr(dyn); acc=0; products=[];
+    chain=new THREE.Group(); const cs=[]; for(let i=0;i<4;i++){ const c=mkA(0.4,0x607d8b); c.position.set(-2.4+i*0.95,(i%2?0.3:-0.3),0); chain.add(c); cs.push(c.position.clone()); if(i>0)chain.add(obond(cs[i-1],cs[i],1)); } chain.position.set(-1.6,0.6,0); dyn.add(chain);
+    flame=new THREE.Mesh(new THREE.ConeGeometry(0.55,1.4,14),new THREE.MeshBasicMaterial({color:0xff7043,transparent:true,opacity:0.8,toneMapped:false})); flame.position.set(1.4,0.4,0); dyn.add(flame);
+    for(let i=0;i<3;i++){ const co2=mkMol([{el:'C',pos:[0,0,0]},{el:'O',pos:[-0.9,0,0]},{el:'O',pos:[0.9,0,0]}],[[0,1,2],[0,2,2]]); co2.scale.setScalar(0.45); co2.userData.ph=i/3; dyn.add(co2); products.push(co2); }
+    addInfo3DLabels([ {text:{ortaokul:'🛢️ Fosil yakıtlar (petrol, kömür, doğalgaz) uzun hidrokarbon zincirleridir'},position:[0,3.8,0],target:[-1.6,0.6,0],color:'#607d8b'}, {text:{ortaokul:'🔥 Yanınca enerji + CO₂ verir → sera etkisi (çevre sorunu)'},position:[0,-3.6,0],target:[1.4,0.4,0],color:'#ef5350'} ]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(flame){ const s=1+Math.sin(acc*7)*0.13; flame.scale.set(s,1+Math.sin(acc*5)*0.16,s); } products.forEach(c=>{ const u=(acc*0.3+c.userData.ph)%1; c.position.set(1.4+u*1.8,0.4+u*2.4,Math.sin(u*6)*0.3); c.scale.setScalar(0.45*spawnF(acc,3.33)); c.rotation.y+=dt; }); if(chain)chain.rotation.y=Math.sin(acc*0.6)*0.3; };
+  setSceneSliders([ {type:'section',label:'Fosil Yakıtlar'},
+    {type:'display',label:'Nedir?',highlight:true,getValue:()=>'Petrol, kömür, doğalgaz'},
+    {type:'display',label:'Yapısı',getValue:()=>'Uzun hidrokarbon zincirleri'},
+    {type:'display',label:'Yanınca',getValue:()=>'Enerji + CO₂ (sera gazı)'},
+    {type:'display',label:'Sorun',getValue:()=>'Tükenir + küresel ısınma'} ],{title:'Fosil Yakıtlar ve Çevre'});
+};
+
+SubBuilders.buildPolimerOrtaokul = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  let monos=[],chain,acc=0;
+  function rebuild(){ clr(dyn); acc=0; monos=[];
+    for(let i=0;i<7;i++){ const m=new THREE.Group(); const c=mkA(0.34,0x607d8b); const h1=mkA(0.2,0xeceff1); h1.position.set(0,0.5,0); const h2=mkA(0.2,0xeceff1); h2.position.set(0,-0.5,0); m.add(c,h1,h2); m.userData={i,base:new THREE.Vector3(-3.6+i*1.2,0.4,0),start:new THREE.Vector3(-3.6+i*1.2,3.0+i*0.3,(i%2?1:-1)*1.5)}; dyn.add(m); monos.push(m); }
+    addInfo3DLabels([ {text:{ortaokul:'🔗 Monomer (küçük birim) + monomer + monomer = Polimer (uzun zincir)'},position:[0,3.8,0],target:[0,0.4,0],color:'#66bb6a'}, {text:{ortaokul:'🧬 Plastik, naylon, kauçuk, DNA... hepsi polimerdir'},position:[0,-3.6,0],target:[0,0.4,0],color:'#90caf9'} ]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; const p=rhr(acc,6); monos.forEach((m,i)=>{ const u=Math.max(0,Math.min(1,p*7-i)); m.position.lerpVectors(m.userData.start,m.userData.base,ezz(u)); }); };
+  setSceneSliders([ {type:'section',label:'Polimerler'},
+    {type:'display',label:'Monomer',highlight:true,getValue:()=>'Tek tek küçük birimler'},
+    {type:'display',label:'Polimer',getValue:()=>'Birimlerin uzun zinciri'},
+    {type:'display',label:'Örnek',getValue:()=>'Plastik, naylon, kauçuk, nişasta'} ],{title:'Monomerden Polimere'});
+};
+// ============================================================
+// MODÜL 3 — LİSE (tam, sınav odaklı)
+// ============================================================
+SubBuilders.buildAlkanlar = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  let mol,methyl,acc=0;
+  function rebuild(){ clr(dyn); acc=0;
+    // bütan zig-zag (C4) sp3
+    const cz=[[-2.4,0.5,0],[-0.8,-0.5,0],[0.8,0.5,0],[2.4,-0.5,0]];
+    const atoms=cz.map(p=>({el:'C',pos:p})); const bonds=[[0,1],[1,2],[2,3]];
+    // her karbona H ekle (görsel sadeleştirilmiş)
+    let idx=4; cz.forEach((p,k)=>{ const up=k%2?-1:1; const hs=[[p[0]-0.3,p[1]+up*0.95,0.5],[p[0]+0.3,p[1]+up*0.95,-0.5]]; if(k===0||k===3)hs.push([p[0]+(k===0?-1:1)*0.9,p[1]-up*0.3,0]); hs.forEach(h=>{ atoms.push({el:'H',pos:h}); bonds.push([k,idx++]); }); });
+    mol=mkMol(atoms,bonds); dyn.add(mol);
+    addInfo3DLabels([ {text:{lise:'Alkanlar: tüm bağlar TEKLİ (doymuş), sp³, açı 109,5° (zig-zag)'},position:[0,3.8,0],target:[0,0,0],color:'#607d8b'}, {text:{lise:'Tekli bağ etrafında SERBEST dönme olur · Genel formül CₙH₂ₙ₊₂'},position:[0,-3.6,0],target:[0,0,0],color:'#90caf9'} ]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(mol){ mol.rotation.y+=dt*0.5; mol.rotation.z=Math.sin(acc*0.6)*0.12; mol.position.y=Math.sin(acc*1.4)*0.1; } };
+  setSceneSliders([ {type:'section',label:'Alkanlar (CₙH₂ₙ₊₂)'},
+    {type:'display',label:'Bağ türü',highlight:true,getValue:()=>'Sadece tekli bağ (doymuş)'},
+    {type:'display',label:'Hibritleşme',getValue:()=>'sp³ · açı 109,5° · dört yüzlü'},
+    {type:'display',label:'Dönme',getValue:()=>'Tekli bağ etrafında serbest döner'},
+    {type:'formula',text:'Örnek: bütan C₄H₁₀'} ],{title:'Alkanlar (Doymuş Hidrokarbonlar)'});
+};
+
+SubBuilders.buildAlkenler = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  let mol,acc=0;
+  function rebuild(){ clr(dyn); acc=0;
+    // eten C2H4 sp2 düzlemsel, çift bağ
+    mol=mkMol([{el:'C',pos:[-0.75,0,0]},{el:'C',pos:[0.75,0,0]},{el:'H',pos:[-1.4,1.1,0]},{el:'H',pos:[-1.4,-1.1,0]},{el:'H',pos:[1.4,1.1,0]},{el:'H',pos:[1.4,-1.1,0]}],[[0,1,2],[0,2],[0,3],[1,4],[1,5]]); mol.scale.setScalar(1.3); dyn.add(mol);
+    // pi bulutu (çift bağ üst/alt)
+    [0.45,-0.45].forEach(z=>{ const pi=new THREE.Mesh(new THREE.SphereGeometry(0.5,14,10),new THREE.MeshBasicMaterial({color:0xab47bc,transparent:true,opacity:0.25,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false})); pi.scale.set(2.2,0.7,0.7); pi.position.set(0,0,z*1.3); mol.add(pi); });
+    addInfo3DLabels([ {text:{lise:'Alkenler: en az bir İKİLİ bağ (C=C), sp², DÜZLEMSEL, açı ~120°'},position:[0,3.8,0],target:[0,0,0],color:'#ab47bc'}, {text:{lise:'İkili bağ DÖNEMEZ (rijit) → cis-trans izomeri · CₙH₂ₙ'},position:[0,-3.6,0],target:[0,0,0],color:'#90caf9'} ]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(mol){ mol.rotation.y+=dt*0.5; mol.position.y=Math.sin(acc*1.4)*0.1; } };
+  setSceneSliders([ {type:'section',label:'Alkenler (CₙH₂ₙ)'},
+    {type:'display',label:'Bağ türü',highlight:true,getValue:()=>'İkili bağ C=C (doymamış)'},
+    {type:'display',label:'Hibritleşme',getValue:()=>'sp² · düzlemsel · ~120°'},
+    {type:'display',label:'Dönme',getValue:()=>'İkili bağ DÖNEMEZ (rijit)'},
+    {type:'formula',text:'Örnek: eten C₂H₄'} ],{title:'Alkenler (İkili Bağ)'});
+};
+
+SubBuilders.buildAlkinler = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  let mol,acc=0;
+  function rebuild(){ clr(dyn); acc=0;
+    // etin C2H2 sp doğrusal üçlü bağ
+    mol=mkMol([{el:'H',pos:[-2.6,0,0]},{el:'C',pos:[-0.7,0,0]},{el:'C',pos:[0.7,0,0]},{el:'H',pos:[2.6,0,0]}],[[0,1],[1,2,3],[2,3]]); mol.scale.setScalar(1.2); dyn.add(mol);
+    [[0,0.5],[0,-0.5],[0.5,0],[-0.5,0]].forEach(d=>{ const pi=new THREE.Mesh(new THREE.SphereGeometry(0.4,12,8),new THREE.MeshBasicMaterial({color:0xab47bc,transparent:true,opacity:0.18,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false})); pi.scale.set(1.6,0.55,0.55); pi.position.set(0,d[0]*1.2,d[1]*1.2); mol.add(pi); });
+    addInfo3DLabels([ {text:{lise:'Alkinler: ÜÇLÜ bağ (C≡C), sp, DOĞRUSAL, açı 180°'},position:[0,3.6,0],target:[0,0,0],color:'#ab47bc'}, {text:{lise:'En doymamış · çok reaktif · CₙH₂ₙ₋₂ (örn. asetilen, kaynak gazı)'},position:[0,-3.6,0],target:[0,0,0],color:'#90caf9'} ]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(mol){ mol.rotation.y+=dt*0.5; mol.rotation.x=Math.sin(acc*0.5)*0.25; mol.position.y=Math.sin(acc*1.4)*0.1; } };
+  setSceneSliders([ {type:'section',label:'Alkinler (CₙH₂ₙ₋₂)'},
+    {type:'display',label:'Bağ türü',highlight:true,getValue:()=>'Üçlü bağ C≡C (en doymamış)'},
+    {type:'display',label:'Hibritleşme',getValue:()=>'sp · doğrusal · 180°'},
+    {type:'display',label:'Örnek',getValue:()=>'Etin (asetilen) C₂H₂ — kaynak'},
+    {type:'formula',text:'Genel: CₙH₂ₙ₋₂'} ],{title:'Alkinler (Üçlü Bağ)'});
+};
+
+SubBuilders.buildFonksiyonelGruplar = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  const S=window._sceneState; if(S.fg_tip===undefined)S.fg_tip=0;
+  const GRP=[ {n:'Alkol (-OH)',atoms:[{el:'O',pos:[1.3,0.4,0]},{el:'H',pos:[2.2,0.0,0]}],b:[[-1,0],[0,1]],use:'Etanol, içki, dezenfektan'},
+    {n:'Karboksilli Asit (-COOH)',atoms:[{el:'C',pos:[1.2,0.2,0]},{el:'O',pos:[1.5,1.4,0]},{el:'O',pos:[2.2,-0.5,0]},{el:'H',pos:[3.0,-0.2,0]}],b:[[-1,0],[0,1,2],[0,2],[2,3]],use:'Sirke (asetik asit), limon'},
+    {n:'Aldehit (-CHO)',atoms:[{el:'C',pos:[1.2,0.2,0]},{el:'O',pos:[1.6,1.4,0]},{el:'H',pos:[2.1,-0.4,0]}],b:[[-1,0],[0,1,2],[0,2]],use:'Formaldehit, koruyucu'},
+    {n:'Amin (-NH₂)',atoms:[{el:'N',pos:[1.3,0.3,0]},{el:'H',pos:[2.1,0.9,0]},{el:'H',pos:[2.1,-0.4,0]}],b:[[-1,0],[0,1],[0,2]],use:'Amino asitler, proteinler'},
+    {n:'Ester (-COO-)',atoms:[{el:'C',pos:[1.2,0.2,0]},{el:'O',pos:[1.5,1.4,0]},{el:'O',pos:[2.3,-0.4,0]},{el:'C',pos:[3.5,-0.1,0]}],b:[[-1,0],[0,1,2],[0,2],[2,3]],use:'Meyve/çiçek kokuları, kozmetik'} ];
+  let mol,acc=0;
+  function rebuild(){ clr(dyn); acc=0; const g=GRP[S.fg_tip];
+    const base=[{el:'C',pos:[-1.6,0,0]},{el:'H',pos:[-2.3,0.9,0.3]},{el:'H',pos:[-2.3,-0.6,0.7]},{el:'H',pos:[-2.3,-0.3,-0.9]}];
+    const atoms=base.concat(g.atoms.map(a=>({el:a.el,pos:a.pos,col:OATOM[a.el].c}))); const bonds=[[0,1],[0,2],[0,3]];
+    g.b.forEach(bb=>{ bonds.push([bb[0]<0?0:bb[0]+4, bb[1]+4, bb[2]]); });
+    mol=mkMol(atoms,bonds); dyn.add(mol);
+    addInfo3DLabels([ {text:{lise:'Fonksiyonel grup: molekülün kimyasal özelliğini belirleyen atom grubu'},position:[0,3.8,0],target:[0,0,0],color:'#ef5350'}, {text:{lise:g.n+' → '+g.use},position:[0,-3.6,0],target:[1.5,0.2,0],color:'#90caf9'} ]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(mol){ mol.rotation.y+=dt*0.45; mol.position.y=Math.sin(acc*1.3)*0.1; } };
+  setSceneSliders([ {type:'section',label:'Fonksiyonel Gruplar'},
+    {type:'presets',activeIdx:S.fg_tip,options:GRP.map((g,i)=>({label:g.n.split(' ')[0],action:()=>{S.fg_tip=i;rebuild();}}))},
+    {type:'display',label:'Grup',highlight:true,getValue:()=>GRP[S.fg_tip].n},
+    {type:'display',label:'Renk kodu',getValue:()=>'O kırmızı, N mavi, H beyaz, C gri'},
+    {type:'display',label:'Günlük',getValue:()=>GRP[S.fg_tip].use} ],{title:'Fonksiyonel Gruplar'});
+};
+
+SubBuilders.buildYapiIzomeri = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  const S=window._sceneState; if(S.iz_tip===undefined)S.iz_tip=0;
+  let mol,acc=0;
+  function rebuild(){ clr(dyn); acc=0;
+    if(S.iz_tip===0){ // n-bütan düz zincir
+      const cz=[[-2.4,0.5,0],[-0.8,-0.5,0],[0.8,0.5,0],[2.4,-0.5,0]]; mol=mkMol(cz.map(p=>({el:'C',pos:p})),[[0,1],[1,2],[2,3]]);
+    } else { // izobütan dallanmış
+      mol=mkMol([{el:'C',pos:[0,0.6,0]},{el:'C',pos:[-1.6,-0.2,0]},{el:'C',pos:[1.6,-0.2,0]},{el:'C',pos:[0,-1.6,0]}],[[0,1],[0,2],[0,3]]);
+    }
+    mol.scale.setScalar(1.2); dyn.add(mol);
+    addInfo3DLabels([ {text:{lise:'Yapı izomerleri: AYNI molekül formülü, FARKLI bağlanış/yapı'},position:[0,3.8,0],target:[0,0,0],color:'#607d8b'}, {text:{lise:(S.iz_tip===0?'n-Bütan: düz zincir (C₄H₁₀)':'İzobütan: dallanmış (C₄H₁₀) — aynı formül!')},position:[0,-3.6,0],target:[0,0,0],color:'#90caf9'} ]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(mol){ mol.rotation.y+=dt*0.5; mol.position.y=Math.sin(acc*1.4)*0.1; } };
+  setSceneSliders([ {type:'section',label:'Yapı İzomerliği'},
+    {type:'presets',activeIdx:S.iz_tip,options:[ {label:'n-Bütan',action:()=>{S.iz_tip=0;rebuild();}}, {label:'İzobütan',action:()=>{S.iz_tip=1;rebuild();}} ]},
+    {type:'display',label:'Ortak',highlight:true,getValue:()=>'Aynı formül: C₄H₁₀'},
+    {type:'display',label:'Fark',getValue:()=>'Karbon zincirinin bağlanışı'},
+    {type:'display',label:'Sonuç',getValue:()=>'Farklı özellik (kaynama noktası vb.)'} ],{title:'Yapı (Zincir) İzomerliği'});
+};
+SubBuilders.buildKiralite = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  let molL,molR,acc=0;
+  function chiral(sign){ const g=new THREE.Group(); const cols=[0xeceff1,0xef5350,0x66bb6a,0x42a5f5]; const c=mkA(0.45,0x607d8b); g.add(c); TET.forEach((d,i)=>{ const dd=[d[0]*sign,d[1],d[2]]; const sub=mkA(0.34,cols[i]); sub.position.set(dd[0]*1.6,dd[1]*1.6,dd[2]*1.6); g.add(sub); g.add(makeBond(new THREE.Vector3(0,0,0),new THREE.Vector3(dd[0]*1.6,dd[1]*1.6,dd[2]*1.6),0x90a4ae,0.06)); }); return g; }
+  function rebuild(){ clr(dyn); acc=0;
+    molL=chiral(1); molL.position.set(-2.6,0.3,0); dyn.add(molL);
+    molR=chiral(-1); molR.position.set(2.6,0.3,0); dyn.add(molR);
+    dyn.add(makePoly([new THREE.Vector3(0,3.0,0),new THREE.Vector3(0,-3.0,0)],0xffee58,0.4)); // ayna düzlemi
+    addInfo3DLabels([ {text:{lise:'Kiral molekül ve AYNA görüntüsü (enantiyomerler)'},position:[0,3.8,0],target:[0,0.3,0],color:'#ffee58'}, {text:{lise:'Döndürerek üst üste çakıştıramazsın — sağ/sol el gibi!'},position:[0,-3.6,0],target:[0,0.3,0],color:'#90caf9'} ]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(molL)molL.rotation.y+=dt*0.7; if(molR)molR.rotation.y-=dt*0.7; };
+  setSceneSliders([ {type:'section',label:'Kiralite (Enantiyomerler)'},
+    {type:'display',label:'Kiral merkez',highlight:true,getValue:()=>'4 farklı grup bağlı karbon'},
+    {type:'display',label:'İlişki',getValue:()=>'Birbirinin ayna görüntüsü'},
+    {type:'display',label:'Çakışma',getValue:()=>'Döndürerek ÇAKIŞMAZ (sağ/sol el)'},
+    {type:'display',label:'Önem',getValue:()=>'İlaçlarda kritik (biri etkili, biri zararlı olabilir)'} ],{title:'Kiralite ve Enantiyomerler'});
+};
+
+SubBuilders.buildCisTrans = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  const S=window._sceneState; if(S.ct_tip===undefined)S.ct_tip=0;
+  let mol,acc=0;
+  function rebuild(){ clr(dyn); acc=0;
+    const cis=S.ct_tip===0;
+    // C=C; iki büyük grup (yeşil) cis: aynı taraf / trans: zıt taraf
+    const g1=[-1.0,cis?1.3:1.3,0], g2=[1.0,cis?1.3:-1.3,0];
+    mol=mkMol([{el:'C',pos:[-0.75,0,0]},{el:'C',pos:[0.75,0,0]},
+      {el:'C',pos:g1,col:0x66bb6a,r:0.42},{el:'H',pos:[-1.5,-1.0,0]},
+      {el:'C',pos:g2,col:0x66bb6a,r:0.42},{el:'H',pos:[1.5,cis?-1.0:1.0,0]}],
+      [[0,1,2],[0,2],[0,3],[1,4],[1,5]]); mol.scale.setScalar(1.25); dyn.add(mol);
+    [0.4,-0.4].forEach(z=>{ const pi=new THREE.Mesh(new THREE.SphereGeometry(0.45,12,8),new THREE.MeshBasicMaterial({color:0xab47bc,transparent:true,opacity:0.22,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false})); pi.scale.set(2,0.6,0.6); pi.position.set(0,0,z*1.25); mol.add(pi); });
+    addInfo3DLabels([ {text:{lise:(cis?'CİS: iki grup AYNI tarafta':'TRANS: iki grup ZIT tarafta')},position:[0,3.8,0],target:[0,0,0],color:'#66bb6a'}, {text:{lise:'İkili bağ dönemediği için cis ve trans farklı moleküllerdir'},position:[0,-3.6,0],target:[0,0,0],color:'#90caf9'} ]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(mol){ mol.rotation.y+=dt*0.45; mol.rotation.z=Math.sin(acc*0.6)*0.1; mol.position.y=Math.sin(acc*1.4)*0.12; } };
+  setSceneSliders([ {type:'section',label:'Cis-Trans (Geometrik) İzomeri'},
+    {type:'presets',activeIdx:S.ct_tip,options:[ {label:'Cis',action:()=>{S.ct_tip=0;rebuild();}}, {label:'Trans',action:()=>{S.ct_tip=1;rebuild();}} ]},
+    {type:'display',label:'Cis',highlight:true,getValue:()=>'Gruplar aynı tarafta'},
+    {type:'display',label:'Trans',getValue:()=>'Gruplar zıt tarafta'},
+    {type:'display',label:'Neden farklı?',getValue:()=>'İkili bağ dönemez (rijit)'} ],{title:'Cis-Trans İzomerliği'});
+};
+
+SubBuilders.buildBenzen = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  let ring,clouds=[],acc=0;
+  function rebuild(){ clr(dyn); acc=0; clouds=[];
+    ring=new THREE.Group(); const cs=[]; for(let i=0;i<6;i++){ const a=i/6*Math.PI*2; const p=new THREE.Vector3(Math.cos(a)*1.6,Math.sin(a)*1.6,0); cs.push(p); const c=mkA(0.4,0x607d8b); c.position.copy(p); ring.add(c); const h=mkA(0.24,0xeceff1); h.position.set(Math.cos(a)*2.7,Math.sin(a)*2.7,0); ring.add(h); ring.add(makeBond(p,new THREE.Vector3(Math.cos(a)*2.7,Math.sin(a)*2.7,0),0x90a4ae,0.05)); }
+    for(let i=0;i<6;i++)ring.add(makeBond(cs[i],cs[(i+1)%6],0x90a4ae,0.07));
+    [0.7,-0.7].forEach(z=>{ const cl=new THREE.Mesh(new THREE.TorusGeometry(1.6,0.5,16,32),new THREE.MeshBasicMaterial({color:0xab47bc,transparent:true,opacity:0.22,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false})); cl.position.z=z; ring.add(cl); clouds.push(cl); });
+    dyn.add(ring); ring.rotation.x=-0.5;
+    addInfo3DLabels([ {text:{lise:'Benzen (C₆H₆): 6 karbonlu halka, delokalize π elektron bulutu'},position:[0,3.8,0],target:[0,0,0],color:'#ab47bc'}, {text:{lise:'π bulutu halkanın ALTINI ve ÜSTÜNÜ sarar → ekstra kararlılık (aromatiklik)'},position:[0,-3.6,0],target:[0,0,0],color:'#90caf9'} ]);
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(ring){ ring.rotation.z+=dt*0.5; } clouds.forEach((cl,i)=>{ cl.rotation.z+=dt*(i?-1.5:1.5); cl.material.opacity=0.18+0.1*Math.abs(Math.sin(acc*2)); }); };
+  setSceneSliders([ {type:'section',label:'Benzen ve Aromatiklik'},
+    {type:'display',label:'Yapı',highlight:true,getValue:()=>'6 karbonlu düzlemsel halka (C₆H₆)'},
+    {type:'display',label:'π elektronları',getValue:()=>'Delokalize (halka boyunca yayılı)'},
+    {type:'display',label:'π bulutu',getValue:()=>'Halkanın alt + üstünü sarar'},
+    {type:'display',label:'Sonuç',getValue:()=>'Çok kararlı (aromatik) yapı'} ],{title:'Benzen ve Aromatik Bileşikler'});
+};
+
+SubBuilders.buildPolimerler = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  const S=window._sceneState; if(S.pl_tip===undefined)S.pl_tip=0;
+  let monos=[],acc=0;
+  function rebuild(){ clr(dyn); acc=0; monos=[];
+    if(S.pl_tip===0){ // katılma: çift bağlı monomerler açılıp zincir
+      for(let i=0;i<8;i++){ const m=mkMol([{el:'C',pos:[-0.45,0,0]},{el:'C',pos:[0.45,0,0]},{el:'H',pos:[-0.9,0.7,0]},{el:'H',pos:[0.9,-0.7,0]}],[[0,1,(i<0?2:1)],[0,2],[1,3]]); m.userData={i,base:new THREE.Vector3(-4.2+i*1.15,0.3,0),start:new THREE.Vector3(-4.2+i*1.15,2.6+(i%2)*0.6,(i%2?1.4:-1.4))}; dyn.add(m); monos.push(m); }
+      addInfo3DLabels([ {text:{lise:'Katılma polimerleşmesi: çift bağlı monomerler (eten) açılır, uç uca eklenir'},position:[0,3.8,0],target:[0,0.3,0],color:'#66bb6a'}, {text:{lise:'Örnek: polietilen (PE) — poşet, şişe · n CH₂=CH₂ → (-CH₂-CH₂-)ₙ'},position:[0,-3.6,0],target:[0,0.3,0],color:'#90caf9'} ]);
+    } else { // kondensasyon: monomerler birleşirken küçük molekül (su) çıkar
+      for(let i=0;i<6;i++){ const m=mkMol([{el:'C',pos:[0,0,0],r:0.36},{el:'O',pos:[0.6,0.5,0]},{el:'N',pos:[-0.6,-0.4,0]}],[[0,1,2],[0,2]]); m.userData={i,base:new THREE.Vector3(-3.6+i*1.45,0.3,0),start:new THREE.Vector3(-3.6+i*1.45,2.6,(i%2?1.4:-1.4)),w:null}; dyn.add(m); monos.push(m); }
+      addInfo3DLabels([ {text:{lise:'Kondensasyon polimerleşmesi: monomerler birleşirken küçük molekül (su) ayrılır'},position:[0,3.8,0],target:[0,0.3,0],color:'#42a5f5'}, {text:{lise:'Örnek: naylon, protein, polyester · her bağda 1 H₂O çıkar'},position:[0,-3.6,0],target:[0,0.3,0],color:'#90caf9'} ]);
+    }
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; const p=rhr(acc,7); monos.forEach((m,i)=>{ const u=Math.max(0,Math.min(1,p*(monos.length+1)-i)); m.position.lerpVectors(m.userData.start,m.userData.base,ezz(u)); m.rotation.y+=dt*0.5; }); };
+  setSceneSliders([ {type:'section',label:'Polimerler'},
+    {type:'presets',activeIdx:S.pl_tip,options:[ {label:'Katılma',action:()=>{S.pl_tip=0;rebuild();}}, {label:'Kondensasyon',action:()=>{S.pl_tip=1;rebuild();}} ]},
+    {type:'display',label:'Monomer',highlight:true,getValue:()=>S.pl_tip===0?'Çift bağlı küçük molekül':'İki uçlu fonksiyonel monomer'},
+    {type:'display',label:'Polimer',getValue:()=>S.pl_tip===0?'Polietilen, PVC, polistiren':'Naylon, polyester, protein'},
+    {type:'display',label:'Fark',getValue:()=>S.pl_tip===0?'Yan ürün YOK':'Su (küçük molekül) ayrılır'} ],{title:'Polimerleşme (Katılma / Kondensasyon)'});
+};
+
+SubBuilders.buildOrganikTepkimeler = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  const S=window._sceneState; if(S.ot_tip===undefined)S.ot_tip=0;
+  let mol,extra=[],acc=0;
+  function rebuild(){ clr(dyn); acc=0; extra=[];
+    if(S.ot_tip===0){ // katılma: alken + H2 -> alkan (çift bağ açılır, 2 H eklenir)
+      mol=mkMol([{el:'C',pos:[-0.75,0,0]},{el:'C',pos:[0.75,0,0]},{el:'H',pos:[-1.4,1.0,0]},{el:'H',pos:[-1.4,-1.0,0]},{el:'H',pos:[1.4,1.0,0]},{el:'H',pos:[1.4,-1.0,0]}],[[0,1,2],[0,2],[0,3],[1,4],[1,5]]); dyn.add(mol);
+      for(let i=0;i<2;i++){ const h=mkA(0.26,0xeceff1); h.userData={s:new THREE.Vector3(i?3:-3,2.4,0),e:new THREE.Vector3(i?0.75:-0.75,i?-1.6:1.6,0.8)}; dyn.add(h); extra.push(h); }
+      addInfo3DLabels([ {text:{lise:'Katılma: ikili/üçlü bağa atom eklenir (bağ açılır) → alken + H₂ → alkan'},position:[0,3.8,0],target:[0,0,0],color:'#66bb6a'}, {text:{lise:'Doymamış → doymuş hale gelir (hidrojenlenme)'},position:[0,-3.6,0],target:[0,0,0],color:'#90caf9'} ]);
+    } else if(S.ot_tip===1){ // yer değiştirme: alkan + Cl2 -> bir H, Cl ile değişir
+      mol=mkMol([{el:'C',pos:[0,0,0]},{el:'H',pos:[TET[0][0]*1.5,TET[0][1]*1.5,TET[0][2]*1.5]},{el:'H',pos:[TET[1][0]*1.5,TET[1][1]*1.5,TET[1][2]*1.5]},{el:'H',pos:[TET[2][0]*1.5,TET[2][1]*1.5,TET[2][2]*1.5]},{el:'H',pos:[TET[3][0]*1.5,TET[3][1]*1.5,TET[3][2]*1.5]}],[[0,1],[0,2],[0,3],[0,4]]); dyn.add(mol);
+      const cl=mkA(0.46,0x66bb6a); cl.userData={s:new THREE.Vector3(3,2.4,0),e:new THREE.Vector3(TET[0][0]*1.6,TET[0][1]*1.6,TET[0][2]*1.6)}; dyn.add(cl); extra.push(cl);
+      const hout=mol.children.find(c=>c.position && Math.abs(c.position.x-TET[0][0]*1.5)<0.01); window._otH=hout;
+      addInfo3DLabels([ {text:{lise:'Yer değiştirme: bir atom/grup, başka atomla değişir → alkan + Cl₂ → alkil klorür'},position:[0,3.8,0],target:[0,0,0],color:'#66bb6a'}, {text:{lise:'Bir H, Cl ile yer değiştirir (HCl açığa çıkar)'},position:[0,-3.6,0],target:[0,0,0],color:'#90caf9'} ]);
+    } else { // ayrılma: alkol -> alken + su (eliminasyon)
+      mol=mkMol([{el:'C',pos:[-0.75,0,0]},{el:'C',pos:[0.75,0,0]},{el:'H',pos:[-1.5,0.9,0]},{el:'O',pos:[1.4,1.1,0]},{el:'H',pos:[2.2,0.8,0]}],[[0,1],[0,2],[1,3],[3,4]]); dyn.add(mol);
+      const w=mkMol([{el:'O',pos:[0,0,0]},{el:'H',pos:[0.7,0.5,0]},{el:'H',pos:[-0.7,0.5,0]}],[[0,1],[0,2]]); w.scale.setScalar(0.6); w.userData.s=new THREE.Vector3(1.8,0.6,0); dyn.add(w); extra.push(w);
+      addInfo3DLabels([ {text:{lise:'Ayrılma (eliminasyon): molekülden küçük bir parça ayrılır → çift bağ oluşur'},position:[0,3.8,0],target:[0,0,0],color:'#66bb6a'}, {text:{lise:'Alkol → alken + su (dehidrasyon)'},position:[0,-3.6,0],target:[1.8,0.6,0],color:'#90caf9'} ]);
+    }
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; const p=rhr(acc,5);
+    if(mol)mol.rotation.y+=dt*0.3;
+    if(S.ot_tip===0){ extra.forEach(h=>h.position.lerpVectors(h.userData.s,h.userData.e,p)); }
+    else if(S.ot_tip===1){ extra.forEach(cl=>cl.position.lerpVectors(cl.userData.s,cl.userData.e,p)); if(window._otH)window._otH.position.set(TET[0][0]*1.5+ (3-TET[0][0]*1.5)*p, TET[0][1]*1.5+(2.4-TET[0][1]*1.5)*p, 0); }
+    else { extra.forEach(w=>{ w.position.set(w.userData.s.x+p*1.6,w.userData.s.y+p*2.0,0); w.scale.setScalar(0.6*spawnF(acc,5)); }); } };
+  setSceneSliders([ {type:'section',label:'Organik Tepkimeler'},
+    {type:'presets',activeIdx:S.ot_tip,options:[ {label:'Katılma',action:()=>{S.ot_tip=0;rebuild();}}, {label:'Yer değiştirme',action:()=>{S.ot_tip=1;rebuild();}}, {label:'Ayrılma',action:()=>{S.ot_tip=2;rebuild();}} ]},
+    {type:'display',label:'Tür',highlight:true,getValue:()=>['Katılma (bağ açılır, atom eklenir)','Yer değiştirme (atom değişir)','Ayrılma (parça kopar, çift bağ)'][S.ot_tip]},
+    {type:'display',label:'Örnek',getValue:()=>['Alken + H₂ → alkan','Alkan + Cl₂ → R-Cl + HCl','Alkol → alken + H₂O'][S.ot_tip]} ],{title:'Organik Tepkime Türleri'});
+};
+
+SubBuilders.buildBiyomolekuller = function() {
+  const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
+  root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
+  const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  const S=window._sceneState; if(S.bm_tip===undefined)S.bm_tip=0;
+  let obj,acc=0;
+  function rebuild(){ clr(dyn); acc=0;
+    if(S.bm_tip===0){ // DNA çift sarmal
+      obj=new THREE.Group(); const N=22;
+      for(let i=0;i<N;i++){ const a=i*0.5, y=-3.0+i*0.28; const p1=new THREE.Vector3(Math.cos(a)*1.4,y,Math.sin(a)*1.4); const p2=new THREE.Vector3(Math.cos(a+Math.PI)*1.4,y,Math.sin(a+Math.PI)*1.4); const s1=mkA(0.2,0x42a5f5); s1.position.copy(p1); const s2=mkA(0.2,0xef5350); s2.position.copy(p2); obj.add(s1,s2); obj.add(makeBond(p1,p2,i%2?0x66bb6a:0xffb74d,0.05)); }
+      dyn.add(obj);
+      addInfo3DLabels([ {text:{lise:'DNA: çift sarmal (double helix) — yaşamın bilgi taşıyan polimeri'},position:[0,3.8,0],target:[0,0,0],color:'#42a5f5'}, {text:{lise:'Baz çiftleri (A-T, G-C) iki ipliği birbirine bağlar'},position:[0,-3.6,0],target:[0,0,0],color:'#90caf9'} ]);
+    } else if(S.bm_tip===1){ // protein katlanmış zincir
+      obj=new THREE.Group(); const pts=[]; for(let i=0;i<26;i++){ const a=i*0.7; pts.push(new THREE.Vector3(Math.cos(a)*(1.2-i*0.02)*( (i%9<4)?1:0.5),-2.6+i*0.21,Math.sin(a)*(1.2-i*0.02))); } pts.forEach((p,i)=>{ const aa=mkA(0.22,[0xef5350,0x66bb6a,0x42a5f5,0xffb74d][i%4]); aa.position.copy(p); obj.add(aa); if(i>0)obj.add(makeBond(pts[i-1],p,0x90a4ae,0.05)); }); dyn.add(obj);
+      addInfo3DLabels([ {text:{lise:'Protein: amino asit zincirinin katlanmasıyla oluşan biyopolimer'},position:[0,3.8,0],target:[0,0,0],color:'#66bb6a'}, {text:{lise:'3 boyutlu katlanma proteinin görevini belirler (enzim, kas...)'},position:[0,-3.6,0],target:[0,0,0],color:'#90caf9'} ]);
+    } else { // glikoz halkası
+      obj=new THREE.Group(); const cs=[]; for(let i=0;i<6;i++){ const a=i/6*Math.PI*2; const p=new THREE.Vector3(Math.cos(a)*1.5,Math.sin(a)*1.5,(i===0?0.5:0)); cs.push(p); const c=mkA(0.36,i===4?0xef5350:0x607d8b); c.position.copy(p); obj.add(c); } for(let i=0;i<6;i++)obj.add(makeBond(cs[i],cs[(i+1)%6],0x90a4ae,0.06)); const oh=mkA(0.28,0xef5350); oh.position.set(cs[0].x+0.8,cs[0].y+0.8,0); obj.add(oh); obj.add(makeBond(cs[0],oh.position,0x90a4ae,0.05)); obj.rotation.x=-0.5; dyn.add(obj);
+      addInfo3DLabels([ {text:{lise:'Karbonhidrat (glikoz): 6 karbonlu şeker halkası (C₆H₁₂O₆)'},position:[0,3.8,0],target:[0,0,0],color:'#ffb74d'}, {text:{lise:'Glikoz birimleri birleşince nişasta/selüloz (polisakkarit) oluşur'},position:[0,-3.6,0],target:[0,0,0],color:'#90caf9'} ]);
+    }
+  }
+  rebuild();
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(obj){ obj.rotation.y+=dt*0.6; obj.position.y=Math.sin(acc*1.2)*0.1; } };
+  setSceneSliders([ {type:'section',label:'Biyomoleküller'},
+    {type:'presets',activeIdx:S.bm_tip,options:[ {label:'🧬 DNA',action:()=>{S.bm_tip=0;rebuild();}}, {label:'🧶 Protein',action:()=>{S.bm_tip=1;rebuild();}}, {label:'🍬 Glikoz',action:()=>{S.bm_tip=2;rebuild();}} ]},
+    {type:'display',label:'Tür',highlight:true,getValue:()=>['DNA (nükleik asit)','Protein','Karbonhidrat'][S.bm_tip]},
+    {type:'display',label:'Yapı taşı',getValue:()=>['Nükleotit','Amino asit','Glikoz (şeker)'][S.bm_tip]},
+    {type:'display',label:'Ortak',getValue:()=>'Hepsi karbon temelli biyopolimer'} ],{title:'Yaşamın Molekülleri (Biyomoleküller)'});
+};
+
+// ============================================================
+// ====== SİSTEM: SEVİYE, MOD, NAVİGASYON, UI ================
+// ============================================================
+let currentLevel = 'lise';        // 'ilkokul' | 'ortaokul' | 'lise' | sınav modunda da 'lise' içeriği
+let currentExamMode = false;      // 🎯 Sınavlara Hazırlık aktif mi
+// Bir sahnenin (grades dizisinden) ait olduğu eğitim seviyesi
+function _subLevel(sub) {
+  if (sub.grades && sub.grades.length) {
+    const g = sub.grades[0];
+    if (g <= 4) return 'ilkokul';
+    if (g <= 8) return 'ortaokul';
+    return 'lise';
+  }
+  const lvNum = sub.minLv || 1;
+  return lvNum === 1 ? 'ilkokul' : lvNum === 2 ? 'ortaokul' : 'lise';
+}
+let currentMode = 'sade';
+window._autoSpinActive = false;
+window._isPlayingActive = false;
+
+// Seviye sıralaması (en yakın mevcut veriyi bulmak için)
+const LEVEL_ORDER = ['ilkokul', 'ortaokul', 'lise', 'tyt_ayt'];
+
+function _resolveLevelData(dataObj) {
+  if (!dataObj) return null;
+  // tam eşleşme
+  if (dataObj[currentLevel]) return dataObj[currentLevel];
+  // 'ayt' eski anahtar uyumluluğu
+  if (currentLevel === 'tyt_ayt' && dataObj['ayt']) return dataObj['ayt'];
+  if (currentLevel === 'ayt' && dataObj['tyt_ayt']) return dataObj['tyt_ayt'];
+  // en yakın alt seviyeye düş
+  const idx = LEVEL_ORDER.indexOf(currentLevel);
+  for (let i = idx; i >= 0; i--) {
+    if (dataObj[LEVEL_ORDER[i]]) return dataObj[LEVEL_ORDER[i]];
+  }
+  for (let i = idx + 1; i < LEVEL_ORDER.length; i++) {
+    if (dataObj[LEVEL_ORDER[i]]) return dataObj[LEVEL_ORDER[i]];
+  }
+  // herhangi biri
+  const keys = Object.keys(dataObj);
+  return keys.length ? dataObj[keys[0]] : null;
+}
+
+// Bir sahne aktif seviyede görünür mü?
+function _subVisibleByGrade(sub) {
+  // SINAV MODU: lise sahnelerinin hepsi görünür
+  if (currentExamMode) return _subLevel(sub) === 'lise';
+  return _subLevel(sub) === currentLevel;
+}
+
+// ---------- DROPDOWN: KONU REHBERİ ----------
+function buildTopicDropdown() {
+  const list = document.getElementById('topicList');
+  if (!list) return;
+  list.innerHTML = '';
+  const seenBuilders = new Set(); // sınav modunda aynı sahneyi iki kez gösterme
+  Object.keys(MODULES).forEach(modKey => {
+    const mod = MODULES[modKey];
+    let visibleSubs = mod.subs.filter(s => _subVisibleByGrade(s));
+    // sınav modunda: aynı builder'ı (ör. elektrikAlan) tekrar listeleme
+    if (currentExamMode) {
+      visibleSubs = visibleSubs.filter(s => {
+        if (seenBuilders.has(s.builder)) return false;
+        seenBuilders.add(s.builder); return true;
+      });
+    }
+    if (visibleSubs.length === 0) return;
+    const head = document.createElement('div');
+    head.className = 'dropdown-cat-head';
+    head.textContent = mod.title;
+    list.appendChild(head);
+    visibleSubs.forEach(sub => {
+      const btn = document.createElement('button');
+      btn.className = 'dropdown-item';
+      btn.dataset.module = modKey;
+      btn.dataset.sub = sub.key;
+      btn.innerHTML = `<span class="di-emoji">${sub.label.split(' ')[0]}</span><span>${sub.label.substring(sub.label.indexOf(' ')+1)}</span>`;
+      btn.onclick = () => {
+        currentModule = parseInt(modKey);
+        selectSub(sub.key);
+        closeAllDropdowns();
+      };
+      list.appendChild(btn);
+    });
+  });
+}
+
+// Bir sahnenin aktif sınıfta görünür olup olmadığı (anahtardan)
+function _subVisibleAtLevel(subKey) {
+  for (const mk of Object.keys(MODULES)) {
+    const s = MODULES[mk].subs.find(x => x.key === subKey);
+    if (s) return _subVisibleByGrade(s);
+  }
+  return true;
+}
+// Aktif sınıfta görünür ilk sahnenin anahtarı
+function _firstSubAtLevel() {
+  for (const mk of Object.keys(MODULES)) {
+    const s = MODULES[mk].subs.find(x => _subVisibleByGrade(x));
+    if (s) return s.key;
+  }
+  return 'alkanlar';
+}
+
+function highlightActiveTopic() {
+  document.querySelectorAll('#topicList .dropdown-item').forEach(b => {
+    b.classList.toggle('active', b.dataset.sub === currentSub);
+  });
+}
+
+// ---------- SAHNE SEÇİMİ ----------
+// 3D arka planı temaya göre ayarla (tutulmalar uzay → koyu kalır)
+function applySceneTheme() {
+  if (!scene) return;
+  const isLight = window._lightMode === true;
+  const isSpace = window._isSpaceScene === true;
+  let bgColor, fogColor, fogNear, fogFar;
+  if (isSpace) {
+    // Tutulma sahneleri: aydınlık modda biraz açık gece, karanlıkta derin uzay
+    bgColor = isLight ? 0x1a2138 : 0x02030a;
+    fogColor = bgColor; fogNear = 40; fogFar = 110;
+    scene.background = new THREE.Color(bgColor);
+    scene.fog = null;
+    return;
+  }
+  if (isLight) {
+    bgColor = 0xe4ecf6; fogColor = 0xe4ecf6; fogNear = 45; fogFar = 110;
+  } else {
+    bgColor = 0x1e2740; fogColor = 0x1e2740; fogNear = 45; fogFar = 110;
+  }
+  scene.background = new THREE.Color(bgColor);
+  scene.fog = new THREE.Fog(fogColor, fogNear, fogFar);
+}
+
+function selectSub(subKey) {
+  currentSub = subKey;
+  clearScene();
+  window._isSpaceScene = false;
+  applySceneTheme();
+
+  const builderName = (function() {
+    for (const mk of Object.keys(MODULES)) {
+      const s = MODULES[mk].subs.find(x => x.key === subKey);
+      if (s) { currentModule = parseInt(mk); return s.builder; }
+    }
+    return null;
+  })();
+
+  if (builderName && typeof SubBuilders[builderName] === 'function') {
+    try {
+      SubBuilders[builderName]();
+    } catch (e) {
+      console.error('Builder hatası:', builderName, e);
+    }
+  }
+
+  // Bilgi panelini güncelle (kapalıysa tekrar aç — konu seçilince bilgi görünür olsun)
+  const _bp = document.getElementById('bottomPanel');
+  if (_bp) _bp.classList.remove('hidden');
+  updateInfoPanel(subKey);
+  highlightActiveTopic();
+
+  // Sade modda bazı 3D etiketleri gizle (her ikincisi)
+  applyModeToLabels();
+
+  // Kamerayı sahneye göre hafif yukarı + modeli belirgin şekilde sola kaydır
+  // (sağdaki panel/menüler 3D modelin üstüne binmesin diye target sağa alınır → model sola öteler)
+  if (controls) {
+    controls.target.set(3.2, 0.6, 0);
+    if (camera) camera.position.set(3.2, 5.0, 27.0);
+    controls.captureInitialState && controls.captureInitialState();
+  }
+
+  if (window._showGestureToast) {
+    const allSubs = [];
+    Object.keys(MODULES).forEach(mk => MODULES[mk].subs.forEach(s => allSubs.push(s)));
+    const cur = allSubs.find(s => s.key === subKey);
+    if (cur) window._showGestureToast('📍 ' + cur.label);
+  }
+}
+
+function applyModeToLabels() {
+  if (!window._labelRefs) return;
+  // info3d etiketleri (CSS2D, scene içinde) — sade modda her ikinciyi gizle
+  const info3d = document.querySelectorAll('.info3d-label');
+  info3d.forEach((el, i) => {
+    if (currentMode === 'sade' && i % 2 === 1) {
+      el.dataset.userHidden = '1';
+      el.style.display = 'none';
+    } else {
+      el.dataset.userHidden = '0';
+      el.style.display = labelsVisible ? 'block' : 'none';
+    }
+  });
+}
+
+// ---------- BİLGİ PANELİ ----------
+// Aynı builder'ı paylaşan alias anahtarlar → veri için asıl anahtara yönlendir
+const _SUB_ALIAS = {};
+function _dataKey(subKey) { return _SUB_ALIAS[subKey] || subKey; }
+
+function updateInfoPanel(subKey) {
+  const data = _resolveLevelData(INFO_DATA[_dataKey(subKey)]);
+  if (!data) return;
+  document.getElementById('infoEmoji').textContent = data.emoji || '🔦';
+  // Başlık: "Modül ana başlığı / alt başlık" (eğitim seviyesi gösterilmez)
+  let mainTitle = '', subTitle = '';
+  for (const mk of Object.keys(MODULES)) {
+    const s = MODULES[mk].subs.find(x => x.key === subKey);
+    if (s) {
+      // Modül ana başlığından emoji ve "Modül N:" kısmını temizle
+      mainTitle = (MODULES[mk].title || '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]*Modül\s*\d+:\s*/i, '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]+/, '').trim();
+      // Alt başlık: sahne etiketinden baştaki emojiyi at
+      subTitle = (s.label || '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]+/, '').trim();
+      break;
+    }
+  }
+  const titleHtml = mainTitle ? (mainTitle + ' / ' + subTitle) : (data.title || subTitle);
+  document.getElementById('infoTitle').textContent = titleHtml;
+  const list = document.getElementById('infoList');
+  list.innerHTML = '';
+  let points = data.points || [];
+  // Sade modda ilk 3, detaylıda hepsi
+  const showCount = (currentMode === 'sade') ? 3 : points.length;
+  points.slice(0, showCount).forEach(p => {
+    const li = document.createElement('li');
+    if (p.startsWith('##')) { li.className = 'subhead'; li.innerHTML = p.replace('##','').trim(); }
+    else li.innerHTML = p;
+    list.appendChild(li);
+  });
+  // içerik değişti → kaydırma çubuğunu yeniden hesapla (layout için çoklu deneme)
+  list.scrollTop = 0;
+  setTimeout(updateInfoScrollbar, 30);
+  setTimeout(updateInfoScrollbar, 150);
+  setTimeout(updateInfoScrollbar, 400);
+}
+
+// Özel kaydırma çubuğu: içerik taşınca görünür, kaydırınca thumb hareket eder
+function updateInfoScrollbar() {
+  const list = document.getElementById('infoList');
+  const bar = document.getElementById('infoScrollbar');
+  const thumb = document.getElementById('infoScrollThumb');
+  if (!list || !bar || !thumb) return;
+  const sh = list.scrollHeight, ch = list.clientHeight;
+  if (ch < 5) return; // panel henüz görünür değil, sonraki denemede tekrar bak
+  if (sh <= ch + 3) { bar.classList.remove('visible'); return; }
+  bar.classList.add('visible');
+  const trackH = bar.clientHeight || ch;
+  const thumbH = Math.max(26, trackH * ch / sh);
+  const maxScroll = sh - ch;
+  const maxThumb = trackH - thumbH;
+  const top = maxScroll > 0 ? (list.scrollTop / maxScroll) * maxThumb : 0;
+  thumb.style.height = thumbH + 'px';
+  thumb.style.top = top + 'px';
+}
+
+// ---------- NAVİGASYON (önceki/sonraki sahne) ----------
+function getAllSubs() {
+  const arr = [];
+  Object.keys(MODULES).forEach(mk => MODULES[mk].subs.forEach(s => arr.push(s)));
+  return arr;
+}
+function navigate(dir) {
+  // sadece aktif sınıfta görünen sahneler arasında gez
+  let all = getAllSubs().filter(s => _subVisibleByGrade(s));
+  // sınav modunda aynı builder'ı tekrar gezme
+  if (currentExamMode) {
+    const seen = new Set();
+    all = all.filter(s => { if (seen.has(s.builder)) return false; seen.add(s.builder); return true; });
+  }
+  if (all.length === 0) return;
+  let idx = all.findIndex(s => s.key === currentSub);
+  if (idx < 0) idx = 0;
+  idx = (idx + dir + all.length) % all.length;
+  selectSub(all[idx].key);
+}
+
+// ---------- DROPDOWN AÇ/KAPA ----------
+function closeAllDropdowns() {
+  document.querySelectorAll('.dropdown-panel').forEach(p => p.classList.remove('show'));
+  document.body.classList.remove('dropdown-open');
+}
+function toggleDropdown(id) {
+  const panel = document.getElementById(id);
+  if (!panel) return;
+  const wasOpen = panel.classList.contains('show');
+  closeAllDropdowns();
+  if (!wasOpen) {
+    panel.classList.add('show');
+    document.body.classList.add('dropdown-open');
+  }
+}
+
+// ---------- KARŞILAŞTIRMA POPUP ----------
+window._cmpPages = []; window._cmpIdx = 0;
+window._tblPages = []; window._tblIdx = 0;
+
+function _normalizePages(data) {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  return [data];
+}
+
+function _renderTableHTML(data, styleClass) {
+  let html = '<table class="cmp-table ' + (styleClass||'') + '"><thead><tr>';
+  data.cols.forEach(c => html += `<th>${c}</th>`);
+  html += '</tr></thead><tbody>';
+  data.rows.forEach(row => {
+    html += '<tr>';
+    row.forEach(cell => html += `<td>${cell}</td>`);
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  return html;
+}
+
+function renderCompareTable() {
+  window._cmpPages = _normalizePages(_resolveLevelData(COMPARE_DATA[_dataKey(currentSub)]));
+  window._cmpIdx = 0;
+  _showComparePage();
+}
+function _showComparePage() {
+  const body = document.getElementById('compareBody');
+  const titleEl = document.getElementById('compareTitle');
+  const nav = document.getElementById('compareNav');
+  const counter = document.getElementById('compareCounter');
+  const pages = window._cmpPages;
+  if (!pages.length) {
+    body.innerHTML = '<div class="cmp-no-data">Bu konu için karşılaştırma verisi yok.</div>';
+    if (titleEl) titleEl.textContent = '⚖️ Karşılaştırma';
+    if (nav) nav.classList.add('hidden');
+    return;
+  }
+  const i = window._cmpIdx;
+  const data = pages[i];
+  if (titleEl) titleEl.textContent = '⚖️ ' + (data.title || 'Karşılaştırma');
+  body.innerHTML = _renderTableHTML(data, 'compare-style');
+  if (nav) {
+    if (pages.length > 1) {
+      nav.classList.remove('hidden');
+      counter.textContent = (i+1) + ' / ' + pages.length;
+      document.getElementById('comparePrev').disabled = (i === 0);
+      document.getElementById('compareNext').disabled = (i === pages.length - 1);
+    } else {
+      nav.classList.add('hidden');
+    }
+  }
+}
+
+// ---------- BİLGİ TABLOSU POPUP ----------
+function renderInfoTable() {
+  window._tblPages = _normalizePages(_resolveLevelData(TABLE_DATA[_dataKey(currentSub)]));
+  window._tblIdx = 0;
+  _showTablePage();
+}
+function _showTablePage() {
+  const body = document.getElementById('tableBody');
+  const titleEl = document.getElementById('tableTitle');
+  const nav = document.getElementById('tableNav');
+  const counter = document.getElementById('tableCounter');
+  const pages = window._tblPages;
+  if (!pages.length) {
+    body.innerHTML = '<div class="cmp-no-data">Bu konu için tablo verisi yok.</div>';
+    if (titleEl) titleEl.textContent = '📋 Bilgi Tablosu';
+    if (nav) nav.classList.add('hidden');
+    return;
+  }
+  const i = window._tblIdx;
+  const data = pages[i];
+  if (titleEl) titleEl.textContent = '📋 ' + (data.title || 'Bilgi Tablosu');
+  body.innerHTML = _renderTableHTML(data, '');
+  if (nav) {
+    if (pages.length > 1) {
+      nav.classList.remove('hidden');
+      counter.textContent = (i+1) + ' / ' + pages.length;
+      document.getElementById('tablePrev').disabled = (i === 0);
+      document.getElementById('tableNext').disabled = (i === pages.length - 1);
+    } else {
+      nav.classList.add('hidden');
+    }
+  }
+}
+
+// ============================================================
+// ====== EVENT LISTENERS =====================================
+// ============================================================
+function attachEvents() {
+  // Bilgi listesi içinde parmakla kaydırma: touch olaylarını panel içinde tut
+  (function(){
+    const infoList = document.getElementById('infoList');
+    if (infoList) {
+      ['touchstart','touchmove','touchend','wheel'].forEach(ev => {
+        infoList.addEventListener(ev, (e) => { e.stopPropagation(); }, { passive: true });
+      });
+      // kaydırdıkça özel çubuğu güncelle
+      infoList.addEventListener('scroll', updateInfoScrollbar, { passive: true });
+    }
+    // tüm popup/panel gövdeleri için de aynı koruma (kaydırılabilir alanlar)
+    ['compareBody','tableBody','scenePanel'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) ['touchstart','touchmove','touchend','wheel'].forEach(ev => {
+        el.addEventListener(ev, (e) => { e.stopPropagation(); }, { passive: true });
+      });
+    });
+  })();
+
+  // Seviye dropdown
+  document.getElementById('btnLevel').onclick = () => toggleDropdown('panelLevel');
+  document.getElementById('btnTopic').onclick = () => {
+    // Konu Rehberi'ne basıldığında bilgi paneli kapalıysa geri getir
+    const bp = document.getElementById('bottomPanel');
+    if (bp) bp.classList.remove('hidden');
+    toggleDropdown('panelTopic');
+  };
+
+  document.querySelectorAll('#panelLevel .dropdown-item').forEach(item => {
+    item.onclick = () => {
+      const lv = item.dataset.level;
+      if (lv === 'sinav') { currentExamMode = true; currentLevel = 'lise'; }
+      else { currentExamMode = false; currentLevel = lv; }
+      document.querySelectorAll('#panelLevel .dropdown-item').forEach(x => x.classList.remove('active'));
+      item.classList.add('active');
+      const _labels = { ilkokul:'🟢 İlkokul', ortaokul:'🟡 Ortaokul', lise:'🔵 Lise' };
+      document.getElementById('levelLabel').textContent = currentExamMode ? '🎯 Sınavlara Hazırlık' : (lv === 'ilkokul' ? 'İlkokul' : lv === 'ortaokul' ? 'Ortaokul' : 'Lise');
+      closeAllDropdowns();
+      // konu listesini yeni seviyeye göre yeniden kur
+      buildTopicDropdown();
+      // mevcut sahne bu seviyede yoksa ilk uygun sahneye geç, varsa yeniden kur
+      if (currentSub && !_subVisibleAtLevel(currentSub)) {
+        selectSub(_firstSubAtLevel());
+      } else if (currentSub) {
+        selectSub(currentSub);
+      }
+      // Açık olan popup'ları da yeni seviyeye göre yenile
+      if (document.getElementById('compareOverlay').classList.contains('show')) renderCompareTable();
+      if (document.getElementById('tableOverlay').classList.contains('show')) renderInfoTable();
+      if (window._showGestureToast) window._showGestureToast(currentExamMode ? '🎯 Sınavlara Hazırlık' : (_labels[lv] || lv));
+      if (window._haptic) window._haptic(15);
+    };
+  });
+
+  // Mod (sade/detaylı)
+  document.getElementById('btnMode').onclick = () => toggleDropdown('panelMode');
+  document.querySelectorAll('#panelMode .dropdown-item').forEach(item => {
+    item.onclick = () => {
+      currentMode = item.dataset.mode;
+      document.querySelectorAll('#panelMode .dropdown-item').forEach(x => x.classList.remove('active'));
+      item.classList.add('active');
+      const btnMode = document.getElementById('btnMode');
+      if (currentMode === 'sade') {
+        btnMode.textContent = '📄'; btnMode.classList.add('active');
+        btnMode.title = 'Görünüm Modu: Sade';
+      } else {
+        btnMode.textContent = '📚'; btnMode.classList.remove('active');
+        btnMode.title = 'Görünüm Modu: Detaylı';
+      }
+      closeAllDropdowns();
+      if (currentSub) { updateInfoPanel(currentSub); applyModeToLabels(); }
+      if (window._haptic) window._haptic(15);
+    };
+  });
+
+  // Navigasyon
+  document.getElementById('navPrev').onclick = () => navigate(-1);
+  document.getElementById('navNext').onclick = () => navigate(1);
+
+  // Bilgi paneli kapat
+  document.getElementById('infoCloseBtn').onclick = () => {
+    document.getElementById('bottomPanel').classList.add('hidden');
+  };
+
+  // Aksiyon butonları
+  const spinBtn = document.getElementById('spinBtn');
+  spinBtn.onclick = () => {
+    window._autoSpinActive = !window._autoSpinActive;
+    spinBtn.classList.toggle('active', window._autoSpinActive);
+    // tüm model gruplarına spin ver
+    if (window._currentModelGroup) {
+      window._currentModelGroup.userData.spin = window._autoSpinActive ? 0.3 : 0;
+      if (!dynamicObjects.includes(window._currentModelGroup)) dynamicObjects.push(window._currentModelGroup);
+    }
+    if (window._haptic) window._haptic(15);
+  };
+
+  const labelBtn = document.getElementById('labelBtn');
+  labelBtn.onclick = () => {
+    // Etiket yazıları VE okları birlikte aç/kapa
+    labelsVisible = !labelsVisible;
+    window._leaderLinesVisible = labelsVisible;
+    labelBtn.classList.toggle('active', labelsVisible);
+    document.querySelectorAll('.info3d-label, .label3d').forEach(el => {
+      if (labelsVisible) {
+        el.dataset.labelHidden = '0';
+        if (el.dataset.userHidden !== '1') el.style.display = 'block';
+      } else {
+        el.dataset.labelHidden = '1';
+        el.style.display = 'none';
+      }
+    });
+    if (!labelsVisible) {
+      const svg = document.getElementById('leaderLines');
+      if (svg) svg.innerHTML = '';
+    }
+    if (window._haptic) window._haptic(15);
+  };
+  window._leaderLinesVisible = true;
+  labelBtn.classList.add('active');
+
+  const animBtn = document.getElementById('animBtn');
+  animBtn.onclick = () => {
+    window._isPlayingActive = !window._isPlayingActive;
+    animBtn.classList.toggle('active', window._isPlayingActive);
+    animBtn.querySelector('.ico').textContent = window._isPlayingActive ? '⏸️' : '▶️';
+    const lbl = animBtn.querySelector('span:last-child');
+    if (lbl) lbl.textContent = window._isPlayingActive ? 'Durdur' : 'Çalıştır';
+    if (window._showGestureToast) {
+      window._showGestureToast(window._isPlayingActive ? '▶️ Animasyon başladı' : '⏸️ Duraklatıldı');
+    }
+    if (window._haptic) window._haptic(15);
+  };
+  // Başlangıçta durakta
+  animBtn.classList.remove('active');
+  animBtn.querySelector('.ico').textContent = '▶️';
+
+  // Tema
+  document.getElementById('btnTheme').onclick = () => {
+    document.body.classList.toggle('light-mode');
+    const isLight = document.body.classList.contains('light-mode');
+    document.getElementById('btnTheme').textContent = isLight ? '☀️' : '🌙';
+    window._lightMode = isLight;
+    applySceneTheme();
+    // sahneyi yeniden kur ki grid/panel/çizgi renkleri yeni moda uysun
+    if (currentSub) selectSub(currentSub);
+    if (window._haptic) window._haptic(15);
+  };
+
+  // Tam ekran
+  document.getElementById('btnFs').onclick = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+    } else {
+      document.exitFullscreen && document.exitFullscreen();
+    }
+    if (window._haptic) window._haptic(15);
+  };
+
+  // Paylaş
+  document.getElementById('btnSend').onclick = () => {
+    document.getElementById('shareOverlay').classList.add('show');
+  };
+  document.getElementById('shareClose').onclick = () => {
+    document.getElementById('shareOverlay').classList.remove('show');
+  };
+  document.getElementById('shareWhatsApp').onclick = () => {
+    const txt = encodeURIComponent('🧪 Organik Kimya — 3D interaktif kimya simülasyonu (ilkokuldan liseye)!');
+    window.open('https://wa.me/?text=' + txt, '_blank');
+  };
+  document.getElementById('shareCopy').onclick = () => {
+    try { navigator.clipboard.writeText(window.location.href); } catch(e){}
+    if (window._showGestureToast) window._showGestureToast('📋 Bağlantı kopyalandı');
+    document.getElementById('shareOverlay').classList.remove('show');
+  };
+  document.getElementById('shareDownload').onclick = () => {
+    try {
+      const link = document.createElement('a');
+      link.download = 'organik-kimya.png';
+      link.href = renderer.domElement.toDataURL('image/png');
+      link.click();
+    } catch(e){}
+    document.getElementById('shareOverlay').classList.remove('show');
+  };
+
+  // Karşılaştırma
+  document.getElementById('btnCompare').onclick = () => {
+    renderCompareTable();
+    document.getElementById('compareOverlay').classList.add('show');
+  };
+  document.getElementById('compareClose').onclick = () => {
+    document.getElementById('compareOverlay').classList.remove('show');
+  };
+  document.getElementById('comparePrev').onclick = () => {
+    if (window._cmpIdx > 0) { window._cmpIdx--; _showComparePage(); if (window._haptic) window._haptic(10); }
+  };
+  document.getElementById('compareNext').onclick = () => {
+    if (window._cmpIdx < window._cmpPages.length - 1) { window._cmpIdx++; _showComparePage(); if (window._haptic) window._haptic(10); }
+  };
+
+  // Tablo
+  document.getElementById('btnTable').onclick = () => {
+    renderInfoTable();
+    document.getElementById('tableOverlay').classList.add('show');
+  };
+  document.getElementById('tableClose').onclick = () => {
+    document.getElementById('tableOverlay').classList.remove('show');
+  };
+  document.getElementById('tablePrev').onclick = () => {
+    if (window._tblIdx > 0) { window._tblIdx--; _showTablePage(); if (window._haptic) window._haptic(10); }
+  };
+  document.getElementById('tableNext').onclick = () => {
+    if (window._tblIdx < window._tblPages.length - 1) { window._tblIdx++; _showTablePage(); if (window._haptic) window._haptic(10); }
+  };
+
+  // Overlay dışına tıkla → kapat
+  ['shareOverlay','compareOverlay','tableOverlay'].forEach(id => {
+    const ov = document.getElementById(id);
+    ov.onclick = (e) => { if (e.target === ov) ov.classList.remove('show'); };
+  });
+
+  // Dışarı tıkla → dropdown kapat
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.dropdown-panel') && !e.target.closest('.stack-btn') && !e.target.closest('.tool-icon-btn')) {
+      closeAllDropdowns();
+    }
+  });
+}
+
+// ============================================================
+// ====== BAŞLATMA ============================================
+// ============================================================
+init();
+attachEvents();
+buildTopicDropdown();
+const _le = document.getElementById('levelLabel'); if (_le) _le.textContent = 'Lise';
+selectSub(_firstSubAtLevel());
+animate();
+
+console.log('✓ Organik Kimya simülasyonu başlatıldı');
+</script>
+</body>
+</html>
