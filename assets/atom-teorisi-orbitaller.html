@@ -671,12 +671,15 @@
     gap: 6px;
     transition: all 0.3s ease;
   }
-  .scene-panel.collapsed {
-    width: auto;
-    padding: 6px 10px;
-  }
-  .scene-panel.collapsed > *:not(.sp-toggle) { display: none; }
   .scene-panel.empty { display: none; }
+  /* Değişkenler içeriği: konu değişince açık gelir, 1 sn sonra aşağıdan yukarıya
+     YAVAŞÇA kapanır (max-height JS ile ölçülür → pürüzsüz animasyon). */
+  .sp-body {
+    display: flex; flex-direction: column; gap: 6px;
+    overflow: hidden; opacity: 1;
+    transition: max-height 0.55s ease, opacity 0.4s ease;
+  }
+  .sp-body.closed { opacity: 0; }
 
   body.dropdown-open .scene-panel {
     transform: none;
@@ -1869,18 +1872,37 @@ function setSceneSliders(items, opts = {}) {
   const toggle = document.createElement('button');
   toggle.className = 'sp-toggle';
   toggle.innerHTML = `<span>🎛️ Değişkenler</span><span class="sp-chev">▼</span>`;
+  panel.appendChild(toggle);
+  // Tüm değişkenler animasyonlu bir gövde içine konur (aşağıdan yukarıya kapanma)
+  const body = document.createElement('div');
+  body.className = 'sp-body';
+  panel.appendChild(body);
+  const _chev = toggle.querySelector('.sp-chev');
+  // open=true aç, false yavaşça kapat; yükseklik ölçülerek pürüzsüz animasyon
+  function setSceneOpen(open) {
+    if (open) {
+      body.classList.remove('closed');
+      body.style.maxHeight = body.scrollHeight + 'px';
+      const te = () => { if (!body.classList.contains('closed')) body.style.maxHeight = 'none'; body.removeEventListener('transitionend', te); };
+      body.addEventListener('transitionend', te);
+    } else {
+      body.style.maxHeight = body.scrollHeight + 'px';
+      void body.offsetHeight; // reflow
+      requestAnimationFrame(() => { body.style.maxHeight = '0px'; body.classList.add('closed'); });
+    }
+    if (_chev) _chev.textContent = open ? '▼' : '◀';
+  }
+  window._setSceneOpen = setSceneOpen;
   toggle.onclick = () => {
-    panel.classList.toggle('collapsed');
-    toggle.querySelector('.sp-chev').textContent = panel.classList.contains('collapsed') ? '◀' : '▼';
+    setSceneOpen(body.classList.contains('closed'));
     if (window._haptic) window._haptic(10);
   };
-  panel.appendChild(toggle);
   items.forEach(item => {
     if (item.type === 'section') {
       const t = document.createElement('div');
       t.className = 'sp-section';
       t.textContent = item.label;
-      panel.appendChild(t);
+      body.appendChild(t);
       return;
     }
     if (item.type === 'slider') {
@@ -1935,7 +1957,7 @@ function setSceneSliders(items, opts = {}) {
         slider.value = nv; item.setValue(nv); updateVal();
         if (window._haptic) window._haptic(8);
       });
-      panel.appendChild(row);
+      body.appendChild(row);
       updateVal();
       window._sceneState._displayUpdaters.push(() => {
         const v = item.getValue();
@@ -1948,7 +1970,7 @@ function setSceneSliders(items, opts = {}) {
       row.innerHTML = `<span class="sp-label">${item.label}</span><span class="sp-val"></span>`;
       const val = row.querySelector('.sp-val');
       val.textContent = item.getValue();
-      panel.appendChild(row);
+      body.appendChild(row);
       window._sceneState._displayUpdaters.push(() => { val.textContent = item.getValue(); });
     }
     if (item.type === 'formula') {
@@ -1958,7 +1980,7 @@ function setSceneSliders(items, opts = {}) {
         const row = document.createElement('div');
         row.className = 'sp-formula';
         row.innerHTML = item.text;
-        panel.appendChild(row);
+        body.appendChild(row);
         if (item.getValue && !((currentLevel === 'ilkokul' || currentLevel === 'ortaokul') && hasMath)) {
           window._sceneState._displayUpdaters.push(() => { row.innerHTML = item.getValue(); });
         }
@@ -1980,18 +2002,13 @@ function setSceneSliders(items, opts = {}) {
         };
         row.appendChild(b);
       });
-      panel.appendChild(row);
+      body.appendChild(row);
     }
   });
-  // Varsayılan: panel KAPALI (sadece toggle görünür). Konu Rehberi'nden konu
-  // değiştirilip sahne yeniden kurulduğunda 1 sn açık kalıp otomatik kapanır →
-  // kullanıcı ne olduğunu görür; istediğinde toggle'a basıp tekrar açabilir.
-  const _peekChev = toggle.querySelector('.sp-chev');
+  // Konu değiştirilip sahne kurulduğunda panel 1 sn AÇIK kalır; sonra hemen
+  // kaybolmaz, aşağıdan yukarıya YAVAŞÇA kapanır. Kullanıcı isterse toggle'a basar.
   clearTimeout(window._scenePeekTimer);
-  window._scenePeekTimer = setTimeout(() => {
-    panel.classList.add('collapsed');
-    if (_peekChev) _peekChev.textContent = '◀';
-  }, 1000);
+  window._scenePeekTimer = setTimeout(() => { setSceneOpen(false); }, 1000);
 }
 
 function clearSceneSliders() {
@@ -4018,7 +4035,7 @@ function attachEvents() {
     // neredeyse tamamen kapansın (parmağın gittiği yere kadar).
     const MIN_H = 24;
     const maxH = () => Math.max(MIN_H, Math.round(window.innerHeight - 150));
-    let dragging = false, startY = 0, startH = 0;
+    let dragging = false, startY = 0, startH = 0, pid = null, moved = false;
     function curH() {
       const v = getComputedStyle(panel).getPropertyValue('--info-h').trim();
       if (v.endsWith('px')) return parseFloat(v);
@@ -4030,36 +4047,34 @@ function attachEvents() {
       panel.style.setProperty('--info-h', h + 'px');
       if (typeof updateInfoScrollbar === 'function') updateInfoScrollbar();
     }
-    function onDown(e) {
-      dragging = true; startH = curH();
-      startY = (e.touches ? e.touches[0].clientY : e.clientY);
+    // Pointer Events + pointer capture → dokunmada güvenilir; parmak tutamaçtan
+    // çıksa bile sürükleme devam eder (eski touch/mouse sürümü cihazda çalışmıyordu).
+    handle.addEventListener('pointerdown', (e) => {
+      dragging = true; moved = false; startH = curH(); startY = e.clientY; pid = e.pointerId;
       list.style.transition = 'none';
+      try { handle.setPointerCapture(pid); } catch(_){}
       if (window._haptic) window._haptic(12);
       e.preventDefault(); e.stopPropagation();
-    }
-    function onMove(e) {
+    });
+    handle.addEventListener('pointermove', (e) => {
       if (!dragging) return;
-      const y = (e.touches ? e.touches[0].clientY : e.clientY);
-      // yukarı çekince (y küçülür) → genişler, aşağı çekince → daralır
-      setH(startH + (startY - y));
+      if (Math.abs(e.clientY - startY) > 2) moved = true;
+      setH(startH + (startY - e.clientY)); // yukarı çek → genişle, aşağı çek → daral
       e.preventDefault();
-    }
-    function onUp() {
+    });
+    function end() {
       if (!dragging) return;
       dragging = false; list.style.transition = '';
+      try { handle.releasePointerCapture(pid); } catch(_){}
     }
-    handle.addEventListener('touchstart', onDown, { passive: false });
-    window.addEventListener('touchmove', onMove, { passive: false });
-    window.addEventListener('touchend', onUp);
-    window.addEventListener('touchcancel', onUp);
-    handle.addEventListener('mousedown', onDown);
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    // Tutamaca çift dokunuş: tam genişlet / varsayılana dön
+    handle.addEventListener('pointerup', end);
+    handle.addEventListener('pointercancel', end);
+    // Sürükleme değil sadece dokunuşsa: çift dokunuşta tam aç / varsayılana dön
     let lastTap = 0;
     handle.addEventListener('click', () => {
+      if (moved) { moved = false; return; }
       const now = Date.now();
-      if (now - lastTap < 320) { const big = maxH() - 40; setH(curH() > big - 30 ? Math.round(window.innerHeight*0.24) : big); }
+      if (now - lastTap < 320) { const big = maxH(); setH(curH() > big - 60 ? Math.round(window.innerHeight*0.24) : big); }
       lastTap = now;
     });
   })();
