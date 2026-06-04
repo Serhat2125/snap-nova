@@ -428,6 +428,19 @@ class Edu3DKimyaScreen extends StatelessWidget {
             ),
           ],
         ),
+        // Başlık satırında sağa hizalı ayarlar (çark) ikonu
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_rounded),
+            color: AppPalette.textPrimary(context),
+            tooltip: 'Ayarlar',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Edu3DKimyaAyarlarScreen(),
+              ),
+            ),
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
@@ -553,6 +566,54 @@ class Edu3DKimyaScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Kimya 3D Modelleri — Ayarlar ekranı.
+/// Kimya başlığındaki ayarlar (çark) ikonundan açılır.
+/// İçeriği kullanıcının göndereceği ayar koduyla doldurulacak.
+class Edu3DKimyaAyarlarScreen extends StatelessWidget {
+  const Edu3DKimyaAyarlarScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppPalette.bg(context),
+      appBar: AppBar(
+        backgroundColor: AppPalette.card(context),
+        elevation: 0,
+        foregroundColor: AppPalette.textPrimary(context),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.settings_rounded,
+                color: Color(0xFFE11D48), size: 22),
+            const SizedBox(width: 8),
+            Text(
+              'Ayarlar',
+              style: GoogleFonts.poppins(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+      // TODO: Kullanıcının göndereceği ayar kodu buraya gelecek.
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'Ayarlar buraya eklenecek.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              color: AppPalette.textSecondary(context),
+            ),
+          ),
+        ),
       ),
     );
   }
