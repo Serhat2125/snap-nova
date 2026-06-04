@@ -56,7 +56,7 @@
     position:absolute;
     top:2px; right:14px;
     z-index:30;
-    display:flex; flex-direction:column; gap:14px;
+    display:flex; flex-direction:column; gap:8px;
     align-items:flex-end;
   }
 
@@ -336,37 +336,52 @@
     border:1px solid rgba(0,0,0,0.3);
   }
   .info-list li {
-    padding:3px 0;
+    padding:3px 0 3px 15px;
     margin-bottom:0;
     background:transparent;
     border:none;
     border-radius:0;
-    font-size:13px;
+    font-size:12px;
     line-height:1.5;
     color:var(--ink);
     position:relative;
   }
+  /* Madde başında küçük MAVİ nokta */
   .info-list li::before {
-    content:'';
+    content:'•';
+    color:var(--joint);
+    position:absolute;
+    left:3px; top:3px;
+    font-size:13px; line-height:1.45;
   }
   .info-list li b {
     color:var(--accent-glow);
     font-weight:700;
   }
+  /* Ara başlık (##) → SARI, nokta yok */
   .info-list li.subhead {
     background:transparent;
     border-left:none;
     color:var(--warning);
     font-weight:700;
-    font-size:13px;
+    font-size:12px;
     margin-top:5px;
     margin-bottom:2px;
     padding:0 0 1px 0;
     font-style:normal;
   }
-  .info-list li.subhead::before {
-    content:'';
+  .info-list li.subhead::before { content:''; }
+  /* Yan başlık (###) → MAVİ, nokta yok */
+  .info-list li.subhead2 {
+    background:transparent;
+    color:var(--joint);
+    font-weight:700;
+    font-size:12px;
+    margin-top:4px;
+    margin-bottom:1px;
+    padding:0 0 1px 0;
   }
+  .info-list li.subhead2::before { content:''; }
 
   .action-row {
     display:grid;
@@ -562,6 +577,14 @@
   .cmp-table th:nth-child(3),
   .cmp-table th:nth-child(4) { border-left:1px dashed rgba(255,255,255,0.3); }
   .cmp-table tr:hover td { background:rgba(246,185,59,0.20) !important; }
+  /* Karşılaştırma (versus): karşılaştırılan varlıklar SÜTUN başlığında ayrı renkte */
+  .cmp-versus th.cmp-aspect { background:linear-gradient(135deg,#3a4668,#2a3450); color:var(--ink); text-shadow:none; }
+  .cmp-versus th.cmp-ent { color:#0a1420; }
+  .cmp-versus th.cmp-ent-0 { background:linear-gradient(135deg,#ffd166,#f6b93b); }
+  .cmp-versus th.cmp-ent-1 { background:linear-gradient(135deg,#7adcf0,#3aa0c8); }
+  .cmp-versus th.cmp-ent-2 { background:linear-gradient(135deg,#cbb3ff,#9d7fe6); }
+  .cmp-versus th.cmp-ent-3 { background:linear-gradient(135deg,#a6e3a1,#5fb377); }
+  .cmp-versus td.cmp-aspect-cell { font-weight:700; color:var(--ink); white-space:nowrap; border-right:2px solid var(--accent); background:rgba(255,255,255,0.05); }
   .cmp-no-data {
     text-align:center;
     padding:24px 12px;
@@ -645,7 +668,7 @@
     .bottom-panel { padding:11px 10px 9px; gap:9px; }
     .info-emoji-box { width:36px; height:36px; font-size:20px; }
     .info-title { font-size:14px; }
-    .info-list li { font-size:13px; padding:3px 0; }
+    .info-list li { font-size:12px; padding:3px 0 3px 15px; }
     .info-list { max-height:var(--info-h, 28vh); }
     .action-btn { font-size:11px; padding:7px 8px; }
     .dropdown-panel { min-width:200px; }
@@ -761,28 +784,29 @@
     padding: 0 4px;
     font-size: 11px;
   }
-  /* Sekme: Konu Rehberi ile uyumlu kompakt pill (tek çerçeve) */
+  /* Sekme: TURUNCU; Lise/Konu Rehberi ile aynı boyut/yapı (ikon başta, ok sağda) */
   .sp-toggle {
-    background: var(--panel);
-    border: 2px solid var(--panel-line);
-    color: var(--ink);
+    background: linear-gradient(135deg, #f59f0a, #f97316);
+    border: 2px solid rgba(255, 184, 92, 0.6);
+    color: #fff;
     font-family: 'Fredoka', sans-serif;
-    font-size: 11.5px;
+    font-size: 12.5px;
     font-weight: 600;
-    padding: 9px 13px;
+    padding: 8px 14px;
     border-radius: 12px;
     cursor: pointer;
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 7px;
     width: 100%;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.28);
+    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.35);
     transition: all 0.15s;
   }
-  .sp-toggle:hover { border-color: var(--accent); }
+  .sp-toggle:hover { border-color: #fff; }
   .sp-toggle:active { transform: scale(0.97); }
-  .sp-chev { font-size: 9px; opacity: 0.8; }
+  .sp-toggle .sb-emoji { font-size: 16px; line-height: 1; flex-shrink: 0; }
+  .sp-toggle .sb-label { flex: 1; text-align: left; }
+  .sp-chev { font-size: 10px; opacity: 0.9; }
   .sp-section {
     font-size: 9px; font-weight: 700;
     color: rgba(255, 209, 90, 0.85);
@@ -1847,7 +1871,13 @@ function onResize() {
 function syncScenePanelWidth() {
   const tb = document.getElementById('btnTopic');
   const sp = document.querySelector('.scene-panel');
-  if (tb && sp) { const w = tb.getBoundingClientRect().width; if (w > 0) sp.style.width = Math.round(w) + 'px'; }
+  if (tb && sp) {
+    const r = tb.getBoundingClientRect();
+    if (r.width > 0) {
+      sp.style.width = Math.round(r.width) + 'px';      // Konu Rehberi ile aynı genişlik
+      sp.style.top = Math.round(r.bottom + 8) + 'px';   // hemen altında, 8px boşluk
+    }
+  }
 }
 
 // ============== HELPERS ==============
@@ -2058,7 +2088,7 @@ function setSceneSliders(items, opts = {}) {
   window._sceneState._displayUpdaters = [];
   const toggle = document.createElement('button');
   toggle.className = 'sp-toggle';
-  toggle.innerHTML = `<span>🎛️ Değişkenler</span><span class="sp-chev">▼</span>`;
+  toggle.innerHTML = `<span class="sb-emoji">🎛️</span><span class="sb-label">Değişkenler</span><span class="sp-chev">▼</span>`;
   panel.appendChild(toggle);
   // Tüm değişkenler animasyonlu bir gövde içine konur (aşağıdan yukarıya kapanma)
   const body = document.createElement('div');
@@ -3940,8 +3970,8 @@ function selectSub(subKey) {
     // Sahne sabit bir yere bağlı değil: ekranda serbest/ortada dursun, kullanıcı
     // iki parmakla istediği yeri ortaya getirip yakınlaştırabilsin.
     // Hedefi daha aşağı al → model ekranda daha YUKARIDA dursun
-    controls.target.set(0, -0.9, 0);
-    if (camera) camera.position.set(0, 2.1, 25.0);
+    controls.target.set(0, -1.15, 0);
+    if (camera) camera.position.set(0, 1.85, 25.0);
     controls.captureInitialState && controls.captureInitialState();
   }
   if (window._showGestureToast) {
@@ -4003,7 +4033,8 @@ function updateInfoPanel(subKey) {
   points.slice(0, showCount).forEach(p => {
     const li = document.createElement('li');
     let txt = p;
-    if (txt.startsWith('##')) { li.className = 'subhead'; txt = txt.replace('##','').trim(); }
+    if (txt.startsWith('###')) { li.className = 'subhead2'; txt = txt.replace(/^###/, '').trim(); } // yan başlık → mavi
+    else if (txt.startsWith('##')) { li.className = 'subhead'; txt = txt.replace(/^##/, '').trim(); } // ara başlık → sarı
     li.innerHTML = stripIcon(txt);
     list.appendChild(li);
   });
@@ -4086,6 +4117,26 @@ function _renderTableHTML(data, styleClass) {
   return html;
 }
 
+// Karşılaştırma: satır-başına-varlık tabloyu TRANSPOZE eder →
+// karşılaştırılan şeyler SÜTUN, özellikler SATIR (gerçek "A vs B vs C").
+function _renderCompareHTML(data) {
+  const cols = data.cols || [], rows = data.rows || [];
+  if (cols.length < 2 || rows.length < 1) return _renderTableHTML(data, 'compare-style');
+  const aspectLabel = cols[0];
+  const entities = rows.map(r => r[0]);
+  let html = '<table class="cmp-table compare-style cmp-versus"><thead><tr>';
+  html += `<th class="cmp-aspect">${aspectLabel}</th>`;
+  entities.forEach((e, i) => { html += `<th class="cmp-ent cmp-ent-${i % 4}">${e}</th>`; });
+  html += '</tr></thead><tbody>';
+  for (let c = 1; c < cols.length; c++) {
+    html += `<tr><td class="cmp-aspect-cell">${cols[c]}</td>`;
+    rows.forEach(r => { html += `<td>${(r[c] !== undefined && r[c] !== null) ? r[c] : '—'}</td>`; });
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
 function renderCompareTable() {
   window._cmpPages = _normalizePages(_resolveLevelData(COMPARE_DATA[_dataKey(currentSub)]));
   window._cmpIdx = 0;
@@ -4106,7 +4157,7 @@ function _showComparePage() {
   const i = window._cmpIdx;
   const data = pages[i];
   if (titleEl) titleEl.textContent = '⚖️ ' + (data.title || 'Karşılaştırma');
-  body.innerHTML = _renderTableHTML(data, 'compare-style');
+  body.innerHTML = _renderCompareHTML(data);
   if (nav) {
     if (pages.length > 1) {
       nav.classList.remove('hidden');
