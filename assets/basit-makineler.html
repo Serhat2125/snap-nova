@@ -45,14 +45,16 @@
     width:100vw; height:100vh;
     transition:background 0.3s, color 0.3s;
   }
-  body { touch-action:none; }
+  /* touch-action:none YALNIZCA 3B alanda olmalı; body'de olursa alt panel
+     içindeki yazılar kaydırılamaz (atası none olan eleman pan-y olsa bile kayamaz). */
   canvas { display:block; cursor:grab; }
   canvas:active { cursor:grabbing; }
-  #canvasContainer { position:absolute; inset:0; width:100%; height:100%; z-index:1; }
+  #canvasContainer { position:absolute; inset:0; width:100%; height:100%; z-index:1; touch-action:none; }
+  #canvasContainer canvas { touch-action:none; }
 
   .left-stack {
     position:absolute;
-    top:14px; right:14px;
+    top:2px; right:14px;
     z-index:30;
     display:flex; flex-direction:column; gap:8px;
     align-items:flex-end;
@@ -140,7 +142,7 @@
 
   .right-tools {
     position:absolute;
-    top:14px; left:14px;
+    top:2px; left:8px;
     z-index:30;
     display:flex; gap:8px;
     flex-wrap:nowrap;
@@ -167,6 +169,23 @@
 
   .tool-icon-btn.fs { border-color:var(--joint); color:var(--joint); }
   .tool-icon-btn.fs:hover { background:var(--joint); color:#0a1420; }
+  .tool-icon-btn.help { border-color:var(--accent-glow); color:var(--accent-glow); }
+  .tool-icon-btn.help:hover { background:var(--accent-glow); color:#0a1420; }
+  /* "Bu sayfa nasıl çalışır?" yardım penceresi */
+  .help-card { width:min(460px, 94vw) !important; max-height:86vh; overflow-y:auto; }
+  .help-sec-title {
+    font-family:'Baloo 2', cursive; font-weight:800; font-size:13px;
+    color:var(--accent-glow); margin:13px 2px 6px; letter-spacing:0.3px;
+    border-top:1px solid var(--panel-line); padding-top:11px;
+  }
+  .help-sec-title:first-child { border-top:none; margin-top:2px; padding-top:0; }
+  .help-row {
+    display:flex; gap:10px; align-items:flex-start;
+    padding:5px 4px; font-size:13px; color:var(--ink); line-height:1.42;
+  }
+  .help-row .he { font-size:17px; flex-shrink:0; width:24px; text-align:center; }
+  .help-row b { color:var(--accent-glow); font-weight:700; }
+  .help-intro { font-size:12.5px; color:var(--ink-soft); line-height:1.45; padding:2px 4px 6px; }
   .tool-icon-btn.send { border-color:var(--warning); color:var(--warning); }
   .tool-icon-btn.send:hover { background:var(--warning); color:#0a1420; }
   .tool-icon-btn.theme { border-color:var(--cartilage); color:var(--cartilage); }
@@ -180,18 +199,40 @@
   .tool-icon-btn.table:hover { background:var(--bone); color:#0a1420; }
   .bottom-panel {
     position:absolute;
-    bottom:10px;
-    left:14px; right:14px;
+    bottom:6px;
+    left:3px; right:3px;
     z-index:25;
     background:var(--panel);
     border:2px solid var(--panel-line);
     border-radius:12px;
-    padding:9px 12px 8px;
+    padding:9px 10px 8px;
     box-shadow:0 -6px 24px rgba(0,0,0,0.4);
     display:flex; flex-direction:column; gap:8px;
     touch-action:auto;
   }
   .bottom-panel.hidden { display:none; }
+
+  /* Bilgi panelini büyüt/küçült: bilgi çerçevesinin tam üstünde YAN YANA ▲▼ ok (sürükle-bırak).
+     Yukarı/aşağı sürükle → panel büyür/küçülür. Dokunma hedefi geniş, görünen kısım sade iki ok. */
+  .info-resize-handle {
+    position:absolute;
+    top:-19px; left:50%; transform:translateX(-50%);
+    width:100px; height:28px;
+    display:flex; flex-direction:row; align-items:center; justify-content:center;
+    gap:7px;
+    cursor:ns-resize; touch-action:none; z-index:4;
+    background:transparent; border:none; padding:0;
+    color:var(--accent);
+  }
+  .info-resize-handle span {
+    font-size:12px; line-height:1; opacity:0.82; pointer-events:none;
+    text-shadow:0 1px 3px rgba(0,0,0,0.5);
+    transition:opacity 0.15s ease, transform 0.15s ease, color 0.15s ease;
+  }
+  .info-resize-handle:hover span { opacity:1; }
+  .info-resize-handle:active span { opacity:1; color:var(--accent-glow); }
+  .info-resize-handle:active .rz-up { transform:translateY(-2px); }
+  .info-resize-handle:active .rz-down { transform:translateY(2px); }
 
   .info-close-btn {
     position:absolute;
@@ -240,23 +281,24 @@
   }
   .info-title {
     font-family:'Baloo 2', cursive; font-weight:800;
-    font-size:12.5px;
+    font-size:14px;
     color:var(--accent-glow);
   }
   .nav-buttons {
-    display:flex; gap:4px;
+    display:flex; gap:8px;
   }
   .nav-mini-btn {
-    width:19px; height:19px;
+    width:34px; height:34px;
     background:var(--panel-soft);
-    border:1.5px solid var(--accent);
-    border-radius:5px;
+    border:2px solid var(--accent);
+    border-radius:9px;
     cursor:pointer;
     display:grid; place-items:center;
     color:var(--accent);
-    font-size:9px;
+    font-size:15px;
     transition:all 0.12s;
   }
+  .nav-mini-btn:active { transform:scale(0.9); }
   .nav-mini-btn:hover {
     background:var(--accent);
     color:#0a1420;
@@ -264,7 +306,8 @@
   .info-list {
     list-style:none;
     padding:0; margin:0;
-    max-height:22vh;
+    max-height:var(--info-h, 24vh);
+    transition:max-height 0.12s ease;
     overflow-y:auto;
     overflow-x:hidden;
     -webkit-overflow-scrolling:touch;
@@ -291,42 +334,52 @@
     border:1px solid rgba(0,0,0,0.3);
   }
   .info-list li {
-    padding:1px 0 1px 11px;
+    padding:3px 0 3px 15px;
     margin-bottom:0;
     background:transparent;
     border:none;
     border-radius:0;
-    font-size:10.5px;
-    line-height:1.32;
+    font-size:12px;
+    line-height:1.5;
     color:var(--ink);
     position:relative;
   }
+  /* Madde başında küçük MAVİ nokta */
   .info-list li::before {
     content:'•';
+    color:var(--joint);
     position:absolute;
-    left:2px; top:1px;
-    color:var(--accent);
-    font-weight:700;
-    font-size:11px;
+    left:3px; top:3px;
+    font-size:13px; line-height:1.45;
   }
   .info-list li b {
     color:var(--accent-glow);
     font-weight:700;
   }
+  /* Ara başlık (##) → SARI, nokta yok */
   .info-list li.subhead {
     background:transparent;
     border-left:none;
     color:var(--warning);
     font-weight:700;
-    font-size:11.5px;
+    font-size:12px;
     margin-top:5px;
     margin-bottom:2px;
     padding:0 0 1px 0;
     font-style:normal;
   }
-  .info-list li.subhead::before {
-    content:'';
+  .info-list li.subhead::before { content:''; }
+  /* Yan başlık (###) → MAVİ, nokta yok */
+  .info-list li.subhead2 {
+    background:transparent;
+    color:var(--joint);
+    font-weight:700;
+    font-size:12px;
+    margin-top:4px;
+    margin-bottom:1px;
+    padding:0 0 1px 0;
   }
+  .info-list li.subhead2::before { content:''; }
 
   .action-row {
     display:grid;
@@ -356,7 +409,19 @@
     background:linear-gradient(135deg, var(--cartilage), #7a5fb8);
   }
   .action-btn.anim {
-    background:linear-gradient(135deg, var(--muscle), #a04545);
+    background:linear-gradient(135deg, #2ecc71, #1ba85c);
+    color:#06281a;
+    box-shadow:0 0 14px rgba(46,204,113,0.5);
+    animation:animPulse 1.8s ease-in-out infinite;
+  }
+  @keyframes animPulse {
+    0%,100% { box-shadow:0 0 10px rgba(46,204,113,0.4); }
+    50% { box-shadow:0 0 18px rgba(46,204,113,0.75); transform:scale(1.02); }
+  }
+  .action-btn.anim.active {
+    background:linear-gradient(135deg, #e74c3c, #c0392b);
+    color:#fff;
+    animation:none;
   }
   .action-btn.active {
     box-shadow:0 0 0 2px #fff, 0 0 12px rgba(255,255,255,0.4);
@@ -510,6 +575,14 @@
   .cmp-table th:nth-child(3),
   .cmp-table th:nth-child(4) { border-left:1px dashed rgba(255,255,255,0.3); }
   .cmp-table tr:hover td { background:rgba(246,185,59,0.20) !important; }
+  /* Karşılaştırma (versus): karşılaştırılan varlıklar SÜTUN başlığında ayrı renkte */
+  .cmp-versus th.cmp-aspect { background:linear-gradient(135deg,#3a4668,#2a3450); color:var(--ink); text-shadow:none; }
+  .cmp-versus th.cmp-ent { color:#0a1420; }
+  .cmp-versus th.cmp-ent-0 { background:linear-gradient(135deg,#ffd166,#f6b93b); }
+  .cmp-versus th.cmp-ent-1 { background:linear-gradient(135deg,#7adcf0,#3aa0c8); }
+  .cmp-versus th.cmp-ent-2 { background:linear-gradient(135deg,#cbb3ff,#9d7fe6); }
+  .cmp-versus th.cmp-ent-3 { background:linear-gradient(135deg,#a6e3a1,#5fb377); }
+  .cmp-versus td.cmp-aspect-cell { font-weight:700; color:var(--ink); white-space:nowrap; border-right:2px solid var(--accent); background:rgba(255,255,255,0.05); }
   .cmp-no-data {
     text-align:center;
     padding:24px 12px;
@@ -586,14 +659,15 @@
 
   @media (max-width:600px) {
     .stack-btn { min-width:140px; font-size:11px; padding:7px 11px; }
-    .stack-btn .sb-label { font-size:11px; }
+    .stack-btn .sb-label, .sp-toggle .sb-label { font-size:11px; }
+    .sp-toggle { font-size:11px; padding:7px 11px; min-width:140px; }
     .right-tools { gap:5px; left:8px; }
     .tool-icon-btn { width:34px; height:34px; font-size:14px; border-radius:9px; }
-    .bottom-panel { padding:11px 12px 9px; gap:9px; }
+    .bottom-panel { padding:11px 10px 9px; gap:9px; }
     .info-emoji-box { width:36px; height:36px; font-size:20px; }
-    .info-title { font-size:13px; }
-    .info-list li { font-size:11.5px; padding:4px 7px; }
-    .info-list { max-height:26vh; }
+    .info-title { font-size:14px; }
+    .info-list li { font-size:12px; padding:3px 0 3px 15px; }
+    .info-list { max-height:var(--info-h, 28vh); }
     .action-btn { font-size:11px; padding:7px 8px; }
     .dropdown-panel { min-width:200px; }
     .dropdown-item { font-size:11.5px; padding:7px 9px; }
@@ -601,12 +675,14 @@
   }
   @media (max-width:420px) {
     .stack-btn { min-width:130px; font-size:10.5px; padding:6px 9px; }
+    .sp-toggle { font-size:10.5px; padding:6px 9px; min-width:130px; }
     .right-tools { gap:4px; left:6px; }
     .tool-icon-btn { width:30px; height:30px; font-size:13px; border-radius:8px; border-width:1.5px; }
     #panelMode { left:6px !important; }
   }
   @media (max-width:360px) {
     .stack-btn { min-width:115px; font-size:10px; padding:5px 8px; }
+    .sp-toggle { font-size:10px; padding:5px 8px; min-width:115px; }
     .right-tools { gap:3px; left:5px; }
     .tool-icon-btn { width:28px; height:28px; font-size:12px; }
     #panelMode { left:5px !important; }
@@ -616,45 +692,45 @@
     display: none !important;
   }
 
-  .scene-panel {
-    position: fixed;
-    right: 12px;
-    top: 120px;
-    width: 280px;
-    max-height: calc(100vh - 120px - 220px);
-    overflow-y: auto;
-    background: rgba(15, 20, 30, 0.88);
-    border: 1px solid rgba(246, 185, 59, 0.35);
-    border-radius: 14px;
-    padding: 10px;
-    z-index: 40;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-    font-size: 11.5px;
-    color: rgba(255, 255, 255, 0.92);
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    transition: all 0.3s ease;
-  }
-  .scene-panel.collapsed {
-    width: auto;
-    padding: 6px 10px;
-  }
-  .scene-panel.collapsed > *:not(.sp-toggle) { display: none; }
-  .scene-panel.empty { display: none; }
+  /* Eğitim Seviyesi (üstte) altında: Değişkenler + Konu Rehberi AYNI SATIRDA,
+     Değişkenler solda. Üçü de aynı ebat (stack-btn / sp-toggle). */
+  .stack-row { display: flex; gap: 8px; align-items: flex-start; }
 
-  body.dropdown-open .scene-panel {
-    transform: none;
+  /* Değişkenler içeriği: sekmenin hemen altında, TAM GENİŞLİK (telefon solu→sağı),
+     kontroller YATAY yan yana (flex-wrap). */
+  .scene-vars-body {
+    position: fixed;
+    left: 6px; right: 6px;
+    top: 92px; /* JS ile sekmenin altına hizalanır */
+    z-index: 39;
+    display: flex; flex-wrap: wrap; align-items: stretch;
+    gap: 7px;
+    background: rgba(15, 20, 30, 0.96);
+    border: 1.5px solid var(--panel-line);
+    border-radius: 12px;
+    padding: 8px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    max-height: 46vh; overflow-y: auto;
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 10px;
   }
+  .scene-vars-body.closed { display: none; }
+  .scene-vars-body .sp-section { flex-basis: 100%; margin: 2px 4px 0; }
+  .scene-vars-body .sp-slider-row { flex: 1 1 150px; min-width: 132px; max-width: 260px; }
+  .scene-vars-body .sp-display { flex: 1 1 120px; min-width: 108px; }
+  .scene-vars-body .sp-presets { flex-basis: 100%; }
+  .scene-vars-body .sp-formula { flex-basis: 100%; font-size: 11px; }
+  /* Dar yatay kartlarda yazılar sığsın */
+  .scene-vars-body .sp-slider-row .sp-slider-head { font-size: 10px; }
+  .scene-vars-body .sp-slider-row .sp-slider-head .sp-val { font-size: 10px; min-width: 40px; padding: 2px 5px; }
+  .scene-vars-body .sp-display { font-size: 9.5px; }
+  .scene-vars-body .sp-preset-btn { font-size: 10px; }
 
   @media (min-width: 768px) {
     canvas {
       transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    body.scene-panel-open canvas {
-      transform: translateX(-15vw);
     }
     body.panel-open canvas {
       transform: translateX(-22vw);
@@ -697,44 +773,51 @@
     padding: 0 4px;
     font-size: 11px;
   }
+  /* Sekme: TURUNCU; Lise/Konu Rehberi ile aynı boyut/yapı (ikon başta, ok sağda) */
   .sp-toggle {
-    background: rgba(246, 185, 59, 0.18);
-    border: 1px solid rgba(246, 185, 59, 0.5);
+    background: linear-gradient(135deg, #f59f0a, #f97316);
+    border: 2px solid rgba(255, 184, 92, 0.6);
     color: #fff;
-    font-size: 12px;
+    font-family: 'Fredoka', sans-serif;
+    font-size: 12.5px;
     font-weight: 600;
-    padding: 8px 12px;
-    border-radius: 10px;
+    padding: 8px 14px;
+    border-radius: 12px;
     cursor: pointer;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    width: 100%;
+    gap: 7px;
+    min-width: 170px; /* Konu Rehberi (stack-btn) ile aynı ebat */
+    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.35);
+    transition: all 0.15s;
   }
-  .sp-toggle:hover { background: rgba(246, 185, 59, 0.32); }
+  .sp-toggle:hover { border-color: #fff; }
+  .sp-toggle:active { transform: scale(0.97); }
+  .sp-toggle .sb-emoji { font-size: 16px; line-height: 1; flex-shrink: 0; }
+  .sp-toggle .sb-label { flex: 1; text-align: left; }
+  .sp-chev { font-size: 10px; opacity: 0.9; }
   .sp-section {
-    font-size: 10px; font-weight: 700;
+    font-size: 9px; font-weight: 700;
     color: rgba(255, 209, 90, 0.85);
     text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin: 6px 4px 2px 4px;
+    letter-spacing: 0.6px;
+    margin: 5px 4px 2px 4px;
   }
 
   .sp-slider-row {
     display: flex; flex-direction: column; gap: 4px;
-    padding: 8px 10px;
+    padding: 6px 8px;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 10px;
   }
   .sp-slider-row .sp-slider-head {
     display: flex; justify-content: space-between; align-items: center;
-    font-size: 11.5px; font-weight: 500;
+    font-size: 10.5px; font-weight: 500;
   }
   .sp-slider-row .sp-slider-head .sp-val {
     font-family: 'Consolas', monospace;
-    font-size: 12px; font-weight: 700;
+    font-size: 11px; font-weight: 700;
     color: #FFD54F;
     background: rgba(0,0,0,0.45);
     padding: 2px 8px;
@@ -777,16 +860,16 @@
 
   .sp-display {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 7px 10px;
+    padding: 6px 8px;
     background: rgba(246, 185, 59, 0.10);
     border: 1px solid rgba(246, 185, 59, 0.28);
     border-radius: 9px;
-    font-size: 11px;
+    font-size: 10px;
   }
   .sp-display .sp-label { color: rgba(255,255,255,0.85); }
   .sp-display .sp-val {
     font-family: 'Consolas', monospace;
-    font-size: 12px; font-weight: 700; color: #FFE082;
+    font-size: 11px; font-weight: 700; color: #FFE082;
     background: rgba(0,0,0,0.35); padding: 2px 8px; border-radius: 6px;
   }
   .sp-display.highlight {
@@ -827,18 +910,23 @@
   }
 
   @media (max-width: 768px) {
-    .scene-panel {
-      right: 8px;
-      top: 110px;
-      width: 200px;
-      font-size: 10.5px;
-      padding: 8px;
-    }
-    .sp-slider-row { padding: 6px 8px; }
+    .sp-slider-row { padding: 5px 7px; }
     .sp-slider-row input[type=range] { height: 5px; }
   }
 
-  body.panel-open .scene-panel { }
+  /* Değişkenler paneli TAM ŞEFFAF — açıkken 3D model arkada görünmeye devam eder */
+  .scene-vars-body {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.85);
+  }
+  .scene-vars-body .sp-slider-row,
+  .scene-vars-body .sp-display,
+  .scene-vars-body .sp-formula,
+  .scene-vars-body .sp-preset-btn { background: rgba(0, 0, 0, 0.30); }
 </style>
 </head>
 
@@ -880,7 +968,7 @@
 </div>
 
 <div id="regionList" class="region-list"></div>
-<div id="scenePanel" class="scene-panel"></div>
+<div id="sceneVarsBody" class="scene-vars-body closed"></div>
 
 <div id="gestureToast" style="
   position:fixed; top:90px; left:50%; transform:translateX(-50%) translateY(-20px);
@@ -900,14 +988,17 @@
     <span class="sb-label" id="levelLabel">Lise</span>
     <span class="sb-arrow">▼</span>
   </button>
-  <button class="stack-btn topic" id="btnTopic">
-    <span class="sb-emoji">📚</span>
-    <span class="sb-label">Konu Rehberi</span>
-    <span class="sb-arrow">▼</span>
-  </button>
+  <div class="stack-row" id="stackRow">
+    <!-- Değişkenler sekmesi (sp-toggle) JS ile buraya, Konu Rehberi'nin SOLUNA eklenir -->
+    <button class="stack-btn topic" id="btnTopic">
+      <span class="sb-emoji">📚</span>
+      <span class="sb-label">Konu Rehberi</span>
+      <span class="sb-arrow">▼</span>
+    </button>
+  </div>
 </div>
 
-<div class="dropdown-panel" id="panelLevel" style="top:60px; right:14px;">
+<div class="dropdown-panel" id="panelLevel" style="top:48px; right:14px; max-height:70vh; overflow-y:auto;">
   <div class="dropdown-title">🎓 Eğitim Seviyesi</div>
   <button class="dropdown-item" data-level="ilkokul"><span class="di-emoji">🧒</span>İlkokul</button>
   <button class="dropdown-item" data-level="ortaokul"><span class="di-emoji">🎒</span>Ortaokul</button>
@@ -915,7 +1006,7 @@
   <button class="dropdown-item" data-level="tyt_ayt"><span class="di-emoji">🎯</span>TYT-AYT</button>
 </div>
 
-<div class="dropdown-panel" id="panelTopic" style="top:106px; right:14px;">
+<div class="dropdown-panel" id="panelTopic" style="top:92px; right:14px;">
   <div class="dropdown-title">📚 Konu Rehberi</div>
   <div id="topicList"></div>
 </div>
@@ -927,15 +1018,17 @@
   <button class="tool-icon-btn theme" id="btnTheme" title="Tema değiştir">🌙</button>
   <button class="tool-icon-btn send" id="btnSend" title="Gönder/Paylaş">📤</button>
   <button class="tool-icon-btn fs" id="btnFs" title="Tam ekran">⛶</button>
+  <button class="tool-icon-btn help" id="btnHelp" title="Bu sayfa nasıl çalışır?">❓</button>
 </div>
 
-<div class="dropdown-panel" id="panelMode" style="top:60px; left:14px;">
+<div class="dropdown-panel" id="panelMode" style="top:48px; left:8px;">
   <div class="dropdown-title">📚 Görünüm Modu</div>
   <button class="dropdown-item" data-mode="detayli"><span class="di-emoji">📚</span><span><b>Detaylı</b><br><small style="opacity:0.7;font-size:10.5px;">Daha çok bilgi</small></span></button>
   <button class="dropdown-item active" data-mode="sade"><span class="di-emoji">📄</span><span><b>Sade</b><br><small style="opacity:0.7;font-size:10.5px;">Sadece temel bilgiler</small></span></button>
 </div>
 
 <div class="bottom-panel" id="bottomPanel">
+  <div class="info-resize-handle" id="infoResizeHandle" title="Yukarı/aşağı sürükleyerek büyüt/küçült"><span class="rz-up">▲</span><span class="rz-down">▼</span></div>
   <button class="info-close-btn" id="infoCloseBtn" title="Bilgi panelini kapat">✕</button>
   <div class="info-area">
     <div class="info-emoji-box" id="infoEmoji" style="display:none;">⚙️</div>
@@ -1039,6 +1132,39 @@
   </div>
 </div>
 
+<div class="share-overlay" id="helpOverlay">
+  <div class="share-card help-card">
+    <div class="share-head">
+      <div class="share-head-text">❓ Bu Sayfa Nasıl Çalışır?</div>
+      <button class="share-close-btn" id="helpClose">✕</button>
+    </div>
+    <div class="help-intro">3 boyutlu modeli parmaklarınla incele; üstteki menülerden seviye ve konu seç; alttaki panelden bilgileri oku.</div>
+
+    <div class="help-sec-title">🖐️ Dokunma Hareketleri</div>
+    <div class="help-row"><span class="he">👆</span><span><b>Döndür:</b> tek parmakla sürükle</span></div>
+    <div class="help-row"><span class="he">✌️</span><span><b>Yakınlaştır:</b> iki parmağı aç/kapa — istediğin yere odaklanır</span></div>
+    <div class="help-row"><span class="he">🤏</span><span><b>Taşı:</b> iki parmağı birlikte kaydır</span></div>
+    <div class="help-row"><span class="he">👆👆</span><span><b>Çift dokun:</b> dokunduğun noktaya yakınlaş</span></div>
+    <div class="help-row"><span class="he">🖐️</span><span><b>Sıfırla:</b> üç parmakla dokun</span></div>
+
+    <div class="help-sec-title">🧭 Üst Menüler</div>
+    <div class="help-row"><span class="he">🎓</span><span><b>Eğitim Seviyesi</b> (sağ üst): İlkokul / Ortaokul / Lise / Sınav</span></div>
+    <div class="help-row"><span class="he">📚</span><span><b>Konu Rehberi</b> (sağ üst): konular arasında geç</span></div>
+    <div class="help-row"><span class="he">📄</span><span><b>Görünüm Modu</b> (sol üst): Sade / Detaylı bilgi</span></div>
+    <div class="help-row"><span class="he">🎛️</span><span><b>Değişkenler</b> (Konu Rehberi'nin altında): sahnedeki kaydırıcı ve seçenekler — konu değişince kısa görünür, dokununca açılır</span></div>
+
+    <div class="help-sec-title">🛠️ Araçlar (sol üst)</div>
+    <div class="help-row"><span class="he">⚖️</span><span><b>Karşılaştırma</b> &nbsp;·&nbsp; <span class="he" style="display:inline">📋</span> <b>Bilgi Tablosu</b></span></div>
+    <div class="help-row"><span class="he">🌙</span><span><b>Tema</b> &nbsp;·&nbsp; 📤 <b>Paylaş</b> &nbsp;·&nbsp; ⛶ <b>Tam ekran</b></span></div>
+
+    <div class="help-sec-title">📖 Alt Bilgi Paneli</div>
+    <div class="help-row"><span class="he">⇕</span><span><b>Tutamacı sürükle:</b> paneli büyüt / küçült</span></div>
+    <div class="help-row"><span class="he">📜</span><span><b>Kaydır:</b> yazılar sığmazsa panel içinde yukarı/aşağı kaydır</span></div>
+    <div class="help-row"><span class="he">◀▶</span><span><b>Önceki / Sonraki</b> konuya geç</span></div>
+    <div class="help-row"><span class="he">🔄</span><span><b>Döndür</b> · 🏷️ <b>Etiketler</b> · ▶️ <b>Çalıştır</b> (animasyon)</span></div>
+  </div>
+</div>
+
 <div id="canvasContainer">
   <svg id="leaderLines" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:9;"></svg>
 </div>
@@ -1083,6 +1209,118 @@ setTimeout(function() {
 </script>
 
 <script src="./three.global.js"></script>
+
+<!-- ===== GEÇİŞ MOTORU: Ayarlar'a (Geçiş Stüdyosu) göre sahne geçiş animasyonu + ses + geri bildirim ===== -->
+<script>
+(function(){
+  const DEF={ level:'karisik', enterMode:'rastgele', exitMode:'rastgele', speed:1.0, overlap:true, sound:true, stereo:true, emoji:false, title:false, confetti:false, calm:false };
+  function readS(){ let S=Object.assign({},DEF); try{ const v=localStorage.getItem('gecisAyar3'); if(v) S=Object.assign({},DEF,JSON.parse(v)); }catch(e){} return S; }
+
+  // CSS (emoji/uçan başlık/konfeti) bir kez enjekte
+  if(!document.getElementById('gecisFxCss')){ const st=document.createElement('style'); st.id='gecisFxCss'; st.textContent=
+    ".gx-emoji{position:fixed;z-index:120;pointer-events:none;font-size:clamp(40px,9vw,64px);filter:drop-shadow(0 6px 12px rgba(0,0,0,.45));}"+
+    ".gx-emoji.happy{animation:gxHappy 1.5s cubic-bezier(.2,.9,.3,1.1) forwards;}"+
+    "@keyframes gxHappy{0%{opacity:0;transform:translate(-50%,-20%) scale(.2) rotate(-12deg);}22%{opacity:1;transform:translate(-50%,-78%) scale(1.25) rotate(8deg);}45%{transform:translate(-50%,-70%) scale(1);}100%{opacity:0;transform:translate(-50%,-108%) scale(.85);}}"+
+    ".gx-title{position:fixed;top:26%;left:50%;z-index:118;pointer-events:none;font-weight:800;font-size:clamp(20px,4.6vw,36px);color:#fff;text-shadow:0 3px 18px rgba(90,209,255,.55),0 1px 3px rgba(0,0,0,.6);font-family:'Baloo 2',sans-serif;animation:gxTitle 2s ease forwards;}"+
+    "@keyframes gxTitle{0%{opacity:0;transform:translate(-30%,0) scale(.9);}18%{opacity:1;transform:translate(-50%,0) scale(1);}80%{opacity:1;transform:translate(-50%,0) scale(1);}100%{opacity:0;transform:translate(-62%,0) scale(.96);}}"+
+    ".gx-conf{position:fixed;top:30%;z-index:119;pointer-events:none;width:9px;height:14px;border-radius:2px;}"+
+    "@keyframes gxConf{0%{opacity:1;transform:translateY(0) rotate(0);}100%{opacity:0;transform:translateY(300px) rotate(560deg);}}";
+    (document.head||document.documentElement).appendChild(st); }
+
+  // ---- SES (WebAudio) ----
+  let actx=null, pan=0;
+  const TH={ ilkokul:{p:1.18,g:1.12}, ortaokul:{p:1.0,g:1.0}, lise:{p:0.84,g:0.82}, karisik:{p:1.0,g:1.0} };
+  function th(S){ return TH[S.level]||TH.karisik; }
+  function ensure(){ try{ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==='suspended') actx.resume(); }catch(e){} return actx; }
+  function pn(a,S){ try{ const p=a.createStereoPanner(); p.pan.value=S.stereo?pan:0; return p; }catch(e){ return a.createGain(); } }
+  function blip(S,freq,t0,dur,type,g,slide){ const a=ensure(); if(!a)return; const t=th(S); freq*=t.p; if(slide)slide*=t.p; g=(g||0.16)*t.g; const o=a.createOscillator(),gn=a.createGain(),p=pn(a,S); o.type=type||'sine'; const T=a.currentTime+t0; o.frequency.setValueAtTime(freq,T); if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(1,slide),T+dur); gn.gain.setValueAtTime(0.0001,T); gn.gain.exponentialRampToValueAtTime(g,T+0.012); gn.gain.exponentialRampToValueAtTime(0.0001,T+dur); o.connect(gn).connect(p).connect(a.destination); o.start(T); o.stop(T+dur+0.03); }
+  function noise(S,t0,dur,g,filt,type,sweep){ const a=ensure(); if(!a)return; const T=a.currentTime+t0; const n=a.createBufferSource(),buf=a.createBuffer(1,Math.max(1,a.sampleRate*dur),a.sampleRate),d=buf.getChannelData(0); for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1; n.buffer=buf; const f=a.createBiquadFilter(); f.type=type||'lowpass'; f.frequency.setValueAtTime(filt||1200,T); if(sweep)f.frequency.exponentialRampToValueAtTime(Math.max(20,sweep),T+dur); const gn=a.createGain(),p=pn(a,S); gn.gain.setValueAtTime((g||0.12)*th(S).g,T); gn.gain.exponentialRampToValueAtTime(0.0001,T+dur); n.connect(f).connect(gn).connect(p).connect(a.destination); n.start(T); n.stop(T+dur+0.03); }
+  const ESND={ don(S){ blip(S,200,0,0.55,'sawtooth',0.10,820); }, balon(S){ blip(S,380,0,0.14,'sine',0.2,920); blip(S,920,0.12,0.07,'sine',0.1); }, zipla(S){ blip(S,160,0,0.22,'triangle',0.22,520); blip(S,520,0.18,0.12,'sine',0.12,260); }, uzaydan(S){ noise(S,0,0.4,0.12,3000,'highpass',300); blip(S,900,0.34,0.18,'sine',0.14); }, sagdan(S){ noise(S,0,0.5,0.10,400,'lowpass',2200); blip(S,300,0.1,0.4,'sine',0.12,760); }, yerden(S){ blip(S,70,0,0.6,'sine',0.2,320); noise(S,0,0.55,0.07,400,'lowpass',1600); }, buyu(S){ [392,523,659,880].forEach((f,i)=>blip(S,f,i*0.08,0.14,'triangle',0.12)); } };
+  function vedaSound(S){ pan=-0.5; [523,440,392,294].forEach((f,i)=>blip(S,f,i*0.10,0.16,'triangle',0.10)); pan=0; }
+
+  // ---- Geri bildirim ----
+  const EMO={ ilkokul:['😄','🤩','🥳','🎉','😍','🙌'], ortaokul:['😄','😎','🤩','✨','👍','🔥'], lise:['🙂','😌','👍','✨','🎯','🆕'], karisik:['😄','🤩','🥳','😍','🎉','✨'] };
+  function emoji(S){ if(!S.emoji)return; const pool=EMO[S.level]||EMO.karisik; const el=document.createElement('div'); el.className='gx-emoji happy'; el.style.left='62%'; el.style.top='40%'; el.textContent=pool[Math.floor(Math.random()*pool.length)]; document.body.appendChild(el); setTimeout(()=>el.remove(),1550); }
+  function flyTitle(S,t){ if(!S.title||!t)return; const el=document.createElement('div'); el.className='gx-title'; el.textContent=t; document.body.appendChild(el); setTimeout(()=>el.remove(),2050); }
+  function confetti(){ const cols=['#ff5b6b','#ffcf5a','#5ad1ff','#66bb6a','#ab47bc','#ff8ab0']; for(let i=0;i<22;i++){ const d=document.createElement('div'); d.className='gx-conf'; d.style.left=(36+Math.random()*28)+'%'; d.style.background=cols[i%cols.length]; const du=1.1+Math.random()*0.7; d.style.animation='gxConf '+du+'s ease-in '+(Math.random()*0.2)+'s forwards'; document.body.appendChild(d); setTimeout(()=>d.remove(),(du+0.4)*1000); } try{ navigator.vibrate&&navigator.vibrate(30); }catch(e){} }
+
+  // ====== ENTER EFEKTLERİ (model parçaları + sahne FX üzerinde; window.THREE/scene) ======
+  const ez=t=>t*t*(3-2*t);
+  const clamp=(v,a,b)=>{a=(a===undefined?0:a);b=(b===undefined?1:b);return v<a?a:v>b?b:v;};
+  function eBack(x){ const c1=1.70158,c3=c1+1; return 1+c3*Math.pow(x-1,3)+c1*Math.pow(x-1,2); }
+  function eBounce(x){ const n1=7.5625,d1=2.75; if(x<1/d1)return n1*x*x; if(x<2/d1){x-=1.5/d1;return n1*x*x+0.75;} if(x<2.5/d1){x-=2.25/d1;return n1*x*x+0.9375;} x-=2.625/d1; return n1*x*x+0.984375; }
+  const T=()=>window.THREE, SC=()=>window.scene;
+  function gh(o){ return {px:o.position.x,py:o.position.y,pz:o.position.z,sx:o.scale.x,sy:o.scale.y,sz:o.scale.z,rx:o.rotation.x,ry:o.rotation.y,rz:o.rotation.z}; }
+  function setT(o,h){ o.position.set(h.px,h.py,h.pz); o.scale.set(h.sx,h.sy,h.sz); o.rotation.set(h.rx,h.ry,h.rz); }
+  function pOpacity(piece,a){ piece.traverse(o=>{ if(o.isMesh&&o.material){ o.material.transparent=a<1; o.material.opacity=a; } }); piece.visible=a>0.005; }
+  function setOpacityMs(ms,a){ ms.forEach(m=>{ if(m.material){ m.material.transparent=a<1; m.material.opacity=a; } }); }
+  // root'tan model alt-gruplarını ayıkla (ışık/grid mesh değil → otomatik hariç;
+  // ETİKET grubu da hariç → etiketler geçişten etkilenmez, hep görünür kalır)
+  function capture(group){ const mk=group.children.filter(ch=>{ if(ch.userData._gxFx||ch.userData.isLabelGroup)return false; let h=false; ch.traverse(o=>{ if(o.isMesh)h=true; }); return h; });
+    let pc=[]; mk.forEach(g=>g.children.forEach(c=>pc.push(c))); if(pc.length<2) pc=mk.slice();
+    const ms=[]; mk.forEach(g=>g.traverse(o=>{ if(o.isMesh)ms.push(o); }));
+    mk.forEach(o=>o.userData._gh=gh(o)); pc.forEach(o=>{ o.userData._gh=gh(o); });
+    ms.forEach(m=>{ if(m.material){ m.userData._go={op:(m.material.opacity!==undefined?m.material.opacity:1),tr:!!m.material.transparent,he:!!m.material.emissive,em:m.material.emissive?m.material.emissive.getHex():0,ei:m.material.emissiveIntensity||0}; m.material.transparent=true; } });
+    return {mk,pc,ms,sceneFx:[],tmp:{}}; }
+  function bounds(fx){ const TT=T(); const b=new TT.Box3(); fx.mk.forEach(g=>{ try{ b.expandByObject(g); }catch(e){} }); if(b.isEmpty()) b.set(new TT.Vector3(-1,-1,-1),new TT.Vector3(1,1,1)); return b; }
+  function addFx(fx,m){ m.userData._gxFx=true; m.userData.dynamic=true; const sc=SC(); if(sc)sc.add(m); fx.sceneFx.push(m); return m; }
+  function clearFx(fx){ const sc=SC(); (fx.sceneFx||[]).forEach(o=>{ if(sc)sc.remove(o); if(o.geometry)o.geometry.dispose(); if(o.material&&o.material.dispose)o.material.dispose(); }); fx.sceneFx=[]; }
+  function restoreAll(fx){ fx.mk.forEach(o=>{ if(o.userData._gh)setT(o,o.userData._gh); }); fx.pc.forEach(o=>{ if(o.userData._gh){ setT(o,o.userData._gh); o.visible=true; } }); fx.ms.forEach(m=>{ const g=m.userData._go; if(g&&m.material){ m.material.opacity=g.op; m.material.transparent=g.tr; if(g.he&&m.material.emissive){ m.material.emissive.setHex(g.em); m.material.emissiveIntensity=g.ei; } } }); clearFx(fx); }
+  const _v=()=>new (T().Vector3)();
+  function rdir(){ const TT=T(); return new TT.Vector3(Math.random()-0.5,Math.random()-0.5,Math.random()-0.5).normalize(); }
+  function streaks(fx,color,b){ if(readS().calm)return; const TT=T(); const cy=(b.min.y+b.max.y)/2; const arr=[]; for(let i=0;i<4;i++){ const m=new TT.Mesh(new TT.PlaneGeometry(3.2,0.06),new TT.MeshBasicMaterial({color,transparent:true,opacity:0,blending:TT.AdditiveBlending,depthWrite:false,side:TT.DoubleSide})); m.position.set(0,cy-1.6+i*1.0,0); addFx(fx,m); arr.push(m); } fx.tmp.streaks=arr; }
+  function updStreaks(fx,p,dirX,mx){ const a=Math.sin(clamp(p)*Math.PI); (fx.tmp.streaks||[]).forEach((m,i)=>{ m.position.x=(mx||0)+dirX*(1.4+i*0.15); m.material.opacity=a*0.5; m.scale.x=0.7+a*1.0; }); }
+
+  // Tüm efektler — her biri fx (mk/pc/ms) + bounds üzerinde çalışır
+  const EFFECTS={
+    buyu:{ dur:1100, update(fx,p){ const e=Math.max(0.001,eBack(p)); fx.mk.forEach(g=>{const h=g.userData._gh; g.scale.set(h.sx*e,h.sy*e,h.sz*e);}); setOpacityMs(fx.ms,ez(p)); } },
+    don:{ dur:1200, update(fx,p){ const e=Math.max(0.001,eBack(p)); fx.mk.forEach(g=>{const h=g.userData._gh; g.scale.set(h.sx*e,h.sy*e,h.sz*e); g.rotation.y=h.ry-Math.PI*4*(1-ez(p));}); setOpacityMs(fx.ms,ez(p)); } },
+    balon:{ dur:1250, update(fx,p){ const e=Math.max(0.001,eBack(p)),w=1+0.12*Math.sin(p*Math.PI*6); fx.mk.forEach(g=>{const h=g.userData._gh; g.scale.set(h.sx*e*w,h.sy*e*w,h.sz*e*w);}); setOpacityMs(fx.ms,ez(clamp(p*1.5))); } },
+    zipla:{ dur:1300, update(fx,p){ const e=eBounce(p); fx.mk.forEach(g=>{const h=g.userData._gh; g.position.y=h.py+(1-e)*6; const sq=Math.max(0,Math.sin(p*Math.PI*3))*(p>0.25?1:0)*0.12; g.scale.set(h.sx*(1+sq*0.6),h.sy*(1-sq),h.sz*(1+sq*0.6));}); } },
+    uzaydan:{ dur:1300, init(fx){ fx.mk.forEach(g=>{const h=g.userData._gh; g.rotation.y=h.ry-1.2;}); }, update(fx,p){ const e=eBack(clamp(p)); fx.mk.forEach(g=>{const h=g.userData._gh; g.position.z=h.pz-22*(1-e); g.rotation.y=h.ry-1.2*(1-ez(p));}); setOpacityMs(fx.ms,clamp(p*2)); } },
+    sagdan:{ dur:1500, init(fx){ streaks(fx,0x9be7ff,bounds(fx)); }, update(fx,p){ const e=ez(p); fx.mk.forEach(g=>{const h=g.userData._gh; g.position.x=h.px+12*(1-e); g.position.z=h.pz-9*(1-e); const s=0.6+0.4*e; g.scale.set(h.sx*s,h.sy*s,h.sz*s); g.rotation.y=h.ry+0.9*(1-e);}); setOpacityMs(fx.ms,clamp(p*1.5)); updStreaks(fx,p,1, fx.mk[0]?fx.mk[0].position.x:0); } },
+    yerden:{ dur:1400, init(fx){ const TT=T(),b=bounds(fx); const ring=new TT.Mesh(new TT.TorusGeometry(1.2,0.12,12,40),new TT.MeshBasicMaterial({color:0x7be0ff,transparent:true,opacity:0.9})); ring.rotation.x=-Math.PI/2; ring.position.y=b.min.y+0.05; ring.scale.set(0.1,0.1,0.1); addFx(fx,ring); fx.tmp.ring=ring; }, update(fx,p){ const e=ez(p); fx.mk.forEach(g=>{const h=g.userData._gh; g.position.y=h.py-5*(1-e);}); setOpacityMs(fx.ms,clamp(e*1.5)); const rs=0.3+ez(clamp(p*1.3))*2.6; if(fx.tmp.ring){ fx.tmp.ring.scale.set(rs,rs,rs); fx.tmp.ring.material.opacity=Math.sin(clamp(p)*Math.PI)*0.9; } } },
+    insa:{ dur:1500, init(fx){ const arr=fx.pc.slice().sort((a,b)=>a.userData._gh.py-b.userData._gh.py); arr.forEach((c,i)=>{ c.userData._o=i/Math.max(1,arr.length-1); pOpacity(c,0); }); }, update(fx,p){ fx.pc.forEach(c=>{ const h=c.userData._gh; const a=ez(clamp((p-c.userData._o*0.55)/0.45)); c.position.set(h.px,h.py-3.5*(1-a),h.pz); pOpacity(c,a); }); } },
+    dalga:{ dur:1400, init(fx){ const arr=fx.pc.slice().sort((a,b)=>a.userData._gh.px-b.userData._gh.px); arr.forEach((c,i)=>{ c.userData._o=i/Math.max(1,arr.length-1); c.scale.set(0.001,0.001,0.001); pOpacity(c,0); }); }, update(fx,p){ fx.pc.forEach(c=>{ const h=c.userData._gh; const a=clamp((p-c.userData._o*0.6)/0.4); const e=Math.max(0.001,eBack(clamp(a))); c.scale.set(h.sx*e,h.sy*e,h.sz*e); c.position.set(h.px,h.py+(1-clamp(a))*-0.5,h.pz); pOpacity(c,clamp(a*1.3)); }); } },
+    patla:{ dur:1400, init(fx){ fx.pc.forEach(c=>{ const h=c.userData._gh; const d=rdir().multiplyScalar(6+Math.random()*2); c.userData._ps={px:h.px+d.x,py:h.py+d.y,pz:h.pz+d.z}; c.userData._spin=(Math.random()-0.5)*10; c.position.set(c.userData._ps.px,c.userData._ps.py,c.userData._ps.pz); c.scale.set(0.001,0.001,0.001); pOpacity(c,0); }); }, update(fx,p){ const e=ez(p); fx.pc.forEach(c=>{ const h=c.userData._gh,s=c.userData._ps; c.position.set(s.px+(h.px-s.px)*e,s.py+(h.py-s.py)*e,s.pz+(h.pz-s.pz)*e); c.scale.set(h.sx*e,h.sy*e,h.sz*e); c.rotation.set(c.userData._spin*(1-e),c.userData._spin*(1-e),0); pOpacity(c,clamp(e*1.4)); }); } },
+    toz:{ dur:1500, init(fx){ const TT=T(),b=bounds(fx),c=b.getCenter(new TT.Vector3()); fx.tmp.center=c; fx.tmp.dust=[]; fx.mk.forEach(g=>g.scale.set(0.001,0.001,0.001)); setOpacityMs(fx.ms,0); for(let i=0;i<40;i++){ const s=new TT.Mesh(new TT.SphereGeometry(0.07+Math.random()*0.06,8,8),new TT.MeshBasicMaterial({color:[0xfff1a8,0x9be7ff,0xffd56b,0xb59bff][i%4],transparent:true,opacity:1,blending:TT.AdditiveBlending,depthWrite:false})); s.position.copy(c); s.userData.v=rdir().multiplyScalar(3.5+Math.random()*2.5); addFx(fx,s); fx.tmp.dust.push(s); } }, update(fx,p){ const c=fx.tmp.center; (fx.tmp.dust||[]).forEach(s=>{ s.position.copy(c).addScaledVector(s.userData.v,ez(p)); s.material.opacity=clamp(1-p*1.1); const sc=clamp(1-p); s.scale.set(sc,sc,sc); }); const a=ez(clamp((p-0.18)/0.7)); fx.mk.forEach(g=>{const h=g.userData._gh,e=Math.max(0.001,a); g.scale.set(h.sx*e,h.sy*e,h.sz*e);}); setOpacityMs(fx.ms,a); } },
+    hologram:{ dur:1500, init(fx){ const TT=T(),b=bounds(fx); setOpacityMs(fx.ms,0); const disk=new TT.Mesh(new TT.CircleGeometry(3.2,40),new TT.MeshBasicMaterial({color:0x6fe9ff,transparent:true,opacity:0.5,side:TT.DoubleSide,depthWrite:false})); disk.rotation.x=-Math.PI/2; disk.position.y=b.min.y; addFx(fx,disk); fx.tmp.disk=disk; fx.tmp.minY=b.min.y-0.6; fx.tmp.maxY=b.max.y+0.6; fx.tmp.tv=_v(); }, update(fx,p){ const t=fx.tmp; const scan=t.minY+(t.maxY-t.minY)*ez(p); t.disk.position.y=scan; t.disk.material.opacity=0.5*(1-p); fx.ms.forEach(m=>{ const wy=m.getWorldPosition(t.tv).y; const a=ez(clamp((scan-wy)/0.9+0.1)); m.material.opacity=a; m.visible=a>0.01; if(m.material.emissive){ m.material.emissive.setHex(0x36c6ff); m.material.emissiveIntensity=(1-a)*0.9; } }); } }
+  };
+  // efektlere özel sesler (studio'dan)
+  Object.assign(ESND,{ insa(S){ for(let i=0;i<5;i++) blip(S,200+i*30,i*0.10,0.07,'square',0.10); blip(S,880,0.55,0.18,'sine',0.12); }, hologram(S){ blip(S,300,0,0.5,'sine',0.16,1300); noise(S,0,0.5,0.05,1800,'highpass'); }, patla(S){ noise(S,0,0.32,0.24,260,'lowpass'); blip(S,80,0,0.3,'sine',0.18,40); blip(S,700,0.26,0.2,'sine',0.12,1100); }, toz(S){ for(let i=0;i<7;i++) blip(S,1200+Math.random()*1400,Math.random()*0.6,0.10,'sine',0.07); }, dalga(S){ [523,659,784,1047].forEach((f,i)=>blip(S,f,i*0.09,0.14,'sine',0.13)); } });
+
+  const ALLE=['insa','hologram','zipla','patla','don','toz','dalga','yerden','uzaydan','balon','buyu','sagdan'];
+  const POOL={ ilkokul:['zipla','toz','balon','dalga','don','yerden'], ortaokul:['insa','dalga','patla','uzaydan','don','yerden','balon'], lise:['insa','hologram','uzaydan','patla','dalga','don'], karisik:ALLE.slice() };
+  let last='';
+  function pickEnter(S){ if(S.enterMode && S.enterMode!=='rastgele' && EFFECTS[S.enterMode]) return S.enterMode; const p=POOL[S.level]||POOL.karisik; let n; do{ n=p[Math.floor(Math.random()*p.length)]; }while(n===last&&p.length>1); last=n; return n; }
+
+  let tween=null;
+  function tick(){ requestAnimationFrame(tick); if(!tween)return; const p=Math.min(1,(performance.now()-tween.t0)/tween.dur); try{ tween.eff.update(tween.fx,p); }catch(e){ try{ restoreAll(tween.fx); }catch(_){} tween=null; return; } if(p>=1){ restoreAll(tween.fx); tween=null; } }
+  requestAnimationFrame(tick);
+
+  function startEnter(group,S){ if(!window.THREE||!window.scene)return;
+    if(tween){ clearFx(tween.fx); tween=null; }
+    try{ group.updateMatrixWorld(true); }catch(e){} // bbox/dünya konumu doğru olsun
+    const fx=capture(group); if(fx.mk.length===0) return;
+    const name=pickEnter(S); const eff=EFFECTS[name]||EFFECTS.buyu;
+    try{ eff.init&&eff.init(fx); eff.update(fx,0); }catch(e){ return; }
+    tween={ eff, fx, t0:performance.now(), dur:eff.dur*(S.calm?1.4:S.speed) };
+    if(S.sound && ESND[name]) try{ ESND[name](S); }catch(e){}
+  }
+
+  window.GECIS={
+    settings: readS,
+    // sahne değişiminde çağrılır: group = yeni model grubu (THREE.Group), label = konu adı
+    onScene(group, label){ const S=readS();
+      if(S.sound) vedaSound(S); // eski sahne için kısa veda tonu
+      emoji(S); flyTitle(S, label);
+      if(S.confetti && !S.calm && S.level==='ilkokul') confetti();
+      if(group) startEnter(group,S);
+    }
+  };
+})();
+</script>
+
 <script type="module">
 const THREE = window.THREE;
 
@@ -1221,24 +1459,38 @@ class OrbitControls extends THREE.EventDispatcher {
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
 
-    this._zoomToScreenPoint = (screenX, screenY, factor) => {
+    // Ekran noktasının altındaki 3B noktayı bul: KAMERA BAKIŞINA DİK, target'tan
+    // geçen düzlemle kesiştir. (Eski sürüm y=target.y düzlemi kullanıyordu; kamera
+    // yataya yakınken ışın düzleme paralel olup kesişim çok uzakta çıkıyor ve model
+    // ekran dışına uçuyordu. Bu yöntemde kesişim her açıda ~radius mesafede kalır.)
+    this._hitOnFocusPlane = (screenX, screenY) => {
       const rect = dom.getBoundingClientRect();
       const ndcX = ((screenX - rect.left) / rect.width) * 2 - 1;
       const ndcY = -((screenY - rect.top) / rect.height) * 2 + 1;
       const ndc = new THREE.Vector3(ndcX, ndcY, 0.5);
       ndc.unproject(this.object);
       const dir = ndc.sub(this.object.position).normalize();
-      const t = (this.target.y - this.object.position.y) / dir.y;
-      if (t > 0 && isFinite(t)) {
-        const hit = new THREE.Vector3(
-          this.object.position.x + dir.x * t,
-          this.target.y,
-          this.object.position.z + dir.z * t
-        );
-        this.target.lerp(hit, 0.65);
-      }
+      const camDir = new THREE.Vector3();
+      this.object.getWorldDirection(camDir);
+      const denom = dir.dot(camDir);
+      if (Math.abs(denom) < 1e-5) return null;
+      const t = this.target.clone().sub(this.object.position).dot(camDir) / denom;
+      if (!(t > 0) || !isFinite(t)) return null;
+      return this.object.position.clone().addScaledVector(dir, t);
+    };
+
+    this._zoomToScreenPoint = (screenX, screenY, factor) => {
+      const hit = this._hitOnFocusPlane(screenX, screenY);
+      if (hit) this.target.lerp(hit, 0.65);
       this._sphericalTarget.radius = Math.max(this.minDistance,
         Math.min(this.maxDistance, this._sphericalTarget.radius * factor));
+    };
+
+    // Hedefi (ekran merkezini), işaret edilen noktaya doğru `k` oranında kaydırır →
+    // pinch/tekerlekte "nereyi yakınlaştırırsam orası ortaya gelsin" davranışı.
+    this._panToScreenPoint = (screenX, screenY, k) => {
+      const hit = this._hitOnFocusPlane(screenX, screenY);
+      if (hit) this.target.lerp(hit, k);
     };
 
     let touchStart = null;
@@ -1257,6 +1509,9 @@ class OrbitControls extends THREE.EventDispatcher {
       radius: this._sphericalTarget.radius
     };
     this.captureInitialState = () => {
+      // selectSub kamera/target'ı yeni set ettiyse, spherical'i ona göre türet ki
+      // hem ilk görünüm doğru olsun hem de resetView doğru açı/yarıçapa dönsün.
+      this._syncFromCamera();
       this._initialCameraState = {
         position: this.object.position.clone(),
         target: this.target.clone(),
@@ -1355,7 +1610,7 @@ class OrbitControls extends THREE.EventDispatcher {
         const dist = Math.hypot(dx, dy);
         const newCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
         const newCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        this._sphericalTarget.radius = Math.max(this.minDistance, Math.min(this.maxDistance, pinchStartRadius * (pinchStartDist / dist)));
+        // 1) İki parmağın ortak kayması → pan (modeli serbestçe taşı)
         const panDx = newCenterX - pinchCenter.x;
         const panDy = newCenterY - pinchCenter.y;
         pinchCenter.x = newCenterX;
@@ -1366,6 +1621,17 @@ class OrbitControls extends THREE.EventDispatcher {
         const panFactor = this._sphericalTarget.radius * 0.0045;
         this.target.addScaledVector(right, -panDx * panFactor);
         this.target.addScaledVector(up, panDy * panFactor);
+        // 2) Parmak arası açılma/kapanma → zoom. Parmakların ortasındaki nokta
+        //    ekranda SABİT kalacak şekilde hedefi yarıçap oranıyla ORANTILI kaydır
+        //    (sabit lerp drift'i kaldırıldı → ne kaçıyor ne de sıçrıyor).
+        const oldR = this._sphericalTarget.radius;
+        const newR = Math.max(this.minDistance, Math.min(this.maxDistance, pinchStartRadius * (pinchStartDist / dist)));
+        const hit = this._hitOnFocusPlane(newCenterX, newCenterY);
+        if (hit && oldR > 0.0001) {
+          const f = Math.max(-0.4, Math.min(0.4, 1 - newR / oldR)); // yakınlaş: hedef noktaya doğru; uzaklaş: tersine
+          this.target.lerp(hit, f);
+        }
+        this._sphericalTarget.radius = newR;
       }
     }, { passive: false });
 
@@ -1387,7 +1653,9 @@ class OrbitControls extends THREE.EventDispatcher {
     dom.addEventListener('wheel', (e) => {
       if (!this.enabled) return;
       e.preventDefault();
+      // Tekerlekle yakınlaşma imlecin olduğu noktaya odaklansın
       const factor = e.deltaY > 0 ? 1.1 : 0.9;
+      this._panToScreenPoint(e.clientX, e.clientY, factor < 1 ? 0.22 : 0.12);
       this._sphericalTarget.radius = Math.max(this.minDistance,
         Math.min(this.maxDistance, this._sphericalTarget.radius * factor));
     }, { passive: false });
@@ -1415,7 +1683,11 @@ class OrbitControls extends THREE.EventDispatcher {
   }
 
   update() {
-    if (!this._lastCamPos.equals(this.object.position) || !this._lastTarget.equals(this.target)) {
+    // YALNIZCA kamera DIŞARIDAN taşındıysa (ör. selectSub camera.position.set) yeniden
+    // türet. target'ı kontrol'ün kendisi (pan/zoom-odak/reset) değiştirdiğinde sync
+    // ÇALIŞMAMALI; yoksa ayarlanan zoom yarıçapı/açılar her kare sıfırlanır →
+    // "yakınlaşmıyor" + kamera sıçrayıp model ekran dışına uçuyordu.
+    if (!this._lastCamPos.equals(this.object.position)) {
       this._syncFromCamera();
     }
     if (this.enableDamping) {
@@ -1647,6 +1919,7 @@ function clearScene() {
   });
   dynamicObjects = [];
   window._labelRefs = [];
+  window._labelPlaced = [];
   window._currentModelGroup = null;
   window._customAnim = null;
   window._flowRays = [];
@@ -1768,7 +2041,7 @@ function updateLeaderLines() {
 
     ref.anchorObj.getWorldPosition(_projVec);
     _projVec.project(camera);
-    if (_projVec.z > 1 || _projVec.z < -1) return;
+    if (!(_projVec.z >= -1 && _projVec.z <= 1)) return;
     const ax = (_projVec.x + 1) / 2 * w;
     const ay = (1 - _projVec.y) / 2 * h;
 
@@ -1802,6 +2075,7 @@ function updateLeaderLines() {
     const midX = (edgeX + ax) / 2;
     const midY = (edgeY + ay) / 2;
     const distLine = Math.hypot(ax - edgeX, ay - edgeY);
+    if (!(distLine > 0)) return;
     const normalX = -(ay - edgeY) / distLine;
     const normalY = (ax - edgeX) / distLine;
     const curveAmount = Math.min(distLine * 0.18, 35);
@@ -1840,30 +2114,50 @@ window._sceneState = {
   _displayUpdaters: []
 };
 
+function positionVarsBody() {
+  const t = document.getElementById('sceneToggle');
+  const b = document.getElementById('sceneVarsBody');
+  if (t && b && !b.classList.contains('closed')) {
+    b.style.top = Math.round(t.getBoundingClientRect().bottom + 6) + 'px';
+  }
+}
+window.positionVarsBody = positionVarsBody;
+
 function setSceneSliders(items, opts = {}) {
-  const panel = document.getElementById('scenePanel');
-  if (!panel) return;
-  panel.innerHTML = '';
-  panel.classList.remove('empty', 'collapsed');
+  const row = document.getElementById('stackRow');
+  const bodyPanel = document.getElementById('sceneVarsBody');
+  if (!row || !bodyPanel) return;
+  // Eski Değişkenler sekmesini kaldır (her sahne yeniden kurar)
+  const oldT = document.getElementById('sceneToggle'); if (oldT) oldT.remove();
+  bodyPanel.innerHTML = '';
   document.body.classList.add('scene-panel-open');
   window._sceneState._displayUpdaters = [];
-
+  // Değişkenler sekmesi → Konu Rehberi'nin SOLUNA (aynı satır, aynı ebat)
   const toggle = document.createElement('button');
+  toggle.id = 'sceneToggle';
   toggle.className = 'sp-toggle';
-  toggle.innerHTML = `<span>🎛️ ${opts.title || 'Kontroller'}</span><span class="sp-chev">▼</span>`;
+  toggle.innerHTML = `<span class="sb-emoji">🎛️</span><span class="sb-label">Değişkenler</span><span class="sp-chev">▼</span>`;
+  row.insertBefore(toggle, document.getElementById('btnTopic'));
+  // İçerik tam-genişlik yatay panelde
+  const body = bodyPanel;
+  const _chev = toggle.querySelector('.sp-chev');
+  // Basınca aç/kapat: tam genişlik pencere sekmenin altına gelir
+  function setSceneOpen(open) {
+    bodyPanel.classList.toggle('closed', !open);
+    if (_chev) _chev.textContent = open ? '▲' : '▼';
+    if (open) positionVarsBody();
+  }
+  window._setSceneOpen = setSceneOpen;
   toggle.onclick = () => {
-    panel.classList.toggle('collapsed');
-    toggle.querySelector('.sp-chev').textContent = panel.classList.contains('collapsed') ? '◀' : '▼';
+    setSceneOpen(bodyPanel.classList.contains('closed'));
     if (window._haptic) window._haptic(10);
   };
-  panel.appendChild(toggle);
-
   items.forEach(item => {
     if (item.type === 'section') {
       const t = document.createElement('div');
       t.className = 'sp-section';
       t.textContent = item.label;
-      panel.appendChild(t);
+      body.appendChild(t);
       return;
     }
     if (item.type === 'slider') {
@@ -1918,7 +2212,7 @@ function setSceneSliders(items, opts = {}) {
         slider.value = nv; item.setValue(nv); updateVal();
         if (window._haptic) window._haptic(8);
       });
-      panel.appendChild(row);
+      body.appendChild(row);
       updateVal();
       window._sceneState._displayUpdaters.push(() => {
         const v = item.getValue();
@@ -1931,16 +2225,20 @@ function setSceneSliders(items, opts = {}) {
       row.innerHTML = `<span class="sp-label">${item.label}</span><span class="sp-val"></span>`;
       const val = row.querySelector('.sp-val');
       val.textContent = item.getValue();
-      panel.appendChild(row);
+      body.appendChild(row);
       window._sceneState._displayUpdaters.push(() => { val.textContent = item.getValue(); });
     }
     if (item.type === 'formula') {
-      const row = document.createElement('div');
-      row.className = 'sp-formula';
-      row.innerHTML = item.text;
-      panel.appendChild(row);
-      if (item.getValue) {
-        window._sceneState._displayUpdaters.push(() => { row.innerHTML = item.getValue(); });
+      const hasMath = /[=√÷×²·]|sin|cos|1\//.test(item.text || '') || /q₁|q₂|kq|k·q|qE|qV|ε₀|½|Σ|ΔV|N\/C|qE\/m|V\/d/.test(item.text||'');
+      const skip = (currentLevel === 'ilkokul' || currentLevel === 'ortaokul') && hasMath && !item.keepSimple;
+      if (!skip) {
+        const row = document.createElement('div');
+        row.className = 'sp-formula';
+        row.innerHTML = item.text;
+        body.appendChild(row);
+        if (item.getValue && !((currentLevel === 'ilkokul' || currentLevel === 'ortaokul') && hasMath)) {
+          window._sceneState._displayUpdaters.push(() => { row.innerHTML = item.getValue(); });
+        }
       }
     }
     if (item.type === 'presets') {
@@ -1959,14 +2257,18 @@ function setSceneSliders(items, opts = {}) {
         };
         row.appendChild(b);
       });
-      panel.appendChild(row);
+      body.appendChild(row);
     }
   });
+  // Değişkenler varsayılan KAPALI; konu değişince OTOMATİK AÇILMAZ (kullanıcı basar).
+  bodyPanel.classList.add('closed');
+  if (_chev) _chev.textContent = '▼';
 }
 
 function clearSceneSliders() {
-  const panel = document.getElementById('scenePanel');
-  if (panel) { panel.innerHTML = ''; panel.classList.add('empty'); }
+  const oldT = document.getElementById('sceneToggle'); if (oldT) oldT.remove();
+  const bodyPanel = document.getElementById('sceneVarsBody');
+  if (bodyPanel) { bodyPanel.innerHTML = ''; bodyPanel.classList.add('closed'); }
   document.body.classList.remove('scene-panel-open');
   if (window._sceneState) window._sceneState._displayUpdaters = [];
 }
@@ -2922,40 +3224,98 @@ SubBuilders.buildBasitMakine = function() {
   const root = new THREE.Group();
   markDynamic(root); scene.add(root); window._currentModelGroup = root;
   root.add(setupVectorLighting());
-  root.add(makeGridSystem({ size: 16, divisions: 16, floorY: 0 }));
+  root.add(makeGridSystem({ size: 18, divisions: 18, floorY: 0 }));
+
+  const S = window._sceneState;
+  S._bmT = 0;
 
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
-  // küçük bir kaldıraç örneği (tanıtım): destek + çubuk + yük + kuvvet
+
   function rebuild() {
     [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
-    const ful = makeFulcrum({ h: 1.0 }); ful.position.set(0, 0, 0); dyn.add(ful);
-    const bar = makeLeverBar(7); bar.position.set(0, 1.05, 0); dyn.add(bar);
-    // yük (sol uç)
-    const load = makeLoad({ size: 1.0 }); load.position.set(-3, 1.7, 0); dyn.add(load);
-    // kuvvet oku (sağ uç, aşağı)
-    dyn.add(makeVectorArrow(new THREE.Vector3(3, 3, 0), new THREE.Vector3(0, -1.2, 0), { color: MCOL.force, shaftR: 0.07, headR: 0.2 }));
+
+    const phase = window._isPlayingActive ? (0.5 + 0.5*Math.sin(S._bmT)) : 0.4;
+
+    // ====== VİTRİN 1: KALDIRAÇ (sol) ======
+    const gL = new THREE.Group(); gL.position.set(-5.6, 0, 0); dyn.add(gL);
+    const tilt = -0.12 * phase;
+    gL.add(makeFulcrum({ h: 0.9 }));
+    const barL = new THREE.Group();
+    const lever = makeLeverBar(4.4); lever.position.set(0.5, 0, 0); barL.add(lever);
+    barL.position.set(0, 0.9, 0); barL.rotation.z = tilt; gL.add(barL);
+    const cz = Math.cos(tilt), sz = Math.sin(tilt);
+    const lp = new THREE.Vector3(-1.5*cz, 0.9 - 1.5*sz, 0);
+    const fp = new THREE.Vector3( 2.5*cz, 0.9 + 2.5*sz, 0);
+    const lo = makeLoad({ size: 0.7 }); lo.position.set(lp.x, lp.y + 0.5, 0); gL.add(lo);
+    gL.add(makeVectorArrow(new THREE.Vector3(fp.x, fp.y + 1.0, 0), new THREE.Vector3(0, -0.9, 0), { color: MCOL.force, shaftR: 0.05, headR: 0.14 }));
+    gL.add(makeVectorArrow(new THREE.Vector3(lp.x, lp.y + 0.95, 0), new THREE.Vector3(0, -0.7, 0), { color: MCOL.load, shaftR: 0.045, headR: 0.12 }));
+    gL.add(makeMeasureLabel('Kaldıraç', [0, -0.7, 0], 'rgba(30,40,64,0.92)'));
+
+    // ====== VİTRİN 2: MAKARA (orta) ======
+    const gM = new THREE.Group(); gM.position.set(0, 0, 0); dyn.add(gM);
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.22, 0.5), new THREE.MeshStandardMaterial({ color: 0x5a6b8a, roughness: 0.6 }));
+    beam.position.set(0, 4.1, 0); gM.add(beam);
+    const R = 0.5;
+    const pul = makePulley({ R: R }); pul.position.set(0, 3.4, 0); gM.add(pul);
+    const liftM = 0.5 * phase;
+    gM.add(makeThickRope(new THREE.Vector3(-R, 3.4, 0), new THREE.Vector3(-R, 1.4 + liftM, 0), { color: MCOL.rope }));
+    gM.add(makeThickRope(new THREE.Vector3(-R, 3.4, 0), new THREE.Vector3(R, 3.4, 0), { color: MCOL.rope, r: 0.03 }));
+    gM.add(makeThickRope(new THREE.Vector3(R, 3.4, 0), new THREE.Vector3(R, 1.0 - liftM, 0), { color: MCOL.rope }));
+    const loM = makeLoad({ size: 0.7 }); loM.position.set(-R, 0.95 + liftM, 0); gM.add(loM);
+    gM.add(makeVectorArrow(new THREE.Vector3(-R, 0.5 + liftM, 0), new THREE.Vector3(0, -0.8, 0), { color: MCOL.load, shaftR: 0.045, headR: 0.12 }));
+    gM.add(makeVectorArrow(new THREE.Vector3(R, 1.0 - liftM, 0), new THREE.Vector3(0, -0.8, 0), { color: MCOL.force, shaftR: 0.045, headR: 0.12 }));
+    gM.add(makeMeasureLabel('Makara', [0, -0.7, 0], 'rgba(30,40,64,0.92)'));
+
+    // ====== VİTRİN 3: EĞİK DÜZLEM (sağ) ======
+    const gR = new THREE.Group(); gR.position.set(4.2, 0, 0); dyn.add(gR);
+    const rampL = 3.6, rampH = 1.8;
+    const ramp = makeRamp(rampL, rampH, { depth: 1.2 }); ramp.position.set(-rampL/2, 0, 0); gR.add(ramp);
+    // kutu rampada (eğim boyunca ileri-geri kayar)
+    const tt = phase; // 0..1 yamaç boyu
+    const bx = -rampL/2 + (rampL) * (1 - tt) * 0.85 + 0.15;
+    const by = (rampH) * tt * 0.85 + 0.45;
+    const bxCenter = -rampL/2 + rampL * (1 - tt*0.85);
+    const slope = Math.atan2(rampH, rampL);
+    const box = makeLoad({ size: 0.6 });
+    box.position.set(bxCenter, rampH * tt * 0.85 + 0.4, 0);
+    box.rotation.z = -slope; gR.add(box);
+    // itme kuvveti oku (yamaç boyunca yukarı, küçük)
+    gR.add(makeVectorArrow(new THREE.Vector3(bxCenter + 0.5, rampH * tt * 0.85 + 0.45, 0),
+      new THREE.Vector3(-Math.cos(slope)*0.8, Math.sin(slope)*0.8, 0), { color: MCOL.force, shaftR: 0.045, headR: 0.12 }));
+    gR.add(makeMeasureLabel('Eğik Düzlem', [0, -0.7, 0], 'rgba(30,40,64,0.92)'));
+
+    // ====== ANA MESAJ (üstte büyük etiket) ======
+    dyn.add(makeMeasureLabel('İşten kazanç YOK — kuvvetten/yoldan kazanç', [0, 5.2, 0], 'rgba(46,120,90,0.95)'));
   }
   rebuild();
+  window._customAnim = function(t, dt){ S._bmT += dt * 1.3; rebuild(); };
 
   setSceneSliders([
-    { type: 'section', label: 'Basit Makine' },
-    { type: 'display', label: 'Amaç', highlight: true, getValue: () => 'İş kolaylığı' },
+    { type: 'section', label: 'Basit Makine Nedir' },
+    { type: 'display', label: 'Amaç', highlight: true, getValue: () => 'İşi kolaylaştırmak' },
+    { type: 'display', label: 'Değiştirir', getValue: () => 'Kuvvetin yönü / büyüklüğü' },
     { type: 'display', label: 'Kuvvet kazancı', getValue: () => 'K = Yük / Kuvvet' },
-    { type: 'display', label: 'İş kazancı', getValue: () => 'YOK (korunur)' },
+    { type: 'display', label: 'İş (enerji) kazancı', getValue: () => 'YOK — korunur' },
+    { type: 'section', label: 'Örnekler' },
+    { type: 'display', label: '⚖️ Kaldıraç', getValue: () => 'F·b = P·a' },
+    { type: 'display', label: '🎡 Makara', getValue: () => 'yön / kuvvet' },
+    { type: 'display', label: '📐 Eğik düzlem', getValue: () => 'F = P·h/ℓ' },
     { type: 'formula', text: 'Kuvvetten kazanç = Yoldan kayıp' }
-  ], { title: 'Basit Makine' });
+  ], { title: 'Basit Makine Nedir' });
 
   addInfo3DLabels([
-    { text: { ilkokul:'🪨 Yük', ortaokul:'🪨 Yük (P)', lise:'🪨 Yük P', tyt_ayt:'🪨 Yük P' },
-      position: [-4, 3, 0], target: [-3, 2.2, 0], color: '#ff6b4a' },
-    { text: { ilkokul:'🔺 Destek', ortaokul:'🔺 Destek noktası', lise:'🔺 Dayanak (pivot)', tyt_ayt:'🔺 Dönme ekseni' },
-      position: [0, -1.2, 0], target: [0, 0.5, 0], color: '#9fb0d8' },
-    { text: { ilkokul:'👇 İtme', ortaokul:'💪 Kuvvet (F)', lise:'💪 Kuvvet F', tyt_ayt:'💪 Uygulanan F' },
-      position: [4, 3.5, 0], target: [3, 2.2, 0], color: '#ffb84d' }
+    { text: { ilkokul:'⚖️ Kaldıraç', ortaokul:'⚖️ Kaldıraç', lise:'⚖️ Kaldıraç (F·b=P·a)', tyt_ayt:'⚖️ Moment dengesi' },
+      position: [-5.6, 3.6, 0], target: [-5.1, 1.0, 0], color: '#ffb84d' },
+    { text: { ilkokul:'🎡 Makara', ortaokul:'🎡 Makara', lise:'🎡 Makara (yön/kuvvet)', tyt_ayt:'🎡 Tork dengesi' },
+      position: [0.2, 4.4, 0], target: [0, 3.4, 0], color: '#6b7fa8' },
+    { text: { ilkokul:'📐 Rampa', ortaokul:'📐 Eğik düzlem', lise:'📐 Eğik düzlem (F=P·h/ℓ)', tyt_ayt:'📐 F=P·sinθ' },
+      position: [5.6, 3.4, 0], target: [4.2, 1.0, 0], color: '#7a8499' },
+    { text: { ilkokul:'💪 Az kuvvetle iş', ortaokul:'⚠️ İşten kazanç sağlamaz!',
+              lise:'⚠️ W_giren = W_çıkan (ideal)', tyt_ayt:'⚠️ Enerji korunumu' },
+      position: [0, -1.5, 0], target: [0, 0.4, 0], color: '#3ed673', minLevel: 1 }
   ]);
 };
 
-// ---------- MODÜL 1.2: Kaldıraç Dengesi (interaktif) ----------
 SubBuilders.buildKaldirac = function() {
   const root = new THREE.Group();
   markDynamic(root); scene.add(root); window._currentModelGroup = root;
@@ -2963,35 +3323,76 @@ SubBuilders.buildKaldirac = function() {
   root.add(makeGridSystem({ size: 16, divisions: 16, floorY: 0 }));
 
   const S = window._sceneState;
-  S.kl_P = 100;   // yük (N)
-  S.kl_a = 1.5;   // yük kolu (destek-yük uzaklığı)
-  S.kl_b = 3.0;   // kuvvet kolu (destek-kuvvet uzaklığı)
+  S.kl_P = 100;     // yük (N)
+  S.kl_a = 1.5;     // yük kolu (destek-yük uzaklığı, m)
+  S.kl_b = 3.0;     // kuvvet kolu (destek-kuvvet uzaklığı, m)
+  S._klT = 0;       // animasyon fazı
+
+  const pivotY = 1.05;          // çubuk dönme yüksekliği (destek tepesi)
+  function F() { return S.kl_P * S.kl_a / S.kl_b; }   // F·b = P·a
+  // ok boyu kuvvetle orantılı (görsel ölçek)
+  function loadArrowLen() { return 0.5 + S.kl_P / 110; }
+  function forceArrowLen() { return 0.5 + F() / 110; }
 
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
-  function F() { return S.kl_P * S.kl_a / S.kl_b; }
 
   function rebuild() {
     [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
-    // destek
-    dyn.add(makeFulcrum({ h: 1.0 }));
-    // çubuk (yük kolu + kuvvet kolu uzunluğunda, destek merkezde 0)
-    const barLen = (S.kl_a + S.kl_b) + 1;
+
+    // Eğilme açısı: kuvvet uygulanınca kuvvet ucu iner, yük ucu kalkar.
+    // Animasyon ▶️ ile çekme döngüsü; dengeli sistemde küçük salınım.
+    const phase = window._isPlayingActive ? (0.5 + 0.5 * Math.sin(S._klT)) : 0; // 0..1 çekme
+    const tilt = -0.10 * phase;   // sağ (kuvvet) ucu aşağı → saat yönü = negatif z-rot
+
+    // --- DESTEK (sabit) ---
+    dyn.add(makeFulcrum({ h: pivotY }));
+
+    // --- ÇUBUK (destek merkezli, eğilebilen) ---
+    const barLen = (S.kl_a + S.kl_b) + 1.0;
+    const barGrp = new THREE.Group();
     const bar = makeLeverBar(barLen);
-    // çubuğu destek merkezine göre kaydır: sol uç -a, sağ uç +b
-    bar.position.set((S.kl_b - S.kl_a)/2, 1.05, 0);
-    dyn.add(bar);
-    // yük (sol, -a)
-    const load = makeLoad({ size: 0.5 + S.kl_P/200 });
-    load.position.set(-S.kl_a, 1.15 + (0.25 + S.kl_P/400), 0); dyn.add(load);
-    // yük ağırlık oku
-    dyn.add(makeVectorArrow(new THREE.Vector3(-S.kl_a, 1.1, 0), new THREE.Vector3(0, -0.5 - S.kl_P/150, 0), { color: MCOL.load, shaftR: 0.05, headR: 0.14 }));
-    // kuvvet oku (sağ, +b, aşağı)
-    dyn.add(makeVectorArrow(new THREE.Vector3(S.kl_b, 1.1 + 0.5 + F()/150, 0), new THREE.Vector3(0, -0.5 - F()/150, 0), { color: MCOL.force, shaftR: 0.05, headR: 0.14 }));
-    // kol uzunluğu ölçü çizgileri + etiketleri (a: yük kolu, b: kuvvet kolu)
-    dyn.add(makeDimension(new THREE.Vector3(-S.kl_a, 0.3, 0), new THREE.Vector3(0, 0.3, 0), 'a = ' + S.kl_a.toFixed(1) + ' m', { color: 0xff6b4a, offset: [0, -0.4, 0] }));
-    dyn.add(makeDimension(new THREE.Vector3(0, 0.3, 0), new THREE.Vector3(S.kl_b, 0.3, 0), 'b = ' + S.kl_b.toFixed(1) + ' m', { color: 0xffb84d, offset: [0, -0.4, 0] }));
+    // çubuğu öyle yerleştir ki merkez (pivot) x=0 olsun: sol uç -a, sağ uç +b
+    bar.position.set((S.kl_b - S.kl_a)/2, 0, 0);
+    barGrp.add(bar);
+    barGrp.position.set(0, pivotY, 0);
+    barGrp.rotation.z = tilt;
+    dyn.add(barGrp);
+
+    // çubuk üzerindeki nokta konumlarını döndürülmüş çerçevede hesapla
+    const cz = Math.cos(tilt), sz = Math.sin(tilt);
+    const rot = (x) => new THREE.Vector3(x*cz, pivotY + x*sz, 0);
+    const loadTop  = rot(-S.kl_a);   // yük bağlantısı (sol)
+    const forceTop = rot(S.kl_b);    // kuvvet uygulama noktası (sağ)
+
+    // --- YÜK (boyu P ile orantılı) ---
+    const lsz = 0.55 + S.kl_P / 260;
+    const load = makeLoad({ size: lsz });
+    load.position.set(loadTop.x, loadTop.y + 0.12 + lsz/2, 0); dyn.add(load);
+    dyn.add(makeThickRope(loadTop, new THREE.Vector3(loadTop.x, loadTop.y + 0.12, 0), { color: MCOL.rope, r: 0.03 }));
+
+    // YÜK AĞIRLIK OKU (mavi/load rengi, aşağı, boyu P ile orantılı)
+    const lLen = loadArrowLen();
+    dyn.add(makeVectorArrow(new THREE.Vector3(loadTop.x, loadTop.y + 0.12 + lsz + 0.15, 0),
+      new THREE.Vector3(0, -lLen, 0), { color: MCOL.load, shaftR: 0.055, headR: 0.16 }));
+
+    // KUVVET OKU (kırmızı/force, aşağı uygulanan, boyu F ile orantılı)
+    const fLen = forceArrowLen();
+    dyn.add(makeVectorArrow(new THREE.Vector3(forceTop.x, forceTop.y + 0.2 + fLen, 0),
+      new THREE.Vector3(0, -fLen, 0), { color: MCOL.force, shaftR: 0.055, headR: 0.16 }));
+
+    // --- KOL ÖLÇÜLERİ (a: yük kolu kırmızımsı, b: kuvvet kolu turuncu) ---
+    dyn.add(makeDimension(new THREE.Vector3(-S.kl_a, 0.32, 0), new THREE.Vector3(0, 0.32, 0),
+      'a = ' + S.kl_a.toFixed(1) + ' m', { color: 0xff6b4a, offset: [0, -0.4, 0] }));
+    dyn.add(makeDimension(new THREE.Vector3(0, 0.32, 0), new THREE.Vector3(S.kl_b, 0.32, 0),
+      'b = ' + S.kl_b.toFixed(1) + ' m', { color: 0xffb84d, offset: [0, -0.4, 0] }));
+
+    // pivot işareti (küçük parlak küre)
+    const pv = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 10),
+      new THREE.MeshBasicMaterial({ color: 0xffe14d, toneMapped: false }));
+    pv.position.set(0, pivotY, 0); dyn.add(pv);
   }
   rebuild();
+  window._customAnim = function(t, dt){ S._klT += dt * 1.6; rebuild(); };
 
   setSceneSliders([
     { type: 'section', label: 'Kaldıraç Dengesi' },
@@ -3004,75 +3405,125 @@ SubBuilders.buildKaldirac = function() {
     { type: 'section', label: 'Sonuç' },
     { type: 'display', label: 'Gereken kuvvet F', highlight: true, getValue: () => F().toFixed(1) + ' N' },
     { type: 'display', label: 'Kuvvet kazancı', getValue: () => (S.kl_b/S.kl_a).toFixed(2) },
+    { type: 'display', label: 'Yük momenti P·a', getValue: () => (S.kl_P*S.kl_a).toFixed(0) + ' N·m' },
+    { type: 'display', label: 'Kuvvet momenti F·b', getValue: () => (F()*S.kl_b).toFixed(0) + ' N·m' },
     { type: 'formula', text: 'F·b = P·a',
-      getValue: () => 'F = ' + S.kl_P + '·' + S.kl_a.toFixed(1) + '/' + S.kl_b.toFixed(1) + ' = <b>' + F().toFixed(1) + ' N</b>' }
+      getValue: () => 'F = (' + S.kl_P + '·' + S.kl_a.toFixed(1) + ') / ' + S.kl_b.toFixed(1) + ' = <b>' + F().toFixed(1) + ' N</b>' }
   ], { title: 'Kaldıraç Dengesi' });
 
   addInfo3DLabels([
-    { text: { ilkokul:'🪨 Yük', ortaokul:'🪨 Yük P', lise:'🪨 Yük P (kol: a)', tyt_ayt:'🪨 P · a (yük momenti)' },
-      position: [-S.kl_a-1.5, 3, 0], target: [-S.kl_a, 1.5, 0], color: '#ff6b4a' },
+    { text: { ilkokul:'🪨 Yük', ortaokul:'🪨 Yük P', lise:'🪨 Yük P (kol: a)', tyt_ayt:'🪨 P·a (yük momenti)' },
+      position: [-S.kl_a-1.6, 3.0, 0], target: [-S.kl_a, pivotY + 0.6, 0], color: '#ff6b4a' },
     { text: { ilkokul:'🔺 Denge noktası', ortaokul:'🔺 Destek', lise:'🔺 Dayanak', tyt_ayt:'🔺 Pivot (ΣM=0)' },
-      position: [0, -1.3, 0], target: [0, 0.4, 0], color: '#9fb0d8' },
-    { text: { ilkokul:'👇 İt', ortaokul:'💪 Kuvvet F', lise:'💪 Kuvvet F (kol: b)', tyt_ayt:'💪 F · b (kuvvet momenti)' },
-      position: [S.kl_b+1.5, 3.5, 0], target: [S.kl_b, 1.5, 0], color: '#ffb84d' }
+      position: [0, -1.3, 0], target: [0, pivotY, 0], color: '#9fb0d8' },
+    { text: { ilkokul:'👇 İt', ortaokul:'💪 Kuvvet F', lise:'💪 Kuvvet F (kol: b)', tyt_ayt:'💪 F·b (kuvvet momenti)' },
+      position: [S.kl_b+1.6, 3.4, 0], target: [S.kl_b, pivotY + 0.6, 0], color: '#ffb84d' },
+    { text: { ilkokul:'📏 Uzun kol = kolay', ortaokul:'📏 Kuvvet kolu uzarsa F azalır',
+              lise:'📏 b büyük → F küçük', tyt_ayt:'📏 K = b/a (kuvvet kazancı)' },
+      position: [0, 4.2, 0], target: [S.kl_b/2, pivotY + 0.15, 0], color: '#ffe14d', minLevel: 1 }
   ]);
 };
 
-// ---------- MODÜL 1.3: Kaldıraç Türleri ----------
 SubBuilders.buildKaldiracTur = function() {
   const root = new THREE.Group();
   markDynamic(root); scene.add(root); window._currentModelGroup = root;
   root.add(setupVectorLighting());
-  root.add(makeGridSystem({ size: 18, divisions: 18, floorY: 0 }));
+  root.add(makeGridSystem({ size: 20, divisions: 20, floorY: 0 }));
 
   const S = window._sceneState;
-  S.kt_tur = 0;  // 0: destek ortada, 1: yük ortada, 2: kuvvet ortada
+  if (S.kt_show3 === undefined) S.kt_show3 = true;  // 3'ü yan yana mı yoksa tek mi
+
+  const COL_D = 0x9fb0d8;  // destek (gri-mavi)
+  const COL_P = 0xff6b4a;  // yük (kırmızı)
+  const COL_F = 0xffb84d;  // kuvvet (turuncu)
+
+  // bir kaldıraç türünü verilen merkez x'te kurar
+  // tip: 0=destek ortada (tahterevalli), 1=yük ortada (el arabası), 2=kuvvet ortada (maşa)
+  function makeLever(parent, cx, tip) {
+    const g = new THREE.Group(); g.position.set(cx, 0, 0); g.userData.dynamic = true; parent.add(g);
+    const barLen = 5.0, pivotY = 1.0;
+    let dPos, lPos, fPos, fDir;
+    if (tip === 0) { dPos = 0;    lPos = -1.8; fPos = 1.8;  fDir = -1; }   // F aşağı, P aşağı
+    else if (tip === 1) { dPos = -2.0; lPos = 0;   fPos = 2.0;  fDir =  1; } // el arabası: F yukarı
+    else { dPos = -2.0; lPos = 2.0;  fPos = 0;   fDir =  1; }              // maşa: F yukarı (orta)
+
+    // çubuk (destek tepesinde)
+    const bar = makeLeverBar(barLen); bar.position.set(0, pivotY, 0); g.add(bar);
+
+    // DESTEK (üçgen, gri-mavi)
+    const ful = makeFulcrum({ h: pivotY }); ful.position.set(dPos, 0, 0); g.add(ful);
+    // destek vurgu küresi
+    const dDot = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 10), new THREE.MeshBasicMaterial({ color: COL_D, toneMapped: false }));
+    dDot.position.set(dPos, pivotY, 0); g.add(dDot);
+
+    // YÜK (kırmızı kutu)
+    const load = makeLoad({ size: 0.7 }); load.position.set(lPos, pivotY + 0.45, 0); g.add(load);
+    // yük ağırlık oku (mavi/kırmızı aşağı)
+    g.add(makeVectorArrow(new THREE.Vector3(lPos, pivotY + 0.1, 0), new THREE.Vector3(0, -0.9, 0),
+      { color: COL_P, shaftR: 0.05, headR: 0.14 }));
+
+    // KUVVET oku (turuncu)
+    if (fDir < 0) {
+      g.add(makeVectorArrow(new THREE.Vector3(fPos, pivotY + 1.2, 0), new THREE.Vector3(0, -0.95, 0),
+        { color: COL_F, shaftR: 0.06, headR: 0.16 }));
+    } else {
+      g.add(makeVectorArrow(new THREE.Vector3(fPos, pivotY + 0.1, 0), new THREE.Vector3(0, 0.95, 0),
+        { color: COL_F, shaftR: 0.06, headR: 0.16 }));
+    }
+    // kuvvet uygulama noktası küresi
+    const fDot = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 10), new THREE.MeshBasicMaterial({ color: COL_F, toneMapped: false }));
+    fDot.position.set(fPos, pivotY, 0); g.add(fDot);
+
+    // alt başlık (tür adı)
+    const names = ['1️⃣ Destek ortada', '2️⃣ Yük ortada', '3️⃣ Kuvvet ortada'];
+    const exs   = ['Tahterevalli / makas', 'El arabası / fındıkkıran', 'Cımbız / maşa'];
+    g.add(makeMeasureLabel(names[tip], [0, -0.7, 0], 'rgba(30,40,64,0.95)'));
+    g.add(makeMeasureLabel(exs[tip], [0, -1.25, 0], 'rgba(20,28,46,0.85)'));
+    return g;
+  }
 
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
-
   function rebuild() {
     [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
-    const bar = makeLeverBar(7); bar.position.set(0, 1.05, 0); dyn.add(bar);
-    // 3 tür: pozisyonlar (sol/orta/sağ) destek/yük/kuvvet
-    let dPos, lPos, fPos;
-    if (S.kt_tur === 0) { dPos=0; lPos=-3; fPos=3; }      // destek ortada
-    else if (S.kt_tur === 1) { dPos=-3; lPos=0; fPos=3; } // yük ortada
-    else { dPos=-3; lPos=3; fPos=0; }                      // kuvvet ortada
-    // destek
-    const ful = makeFulcrum({ h: 1.0 }); ful.position.set(dPos, 0, 0); dyn.add(ful);
-    // yük
-    const load = makeLoad({ size: 0.8 }); load.position.set(lPos, 1.55, 0); dyn.add(load);
-    // kuvvet oku
-    dyn.add(makeVectorArrow(new THREE.Vector3(fPos, 2.8, 0), new THREE.Vector3(0, -1.1, 0), { color: MCOL.force, shaftR: 0.06, headR: 0.16 }));
+    if (S.kt_show3) {
+      makeLever(dyn, -6.2, 0);
+      makeLever(dyn,  0.0, 1);
+      makeLever(dyn,  6.2, 2);
+    } else {
+      makeLever(dyn, 0, (S.kt_tur || 0));
+    }
   }
   rebuild();
 
   setSceneSliders([
-    { type: 'section', label: 'Kaldıraç Türü' },
+    { type: 'section', label: 'Kaldıraç Türleri' },
     { type: 'presets', activeIdx: 0, options: [
-      { label: '1️⃣ Destek Ortada', action: ()=>{ S.kt_tur=0; rebuild(); } },
-      { label: '2️⃣ Yük Ortada', action: ()=>{ S.kt_tur=1; rebuild(); } },
-      { label: '3️⃣ Kuvvet Ortada', action: ()=>{ S.kt_tur=2; rebuild(); } }
+      { label: '👁️ Üçünü Karşılaştır', action: ()=>{ S.kt_show3 = true; rebuild(); } },
+      { label: '1️⃣ Destek', action: ()=>{ S.kt_show3 = false; S.kt_tur = 0; rebuild(); } },
+      { label: '2️⃣ Yük', action: ()=>{ S.kt_show3 = false; S.kt_tur = 1; rebuild(); } },
+      { label: '3️⃣ Kuvvet', action: ()=>{ S.kt_show3 = false; S.kt_tur = 2; rebuild(); } }
     ]},
-    { type: 'section', label: 'Bu Tür' },
-    { type: 'display', label: 'Örnek', highlight: true,
-      getValue: () => ['Tahterevalli, makas','El arabası, fındıkkıran','Cımbız, olta'][S.kt_tur] },
-    { type: 'display', label: 'Kuvvet kazancı',
-      getValue: () => ['Değişken (b/a)','Her zaman >1','<1 (hız kazancı)'][S.kt_tur] },
-    { type: 'formula', text: 'Tümünde: F·b = P·a' }
+    { type: 'section', label: 'Renk Kodu' },
+    { type: 'display', label: '🔵 Destek (D)', getValue: () => 'Dönme noktası' },
+    { type: 'display', label: '🔴 Yük (P)', getValue: () => 'Kaldırılan' },
+    { type: 'display', label: '🟠 Kuvvet (F)', getValue: () => 'Uygulanan' },
+    { type: 'section', label: 'Kuvvet Kazancı' },
+    { type: 'display', label: '1️⃣ Destek ortada', getValue: () => 'Değişken (b/a)' },
+    { type: 'display', label: '2️⃣ Yük ortada', highlight: true, getValue: () => 'Her zaman > 1' },
+    { type: 'display', label: '3️⃣ Kuvvet ortada', getValue: () => '< 1 (hız kazancı)' },
+    { type: 'formula', text: 'Tümünde denge: F·b = P·a' }
   ], { title: 'Kaldıraç Türleri' });
 
   addInfo3DLabels([
-    { text: { ilkokul:'🪨 Yük', ortaokul:'🪨 Yük', lise:'🪨 Yük P', tyt_ayt:'🪨 P' },
-      position: [-4.5, 3, 0], target: [S.kt_tur===0?-3:(S.kt_tur===1?0:3), 1.8, 0], color: '#ff6b4a' },
-    { text: { ilkokul:'🔺 Destek', ortaokul:'🔺 Destek', lise:'🔺 Dayanak', tyt_ayt:'🔺 Pivot' },
-      position: [0, -1.3, 0], target: [S.kt_tur===0?0:-3, 0.4, 0], color: '#9fb0d8' },
-    { text: { ilkokul:'💪 Kuvvet', ortaokul:'💪 Kuvvet', lise:'💪 Kuvvet F', tyt_ayt:'💪 F' },
-      position: [4.5, 3.5, 0], target: [S.kt_tur===2?0:3, 2, 0], color: '#ffb84d' }
+    { text: { ilkokul:'🔵 Destek = ortada', ortaokul:'1️⃣ Destek ortada', lise:'I. tür (F-D-P)', tyt_ayt:'I. tür: K=b/a' },
+      position: [-6.2, 3.0, 0], target: [-6.2, 1.0, 0], color: '#9fb0d8' },
+    { text: { ilkokul:'🔴 Yük = ortada', ortaokul:'2️⃣ Yük ortada → kolay', lise:'II. tür (F-P-D)', tyt_ayt:'II. tür: K>1 daima' },
+      position: [0, 3.4, 0], target: [0, 1.45, 0], color: '#ff6b4a' },
+    { text: { ilkokul:'🟠 Kuvvet = ortada', ortaokul:'3️⃣ Kuvvet ortada', lise:'III. tür (P-F-D)', tyt_ayt:'III. tür: K<1 (hız)' },
+      position: [6.2, 3.0, 0], target: [6.2, 1.1, 0], color: '#ffb84d' }
   ]);
 };
 
-// ---------- MODÜL 2.1: Sabit Makara ----------
 SubBuilders.buildSabitMakara = function() {
   const root = new THREE.Group();
   markDynamic(root); scene.add(root); window._currentModelGroup = root;
@@ -3082,35 +3533,59 @@ SubBuilders.buildSabitMakara = function() {
   const S = window._sceneState;
   S.sm_P = 100; S._smT = 0;
 
-  // tavan kirişi
-  const beam = new THREE.Mesh(new THREE.BoxGeometry(6, 0.3, 0.6), new THREE.MeshStandardMaterial({ color: 0x5a6b8a, roughness: 0.6 }));
-  beam.position.set(0, 4, 0); beam.castShadow = true; root.add(beam);
-  const pulley = makePulley({ R: 0.7 }); pulley.position.set(0, 3.3, 0); root.add(pulley);
-  // yarıçap etiketi (sabit)
-  const rLabel = makeMeasureLabel('R (yarıçap)', [0.95, 3.6, 0], 'rgba(107,127,168,0.95)'); root.add(rLabel);
+  const R = 0.7;          // makara yarıçapı
+  const cy = 3.3;         // makara merkez y
+  // tavan kirişi (sabit)
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(6, 0.3, 0.6),
+    new THREE.MeshStandardMaterial({ color: 0x5a6b8a, roughness: 0.6 }));
+  beam.position.set(0, cy + 0.95, 0); beam.castShadow = true; root.add(beam);
+  // askı
+  const hang = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.95, 8),
+    new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.7, roughness: 0.3 }));
+  hang.position.set(0, cy + 0.48, 0); root.add(hang);
+  // SABİT makara (yerinde döner)
+  const pulley = makePulley({ R: R }); pulley.position.set(0, cy, 0); root.add(pulley);
 
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
 
   function rebuild() {
     [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
-    const R = 0.7;
-    const swing = Math.sin(S._smT) * 0.5;  // animasyon: yük inip kalkar
-    const loadY = 1.0 + swing;
-    // sol ip (yük) - makaranın sol tepesinden yüke
-    dyn.add(makeThickRope(new THREE.Vector3(-R, 3.3, 0), new THREE.Vector3(-R, loadY+0.5, 0), { color: MCOL.rope }));
-    // yük
-    const load = makeLoad({ size: 0.9 }); load.position.set(-R, loadY, 0); dyn.add(load);
-    // sağ ip (kuvvet) - makaranın sağ tepesinden aşağı el
-    dyn.add(makeThickRope(new THREE.Vector3(R, 3.3, 0), new THREE.Vector3(R, 0.5 - swing, 0), { color: MCOL.rope }));
-    // makara üstü yay
-    dyn.add(makeThickRope(new THREE.Vector3(-R, 3.3, 0), new THREE.Vector3(R, 3.3, 0), { color: MCOL.rope, r: 0.035 }));
-    // yük ağırlık oku
-    dyn.add(makeVectorArrow(new THREE.Vector3(-R, loadY-0.5, 0), new THREE.Vector3(0, -0.9, 0), { color: MCOL.load, shaftR: 0.05, headR: 0.14 }));
-    // çekme kuvveti oku (eşit, aşağı)
-    dyn.add(makeVectorArrow(new THREE.Vector3(R, 0.5-swing, 0), new THREE.Vector3(0, -0.9, 0), { color: MCOL.force, shaftR: 0.05, headR: 0.14 }));
+
+    // Çekme döngüsü: s (0..travel). İp ucu s kadar inince yük s kadar ÇIKAR (yol EŞİT).
+    const travel = 1.0;
+    const s = window._isPlayingActive ? (0.5 - 0.5 * Math.cos(S._smT)) * travel : 0.4;
+    // yük yüksekliği (taban + s) — yük ucu yukarı çıkar
+    const loadBaseY = 0.4;
+    const loadTopY = loadBaseY + s + 0.5;       // yük üst bağlantısı
+    const loadCenterY = loadBaseY + s;
+    // çekme ucu (sağ) — yük ne kadar çıktıysa o kadar İNER
+    const pullBaseY = 1.6;
+    const pullY = pullBaseY - s;
+
+    // SOL ip: makara sol tepesinden (-R, cy) yüke
+    dyn.add(makeThickRope(new THREE.Vector3(-R, cy, 0), new THREE.Vector3(-R, loadTopY, 0), { color: MCOL.rope }));
+    // makara üstü kemer (sol-sağ tepe arası)
+    dyn.add(makeThickRope(new THREE.Vector3(-R, cy, 0), new THREE.Vector3(R, cy, 0), { color: MCOL.rope, r: 0.035 }));
+    // SAĞ ip: makara sağ tepesinden (R, cy) aşağı çekme ucuna
+    dyn.add(makeThickRope(new THREE.Vector3(R, cy, 0), new THREE.Vector3(R, pullY, 0), { color: MCOL.rope }));
+
+    // YÜK
+    const load = makeLoad({ size: 0.9 }); load.position.set(-R, loadCenterY, 0); dyn.add(load);
+
+    // YÜK AĞIRLIK OKU (mavi/load, aşağı) — boyu P ile orantılı
+    const wlen = 0.5 + S.sm_P / 130;
+    dyn.add(makeVectorArrow(new THREE.Vector3(-R, loadCenterY - 0.5, 0), new THREE.Vector3(0, -wlen, 0),
+      { color: MCOL.load, shaftR: 0.05, headR: 0.14 }));
+    // ÇEKME KUVVETİ OKU (kırmızı/force, aşağı, EŞİT boy → F=G)
+    dyn.add(makeVectorArrow(new THREE.Vector3(R, pullY, 0), new THREE.Vector3(0, -wlen, 0),
+      { color: MCOL.force, shaftR: 0.05, headR: 0.14 }));
+    // el (çekme noktası)
+    const grip = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 10),
+      new THREE.MeshStandardMaterial({ color: 0xe0b070, roughness: 0.6 }));
+    grip.position.set(R, pullY, 0); dyn.add(grip);
   }
   rebuild();
-  window._customAnim = function(t, dt){ S._smT += dt*1.5; rebuild(); };
+  window._customAnim = function(t, dt){ S._smT += dt * 1.4; rebuild(); };
 
   setSceneSliders([
     { type: 'section', label: 'Sabit Makara' },
@@ -3119,21 +3594,24 @@ SubBuilders.buildSabitMakara = function() {
     { type: 'section', label: 'Sonuç' },
     { type: 'display', label: 'Gereken kuvvet F', highlight: true, getValue: () => S.sm_P + ' N' },
     { type: 'display', label: 'Kuvvet kazancı', getValue: () => '1 (yok)' },
-    { type: 'display', label: 'Avantaj', getValue: () => 'Yön değişir' },
-    { type: 'formula', text: 'F = P (sadece yön değişir)' }
+    { type: 'display', label: 'İp yolu = yük yolu', getValue: () => 'EŞİT' },
+    { type: 'display', label: 'Avantaj', getValue: () => 'Sadece yön değişir' },
+    { type: 'formula', text: 'F·r = P·r → <b>F = P</b>' }
   ], { title: 'Sabit Makara' });
 
   addInfo3DLabels([
-    { text: { ilkokul:'📌 Sabit makara', ortaokul:'📌 Sabit makara', lise:'📌 Ekseni sabit', tyt_ayt:'📌 Eksen sabit (F·r=P·r)' },
-      position: [2.5, 4.3, 0], target: [0, 3.3, 0], color: '#6b7fa8' },
+    { text: { ilkokul:'📌 Sabit makara', ortaokul:'📌 Ekseni sabit, döner', lise:'📌 Eksen sabit', tyt_ayt:'📌 F·r = P·r' },
+      position: [2.6, cy + 1.0, 0], target: [0, cy, 0], color: '#6b7fa8' },
     { text: { ilkokul:'🪨 Yük', ortaokul:'🪨 Yük P', lise:'🪨 Yük P', tyt_ayt:'🪨 P' },
-      position: [-2.8, 1.5, 0], target: [-0.7, 1, 0], color: '#ff6b4a' },
-    { text: { ilkokul:'👇 Çekme (eşit)', ortaokul:'💪 F = P', lise:'💪 F = P (yön değişir)', tyt_ayt:'💪 F=P, K=1' },
-      position: [2.8, 0.5, 0], target: [0.7, 0.5, 0], color: '#ffb84d' }
+      position: [-2.9, 1.6, 0], target: [-R, 0.9, 0], color: '#ff6b4a' },
+    { text: { ilkokul:'👇 Çekme = eşit kuvvet', ortaokul:'💪 F = P (yön değişir)', lise:'💪 F = P, yön ters', tyt_ayt:'💪 F=P, K=1' },
+      position: [2.9, 0.8, 0], target: [R, 1.2, 0], color: '#ffb84d' },
+    { text: { ilkokul:'🔄 Aşağı çek → yukarı kalkar', ortaokul:'📏 Çekilen ip = yükün yolu',
+              lise:'📏 x_F = x_P (yol eşit)', tyt_ayt:'📏 İş korunur: F·x = P·x' },
+      position: [0, -1.4, 0], target: [R, 1.4, 0], color: '#ffe14d' }
   ]);
 };
 
-// ---------- MODÜL 2.2: Hareketli Makara ----------
 SubBuilders.buildHareketliMakara = function() {
   const root = new THREE.Group();
   markDynamic(root); scene.add(root); window._currentModelGroup = root;
@@ -3143,36 +3621,62 @@ SubBuilders.buildHareketliMakara = function() {
   const S = window._sceneState;
   S.hm_P = 200; S._hmT = 0;
 
-  const beam = new THREE.Mesh(new THREE.BoxGeometry(6, 0.3, 0.6), new THREE.MeshStandardMaterial({ color: 0x5a6b8a, roughness: 0.6 }));
-  beam.position.set(0, 4.2, 0); beam.castShadow = true; root.add(beam);
+  const R = 0.6;
+  const ceilY = 4.05;     // tavan ip bağlantı yüksekliği
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(6, 0.3, 0.6),
+    new THREE.MeshStandardMaterial({ color: 0x5a6b8a, roughness: 0.6 }));
+  beam.position.set(0, ceilY + 0.15, 0); beam.castShadow = true; root.add(beam);
+  // sol ip sabit ankrajı (tavanda)
+  const anchor = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.3),
+    new THREE.MeshStandardMaterial({ color: 0x444a5a, metalness: 0.6, roughness: 0.4 }));
+  anchor.position.set(-R, ceilY, 0); root.add(anchor);
 
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
 
   function rebuild() {
     [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
-    const R = 0.6;
-    const lift = Math.sin(S._hmT) * 0.4;
-    const pulleyY = 1.8 + lift;  // hareketli makara yükle birlikte hareket eder
+
+    // Çekme döngüsü: çekme ucu 2s iner → makara (yük) s yükselir (yol 2:1).
+    const maxLift = 0.9;
+    const lift = window._isPlayingActive ? (0.5 - 0.5*Math.cos(S._hmT)) * maxLift : maxLift*0.45;
+    const pulleyY = 1.7 + lift;       // hareketli makara yükle birlikte çıkar
+
     // hareketli makara
     const pulley = makePulley({ R: R }); pulley.position.set(0, pulleyY, 0); dyn.add(pulley);
-    dyn.add(makeMeasureLabel('R', [R + 0.35, pulleyY, 0], 'rgba(107,127,168,0.95)'));
-    // sol ip: tavandan makara sol tarafına (sabit uç)
-    dyn.add(makeThickRope(new THREE.Vector3(-R, 4.05, 0), new THREE.Vector3(-R, pulleyY, 0), { color: MCOL.rope }));
-    // sağ ip: makara sağından yukarı tavana sonra serbest uç (çekme)
-    dyn.add(makeThickRope(new THREE.Vector3(R, pulleyY, 0), new THREE.Vector3(R, 4.0 + lift, 0), { color: MCOL.rope }));
-    // yük (makaranın altında)
-    const load = makeLoad({ size: 1.0 }); load.position.set(0, pulleyY - R - 0.5, 0); dyn.add(load);
-    dyn.add(makeThickRope(new THREE.Vector3(0, pulleyY-R, 0), new THREE.Vector3(0, pulleyY-R-0.05, 0), { color: MCOL.rope }));
-    // iki ip kolu da yükü taşır → her biri P/2
-    dyn.add(makeVectorArrow(new THREE.Vector3(-R, pulleyY+0.3, 0), new THREE.Vector3(0, 0.8, 0), { color: MCOL.gain, shaftR: 0.04, headR: 0.11 }));
-    dyn.add(makeVectorArrow(new THREE.Vector3(R, pulleyY+0.3, 0), new THREE.Vector3(0, 0.8, 0), { color: MCOL.gain, shaftR: 0.04, headR: 0.11 }));
-    // yük ağırlığı
-    dyn.add(makeVectorArrow(new THREE.Vector3(0, pulleyY-R-1.0, 0), new THREE.Vector3(0, -0.9, 0), { color: MCOL.load, shaftR: 0.05, headR: 0.14 }));
-    // çekme kuvveti (sağ uç)
-    dyn.add(makeVectorArrow(new THREE.Vector3(R, 3.5+lift, 0), new THREE.Vector3(0, 0.9, 0), { color: MCOL.force, shaftR: 0.05, headR: 0.14 }));
+
+    // SOL ip kolu: tavan ankrajı → makara sol tepesi (sabit uç, yükü taşır)
+    dyn.add(makeThickRope(new THREE.Vector3(-R, ceilY, 0), new THREE.Vector3(-R, pulleyY, 0), { color: MCOL.rope }));
+    // SAĞ ip kolu: makara sağ tepesi → yukarı serbest uç (çekilen). 2s ip yukarı toplanır.
+    const pullEndY = ceilY + 0.0;     // çekme ucu tavan hizasında serbest
+    dyn.add(makeThickRope(new THREE.Vector3(R, pulleyY, 0), new THREE.Vector3(R, pullEndY, 0), { color: MCOL.rope }));
+
+    // YÜK (makaranın altında, makara ile birlikte yükselir)
+    const lsz = 0.95;
+    const load = makeLoad({ size: lsz }); load.position.set(0, pulleyY - R - 0.45, 0); dyn.add(load);
+    dyn.add(makeThickRope(new THREE.Vector3(0, pulleyY - R, 0), new THREE.Vector3(0, pulleyY - R - 0.45 + lsz/2, 0), { color: MCOL.rope, r: 0.03 }));
+
+    // İKİ İP KOLUNDAKİ GERİLME OKLARI (her biri P/2, yukarı, yeşil = kazanç)
+    const half = 0.45 + S.hm_P / 320;
+    dyn.add(makeVectorArrow(new THREE.Vector3(-R, pulleyY + 0.25, 0), new THREE.Vector3(0, half, 0),
+      { color: MCOL.gain, shaftR: 0.045, headR: 0.12 }));
+    dyn.add(makeVectorArrow(new THREE.Vector3(R, pulleyY + 0.25, 0), new THREE.Vector3(0, half, 0),
+      { color: MCOL.gain, shaftR: 0.045, headR: 0.12 }));
+    // T = P/2 etiketleri
+    dyn.add(makeMeasureLabel('P/2', [-R - 0.45, pulleyY + 0.5, 0], 'rgba(20,60,40,0.92)'));
+    dyn.add(makeMeasureLabel('P/2', [ R + 0.45, pulleyY + 0.5, 0], 'rgba(20,60,40,0.92)'));
+
+    // YÜK AĞIRLIK OKU (mavi/load, aşağı, boyu P ile orantılı)
+    const wlen = 0.5 + S.hm_P / 260;
+    dyn.add(makeVectorArrow(new THREE.Vector3(0, pulleyY - R - 0.95, 0), new THREE.Vector3(0, -wlen, 0),
+      { color: MCOL.load, shaftR: 0.055, headR: 0.16 }));
+
+    // ÇEKME KUVVETİ OKU (kırmızı/force, aşağı = uygulanan, boyu P/2 ile orantılı)
+    dyn.add(makeVectorArrow(new THREE.Vector3(R, pullEndY - 0.1, 0), new THREE.Vector3(0, -(0.5 + (S.hm_P/2)/130), 0),
+      { color: MCOL.force, shaftR: 0.05, headR: 0.14 }));
+    dyn.add(makeMeasureLabel('F = P/2', [R + 0.7, pullEndY - 0.6, 0], 'rgba(60,30,20,0.92)'));
   }
   rebuild();
-  window._customAnim = function(t, dt){ S._hmT += dt*1.3; rebuild(); };
+  window._customAnim = function(t, dt){ S._hmT += dt * 1.3; rebuild(); };
 
   setSceneSliders([
     { type: 'section', label: 'Hareketli Makara' },
@@ -3181,22 +3685,25 @@ SubBuilders.buildHareketliMakara = function() {
     { type: 'section', label: 'Sonuç' },
     { type: 'display', label: 'Gereken kuvvet F', highlight: true, getValue: () => (S.hm_P/2).toFixed(0) + ' N' },
     { type: 'display', label: 'Kuvvet kazancı', getValue: () => '2' },
-    { type: 'display', label: 'İp yolu', getValue: () => '2× yük yolu' },
+    { type: 'display', label: 'İp yolu', getValue: () => '2 × yük yolu' },
+    { type: 'display', label: 'İp kolu sayısı', getValue: () => '2 (her biri P/2)' },
     { type: 'formula', text: 'F = P / 2',
-      getValue: () => 'F = ' + S.hm_P + '/2 = <b>' + (S.hm_P/2).toFixed(0) + ' N</b>' }
+      getValue: () => 'F = ' + S.hm_P + ' / 2 = <b>' + (S.hm_P/2).toFixed(0) + ' N</b>' }
   ], { title: 'Hareketli Makara' });
 
   addInfo3DLabels([
-    { text: { ilkokul:'🎯 Hareketli makara', ortaokul:'🎯 Yükle hareket eder', lise:'🎯 Hareketli makara', tyt_ayt:'🎯 2 ip kolu taşır' },
-      position: [2.8, 2.5, 0], target: [0, 1.8, 0], color: '#6b7fa8' },
-    { text: { ilkokul:'🪨 Yük', ortaokul:'🪨 Yük P', lise:'🪨 Yük P', tyt_ayt:'🪨 P (2 kol paylaşır)' },
-      position: [-2.5, 0.3, 0], target: [0, 0.6, 0], color: '#ff6b4a' },
-    { text: { ilkokul:'👆 Yarı kuvvet', ortaokul:'💪 F = P/2', lise:'💪 F = P/2 (K=2)', tyt_ayt:'💪 F=P/2, yol=2h' },
-      position: [3, 4, 0], target: [0.6, 3.6, 0], color: '#ffb84d' }
+    { text: { ilkokul:'🎯 Yükle hareket eder', ortaokul:'🎯 Hareketli makara', lise:'🎯 2 ip kolu taşır', tyt_ayt:'🎯 n=2 ip kolu' },
+      position: [2.9, 2.6, 0], target: [0, 1.9, 0], color: '#6b7fa8' },
+    { text: { ilkokul:'🪨 Yük', ortaokul:'🪨 Yük P', lise:'🪨 Yük P (2 kol paylaşır)', tyt_ayt:'🪨 P = 2·(P/2)' },
+      position: [-2.6, 0.5, 0], target: [0, 0.8, 0], color: '#ff6b4a' },
+    { text: { ilkokul:'👆 Yarı kuvvet yeter', ortaokul:'💪 F = P/2 (kazanç 2)', lise:'💪 F = P/2, K=2', tyt_ayt:'💪 F=P/2; ağırlıklı (P+G)/2' },
+      position: [3.2, 4.1, 0], target: [R, 3.6, 0], color: '#ffb84d' },
+    { text: { ilkokul:'📏 İpi 2 kat çekersin', ortaokul:'📏 İp yolu = 2 × yük yolu',
+              lise:'📏 x_F = 2h (yol kaybı)', tyt_ayt:'📏 İş: (P/2)·2h = P·h' },
+      position: [0, -1.3, 0], target: [R, 3.0, 0], color: '#ffe14d' }
   ]);
 };
 
-// ---------- MODÜL 2.3: Palanga ----------
 SubBuilders.buildPalanga = function() {
   const root = new THREE.Group();
   markDynamic(root); scene.add(root); window._currentModelGroup = root;
@@ -3204,137 +3711,229 @@ SubBuilders.buildPalanga = function() {
   root.add(makeGridSystem({ size: 16, divisions: 16, floorY: -3 }));
 
   const S = window._sceneState;
-  S.pl_P = 800; S.pl_n = 4; S._plT = 0;  // n: yükü taşıyan ip kolu (hareketli makara çifti)
+  S.pl_P = 800; if (!S.pl_n) S.pl_n = 4; S._plT = 0;   // n: yükü taşıyan ip kolu sayısı
 
-  const beam = new THREE.Mesh(new THREE.BoxGeometry(7, 0.3, 0.6), new THREE.MeshStandardMaterial({ color: 0x5a6b8a, roughness: 0.6 }));
-  beam.position.set(0, 4.5, 0); beam.castShadow = true; root.add(beam);
+  const topY = 4.2;            // sabit makara ekseni
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(7, 0.3, 0.6),
+    new THREE.MeshStandardMaterial({ color: 0x5a6b8a, roughness: 0.6 }));
+  beam.position.set(0, topY + 0.7, 0); beam.castShadow = true; root.add(beam);
 
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+  const rPul = 0.32, gap = 0.78;   // makara yarıçapı ve yatay aralık
 
   function rebuild() {
     [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
-    const lift = Math.sin(S._plT) * 0.3;
-    const nPair = Math.floor(S.pl_n / 2);  // üst sabit + alt hareketli makara çiftleri
-    // üst sabit makaralar
-    for (let i = 0; i < nPair; i++) {
-      const x = (i - (nPair-1)/2) * 0.9;
-      const p = makePulley({ R: 0.35 }); p.position.set(x, 4.0, 0); dyn.add(p);
+
+    const n = S.pl_n;                       // taşıyıcı ip kolu sayısı
+    const nMov = Math.floor(n / 2);         // alt hareketli makara sayısı (her biri 2 kol)
+    const nFix = nMov;                       // üst sabit makara sayısı
+    const maxLift = 0.8;
+    const lift = window._isPlayingActive ? (0.5 - 0.5*Math.cos(S._plT)) * maxLift : maxLift*0.5;
+    const blockY = 1.7 + lift;              // hareketli blok ekseni
+
+    // makara x konumları (üst ve alt simetrik)
+    const xs = [];
+    for (let i = 0; i < nMov; i++) xs.push((i - (nMov - 1) / 2) * gap);
+
+    // ÜST SABİT makaralar
+    xs.forEach(x => { const p = makePulley({ R: rPul }); p.position.set(x, topY, 0); dyn.add(p); });
+    // ALT HAREKETLİ makaralar (mavi)
+    xs.forEach(x => { const p = makePulley({ R: rPul, color: 0x7a8fc0 }); p.position.set(x, blockY, 0); dyn.add(p); });
+
+    // alt blok çerçevesi (hareketli makaraları birleştirir)
+    const frameW = Math.max(0.6, nMov * gap);
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(frameW + 0.2, 0.18, 0.5),
+      new THREE.MeshStandardMaterial({ color: 0x4a5a7a, roughness: 0.5 }));
+    frame.position.set(0, blockY - rPul - 0.18, 0); dyn.add(frame);
+
+    // İP GÜZERGAHI (zikzak): sabit uç → alt[0] sol → üst[0] → alt[0] sağ... değişen tarafta sarılı
+    // Basit ve doğru görünüm: her hareketli makaranın iki yanından dikey kollar.
+    const ropePts = [];
+    // sabit uç ankrajı (üst kirişe bağlı, en sol)
+    const anchorX = xs[0] - rPul - 0.05;
+    dyn.add(makeThickRope(new THREE.Vector3(anchorX, topY + 0.55, 0), new THREE.Vector3(anchorX, blockY, 0), { color: MCOL.rope, r: 0.03 }));
+    dyn.add(makeThickRope(new THREE.Vector3(anchorX, blockY, 0), new THREE.Vector3(xs[0] - rPul, blockY, 0), { color: MCOL.rope, r: 0.03 }));
+    // her hareketli makara için sol ve sağ dikey ip kolu (yükü taşıyan kollar)
+    for (let i = 0; i < nMov; i++) {
+      const x = xs[i];
+      // sol kol (alt makara sol tepe → üst makara sol tepe)
+      dyn.add(makeThickRope(new THREE.Vector3(x - rPul, blockY, 0), new THREE.Vector3(x - rPul, topY, 0), { color: MCOL.rope, r: 0.03 }));
+      // sağ kol (alt makara sağ tepe → üst makara sağ tepe)
+      dyn.add(makeThickRope(new THREE.Vector3(x + rPul, blockY, 0), new THREE.Vector3(x + rPul, topY, 0), { color: MCOL.rope, r: 0.03 }));
+      // üst makara kemeri (sol-sağ tepe)
+      dyn.add(makeThickRope(new THREE.Vector3(x - rPul, topY, 0), new THREE.Vector3(x + rPul, topY, 0), { color: MCOL.rope, r: 0.03 }));
+      // alt makara kemeri
+      dyn.add(makeThickRope(new THREE.Vector3(x - rPul, blockY, 0), new THREE.Vector3(x + rPul, blockY, 0), { color: MCOL.rope, r: 0.03 }));
+      // bir sonraki makaraya geçiş (üst sağ → sonraki alt sol)
+      if (i < nMov - 1) {
+        const nx = xs[i + 1];
+        dyn.add(makeThickRope(new THREE.Vector3(x + rPul, topY, 0), new THREE.Vector3(nx - rPul, topY, 0), { color: MCOL.rope, r: 0.03 }));
+      }
     }
-    // alt hareketli makaralar (yük bloğu)
-    const blockY = 1.8 + lift;
-    for (let i = 0; i < nPair; i++) {
-      const x = (i - (nPair-1)/2) * 0.9;
-      const p = makePulley({ R: 0.35, color: 0x7a8fc0 }); p.position.set(x, blockY, 0); dyn.add(p);
-    }
-    // alt blok çerçevesi
-    const frame = new THREE.Mesh(new THREE.BoxGeometry(nPair*0.9+0.3, 0.2, 0.5), new THREE.MeshStandardMaterial({ color: 0x4a5a7a, roughness: 0.5 }));
-    frame.position.set(0, blockY - 0.5, 0); dyn.add(frame);
-    // ipler (zikzak) - basitleştirilmiş dikey çizgiler
-    for (let i = 0; i < S.pl_n; i++) {
-      const x = (i - (S.pl_n-1)/2) * 0.45;
-      dyn.add(makeThickRope(new THREE.Vector3(x, 4.0, 0), new THREE.Vector3(x, blockY, 0), { color: MCOL.rope, r: 0.03 }));
-    }
-    // yük
-    const load = makeLoad({ size: 1.1 }); load.position.set(0, blockY - 1.3, 0); dyn.add(load);
-    dyn.add(makeThickRope(new THREE.Vector3(0, blockY-0.6, 0), new THREE.Vector3(0, blockY-0.85, 0), { color: MCOL.rope }));
-    // çekme kuvveti (sağ serbest uç)
-    dyn.add(makeVectorArrow(new THREE.Vector3(2.5, 2.5+lift, 0), new THREE.Vector3(0, -1.0, 0), { color: MCOL.force, shaftR: 0.05, headR: 0.14 }));
-    dyn.add(makeThickRope(new THREE.Vector3((nPair-1)/2*0.9+0.2, 4.0, 0), new THREE.Vector3(2.5, 3.5+lift, 0), { color: MCOL.rope, r: 0.03 }));
-    // yük ağırlık oku
-    dyn.add(makeVectorArrow(new THREE.Vector3(0, blockY-2.0, 0), new THREE.Vector3(0, -1.0, 0), { color: MCOL.load, shaftR: 0.06, headR: 0.16 }));
+    // SERBEST UÇ (son üst makara sağından aşağı çekme eline)
+    const lastX = xs[nMov - 1] + rPul;
+    const pullX = lastX + 1.1, pullTopY = topY, pullEndY = 2.2 - lift;
+    dyn.add(makeThickRope(new THREE.Vector3(lastX, topY, 0), new THREE.Vector3(pullX, pullTopY, 0), { color: MCOL.rope, r: 0.03 }));
+    dyn.add(makeThickRope(new THREE.Vector3(pullX, pullTopY, 0), new THREE.Vector3(pullX, pullEndY, 0), { color: MCOL.rope, r: 0.03 }));
+
+    // YÜK (alt bloktan asılı)
+    const lsz = 1.1;
+    const load = makeLoad({ size: lsz }); load.position.set(0, blockY - rPul - 0.18 - 0.1 - lsz/2 - 0.35, 0); dyn.add(load);
+    dyn.add(makeThickRope(new THREE.Vector3(0, blockY - rPul - 0.27, 0), new THREE.Vector3(0, blockY - rPul - 0.45 - 0.1, 0), { color: MCOL.rope }));
+
+    // ÇEKME KUVVETİ OKU (kırmızı/force, aşağı) boyu F=P/n ile orantılı
+    const flen = 0.5 + (S.pl_P / n) / 220;
+    dyn.add(makeVectorArrow(new THREE.Vector3(pullX, pullEndY, 0), new THREE.Vector3(0, -flen, 0),
+      { color: MCOL.force, shaftR: 0.05, headR: 0.14 }));
+    dyn.add(makeMeasureLabel('F = P/' + n, [pullX + 0.75, pullEndY - 0.4, 0], 'rgba(60,30,20,0.92)'));
+
+    // YÜK AĞIRLIK OKU (mavi/load, aşağı) boyu P ile orantılı
+    const wlen = 0.6 + S.pl_P / 700;
+    const loadBottom = blockY - rPul - 0.63 - lsz;
+    dyn.add(makeVectorArrow(new THREE.Vector3(0, loadBottom, 0), new THREE.Vector3(0, -wlen, 0),
+      { color: MCOL.load, shaftR: 0.06, headR: 0.16 }));
+
+    // n etiketi (taşıyıcı kol sayısı)
+    dyn.add(makeMeasureLabel(n + ' taşıyıcı ip kolu', [0, topY + 0.95, 0], 'rgba(30,40,64,0.92)'));
   }
   rebuild();
-  window._customAnim = function(t, dt){ S._plT += dt*1.2; rebuild(); };
+  window._customAnim = function(t, dt){ S._plT += dt * 1.2; rebuild(); };
 
   setSceneSliders([
     { type: 'section', label: 'Palanga Sistemi' },
+    { type: 'presets', activeIdx: (S.pl_n === 2 ? 0 : (S.pl_n === 6 ? 2 : 1)), options: [
+      { label: '2 ipli', action: ()=>{ S.pl_n = 2; rebuild(); } },
+      { label: '4 ipli', action: ()=>{ S.pl_n = 4; rebuild(); } },
+      { label: '6 ipli', action: ()=>{ S.pl_n = 6; rebuild(); } }
+    ]},
     { type: 'slider', label: 'Yük P', min: 200, max: 1200, step: 100, unit: ' N',
       getValue: () => S.pl_P, setValue: (v)=>{ S.pl_P=v; rebuild(); }, format:(v)=>v.toFixed(0) },
-    { type: 'slider', label: 'Taşıyıcı ip n', min: 2, max: 6, step: 2, unit: '',
-      getValue: () => S.pl_n, setValue: (v)=>{ S.pl_n=v; rebuild(); }, format:(v)=>v.toFixed(0) },
     { type: 'section', label: 'Sonuç' },
+    { type: 'display', label: 'Taşıyıcı ip n', getValue: () => S.pl_n.toFixed(0) },
     { type: 'display', label: 'Gereken kuvvet F', highlight: true, getValue: () => (S.pl_P/S.pl_n).toFixed(0) + ' N' },
     { type: 'display', label: 'Kuvvet kazancı', getValue: () => S.pl_n.toFixed(0) },
+    { type: 'display', label: 'İp yolu', getValue: () => 'n × yük yolu' },
     { type: 'formula', text: 'F = P / n',
-      getValue: () => 'F = ' + S.pl_P + '/' + S.pl_n + ' = <b>' + (S.pl_P/S.pl_n).toFixed(0) + ' N</b>' }
+      getValue: () => 'F = ' + S.pl_P + ' / ' + S.pl_n + ' = <b>' + (S.pl_P/S.pl_n).toFixed(0) + ' N</b>' }
   ], { title: 'Palanga' });
 
   addInfo3DLabels([
-    { text: { ilkokul:'📌 Üst makaralar', ortaokul:'📌 Sabit makaralar', lise:'📌 Sabit grup', tyt_ayt:'📌 Sabit makaralar' },
-      position: [-3, 4.8, 0], target: [0, 4, 0], color: '#6b7fa8' },
-    { text: { ilkokul:'🎯 Alt makaralar', ortaokul:'🎯 Hareketli makaralar', lise:'🎯 Hareketli grup', tyt_ayt:'🎯 n ip kolu' },
-      position: [-3, 1.8, 0], target: [0, 1.8, 0], color: '#7a8fc0' },
-    { text: { ilkokul:'👆 Az kuvvet', ortaokul:'💪 F = P/n', lise:'💪 F = P/n', tyt_ayt:'💪 F=P/n, K=n' },
-      position: [3.5, 2.5, 0], target: [2.5, 2, 0], color: '#ffb84d' }
+    { text: { ilkokul:'📌 Üst makaralar', ortaokul:'📌 Sabit makaralar', lise:'📌 Sabit grup (yön)', tyt_ayt:'📌 Sabit makaralar' },
+      position: [-3.2, topY + 0.8, 0], target: [0, topY, 0], color: '#6b7fa8' },
+    { text: { ilkokul:'🎯 Alt makaralar', ortaokul:'🎯 Hareketli makaralar', lise:'🎯 Hareketli grup', tyt_ayt:'🎯 n ip kolu yükü paylaşır' },
+      position: [-3.4, 1.7, 0], target: [0, 1.7, 0], color: '#7a8fc0' },
+    { text: { ilkokul:'👆 Çok az kuvvet', ortaokul:'💪 F = P/n', lise:'💪 F = P/n (K=n)', tyt_ayt:'💪 F=P/n; ağırlıklı (P+ΣG)/n' },
+      position: [3.8, 2.6, 0], target: [0, 0, 0], color: '#ffb84d' },
+    { text: { ilkokul:'📏 İpi n kat çekersin', ortaokul:'📏 İp = n × yük yolu',
+              lise:'📏 x_F = n·x_P', tyt_ayt:'📏 İş korunur: F·(n·h)=P·h' },
+      position: [0, -1.4, 0], target: [0, 1.0, 0], color: '#ffe14d' }
   ]);
 };
 
-// ---------- MODÜL 2.4: Verim ----------
 SubBuilders.buildVerim = function() {
   const root = new THREE.Group();
   markDynamic(root); scene.add(root); window._currentModelGroup = root;
   root.add(setupVectorLighting());
-  root.add(makeGridSystem({ size: 16, divisions: 16, floorY: -3 }));
+  root.add(makeGridSystem({ size: 16, divisions: 16, floorY: 0 }));
 
   const S = window._sceneState;
-  S.vr_P = 100;   // yararlı yük (N)
-  S.vr_G = 20;    // makara ağırlığı / kayıp (N)
+  S.vr_Win = 100;   // giren iş (J)
+  S.vr_fric = 25;   // sürtünme/kayıp oranı (%) → kayıp = Win·fric/100
   S._vrT = 0;
 
-  // tavan kirişi + hareketli makara (verim örneği)
-  const beam = new THREE.Mesh(new THREE.BoxGeometry(6, 0.3, 0.6), new THREE.MeshStandardMaterial({ color: 0x5a6b8a, roughness: 0.6 }));
-  beam.position.set(0, 4.2, 0); beam.castShadow = true; root.add(beam);
-
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
-  function F() { return (S.vr_P + S.vr_G) / 2; }           // ağırlıklı hareketli makara
-  function eta() { return S.vr_P / (S.vr_P + S.vr_G) * 100; }
+  function lossJ() { return S.vr_Win * S.vr_fric / 100; }
+  function Wout() { return S.vr_Win - lossJ(); }
+  function eta() { return Wout() / S.vr_Win * 100; }
+
+  // dikey enerji çubuğu (zeminden yukarı)
+  function makeBar(x, val, maxVal, color, w) {
+    const grp = new THREE.Group();
+    const hMax = 4.0;
+    const h = Math.max(0.02, hMax * val / maxVal);
+    const ww = w || 1.0;
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(ww, h, ww),
+      new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.25, emissive: color, emissiveIntensity: 0.18, toneMapped: false }));
+    bar.position.set(x, h/2, 0); bar.castShadow = true; grp.add(bar);
+    grp.add(new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(ww, h, ww)),
+      new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.25 })));
+    grp.userData._top = h;
+    return grp;
+  }
 
   function rebuild() {
     [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
-    const R = 0.6;
-    const lift = Math.sin(S._vrT) * 0.35;
-    const pulleyY = 1.8 + lift;
-    const pulley = makePulley({ R: R }); pulley.position.set(0, pulleyY, 0); dyn.add(pulley);
-    dyn.add(makeThickRope(new THREE.Vector3(-R, 4.05, 0), new THREE.Vector3(-R, pulleyY, 0), { color: MCOL.rope }));
-    dyn.add(makeThickRope(new THREE.Vector3(R, pulleyY, 0), new THREE.Vector3(R, 4.0 + lift, 0), { color: MCOL.rope }));
-    // yük
-    const load = makeLoad({ size: 1.0 }); load.position.set(0, pulleyY - R - 0.5, 0); dyn.add(load);
-    // yararlı iş oku (yük, yukarı yeşil)
-    dyn.add(makeVectorArrow(new THREE.Vector3(0, pulleyY-R-1.1, 0), new THREE.Vector3(0, -0.6 - S.vr_P/200, 0), { color: MCOL.load, shaftR: 0.05, headR: 0.14 }));
-    // kayıp göstergesi (makara, kırmızı küçük oklar = sürtünme/ağırlık)
-    if (S.vr_G > 0) {
-      dyn.add(makeVectorArrow(new THREE.Vector3(0, pulleyY, 0), new THREE.Vector3(0, -0.3 - S.vr_G/100, 0), { color: 0xff3030, shaftR: 0.03, headR: 0.09 }));
+    const maxV = 100;
+    // GİREN İŞ çubuğu (sol, sarı/turuncu)
+    const bin = makeBar(-2.4, S.vr_Win, maxV, 0xffb84d, 1.1); dyn.add(bin);
+    dyn.add(makeMeasureLabel('Giren iş', [-2.4, -0.45, 0], 'rgba(255,184,77,0.95)'));
+    dyn.add(makeMeasureLabel(S.vr_Win + ' J', [-2.4, bin.userData._top + 0.35, 0], 'rgba(255,184,77,0.95)'));
+
+    // ÇIKAN İŞ (yararlı) çubuğu — alt yeşil (Wout) + üst kırmızı kayıp = toplam Win yüksekliğinde
+    const hMax = 4.0;
+    const hOut = hMax * Wout() / maxV;
+    const hLoss = hMax * lossJ() / maxV;
+    const greenBar = new THREE.Mesh(new THREE.BoxGeometry(1.1, Math.max(0.02,hOut), 1.1),
+      new THREE.MeshStandardMaterial({ color: 0x3ed673, roughness: 0.4, emissive: 0x0a3018, emissiveIntensity: 0.25, toneMapped:false }));
+    greenBar.position.set(1.6, hOut/2, 0); greenBar.castShadow = true; dyn.add(greenBar);
+    dyn.add(new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.1,Math.max(0.02,hOut),1.1)), new THREE.LineBasicMaterial({ color:0xffffff, transparent:true, opacity:0.25 })).translateX(1.6).translateY(hOut/2));
+    // kayıp (kırmızı, yararlı işin üstünde — ısı/sürtünme)
+    if (lossJ() > 0.5) {
+      const redBar = new THREE.Mesh(new THREE.BoxGeometry(1.1, Math.max(0.02,hLoss), 1.1),
+        new THREE.MeshStandardMaterial({ color: 0xff3b30, roughness: 0.5, emissive: 0x401010, emissiveIntensity: 0.3, transparent: true, opacity: 0.85, toneMapped:false }));
+      redBar.position.set(1.6, hOut + hLoss/2, 0); dyn.add(redBar);
+      dyn.add(makeMeasureLabel('🔥 Kayıp ' + lossJ().toFixed(0) + ' J', [1.6, hOut + hLoss + 0.35, 0], 'rgba(255,59,48,0.92)'));
+      // ısı kaçış okları (animasyon: titreşen yukarı oklar)
+      const wob = Math.sin(S._vrT*3)*0.1;
+      dyn.add(makeVectorArrow(new THREE.Vector3(1.2, hOut + hLoss + 0.2 + wob, 0.4), new THREE.Vector3(0, 0.5, 0), { color: 0xff3b30, shaftR: 0.025, headR: 0.08 }));
+      dyn.add(makeVectorArrow(new THREE.Vector3(2.0, hOut + hLoss + 0.1 - wob, -0.3), new THREE.Vector3(0, 0.5, 0), { color: 0xff3b30, shaftR: 0.025, headR: 0.08 }));
     }
-    // çekme kuvveti (sağ uç)
-    dyn.add(makeVectorArrow(new THREE.Vector3(R, 3.5+lift, 0), new THREE.Vector3(0, 0.6 + F()/200, 0), { color: MCOL.force, shaftR: 0.05, headR: 0.14 }));
+    dyn.add(makeMeasureLabel('Çıkan iş', [1.6, -0.45, 0], 'rgba(62,214,115,0.92)'));
+    dyn.add(makeMeasureLabel('yararlı ' + Wout().toFixed(0) + ' J', [1.6 + 0.0, hOut*0.5, 0.65], 'rgba(62,214,115,0.92)'));
+
+    // verim rozeti (büyük)
+    dyn.add(makeMeasureLabel('η = ' + eta().toFixed(0) + ' %', [-0.4, hMax + 0.9, 0], 'rgba(20,28,46,0.95)'));
+    // %100 sınır çizgisi (kesik) + uyarı
+    dyn.add(makeDashedLine(new THREE.Vector3(-3.2, hMax, 0), new THREE.Vector3(2.4, hMax, 0), { color: 0xffffff, opacity: 0.5 }));
+    dyn.add(makeMeasureLabel('⚠️ η asla %100 geçemez', [-0.4, hMax + 0.35, 0], 'rgba(255,80,80,0.9)'));
+
+    // akış oku: giren → çıkan
+    dyn.add(makeVectorArrow(new THREE.Vector3(-1.5, hMax*0.5, 0), new THREE.Vector3(2.0, 0, 0), { color: MCOL.gain, shaftR: 0.04, headR: 0.13 }));
   }
   rebuild();
   window._customAnim = function(t, dt){ S._vrT += dt*1.3; rebuild(); };
 
   setSceneSliders([
-    { type: 'section', label: 'Verim (η)' },
-    { type: 'slider', label: 'Yararlı yük P', min: 40, max: 200, step: 20, unit: ' N',
-      getValue: () => S.vr_P, setValue: (v)=>{ S.vr_P=v; rebuild(); }, format:(v)=>v.toFixed(0) },
-    { type: 'slider', label: 'Kayıp (makara ağ. + sürtünme) G', min: 0, max: 80, step: 10, unit: ' N',
-      getValue: () => S.vr_G, setValue: (v)=>{ S.vr_G=v; rebuild(); }, format:(v)=>v.toFixed(0) },
+    { type: 'section', label: 'Verim (η = W_yararlı / W_giren)' },
+    { type: 'slider', label: 'Giren iş W_giren', min: 60, max: 100, step: 10, unit: ' J',
+      getValue: () => S.vr_Win, setValue: (v)=>{ S.vr_Win=v; rebuild(); }, format:(v)=>v.toFixed(0) },
+    { type: 'slider', label: 'Sürtünme kaybı', min: 0, max: 70, step: 5, unit: ' %',
+      getValue: () => S.vr_fric, setValue: (v)=>{ S.vr_fric=v; rebuild(); }, format:(v)=>v.toFixed(0) },
+    { type: 'presets', activeIdx: 1, options: [
+      { label: '✨ Az sürtünme', action: ()=>{ S.vr_fric=10; rebuild(); } },
+      { label: '⚖️ Orta', action: ()=>{ S.vr_fric=25; rebuild(); } },
+      { label: '🐌 Çok sürtünme', action: ()=>{ S.vr_fric=55; rebuild(); } }
+    ]},
     { type: 'section', label: 'Sonuç' },
-    { type: 'display', label: 'Gereken kuvvet F', highlight: true, getValue: () => F().toFixed(0) + ' N' },
+    { type: 'display', label: 'Yararlı iş W_yararlı', highlight: true, getValue: () => Wout().toFixed(0) + ' J' },
+    { type: 'display', label: 'Kayıp (ısı/sürtünme)', getValue: () => lossJ().toFixed(0) + ' J' },
     { type: 'display', label: 'Verim η', getValue: () => eta().toFixed(0) + ' %' },
-    { type: 'formula', text: 'η = P/(P+G) · 100',
-      getValue: () => 'η = ' + S.vr_P + '/(' + S.vr_P + '+' + S.vr_G + ')·100 = <b>' + eta().toFixed(0) + '%</b>' }
+    { type: 'formula', text: 'η = W_yararlı / W_giren · 100',
+      getValue: () => 'η = ' + Wout().toFixed(0) + '/' + S.vr_Win + '·100 = <b>' + eta().toFixed(0) + ' %</b> (≤100)' }
   ], { title: 'Verim' });
 
   addInfo3DLabels([
-    { text: { ilkokul:'🪨 Yararlı iş', ortaokul:'🪨 Yük P (yararlı)', lise:'🪨 W_yararlı=P·h', tyt_ayt:'🪨 W_yararlı=P·h' },
-      position: [-3, 0.5, 0], target: [0, 0.6, 0], color: '#ff6b4a' },
-    { text: { ilkokul:'🔥 Kayıp', ortaokul:'🔥 Ağırlık+sürtünme', lise:'🔥 Kayıp (G)', tyt_ayt:'🔥 Kayıp: G + sürtünme' },
-      position: [3, 2.5, 0], target: [0, 1.8, 0], color: '#ff3030' },
-    { text: { ilkokul:'👆 Verilen', ortaokul:'💪 F (verilen iş)', lise:'💪 W_verilen=F·x', tyt_ayt:'💪 η=(P·h)/(F·x)·100' },
-      position: [3, 4, 0], target: [0.6, 3.6, 0], color: '#ffb84d' }
+    { text: { ilkokul:'⬇️ Verilen', ortaokul:'💪 Giren iş', lise:'💪 W_giren = F·x', tyt_ayt:'💪 W_giren (toplam)' },
+      position: [-4.2, 3.4, 0], target: [-2.4, 2.2, 0], color: '#ffb84d' },
+    { text: { ilkokul:'✅ İşe yarayan', ortaokul:'✅ Yararlı iş', lise:'✅ W_yararlı = P·h', tyt_ayt:'✅ W_yararlı' },
+      position: [3.6, 2.0, 0], target: [1.6, 1.4, 0], color: '#3ed673' },
+    { text: { ilkokul:'🔥 Boşa giden', ortaokul:'🔥 Sürtünme kaybı', lise:'🔥 Kayıp = ısı', tyt_ayt:'🔥 Kayıp (ısı, ses)' },
+      position: [3.8, 4.2, 0], target: [1.6, 3.4, 0], color: '#ff3b30' },
+    { text: { ilkokul:'📊 Verim', ortaokul:'📊 η = yararlı/giren', lise:'📊 η < %100 daima', tyt_ayt:'📊 η = W_y/W_g (≤1)' },
+      position: [-0.4, 5.2, 0], target: [-0.4, 4.0, 0], color: '#ffd166' }
   ]);
 };
 
-// ---------- MODÜL 3.1: Eğik Düzlem ----------
 SubBuilders.buildEgikDuzlem = function() {
   const root = new THREE.Group();
   markDynamic(root); scene.add(root); window._currentModelGroup = root;
@@ -3342,90 +3941,112 @@ SubBuilders.buildEgikDuzlem = function() {
   root.add(makeGridSystem({ size: 16, divisions: 16, floorY: 0 }));
 
   const S = window._sceneState;
-  S.ed_P = 400;   // yük ağırlığı (N)
-  S.ed_h = 2;     // yükseklik (m)
-  S.ed_l = 4;     // eğik düzlem uzunluğu (m)
-  S._edT = 0;     // animasyon (yükün rampada konumu 0-1)
+  S.ed_P = 400;     // yük ağırlığı (N)
+  S.ed_h = 2;       // yükseklik (m)
+  S.ed_theta = 30;  // eğim açısı (derece) — ana kaydırıcı
+  S._edT = 0;       // animasyon: yükün rampadaki konumu (0..1)
 
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
-  // l >= h olmalı; taban = sqrt(l^2 - h^2)
+
+  // Açı + yükseklikten türetilen geometri. ℓ = h / sinθ, taban = h / tanθ
   function geo() {
-    const l = Math.max(S.ed_l, S.ed_h + 0.1);
-    const taban = Math.sqrt(Math.max(0.01, l*l - S.ed_h*S.ed_h));
-    return { l, taban, theta: Math.asin(S.ed_h / l) };
+    const th = Math.max(8, Math.min(75, S.ed_theta)) * Math.PI / 180;
+    const l = S.ed_h / Math.sin(th);
+    const taban = S.ed_h / Math.tan(th);
+    return { l, taban, theta: th };
   }
-  function F() { return S.ed_P * S.ed_h / Math.max(S.ed_l, S.ed_h+0.1); }
+  function F() { return S.ed_P * Math.sin(geo().theta); } // F = P·sinθ = P·h/ℓ
 
   function rebuild() {
     [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
     const g = geo();
-    // rampa (sol köşe orijinde, taban sağa, yükseklik yukarı) — makeRamp(taban, h)
+    // rampa (sol köşe orijinde) — makeRamp(taban, h)
     const ramp = makeRamp(g.taban, S.ed_h);
     ramp.position.set(-g.taban/2, 0, 0); dyn.add(ramp);
-    // eğik yüzey vektörü: sağ alt köşe (taban/2, 0) → sol üst köşe (-taban/2, h)
+
+    // yüzey vektörleri: sağ alt köşe → sol üst köşe
     const baseR = new THREE.Vector3(g.taban/2, 0, 0);
-    const topL = new THREE.Vector3(-g.taban/2, S.ed_h, 0);
-    const surfDir = new THREE.Vector3().subVectors(topL, baseR).normalize(); // yüzey boyunca yukarı
-    const normal = new THREE.Vector3(-surfDir.y, surfDir.x, 0).normalize();    // yüzeye dik (dışarı)
+    const topL  = new THREE.Vector3(-g.taban/2, S.ed_h, 0);
+    const surfDir = new THREE.Vector3().subVectors(topL, baseR).normalize();   // yüzey boyu yukarı
+    const normal  = new THREE.Vector3(-surfDir.y, surfDir.x, 0).normalize();   // yüzeye dik (dışa)
+
+    // --- yük (rampada animasyonla itilir) ---
     const boxS = 0.8;
-    // yük: yüzey üzerinde _edT konumunda, yüzeye dik yarım kutu kadar yukarıda
-    const t = 0.06 + S._edT * 0.88;  // uçlardan biraz içeride
+    const t = 0.06 + S._edT * 0.86;
     const onSurf = baseR.clone().lerp(topL, t);
     const loadPos = onSurf.clone().add(normal.clone().multiplyScalar(boxS/2));
     const load = makeLoad({ size: boxS });
     load.position.copy(loadPos);
-    load.rotation.z = g.theta;  // cismi eğim açısı kadar döndür → yüzeye otursun
+    load.rotation.z = g.theta;
     dyn.add(load);
-    // çekme kuvveti oku (yüzeye paralel, yukarı-sola)
-    dyn.add(makeVectorArrow(loadPos.clone(), surfDir.clone().multiplyScalar(1.0 + F()/300), { color: MCOL.force, shaftR: 0.05, headR: 0.14 }));
-    // ağırlık oku (aşağı)
-    dyn.add(makeVectorArrow(loadPos.clone(), new THREE.Vector3(0, -1.0 - S.ed_P/400, 0), { color: MCOL.load, shaftR: 0.05, headR: 0.14 }));
+
+    // çekme kuvveti F (yüzeye paralel, yukarı) — boyu kuvvetle orantılı
+    const Fscale = 0.5 + 2.2 * (F() / S.ed_P);   // sinθ ∈ (0..1) → 0.5..2.7
+    dyn.add(makeVectorArrow(loadPos.clone(), surfDir.clone().multiplyScalar(Fscale), { color: MCOL.force, shaftR: 0.06, headR: 0.17 }));
+    // ağırlık G (dik aşağı) — boyu yük ile orantılı
+    dyn.add(makeVectorArrow(loadPos.clone(), new THREE.Vector3(0, -(0.8 + 1.6 * S.ed_P/800), 0), { color: MCOL.load, shaftR: 0.06, headR: 0.17 }));
+
+    // --- KARŞILAŞTIRMA: dik kaldırma (aynı yük dümdüz yukarı = tam ağırlık) ---
+    const cmpX = g.taban/2 + 1.6;
+    // hayalet kutu zeminde
+    const ghost = makeLoad({ size: boxS }); ghost.position.set(cmpX, boxS/2, 0);
+    ghost.traverse(o=>{ if(o.material){ o.material.transparent=true; o.material.opacity=0.45; } });
+    dyn.add(ghost);
+    // dik kaldırma oku = tam ağırlık (uzun)
+    dyn.add(makeVectorArrow(new THREE.Vector3(cmpX, boxS/2, 0), new THREE.Vector3(0, 0.8 + 1.6 * S.ed_P/800, 0), { color: 0xff3b30, shaftR: 0.06, headR: 0.17 }));
+    dyn.add(makeMeasureLabel('Dik: F = P = ' + S.ed_P + ' N', [cmpX, boxS/2 + 2.4, 0], 'rgba(255,59,48,0.92)'));
+    dyn.add(makeMeasureLabel('Rampa: F = ' + F().toFixed(0) + ' N', [cmpX, boxS/2 + 1.7, 0], 'rgba(255,184,77,0.95)'));
 
     // --- ÖLÇÜ ETİKETLERİ ---
-    // yükseklik h (sol kenar, dik)
-    dyn.add(makeDimension(new THREE.Vector3(-g.taban/2 - 0.35, 0, 0), new THREE.Vector3(-g.taban/2 - 0.35, S.ed_h, 0), 'h = ' + S.ed_h.toFixed(1) + ' m', { color: 0xffe14d, offset: [-0.5, 0, 0] }));
-    // eğik uzunluk ℓ (yüzey ortası, dışa offset)
-    const midSurf = baseR.clone().lerp(topL, 0.5).add(normal.clone().multiplyScalar(0.55));
-    dyn.add(makeMeasureLabel('ℓ = ' + Math.max(S.ed_l,S.ed_h+0.1).toFixed(1) + ' m', [midSurf.x, midSurf.y, midSurf.z], 'rgba(255,184,77,0.95)'));
-    // taban (yatay zemin)
-    dyn.add(makeDimension(new THREE.Vector3(-g.taban/2, -0.3, 0), new THREE.Vector3(g.taban/2, -0.3, 0), 'taban', { color: 0x9fb0d8, offset: [0, -0.45, 0] }));
-    // açı θ (alt köşede)
-    dyn.add(makeMeasureLabel('θ = ' + (g.theta*180/Math.PI).toFixed(0) + '°', [g.taban/2 - 0.7, 0.25, 0], 'rgba(62,214,115,0.92)'));
+    dyn.add(makeDimension(new THREE.Vector3(-g.taban/2 - 0.35, 0, 0), new THREE.Vector3(-g.taban/2 - 0.35, S.ed_h, 0), 'h = ' + S.ed_h.toFixed(1) + ' m', { color: 0xffe14d, offset: [-0.55, 0, 0] }));
+    const midSurf = baseR.clone().lerp(topL, 0.5).add(normal.clone().multiplyScalar(0.6));
+    dyn.add(makeMeasureLabel('ℓ = ' + g.l.toFixed(1) + ' m', [midSurf.x, midSurf.y, midSurf.z], 'rgba(255,184,77,0.95)'));
+    dyn.add(makeMeasureLabel('θ = ' + S.ed_theta.toFixed(0) + '°', [g.taban/2 - 0.85, 0.28, 0], 'rgba(62,214,115,0.92)'));
+
+    // mesaj: açı arttıkça kuvvet artar, yol kısalır
+    const msg = S.ed_theta <= 25 ? 'Az açı → az kuvvet, uzun yol' :
+                (S.ed_theta >= 50 ? 'Dik açı → çok kuvvet, kısa yol' : 'Orta açı: kuvvet/yol dengesi');
+    dyn.add(makeMeasureLabel(msg, [-g.taban/2 + g.taban*0.25, S.ed_h + 1.1, 0], 'rgba(20,28,46,0.92)'));
   }
   rebuild();
-  window._customAnim = function(t, dt){
-    S._edT += dt*0.4;
-    if (S._edT > 1) S._edT = 0;
-    rebuild();
-  };
+  window._customAnim = function(t, dt){ S._edT += dt*0.4; if (S._edT > 1) S._edT = 0; rebuild(); };
 
   setSceneSliders([
-    { type: 'section', label: 'Eğik Düzlem (F=P·h/ℓ)' },
+    { type: 'section', label: 'Eğik Düzlem (F = P·sinθ)' },
     { type: 'slider', label: 'Yük P', min: 100, max: 800, step: 50, unit: ' N',
       getValue: () => S.ed_P, setValue: (v)=>{ S.ed_P=v; rebuild(); }, format:(v)=>v.toFixed(0) },
+    { type: 'slider', label: 'Eğim açısı θ', min: 10, max: 70, step: 5, unit: '°',
+      getValue: () => S.ed_theta, setValue: (v)=>{ S.ed_theta=v; rebuild(); }, format:(v)=>v.toFixed(0) },
     { type: 'slider', label: 'Yükseklik h', min: 1, max: 4, step: 0.5, unit: ' m',
       getValue: () => S.ed_h, setValue: (v)=>{ S.ed_h=v; rebuild(); }, format:(v)=>v.toFixed(1) },
-    { type: 'slider', label: 'Uzunluk ℓ', min: 2, max: 8, step: 0.5, unit: ' m',
-      getValue: () => S.ed_l, setValue: (v)=>{ S.ed_l=v; rebuild(); }, format:(v)=>v.toFixed(1) },
+    { type: 'presets', activeIdx: 1, options: [
+      { label: '🛹 Az eğim', action: ()=>{ S.ed_theta=15; rebuild(); } },
+      { label: '📐 Orta', action: ()=>{ S.ed_theta=30; rebuild(); } },
+      { label: '⛰️ Dik', action: ()=>{ S.ed_theta=60; rebuild(); } }
+    ]},
     { type: 'section', label: 'Sonuç' },
     { type: 'display', label: 'Gereken kuvvet F', highlight: true, getValue: () => F().toFixed(0) + ' N' },
-    { type: 'display', label: 'Kuvvet kazancı (ℓ/h)', getValue: () => (Math.max(S.ed_l,S.ed_h+0.1)/S.ed_h).toFixed(2) },
-    { type: 'display', label: 'Açı θ', getValue: () => (geo().theta*180/Math.PI).toFixed(0) + '°' },
-    { type: 'formula', text: 'F = P·h/ℓ',
-      getValue: () => 'F = ' + S.ed_P + '·' + S.ed_h.toFixed(1) + '/' + Math.max(S.ed_l,S.ed_h+0.1).toFixed(1) + ' = <b>' + F().toFixed(0) + ' N</b>' }
+    { type: 'display', label: 'Eğik uzunluk ℓ', getValue: () => geo().l.toFixed(1) + ' m' },
+    { type: 'display', label: 'Kuvvet kazancı (ℓ/h)', getValue: () => (geo().l/S.ed_h).toFixed(2) },
+    { type: 'display', label: 'Dik kaldırmaya göre', getValue: () => '×' + (F()/S.ed_P).toFixed(2) + ' kuvvet' },
+    { type: 'formula', text: 'F = P·h/ℓ = P·sinθ',
+      getValue: () => 'F = ' + S.ed_P + '·sin' + S.ed_theta.toFixed(0) + '° = <b>' + F().toFixed(0) + ' N</b>' }
   ], { title: 'Eğik Düzlem' });
 
   addInfo3DLabels([
-    { text: { ilkokul:'📐 Rampa', ortaokul:'📐 Eğik düzlem (ℓ)', lise:'📐 Uzunluk ℓ', tyt_ayt:'📐 ℓ (eğik yüzey)' },
-      position: [2, 3, 0], target: [0, 1.2, 0], color: '#7a8499' },
-    { text: { ilkokul:'⬆️ Yükseklik', ortaokul:'⬆️ Yükseklik h', lise:'⬆️ Yükseklik h', tyt_ayt:'⬆️ h (P·h iş)' },
-      position: [-4.5, 2, 0], target: [-2.5, 1, 0], color: '#ffe14d' },
-    { text: { ilkokul:'👆 İtme kuvveti', ortaokul:'💪 Kuvvet F', lise:'💪 F=P·sinθ', tyt_ayt:'💪 F=P·h/ℓ (K=ℓ/h)' },
-      position: [3.5, 2, 0], target: [0.5, 1.5, 0], color: '#ffb84d' }
+    { text: { ilkokul:'📐 Rampa', ortaokul:'📐 Eğik düzlem (ℓ)', lise:'📐 Uzunluk ℓ', tyt_ayt:'📐 ℓ = h/sinθ' },
+      position: [0, 3.2, 0], target: [-0.4, 1.3, 0], color: '#7a8499' },
+    { text: { ilkokul:'⬆️ Yükseklik', ortaokul:'⬆️ Yükseklik h', lise:'⬆️ Yükseklik h', tyt_ayt:'⬆️ h (yararlı iş P·h)' },
+      position: [-4.6, 1.6, 0], target: [-2.6, 1, 0], color: '#ffe14d' },
+    { text: { ilkokul:'👆 İtme kuvveti', ortaokul:'💪 Kuvvet F', lise:'💪 F = P·sinθ', tyt_ayt:'💪 F = P·h/ℓ (K=ℓ/h)' },
+      position: [-2.4, 3.4, 0], target: [-1.1, 1.7, 0], color: '#ffb84d' },
+    { text: { ilkokul:'⬇️ Ağırlık', ortaokul:'⬇️ Ağırlık G', lise:'⬇️ Ağırlık G = P', tyt_ayt:'⬇️ G = m·g (dik bileşen)' },
+      position: [1.0, 0.4, 0], target: [-0.2, 0.9, 0], color: '#ff6b4a' },
+    { text: { ilkokul:'🧱 Dik kaldırsak', ortaokul:'🧱 Dik: tam kuvvet', lise:'🧱 Dik kaldırma F=P', tyt_ayt:'🧱 Dik: F = P (kıyas)' },
+      position: [4.5, 3.0, 0], target: [3.3, 1.3, 0], color: '#ff3b30' }
   ]);
 };
 
-// ---------- MODÜL 3.2: Vida ----------
 SubBuilders.buildVida = function() {
   const root = new THREE.Group();
   markDynamic(root); scene.add(root); window._currentModelGroup = root;
@@ -3433,67 +4054,134 @@ SubBuilders.buildVida = function() {
   root.add(makeGridSystem({ size: 16, divisions: 16, floorY: 0 }));
 
   const S = window._sceneState;
-  S.vd_b = 1.2;    // kol uzunluğu (m)
-  S.vd_a = 0.4;    // vida adımı (m, görsel ölçek)
-  S.vd_R = 300;    // direnç (N)
-  S._vdT = 0;      // dönme animasyonu
+  S.vd_b = 1.2;     // kol uzunluğu (m)
+  S.vd_a = 0.30;    // vida adımı / pitch (m)
+  S.vd_R = 300;     // direnç (N)
+  S.vd_view = 0;    // 0: vida (sarılmış), 1: dönüşüm (sarılma animasyonu)
+  S._vdT = 0;       // dönme animasyonu
+  S._vdWrap = 1;    // 0=düz şerit (açık eğik düzlem), 1=tam sarılmış
 
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
   function F() { return S.vd_R * S.vd_a / (2*Math.PI*S.vd_b); }
 
+  const Rcore = 0.45;        // vida çekirdek yarıçapı
+  const turns = 5;           // görünür diş sayısı
+  const screwLen = 2.6;
+
+  // Sarılmış/açılan dişi tek bir TubeGeometry ile çiz. wrap=1 → sarmal, wrap=0 → düz rampa
+  function makeThread(wrap, rise) {
+    const pts = [];
+    const segs = 80;
+    const totalAngle = turns * Math.PI * 2;
+    const flatW = Rcore * totalAngle;     // sarmalın açılmış (düz) genişliği
+    for (let i = 0; i <= segs; i++) {
+      const u = i / segs;
+      const ang = u * totalAngle;
+      const y = -screwLen/2 + u * (turns * rise);
+      // sarılmış konum
+      const wx = Math.cos(ang) * Rcore, wz = Math.sin(ang) * Rcore;
+      // açılmış (düz eğik düzlem) konum: x ekseni boyunca uzanan rampa
+      const fx = -flatW/2 + u * flatW, fz = Rcore;
+      pts.push(new THREE.Vector3(
+        wx * wrap + fx * (1-wrap),
+        y,
+        wz * wrap + fz * (1-wrap)
+      ));
+    }
+    const curve = new THREE.CatmullRomCurve3(pts);
+    const geo = new THREE.TubeGeometry(curve, segs, 0.07, 8, false);
+    const mat = new THREE.MeshStandardMaterial({ color: 0xffb84d, roughness: 0.4, metalness: 0.5, emissive: 0x331e00, emissiveIntensity: 0.3 });
+    return new THREE.Mesh(geo, mat);
+  }
+
   function rebuild() {
     [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
     const rot = S._vdT;
-    const sink = (rot / (Math.PI*2)) * S.vd_a * 0.5;  // vidanın gömülmesi
-    // tahta blok (vidanın girdiği)
+    const wrap = (S.vd_view === 1) ? S._vdWrap : 1;
+    const sink = (rot / (Math.PI*2)) * S.vd_a * 0.4;
+
+    if (S.vd_view === 1) {
+      // === DÖNÜŞÜM GÖRÜNÜMÜ: eğik düzlem ⇄ vida ===
+      const grp = new THREE.Group(); grp.position.set(0, 2.0, 0);
+      // çekirdek silindir (sadece sarılıyken belirgin)
+      if (wrap > 0.15) {
+        const core = new THREE.Mesh(new THREE.CylinderGeometry(Rcore*0.92, Rcore*0.92, screwLen, 20),
+          new THREE.MeshStandardMaterial({ color: 0xb0b4bc, roughness: 0.35, metalness: 0.7, transparent: true, opacity: wrap }));
+        grp.add(core);
+      }
+      grp.add(makeThread(wrap, S.vd_a));
+      dyn.add(grp);
+      // açık şerit etiketi
+      if (wrap < 0.5) {
+        dyn.add(makeMeasureLabel('Vida = sarılmış eğik düzlem', [0, 4.0, Rcore+0.4], 'rgba(255,184,77,0.95)'));
+        dyn.add(makeMeasureLabel('θ', [Rcore*turns*Math.PI*0.5 - 0.3, 1.5, Rcore], 'rgba(62,214,115,0.92)'));
+      } else {
+        dyn.add(makeMeasureLabel('→ silindire sarınca VİDA olur', [0, 4.0, 0], 'rgba(255,184,77,0.95)'));
+      }
+      return;
+    }
+
+    // === NORMAL VİDA GÖRÜNÜMÜ ===
     const block = makeForceBox({ sx: 2.4, sy: 1.6, sz: 2.4 });
     block.position.set(0, 0.8, 0); dyn.add(block);
-    // vida gövdesi (silindir + sarmal dişler)
-    const screwLen = 2.5;
-    const screwY = 2.2 - Math.min(sink, 1.2);
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, screwLen, 16),
+
+    const screwY = 2.2 - Math.min(sink, 1.0);
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(Rcore*0.9, Rcore*0.9, screwLen, 18),
       new THREE.MeshStandardMaterial({ color: 0xb0b4bc, roughness: 0.35, metalness: 0.7 }));
     shaft.position.set(0, screwY, 0); shaft.rotation.y = rot; dyn.add(shaft);
-    // sarmal dişler (torus halkalar boyunca)
-    const turns = 7;
-    for (let i = 0; i < turns; i++) {
-      const ty = screwY - screwLen/2 + (i+0.5) * (screwLen/turns);
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.06, 8, 20),
-        new THREE.MeshStandardMaterial({ color: 0x9498a0, roughness: 0.4, metalness: 0.6 }));
-      ring.rotation.x = Math.PI/2; ring.position.set(0, ty, 0);
-      ring.rotation.z = rot + i*0.5; dyn.add(ring);
-    }
-    // vida başı (üstte yatay kol)
-    const head = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.2, 20),
+
+    // sarmal diş (adıma bağlı eğim) — tek tüp
+    const thread = makeThread(1, S.vd_a);
+    thread.position.set(0, screwY, 0); thread.rotation.y = rot; dyn.add(thread);
+
+    // vida başı + kol
+    const head = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.2, 20),
       new THREE.MeshStandardMaterial({ color: 0x6b7fa8, roughness: 0.4, metalness: 0.6 }));
     head.position.set(0, screwY + screwLen/2 + 0.1, 0); dyn.add(head);
-    // kol (b uzunluğunda, döner)
     const handle = new THREE.Mesh(new THREE.BoxGeometry(S.vd_b*2, 0.12, 0.12),
       new THREE.MeshStandardMaterial({ color: 0x9a6a3a }));
     handle.position.set(0, screwY + screwLen/2 + 0.1, 0); handle.rotation.y = rot; dyn.add(handle);
-    // kuvvet oku (kol ucunda, teğet)
+
+    // kuvvet oku (kol ucu, teğet)
     const hx = Math.cos(rot)*S.vd_b, hz = Math.sin(rot)*S.vd_b;
     dyn.add(makeVectorArrow(new THREE.Vector3(hx, screwY + screwLen/2 + 0.1, hz),
-      new THREE.Vector3(-Math.sin(rot)*0.8, 0, Math.cos(rot)*0.8), { color: MCOL.force, shaftR: 0.05, headR: 0.13 }));
-    // direnç oku (aşağı, vidaya karşı)
-    dyn.add(makeVectorArrow(new THREE.Vector3(0, screwY - screwLen/2, 0), new THREE.Vector3(0, 0.8, 0), { color: MCOL.load, shaftR: 0.05, headR: 0.13 }));
-    // ölçü etiketleri: b (kol), a (adım)
-    dyn.add(makeMeasureLabel('b = ' + S.vd_b.toFixed(1) + ' m', [hx*0.6, screwY + screwLen/2 + 0.5, hz*0.6], 'rgba(255,184,77,0.95)'));
-    dyn.add(makeMeasureLabel('a = ' + S.vd_a.toFixed(2) + ' m (adım)', [0.9, screwY, 0], 'rgba(148,152,160,0.95)'));
+      new THREE.Vector3(-Math.sin(rot)*(0.7 + 1.2*F()/S.vd_R), 0, Math.cos(rot)*(0.7 + 1.2*F()/S.vd_R)),
+      { color: MCOL.force, shaftR: 0.05, headR: 0.14 }));
+    // direnç oku (aşağı)
+    dyn.add(makeVectorArrow(new THREE.Vector3(0, screwY - screwLen/2, 0), new THREE.Vector3(0, 0.6 + 1.4*S.vd_R/600, 0), { color: MCOL.load, shaftR: 0.05, headR: 0.14 }));
+
+    // çevirme yönü (üstte yay)
+    dyn.add(makeVectorArrow(new THREE.Vector3(hx*0.5, screwY + screwLen/2 + 0.5, hz*0.5), new THREE.Vector3(-Math.sin(rot)*0.5, 0, Math.cos(rot)*0.5), { color: MCOL.gain, shaftR: 0.03, headR: 0.1 }));
+
+    // ölçüler
+    dyn.add(makeMeasureLabel('b = ' + S.vd_b.toFixed(1) + ' m', [hx*0.6, screwY + screwLen/2 + 0.55, hz*0.6], 'rgba(255,184,77,0.95)'));
+    dyn.add(makeMeasureLabel('a = ' + S.vd_a.toFixed(2) + ' m/tur', [0.95, screwY, 0], 'rgba(148,152,160,0.95)'));
   }
   rebuild();
-  window._customAnim = function(t, dt){ S._vdT += dt*1.2; if (S._vdT > Math.PI*4) S._vdT = 0; rebuild(); };
+  window._customAnim = function(t, dt){
+    S._vdT += dt*1.2; if (S._vdT > Math.PI*4) S._vdT = 0;
+    if (S.vd_view === 1) {
+      // sarılma/açılma git-gel
+      S._vdWrap = 0.5 + 0.5 * Math.sin(t * 0.8);
+    }
+    rebuild();
+  };
 
   setSceneSliders([
     { type: 'section', label: 'Vida (F·2πb = R·a)' },
+    { type: 'presets', activeIdx: 0, options: [
+      { label: '🔩 Vida', action: ()=>{ S.vd_view=0; S._vdWrap=1; rebuild(); } },
+      { label: '🔄 Dönüşüm (eğik düzlem)', action: ()=>{ S.vd_view=1; rebuild(); } }
+    ]},
+    { type: 'slider', label: 'Vida adımı a (pitch)', min: 0.10, max: 0.55, step: 0.05, unit: ' m',
+      getValue: () => S.vd_a, setValue: (v)=>{ S.vd_a=v; rebuild(); }, format:(v)=>v.toFixed(2) },
     { type: 'slider', label: 'Kol uzunluğu b', min: 0.6, max: 2, step: 0.1, unit: ' m',
       getValue: () => S.vd_b, setValue: (v)=>{ S.vd_b=v; rebuild(); }, format:(v)=>v.toFixed(1) },
-    { type: 'slider', label: 'Vida adımı a', min: 0.1, max: 0.6, step: 0.05, unit: ' m',
-      getValue: () => S.vd_a, setValue: (v)=>{ S.vd_a=v; rebuild(); }, format:(v)=>v.toFixed(2) },
     { type: 'slider', label: 'Direnç R', min: 100, max: 600, step: 50, unit: ' N',
       getValue: () => S.vd_R, setValue: (v)=>{ S.vd_R=v; rebuild(); }, format:(v)=>v.toFixed(0) },
     { type: 'section', label: 'Sonuç' },
     { type: 'display', label: 'Gereken kuvvet F', highlight: true, getValue: () => F().toFixed(1) + ' N' },
+    { type: 'display', label: 'Tur başına ilerleme', getValue: () => S.vd_a.toFixed(2) + ' m' },
     { type: 'display', label: 'Kuvvet kazancı (2πb/a)', getValue: () => (2*Math.PI*S.vd_b/S.vd_a).toFixed(1) },
     { type: 'formula', text: 'F·2πb = R·a',
       getValue: () => 'F = ' + S.vd_R + '·' + S.vd_a.toFixed(2) + '/(2π·' + S.vd_b.toFixed(1) + ') = <b>' + F().toFixed(1) + ' N</b>' }
@@ -3501,15 +4189,16 @@ SubBuilders.buildVida = function() {
 
   addInfo3DLabels([
     { text: { ilkokul:'🔩 Vida', ortaokul:'🔩 Sarmal dişler', lise:'🔩 Sarmal eğik düzlem', tyt_ayt:'🔩 Vida (adım a)' },
-      position: [3, 3.5, 0], target: [0.3, 2.2, 0], color: '#9498a0' },
-    { text: { ilkokul:'🔄 Çevirme', ortaokul:'💪 Kol kuvveti F', lise:'💪 F (kol: b)', tyt_ayt:'💪 F·2πb (kol momenti)' },
-      position: [3.5, 5, 0], target: [1.2, 4.3, 0], color: '#ffb84d' },
+      position: [3, 3.0, 0], target: [0.3, 2.2, 0], color: '#ffb84d' },
+    { text: { ilkokul:'🔄 Çevir', ortaokul:'💪 Kol kuvveti F', lise:'💪 F (kol: b)', tyt_ayt:'💪 F·2πb (kol momenti)' },
+      position: [3.5, 4.8, 0], target: [1.2, 4.4, 0], color: '#ffb84d' },
+    { text: { ilkokul:'📏 Adım', ortaokul:'📏 Adım a (1 tur)', lise:'📏 Adım a = tur başına yol', tyt_ayt:'📏 a (1 turda ilerleme)' },
+      position: [2.6, 2.0, 0], target: [0.5, 2.0, 0], color: '#9498a0' },
     { text: { ilkokul:'🪵 Tahta', ortaokul:'🪨 Direnç', lise:'🪨 Direnç R', tyt_ayt:'🪨 R·a (direnç işi)' },
-      position: [-3, 1, 0], target: [0, 0.8, 0], color: '#ff6b4a' }
+      position: [-3, 1.0, 0], target: [0, 0.8, 0], color: '#ff6b4a' }
   ]);
 };
 
-// ---------- MODÜL 3.3: Çıkrık ----------
 SubBuilders.buildCikrik = function() {
   const root = new THREE.Group();
   markDynamic(root); scene.add(root); window._currentModelGroup = root;
@@ -3517,12 +4206,22 @@ SubBuilders.buildCikrik = function() {
   root.add(makeGridSystem({ size: 16, divisions: 16, floorY: -3 }));
 
   const S = window._sceneState;
-  S.ck_P = 100; S.ck_R = 1.4; S.ck_r = 0.5; S._ckT = 0;  // R: kol yarıçapı, r: tambur
+  S.ck_P = 100; S.ck_R = 1.4; S.ck_r = 0.5; S._ckT = 0;  // R: kol yarıçapı, r: tambur yarıçapı
 
   // sabit destek ayakları
-  const leg1 = new THREE.Mesh(new THREE.BoxGeometry(0.25, 3, 0.25), new THREE.MeshStandardMaterial({ color: 0x5a6b8a }));
+  const legMat = new THREE.MeshStandardMaterial({ color: 0x5a6b8a, roughness: 0.6 });
+  const leg1 = new THREE.Mesh(new THREE.BoxGeometry(0.25, 3, 0.25), legMat);
   leg1.position.set(-1.4, 1.5, 0); root.add(leg1);
   const leg2 = leg1.clone(); leg2.position.set(1.4, 1.5, 0); root.add(leg2);
+
+  // kuyu ağzı (silindir halka, görsel)
+  const wellTop = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.16, 10, 28),
+    new THREE.MeshStandardMaterial({ color: 0x6b5a48, roughness: 0.85 }));
+  wellTop.rotation.x = Math.PI/2; wellTop.position.set(0.0, -0.4, 0); root.add(wellTop);
+  // su (mavi disk, kuyu dibinde)
+  const water = new THREE.Mesh(new THREE.CircleGeometry(0.85, 24),
+    new THREE.MeshStandardMaterial({ color: 0x2e7dd6, roughness: 0.2, metalness: 0.3, transparent: true, opacity: 0.8 }));
+  water.rotation.x = -Math.PI/2; water.position.set(0.0, -2.6, 0); root.add(water);
 
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
   function F() { return S.ck_P * S.ck_r / S.ck_R; }
@@ -3531,44 +4230,61 @@ SubBuilders.buildCikrik = function() {
     [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
     const cy = 3.0;
     const rot = S._ckT;
-    // büyük çark (kol, R) - dikey düzlemde döner
-    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(S.ck_R, S.ck_R, 0.2, 32),
-      new THREE.MeshStandardMaterial({ color: MCOL.pulley, roughness: 0.4, metalness: 0.55 }));
-    wheel.rotation.x = Math.PI/2; wheel.rotation.y = rot; wheel.position.set(0, cy, 0.4); wheel.castShadow = true; dyn.add(wheel);
-    // kol sapı (büyük çark üzerinde dönen çubuk)
-    const handle = new THREE.Mesh(new THREE.BoxGeometry(S.ck_R*1.8, 0.12, 0.12), new THREE.MeshStandardMaterial({ color: 0x9a6a3a }));
-    handle.position.set(0, cy, 0.55); handle.rotation.z = rot; dyn.add(handle);
-    // tambur (küçük silindir, r)
-    const drum = new THREE.Mesh(new THREE.CylinderGeometry(S.ck_r, S.ck_r, 0.5, 24),
+    const R = S.ck_R, r = S.ck_r;
+
+    // tambur (küçük silindir, r) — yatay, ip buraya sarılır
+    const drum = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 1.4, 24),
       new THREE.MeshStandardMaterial({ color: 0x8a7a5a, roughness: 0.6, metalness: 0.3 }));
-    drum.rotation.x = Math.PI/2; drum.rotation.y = rot; drum.position.set(0, cy, 0); drum.castShadow = true; dyn.add(drum);
-    // yük ipi (tamburdan aşağı)
-    const lift = (rot % (Math.PI*2)) / (Math.PI*2) * 0.5;
-    const loadY = cy - S.ck_r - 1.5 + Math.sin(S._ckT)*0.3;
-    dyn.add(makeThickRope(new THREE.Vector3(S.ck_r, cy, 0), new THREE.Vector3(S.ck_r, loadY+0.4, 0), { color: MCOL.rope }));
-    const load = makeLoad({ size: 0.8 }); load.position.set(S.ck_r, loadY, 0); dyn.add(load);
+    drum.rotation.z = Math.PI/2; drum.rotation.x = rot; drum.position.set(0, cy, 0); drum.castShadow = true; dyn.add(drum);
+
+    // büyük kol çarkı (R) — sağ uçta, kolu döndüren disk/çark
+    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(R, R, 0.14, 32),
+      new THREE.MeshStandardMaterial({ color: MCOL.pulley, roughness: 0.4, metalness: 0.55 }));
+    wheel.rotation.z = Math.PI/2; wheel.rotation.x = rot; wheel.position.set(0.85, cy, 0); wheel.castShadow = true; dyn.add(wheel);
+    // kol sapı (büyük çarkın yüzeyinde, R yarıçapında dönen tutamak)
+    const hy = Math.sin(rot)*R, hz = Math.cos(rot)*R;
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.5, 12),
+      new THREE.MeshStandardMaterial({ color: 0x9a6a3a }));
+    handle.rotation.z = Math.PI/2; handle.position.set(1.1, cy + hy, hz); dyn.add(handle);
+    // kol kolu (merkez→tutamak çubuğu)
+    dyn.add(makeThickRope(new THREE.Vector3(0.92, cy, 0), new THREE.Vector3(0.92, cy + hy, hz), { color: 0x9a6a3a, r: 0.05 }));
+
+    // --- kuyudan kova çekme animasyonu: yük ipi tamburdan aşağı, dönerken yükselir ---
+    const lift = (Math.sin(S._ckT * 0.5) * 0.5 + 0.5);  // 0..1 (kova konumu)
+    const bottomY = -2.4, topY = cy - r - 0.7;
+    const loadY = bottomY + lift * (topY - bottomY);
+    dyn.add(makeThickRope(new THREE.Vector3(-r, cy, 0), new THREE.Vector3(-r, loadY+0.45, 0), { color: MCOL.rope }));
+    // kova
+    const bucket = makeLoad({ size: 0.7 }); bucket.position.set(-r, loadY, 0); dyn.add(bucket);
     // yük ağırlık oku
-    dyn.add(makeVectorArrow(new THREE.Vector3(S.ck_r, loadY-0.4, 0), new THREE.Vector3(0, -0.8, 0), { color: MCOL.load, shaftR: 0.05, headR: 0.13 }));
-    // kuvvet oku (kol ucunda, teğet)
-    const hx = Math.cos(rot)*S.ck_R, hy = Math.sin(rot)*S.ck_R;
-    dyn.add(makeVectorArrow(new THREE.Vector3(hx, cy+hy, 0.55), new THREE.Vector3(0, -1.0, 0), { color: MCOL.force, shaftR: 0.05, headR: 0.13 }));
-    // R ve r ölçü çizgileri + etiketleri
-    dyn.add(makeDashedLine(new THREE.Vector3(0, cy, 0.5), new THREE.Vector3(hx, cy+hy, 0.5), { color: MCOL.force }));
-    dyn.add(makeMeasureLabel('R = ' + S.ck_R.toFixed(1) + ' m', [hx*0.5 - 0.4, cy + hy*0.5 + 0.3, 0.55], 'rgba(255,184,77,0.95)'));
-    dyn.add(makeDashedLine(new THREE.Vector3(0, cy, 0), new THREE.Vector3(S.ck_r, cy, 0), { color: MCOL.load }));
-    dyn.add(makeMeasureLabel('r = ' + S.ck_r.toFixed(1) + ' m', [S.ck_r*0.5, cy - 0.4, 0], 'rgba(255,107,74,0.95)'));
+    dyn.add(makeVectorArrow(new THREE.Vector3(-r, loadY-0.4, 0), new THREE.Vector3(0, -(0.5 + 1.3*S.ck_P/200), 0), { color: MCOL.load, shaftR: 0.05, headR: 0.14 }));
+    // kuvvet oku (kol tutamağında, aşağı çekiş — boyu F ile orantılı)
+    dyn.add(makeVectorArrow(new THREE.Vector3(1.1, cy + hy, hz), new THREE.Vector3(0, -(0.4 + 1.4*F()/S.ck_P), 0), { color: MCOL.force, shaftR: 0.05, headR: 0.13 }));
+
+    // R / r görsel oran (yarıçap ölçüleri)
+    dyn.add(makeDashedLine(new THREE.Vector3(0.92, cy, 0.1), new THREE.Vector3(0.92, cy + R, 0.1), { color: MCOL.force }));
+    dyn.add(makeMeasureLabel('R = ' + R.toFixed(1) + ' m', [0.92 + 0.4, cy + R*0.6, 0.2], 'rgba(255,184,77,0.95)'));
+    dyn.add(makeDashedLine(new THREE.Vector3(0, cy, 0.1), new THREE.Vector3(-r, cy + r, 0.1), { color: MCOL.load }));
+    dyn.add(makeMeasureLabel('r = ' + r.toFixed(1) + ' m', [-r - 0.45, cy + r*0.6, 0.2], 'rgba(255,107,74,0.95)'));
+    // oran rozeti
+    dyn.add(makeMeasureLabel('R/r = ' + (R/r).toFixed(1) + '×', [0, cy + R + 0.6, 0], 'rgba(62,214,115,0.92)'));
   }
   rebuild();
-  window._customAnim = function(t, dt){ S._ckT += dt*1.0; rebuild(); };
+  window._customAnim = function(t, dt){ S._ckT += dt*1.2; rebuild(); };
 
   setSceneSliders([
-    { type: 'section', label: 'Çıkrık (F·R=P·r)' },
+    { type: 'section', label: 'Çıkrık (F·R = P·r)' },
     { type: 'slider', label: 'Yük P', min: 40, max: 200, step: 20, unit: ' N',
       getValue: () => S.ck_P, setValue: (v)=>{ S.ck_P=v; rebuild(); }, format:(v)=>v.toFixed(0) },
     { type: 'slider', label: 'Kol yarıçapı R', min: 0.8, max: 2, step: 0.1, unit: ' m',
       getValue: () => S.ck_R, setValue: (v)=>{ S.ck_R=v; rebuild(); }, format:(v)=>v.toFixed(1) },
     { type: 'slider', label: 'Tambur yarıçapı r', min: 0.3, max: 0.8, step: 0.1, unit: ' m',
       getValue: () => S.ck_r, setValue: (v)=>{ S.ck_r=v; rebuild(); }, format:(v)=>v.toFixed(1) },
+    { type: 'presets', activeIdx: 1, options: [
+      { label: '🤏 Az kazanç', action: ()=>{ S.ck_R=0.9; S.ck_r=0.7; rebuild(); } },
+      { label: '⚖️ Orta', action: ()=>{ S.ck_R=1.4; S.ck_r=0.5; rebuild(); } },
+      { label: '💪 Çok kazanç', action: ()=>{ S.ck_R=2.0; S.ck_r=0.3; rebuild(); } }
+    ]},
     { type: 'section', label: 'Sonuç' },
     { type: 'display', label: 'Gereken kuvvet F', highlight: true, getValue: () => F().toFixed(1) + ' N' },
     { type: 'display', label: 'Kuvvet kazancı (R/r)', getValue: () => (S.ck_R/S.ck_r).toFixed(2) },
@@ -3577,16 +4293,17 @@ SubBuilders.buildCikrik = function() {
   ], { title: 'Çıkrık' });
 
   addInfo3DLabels([
-    { text: { ilkokul:'🛞 Büyük çark (kol)', ortaokul:'🛞 Kol (R)', lise:'🛞 Kol yarıçapı R', tyt_ayt:'🛞 R (F·R momenti)' },
-      position: [3, 4.5, 0], target: [1, 3.3, 0], color: '#6b7fa8' },
-    { text: { ilkokul:'🥁 Küçük silindir', ortaokul:'🥁 Tambur (r)', lise:'🥁 Tambur r', tyt_ayt:'🥁 r (P·r momenti)' },
-      position: [-3, 3.5, 0], target: [0, 3, 0], color: '#8a7a5a' },
-    { text: { ilkokul:'🪨 Yük', ortaokul:'🪨 Yük P', lise:'🪨 Yük P', tyt_ayt:'🪨 P' },
-      position: [2.5, 0.5, 0], target: [0.5, 1, 0], color: '#ff6b4a' }
+    { text: { ilkokul:'🛞 Büyük kol', ortaokul:'🛞 Kol çarkı (R)', lise:'🛞 Kol yarıçapı R', tyt_ayt:'🛞 R (F·R momenti)' },
+      position: [3.2, 4.6, 0], target: [1.3, 3.9, 0], color: '#6b7fa8' },
+    { text: { ilkokul:'🥁 Tambur', ortaokul:'🥁 Tambur (r)', lise:'🥁 Tambur r', tyt_ayt:'🥁 r (P·r momenti)' },
+      position: [-3.0, 3.6, 0], target: [-0.3, 3.2, 0], color: '#8a7a5a' },
+    { text: { ilkokul:'🪣 Kova', ortaokul:'🪣 Yük P', lise:'🪨 Yük P', tyt_ayt:'🪨 P (kuyudan yük)' },
+      position: [-3.0, 0.0, 0], target: [-0.5, 0.5, 0], color: '#ff6b4a' },
+    { text: { ilkokul:'💧 Kuyu', ortaokul:'💧 Kuyu suyu', lise:'💧 Kuyu', tyt_ayt:'💧 Kuyu' },
+      position: [2.6, -2.2, 0], target: [0, -2.5, 0], color: '#2e7dd6' }
   ]);
 };
 
-// ---------- MODÜL 3.3: Dişli Çarklar ----------
 SubBuilders.buildDisliCark = function() {
   const root = new THREE.Group();
   markDynamic(root); scene.add(root); window._currentModelGroup = root;
@@ -3594,59 +4311,120 @@ SubBuilders.buildDisliCark = function() {
   root.add(makeGridSystem({ size: 16, divisions: 16, floorY: 0 }));
 
   const S = window._sceneState;
-  S.dc_N1 = 12; S.dc_N2 = 24; S._dcT = 0;  // diş sayıları
+  S.dc_N1 = 12; S.dc_N2 = 24; S.dc_mode = 0; S._dcT = 0;  // mode 0: temas (zıt), 1: zincir (aynı yön)
 
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+
+  // ExtrudeGeometry ile makul poligonlu dişli (diş profili dış kontur)
+  function makeGearMesh(teeth, R, color) {
+    const grp = new THREE.Group();
+    const inner = R * 0.82;          // diş dibi
+    const outer = R;                 // diş tepe
+    const shape = new THREE.Shape();
+    const step = (Math.PI * 2) / teeth;
+    for (let i = 0; i < teeth; i++) {
+      const a0 = i * step;
+      // her diş: dip-dip-tepe-tepe (trapez) → 4 nokta/diş, makul poligon
+      const aa = a0 + step * 0.12, ab = a0 + step * 0.38, ac = a0 + step * 0.62, ad = a0 + step * 0.88;
+      const p = (ang, rad) => [Math.cos(ang)*rad, Math.sin(ang)*rad];
+      if (i === 0) shape.moveTo(...p(aa, inner)); else shape.lineTo(...p(aa, inner));
+      shape.lineTo(...p(ab, outer));
+      shape.lineTo(...p(ac, outer));
+      shape.lineTo(...p(ad, inner));
+    }
+    shape.closePath();
+    // merkez delik
+    const hole = new THREE.Path();
+    hole.absarc(0, 0, R*0.18, 0, Math.PI*2, true);
+    shape.holes.push(hole);
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.3, bevelEnabled: false, curveSegments: 2 });
+    geo.translate(0, 0, -0.15);
+    const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.6 });
+    const mesh = new THREE.Mesh(geo, mat); mesh.castShadow = true; grp.add(mesh);
+    // göbek
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(R*0.18, R*0.18, 0.4, 16),
+      new THREE.MeshStandardMaterial({ color: 0x2a3550, metalness: 0.7, roughness: 0.3 }));
+    hub.rotation.x = Math.PI/2; grp.add(hub);
+    // bir dişi vurgula (dönüşü görmek için)
+    const marker = new THREE.Mesh(new THREE.BoxGeometry(R*0.12, R*0.55, 0.34),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x223344, roughness: 0.4 }));
+    marker.position.set(0, R*0.42, 0); grp.add(marker);
+    return grp;
+  }
+
   function rebuild() {
     [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
-    const R1 = 0.5 + S.dc_N1 * 0.04;
-    const R2 = 0.5 + S.dc_N2 * 0.04;
-    const cy = 2.2;
-    const gap = R1 + R2 + 0.1;
-    // 1. dişli (sol, döner)
-    const g1 = makeGear({ R: R1, teeth: S.dc_N1, color: 0xffb84d });
-    g1.position.set(-gap/2, cy, 0); g1.rotation.z = S._dcT; dyn.add(g1);
-    // 2. dişli (sağ, zıt yön döner — temas)
-    const g2 = makeGear({ R: R2, teeth: S.dc_N2, color: 0x6b7fa8 });
-    // zıt yön + diş hizalama için ters dönme oranı
-    g2.position.set(gap/2, cy, 0); g2.rotation.z = -S._dcT * (S.dc_N1/S.dc_N2); dyn.add(g2);
-    // dönme yönü okları
-    dyn.add(makeVectorArrow(new THREE.Vector3(-gap/2, cy+R1+0.5, 0), new THREE.Vector3(0.6, 0, 0), { color: MCOL.gain, shaftR: 0.04, headR: 0.12 }));
-    dyn.add(makeVectorArrow(new THREE.Vector3(gap/2, cy+R2+0.5, 0), new THREE.Vector3(-0.6, 0, 0), { color: MCOL.gain, shaftR: 0.04, headR: 0.12 }));
-    // yarıçap ölçü çizgileri + diş sayısı etiketleri
-    dyn.add(makeDashedLine(new THREE.Vector3(-gap/2, cy, 0.3), new THREE.Vector3(-gap/2 - R1, cy, 0.3), { color: 0xffe14d }));
-    dyn.add(makeMeasureLabel('N₁ = ' + S.dc_N1 + ' diş', [-gap/2, cy - R1 - 0.5, 0], 'rgba(255,184,77,0.95)'));
-    dyn.add(makeDashedLine(new THREE.Vector3(gap/2, cy, 0.3), new THREE.Vector3(gap/2 + R2, cy, 0.3), { color: 0xffe14d }));
-    dyn.add(makeMeasureLabel('N₂ = ' + S.dc_N2 + ' diş', [gap/2, cy - R2 - 0.5, 0], 'rgba(107,127,168,0.95)'));
+    const N1 = S.dc_N1, N2 = S.dc_N2;
+    const R1 = 0.5 + N1 * 0.05;
+    const R2 = 0.5 + N2 * 0.05;
+    const cy = 2.4;
+    const chain = (S.dc_mode === 1);
+    const gap = chain ? (R1 + R2 + 1.4) : (R1 + R2);  // zincir: aralıklı; temas: birbirine değer
+    const x1 = -gap/2, x2 = gap/2;
+
+    // 1. dişli (sürücü, sol) — saat yönü tersine (+)
+    const g1 = makeGearMesh(N1, R1, 0xffb84d);
+    g1.position.set(x1, cy, 0); g1.rotation.z = S._dcT; dyn.add(g1);
+    // 2. dişli (sağ): temas → ZIT yön ve oran N1/N2; zincir → AYNI yön
+    const g2 = makeGearMesh(N2, R2, 0x6b7fa8);
+    const ratio = N1 / N2;
+    g2.position.set(x2, cy, 0);
+    if (chain) {
+      g2.rotation.z = S._dcT * ratio;        // aynı yön
+      // zincir görseli (iki nokta arası kalın bant + üst/alt teğet)
+      dyn.add(makeThickRope(new THREE.Vector3(x1, cy + R1, 0), new THREE.Vector3(x2, cy + R2, 0), { color: 0x444a5a, r: 0.05 }));
+      dyn.add(makeThickRope(new THREE.Vector3(x1, cy - R1, 0), new THREE.Vector3(x2, cy - R2, 0), { color: 0x444a5a, r: 0.05 }));
+    } else {
+      g2.rotation.z = -S._dcT * ratio;       // temas → zıt yön
+    }
+    dyn.add(g2);
+
+    // dönüş yönü okları (kavisli yön göstermek için teğet oklar)
+    dyn.add(makeVectorArrow(new THREE.Vector3(x1, cy + R1 + 0.4, 0), new THREE.Vector3(0.6, 0, 0), { color: MCOL.gain, shaftR: 0.04, headR: 0.12 }));
+    const dir2 = chain ? 0.6 : -0.6;
+    dyn.add(makeVectorArrow(new THREE.Vector3(x2, cy + R2 + 0.4, 0), new THREE.Vector3(dir2, 0, 0), { color: MCOL.gain, shaftR: 0.04, headR: 0.12 }));
+
+    // diş sayısı etiketleri
+    dyn.add(makeMeasureLabel('N₁ = ' + N1 + ' diş', [x1, cy - R1 - 0.55, 0], 'rgba(255,184,77,0.95)'));
+    dyn.add(makeMeasureLabel('N₂ = ' + N2 + ' diş', [x2, cy - R2 - 0.55, 0], 'rgba(107,127,168,0.95)'));
+    // yön rozeti
+    dyn.add(makeMeasureLabel(chain ? 'Zincir → AYNI yön' : 'Temas → ZIT yön', [0, cy + Math.max(R1,R2) + 1.0, 0], chain ? 'rgba(62,214,115,0.92)' : 'rgba(255,80,80,0.9)'));
   }
   rebuild();
   window._customAnim = function(t, dt){ S._dcT += dt*1.5; rebuild(); };
 
+  function ratioTxt() { return (S.dc_N2/S.dc_N1).toFixed(2); }
+
   setSceneSliders([
     { type: 'section', label: 'Dişli Çarklar' },
-    { type: 'slider', label: 'Dişli 1 diş sayısı N₁', min: 8, max: 24, step: 2, unit: '',
+    { type: 'slider', label: 'Sürücü diş N₁', min: 8, max: 24, step: 2, unit: '',
       getValue: () => S.dc_N1, setValue: (v)=>{ S.dc_N1=v; rebuild(); }, format:(v)=>v.toFixed(0) },
-    { type: 'slider', label: 'Dişli 2 diş sayısı N₂', min: 8, max: 36, step: 2, unit: '',
+    { type: 'slider', label: 'Çıkış diş N₂', min: 8, max: 36, step: 2, unit: '',
       getValue: () => S.dc_N2, setValue: (v)=>{ S.dc_N2=v; rebuild(); }, format:(v)=>v.toFixed(0) },
+    { type: 'presets', activeIdx: 1, options: [
+      { label: '⚡ Hız (küçük→büyük)', action: ()=>{ S.dc_N1=10; S.dc_N2=30; S.dc_mode=0; rebuild(); } },
+      { label: '⚙️ 1:2 Temas', action: ()=>{ S.dc_N1=12; S.dc_N2=24; S.dc_mode=0; rebuild(); } },
+      { label: '💪 Tork (büyük→küçük)', action: ()=>{ S.dc_N1=30; S.dc_N2=10; S.dc_mode=0; rebuild(); } },
+      { label: '🔗 Zincir (aynı yön)', action: ()=>{ S.dc_N1=14; S.dc_N2=20; S.dc_mode=1; rebuild(); } }
+    ]},
     { type: 'section', label: 'Sonuç' },
-    { type: 'display', label: 'Dönme oranı (n₁/n₂)', highlight: true, getValue: () => (S.dc_N2/S.dc_N1).toFixed(2) },
-    { type: 'display', label: 'Dişli 1', getValue: () => S.dc_N1 < S.dc_N2 ? 'Hızlı, az kuvvet' : 'Yavaş, çok kuvvet' },
-    { type: 'display', label: 'Yön', getValue: () => 'Zıt (temas)' },
+    { type: 'display', label: 'Çevrim oranı n₁/n₂', highlight: true, getValue: () => ratioTxt() },
+    { type: 'display', label: 'Çıkış dişlisi (N₂)', getValue: () => S.dc_N2 > S.dc_N1 ? 'Yavaş + çok tork' : (S.dc_N2 < S.dc_N1 ? 'Hızlı + az tork' : 'Aynı hız/tork') },
+    { type: 'display', label: 'Dönüş yönü', getValue: () => S.dc_mode === 1 ? 'Aynı (zincir)' : 'Zıt (temas)' },
     { type: 'formula', text: 'N₁·n₁ = N₂·n₂',
-      getValue: () => S.dc_N1 + '·n₁ = ' + S.dc_N2 + '·n₂ → n₁/n₂ = <b>' + (S.dc_N2/S.dc_N1).toFixed(2) + '</b>' }
+      getValue: () => S.dc_N1 + '·n₁ = ' + S.dc_N2 + '·n₂ → n₁/n₂ = <b>' + ratioTxt() + '</b>' }
   ], { title: 'Dişli Çarklar' });
 
   addInfo3DLabels([
-    { text: { ilkokul:'⚙️ Dişli 1', ortaokul:'⚙️ Dişli 1 (N₁)', lise:'⚙️ N₁ diş', tyt_ayt:'⚙️ N₁·n₁' },
-      position: [-3.5, 4, 0], target: [-1.5, 2.2, 0], color: '#ffb84d' },
-    { text: { ilkokul:'⚙️ Dişli 2', ortaokul:'⚙️ Dişli 2 (N₂)', lise:'⚙️ N₂ diş', tyt_ayt:'⚙️ N₂·n₂' },
-      position: [3.5, 4, 0], target: [1.5, 2.2, 0], color: '#6b7fa8' },
-    { text: { ilkokul:'🔄 Ters döner', ortaokul:'🔄 Zıt yön', lise:'🔄 Temas → zıt yön', tyt_ayt:'🔄 ω₁r₁=ω₂r₂' },
-      position: [0, 4.5, 0], target: [0, 3, 0], color: '#3ed673' }
+    { text: { ilkokul:'⚙️ 1. dişli', ortaokul:'⚙️ Sürücü (N₁)', lise:'⚙️ N₁ diş', tyt_ayt:'⚙️ Sürücü N₁·n₁' },
+      position: [-3.8, 4.2, 0], target: [-1.6, 2.4, 0], color: '#ffb84d' },
+    { text: { ilkokul:'⚙️ 2. dişli', ortaokul:'⚙️ Çıkış (N₂)', lise:'⚙️ N₂ diş', tyt_ayt:'⚙️ Çıkış N₂·n₂' },
+      position: [3.8, 4.2, 0], target: [1.6, 2.4, 0], color: '#6b7fa8' },
+    { text: { ilkokul:'🔄 Ters döner', ortaokul:'🔄 Temas → zıt yön', lise:'🔄 Hız ⇄ tork takası', tyt_ayt:'🔄 ω₁N₁ = ω₂N₂' },
+      position: [0, 4.8, 0], target: [0, 3.4, 0], color: '#3ed673' }
   ]);
 };
 
-// ============================================================
 // ====== SİSTEM: SEVİYE, MOD, NAVİGASYON, UI ================
 // ============================================================
 let currentLevel = 'lise';
@@ -3767,7 +4545,9 @@ function selectSub(subKey) {
 
   // Kamerayı sahneye göre hafif yukarı + model biraz sola kaysın (target sağa)
   if (controls) {
-    controls.target.set(1.5, 0.8, 0);
+    // Hedefi daha aşağı al → model ekranda daha YUKARIDA dursun
+    controls.target.set(0, -1.15, 0);
+    if (camera) camera.position.set(0, 1.85, 25.0);
     controls.captureInitialState && controls.captureInitialState();
   }
 
@@ -3777,6 +4557,14 @@ function selectSub(subKey) {
     const cur = allSubs.find(s => s.key === subKey);
     if (cur) window._showGestureToast('📍 ' + cur.label);
   }
+  // Geçiş Motoru: yeni sahne için Ayarlar'a göre giriş animasyonu + ses + geri bildirim
+  try {
+    if (window.GECIS && window._currentModelGroup) {
+      const tEl = document.getElementById('infoTitle');
+      const lbl = tEl ? tEl.textContent.split('/').pop().trim() : '';
+      window.GECIS.onScene(window._currentModelGroup, lbl);
+    }
+  } catch(e) {}
 }
 
 function applyModeToLabels() {
@@ -3795,18 +4583,18 @@ function applyModeToLabels() {
 }
 
 // ---------- BİLGİ PANELİ ----------
+function _dataKey(subKey) { return subKey; }
 function updateInfoPanel(subKey) {
-  const data = _resolveLevelData(INFO_DATA[subKey]);
+  const data = _resolveLevelData(INFO_DATA[_dataKey(subKey)]);
   if (!data) return;
   document.getElementById('infoEmoji').textContent = data.emoji || '🔦';
-  // Başlık: "Modül ana başlığı / alt başlık" (eğitim seviyesi gösterilmez)
   let mainTitle = '', subTitle = '';
   for (const mk of Object.keys(MODULES)) {
     const s = MODULES[mk].subs.find(x => x.key === subKey);
     if (s) {
-      // Modül ana başlığından emoji ve "Modül N:" kısmını temizle
       mainTitle = (MODULES[mk].title || '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]*Modül\s*\d+:\s*/i, '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]+/, '').trim();
-      // Alt başlık: sahne etiketinden baştaki emojiyi at
+      // Başlığın başındaki eğitim seviyesini ("İlkokul:", "Lise/TYT:" vb.) kaldır → sadece ana konu kalsın
+      mainTitle = mainTitle.replace(/^[^:]*:\s*/, '').trim();
       subTitle = (s.label || '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]+/, '').trim();
       break;
     }
@@ -3816,15 +4604,17 @@ function updateInfoPanel(subKey) {
   const list = document.getElementById('infoList');
   list.innerHTML = '';
   let points = data.points || [];
-  // Sade modda ilk 3, detaylıda hepsi
   const showCount = (currentMode === 'sade') ? 3 : points.length;
+  // Satır başındaki ikon/emojileri temizleyen yardımcı (madde başında ikon olmasın)
+  const stripIcon = (txt) => txt.replace(/^\s*(?:[\p{Extended_Pictographic}️‍⃣]\s*)+/u, '').trim();
   points.slice(0, showCount).forEach(p => {
     const li = document.createElement('li');
-    if (p.startsWith('##')) { li.className = 'subhead'; li.innerHTML = p.replace('##','').trim(); }
-    else li.innerHTML = p;
+    let txt = p;
+    if (txt.startsWith('###')) { li.className = 'subhead2'; txt = txt.replace(/^###/, '').trim(); } // yan başlık → mavi
+    else if (txt.startsWith('##')) { li.className = 'subhead'; txt = txt.replace(/^##/, '').trim(); } // ara başlık → sarı
+    li.innerHTML = stripIcon(txt);
     list.appendChild(li);
   });
-  // içerik değişti → kaydırma çubuğunu yeniden hesapla (layout için çoklu deneme)
   list.scrollTop = 0;
   setTimeout(updateInfoScrollbar, 30);
   setTimeout(updateInfoScrollbar, 150);
@@ -3908,6 +4698,24 @@ function renderCompareTable() {
   window._cmpIdx = 0;
   _showComparePage();
 }
+function _renderCompareHTML(data) {
+  const cols = data.cols || [], rows = data.rows || [];
+  if (cols.length < 2 || rows.length < 1) return _renderTableHTML(data, 'compare-style');
+  const aspectLabel = cols[0];
+  const entities = rows.map(r => r[0]);
+  let html = '<table class="cmp-table compare-style cmp-versus"><thead><tr>';
+  html += `<th class="cmp-aspect">${aspectLabel}</th>`;
+  entities.forEach((e, i) => { html += `<th class="cmp-ent cmp-ent-${i % 4}">${e}</th>`; });
+  html += '</tr></thead><tbody>';
+  for (let c = 1; c < cols.length; c++) {
+    html += `<tr><td class="cmp-aspect-cell">${cols[c]}</td>`;
+    rows.forEach(r => { html += `<td>${(r[c] !== undefined && r[c] !== null) ? r[c] : '—'}</td>`; });
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
 function _showComparePage() {
   const body = document.getElementById('compareBody');
   const titleEl = document.getElementById('compareTitle');
@@ -3923,7 +4731,7 @@ function _showComparePage() {
   const i = window._cmpIdx;
   const data = pages[i];
   if (titleEl) titleEl.textContent = '⚖️ ' + (data.title || 'Karşılaştırma');
-  body.innerHTML = _renderTableHTML(data, 'compare-style');
+  body.innerHTML = _renderCompareHTML(data);
   if (nav) {
     if (pages.length > 1) {
       nav.classList.remove('hidden');
@@ -3985,7 +4793,7 @@ function attachEvents() {
       infoList.addEventListener('scroll', updateInfoScrollbar, { passive: true });
     }
     // tüm popup/panel gövdeleri için de aynı koruma (kaydırılabilir alanlar)
-    ['compareBody','tableBody','scenePanel'].forEach(id => {
+    ['compareBody','tableBody','sceneVarsBody'].forEach(id => {
       const el = document.getElementById(id);
       if (el) ['touchstart','touchmove','touchend','wheel'].forEach(ev => {
         el.addEventListener(ev, (e) => { e.stopPropagation(); }, { passive: true });
@@ -4114,11 +4922,78 @@ function attachEvents() {
   };
 
   // Tam ekran
-  document.getElementById('btnFs').onclick = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+    // ── Bilgi panelini büyüt/küçült: ince çubuğu YUKARI/AŞAĞI SÜRÜKLE (parmağı takip eder) ──
+  (function(){
+    const handle = document.getElementById('infoResizeHandle');
+    const panel = document.getElementById('bottomPanel');
+    const list = document.getElementById('infoList');
+    if (!handle || !panel || !list) return;
+    const MIN_H = 70;
+    const maxH = () => Math.max(MIN_H, Math.round(window.innerHeight - 150)); // üst sekmelere kadar
+    function curH() {
+      const v = getComputedStyle(panel).getPropertyValue('--info-h').trim();
+      if (v.endsWith('px')) return parseFloat(v);
+      return list.getBoundingClientRect().height || Math.round(window.innerHeight * 0.24);
+    }
+    function setH(h) {
+      h = Math.max(MIN_H, Math.min(maxH(), h));
+      panel.style.setProperty('--info-h', h + 'px');
+      if (typeof updateInfoScrollbar === 'function') updateInfoScrollbar();
+    }
+    let dragging = false, startY = 0, startH = 0, pid = null;
+    function onDown(e) {
+      dragging = true; startH = curH();
+      startY = (e.touches ? e.touches[0].clientY : e.clientY);
+      list.style.transition = 'none';
+      if (e.pointerId !== undefined) { pid = e.pointerId; try { handle.setPointerCapture(pid); } catch(_){} }
+      if (window._haptic) window._haptic(10);
+      if (e.cancelable) e.preventDefault();
+      e.stopPropagation();
+    }
+    function onMove(e) {
+      if (!dragging) return;
+      const y = (e.touches ? e.touches[0].clientY : e.clientY);
+      setH(startH + (startY - y)); // yukarı sürükle → büyür
+      if (e.cancelable) e.preventDefault();
+    }
+    function onUp() {
+      if (!dragging) return;
+      dragging = false; list.style.transition = '';
+      if (pid !== null) { try { handle.releasePointerCapture(pid); } catch(_){} pid = null; }
+    }
+    if (window.PointerEvent) {
+      handle.addEventListener('pointerdown', onDown);
+      handle.addEventListener('pointermove', onMove);
+      handle.addEventListener('pointerup', onUp);
+      handle.addEventListener('pointercancel', onUp);
     } else {
-      document.exitFullscreen && document.exitFullscreen();
+      handle.addEventListener('touchstart', onDown, { passive: false });
+      window.addEventListener('touchmove', onMove, { passive: false });
+      window.addEventListener('touchend', onUp);
+      window.addEventListener('touchcancel', onUp);
+      handle.addEventListener('mousedown', onDown);
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    }
+    // çift dokunuş: büyük ↔ normal yükseklik arası geçiş
+    let lastTap = 0;
+    handle.addEventListener('click', (e) => {
+      const now = Date.now();
+      if (now - lastTap < 320) { const big = maxH() - 30; setH(curH() > big - 40 ? Math.round(window.innerHeight * 0.24) : big); }
+      lastTap = now;
+    });
+  })();
+
+  document.getElementById('btnFs').onclick = () => {
+    const el = document.documentElement;
+    const isFs = document.fullscreenElement || document.webkitFullscreenElement;
+    if (!isFs) {
+      // navigationUI:'hide' → tarayıcı/sistem çubuklarını (üstteki saat/şarj vb.) gizlemeyi iste
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (req) { try { req.call(el, { navigationUI: 'hide' }); } catch(_) { req.call(el); } }
+    } else {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) exit.call(document);
     }
     if (window._haptic) window._haptic(15);
   };
@@ -4180,7 +5055,17 @@ function attachEvents() {
   };
 
   // Overlay dışına tıkla → kapat
-  ['shareOverlay','compareOverlay','tableOverlay'].forEach(id => {
+  // "Bu sayfa nasıl çalışır?" yardım penceresi
+  document.getElementById('btnHelp').onclick = () => {
+    closeAllDropdowns();
+    document.getElementById('helpOverlay').classList.add('show');
+    if (window._haptic) window._haptic(12);
+  };
+  document.getElementById('helpClose').onclick = () => {
+    document.getElementById('helpOverlay').classList.remove('show');
+  };
+
+  ['shareOverlay','compareOverlay','tableOverlay','helpOverlay'].forEach(id => {
     const ov = document.getElementById(id);
     ov.onclick = (e) => { if (e.target === ov) ov.classList.remove('show'); };
   });

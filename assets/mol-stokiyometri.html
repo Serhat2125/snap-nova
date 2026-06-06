@@ -45,14 +45,16 @@
     width:100vw; height:100vh;
     transition:background 0.3s, color 0.3s;
   }
-  body { touch-action:none; }
+  /* touch-action:none YALNIZCA 3B alanda olmalı; body'de olursa alt panel
+     içindeki yazılar kaydırılamaz (atası none olan eleman pan-y olsa bile kayamaz). */
   canvas { display:block; cursor:grab; }
   canvas:active { cursor:grabbing; }
-  #canvasContainer { position:absolute; inset:0; width:100%; height:100%; z-index:1; }
+  #canvasContainer { position:absolute; inset:0; width:100%; height:100%; z-index:1; touch-action:none; }
+  #canvasContainer canvas { touch-action:none; }
 
   .left-stack {
     position:absolute;
-    top:6px; right:14px;
+    top:2px; right:14px;
     z-index:30;
     display:flex; flex-direction:column; gap:8px;
     align-items:flex-end;
@@ -140,7 +142,7 @@
 
   .right-tools {
     position:absolute;
-    top:6px; left:8px;
+    top:2px; left:8px;
     z-index:30;
     display:flex; gap:8px;
     flex-wrap:nowrap;
@@ -167,6 +169,23 @@
 
   .tool-icon-btn.fs { border-color:var(--joint); color:var(--joint); }
   .tool-icon-btn.fs:hover { background:var(--joint); color:#0a1420; }
+  .tool-icon-btn.help { border-color:var(--accent-glow); color:var(--accent-glow); }
+  .tool-icon-btn.help:hover { background:var(--accent-glow); color:#0a1420; }
+  /* "Bu sayfa nasıl çalışır?" yardım penceresi */
+  .help-card { width:min(460px, 94vw) !important; max-height:86vh; overflow-y:auto; }
+  .help-sec-title {
+    font-family:'Baloo 2', cursive; font-weight:800; font-size:13px;
+    color:var(--accent-glow); margin:13px 2px 6px; letter-spacing:0.3px;
+    border-top:1px solid var(--panel-line); padding-top:11px;
+  }
+  .help-sec-title:first-child { border-top:none; margin-top:2px; padding-top:0; }
+  .help-row {
+    display:flex; gap:10px; align-items:flex-start;
+    padding:5px 4px; font-size:13px; color:var(--ink); line-height:1.42;
+  }
+  .help-row .he { font-size:17px; flex-shrink:0; width:24px; text-align:center; }
+  .help-row b { color:var(--accent-glow); font-weight:700; }
+  .help-intro { font-size:12.5px; color:var(--ink-soft); line-height:1.45; padding:2px 4px 6px; }
   .tool-icon-btn.send { border-color:var(--warning); color:var(--warning); }
   .tool-icon-btn.send:hover { background:var(--warning); color:#0a1420; }
   .tool-icon-btn.theme { border-color:var(--cartilage); color:var(--cartilage); }
@@ -193,30 +212,27 @@
   }
   .bottom-panel.hidden { display:none; }
 
-  /* Bilgi panelini yukari/asagi cekerek genisleten tutamac (ust cercevenin tam ustunde) */
+  /* Bilgi panelini büyüt/küçült: bilgi çerçevesinin tam üstünde YAN YANA ▲▼ ok (sürükle-bırak).
+     Yukarı/aşağı sürükle → panel büyür/küçülür. Dokunma hedefi geniş, görünen kısım sade iki ok. */
   .info-resize-handle {
     position:absolute;
-    top:-15px; left:50%; transform:translateX(-50%);
-    width:64px; height:24px;
-    background:var(--panel);
-    border:2px solid var(--accent);
-    border-bottom:none;
-    border-radius:12px 12px 0 0;
-    display:flex; align-items:center; justify-content:center;
-    gap:3px;
+    top:-19px; left:50%; transform:translateX(-50%);
+    width:100px; height:28px;
+    display:flex; flex-direction:row; align-items:center; justify-content:center;
+    gap:7px;
+    cursor:ns-resize; touch-action:none; z-index:4;
+    background:transparent; border:none; padding:0;
     color:var(--accent);
-    font-size:13px; line-height:1;
-    cursor:ns-resize; touch-action:none;
-    z-index:3;
-    box-shadow:0 -3px 10px rgba(0,0,0,0.3);
   }
-  .info-resize-handle::before {
-    content:''; position:absolute; top:7px;
-    width:34px; height:4px; border-radius:3px;
-    background:var(--accent); opacity:0.55;
+  .info-resize-handle span {
+    font-size:12px; line-height:1; opacity:0.82; pointer-events:none;
+    text-shadow:0 1px 3px rgba(0,0,0,0.5);
+    transition:opacity 0.15s ease, transform 0.15s ease, color 0.15s ease;
   }
-  .info-resize-handle span { position:relative; top:4px; font-size:11px; opacity:0.9; }
-  .info-resize-handle:active { background:var(--panel-soft); }
+  .info-resize-handle:hover span { opacity:1; }
+  .info-resize-handle:active span { opacity:1; color:var(--accent-glow); }
+  .info-resize-handle:active .rz-up { transform:translateY(-2px); }
+  .info-resize-handle:active .rz-down { transform:translateY(2px); }
 
   .info-close-btn {
     position:absolute;
@@ -265,7 +281,7 @@
   }
   .info-title {
     font-family:'Baloo 2', cursive; font-weight:800;
-    font-size:12.5px;
+    font-size:14px;
     color:var(--accent-glow);
   }
   .nav-buttons {
@@ -291,6 +307,7 @@
     list-style:none;
     padding:0; margin:0;
     max-height:var(--info-h, 24vh);
+    transition:max-height 0.12s ease;
     overflow-y:auto;
     overflow-x:hidden;
     -webkit-overflow-scrolling:touch;
@@ -317,42 +334,52 @@
     border:1px solid rgba(0,0,0,0.3);
   }
   .info-list li {
-    padding:1px 0 1px 11px;
+    padding:3px 0 3px 15px;
     margin-bottom:0;
     background:transparent;
     border:none;
     border-radius:0;
-    font-size:10.5px;
-    line-height:1.32;
+    font-size:12px;
+    line-height:1.5;
     color:var(--ink);
     position:relative;
   }
+  /* Madde başında küçük MAVİ nokta */
   .info-list li::before {
     content:'•';
+    color:var(--joint);
     position:absolute;
-    left:2px; top:1px;
-    color:var(--accent);
-    font-weight:700;
-    font-size:11px;
+    left:3px; top:3px;
+    font-size:13px; line-height:1.45;
   }
   .info-list li b {
     color:var(--accent-glow);
     font-weight:700;
   }
+  /* Ara başlık (##) → SARI, nokta yok */
   .info-list li.subhead {
     background:transparent;
     border-left:none;
     color:var(--warning);
     font-weight:700;
-    font-size:11.5px;
+    font-size:12px;
     margin-top:5px;
     margin-bottom:2px;
     padding:0 0 1px 0;
     font-style:normal;
   }
-  .info-list li.subhead::before {
-    content:'';
+  .info-list li.subhead::before { content:''; }
+  /* Yan başlık (###) → MAVİ, nokta yok */
+  .info-list li.subhead2 {
+    background:transparent;
+    color:var(--joint);
+    font-weight:700;
+    font-size:12px;
+    margin-top:4px;
+    margin-bottom:1px;
+    padding:0 0 1px 0;
   }
+  .info-list li.subhead2::before { content:''; }
 
   .action-row {
     display:grid;
@@ -548,6 +575,14 @@
   .cmp-table th:nth-child(3),
   .cmp-table th:nth-child(4) { border-left:1px dashed rgba(255,255,255,0.3); }
   .cmp-table tr:hover td { background:rgba(246,185,59,0.20) !important; }
+  /* Karşılaştırma (versus): karşılaştırılan varlıklar SÜTUN başlığında ayrı renkte */
+  .cmp-versus th.cmp-aspect { background:linear-gradient(135deg,#3a4668,#2a3450); color:var(--ink); text-shadow:none; }
+  .cmp-versus th.cmp-ent { color:#0a1420; }
+  .cmp-versus th.cmp-ent-0 { background:linear-gradient(135deg,#ffd166,#f6b93b); }
+  .cmp-versus th.cmp-ent-1 { background:linear-gradient(135deg,#7adcf0,#3aa0c8); }
+  .cmp-versus th.cmp-ent-2 { background:linear-gradient(135deg,#cbb3ff,#9d7fe6); }
+  .cmp-versus th.cmp-ent-3 { background:linear-gradient(135deg,#a6e3a1,#5fb377); }
+  .cmp-versus td.cmp-aspect-cell { font-weight:700; color:var(--ink); white-space:nowrap; border-right:2px solid var(--accent); background:rgba(255,255,255,0.05); }
   .cmp-no-data {
     text-align:center;
     padding:24px 12px;
@@ -624,13 +659,14 @@
 
   @media (max-width:600px) {
     .stack-btn { min-width:140px; font-size:11px; padding:7px 11px; }
-    .stack-btn .sb-label { font-size:11px; }
+    .stack-btn .sb-label, .sp-toggle .sb-label { font-size:11px; }
+    .sp-toggle { font-size:11px; padding:7px 11px; min-width:140px; }
     .right-tools { gap:5px; left:8px; }
     .tool-icon-btn { width:34px; height:34px; font-size:14px; border-radius:9px; }
     .bottom-panel { padding:11px 10px 9px; gap:9px; }
     .info-emoji-box { width:36px; height:36px; font-size:20px; }
-    .info-title { font-size:13px; }
-    .info-list li { font-size:11.5px; padding:4px 7px; }
+    .info-title { font-size:14px; }
+    .info-list li { font-size:12px; padding:3px 0 3px 15px; }
     .info-list { max-height:var(--info-h, 28vh); }
     .action-btn { font-size:11px; padding:7px 8px; }
     .dropdown-panel { min-width:200px; }
@@ -639,12 +675,14 @@
   }
   @media (max-width:420px) {
     .stack-btn { min-width:130px; font-size:10.5px; padding:6px 9px; }
+    .sp-toggle { font-size:10.5px; padding:6px 9px; min-width:130px; }
     .right-tools { gap:4px; left:6px; }
     .tool-icon-btn { width:30px; height:30px; font-size:13px; border-radius:8px; border-width:1.5px; }
     #panelMode { left:6px !important; }
   }
   @media (max-width:360px) {
     .stack-btn { min-width:115px; font-size:10px; padding:5px 8px; }
+    .sp-toggle { font-size:10px; padding:5px 8px; min-width:115px; }
     .right-tools { gap:3px; left:5px; }
     .tool-icon-btn { width:28px; height:28px; font-size:12px; }
     #panelMode { left:5px !important; }
@@ -654,45 +692,45 @@
     display: none !important;
   }
 
-  .scene-panel {
-    position: fixed;
-    right: 14px;
-    top: 98px;
-    width: 208px;
-    max-height: calc(100vh - 98px - 200px);
-    overflow-y: auto;
-    background: rgba(15, 20, 30, 0.88);
-    border: 1px solid rgba(246, 185, 59, 0.35);
-    border-radius: 13px;
-    padding: 8px;
-    z-index: 40;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-    font-size: 10px;
-    color: rgba(255, 255, 255, 0.92);
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    transition: all 0.3s ease;
-  }
-  .scene-panel.collapsed {
-    width: auto;
-    padding: 6px 10px;
-  }
-  .scene-panel.collapsed > *:not(.sp-toggle) { display: none; }
-  .scene-panel.empty { display: none; }
+  /* Eğitim Seviyesi (üstte) altında: Değişkenler + Konu Rehberi AYNI SATIRDA,
+     Değişkenler solda. Üçü de aynı ebat (stack-btn / sp-toggle). */
+  .stack-row { display: flex; gap: 8px; align-items: flex-start; }
 
-  body.dropdown-open .scene-panel {
-    transform: none;
+  /* Değişkenler içeriği: sekmenin hemen altında, TAM GENİŞLİK (telefon solu→sağı),
+     kontroller YATAY yan yana (flex-wrap). */
+  .scene-vars-body {
+    position: fixed;
+    left: 6px; right: 6px;
+    top: 92px; /* JS ile sekmenin altına hizalanır */
+    z-index: 39;
+    display: flex; flex-wrap: wrap; align-items: stretch;
+    gap: 7px;
+    background: rgba(15, 20, 30, 0.96);
+    border: 1.5px solid var(--panel-line);
+    border-radius: 12px;
+    padding: 8px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    max-height: 46vh; overflow-y: auto;
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 10px;
   }
+  .scene-vars-body.closed { display: none; }
+  .scene-vars-body .sp-section { flex-basis: 100%; margin: 2px 4px 0; }
+  .scene-vars-body .sp-slider-row { flex: 1 1 150px; min-width: 132px; max-width: 260px; }
+  .scene-vars-body .sp-display { flex: 1 1 120px; min-width: 108px; }
+  .scene-vars-body .sp-presets { flex-basis: 100%; }
+  .scene-vars-body .sp-formula { flex-basis: 100%; font-size: 11px; }
+  /* Dar yatay kartlarda yazılar sığsın */
+  .scene-vars-body .sp-slider-row .sp-slider-head { font-size: 10px; }
+  .scene-vars-body .sp-slider-row .sp-slider-head .sp-val { font-size: 10px; min-width: 40px; padding: 2px 5px; }
+  .scene-vars-body .sp-display { font-size: 9.5px; }
+  .scene-vars-body .sp-preset-btn { font-size: 10px; }
 
   @media (min-width: 768px) {
     canvas {
       transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    body.scene-panel-open canvas {
-      transform: translateX(-15vw);
     }
     body.panel-open canvas {
       transform: translateX(-22vw);
@@ -735,22 +773,29 @@
     padding: 0 4px;
     font-size: 11px;
   }
+  /* Sekme: TURUNCU; Lise/Konu Rehberi ile aynı boyut/yapı (ikon başta, ok sağda) */
   .sp-toggle {
-    background: rgba(246, 185, 59, 0.18);
-    border: 1px solid rgba(246, 185, 59, 0.5);
+    background: linear-gradient(135deg, #f59f0a, #f97316);
+    border: 2px solid rgba(255, 184, 92, 0.6);
     color: #fff;
-    font-size: 11px;
+    font-family: 'Fredoka', sans-serif;
+    font-size: 12.5px;
     font-weight: 600;
-    padding: 6px 10px;
-    border-radius: 10px;
+    padding: 8px 14px;
+    border-radius: 12px;
     cursor: pointer;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    width: 100%;
+    gap: 7px;
+    min-width: 170px; /* Konu Rehberi (stack-btn) ile aynı ebat */
+    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.35);
+    transition: all 0.15s;
   }
-  .sp-toggle:hover { background: rgba(246, 185, 59, 0.32); }
+  .sp-toggle:hover { border-color: #fff; }
+  .sp-toggle:active { transform: scale(0.97); }
+  .sp-toggle .sb-emoji { font-size: 16px; line-height: 1; flex-shrink: 0; }
+  .sp-toggle .sb-label { flex: 1; text-align: left; }
+  .sp-chev { font-size: 10px; opacity: 0.9; }
   .sp-section {
     font-size: 9px; font-weight: 700;
     color: rgba(255, 209, 90, 0.85);
@@ -865,18 +910,23 @@
   }
 
   @media (max-width: 768px) {
-    .scene-panel {
-      right: 12px;
-      top: 92px;
-      width: 178px;
-      font-size: 9.5px;
-      padding: 7px;
-    }
     .sp-slider-row { padding: 5px 7px; }
     .sp-slider-row input[type=range] { height: 5px; }
   }
 
-  body.panel-open .scene-panel { }
+  /* Değişkenler paneli TAM ŞEFFAF — açıkken 3D model arkada görünmeye devam eder */
+  .scene-vars-body {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.85);
+  }
+  .scene-vars-body .sp-slider-row,
+  .scene-vars-body .sp-display,
+  .scene-vars-body .sp-formula,
+  .scene-vars-body .sp-preset-btn { background: rgba(0, 0, 0, 0.30); }
 </style>
 </head>
 <body>
@@ -917,7 +967,7 @@
 </div>
 
 <div id="regionList" class="region-list"></div>
-<div id="scenePanel" class="scene-panel"></div>
+<div id="sceneVarsBody" class="scene-vars-body closed"></div>
 
 <div id="gestureToast" style="
   position:fixed; top:90px; left:50%; transform:translateX(-50%) translateY(-20px);
@@ -937,11 +987,14 @@
     <span class="sb-label" id="levelLabel">Lise</span>
     <span class="sb-arrow">▼</span>
   </button>
-  <button class="stack-btn topic" id="btnTopic">
-    <span class="sb-emoji">📚</span>
-    <span class="sb-label">Konu Rehberi</span>
-    <span class="sb-arrow">▼</span>
-  </button>
+  <div class="stack-row" id="stackRow">
+    <!-- Değişkenler sekmesi (sp-toggle) JS ile buraya, Konu Rehberi'nin SOLUNA eklenir -->
+    <button class="stack-btn topic" id="btnTopic">
+      <span class="sb-emoji">📚</span>
+      <span class="sb-label">Konu Rehberi</span>
+      <span class="sb-arrow">▼</span>
+    </button>
+  </div>
 </div>
 
 <div class="dropdown-panel" id="panelLevel" style="top:48px; right:14px; max-height:70vh; overflow-y:auto;">
@@ -966,6 +1019,7 @@
   <button class="tool-icon-btn theme" id="btnTheme" title="Tema değiştir">🌙</button>
   <button class="tool-icon-btn send" id="btnSend" title="Gönder/Paylaş">📤</button>
   <button class="tool-icon-btn fs" id="btnFs" title="Tam ekran">⛶</button>
+  <button class="tool-icon-btn help" id="btnHelp" title="Bu sayfa nasıl çalışır?">❓</button>
 </div>
 
 <div class="dropdown-panel" id="panelMode" style="top:48px; left:8px;">
@@ -975,7 +1029,7 @@
 </div>
 
 <div class="bottom-panel" id="bottomPanel">
-  <div class="info-resize-handle" id="infoResizeHandle" title="Yukari/asagi cekerek genislet"><span>⇕</span></div>
+  <div class="info-resize-handle" id="infoResizeHandle" title="Yukarı/aşağı sürükleyerek büyüt/küçült"><span class="rz-up">▲</span><span class="rz-down">▼</span></div>
   <button class="info-close-btn" id="infoCloseBtn" title="Bilgi panelini kapat">✕</button>
   <div class="info-area">
     <div class="info-emoji-box" id="infoEmoji" style="display:none;">🧪</div>
@@ -1079,6 +1133,39 @@
   </div>
 </div>
 
+<div class="share-overlay" id="helpOverlay">
+  <div class="share-card help-card">
+    <div class="share-head">
+      <div class="share-head-text">❓ Bu Sayfa Nasıl Çalışır?</div>
+      <button class="share-close-btn" id="helpClose">✕</button>
+    </div>
+    <div class="help-intro">3 boyutlu modeli parmaklarınla incele; üstteki menülerden seviye ve konu seç; alttaki panelden bilgileri oku.</div>
+
+    <div class="help-sec-title">🖐️ Dokunma Hareketleri</div>
+    <div class="help-row"><span class="he">👆</span><span><b>Döndür:</b> tek parmakla sürükle</span></div>
+    <div class="help-row"><span class="he">✌️</span><span><b>Yakınlaştır:</b> iki parmağı aç/kapa — istediğin yere odaklanır</span></div>
+    <div class="help-row"><span class="he">🤏</span><span><b>Taşı:</b> iki parmağı birlikte kaydır</span></div>
+    <div class="help-row"><span class="he">👆👆</span><span><b>Çift dokun:</b> dokunduğun noktaya yakınlaş</span></div>
+    <div class="help-row"><span class="he">🖐️</span><span><b>Sıfırla:</b> üç parmakla dokun</span></div>
+
+    <div class="help-sec-title">🧭 Üst Menüler</div>
+    <div class="help-row"><span class="he">🎓</span><span><b>Eğitim Seviyesi</b> (sağ üst): İlkokul / Ortaokul / Lise / Sınav</span></div>
+    <div class="help-row"><span class="he">📚</span><span><b>Konu Rehberi</b> (sağ üst): konular arasında geç</span></div>
+    <div class="help-row"><span class="he">📄</span><span><b>Görünüm Modu</b> (sol üst): Sade / Detaylı bilgi</span></div>
+    <div class="help-row"><span class="he">🎛️</span><span><b>Değişkenler</b> (Konu Rehberi'nin altında): sahnedeki kaydırıcı ve seçenekler — konu değişince kısa görünür, dokununca açılır</span></div>
+
+    <div class="help-sec-title">🛠️ Araçlar (sol üst)</div>
+    <div class="help-row"><span class="he">⚖️</span><span><b>Karşılaştırma</b> &nbsp;·&nbsp; <span class="he" style="display:inline">📋</span> <b>Bilgi Tablosu</b></span></div>
+    <div class="help-row"><span class="he">🌙</span><span><b>Tema</b> &nbsp;·&nbsp; 📤 <b>Paylaş</b> &nbsp;·&nbsp; ⛶ <b>Tam ekran</b></span></div>
+
+    <div class="help-sec-title">📖 Alt Bilgi Paneli</div>
+    <div class="help-row"><span class="he">⇕</span><span><b>Tutamacı sürükle:</b> paneli büyüt / küçült</span></div>
+    <div class="help-row"><span class="he">📜</span><span><b>Kaydır:</b> yazılar sığmazsa panel içinde yukarı/aşağı kaydır</span></div>
+    <div class="help-row"><span class="he">◀▶</span><span><b>Önceki / Sonraki</b> konuya geç</span></div>
+    <div class="help-row"><span class="he">🔄</span><span><b>Döndür</b> · 🏷️ <b>Etiketler</b> · ▶️ <b>Çalıştır</b> (animasyon)</span></div>
+  </div>
+</div>
+
 <div id="canvasContainer">
   <svg id="leaderLines" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:9;"></svg>
 </div>
@@ -1103,6 +1190,118 @@ window.__moduleLoaded = false;
 
 <!-- Three.js OFFLINE: klasik global script (window.THREE) — file:// altında ES modül yok -->
 <script src="three.global.js"></script>
+
+<!-- ===== GEÇİŞ MOTORU: Ayarlar'a (Geçiş Stüdyosu) göre sahne geçiş animasyonu + ses + geri bildirim ===== -->
+<script>
+(function(){
+  const DEF={ level:'karisik', enterMode:'rastgele', exitMode:'rastgele', speed:1.0, overlap:true, sound:true, stereo:true, emoji:false, title:false, confetti:false, calm:false };
+  function readS(){ let S=Object.assign({},DEF); try{ const v=localStorage.getItem('gecisAyar3'); if(v) S=Object.assign({},DEF,JSON.parse(v)); }catch(e){} return S; }
+
+  // CSS (emoji/uçan başlık/konfeti) bir kez enjekte
+  if(!document.getElementById('gecisFxCss')){ const st=document.createElement('style'); st.id='gecisFxCss'; st.textContent=
+    ".gx-emoji{position:fixed;z-index:120;pointer-events:none;font-size:clamp(40px,9vw,64px);filter:drop-shadow(0 6px 12px rgba(0,0,0,.45));}"+
+    ".gx-emoji.happy{animation:gxHappy 1.5s cubic-bezier(.2,.9,.3,1.1) forwards;}"+
+    "@keyframes gxHappy{0%{opacity:0;transform:translate(-50%,-20%) scale(.2) rotate(-12deg);}22%{opacity:1;transform:translate(-50%,-78%) scale(1.25) rotate(8deg);}45%{transform:translate(-50%,-70%) scale(1);}100%{opacity:0;transform:translate(-50%,-108%) scale(.85);}}"+
+    ".gx-title{position:fixed;top:26%;left:50%;z-index:118;pointer-events:none;font-weight:800;font-size:clamp(20px,4.6vw,36px);color:#fff;text-shadow:0 3px 18px rgba(90,209,255,.55),0 1px 3px rgba(0,0,0,.6);font-family:'Baloo 2',sans-serif;animation:gxTitle 2s ease forwards;}"+
+    "@keyframes gxTitle{0%{opacity:0;transform:translate(-30%,0) scale(.9);}18%{opacity:1;transform:translate(-50%,0) scale(1);}80%{opacity:1;transform:translate(-50%,0) scale(1);}100%{opacity:0;transform:translate(-62%,0) scale(.96);}}"+
+    ".gx-conf{position:fixed;top:30%;z-index:119;pointer-events:none;width:9px;height:14px;border-radius:2px;}"+
+    "@keyframes gxConf{0%{opacity:1;transform:translateY(0) rotate(0);}100%{opacity:0;transform:translateY(300px) rotate(560deg);}}";
+    (document.head||document.documentElement).appendChild(st); }
+
+  // ---- SES (WebAudio) ----
+  let actx=null, pan=0;
+  const TH={ ilkokul:{p:1.18,g:1.12}, ortaokul:{p:1.0,g:1.0}, lise:{p:0.84,g:0.82}, karisik:{p:1.0,g:1.0} };
+  function th(S){ return TH[S.level]||TH.karisik; }
+  function ensure(){ try{ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==='suspended') actx.resume(); }catch(e){} return actx; }
+  function pn(a,S){ try{ const p=a.createStereoPanner(); p.pan.value=S.stereo?pan:0; return p; }catch(e){ return a.createGain(); } }
+  function blip(S,freq,t0,dur,type,g,slide){ const a=ensure(); if(!a)return; const t=th(S); freq*=t.p; if(slide)slide*=t.p; g=(g||0.16)*t.g; const o=a.createOscillator(),gn=a.createGain(),p=pn(a,S); o.type=type||'sine'; const T=a.currentTime+t0; o.frequency.setValueAtTime(freq,T); if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(1,slide),T+dur); gn.gain.setValueAtTime(0.0001,T); gn.gain.exponentialRampToValueAtTime(g,T+0.012); gn.gain.exponentialRampToValueAtTime(0.0001,T+dur); o.connect(gn).connect(p).connect(a.destination); o.start(T); o.stop(T+dur+0.03); }
+  function noise(S,t0,dur,g,filt,type,sweep){ const a=ensure(); if(!a)return; const T=a.currentTime+t0; const n=a.createBufferSource(),buf=a.createBuffer(1,Math.max(1,a.sampleRate*dur),a.sampleRate),d=buf.getChannelData(0); for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1; n.buffer=buf; const f=a.createBiquadFilter(); f.type=type||'lowpass'; f.frequency.setValueAtTime(filt||1200,T); if(sweep)f.frequency.exponentialRampToValueAtTime(Math.max(20,sweep),T+dur); const gn=a.createGain(),p=pn(a,S); gn.gain.setValueAtTime((g||0.12)*th(S).g,T); gn.gain.exponentialRampToValueAtTime(0.0001,T+dur); n.connect(f).connect(gn).connect(p).connect(a.destination); n.start(T); n.stop(T+dur+0.03); }
+  const ESND={ don(S){ blip(S,200,0,0.55,'sawtooth',0.10,820); }, balon(S){ blip(S,380,0,0.14,'sine',0.2,920); blip(S,920,0.12,0.07,'sine',0.1); }, zipla(S){ blip(S,160,0,0.22,'triangle',0.22,520); blip(S,520,0.18,0.12,'sine',0.12,260); }, uzaydan(S){ noise(S,0,0.4,0.12,3000,'highpass',300); blip(S,900,0.34,0.18,'sine',0.14); }, sagdan(S){ noise(S,0,0.5,0.10,400,'lowpass',2200); blip(S,300,0.1,0.4,'sine',0.12,760); }, yerden(S){ blip(S,70,0,0.6,'sine',0.2,320); noise(S,0,0.55,0.07,400,'lowpass',1600); }, buyu(S){ [392,523,659,880].forEach((f,i)=>blip(S,f,i*0.08,0.14,'triangle',0.12)); } };
+  function vedaSound(S){ pan=-0.5; [523,440,392,294].forEach((f,i)=>blip(S,f,i*0.10,0.16,'triangle',0.10)); pan=0; }
+
+  // ---- Geri bildirim ----
+  const EMO={ ilkokul:['😄','🤩','🥳','🎉','😍','🙌'], ortaokul:['😄','😎','🤩','✨','👍','🔥'], lise:['🙂','😌','👍','✨','🎯','🆕'], karisik:['😄','🤩','🥳','😍','🎉','✨'] };
+  function emoji(S){ if(!S.emoji)return; const pool=EMO[S.level]||EMO.karisik; const el=document.createElement('div'); el.className='gx-emoji happy'; el.style.left='62%'; el.style.top='40%'; el.textContent=pool[Math.floor(Math.random()*pool.length)]; document.body.appendChild(el); setTimeout(()=>el.remove(),1550); }
+  function flyTitle(S,t){ if(!S.title||!t)return; const el=document.createElement('div'); el.className='gx-title'; el.textContent=t; document.body.appendChild(el); setTimeout(()=>el.remove(),2050); }
+  function confetti(){ const cols=['#ff5b6b','#ffcf5a','#5ad1ff','#66bb6a','#ab47bc','#ff8ab0']; for(let i=0;i<22;i++){ const d=document.createElement('div'); d.className='gx-conf'; d.style.left=(36+Math.random()*28)+'%'; d.style.background=cols[i%cols.length]; const du=1.1+Math.random()*0.7; d.style.animation='gxConf '+du+'s ease-in '+(Math.random()*0.2)+'s forwards'; document.body.appendChild(d); setTimeout(()=>d.remove(),(du+0.4)*1000); } try{ navigator.vibrate&&navigator.vibrate(30); }catch(e){} }
+
+  // ====== ENTER EFEKTLERİ (model parçaları + sahne FX üzerinde; window.THREE/scene) ======
+  const ez=t=>t*t*(3-2*t);
+  const clamp=(v,a,b)=>{a=(a===undefined?0:a);b=(b===undefined?1:b);return v<a?a:v>b?b:v;};
+  function eBack(x){ const c1=1.70158,c3=c1+1; return 1+c3*Math.pow(x-1,3)+c1*Math.pow(x-1,2); }
+  function eBounce(x){ const n1=7.5625,d1=2.75; if(x<1/d1)return n1*x*x; if(x<2/d1){x-=1.5/d1;return n1*x*x+0.75;} if(x<2.5/d1){x-=2.25/d1;return n1*x*x+0.9375;} x-=2.625/d1; return n1*x*x+0.984375; }
+  const T=()=>window.THREE, SC=()=>window.scene;
+  function gh(o){ return {px:o.position.x,py:o.position.y,pz:o.position.z,sx:o.scale.x,sy:o.scale.y,sz:o.scale.z,rx:o.rotation.x,ry:o.rotation.y,rz:o.rotation.z}; }
+  function setT(o,h){ o.position.set(h.px,h.py,h.pz); o.scale.set(h.sx,h.sy,h.sz); o.rotation.set(h.rx,h.ry,h.rz); }
+  function pOpacity(piece,a){ piece.traverse(o=>{ if(o.isMesh&&o.material){ o.material.transparent=a<1; o.material.opacity=a; } }); piece.visible=a>0.005; }
+  function setOpacityMs(ms,a){ ms.forEach(m=>{ if(m.material){ m.material.transparent=a<1; m.material.opacity=a; } }); }
+  // root'tan model alt-gruplarını ayıkla (ışık/grid mesh değil → otomatik hariç;
+  // ETİKET grubu da hariç → etiketler geçişten etkilenmez, hep görünür kalır)
+  function capture(group){ const mk=group.children.filter(ch=>{ if(ch.userData._gxFx||ch.userData.isLabelGroup)return false; let h=false; ch.traverse(o=>{ if(o.isMesh)h=true; }); return h; });
+    let pc=[]; mk.forEach(g=>g.children.forEach(c=>pc.push(c))); if(pc.length<2) pc=mk.slice();
+    const ms=[]; mk.forEach(g=>g.traverse(o=>{ if(o.isMesh)ms.push(o); }));
+    mk.forEach(o=>o.userData._gh=gh(o)); pc.forEach(o=>{ o.userData._gh=gh(o); });
+    ms.forEach(m=>{ if(m.material){ m.userData._go={op:(m.material.opacity!==undefined?m.material.opacity:1),tr:!!m.material.transparent,he:!!m.material.emissive,em:m.material.emissive?m.material.emissive.getHex():0,ei:m.material.emissiveIntensity||0}; m.material.transparent=true; } });
+    return {mk,pc,ms,sceneFx:[],tmp:{}}; }
+  function bounds(fx){ const TT=T(); const b=new TT.Box3(); fx.mk.forEach(g=>{ try{ b.expandByObject(g); }catch(e){} }); if(b.isEmpty()) b.set(new TT.Vector3(-1,-1,-1),new TT.Vector3(1,1,1)); return b; }
+  function addFx(fx,m){ m.userData._gxFx=true; m.userData.dynamic=true; const sc=SC(); if(sc)sc.add(m); fx.sceneFx.push(m); return m; }
+  function clearFx(fx){ const sc=SC(); (fx.sceneFx||[]).forEach(o=>{ if(sc)sc.remove(o); if(o.geometry)o.geometry.dispose(); if(o.material&&o.material.dispose)o.material.dispose(); }); fx.sceneFx=[]; }
+  function restoreAll(fx){ fx.mk.forEach(o=>{ if(o.userData._gh)setT(o,o.userData._gh); }); fx.pc.forEach(o=>{ if(o.userData._gh){ setT(o,o.userData._gh); o.visible=true; } }); fx.ms.forEach(m=>{ const g=m.userData._go; if(g&&m.material){ m.material.opacity=g.op; m.material.transparent=g.tr; if(g.he&&m.material.emissive){ m.material.emissive.setHex(g.em); m.material.emissiveIntensity=g.ei; } } }); clearFx(fx); }
+  const _v=()=>new (T().Vector3)();
+  function rdir(){ const TT=T(); return new TT.Vector3(Math.random()-0.5,Math.random()-0.5,Math.random()-0.5).normalize(); }
+  function streaks(fx,color,b){ if(readS().calm)return; const TT=T(); const cy=(b.min.y+b.max.y)/2; const arr=[]; for(let i=0;i<4;i++){ const m=new TT.Mesh(new TT.PlaneGeometry(3.2,0.06),new TT.MeshBasicMaterial({color,transparent:true,opacity:0,blending:TT.AdditiveBlending,depthWrite:false,side:TT.DoubleSide})); m.position.set(0,cy-1.6+i*1.0,0); addFx(fx,m); arr.push(m); } fx.tmp.streaks=arr; }
+  function updStreaks(fx,p,dirX,mx){ const a=Math.sin(clamp(p)*Math.PI); (fx.tmp.streaks||[]).forEach((m,i)=>{ m.position.x=(mx||0)+dirX*(1.4+i*0.15); m.material.opacity=a*0.5; m.scale.x=0.7+a*1.0; }); }
+
+  // Tüm efektler — her biri fx (mk/pc/ms) + bounds üzerinde çalışır
+  const EFFECTS={
+    buyu:{ dur:1100, update(fx,p){ const e=Math.max(0.001,eBack(p)); fx.mk.forEach(g=>{const h=g.userData._gh; g.scale.set(h.sx*e,h.sy*e,h.sz*e);}); setOpacityMs(fx.ms,ez(p)); } },
+    don:{ dur:1200, update(fx,p){ const e=Math.max(0.001,eBack(p)); fx.mk.forEach(g=>{const h=g.userData._gh; g.scale.set(h.sx*e,h.sy*e,h.sz*e); g.rotation.y=h.ry-Math.PI*4*(1-ez(p));}); setOpacityMs(fx.ms,ez(p)); } },
+    balon:{ dur:1250, update(fx,p){ const e=Math.max(0.001,eBack(p)),w=1+0.12*Math.sin(p*Math.PI*6); fx.mk.forEach(g=>{const h=g.userData._gh; g.scale.set(h.sx*e*w,h.sy*e*w,h.sz*e*w);}); setOpacityMs(fx.ms,ez(clamp(p*1.5))); } },
+    zipla:{ dur:1300, update(fx,p){ const e=eBounce(p); fx.mk.forEach(g=>{const h=g.userData._gh; g.position.y=h.py+(1-e)*6; const sq=Math.max(0,Math.sin(p*Math.PI*3))*(p>0.25?1:0)*0.12; g.scale.set(h.sx*(1+sq*0.6),h.sy*(1-sq),h.sz*(1+sq*0.6));}); } },
+    uzaydan:{ dur:1300, init(fx){ fx.mk.forEach(g=>{const h=g.userData._gh; g.rotation.y=h.ry-1.2;}); }, update(fx,p){ const e=eBack(clamp(p)); fx.mk.forEach(g=>{const h=g.userData._gh; g.position.z=h.pz-22*(1-e); g.rotation.y=h.ry-1.2*(1-ez(p));}); setOpacityMs(fx.ms,clamp(p*2)); } },
+    sagdan:{ dur:1500, init(fx){ streaks(fx,0x9be7ff,bounds(fx)); }, update(fx,p){ const e=ez(p); fx.mk.forEach(g=>{const h=g.userData._gh; g.position.x=h.px+12*(1-e); g.position.z=h.pz-9*(1-e); const s=0.6+0.4*e; g.scale.set(h.sx*s,h.sy*s,h.sz*s); g.rotation.y=h.ry+0.9*(1-e);}); setOpacityMs(fx.ms,clamp(p*1.5)); updStreaks(fx,p,1, fx.mk[0]?fx.mk[0].position.x:0); } },
+    yerden:{ dur:1400, init(fx){ const TT=T(),b=bounds(fx); const ring=new TT.Mesh(new TT.TorusGeometry(1.2,0.12,12,40),new TT.MeshBasicMaterial({color:0x7be0ff,transparent:true,opacity:0.9})); ring.rotation.x=-Math.PI/2; ring.position.y=b.min.y+0.05; ring.scale.set(0.1,0.1,0.1); addFx(fx,ring); fx.tmp.ring=ring; }, update(fx,p){ const e=ez(p); fx.mk.forEach(g=>{const h=g.userData._gh; g.position.y=h.py-5*(1-e);}); setOpacityMs(fx.ms,clamp(e*1.5)); const rs=0.3+ez(clamp(p*1.3))*2.6; if(fx.tmp.ring){ fx.tmp.ring.scale.set(rs,rs,rs); fx.tmp.ring.material.opacity=Math.sin(clamp(p)*Math.PI)*0.9; } } },
+    insa:{ dur:1500, init(fx){ const arr=fx.pc.slice().sort((a,b)=>a.userData._gh.py-b.userData._gh.py); arr.forEach((c,i)=>{ c.userData._o=i/Math.max(1,arr.length-1); pOpacity(c,0); }); }, update(fx,p){ fx.pc.forEach(c=>{ const h=c.userData._gh; const a=ez(clamp((p-c.userData._o*0.55)/0.45)); c.position.set(h.px,h.py-3.5*(1-a),h.pz); pOpacity(c,a); }); } },
+    dalga:{ dur:1400, init(fx){ const arr=fx.pc.slice().sort((a,b)=>a.userData._gh.px-b.userData._gh.px); arr.forEach((c,i)=>{ c.userData._o=i/Math.max(1,arr.length-1); c.scale.set(0.001,0.001,0.001); pOpacity(c,0); }); }, update(fx,p){ fx.pc.forEach(c=>{ const h=c.userData._gh; const a=clamp((p-c.userData._o*0.6)/0.4); const e=Math.max(0.001,eBack(clamp(a))); c.scale.set(h.sx*e,h.sy*e,h.sz*e); c.position.set(h.px,h.py+(1-clamp(a))*-0.5,h.pz); pOpacity(c,clamp(a*1.3)); }); } },
+    patla:{ dur:1400, init(fx){ fx.pc.forEach(c=>{ const h=c.userData._gh; const d=rdir().multiplyScalar(6+Math.random()*2); c.userData._ps={px:h.px+d.x,py:h.py+d.y,pz:h.pz+d.z}; c.userData._spin=(Math.random()-0.5)*10; c.position.set(c.userData._ps.px,c.userData._ps.py,c.userData._ps.pz); c.scale.set(0.001,0.001,0.001); pOpacity(c,0); }); }, update(fx,p){ const e=ez(p); fx.pc.forEach(c=>{ const h=c.userData._gh,s=c.userData._ps; c.position.set(s.px+(h.px-s.px)*e,s.py+(h.py-s.py)*e,s.pz+(h.pz-s.pz)*e); c.scale.set(h.sx*e,h.sy*e,h.sz*e); c.rotation.set(c.userData._spin*(1-e),c.userData._spin*(1-e),0); pOpacity(c,clamp(e*1.4)); }); } },
+    toz:{ dur:1500, init(fx){ const TT=T(),b=bounds(fx),c=b.getCenter(new TT.Vector3()); fx.tmp.center=c; fx.tmp.dust=[]; fx.mk.forEach(g=>g.scale.set(0.001,0.001,0.001)); setOpacityMs(fx.ms,0); for(let i=0;i<40;i++){ const s=new TT.Mesh(new TT.SphereGeometry(0.07+Math.random()*0.06,8,8),new TT.MeshBasicMaterial({color:[0xfff1a8,0x9be7ff,0xffd56b,0xb59bff][i%4],transparent:true,opacity:1,blending:TT.AdditiveBlending,depthWrite:false})); s.position.copy(c); s.userData.v=rdir().multiplyScalar(3.5+Math.random()*2.5); addFx(fx,s); fx.tmp.dust.push(s); } }, update(fx,p){ const c=fx.tmp.center; (fx.tmp.dust||[]).forEach(s=>{ s.position.copy(c).addScaledVector(s.userData.v,ez(p)); s.material.opacity=clamp(1-p*1.1); const sc=clamp(1-p); s.scale.set(sc,sc,sc); }); const a=ez(clamp((p-0.18)/0.7)); fx.mk.forEach(g=>{const h=g.userData._gh,e=Math.max(0.001,a); g.scale.set(h.sx*e,h.sy*e,h.sz*e);}); setOpacityMs(fx.ms,a); } },
+    hologram:{ dur:1500, init(fx){ const TT=T(),b=bounds(fx); setOpacityMs(fx.ms,0); const disk=new TT.Mesh(new TT.CircleGeometry(3.2,40),new TT.MeshBasicMaterial({color:0x6fe9ff,transparent:true,opacity:0.5,side:TT.DoubleSide,depthWrite:false})); disk.rotation.x=-Math.PI/2; disk.position.y=b.min.y; addFx(fx,disk); fx.tmp.disk=disk; fx.tmp.minY=b.min.y-0.6; fx.tmp.maxY=b.max.y+0.6; fx.tmp.tv=_v(); }, update(fx,p){ const t=fx.tmp; const scan=t.minY+(t.maxY-t.minY)*ez(p); t.disk.position.y=scan; t.disk.material.opacity=0.5*(1-p); fx.ms.forEach(m=>{ const wy=m.getWorldPosition(t.tv).y; const a=ez(clamp((scan-wy)/0.9+0.1)); m.material.opacity=a; m.visible=a>0.01; if(m.material.emissive){ m.material.emissive.setHex(0x36c6ff); m.material.emissiveIntensity=(1-a)*0.9; } }); } }
+  };
+  // efektlere özel sesler (studio'dan)
+  Object.assign(ESND,{ insa(S){ for(let i=0;i<5;i++) blip(S,200+i*30,i*0.10,0.07,'square',0.10); blip(S,880,0.55,0.18,'sine',0.12); }, hologram(S){ blip(S,300,0,0.5,'sine',0.16,1300); noise(S,0,0.5,0.05,1800,'highpass'); }, patla(S){ noise(S,0,0.32,0.24,260,'lowpass'); blip(S,80,0,0.3,'sine',0.18,40); blip(S,700,0.26,0.2,'sine',0.12,1100); }, toz(S){ for(let i=0;i<7;i++) blip(S,1200+Math.random()*1400,Math.random()*0.6,0.10,'sine',0.07); }, dalga(S){ [523,659,784,1047].forEach((f,i)=>blip(S,f,i*0.09,0.14,'sine',0.13)); } });
+
+  const ALLE=['insa','hologram','zipla','patla','don','toz','dalga','yerden','uzaydan','balon','buyu','sagdan'];
+  const POOL={ ilkokul:['zipla','toz','balon','dalga','don','yerden'], ortaokul:['insa','dalga','patla','uzaydan','don','yerden','balon'], lise:['insa','hologram','uzaydan','patla','dalga','don'], karisik:ALLE.slice() };
+  let last='';
+  function pickEnter(S){ if(S.enterMode && S.enterMode!=='rastgele' && EFFECTS[S.enterMode]) return S.enterMode; const p=POOL[S.level]||POOL.karisik; let n; do{ n=p[Math.floor(Math.random()*p.length)]; }while(n===last&&p.length>1); last=n; return n; }
+
+  let tween=null;
+  function tick(){ requestAnimationFrame(tick); if(!tween)return; const p=Math.min(1,(performance.now()-tween.t0)/tween.dur); try{ tween.eff.update(tween.fx,p); }catch(e){ try{ restoreAll(tween.fx); }catch(_){} tween=null; return; } if(p>=1){ restoreAll(tween.fx); tween=null; } }
+  requestAnimationFrame(tick);
+
+  function startEnter(group,S){ if(!window.THREE||!window.scene)return;
+    if(tween){ clearFx(tween.fx); tween=null; }
+    try{ group.updateMatrixWorld(true); }catch(e){} // bbox/dünya konumu doğru olsun
+    const fx=capture(group); if(fx.mk.length===0) return;
+    const name=pickEnter(S); const eff=EFFECTS[name]||EFFECTS.buyu;
+    try{ eff.init&&eff.init(fx); eff.update(fx,0); }catch(e){ return; }
+    tween={ eff, fx, t0:performance.now(), dur:eff.dur*(S.calm?1.4:S.speed) };
+    if(S.sound && ESND[name]) try{ ESND[name](S); }catch(e){}
+  }
+
+  window.GECIS={
+    settings: readS,
+    // sahne değişiminde çağrılır: group = yeni model grubu (THREE.Group), label = konu adı
+    onScene(group, label){ const S=readS();
+      if(S.sound) vedaSound(S); // eski sahne için kısa veda tonu
+      emoji(S); flyTitle(S, label);
+      if(S.confetti && !S.calm && S.level==='ilkokul') confetti();
+      if(group) startEnter(group,S);
+    }
+  };
+})();
+</script>
+
 
 <script>
 const THREE = window.THREE;
@@ -1248,44 +1447,38 @@ class OrbitControls extends THREE.EventDispatcher {
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
 
-    this._zoomToScreenPoint = (screenX, screenY, factor) => {
+    // Ekran noktasının altındaki 3B noktayı bul: KAMERA BAKIŞINA DİK, target'tan
+    // geçen düzlemle kesiştir. (Eski sürüm y=target.y düzlemi kullanıyordu; kamera
+    // yataya yakınken ışın düzleme paralel olup kesişim çok uzakta çıkıyor ve model
+    // ekran dışına uçuyordu. Bu yöntemde kesişim her açıda ~radius mesafede kalır.)
+    this._hitOnFocusPlane = (screenX, screenY) => {
       const rect = dom.getBoundingClientRect();
       const ndcX = ((screenX - rect.left) / rect.width) * 2 - 1;
       const ndcY = -((screenY - rect.top) / rect.height) * 2 + 1;
       const ndc = new THREE.Vector3(ndcX, ndcY, 0.5);
       ndc.unproject(this.object);
       const dir = ndc.sub(this.object.position).normalize();
-      const t = (this.target.y - this.object.position.y) / dir.y;
-      if (t > 0 && isFinite(t)) {
-        const hit = new THREE.Vector3(
-          this.object.position.x + dir.x * t,
-          this.target.y,
-          this.object.position.z + dir.z * t
-        );
-        this.target.lerp(hit, 0.65);
-      }
+      const camDir = new THREE.Vector3();
+      this.object.getWorldDirection(camDir);
+      const denom = dir.dot(camDir);
+      if (Math.abs(denom) < 1e-5) return null;
+      const t = this.target.clone().sub(this.object.position).dot(camDir) / denom;
+      if (!(t > 0) || !isFinite(t)) return null;
+      return this.object.position.clone().addScaledVector(dir, t);
+    };
+
+    this._zoomToScreenPoint = (screenX, screenY, factor) => {
+      const hit = this._hitOnFocusPlane(screenX, screenY);
+      if (hit) this.target.lerp(hit, 0.65);
       this._sphericalTarget.radius = Math.max(this.minDistance,
         Math.min(this.maxDistance, this._sphericalTarget.radius * factor));
     };
 
-    // Ekrandaki bir noktanin altindaki 3B noktayi, hedefi (ekran merkezini) ona
-    // dogru k oraninda kaydirarak yavasca merkeze getirir (pinch zoom-to-point).
+    // Hedefi (ekran merkezini), işaret edilen noktaya doğru `k` oranında kaydırır →
+    // pinch/tekerlekte "nereyi yakınlaştırırsam orası ortaya gelsin" davranışı.
     this._panToScreenPoint = (screenX, screenY, k) => {
-      const rect = dom.getBoundingClientRect();
-      const ndcX = ((screenX - rect.left) / rect.width) * 2 - 1;
-      const ndcY = -((screenY - rect.top) / rect.height) * 2 + 1;
-      const ndc = new THREE.Vector3(ndcX, ndcY, 0.5);
-      ndc.unproject(this.object);
-      const dir = ndc.sub(this.object.position).normalize();
-      const t = (this.target.y - this.object.position.y) / dir.y;
-      if (t > 0 && isFinite(t)) {
-        const hit = new THREE.Vector3(
-          this.object.position.x + dir.x * t,
-          this.target.y,
-          this.object.position.z + dir.z * t
-        );
-        this.target.lerp(hit, k);
-      }
+      const hit = this._hitOnFocusPlane(screenX, screenY);
+      if (hit) this.target.lerp(hit, k);
     };
 
     let touchStart = null;
@@ -1304,6 +1497,9 @@ class OrbitControls extends THREE.EventDispatcher {
       radius: this._sphericalTarget.radius
     };
     this.captureInitialState = () => {
+      // selectSub kamera/target'ı yeni set ettiyse, spherical'i ona göre türet ki
+      // hem ilk görünüm doğru olsun hem de resetView doğru açı/yarıçapa dönsün.
+      this._syncFromCamera();
       this._initialCameraState = {
         position: this.object.position.clone(),
         target: this.target.clone(),
@@ -1402,7 +1598,7 @@ class OrbitControls extends THREE.EventDispatcher {
         const dist = Math.hypot(dx, dy);
         const newCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
         const newCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        // 1) Iki parmagin ortak kaymasi -> pan (modeli serbestce tasi)
+        // 1) İki parmağın ortak kayması → pan (modeli serbestçe taşı)
         const panDx = newCenterX - pinchCenter.x;
         const panDy = newCenterY - pinchCenter.y;
         pinchCenter.x = newCenterX;
@@ -1413,10 +1609,17 @@ class OrbitControls extends THREE.EventDispatcher {
         const panFactor = this._sphericalTarget.radius * 0.0045;
         this.target.addScaledVector(right, -panDx * panFactor);
         this.target.addScaledVector(up, panDy * panFactor);
-        // 2) Parmak arasi acilma/kapanma -> zoom; iki parmagin ortasindaki nokta
-        //    yavasca ekran merkezine gelsin (oraya odaklanip yakinlas)
-        this._panToScreenPoint(newCenterX, newCenterY, 0.16);
-        this._sphericalTarget.radius = Math.max(this.minDistance, Math.min(this.maxDistance, pinchStartRadius * (pinchStartDist / dist)));
+        // 2) Parmak arası açılma/kapanma → zoom. Parmakların ortasındaki nokta
+        //    ekranda SABİT kalacak şekilde hedefi yarıçap oranıyla ORANTILI kaydır
+        //    (sabit lerp drift'i kaldırıldı → ne kaçıyor ne de sıçrıyor).
+        const oldR = this._sphericalTarget.radius;
+        const newR = Math.max(this.minDistance, Math.min(this.maxDistance, pinchStartRadius * (pinchStartDist / dist)));
+        const hit = this._hitOnFocusPlane(newCenterX, newCenterY);
+        if (hit && oldR > 0.0001) {
+          const f = Math.max(-0.4, Math.min(0.4, 1 - newR / oldR)); // yakınlaş: hedef noktaya doğru; uzaklaş: tersine
+          this.target.lerp(hit, f);
+        }
+        this._sphericalTarget.radius = newR;
       }
     }, { passive: false });
 
@@ -1438,6 +1641,7 @@ class OrbitControls extends THREE.EventDispatcher {
     dom.addEventListener('wheel', (e) => {
       if (!this.enabled) return;
       e.preventDefault();
+      // Tekerlekle yakınlaşma imlecin olduğu noktaya odaklansın
       const factor = e.deltaY > 0 ? 1.1 : 0.9;
       this._panToScreenPoint(e.clientX, e.clientY, factor < 1 ? 0.22 : 0.12);
       this._sphericalTarget.radius = Math.max(this.minDistance,
@@ -1467,7 +1671,11 @@ class OrbitControls extends THREE.EventDispatcher {
   }
 
   update() {
-    if (!this._lastCamPos.equals(this.object.position) || !this._lastTarget.equals(this.target)) {
+    // YALNIZCA kamera DIŞARIDAN taşındıysa (ör. selectSub camera.position.set) yeniden
+    // türet. target'ı kontrol'ün kendisi (pan/zoom-odak/reset) değiştirdiğinde sync
+    // ÇALIŞMAMALI; yoksa ayarlanan zoom yarıçapı/açılar her kare sıfırlanır →
+    // "yakınlaşmıyor" + kamera sıçrayıp model ekran dışına uçuyordu.
+    if (!this._lastCamPos.equals(this.object.position)) {
       this._syncFromCamera();
     }
     if (this.enableDamping) {
@@ -1699,7 +1907,7 @@ function clearScene() {
   });
   dynamicObjects = [];
   window._labelRefs = [];
-  window._labelPlaced = []; // etiket çakışma önleme: yerleşmiş etiket konumları
+  window._labelPlaced = [];
   window._currentModelGroup = null;
   window._customAnim = null;
   window._flowRays = [];
@@ -1823,7 +2031,7 @@ function updateLeaderLines() {
 
     ref.anchorObj.getWorldPosition(_projVec);
     _projVec.project(camera);
-    if (_projVec.z > 1 || _projVec.z < -1) return;
+    if (!(_projVec.z >= -1 && _projVec.z <= 1)) return;
     const ax = (_projVec.x + 1) / 2 * w;
     const ay = (1 - _projVec.y) / 2 * h;
 
@@ -1857,6 +2065,7 @@ function updateLeaderLines() {
     const midX = (edgeX + ax) / 2;
     const midY = (edgeY + ay) / 2;
     const distLine = Math.hypot(ax - edgeX, ay - edgeY);
+    if (!(distLine > 0)) return;
     const normalX = -(ay - edgeY) / distLine;
     const normalY = (ax - edgeX) / distLine;
     const curveAmount = Math.min(distLine * 0.18, 35);
@@ -1895,30 +2104,50 @@ window._sceneState = {
   _displayUpdaters: []
 };
 
+function positionVarsBody() {
+  const t = document.getElementById('sceneToggle');
+  const b = document.getElementById('sceneVarsBody');
+  if (t && b && !b.classList.contains('closed')) {
+    b.style.top = Math.round(t.getBoundingClientRect().bottom + 6) + 'px';
+  }
+}
+window.positionVarsBody = positionVarsBody;
+
 function setSceneSliders(items, opts = {}) {
-  const panel = document.getElementById('scenePanel');
-  if (!panel) return;
-  panel.innerHTML = '';
-  panel.classList.remove('empty', 'collapsed');
+  const row = document.getElementById('stackRow');
+  const bodyPanel = document.getElementById('sceneVarsBody');
+  if (!row || !bodyPanel) return;
+  // Eski Değişkenler sekmesini kaldır (her sahne yeniden kurar)
+  const oldT = document.getElementById('sceneToggle'); if (oldT) oldT.remove();
+  bodyPanel.innerHTML = '';
   document.body.classList.add('scene-panel-open');
   window._sceneState._displayUpdaters = [];
-
+  // Değişkenler sekmesi → Konu Rehberi'nin SOLUNA (aynı satır, aynı ebat)
   const toggle = document.createElement('button');
+  toggle.id = 'sceneToggle';
   toggle.className = 'sp-toggle';
-  toggle.innerHTML = `<span>🎛️ ${opts.title || 'Kontroller'}</span><span class="sp-chev">▼</span>`;
+  toggle.innerHTML = `<span class="sb-emoji">🎛️</span><span class="sb-label">Değişkenler</span><span class="sp-chev">▼</span>`;
+  row.insertBefore(toggle, document.getElementById('btnTopic'));
+  // İçerik tam-genişlik yatay panelde
+  const body = bodyPanel;
+  const _chev = toggle.querySelector('.sp-chev');
+  // Basınca aç/kapat: tam genişlik pencere sekmenin altına gelir
+  function setSceneOpen(open) {
+    bodyPanel.classList.toggle('closed', !open);
+    if (_chev) _chev.textContent = open ? '▲' : '▼';
+    if (open) positionVarsBody();
+  }
+  window._setSceneOpen = setSceneOpen;
   toggle.onclick = () => {
-    panel.classList.toggle('collapsed');
-    toggle.querySelector('.sp-chev').textContent = panel.classList.contains('collapsed') ? '◀' : '▼';
+    setSceneOpen(bodyPanel.classList.contains('closed'));
     if (window._haptic) window._haptic(10);
   };
-  panel.appendChild(toggle);
-
   items.forEach(item => {
     if (item.type === 'section') {
       const t = document.createElement('div');
       t.className = 'sp-section';
       t.textContent = item.label;
-      panel.appendChild(t);
+      body.appendChild(t);
       return;
     }
     if (item.type === 'slider') {
@@ -1928,7 +2157,7 @@ function setSceneSliders(items, opts = {}) {
       head.className = 'sp-slider-head';
       head.innerHTML = `<span>${item.label}</span>
         <div class="sp-stepper">
-          <button class="sp-step-btn sp-minus">-</button>
+          <button class="sp-step-btn sp-minus">−</button>
           <span class="sp-val"></span>
           <button class="sp-step-btn sp-plus">+</button>
         </div>`;
@@ -1973,7 +2202,7 @@ function setSceneSliders(items, opts = {}) {
         slider.value = nv; item.setValue(nv); updateVal();
         if (window._haptic) window._haptic(8);
       });
-      panel.appendChild(row);
+      body.appendChild(row);
       updateVal();
       window._sceneState._displayUpdaters.push(() => {
         const v = item.getValue();
@@ -1986,18 +2215,17 @@ function setSceneSliders(items, opts = {}) {
       row.innerHTML = `<span class="sp-label">${item.label}</span><span class="sp-val"></span>`;
       const val = row.querySelector('.sp-val');
       val.textContent = item.getValue();
-      panel.appendChild(row);
+      body.appendChild(row);
       window._sceneState._displayUpdaters.push(() => { val.textContent = item.getValue(); });
     }
     if (item.type === 'formula') {
-      // İlkokul/ortaokul: karmaşık formülleri gösterme (matematiksel sembol içeriyorsa atla)
       const hasMath = /[=√÷×²·]|sin|cos|1\//.test(item.text || '') || /q₁|q₂|kq|k·q|qE|qV|ε₀|½|Σ|ΔV|N\/C|qE\/m|V\/d/.test(item.text||'');
       const skip = (currentLevel === 'ilkokul' || currentLevel === 'ortaokul') && hasMath && !item.keepSimple;
       if (!skip) {
         const row = document.createElement('div');
         row.className = 'sp-formula';
         row.innerHTML = item.text;
-        panel.appendChild(row);
+        body.appendChild(row);
         if (item.getValue && !((currentLevel === 'ilkokul' || currentLevel === 'ortaokul') && hasMath)) {
           window._sceneState._displayUpdaters.push(() => { row.innerHTML = item.getValue(); });
         }
@@ -2019,14 +2247,18 @@ function setSceneSliders(items, opts = {}) {
         };
         row.appendChild(b);
       });
-      panel.appendChild(row);
+      body.appendChild(row);
     }
   });
+  // Değişkenler varsayılan KAPALI; konu değişince OTOMATİK AÇILMAZ (kullanıcı basar).
+  bodyPanel.classList.add('closed');
+  if (_chev) _chev.textContent = '▼';
 }
 
 function clearSceneSliders() {
-  const panel = document.getElementById('scenePanel');
-  if (panel) { panel.innerHTML = ''; panel.classList.add('empty'); }
+  const oldT = document.getElementById('sceneToggle'); if (oldT) oldT.remove();
+  const bodyPanel = document.getElementById('sceneVarsBody');
+  if (bodyPanel) { bodyPanel.innerHTML = ''; bodyPanel.classList.add('closed'); }
   document.body.classList.remove('scene-panel-open');
   if (window._sceneState) window._sceneState._displayUpdaters = [];
 }
@@ -3030,6 +3262,7 @@ const BCOL = { metal:0xb0bec5, na:0x9575cd, cl:0x66bb6a, o:0xe2504a, h:0xeceff1,
 function makeAtom(r,color){ return new THREE.Mesh(new THREE.SphereGeometry(r,24,18), new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:0.18,roughness:0.42,toneMapped:false})); }
 
 const SubBuilders = {};
+window.SubBuilders = SubBuilders; // test/dis erisim icin
 function ezz(u){u=u<0?0:u>1?1:u;return u*u*(3-2*u);}
 function ppong(t,p){const u=((t%p)+p)%p/p;return u<0.5?u*2:2-u*2;}
 function rhr(t,p){const u=((t%p)+p)%p/p;return u<0.8?ezz(u/0.8):1;}
@@ -3062,367 +3295,655 @@ SubBuilders.buildDuzine = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
-  let grp,items=[],acc=0;
-  function rebuild(){ clr(dyn); acc=0; items=[]; grp=new THREE.Group();
-    const carton=makeBox(3.2,0xffb74d); grp.add(carton);
-    let k=0; for(let r=0;r<3;r++)for(let c=0;c<4;c++){ const e=mkA(0.28,0xfff59d); e.userData.home=new THREE.Vector3(-1.05+c*0.7,0.7-r*0.7,0); e.position.copy(e.userData.home); e.userData.idx=k; grp.add(e); items.push(e); k++; }
-    dyn.add(grp);
-    addInfo3DLabels([ {text:{ilkokul:'1 düzine = 12'},position:[0,2.6,0],target:[0,0,0],color:'#ffd166'},
-      {text:{ilkokul:'sayma sözcüğü'},position:[0,-2.6,0],target:[0,0,0],color:'#90caf9'} ]);
+  const S=window._sceneState; if(S.dz_tip===undefined)S.dz_tip=1;
+  // Sayma sözcüğü vitrini: her birinde "1 grup = kaç tane" görsel olarak diziliyor.
+  // mol için tek tek çizmek imkânsız → temsili nokta bulutu + "6,02 × 10²³" etiketi.
+  const SET=[
+    {name:'1 çift',count:2,disp:'2 tane',ex:'bir çift çorap',c:0x80deea,cols:2,r:0.30},
+    {name:'1 deste',count:10,disp:'10 tane',ex:'bir deste yumurta',c:0xa5d6a7,cols:5,r:0.24},
+    {name:'1 düzine',count:12,disp:'12 tane',ex:'bir düzine yumurta',c:0xfff176,cols:4,r:0.24},
+    {name:'1 mol',count:60,disp:'6,02 × 10²³ tanecik',ex:'bir mol atom',c:0xb39ddb,cols:10,r:0.10}
+  ];
+  let crate,items=[],acc=0,isMol=false;
+  function rebuild(){ clr(dyn); acc=0; items=[]; const g=SET[S.dz_tip]; isMol=(S.dz_tip===3);
+    crate=new THREE.Group(); dyn.add(crate);
+    // Kasa/çerçeve
+    const fw=Math.min(7.0,g.cols*0.78+1.0), rows=Math.ceil(g.count/g.cols), fh=Math.min(5.8,rows*0.78+1.0);
+    const frame=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(fw,fh,1.2)),new THREE.LineBasicMaterial({color:g.c,transparent:true,opacity:0.85,toneMapped:false}));
+    frame.position.y=0.3; crate.add(frame);
+    const back=new THREE.Mesh(new THREE.PlaneGeometry(fw,fh),new THREE.MeshBasicMaterial({color:g.c,transparent:true,opacity:0.06,depthWrite:false,toneMapped:false}));
+    back.position.set(0,0.3,-0.55); crate.add(back);
+    // Taneleri ızgaraya diz
+    const sx=g.cols>1?(fw-1.0)/(g.cols-1):0, sy=rows>1?(fh-1.0)/(rows-1):0;
+    for(let i=0;i<g.count;i++){ const rr=Math.floor(i/g.cols), cc=i%g.cols;
+      const a=mkA(g.r,g.c); const x=-((g.cols-1)*sx)/2+cc*sx, y=0.3+((rows-1)*sy)/2-rr*sy;
+      a.userData.home=new THREE.Vector3(x,y,0); a.position.copy(a.userData.home); a.userData.idx=i; a.userData.ph=i*0.4;
+      crate.add(a); items.push(a); }
+    addInfo3DLabels([ {text:{ilkokul:g.name+' = '+g.disp},position:[0,fh/2+1.0,0],target:[0,0.3,0],color:'#ffd166'},
+      {text:{ilkokul:'sayma sözcüğü'},position:[-fw/2-1.6,0.3,0],target:[-fw/2+0.4,0.3,0],color:'#90caf9'},
+      {text:{ilkokul:g.ex},position:[0,-fh/2-1.0,0],target:[0,-fh/2+0.6,0],color:'#a5d6a7'},
+      isMol?{text:{ilkokul:'tek tek sayılamaz (temsilî)'},position:[fw/2+1.8,0.3,0],target:[fw/2-0.4,0.3,0],color:'#b39ddb'}
+           :{text:{ilkokul:'1 grup = belirli tane sayısı'},position:[fw/2+1.8,0.3,0],target:[fw/2-0.4,0.3,0],color:'#fff176'} ]);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(grp)grp.rotation.y+=dt*0.35;
-    const count=(acc*2)%14; items.forEach(e=>{ const d=count-e.userData.idx; const on=(d>=0&&d<1.2); e.position.z=on?ezz(1-Math.abs(d-0.6)/0.6)*0.5:e.position.z*0.85; const s=on?1.35:1; e.scale.setScalar(e.scale.x+(s-e.scale.x)*0.3); }); };
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt;
+    if(crate)crate.rotation.y=Math.sin(acc*0.35)*0.22;
+    if(isMol){ // mol: bütün bulut nefes alır (sayılamaz çokluk hissi)
+      const f=0.5+0.5*Math.sin(acc*1.4); items.forEach(a=>{ const s=0.8+0.4*f; a.scale.setScalar(a.scale.x+(s-a.scale.x)*0.2); a.position.y=a.userData.home.y+Math.sin(acc*2+a.userData.ph)*0.05; }); }
+    else { // sayılabilir: sırayla "say" vurgusu
+      const count=(acc*2.5)%(items.length+2);
+      items.forEach(a=>{ const d=count-a.userData.idx; const on=(d>=0&&d<1.2); const s=on?1.4:1; a.scale.setScalar(a.scale.x+(s-a.scale.x)*0.3); a.position.z=on?ezz(1-Math.abs(d-0.6)/0.6)*0.45:a.position.z*0.85; }); } };
   setSceneSliders([ {type:'section',label:'Sayma Sözcükleri'},
-    {type:'display',label:'1 çift',highlight:true,getValue:()=>'2 tane'},
-    {type:'display',label:'1 düzine',getValue:()=>'12 tane'},
-    {type:'display',label:'1 mol',getValue:()=>'çoook fazla tane (kimyada)'} ],{title:'Düzine Gibi: Sayma Sözcüğü'});
+    {type:'presets',activeIdx:S.dz_tip,options:SET.map((g,i)=>({label:g.name,action:()=>{S.dz_tip=i;rebuild();}}))},
+    {type:'display',label:'Seçilen',highlight:true,getValue:()=>SET[S.dz_tip].name},
+    {type:'display',label:'Kaç tane?',getValue:()=>SET[S.dz_tip].disp},
+    {type:'display',label:'Örnek',getValue:()=>SET[S.dz_tip].ex},
+    {type:'display',label:'Kimyada',getValue:()=>'1 mol = 6,02 × 10²³ tanecik'} ],{title:'Düzine Gibi: Sayma Sözcüğü'});
 };
 
 SubBuilders.buildBuyukSayi = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
-  let box,sw=[],acc=0;
-  function rebuild(){ clr(dyn); acc=0; box=makeBox(4.2,0x42a5f5); dyn.add(box); sw=fillBox(box,'He',70,4.2);
-    addInfo3DLabels([ {text:{ilkokul:'çok küçük tanecikler'},position:[0,3.0,0],target:[0,0,0],color:'#90caf9'},
-      {text:{ilkokul:'sayılamayacak kadar çok'},position:[0,-3.0,0],target:[0,0,0],color:'#ffd166'} ]);
+  const S=window._sceneState; if(S.bs_kat===undefined)S.bs_kat=1;
+  // Ölçek merdiveni: her basamak 10² kat → büyüklük HİSSİ. Slider 1..6 basamak gösterir.
+  // En üst basamak "6,02 × 10²³" ile etiketlenir (Avogadro'nun akıl almaz çokluğu).
+  const STEPS=[
+    {p:'10²',t:'yüzler',n:9,c:0x4dd0e1},
+    {p:'10⁴',t:'on binler',n:16,c:0x4fc3f7},
+    {p:'10⁸',t:'yüz milyonlar',n:25,c:0x7986cb},
+    {p:'10¹²',t:'trilyonlar',n:36,c:0x9575cd},
+    {p:'10¹⁸',t:'milyon kere trilyon',n:49,c:0xba68c8},
+    {p:'10²³',t:'6,02 × 10²³ (Avogadro!)',n:64,c:0xf06292}
+  ];
+  let ladder,layers=[],acc=0;
+  function rebuild(){ clr(dyn); acc=0; layers=[]; ladder=new THREE.Group(); dyn.add(ladder);
+    const K=Math.max(1,Math.min(6,S.bs_kat)); const baseY=-3.2, gap=1.15;
+    for(let s=0;s<K;s++){ const st=STEPS[s]; const ly=new THREE.Group(); ly.position.y=baseY+s*gap; ladder.add(ly); layers.push(ly);
+      // basamak tablası (genişledikçe büyüklük artar)
+      const w=2.2+s*0.9; const plate=new THREE.Mesh(new THREE.BoxGeometry(w,0.16,1.6),new THREE.MeshStandardMaterial({color:st.c,emissive:st.c,emissiveIntensity:0.35,roughness:0.4,toneMapped:false}));
+      ly.add(plate);
+      // tabla üstüne bilye katmanı (çok → büyüklük hissi); ≤ ~64 instanced değil ama küçük
+      const cols=Math.ceil(Math.sqrt(st.n)); const sp=Math.min(0.34,(w-0.4)/cols);
+      for(let i=0;i<st.n;i++){ const cc=i%cols, rr=Math.floor(i/cols); const m=mkA(0.085,st.c);
+        m.position.set(-((cols-1)*sp)/2+cc*sp,0.18,-((Math.ceil(st.n/cols)-1)*sp)/2+rr*sp); m.userData.ph=i*0.5+s; ly.add(m); }
+    }
+    const topY=baseY+(K-1)*gap;
+    addInfo3DLabels([ {text:{ilkokul:STEPS[K-1].p+' · '+STEPS[K-1].t},position:[(2.2+(K-1)*0.9)/2+2.0,topY,0],target:[(2.2+(K-1)*0.9)/2-0.3,topY,0],color:'#f06292'},
+      {text:{ilkokul:'her basamak ≈ 100 kat büyür'},position:[-5.0,baseY+gap,0],target:[-1.6,baseY+gap,0],color:'#4fc3f7'},
+      {text:{ilkokul:'1 mol = sayılamayacak kadar çok'},position:[0,topY+1.3,0],target:[0,topY+0.2,0],color:'#ffd166'},
+      {text:{ilkokul:'küçük tanecik · dev sayı'},position:[0,baseY-1.0,0],target:[0,baseY+0.1,0],color:'#b39ddb'} ]);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(box)box.rotation.y+=dt*0.2; bounce(sw,dt,box.userData.half,1.3); };
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt;
+    if(ladder)ladder.rotation.y=Math.sin(acc*0.3)*0.3;
+    layers.forEach((ly,s)=>{ ly.children.forEach(c=>{ if(c.userData&&c.userData.ph!==undefined)c.position.y=0.18+Math.abs(Math.sin(acc*2+c.userData.ph))*0.06; }); }); };
   setSceneSliders([ {type:'section',label:'Çok Büyük Sayılar'},
-    {type:'display',label:'Atomlar',highlight:true,getValue:()=>'Gözle görülemez'},
-    {type:'display',label:'Bir avuçta',getValue:()=>'Milyarlarca tanecik'},
-    {type:'display',label:'Çözüm',getValue:()=>'Büyük gruplar halinde sayarız'} ],{title:'Tanecikler Neden Grupla Sayılır?'});
+    {type:'slider',label:'Basamak',min:1,max:6,step:1,getValue:()=>S.bs_kat,setValue:v=>{S.bs_kat=v;rebuild();},format:v=>STEPS[Math.max(0,Math.min(5,v-1))].p,sub:'merdivende kaç basamak göster'},
+    {type:'display',label:'Bu basamak',highlight:true,getValue:()=>STEPS[Math.max(0,Math.min(5,S.bs_kat-1))].p+' ('+STEPS[Math.max(0,Math.min(5,S.bs_kat-1))].t+')'},
+    {type:'display',label:'En tepe',getValue:()=>'6,02 × 10²³ = 1 mol'},
+    {type:'display',label:'Çözüm',getValue:()=>'Çok küçükleri büyük grupla sayarız'} ],{title:'Avogadro Sayısının Büyüklüğü'});
 };
 
 SubBuilders.buildEsitFarkli = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
-  let bal,marbles=[],acc=0;
-  function rebuild(){ clr(dyn); acc=0; marbles=[];
-    bal=makeBalance(); bal.scale.setScalar(0.85); bal.position.y=-0.3; dyn.add(bal);
-    for(let i=0;i<6;i++){ const m=mkA(0.16,0x4fc3f7); m.userData.home=new THREE.Vector3((i%3-1)*0.32,0.3+Math.floor(i/3)*0.32,0); m.userData.ph=i*0.7; m.position.copy(m.userData.home); bal.userData.panL.add(m); marbles.push(m); }
-    for(let i=0;i<6;i++){ const m=mkA(0.3,0xef5350); m.userData.home=new THREE.Vector3((i%3-1)*0.5,0.4+Math.floor(i/3)*0.5,0); m.userData.ph=i*0.9+1; m.position.copy(m.userData.home); bal.userData.panR.add(m); marbles.push(m); }
-    addInfo3DLabels([ {text:{ilkokul:'aynı sayıda (6-6)'},position:[0,3.0,0],target:[0,1.2,0],color:'#90caf9'},
-      {text:{ilkokul:'büyük olan ağır'},position:[2.6,-1.4,0],target:[2.0,0.4,0],color:'#ef5350'} ]);
+  // 1 mol demir vs 1 mol su vs 1 mol gaz: tanecik SAYISI eşit (her kutuda 8), kütle/hacim FARKLI.
+  // Üç kefe yan yana; her kefede aynı sayıda ama farklı boyut/yoğunlukta tanecik.
+  const SET=[
+    {name:'1 mol demir (Fe)',short:'Fe',x:-3.6,c:0xb0bec5,r:0.30,mass:'56 g',vol:'küçük (katı)',down:1.0},
+    {name:'1 mol su (H₂O)',short:'H₂O',x:0,c:0x4fc3f7,r:0.24,mass:'18 g',vol:'orta (sıvı)',down:0.45},
+    {name:'1 mol gaz (He)',short:'He',x:3.6,c:0xffd54f,r:0.16,mass:'4 g',vol:'büyük (gaz)',down:0.1}
+  ];
+  let stands=[],acc=0;
+  function rebuild(){ clr(dyn); acc=0; stands=[];
+    SET.forEach(s=>{ const st=new THREE.Group(); st.position.set(s.x,0,0); dyn.add(st);
+      // sehpa + kefe
+      const post=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.12,2.4,10),new THREE.MeshStandardMaterial({color:0x90a4ae,roughness:0.5,toneMapped:false})); post.position.y=-0.8; st.add(post);
+      const dish=new THREE.Mesh(new THREE.CylinderGeometry(1.0,0.8,0.12,20),new THREE.MeshStandardMaterial({color:0xcfd8dc,roughness:0.4,toneMapped:false})); st.add(dish);
+      // EŞİT SAYI: her kefede 8 tanecik (boyut/renk farklı)
+      const arr=[]; for(let i=0;i<8;i++){ const a=mkA(s.r,s.c); const cc=i%3,rr=Math.floor(i/3);
+        a.userData.home=new THREE.Vector3((cc-1)*s.r*2.2,0.18+rr*s.r*2.2,0); a.position.copy(a.userData.home); a.userData.ph=i*0.6; dish.add(a); arr.push(a); }
+      st.userData={arr,down:s.down}; stands.push(st);
+    });
+    addInfo3DLabels([ {text:{ilkokul:'Fe · 8 tanecik · '+SET[0].mass},position:[-3.6,2.4,0],target:[-3.6,0.4,0],color:'#b0bec5'},
+      {text:{ilkokul:'H₂O · 8 tanecik · '+SET[1].mass},position:[0,2.4,0],target:[0,0.4,0],color:'#4fc3f7'},
+      {text:{ilkokul:'He · 8 tanecik · '+SET[2].mass},position:[3.6,2.4,0],target:[3.6,0.4,0],color:'#ffd54f'},
+      {text:{ilkokul:'tanecik sayısı EŞİT (hepsi 8)'},position:[0,-2.4,0],target:[0,-0.6,0],color:'#a5d6a7'},
+      {text:{ilkokul:'kütle FARKLI (Fe ağır → çöker)'},position:[-4.6,-1.4,0],target:[-3.6,-0.6,0],color:'#ffd166'} ]);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(bal&&bal.userData.beam)bal.userData.beam.rotation.z=settle(acc,6,0.34); marbles.forEach(m=>{ m.position.y=m.userData.home.y+Math.abs(Math.sin(acc*3+m.userData.ph))*0.07; m.position.x=m.userData.home.x+Math.sin(acc*2+m.userData.ph)*0.04; }); };
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt;
+    const k=settle(acc,6,1.0); // her döngü kefeler kütleye göre çöker
+    stands.forEach(st=>{ st.position.y=k*(-0.45)*st.userData.down; st.userData.arr.forEach(a=>{ a.position.y=a.userData.home.y+Math.abs(Math.sin(acc*3+a.userData.ph))*0.05; a.rotation.y+=dt*0.6; }); }); };
   setSceneSliders([ {type:'section',label:'Aynı Sayı, Farklı Ağırlık'},
-    {type:'display',label:'Sol kefe',highlight:true,getValue:()=>'6 küçük top (hafif)'},
-    {type:'display',label:'Sağ kefe',getValue:()=>'6 büyük top (ağır)'},
-    {type:'display',label:'Sonuç',getValue:()=>'Sayı eşit ama sağ kefe iner'} ],{title:'Aynı Sayı Ama Farklı Ağırlık'});
+    {type:'display',label:'Demir (Fe)',highlight:true,getValue:()=>'8 tanecik · 56 g · ağır'},
+    {type:'display',label:'Su (H₂O)',getValue:()=>'8 tanecik · 18 g · orta'},
+    {type:'display',label:'Helyum (He)',getValue:()=>'8 tanecik · 4 g · hafif'},
+    {type:'display',label:'Tanecik sayısı',getValue:()=>'üçünde de EŞİT'},
+    {type:'display',label:'Sonuç',getValue:()=>'Sayı eşit, kütle/hacim farklı'} ],{title:'Aynı Sayı Ama Farklı Ağırlık'});
 };
 
-// ============================================================
-// MODÜL 2 — ORTAOKUL
-// ============================================================
 SubBuilders.buildMolNedir = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  const S=window._sceneState; if(S.mn_mol===undefined)S.mn_mol=1;
+  // Mol = tanecik sayısı köprüsü. Slider mol → kutudaki temsilî tanecik sayısı + canlı display.
+  // 1 mol = 60 nokta (temsilî); display gerçek "n × 6,02 × 10²³" gösterir.
+  const PER=60, MAXMOL=4;
+  function nMul(n){ // TR ondalık virgül, Unicode üst
+    const c=6.02*n; const s=(Math.round(c*100)/100).toString().replace('.',','); return s+' × 10²³ tanecik'; }
   let box,sw=[],acc=0;
-  function rebuild(){ clr(dyn); acc=0; box=makeBox(4.0,0x66bb6a); dyn.add(box); sw=fillBox(box,'He',40,4.0);
-    addInfo3DLabels([ {text:{ortaokul:'1 mol'},position:[0,3.0,0],target:[0,0,0],color:'#66bb6a'},
-      {text:{ortaokul:'6,02 × 10²³ tanecik'},position:[0,-3.0,0],target:[0,0,0],color:'#ffd166'} ]);
+  function rebuild(){ clr(dyn); acc=0; const n=S.mn_mol; const size=2.6+0.5*n;
+    box=makeBox(size,0x66bb6a); dyn.add(box);
+    sw=fillBox(box,'He',Math.round(PER*n),size);
+    addInfo3DLabels([ {text:{ortaokul:n+' mol'},position:[0,size/2+1.0,0],target:[0,0,0],color:'#66bb6a'},
+      {text:{ortaokul:nMul(n)},position:[0,-size/2-1.0,0],target:[0,0,0],color:'#ffd166'},
+      {text:{ortaokul:'mol → tanecik köprüsü'},position:[-size/2-2.2,0,0],target:[-size/2+0.4,0,0],color:'#90caf9'},
+      {text:{ortaokul:'N = n × 6,02 × 10²³'},position:[size/2+2.2,0,0],target:[size/2-0.4,0,0],color:'#a5d6a7'} ]);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(box)box.rotation.y+=dt*0.25; bounce(sw,dt,box.userData.half,1.0); const f=Math.max(0,Math.sin(acc*1.2)); sw.forEach(u=>u.scale.setScalar(1+0.18*f)); };
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(box)box.rotation.y+=dt*0.25; bounce(sw,dt,box.userData.half,1.0); const f=Math.max(0,Math.sin(acc*1.2)); sw.forEach(u=>u.scale.setScalar(1+0.16*f)); };
   setSceneSliders([ {type:'section',label:'Mol Nedir?'},
-    {type:'display',label:'Mol',highlight:true,getValue:()=>'Tanecik sayma birimi'},
-    {type:'display',label:'1 mol',getValue:()=>'6,02 × 10²³ tanecik'},
-    {type:'display',label:'Benzer',getValue:()=>'Düzine gibi ama çok büyük'} ],{title:'Mol: Tanecik Sayma Birimi'});
+    {type:'slider',label:'Mol sayısı (n)',min:1,max:MAXMOL,step:1,unit:' mol',getValue:()=>S.mn_mol,setValue:v=>{S.mn_mol=v;rebuild();},sub:'kutuya kaç mol koyalım?'},
+    {type:'display',label:'Tanecik sayısı (N)',highlight:true,getValue:()=>nMul(S.mn_mol)},
+    {type:'display',label:'Hesap',getValue:()=>S.mn_mol+' × 6,02 × 10²³'},
+    {type:'display',label:'Mol nedir?',getValue:()=>'Tanecik sayma birimi (düzine gibi)'} ],{title:'Mol: Tanecik Sayma Birimi'});
 };
 
 SubBuilders.buildAvogadroKutu = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
-  let boxes=[],swarms=[],acc=0; const SET=[{k:'He',c:0xffd54f,x:-3.4},{k:'O2',c:0xef5350,x:0},{k:'CO2',c:0x607d8b,x:3.4}];
-  function rebuild(){ clr(dyn); acc=0; boxes=[]; swarms=[];
-    SET.forEach(s=>{ const b=makeBox(2.6,s.c); b.position.set(s.x,0.4,0); dyn.add(b); boxes.push(b); swarms.push(fillBox(b,s.k,8,2.6)); });
-    addInfo3DLabels([ {text:{ortaokul:'He · 8 tanecik'},position:[-3.4,2.2,0],target:[-3.4,0.4,0],color:'#ffd54f'},
-      {text:{ortaokul:'O₂ · 8 tanecik'},position:[0,2.2,0],target:[0,0.4,0],color:'#ef5350'},
-      {text:{ortaokul:'CO₂ · 8 tanecik'},position:[3.4,2.2,0],target:[3.4,0.4,0],color:'#90caf9'},
-      {text:{ortaokul:'hepsinde EŞİT sayıda'},position:[0,-3.0,0],target:[0,0.4,0],color:'#ffd166'} ]);
+  const S=window._sceneState; if(S.ak_mol===undefined)S.ak_mol=1;
+  // Eşit hacimli üç kutu (He, O₂, CO₂). Mol slider hepsini AYNI ANDA değiştirir →
+  // her kutuda HER ZAMAN eşit sayıda tanecik (Avogadro). Tanecik boyutu farklı.
+  const SET=[{k:'He',c:0xffd54f,x:-3.6,lbl:'He'},{k:'O2',c:0xef5350,x:0,lbl:'O₂'},{k:'CO2',c:0x607d8b,x:3.6,lbl:'CO₂'}];
+  const PER=8, MAXMOL=3; // 1 mol = 8 temsilî tanecik / kutu (≤ ~24 toplam görünür yoğunluk)
+  function nMul(n){ const c=6.02*n; const s=(Math.round(c*100)/100).toString().replace('.',','); return s+' × 10²³'; }
+  let boxes=[],swarms=[],acc=0;
+  function rebuild(){ clr(dyn); acc=0; boxes=[]; swarms=[]; const cnt=PER*S.ak_mol;
+    SET.forEach(s=>{ const b=makeBox(2.6,s.c); b.position.set(s.x,0.3,0); dyn.add(b); boxes.push(b); swarms.push(fillBox(b,s.k,cnt,2.6)); });
+    addInfo3DLabels([ {text:{ortaokul:'He · '+cnt+' tanecik'},position:[-3.6,2.3,0],target:[-3.6,0.3,0],color:'#ffd54f'},
+      {text:{ortaokul:'O₂ · '+cnt+' tanecik'},position:[0,2.3,0],target:[0,0.3,0],color:'#ef5350'},
+      {text:{ortaokul:'CO₂ · '+cnt+' tanecik'},position:[3.6,2.3,0],target:[3.6,0.3,0],color:'#90caf9'},
+      {text:{ortaokul:S.ak_mol+' mol → her kutuda EŞİT sayı'},position:[0,-2.7,0],target:[0,0.3,0],color:'#ffd166'},
+      {text:{ortaokul:'tanecik boyutu farklı (He<O₂<CO₂)'},position:[5.0,-1.4,0],target:[3.6,-0.4,0],color:'#a5d6a7'} ]);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; const f=Math.max(0,Math.sin(acc*1.0)); boxes.forEach((b,i)=>{ b.rotation.y+=dt*0.3; bounce(swarms[i],dt,b.userData.half,1.0); swarms[i].forEach(u=>u.scale.setScalar(1+0.2*f)); }); };
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; const f=Math.max(0,Math.sin(acc*1.0));
+    boxes.forEach((b,i)=>{ b.rotation.y+=dt*0.3; bounce(swarms[i],dt,b.userData.half,1.0); swarms[i].forEach(u=>u.scale.setScalar(1+0.18*f)); }); };
   setSceneSliders([ {type:'section',label:'1 Mol Kutuları'},
-    {type:'display',label:'He kutusu',highlight:true,getValue:()=>'8 tanecik (1 mol simgesi)'},
-    {type:'display',label:'O₂ kutusu',getValue:()=>'8 tanecik (eşit)'},
-    {type:'display',label:'CO₂ kutusu',getValue:()=>'8 tanecik (eşit)'},
-    {type:'display',label:'Kural',getValue:()=>'1 mol = her zaman eşit sayıda'} ],{title:'Avogadro: Eşit Sayı'});
+    {type:'slider',label:'Mol sayısı',min:1,max:MAXMOL,step:1,unit:' mol',getValue:()=>S.ak_mol,setValue:v=>{S.ak_mol=v;rebuild();},sub:'üç kutuya da aynı mol'},
+    {type:'display',label:'Tanecik / kutu',highlight:true,getValue:()=>nMul(S.ak_mol)+' (her kutuda eşit)'},
+    {type:'display',label:'He kutusu',getValue:()=>nMul(S.ak_mol)+' tanecik'},
+    {type:'display',label:'O₂ kutusu',getValue:()=>nMul(S.ak_mol)+' tanecik'},
+    {type:'display',label:'CO₂ kutusu',getValue:()=>nMul(S.ak_mol)+' tanecik'},
+    {type:'display',label:'Kural',getValue:()=>'Eşit hacim = eşit tanecik (Avogadro)'} ],{title:'Avogadro: Eşit Sayı'});
 };
 
 SubBuilders.buildKutleTartisi = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
-  let bal,heBox,coBox,swHe=[],swCo=[],acc=0;
-  function rebuild(){ clr(dyn); acc=0; swHe=[]; swCo=[];
-    bal=makeBalance(); bal.position.y=-0.4; dyn.add(bal);
-    heBox=makeBox(1.4,0xffd54f); swHe=fillBox(heBox,'He',6,1.4); heBox.position.y=0.55; bal.userData.panL.add(heBox);
-    coBox=makeBox(1.4,0x607d8b); swCo=fillBox(coBox,'CO2',6,1.4); coBox.position.y=0.55; bal.userData.panR.add(coBox);
-    addInfo3DLabels([ {text:{ortaokul:'He (hafif)'},position:[-2.6,2.0,0],target:[-2.1,0.6,0],color:'#ffd54f'},
-      {text:{ortaokul:'CO₂ (ağır)'},position:[2.6,2.0,0],target:[2.1,0.6,0],color:'#90caf9'},
-      {text:{ortaokul:'eşit sayı, farklı ağırlık'},position:[0,-3.0,0],target:[0,0,0],color:'#ffd166'} ]);
+  const S=window._sceneState; if(S.kt_el===undefined)S.kt_el=1; // sağ kefedeki element
+  // Terazi: SOL = 1 mol C (12 g, sabit referans). SAĞ = seçilen 1 mol element.
+  // Her iki kefede de EŞİT sayıda tanecik (6 temsilî); molar kütle farkı kefeyi eğer.
+  const REF={sym:'C',mass:12,c:0x546e7a,r:0.26};
+  const ELS=[
+    {sym:'H',name:'Hidrojen',mass:1,c:0xeceff1,r:0.16},
+    {sym:'Mg',name:'Magnezyum',mass:24,c:0x9ccc65,r:0.34},
+    {sym:'O',name:'Oksijen',mass:16,c:0xef5350,r:0.28},
+    {sym:'Ca',name:'Kalsiyum',mass:40,c:0xffb74d,r:0.40}
+  ];
+  let bal,acc=0;
+  function tilt(){ const r=ELS[S.kt_el]; // sağ ağırsa beam +, sol ağırsa -
+    return Math.max(-0.30,Math.min(0.30,(REF.mass-r.mass)/120)); }
+  function rebuild(){ clr(dyn); acc=0; const r=ELS[S.kt_el];
+    bal=makeBalance(); bal.position.y=-0.3; dyn.add(bal);
+    // SOL kefe: 1 mol C
+    const gl=new THREE.Group(); for(let i=0;i<6;i++){ const a=mkA(REF.r,REF.c); a.userData.home=new THREE.Vector3((i%3-1)*0.34,0.28+Math.floor(i/3)*0.34,0); a.position.copy(a.userData.home); a.userData.ph=i*0.6; gl.add(a); } gl.position.y=0.2; bal.userData.panL.add(gl);
+    // SAĞ kefe: 1 mol seçilen element (aynı sayı, farklı boyut)
+    const gr=new THREE.Group(); for(let i=0;i<6;i++){ const a=mkA(r.r,r.c); a.userData.home=new THREE.Vector3((i%3-1)*(r.r*2.1),0.28+Math.floor(i/3)*(r.r*2.1),0); a.position.copy(a.userData.home); a.userData.ph=i*0.7+1; gr.add(a); } gr.position.y=0.2; bal.userData.panR.add(gr);
+    bal.userData.gl=gl; bal.userData.gr=gr; bal.userData.target=tilt();
+    const heavier=r.mass>REF.mass;
+    addInfo3DLabels([ {text:{ortaokul:'1 mol C = 12 g'},position:[-3.0,2.2,0],target:[-2.1,0.6,0],color:'#90caf9'},
+      {text:{ortaokul:'1 mol '+r.sym+' = '+r.mass+' g'},position:[3.0,2.2,0],target:[2.1,0.6,0],color:'#ffd54f'},
+      {text:{ortaokul:'eşit sayı (6-6), farklı molar kütle'},position:[0,-2.6,0],target:[0,0,0],color:'#ffd166'},
+      {text:{ortaokul:heavier?(r.sym+' daha ağır → çöker'):(r.mass===REF.mass?'eşit kütle → denge':'C daha ağır')},position:[heavier?4.4:-4.4,-1.3,0],target:[heavier?2.1:-2.1,0.4,0],color:'#a5d6a7'} ]);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(bal&&bal.userData.beam)bal.userData.beam.rotation.z=settle(acc,6,0.32); bounce(swHe,dt,heBox.userData.half,1.0); bounce(swCo,dt,coBox.userData.half,0.6); };
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt;
+    if(bal&&bal.userData.beam){ const tg=bal.userData.target; bal.userData.beam.rotation.z=tg+(-tg)*Math.cos(((acc%6))*4.2)*Math.exp(-((acc%6))*1.15); }
+    [bal.userData.gl,bal.userData.gr].forEach(g=>{ if(g)g.children.forEach(a=>{ if(a.userData.home)a.position.y=a.userData.home.y+Math.abs(Math.sin(acc*3+a.userData.ph))*0.05; }); }); };
   setSceneSliders([ {type:'section',label:'Kütle Terazisi'},
-    {type:'display',label:'He',highlight:true,getValue:()=>'Hafif (küçük molekül)'},
-    {type:'display',label:'CO₂',getValue:()=>'Ağır (büyük molekül)'},
-    {type:'display',label:'Sonuç',getValue:()=>'CO₂ kefesi aşağı iner'} ],{title:'Aynı Sayı Ama CO₂ Ağır'});
+    {type:'presets',activeIdx:S.kt_el,options:ELS.map((e,i)=>({label:e.sym,action:()=>{S.kt_el=i;rebuild();}}))},
+    {type:'display',label:'Sol kefe',highlight:true,getValue:()=>'1 mol C = 12 g'},
+    {type:'display',label:'Sağ kefe',getValue:()=>'1 mol '+ELS[S.kt_el].sym+' = '+ELS[S.kt_el].mass+' g'},
+    {type:'display',label:'Tanecik sayısı',getValue:()=>'6 - 6 (eşit)'},
+    {type:'display',label:'Sonuç',getValue:()=>ELS[S.kt_el].mass>12?(ELS[S.kt_el].sym+' kefesi iner'):(ELS[S.kt_el].mass===12?'denge':'C kefesi iner')} ],{title:'Molar Kütle Farkı'});
 };
 
 SubBuilders.buildTepkimeOranlari = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
-  let H=[],O,W=[],acc=0;
-  function water(){ return mkMol([{el:'O',pos:[0,0.22,0],r:0.3},{el:'H',pos:[-0.55,-0.28,0],r:0.17},{el:'H',pos:[0.55,-0.28,0],r:0.17}],[[0,1],[0,2]]); }
-  function rebuild(){ clr(dyn); acc=0; H=[]; W=[];
-    for(let i=0;i<2;i++){ const h=makeUnit('H2'); h.scale.setScalar(2.4); h.userData.start=new THREE.Vector3(-4.3,1.1-i*2.2,0); h.position.copy(h.userData.start); dyn.add(h); H.push(h); }
-    O=makeUnit('O2'); O.scale.setScalar(2.4); O.userData.start=new THREE.Vector3(-2.4,0,0); O.position.copy(O.userData.start); dyn.add(O);
-    for(let i=0;i<2;i++){ const w=water(); w.userData.home=new THREE.Vector3(3.4,1.0-i*2.0,0); w.position.copy(w.userData.home); w.scale.setScalar(0.001); dyn.add(w); W.push(w); }
-    addInfo3DLabels([ {text:{ortaokul:'2 H₂ + 1 O₂'},position:[-3.3,2.7,0],target:[-3.3,0,0],color:'#90caf9'},
-      {text:{ortaokul:'→ 2 H₂O'},position:[3.4,2.7,0],target:[3.4,0,0],color:'#4fc3f7'} ]);
+  // N₂ + 3 H₂ → 2 NH₃ : moleküller 1 : 3 : 2 oranında birleşir (Haber tepkimesi).
+  function n2(){ const g=new THREE.Group(); const a=mkA(0.30,0x5c6bc0); a.position.x=-0.26; const b=mkA(0.30,0x5c6bc0); b.position.x=0.26; g.add(a,b); g.add(obond(new THREE.Vector3(-0.26,0,0),new THREE.Vector3(0.26,0,0),3,0x9fa8da)); return g; }
+  function h2(){ const g=new THREE.Group(); const a=mkA(0.16,0xeceff1); a.position.x=-0.16; const b=mkA(0.16,0xeceff1); b.position.x=0.16; g.add(a,b); g.add(makeBond(new THREE.Vector3(-0.16,0,0),new THREE.Vector3(0.16,0,0),0xcfd6e0,0.05)); return g; }
+  function nh3(){ return mkMol([{el:'N',pos:[0,0.25,0],r:0.30},{el:'H',pos:[-0.5,-0.28,0],r:0.16},{el:'H',pos:[0.5,-0.28,0],r:0.16},{el:'H',pos:[0,-0.28,0.5],r:0.16}],[[0,1],[0,2],[0,3]]); }
+  let N,Hs=[],Ws=[],acc=0;
+  function rebuild(){ clr(dyn); acc=0; Hs=[]; Ws=[];
+    N=n2(); N.scale.setScalar(2.2); N.userData.start=new THREE.Vector3(-4.2,0,0); N.position.copy(N.userData.start); dyn.add(N);
+    const hy=[1.9,0,-1.9]; for(let i=0;i<3;i++){ const h=h2(); h.scale.setScalar(2.2); h.userData.start=new THREE.Vector3(-2.4,hy[i],0); h.position.copy(h.userData.start); dyn.add(h); Hs.push(h); }
+    for(let i=0;i<2;i++){ const w=nh3(); w.scale.setScalar(2.0); w.userData.home=new THREE.Vector3(3.6,0.95-i*1.9,0); w.position.copy(w.userData.home); w.scale.setScalar(0.001); dyn.add(w); Ws.push(w); }
+    addInfo3DLabels([ {text:{ortaokul:'1 N₂'},position:[-4.2,1.6,0],target:[-4.2,0,0],color:'#9fa8da'},
+      {text:{ortaokul:'+ 3 H₂'},position:[-2.4,2.7,0],target:[-2.4,0,0],color:'#eceff1'},
+      {text:{ortaokul:'→ 2 NH₃'},position:[3.6,2.6,0],target:[3.6,0,0],color:'#80cbc4'},
+      {text:{ortaokul:'oran 1 : 3 : 2 (sabit)'},position:[0,-2.7,0],target:[0,0,0],color:'#ffd166'} ]);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; const mix=ezz(ppong(acc,5)); const prod=ezz(Math.max(0,(mix-0.5)/0.5));
-    H.forEach((h,i)=>{ h.position.lerpVectors(h.userData.start,new THREE.Vector3(-0.5,0.3-i*0.6,0),mix); h.rotation.y+=dt*1.2; setOpac(h,1-prod*0.9); });
-    O.position.lerpVectors(O.userData.start,new THREE.Vector3(0.5,0,0),mix); O.rotation.y+=dt*1.2; setOpac(O,1-prod*0.9);
-    W.forEach(w=>{ w.scale.setScalar(prod*1.0+0.001); w.position.lerpVectors(new THREE.Vector3(0,0,0).copy(w.userData.home).setX(0.5),w.userData.home,prod); w.rotation.y+=dt*1.0; setOpac(w,prod); }); };
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt;
+    const mix=ezz(ppong(acc,5)); const prod=ezz(Math.max(0,(mix-0.5)/0.5));
+    N.position.lerpVectors(N.userData.start,new THREE.Vector3(-0.4,0,0),mix); N.rotation.y+=dt*1.1; setOpac(N,1-prod*0.9);
+    const tgt=[[0.3,0.5,0],[0.3,0,0],[0.3,-0.5,0]];
+    Hs.forEach((h,i)=>{ h.position.lerpVectors(h.userData.start,new THREE.Vector3(tgt[i][0],tgt[i][1],tgt[i][2]),mix); h.rotation.y+=dt*1.3; setOpac(h,1-prod*0.9); });
+    Ws.forEach(w=>{ const s=prod*1.0; w.scale.setScalar(s*2.0+0.001); w.position.lerpVectors(new THREE.Vector3(0.5,w.userData.home.y,0),w.userData.home,prod); w.rotation.y+=dt*1.0; setOpac(w,prod); }); };
   setSceneSliders([ {type:'section',label:'Tepkime Oranları'},
-    {type:'display',label:'Hidrojen',highlight:true,getValue:()=>'2 molekül H₂'},
-    {type:'display',label:'Oksijen',getValue:()=>'1 molekül O₂'},
-    {type:'display',label:'Su',getValue:()=>'2 molekül H₂O oluşur'},
-    {type:'display',label:'Oran',getValue:()=>'2 : 1 : 2'} ],{title:'Molekül Sayısı Oranı'});
+    {type:'display',label:'Azot',highlight:true,getValue:()=>'1 molekül N₂'},
+    {type:'display',label:'Hidrojen',getValue:()=>'3 molekül H₂'},
+    {type:'display',label:'Amonyak',getValue:()=>'2 molekül NH₃ oluşur'},
+    {type:'display',label:'Oran',getValue:()=>'1 : 3 : 2 (her zaman sabit)'},
+    {type:'formula',keepSimple:true,getValue:()=>'N₂ + 3 H₂ → 2 NH₃'} ],{title:'Molekül Sayısı Oranı'});
 };
 
-// ============================================================
-// MODÜL 3 — LİSE (tam, sınav; formül/hesap uygun)
-// ============================================================
 SubBuilders.buildAvogadroSayisi = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
-  let box,sw=[],acc=0;
-  function rebuild(){ clr(dyn); acc=0; box=makeBox(4.4,0x7e57c2); dyn.add(box); sw=fillBox(box,'He',70,4.4);
-    addInfo3DLabels([ {text:{lise:'1 mol = 6,022 × 10²³ tanecik (Nₐ)'},position:[0,3.2,0],target:[0,0,0],color:'#b39ddb'},
-      {text:{lise:'Bu sayı atom, molekül veya iyon için geçerlidir'},position:[0,-3.2,0],target:[0,0,0],color:'#90caf9'} ]);
+  const S=window._sceneState; if(S.as_mol===undefined)S.as_mol=1;
+  // 6,022 × 10²³ vurgusu + tarihçe. Mol slider → N = n · Nₐ canlı.
+  const PER=70, MAXMOL=3;
+  function nTanecik(n){ const c=6.022*n; let s; if(c>=10){ s=(Math.round(c/10*1000)/1000).toString().replace('.',','); return s+' × 10²⁴'; } s=(Math.round(c*1000)/1000).toString().replace('.',','); return s+' × 10²³'; }
+  let box,sw=[],coreGlow,acc=0;
+  function rebuild(){ clr(dyn); acc=0; const size=4.2+0.3*(S.as_mol-1);
+    box=makeBox(size,0x7e57c2); dyn.add(box); sw=fillBox(box,'He',PER*S.as_mol,size);
+    // merkezde "Nₐ" parıltı çekirdeği
+    coreGlow=mkA(0.5,0xb39ddb); coreGlow.userData.baseOp=1; box.add(coreGlow);
+    addInfo3DLabels([ {text:{lise:'1 mol = 6,022 × 10²³ tanecik (Nₐ)'},position:[0,size/2+1.0,0],target:[0,0,0],color:'#b39ddb'},
+      {text:{lise:S.as_mol+' mol → '+nTanecik(S.as_mol)+' tanecik'},position:[0,-size/2-1.0,0],target:[0,0,0],color:'#ffd166'},
+      {text:{lise:'atom · molekül · iyon · elektron için geçerli'},position:[-size/2-2.4,1.2,0],target:[-size/2+0.4,0.8,0],color:'#90caf9'},
+      {text:{lise:'A. Avogadro (1811) hipotezi · adı J. Perrin (1909)'},position:[size/2+2.6,-1.2,0],target:[size/2-0.4,-0.8,0],color:'#80cbc4'} ]);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(box)box.rotation.y+=dt*0.25; bounce(sw,dt,box.userData.half,1.2); };
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(box)box.rotation.y+=dt*0.25; bounce(sw,dt,box.userData.half,1.2);
+    if(coreGlow){ const p=0.6+0.4*Math.sin(acc*2); coreGlow.scale.setScalar(1+0.2*Math.sin(acc*2)); coreGlow.children.forEach(c=>{ if(c.material)c.material.opacity=0.2*p; }); } };
   setSceneSliders([ {type:'section',label:'Avogadro Sayısı'},
-    {type:'display',label:'1 mol',highlight:true,getValue:()=>'6,022 × 10²³ tanecik'},
-    {type:'display',label:'Sembol',getValue:()=>'Nₐ (Avogadro sayısı)'},
-    {type:'formula',getValue:()=>'N = n · Nₐ'},
-    {type:'display',label:'Örnek',getValue:()=>'0,5 mol → 3,011 × 10²³ tanecik'} ],{title:'Avogadro Sayısı (Nₐ)'});
+    {type:'slider',label:'Mol sayısı (n)',min:1,max:MAXMOL,step:1,unit:' mol',getValue:()=>S.as_mol,setValue:v=>{S.as_mol=v;rebuild();}},
+    {type:'display',label:'Tanecik (N)',highlight:true,getValue:()=>nTanecik(S.as_mol)+' tanecik'},
+    {type:'display',label:'Nₐ',getValue:()=>'6,022 × 10²³ /mol'},
+    {type:'formula',getValue:()=>'N = n · Nₐ = '+S.as_mol+' · 6,022 × 10²³'},
+    {type:'display',label:'Tarihçe',getValue:()=>'Avogadro 1811 · ad: Perrin 1909'} ],{title:'Avogadro Sayısı (Nₐ)'});
 };
 
 SubBuilders.buildMolKutleTanecik = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
-  let token,sample,nodes=[],acc=0; const pts=[new THREE.Vector3(-3.2,0.5,0),new THREE.Vector3(0,0.5,0),new THREE.Vector3(3.2,0.5,0)];
-  function rebuild(){ clr(dyn); acc=0; nodes=[];
-    const cols=[0xffca28,0x66bb6a,0x7e57c2];
-    pts.forEach((p,i)=>{ const n=mkA(i===1?0.55:0.45,cols[i]); n.position.copy(p); dyn.add(n); nodes.push(n); });
-    dyn.add(makeArrow3D(new THREE.Vector3(-2.6,0.5,0),new THREE.Vector3(-0.7,0.5,0),0xffca28,0.05));
-    dyn.add(makeArrow3D(new THREE.Vector3(0.7,0.5,0),new THREE.Vector3(2.6,0.5,0),0x7e57c2,0.05));
-    sample=mkMol([{el:'O',pos:[0,0.5,0],r:0.3},{el:'H',pos:[-0.55,-0.05,0],r:0.18},{el:'H',pos:[0.55,-0.05,0],r:0.18}],[[0,1],[0,2]]); sample.position.set(0,0.5,0); dyn.add(sample);
-    token=mkA(0.18,0x4fc3f7); dyn.add(token);
-    addInfo3DLabels([ {text:{lise:'KÜTLE (g)  ↔  MOL  ↔  TANECİK SAYISI'},position:[0,3.0,0],target:[0,0.5,0],color:'#90caf9'},
-      {text:{lise:'Örnek: 18 g su = 1 mol = 6,02 × 10²³ molekül'},position:[0,-3.0,0],target:[0,0.5,0],color:'#ffd166'} ]);
+  const S=window._sceneState; if(S.mkt_sub===undefined)S.mkt_sub=0; if(S.mkt_mol===undefined)S.mkt_mol=1;
+  // n = m / MA = N / Nₐ ÜÇGENİ. Madde preset → MA; mol slider → m ve N HESAPLANIR.
+  const SUBS=[
+    {n:'H₂O',MA:18,atoms:[{el:'O',pos:[0,0.45,0],r:0.30},{el:'H',pos:[-0.5,-0.1,0],r:0.18},{el:'H',pos:[0.5,-0.1,0],r:0.18}],b:[[0,1],[0,2]]},
+    {n:'CO₂',MA:44,atoms:[{el:'C',pos:[0,0.2,0],r:0.30},{el:'O',pos:[-0.85,0.2,0],r:0.26},{el:'O',pos:[0.85,0.2,0],r:0.26}],b:[[0,1,2],[0,2,2]]},
+    {n:'O₂',MA:32,atoms:[{el:'O',pos:[-0.4,0.2,0],r:0.30},{el:'O',pos:[0.4,0.2,0],r:0.30}],b:[[0,1,2]]}
+  ];
+  const NA='6,02 × 10²³';
+  function fmt(x){ return (Math.round(x*100)/100).toString().replace('.',','); }
+  function nN(n){ const c=6.02*n; if(c>=10){ return fmt(c/10)+' × 10²⁴'; } return fmt(c)+' × 10²³'; }
+  // Üçgen köşeleri: tepe = MOL, sol-alt = KÜTLE, sağ-alt = TANECİK
+  const P_MOL=new THREE.Vector3(0,2.0,0), P_KUT=new THREE.Vector3(-3.0,-1.4,0), P_TAN=new THREE.Vector3(3.0,-1.4,0);
+  let molNode,kutNode,tanNode,sample,token,acc=0;
+  function rebuild(){ clr(dyn); acc=0; const sub=SUBS[S.mkt_sub], n=S.mkt_mol, m=n*sub.MA;
+    // kenarlar (oklar çift yön: n = m/MA, N = n·Nₐ)
+    dyn.add(makeArrow3D(P_KUT.clone().lerp(P_MOL,0.18),P_MOL.clone().lerp(P_KUT,0.18),0xffca28,0.045));
+    dyn.add(makeArrow3D(P_MOL.clone().lerp(P_TAN,0.18),P_TAN.clone().lerp(P_MOL,0.18),0x7e57c2,0.045));
+    dyn.add(makePoly([P_KUT,P_TAN],0x546e7a,0.5));
+    // köşe düğümleri
+    molNode=mkA(0.55,0x66bb6a); molNode.position.copy(P_MOL); dyn.add(molNode);
+    kutNode=mkA(0.45,0xffca28); kutNode.position.copy(P_KUT); dyn.add(kutNode);
+    tanNode=mkA(0.45,0x7e57c2); tanNode.position.copy(P_TAN); dyn.add(tanNode);
+    // merkezde örnek molekül + dolaşan jeton
+    sample=mkMol(sub.atoms,sub.b); sample.scale.setScalar(0.95); sample.position.set(0,-0.1,0); dyn.add(sample);
+    token=mkA(0.16,0x4fc3f7); dyn.add(token);
+    addInfo3DLabels([ {text:{lise:'MOL (n = '+fmt(n)+')'},position:[0,P_MOL.y+1.1,0],target:[P_MOL.x,P_MOL.y,0],color:'#66bb6a'},
+      {text:{lise:'KÜTLE: m = '+fmt(m)+' g'},position:[P_KUT.x-1.4,P_KUT.y-1.0,0],target:[P_KUT.x,P_KUT.y,0],color:'#ffca28'},
+      {text:{lise:'TANECİK: N = '+nN(n)},position:[P_TAN.x+1.4,P_TAN.y-1.0,0],target:[P_TAN.x,P_TAN.y,0],color:'#b39ddb'},
+      {text:{lise:'n = m/MA = N/Nₐ ('+sub.n+', MA='+sub.MA+' g/mol)'},position:[0,-3.0,0],target:[0,-0.1,0],color:'#90caf9'} ]);
   }
   rebuild();
   window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(sample)sample.rotation.y+=dt*0.9;
-    const u=(acc%4)/4; let seg=u<0.5?0:1; let f=u<0.5?u/0.5:(u-0.5)/0.5; if(token)token.position.lerpVectors(pts[seg],pts[seg+1],ezz(f));
-    nodes.forEach((n,i)=>{ const active=(u<0.5&&i<=1)||(u>=0.5&&i>=1); const s=active?1.18:1; n.scale.setScalar(n.scale.x+(s-n.scale.x)*0.2); }); };
-  setSceneSliders([ {type:'section',label:'Mol Dönüşümleri'},
-    {type:'display',label:'Kütle → Mol',highlight:true,getValue:()=>'n = m / M'},
-    {type:'display',label:'Mol → Tanecik',getValue:()=>'N = n · Nₐ'},
-    {type:'formula',getValue:()=>'n = m/M = N/Nₐ = V/22,4'},
-    {type:'display',label:'Örnek (su)',getValue:()=>'18 g = 1 mol = 6,02×10²³'} ],{title:'Mol ↔ Kütle ↔ Tanecik'});
+    // jeton MOL → KÜTLE → MOL → TANECİK döngüsü (köprü vurgusu)
+    const u=(acc%4)/4; let A,B,active; if(u<0.5){ A=P_MOL; B=P_KUT; active=[molNode,kutNode]; } else { A=P_MOL; B=P_TAN; active=[molNode,tanNode]; }
+    const f=u<0.5?u/0.5:(u-0.5)/0.5; const ff=f<0.5?f*2:2-f*2; if(token)token.position.lerpVectors(A,B,ezz(ff));
+    [molNode,kutNode,tanNode].forEach(nd=>{ const on=active.indexOf(nd)>=0; const s=on?1.2:1; nd.scale.setScalar(nd.scale.x+(s-nd.scale.x)*0.2); }); };
+  setSceneSliders([ {type:'section',label:'Mol Üçgeni (n = m/MA = N/Nₐ)'},
+    {type:'presets',activeIdx:S.mkt_sub,options:SUBS.map((s,i)=>({label:s.n,action:()=>{S.mkt_sub=i;rebuild();}}))},
+    {type:'slider',label:'Mol (n)',min:1,max:5,step:1,unit:' mol',getValue:()=>S.mkt_mol,setValue:v=>{S.mkt_mol=v;rebuild();},sub:'n ver → m ve N hesaplanır'},
+    {type:'display',label:'Kütle (m = n·MA)',highlight:true,getValue:()=>fmt(S.mkt_mol*SUBS[S.mkt_sub].MA)+' g'},
+    {type:'display',label:'Tanecik (N = n·Nₐ)',getValue:()=>nN(S.mkt_mol)+' tanecik'},
+    {type:'display',label:'Molar kütle (MA)',getValue:()=>SUBS[S.mkt_sub].n+' = '+SUBS[S.mkt_sub].MA+' g/mol'},
+    {type:'formula',getValue:()=>'n = m/MA = N/Nₐ → '+S.mkt_mol+' = '+fmt(S.mkt_mol*SUBS[S.mkt_sub].MA)+'/'+SUBS[S.mkt_sub].MA} ],{title:'Mol ↔ Kütle ↔ Tanecik'});
 };
 
 SubBuilders.buildMolarKutle = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
-  const S=window._sceneState; if(S.mk_tip===undefined)S.mk_tip=0;
-  const SET=[ {n:'H₂O',M:'18 g/mol',calc:'2(1)+16',atoms:[{el:'O',pos:[0,0.4,0],r:0.42},{el:'H',pos:[-1.0,-0.4,0],r:0.26},{el:'H',pos:[1.0,-0.4,0],r:0.26}],b:[[0,1],[0,2]]}, {n:'CO₂',M:'44 g/mol',calc:'12+2(16)',atoms:[{el:'C',pos:[0,0,0]},{el:'O',pos:[-1.2,0,0]},{el:'O',pos:[1.2,0,0]}],b:[[0,1,2],[0,2,2]]}, {n:'CH₄',M:'16 g/mol',calc:'12+4(1)',atoms:[{el:'C',pos:[0,0,0]},{el:'H',pos:[TET[0][0]*1.3,TET[0][1]*1.3,TET[0][2]*1.3]},{el:'H',pos:[TET[1][0]*1.3,TET[1][1]*1.3,TET[1][2]*1.3]},{el:'H',pos:[TET[2][0]*1.3,TET[2][1]*1.3,TET[2][2]*1.3]},{el:'H',pos:[TET[3][0]*1.3,TET[3][1]*1.3,TET[3][2]*1.3]}],b:[[0,1],[0,2],[0,3],[0,4]]} ];
+  const S=window._sceneState; if(S.mk_tip===undefined)S.mk_tip=0; if(S.mk_n===undefined)S.mk_n=1;
+  // Atom kütleleri (g/mol) — tam değerlerle
+  const AM={H:1,C:12,O:16,Na:23,Cl:35.5};
+  // Her bileşik: gösterim adı, atomlar (sembol+adet), molekül geometrisi
+  const SET=[
+    {n:'H₂O', comp:[['H',2],['O',1]], atoms:[{el:'O',pos:[0,0.4,0],r:0.42},{el:'H',pos:[-1.0,-0.4,0],r:0.26},{el:'H',pos:[1.0,-0.4,0],r:0.26}], b:[[0,1],[0,2]]},
+    {n:'CO₂', comp:[['C',1],['O',2]], atoms:[{el:'C',pos:[0,0,0]},{el:'O',pos:[-1.3,0,0]},{el:'O',pos:[1.3,0,0]}], b:[[0,1,2],[0,2,2]]},
+    {n:'NaCl', comp:[['Na',1],['Cl',1]], atoms:[{el:'Na',pos:[-0.85,0,0],r:0.5,col:0x9575cd},{el:'Cl',pos:[0.85,0,0],r:0.5}], b:[[0,1]]},
+    {n:'CH₄', comp:[['C',1],['H',4]], atoms:[{el:'C',pos:[0,0,0]},{el:'H',pos:[TET[0][0]*1.3,TET[0][1]*1.3,TET[0][2]*1.3],r:0.24},{el:'H',pos:[TET[1][0]*1.3,TET[1][1]*1.3,TET[1][2]*1.3],r:0.24},{el:'H',pos:[TET[2][0]*1.3,TET[2][1]*1.3,TET[2][2]*1.3],r:0.24},{el:'H',pos:[TET[3][0]*1.3,TET[3][1]*1.3,TET[3][2]*1.3],r:0.24}], b:[[0,1],[0,2],[0,3],[0,4]]}
+  ];
+  // TR ondalık virgül
+  function fmt(x){ const r=Math.round(x*10)/10; return (Number.isInteger(r)?String(r):String(r).replace('.',',')); }
+  function molarMass(g){ let m=0; g.comp.forEach(c=>{ m+=AM[c[0]]*c[1]; }); return m; }
+  // "2(1)+1(16) = 18" biçiminde adım gösterimi
+  function calcStr(g){ return g.comp.map(c=>c[1]+'×'+fmt(AM[c[0]])).join(' + '); }
   let mol,atomsArr=[],acc=0;
-  function rebuild(){ clr(dyn); acc=0; const g=SET[S.mk_tip]; mol=mkMol(g.atoms,g.b); mol.scale.setScalar(1.15); dyn.add(mol);
+  function rebuild(){ clr(dyn); acc=0; const g=SET[S.mk_tip]; const M=molarMass(g);
+    mol=mkMol(g.atoms,g.b); mol.scale.setScalar(1.15); mol.position.y=0.2; dyn.add(mol);
     atomsArr=mol.children.filter(c=>c.geometry&&c.geometry.parameters&&c.geometry.parameters.radius);
-    addInfo3DLabels([ {text:{lise:g.n+' molar kütle = '+g.calc+' = '+g.M},position:[0,3.4,0],target:[0,0,0],color:'#66bb6a'},
-      {text:{lise:'Molar kütle, moleküldeki atom kütlelerinin toplamıdır'},position:[0,-3.4,0],target:[0,0,0],color:'#90caf9'} ]);
+    addInfo3DLabels([
+      {text:{lise:g.n+'  →  molar kütle (M)'},position:[0,3.4,0],target:[0,0.2,0],color:'#66bb6a'},
+      {text:{lise:'M = '+calcStr(g)+' = '+fmt(M)+' g/mol'},position:[-3.2,2.0,0],target:[0,0.2,0],color:'#ffd166'},
+      {text:{lise:S.mk_n+' mol → m = '+fmt(S.mk_n)+' × '+fmt(M)+' = '+fmt(S.mk_n*M)+' g'},position:[3.2,2.0,0],target:[0,0.2,0],color:'#4fc3f7'},
+      {text:{lise:'Molar kütle, moleküldeki atom kütlelerinin toplamıdır'},position:[0,-3.4,0],target:[0,0.2,0],color:'#90caf9'}
+    ]);
   }
   rebuild();
   window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(mol){ mol.rotation.y+=dt*0.6; mol.rotation.x=Math.sin(acc*0.4)*0.1; } const k=Math.floor((acc*1.5)%Math.max(1,atomsArr.length)); atomsArr.forEach((a,i)=>{ const s=(i===k)?1.3:1; a.scale.setScalar(a.scale.x+(s-a.scale.x)*0.25); }); };
-  setSceneSliders([ {type:'section',label:'Molar Kütle'},
+  const cur=()=>SET[S.mk_tip], M=()=>molarMass(cur());
+  setSceneSliders([ {type:'section',label:'Molar Kütle Hesabı'},
     {type:'presets',activeIdx:S.mk_tip,options:SET.map((g,i)=>({label:g.n,action:()=>{S.mk_tip=i;rebuild();}}))},
-    {type:'display',label:'Molekül',highlight:true,getValue:()=>SET[S.mk_tip].n},
-    {type:'display',label:'Hesap',getValue:()=>SET[S.mk_tip].calc},
-    {type:'display',label:'Molar kütle',getValue:()=>SET[S.mk_tip].M} ],{title:'Molar Kütle Hesabı'});
+    {type:'slider',label:'Madde miktarı',min:0.5,max:5,step:0.5,unit:' mol',getValue:()=>S.mk_n,setValue:v=>{S.mk_n=v;rebuild();},format:v=>fmt(v)},
+    {type:'display',label:'Bileşik',highlight:true,getValue:()=>cur().n},
+    {type:'display',label:'Atom kütleleri',getValue:()=>calcStr(cur())},
+    {type:'display',label:'Molar kütle (M)',getValue:()=>fmt(M())+' g/mol'},
+    {type:'formula',getValue:()=>'m = n × M = '+fmt(S.mk_n)+' × '+fmt(M())+' = '+fmt(S.mk_n*M())+' g'},
+    {type:'display',label:'Kütle (m)',getValue:()=>fmt(S.mk_n*M())+' g'} ],{title:'Molar Kütle Hesabı'});
 };
 
 SubBuilders.buildMolarHacim = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  const S=window._sceneState; if(S.mh_gaz===undefined)S.mh_gaz=0; if(S.mh_n===undefined)S.mh_n=1;
+  // Farklı gazlar — NK'da hepsi 1 mol için 22,4 L (aynı hacim kutusu)
+  const GAS=[ {n:'H₂',kind:'H2',c:0xeceff1,M:2}, {n:'O₂',kind:'O2',c:0xef5350,M:32}, {n:'CO₂',kind:'CO2',c:0x607d8b,M:44}, {n:'He',kind:'He',c:0xffd54f,M:4} ];
+  function fmt(x){ const r=Math.round(x*10)/10; return (Number.isInteger(r)?String(r):String(r).replace('.',',')); }
   let box,sw=[],acc=0;
-  function rebuild(){ clr(dyn); acc=0; box=makeBox(4.6,0x26c6da); dyn.add(box); sw=fillBox(box,'O2',14,4.6);
-    addInfo3DLabels([ {text:{lise:'Normal koşullarda (0°C, 1 atm) 1 mol gaz 22,4 L yer kaplar'},position:[0,3.4,0],target:[0,0,0],color:'#26c6da'},
-      {text:{lise:'Gazın cinsi fark etmez (Avogadro hipotezi)'},position:[0,-3.4,0],target:[0,0,0],color:'#90caf9'} ]);
+  function rebuild(){ clr(dyn); acc=0; const g=GAS[S.mh_gaz];
+    // Hacim mol ile orantılı → kutu kenarı n^(1/3) ile büyüsün ama gaz cinsinden BAĞIMSIZ
+    const base=4.2, side=base*Math.cbrt(Math.max(0.25,S.mh_n));
+    box=makeBox(side,g.c); dyn.add(box);
+    const cnt=Math.min(60,Math.round(10*S.mh_n)+6); sw=fillBox(box,g.kind,cnt,side);
+    const V=S.mh_n*22.4;
+    addInfo3DLabels([
+      {text:{lise:g.n+' gazı (NK: 0°C, 1 atm)'},position:[0,side/2+1.6,0],target:[0,0,0],color:'#26c6da'},
+      {text:{lise:fmt(S.mh_n)+' mol → V = '+fmt(S.mh_n)+' × 22,4 = '+fmt(V)+' L'},position:[-3.4,2.2,0],target:[0,0,0],color:'#ffd166'},
+      {text:{lise:'Hacim gazın cinsinden BAĞIMSIZ (Avogadro)'},position:[3.4,-2.2,0],target:[0,0,0],color:'#90caf9'},
+      {text:{lise:'1 mol her gaz = 22,4 L · aynı kutu, farklı kütle'},position:[0,-side/2-1.6,0],target:[0,0,0],color:'#4fc3f7'}
+    ]);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(box)box.rotation.y+=dt*0.25; bounce(sw,dt,box.userData.half,1.4); };
-  setSceneSliders([ {type:'section',label:'Molar Hacim'},
-    {type:'display',label:'1 mol gaz',highlight:true,getValue:()=>'22,4 L (NK)'},
-    {type:'display',label:'Koşul',getValue:()=>'0°C ve 1 atm'},
-    {type:'formula',getValue:()=>'V = n · 22,4 L'},
-    {type:'display',label:'Kural',getValue:()=>'Gazın cinsinden bağımsız'} ],{title:'Molar Hacim (22,4 L)'});
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(box)box.rotation.y+=dt*0.25; if(box)bounce(sw,dt,box.userData.half,1.4); };
+  const g=()=>GAS[S.mh_gaz], V=()=>S.mh_n*22.4;
+  setSceneSliders([ {type:'section',label:'Molar Hacim (NK)'},
+    {type:'presets',activeIdx:S.mh_gaz,options:GAS.map((x,i)=>({label:x.n,action:()=>{S.mh_gaz=i;rebuild();}}))},
+    {type:'slider',label:'Mol miktarı',min:0.5,max:4,step:0.5,unit:' mol',getValue:()=>S.mh_n,setValue:v=>{S.mh_n=v;rebuild();},format:v=>fmt(v)},
+    {type:'display',label:'Gaz',highlight:true,getValue:()=>g().n+'  (M = '+g().M+' g/mol)'},
+    {type:'display',label:'Koşul',getValue:()=>'NK: 0°C ve 1 atm'},
+    {type:'formula',getValue:()=>'V = n × 22,4 = '+fmt(S.mh_n)+' × 22,4 = '+fmt(V())+' L'},
+    {type:'display',label:'Hacim (V)',getValue:()=>fmt(V())+' L'},
+    {type:'display',label:'Kütle (m)',getValue:()=>fmt(S.mh_n*g().M)+' g (cinse bağlı)'} ],{title:'Molar Hacim (22,4 L)'});
 };
 
 SubBuilders.buildAvogadroKutuLise = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
-  let boxes=[],swarms=[],acc=0; const SET=[{k:'He',c:0xffd54f,x:-3.4,m:'4 g'},{k:'O2',c:0xef5350,x:0,m:'32 g'},{k:'CO2',c:0x607d8b,x:3.4,m:'44 g'}];
+  const S=window._sceneState; if(S.av_n===undefined)S.av_n=1;
+  function fmt(x){ const r=Math.round(x*10)/10; return (Number.isInteger(r)?String(r):String(r).replace('.',',')); }
+  // Aynı hacimde 3 farklı gaz → eşit sayıda molekül (Avogadro yasası)
+  const SET=[ {n:'He',kind:'He',c:0xffd54f,x:-3.6,M:4}, {n:'O₂',kind:'O2',c:0xef5350,x:0,M:32}, {n:'CO₂',kind:'CO2',c:0x607d8b,x:3.6,M:44} ];
+  let boxes=[],swarms=[],acc=0;
   function rebuild(){ clr(dyn); acc=0; boxes=[]; swarms=[];
-    SET.forEach(s=>{ const b=makeBox(2.6,s.c); b.position.set(s.x,0.4,0); dyn.add(b); boxes.push(b); swarms.push(fillBox(b,s.k,8,2.6)); });
-    addInfo3DLabels([ {text:{lise:'He: 1 mol = 4 g'},position:[-3.4,2.2,0],target:[-3.4,0.4,0],color:'#ffd54f'},
-      {text:{lise:'O₂: 1 mol = 32 g'},position:[0,2.2,0],target:[0,0.4,0],color:'#ef5350'},
-      {text:{lise:'CO₂: 1 mol = 44 g'},position:[3.4,2.2,0],target:[3.4,0.4,0],color:'#90caf9'},
-      {text:{lise:'Tanecik sayısı eşit (6,02×10²³) · kütleler farklı'},position:[0,-3.2,0],target:[0,0.4,0],color:'#ffd166'} ]);
+    // Aynı hacim kutusu (kenar SABIT) — hepsinde eşit sayıda tanecik
+    const side=2.8; const cnt=Math.min(40,Math.round(8*S.av_n)); // hacim eşit → sayı eşit
+    SET.forEach(s=>{ const b=makeBox(side,s.c); b.position.set(s.x,0.4,0); dyn.add(b); boxes.push(b); swarms.push(fillBox(b,s.kind,cnt,side)); });
+    const N=(6.02*S.av_n); // ×10²³ tanecik
+    addInfo3DLabels([
+      {text:{lise:'He · '+fmt(S.av_n)+' mol'},position:[-3.6,2.4,0],target:[-3.6,0.4,0],color:'#ffd54f'},
+      {text:{lise:'O₂ · '+fmt(S.av_n)+' mol'},position:[0,2.6,0],target:[0,0.4,0],color:'#ef5350'},
+      {text:{lise:'CO₂ · '+fmt(S.av_n)+' mol'},position:[3.6,2.4,0],target:[3.6,0.4,0],color:'#90caf9'},
+      {text:{lise:'Eşit hacim → eşit tanecik: '+fmt(N)+'×10²³ adet (kütleler farklı)'},position:[0,-2.8,0],target:[0,0.4,0],color:'#ffd166'}
+    ]);
   }
   rebuild();
   window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; const f=Math.max(0,Math.sin(acc*0.9)); boxes.forEach((b,i)=>{ b.rotation.y+=dt*(0.3+i*0.04); bounce(swarms[i],dt,b.userData.half,1.0); swarms[i].forEach(u=>u.scale.setScalar(1+0.18*f)); }); };
-  setSceneSliders([ {type:'section',label:'1 Mol Kutuları (Nicel)'},
-    {type:'display',label:'He',highlight:true,getValue:()=>'1 mol = 4 g'},
-    {type:'display',label:'O₂',getValue:()=>'1 mol = 32 g'},
-    {type:'display',label:'CO₂',getValue:()=>'1 mol = 44 g'},
-    {type:'display',label:'Ortak',getValue:()=>'Tanecik sayısı eşit (6,02×10²³)'} ],{title:'Avogadro Kutusu: Eşit Sayı, Farklı Kütle'});
+  const N=()=>6.02*S.av_n;
+  setSceneSliders([ {type:'section',label:'Avogadro Yasası'},
+    {type:'slider',label:'Her kutu (mol)',min:0.5,max:3,step:0.5,unit:' mol',getValue:()=>S.av_n,setValue:v=>{S.av_n=v;rebuild();},format:v=>fmt(v)},
+    {type:'display',label:'Kural',highlight:true,getValue:()=>'Eşit hacim → eşit tanecik sayısı'},
+    {type:'display',label:'He kütle',getValue:()=>fmt(S.av_n*4)+' g'},
+    {type:'display',label:'O₂ kütle',getValue:()=>fmt(S.av_n*32)+' g'},
+    {type:'display',label:'CO₂ kütle',getValue:()=>fmt(S.av_n*44)+' g'},
+    {type:'formula',getValue:()=>'N = n × Nₐ = '+fmt(S.av_n)+' × 6,02×10²³ = '+fmt(N())+'×10²³'},
+    {type:'display',label:'Tanecik (her kutu)',getValue:()=>fmt(N())+'×10²³ adet'} ],{title:'Avogadro: Eşit Hacim, Eşit Sayı'});
 };
 
 SubBuilders.buildDenklemDenklestirme = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
-  let ch4,o2=[],co2,w=[],acc=0;
-  function rebuild(){ clr(dyn); acc=0; o2=[]; w=[];
-    ch4=mkMol([{el:'C',pos:[0,0,0],r:0.32},{el:'H',pos:[TET[0][0],TET[0][1],TET[0][2]],r:0.18},{el:'H',pos:[TET[1][0],TET[1][1],TET[1][2]],r:0.18},{el:'H',pos:[TET[2][0],TET[2][1],TET[2][2]],r:0.18},{el:'H',pos:[TET[3][0],TET[3][1],TET[3][2]],r:0.18}]); ch4.position.set(-4.2,1.0,0); dyn.add(ch4);
-    for(let i=0;i<2;i++){ const o=makeUnit('O2'); o.scale.setScalar(2.2); o.position.set(-2.6,-1.0+i*1.0-0.5,0); dyn.add(o); o2.push(o); }
-    co2=makeUnit('CO2'); co2.scale.setScalar(2.2); co2.position.set(3.0,1.0,0); dyn.add(co2);
-    for(let i=0;i<2;i++){ const ww=mkMol([{el:'O',pos:[0,0.2,0],r:0.26},{el:'H',pos:[-0.5,-0.25,0],r:0.15},{el:'H',pos:[0.5,-0.25,0],r:0.15}],[[0,1],[0,2]]); ww.position.set(2.6+i*1.0-0.5,-1.0,0); dyn.add(ww); w.push(ww); }
-    addInfo3DLabels([ {text:{lise:'CH₄ + 2 O₂ → CO₂ + 2 H₂O (denkleştirilmiş)'},position:[0,3.2,0],target:[0,0,0],color:'#66bb6a'},
-      {text:{lise:'Her iki tarafta atom sayısı eşittir → kütle korunur'},position:[0,-3.2,0],target:[0,0,0],color:'#90caf9'} ]);
+  const S=window._sceneState;
+  // CH₄ + O₂ → CO₂ + H₂O  (denk: 1,2,1,2). Katsayılar: a CH4, b O2, c CO2, d H2O
+  if(S.dd_a===undefined)S.dd_a=1; if(S.dd_b===undefined)S.dd_b=1; if(S.dd_c===undefined)S.dd_c=1; if(S.dd_d===undefined)S.dd_d=1;
+  // Atom başına: CH4=(C1,H4) O2=(O2) CO2=(C1,O2) H2O=(H2,O1)
+  function sol(){ return {C:S.dd_a*1, H:S.dd_a*4, O:S.dd_b*2}; }
+  function sag(){ return {C:S.dd_c*1, H:S.dd_d*2, O:S.dd_c*2+S.dd_d*1}; }
+  function dengeMi(){ const l=sol(),r=sag(); return l.C===r.C && l.H===r.H && l.O===r.O; }
+  let molA,molC,o2=[],w=[],acc=0;
+  function rebuild(){ clr(dyn); acc=0; o2=[]; w=[]; const ok=dengeMi();
+    // SOL: CH4
+    molA=mkMol([{el:'C',pos:[0,0,0],r:0.32},{el:'H',pos:[TET[0][0],TET[0][1],TET[0][2]],r:0.18},{el:'H',pos:[TET[1][0],TET[1][1],TET[1][2]],r:0.18},{el:'H',pos:[TET[2][0],TET[2][1],TET[2][2]],r:0.18},{el:'H',pos:[TET[3][0],TET[3][1],TET[3][2]],r:0.18}]); molA.position.set(-4.4,1.6,0); molA.scale.setScalar(0.85); dyn.add(molA);
+    // SOL: O2 (katsayı b kadar, max 3 göster)
+    const nb=Math.min(3,S.dd_b); for(let i=0;i<nb;i++){ const o=makeUnit('O2'); o.scale.setScalar(2.2); o.position.set(-4.0,-0.4-i*1.1,0); dyn.add(o); o2.push(o); }
+    // okun rengi denge durumuna göre
+    dyn.add(makeArrow3D(new THREE.Vector3(-1.6,0.4,0),new THREE.Vector3(0.6,0.4,0),ok?0x66bb6a:0xffa726,0.07));
+    // SAĞ: CO2 (c kadar, max 3)
+    const nc=Math.min(3,S.dd_c); for(let i=0;i<nc;i++){ const cc=makeUnit('CO2'); cc.scale.setScalar(2.2); cc.position.set(2.6,1.6-i*1.1,0); dyn.add(cc); }
+    molC=null;
+    // SAĞ: H2O (d kadar, max 3)
+    const nd=Math.min(3,S.dd_d); for(let i=0;i<nd;i++){ const ww=mkMol([{el:'O',pos:[0,0.2,0],r:0.26},{el:'H',pos:[-0.5,-0.25,0],r:0.15},{el:'H',pos:[0.5,-0.25,0],r:0.15}],[[0,1],[0,2]]); ww.position.set(4.4,1.0-i*1.1,0); dyn.add(ww); w.push(ww); }
+    const l=sol(),r=sag();
+    addInfo3DLabels([
+      {text:{lise:S.dd_a+' CH₄ + '+S.dd_b+' O₂ → '+S.dd_c+' CO₂ + '+S.dd_d+' H₂O'},position:[0,3.3,0],target:[0,0.4,0],color:ok?'#66bb6a':'#ffa726'},
+      {text:{lise:'SOL: C='+l.C+'  H='+l.H+'  O='+l.O},position:[-3.6,2.2,0],target:[-4.0,0.4,0],color:'#90caf9'},
+      {text:{lise:'SAĞ: C='+r.C+'  H='+r.H+'  O='+r.O},position:[3.6,2.2,0],target:[3.6,0.4,0],color:'#90caf9'},
+      {text:{lise: ok?'✓ DENGELİ — atom sayıları eşit, kütle korunur':'Atomlar eşit değil → katsayıları ayarla'},position:[0,-3.3,0],target:[0,0.4,0],color:ok?'#66bb6a':'#ef5350'}
+    ]);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; const all=[ch4,co2].concat(o2).concat(w); all.forEach((m,i)=>{ if(m){ m.rotation.y+=dt*0.6; m.position.y+=Math.sin(acc*2+i)*0.004; } }); };
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; const all=[molA].concat(o2).concat(w); all.forEach((m,i)=>{ if(m){ m.rotation.y+=dt*0.6; m.position.y+=Math.sin(acc*2+i)*0.004; } }); };
+  const l=()=>sol(), r=()=>sag();
   setSceneSliders([ {type:'section',label:'Denklem Denkleştirme'},
-    {type:'display',label:'Kural',highlight:true,getValue:()=>'Atomlar yoktan var olmaz'},
-    {type:'display',label:'Yöntem',getValue:()=>'Katsayılarla iki taraf eşitlenir'},
-    {type:'formula',getValue:()=>'CH₄ + 2O₂ → CO₂ + 2H₂O'},
-    {type:'display',label:'Sonuç',getValue:()=>'Kütlenin korunumu yasası'} ],{title:'Kimyasal Denklem Denkleştirme'});
+    {type:'slider',label:'CH₄ katsayısı',min:1,max:3,step:1,getValue:()=>S.dd_a,setValue:v=>{S.dd_a=v;rebuild();}},
+    {type:'slider',label:'O₂ katsayısı',min:1,max:4,step:1,getValue:()=>S.dd_b,setValue:v=>{S.dd_b=v;rebuild();}},
+    {type:'slider',label:'CO₂ katsayısı',min:1,max:3,step:1,getValue:()=>S.dd_c,setValue:v=>{S.dd_c=v;rebuild();}},
+    {type:'slider',label:'H₂O katsayısı',min:1,max:4,step:1,getValue:()=>S.dd_d,setValue:v=>{S.dd_d=v;rebuild();}},
+    {type:'display',label:'Sol (C·H·O)',highlight:true,getValue:()=>l().C+' · '+l().H+' · '+l().O},
+    {type:'display',label:'Sağ (C·H·O)',getValue:()=>r().C+' · '+r().H+' · '+r().O},
+    {type:'formula',getValue:()=>S.dd_a+'CH₄ + '+S.dd_b+'O₂ → '+S.dd_c+'CO₂ + '+S.dd_d+'H₂O'},
+    {type:'display',label:'Durum',getValue:()=>dengeMi()?'✓ DENGELİ':'✗ Eşit değil'} ],{title:'Denklem Denkleştirme (Doğru: 1,2,1,2)'});
 };
 
 SubBuilders.buildMolOranlari = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  const S=window._sceneState; if(S.mo_h2===undefined)S.mo_h2=2;
+  // 2 H₂ + O₂ → 2 H₂O   oran 2:1:2
+  function fmt(x){ const r=Math.round(x*100)/100; return (Number.isInteger(r)?String(r):String(r).replace('.',',')); }
+  function molO2(){ return S.mo_h2*1/2; }  // n(O2)=n(H2)/2
+  function molH2O(){ return S.mo_h2*2/2; } // n(H2O)=n(H2)
   let groups=[],acc=0;
   function rebuild(){ clr(dyn); acc=0; groups=[];
-    const gN=new THREE.Group(); for(let i=0;i<2;i++){ const u=makeUnit('H2'); u.scale.setScalar(2.6); u.position.set(-3.8,1.0-i*1.8,0); gN.add(u); } dyn.add(gN); groups.push(gN);
-    const gO=new THREE.Group(); const o=makeUnit('O2'); o.scale.setScalar(2.6); o.position.set(-1.0,0.1,0); gO.add(o); dyn.add(gO); groups.push(gO);
-    const gW=new THREE.Group(); for(let i=0;i<2;i++){ const w=mkMol([{el:'O',pos:[0,0.2,0],r:0.28},{el:'H',pos:[-0.5,-0.25,0],r:0.16},{el:'H',pos:[0.5,-0.25,0],r:0.16}],[[0,1],[0,2]]); w.position.set(3.0,1.0-i*1.8,0); gW.add(w); } dyn.add(gW); groups.push(gW);
-    addInfo3DLabels([ {text:{lise:'Denklemdeki katsayılar mol oranını verir'},position:[0,3.2,0],target:[0,0,0],color:'#90caf9'},
-      {text:{lise:'2 H₂ : 1 O₂ : 2 H₂O   →   oran 2 : 1 : 2'},position:[0,-3.2,0],target:[0,0,0],color:'#ffd166'} ]);
+    const nH2=Math.min(4,Math.round(S.mo_h2)); const nO2=Math.min(4,Math.max(1,Math.round(molO2()))); const nW=Math.min(4,Math.round(molH2O()));
+    const gN=new THREE.Group(); for(let i=0;i<nH2;i++){ const u=makeUnit('H2'); u.scale.setScalar(2.6); u.position.set(-4.0,1.8-i*1.2,0); gN.add(u); } dyn.add(gN); groups.push(gN);
+    const gO=new THREE.Group(); for(let i=0;i<nO2;i++){ const o=makeUnit('O2'); o.scale.setScalar(2.6); o.position.set(-1.2,1.2-i*1.2,0); gO.add(o); } dyn.add(gO); groups.push(gO);
+    dyn.add(makeArrow3D(new THREE.Vector3(0.4,0.4,0),new THREE.Vector3(2.2,0.4,0),0x66bb6a,0.06));
+    const gW=new THREE.Group(); for(let i=0;i<nW;i++){ const w=mkMol([{el:'O',pos:[0,0.2,0],r:0.28},{el:'H',pos:[-0.5,-0.25,0],r:0.16},{el:'H',pos:[0.5,-0.25,0],r:0.16}],[[0,1],[0,2]]); w.position.set(3.6,1.8-i*1.2,0); gW.add(w); } dyn.add(gW); groups.push(gW);
+    addInfo3DLabels([
+      {text:{lise:'2 H₂ + O₂ → 2 H₂O   (oran 2 : 1 : 2)'},position:[0,3.3,0],target:[0,0.4,0],color:'#90caf9'},
+      {text:{lise:fmt(S.mo_h2)+' mol H₂'},position:[-4.0,2.6,0],target:[-4.0,1.0,0],color:'#eceff1'},
+      {text:{lise:fmt(molO2())+' mol O₂ gerekir'},position:[-1.2,-2.6,0],target:[-1.2,0.4,0],color:'#ef5350'},
+      {text:{lise:'→ '+fmt(molH2O())+' mol H₂O oluşur'},position:[3.6,-2.6,0],target:[3.6,0.4,0],color:'#ffd166'}
+    ]);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; const beat=Math.floor((acc*1.2)%3); groups.forEach((g,gi)=>{ const on=(gi===beat); const s=on?1.18:1; g.scale.setScalar(g.scale.x+(s-g.scale.x)*0.2); g.children.forEach(c=>c.rotation.y+=dt*0.7); }); };
-  setSceneSliders([ {type:'section',label:'Mol Oranları'},
-    {type:'display',label:'Kaynak',highlight:true,getValue:()=>'Denkleştirilmiş katsayılar'},
-    {type:'display',label:'Örnek',getValue:()=>'2H₂ + O₂ → 2H₂O'},
-    {type:'formula',getValue:()=>'n(H₂):n(O₂):n(H₂O) = 2:1:2'},
-    {type:'display',label:'Kullanım',getValue:()=>'Bir maddeden diğerini hesapla'} ],{title:'Stokiyometrik Mol Oranı'});
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; const beat=Math.floor((acc*1.2)%3); groups.forEach((g,gi)=>{ const on=(gi===beat); const s=on?1.15:1; g.scale.setScalar(g.scale.x+(s-g.scale.x)*0.2); g.children.forEach(c=>c.rotation.y+=dt*0.7); }); };
+  setSceneSliders([ {type:'section',label:'Stokiyometrik Mol Oranı'},
+    {type:'slider',label:'Verilen H₂',min:1,max:4,step:0.5,unit:' mol',getValue:()=>S.mo_h2,setValue:v=>{S.mo_h2=v;rebuild();},format:v=>fmt(v)},
+    {type:'display',label:'Denklem',highlight:true,getValue:()=>'2H₂ + O₂ → 2H₂O'},
+    {type:'display',label:'Mol oranı',getValue:()=>'H₂ : O₂ : H₂O = 2 : 1 : 2'},
+    {type:'formula',getValue:()=>'n(O₂) = n(H₂)×(1/2) = '+fmt(molO2())+' mol'},
+    {type:'display',label:'Gerekli O₂',getValue:()=>fmt(molO2())+' mol'},
+    {type:'display',label:'Oluşan H₂O',getValue:()=>fmt(molH2O())+' mol'} ],{title:'Mol Oranı (2:1:2)'});
 };
 
 SubBuilders.buildSinirlayiciBilesen = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
-  let A=[],B=[],AB=[],leftover,acc=0;
-  function rebuild(){ clr(dyn); acc=0; A=[]; B=[]; AB=[];
+  const S=window._sceneState; if(S.sl_a===undefined)S.sl_a=3; if(S.sl_b===undefined)S.sl_b=2;
+  // A + B → AB  (1:1). Eşleşebilen çift = min(nA,nB); sınırlayıcı = az olan; artan = fark
+  function urun(){ return Math.min(S.sl_a,S.sl_b); }
+  function sinir(){ return S.sl_a<S.sl_b?'A':(S.sl_b<S.sl_a?'B':'—'); }
+  function artanAd(){ return S.sl_a>S.sl_b?'A':(S.sl_b>S.sl_a?'B':'yok'); }
+  function artanN(){ return Math.abs(S.sl_a-S.sl_b); }
+  let A=[],B=[],AB=[],leftovers=[],acc=0;
+  function rebuild(){ clr(dyn); acc=0; A=[]; B=[]; AB=[]; leftovers=[];
     const grp=new THREE.Group(); dyn.add(grp);
-    for(let i=0;i<3;i++){ const a=mkA(0.34,0x42a5f5); a.userData.start=new THREE.Vector3(-4.2,1.6-i*1.6,0); a.position.copy(a.userData.start); grp.add(a); A.push(a); }
-    for(let i=0;i<2;i++){ const b=mkA(0.34,0x66bb6a); b.userData.start=new THREE.Vector3(-2.2,1.6-i*1.6,0); b.position.copy(b.userData.start); grp.add(b); B.push(b); }
-    for(let i=0;i<2;i++){ const p=new THREE.Group(); const pa=mkA(0.3,0x42a5f5); pa.position.x=-0.2; const pb=mkA(0.3,0x66bb6a); pb.position.x=0.2; p.add(pa,pb); p.add(makeBond(new THREE.Vector3(-0.2,0,0),new THREE.Vector3(0.2,0,0),0xb0bec5,0.06)); p.userData.home=new THREE.Vector3(3.6,1.0-i*1.6,0); p.position.copy(p.userData.home); p.scale.setScalar(0.001); grp.add(p); AB.push(p); }
-    leftover=A[2];
-    addInfo3DLabels([ {text:{lise:'3 A + 2 B → 2 AB   (B biter, 1 A artar)'},position:[0,3.3,0],target:[0,0,0],color:'#ffd166'},
-      {text:{lise:'B sınırlayıcı bileşendir · 1 tane A fazla (artan) kalır'},position:[0,-3.3,0],target:[-4.2,-1.6,0],color:'#42a5f5'} ]);
+    const p=urun();
+    for(let i=0;i<S.sl_a;i++){ const a=mkA(0.32,0x42a5f5); a.userData.start=new THREE.Vector3(-4.4,2.0-i*1.0,0); a.position.copy(a.userData.start); a.userData.paired=(i<p); grp.add(a); A.push(a); }
+    for(let i=0;i<S.sl_b;i++){ const b=mkA(0.32,0x66bb6a); b.userData.start=new THREE.Vector3(-2.6,2.0-i*1.0,0); b.position.copy(b.userData.start); b.userData.paired=(i<p); grp.add(b); B.push(b); }
+    for(let i=0;i<p;i++){ const pp=new THREE.Group(); const pa=mkA(0.3,0x42a5f5); pa.position.x=-0.2; const pb=mkA(0.3,0x66bb6a); pb.position.x=0.2; pp.add(pa,pb); pp.add(makeBond(new THREE.Vector3(-0.2,0,0),new THREE.Vector3(0.2,0,0),0xb0bec5,0.06)); pp.userData.home=new THREE.Vector3(3.8,2.0-i*1.0,0); pp.position.copy(pp.userData.home); pp.scale.setScalar(0.001); grp.add(pp); AB.push(pp); }
+    // artanlar = eşleşmeyen taneler (vurgulanır)
+    A.forEach(a=>{ if(!a.userData.paired)leftovers.push(a); });
+    B.forEach(b=>{ if(!b.userData.paired)leftovers.push(b); });
+    addInfo3DLabels([
+      {text:{lise:S.sl_a+' A + '+S.sl_b+' B → '+p+' AB   (A + B → AB)'},position:[0,3.4,0],target:[0,0,0],color:'#ffd166'},
+      {text:{lise:'Sınırlayıcı: '+sinir()+' (önce biter)'},position:[-3.4,2.8,0],target:[-3.4,0,0],color:'#ef5350'},
+      {text:{lise:'Artan: '+artanN()+' tane '+artanAd()},position:[-4.4,-2.8,0],target:[-3.4,-1.0,0],color:'#42a5f5'},
+      {text:{lise:p+' tane AB oluşur'},position:[3.8,-2.8,0],target:[3.8,0,0],color:'#66bb6a'}
+    ]);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; const mix=ezz(ppong(acc,5)); const prod=ezz(Math.max(0,(mix-0.55)/0.45));
-    [[A[0],B[0],0],[A[1],B[1],1]].forEach(pr=>{ const a=pr[0],b=pr[1]; a.position.lerpVectors(a.userData.start,new THREE.Vector3(1.0,1.0-pr[2]*1.6,0),mix); b.position.lerpVectors(b.userData.start,new THREE.Vector3(1.6,1.0-pr[2]*1.6,0),mix); setOpac(a,1-prod); setOpac(b,1-prod); });
-    AB.forEach(p=>{ p.scale.setScalar(prod*1.05+0.001); setOpac(p,prod); });
-    if(leftover){ leftover.position.copy(leftover.userData.start); const g=1+0.22*Math.sin(acc*4); leftover.scale.setScalar(g); }
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; const mix=ezz(ppong(acc,5)); const prod=ezz(Math.max(0,(mix-0.55)/0.45)); const p=urun();
+    for(let i=0;i<p;i++){ const a=A[i],b=B[i]; a.position.lerpVectors(a.userData.start,new THREE.Vector3(1.2,2.0-i*1.0,0),mix); b.position.lerpVectors(b.userData.start,new THREE.Vector3(1.8,2.0-i*1.0,0),mix); setOpac(a,1-prod); setOpac(b,1-prod); }
+    AB.forEach(pp=>{ pp.scale.setScalar(prod*1.0+0.001); setOpac(pp,prod); });
+    leftovers.forEach(m=>{ m.position.copy(m.userData.start); const g=1+0.22*Math.sin(acc*4); m.scale.setScalar(g); setOpac(m,1); });
   };
   setSceneSliders([ {type:'section',label:'Sınırlayıcı Bileşen'},
-    {type:'display',label:'Başlangıç',highlight:true,getValue:()=>'3 A + 2 B'},
-    {type:'display',label:'Tepkime',getValue:()=>'A + B → AB'},
-    {type:'display',label:'Sınırlayıcı',getValue:()=>'B (önce biter)'},
-    {type:'display',label:'Artan',getValue:()=>'1 tane A (fazla)'},
-    {type:'display',label:'Ürün',getValue:()=>'2 tane AB oluşur'} ],{title:'Montaj Hattı: Sınırlayıcı Bileşen'});
+    {type:'slider',label:'A miktarı',min:1,max:5,step:1,unit:' tane',getValue:()=>S.sl_a,setValue:v=>{S.sl_a=v;rebuild();}},
+    {type:'slider',label:'B miktarı',min:1,max:5,step:1,unit:' tane',getValue:()=>S.sl_b,setValue:v=>{S.sl_b=v;rebuild();}},
+    {type:'display',label:'Tepkime',highlight:true,getValue:()=>'A + B → AB  (1:1)'},
+    {type:'display',label:'Sınırlayıcı',getValue:()=>sinir()+' (önce biter)'},
+    {type:'display',label:'Artan (fazla)',getValue:()=>artanN()===0?'yok (tam)':artanN()+' tane '+artanAd()},
+    {type:'formula',getValue:()=>'n(AB) = min('+S.sl_a+', '+S.sl_b+') = '+urun()},
+    {type:'display',label:'Oluşan ürün',getValue:()=>urun()+' tane AB'} ],{title:'Sınırlayıcı Bileşen (Eşleşme)'});
 };
 
 SubBuilders.buildVerimHesabi = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
-  let teorik=[],gercek=[],ghost,acc=0;
-  function rebuild(){ clr(dyn); acc=0; teorik=[]; gercek=[];
-    for(let i=0;i<4;i++){ const m=new THREE.Mesh(new THREE.BoxGeometry(0.55,0.55,0.55),new THREE.MeshBasicMaterial({color:0x90a4ae,transparent:true,opacity:0.22,depthWrite:false,toneMapped:false})); m.position.set(-2.4,-1.5+i*0.75,0); dyn.add(m); teorik.push(m); }
-    for(let i=0;i<3;i++){ const m=new THREE.Mesh(new THREE.BoxGeometry(0.55,0.55,0.55),new THREE.MeshStandardMaterial({color:0x66bb6a,roughness:0.4,toneMapped:false})); m.position.set(2.4,-1.5+i*0.75,0); m.userData.ph=i; dyn.add(m); gercek.push(m); }
-    ghost=new THREE.Mesh(new THREE.BoxGeometry(0.55,0.55,0.55),new THREE.MeshBasicMaterial({color:0xef5350,transparent:true,opacity:0.3,depthWrite:false,toneMapped:false})); ghost.position.set(2.4,-1.5+3*0.75,0); dyn.add(ghost);
-    addInfo3DLabels([ {text:{lise:'Teorik verim (gri): 4 birim · Gerçek verim (yeşil): 3 birim'},position:[0,3.3,0],target:[0,0,0],color:'#90caf9'},
-      {text:{lise:'Kırmızı kutu: elde EDİLEMEYEN kısım (eksik %25)'},position:[0,-3.3,0],target:[2.4,0.75,0],color:'#ef5350'} ]);
+  const S=window._sceneState; if(S.vr_teo===undefined)S.vr_teo=8; if(S.vr_yuzde===undefined)S.vr_yuzde=75;
+  function fmt(x){ const r=Math.round(x*10)/10; return (Number.isInteger(r)?String(r):String(r).replace('.',',')); }
+  function gercek(){ return S.vr_teo*S.vr_yuzde/100; }
+  function kayip(){ return S.vr_teo-gercek(); }
+  let teorik=[],gercekM=[],kayipM=[],acc=0;
+  function rebuild(){ clr(dyn); acc=0; teorik=[]; gercekM=[]; kayipM=[];
+    const N=Math.min(8,Math.round(S.vr_teo)); const ng=Math.round(N*S.vr_yuzde/100); const nk=N-ng;
+    // SOL: teorik (gri hayalet) tüm kutular
+    for(let i=0;i<N;i++){ const m=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.5,0.5),new THREE.MeshBasicMaterial({color:0x90a4ae,transparent:true,opacity:0.22,depthWrite:false,toneMapped:false})); m.position.set(-3.0,-1.8+i*0.55,0); dyn.add(m); teorik.push(m); }
+    // SAĞ: gerçek (yeşil) elde edilen
+    for(let i=0;i<ng;i++){ const m=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.5,0.5),new THREE.MeshStandardMaterial({color:0x66bb6a,roughness:0.4,toneMapped:false})); m.position.set(2.6,-1.8+i*0.55,0); m.userData.ph=i; dyn.add(m); gercekM.push(m); }
+    // kayıp (kırmızı, dökülen) — yan tepkime/kayıp
+    for(let i=0;i<nk;i++){ const m=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.5,0.5),new THREE.MeshBasicMaterial({color:0xef5350,transparent:true,opacity:0.32,depthWrite:false,toneMapped:false})); m.userData.home=new THREE.Vector3(2.6,-1.8+(ng+i)*0.55,0); m.position.copy(m.userData.home); m.userData.ph=i; dyn.add(m); kayipM.push(m); }
+    dyn.add(makeArrow3D(new THREE.Vector3(-1.8,0.2,0),new THREE.Vector3(0.8,0.2,0),0xb0bec5,0.06));
+    addInfo3DLabels([
+      {text:{lise:'Teorik: '+fmt(S.vr_teo)+' g  ·  Gerçek: '+fmt(gercek())+' g'},position:[0,3.3,0],target:[0,0.2,0],color:'#90caf9'},
+      {text:{lise:'Verim = %'+S.vr_yuzde},position:[2.6,2.4,0],target:[2.6,0,0],color:'#66bb6a'},
+      {text:{lise:'Kayıp (yan tepkime / dökülme): '+fmt(kayip())+' g'},position:[2.6,-2.8,0],target:[2.6,1.2,0],color:'#ef5350'},
+      {text:{lise:'% Verim = (gerçek / teorik) × 100'},position:[-3.0,-2.8,0],target:[-3.0,0,0],color:'#ffd166'}
+    ]);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; gercek.forEach((m,i)=>{ m.position.y=-1.5+i*0.75+Math.sin(acc*2.5+m.userData.ph)*0.07; m.rotation.y+=dt*0.6; }); teorik.forEach(m=>m.rotation.y+=dt*0.2); if(ghost){ ghost.material.opacity=0.12+0.22*Math.abs(Math.sin(acc*2.2)); ghost.rotation.y+=dt*0.6; } };
-  setSceneSliders([ {type:'section',label:'Verim Hesabı'},
-    {type:'display',label:'Teorik verim',highlight:true,getValue:()=>'Hesapla bulunan en yüksek miktar'},
-    {type:'display',label:'Gerçek verim',getValue:()=>'Deneyde elde edilen miktar'},
-    {type:'formula',getValue:()=>'% Verim = (gerçek/teorik) × 100'},
-    {type:'display',label:'Örnek',getValue:()=>'3/4 × 100 = %75'} ],{title:'Tepkime Verimi (%)'});
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; gercekM.forEach((m,i)=>{ m.position.y=-1.8+i*0.55+Math.sin(acc*2.5+m.userData.ph)*0.06; m.rotation.y+=dt*0.6; }); teorik.forEach(m=>m.rotation.y+=dt*0.2);
+    // kayıp kutuları dökülüp solsun (kayıp animasyonu)
+    const u=ppong(acc,4); kayipM.forEach(m=>{ const h=m.userData.home; m.position.set(h.x+u*1.4, h.y-u*1.6, h.z); m.material.opacity=0.32*(1-u*0.7); m.rotation.z+=dt*1.2; }); };
+  setSceneSliders([ {type:'section',label:'Tepkime Verimi'},
+    {type:'slider',label:'Teorik verim',min:2,max:10,step:1,unit:' g',getValue:()=>S.vr_teo,setValue:v=>{S.vr_teo=v;rebuild();}},
+    {type:'slider',label:'Verim',min:10,max:100,step:5,unit:' %',getValue:()=>S.vr_yuzde,setValue:v=>{S.vr_yuzde=v;rebuild();}},
+    {type:'display',label:'Teorik (max)',highlight:true,getValue:()=>fmt(S.vr_teo)+' g'},
+    {type:'formula',getValue:()=>'gerçek = teorik × %verim = '+fmt(S.vr_teo)+' × '+S.vr_yuzde/100+' = '+fmt(gercek())+' g'},
+    {type:'display',label:'Gerçek ürün',getValue:()=>fmt(gercek())+' g'},
+    {type:'display',label:'Kayıp',getValue:()=>fmt(kayip())+' g'} ],{title:'Tepkime Verimi (%)'});
 };
 
 SubBuilders.buildKutleHesabi = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
-  let nodes=[],token,acc=0; const xs=[-4.2,-1.4,1.4,4.2]; const pts=xs.map(x=>new THREE.Vector3(x,0.4,0));
+  const S=window._sceneState; if(S.kh_m===undefined)S.kh_m=12;
+  // C + O₂ → CO₂   (1:1).  M(C)=12, M(CO₂)=44.  m(C) → n(C) → n(CO₂) → m(CO₂)
+  const Mc=12, Mco2=44;
+  function fmt(x){ const r=Math.round(x*100)/100; return (Number.isInteger(r)?String(r):String(r).replace('.',',')); }
+  function nC(){ return S.kh_m/Mc; }
+  function nCO2(){ return nC()*1; }      // oran 1:1
+  function mCO2(){ return nCO2()*Mco2; }
+  let nodes=[],token,acc=0; const xs=[-4.6,-1.6,1.6,4.6]; const pts=xs.map(x=>new THREE.Vector3(x,0.4,0));
+  const cols=[0xffca28,0x66bb6a,0x7e57c2,0xef5350];
   function rebuild(){ clr(dyn); acc=0; nodes=[];
-    const cols=[0xffca28,0x66bb6a,0x7e57c2,0xef5350];
     xs.forEach((x,i)=>{ const n=mkA(0.4,cols[i]); n.position.set(x,0.4,0); dyn.add(n); nodes.push(n); if(i<3)dyn.add(makeArrow3D(new THREE.Vector3(x+0.55,0.4,0),new THREE.Vector3(xs[i+1]-0.55,0.4,0),0xb0bec5,0.05)); });
     token=mkA(0.16,0x4fc3f7); token.position.copy(pts[0]); dyn.add(token);
-    addInfo3DLabels([ {text:{lise:'Kütle(verilen) → mol → mol oranı → mol(istenen) → Kütle'},position:[0,3.2,0],target:[0,0.4,0],color:'#90caf9'},
-      {text:{lise:'Stokiyometri: bir maddenin kütlesinden diğerininkini bulma'},position:[0,-3.2,0],target:[0,0.4,0],color:'#ffd166'} ]);
+    addInfo3DLabels([
+      {text:{lise:'C + O₂ → CO₂   (verilen m(C) → istenen m(CO₂))'},position:[0,3.3,0],target:[0,0.4,0],color:'#90caf9'},
+      {text:{lise:'m(C) = '+fmt(S.kh_m)+' g'},position:[-4.6,2.0,0],target:[-4.6,0.4,0],color:'#ffca28'},
+      {text:{lise:'n(C) = '+fmt(S.kh_m)+'/12 = '+fmt(nC())+' mol → n(CO₂) = '+fmt(nCO2())+' mol'},position:[0,-2.4,0],target:[0,0.4,0],color:'#7e57c2'},
+      {text:{lise:'m(CO₂) = '+fmt(nCO2())+'×44 = '+fmt(mCO2())+' g'},position:[4.6,2.0,0],target:[4.6,0.4,0],color:'#ef5350'}
+    ]);
   }
   rebuild();
   window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; const u=(acc%6)/6; const seg=Math.min(2,Math.floor(u*3)); const f=ezz((u*3)-seg); if(token)token.position.lerpVectors(pts[seg],pts[seg+1],f); nodes.forEach((n,i)=>{ const active=(i===seg||i===seg+1); const s=active?1.2:1; n.scale.setScalar(n.scale.x+(s-n.scale.x)*0.2); n.position.y=0.4+Math.sin(acc*2+i)*0.05; }); };
   setSceneSliders([ {type:'section',label:'Kütle-Kütle Hesabı'},
-    {type:'display',label:'1. adım',highlight:true,getValue:()=>'Kütle → mol (n = m/M)'},
-    {type:'display',label:'2. adım',getValue:()=>'Mol oranıyla çevir'},
-    {type:'display',label:'3. adım',getValue:()=>'Mol → kütle (m = n·M)'},
-    {type:'formula',getValue:()=>'m → n → (oran) → n → m'} ],{title:'Stokiyometri: Kütle-Kütle'});
+    {type:'slider',label:'Verilen m(C)',min:3,max:48,step:3,unit:' g',getValue:()=>S.kh_m,setValue:v=>{S.kh_m=v;rebuild();}},
+    {type:'display',label:'1) m → n',highlight:true,getValue:()=>'n(C) = '+fmt(S.kh_m)+'/12 = '+fmt(nC())+' mol'},
+    {type:'display',label:'2) mol oranı',getValue:()=>'n(CO₂) = n(C)×1 = '+fmt(nCO2())+' mol'},
+    {type:'display',label:'3) n → m',getValue:()=>'m(CO₂) = '+fmt(nCO2())+'×44'},
+    {type:'formula',getValue:()=>'m(CO₂) = '+fmt(mCO2())+' g'},
+    {type:'display',label:'Sonuç m(CO₂)',getValue:()=>fmt(mCO2())+' g'} ],{title:'Stokiyometri: Kütle → Kütle'});
 };
-// ============================================================
+
 // ====== SİSTEM: SEVİYE, MOD, NAVİGASYON, UI ================
 // ============================================================
 let currentLevel = 'lise';        // 'ilkokul' | 'ortaokul' | 'lise' | sınav modunda da 'lise' içeriği
@@ -3559,9 +4080,7 @@ function applySceneTheme() {
 function selectSub(subKey) {
   currentSub = subKey;
   clearScene();
-  window._isSpaceScene = false;
   applySceneTheme();
-
   const builderName = (function() {
     for (const mk of Object.keys(MODULES)) {
       const s = MODULES[mk].subs.find(x => x.key === subKey);
@@ -3569,7 +4088,6 @@ function selectSub(subKey) {
     }
     return null;
   })();
-
   if (builderName && typeof SubBuilders[builderName] === 'function') {
     try {
       SubBuilders[builderName]();
@@ -3577,32 +4095,33 @@ function selectSub(subKey) {
       console.error('Builder hatası:', builderName, e);
     }
   }
-
-  // Bilgi panelini güncelle (kapalıysa tekrar aç — konu seçilince bilgi görünür olsun)
   const _bp = document.getElementById('bottomPanel');
   if (_bp) _bp.classList.remove('hidden');
   updateInfoPanel(subKey);
   highlightActiveTopic();
-
-  // Sade modda bazı 3D etiketleri gizle (her ikincisi)
   applyModeToLabels();
-
-  // Kamerayı sahneye göre hafif yukarı + modeli belirgin şekilde sola kaydır
-  // (sağdaki panel/menüler 3D modelin üstüne binmesin diye target sağa alınır → model sola öteler)
   if (controls) {
-    // Sahne sabit bir yere bagli degil: ekranda serbest/ortada dursun, kullanici
-    // iki parmakla istedigi yeri ortaya getirip yakinlastirabilsin.
-    controls.target.set(0, 0.4, 0);
-    if (camera) camera.position.set(0, 3.4, 25.0);
+    // Sahne sabit bir yere bağlı değil: ekranda serbest/ortada dursun, kullanıcı
+    // iki parmakla istediği yeri ortaya getirip yakınlaştırabilsin.
+    // Hedefi daha aşağı al → model ekranda daha YUKARIDA dursun
+    controls.target.set(0, -1.15, 0);
+    if (camera) camera.position.set(0, 1.85, 25.0);
     controls.captureInitialState && controls.captureInitialState();
   }
-
   if (window._showGestureToast) {
     const allSubs = [];
     Object.keys(MODULES).forEach(mk => MODULES[mk].subs.forEach(s => allSubs.push(s)));
     const cur = allSubs.find(s => s.key === subKey);
     if (cur) window._showGestureToast('📍 ' + cur.label);
   }
+  // Geçiş Motoru: yeni sahne için Ayarlar'a göre giriş animasyonu + ses + geri bildirim
+  try {
+    if (window.GECIS && window._currentModelGroup) {
+      const tEl = document.getElementById('infoTitle');
+      const lbl = tEl ? tEl.textContent.split('/').pop().trim() : '';
+      window.GECIS.onScene(window._currentModelGroup, lbl);
+    }
+  } catch(e) {}
 }
 
 function applyModeToLabels() {
@@ -3629,14 +4148,13 @@ function updateInfoPanel(subKey) {
   const data = _resolveLevelData(INFO_DATA[_dataKey(subKey)]);
   if (!data) return;
   document.getElementById('infoEmoji').textContent = data.emoji || '🔦';
-  // Başlık: "Modül ana başlığı / alt başlık" (eğitim seviyesi gösterilmez)
   let mainTitle = '', subTitle = '';
   for (const mk of Object.keys(MODULES)) {
     const s = MODULES[mk].subs.find(x => x.key === subKey);
     if (s) {
-      // Modül ana başlığından emoji ve "Modül N:" kısmını temizle
       mainTitle = (MODULES[mk].title || '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]*Modül\s*\d+:\s*/i, '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]+/, '').trim();
-      // Alt başlık: sahne etiketinden baştaki emojiyi at
+      // Başlığın başındaki eğitim seviyesini ("İlkokul:", "Lise/TYT:" vb.) kaldır → sadece ana konu kalsın
+      mainTitle = mainTitle.replace(/^[^:]*:\s*/, '').trim();
       subTitle = (s.label || '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]+/, '').trim();
       break;
     }
@@ -3646,15 +4164,17 @@ function updateInfoPanel(subKey) {
   const list = document.getElementById('infoList');
   list.innerHTML = '';
   let points = data.points || [];
-  // Sade modda ilk 3, detaylıda hepsi
   const showCount = (currentMode === 'sade') ? 3 : points.length;
+  // Satır başındaki ikon/emojileri temizleyen yardımcı (madde başında ikon olmasın)
+  const stripIcon = (txt) => txt.replace(/^\s*(?:[\p{Extended_Pictographic}️‍⃣]\s*)+/u, '').trim();
   points.slice(0, showCount).forEach(p => {
     const li = document.createElement('li');
-    if (p.startsWith('##')) { li.className = 'subhead'; li.innerHTML = p.replace('##','').trim(); }
-    else li.innerHTML = p;
+    let txt = p;
+    if (txt.startsWith('###')) { li.className = 'subhead2'; txt = txt.replace(/^###/, '').trim(); } // yan başlık → mavi
+    else if (txt.startsWith('##')) { li.className = 'subhead'; txt = txt.replace(/^##/, '').trim(); } // ara başlık → sarı
+    li.innerHTML = stripIcon(txt);
     list.appendChild(li);
   });
-  // içerik değişti → kaydırma çubuğunu yeniden hesapla (layout için çoklu deneme)
   list.scrollTop = 0;
   setTimeout(updateInfoScrollbar, 30);
   setTimeout(updateInfoScrollbar, 150);
@@ -3745,6 +4265,24 @@ function renderCompareTable() {
   window._cmpIdx = 0;
   _showComparePage();
 }
+function _renderCompareHTML(data) {
+  const cols = data.cols || [], rows = data.rows || [];
+  if (cols.length < 2 || rows.length < 1) return _renderTableHTML(data, 'compare-style');
+  const aspectLabel = cols[0];
+  const entities = rows.map(r => r[0]);
+  let html = '<table class="cmp-table compare-style cmp-versus"><thead><tr>';
+  html += `<th class="cmp-aspect">${aspectLabel}</th>`;
+  entities.forEach((e, i) => { html += `<th class="cmp-ent cmp-ent-${i % 4}">${e}</th>`; });
+  html += '</tr></thead><tbody>';
+  for (let c = 1; c < cols.length; c++) {
+    html += `<tr><td class="cmp-aspect-cell">${cols[c]}</td>`;
+    rows.forEach(r => { html += `<td>${(r[c] !== undefined && r[c] !== null) ? r[c] : '—'}</td>`; });
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
 function _showComparePage() {
   const body = document.getElementById('compareBody');
   const titleEl = document.getElementById('compareTitle');
@@ -3760,7 +4298,7 @@ function _showComparePage() {
   const i = window._cmpIdx;
   const data = pages[i];
   if (titleEl) titleEl.textContent = '⚖️ ' + (data.title || 'Karşılaştırma');
-  body.innerHTML = _renderTableHTML(data, 'compare-style');
+  body.innerHTML = _renderCompareHTML(data);
   if (nav) {
     if (pages.length > 1) {
       nav.classList.remove('hidden');
@@ -3822,7 +4360,7 @@ function attachEvents() {
       infoList.addEventListener('scroll', updateInfoScrollbar, { passive: true });
     }
     // tüm popup/panel gövdeleri için de aynı koruma (kaydırılabilir alanlar)
-    ['compareBody','tableBody','scenePanel'].forEach(id => {
+    ['compareBody','tableBody','sceneVarsBody'].forEach(id => {
       const el = document.getElementById(id);
       if (el) ['touchstart','touchmove','touchend','wheel'].forEach(ev => {
         el.addEventListener(ev, (e) => { e.stopPropagation(); }, { passive: true });
@@ -3895,15 +4433,14 @@ function attachEvents() {
     document.getElementById('bottomPanel').classList.add('hidden');
   };
 
-  // -- Bilgi panelini yukari/asagi cekerek genislet/daralt --
+  // ── Bilgi panelini büyüt/küçült: ince çubuğu YUKARI/AŞAĞI SÜRÜKLE (parmağı takip eder) ──
   (function(){
     const handle = document.getElementById('infoResizeHandle');
     const panel = document.getElementById('bottomPanel');
     const list = document.getElementById('infoList');
     if (!handle || !panel || !list) return;
-    const MIN_H = 90;
-    const maxH = () => Math.max(MIN_H, Math.round(window.innerHeight * 0.74));
-    let dragging = false, startY = 0, startH = 0;
+    const MIN_H = 70;
+    const maxH = () => Math.max(MIN_H, Math.round(window.innerHeight - 150)); // üst sekmelere kadar
     function curH() {
       const v = getComputedStyle(panel).getPropertyValue('--info-h').trim();
       if (v.endsWith('px')) return parseFloat(v);
@@ -3914,31 +4451,46 @@ function attachEvents() {
       panel.style.setProperty('--info-h', h + 'px');
       if (typeof updateInfoScrollbar === 'function') updateInfoScrollbar();
     }
+    let dragging = false, startY = 0, startH = 0, pid = null;
     function onDown(e) {
       dragging = true; startH = curH();
       startY = (e.touches ? e.touches[0].clientY : e.clientY);
       list.style.transition = 'none';
-      if (window._haptic) window._haptic(12);
-      e.preventDefault(); e.stopPropagation();
+      if (e.pointerId !== undefined) { pid = e.pointerId; try { handle.setPointerCapture(pid); } catch(_){} }
+      if (window._haptic) window._haptic(10);
+      if (e.cancelable) e.preventDefault();
+      e.stopPropagation();
     }
     function onMove(e) {
       if (!dragging) return;
       const y = (e.touches ? e.touches[0].clientY : e.clientY);
-      setH(startH + (startY - y));
-      e.preventDefault();
+      setH(startH + (startY - y)); // yukarı sürükle → büyür
+      if (e.cancelable) e.preventDefault();
     }
-    function onUp() { if (!dragging) return; dragging = false; list.style.transition = ''; }
-    handle.addEventListener('touchstart', onDown, { passive: false });
-    window.addEventListener('touchmove', onMove, { passive: false });
-    window.addEventListener('touchend', onUp);
-    window.addEventListener('touchcancel', onUp);
-    handle.addEventListener('mousedown', onDown);
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    function onUp() {
+      if (!dragging) return;
+      dragging = false; list.style.transition = '';
+      if (pid !== null) { try { handle.releasePointerCapture(pid); } catch(_){} pid = null; }
+    }
+    if (window.PointerEvent) {
+      handle.addEventListener('pointerdown', onDown);
+      handle.addEventListener('pointermove', onMove);
+      handle.addEventListener('pointerup', onUp);
+      handle.addEventListener('pointercancel', onUp);
+    } else {
+      handle.addEventListener('touchstart', onDown, { passive: false });
+      window.addEventListener('touchmove', onMove, { passive: false });
+      window.addEventListener('touchend', onUp);
+      window.addEventListener('touchcancel', onUp);
+      handle.addEventListener('mousedown', onDown);
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    }
+    // çift dokunuş: büyük ↔ normal yükseklik arası geçiş
     let lastTap = 0;
-    handle.addEventListener('click', () => {
+    handle.addEventListener('click', (e) => {
       const now = Date.now();
-      if (now - lastTap < 320) { const big = maxH() - 40; setH(curH() > big - 30 ? Math.round(window.innerHeight*0.24) : big); }
+      if (now - lastTap < 320) { const big = maxH() - 30; setH(curH() > big - 40 ? Math.round(window.innerHeight * 0.24) : big); }
       lastTap = now;
     });
   })();
@@ -4009,10 +4561,15 @@ function attachEvents() {
 
   // Tam ekran
   document.getElementById('btnFs').onclick = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+    const el = document.documentElement;
+    const isFs = document.fullscreenElement || document.webkitFullscreenElement;
+    if (!isFs) {
+      // navigationUI:'hide' → tarayıcı/sistem çubuklarını (üstteki saat/şarj vb.) gizlemeyi iste
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (req) { try { req.call(el, { navigationUI: 'hide' }); } catch(_) { req.call(el); } }
     } else {
-      document.exitFullscreen && document.exitFullscreen();
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) exit.call(document);
     }
     if (window._haptic) window._haptic(15);
   };
@@ -4074,7 +4631,17 @@ function attachEvents() {
   };
 
   // Overlay dışına tıkla → kapat
-  ['shareOverlay','compareOverlay','tableOverlay'].forEach(id => {
+  // "Bu sayfa nasıl çalışır?" yardım penceresi
+  document.getElementById('btnHelp').onclick = () => {
+    closeAllDropdowns();
+    document.getElementById('helpOverlay').classList.add('show');
+    if (window._haptic) window._haptic(12);
+  };
+  document.getElementById('helpClose').onclick = () => {
+    document.getElementById('helpOverlay').classList.remove('show');
+  };
+
+  ['shareOverlay','compareOverlay','tableOverlay','helpOverlay'].forEach(id => {
     const ov = document.getElementById(id);
     ov.onclick = (e) => { if (e.target === ov) ov.classList.remove('show'); };
   });

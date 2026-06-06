@@ -45,14 +45,16 @@
     width:100vw; height:100vh;
     transition:background 0.3s, color 0.3s;
   }
-  body { touch-action:none; }
+  /* touch-action:none YALNIZCA 3B alanda olmalı; body'de olursa alt panel
+     içindeki yazılar kaydırılamaz (atası none olan eleman pan-y olsa bile kayamaz). */
   canvas { display:block; cursor:grab; }
   canvas:active { cursor:grabbing; }
-  #canvasContainer { position:absolute; inset:0; width:100%; height:100%; z-index:1; }
+  #canvasContainer { position:absolute; inset:0; width:100%; height:100%; z-index:1; touch-action:none; }
+  #canvasContainer canvas { touch-action:none; }
 
   .left-stack {
     position:absolute;
-    top:14px; right:14px;
+    top:2px; right:14px;
     z-index:30;
     display:flex; flex-direction:column; gap:8px;
     align-items:flex-end;
@@ -140,7 +142,7 @@
 
   .right-tools {
     position:absolute;
-    top:14px; left:14px;
+    top:2px; left:8px;
     z-index:30;
     display:flex; gap:8px;
     flex-wrap:nowrap;
@@ -167,6 +169,23 @@
 
   .tool-icon-btn.fs { border-color:var(--joint); color:var(--joint); }
   .tool-icon-btn.fs:hover { background:var(--joint); color:#0a1420; }
+  .tool-icon-btn.help { border-color:var(--accent-glow); color:var(--accent-glow); }
+  .tool-icon-btn.help:hover { background:var(--accent-glow); color:#0a1420; }
+  /* "Bu sayfa nasıl çalışır?" yardım penceresi */
+  .help-card { width:min(460px, 94vw) !important; max-height:86vh; overflow-y:auto; }
+  .help-sec-title {
+    font-family:'Baloo 2', cursive; font-weight:800; font-size:13px;
+    color:var(--accent-glow); margin:13px 2px 6px; letter-spacing:0.3px;
+    border-top:1px solid var(--panel-line); padding-top:11px;
+  }
+  .help-sec-title:first-child { border-top:none; margin-top:2px; padding-top:0; }
+  .help-row {
+    display:flex; gap:10px; align-items:flex-start;
+    padding:5px 4px; font-size:13px; color:var(--ink); line-height:1.42;
+  }
+  .help-row .he { font-size:17px; flex-shrink:0; width:24px; text-align:center; }
+  .help-row b { color:var(--accent-glow); font-weight:700; }
+  .help-intro { font-size:12.5px; color:var(--ink-soft); line-height:1.45; padding:2px 4px 6px; }
   .tool-icon-btn.send { border-color:var(--warning); color:var(--warning); }
   .tool-icon-btn.send:hover { background:var(--warning); color:#0a1420; }
   .tool-icon-btn.theme { border-color:var(--cartilage); color:var(--cartilage); }
@@ -180,17 +199,40 @@
   .tool-icon-btn.table:hover { background:var(--bone); color:#0a1420; }
   .bottom-panel {
     position:absolute;
-    bottom:10px;
-    left:14px; right:14px;
+    bottom:6px;
+    left:3px; right:3px;
     z-index:25;
     background:var(--panel);
     border:2px solid var(--panel-line);
     border-radius:12px;
-    padding:9px 12px 8px;
+    padding:9px 10px 8px;
     box-shadow:0 -6px 24px rgba(0,0,0,0.4);
     display:flex; flex-direction:column; gap:8px;
+    touch-action:auto;
   }
   .bottom-panel.hidden { display:none; }
+
+  /* Bilgi panelini büyüt/küçült: bilgi çerçevesinin tam üstünde YAN YANA ▲▼ ok (sürükle-bırak).
+     Yukarı/aşağı sürükle → panel büyür/küçülür. Dokunma hedefi geniş, görünen kısım sade iki ok. */
+  .info-resize-handle {
+    position:absolute;
+    top:-19px; left:50%; transform:translateX(-50%);
+    width:100px; height:28px;
+    display:flex; flex-direction:row; align-items:center; justify-content:center;
+    gap:7px;
+    cursor:ns-resize; touch-action:none; z-index:4;
+    background:transparent; border:none; padding:0;
+    color:var(--accent);
+  }
+  .info-resize-handle span {
+    font-size:12px; line-height:1; opacity:0.82; pointer-events:none;
+    text-shadow:0 1px 3px rgba(0,0,0,0.5);
+    transition:opacity 0.15s ease, transform 0.15s ease, color 0.15s ease;
+  }
+  .info-resize-handle:hover span { opacity:1; }
+  .info-resize-handle:active span { opacity:1; color:var(--accent-glow); }
+  .info-resize-handle:active .rz-up { transform:translateY(-2px); }
+  .info-resize-handle:active .rz-down { transform:translateY(2px); }
 
   .info-close-btn {
     position:absolute;
@@ -239,23 +281,24 @@
   }
   .info-title {
     font-family:'Baloo 2', cursive; font-weight:800;
-    font-size:12.5px;
+    font-size:14px;
     color:var(--accent-glow);
   }
   .nav-buttons {
-    display:flex; gap:4px;
+    display:flex; gap:8px;
   }
   .nav-mini-btn {
-    width:19px; height:19px;
+    width:34px; height:34px;
     background:var(--panel-soft);
-    border:1.5px solid var(--accent);
-    border-radius:5px;
+    border:2px solid var(--accent);
+    border-radius:9px;
     cursor:pointer;
     display:grid; place-items:center;
     color:var(--accent);
-    font-size:9px;
+    font-size:15px;
     transition:all 0.12s;
   }
+  .nav-mini-btn:active { transform:scale(0.9); }
   .nav-mini-btn:hover {
     background:var(--accent);
     color:#0a1420;
@@ -263,58 +306,80 @@
   .info-list {
     list-style:none;
     padding:0; margin:0;
-    max-height:22vh;
+    max-height:var(--info-h, 24vh);
+    transition:max-height 0.12s ease;
     overflow-y:auto;
     overflow-x:hidden;
     -webkit-overflow-scrolling:touch;
     touch-action:pan-y;
     overscroll-behavior:contain;
     scrollbar-width:thin;
-    scrollbar-color:var(--accent) transparent;
-    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%);
-    mask-image: linear-gradient(to bottom, transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%);
-    padding-right:4px;
+    scrollbar-color:var(--accent) rgba(255,255,255,0.15);
+    padding-right:6px;
   }
-  .info-list::-webkit-scrollbar { width:5px; }
-  .info-list::-webkit-scrollbar-thumb { background:var(--accent); border-radius:3px; }
-  .info-list::-webkit-scrollbar-track { background:rgba(255,255,255,0.06); border-radius:3px; }
+  .info-list::-webkit-scrollbar { width:9px; background:rgba(255,255,255,0.1); border-radius:5px; }
+  .info-list::-webkit-scrollbar-track { background:rgba(255,255,255,0.1); border-radius:5px; }
+  .info-list::-webkit-scrollbar-thumb { background:var(--accent); border-radius:5px; border:2px solid rgba(15,20,30,0.6); min-height:28px; }
+  .info-scroll-wrap { position:relative; }
+  /* özel görsel çubuk (native gizlenen platformlar için yedek) */
+  .info-scrollbar {
+    position:absolute; top:2px; right:0; bottom:2px; width:7px;
+    background:rgba(255,255,255,0.15); border-radius:5px;
+    opacity:0; transition:opacity 0.2s; pointer-events:none; z-index:2;
+  }
+  .info-scrollbar.visible { opacity:1; }
+  .info-scrollthumb {
+    position:absolute; left:0; right:0; top:0; min-height:26px;
+    background:var(--accent); border-radius:5px;
+    border:1px solid rgba(0,0,0,0.3);
+  }
   .info-list li {
-    padding:1px 0 1px 11px;
+    padding:3px 0 3px 15px;
     margin-bottom:0;
     background:transparent;
     border:none;
     border-radius:0;
-    font-size:10.5px;
-    line-height:1.32;
+    font-size:12px;
+    line-height:1.5;
     color:var(--ink);
     position:relative;
   }
+  /* Madde başında küçük MAVİ nokta */
   .info-list li::before {
     content:'•';
+    color:var(--joint);
     position:absolute;
-    left:2px; top:1px;
-    color:var(--accent);
-    font-weight:700;
-    font-size:11px;
+    left:3px; top:3px;
+    font-size:13px; line-height:1.45;
   }
   .info-list li b {
     color:var(--accent-glow);
     font-weight:700;
   }
+  /* Ara başlık (##) → SARI, nokta yok */
   .info-list li.subhead {
     background:transparent;
     border-left:none;
     color:var(--warning);
     font-weight:700;
-    font-size:11.5px;
+    font-size:12px;
     margin-top:5px;
     margin-bottom:2px;
     padding:0 0 1px 0;
     font-style:normal;
   }
-  .info-list li.subhead::before {
-    content:'';
+  .info-list li.subhead::before { content:''; }
+  /* Yan başlık (###) → MAVİ, nokta yok */
+  .info-list li.subhead2 {
+    background:transparent;
+    color:var(--joint);
+    font-weight:700;
+    font-size:12px;
+    margin-top:4px;
+    margin-bottom:1px;
+    padding:0 0 1px 0;
   }
+  .info-list li.subhead2::before { content:''; }
 
   .action-row {
     display:grid;
@@ -344,7 +409,19 @@
     background:linear-gradient(135deg, var(--cartilage), #7a5fb8);
   }
   .action-btn.anim {
-    background:linear-gradient(135deg, var(--muscle), #a04545);
+    background:linear-gradient(135deg, #2ecc71, #1ba85c);
+    color:#06281a;
+    box-shadow:0 0 14px rgba(46,204,113,0.5);
+    animation:animPulse 1.8s ease-in-out infinite;
+  }
+  @keyframes animPulse {
+    0%,100% { box-shadow:0 0 10px rgba(46,204,113,0.4); }
+    50% { box-shadow:0 0 18px rgba(46,204,113,0.75); transform:scale(1.02); }
+  }
+  .action-btn.anim.active {
+    background:linear-gradient(135deg, #e74c3c, #c0392b);
+    color:#fff;
+    animation:none;
   }
   .action-btn.active {
     box-shadow:0 0 0 2px #fff, 0 0 12px rgba(255,255,255,0.4);
@@ -498,6 +575,14 @@
   .cmp-table th:nth-child(3),
   .cmp-table th:nth-child(4) { border-left:1px dashed rgba(255,255,255,0.3); }
   .cmp-table tr:hover td { background:rgba(246,185,59,0.20) !important; }
+  /* Karşılaştırma (versus): karşılaştırılan varlıklar SÜTUN başlığında ayrı renkte */
+  .cmp-versus th.cmp-aspect { background:linear-gradient(135deg,#3a4668,#2a3450); color:var(--ink); text-shadow:none; }
+  .cmp-versus th.cmp-ent { color:#0a1420; }
+  .cmp-versus th.cmp-ent-0 { background:linear-gradient(135deg,#ffd166,#f6b93b); }
+  .cmp-versus th.cmp-ent-1 { background:linear-gradient(135deg,#7adcf0,#3aa0c8); }
+  .cmp-versus th.cmp-ent-2 { background:linear-gradient(135deg,#cbb3ff,#9d7fe6); }
+  .cmp-versus th.cmp-ent-3 { background:linear-gradient(135deg,#a6e3a1,#5fb377); }
+  .cmp-versus td.cmp-aspect-cell { font-weight:700; color:var(--ink); white-space:nowrap; border-right:2px solid var(--accent); background:rgba(255,255,255,0.05); }
   .cmp-no-data {
     text-align:center;
     padding:24px 12px;
@@ -574,14 +659,15 @@
 
   @media (max-width:600px) {
     .stack-btn { min-width:140px; font-size:11px; padding:7px 11px; }
-    .stack-btn .sb-label { font-size:11px; }
+    .stack-btn .sb-label, .sp-toggle .sb-label { font-size:11px; }
+    .sp-toggle { font-size:11px; padding:7px 11px; min-width:140px; }
     .right-tools { gap:5px; left:8px; }
     .tool-icon-btn { width:34px; height:34px; font-size:14px; border-radius:9px; }
-    .bottom-panel { padding:11px 12px 9px; gap:9px; }
+    .bottom-panel { padding:11px 10px 9px; gap:9px; }
     .info-emoji-box { width:36px; height:36px; font-size:20px; }
-    .info-title { font-size:13px; }
-    .info-list li { font-size:11.5px; padding:4px 7px; }
-    .info-list { max-height:26vh; }
+    .info-title { font-size:14px; }
+    .info-list li { font-size:12px; padding:3px 0 3px 15px; }
+    .info-list { max-height:var(--info-h, 28vh); }
     .action-btn { font-size:11px; padding:7px 8px; }
     .dropdown-panel { min-width:200px; }
     .dropdown-item { font-size:11.5px; padding:7px 9px; }
@@ -589,12 +675,14 @@
   }
   @media (max-width:420px) {
     .stack-btn { min-width:130px; font-size:10.5px; padding:6px 9px; }
+    .sp-toggle { font-size:10.5px; padding:6px 9px; min-width:130px; }
     .right-tools { gap:4px; left:6px; }
     .tool-icon-btn { width:30px; height:30px; font-size:13px; border-radius:8px; border-width:1.5px; }
     #panelMode { left:6px !important; }
   }
   @media (max-width:360px) {
     .stack-btn { min-width:115px; font-size:10px; padding:5px 8px; }
+    .sp-toggle { font-size:10px; padding:5px 8px; min-width:115px; }
     .right-tools { gap:3px; left:5px; }
     .tool-icon-btn { width:28px; height:28px; font-size:12px; }
     #panelMode { left:5px !important; }
@@ -604,45 +692,45 @@
     display: none !important;
   }
 
-  .scene-panel {
-    position: fixed;
-    right: 12px;
-    top: 120px;
-    width: 280px;
-    max-height: calc(100vh - 120px - 220px);
-    overflow-y: auto;
-    background: rgba(15, 20, 30, 0.88);
-    border: 1px solid rgba(246, 185, 59, 0.35);
-    border-radius: 14px;
-    padding: 10px;
-    z-index: 40;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-    font-size: 11.5px;
-    color: rgba(255, 255, 255, 0.92);
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    transition: all 0.3s ease;
-  }
-  .scene-panel.collapsed {
-    width: auto;
-    padding: 6px 10px;
-  }
-  .scene-panel.collapsed > *:not(.sp-toggle) { display: none; }
-  .scene-panel.empty { display: none; }
+  /* Eğitim Seviyesi (üstte) altında: Değişkenler + Konu Rehberi AYNI SATIRDA,
+     Değişkenler solda. Üçü de aynı ebat (stack-btn / sp-toggle). */
+  .stack-row { display: flex; gap: 8px; align-items: flex-start; }
 
-  body.dropdown-open .scene-panel {
-    transform: none;
+  /* Değişkenler içeriği: sekmenin hemen altında, TAM GENİŞLİK (telefon solu→sağı),
+     kontroller YATAY yan yana (flex-wrap). */
+  .scene-vars-body {
+    position: fixed;
+    left: 6px; right: 6px;
+    top: 92px; /* JS ile sekmenin altına hizalanır */
+    z-index: 39;
+    display: flex; flex-wrap: wrap; align-items: stretch;
+    gap: 7px;
+    background: rgba(15, 20, 30, 0.96);
+    border: 1.5px solid var(--panel-line);
+    border-radius: 12px;
+    padding: 8px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    max-height: 46vh; overflow-y: auto;
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 10px;
   }
+  .scene-vars-body.closed { display: none; }
+  .scene-vars-body .sp-section { flex-basis: 100%; margin: 2px 4px 0; }
+  .scene-vars-body .sp-slider-row { flex: 1 1 150px; min-width: 132px; max-width: 260px; }
+  .scene-vars-body .sp-display { flex: 1 1 120px; min-width: 108px; }
+  .scene-vars-body .sp-presets { flex-basis: 100%; }
+  .scene-vars-body .sp-formula { flex-basis: 100%; font-size: 11px; }
+  /* Dar yatay kartlarda yazılar sığsın */
+  .scene-vars-body .sp-slider-row .sp-slider-head { font-size: 10px; }
+  .scene-vars-body .sp-slider-row .sp-slider-head .sp-val { font-size: 10px; min-width: 40px; padding: 2px 5px; }
+  .scene-vars-body .sp-display { font-size: 9.5px; }
+  .scene-vars-body .sp-preset-btn { font-size: 10px; }
 
   @media (min-width: 768px) {
     canvas {
       transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    body.scene-panel-open canvas {
-      transform: translateX(-15vw);
     }
     body.panel-open canvas {
       transform: translateX(-22vw);
@@ -685,44 +773,51 @@
     padding: 0 4px;
     font-size: 11px;
   }
+  /* Sekme: TURUNCU; Lise/Konu Rehberi ile aynı boyut/yapı (ikon başta, ok sağda) */
   .sp-toggle {
-    background: rgba(246, 185, 59, 0.18);
-    border: 1px solid rgba(246, 185, 59, 0.5);
+    background: linear-gradient(135deg, #f59f0a, #f97316);
+    border: 2px solid rgba(255, 184, 92, 0.6);
     color: #fff;
-    font-size: 12px;
+    font-family: 'Fredoka', sans-serif;
+    font-size: 12.5px;
     font-weight: 600;
-    padding: 8px 12px;
-    border-radius: 10px;
+    padding: 8px 14px;
+    border-radius: 12px;
     cursor: pointer;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    width: 100%;
+    gap: 7px;
+    min-width: 170px; /* Konu Rehberi (stack-btn) ile aynı ebat */
+    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.35);
+    transition: all 0.15s;
   }
-  .sp-toggle:hover { background: rgba(246, 185, 59, 0.32); }
+  .sp-toggle:hover { border-color: #fff; }
+  .sp-toggle:active { transform: scale(0.97); }
+  .sp-toggle .sb-emoji { font-size: 16px; line-height: 1; flex-shrink: 0; }
+  .sp-toggle .sb-label { flex: 1; text-align: left; }
+  .sp-chev { font-size: 10px; opacity: 0.9; }
   .sp-section {
-    font-size: 10px; font-weight: 700;
+    font-size: 9px; font-weight: 700;
     color: rgba(255, 209, 90, 0.85);
     text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin: 6px 4px 2px 4px;
+    letter-spacing: 0.6px;
+    margin: 5px 4px 2px 4px;
   }
 
   .sp-slider-row {
     display: flex; flex-direction: column; gap: 4px;
-    padding: 8px 10px;
+    padding: 6px 8px;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 10px;
   }
   .sp-slider-row .sp-slider-head {
     display: flex; justify-content: space-between; align-items: center;
-    font-size: 11.5px; font-weight: 500;
+    font-size: 10.5px; font-weight: 500;
   }
   .sp-slider-row .sp-slider-head .sp-val {
     font-family: 'Consolas', monospace;
-    font-size: 12px; font-weight: 700;
+    font-size: 11px; font-weight: 700;
     color: #FFD54F;
     background: rgba(0,0,0,0.45);
     padding: 2px 8px;
@@ -765,16 +860,16 @@
 
   .sp-display {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 7px 10px;
+    padding: 6px 8px;
     background: rgba(246, 185, 59, 0.10);
     border: 1px solid rgba(246, 185, 59, 0.28);
     border-radius: 9px;
-    font-size: 11px;
+    font-size: 10px;
   }
   .sp-display .sp-label { color: rgba(255,255,255,0.85); }
   .sp-display .sp-val {
     font-family: 'Consolas', monospace;
-    font-size: 12px; font-weight: 700; color: #FFE082;
+    font-size: 11px; font-weight: 700; color: #FFE082;
     background: rgba(0,0,0,0.35); padding: 2px 8px; border-radius: 6px;
   }
   .sp-display.highlight {
@@ -815,18 +910,23 @@
   }
 
   @media (max-width: 768px) {
-    .scene-panel {
-      right: 8px;
-      top: 110px;
-      width: 200px;
-      font-size: 10.5px;
-      padding: 8px;
-    }
-    .sp-slider-row { padding: 6px 8px; }
+    .sp-slider-row { padding: 5px 7px; }
     .sp-slider-row input[type=range] { height: 5px; }
   }
 
-  body.panel-open .scene-panel { }
+  /* Değişkenler paneli TAM ŞEFFAF — açıkken 3D model arkada görünmeye devam eder */
+  .scene-vars-body {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.85);
+  }
+  .scene-vars-body .sp-slider-row,
+  .scene-vars-body .sp-display,
+  .scene-vars-body .sp-formula,
+  .scene-vars-body .sp-preset-btn { background: rgba(0, 0, 0, 0.30); }
 </style>
 </head>
 <body>
@@ -867,7 +967,7 @@
 </div>
 
 <div id="regionList" class="region-list"></div>
-<div id="scenePanel" class="scene-panel"></div>
+<div id="sceneVarsBody" class="scene-vars-body closed"></div>
 
 <div id="gestureToast" style="
   position:fixed; top:90px; left:50%; transform:translateX(-50%) translateY(-20px);
@@ -887,14 +987,17 @@
     <span class="sb-label" id="levelLabel">Lise</span>
     <span class="sb-arrow">▼</span>
   </button>
-  <button class="stack-btn topic" id="btnTopic">
-    <span class="sb-emoji">📚</span>
-    <span class="sb-label">Konu Rehberi</span>
-    <span class="sb-arrow">▼</span>
-  </button>
+  <div class="stack-row" id="stackRow">
+    <!-- Değişkenler sekmesi (sp-toggle) JS ile buraya, Konu Rehberi'nin SOLUNA eklenir -->
+    <button class="stack-btn topic" id="btnTopic">
+      <span class="sb-emoji">📚</span>
+      <span class="sb-label">Konu Rehberi</span>
+      <span class="sb-arrow">▼</span>
+    </button>
+  </div>
 </div>
 
-<div class="dropdown-panel" id="panelLevel" style="top:60px; right:14px;">
+<div class="dropdown-panel" id="panelLevel" style="top:48px; right:14px; max-height:70vh; overflow-y:auto;">
   <div class="dropdown-title">🎓 Eğitim Seviyesi</div>
   <button class="dropdown-item" data-level="ilkokul"><span class="di-emoji">🧒</span>İlkokul</button>
   <button class="dropdown-item" data-level="ortaokul"><span class="di-emoji">🎒</span>Ortaokul</button>
@@ -902,7 +1005,7 @@
   <button class="dropdown-item" data-level="tyt_ayt"><span class="di-emoji">🎯</span>TYT-AYT</button>
 </div>
 
-<div class="dropdown-panel" id="panelTopic" style="top:106px; right:14px;">
+<div class="dropdown-panel" id="panelTopic" style="top:92px; right:14px;">
   <div class="dropdown-title">📚 Konu Rehberi</div>
   <div id="topicList"></div>
 </div>
@@ -914,15 +1017,17 @@
   <button class="tool-icon-btn theme" id="btnTheme" title="Tema değiştir">🌙</button>
   <button class="tool-icon-btn send" id="btnSend" title="Gönder/Paylaş">📤</button>
   <button class="tool-icon-btn fs" id="btnFs" title="Tam ekran">⛶</button>
+  <button class="tool-icon-btn help" id="btnHelp" title="Bu sayfa nasıl çalışır?">❓</button>
 </div>
 
-<div class="dropdown-panel" id="panelMode" style="top:60px; left:14px;">
+<div class="dropdown-panel" id="panelMode" style="top:48px; left:8px;">
   <div class="dropdown-title">📚 Görünüm Modu</div>
   <button class="dropdown-item" data-mode="detayli"><span class="di-emoji">📚</span><span><b>Detaylı</b><br><small style="opacity:0.7;font-size:10.5px;">Daha çok bilgi</small></span></button>
   <button class="dropdown-item active" data-mode="sade"><span class="di-emoji">📄</span><span><b>Sade</b><br><small style="opacity:0.7;font-size:10.5px;">Sadece temel bilgiler</small></span></button>
 </div>
 
 <div class="bottom-panel" id="bottomPanel">
+  <div class="info-resize-handle" id="infoResizeHandle" title="Yukarı/aşağı sürükleyerek büyüt/küçült"><span class="rz-up">▲</span><span class="rz-down">▼</span></div>
   <button class="info-close-btn" id="infoCloseBtn" title="Bilgi panelini kapat">✕</button>
   <div class="info-area">
     <div class="info-emoji-box" id="infoEmoji" style="display:none;">🔦</div>
@@ -934,7 +1039,10 @@
           <button class="nav-mini-btn" id="navNext" title="Sonraki">▶</button>
         </div>
       </div>
-      <ul class="info-list" id="infoList"></ul>
+      <div class="info-scroll-wrap">
+        <ul class="info-list" id="infoList"></ul>
+        <div class="info-scrollbar" id="infoScrollbar"><div class="info-scrollthumb" id="infoScrollThumb"></div></div>
+      </div>
     </div>
   </div>
 
@@ -1023,6 +1131,39 @@
   </div>
 </div>
 
+<div class="share-overlay" id="helpOverlay">
+  <div class="share-card help-card">
+    <div class="share-head">
+      <div class="share-head-text">❓ Bu Sayfa Nasıl Çalışır?</div>
+      <button class="share-close-btn" id="helpClose">✕</button>
+    </div>
+    <div class="help-intro">3 boyutlu modeli parmaklarınla incele; üstteki menülerden seviye ve konu seç; alttaki panelden bilgileri oku.</div>
+
+    <div class="help-sec-title">🖐️ Dokunma Hareketleri</div>
+    <div class="help-row"><span class="he">👆</span><span><b>Döndür:</b> tek parmakla sürükle</span></div>
+    <div class="help-row"><span class="he">✌️</span><span><b>Yakınlaştır:</b> iki parmağı aç/kapa — istediğin yere odaklanır</span></div>
+    <div class="help-row"><span class="he">🤏</span><span><b>Taşı:</b> iki parmağı birlikte kaydır</span></div>
+    <div class="help-row"><span class="he">👆👆</span><span><b>Çift dokun:</b> dokunduğun noktaya yakınlaş</span></div>
+    <div class="help-row"><span class="he">🖐️</span><span><b>Sıfırla:</b> üç parmakla dokun</span></div>
+
+    <div class="help-sec-title">🧭 Üst Menüler</div>
+    <div class="help-row"><span class="he">🎓</span><span><b>Eğitim Seviyesi</b> (sağ üst): İlkokul / Ortaokul / Lise / Sınav</span></div>
+    <div class="help-row"><span class="he">📚</span><span><b>Konu Rehberi</b> (sağ üst): konular arasında geç</span></div>
+    <div class="help-row"><span class="he">📄</span><span><b>Görünüm Modu</b> (sol üst): Sade / Detaylı bilgi</span></div>
+    <div class="help-row"><span class="he">🎛️</span><span><b>Değişkenler</b> (Konu Rehberi'nin altında): sahnedeki kaydırıcı ve seçenekler — konu değişince kısa görünür, dokununca açılır</span></div>
+
+    <div class="help-sec-title">🛠️ Araçlar (sol üst)</div>
+    <div class="help-row"><span class="he">⚖️</span><span><b>Karşılaştırma</b> &nbsp;·&nbsp; <span class="he" style="display:inline">📋</span> <b>Bilgi Tablosu</b></span></div>
+    <div class="help-row"><span class="he">🌙</span><span><b>Tema</b> &nbsp;·&nbsp; 📤 <b>Paylaş</b> &nbsp;·&nbsp; ⛶ <b>Tam ekran</b></span></div>
+
+    <div class="help-sec-title">📖 Alt Bilgi Paneli</div>
+    <div class="help-row"><span class="he">⇕</span><span><b>Tutamacı sürükle:</b> paneli büyüt / küçült</span></div>
+    <div class="help-row"><span class="he">📜</span><span><b>Kaydır:</b> yazılar sığmazsa panel içinde yukarı/aşağı kaydır</span></div>
+    <div class="help-row"><span class="he">◀▶</span><span><b>Önceki / Sonraki</b> konuya geç</span></div>
+    <div class="help-row"><span class="he">🔄</span><span><b>Döndür</b> · 🏷️ <b>Etiketler</b> · ▶️ <b>Çalıştır</b> (animasyon)</span></div>
+  </div>
+</div>
+
 <div id="canvasContainer">
   <svg id="leaderLines" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:9;"></svg>
 </div>
@@ -1067,6 +1208,121 @@ setTimeout(function() {
 </script>
 
 <script src="./three.global.js"></script>
+<!-- CC0 hazır 3D modeller (base64 gömülü) + GLB yükleyici -->
+<script src="./gltf-loader.global.js"></script>
+<script src="./models/fener.glb.js"></script>
+
+<!-- ===== GEÇİŞ MOTORU: Ayarlar'a (Geçiş Stüdyosu) göre sahne geçiş animasyonu + ses + geri bildirim ===== -->
+<script>
+(function(){
+  const DEF={ level:'karisik', enterMode:'rastgele', exitMode:'rastgele', speed:1.0, overlap:true, sound:true, stereo:true, emoji:false, title:false, confetti:false, calm:false };
+  function readS(){ let S=Object.assign({},DEF); try{ const v=localStorage.getItem('gecisAyar3'); if(v) S=Object.assign({},DEF,JSON.parse(v)); }catch(e){} return S; }
+
+  // CSS (emoji/uçan başlık/konfeti) bir kez enjekte
+  if(!document.getElementById('gecisFxCss')){ const st=document.createElement('style'); st.id='gecisFxCss'; st.textContent=
+    ".gx-emoji{position:fixed;z-index:120;pointer-events:none;font-size:clamp(40px,9vw,64px);filter:drop-shadow(0 6px 12px rgba(0,0,0,.45));}"+
+    ".gx-emoji.happy{animation:gxHappy 1.5s cubic-bezier(.2,.9,.3,1.1) forwards;}"+
+    "@keyframes gxHappy{0%{opacity:0;transform:translate(-50%,-20%) scale(.2) rotate(-12deg);}22%{opacity:1;transform:translate(-50%,-78%) scale(1.25) rotate(8deg);}45%{transform:translate(-50%,-70%) scale(1);}100%{opacity:0;transform:translate(-50%,-108%) scale(.85);}}"+
+    ".gx-title{position:fixed;top:26%;left:50%;z-index:118;pointer-events:none;font-weight:800;font-size:clamp(20px,4.6vw,36px);color:#fff;text-shadow:0 3px 18px rgba(90,209,255,.55),0 1px 3px rgba(0,0,0,.6);font-family:'Baloo 2',sans-serif;animation:gxTitle 2s ease forwards;}"+
+    "@keyframes gxTitle{0%{opacity:0;transform:translate(-30%,0) scale(.9);}18%{opacity:1;transform:translate(-50%,0) scale(1);}80%{opacity:1;transform:translate(-50%,0) scale(1);}100%{opacity:0;transform:translate(-62%,0) scale(.96);}}"+
+    ".gx-conf{position:fixed;top:30%;z-index:119;pointer-events:none;width:9px;height:14px;border-radius:2px;}"+
+    "@keyframes gxConf{0%{opacity:1;transform:translateY(0) rotate(0);}100%{opacity:0;transform:translateY(300px) rotate(560deg);}}";
+    (document.head||document.documentElement).appendChild(st); }
+
+  // ---- SES (WebAudio) ----
+  let actx=null, pan=0;
+  const TH={ ilkokul:{p:1.18,g:1.12}, ortaokul:{p:1.0,g:1.0}, lise:{p:0.84,g:0.82}, karisik:{p:1.0,g:1.0} };
+  function th(S){ return TH[S.level]||TH.karisik; }
+  function ensure(){ try{ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==='suspended') actx.resume(); }catch(e){} return actx; }
+  function pn(a,S){ try{ const p=a.createStereoPanner(); p.pan.value=S.stereo?pan:0; return p; }catch(e){ return a.createGain(); } }
+  function blip(S,freq,t0,dur,type,g,slide){ const a=ensure(); if(!a)return; const t=th(S); freq*=t.p; if(slide)slide*=t.p; g=(g||0.16)*t.g; const o=a.createOscillator(),gn=a.createGain(),p=pn(a,S); o.type=type||'sine'; const T=a.currentTime+t0; o.frequency.setValueAtTime(freq,T); if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(1,slide),T+dur); gn.gain.setValueAtTime(0.0001,T); gn.gain.exponentialRampToValueAtTime(g,T+0.012); gn.gain.exponentialRampToValueAtTime(0.0001,T+dur); o.connect(gn).connect(p).connect(a.destination); o.start(T); o.stop(T+dur+0.03); }
+  function noise(S,t0,dur,g,filt,type,sweep){ const a=ensure(); if(!a)return; const T=a.currentTime+t0; const n=a.createBufferSource(),buf=a.createBuffer(1,Math.max(1,a.sampleRate*dur),a.sampleRate),d=buf.getChannelData(0); for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1; n.buffer=buf; const f=a.createBiquadFilter(); f.type=type||'lowpass'; f.frequency.setValueAtTime(filt||1200,T); if(sweep)f.frequency.exponentialRampToValueAtTime(Math.max(20,sweep),T+dur); const gn=a.createGain(),p=pn(a,S); gn.gain.setValueAtTime((g||0.12)*th(S).g,T); gn.gain.exponentialRampToValueAtTime(0.0001,T+dur); n.connect(f).connect(gn).connect(p).connect(a.destination); n.start(T); n.stop(T+dur+0.03); }
+  const ESND={ don(S){ blip(S,200,0,0.55,'sawtooth',0.10,820); }, balon(S){ blip(S,380,0,0.14,'sine',0.2,920); blip(S,920,0.12,0.07,'sine',0.1); }, zipla(S){ blip(S,160,0,0.22,'triangle',0.22,520); blip(S,520,0.18,0.12,'sine',0.12,260); }, uzaydan(S){ noise(S,0,0.4,0.12,3000,'highpass',300); blip(S,900,0.34,0.18,'sine',0.14); }, sagdan(S){ noise(S,0,0.5,0.10,400,'lowpass',2200); blip(S,300,0.1,0.4,'sine',0.12,760); }, yerden(S){ blip(S,70,0,0.6,'sine',0.2,320); noise(S,0,0.55,0.07,400,'lowpass',1600); }, buyu(S){ [392,523,659,880].forEach((f,i)=>blip(S,f,i*0.08,0.14,'triangle',0.12)); } };
+  function vedaSound(S){ pan=-0.5; [523,440,392,294].forEach((f,i)=>blip(S,f,i*0.10,0.16,'triangle',0.10)); pan=0; }
+
+  // ---- Geri bildirim ----
+  const EMO={ ilkokul:['😄','🤩','🥳','🎉','😍','🙌'], ortaokul:['😄','😎','🤩','✨','👍','🔥'], lise:['🙂','😌','👍','✨','🎯','🆕'], karisik:['😄','🤩','🥳','😍','🎉','✨'] };
+  function emoji(S){ if(!S.emoji)return; const pool=EMO[S.level]||EMO.karisik; const el=document.createElement('div'); el.className='gx-emoji happy'; el.style.left='62%'; el.style.top='40%'; el.textContent=pool[Math.floor(Math.random()*pool.length)]; document.body.appendChild(el); setTimeout(()=>el.remove(),1550); }
+  function flyTitle(S,t){ if(!S.title||!t)return; const el=document.createElement('div'); el.className='gx-title'; el.textContent=t; document.body.appendChild(el); setTimeout(()=>el.remove(),2050); }
+  function confetti(){ const cols=['#ff5b6b','#ffcf5a','#5ad1ff','#66bb6a','#ab47bc','#ff8ab0']; for(let i=0;i<22;i++){ const d=document.createElement('div'); d.className='gx-conf'; d.style.left=(36+Math.random()*28)+'%'; d.style.background=cols[i%cols.length]; const du=1.1+Math.random()*0.7; d.style.animation='gxConf '+du+'s ease-in '+(Math.random()*0.2)+'s forwards'; document.body.appendChild(d); setTimeout(()=>d.remove(),(du+0.4)*1000); } try{ navigator.vibrate&&navigator.vibrate(30); }catch(e){} }
+
+  // ====== ENTER EFEKTLERİ (model parçaları + sahne FX üzerinde; window.THREE/scene) ======
+  const ez=t=>t*t*(3-2*t);
+  const clamp=(v,a,b)=>{a=(a===undefined?0:a);b=(b===undefined?1:b);return v<a?a:v>b?b:v;};
+  function eBack(x){ const c1=1.70158,c3=c1+1; return 1+c3*Math.pow(x-1,3)+c1*Math.pow(x-1,2); }
+  function eBounce(x){ const n1=7.5625,d1=2.75; if(x<1/d1)return n1*x*x; if(x<2/d1){x-=1.5/d1;return n1*x*x+0.75;} if(x<2.5/d1){x-=2.25/d1;return n1*x*x+0.9375;} x-=2.625/d1; return n1*x*x+0.984375; }
+  const T=()=>window.THREE, SC=()=>window.scene;
+  function gh(o){ return {px:o.position.x,py:o.position.y,pz:o.position.z,sx:o.scale.x,sy:o.scale.y,sz:o.scale.z,rx:o.rotation.x,ry:o.rotation.y,rz:o.rotation.z}; }
+  function setT(o,h){ o.position.set(h.px,h.py,h.pz); o.scale.set(h.sx,h.sy,h.sz); o.rotation.set(h.rx,h.ry,h.rz); }
+  function pOpacity(piece,a){ piece.traverse(o=>{ if(o.isMesh&&o.material){ o.material.transparent=a<1; o.material.opacity=a; } }); piece.visible=a>0.005; }
+  function setOpacityMs(ms,a){ ms.forEach(m=>{ if(m.material){ m.material.transparent=a<1; m.material.opacity=a; } }); }
+  // root'tan model alt-gruplarını ayıkla (ışık/grid mesh değil → otomatik hariç;
+  // ETİKET grubu da hariç → etiketler geçişten etkilenmez, hep görünür kalır)
+  function capture(group){ const mk=group.children.filter(ch=>{ if(ch.userData._gxFx||ch.userData.isLabelGroup)return false; let h=false; ch.traverse(o=>{ if(o.isMesh)h=true; }); return h; });
+    let pc=[]; mk.forEach(g=>g.children.forEach(c=>pc.push(c))); if(pc.length<2) pc=mk.slice();
+    const ms=[]; mk.forEach(g=>g.traverse(o=>{ if(o.isMesh)ms.push(o); }));
+    mk.forEach(o=>o.userData._gh=gh(o)); pc.forEach(o=>{ o.userData._gh=gh(o); });
+    ms.forEach(m=>{ if(m.material){ m.userData._go={op:(m.material.opacity!==undefined?m.material.opacity:1),tr:!!m.material.transparent,he:!!m.material.emissive,em:m.material.emissive?m.material.emissive.getHex():0,ei:m.material.emissiveIntensity||0}; m.material.transparent=true; } });
+    return {mk,pc,ms,sceneFx:[],tmp:{}}; }
+  function bounds(fx){ const TT=T(); const b=new TT.Box3(); fx.mk.forEach(g=>{ try{ b.expandByObject(g); }catch(e){} }); if(b.isEmpty()) b.set(new TT.Vector3(-1,-1,-1),new TT.Vector3(1,1,1)); return b; }
+  function addFx(fx,m){ m.userData._gxFx=true; m.userData.dynamic=true; const sc=SC(); if(sc)sc.add(m); fx.sceneFx.push(m); return m; }
+  function clearFx(fx){ const sc=SC(); (fx.sceneFx||[]).forEach(o=>{ if(sc)sc.remove(o); if(o.geometry)o.geometry.dispose(); if(o.material&&o.material.dispose)o.material.dispose(); }); fx.sceneFx=[]; }
+  function restoreAll(fx){ fx.mk.forEach(o=>{ if(o.userData._gh)setT(o,o.userData._gh); }); fx.pc.forEach(o=>{ if(o.userData._gh){ setT(o,o.userData._gh); o.visible=true; } }); fx.ms.forEach(m=>{ const g=m.userData._go; if(g&&m.material){ m.material.opacity=g.op; m.material.transparent=g.tr; if(g.he&&m.material.emissive){ m.material.emissive.setHex(g.em); m.material.emissiveIntensity=g.ei; } } }); clearFx(fx); }
+  const _v=()=>new (T().Vector3)();
+  function rdir(){ const TT=T(); return new TT.Vector3(Math.random()-0.5,Math.random()-0.5,Math.random()-0.5).normalize(); }
+  function streaks(fx,color,b){ if(readS().calm)return; const TT=T(); const cy=(b.min.y+b.max.y)/2; const arr=[]; for(let i=0;i<4;i++){ const m=new TT.Mesh(new TT.PlaneGeometry(3.2,0.06),new TT.MeshBasicMaterial({color,transparent:true,opacity:0,blending:TT.AdditiveBlending,depthWrite:false,side:TT.DoubleSide})); m.position.set(0,cy-1.6+i*1.0,0); addFx(fx,m); arr.push(m); } fx.tmp.streaks=arr; }
+  function updStreaks(fx,p,dirX,mx){ const a=Math.sin(clamp(p)*Math.PI); (fx.tmp.streaks||[]).forEach((m,i)=>{ m.position.x=(mx||0)+dirX*(1.4+i*0.15); m.material.opacity=a*0.5; m.scale.x=0.7+a*1.0; }); }
+
+  // Tüm efektler — her biri fx (mk/pc/ms) + bounds üzerinde çalışır
+  const EFFECTS={
+    buyu:{ dur:1100, update(fx,p){ const e=Math.max(0.001,eBack(p)); fx.mk.forEach(g=>{const h=g.userData._gh; g.scale.set(h.sx*e,h.sy*e,h.sz*e);}); setOpacityMs(fx.ms,ez(p)); } },
+    don:{ dur:1200, update(fx,p){ const e=Math.max(0.001,eBack(p)); fx.mk.forEach(g=>{const h=g.userData._gh; g.scale.set(h.sx*e,h.sy*e,h.sz*e); g.rotation.y=h.ry-Math.PI*4*(1-ez(p));}); setOpacityMs(fx.ms,ez(p)); } },
+    balon:{ dur:1250, update(fx,p){ const e=Math.max(0.001,eBack(p)),w=1+0.12*Math.sin(p*Math.PI*6); fx.mk.forEach(g=>{const h=g.userData._gh; g.scale.set(h.sx*e*w,h.sy*e*w,h.sz*e*w);}); setOpacityMs(fx.ms,ez(clamp(p*1.5))); } },
+    zipla:{ dur:1300, update(fx,p){ const e=eBounce(p); fx.mk.forEach(g=>{const h=g.userData._gh; g.position.y=h.py+(1-e)*6; const sq=Math.max(0,Math.sin(p*Math.PI*3))*(p>0.25?1:0)*0.12; g.scale.set(h.sx*(1+sq*0.6),h.sy*(1-sq),h.sz*(1+sq*0.6));}); } },
+    uzaydan:{ dur:1300, init(fx){ fx.mk.forEach(g=>{const h=g.userData._gh; g.rotation.y=h.ry-1.2;}); }, update(fx,p){ const e=eBack(clamp(p)); fx.mk.forEach(g=>{const h=g.userData._gh; g.position.z=h.pz-22*(1-e); g.rotation.y=h.ry-1.2*(1-ez(p));}); setOpacityMs(fx.ms,clamp(p*2)); } },
+    sagdan:{ dur:1500, init(fx){ streaks(fx,0x9be7ff,bounds(fx)); }, update(fx,p){ const e=ez(p); fx.mk.forEach(g=>{const h=g.userData._gh; g.position.x=h.px+12*(1-e); g.position.z=h.pz-9*(1-e); const s=0.6+0.4*e; g.scale.set(h.sx*s,h.sy*s,h.sz*s); g.rotation.y=h.ry+0.9*(1-e);}); setOpacityMs(fx.ms,clamp(p*1.5)); updStreaks(fx,p,1, fx.mk[0]?fx.mk[0].position.x:0); } },
+    yerden:{ dur:1400, init(fx){ const TT=T(),b=bounds(fx); const ring=new TT.Mesh(new TT.TorusGeometry(1.2,0.12,12,40),new TT.MeshBasicMaterial({color:0x7be0ff,transparent:true,opacity:0.9})); ring.rotation.x=-Math.PI/2; ring.position.y=b.min.y+0.05; ring.scale.set(0.1,0.1,0.1); addFx(fx,ring); fx.tmp.ring=ring; }, update(fx,p){ const e=ez(p); fx.mk.forEach(g=>{const h=g.userData._gh; g.position.y=h.py-5*(1-e);}); setOpacityMs(fx.ms,clamp(e*1.5)); const rs=0.3+ez(clamp(p*1.3))*2.6; if(fx.tmp.ring){ fx.tmp.ring.scale.set(rs,rs,rs); fx.tmp.ring.material.opacity=Math.sin(clamp(p)*Math.PI)*0.9; } } },
+    insa:{ dur:1500, init(fx){ const arr=fx.pc.slice().sort((a,b)=>a.userData._gh.py-b.userData._gh.py); arr.forEach((c,i)=>{ c.userData._o=i/Math.max(1,arr.length-1); pOpacity(c,0); }); }, update(fx,p){ fx.pc.forEach(c=>{ const h=c.userData._gh; const a=ez(clamp((p-c.userData._o*0.55)/0.45)); c.position.set(h.px,h.py-3.5*(1-a),h.pz); pOpacity(c,a); }); } },
+    dalga:{ dur:1400, init(fx){ const arr=fx.pc.slice().sort((a,b)=>a.userData._gh.px-b.userData._gh.px); arr.forEach((c,i)=>{ c.userData._o=i/Math.max(1,arr.length-1); c.scale.set(0.001,0.001,0.001); pOpacity(c,0); }); }, update(fx,p){ fx.pc.forEach(c=>{ const h=c.userData._gh; const a=clamp((p-c.userData._o*0.6)/0.4); const e=Math.max(0.001,eBack(clamp(a))); c.scale.set(h.sx*e,h.sy*e,h.sz*e); c.position.set(h.px,h.py+(1-clamp(a))*-0.5,h.pz); pOpacity(c,clamp(a*1.3)); }); } },
+    patla:{ dur:1400, init(fx){ fx.pc.forEach(c=>{ const h=c.userData._gh; const d=rdir().multiplyScalar(6+Math.random()*2); c.userData._ps={px:h.px+d.x,py:h.py+d.y,pz:h.pz+d.z}; c.userData._spin=(Math.random()-0.5)*10; c.position.set(c.userData._ps.px,c.userData._ps.py,c.userData._ps.pz); c.scale.set(0.001,0.001,0.001); pOpacity(c,0); }); }, update(fx,p){ const e=ez(p); fx.pc.forEach(c=>{ const h=c.userData._gh,s=c.userData._ps; c.position.set(s.px+(h.px-s.px)*e,s.py+(h.py-s.py)*e,s.pz+(h.pz-s.pz)*e); c.scale.set(h.sx*e,h.sy*e,h.sz*e); c.rotation.set(c.userData._spin*(1-e),c.userData._spin*(1-e),0); pOpacity(c,clamp(e*1.4)); }); } },
+    toz:{ dur:1500, init(fx){ const TT=T(),b=bounds(fx),c=b.getCenter(new TT.Vector3()); fx.tmp.center=c; fx.tmp.dust=[]; fx.mk.forEach(g=>g.scale.set(0.001,0.001,0.001)); setOpacityMs(fx.ms,0); for(let i=0;i<40;i++){ const s=new TT.Mesh(new TT.SphereGeometry(0.07+Math.random()*0.06,8,8),new TT.MeshBasicMaterial({color:[0xfff1a8,0x9be7ff,0xffd56b,0xb59bff][i%4],transparent:true,opacity:1,blending:TT.AdditiveBlending,depthWrite:false})); s.position.copy(c); s.userData.v=rdir().multiplyScalar(3.5+Math.random()*2.5); addFx(fx,s); fx.tmp.dust.push(s); } }, update(fx,p){ const c=fx.tmp.center; (fx.tmp.dust||[]).forEach(s=>{ s.position.copy(c).addScaledVector(s.userData.v,ez(p)); s.material.opacity=clamp(1-p*1.1); const sc=clamp(1-p); s.scale.set(sc,sc,sc); }); const a=ez(clamp((p-0.18)/0.7)); fx.mk.forEach(g=>{const h=g.userData._gh,e=Math.max(0.001,a); g.scale.set(h.sx*e,h.sy*e,h.sz*e);}); setOpacityMs(fx.ms,a); } },
+    hologram:{ dur:1500, init(fx){ const TT=T(),b=bounds(fx); setOpacityMs(fx.ms,0); const disk=new TT.Mesh(new TT.CircleGeometry(3.2,40),new TT.MeshBasicMaterial({color:0x6fe9ff,transparent:true,opacity:0.5,side:TT.DoubleSide,depthWrite:false})); disk.rotation.x=-Math.PI/2; disk.position.y=b.min.y; addFx(fx,disk); fx.tmp.disk=disk; fx.tmp.minY=b.min.y-0.6; fx.tmp.maxY=b.max.y+0.6; fx.tmp.tv=_v(); }, update(fx,p){ const t=fx.tmp; const scan=t.minY+(t.maxY-t.minY)*ez(p); t.disk.position.y=scan; t.disk.material.opacity=0.5*(1-p); fx.ms.forEach(m=>{ const wy=m.getWorldPosition(t.tv).y; const a=ez(clamp((scan-wy)/0.9+0.1)); m.material.opacity=a; m.visible=a>0.01; if(m.material.emissive){ m.material.emissive.setHex(0x36c6ff); m.material.emissiveIntensity=(1-a)*0.9; } }); } }
+  };
+  // efektlere özel sesler (studio'dan)
+  Object.assign(ESND,{ insa(S){ for(let i=0;i<5;i++) blip(S,200+i*30,i*0.10,0.07,'square',0.10); blip(S,880,0.55,0.18,'sine',0.12); }, hologram(S){ blip(S,300,0,0.5,'sine',0.16,1300); noise(S,0,0.5,0.05,1800,'highpass'); }, patla(S){ noise(S,0,0.32,0.24,260,'lowpass'); blip(S,80,0,0.3,'sine',0.18,40); blip(S,700,0.26,0.2,'sine',0.12,1100); }, toz(S){ for(let i=0;i<7;i++) blip(S,1200+Math.random()*1400,Math.random()*0.6,0.10,'sine',0.07); }, dalga(S){ [523,659,784,1047].forEach((f,i)=>blip(S,f,i*0.09,0.14,'sine',0.13)); } });
+
+  const ALLE=['insa','hologram','zipla','patla','don','toz','dalga','yerden','uzaydan','balon','buyu','sagdan'];
+  const POOL={ ilkokul:['zipla','toz','balon','dalga','don','yerden'], ortaokul:['insa','dalga','patla','uzaydan','don','yerden','balon'], lise:['insa','hologram','uzaydan','patla','dalga','don'], karisik:ALLE.slice() };
+  let last='';
+  function pickEnter(S){ if(S.enterMode && S.enterMode!=='rastgele' && EFFECTS[S.enterMode]) return S.enterMode; const p=POOL[S.level]||POOL.karisik; let n; do{ n=p[Math.floor(Math.random()*p.length)]; }while(n===last&&p.length>1); last=n; return n; }
+
+  let tween=null;
+  function tick(){ requestAnimationFrame(tick); if(!tween)return; const p=Math.min(1,(performance.now()-tween.t0)/tween.dur); try{ tween.eff.update(tween.fx,p); }catch(e){ try{ restoreAll(tween.fx); }catch(_){} tween=null; return; } if(p>=1){ restoreAll(tween.fx); tween=null; } }
+  requestAnimationFrame(tick);
+
+  function startEnter(group,S){ if(!window.THREE||!window.scene)return;
+    if(tween){ clearFx(tween.fx); tween=null; }
+    try{ group.updateMatrixWorld(true); }catch(e){} // bbox/dünya konumu doğru olsun
+    const fx=capture(group); if(fx.mk.length===0) return;
+    const name=pickEnter(S); const eff=EFFECTS[name]||EFFECTS.buyu;
+    try{ eff.init&&eff.init(fx); eff.update(fx,0); }catch(e){ return; }
+    tween={ eff, fx, t0:performance.now(), dur:eff.dur*(S.calm?1.4:S.speed) };
+    if(S.sound && ESND[name]) try{ ESND[name](S); }catch(e){}
+  }
+
+  window.GECIS={
+    settings: readS,
+    // sahne değişiminde çağrılır: group = yeni model grubu (THREE.Group), label = konu adı
+    onScene(group, label){ const S=readS();
+      if(S.sound) vedaSound(S); // eski sahne için kısa veda tonu
+      emoji(S); flyTitle(S, label);
+      if(S.confetti && !S.calm && S.level==='ilkokul') confetti();
+      if(group) startEnter(group,S);
+    }
+  };
+})();
+</script>
+
 <script type="module">
 const THREE = window.THREE;
 
@@ -1204,24 +1460,38 @@ class OrbitControls extends THREE.EventDispatcher {
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
 
-    this._zoomToScreenPoint = (screenX, screenY, factor) => {
+    // Ekran noktasının altındaki 3B noktayı bul: KAMERA BAKIŞINA DİK, target'tan
+    // geçen düzlemle kesiştir. (Eski sürüm y=target.y düzlemi kullanıyordu; kamera
+    // yataya yakınken ışın düzleme paralel olup kesişim çok uzakta çıkıyor ve model
+    // ekran dışına uçuyordu. Bu yöntemde kesişim her açıda ~radius mesafede kalır.)
+    this._hitOnFocusPlane = (screenX, screenY) => {
       const rect = dom.getBoundingClientRect();
       const ndcX = ((screenX - rect.left) / rect.width) * 2 - 1;
       const ndcY = -((screenY - rect.top) / rect.height) * 2 + 1;
       const ndc = new THREE.Vector3(ndcX, ndcY, 0.5);
       ndc.unproject(this.object);
       const dir = ndc.sub(this.object.position).normalize();
-      const t = (this.target.y - this.object.position.y) / dir.y;
-      if (t > 0 && isFinite(t)) {
-        const hit = new THREE.Vector3(
-          this.object.position.x + dir.x * t,
-          this.target.y,
-          this.object.position.z + dir.z * t
-        );
-        this.target.lerp(hit, 0.65);
-      }
+      const camDir = new THREE.Vector3();
+      this.object.getWorldDirection(camDir);
+      const denom = dir.dot(camDir);
+      if (Math.abs(denom) < 1e-5) return null;
+      const t = this.target.clone().sub(this.object.position).dot(camDir) / denom;
+      if (!(t > 0) || !isFinite(t)) return null;
+      return this.object.position.clone().addScaledVector(dir, t);
+    };
+
+    this._zoomToScreenPoint = (screenX, screenY, factor) => {
+      const hit = this._hitOnFocusPlane(screenX, screenY);
+      if (hit) this.target.lerp(hit, 0.65);
       this._sphericalTarget.radius = Math.max(this.minDistance,
         Math.min(this.maxDistance, this._sphericalTarget.radius * factor));
+    };
+
+    // Hedefi (ekran merkezini), işaret edilen noktaya doğru `k` oranında kaydırır →
+    // pinch/tekerlekte "nereyi yakınlaştırırsam orası ortaya gelsin" davranışı.
+    this._panToScreenPoint = (screenX, screenY, k) => {
+      const hit = this._hitOnFocusPlane(screenX, screenY);
+      if (hit) this.target.lerp(hit, k);
     };
 
     let touchStart = null;
@@ -1240,6 +1510,9 @@ class OrbitControls extends THREE.EventDispatcher {
       radius: this._sphericalTarget.radius
     };
     this.captureInitialState = () => {
+      // selectSub kamera/target'ı yeni set ettiyse, spherical'i ona göre türet ki
+      // hem ilk görünüm doğru olsun hem de resetView doğru açı/yarıçapa dönsün.
+      this._syncFromCamera();
       this._initialCameraState = {
         position: this.object.position.clone(),
         target: this.target.clone(),
@@ -1338,7 +1611,7 @@ class OrbitControls extends THREE.EventDispatcher {
         const dist = Math.hypot(dx, dy);
         const newCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
         const newCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        this._sphericalTarget.radius = Math.max(this.minDistance, Math.min(this.maxDistance, pinchStartRadius * (pinchStartDist / dist)));
+        // 1) İki parmağın ortak kayması → pan (modeli serbestçe taşı)
         const panDx = newCenterX - pinchCenter.x;
         const panDy = newCenterY - pinchCenter.y;
         pinchCenter.x = newCenterX;
@@ -1349,6 +1622,17 @@ class OrbitControls extends THREE.EventDispatcher {
         const panFactor = this._sphericalTarget.radius * 0.0045;
         this.target.addScaledVector(right, -panDx * panFactor);
         this.target.addScaledVector(up, panDy * panFactor);
+        // 2) Parmak arası açılma/kapanma → zoom. Parmakların ortasındaki nokta
+        //    ekranda SABİT kalacak şekilde hedefi yarıçap oranıyla ORANTILI kaydır
+        //    (sabit lerp drift'i kaldırıldı → ne kaçıyor ne de sıçrıyor).
+        const oldR = this._sphericalTarget.radius;
+        const newR = Math.max(this.minDistance, Math.min(this.maxDistance, pinchStartRadius * (pinchStartDist / dist)));
+        const hit = this._hitOnFocusPlane(newCenterX, newCenterY);
+        if (hit && oldR > 0.0001) {
+          const f = Math.max(-0.4, Math.min(0.4, 1 - newR / oldR)); // yakınlaş: hedef noktaya doğru; uzaklaş: tersine
+          this.target.lerp(hit, f);
+        }
+        this._sphericalTarget.radius = newR;
       }
     }, { passive: false });
 
@@ -1370,7 +1654,9 @@ class OrbitControls extends THREE.EventDispatcher {
     dom.addEventListener('wheel', (e) => {
       if (!this.enabled) return;
       e.preventDefault();
+      // Tekerlekle yakınlaşma imlecin olduğu noktaya odaklansın
       const factor = e.deltaY > 0 ? 1.1 : 0.9;
+      this._panToScreenPoint(e.clientX, e.clientY, factor < 1 ? 0.22 : 0.12);
       this._sphericalTarget.radius = Math.max(this.minDistance,
         Math.min(this.maxDistance, this._sphericalTarget.radius * factor));
     }, { passive: false });
@@ -1398,7 +1684,11 @@ class OrbitControls extends THREE.EventDispatcher {
   }
 
   update() {
-    if (!this._lastCamPos.equals(this.object.position) || !this._lastTarget.equals(this.target)) {
+    // YALNIZCA kamera DIŞARIDAN taşındıysa (ör. selectSub camera.position.set) yeniden
+    // türet. target'ı kontrol'ün kendisi (pan/zoom-odak/reset) değiştirdiğinde sync
+    // ÇALIŞMAMALI; yoksa ayarlanan zoom yarıçapı/açılar her kare sıfırlanır →
+    // "yakınlaşmıyor" + kamera sıçrayıp model ekran dışına uçuyordu.
+    if (!this._lastCamPos.equals(this.object.position)) {
       this._syncFromCamera();
     }
     if (this.enableDamping) {
@@ -1629,9 +1919,11 @@ function clearScene() {
   });
   dynamicObjects = [];
   window._labelRefs = [];
+  window._labelPlaced = [];
   window._currentModelGroup = null;
   window._customAnim = null;
   window._flowRays = [];
+  window._arrowMaterials = [];
   const svg = document.getElementById('leaderLines');
   if (svg) svg.innerHTML = '';
 }
@@ -1744,7 +2036,7 @@ function updateLeaderLines() {
 
     ref.anchorObj.getWorldPosition(_projVec);
     _projVec.project(camera);
-    if (_projVec.z > 1 || _projVec.z < -1) return;
+    if (!(_projVec.z >= -1 && _projVec.z <= 1)) return;
     const ax = (_projVec.x + 1) / 2 * w;
     const ay = (1 - _projVec.y) / 2 * h;
 
@@ -1778,6 +2070,7 @@ function updateLeaderLines() {
     const midX = (edgeX + ax) / 2;
     const midY = (edgeY + ay) / 2;
     const distLine = Math.hypot(ax - edgeX, ay - edgeY);
+    if (!(distLine > 0)) return;
     const normalX = -(ay - edgeY) / distLine;
     const normalY = (ax - edgeX) / distLine;
     const curveAmount = Math.min(distLine * 0.18, 35);
@@ -1816,30 +2109,50 @@ window._sceneState = {
   _displayUpdaters: []
 };
 
+function positionVarsBody() {
+  const t = document.getElementById('sceneToggle');
+  const b = document.getElementById('sceneVarsBody');
+  if (t && b && !b.classList.contains('closed')) {
+    b.style.top = Math.round(t.getBoundingClientRect().bottom + 6) + 'px';
+  }
+}
+window.positionVarsBody = positionVarsBody;
+
 function setSceneSliders(items, opts = {}) {
-  const panel = document.getElementById('scenePanel');
-  if (!panel) return;
-  panel.innerHTML = '';
-  panel.classList.remove('empty', 'collapsed');
+  const row = document.getElementById('stackRow');
+  const bodyPanel = document.getElementById('sceneVarsBody');
+  if (!row || !bodyPanel) return;
+  // Eski Değişkenler sekmesini kaldır (her sahne yeniden kurar)
+  const oldT = document.getElementById('sceneToggle'); if (oldT) oldT.remove();
+  bodyPanel.innerHTML = '';
   document.body.classList.add('scene-panel-open');
   window._sceneState._displayUpdaters = [];
-
+  // Değişkenler sekmesi → Konu Rehberi'nin SOLUNA (aynı satır, aynı ebat)
   const toggle = document.createElement('button');
+  toggle.id = 'sceneToggle';
   toggle.className = 'sp-toggle';
-  toggle.innerHTML = `<span>🎛️ ${opts.title || 'Kontroller'}</span><span class="sp-chev">▼</span>`;
+  toggle.innerHTML = `<span class="sb-emoji">🎛️</span><span class="sb-label">Değişkenler</span><span class="sp-chev">▼</span>`;
+  row.insertBefore(toggle, document.getElementById('btnTopic'));
+  // İçerik tam-genişlik yatay panelde
+  const body = bodyPanel;
+  const _chev = toggle.querySelector('.sp-chev');
+  // Basınca aç/kapat: tam genişlik pencere sekmenin altına gelir
+  function setSceneOpen(open) {
+    bodyPanel.classList.toggle('closed', !open);
+    if (_chev) _chev.textContent = open ? '▲' : '▼';
+    if (open) positionVarsBody();
+  }
+  window._setSceneOpen = setSceneOpen;
   toggle.onclick = () => {
-    panel.classList.toggle('collapsed');
-    toggle.querySelector('.sp-chev').textContent = panel.classList.contains('collapsed') ? '◀' : '▼';
+    setSceneOpen(bodyPanel.classList.contains('closed'));
     if (window._haptic) window._haptic(10);
   };
-  panel.appendChild(toggle);
-
   items.forEach(item => {
     if (item.type === 'section') {
       const t = document.createElement('div');
       t.className = 'sp-section';
       t.textContent = item.label;
-      panel.appendChild(t);
+      body.appendChild(t);
       return;
     }
     if (item.type === 'slider') {
@@ -1894,7 +2207,7 @@ function setSceneSliders(items, opts = {}) {
         slider.value = nv; item.setValue(nv); updateVal();
         if (window._haptic) window._haptic(8);
       });
-      panel.appendChild(row);
+      body.appendChild(row);
       updateVal();
       window._sceneState._displayUpdaters.push(() => {
         const v = item.getValue();
@@ -1907,16 +2220,20 @@ function setSceneSliders(items, opts = {}) {
       row.innerHTML = `<span class="sp-label">${item.label}</span><span class="sp-val"></span>`;
       const val = row.querySelector('.sp-val');
       val.textContent = item.getValue();
-      panel.appendChild(row);
+      body.appendChild(row);
       window._sceneState._displayUpdaters.push(() => { val.textContent = item.getValue(); });
     }
     if (item.type === 'formula') {
-      const row = document.createElement('div');
-      row.className = 'sp-formula';
-      row.innerHTML = item.text;
-      panel.appendChild(row);
-      if (item.getValue) {
-        window._sceneState._displayUpdaters.push(() => { row.innerHTML = item.getValue(); });
+      const hasMath = /[=√÷×²·]|sin|cos|1\//.test(item.text || '') || /q₁|q₂|kq|k·q|qE|qV|ε₀|½|Σ|ΔV|N\/C|qE\/m|V\/d/.test(item.text||'');
+      const skip = (currentLevel === 'ilkokul' || currentLevel === 'ortaokul') && hasMath && !item.keepSimple;
+      if (!skip) {
+        const row = document.createElement('div');
+        row.className = 'sp-formula';
+        row.innerHTML = item.text;
+        body.appendChild(row);
+        if (item.getValue && !((currentLevel === 'ilkokul' || currentLevel === 'ortaokul') && hasMath)) {
+          window._sceneState._displayUpdaters.push(() => { row.innerHTML = item.getValue(); });
+        }
       }
     }
     if (item.type === 'presets') {
@@ -1935,14 +2252,18 @@ function setSceneSliders(items, opts = {}) {
         };
         row.appendChild(b);
       });
-      panel.appendChild(row);
+      body.appendChild(row);
     }
   });
+  // Değişkenler varsayılan KAPALI; konu değişince OTOMATİK AÇILMAZ (kullanıcı basar).
+  bodyPanel.classList.add('closed');
+  if (_chev) _chev.textContent = '▼';
 }
 
 function clearSceneSliders() {
-  const panel = document.getElementById('scenePanel');
-  if (panel) { panel.innerHTML = ''; panel.classList.add('empty'); }
+  const oldT = document.getElementById('sceneToggle'); if (oldT) oldT.remove();
+  const bodyPanel = document.getElementById('sceneVarsBody');
+  if (bodyPanel) { bodyPanel.innerHTML = ''; bodyPanel.classList.add('closed'); }
   document.body.classList.remove('scene-panel-open');
   if (window._sceneState) window._sceneState._displayUpdaters = [];
 }
@@ -2913,49 +3234,115 @@ SubBuilders.buildDogrusalYayilma = function() {
   root.add(setupShadowLighting());
   root.add(makeFloor());
 
-  const srcX = -8;
-  const src = makePointSource({ radius: 0.3, color: 0xffe17a });
-  src.position.set(srcX, _AXIS_Y, 0);
-  root.add(src);
+  // ---- Sahne yerleşimi (X ekseni boyunca) ----
+  const srcX = -8.5;            // kaynak
+  const barX = -1.5;            // delikli engel (bariyer)
+  const scrX = 8.5;             // perde
+  const srcPos = new THREE.Vector3(srcX, _AXIS_Y, 0);
 
-  const rayColor = 0xffe17a;
-  const targets = [
-    [7, 3.2, 0], [7, 1.6, 0], [7, 0, 0], [7, -1.6, 0], [7, -3.2, 0],
-    [7, 1.6, 2.2], [7, -1.6, 2.2], [7, 1.6, -2.2], [7, -1.6, -2.2]
-  ];
-  const flowRays = [];
-  targets.forEach(t => {
-    const from = new THREE.Vector3(srcX, _AXIS_Y, 0);
-    const to = new THREE.Vector3(t[0], t[1], t[2]);
-    root.add(makeRay(from, to, { color: rayColor, width: 0.02 }));
-    const dir = new THREE.Vector3().subVectors(to, from).normalize();
-    root.add(makeRayArrow(new THREE.Vector3(t[0]-dir.x*0.3, t[1]-dir.y*0.3, t[2]-dir.z*0.3), dir, { color: rayColor, size: 0.18 }));
-    const fr = makeFlowRay(from, to, { count: 6, color: 0xfff3b0 });
-    root.add(fr); flowRays.push(fr); registerFlowRay(fr);
+  // ---- Işık kaynağı ----
+  const src = makePointSource({ radius: 0.3, color: 0xffe17a });
+  src.position.copy(srcPos);
+  root.add(src);
+  // Gerçekçi CC0 el feneri — ışınlar fenerin ağzından çıkar
+  if (window.ensureGlb) window.ensureGlb('fener', window._GLB_FENER, m => {
+    if (!m || !root.parent) return;
+    const g = window.glbSelfLight(window.fitGlb(m.clone(), 2.1), 0.35);
+    g.rotation.z = -Math.PI / 2; // fenerin başı +x'e (perdeye) dönük
+    const grp = new THREE.Group(); grp.add(g);
+    grp.position.set(srcX - 0.85, _AXIS_Y, 0);
+    grp.userData.dynamic = true;
+    root.add(grp);
   });
 
-  const wall = new THREE.Mesh(
-    new THREE.BoxGeometry(0.3, 3, 3),
-    new THREE.MeshStandardMaterial({ color: 0x3a4252, roughness: 0.7 })
-  );
-  wall.position.set(2.5, _AXIS_Y, 0);
-  wall.castShadow = true;
-  root.add(wall);
+  // ---- Optik eksen ----
+  root.add(makeOpticalAxis(new THREE.Vector3(srcX, _AXIS_Y, 0), new THREE.Vector3(scrX, _AXIS_Y, 0)));
 
+  // ---- Delikli bariyer: ışık yalnızca deliklerden geçer ----
+  // Bariyeri 4 dikey panele bölüp aralarında 3 delik bırakıyoruz.
+  const holeYs = [2.4, 0.0, -2.4];     // delik merkezleri (y)
+  const holeGap = 0.7;                  // delik yarı yüksekliği
+  const barH = 3.6;                     // panel toplam yarı yükseklik
+  const barMat = new THREE.MeshStandardMaterial({ color: 0x3a4252, roughness: 0.7, metalness: 0.2, emissive: 0x12161f, emissiveIntensity: 0.15 });
+  // dikey panel parçaları (delikler arası dolu kısımlar) — dolu segmentler
+  const solidSegs = [
+    [barH, holeYs[0]+holeGap],
+    [holeYs[0]-holeGap, holeYs[1]+holeGap],
+    [holeYs[1]-holeGap, holeYs[2]+holeGap],
+    [holeYs[2]-holeGap, -barH]
+  ];
+  solidSegs.forEach(([yTop, yBot]) => {
+    const h = Math.abs(yTop - yBot);
+    if (h < 0.05) return;
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(0.3, h, 3.2), barMat);
+    panel.position.set(barX, (yTop + yBot) / 2, 0);
+    panel.castShadow = true;
+    root.add(panel);
+  });
+
+  // ---- Perde ----
+  const screen = makeScreen({ w: 12, h: 9 });
+  screen.position.set(scrX, _AXIS_Y, 0);
+  screen.rotation.y = -Math.PI / 2;
+  root.add(screen);
+
+  // ---- Işınlar: kaynaktan her deliğin merkezinden DÜZ geçip perdeye ----
+  // Doğrusal yayılma → ışın kaynak-delik doğrultusunda perdeye kadar uzar.
+  const litSpots = [];
+  function castThroughHole(holeY) {
+    const holePt = new THREE.Vector3(barX, _AXIS_Y + holeY, 0);
+    const dir = new THREE.Vector3().subVectors(holePt, srcPos).normalize();
+    const tHit = (scrX - srcPos.x) / dir.x;
+    const hit = srcPos.clone().add(dir.clone().multiplyScalar(tHit));
+    // kaynak→delik (parlak) ve delik→perde (parlak) tek düz çizgi
+    root.add(makeRay(srcPos.clone(), hit.clone(), { color: 0xffe17a, width: 0.02 }));
+    root.add(makeRayArrow(new THREE.Vector3(hit.x - dir.x*0.35, hit.y - dir.y*0.35, hit.z - dir.z*0.35), dir, { color: 0xffe17a, size: 0.2 }));
+    const fr = makeFlowRay(srcPos.clone(), hit.clone(), { count: 7, color: 0xfff3b0 });
+    root.add(fr); registerFlowRay(fr);
+    litSpots.push(hit);
+    return hit;
+  }
+  holeYs.forEach(castThroughHole);
+
+  // ---- Bariyere çarpan (kesilen) ışınlar: dolu kısma çarpıp DURUR (köşeyi dönmez) ----
+  const blockedYs = [1.2, -1.2];
+  blockedYs.forEach(by => {
+    const stopPt = new THREE.Vector3(barX, _AXIS_Y + by, 0);
+    root.add(makeRay(srcPos.clone(), stopPt, { color: 0xfff0a0, width: 0.012, dim: true }));
+  });
+
+  // ---- Perdedeki aydınlık lekeler (deliklerin görüntüsü) ----
+  litSpots.forEach(hit => {
+    const spot = new THREE.Mesh(
+      new THREE.CircleGeometry(0.45, 24),
+      new THREE.MeshBasicMaterial({ color: 0xfff3b0, transparent: true, opacity: 0.65, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
+    );
+    spot.position.set(scrX - 0.03, hit.y, hit.z);
+    spot.rotation.y = Math.PI / 2;
+    root.add(spot);
+  });
+
+  // ---- Etiketler ----
   addInfo3DLabels([
-    { text: { ilkokul:'💡 Işık', ortaokul:'💡 Işık kaynağı', lise:'💡 Işık kaynağı', tyt_ayt:'💡 Kaynak' },
-      position: [srcX, 2.2, 0], target: [srcX, 0.4, 0], color: '#ffe17a' },
+    { text: { ilkokul:'💡 Işık', ortaokul:'💡 Işık kaynağı', lise:'💡 Noktasal kaynak', tyt_ayt:'💡 Kaynak (ıraksak demet)' },
+      position: [srcX, 2.4, 0], target: [srcX, 0.4, 0], color: '#ffe17a' },
+    { text: { ilkokul:'🧱 Delikli levha', ortaokul:'🧱 Delikli engel', lise:'🧱 Diyafram (delikler)', tyt_ayt:'🧱 Opak levha + delikler' },
+      position: [barX, 4.6, 0], target: [barX, holeYs[0]+holeGap+0.2, 0], color: '#9d7fe6' },
     { text: { ilkokul:'➡️ Işık düz gider', ortaokul:'➡️ Işık doğrusal yayılır', lise:'➡️ Doğrusal yayılma', tyt_ayt:'➡️ Doğrusal yayılma (geometrik optik)' },
-      position: [-1, 4.2, 0], target: [-1, 0.1, 0], color: '#ffd166' },
-    { text: { ilkokul:'🌑 Arkası karanlık', ortaokul:'🌑 Engel arkası karanlık', lise:'🌑 Gölge bölgesi', tyt_ayt:'🌑 Opak engel → gölge' },
-      position: [4.5, -2.5, 0], target: [3, -0.5, 0], color: '#9d7fe6' }
+      position: [3.5, 4.4, 0], target: [3.5, 0.1, 0], color: '#ffd166' },
+    { text: { ilkokul:'🚫 Işık köşeyi dönmez', ortaokul:'🚫 Köşeden bükülmez', lise:'🚫 Işık kıvrılmaz (homojen ortam)', tyt_ayt:'🚫 Sapma yok → düz yol' },
+      position: [barX, -4.6, 0], target: [barX, -1.2, 0], color: '#e74c3c' },
+    { text: { ilkokul:'🔆 Parlak noktalar', ortaokul:'🔆 Deliklerin izi', lise:'🔆 Delik görüntüleri', tyt_ayt:'🔆 Delik = ışın geçişi' },
+      position: [scrX, -4.4, 0], target: [scrX - 0.1, litSpots[2] ? litSpots[2].y : -1.5, litSpots[2] ? litSpots[2].z : 0], color: '#f6b93b' }
   ]);
 
   setSceneSliders([
     { type: 'section', label: 'Bilgi' },
-    { type: 'display', label: 'Yayılma', getValue: () => 'Doğrusal' },
+    { type: 'display', label: 'Yayılma', getValue: () => 'Doğrusal (düz)' },
     { type: 'display', label: 'Ortam', getValue: () => 'Homojen saydam' },
-    { type: 'formula', text: 'Işık = en kısa süreli yol' }
+    { type: 'display', label: 'Delik sayısı', getValue: () => '3' },
+    { type: 'display', label: 'Köşeyi döner mi?', getValue: () => 'Hayır', highlight: true },
+    { type: 'formula', text: 'Işık her noktadan düz çizgi (ışın) boyunca ilerler' }
   ], { title: 'Doğrusal Yayılma' });
 };
 
@@ -2968,76 +3355,139 @@ SubBuilders.buildNoktasalGolge = function() {
   root.add(setupShadowLighting());
   root.add(makeFloor());
 
-  const srcX = -9, objX = 0, scrX = 8;
-  const r = 1.2;
-  const d1 = objX - srcX;
-  const d2 = scrX - objX;
-  const m = (d1 + d2) / d1;
-  const shadowR = r * m;
+  // ---- Sabit kaynak, ayarlanabilir cisim & perde uzaklığı ----
+  const srcX = -9;
+  const r = 1.1;                 // engel yarıçapı (sabit)
+  const srcPos = new THREE.Vector3(srcX, _AXIS_Y, 0);
 
-  const src = makePointSource({ radius: 0.28 });
-  src.position.set(srcX, _AXIS_Y, 0);
+  const S = window._sceneState;
+  S.ng_d1 = 4.5;                 // kaynak → cisim
+  S.ng_d2 = 6.5;                 // cisim → perde
+
+  // ---- Kaynak ----
+  const src = makePointSource({ radius: 0.28, color: 0xffe17a });
+  src.position.copy(srcPos);
   root.add(src);
 
-  const obj = makeObstacle({ r: r, type: 'sphere' });
-  obj.position.set(objX, _AXIS_Y, 0);
+  // ---- Optik eksen (geniş, perde slider ile kayınca yeterli uzunlukta) ----
+  root.add(makeOpticalAxis(new THREE.Vector3(srcX, _AXIS_Y, 0), new THREE.Vector3(srcX + 30, _AXIS_Y, 0)));
+
+  // ---- Dinamik gruplar ----
+  let obj = makeObstacle({ r: r, type: 'sphere' });
   root.add(obj);
-
-  const screen = makeScreen({ w: 11, h: 11 });
-  screen.position.set(scrX, _AXIS_Y, 0);
-  screen.rotation.y = -Math.PI / 2;
+  let screen = makeScreen({ w: 13, h: 13 });
   root.add(screen);
+  const rayGroup = new THREE.Group(); rayGroup.userData.dynamic = true; root.add(rayGroup);
+  const shadowGroup = new THREE.Group(); shadowGroup.userData.dynamic = true; root.add(shadowGroup);
 
-  const tangentColor = 0xffd166;
-  const ringPts = [];
-  const N = 16;
-  for (let i = 0; i < N; i++) {
-    const ang = (i / N) * Math.PI * 2;
-    const ty = Math.sin(ang) * r;
-    const tz = Math.cos(ang) * r;
-    const tangentPt = new THREE.Vector3(objX, _AXIS_Y + ty, tz);
-    const dir = new THREE.Vector3().subVectors(tangentPt, new THREE.Vector3(srcX, _AXIS_Y, 0)).normalize();
-    const tHit = (scrX - srcX) / dir.x;
-    const hit = new THREE.Vector3(srcX, _AXIS_Y, 0).add(dir.clone().multiplyScalar(tHit));
-    ringPts.push(hit);
-    root.add(makeRay(new THREE.Vector3(srcX, _AXIS_Y, 0), hit, { color: tangentColor, width: 0.014, dim: false }));
+  function disposeGroup(g) {
+    while (g.children.length) {
+      const c = g.children[0]; g.remove(c);
+      if (c.geometry) c.geometry.dispose();
+      if (c.material) { Array.isArray(c.material) ? c.material.forEach(m=>m.dispose()) : c.material.dispose(); }
+    }
+    if (window._flowRays) window._flowRays = window._flowRays.filter(fr => fr.parent);
   }
 
-  [[3.5,0],[-3.5,0],[0,3.5],[0,-3.5]].forEach(([yy,zz]) => {
-    const from = new THREE.Vector3(srcX, _AXIS_Y, 0);
-    const to = new THREE.Vector3(scrX, _AXIS_Y + yy, zz);
-    root.add(makeRay(from, to, { color: 0xfff0a0, width: 0.012, dim: true }));
-    const fr = makeFlowRay(from, to, { count: 7, color: 0xfff3b0 });
-    root.add(fr); registerFlowRay(fr);
-  });
+  function rebuild() {
+    const d1 = S.ng_d1, d2 = S.ng_d2;
+    const objX = srcX + d1;
+    const scrX = objX + d2;
+    const m = (d1 + d2) / d1;
+    const shadowR = r * m;
 
-  const umbra = makeShadowDisk(shadowR, COLORS.umbra, 0.92, { seg: 48 });
-  umbra.position.set(scrX - 0.02, _AXIS_Y, 0);
-  umbra.rotation.y = Math.PI / 2;
-  root.add(umbra);
-  const umbraEdge = makeShadowDisk(shadowR, 0x000000, 0, { seg: 48 });
-  root.add(umbraEdge);
+    obj.position.set(objX, _AXIS_Y, 0);
+    screen.position.set(scrX, _AXIS_Y, 0);
+    screen.rotation.y = -Math.PI / 2;
 
-  root.add(makeOpticalAxis(new THREE.Vector3(srcX, _AXIS_Y, 0), new THREE.Vector3(scrX, _AXIS_Y, 0)));
+    disposeGroup(rayGroup);
+    disposeGroup(shadowGroup);
+
+    // Sınır (teğet) ışınları: kaynaktan engel kenarına teğet → perdede tam gölge sınırı
+    const N = 14;
+    for (let i = 0; i < N; i++) {
+      const ang = (i / N) * Math.PI * 2;
+      const ty = Math.sin(ang) * r;
+      const tz = Math.cos(ang) * r;
+      const tangentPt = new THREE.Vector3(objX, _AXIS_Y + ty, tz);
+      const dir = new THREE.Vector3().subVectors(tangentPt, srcPos).normalize();
+      if (Math.abs(dir.x) < 1e-3) continue;
+      const tHit = (scrX - srcPos.x) / dir.x;
+      const hit = srcPos.clone().add(dir.clone().multiplyScalar(tHit));
+      rayGroup.add(makeRay(srcPos.clone(), hit, { color: 0xffd166, width: 0.013 }));
+    }
+
+    // Belirgin 2 kenar ışını (düşey düzlem) — gölge sınırını vurgular
+    [r, -r].forEach(off => {
+      const tangentPt = new THREE.Vector3(objX, _AXIS_Y + off, 0);
+      const dir = new THREE.Vector3().subVectors(tangentPt, srcPos).normalize();
+      const tHit = (scrX - srcPos.x) / dir.x;
+      const hit = srcPos.clone().add(dir.clone().multiplyScalar(tHit));
+      rayGroup.add(makeRay(srcPos.clone(), hit, { color: 0xfff3b0, width: 0.022 }));
+      const fr = makeFlowRay(srcPos.clone(), hit.clone(), { count: 8, color: 0xffffff });
+      rayGroup.add(fr); registerFlowRay(fr);
+    });
+
+    // Engelin yanından geçip perdeyi aydınlatan serbest ışınlar
+    [[3.4,0],[-3.4,0],[0,3.4],[0,-3.4]].forEach(([yy,zz]) => {
+      const to = new THREE.Vector3(scrX, _AXIS_Y + yy, zz);
+      rayGroup.add(makeRay(srcPos.clone(), to, { color: 0xfff0a0, width: 0.011, dim: true }));
+    });
+
+    // Merkez ışın (eksende akış)
+    const frC = makeFlowRay(srcPos.clone(), new THREE.Vector3(scrX, _AXIS_Y, 0), { count: 8, color: 0xfff3b0 });
+    rayGroup.add(frC); registerFlowRay(frC);
+
+    // TAM GÖLGE (umbra): keskin disk, gerçek geometrik yarıçap
+    const umbra = makeShadowDisk(shadowR, COLORS.umbra, 0.93, { seg: 48 });
+    umbra.position.set(scrX - 0.02, _AXIS_Y, 0);
+    umbra.rotation.y = Math.PI / 2;
+    shadowGroup.add(umbra);
+    // gölge kenar halkası
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(shadowR, 0.045, 8, 44),
+      new THREE.MeshBasicMaterial({ color: 0x5fc8e0, transparent: true, opacity: 0.85, toneMapped: false })
+    );
+    ring.position.set(scrX - 0.01, _AXIS_Y, 0);
+    ring.rotation.y = Math.PI / 2;
+    shadowGroup.add(ring);
+  }
+
+  rebuild();
 
   addInfo3DLabels([
     { text: { ilkokul:'💡 Lamba', ortaokul:'💡 Noktasal kaynak', lise:'💡 Noktasal kaynak', tyt_ayt:'💡 Noktasal kaynak (ıraksak demet)' },
-      position: [srcX, 2.4, 0], target: [srcX, 0.4, 0], color: '#ffe17a' },
+      position: [srcX, 2.6, 0], target: [srcX, 0.4, 0], color: '#ffe17a' },
     { text: { ilkokul:'⚫ Engel', ortaokul:'⚫ Opak engel', lise:'⚫ Opak engel (r)', tyt_ayt:'⚫ Engel yarıçapı r' },
-      position: [objX, 2.6, 0], target: [objX, r, 0], color: '#9d7fe6' },
-    { text: { ilkokul:'🌑 Karanlık (gölge)', ortaokul:'🌑 Tam gölge', lise:'🌑 Tam gölge', tyt_ayt:'🌑 Tam gölge: r_g = r·(d₁+d₂)/d₁' },
-      position: [scrX, -shadowR - 1, 0], target: [scrX - 0.1, -shadowR + 0.3, 0], color: '#5fc8e0' },
-    { text: { ilkokul:'🟡 Duvar', ortaokul:'🟡 Perde', lise:'🟡 Perde', tyt_ayt:'🟡 Perde (d₂ ötede)' },
-      position: [scrX, 4.5, 0], target: [scrX, 3.5, 0], color: '#f6b93b' }
+      position: [srcX + S.ng_d1, 3.0, 0], target: [srcX + S.ng_d1, r, 0], color: '#9d7fe6' },
+    { text: { ilkokul:'🌑 Tam karanlık', ortaokul:'🌑 Tam gölge', lise:'🌑 Tam gölge (umbra)', tyt_ayt:'🌑 Tam gölge: r_g = r·(d₁+d₂)/d₁' },
+      position: [srcX + S.ng_d1 + S.ng_d2, -4.8, 0], target: [srcX + S.ng_d1 + S.ng_d2 - 0.1, -1, 0], color: '#5fc8e0' },
+    { text: { ilkokul:'🟡 Perde', ortaokul:'🟡 Perde (duvar)', lise:'🟡 Perde', tyt_ayt:'🟡 Perde (d₂ ötede)' },
+      position: [srcX + S.ng_d1 + S.ng_d2, 5.2, 0], target: [srcX + S.ng_d1 + S.ng_d2, 3.6, 0], color: '#f6b93b' },
+    { text: { lise:'📐 Kenar ışını → gölge sınırı', tyt_ayt:'📐 Teğet ışın: kaynak–engel kenarı' },
+      position: [srcX + S.ng_d1 - 1, 4.6, 0], target: [srcX + S.ng_d1, r*0.9, 0], color: '#ffd166', minLevel: 3 }
   ]);
 
   setSceneSliders([
-    { type: 'section', label: 'Ölçüler' },
+    { type: 'section', label: 'Uzaklıkları Ayarla' },
+    { type: 'slider', label: '📏 Kaynak–cisim d₁', min: 2, max: 7, step: 0.5, unit: '',
+      getValue: () => S.ng_d1, setValue: (v) => { S.ng_d1 = v; rebuild(); }, format: (v)=>v.toFixed(1),
+      sub: 'Cisim kaynağa yaklaşınca gölge büyür' },
+    { type: 'slider', label: '📏 Cisim–perde d₂', min: 2, max: 11, step: 0.5, unit: '',
+      getValue: () => S.ng_d2, setValue: (v) => { S.ng_d2 = v; rebuild(); }, format: (v)=>v.toFixed(1),
+      sub: 'Perde uzaklaşınca gölge büyür' },
+    { type: 'section', label: 'Canlı Sonuç' },
     { type: 'display', label: 'Engel yarıçapı r', getValue: () => r.toFixed(1) },
-    { type: 'display', label: 'Kaynak–cisim d₁', getValue: () => d1.toFixed(0) },
-    { type: 'display', label: 'Cisim–perde d₂', getValue: () => d2.toFixed(0) },
-    { type: 'display', label: 'Büyütme m', getValue: () => m.toFixed(2), highlight: true },
-    { type: 'formula', text: 'Gölge = r·(d₁+d₂)/d₁ = ' + shadowR.toFixed(1) }
+    { type: 'display', label: 'Büyütme m', highlight: true,
+      getValue: () => ((S.ng_d1 + S.ng_d2) / S.ng_d1).toFixed(2) },
+    { type: 'display', label: 'Gölge yarıçapı',
+      getValue: () => (r * (S.ng_d1 + S.ng_d2) / S.ng_d1).toFixed(2) },
+    { type: 'formula', text: 'r_g = r·(d₁+d₂)/d₁',
+      getValue: () => {
+        const d1 = S.ng_d1, d2 = S.ng_d2;
+        return 'r_g = ' + r.toFixed(1) + '·(' + d1.toFixed(1) + '+' + d2.toFixed(1) + ')/' + d1.toFixed(1) + ' = <b>' + (r*(d1+d2)/d1).toFixed(2) + '</b>';
+      }
+    }
   ], { title: 'Noktasal Gölge' });
 };
 
@@ -3051,23 +3501,27 @@ SubBuilders.buildKaynakKonum = function() {
   root.add(makeFloor());
 
   const objX = 0, scrX = 8;
-  const r = 1.1;
+  const r = 1.1;                 // engel yarıçapı (sabit)
+  const objPos = new THREE.Vector3(objX, _AXIS_Y, 0);
 
   const S = window._sceneState;
-  S.kx = -8;
-  S.ky = 0;
+  S.kk_x = -8;                   // kaynak yatay (uzaklık)
+  S.kk_y = 0;                    // kaynak dikey
+  S.kk_z = 0;                    // kaynak yana (z)
 
+  // ---- Sabit nesneler ----
   const obj = makeObstacle({ r: r, type: 'sphere' });
-  obj.position.set(objX, _AXIS_Y, 0);
+  obj.position.copy(objPos);
   root.add(obj);
 
-  const screen = makeScreen({ w: 13, h: 13 });
+  const screen = makeScreen({ w: 14, h: 14 });
   screen.position.set(scrX, _AXIS_Y, 0);
   screen.rotation.y = -Math.PI / 2;
   root.add(screen);
 
   root.add(makeOpticalAxis(new THREE.Vector3(-12, _AXIS_Y, 0), new THREE.Vector3(scrX, _AXIS_Y, 0)));
 
+  // ---- Hareketli kaynak + dinamik gruplar ----
   let src = makePointSource({ radius: 0.28, color: 0xffe17a });
   root.add(src);
   const rayGroup = new THREE.Group(); rayGroup.userData.dynamic = true; root.add(rayGroup);
@@ -3083,19 +3537,19 @@ SubBuilders.buildKaynakKonum = function() {
   }
 
   function rebuild() {
-    const kx = S.kx, ky = S.ky;
-    const srcPos = new THREE.Vector3(kx, _AXIS_Y + ky, 0);
-    const d1 = objX - kx;
+    const srcPos = new THREE.Vector3(S.kk_x, _AXIS_Y + S.kk_y, S.kk_z);
+    const d1 = objX - S.kk_x;
     const d2 = scrX - objX;
     const m = (d1 + d2) / d1;
+    const shadowR = r * m;
 
     src.position.copy(srcPos);
 
     disposeGroup(rayGroup);
     disposeGroup(shadowGroup);
 
-    const N = 14;
-    const hits = [];
+    // Teğet (sınır) ışınları — engel çevresinde halka
+    const N = 16;
     for (let i = 0; i < N; i++) {
       const ang = (i / N) * Math.PI * 2;
       const ty = Math.sin(ang) * r;
@@ -3106,25 +3560,26 @@ SubBuilders.buildKaynakKonum = function() {
       const tHit = (scrX - srcPos.x) / dir.x;
       if (tHit <= 0) continue;
       const hit = srcPos.clone().add(dir.clone().multiplyScalar(tHit));
-      hits.push(hit);
       rayGroup.add(makeRay(srcPos.clone(), hit, { color: 0xffd166, width: 0.012 }));
     }
 
-    const centerDir = new THREE.Vector3().subVectors(new THREE.Vector3(objX, _AXIS_Y, 0), srcPos).normalize();
+    // Merkez ışın: kaynak → cisim merkezi → perde (gölge merkezini belirler)
+    const centerDir = new THREE.Vector3().subVectors(objPos, srcPos).normalize();
     const tC = (scrX - srcPos.x) / centerDir.x;
     const shadowCenter = srcPos.clone().add(centerDir.clone().multiplyScalar(tC));
-    const fr = makeFlowRay(srcPos.clone(), shadowCenter.clone(), { count: 8, color: 0xfff3b0 });
+    rayGroup.add(makeRay(srcPos.clone(), shadowCenter.clone(), { color: 0xfff3b0, width: 0.02 }));
+    const fr = makeFlowRay(srcPos.clone(), shadowCenter.clone(), { count: 9, color: 0xffffff });
     rayGroup.add(fr); registerFlowRay(fr);
 
-    const shadowR = r * m;
+    // TAM GÖLGE — gölge merkezi = kaynak-cisim doğrusunun perdedeki izi (yön değişir!)
     const umbra = makeShadowDisk(shadowR, COLORS.umbra, 0.9, { seg: 48 });
     umbra.position.set(scrX - 0.02, shadowCenter.y, shadowCenter.z);
     umbra.rotation.y = Math.PI / 2;
     shadowGroup.add(umbra);
 
     const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(shadowR, 0.04, 8, 40),
-      new THREE.MeshBasicMaterial({ color: 0x5fc8e0, transparent: true, opacity: 0.8, toneMapped: false })
+      new THREE.TorusGeometry(shadowR, 0.045, 8, 44),
+      new THREE.MeshBasicMaterial({ color: 0x5fc8e0, transparent: true, opacity: 0.85, toneMapped: false })
     );
     ring.position.set(scrX - 0.01, shadowCenter.y, shadowCenter.z);
     ring.rotation.y = Math.PI / 2;
@@ -3136,35 +3591,42 @@ SubBuilders.buildKaynakKonum = function() {
   setSceneSliders([
     { type: 'section', label: 'Kaynağı Hareket Ettir' },
     { type: 'slider', label: '↔️ Yatay (uzaklık)', min: -12, max: -2.5, step: 0.5, unit: '',
-      getValue: () => S.kx, setValue: (v) => { S.kx = v; rebuild(); }, format: (v)=>v.toFixed(1),
-      sub: 'Sola = uzak, sağa = cisme yakın' },
+      getValue: () => S.kk_x, setValue: (v) => { S.kk_x = v; rebuild(); }, format: (v)=>v.toFixed(1),
+      sub: 'Sola = uzak, sağa = cisme yakın (gölge büyür)' },
     { type: 'slider', label: '↕️ Dikey konum', min: -4, max: 4, step: 0.25, unit: '',
-      getValue: () => S.ky, setValue: (v) => { S.ky = v; rebuild(); }, format: (v)=>v.toFixed(2),
-      sub: 'Kaynağı yukarı/aşağı taşır' },
+      getValue: () => S.kk_y, setValue: (v) => { S.kk_y = v; rebuild(); }, format: (v)=>v.toFixed(2),
+      sub: 'Kaynak yukarı → gölge AŞAĞI kayar' },
+    { type: 'slider', label: '🔄 Yana (z)', min: -4, max: 4, step: 0.25, unit: '',
+      getValue: () => S.kk_z, setValue: (v) => { S.kk_z = v; rebuild(); }, format: (v)=>v.toFixed(2),
+      sub: 'Kaynak öne/arkaya → gölge ters yana' },
     { type: 'section', label: 'Sonuç' },
-    { type: 'display', label: 'Kaynak–cisim d₁', getValue: () => (objX - S.kx).toFixed(1) },
+    { type: 'display', label: 'Kaynak–cisim d₁', getValue: () => (objX - S.kk_x).toFixed(1) },
     { type: 'display', label: 'Büyütme m', highlight: true,
-      getValue: () => { const d1 = objX - S.kx; return ((d1 + (scrX-objX)) / d1).toFixed(2); } },
+      getValue: () => { const d1 = objX - S.kk_x; return ((d1 + (scrX-objX)) / d1).toFixed(2); } },
     { type: 'display', label: 'Gölge yarıçapı',
-      getValue: () => { const d1 = objX - S.kx; return (r * (d1 + (scrX-objX)) / d1).toFixed(2); } },
-    { type: 'formula',
-      text: 'm = (d₁+d₂)/d₁',
+      getValue: () => { const d1 = objX - S.kk_x; return (r * (d1 + (scrX-objX)) / d1).toFixed(2); } },
+    { type: 'formula', text: 'Gölge yönü = kaynağın TERS yönü',
       getValue: () => {
-        const d1 = objX - S.kx, d2 = scrX - objX;
-        return 'm = (' + d1.toFixed(1) + '+' + d2 + ')/' + d1.toFixed(1) + ' = <b>' + ((d1+d2)/d1).toFixed(2) + '</b>';
+        const yd = S.kk_y, zd = S.kk_z;
+        let s = 'Gölge: ';
+        const parts = [];
+        if (Math.abs(yd) > 0.05) parts.push(yd > 0 ? 'aşağı' : 'yukarı');
+        if (Math.abs(zd) > 0.05) parts.push(zd > 0 ? 'arkaya' : 'öne');
+        s += parts.length ? '<b>' + parts.join(' + ') + '</b>' : '<b>eksende</b>';
+        return s;
       }
     }
   ], { title: 'Kaynağın Konumu' });
 
   addInfo3DLabels([
-    { text: { ilkokul: '💡 Lambayı kaydır', ortaokul: '💡 Kaynak (oynat)', lise: '💡 Noktasal kaynak', tyt_ayt: '💡 Kaynak (x_k, y_k)' },
-      position: [-9, 2.6, 0], target: [-8, 0.3, 0], color: '#ffe17a' },
-    { text: { ilkokul: '⚫ Engel', ortaokul: '⚫ Opak cisim', lise: '⚫ Engel (r sabit)', tyt_ayt: '⚫ Engel r=1.1' },
-      position: [objX, 2.4, 0], target: [objX, r, 0], color: '#9d7fe6' },
-    { text: { ilkokul: '🌑 Gölge', ortaokul: '🌑 Tam gölge (kayar)', lise: '🌑 Gölge: konum+boyut değişir', tyt_ayt: '🌑 Gölge merkezi = kaynak-cisim doğrusu' },
-      position: [scrX, -4, 0], target: [scrX - 0.1, -1, 0], color: '#5fc8e0', minLevel: 1 },
-    { text: { lise: '📐 Kaynak yana kayınca gölge ters yöne kayar', tyt_ayt: '📐 Δgölge = −Δx·(d₂/d₁)' },
-      position: [-2, 4.4, 0], target: [-2, 0.1, 0], color: '#ffd166', minLevel: 3 }
+    { text: { ilkokul: '💡 Lambayı kaydır', ortaokul: '💡 Kaynak (oynat)', lise: '💡 Noktasal kaynak', tyt_ayt: '💡 Kaynak (xₖ, yₖ, zₖ)' },
+      position: [-9, 2.8, 0], target: [-8, 0.3, 0], color: '#ffe17a' },
+    { text: { ilkokul: '⚫ Engel', ortaokul: '⚫ Opak cisim', lise: '⚫ Engel (r sabit)', tyt_ayt: '⚫ Engel r=1,1' },
+      position: [objX, 2.6, 0], target: [objX, r, 0], color: '#9d7fe6' },
+    { text: { ilkokul: '🌑 Gölge kayar', ortaokul: '🌑 Tam gölge (kayar)', lise: '🌑 Gölge: yön + boyut değişir', tyt_ayt: '🌑 Gölge merkezi = kaynak-cisim doğrusu izi' },
+      position: [scrX, -4.6, 0], target: [scrX - 0.1, -1, 0], color: '#5fc8e0' },
+    { text: { lise: '📐 Kaynak yukarı → gölge aşağı (ters)', tyt_ayt: '📐 Δgölge = −Δkaynak·(d₂/d₁)' },
+      position: [-2, 4.6, 0], target: [-2, 0.1, 0], color: '#ffd166', minLevel: 3 }
   ]);
 };
 
@@ -3178,73 +3640,145 @@ SubBuilders.buildCokluKaynak = function() {
   root.add(makeFloor());
 
   const srcX = -9, objX = 0, scrX = 8;
-  const r = 1.0;
-  const sep = 2.2;
+  const r = 1.0;                 // engel yarıçapı
 
-  const k1 = makePointSource({ radius: 0.24, color: 0xffd166 });
-  k1.position.set(srcX, _AXIS_Y + sep, 0); root.add(k1);
-  const k2 = makePointSource({ radius: 0.24, color: 0x7adcf0 });
-  k2.position.set(srcX, _AXIS_Y - sep, 0); root.add(k2);
+  const S = window._sceneState;
+  S.ck_sep = 2.4;               // iki kaynak arası YARI mesafe
+  S.ck_two = true;             // ikinci kaynak açık mı
 
+  // ---- Sabit nesneler ----
   const obj = makeObstacle({ r: r, type: 'sphere' });
-  obj.position.set(objX, _AXIS_Y, 0); root.add(obj);
+  obj.position.set(objX, _AXIS_Y, 0);
+  root.add(obj);
 
-  const screen = makeScreen({ w: 12, h: 12 });
+  const screen = makeScreen({ w: 13, h: 13 });
   screen.position.set(scrX, _AXIS_Y, 0);
   screen.rotation.y = -Math.PI / 2;
   root.add(screen);
 
+  // ---- Hareketli kaynaklar + dinamik gruplar ----
+  let k1 = makePointSource({ radius: 0.24, color: 0xffd166 });
+  let k2 = makePointSource({ radius: 0.24, color: 0x7adcf0 });
+  root.add(k1); root.add(k2);
+  const rayGroup = new THREE.Group(); rayGroup.userData.dynamic = true; root.add(rayGroup);
+  const shadowGroup = new THREE.Group(); shadowGroup.userData.dynamic = true; root.add(shadowGroup);
+
+  function disposeGroup(g) {
+    while (g.children.length) {
+      const c = g.children[0]; g.remove(c);
+      if (c.geometry) c.geometry.dispose();
+      if (c.material) { Array.isArray(c.material) ? c.material.forEach(m=>m.dispose()) : c.material.dispose(); }
+    }
+    if (window._flowRays) window._flowRays = window._flowRays.filter(fr => fr.parent);
+  }
+
+  // Bir kaynaktan engel kenarına teğet ışınlar at → perdedeki gölge bandının [yTop,yBot] sınırı
   function castTangents(srcPos, color) {
-    const hits = [];
+    const ys = [];
     [r, -r].forEach(off => {
       const tangentPt = new THREE.Vector3(objX, _AXIS_Y + off, 0);
       const dir = new THREE.Vector3().subVectors(tangentPt, srcPos).normalize();
       const tHit = (scrX - srcPos.x) / dir.x;
       const hit = srcPos.clone().add(dir.clone().multiplyScalar(tHit));
-      hits.push(hit);
-      root.add(makeRay(srcPos, hit, { color, width: 0.014 }));
+      ys.push(hit.y);
+      rayGroup.add(makeRay(srcPos.clone(), hit, { color, width: 0.015 }));
       const fr = makeFlowRay(srcPos.clone(), hit.clone(), { count: 7, color });
-      root.add(fr); registerFlowRay(fr);
+      rayGroup.add(fr); registerFlowRay(fr);
     });
-    return hits;
+    return { yTop: Math.max(ys[0], ys[1]), yBot: Math.min(ys[0], ys[1]) };
   }
-  const h1 = castTangents(new THREE.Vector3(srcX, _AXIS_Y + sep, 0), 0xffd166);
-  const h2 = castTangents(new THREE.Vector3(srcX, _AXIS_Y - sep, 0), 0x7adcf0);
 
   function shadowBar(yTop, yBot, color, opacity) {
     const h = Math.abs(yTop - yBot);
-    const geo = new THREE.PlaneGeometry(0.1 + 3, h);
+    if (h < 0.02) return null;
+    const geo = new THREE.PlaneGeometry(3.0, h);
     const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(scrX - 0.03, (yTop + yBot) / 2, 0);
     mesh.rotation.y = Math.PI / 2;
     return mesh;
   }
-  root.add(shadowBar(h1[0].y, h1[1].y, COLORS.penumbra, 0.5));
-  root.add(shadowBar(h2[0].y, h2[1].y, COLORS.penumbra, 0.5));
-  const interTop = Math.min(h1[0].y, h2[0].y);
-  const interBot = Math.max(h1[1].y, h2[1].y);
-  if (interTop > interBot) {
-    root.add(shadowBar(interTop, interBot, COLORS.umbra, 0.92));
+
+  function rebuild() {
+    const sep = S.ck_sep;
+    const two = S.ck_two;
+    const p1 = new THREE.Vector3(srcX, _AXIS_Y + sep, 0);
+    const p2 = new THREE.Vector3(srcX, _AXIS_Y - sep, 0);
+
+    k1.position.copy(p1);
+    k2.position.copy(p2);
+    k2.visible = two;
+
+    disposeGroup(rayGroup);
+    disposeGroup(shadowGroup);
+
+    const b1 = castTangents(p1, 0xffd166);
+
+    if (!two) {
+      // Tek kaynak → tek tam gölge
+      const u = shadowBar(b1.yTop, b1.yBot, COLORS.umbra, 0.92);
+      if (u) shadowGroup.add(u);
+      return;
+    }
+
+    const b2 = castTangents(p2, 0x7adcf0);
+
+    // Her kaynağın gölge bandı = yarı gölge adayı; KESİŞİM = tam gölge
+    const interTop = Math.min(b1.yTop, b2.yTop);
+    const interBot = Math.max(b1.yBot, b2.yBot);
+
+    // Yarı gölge: iki bandın birleşimi (açık), kesişim üstüne koyu bindirme
+    const pen1 = shadowBar(b1.yTop, b1.yBot, COLORS.penumbra, 0.5);
+    if (pen1) shadowGroup.add(pen1);
+    const pen2 = shadowBar(b2.yTop, b2.yBot, COLORS.penumbra, 0.5);
+    if (pen2) shadowGroup.add(pen2);
+
+    if (interTop > interBot) {
+      const umb = shadowBar(interTop, interBot, COLORS.umbra, 0.94);
+      if (umb) shadowGroup.add(umb);
+    }
+    // kesişim yoksa (kaynaklar çok ayrık) tam gölge oluşmaz → yalnız yarı gölgeler kalır
   }
+
+  rebuild();
 
   addInfo3DLabels([
     { text: { ilkokul:'💡 1. Lamba', ortaokul:'💡 K₁ kaynağı', lise:'💡 K₁ kaynağı', tyt_ayt:'💡 K₁' },
-      position: [srcX, _AXIS_Y + sep + 1.6, 0], target: [srcX, _AXIS_Y + sep + 0.3, 0], color: '#ffd166' },
+      position: [srcX, _AXIS_Y + S.ck_sep + 1.8, 0], target: [srcX, _AXIS_Y + S.ck_sep + 0.3, 0], color: '#ffd166' },
     { text: { ilkokul:'💡 2. Lamba', ortaokul:'💡 K₂ kaynağı', lise:'💡 K₂ kaynağı', tyt_ayt:'💡 K₂' },
-      position: [srcX, _AXIS_Y - sep - 1.6, 0], target: [srcX, _AXIS_Y - sep - 0.3, 0], color: '#7adcf0' },
-    { text: { ilkokul:'⚫ En karanlık yer', ortaokul:'⚫ Tam gölge', lise:'⚫ Tam gölge (kesişim)', tyt_ayt:'⚫ Tam gölge = K₁∩K₂' },
-      position: [scrX, 3.5, 0], target: [scrX - 0.1, (interTop+interBot)/2, 0], color: '#5fc8e0' },
-    { text: { ilkokul:'⬜ Az karanlık', ortaokul:'⬜ Yarı gölge', lise:'⬜ Yarı gölge', tyt_ayt:'⬜ Yarı gölge (tek kaynak)' },
-      position: [scrX, -4.2, 0], target: [scrX - 0.1, h2[1].y + 0.5, 0], color: '#9d7fe6' }
+      position: [srcX, _AXIS_Y - S.ck_sep - 1.8, 0], target: [srcX, _AXIS_Y - S.ck_sep - 0.3, 0], color: '#7adcf0' },
+    { text: { ilkokul:'⚫ Engel', ortaokul:'⚫ Opak engel', lise:'⚫ Opak engel', tyt_ayt:'⚫ Engel r' },
+      position: [objX, 2.8, 0], target: [objX, r, 0], color: '#9d7fe6' },
+    { text: { ilkokul:'⚫ En karanlık yer', ortaokul:'🌑 Tam gölge', lise:'🌑 Tam gölge (kesişim)', tyt_ayt:'🌑 Tam gölge = K₁∩K₂ gölgesi' },
+      position: [scrX, 3.6, 0], target: [scrX - 0.1, 0, 0], color: '#5fc8e0' },
+    { text: { ilkokul:'⬜ Az karanlık', ortaokul:'🌗 Yarı gölge', lise:'🌗 Yarı gölge (tek kaynak)', tyt_ayt:'🌗 Yarı gölge: yalnız bir kaynak engelli' },
+      position: [scrX, -4.6, 0], target: [scrX - 0.1, -2.2, 0], color: '#9d7fe6' }
   ]);
 
   setSceneSliders([
     { type: 'section', label: 'İki Kaynak' },
-    { type: 'display', label: 'Kaynak sayısı', getValue: () => '2 noktasal' },
-    { type: 'display', label: 'Tam gölge', getValue: () => 'Kesişim bölgesi' },
-    { type: 'display', label: 'Yarı gölge', getValue: () => 'Tek kaynaktan' },
-    { type: 'formula', text: 'Tam gölge = K₁ ∩ K₂' }
+    { type: 'presets', activeIdx: 1, options: [
+        { label: 'Tek kaynak', action: () => { S.ck_two = false; rebuild(); } },
+        { label: 'İki kaynak', action: () => { S.ck_two = true; rebuild(); } }
+      ] },
+    { type: 'slider', label: '↕️ Kaynaklar arası', min: 0.6, max: 4.5, step: 0.2, unit: '',
+      getValue: () => S.ck_sep * 2, setValue: (v) => { S.ck_sep = v / 2; rebuild(); }, format: (v)=>v.toFixed(1),
+      sub: 'Açılınca tam gölge daralır, yarı gölge büyür' },
+    { type: 'section', label: 'Sonuç' },
+    { type: 'display', label: 'Kaynak sayısı', getValue: () => S.ck_two ? '2 noktasal' : '1 noktasal' },
+    { type: 'display', label: 'Tam gölge', highlight: true,
+      getValue: () => {
+        if (!S.ck_two) return 'Var (tek)';
+        // kesişim var mı kontrol
+        const sep = S.ck_sep;
+        const p1 = new THREE.Vector3(srcX, _AXIS_Y + sep, 0);
+        const p2 = new THREE.Vector3(srcX, _AXIS_Y - sep, 0);
+        function band(srcPos){const ys=[];[r,-r].forEach(off=>{const tp=new THREE.Vector3(objX,_AXIS_Y+off,0);const dir=new THREE.Vector3().subVectors(tp,srcPos).normalize();const tH=(scrX-srcPos.x)/dir.x;ys.push(srcPos.y+dir.y*tH);});return {t:Math.max(ys[0],ys[1]),b:Math.min(ys[0],ys[1])};}
+        const b1=band(p1), b2=band(p2);
+        const it=Math.min(b1.t,b2.t), ib=Math.max(b1.b,b2.b);
+        return it>ib ? 'Var (kesişim)' : 'YOK (ayrık)';
+      } },
+    { type: 'formula', text: 'Tam gölge = iki kaynağın gölgelerinin kesişimi' }
   ], { title: 'İki Kaynak' });
 };
 
@@ -3260,21 +3794,25 @@ SubBuilders.buildKureselKaynak = function() {
   const srcX = -9, objX = 0, scrX = 9;
   const d1 = objX - srcX;
   const d2 = scrX - objX;
+  const r = 1.1;                 // engel yarıçapı (sabit)
 
   const S = window._sceneState;
-  S.kk_R = 1.6;
-  S.kk_r = 1.0;
+  S.ks_R = 1.6;                  // kaynak yarıçapı (slider: çap = 2R)
 
-  const screen = makeScreen({ w: 13, h: 13 });
+  // ---- Sabit nesneler ----
+  const screen = makeScreen({ w: 14, h: 14 });
   screen.position.set(scrX, _AXIS_Y, 0);
   screen.rotation.y = -Math.PI / 2;
   root.add(screen);
   root.add(makeOpticalAxis(new THREE.Vector3(srcX, _AXIS_Y, 0), new THREE.Vector3(scrX, _AXIS_Y, 0)));
 
-  let src = makeSphericalSource({ R: S.kk_R, color: 0xffcc33 });
-  root.add(src);
-  let obj = makeObstacle({ r: S.kk_r, type: 'sphere' });
+  const obj = makeObstacle({ r: r, type: 'sphere' });
+  obj.position.set(objX, _AXIS_Y, 0);
   root.add(obj);
+
+  // ---- Hareketli kaynak + dinamik gruplar ----
+  let src = makeSphericalSource({ R: S.ks_R, color: 0xffcc33 });
+  root.add(src);
   const rayGroup = new THREE.Group(); rayGroup.userData.dynamic = true; root.add(rayGroup);
   const shadowGroup = new THREE.Group(); shadowGroup.userData.dynamic = true; root.add(shadowGroup);
 
@@ -3287,20 +3825,21 @@ SubBuilders.buildKureselKaynak = function() {
     if (window._flowRays) window._flowRays = window._flowRays.filter(fr => fr.parent);
   }
 
-  function rebuild() {
-    const R = S.kk_R, r = S.kk_r;
+  function ext(from, through) {
+    const dir = new THREE.Vector3().subVectors(through, from).normalize();
+    const tHit = (scrX - from.x) / dir.x;
+    return from.clone().add(dir.clone().multiplyScalar(tHit));
+  }
 
+  function rebuild() {
+    const R = S.ks_R;
+
+    // kaynağı R'ye göre yeniden kur
     root.remove(src);
     src.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { Array.isArray(o.material)?o.material.forEach(m=>m.dispose()):o.material.dispose(); } });
     src = makeSphericalSource({ R: R, color: 0xffcc33 });
     src.position.set(srcX, _AXIS_Y, 0); src.userData.dynamic = true;
     root.add(src);
-
-    root.remove(obj);
-    obj.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { Array.isArray(o.material)?o.material.forEach(m=>m.dispose()):o.material.dispose(); } });
-    obj = makeObstacle({ r: r, type: 'sphere' });
-    obj.position.set(objX, _AXIS_Y, 0); obj.userData.dynamic = true;
-    root.add(obj);
 
     disposeGroup(rayGroup);
     disposeGroup(shadowGroup);
@@ -3309,64 +3848,92 @@ SubBuilders.buildKureselKaynak = function() {
     const srcBot = new THREE.Vector3(srcX, _AXIS_Y - R, 0);
     const objTop = new THREE.Vector3(objX, _AXIS_Y + r, 0);
     const objBot = new THREE.Vector3(objX, _AXIS_Y - r, 0);
-    function ext(from, through) {
-      const dir = new THREE.Vector3().subVectors(through, from).normalize();
-      const tHit = (scrX - from.x) / dir.x;
-      return from.clone().add(dir.clone().multiplyScalar(tHit));
-    }
-    rayGroup.add(makeRay(srcTop, ext(srcTop, objBot), { color: 0x5fc8e0, width: 0.016 }));
-    rayGroup.add(makeRay(srcBot, ext(srcBot, objTop), { color: 0x5fc8e0, width: 0.016 }));
-    rayGroup.add(makeRay(srcTop, ext(srcTop, objTop), { color: 0xffd166, width: 0.016 }));
-    rayGroup.add(makeRay(srcBot, ext(srcBot, objBot), { color: 0xffd166, width: 0.016 }));
 
-    const r_u = r + (r - R) * d2 / d1;
-    const r_p = r + (r + R) * d2 / d1;
+    // İÇ teğet (çapraz): kaynak üst → engel alt → TAM gölge sınırı
+    rayGroup.add(makeRay(srcTop, ext(srcTop, objBot), { color: 0x5fc8e0, width: 0.018 }));
+    rayGroup.add(makeRay(srcBot, ext(srcBot, objTop), { color: 0x5fc8e0, width: 0.018 }));
+    // DIŞ teğet (paralel taraf): kaynak üst → engel üst → YARI gölge dış sınırı
+    rayGroup.add(makeRay(srcTop, ext(srcTop, objTop), { color: 0xffd166, width: 0.018 }));
+    rayGroup.add(makeRay(srcBot, ext(srcBot, objBot), { color: 0xffd166, width: 0.018 }));
 
+    // akış (eksen)
+    const frC = makeFlowRay(new THREE.Vector3(srcX, _AXIS_Y, 0), new THREE.Vector3(scrX, _AXIS_Y, 0), { count: 8, color: 0xfff3b0 });
+    rayGroup.add(frC); registerFlowRay(frC);
+
+    // Yarıçaplar (geometrik): umbra iç teğetten, penumbra dış teğetten
+    const r_u = r + (r - R) * d2 / d1;     // tam gölge yarıçapı (R>r ise daralır/kaybolur)
+    const r_p = r + (r + R) * d2 / d1;     // yarı gölge dış yarıçapı
+
+    // YARI GÖLGE (penumbra): açık gri geniş disk
     const pen = makeShadowDisk(Math.abs(r_p), COLORS.penumbra, 0.5, { seg: 56 });
-    pen.position.set(scrX - 0.04, _AXIS_Y, 0); pen.rotation.y = Math.PI / 2;
+    pen.position.set(scrX - 0.05, _AXIS_Y, 0); pen.rotation.y = Math.PI / 2;
     shadowGroup.add(pen);
+
     if (r_u > 0.05) {
-      const umb = makeShadowDisk(r_u, COLORS.umbra, 0.92, { seg: 48 });
+      // TAM GÖLGE (umbra): koyu disk, penumbra üstüne bindirilir → net ayrım
+      const umb = makeShadowDisk(r_u, COLORS.umbra, 0.93, { seg: 48 });
       umb.position.set(scrX - 0.02, _AXIS_Y, 0); umb.rotation.y = Math.PI / 2;
       shadowGroup.add(umb);
+      // umbra kenar halkası (net sınır)
+      const ringU = new THREE.Mesh(
+        new THREE.TorusGeometry(r_u, 0.04, 8, 40),
+        new THREE.MeshBasicMaterial({ color: 0x5fc8e0, transparent: true, opacity: 0.8, toneMapped: false })
+      );
+      ringU.position.set(scrX - 0.01, _AXIS_Y, 0); ringU.rotation.y = Math.PI / 2;
+      shadowGroup.add(ringU);
     } else {
-      const anti = makeShadowDisk(Math.abs(r_p), 0x6b6b8a, 0.25, { seg: 48, inner: Math.max(0.1, Math.abs(r_u)) });
-      anti.position.set(scrX - 0.01, _AXIS_Y, 0); anti.rotation.y = Math.PI / 2;
-      shadowGroup.add(anti);
+      // R çok büyük → tam gölge kapandı, merkezde halka biçimli koyu-orta bölge (anti-umbra yok, sadece kademeli)
+      const innerR = Math.max(0.12, Math.abs(r_u));
+      const fade = makeShadowDisk(Math.abs(r_p), 0x4a4a68, 0.35, { seg: 48, inner: innerR });
+      fade.position.set(scrX - 0.03, _AXIS_Y, 0); fade.rotation.y = Math.PI / 2;
+      shadowGroup.add(fade);
     }
+
+    // penumbra dış kenar halkası (yarı gölge sınırı)
+    const ringP = new THREE.Mesh(
+      new THREE.TorusGeometry(Math.abs(r_p), 0.035, 8, 48),
+      new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.6, toneMapped: false })
+    );
+    ringP.position.set(scrX - 0.015, _AXIS_Y, 0); ringP.rotation.y = Math.PI / 2;
+    shadowGroup.add(ringP);
   }
 
   rebuild();
 
   addInfo3DLabels([
-    { text: { ilkokul:'🔆 Büyük ışık', ortaokul:'🔆 Küresel kaynak', lise:'🔆 Küresel kaynak (R ayarla)', tyt_ayt:'🔆 Küresel kaynak R (değişken)' },
-      position: [srcX, 3.6, 0], target: [srcX, 0.5, 0], color: '#ffcc33' },
-    { text: { ilkokul:'⚫ Engel', ortaokul:'⚫ Opak engel (büyüt/küçült)', lise:'⚫ Engel (r ayarla)', tyt_ayt:'⚫ Engel r (değişken)' },
-      position: [objX, 3.0, 0], target: [objX, 0.8, 0], color: '#9d7fe6' },
-    { text: { ortaokul:'🔵 Tam gölge çizgisi', lise:'🔵 İç teğet → tam gölge sınırı', tyt_ayt:'🔵 İç teğet (çapraz) → umbra' },
-      position: [-2, -3.8, 0], target: [objX, -1, 0], color: '#5fc8e0', minLevel: 2 },
-    { text: { ortaokul:'🟡 Yarı gölge çizgisi', lise:'🟡 Dış teğet → yarı gölge', tyt_ayt:'🟡 Dış teğet (paralel) → penumbra' },
-      position: [-2, 4.4, 0], target: [objX, 1, 0], color: '#ffd166', minLevel: 2 }
+    { text: { ilkokul:'🔆 Büyük ışık', ortaokul:'🔆 Küresel kaynak', lise:'🔆 Küresel kaynak (R ayarla)', tyt_ayt:'🔆 Yaygın kaynak R (değişken)' },
+      position: [srcX, 4.0, 0], target: [srcX, 0.5, 0], color: '#ffcc33' },
+    { text: { ilkokul:'⚫ Engel', ortaokul:'⚫ Opak engel', lise:'⚫ Engel (r sabit)', tyt_ayt:'⚫ Engel r=1,1' },
+      position: [objX, 3.2, 0], target: [objX, r, 0], color: '#9d7fe6' },
+    { text: { ortaokul:'🌑 Tam gölge', lise:'🌑 Tam gölge (umbra) — iç teğet', tyt_ayt:'🌑 Umbra: çapraz (iç) teğetler' },
+      position: [scrX, -1.4, 0], target: [scrX - 0.1, 0, 0], color: '#5fc8e0', minLevel: 2 },
+    { text: { ortaokul:'🌗 Yarı gölge', lise:'🌗 Yarı gölge (penumbra) — dış teğet', tyt_ayt:'🌗 Penumbra: paralel (dış) teğetler' },
+      position: [scrX, 5.4, 0], target: [scrX - 0.1, 2.6, 0], color: '#ffd166', minLevel: 2 },
+    { text: { lise:'📐 Kaynak büyürse yarı gölge genişler', tyt_ayt:'📐 R↑ → umbra daralır, penumbra genişler' },
+      position: [-3, 5.2, 0], target: [objX, 1.0, 0], color: '#f6b93b', minLevel: 3 }
   ]);
 
   setSceneSliders([
-    { type: 'section', label: 'Yarıçapları Değiştir' },
-    { type: 'slider', label: '🔆 Kaynak R', min: 0.4, max: 2.6, step: 0.1, unit: '',
-      getValue: () => S.kk_R, setValue: (v) => { S.kk_R = v; rebuild(); }, format: (v)=>v.toFixed(1),
-      sub: 'R büyürse tam gölge daralır' },
-    { type: 'slider', label: '⚫ Engel r', min: 0.4, max: 2.6, step: 0.1, unit: '',
-      getValue: () => S.kk_r, setValue: (v) => { S.kk_r = v; rebuild(); }, format: (v)=>v.toFixed(1),
-      sub: 'r büyürse tam gölge genişler' },
+    { type: 'section', label: 'Kaynak Çapını Değiştir' },
+    { type: 'slider', label: '🔆 Kaynak çapı (2R)', min: 0.8, max: 5.2, step: 0.2, unit: '',
+      getValue: () => S.ks_R * 2, setValue: (v) => { S.ks_R = v / 2; rebuild(); }, format: (v)=>v.toFixed(1),
+      sub: 'Çap büyür → yarı gölge genişler, tam gölge daralır' },
     { type: 'section', label: 'Canlı Hesap' },
     { type: 'display', label: 'R - r durumu', highlight: true,
-      getValue: () => { const d = S.kk_R - S.kk_r; return Math.abs(d)<0.05 ? 'R = r' : (d>0 ? 'R > r' : 'R < r'); } },
+      getValue: () => { const dd = S.ks_R - r; return Math.abs(dd)<0.05 ? 'R = r' : (dd>0 ? 'R > r' : 'R < r'); } },
     { type: 'display', label: 'Tam gölge r_u',
-      getValue: () => { const v = S.kk_r + (S.kk_r - S.kk_R) * d2 / d1; return v > 0.05 ? v.toFixed(2) : 'kapandı'; } },
+      getValue: () => { const v = r + (r - S.ks_R) * d2 / d1; return v > 0.05 ? v.toFixed(2) : 'kapandı'; } },
     { type: 'display', label: 'Yarı gölge r_p',
-      getValue: () => (S.kk_r + (S.kk_r + S.kk_R) * d2 / d1).toFixed(2) },
+      getValue: () => (r + (r + S.ks_R) * d2 / d1).toFixed(2) },
+    { type: 'display', label: 'Penumbra genişliği',
+      getValue: () => {
+        const rp = r + (r + S.ks_R) * d2 / d1;
+        const ru = Math.max(0, r + (r - S.ks_R) * d2 / d1);
+        return (rp - ru).toFixed(2);
+      } },
     { type: 'formula', text: 'r_u = r + (r−R)·d₂/d₁',
       getValue: () => {
-        const v = S.kk_r + (S.kk_r - S.kk_R) * d2 / d1;
+        const v = r + (r - S.ks_R) * d2 / d1;
         return 'r_u = <b>' + (v>0.05?v.toFixed(2):'0 (kapandı)') + '</b>';
       }
     }
@@ -3382,117 +3949,136 @@ SubBuilders.buildParametreler = function() {
   root.add(setupShadowLighting());
   root.add(makeFloor());
 
-  const srcX = -9, objX = 0;
-  const r = 1.0;
-
+  // Noktasal kaynak: gölge boyunu etkileyen 3 parametre tek sahnede
+  //   d1 = kaynak–cisim, d2 = cisim–perde, r = cisim boyu (yarıçap)
+  //   Benzer üçgenler: gölge yarıçapı = r · (d1 + d2) / d1
   const S = window._sceneState;
-  S.R = 0.6;
-  S.d2 = 7;
-  const d1 = objX - srcX;
+  S.pp_d1 = 6;     // kaynak–cisim uzaklığı
+  S.pp_d2 = 7;     // cisim–perde uzaklığı
+  S.pp_r  = 1.0;   // cisim boyu (yarıçap)
 
-  let src = makeSphericalSource({ R: S.R, color: 0xffcc33 });
-  src.position.set(srcX, _AXIS_Y, 0);
+  const objX = 0;  // cisim sabit referans noktası; kaynak ve perde d1/d2 ile konumlanır
+
+  let src = makePointSource({ radius: 0.26, color: 0xffe17a });
   root.add(src);
-
-  const obj = makeObstacle({ r: r, type: 'sphere' });
-  obj.position.set(objX, _AXIS_Y, 0);
+  let obj = makeObstacle({ r: S.pp_r, type: 'sphere' });
   root.add(obj);
-
   let screen = makeScreen({ w: 14, h: 14 });
   root.add(screen);
 
   const rayGroup = new THREE.Group(); rayGroup.userData.dynamic = true; root.add(rayGroup);
   const shadowGroup = new THREE.Group(); shadowGroup.userData.dynamic = true; root.add(shadowGroup);
+  const axisGroup = new THREE.Group(); axisGroup.userData.dynamic = true; root.add(axisGroup);
 
   function disposeGroup(g) {
     while (g.children.length) {
-      const c = g.children[0];
-      g.remove(c);
+      const c = g.children[0]; g.remove(c);
       if (c.geometry) c.geometry.dispose();
       if (c.material) { Array.isArray(c.material) ? c.material.forEach(m=>m.dispose()) : c.material.dispose(); }
     }
+    if (window._flowRays) window._flowRays = window._flowRays.filter(fr => fr.parent);
+  }
+
+  function vLine(parent, x, yTop, yBot, color, op) {
+    const geo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(x, yBot, 0), new THREE.Vector3(x, yTop, 0)
+    ]);
+    parent.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ color, transparent: true, opacity: op==null?0.9:op })));
   }
 
   function rebuild() {
-    const R = S.R;
-    const d2 = S.d2;
+    const d1 = S.pp_d1, d2 = S.pp_d2, r = S.pp_r;
+    const srcX = objX - d1;
     const scrX = objX + d2;
+    const shadowR = r * (d1 + d2) / d1;   // benzer üçgen
 
-    root.remove(src);
-    src.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { Array.isArray(o.material)?o.material.forEach(m=>m.dispose()):o.material.dispose(); } });
-    src = makeSphericalSource({ R: R, color: 0xffcc33 });
     src.position.set(srcX, _AXIS_Y, 0);
-    src.userData.dynamic = true;
-    root.add(src);
+
+    root.remove(obj);
+    obj.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { Array.isArray(o.material)?o.material.forEach(m=>m.dispose()):o.material.dispose(); } });
+    obj = makeObstacle({ r: r, type: 'sphere' });
+    obj.position.set(objX, _AXIS_Y, 0);
+    obj.userData.dynamic = true;
+    root.add(obj);
 
     screen.position.set(scrX, _AXIS_Y, 0);
     screen.rotation.y = -Math.PI / 2;
 
     disposeGroup(rayGroup);
     disposeGroup(shadowGroup);
+    disposeGroup(axisGroup);
 
-    const srcTop = new THREE.Vector3(srcX, _AXIS_Y + R, 0);
-    const srcBot = new THREE.Vector3(srcX, _AXIS_Y - R, 0);
+    const srcP   = new THREE.Vector3(srcX, _AXIS_Y, 0);
     const objTop = new THREE.Vector3(objX, _AXIS_Y + r, 0);
     const objBot = new THREE.Vector3(objX, _AXIS_Y - r, 0);
-
     function ext(from, through) {
       const dir = new THREE.Vector3().subVectors(through, from).normalize();
       const tHit = (scrX - from.x) / dir.x;
       return from.clone().add(dir.clone().multiplyScalar(tHit));
     }
+    const scrTop = ext(srcP, objTop);
+    const scrBot = ext(srcP, objBot);
 
-    rayGroup.add(makeRay(srcTop, ext(srcTop, objBot), { color: 0x5fc8e0, width: 0.015 }));
-    rayGroup.add(makeRay(srcBot, ext(srcBot, objTop), { color: 0x5fc8e0, width: 0.015 }));
-    rayGroup.add(makeRay(srcTop, ext(srcTop, objTop), { color: 0xffd166, width: 0.015 }));
-    rayGroup.add(makeRay(srcBot, ext(srcBot, objBot), { color: 0xffd166, width: 0.015 }));
+    // Noktasal kaynak → cisim uçlarından geçen sınır ışınları
+    rayGroup.add(makeRay(srcP, scrTop, { color: 0xffd166, width: 0.018 }));
+    rayGroup.add(makeRay(srcP, scrBot, { color: 0xffd166, width: 0.018 }));
+    const fr = makeFlowRay(srcP.clone(), new THREE.Vector3(scrX, _AXIS_Y, 0), { count: 8, color: 0xfff3b0 });
+    rayGroup.add(fr); registerFlowRay(fr);
 
-    const r_u = r + (r - R) * d2 / d1;
-    const r_p = r + (r + R) * d2 / d1;
+    // Eksen + benzer üçgen kenarları (d1 ve d2 vurgusu)
+    axisGroup.add(makeOpticalAxis(srcP, new THREE.Vector3(scrX, _AXIS_Y, 0)));
+    vLine(axisGroup, objX, _AXIS_Y + r, _AXIS_Y - r, 0x9d7fe6);            // cisim boyu
+    vLine(axisGroup, scrX - 0.05, scrTop.y, scrBot.y, 0x5fc8e0);          // gölge boyu
 
-    const pen = makeShadowDisk(Math.abs(r_p), COLORS.penumbra, 0.5, { seg: 56 });
-    pen.position.set(scrX - 0.04, _AXIS_Y, 0); pen.rotation.y = Math.PI / 2;
-    shadowGroup.add(pen);
-    if (r_u > 0.05) {
-      const umb = makeShadowDisk(r_u, COLORS.umbra, 0.92, { seg: 48 });
-      umb.position.set(scrX - 0.02, _AXIS_Y, 0); umb.rotation.y = Math.PI / 2;
-      shadowGroup.add(umb);
-    } else {
-      const anti = makeShadowDisk(Math.abs(r_p), 0x6b6b8a, 0.25, { seg: 48, inner: Math.max(0.1, Math.abs(r_u)) });
-      anti.position.set(scrX - 0.01, _AXIS_Y, 0); anti.rotation.y = Math.PI / 2;
-      shadowGroup.add(anti);
-    }
+    // Tam gölge diski (umbra) — gerçek yarıçapla
+    const umbra = makeShadowDisk(shadowR, COLORS.umbra, 0.9, { seg: 48 });
+    umbra.position.set(scrX - 0.02, _AXIS_Y, 0); umbra.rotation.y = Math.PI / 2;
+    shadowGroup.add(umbra);
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(shadowR, 0.04, 8, 44),
+      new THREE.MeshBasicMaterial({ color: 0x5fc8e0, transparent: true, opacity: 0.85, toneMapped: false })
+    );
+    ring.position.set(scrX - 0.01, _AXIS_Y, 0); ring.rotation.y = Math.PI / 2;
+    shadowGroup.add(ring);
   }
 
   rebuild();
 
   setSceneSliders([
-    { type: 'section', label: 'Parametreler' },
-    { type: 'slider', label: 'Kaynak R', min: 0.3, max: 2.5, step: 0.1, unit: '',
-      getValue: () => S.R, setValue: (v) => { S.R = v; rebuild(); }, format: (v)=>v.toFixed(1),
-      sub: 'Engel r = 1.0 (sabit)' },
-    { type: 'slider', label: 'Perde uzaklığı d₂', min: 3, max: 12, step: 0.5, unit: '',
-      getValue: () => S.d2, setValue: (v) => { S.d2 = v; rebuild(); }, format: (v)=>v.toFixed(1),
-      sub: 'd₁ = ' + d1.toFixed(0) + ' (sabit)' },
-    { type: 'section', label: 'Canlı Hesap' },
-    { type: 'display', label: 'Tam gölge r_u', highlight: true,
-      getValue: () => { const v = r + (r - S.R) * S.d2 / d1; return v > 0.05 ? v.toFixed(2) : '0 (kapandı)'; } },
-    { type: 'display', label: 'Yarı gölge r_p',
-      getValue: () => (r + (r + S.R) * S.d2 / d1).toFixed(2) },
-    { type: 'formula',
-      text: 'r_u = r + (r−R)·d₂/d₁',
+    { type: 'section', label: 'Gölgeyi Etkileyen 3 Parametre' },
+    { type: 'slider', label: '💡 Kaynak–cisim d₁', min: 2, max: 11, step: 0.5, unit: '',
+      getValue: () => S.pp_d1, setValue: (v) => { S.pp_d1 = v; rebuild(); }, format: (v)=>v.toFixed(1),
+      sub: 'Yaklaşınca gölge büyür' },
+    { type: 'slider', label: '🟦 Cisim–perde d₂', min: 3, max: 13, step: 0.5, unit: '',
+      getValue: () => S.pp_d2, setValue: (v) => { S.pp_d2 = v; rebuild(); }, format: (v)=>v.toFixed(1),
+      sub: 'Uzaklaşınca gölge büyür' },
+    { type: 'slider', label: '⚫ Cisim boyu r', min: 0.4, max: 2.4, step: 0.1, unit: '',
+      getValue: () => S.pp_r, setValue: (v) => { S.pp_r = v; rebuild(); }, format: (v)=>v.toFixed(1),
+      sub: 'Cisim büyürse gölge büyür' },
+    { type: 'section', label: 'Canlı Hesap (Benzerlik)' },
+    { type: 'display', label: 'Büyütme (d₁+d₂)/d₁', highlight: true,
+      getValue: () => ((S.pp_d1 + S.pp_d2) / S.pp_d1).toFixed(2) },
+    { type: 'display', label: 'Gölge yarıçapı',
+      getValue: () => (S.pp_r * (S.pp_d1 + S.pp_d2) / S.pp_d1).toFixed(2) },
+    { type: 'display', label: 'Gölge alanı oranı',
+      getValue: () => { const m=(S.pp_d1+S.pp_d2)/S.pp_d1; return (m*m).toFixed(1) + '×'; } },
+    { type: 'formula', text: 'gölge = r·(d₁+d₂)/d₁',
       getValue: () => {
-        const v = r + (r - S.R) * S.d2 / d1;
-        return 'r_u = 1 + (1−' + S.R.toFixed(1) + ')·' + S.d2.toFixed(1) + '/' + d1.toFixed(0) + ' = <b>' + (v>0?v.toFixed(2):'0') + '</b>';
+        const m = (S.pp_d1 + S.pp_d2) / S.pp_d1;
+        return 'gölge = ' + S.pp_r.toFixed(1) + '·(' + S.pp_d1.toFixed(1) + '+' + S.pp_d2.toFixed(1) + ')/' + S.pp_d1.toFixed(1) + ' = <b>' + (S.pp_r*m).toFixed(2) + '</b>';
       }
     }
   ], { title: 'R ve d Etkisi (TYT/AYT)' });
 
   addInfo3DLabels([
-    { text: { ilkokul:'🎚️ Işığı büyüt/küçült', ortaokul:'🎚️ R değiştir → gölgeyi izle', lise:'🎚️ Kaynak R (ayarla)', tyt_ayt:'🎚️ R: kaynak yarıçapı' },
-      position: [srcX, 3.5, 0], target: [srcX, S.R + 0.2, 0], color: '#ffcc33' },
-    { text: { ilkokul:'⚫ Engel', ortaokul:'⚫ Engel r=1.0', lise:'⚫ Engel r=1.0 (sabit)', tyt_ayt:'⚫ Engel r=1.0' },
-      position: [objX, 2.6, 0], target: [objX, r, 0], color: '#9d7fe6' }
+    { text: { ilkokul:'💡 Işık', ortaokul:'💡 Kaynak — d₁ ayarla', lise:'💡 Noktasal kaynak (d₁)', tyt_ayt:'💡 Kaynak (d₁ değişken)' },
+      position: [objX - S.pp_d1, 2.6, 0], target: [objX - S.pp_d1, 0.3, 0], color: '#ffe17a' },
+    { text: { ilkokul:'⚫ Cisim', ortaokul:'⚫ Cisim boyu r', lise:'⚫ Cisim r (ayarla)', tyt_ayt:'⚫ Cisim r (değişken)' },
+      position: [objX, 3.0, 0], target: [objX, S.pp_r, 0], color: '#9d7fe6' },
+    { text: { ilkokul:'🟦 Perde — d₂', ortaokul:'🟦 Perde uzaklığı d₂', lise:'🟦 Perde (d₂ ayarla)', tyt_ayt:'🟦 Perde (d₂ değişken)' },
+      position: [objX + S.pp_d2, 4.6, 0], target: [objX + S.pp_d2 - 0.1, 1.4, 0], color: '#5fc8e0' },
+    { text: { ortaokul:'🌑 Gölge büyür/küçülür', lise:'🌑 Gölge = r·(d₁+d₂)/d₁', tyt_ayt:'🌑 Tam gölge (umbra)' },
+      position: [objX + S.pp_d2, -4.4, 0], target: [objX + S.pp_d2 - 0.1, -1.2, 0], color: '#ffd166', minLevel: 2 }
   ]);
 };
 
@@ -3507,6 +4093,8 @@ SubBuilders.buildGolgeBoyu = function() {
 
   const scrX = 9;
 
+  // Benzer üçgen geometrisi açıkça çizili: kaynak tepe noktası,
+  // cisim tabanı ve perde tabanı aynı ışın üzerinde → APİKAL üçgen.
   const S = window._sceneState;
   S.gb_srcX = -10;
   S.gb_objX = -2;
@@ -3526,6 +4114,7 @@ SubBuilders.buildGolgeBoyu = function() {
   const rayGroup = new THREE.Group(); rayGroup.userData.dynamic = true; root.add(rayGroup);
   const shadowGroup = new THREE.Group(); shadowGroup.userData.dynamic = true; root.add(shadowGroup);
   const axisGroup = new THREE.Group(); axisGroup.userData.dynamic = true; root.add(axisGroup);
+  const helpGroup = new THREE.Group(); helpGroup.userData.dynamic = true; root.add(helpGroup);
 
   function disposeGroup(g) {
     while (g.children.length) {
@@ -3536,12 +4125,15 @@ SubBuilders.buildGolgeBoyu = function() {
     if (window._flowRays) window._flowRays = window._flowRays.filter(fr => fr.parent);
   }
 
-  function vLine(parent, x, yTop, yBot, color) {
-    const geo = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(x, yBot, 0), new THREE.Vector3(x, yTop, 0)
-    ]);
-    const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 });
-    parent.add(new THREE.Line(geo, mat));
+  function solidLine(parent, a, b, color, op) {
+    const geo = new THREE.BufferGeometry().setFromPoints([a.clone(), b.clone()]);
+    parent.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ color, transparent: true, opacity: op==null?0.9:op })));
+  }
+  function dashLine(parent, a, b, color, op) {
+    const geo = new THREE.BufferGeometry().setFromPoints([a.clone(), b.clone()]);
+    const m = new THREE.LineDashedMaterial({ color, dashSize: 0.28, gapSize: 0.2, transparent: true, opacity: op==null?0.75:op });
+    const ln = new THREE.Line(geo, m); ln.computeLineDistances();
+    parent.add(ln);
   }
 
   function rebuild() {
@@ -3563,6 +4155,7 @@ SubBuilders.buildGolgeBoyu = function() {
     disposeGroup(rayGroup);
     disposeGroup(shadowGroup);
     disposeGroup(axisGroup);
+    disposeGroup(helpGroup);
 
     const srcP = new THREE.Vector3(srcX, _AXIS_Y, 0);
     const objTop = new THREE.Vector3(objX, _AXIS_Y + r, 0);
@@ -3575,15 +4168,24 @@ SubBuilders.buildGolgeBoyu = function() {
     const scrTop = ext(srcP, objTop);
     const scrBot = ext(srcP, objBot);
 
+    // Sınır ışınları (üçgenin eğik kenarları)
     rayGroup.add(makeRay(srcP, scrTop, { color: 0xffd166, width: 0.02 }));
     rayGroup.add(makeRay(srcP, scrBot, { color: 0xffd166, width: 0.02 }));
     const fr = makeFlowRay(srcP.clone(), new THREE.Vector3(scrX, _AXIS_Y, 0), { count: 8, color: 0xfff3b0 });
     rayGroup.add(fr); registerFlowRay(fr);
 
+    // Optik eksen
     axisGroup.add(makeOpticalAxis(srcP, new THREE.Vector3(scrX, _AXIS_Y, 0)));
-    vLine(axisGroup, objX, _AXIS_Y + r, _AXIS_Y - r, 0x9d7fe6);
-    vLine(axisGroup, scrX - 0.05, scrTop.y, scrBot.y, 0x5fc8e0);
 
+    // KÜÇÜK üçgen (kaynak→cisim) ve BÜYÜK üçgen (kaynak→perde) dik kenarları
+    // Kesikli yardımcı çizgiler: cisim boyu r (mor), gölge boyu r·m (mavi)
+    dashLine(helpGroup, new THREE.Vector3(objX, _AXIS_Y + r, 0), new THREE.Vector3(objX, _AXIS_Y - r, 0), 0x9d7fe6, 0.95);
+    dashLine(helpGroup, new THREE.Vector3(scrX - 0.05, scrTop.y, 0), new THREE.Vector3(scrX - 0.05, scrBot.y, 0), 0x5fc8e0, 0.95);
+    // d1 ve d2 taban segmentleri (oran etiketleri için)
+    solidLine(helpGroup, new THREE.Vector3(srcX, _AXIS_Y - 0.02, 0), new THREE.Vector3(objX, _AXIS_Y - 0.02, 0), 0xffe17a, 0.7);
+    solidLine(helpGroup, new THREE.Vector3(objX, _AXIS_Y - 0.02, 0), new THREE.Vector3(scrX, _AXIS_Y - 0.02, 0), 0x7adcf0, 0.7);
+
+    // Gölge diski
     const umbra = makeShadowDisk(shadowR, COLORS.umbra, 0.9, { seg: 48 });
     umbra.position.set(scrX - 0.02, _AXIS_Y, 0); umbra.rotation.y = Math.PI / 2;
     shadowGroup.add(umbra);
@@ -3598,44 +4200,48 @@ SubBuilders.buildGolgeBoyu = function() {
   rebuild();
 
   setSceneSliders([
-    { type: 'section', label: 'Ayarlar' },
+    { type: 'section', label: 'Benzer Üçgen Ayarları' },
     { type: 'slider', label: '💡 Kaynak uzaklığı', min: -14, max: -5, step: 0.5, unit: '',
       getValue: () => S.gb_srcX, setValue: (v) => { S.gb_srcX = Math.min(v, S.gb_objX - 1.5); rebuild(); }, format: (v)=>(S.gb_objX - v).toFixed(1),
-      sub: 'd₁ = kaynak–cisim uzaklığı' },
+      sub: 'd₁ = kaynak–cisim' },
     { type: 'slider', label: '⚫ Cisim konumu', min: -6, max: 5, step: 0.5, unit: '',
       getValue: () => S.gb_objX, setValue: (v) => { S.gb_objX = Math.max(S.gb_srcX + 1.5, Math.min(v, scrX - 1.5)); rebuild(); }, format: (v)=>v.toFixed(1),
       sub: 'Kaynak ile perde arası' },
     { type: 'slider', label: '📏 Cisim yarıçapı r', min: 0.4, max: 2.5, step: 0.1, unit: '',
       getValue: () => S.gb_r, setValue: (v) => { S.gb_r = v; rebuild(); }, format: (v)=>v.toFixed(1),
-      sub: 'Cismin büyüklüğü' },
-    { type: 'presets', activeIdx: 0, options: [
+      sub: 'Küçük üçgenin dik kenarı' },
+    { type: 'presets', activeIdx: 1, options: [
       { label: '⬤ Küre', action: () => { S.gb_shape = 'sphere'; rebuild(); } },
       { label: '▮ Silindir', action: () => { S.gb_shape = 'cylinder'; rebuild(); } }
     ]},
-    { type: 'section', label: 'Canlı Hesap' },
-    { type: 'display', label: 'Büyütme m', highlight: true,
+    { type: 'section', label: 'Oran ve Sonuç' },
+    { type: 'display', label: 'Oran (d₁+d₂)/d₁', highlight: true,
       getValue: () => { const d1 = S.gb_objX - S.gb_srcX, d2 = scrX - S.gb_objX; return ((d1+d2)/d1).toFixed(2); } },
-    { type: 'display', label: 'Gölge yarıçapı',
+    { type: 'display', label: 'r (küçük kenar)',
+      getValue: () => S.gb_r.toFixed(2) },
+    { type: 'display', label: 'Gölge boyu r·m (büyük)',
       getValue: () => { const d1 = S.gb_objX - S.gb_srcX, d2 = scrX - S.gb_objX; return (S.gb_r*(d1+d2)/d1).toFixed(2); } },
-    { type: 'display', label: 'Alan oranı m²',
-      getValue: () => { const d1 = S.gb_objX - S.gb_srcX, d2 = scrX - S.gb_objX; const m=(d1+d2)/d1; return (m*m).toFixed(1) + '×'; } },
-    { type: 'formula', text: 'm = (d₁+d₂)/d₁',
+    { type: 'formula', text: 'h_gölge / r = (d₁+d₂) / d₁',
       getValue: () => {
         const d1 = S.gb_objX - S.gb_srcX, d2 = scrX - S.gb_objX, m=(d1+d2)/d1;
-        return 'Alan = π·r²·m² → <b>' + (m*m).toFixed(1) + '×</b>';
+        return 'h_gölge = r·(d₁+d₂)/d₁ = <b>' + (S.gb_r*m).toFixed(2) + '</b>';
       }
     }
   ], { title: 'Gölge Boyu' });
 
   addInfo3DLabels([
-    { text: { ilkokul:'💡 Işık', ortaokul:'💡 Kaynak (uzaklık)', lise:'💡 Kaynak — d₁ ayarla', tyt_ayt:'💡 Kaynak (d₁ değişken)' },
+    { text: { ilkokul:'💡 Işık', ortaokul:'💡 Kaynak (tepe)', lise:'💡 Üçgenin tepe noktası', tyt_ayt:'💡 Kaynak A (apeks)' },
       position: [-10, 2.4, 0], target: [-10, 0.3, 0], color: '#ffe17a' },
-    { text: { ilkokul:'⚫ Cisim', ortaokul:'⚫ Cisim (büyüt/küçült)', lise:'⚫ Cisim r — ayarla', tyt_ayt:'⚫ Cisim r (değişken)' },
-      position: [-2, 3.0, 0], target: [-2, 1.0, 0], color: '#9d7fe6' },
-    { text: { ilkokul:'📏 Gölge', ortaokul:'📐 Gölge alanı', lise:'📐 Gölge = r·m', tyt_ayt:'📐 Alan = π·r²·m²' },
-      position: [scrX, 4.5, 0], target: [scrX - 0.1, 1.5, 0], color: '#5fc8e0' },
-    { text: { lise:'🔺 Benzer üçgenler', tyt_ayt:'🔺 ABC ~ ADE' },
-      position: [-2, -4.2, 0], target: [-2, -1.0, 0], color: '#ffd166', minLevel: 3 }
+    { text: { ilkokul:'⚫ Cisim', ortaokul:'📏 r = cisim boyu', lise:'📏 r — küçük üçgen kenarı', tyt_ayt:'📏 r (küçük dik kenar)' },
+      position: [-2, 3.2, 0], target: [-2, 1.0, 0], color: '#9d7fe6' },
+    { text: { ilkokul:'📏 Gölge', ortaokul:'📐 Gölge boyu', lise:'📐 r·m — büyük üçgen kenarı', tyt_ayt:'📐 r·m (büyük dik kenar)' },
+      position: [scrX, 4.6, 0], target: [scrX - 0.1, 1.5, 0], color: '#5fc8e0' },
+    { text: { ortaokul:'d₁ = kaynak–cisim', lise:'d₁ = kaynak–cisim', tyt_ayt:'d₁ (kısa taban)' },
+      position: [-6, -2.4, 0], target: [-6, -0.2, 0], color: '#ffd166', minLevel: 2 },
+    { text: { ortaokul:'d₂ = cisim–perde', lise:'d₂ = cisim–perde', tyt_ayt:'d₂ (uzun taban)' },
+      position: [3.5, -3.2, 0], target: [3.5, -0.2, 0], color: '#7adcf0', minLevel: 2 },
+    { text: { lise:'🔺 Benzerlik: ABC ~ ADE', tyt_ayt:'🔺 ABC ~ ADE → h/r = (d₁+d₂)/d₁' },
+      position: [-2, -4.4, 0], target: [-2, -1.0, 0], color: '#ffd166', minLevel: 3 }
   ]);
 };
 
@@ -3653,78 +4259,133 @@ SubBuilders.buildGunesTutulmasi = function() {
   amb.userData.dynamic = true;
   root.add(amb);
 
-  const sunX = -13, moonX = 1, earthX = 9;
+  // Sıralama: Güneş – Ay – Dünya (ölçek eğitimsel, sıra doğru)
+  const sunX = -13, earthX = 9;
   const Rsun = 2.6, rMoon = 0.55, rEarth = 1.8;
+
+  // Ay yörünge konumu: y ekseninde hareket (kaydırıcı + animasyon)
+  const S = window._sceneState;
+  S.ge_moonY = 0;          // Ay'ın eksene göre dikey kayması
+  S.ge_moonX = 1;          // Ay yatay konumu (Güneş–Dünya arası)
 
   const sun = makeSunBody({ r: Rsun });
   sun.position.set(sunX, _AXIS_Y, 0); root.add(sun);
 
-  const moon = makeCelestial({ r: rMoon, color: 0x9a9aa2 });
-  moon.position.set(moonX, _AXIS_Y, 0); root.add(moon);
+  let moon = makeCelestial({ r: rMoon, color: 0x9a9aa2 });
+  root.add(moon);
 
   const earth = makeCelestial({ r: rEarth, color: 0x2e7dd6 });
   earth.position.set(earthX, _AXIS_Y, 0); root.add(earth);
 
-  const sunTop = new THREE.Vector3(sunX, _AXIS_Y + Rsun, 0);
-  const sunBot = new THREE.Vector3(sunX, _AXIS_Y - Rsun, 0);
-  const moonTop = new THREE.Vector3(moonX, _AXIS_Y + rMoon, 0);
-  const moonBot = new THREE.Vector3(moonX, _AXIS_Y - rMoon, 0);
+  const rayGroup = new THREE.Group(); rayGroup.userData.dynamic = true; root.add(rayGroup);
+  const coneGroup = new THREE.Group(); coneGroup.userData.dynamic = true; root.add(coneGroup);
 
+  function disposeGroup(g) {
+    while (g.children.length) {
+      const c = g.children[0]; g.remove(c);
+      if (c.geometry) c.geometry.dispose();
+      if (c.material) { Array.isArray(c.material) ? c.material.forEach(m=>m.dispose()) : c.material.dispose(); }
+    }
+  }
   function ext(from, through, toX) {
     const dir = new THREE.Vector3().subVectors(through, from).normalize();
     const tHit = (toX - from.x) / dir.x;
     return from.clone().add(dir.clone().multiplyScalar(tHit));
   }
-  const innerA = ext(sunTop, moonBot, earthX + 2);
-  const innerB = ext(sunBot, moonTop, earthX + 2);
-  root.add(makeRay(sunTop, innerA, { color: 0x5fc8e0, width: 0.02 }));
-  root.add(makeRay(sunBot, innerB, { color: 0x5fc8e0, width: 0.02 }));
-  const outerA = ext(sunTop, moonTop, earthX + 2);
-  const outerB = ext(sunBot, moonBot, earthX + 2);
-  root.add(makeRay(sunTop, outerA, { color: 0xffd166, width: 0.018, dim: true }));
-  root.add(makeRay(sunBot, outerB, { color: 0xffd166, width: 0.018, dim: true }));
-
   function intersect2D(p1, p2, p3, p4) {
     const d = (p1.x-p2.x)*(p3.y-p4.y)-(p1.y-p2.y)*(p3.x-p4.x);
     if (Math.abs(d) < 1e-6) return null;
     const t = ((p1.x-p3.x)*(p3.y-p4.y)-(p1.y-p3.y)*(p3.x-p4.x))/d;
     return new THREE.Vector3(p1.x+t*(p2.x-p1.x), p1.y+t*(p2.y-p1.y), 0);
   }
-  const apex = intersect2D(sunTop, moonBot, sunBot, moonTop);
 
-  if (apex) {
-    const umbraGeo = new THREE.BufferGeometry();
-    const verts = new Float32Array([
-      moonX, _AXIS_Y + rMoon, 0,
-      moonX, _AXIS_Y - rMoon, 0,
-      apex.x, apex.y, 0
-    ]);
-    umbraGeo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
-    umbraGeo.setIndex([0,1,2]);
-    const umbraMat = new THREE.MeshBasicMaterial({ color: 0x0a0a18, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false });
-    root.add(new THREE.Mesh(umbraGeo, umbraMat));
+  // Tutulma tipini Ay'ın eksene göre kaymasından gerçek hesapla
+  function eclipseStatus(moonX, moonY) {
+    // Umbra konisinin Dünya'ya değdiği bölge: |moonY| küçükken tam tutulma
+    // Penumbra: orta; dışı: tutulma yok
+    const ay = Math.abs(moonY);
+    if (ay < 0.55) return { txt: 'Tam tutulma (umbra)', col: '#5fc8e0' };
+    if (ay < 1.4)  return { txt: 'Parçalı (penumbra)', col: '#ffd166' };
+    return { txt: 'Tutulma yok (Ay kaydı)', col: '#9a9aa2' };
   }
 
+  function rebuild() {
+    const moonX = S.ge_moonX, moonY = _AXIS_Y + S.ge_moonY;
+    moon.position.set(moonX, moonY, 0);
+
+    disposeGroup(rayGroup);
+    disposeGroup(coneGroup);
+
+    const sunTop = new THREE.Vector3(sunX, _AXIS_Y + Rsun, 0);
+    const sunBot = new THREE.Vector3(sunX, _AXIS_Y - Rsun, 0);
+    const moonTop = new THREE.Vector3(moonX, moonY + rMoon, 0);
+    const moonBot = new THREE.Vector3(moonX, moonY - rMoon, 0);
+
+    // Umbra sınır ışınları (iç teğet) → çaprazlanır, koni daralır
+    const innerA = ext(sunTop, moonBot, earthX + 2);
+    const innerB = ext(sunBot, moonTop, earthX + 2);
+    rayGroup.add(makeRay(sunTop, innerA, { color: 0x5fc8e0, width: 0.02 }));
+    rayGroup.add(makeRay(sunBot, innerB, { color: 0x5fc8e0, width: 0.02 }));
+    // Penumbra sınır ışınları (dış teğet)
+    const outerA = ext(sunTop, moonTop, earthX + 2);
+    const outerB = ext(sunBot, moonBot, earthX + 2);
+    rayGroup.add(makeRay(sunTop, outerA, { color: 0xffd166, width: 0.016, dim: true }));
+    rayGroup.add(makeRay(sunBot, outerB, { color: 0xffd166, width: 0.016, dim: true }));
+
+    // Umbra konisi (Ay arkası, apekse kadar)
+    const apex = intersect2D(sunTop, moonBot, sunBot, moonTop);
+    if (apex) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+        moonX, moonY + rMoon, 0, moonX, moonY - rMoon, 0, apex.x, apex.y, 0
+      ]), 3));
+      geo.setIndex([0,1,2]);
+      coneGroup.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x0a0a18, transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthWrite: false })));
+    }
+    // Penumbra konisi (genişleyen yarı gölge)
+    const penGeo = new THREE.BufferGeometry();
+    penGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+      moonX, moonY + rMoon, 0, moonX, moonY - rMoon, 0, outerB.x, outerB.y, 0,
+      moonX, moonY + rMoon, 0, outerB.x, outerB.y, 0, outerA.x, outerA.y, 0
+    ]), 3));
+    coneGroup.add(new THREE.Mesh(penGeo, new THREE.MeshBasicMaterial({ color: 0x3a3a55, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false })));
+  }
+
+  rebuild();
+
+  // Tutulma animasyonu ▶️'ye bağlı: Ay yörüngede aşağı-yukarı süpürür
+  window._customAnim = function(t, dt) {
+    S.ge_moonY = 2.2 * Math.sin(t * 0.55);
+    rebuild();
+  };
+
   addInfo3DLabels([
-    { text: { ilkokul:'☀️ Güneş', ortaokul:'☀️ Güneş (kaynak)', lise:'☀️ Güneş (ışık kaynağı)', tyt_ayt:'☀️ Güneş (küresel kaynak)' },
+    { text: { ilkokul:'☀️ Güneş', ortaokul:'☀️ Güneş (kaynak)', lise:'☀️ Güneş (küresel kaynak)', tyt_ayt:'☀️ Güneş (R≫r_ay)' },
       position: [sunX, Rsun + 2, 0], target: [sunX, Rsun, 0], color: '#ffd54f' },
-    { text: { ilkokul:'🌑 Ay', ortaokul:'🌑 Ay (engel)', lise:'🌑 Ay (opak engel)', tyt_ayt:'🌑 Ay (engel r)' },
-      position: [moonX, rMoon + 1.6, 0], target: [moonX, rMoon, 0], color: '#9a9aa2' },
+    { text: { ilkokul:'🌑 Ay (kaydır!)', ortaokul:'🌑 Ay (engel) — kaydır', lise:'🌑 Ay (opak engel)', tyt_ayt:'🌑 Ay (yeni ay evresi)' },
+      position: [S.ge_moonX, rMoon + 2.0, 0], target: [S.ge_moonX, rMoon, 0], color: '#9a9aa2' },
     { text: { ilkokul:'🌍 Dünya', ortaokul:'🌍 Dünya (perde)', lise:'🌍 Dünya (perde)', tyt_ayt:'🌍 Dünya (perde)' },
       position: [earthX, rEarth + 1.6, 0], target: [earthX, rEarth, 0], color: '#2e7dd6' },
-    { text: { ilkokul:'⚫ Tam karanlık', ortaokul:'⚫ Tam gölge → tam tutulma', lise:'⚫ Umbra → tam tutulma', tyt_ayt:'⚫ Umbra → tam tutulma' },
-      position: [moonX + 3, -2.5, 0], target: [moonX + 2, -0.3, 0], color: '#5fc8e0' },
+    { text: { ilkokul:'⚫ Tam karanlık', ortaokul:'⚫ Tam gölge → tam tutulma', lise:'⚫ Umbra → tam tutulma', tyt_ayt:'⚫ Umbra koni → tam tutulma' },
+      position: [S.ge_moonX + 3.5, -2.6, 0], target: [S.ge_moonX + 2.4, -0.3, 0], color: '#5fc8e0' },
     { text: { ortaokul:'⬜ Yarı gölge → parçalı', lise:'⬜ Penumbra → parçalı tutulma', tyt_ayt:'⬜ Penumbra → parçalı tutulma' },
-      position: [moonX + 1, 3.5, 0], target: [moonX + 2, 1.2, 0], color: '#ffd166', minLevel: 2 }
+      position: [S.ge_moonX + 1.5, 3.6, 0], target: [S.ge_moonX + 2.2, 1.2, 0], color: '#ffd166', minLevel: 2 }
   ]);
 
   setSceneSliders([
-    { type: 'section', label: 'Güneş Tutulması' },
+    { type: 'section', label: 'Ay Konumu' },
+    { type: 'slider', label: '🌑 Ay dikey kayma', min: -3, max: 3, step: 0.2, unit: '',
+      getValue: () => S.ge_moonY, setValue: (v) => { S.ge_moonY = v; rebuild(); }, format: (v)=>v.toFixed(1),
+      sub: '▶️ ile otomatik süpürme' },
+    { type: 'slider', label: '↔️ Ay yatay konum', min: -3, max: 4, step: 0.5, unit: '',
+      getValue: () => S.ge_moonX, setValue: (v) => { S.ge_moonX = v; rebuild(); }, format: (v)=>v.toFixed(1),
+      sub: 'Güneş–Dünya arası' },
+    { type: 'section', label: 'Durum' },
     { type: 'display', label: 'Dizilim', getValue: () => 'Güneş–Ay–Dünya' },
+    { type: 'display', label: 'Tutulma tipi', highlight: true,
+      getValue: () => eclipseStatus(S.ge_moonX, S.ge_moonY).txt },
     { type: 'display', label: 'Ay evresi', getValue: () => 'Yeni Ay' },
-    { type: 'display', label: 'Tam gölge', getValue: () => 'Tam tutulma' },
-    { type: 'display', label: 'Yarı gölge', getValue: () => 'Parçalı tutulma' },
-    { type: 'formula', text: 'R_güneş ≫ r_ay → umbra konisi' }
+    { type: 'formula', text: 'R_güneş ≫ r_ay → dar umbra konisi' }
   ], { title: 'Güneş Tutulması' });
 };
 
@@ -3740,8 +4401,13 @@ SubBuilders.buildAyTutulmasi = function() {
   const amb = new THREE.AmbientLight(0x2d3a52, 0.42);
   amb.userData.dynamic = true; root.add(amb);
 
+  // Sıralama: Güneş – Dünya – Ay
   const sunX = -13, earthX = 1, moonX = 9;
   const Rsun = 2.6, rEarth = 1.6, rMoon = 0.7;
+
+  // Ay yörünge eğikliği: Ay'ı umbradan çıkaran dikey kayma (kaydırıcı)
+  const S = window._sceneState;
+  S.ae_moonY = 0;   // 0 → tam umbra içinde (kızıl ay); büyük → tutulma yok
 
   const sun = makeSunBody({ r: Rsun });
   sun.position.set(sunX, _AXIS_Y, 0); root.add(sun);
@@ -3749,67 +4415,140 @@ SubBuilders.buildAyTutulmasi = function() {
   const earth = makeCelestial({ r: rEarth, color: 0x2e7dd6 });
   earth.position.set(earthX, _AXIS_Y, 0); root.add(earth);
 
-  const moon = makeCelestial({ r: rMoon, color: 0xc0563a });
-  moon.position.set(moonX, _AXIS_Y, 0); root.add(moon);
-  const moonGlow = new THREE.Mesh(
+  let moon = makeCelestial({ r: rMoon, color: 0xc0563a });
+  root.add(moon);
+  let moonGlow = new THREE.Mesh(
     new THREE.SphereGeometry(rMoon * 1.3, 24, 16),
-    new THREE.MeshBasicMaterial({ color: 0xd0402a, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false })
+    new THREE.MeshBasicMaterial({ color: 0xd0402a, transparent: true, opacity: 0.0, blending: THREE.AdditiveBlending, depthWrite: false })
   );
-  moonGlow.position.set(moonX, _AXIS_Y, 0); root.add(moonGlow);
+  root.add(moonGlow);
 
-  const sunTop = new THREE.Vector3(sunX, _AXIS_Y + Rsun, 0);
-  const sunBot = new THREE.Vector3(sunX, _AXIS_Y - Rsun, 0);
-  const earthTop = new THREE.Vector3(earthX, _AXIS_Y + rEarth, 0);
-  const earthBot = new THREE.Vector3(earthX, _AXIS_Y - rEarth, 0);
+  const rayGroup = new THREE.Group(); rayGroup.userData.dynamic = true; root.add(rayGroup);
+  const coneGroup = new THREE.Group(); coneGroup.userData.dynamic = true; root.add(coneGroup);
+  const orbitGroup = new THREE.Group(); orbitGroup.userData.dynamic = true; root.add(orbitGroup);
 
+  function disposeGroup(g) {
+    while (g.children.length) {
+      const c = g.children[0]; g.remove(c);
+      if (c.geometry) c.geometry.dispose();
+      if (c.material) { Array.isArray(c.material) ? c.material.forEach(m=>m.dispose()) : c.material.dispose(); }
+    }
+  }
   function ext(from, through, toX) {
     const dir = new THREE.Vector3().subVectors(through, from).normalize();
     const tHit = (toX - from.x) / dir.x;
     return from.clone().add(dir.clone().multiplyScalar(tHit));
   }
-  root.add(makeRay(sunTop, ext(sunTop, earthBot, moonX + 2), { color: 0x5fc8e0, width: 0.02 }));
-  root.add(makeRay(sunBot, ext(sunBot, earthTop, moonX + 2), { color: 0x5fc8e0, width: 0.02 }));
-  root.add(makeRay(sunTop, ext(sunTop, earthTop, moonX + 2), { color: 0xffd166, width: 0.016, dim: true }));
-  root.add(makeRay(sunBot, ext(sunBot, earthBot, moonX + 2), { color: 0xffd166, width: 0.016, dim: true }));
-
   function intersect2D(p1, p2, p3, p4) {
     const d = (p1.x-p2.x)*(p3.y-p4.y)-(p1.y-p2.y)*(p3.x-p4.x);
     if (Math.abs(d) < 1e-6) return null;
     const t = ((p1.x-p3.x)*(p3.y-p4.y)-(p1.y-p3.y)*(p3.x-p4.x))/d;
     return new THREE.Vector3(p1.x+t*(p2.x-p1.x), p1.y+t*(p2.y-p1.y), 0);
   }
+
+  const sunTop = new THREE.Vector3(sunX, _AXIS_Y + Rsun, 0);
+  const sunBot = new THREE.Vector3(sunX, _AXIS_Y - Rsun, 0);
+  const earthTop = new THREE.Vector3(earthX, _AXIS_Y + rEarth, 0);
+  const earthBot = new THREE.Vector3(earthX, _AXIS_Y - rEarth, 0);
+
+  // Dünya umbra konisi sabit (Ay hareket eder)
+  rayGroup.add(makeRay(sunTop, ext(sunTop, earthBot, moonX + 2), { color: 0x5fc8e0, width: 0.02 }));
+  rayGroup.add(makeRay(sunBot, ext(sunBot, earthTop, moonX + 2), { color: 0x5fc8e0, width: 0.02 }));
+  rayGroup.add(makeRay(sunTop, ext(sunTop, earthTop, moonX + 2), { color: 0xffd166, width: 0.016, dim: true }));
+  rayGroup.add(makeRay(sunBot, ext(sunBot, earthBot, moonX + 2), { color: 0xffd166, width: 0.016, dim: true }));
+
   const apex = intersect2D(sunTop, earthBot, sunBot, earthTop);
   if (apex) {
-    const umbraGeo = new THREE.BufferGeometry();
-    const verts = new Float32Array([
-      earthX, _AXIS_Y + rEarth, 0,
-      earthX, _AXIS_Y - rEarth, 0,
-      apex.x, apex.y, 0
-    ]);
-    umbraGeo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
-    umbraGeo.setIndex([0,1,2]);
-    const umbraMat = new THREE.MeshBasicMaterial({ color: 0x1a0808, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
-    root.add(new THREE.Mesh(umbraGeo, umbraMat));
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+      earthX, _AXIS_Y + rEarth, 0, earthX, _AXIS_Y - rEarth, 0, apex.x, apex.y, 0
+    ]), 3));
+    geo.setIndex([0,1,2]);
+    coneGroup.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x1a0808, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false })));
   }
+
+  // Umbra yarıçapı Ay'ın x konumunda (kızıllık ne kadar derin)
+  function umbraRadiusAtMoon() {
+    if (!apex) return rEarth;
+    // Lineer: earthX'te rEarth, apex.x'te 0
+    const f = (moonX - earthX) / (apex.x - earthX);
+    return Math.max(0, rEarth * (1 - f));
+  }
+
+  function moonStatus() {
+    const ay = Math.abs(S.ae_moonY);
+    const uR = umbraRadiusAtMoon();
+    if (ay + rMoon <= uR + 0.05) return { txt: 'Tam tutulma (Kızıl Ay)', col: '#d0563a', deep: 1 };
+    if (ay - rMoon < uR)         return { txt: 'Parçalı tutulma', col: '#ffd166', deep: 0.5 };
+    return { txt: 'Tutulma YOK (yörünge eğik)', col: '#9a9aa2', deep: 0 };
+  }
+
+  function rebuild() {
+    const moonY = _AXIS_Y + S.ae_moonY;
+    moon.position.set(moonX, moonY, 0);
+    moonGlow.position.set(moonX, moonY, 0);
+
+    const st = moonStatus();
+    // Ay umbradayken kızıllaşır (emissive kırmızı ton)
+    const mesh = moon.userData._mesh;
+    if (mesh && mesh.material) {
+      const lit = new THREE.Color(0x9a9aa2);
+      const blood = new THREE.Color(0xc0301a);
+      const col = lit.clone().lerp(blood, st.deep);
+      mesh.material.color.copy(col);
+      mesh.material.emissive.copy(blood).multiplyScalar(0.5 * st.deep);
+      mesh.material.emissiveIntensity = 0.4 + 0.9 * st.deep;
+    }
+    moonGlow.material.opacity = 0.22 * st.deep;
+
+    // Yörünge eğikliği gösterimi: Ay'ın eksenden kayması
+    disposeGroup(orbitGroup);
+    const eclipticGeo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(earthX, _AXIS_Y, 0), new THREE.Vector3(moonX + 1.5, _AXIS_Y, 0)
+    ]);
+    const ecl = new THREE.Line(eclipticGeo, new THREE.LineDashedMaterial({ color: 0x5fc8e0, dashSize: 0.3, gapSize: 0.2, transparent: true, opacity: 0.4 }));
+    ecl.computeLineDistances(); orbitGroup.add(ecl);
+    if (Math.abs(S.ae_moonY) > 0.2) {
+      const tiltGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(moonX, _AXIS_Y, 0), new THREE.Vector3(moonX, moonY, 0)
+      ]);
+      orbitGroup.add(new THREE.Line(tiltGeo, new THREE.LineBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.8 })));
+    }
+  }
+
+  rebuild();
+
+  // ▶️: Ay yörünge boyunca eğik geçer → çoğu zaman umbrayı ıskalar
+  window._customAnim = function(t, dt) {
+    S.ae_moonY = 3.0 * Math.sin(t * 0.5);
+    rebuild();
+  };
 
   addInfo3DLabels([
     { text: { ilkokul:'☀️ Güneş', ortaokul:'☀️ Güneş', lise:'☀️ Güneş (kaynak)', tyt_ayt:'☀️ Güneş (kaynak)' },
       position: [sunX, Rsun + 2, 0], target: [sunX, Rsun, 0], color: '#ffd54f' },
-    { text: { ilkokul:'🌍 Dünya', ortaokul:'🌍 Dünya (engel)', lise:'🌍 Dünya (engel)', tyt_ayt:'🌍 Dünya (opak engel)' },
+    { text: { ilkokul:'🌍 Dünya', ortaokul:'🌍 Dünya (engel)', lise:'🌍 Dünya (opak engel)', tyt_ayt:'🌍 Dünya (engel)' },
       position: [earthX, rEarth + 1.6, 0], target: [earthX, rEarth, 0], color: '#2e7dd6' },
-    { text: { ilkokul:'🔴 Kızıl Ay', ortaokul:'🔴 Ay (Kanlı Ay)', lise:'🔴 Ay (Kanlı Ay)', tyt_ayt:'🔴 Ay (Rayleigh saçılması)' },
-      position: [moonX, rMoon + 1.8, 0], target: [moonX, rMoon, 0], color: '#d0563a' },
+    { text: { ilkokul:'🔴 Kızıl Ay', ortaokul:'🔴 Ay (Kanlı Ay)', lise:'🔴 Ay — kaydır', tyt_ayt:'🔴 Ay (Rayleigh kızıllığı)' },
+      position: [moonX, rMoon + 2.0, 0], target: [moonX, rMoon, 0], color: '#d0563a' },
     { text: { ortaokul:'⚫ Dünya gölgesi büyük', lise:'⚫ Dünya umbrası geniş', tyt_ayt:'⚫ Dünya umbrası ≫ Ay' },
-      position: [earthX + 3, -3, 0], target: [earthX + 3, -0.3, 0], color: '#5fc8e0', minLevel: 2 }
+      position: [earthX + 3.5, -3, 0], target: [earthX + 3.5, -0.3, 0], color: '#5fc8e0', minLevel: 2 },
+    { text: { ortaokul:'↕️ Yörünge eğik → her ay tutulma OLMAZ', lise:'↕️ Yörünge ~5° eğik → çoğu ay Ay umbrayı ıskalar', tyt_ayt:'↕️ ~5,1° eğiklik → yalnız düğümlerde tutulma' },
+      position: [moonX, -3.6, 0], target: [moonX, S.ae_moonY < 0 ? S.ae_moonY*0.5 : 0.0, 0], color: '#ffd166', minLevel: 2 }
   ]);
 
   setSceneSliders([
-    { type: 'section', label: 'Ay Tutulması' },
+    { type: 'section', label: 'Ay Yörünge Konumu' },
+    { type: 'slider', label: '↕️ Yörünge eğikliği', min: -3.5, max: 3.5, step: 0.2, unit: '',
+      getValue: () => S.ae_moonY, setValue: (v) => { S.ae_moonY = v; rebuild(); }, format: (v)=>v.toFixed(1),
+      sub: '0 = umbra ortası (kızıl ay)' },
+    { type: 'section', label: 'Durum' },
     { type: 'display', label: 'Dizilim', getValue: () => 'Güneş–Dünya–Ay' },
+    { type: 'display', label: 'Tutulma tipi', highlight: true,
+      getValue: () => moonStatus().txt },
     { type: 'display', label: 'Ay evresi', getValue: () => 'Dolunay' },
-    { type: 'display', label: 'Renk', getValue: () => 'Kızıl (Rayleigh)' },
-    { type: 'display', label: 'Süre', getValue: () => 'Saatlerce' },
-    { type: 'formula', text: 'Dünya umbrası ≫ Ay → uzun süre' }
+    { type: 'display', label: 'Renk', getValue: () => { const d = moonStatus().deep; return d > 0.9 ? 'Kızıl (Rayleigh)' : d > 0 ? 'Kısmen kızıl' : 'Normal'; } },
+    { type: 'formula', text: 'Yörünge ~5° eğik → her dolunayda tutulma olmaz' }
   ], { title: 'Ay Tutulması' });
 };
 
@@ -3825,17 +4564,23 @@ SubBuilders.buildIgneDeligi = function() {
   const holeX = 0;
   const arrowH = 2.4;
 
+  // İğne deliği kamerası: karanlık kutu; cisimden (mum) çıkan ışınlar
+  // delikten geçip arka duvarda TERS görüntü oluşturur.
+  // Delik çapı: küçük → keskin ama sönük; büyük → parlak ama bulanık (takas).
   const S = window._sceneState;
-  S.id_objX = -7;
-  S.id_scrX = 6;
+  S.id_objX = -7;     // cisim–delik uzaklığı u
+  S.id_scrX = 6;      // delik–perde uzaklığı v (kutu derinliği)
+  S.id_hole = 0.18;   // delik yarıçapı
 
-  const boxMat = new THREE.MeshStandardMaterial({ color: 0x2a3142, roughness: 0.7, metalness: 0.3, transparent: true, opacity: 0.55, side: THREE.DoubleSide });
+  // Karanlık kutu gövdesi (üst/alt/arka yarı saydam paneller)
+  const boxMat = new THREE.MeshStandardMaterial({ color: 0x1c2233, roughness: 0.8, metalness: 0.2, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
   const frontPanel = new THREE.Mesh(new THREE.PlaneGeometry(7, 7), boxMat);
   frontPanel.position.set(holeX, _AXIS_Y, 0);
   frontPanel.rotation.y = Math.PI / 2;
   root.add(frontPanel);
-  const holeRing = new THREE.Mesh(
-    new THREE.TorusGeometry(0.18, 0.05, 12, 24),
+
+  let holeRing = new THREE.Mesh(
+    new THREE.TorusGeometry(S.id_hole, 0.05, 12, 24),
     new THREE.MeshBasicMaterial({ color: 0xffe17a, toneMapped: false })
   );
   holeRing.position.set(holeX, _AXIS_Y, 0);
@@ -3857,20 +4602,20 @@ SubBuilders.buildIgneDeligi = function() {
     if (window._flowRays) window._flowRays = window._flowRays.filter(fr => fr.parent);
   }
 
-  function buildArrow(parent, h, color1, color2, sx, sy, flip) {
+  // Mum/ok cismi
+  function buildArrow(parent, h, color1, color2, sx, sy, flip, emiss) {
     const g = new THREE.Group();
+    const ei = emiss==null ? 0.8 : emiss;
     const shaft = new THREE.Mesh(
       new THREE.CylinderGeometry(0.1, 0.1, h, 12),
-      new THREE.MeshStandardMaterial({ color: color1, emissive: color1, emissiveIntensity: 0.8, toneMapped: false })
+      new THREE.MeshStandardMaterial({ color: color1, emissive: color1, emissiveIntensity: ei, toneMapped: false })
     );
-    shaft.position.y = h / 2;
-    g.add(shaft);
+    shaft.position.y = h / 2; g.add(shaft);
     const head = new THREE.Mesh(
       new THREE.ConeGeometry(0.25, 0.5, 12),
-      new THREE.MeshStandardMaterial({ color: color2, emissive: color2, emissiveIntensity: 0.7, toneMapped: false })
+      new THREE.MeshStandardMaterial({ color: color2, emissive: color2, emissiveIntensity: ei*0.9, toneMapped: false })
     );
-    head.position.y = h + 0.25;
-    g.add(head);
+    head.position.y = h + 0.25; g.add(head);
     if (flip) g.rotation.z = Math.PI;
     g.position.set(sx, sy, 0);
     parent.add(g);
@@ -3878,7 +4623,7 @@ SubBuilders.buildIgneDeligi = function() {
   }
 
   function rebuild() {
-    const objX = S.id_objX, scrX = S.id_scrX;
+    const objX = S.id_objX, scrX = S.id_scrX, hr = S.id_hole;
     const u = holeX - objX;
     const v = scrX - holeX;
 
@@ -3888,30 +4633,69 @@ SubBuilders.buildIgneDeligi = function() {
     screen.position.set(scrX, _AXIS_Y, 0);
     screen.rotation.y = -Math.PI / 2;
 
+    // Delik halkasını çapa göre yenile
+    root.remove(holeRing);
+    holeRing.geometry.dispose(); holeRing.material.dispose();
+    holeRing = new THREE.Mesh(
+      new THREE.TorusGeometry(hr, 0.05, 12, 24),
+      new THREE.MeshBasicMaterial({ color: 0xffe17a, toneMapped: false })
+    );
+    holeRing.position.set(holeX, _AXIS_Y, 0);
+    holeRing.rotation.y = Math.PI / 2;
+    holeRing.userData.dynamic = true;
+    root.add(holeRing);
+
     disposeGroup(rayGroup);
     disposeGroup(imgGroup);
     disposeGroup(axisGroup);
 
     const objTipTop = new THREE.Vector3(objX, _AXIS_Y - 1 + arrowH + 0.5, 0);
     const objTipBot = new THREE.Vector3(objX, _AXIS_Y - 1, 0);
-    const hole = new THREE.Vector3(holeX, _AXIS_Y, 0);
+
+    // Delik gerçek çaplı: üst ve alt kenardan geçen ışınlar → bulanıklık
+    const holeHi = new THREE.Vector3(holeX, _AXIS_Y + hr, 0);
+    const holeLo = new THREE.Vector3(holeX, _AXIS_Y - hr, 0);
     function through(from, hole, toX) {
       const dir = new THREE.Vector3().subVectors(hole, from).normalize();
       const tHit = (toX - from.x) / dir.x;
       return from.clone().add(dir.clone().multiplyScalar(tHit));
     }
+    // Merkez ışınlar (ana ters görüntü)
+    const hole = new THREE.Vector3(holeX, _AXIS_Y, 0);
     const imgBot = through(objTipTop, hole, scrX);
     const imgTop = through(objTipBot, hole, scrX);
 
-    rayGroup.add(makeRay(objTipTop, hole, { color: 0xff7043, width: 0.014 }));
-    rayGroup.add(makeRay(hole, imgBot, { color: 0xff7043, width: 0.014 }));
-    rayGroup.add(makeRay(objTipBot, hole, { color: 0xffd54f, width: 0.014 }));
-    rayGroup.add(makeRay(hole, imgTop, { color: 0xffd54f, width: 0.014 }));
+    // Tepe noktasından delik üst+alt kenarına → görüntüde bulanıklık aralığı
+    rayGroup.add(makeRay(objTipTop, holeHi, { color: 0xff7043, width: 0.012 }));
+    rayGroup.add(makeRay(holeHi, through(objTipTop, holeHi, scrX), { color: 0xff7043, width: 0.012, dim: true }));
+    rayGroup.add(makeRay(objTipTop, holeLo, { color: 0xff7043, width: 0.012 }));
+    rayGroup.add(makeRay(holeLo, through(objTipTop, holeLo, scrX), { color: 0xff7043, width: 0.012, dim: true }));
+    rayGroup.add(makeRay(objTipBot, holeHi, { color: 0xffd54f, width: 0.012, dim: true }));
+    rayGroup.add(makeRay(holeHi, through(objTipBot, holeHi, scrX), { color: 0xffd54f, width: 0.012, dim: true }));
+    rayGroup.add(makeRay(objTipBot, holeLo, { color: 0xffd54f, width: 0.012, dim: true }));
+    rayGroup.add(makeRay(holeLo, through(objTipBot, holeLo, scrX), { color: 0xffd54f, width: 0.012, dim: true }));
+    // Merkez referans ışınları (ışınların KESİŞTİĞİ nokta = delik)
+    rayGroup.add(makeRay(objTipTop, hole, { color: 0xff8a50, width: 0.016 }));
+    rayGroup.add(makeRay(hole, imgBot, { color: 0xff8a50, width: 0.016 }));
     const fr = makeFlowRay(objTipTop.clone(), imgBot.clone(), { count: 6, color: 0xfff3b0 });
     rayGroup.add(fr); registerFlowRay(fr);
 
+    // Ters görüntü; delik büyüdükçe sönük + bulanık (emissive azalır)
     const imgLen = Math.abs(imgTop.y - imgBot.y);
-    const g = buildArrow(imgGroup, imgLen * 0.75, 0xffd54f, 0xff7043, scrX - 0.1, (imgTop.y + imgBot.y) / 2, true);
+    const sharp = Math.max(0, Math.min(1, 1 - (hr - 0.08) / 0.6));   // 1=keskin, 0=bulanık
+    const emiss = 0.35 + 0.75 * sharp;
+    buildArrow(imgGroup, imgLen * 0.75, 0xffd54f, 0xff7043, scrX - 0.1, (imgTop.y + imgBot.y) / 2, true, emiss);
+    // Bulanıklık halesi (delik büyükse)
+    const blur = (1 - sharp) * (imgLen * 0.45 + 0.3);
+    if (blur > 0.05) {
+      const halo = new THREE.Mesh(
+        new THREE.PlaneGeometry(blur, imgLen * 0.9 + blur),
+        new THREE.MeshBasicMaterial({ color: 0xff9a50, transparent: true, opacity: 0.18 * (1 - sharp), blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
+      );
+      halo.position.set(scrX - 0.12, (imgTop.y + imgBot.y) / 2, 0);
+      halo.rotation.y = -Math.PI / 2;
+      imgGroup.add(halo);
+    }
 
     axisGroup.add(makeOpticalAxis(new THREE.Vector3(objX, _AXIS_Y, 0), new THREE.Vector3(scrX, _AXIS_Y, 0)));
   }
@@ -3919,32 +4703,41 @@ SubBuilders.buildIgneDeligi = function() {
   rebuild();
 
   addInfo3DLabels([
-    { text: { ilkokul:'🔼 Şekil (düz)', ortaokul:'🔼 Cisim (uzaklık değişir)', lise:'🔼 Cisim (u ayarla)', tyt_ayt:'🔼 Cisim (u değişken)' },
+    { text: { ilkokul:'🕯️ Mum (cisim)', ortaokul:'🕯️ Cisim (uzaklık değişir)', lise:'🕯️ Cisim (u ayarla)', tyt_ayt:'🕯️ Cisim (u değişken)' },
       position: [S.id_objX, arrowH + 1, 0], target: [S.id_objX, arrowH - 0.5, 0], color: '#ff7043' },
-    { text: { ilkokul:'📍 Küçük delik', ortaokul:'📍 İğne deliği', lise:'📍 İğne deliği', tyt_ayt:'📍 Delik (tek nokta)' },
-      position: [holeX, 2.6, 0], target: [holeX, 0.2, 0], color: '#ffe17a' },
+    { text: { ilkokul:'📍 Küçük delik', ortaokul:'📍 İğne deliği (çap ayarla)', lise:'📍 İğne deliği — çap', tyt_ayt:'📍 Delik (çap → keskinlik)' },
+      position: [holeX, 2.8, 0], target: [holeX, 0.2, 0], color: '#ffe17a' },
+    { text: { ilkokul:'❌ Işınlar burada çapraz', ortaokul:'❌ Işınlar delikte kesişir', lise:'❌ Kesişme → görüntü ters', tyt_ayt:'❌ Işınlar delikte çaprazlanır' },
+      position: [holeX + 1.2, -2.6, 0], target: [holeX, -0.2, 0], color: '#ff8a50' },
     { text: { ilkokul:'🔽 Ters görüntü', ortaokul:'🔽 Görüntü ters döner', lise:'🔽 Ters & gerçek görüntü', tyt_ayt:'🔽 Ters görüntü (m=v/u)' },
-      position: [S.id_scrX, -3, 0], target: [S.id_scrX - 0.1, -1, 0], color: '#5fc8e0' }
+      position: [S.id_scrX, -3.4, 0], target: [S.id_scrX - 0.1, -1, 0], color: '#5fc8e0' }
   ]);
 
   setSceneSliders([
     { type: 'section', label: 'Kamera Ayarları' },
-    { type: 'slider', label: '🔼 Cisim uzaklığı u', min: -12, max: -3, step: 0.5, unit: '',
+    { type: 'slider', label: '🕯️ Cisim uzaklığı u', min: -12, max: -3, step: 0.5, unit: '',
       getValue: () => S.id_objX, setValue: (v) => { S.id_objX = v; rebuild(); }, format: (v)=>(holeX - v).toFixed(1),
       sub: 'Cisim–delik arası' },
-    { type: 'slider', label: '🔽 Perde uzaklığı v', min: 3, max: 11, step: 0.5, unit: '',
+    { type: 'slider', label: '📦 Perde uzaklığı v', min: 3, max: 11, step: 0.5, unit: '',
       getValue: () => S.id_scrX, setValue: (v) => { S.id_scrX = v; rebuild(); }, format: (v)=>(v - holeX).toFixed(1),
-      sub: 'Delik–perde arası (kutu boyu)' },
+      sub: 'Delik–perde (kutu derinliği)' },
+    { type: 'slider', label: '📍 Delik çapı', min: 0.06, max: 0.6, step: 0.02, unit: '',
+      getValue: () => S.id_hole, setValue: (v) => { S.id_hole = v; rebuild(); }, format: (v)=>(v*2).toFixed(2),
+      sub: 'Küçük: keskin/sönük · Büyük: parlak/bulanık' },
     { type: 'section', label: 'Canlı Hesap' },
     { type: 'display', label: 'Büyütme m=v/u', highlight: true,
       getValue: () => { const u = holeX - S.id_objX, v = S.id_scrX - holeX; return (v/u).toFixed(2); } },
     { type: 'display', label: 'Görüntü', getValue: () => 'Ters & gerçek' },
+    { type: 'display', label: 'Keskinlik / parlaklık',
+      getValue: () => {
+        const sharp = Math.max(0, Math.min(1, 1 - (S.id_hole - 0.08) / 0.6));
+        return sharp > 0.66 ? 'Keskin · sönük' : sharp > 0.33 ? 'Orta' : 'Bulanık · parlak';
+      } },
     { type: 'formula', text: "h'/h = v/u",
       getValue: () => { const u = holeX - S.id_objX, v = S.id_scrX - holeX; return "m = v/u = " + (v/u).toFixed(2); } }
   ], { title: 'İğne Deliği' });
 };
 
-// ============================================================
 // ====== SİSTEM: SEVİYE, MOD, NAVİGASYON, UI ================
 // ============================================================
 let currentLevel = 'lise';
@@ -4023,6 +4816,27 @@ function applySceneTheme() {
   scene.fog = new THREE.Fog(fogColor, fogNear, fogFar);
 }
 
+// Bilgi paneli özel kaydırma çubuğu (eksikti — eklendi)
+function updateInfoScrollbar() {
+  const list = document.getElementById('infoList');
+  const bar = document.getElementById('infoScrollbar');
+  const thumb = document.getElementById('infoScrollThumb');
+  if (!list || !bar || !thumb) return;
+  const sh = list.scrollHeight, ch = list.clientHeight;
+  if (ch < 5) return;
+  if (sh <= ch + 3) { bar.classList.remove('visible'); return; }
+  bar.classList.add('visible');
+  const trackH = bar.clientHeight || ch;
+  const thumbH = Math.max(26, trackH * ch / sh);
+  const maxScroll = sh - ch;
+  const maxThumb = trackH - thumbH;
+  const top = maxScroll > 0 ? (list.scrollTop / maxScroll) * maxThumb : 0;
+  thumb.style.height = thumbH + 'px';
+  thumb.style.top = top + 'px';
+}
+if (document.getElementById('infoList')) {
+  document.getElementById('infoList').addEventListener('scroll', updateInfoScrollbar, { passive: true });
+}
 function selectSub(subKey) {
   currentSub = subKey;
   clearScene();
@@ -4053,7 +4867,9 @@ function selectSub(subKey) {
   applyModeToLabels();
 
   if (controls) {
-    controls.target.set(1.2, _AXIS_Y - 0.5, 0);
+    // Hedefi daha aşağı al → model ekranda daha YUKARIDA dursun
+    controls.target.set(0, -1.15, 0);
+    if (camera) camera.position.set(0, 1.85, 25.0);
     controls.captureInitialState && controls.captureInitialState();
   }
 
@@ -4063,6 +4879,14 @@ function selectSub(subKey) {
     const cur = allSubs.find(s => s.key === subKey);
     if (cur) window._showGestureToast('📍 ' + cur.label);
   }
+  // Geçiş Motoru: yeni sahne için Ayarlar'a göre giriş animasyonu + ses + geri bildirim
+  try {
+    if (window.GECIS && window._currentModelGroup) {
+      const tEl = document.getElementById('infoTitle');
+      const lbl = tEl ? tEl.textContent.split('/').pop().trim() : '';
+      window.GECIS.onScene(window._currentModelGroup, lbl);
+    }
+  } catch(e) {}
 }
 
 function applyModeToLabels() {
@@ -4079,8 +4903,9 @@ function applyModeToLabels() {
   });
 }
 
+function _dataKey(subKey) { return subKey; }
 function updateInfoPanel(subKey) {
-  const data = _resolveLevelData(INFO_DATA[subKey]);
+  const data = _resolveLevelData(INFO_DATA[_dataKey(subKey)]);
   if (!data) return;
   document.getElementById('infoEmoji').textContent = data.emoji || '🔦';
   let mainTitle = '', subTitle = '';
@@ -4088,6 +4913,8 @@ function updateInfoPanel(subKey) {
     const s = MODULES[mk].subs.find(x => x.key === subKey);
     if (s) {
       mainTitle = (MODULES[mk].title || '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]*Modül\s*\d+:\s*/i, '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]+/, '').trim();
+      // Başlığın başındaki eğitim seviyesini ("İlkokul:", "Lise/TYT:" vb.) kaldır → sadece ana konu kalsın
+      mainTitle = mainTitle.replace(/^[^:]*:\s*/, '').trim();
       subTitle = (s.label || '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]+/, '').trim();
       break;
     }
@@ -4098,12 +4925,20 @@ function updateInfoPanel(subKey) {
   list.innerHTML = '';
   let points = data.points || [];
   const showCount = (currentMode === 'sade') ? 3 : points.length;
+  // Satır başındaki ikon/emojileri temizleyen yardımcı (madde başında ikon olmasın)
+  const stripIcon = (txt) => txt.replace(/^\s*(?:[\p{Extended_Pictographic}️‍⃣]\s*)+/u, '').trim();
   points.slice(0, showCount).forEach(p => {
     const li = document.createElement('li');
-    if (p.startsWith('##')) { li.className = 'subhead'; li.innerHTML = p.replace('##','').trim(); }
-    else li.innerHTML = p;
+    let txt = p;
+    if (txt.startsWith('###')) { li.className = 'subhead2'; txt = txt.replace(/^###/, '').trim(); } // yan başlık → mavi
+    else if (txt.startsWith('##')) { li.className = 'subhead'; txt = txt.replace(/^##/, '').trim(); } // ara başlık → sarı
+    li.innerHTML = stripIcon(txt);
     list.appendChild(li);
   });
+  list.scrollTop = 0;
+  setTimeout(updateInfoScrollbar, 30);
+  setTimeout(updateInfoScrollbar, 150);
+  setTimeout(updateInfoScrollbar, 400);
 }
 
 function getAllSubs() {
@@ -4161,6 +4996,24 @@ function renderCompareTable() {
   window._cmpIdx = 0;
   _showComparePage();
 }
+function _renderCompareHTML(data) {
+  const cols = data.cols || [], rows = data.rows || [];
+  if (cols.length < 2 || rows.length < 1) return _renderTableHTML(data, 'compare-style');
+  const aspectLabel = cols[0];
+  const entities = rows.map(r => r[0]);
+  let html = '<table class="cmp-table compare-style cmp-versus"><thead><tr>';
+  html += `<th class="cmp-aspect">${aspectLabel}</th>`;
+  entities.forEach((e, i) => { html += `<th class="cmp-ent cmp-ent-${i % 4}">${e}</th>`; });
+  html += '</tr></thead><tbody>';
+  for (let c = 1; c < cols.length; c++) {
+    html += `<tr><td class="cmp-aspect-cell">${cols[c]}</td>`;
+    rows.forEach(r => { html += `<td>${(r[c] !== undefined && r[c] !== null) ? r[c] : '—'}</td>`; });
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
 function _showComparePage() {
   const body = document.getElementById('compareBody');
   const titleEl = document.getElementById('compareTitle');
@@ -4176,7 +5029,7 @@ function _showComparePage() {
   const i = window._cmpIdx;
   const data = pages[i];
   if (titleEl) titleEl.textContent = '⚖️ ' + (data.title || 'Karşılaştırma');
-  body.innerHTML = _renderTableHTML(data, 'compare-style');
+  body.innerHTML = _renderCompareHTML(data);
   if (nav) {
     if (pages.length > 1) {
       nav.classList.remove('hidden');
@@ -4331,11 +5184,78 @@ function attachEvents() {
     if (window._haptic) window._haptic(15);
   };
 
-  document.getElementById('btnFs').onclick = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+    // ── Bilgi panelini büyüt/küçült: ince çubuğu YUKARI/AŞAĞI SÜRÜKLE (parmağı takip eder) ──
+  (function(){
+    const handle = document.getElementById('infoResizeHandle');
+    const panel = document.getElementById('bottomPanel');
+    const list = document.getElementById('infoList');
+    if (!handle || !panel || !list) return;
+    const MIN_H = 70;
+    const maxH = () => Math.max(MIN_H, Math.round(window.innerHeight - 150)); // üst sekmelere kadar
+    function curH() {
+      const v = getComputedStyle(panel).getPropertyValue('--info-h').trim();
+      if (v.endsWith('px')) return parseFloat(v);
+      return list.getBoundingClientRect().height || Math.round(window.innerHeight * 0.24);
+    }
+    function setH(h) {
+      h = Math.max(MIN_H, Math.min(maxH(), h));
+      panel.style.setProperty('--info-h', h + 'px');
+      if (typeof updateInfoScrollbar === 'function') updateInfoScrollbar();
+    }
+    let dragging = false, startY = 0, startH = 0, pid = null;
+    function onDown(e) {
+      dragging = true; startH = curH();
+      startY = (e.touches ? e.touches[0].clientY : e.clientY);
+      list.style.transition = 'none';
+      if (e.pointerId !== undefined) { pid = e.pointerId; try { handle.setPointerCapture(pid); } catch(_){} }
+      if (window._haptic) window._haptic(10);
+      if (e.cancelable) e.preventDefault();
+      e.stopPropagation();
+    }
+    function onMove(e) {
+      if (!dragging) return;
+      const y = (e.touches ? e.touches[0].clientY : e.clientY);
+      setH(startH + (startY - y)); // yukarı sürükle → büyür
+      if (e.cancelable) e.preventDefault();
+    }
+    function onUp() {
+      if (!dragging) return;
+      dragging = false; list.style.transition = '';
+      if (pid !== null) { try { handle.releasePointerCapture(pid); } catch(_){} pid = null; }
+    }
+    if (window.PointerEvent) {
+      handle.addEventListener('pointerdown', onDown);
+      handle.addEventListener('pointermove', onMove);
+      handle.addEventListener('pointerup', onUp);
+      handle.addEventListener('pointercancel', onUp);
     } else {
-      document.exitFullscreen && document.exitFullscreen();
+      handle.addEventListener('touchstart', onDown, { passive: false });
+      window.addEventListener('touchmove', onMove, { passive: false });
+      window.addEventListener('touchend', onUp);
+      window.addEventListener('touchcancel', onUp);
+      handle.addEventListener('mousedown', onDown);
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    }
+    // çift dokunuş: büyük ↔ normal yükseklik arası geçiş
+    let lastTap = 0;
+    handle.addEventListener('click', (e) => {
+      const now = Date.now();
+      if (now - lastTap < 320) { const big = maxH() - 30; setH(curH() > big - 40 ? Math.round(window.innerHeight * 0.24) : big); }
+      lastTap = now;
+    });
+  })();
+
+  document.getElementById('btnFs').onclick = () => {
+    const el = document.documentElement;
+    const isFs = document.fullscreenElement || document.webkitFullscreenElement;
+    if (!isFs) {
+      // navigationUI:'hide' → tarayıcı/sistem çubuklarını (üstteki saat/şarj vb.) gizlemeyi iste
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (req) { try { req.call(el, { navigationUI: 'hide' }); } catch(_) { req.call(el); } }
+    } else {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) exit.call(document);
     }
     if (window._haptic) window._haptic(15);
   };
@@ -4393,7 +5313,17 @@ function attachEvents() {
     if (window._tblIdx < window._tblPages.length - 1) { window._tblIdx++; _showTablePage(); if (window._haptic) window._haptic(10); }
   };
 
-  ['shareOverlay','compareOverlay','tableOverlay'].forEach(id => {
+  // "Bu sayfa nasıl çalışır?" yardım penceresi
+  document.getElementById('btnHelp').onclick = () => {
+    closeAllDropdowns();
+    document.getElementById('helpOverlay').classList.add('show');
+    if (window._haptic) window._haptic(12);
+  };
+  document.getElementById('helpClose').onclick = () => {
+    document.getElementById('helpOverlay').classList.remove('show');
+  };
+
+  ['shareOverlay','compareOverlay','tableOverlay','helpOverlay'].forEach(id => {
     const ov = document.getElementById(id);
     ov.onclick = (e) => { if (e.target === ov) ov.classList.remove('show'); };
   });

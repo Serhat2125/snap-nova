@@ -45,14 +45,16 @@
     width:100vw; height:100vh;
     transition:background 0.3s, color 0.3s;
   }
-  body { touch-action:none; }
+  /* touch-action:none YALNIZCA 3B alanda olmalı; body'de olursa alt panel
+     içindeki yazılar kaydırılamaz (atası none olan eleman pan-y olsa bile kayamaz). */
   canvas { display:block; cursor:grab; }
   canvas:active { cursor:grabbing; }
-  #canvasContainer { position:absolute; inset:0; width:100%; height:100%; z-index:1; }
+  #canvasContainer { position:absolute; inset:0; width:100%; height:100%; z-index:1; touch-action:none; }
+  #canvasContainer canvas { touch-action:none; }
 
   .left-stack {
     position:absolute;
-    top:14px; right:14px;
+    top:2px; right:14px;
     z-index:30;
     display:flex; flex-direction:column; gap:8px;
     align-items:flex-end;
@@ -140,7 +142,7 @@
 
   .right-tools {
     position:absolute;
-    top:14px; left:14px;
+    top:2px; left:8px;
     z-index:30;
     display:flex; gap:8px;
     flex-wrap:nowrap;
@@ -167,6 +169,23 @@
 
   .tool-icon-btn.fs { border-color:var(--joint); color:var(--joint); }
   .tool-icon-btn.fs:hover { background:var(--joint); color:#0a1420; }
+  .tool-icon-btn.help { border-color:var(--accent-glow); color:var(--accent-glow); }
+  .tool-icon-btn.help:hover { background:var(--accent-glow); color:#0a1420; }
+  /* "Bu sayfa nasıl çalışır?" yardım penceresi */
+  .help-card { width:min(460px, 94vw) !important; max-height:86vh; overflow-y:auto; }
+  .help-sec-title {
+    font-family:'Baloo 2', cursive; font-weight:800; font-size:13px;
+    color:var(--accent-glow); margin:13px 2px 6px; letter-spacing:0.3px;
+    border-top:1px solid var(--panel-line); padding-top:11px;
+  }
+  .help-sec-title:first-child { border-top:none; margin-top:2px; padding-top:0; }
+  .help-row {
+    display:flex; gap:10px; align-items:flex-start;
+    padding:5px 4px; font-size:13px; color:var(--ink); line-height:1.42;
+  }
+  .help-row .he { font-size:17px; flex-shrink:0; width:24px; text-align:center; }
+  .help-row b { color:var(--accent-glow); font-weight:700; }
+  .help-intro { font-size:12.5px; color:var(--ink-soft); line-height:1.45; padding:2px 4px 6px; }
   .tool-icon-btn.send { border-color:var(--warning); color:var(--warning); }
   .tool-icon-btn.send:hover { background:var(--warning); color:#0a1420; }
   .tool-icon-btn.theme { border-color:var(--cartilage); color:var(--cartilage); }
@@ -180,17 +199,40 @@
   .tool-icon-btn.table:hover { background:var(--bone); color:#0a1420; }
   .bottom-panel {
     position:absolute;
-    bottom:10px;
-    left:14px; right:14px;
+    bottom:6px;
+    left:3px; right:3px;
     z-index:25;
     background:var(--panel);
     border:2px solid var(--panel-line);
     border-radius:12px;
-    padding:9px 12px 8px;
+    padding:9px 10px 8px;
     box-shadow:0 -6px 24px rgba(0,0,0,0.4);
     display:flex; flex-direction:column; gap:8px;
+    touch-action:auto;
   }
   .bottom-panel.hidden { display:none; }
+
+  /* Bilgi panelini büyüt/küçült: bilgi çerçevesinin tam üstünde YAN YANA ▲▼ ok (sürükle-bırak).
+     Yukarı/aşağı sürükle → panel büyür/küçülür. Dokunma hedefi geniş, görünen kısım sade iki ok. */
+  .info-resize-handle {
+    position:absolute;
+    top:-19px; left:50%; transform:translateX(-50%);
+    width:100px; height:28px;
+    display:flex; flex-direction:row; align-items:center; justify-content:center;
+    gap:7px;
+    cursor:ns-resize; touch-action:none; z-index:4;
+    background:transparent; border:none; padding:0;
+    color:var(--accent);
+  }
+  .info-resize-handle span {
+    font-size:12px; line-height:1; opacity:0.82; pointer-events:none;
+    text-shadow:0 1px 3px rgba(0,0,0,0.5);
+    transition:opacity 0.15s ease, transform 0.15s ease, color 0.15s ease;
+  }
+  .info-resize-handle:hover span { opacity:1; }
+  .info-resize-handle:active span { opacity:1; color:var(--accent-glow); }
+  .info-resize-handle:active .rz-up { transform:translateY(-2px); }
+  .info-resize-handle:active .rz-down { transform:translateY(2px); }
 
   .info-close-btn {
     position:absolute;
@@ -239,23 +281,24 @@
   }
   .info-title {
     font-family:'Baloo 2', cursive; font-weight:800;
-    font-size:12.5px;
+    font-size:14px;
     color:var(--accent-glow);
   }
   .nav-buttons {
-    display:flex; gap:4px;
+    display:flex; gap:8px;
   }
   .nav-mini-btn {
-    width:19px; height:19px;
+    width:34px; height:34px;
     background:var(--panel-soft);
-    border:1.5px solid var(--accent);
-    border-radius:5px;
+    border:2px solid var(--accent);
+    border-radius:9px;
     cursor:pointer;
     display:grid; place-items:center;
     color:var(--accent);
-    font-size:9px;
+    font-size:15px;
     transition:all 0.12s;
   }
+  .nav-mini-btn:active { transform:scale(0.9); }
   .nav-mini-btn:hover {
     background:var(--accent);
     color:#0a1420;
@@ -263,58 +306,80 @@
   .info-list {
     list-style:none;
     padding:0; margin:0;
-    max-height:22vh;
+    max-height:var(--info-h, 24vh);
+    transition:max-height 0.12s ease;
     overflow-y:auto;
     overflow-x:hidden;
     -webkit-overflow-scrolling:touch;
     touch-action:pan-y;
     overscroll-behavior:contain;
     scrollbar-width:thin;
-    scrollbar-color:var(--accent) transparent;
-    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%);
-    mask-image: linear-gradient(to bottom, transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%);
-    padding-right:4px;
+    scrollbar-color:var(--accent) rgba(255,255,255,0.15);
+    padding-right:6px;
   }
-  .info-list::-webkit-scrollbar { width:5px; }
-  .info-list::-webkit-scrollbar-thumb { background:var(--accent); border-radius:3px; }
-  .info-list::-webkit-scrollbar-track { background:rgba(255,255,255,0.06); border-radius:3px; }
+  .info-list::-webkit-scrollbar { width:9px; background:rgba(255,255,255,0.1); border-radius:5px; }
+  .info-list::-webkit-scrollbar-track { background:rgba(255,255,255,0.1); border-radius:5px; }
+  .info-list::-webkit-scrollbar-thumb { background:var(--accent); border-radius:5px; border:2px solid rgba(15,20,30,0.6); min-height:28px; }
+  .info-scroll-wrap { position:relative; }
+  /* özel görsel çubuk (native gizlenen platformlar için yedek) */
+  .info-scrollbar {
+    position:absolute; top:2px; right:0; bottom:2px; width:7px;
+    background:rgba(255,255,255,0.15); border-radius:5px;
+    opacity:0; transition:opacity 0.2s; pointer-events:none; z-index:2;
+  }
+  .info-scrollbar.visible { opacity:1; }
+  .info-scrollthumb {
+    position:absolute; left:0; right:0; top:0; min-height:26px;
+    background:var(--accent); border-radius:5px;
+    border:1px solid rgba(0,0,0,0.3);
+  }
   .info-list li {
-    padding:1px 0 1px 11px;
+    padding:3px 0 3px 15px;
     margin-bottom:0;
     background:transparent;
     border:none;
     border-radius:0;
-    font-size:10.5px;
-    line-height:1.32;
+    font-size:12px;
+    line-height:1.5;
     color:var(--ink);
     position:relative;
   }
+  /* Madde başında küçük MAVİ nokta */
   .info-list li::before {
     content:'•';
+    color:var(--joint);
     position:absolute;
-    left:2px; top:1px;
-    color:var(--accent);
-    font-weight:700;
-    font-size:11px;
+    left:3px; top:3px;
+    font-size:13px; line-height:1.45;
   }
   .info-list li b {
     color:var(--accent-glow);
     font-weight:700;
   }
+  /* Ara başlık (##) → SARI, nokta yok */
   .info-list li.subhead {
     background:transparent;
     border-left:none;
     color:var(--warning);
     font-weight:700;
-    font-size:11.5px;
+    font-size:12px;
     margin-top:5px;
     margin-bottom:2px;
     padding:0 0 1px 0;
     font-style:normal;
   }
-  .info-list li.subhead::before {
-    content:'';
+  .info-list li.subhead::before { content:''; }
+  /* Yan başlık (###) → MAVİ, nokta yok */
+  .info-list li.subhead2 {
+    background:transparent;
+    color:var(--joint);
+    font-weight:700;
+    font-size:12px;
+    margin-top:4px;
+    margin-bottom:1px;
+    padding:0 0 1px 0;
   }
+  .info-list li.subhead2::before { content:''; }
 
   .action-row {
     display:grid;
@@ -344,7 +409,19 @@
     background:linear-gradient(135deg, var(--cartilage), #7a5fb8);
   }
   .action-btn.anim {
-    background:linear-gradient(135deg, var(--muscle), #a04545);
+    background:linear-gradient(135deg, #2ecc71, #1ba85c);
+    color:#06281a;
+    box-shadow:0 0 14px rgba(46,204,113,0.5);
+    animation:animPulse 1.8s ease-in-out infinite;
+  }
+  @keyframes animPulse {
+    0%,100% { box-shadow:0 0 10px rgba(46,204,113,0.4); }
+    50% { box-shadow:0 0 18px rgba(46,204,113,0.75); transform:scale(1.02); }
+  }
+  .action-btn.anim.active {
+    background:linear-gradient(135deg, #e74c3c, #c0392b);
+    color:#fff;
+    animation:none;
   }
   .action-btn.active {
     box-shadow:0 0 0 2px #fff, 0 0 12px rgba(255,255,255,0.4);
@@ -498,6 +575,14 @@
   .cmp-table th:nth-child(3),
   .cmp-table th:nth-child(4) { border-left:1px dashed rgba(255,255,255,0.3); }
   .cmp-table tr:hover td { background:rgba(246,185,59,0.20) !important; }
+  /* Karşılaştırma (versus): karşılaştırılan varlıklar SÜTUN başlığında ayrı renkte */
+  .cmp-versus th.cmp-aspect { background:linear-gradient(135deg,#3a4668,#2a3450); color:var(--ink); text-shadow:none; }
+  .cmp-versus th.cmp-ent { color:#0a1420; }
+  .cmp-versus th.cmp-ent-0 { background:linear-gradient(135deg,#ffd166,#f6b93b); }
+  .cmp-versus th.cmp-ent-1 { background:linear-gradient(135deg,#7adcf0,#3aa0c8); }
+  .cmp-versus th.cmp-ent-2 { background:linear-gradient(135deg,#cbb3ff,#9d7fe6); }
+  .cmp-versus th.cmp-ent-3 { background:linear-gradient(135deg,#a6e3a1,#5fb377); }
+  .cmp-versus td.cmp-aspect-cell { font-weight:700; color:var(--ink); white-space:nowrap; border-right:2px solid var(--accent); background:rgba(255,255,255,0.05); }
   .cmp-no-data {
     text-align:center;
     padding:24px 12px;
@@ -574,14 +659,15 @@
 
   @media (max-width:600px) {
     .stack-btn { min-width:140px; font-size:11px; padding:7px 11px; }
-    .stack-btn .sb-label { font-size:11px; }
+    .stack-btn .sb-label, .sp-toggle .sb-label { font-size:11px; }
+    .sp-toggle { font-size:11px; padding:7px 11px; min-width:140px; }
     .right-tools { gap:5px; left:8px; }
     .tool-icon-btn { width:34px; height:34px; font-size:14px; border-radius:9px; }
-    .bottom-panel { padding:11px 12px 9px; gap:9px; }
+    .bottom-panel { padding:11px 10px 9px; gap:9px; }
     .info-emoji-box { width:36px; height:36px; font-size:20px; }
-    .info-title { font-size:13px; }
-    .info-list li { font-size:11.5px; padding:4px 7px; }
-    .info-list { max-height:26vh; }
+    .info-title { font-size:14px; }
+    .info-list li { font-size:12px; padding:3px 0 3px 15px; }
+    .info-list { max-height:var(--info-h, 28vh); }
     .action-btn { font-size:11px; padding:7px 8px; }
     .dropdown-panel { min-width:200px; }
     .dropdown-item { font-size:11.5px; padding:7px 9px; }
@@ -589,12 +675,14 @@
   }
   @media (max-width:420px) {
     .stack-btn { min-width:130px; font-size:10.5px; padding:6px 9px; }
+    .sp-toggle { font-size:10.5px; padding:6px 9px; min-width:130px; }
     .right-tools { gap:4px; left:6px; }
     .tool-icon-btn { width:30px; height:30px; font-size:13px; border-radius:8px; border-width:1.5px; }
     #panelMode { left:6px !important; }
   }
   @media (max-width:360px) {
     .stack-btn { min-width:115px; font-size:10px; padding:5px 8px; }
+    .sp-toggle { font-size:10px; padding:5px 8px; min-width:115px; }
     .right-tools { gap:3px; left:5px; }
     .tool-icon-btn { width:28px; height:28px; font-size:12px; }
     #panelMode { left:5px !important; }
@@ -604,45 +692,45 @@
     display: none !important;
   }
 
-  .scene-panel {
-    position: fixed;
-    right: 12px;
-    top: 120px;
-    width: 280px;
-    max-height: calc(100vh - 120px - 220px);
-    overflow-y: auto;
-    background: rgba(15, 20, 30, 0.88);
-    border: 1px solid rgba(246, 185, 59, 0.35);
-    border-radius: 14px;
-    padding: 10px;
-    z-index: 40;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-    font-size: 11.5px;
-    color: rgba(255, 255, 255, 0.92);
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    transition: all 0.3s ease;
-  }
-  .scene-panel.collapsed {
-    width: auto;
-    padding: 6px 10px;
-  }
-  .scene-panel.collapsed > *:not(.sp-toggle) { display: none; }
-  .scene-panel.empty { display: none; }
+  /* Eğitim Seviyesi (üstte) altında: Değişkenler + Konu Rehberi AYNI SATIRDA,
+     Değişkenler solda. Üçü de aynı ebat (stack-btn / sp-toggle). */
+  .stack-row { display: flex; gap: 8px; align-items: flex-start; }
 
-  body.dropdown-open .scene-panel {
-    transform: none;
+  /* Değişkenler içeriği: sekmenin hemen altında, TAM GENİŞLİK (telefon solu→sağı),
+     kontroller YATAY yan yana (flex-wrap). */
+  .scene-vars-body {
+    position: fixed;
+    left: 6px; right: 6px;
+    top: 92px; /* JS ile sekmenin altına hizalanır */
+    z-index: 39;
+    display: flex; flex-wrap: wrap; align-items: stretch;
+    gap: 7px;
+    background: rgba(15, 20, 30, 0.96);
+    border: 1.5px solid var(--panel-line);
+    border-radius: 12px;
+    padding: 8px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    max-height: 46vh; overflow-y: auto;
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 10px;
   }
+  .scene-vars-body.closed { display: none; }
+  .scene-vars-body .sp-section { flex-basis: 100%; margin: 2px 4px 0; }
+  .scene-vars-body .sp-slider-row { flex: 1 1 150px; min-width: 132px; max-width: 260px; }
+  .scene-vars-body .sp-display { flex: 1 1 120px; min-width: 108px; }
+  .scene-vars-body .sp-presets { flex-basis: 100%; }
+  .scene-vars-body .sp-formula { flex-basis: 100%; font-size: 11px; }
+  /* Dar yatay kartlarda yazılar sığsın */
+  .scene-vars-body .sp-slider-row .sp-slider-head { font-size: 10px; }
+  .scene-vars-body .sp-slider-row .sp-slider-head .sp-val { font-size: 10px; min-width: 40px; padding: 2px 5px; }
+  .scene-vars-body .sp-display { font-size: 9.5px; }
+  .scene-vars-body .sp-preset-btn { font-size: 10px; }
 
   @media (min-width: 768px) {
     canvas {
       transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    body.scene-panel-open canvas {
-      transform: translateX(-15vw);
     }
     body.panel-open canvas {
       transform: translateX(-22vw);
@@ -685,44 +773,51 @@
     padding: 0 4px;
     font-size: 11px;
   }
+  /* Sekme: TURUNCU; Lise/Konu Rehberi ile aynı boyut/yapı (ikon başta, ok sağda) */
   .sp-toggle {
-    background: rgba(246, 185, 59, 0.18);
-    border: 1px solid rgba(246, 185, 59, 0.5);
+    background: linear-gradient(135deg, #f59f0a, #f97316);
+    border: 2px solid rgba(255, 184, 92, 0.6);
     color: #fff;
-    font-size: 12px;
+    font-family: 'Fredoka', sans-serif;
+    font-size: 12.5px;
     font-weight: 600;
-    padding: 8px 12px;
-    border-radius: 10px;
+    padding: 8px 14px;
+    border-radius: 12px;
     cursor: pointer;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    width: 100%;
+    gap: 7px;
+    min-width: 170px; /* Konu Rehberi (stack-btn) ile aynı ebat */
+    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.35);
+    transition: all 0.15s;
   }
-  .sp-toggle:hover { background: rgba(246, 185, 59, 0.32); }
+  .sp-toggle:hover { border-color: #fff; }
+  .sp-toggle:active { transform: scale(0.97); }
+  .sp-toggle .sb-emoji { font-size: 16px; line-height: 1; flex-shrink: 0; }
+  .sp-toggle .sb-label { flex: 1; text-align: left; }
+  .sp-chev { font-size: 10px; opacity: 0.9; }
   .sp-section {
-    font-size: 10px; font-weight: 700;
+    font-size: 9px; font-weight: 700;
     color: rgba(255, 209, 90, 0.85);
     text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin: 6px 4px 2px 4px;
+    letter-spacing: 0.6px;
+    margin: 5px 4px 2px 4px;
   }
 
   .sp-slider-row {
     display: flex; flex-direction: column; gap: 4px;
-    padding: 8px 10px;
+    padding: 6px 8px;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 10px;
   }
   .sp-slider-row .sp-slider-head {
     display: flex; justify-content: space-between; align-items: center;
-    font-size: 11.5px; font-weight: 500;
+    font-size: 10.5px; font-weight: 500;
   }
   .sp-slider-row .sp-slider-head .sp-val {
     font-family: 'Consolas', monospace;
-    font-size: 12px; font-weight: 700;
+    font-size: 11px; font-weight: 700;
     color: #FFD54F;
     background: rgba(0,0,0,0.45);
     padding: 2px 8px;
@@ -765,16 +860,16 @@
 
   .sp-display {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 7px 10px;
+    padding: 6px 8px;
     background: rgba(246, 185, 59, 0.10);
     border: 1px solid rgba(246, 185, 59, 0.28);
     border-radius: 9px;
-    font-size: 11px;
+    font-size: 10px;
   }
   .sp-display .sp-label { color: rgba(255,255,255,0.85); }
   .sp-display .sp-val {
     font-family: 'Consolas', monospace;
-    font-size: 12px; font-weight: 700; color: #FFE082;
+    font-size: 11px; font-weight: 700; color: #FFE082;
     background: rgba(0,0,0,0.35); padding: 2px 8px; border-radius: 6px;
   }
   .sp-display.highlight {
@@ -815,18 +910,23 @@
   }
 
   @media (max-width: 768px) {
-    .scene-panel {
-      right: 8px;
-      top: 110px;
-      width: 200px;
-      font-size: 10.5px;
-      padding: 8px;
-    }
-    .sp-slider-row { padding: 6px 8px; }
+    .sp-slider-row { padding: 5px 7px; }
     .sp-slider-row input[type=range] { height: 5px; }
   }
 
-  body.panel-open .scene-panel { }
+  /* Değişkenler paneli TAM ŞEFFAF — açıkken 3D model arkada görünmeye devam eder */
+  .scene-vars-body {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.85);
+  }
+  .scene-vars-body .sp-slider-row,
+  .scene-vars-body .sp-display,
+  .scene-vars-body .sp-formula,
+  .scene-vars-body .sp-preset-btn { background: rgba(0, 0, 0, 0.30); }
 </style>
 </head>
 <body>
@@ -867,7 +967,7 @@
 </div>
 
 <div id="regionList" class="region-list"></div>
-<div id="scenePanel" class="scene-panel"></div>
+<div id="sceneVarsBody" class="scene-vars-body closed"></div>
 
 <div id="gestureToast" style="
   position:fixed; top:90px; left:50%; transform:translateX(-50%) translateY(-20px);
@@ -887,14 +987,17 @@
     <span class="sb-label" id="levelLabel">Lise</span>
     <span class="sb-arrow">▼</span>
   </button>
-  <button class="stack-btn topic" id="btnTopic">
-    <span class="sb-emoji">📚</span>
-    <span class="sb-label">Konu Rehberi</span>
-    <span class="sb-arrow">▼</span>
-  </button>
+  <div class="stack-row" id="stackRow">
+    <!-- Değişkenler sekmesi (sp-toggle) JS ile buraya, Konu Rehberi'nin SOLUNA eklenir -->
+    <button class="stack-btn topic" id="btnTopic">
+      <span class="sb-emoji">📚</span>
+      <span class="sb-label">Konu Rehberi</span>
+      <span class="sb-arrow">▼</span>
+    </button>
+  </div>
 </div>
 
-<div class="dropdown-panel" id="panelLevel" style="top:60px; right:14px;">
+<div class="dropdown-panel" id="panelLevel" style="top:48px; right:14px; max-height:70vh; overflow-y:auto;">
   <div class="dropdown-title">🎓 Eğitim Seviyesi</div>
   <button class="dropdown-item" data-level="ilkokul"><span class="di-emoji">🧒</span>İlkokul</button>
   <button class="dropdown-item" data-level="ortaokul"><span class="di-emoji">🎒</span>Ortaokul</button>
@@ -902,7 +1005,7 @@
   <button class="dropdown-item" data-level="tyt_ayt"><span class="di-emoji">🎯</span>TYT-AYT</button>
 </div>
 
-<div class="dropdown-panel" id="panelTopic" style="top:106px; right:14px;">
+<div class="dropdown-panel" id="panelTopic" style="top:92px; right:14px;">
   <div class="dropdown-title">📚 Konu Rehberi</div>
   <div id="topicList"></div>
 </div>
@@ -914,15 +1017,17 @@
   <button class="tool-icon-btn theme" id="btnTheme" title="Tema değiştir">🌙</button>
   <button class="tool-icon-btn send" id="btnSend" title="Gönder/Paylaş">📤</button>
   <button class="tool-icon-btn fs" id="btnFs" title="Tam ekran">⛶</button>
+  <button class="tool-icon-btn help" id="btnHelp" title="Bu sayfa nasıl çalışır?">❓</button>
 </div>
 
-<div class="dropdown-panel" id="panelMode" style="top:60px; left:14px;">
+<div class="dropdown-panel" id="panelMode" style="top:48px; left:8px;">
   <div class="dropdown-title">📚 Görünüm Modu</div>
   <button class="dropdown-item" data-mode="detayli"><span class="di-emoji">📚</span><span><b>Detaylı</b><br><small style="opacity:0.7;font-size:10.5px;">Daha çok bilgi</small></span></button>
   <button class="dropdown-item active" data-mode="sade"><span class="di-emoji">📄</span><span><b>Sade</b><br><small style="opacity:0.7;font-size:10.5px;">Sadece temel bilgiler</small></span></button>
 </div>
 
 <div class="bottom-panel" id="bottomPanel">
+  <div class="info-resize-handle" id="infoResizeHandle" title="Yukarı/aşağı sürükleyerek büyüt/küçült"><span class="rz-up">▲</span><span class="rz-down">▼</span></div>
   <button class="info-close-btn" id="infoCloseBtn" title="Bilgi panelini kapat">✕</button>
   <div class="info-area">
     <div class="info-emoji-box" id="infoEmoji" style="display:none;">🔦</div>
@@ -934,7 +1039,10 @@
           <button class="nav-mini-btn" id="navNext" title="Sonraki">▶</button>
         </div>
       </div>
-      <ul class="info-list" id="infoList"></ul>
+      <div class="info-scroll-wrap">
+        <ul class="info-list" id="infoList"></ul>
+        <div class="info-scrollbar" id="infoScrollbar"><div class="info-scrollthumb" id="infoScrollThumb"></div></div>
+      </div>
     </div>
   </div>
 
@@ -1023,6 +1131,39 @@
   </div>
 </div>
 
+<div class="share-overlay" id="helpOverlay">
+  <div class="share-card help-card">
+    <div class="share-head">
+      <div class="share-head-text">❓ Bu Sayfa Nasıl Çalışır?</div>
+      <button class="share-close-btn" id="helpClose">✕</button>
+    </div>
+    <div class="help-intro">3 boyutlu modeli parmaklarınla incele; üstteki menülerden seviye ve konu seç; alttaki panelden bilgileri oku.</div>
+
+    <div class="help-sec-title">🖐️ Dokunma Hareketleri</div>
+    <div class="help-row"><span class="he">👆</span><span><b>Döndür:</b> tek parmakla sürükle</span></div>
+    <div class="help-row"><span class="he">✌️</span><span><b>Yakınlaştır:</b> iki parmağı aç/kapa — istediğin yere odaklanır</span></div>
+    <div class="help-row"><span class="he">🤏</span><span><b>Taşı:</b> iki parmağı birlikte kaydır</span></div>
+    <div class="help-row"><span class="he">👆👆</span><span><b>Çift dokun:</b> dokunduğun noktaya yakınlaş</span></div>
+    <div class="help-row"><span class="he">🖐️</span><span><b>Sıfırla:</b> üç parmakla dokun</span></div>
+
+    <div class="help-sec-title">🧭 Üst Menüler</div>
+    <div class="help-row"><span class="he">🎓</span><span><b>Eğitim Seviyesi</b> (sağ üst): İlkokul / Ortaokul / Lise / Sınav</span></div>
+    <div class="help-row"><span class="he">📚</span><span><b>Konu Rehberi</b> (sağ üst): konular arasında geç</span></div>
+    <div class="help-row"><span class="he">📄</span><span><b>Görünüm Modu</b> (sol üst): Sade / Detaylı bilgi</span></div>
+    <div class="help-row"><span class="he">🎛️</span><span><b>Değişkenler</b> (Konu Rehberi'nin altında): sahnedeki kaydırıcı ve seçenekler — konu değişince kısa görünür, dokununca açılır</span></div>
+
+    <div class="help-sec-title">🛠️ Araçlar (sol üst)</div>
+    <div class="help-row"><span class="he">⚖️</span><span><b>Karşılaştırma</b> &nbsp;·&nbsp; <span class="he" style="display:inline">📋</span> <b>Bilgi Tablosu</b></span></div>
+    <div class="help-row"><span class="he">🌙</span><span><b>Tema</b> &nbsp;·&nbsp; 📤 <b>Paylaş</b> &nbsp;·&nbsp; ⛶ <b>Tam ekran</b></span></div>
+
+    <div class="help-sec-title">📖 Alt Bilgi Paneli</div>
+    <div class="help-row"><span class="he">⇕</span><span><b>Tutamacı sürükle:</b> paneli büyüt / küçült</span></div>
+    <div class="help-row"><span class="he">📜</span><span><b>Kaydır:</b> yazılar sığmazsa panel içinde yukarı/aşağı kaydır</span></div>
+    <div class="help-row"><span class="he">◀▶</span><span><b>Önceki / Sonraki</b> konuya geç</span></div>
+    <div class="help-row"><span class="he">🔄</span><span><b>Döndür</b> · 🏷️ <b>Etiketler</b> · ▶️ <b>Çalıştır</b> (animasyon)</span></div>
+  </div>
+</div>
+
 <div id="canvasContainer">
   <svg id="leaderLines" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:9;"></svg>
 </div>
@@ -1067,6 +1208,121 @@ setTimeout(function() {
 </script>
 
 <script src="./three.global.js"></script>
+<!-- CC0 hazır 3D modeller (base64 gömülü) + GLB yükleyici -->
+<script src="./gltf-loader.global.js"></script>
+<script src="./models/yelkenli.glb.js"></script>
+
+<!-- ===== GEÇİŞ MOTORU: Ayarlar'a (Geçiş Stüdyosu) göre sahne geçiş animasyonu + ses + geri bildirim ===== -->
+<script>
+(function(){
+  const DEF={ level:'karisik', enterMode:'rastgele', exitMode:'rastgele', speed:1.0, overlap:true, sound:true, stereo:true, emoji:false, title:false, confetti:false, calm:false };
+  function readS(){ let S=Object.assign({},DEF); try{ const v=localStorage.getItem('gecisAyar3'); if(v) S=Object.assign({},DEF,JSON.parse(v)); }catch(e){} return S; }
+
+  // CSS (emoji/uçan başlık/konfeti) bir kez enjekte
+  if(!document.getElementById('gecisFxCss')){ const st=document.createElement('style'); st.id='gecisFxCss'; st.textContent=
+    ".gx-emoji{position:fixed;z-index:120;pointer-events:none;font-size:clamp(40px,9vw,64px);filter:drop-shadow(0 6px 12px rgba(0,0,0,.45));}"+
+    ".gx-emoji.happy{animation:gxHappy 1.5s cubic-bezier(.2,.9,.3,1.1) forwards;}"+
+    "@keyframes gxHappy{0%{opacity:0;transform:translate(-50%,-20%) scale(.2) rotate(-12deg);}22%{opacity:1;transform:translate(-50%,-78%) scale(1.25) rotate(8deg);}45%{transform:translate(-50%,-70%) scale(1);}100%{opacity:0;transform:translate(-50%,-108%) scale(.85);}}"+
+    ".gx-title{position:fixed;top:26%;left:50%;z-index:118;pointer-events:none;font-weight:800;font-size:clamp(20px,4.6vw,36px);color:#fff;text-shadow:0 3px 18px rgba(90,209,255,.55),0 1px 3px rgba(0,0,0,.6);font-family:'Baloo 2',sans-serif;animation:gxTitle 2s ease forwards;}"+
+    "@keyframes gxTitle{0%{opacity:0;transform:translate(-30%,0) scale(.9);}18%{opacity:1;transform:translate(-50%,0) scale(1);}80%{opacity:1;transform:translate(-50%,0) scale(1);}100%{opacity:0;transform:translate(-62%,0) scale(.96);}}"+
+    ".gx-conf{position:fixed;top:30%;z-index:119;pointer-events:none;width:9px;height:14px;border-radius:2px;}"+
+    "@keyframes gxConf{0%{opacity:1;transform:translateY(0) rotate(0);}100%{opacity:0;transform:translateY(300px) rotate(560deg);}}";
+    (document.head||document.documentElement).appendChild(st); }
+
+  // ---- SES (WebAudio) ----
+  let actx=null, pan=0;
+  const TH={ ilkokul:{p:1.18,g:1.12}, ortaokul:{p:1.0,g:1.0}, lise:{p:0.84,g:0.82}, karisik:{p:1.0,g:1.0} };
+  function th(S){ return TH[S.level]||TH.karisik; }
+  function ensure(){ try{ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==='suspended') actx.resume(); }catch(e){} return actx; }
+  function pn(a,S){ try{ const p=a.createStereoPanner(); p.pan.value=S.stereo?pan:0; return p; }catch(e){ return a.createGain(); } }
+  function blip(S,freq,t0,dur,type,g,slide){ const a=ensure(); if(!a)return; const t=th(S); freq*=t.p; if(slide)slide*=t.p; g=(g||0.16)*t.g; const o=a.createOscillator(),gn=a.createGain(),p=pn(a,S); o.type=type||'sine'; const T=a.currentTime+t0; o.frequency.setValueAtTime(freq,T); if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(1,slide),T+dur); gn.gain.setValueAtTime(0.0001,T); gn.gain.exponentialRampToValueAtTime(g,T+0.012); gn.gain.exponentialRampToValueAtTime(0.0001,T+dur); o.connect(gn).connect(p).connect(a.destination); o.start(T); o.stop(T+dur+0.03); }
+  function noise(S,t0,dur,g,filt,type,sweep){ const a=ensure(); if(!a)return; const T=a.currentTime+t0; const n=a.createBufferSource(),buf=a.createBuffer(1,Math.max(1,a.sampleRate*dur),a.sampleRate),d=buf.getChannelData(0); for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1; n.buffer=buf; const f=a.createBiquadFilter(); f.type=type||'lowpass'; f.frequency.setValueAtTime(filt||1200,T); if(sweep)f.frequency.exponentialRampToValueAtTime(Math.max(20,sweep),T+dur); const gn=a.createGain(),p=pn(a,S); gn.gain.setValueAtTime((g||0.12)*th(S).g,T); gn.gain.exponentialRampToValueAtTime(0.0001,T+dur); n.connect(f).connect(gn).connect(p).connect(a.destination); n.start(T); n.stop(T+dur+0.03); }
+  const ESND={ don(S){ blip(S,200,0,0.55,'sawtooth',0.10,820); }, balon(S){ blip(S,380,0,0.14,'sine',0.2,920); blip(S,920,0.12,0.07,'sine',0.1); }, zipla(S){ blip(S,160,0,0.22,'triangle',0.22,520); blip(S,520,0.18,0.12,'sine',0.12,260); }, uzaydan(S){ noise(S,0,0.4,0.12,3000,'highpass',300); blip(S,900,0.34,0.18,'sine',0.14); }, sagdan(S){ noise(S,0,0.5,0.10,400,'lowpass',2200); blip(S,300,0.1,0.4,'sine',0.12,760); }, yerden(S){ blip(S,70,0,0.6,'sine',0.2,320); noise(S,0,0.55,0.07,400,'lowpass',1600); }, buyu(S){ [392,523,659,880].forEach((f,i)=>blip(S,f,i*0.08,0.14,'triangle',0.12)); } };
+  function vedaSound(S){ pan=-0.5; [523,440,392,294].forEach((f,i)=>blip(S,f,i*0.10,0.16,'triangle',0.10)); pan=0; }
+
+  // ---- Geri bildirim ----
+  const EMO={ ilkokul:['😄','🤩','🥳','🎉','😍','🙌'], ortaokul:['😄','😎','🤩','✨','👍','🔥'], lise:['🙂','😌','👍','✨','🎯','🆕'], karisik:['😄','🤩','🥳','😍','🎉','✨'] };
+  function emoji(S){ if(!S.emoji)return; const pool=EMO[S.level]||EMO.karisik; const el=document.createElement('div'); el.className='gx-emoji happy'; el.style.left='62%'; el.style.top='40%'; el.textContent=pool[Math.floor(Math.random()*pool.length)]; document.body.appendChild(el); setTimeout(()=>el.remove(),1550); }
+  function flyTitle(S,t){ if(!S.title||!t)return; const el=document.createElement('div'); el.className='gx-title'; el.textContent=t; document.body.appendChild(el); setTimeout(()=>el.remove(),2050); }
+  function confetti(){ const cols=['#ff5b6b','#ffcf5a','#5ad1ff','#66bb6a','#ab47bc','#ff8ab0']; for(let i=0;i<22;i++){ const d=document.createElement('div'); d.className='gx-conf'; d.style.left=(36+Math.random()*28)+'%'; d.style.background=cols[i%cols.length]; const du=1.1+Math.random()*0.7; d.style.animation='gxConf '+du+'s ease-in '+(Math.random()*0.2)+'s forwards'; document.body.appendChild(d); setTimeout(()=>d.remove(),(du+0.4)*1000); } try{ navigator.vibrate&&navigator.vibrate(30); }catch(e){} }
+
+  // ====== ENTER EFEKTLERİ (model parçaları + sahne FX üzerinde; window.THREE/scene) ======
+  const ez=t=>t*t*(3-2*t);
+  const clamp=(v,a,b)=>{a=(a===undefined?0:a);b=(b===undefined?1:b);return v<a?a:v>b?b:v;};
+  function eBack(x){ const c1=1.70158,c3=c1+1; return 1+c3*Math.pow(x-1,3)+c1*Math.pow(x-1,2); }
+  function eBounce(x){ const n1=7.5625,d1=2.75; if(x<1/d1)return n1*x*x; if(x<2/d1){x-=1.5/d1;return n1*x*x+0.75;} if(x<2.5/d1){x-=2.25/d1;return n1*x*x+0.9375;} x-=2.625/d1; return n1*x*x+0.984375; }
+  const T=()=>window.THREE, SC=()=>window.scene;
+  function gh(o){ return {px:o.position.x,py:o.position.y,pz:o.position.z,sx:o.scale.x,sy:o.scale.y,sz:o.scale.z,rx:o.rotation.x,ry:o.rotation.y,rz:o.rotation.z}; }
+  function setT(o,h){ o.position.set(h.px,h.py,h.pz); o.scale.set(h.sx,h.sy,h.sz); o.rotation.set(h.rx,h.ry,h.rz); }
+  function pOpacity(piece,a){ piece.traverse(o=>{ if(o.isMesh&&o.material){ o.material.transparent=a<1; o.material.opacity=a; } }); piece.visible=a>0.005; }
+  function setOpacityMs(ms,a){ ms.forEach(m=>{ if(m.material){ m.material.transparent=a<1; m.material.opacity=a; } }); }
+  // root'tan model alt-gruplarını ayıkla (ışık/grid mesh değil → otomatik hariç;
+  // ETİKET grubu da hariç → etiketler geçişten etkilenmez, hep görünür kalır)
+  function capture(group){ const mk=group.children.filter(ch=>{ if(ch.userData._gxFx||ch.userData.isLabelGroup)return false; let h=false; ch.traverse(o=>{ if(o.isMesh)h=true; }); return h; });
+    let pc=[]; mk.forEach(g=>g.children.forEach(c=>pc.push(c))); if(pc.length<2) pc=mk.slice();
+    const ms=[]; mk.forEach(g=>g.traverse(o=>{ if(o.isMesh)ms.push(o); }));
+    mk.forEach(o=>o.userData._gh=gh(o)); pc.forEach(o=>{ o.userData._gh=gh(o); });
+    ms.forEach(m=>{ if(m.material){ m.userData._go={op:(m.material.opacity!==undefined?m.material.opacity:1),tr:!!m.material.transparent,he:!!m.material.emissive,em:m.material.emissive?m.material.emissive.getHex():0,ei:m.material.emissiveIntensity||0}; m.material.transparent=true; } });
+    return {mk,pc,ms,sceneFx:[],tmp:{}}; }
+  function bounds(fx){ const TT=T(); const b=new TT.Box3(); fx.mk.forEach(g=>{ try{ b.expandByObject(g); }catch(e){} }); if(b.isEmpty()) b.set(new TT.Vector3(-1,-1,-1),new TT.Vector3(1,1,1)); return b; }
+  function addFx(fx,m){ m.userData._gxFx=true; m.userData.dynamic=true; const sc=SC(); if(sc)sc.add(m); fx.sceneFx.push(m); return m; }
+  function clearFx(fx){ const sc=SC(); (fx.sceneFx||[]).forEach(o=>{ if(sc)sc.remove(o); if(o.geometry)o.geometry.dispose(); if(o.material&&o.material.dispose)o.material.dispose(); }); fx.sceneFx=[]; }
+  function restoreAll(fx){ fx.mk.forEach(o=>{ if(o.userData._gh)setT(o,o.userData._gh); }); fx.pc.forEach(o=>{ if(o.userData._gh){ setT(o,o.userData._gh); o.visible=true; } }); fx.ms.forEach(m=>{ const g=m.userData._go; if(g&&m.material){ m.material.opacity=g.op; m.material.transparent=g.tr; if(g.he&&m.material.emissive){ m.material.emissive.setHex(g.em); m.material.emissiveIntensity=g.ei; } } }); clearFx(fx); }
+  const _v=()=>new (T().Vector3)();
+  function rdir(){ const TT=T(); return new TT.Vector3(Math.random()-0.5,Math.random()-0.5,Math.random()-0.5).normalize(); }
+  function streaks(fx,color,b){ if(readS().calm)return; const TT=T(); const cy=(b.min.y+b.max.y)/2; const arr=[]; for(let i=0;i<4;i++){ const m=new TT.Mesh(new TT.PlaneGeometry(3.2,0.06),new TT.MeshBasicMaterial({color,transparent:true,opacity:0,blending:TT.AdditiveBlending,depthWrite:false,side:TT.DoubleSide})); m.position.set(0,cy-1.6+i*1.0,0); addFx(fx,m); arr.push(m); } fx.tmp.streaks=arr; }
+  function updStreaks(fx,p,dirX,mx){ const a=Math.sin(clamp(p)*Math.PI); (fx.tmp.streaks||[]).forEach((m,i)=>{ m.position.x=(mx||0)+dirX*(1.4+i*0.15); m.material.opacity=a*0.5; m.scale.x=0.7+a*1.0; }); }
+
+  // Tüm efektler — her biri fx (mk/pc/ms) + bounds üzerinde çalışır
+  const EFFECTS={
+    buyu:{ dur:1100, update(fx,p){ const e=Math.max(0.001,eBack(p)); fx.mk.forEach(g=>{const h=g.userData._gh; g.scale.set(h.sx*e,h.sy*e,h.sz*e);}); setOpacityMs(fx.ms,ez(p)); } },
+    don:{ dur:1200, update(fx,p){ const e=Math.max(0.001,eBack(p)); fx.mk.forEach(g=>{const h=g.userData._gh; g.scale.set(h.sx*e,h.sy*e,h.sz*e); g.rotation.y=h.ry-Math.PI*4*(1-ez(p));}); setOpacityMs(fx.ms,ez(p)); } },
+    balon:{ dur:1250, update(fx,p){ const e=Math.max(0.001,eBack(p)),w=1+0.12*Math.sin(p*Math.PI*6); fx.mk.forEach(g=>{const h=g.userData._gh; g.scale.set(h.sx*e*w,h.sy*e*w,h.sz*e*w);}); setOpacityMs(fx.ms,ez(clamp(p*1.5))); } },
+    zipla:{ dur:1300, update(fx,p){ const e=eBounce(p); fx.mk.forEach(g=>{const h=g.userData._gh; g.position.y=h.py+(1-e)*6; const sq=Math.max(0,Math.sin(p*Math.PI*3))*(p>0.25?1:0)*0.12; g.scale.set(h.sx*(1+sq*0.6),h.sy*(1-sq),h.sz*(1+sq*0.6));}); } },
+    uzaydan:{ dur:1300, init(fx){ fx.mk.forEach(g=>{const h=g.userData._gh; g.rotation.y=h.ry-1.2;}); }, update(fx,p){ const e=eBack(clamp(p)); fx.mk.forEach(g=>{const h=g.userData._gh; g.position.z=h.pz-22*(1-e); g.rotation.y=h.ry-1.2*(1-ez(p));}); setOpacityMs(fx.ms,clamp(p*2)); } },
+    sagdan:{ dur:1500, init(fx){ streaks(fx,0x9be7ff,bounds(fx)); }, update(fx,p){ const e=ez(p); fx.mk.forEach(g=>{const h=g.userData._gh; g.position.x=h.px+12*(1-e); g.position.z=h.pz-9*(1-e); const s=0.6+0.4*e; g.scale.set(h.sx*s,h.sy*s,h.sz*s); g.rotation.y=h.ry+0.9*(1-e);}); setOpacityMs(fx.ms,clamp(p*1.5)); updStreaks(fx,p,1, fx.mk[0]?fx.mk[0].position.x:0); } },
+    yerden:{ dur:1400, init(fx){ const TT=T(),b=bounds(fx); const ring=new TT.Mesh(new TT.TorusGeometry(1.2,0.12,12,40),new TT.MeshBasicMaterial({color:0x7be0ff,transparent:true,opacity:0.9})); ring.rotation.x=-Math.PI/2; ring.position.y=b.min.y+0.05; ring.scale.set(0.1,0.1,0.1); addFx(fx,ring); fx.tmp.ring=ring; }, update(fx,p){ const e=ez(p); fx.mk.forEach(g=>{const h=g.userData._gh; g.position.y=h.py-5*(1-e);}); setOpacityMs(fx.ms,clamp(e*1.5)); const rs=0.3+ez(clamp(p*1.3))*2.6; if(fx.tmp.ring){ fx.tmp.ring.scale.set(rs,rs,rs); fx.tmp.ring.material.opacity=Math.sin(clamp(p)*Math.PI)*0.9; } } },
+    insa:{ dur:1500, init(fx){ const arr=fx.pc.slice().sort((a,b)=>a.userData._gh.py-b.userData._gh.py); arr.forEach((c,i)=>{ c.userData._o=i/Math.max(1,arr.length-1); pOpacity(c,0); }); }, update(fx,p){ fx.pc.forEach(c=>{ const h=c.userData._gh; const a=ez(clamp((p-c.userData._o*0.55)/0.45)); c.position.set(h.px,h.py-3.5*(1-a),h.pz); pOpacity(c,a); }); } },
+    dalga:{ dur:1400, init(fx){ const arr=fx.pc.slice().sort((a,b)=>a.userData._gh.px-b.userData._gh.px); arr.forEach((c,i)=>{ c.userData._o=i/Math.max(1,arr.length-1); c.scale.set(0.001,0.001,0.001); pOpacity(c,0); }); }, update(fx,p){ fx.pc.forEach(c=>{ const h=c.userData._gh; const a=clamp((p-c.userData._o*0.6)/0.4); const e=Math.max(0.001,eBack(clamp(a))); c.scale.set(h.sx*e,h.sy*e,h.sz*e); c.position.set(h.px,h.py+(1-clamp(a))*-0.5,h.pz); pOpacity(c,clamp(a*1.3)); }); } },
+    patla:{ dur:1400, init(fx){ fx.pc.forEach(c=>{ const h=c.userData._gh; const d=rdir().multiplyScalar(6+Math.random()*2); c.userData._ps={px:h.px+d.x,py:h.py+d.y,pz:h.pz+d.z}; c.userData._spin=(Math.random()-0.5)*10; c.position.set(c.userData._ps.px,c.userData._ps.py,c.userData._ps.pz); c.scale.set(0.001,0.001,0.001); pOpacity(c,0); }); }, update(fx,p){ const e=ez(p); fx.pc.forEach(c=>{ const h=c.userData._gh,s=c.userData._ps; c.position.set(s.px+(h.px-s.px)*e,s.py+(h.py-s.py)*e,s.pz+(h.pz-s.pz)*e); c.scale.set(h.sx*e,h.sy*e,h.sz*e); c.rotation.set(c.userData._spin*(1-e),c.userData._spin*(1-e),0); pOpacity(c,clamp(e*1.4)); }); } },
+    toz:{ dur:1500, init(fx){ const TT=T(),b=bounds(fx),c=b.getCenter(new TT.Vector3()); fx.tmp.center=c; fx.tmp.dust=[]; fx.mk.forEach(g=>g.scale.set(0.001,0.001,0.001)); setOpacityMs(fx.ms,0); for(let i=0;i<40;i++){ const s=new TT.Mesh(new TT.SphereGeometry(0.07+Math.random()*0.06,8,8),new TT.MeshBasicMaterial({color:[0xfff1a8,0x9be7ff,0xffd56b,0xb59bff][i%4],transparent:true,opacity:1,blending:TT.AdditiveBlending,depthWrite:false})); s.position.copy(c); s.userData.v=rdir().multiplyScalar(3.5+Math.random()*2.5); addFx(fx,s); fx.tmp.dust.push(s); } }, update(fx,p){ const c=fx.tmp.center; (fx.tmp.dust||[]).forEach(s=>{ s.position.copy(c).addScaledVector(s.userData.v,ez(p)); s.material.opacity=clamp(1-p*1.1); const sc=clamp(1-p); s.scale.set(sc,sc,sc); }); const a=ez(clamp((p-0.18)/0.7)); fx.mk.forEach(g=>{const h=g.userData._gh,e=Math.max(0.001,a); g.scale.set(h.sx*e,h.sy*e,h.sz*e);}); setOpacityMs(fx.ms,a); } },
+    hologram:{ dur:1500, init(fx){ const TT=T(),b=bounds(fx); setOpacityMs(fx.ms,0); const disk=new TT.Mesh(new TT.CircleGeometry(3.2,40),new TT.MeshBasicMaterial({color:0x6fe9ff,transparent:true,opacity:0.5,side:TT.DoubleSide,depthWrite:false})); disk.rotation.x=-Math.PI/2; disk.position.y=b.min.y; addFx(fx,disk); fx.tmp.disk=disk; fx.tmp.minY=b.min.y-0.6; fx.tmp.maxY=b.max.y+0.6; fx.tmp.tv=_v(); }, update(fx,p){ const t=fx.tmp; const scan=t.minY+(t.maxY-t.minY)*ez(p); t.disk.position.y=scan; t.disk.material.opacity=0.5*(1-p); fx.ms.forEach(m=>{ const wy=m.getWorldPosition(t.tv).y; const a=ez(clamp((scan-wy)/0.9+0.1)); m.material.opacity=a; m.visible=a>0.01; if(m.material.emissive){ m.material.emissive.setHex(0x36c6ff); m.material.emissiveIntensity=(1-a)*0.9; } }); } }
+  };
+  // efektlere özel sesler (studio'dan)
+  Object.assign(ESND,{ insa(S){ for(let i=0;i<5;i++) blip(S,200+i*30,i*0.10,0.07,'square',0.10); blip(S,880,0.55,0.18,'sine',0.12); }, hologram(S){ blip(S,300,0,0.5,'sine',0.16,1300); noise(S,0,0.5,0.05,1800,'highpass'); }, patla(S){ noise(S,0,0.32,0.24,260,'lowpass'); blip(S,80,0,0.3,'sine',0.18,40); blip(S,700,0.26,0.2,'sine',0.12,1100); }, toz(S){ for(let i=0;i<7;i++) blip(S,1200+Math.random()*1400,Math.random()*0.6,0.10,'sine',0.07); }, dalga(S){ [523,659,784,1047].forEach((f,i)=>blip(S,f,i*0.09,0.14,'sine',0.13)); } });
+
+  const ALLE=['insa','hologram','zipla','patla','don','toz','dalga','yerden','uzaydan','balon','buyu','sagdan'];
+  const POOL={ ilkokul:['zipla','toz','balon','dalga','don','yerden'], ortaokul:['insa','dalga','patla','uzaydan','don','yerden','balon'], lise:['insa','hologram','uzaydan','patla','dalga','don'], karisik:ALLE.slice() };
+  let last='';
+  function pickEnter(S){ if(S.enterMode && S.enterMode!=='rastgele' && EFFECTS[S.enterMode]) return S.enterMode; const p=POOL[S.level]||POOL.karisik; let n; do{ n=p[Math.floor(Math.random()*p.length)]; }while(n===last&&p.length>1); last=n; return n; }
+
+  let tween=null;
+  function tick(){ requestAnimationFrame(tick); if(!tween)return; const p=Math.min(1,(performance.now()-tween.t0)/tween.dur); try{ tween.eff.update(tween.fx,p); }catch(e){ try{ restoreAll(tween.fx); }catch(_){} tween=null; return; } if(p>=1){ restoreAll(tween.fx); tween=null; } }
+  requestAnimationFrame(tick);
+
+  function startEnter(group,S){ if(!window.THREE||!window.scene)return;
+    if(tween){ clearFx(tween.fx); tween=null; }
+    try{ group.updateMatrixWorld(true); }catch(e){} // bbox/dünya konumu doğru olsun
+    const fx=capture(group); if(fx.mk.length===0) return;
+    const name=pickEnter(S); const eff=EFFECTS[name]||EFFECTS.buyu;
+    try{ eff.init&&eff.init(fx); eff.update(fx,0); }catch(e){ return; }
+    tween={ eff, fx, t0:performance.now(), dur:eff.dur*(S.calm?1.4:S.speed) };
+    if(S.sound && ESND[name]) try{ ESND[name](S); }catch(e){}
+  }
+
+  window.GECIS={
+    settings: readS,
+    // sahne değişiminde çağrılır: group = yeni model grubu (THREE.Group), label = konu adı
+    onScene(group, label){ const S=readS();
+      if(S.sound) vedaSound(S); // eski sahne için kısa veda tonu
+      emoji(S); flyTitle(S, label);
+      if(S.confetti && !S.calm && S.level==='ilkokul') confetti();
+      if(group) startEnter(group,S);
+    }
+  };
+})();
+</script>
+
 <script type="module">
 const THREE = window.THREE;
 
@@ -1204,24 +1460,38 @@ class OrbitControls extends THREE.EventDispatcher {
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
 
-    this._zoomToScreenPoint = (screenX, screenY, factor) => {
+    // Ekran noktasının altındaki 3B noktayı bul: KAMERA BAKIŞINA DİK, target'tan
+    // geçen düzlemle kesiştir. (Eski sürüm y=target.y düzlemi kullanıyordu; kamera
+    // yataya yakınken ışın düzleme paralel olup kesişim çok uzakta çıkıyor ve model
+    // ekran dışına uçuyordu. Bu yöntemde kesişim her açıda ~radius mesafede kalır.)
+    this._hitOnFocusPlane = (screenX, screenY) => {
       const rect = dom.getBoundingClientRect();
       const ndcX = ((screenX - rect.left) / rect.width) * 2 - 1;
       const ndcY = -((screenY - rect.top) / rect.height) * 2 + 1;
       const ndc = new THREE.Vector3(ndcX, ndcY, 0.5);
       ndc.unproject(this.object);
       const dir = ndc.sub(this.object.position).normalize();
-      const t = (this.target.y - this.object.position.y) / dir.y;
-      if (t > 0 && isFinite(t)) {
-        const hit = new THREE.Vector3(
-          this.object.position.x + dir.x * t,
-          this.target.y,
-          this.object.position.z + dir.z * t
-        );
-        this.target.lerp(hit, 0.65);
-      }
+      const camDir = new THREE.Vector3();
+      this.object.getWorldDirection(camDir);
+      const denom = dir.dot(camDir);
+      if (Math.abs(denom) < 1e-5) return null;
+      const t = this.target.clone().sub(this.object.position).dot(camDir) / denom;
+      if (!(t > 0) || !isFinite(t)) return null;
+      return this.object.position.clone().addScaledVector(dir, t);
+    };
+
+    this._zoomToScreenPoint = (screenX, screenY, factor) => {
+      const hit = this._hitOnFocusPlane(screenX, screenY);
+      if (hit) this.target.lerp(hit, 0.65);
       this._sphericalTarget.radius = Math.max(this.minDistance,
         Math.min(this.maxDistance, this._sphericalTarget.radius * factor));
+    };
+
+    // Hedefi (ekran merkezini), işaret edilen noktaya doğru `k` oranında kaydırır →
+    // pinch/tekerlekte "nereyi yakınlaştırırsam orası ortaya gelsin" davranışı.
+    this._panToScreenPoint = (screenX, screenY, k) => {
+      const hit = this._hitOnFocusPlane(screenX, screenY);
+      if (hit) this.target.lerp(hit, k);
     };
 
     let touchStart = null;
@@ -1240,6 +1510,9 @@ class OrbitControls extends THREE.EventDispatcher {
       radius: this._sphericalTarget.radius
     };
     this.captureInitialState = () => {
+      // selectSub kamera/target'ı yeni set ettiyse, spherical'i ona göre türet ki
+      // hem ilk görünüm doğru olsun hem de resetView doğru açı/yarıçapa dönsün.
+      this._syncFromCamera();
       this._initialCameraState = {
         position: this.object.position.clone(),
         target: this.target.clone(),
@@ -1338,7 +1611,7 @@ class OrbitControls extends THREE.EventDispatcher {
         const dist = Math.hypot(dx, dy);
         const newCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
         const newCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        this._sphericalTarget.radius = Math.max(this.minDistance, Math.min(this.maxDistance, pinchStartRadius * (pinchStartDist / dist)));
+        // 1) İki parmağın ortak kayması → pan (modeli serbestçe taşı)
         const panDx = newCenterX - pinchCenter.x;
         const panDy = newCenterY - pinchCenter.y;
         pinchCenter.x = newCenterX;
@@ -1349,6 +1622,17 @@ class OrbitControls extends THREE.EventDispatcher {
         const panFactor = this._sphericalTarget.radius * 0.0045;
         this.target.addScaledVector(right, -panDx * panFactor);
         this.target.addScaledVector(up, panDy * panFactor);
+        // 2) Parmak arası açılma/kapanma → zoom. Parmakların ortasındaki nokta
+        //    ekranda SABİT kalacak şekilde hedefi yarıçap oranıyla ORANTILI kaydır
+        //    (sabit lerp drift'i kaldırıldı → ne kaçıyor ne de sıçrıyor).
+        const oldR = this._sphericalTarget.radius;
+        const newR = Math.max(this.minDistance, Math.min(this.maxDistance, pinchStartRadius * (pinchStartDist / dist)));
+        const hit = this._hitOnFocusPlane(newCenterX, newCenterY);
+        if (hit && oldR > 0.0001) {
+          const f = Math.max(-0.4, Math.min(0.4, 1 - newR / oldR)); // yakınlaş: hedef noktaya doğru; uzaklaş: tersine
+          this.target.lerp(hit, f);
+        }
+        this._sphericalTarget.radius = newR;
       }
     }, { passive: false });
 
@@ -1370,7 +1654,9 @@ class OrbitControls extends THREE.EventDispatcher {
     dom.addEventListener('wheel', (e) => {
       if (!this.enabled) return;
       e.preventDefault();
+      // Tekerlekle yakınlaşma imlecin olduğu noktaya odaklansın
       const factor = e.deltaY > 0 ? 1.1 : 0.9;
+      this._panToScreenPoint(e.clientX, e.clientY, factor < 1 ? 0.22 : 0.12);
       this._sphericalTarget.radius = Math.max(this.minDistance,
         Math.min(this.maxDistance, this._sphericalTarget.radius * factor));
     }, { passive: false });
@@ -1398,7 +1684,11 @@ class OrbitControls extends THREE.EventDispatcher {
   }
 
   update() {
-    if (!this._lastCamPos.equals(this.object.position) || !this._lastTarget.equals(this.target)) {
+    // YALNIZCA kamera DIŞARIDAN taşındıysa (ör. selectSub camera.position.set) yeniden
+    // türet. target'ı kontrol'ün kendisi (pan/zoom-odak/reset) değiştirdiğinde sync
+    // ÇALIŞMAMALI; yoksa ayarlanan zoom yarıçapı/açılar her kare sıfırlanır →
+    // "yakınlaşmıyor" + kamera sıçrayıp model ekran dışına uçuyordu.
+    if (!this._lastCamPos.equals(this.object.position)) {
       this._syncFromCamera();
     }
     if (this.enableDamping) {
@@ -1629,9 +1919,11 @@ function clearScene() {
   });
   dynamicObjects = [];
   window._labelRefs = [];
+  window._labelPlaced = [];
   window._currentModelGroup = null;
   window._customAnim = null;
   window._flowRays = [];
+  window._arrowMaterials = [];
   const svg = document.getElementById('leaderLines');
   if (svg) svg.innerHTML = '';
 }
@@ -1744,7 +2036,7 @@ function updateLeaderLines() {
 
     ref.anchorObj.getWorldPosition(_projVec);
     _projVec.project(camera);
-    if (_projVec.z > 1 || _projVec.z < -1) return;
+    if (!(_projVec.z >= -1 && _projVec.z <= 1)) return;
     const ax = (_projVec.x + 1) / 2 * w;
     const ay = (1 - _projVec.y) / 2 * h;
 
@@ -1778,6 +2070,7 @@ function updateLeaderLines() {
     const midX = (edgeX + ax) / 2;
     const midY = (edgeY + ay) / 2;
     const distLine = Math.hypot(ax - edgeX, ay - edgeY);
+    if (!(distLine > 0)) return;
     const normalX = -(ay - edgeY) / distLine;
     const normalY = (ax - edgeX) / distLine;
     const curveAmount = Math.min(distLine * 0.18, 35);
@@ -1816,30 +2109,50 @@ window._sceneState = {
   _displayUpdaters: []
 };
 
+function positionVarsBody() {
+  const t = document.getElementById('sceneToggle');
+  const b = document.getElementById('sceneVarsBody');
+  if (t && b && !b.classList.contains('closed')) {
+    b.style.top = Math.round(t.getBoundingClientRect().bottom + 6) + 'px';
+  }
+}
+window.positionVarsBody = positionVarsBody;
+
 function setSceneSliders(items, opts = {}) {
-  const panel = document.getElementById('scenePanel');
-  if (!panel) return;
-  panel.innerHTML = '';
-  panel.classList.remove('empty', 'collapsed');
+  const row = document.getElementById('stackRow');
+  const bodyPanel = document.getElementById('sceneVarsBody');
+  if (!row || !bodyPanel) return;
+  // Eski Değişkenler sekmesini kaldır (her sahne yeniden kurar)
+  const oldT = document.getElementById('sceneToggle'); if (oldT) oldT.remove();
+  bodyPanel.innerHTML = '';
   document.body.classList.add('scene-panel-open');
   window._sceneState._displayUpdaters = [];
-
+  // Değişkenler sekmesi → Konu Rehberi'nin SOLUNA (aynı satır, aynı ebat)
   const toggle = document.createElement('button');
+  toggle.id = 'sceneToggle';
   toggle.className = 'sp-toggle';
-  toggle.innerHTML = `<span>🎛️ ${opts.title || 'Kontroller'}</span><span class="sp-chev">▼</span>`;
+  toggle.innerHTML = `<span class="sb-emoji">🎛️</span><span class="sb-label">Değişkenler</span><span class="sp-chev">▼</span>`;
+  row.insertBefore(toggle, document.getElementById('btnTopic'));
+  // İçerik tam-genişlik yatay panelde
+  const body = bodyPanel;
+  const _chev = toggle.querySelector('.sp-chev');
+  // Basınca aç/kapat: tam genişlik pencere sekmenin altına gelir
+  function setSceneOpen(open) {
+    bodyPanel.classList.toggle('closed', !open);
+    if (_chev) _chev.textContent = open ? '▲' : '▼';
+    if (open) positionVarsBody();
+  }
+  window._setSceneOpen = setSceneOpen;
   toggle.onclick = () => {
-    panel.classList.toggle('collapsed');
-    toggle.querySelector('.sp-chev').textContent = panel.classList.contains('collapsed') ? '◀' : '▼';
+    setSceneOpen(bodyPanel.classList.contains('closed'));
     if (window._haptic) window._haptic(10);
   };
-  panel.appendChild(toggle);
-
   items.forEach(item => {
     if (item.type === 'section') {
       const t = document.createElement('div');
       t.className = 'sp-section';
       t.textContent = item.label;
-      panel.appendChild(t);
+      body.appendChild(t);
       return;
     }
     if (item.type === 'slider') {
@@ -1894,7 +2207,7 @@ function setSceneSliders(items, opts = {}) {
         slider.value = nv; item.setValue(nv); updateVal();
         if (window._haptic) window._haptic(8);
       });
-      panel.appendChild(row);
+      body.appendChild(row);
       updateVal();
       window._sceneState._displayUpdaters.push(() => {
         const v = item.getValue();
@@ -1907,16 +2220,20 @@ function setSceneSliders(items, opts = {}) {
       row.innerHTML = `<span class="sp-label">${item.label}</span><span class="sp-val"></span>`;
       const val = row.querySelector('.sp-val');
       val.textContent = item.getValue();
-      panel.appendChild(row);
+      body.appendChild(row);
       window._sceneState._displayUpdaters.push(() => { val.textContent = item.getValue(); });
     }
     if (item.type === 'formula') {
-      const row = document.createElement('div');
-      row.className = 'sp-formula';
-      row.innerHTML = item.text;
-      panel.appendChild(row);
-      if (item.getValue) {
-        window._sceneState._displayUpdaters.push(() => { row.innerHTML = item.getValue(); });
+      const hasMath = /[=√÷×²·]|sin|cos|1\//.test(item.text || '') || /q₁|q₂|kq|k·q|qE|qV|ε₀|½|Σ|ΔV|N\/C|qE\/m|V\/d/.test(item.text||'');
+      const skip = (currentLevel === 'ilkokul' || currentLevel === 'ortaokul') && hasMath && !item.keepSimple;
+      if (!skip) {
+        const row = document.createElement('div');
+        row.className = 'sp-formula';
+        row.innerHTML = item.text;
+        body.appendChild(row);
+        if (item.getValue && !((currentLevel === 'ilkokul' || currentLevel === 'ortaokul') && hasMath)) {
+          window._sceneState._displayUpdaters.push(() => { row.innerHTML = item.getValue(); });
+        }
       }
     }
     if (item.type === 'presets') {
@@ -1935,14 +2252,18 @@ function setSceneSliders(items, opts = {}) {
         };
         row.appendChild(b);
       });
-      panel.appendChild(row);
+      body.appendChild(row);
     }
   });
+  // Değişkenler varsayılan KAPALI; konu değişince OTOMATİK AÇILMAZ (kullanıcı basar).
+  bodyPanel.classList.add('closed');
+  if (_chev) _chev.textContent = '▼';
 }
 
 function clearSceneSliders() {
-  const panel = document.getElementById('scenePanel');
-  if (panel) { panel.innerHTML = ''; panel.classList.add('empty'); }
+  const oldT = document.getElementById('sceneToggle'); if (oldT) oldT.remove();
+  const bodyPanel = document.getElementById('sceneVarsBody');
+  if (bodyPanel) { bodyPanel.innerHTML = ''; bodyPanel.classList.add('closed'); }
   document.body.classList.remove('scene-panel-open');
   if (window._sceneState) window._sceneState._displayUpdaters = [];
 }
@@ -2040,31 +2361,31 @@ function addInfo3DLabels(labels) {
 }
 
 
-// ============== MODULE SYSTEM (BileÅŸke Kuvvet ve VektÃ¶rler) ==============
+// ============== MODULE SYSTEM (Bileşke Kuvvet ve Vektörler) ==============
 const MODULES = {
   1: {
-    title: 'ğŸ“ ModÃ¼l 1: VektÃ¶rler',
+    title: '📐 Modül 1: Vektörler',
     subs: [
-      { key: 'vektorTanim',        label: 'â¡ï¸ VektÃ¶r ve Skaler', builder: 'buildVektorTanim' },
-      { key: 'vektorBilesenleri',  label: 'ğŸ“ VektÃ¶rÃ¼n BileÅŸenleri', builder: 'buildVektorBilesenleri' },
-      { key: 'ucUca',              label: 'ğŸ”— UÃ§ Uca Ekleme YÃ¶ntemi', builder: 'buildUcUca' },
-      { key: 'paralelkenar',       label: 'ğŸ”· Paralelkenar YÃ¶ntemi', builder: 'buildParalelkenar' }
+      { key: 'vektorTanim',        label: '➡️ Vektör ve Skaler', builder: 'buildVektorTanim' },
+      { key: 'vektorBilesenleri',  label: '📐 Vektörün Bileşenleri', builder: 'buildVektorBilesenleri' },
+      { key: 'ucUca',              label: '🔗 Uç Uca Ekleme Yöntemi', builder: 'buildUcUca' },
+      { key: 'paralelkenar',       label: '🔷 Paralelkenar Yöntemi', builder: 'buildParalelkenar' }
     ]
   },
   2: {
-    title: 'ğŸ§² ModÃ¼l 2: BileÅŸke Kuvvet',
+    title: '🧲 Modül 2: Bileşke Kuvvet',
     subs: [
-      { key: 'ayniZitYon',     label: 'â†”ï¸ AynÄ± ve ZÄ±t YÃ¶nlÃ¼ Kuvvetler', builder: 'buildAyniZitYon' },
-      { key: 'dikKuvvetler',   label: 'âŸ‚ Birbirine Dik Kuvvetler', builder: 'buildDikKuvvetler' },
-      { key: 'aciliKuvvetler', label: 'ğŸ“ AÃ§Ä±lÄ± Ä°ki Kuvvet (KosinÃ¼s)', builder: 'buildAciliKuvvetler' }
+      { key: 'ayniZitYon',     label: '↔️ Aynı ve Zıt Yönlü Kuvvetler', builder: 'buildAyniZitYon' },
+      { key: 'dikKuvvetler',   label: '⟂ Birbirine Dik Kuvvetler', builder: 'buildDikKuvvetler' },
+      { key: 'aciliKuvvetler', label: '📐 Açılı İki Kuvvet (Kosinüs)', builder: 'buildAciliKuvvetler' }
     ]
   },
   3: {
-    title: 'âš–ï¸ ModÃ¼l 3: Denge ve Uygulamalar',
+    title: '⚖️ Modül 3: Denge ve Uygulamalar',
     subs: [
-      { key: 'denge',      label: 'âš–ï¸ Kuvvet Dengesi', builder: 'buildDenge' },
-      { key: 'egikDuzlem', label: 'â›°ï¸ EÄŸik DÃ¼zlemde Kuvvet', builder: 'buildEgikDuzlem' },
-      { key: 'bagilHiz',   label: 'ğŸš¤ BaÄŸÄ±l HÄ±z (VektÃ¶rel)', builder: 'buildBagilHiz' }
+      { key: 'denge',      label: '⚖️ Kuvvet Dengesi', builder: 'buildDenge' },
+      { key: 'egikDuzlem', label: '⛰️ Eğik Düzlemde Kuvvet', builder: 'buildEgikDuzlem' },
+      { key: 'bagilHiz',   label: '🚤 Bağıl Hız (Vektörel)', builder: 'buildBagilHiz' }
     ]
   }
 };
@@ -2072,451 +2393,451 @@ const MODULES = {
 // ============== INFO DATA (4 seviye) ==============
 const INFO_DATA = {
   vektorTanim: {
-    ilkokul: { emoji: 'â¡ï¸', title: 'YÃ¶n ve BÃ¼yÃ¼klÃ¼k', points: [
-      'â¡ï¸ VektÃ¶r: hem yÃ¶nÃ¼ hem bÃ¼yÃ¼klÃ¼ÄŸÃ¼ olan ok',
-      'ğŸ”¢ Skaler: sadece sayÄ±dÄ±r, yÃ¶nÃ¼ yoktur',
-      'ğŸƒ HÄ±z ve kuvvet â†’ ok ile gÃ¶sterilir',
-      'ğŸ“ Okun uzunluÄŸu bÃ¼yÃ¼klÃ¼ÄŸÃ¼, ucu yÃ¶nÃ¼ gÃ¶sterir'
+    ilkokul: { emoji: '➡️', title: 'Yön ve Büyüklük', points: [
+      '➡️ Vektör: hem yönü hem büyüklüğü olan ok',
+      '🔢 Skaler: sadece sayıdır, yönü yoktur',
+      '🏃 Hız ve kuvvet → ok ile gösterilir',
+      '📏 Okun uzunluğu büyüklüğü, ucu yönü gösterir'
     ]},
-    ortaokul: { emoji: 'â¡ï¸', title: 'VektÃ¶r ve Skaler', points: [
-      'â¡ï¸ <b>VektÃ¶r</b>: yÃ¶nÃ¼ ve bÃ¼yÃ¼klÃ¼ÄŸÃ¼ olan nicelik (ok ile Ã§izilir)',
-      'ğŸ”¢ <b>Skaler</b>: yalnÄ±zca bÃ¼yÃ¼klÃ¼ÄŸÃ¼ olan nicelik',
-      'ğŸ§² Kuvvet, hÄ±z, yer deÄŸiÅŸtirme â†’ vektÃ¶rel',
-      'âš–ï¸ KÃ¼tle, zaman, sÄ±caklÄ±k, yol â†’ skaler',
-      'ğŸ“ Ok uzunluÄŸu = bÃ¼yÃ¼klÃ¼k, ok yÃ¶nÃ¼ = yÃ¶n'
+    ortaokul: { emoji: '➡️', title: 'Vektör ve Skaler', points: [
+      '➡️ <b>Vektör</b>: yönü ve büyüklüğü olan nicelik (ok ile çizilir)',
+      '🔢 <b>Skaler</b>: yalnızca büyüklüğü olan nicelik',
+      '🧲 Kuvvet, hız, yer değiştirme → vektörel',
+      '⚖️ Kütle, zaman, sıcaklık, yol → skaler',
+      '📏 Ok uzunluğu = büyüklük, ok yönü = yön'
     ]},
-    lise: { emoji: 'â¡ï¸', title: 'VektÃ¶rel ve Skaler Nicelikler', points: [
-      'â¡ï¸ VektÃ¶r: bÃ¼yÃ¼klÃ¼k + doÄŸrultu + yÃ¶n bilgisi taÅŸÄ±r',
-      'ğŸ”¤ GÃ¶sterim: Fâƒ— ; bÃ¼yÃ¼klÃ¼ÄŸÃ¼ |Fâƒ—| = F',
-      'ğŸ§² VektÃ¶rel: kuvvet, hÄ±z, ivme, momentum, yer deÄŸiÅŸtirme',
-      'ğŸ”¢ Skaler: kÃ¼tle, zaman, sÄ±caklÄ±k, enerji, yol',
-      'ğŸŸ° EÅŸit vektÃ¶r: aynÄ± bÃ¼yÃ¼klÃ¼k, aynÄ± doÄŸrultu, aynÄ± yÃ¶n',
-      'â– ZÄ±t vektÃ¶r: aynÄ± bÃ¼yÃ¼klÃ¼k, zÄ±t yÃ¶n (180Â°)'
+    lise: { emoji: '➡️', title: 'Vektörel ve Skaler Nicelikler', points: [
+      '➡️ Vektör: büyüklük + doğrultu + yön bilgisi taşır',
+      '🔤 Gösterim: F⃗ ; büyüklüğü |F⃗| = F',
+      '🧲 Vektörel: kuvvet, hız, ivme, momentum, yer değiştirme',
+      '🔢 Skaler: kütle, zaman, sıcaklık, enerji, yol',
+      '🟰 Eşit vektör: aynı büyüklük, aynı doğrultu, aynı yön',
+      '➖ Zıt vektör: aynı büyüklük, zıt yön (180°)'
     ]},
-    tyt_ayt: { emoji: 'â¡ï¸', title: 'VektÃ¶rler (TYT/AYT)', points: [
-      'â¡ï¸ VektÃ¶r 3 bilgi taÅŸÄ±r: bÃ¼yÃ¼klÃ¼k, doÄŸrultu, yÃ¶n',
-      'ğŸ”¤ Fâƒ— = Fâ‚“ Ã® + F_y Äµ (birim vektÃ¶r gÃ¶sterimi)',
-      'ğŸ“ BÃ¼yÃ¼klÃ¼k: |Fâƒ—| = âˆš(Fâ‚“Â² + F_yÂ²)',
-      'ğŸ§² VektÃ¶rel: kuvvet, hÄ±z, ivme; Skaler: iÅŸ, enerji, gÃ¼Ã§',
-      'â– âˆ’Fâƒ—: aynÄ± bÃ¼yÃ¼klÃ¼k, zÄ±t yÃ¶n',
-      'ğŸŸ° EÅŸ vektÃ¶rler Ã¶telenebilir; doÄŸrultu ve yÃ¶n korunur'
+    tyt_ayt: { emoji: '➡️', title: 'Vektörler (TYT/AYT)', points: [
+      '➡️ Vektör 3 bilgi taşır: büyüklük, doğrultu, yön',
+      '🔤 F⃗ = Fₓ î + F_y ĵ (birim vektör gösterimi)',
+      '📐 Büyüklük: |F⃗| = √(Fₓ² + F_y²)',
+      '🧲 Vektörel: kuvvet, hız, ivme; Skaler: iş, enerji, güç',
+      '➖ −F⃗: aynı büyüklük, zıt yön',
+      '🟰 Eş vektörler ötelenebilir; doğrultu ve yön korunur'
     ]}
   },
   vektorBilesenleri: {
-    ilkokul: { emoji: 'ğŸ“', title: 'SaÄŸa ve YukarÄ±', points: [
-      'ğŸ“ EÄŸik oku "saÄŸa giden" ve "yukarÄ± giden" parÃ§alara ayÄ±rÄ±rÄ±z',
-      'â¡ï¸ Yatay parÃ§a: Fâ‚“',
-      'â¬†ï¸ Dikey parÃ§a: F_y',
-      'ğŸ§© Ä°ki parÃ§a birleÅŸince asÄ±l oku verir'
+    ilkokul: { emoji: '📐', title: 'Sağa ve Yukarı', points: [
+      '📐 Eğik oku "sağa giden" ve "yukarı giden" parçalara ayırırız',
+      '➡️ Yatay parça: Fₓ',
+      '⬆️ Dikey parça: F_y',
+      '🧩 İki parça birleşince asıl oku verir'
     ]},
-    ortaokul: { emoji: 'ğŸ“', title: 'VektÃ¶rÃ¼n BileÅŸenleri', points: [
-      'ğŸ“ EÄŸik vektÃ¶r, yatay (Fâ‚“) ve dikey (F_y) bileÅŸenlere ayrÄ±lÄ±r',
-      'â¡ï¸ Fâ‚“ = yatay etki, â¬†ï¸ F_y = dikey etki',
-      'ğŸ§± BileÅŸenler birbirine diktir (90Â°)',
-      'ğŸ§© Fâ‚“ ve F_y birleÅŸince vektÃ¶rÃ¼ oluÅŸturur',
-      'ğŸ“Š AÃ§Ä± bÃ¼yÃ¼dÃ¼kÃ§e dikey bileÅŸen artar'
+    ortaokul: { emoji: '📐', title: 'Vektörün Bileşenleri', points: [
+      '📐 Eğik vektör, yatay (Fₓ) ve dikey (F_y) bileşenlere ayrılır',
+      '➡️ Fₓ = yatay etki, ⬆️ F_y = dikey etki',
+      '🧱 Bileşenler birbirine diktir (90°)',
+      '🧩 Fₓ ve F_y birleşince vektörü oluşturur',
+      '📊 Açı büyüdükçe dikey bileşen artar'
     ]},
-    lise: { emoji: 'ğŸ“', title: 'BileÅŸenlere AyÄ±rma', points: [
-      'ğŸ“ Yatayla Î¸ aÃ§Ä±sÄ± yapan F iÃ§in: Fâ‚“ = FÂ·cos Î¸',
-      'â¬†ï¸ Dikey bileÅŸen: F_y = FÂ·sin Î¸',
-      'ğŸ” Geri birleÅŸtirme: F = âˆš(Fâ‚“Â² + F_yÂ²)',
-      'ğŸ§­ YÃ¶n: tan Î¸ = F_y / Fâ‚“',
-      'ğŸ§± BileÅŸenler dik olduÄŸu iÃ§in ayrÄ± ayrÄ± iÅŸlem yapÄ±lÄ±r',
-      'ğŸšï¸ KaydÄ±rÄ±cÄ±yla aÃ§Ä±yÄ± deÄŸiÅŸtir, bileÅŸenleri izle'
+    lise: { emoji: '📐', title: 'Bileşenlere Ayırma', points: [
+      '📐 Yatayla θ açısı yapan F için: Fₓ = F·cos θ',
+      '⬆️ Dikey bileşen: F_y = F·sin θ',
+      '🔁 Geri birleştirme: F = √(Fₓ² + F_y²)',
+      '🧭 Yön: tan θ = F_y / Fₓ',
+      '🧱 Bileşenler dik olduğu için ayrı ayrı işlem yapılır',
+      '🎚️ Kaydırıcıyla açıyı değiştir, bileşenleri izle'
     ]},
-    tyt_ayt: { emoji: 'ğŸ“', title: 'BileÅŸenlere AyÄ±rma (TYT/AYT)', points: [
-      'ğŸ“ Fâ‚“ = FÂ·cos Î¸, F_y = FÂ·sin Î¸ (Î¸: +x ekseni ile aÃ§Ä±)',
-      'ğŸ” |F| = âˆš(Fâ‚“Â² + F_yÂ²), yÃ¶n: Î¸ = arctan(F_y/Fâ‚“)',
-      'â• Ã‡ok vektÃ¶r: Î£Fâ‚“ ve Î£F_y ayrÄ± toplanÄ±r',
-      'ğŸ§­ BileÅŸenler iÅŸaretlidir (yÃ¶ne gÃ¶re + / âˆ’)',
-      'ğŸ”¢ Ã–rnek: F=10 N, Î¸=37Â° â†’ Fâ‚“=8 N, F_y=6 N',
-      'ğŸ“Š cos37Â°â‰ˆ0,8 ; sin37Â°â‰ˆ0,6 ; cos53Â°â‰ˆ0,6 ; sin53Â°â‰ˆ0,8'
+    tyt_ayt: { emoji: '📐', title: 'Bileşenlere Ayırma (TYT/AYT)', points: [
+      '📐 Fₓ = F·cos θ, F_y = F·sin θ (θ: +x ekseni ile açı)',
+      '🔁 |F| = √(Fₓ² + F_y²), yön: θ = arctan(F_y/Fₓ)',
+      '➕ Çok vektör: ΣFₓ ve ΣF_y ayrı toplanır',
+      '🧭 Bileşenler işaretlidir (yöne göre + / −)',
+      '🔢 Örnek: F=10 N, θ=37° → Fₓ=8 N, F_y=6 N',
+      '📊 cos37°≈0,8 ; sin37°≈0,6 ; cos53°≈0,6 ; sin53°≈0,8'
     ]}
   },
   ucUca: {
-    ilkokul: { emoji: 'ğŸ”—', title: 'OklarÄ± UÃ§ Uca Ekle', points: [
-      'ğŸ”— Ä°lk okun ucundan ikinci oku baÅŸlat',
-      'ğŸ BaÅŸtan son uca Ã§izilen yeni ok = bileÅŸke',
-      'ğŸš¶ Ã–nce 3 adÄ±m, sonra 2 adÄ±m â†’ 5 adÄ±m gibi'
+    ilkokul: { emoji: '🔗', title: 'Okları Uç Uca Ekle', points: [
+      '🔗 İlk okun ucundan ikinci oku başlat',
+      '🏁 Baştan son uca çizilen yeni ok = bileşke',
+      '🚶 Önce 3 adım, sonra 2 adım → 5 adım gibi'
     ]},
-    ortaokul: { emoji: 'ğŸ”—', title: 'UÃ§ Uca Ekleme YÃ¶ntemi', points: [
-      'ğŸ”— VektÃ¶rler uÃ§ uca eklenir (biri biterken diÄŸeri baÅŸlar)',
-      'ğŸ <b>BileÅŸke</b>: ilk baÅŸlangÄ±Ã§tan son uca Ã§izilen ok',
-      'ğŸ” SÄ±ra Ã¶nemli deÄŸil: A + B = B + A',
-      'â• Ä°kiden fazla vektÃ¶r iÃ§in de aynÄ± yÃ¶ntem',
-      'â­• KapalÄ± ÅŸekil oluÅŸursa bileÅŸke sÄ±fÄ±rdÄ±r (denge)'
+    ortaokul: { emoji: '🔗', title: 'Uç Uca Ekleme Yöntemi', points: [
+      '🔗 Vektörler uç uca eklenir (biri biterken diğeri başlar)',
+      '🏁 <b>Bileşke</b>: ilk başlangıçtan son uca çizilen ok',
+      '🔁 Sıra önemli değil: A + B = B + A',
+      '➕ İkiden fazla vektör için de aynı yöntem',
+      '⭕ Kapalı şekil oluşursa bileşke sıfırdır (denge)'
     ]},
-    lise: { emoji: 'ğŸ”—', title: 'UÃ§ Uca (Poligon) YÃ¶ntemi', points: [
-      'ğŸ”— Her vektÃ¶r bir Ã¶ncekinin ucundan baÅŸlatÄ±lÄ±r',
-      'ğŸ BileÅŸke R: ilk kuyruk â†’ son baÅŸ',
-      'ğŸ” Toplama deÄŸiÅŸmelidir: A + B = B + A',
-      'â­• VektÃ¶rler kapalÄ± Ã§okgen oluÅŸturursa R = 0',
-      'ğŸ§® BÃ¼yÃ¼klÃ¼k iÃ§in bileÅŸenlere ayÄ±rmak en gÃ¼venlisi'
+    lise: { emoji: '🔗', title: 'Uç Uca (Poligon) Yöntemi', points: [
+      '🔗 Her vektör bir öncekinin ucundan başlatılır',
+      '🏁 Bileşke R: ilk kuyruk → son baş',
+      '🔁 Toplama değişmelidir: A + B = B + A',
+      '⭕ Vektörler kapalı çokgen oluşturursa R = 0',
+      '🧮 Büyüklük için bileşenlere ayırmak en güvenlisi'
     ]},
-    tyt_ayt: { emoji: 'ğŸ”—', title: 'Poligon YÃ¶ntemi (TYT/AYT)', points: [
-      'ğŸ”— Râƒ— = Aâƒ— + Bâƒ— + Câƒ— + â€¦ (uÃ§ uca eklenir)',
-      'ğŸ§® Râƒ— = (Î£Aâ‚“) Ã® + (Î£A_y) Äµ',
-      'â­• KapalÄ± poligon â†’ Râƒ— = 0 (kuvvet dengesi)',
-      'ğŸ“ DÃ¼zgÃ¼n Ã§okgenin kenar vektÃ¶rlerinin toplamÄ± sÄ±fÄ±rdÄ±r',
-      'ğŸ”¢ Ã–nce bileÅŸenlere ayÄ±r, sonra topla, sonra birleÅŸtir'
+    tyt_ayt: { emoji: '🔗', title: 'Poligon Yöntemi (TYT/AYT)', points: [
+      '🔗 R⃗ = A⃗ + B⃗ + C⃗ + … (uç uca eklenir)',
+      '🧮 R⃗ = (ΣAₓ) î + (ΣA_y) ĵ',
+      '⭕ Kapalı poligon → R⃗ = 0 (kuvvet dengesi)',
+      '📐 Düzgün çokgenin kenar vektörlerinin toplamı sıfırdır',
+      '🔢 Önce bileşenlere ayır, sonra topla, sonra birleştir'
     ]}
   },
   paralelkenar: {
-    ilkokul: { emoji: 'ğŸ”·', title: 'Ä°ki Oktan KÃ¶ÅŸegen', points: [
-      'ğŸ”· Ä°ki oku aynÄ± noktadan baÅŸlat',
-      'ğŸŸ¦ Bir eÄŸik dÃ¶rtgen (paralelkenar) Ã§iz',
-      'â†—ï¸ KÃ¶ÅŸegen = bileÅŸke ok'
+    ilkokul: { emoji: '🔷', title: 'İki Oktan Köşegen', points: [
+      '🔷 İki oku aynı noktadan başlat',
+      '🟦 Bir eğik dörtgen (paralelkenar) çiz',
+      '↗️ Köşegen = bileşke ok'
     ]},
-    ortaokul: { emoji: 'ğŸ”·', title: 'Paralelkenar YÃ¶ntemi', points: [
-      'ğŸ”· Ä°ki vektÃ¶r <b>aynÄ± baÅŸlangÄ±Ã§</b> noktasÄ±ndan Ã§izilir',
-      'ğŸŸ¦ UÃ§lardan paralel Ã§izgilerle paralelkenar tamamlanÄ±r',
-      'â†—ï¸ <b>BileÅŸke</b>: ortak kÃ¶ÅŸeden Ã§Ä±kan kÃ¶ÅŸegen',
-      'ğŸ“ AralarÄ±ndaki aÃ§Ä± kÃ¼Ã§Ã¼kse bileÅŸke bÃ¼yÃ¼k olur',
-      'ğŸ” Ä°ki vektÃ¶rde uÃ§ uca ile aynÄ± sonucu verir'
+    ortaokul: { emoji: '🔷', title: 'Paralelkenar Yöntemi', points: [
+      '🔷 İki vektör <b>aynı başlangıç</b> noktasından çizilir',
+      '🟦 Uçlardan paralel çizgilerle paralelkenar tamamlanır',
+      '↗️ <b>Bileşke</b>: ortak köşeden çıkan köşegen',
+      '📐 Aralarındaki açı küçükse bileşke büyük olur',
+      '🔁 İki vektörde uç uca ile aynı sonucu verir'
     ]},
-    lise: { emoji: 'ğŸ”·', title: 'Paralelkenar KuralÄ±', points: [
-      'ğŸ”· AynÄ± noktadan Ã§Ä±kan A ve B paralelkenar oluÅŸturur',
-      'â†—ï¸ BileÅŸke = ortak kÃ¶ÅŸeden Ã§Ä±kan kÃ¶ÅŸegen',
-      'ğŸ“ |R|Â² = AÂ² + BÂ² + 2Â·AÂ·BÂ·cos Î± (Î±: aradaki aÃ§Ä±)',
-      'ğŸ”º Î±=0Â° â†’ R=A+B (maksimum); Î±=180Â° â†’ R=|Aâˆ’B| (minimum)',
-      'âŸ‚ Î±=90Â° â†’ R = âˆš(AÂ²+BÂ²)',
-      'ğŸ§­ BileÅŸkenin yÃ¶nÃ¼ kÃ¶ÅŸegen doÄŸrultusundadÄ±r'
+    lise: { emoji: '🔷', title: 'Paralelkenar Kuralı', points: [
+      '🔷 Aynı noktadan çıkan A ve B paralelkenar oluşturur',
+      '↗️ Bileşke = ortak köşeden çıkan köşegen',
+      '📐 |R|² = A² + B² + 2·A·B·cos α (α: aradaki açı)',
+      '🔺 α=0° → R=A+B (maksimum); α=180° → R=|A−B| (minimum)',
+      '⟂ α=90° → R = √(A²+B²)',
+      '🧭 Bileşkenin yönü köşegen doğrultusundadır'
     ]},
-    tyt_ayt: { emoji: 'ğŸ”·', title: 'Paralelkenar (TYT/AYT)', points: [
-      'ğŸ“ |R| = âˆš(AÂ² + BÂ² + 2Â·AÂ·BÂ·cos Î±)',
-      'ğŸ”º Maksimum bileÅŸke: Î±=0Â° â†’ R = A+B',
-      'ğŸ”» Minimum bileÅŸke: Î±=180Â° â†’ R = |Aâˆ’B|',
-      'âŸ‚ Î±=90Â° â†’ R = âˆš(AÂ²+BÂ²) (Pisagor)',
-      'ğŸ§­ YÃ¶n: tan Î² = (BÂ·sin Î±)/(A + BÂ·cos Î±)',
-      'ğŸŸ° EÅŸit iki vektÃ¶r (A=B): R = 2AÂ·cos(Î±/2)'
+    tyt_ayt: { emoji: '🔷', title: 'Paralelkenar (TYT/AYT)', points: [
+      '📐 |R| = √(A² + B² + 2·A·B·cos α)',
+      '🔺 Maksimum bileşke: α=0° → R = A+B',
+      '🔻 Minimum bileşke: α=180° → R = |A−B|',
+      '⟂ α=90° → R = √(A²+B²) (Pisagor)',
+      '🧭 Yön: tan β = (B·sin α)/(A + B·cos α)',
+      '🟰 Eşit iki vektör (A=B): R = 2A·cos(α/2)'
     ]}
   },
   ayniZitYon: {
-    ilkokul: { emoji: 'â†”ï¸', title: 'AynÄ± / ZÄ±t YÃ¶n', points: [
-      'â¡ï¸â¡ï¸ AynÄ± yÃ¶ne Ã§ekersek kuvvetler toplanÄ±r',
-      'â¡ï¸â¬…ï¸ ZÄ±t yÃ¶ne Ã§ekersek birbirini azaltÄ±r',
-      'ğŸ’ª Halat Ã§ekme oyunu gibi'
+    ilkokul: { emoji: '↔️', title: 'Aynı / Zıt Yön', points: [
+      '➡️➡️ Aynı yöne çekersek kuvvetler toplanır',
+      '➡️⬅️ Zıt yöne çekersek birbirini azaltır',
+      '💪 Halat çekme oyunu gibi'
     ]},
-    ortaokul: { emoji: 'â†”ï¸', title: 'AynÄ± ve ZÄ±t YÃ¶nlÃ¼ Kuvvetler', points: [
-      'â¡ï¸â¡ï¸ AynÄ± yÃ¶n: R = Fâ‚ + Fâ‚‚',
-      'â¡ï¸â¬…ï¸ ZÄ±t yÃ¶n: R = |Fâ‚ âˆ’ Fâ‚‚|',
-      'ğŸ§­ BileÅŸkenin yÃ¶nÃ¼ bÃ¼yÃ¼k kuvvetin yÃ¶nÃ¼ndedir',
-      'âš–ï¸ EÅŸit ve zÄ±t iki kuvvet â†’ R = 0 (denge)',
-      'ğŸ’ª Halat Ã§ekmede net kuvvet farktan doÄŸar'
+    ortaokul: { emoji: '↔️', title: 'Aynı ve Zıt Yönlü Kuvvetler', points: [
+      '➡️➡️ Aynı yön: R = F₁ + F₂',
+      '➡️⬅️ Zıt yön: R = |F₁ − F₂|',
+      '🧭 Bileşkenin yönü büyük kuvvetin yönündedir',
+      '⚖️ Eşit ve zıt iki kuvvet → R = 0 (denge)',
+      '💪 Halat çekmede net kuvvet farktan doğar'
     ]},
-    lise: { emoji: 'â†”ï¸', title: 'DoÄŸrusal (Kolineer) Kuvvetler', points: [
-      'â¡ï¸â¡ï¸ AynÄ± yÃ¶n: R = Fâ‚ + Fâ‚‚ (en bÃ¼yÃ¼k bileÅŸke)',
-      'â¡ï¸â¬…ï¸ ZÄ±t yÃ¶n: R = |Fâ‚ âˆ’ Fâ‚‚| (en kÃ¼Ã§Ã¼k bileÅŸke)',
-      'ğŸ§­ YÃ¶n daima bÃ¼yÃ¼k kuvvet tarafÄ±ndadÄ±r',
-      'âš–ï¸ Fâ‚ = Fâ‚‚ ve zÄ±t â†’ R = 0, cisim dengede',
-      'â• Ã‡ok kuvvet: yÃ¶nleri iÅŸaretle, cebirsel topla'
+    lise: { emoji: '↔️', title: 'Doğrusal (Kolineer) Kuvvetler', points: [
+      '➡️➡️ Aynı yön: R = F₁ + F₂ (en büyük bileşke)',
+      '➡️⬅️ Zıt yön: R = |F₁ − F₂| (en küçük bileşke)',
+      '🧭 Yön daima büyük kuvvet tarafındadır',
+      '⚖️ F₁ = F₂ ve zıt → R = 0, cisim dengede',
+      '➕ Çok kuvvet: yönleri işaretle, cebirsel topla'
     ]},
-    tyt_ayt: { emoji: 'â†”ï¸', title: 'Kolineer Kuvvetler (TYT/AYT)', points: [
-      'â¡ï¸ Tek doÄŸrultuda: R = Î£F (iÅŸaretli toplam)',
-      'ğŸ”º BileÅŸke aralÄ±ÄŸÄ±: |Fâ‚âˆ’Fâ‚‚| â‰¤ R â‰¤ Fâ‚+Fâ‚‚',
-      'âš–ï¸ Denge: Î£F = 0 â†’ a = 0 (Newton I. yasa)',
-      'ğŸ§® Net kuvvet ivme doÄŸurur: Î£F = mÂ·a',
-      'ğŸ”¢ Ã–rnek: 12 N saÄŸ, 5 N sol â†’ R = 7 N saÄŸ'
+    tyt_ayt: { emoji: '↔️', title: 'Kolineer Kuvvetler (TYT/AYT)', points: [
+      '➡️ Tek doğrultuda: R = ΣF (işaretli toplam)',
+      '🔺 Bileşke aralığı: |F₁−F₂| ≤ R ≤ F₁+F₂',
+      '⚖️ Denge: ΣF = 0 → a = 0 (Newton I. yasa)',
+      '🧮 Net kuvvet ivme doğurur: ΣF = m·a',
+      '🔢 Örnek: 12 N sağ, 5 N sol → R = 7 N sağ'
     ]}
   },
   dikKuvvetler: {
-    ilkokul: { emoji: 'âŸ‚', title: 'Dik Ä°ki Kuvvet', points: [
-      'âŸ‚ Biri saÄŸa, biri yukarÄ± iki kuvvet',
-      'ğŸ“ BileÅŸke kÃ¶ÅŸegen boyunca olur',
-      'ğŸ”º Dik Ã¼Ã§genin kenarlarÄ± gibi dÃ¼ÅŸÃ¼n'
+    ilkokul: { emoji: '⟂', title: 'Dik İki Kuvvet', points: [
+      '⟂ Biri sağa, biri yukarı iki kuvvet',
+      '📐 Bileşke köşegen boyunca olur',
+      '🔺 Dik üçgenin kenarları gibi düşün'
     ]},
-    ortaokul: { emoji: 'âŸ‚', title: 'Birbirine Dik Kuvvetler', points: [
-      'âŸ‚ AralarÄ±nda 90Â° olan Fâ‚ ve Fâ‚‚',
-      'ğŸ“ BileÅŸke: R = âˆš(Fâ‚Â² + Fâ‚‚Â²) (Pisagor)',
-      'ğŸ”º Fâ‚ ve Fâ‚‚ dik Ã¼Ã§genin kenarlarÄ±, R hipotenÃ¼sÃ¼',
-      'ğŸ”¢ 3 N ve 4 N â†’ R = 5 N',
-      'ğŸ§­ YÃ¶n: tan Î¸ = Fâ‚‚ / Fâ‚'
+    ortaokul: { emoji: '⟂', title: 'Birbirine Dik Kuvvetler', points: [
+      '⟂ Aralarında 90° olan F₁ ve F₂',
+      '📐 Bileşke: R = √(F₁² + F₂²) (Pisagor)',
+      '🔺 F₁ ve F₂ dik üçgenin kenarları, R hipotenüsü',
+      '🔢 3 N ve 4 N → R = 5 N',
+      '🧭 Yön: tan θ = F₂ / F₁'
     ]},
-    lise: { emoji: 'âŸ‚', title: 'Dik Kuvvetlerin BileÅŸkesi', points: [
-      'âŸ‚ 90Â° aÃ§Ä±lÄ± iki kuvvette Pisagor geÃ§erli',
-      'ğŸ“ R = âˆš(Fâ‚Â² + Fâ‚‚Â²)',
-      'ğŸ§­ YÃ¶n: tan Î¸ = Fâ‚‚/Fâ‚ (Fâ‚ ekseni ile)',
-      'ğŸ”¢ Pisagor Ã¼Ã§lÃ¼leri: (3,4,5), (6,8,10), (5,12,13)',
-      'ğŸ”º BileÅŸke her zaman bileÅŸenlerden bÃ¼yÃ¼ktÃ¼r'
+    lise: { emoji: '⟂', title: 'Dik Kuvvetlerin Bileşkesi', points: [
+      '⟂ 90° açılı iki kuvvette Pisagor geçerli',
+      '📐 R = √(F₁² + F₂²)',
+      '🧭 Yön: tan θ = F₂/F₁ (F₁ ekseni ile)',
+      '🔢 Pisagor üçlüleri: (3,4,5), (6,8,10), (5,12,13)',
+      '🔺 Bileşke her zaman bileşenlerden büyüktür'
     ]},
-    tyt_ayt: { emoji: 'âŸ‚', title: 'Dik BileÅŸke (TYT/AYT)', points: [
-      'ğŸ“ R = âˆš(Fâ‚Â² + Fâ‚‚Â²), tan Î¸ = Fâ‚‚/Fâ‚',
-      'ğŸ§© Paralelkenarda Î±=90Â° Ã¶zel hÃ¢li',
-      'ğŸ”¢ ÃœÃ§lÃ¼ler: 3-4-5, 5-12-13, 8-15-17, 7-24-25',
-      'ğŸ§­ Î¸ = arctan(Fâ‚‚/Fâ‚); eksenle yapÄ±lan aÃ§Ä±',
-      'ğŸšï¸ KaydÄ±rÄ±cÄ±yla Fâ‚, Fâ‚‚ deÄŸiÅŸtir; R ve Î¸ canlÄ±'
+    tyt_ayt: { emoji: '⟂', title: 'Dik Bileşke (TYT/AYT)', points: [
+      '📐 R = √(F₁² + F₂²), tan θ = F₂/F₁',
+      '🧩 Paralelkenarda α=90° özel hâli',
+      '🔢 Üçlüler: 3-4-5, 5-12-13, 8-15-17, 7-24-25',
+      '🧭 θ = arctan(F₂/F₁); eksenle yapılan açı',
+      '🎚️ Kaydırıcıyla F₁, F₂ değiştir; R ve θ canlı'
     ]}
   },
   aciliKuvvetler: {
-    ilkokul: { emoji: 'ğŸ“', title: 'AÃ§Ä±lÄ± Ä°ki Kuvvet', points: [
-      'ğŸ“ Ä°ki ok arasÄ±nda bir aÃ§Ä± var',
-      'â†—ï¸ BileÅŸke ortadan Ã§Ä±kar',
-      'ğŸ“ AÃ§Ä± kÃ¼Ã§Ã¼kse bileÅŸke bÃ¼yÃ¼k olur'
+    ilkokul: { emoji: '📐', title: 'Açılı İki Kuvvet', points: [
+      '📐 İki ok arasında bir açı var',
+      '↗️ Bileşke ortadan çıkar',
+      '📏 Açı küçükse bileşke büyük olur'
     ]},
-    ortaokul: { emoji: 'ğŸ“', title: 'AÃ§Ä±lÄ± Ä°ki Kuvvet', points: [
-      'ğŸ“ AralarÄ±nda Î± aÃ§Ä±sÄ± olan Fâ‚ ve Fâ‚‚',
-      'â†—ï¸ BileÅŸke paralelkenarÄ±n kÃ¶ÅŸegenidir',
-      'ğŸ”¼ Î± kÃ¼Ã§Ã¼ldÃ¼kÃ§e bileÅŸke bÃ¼yÃ¼r',
-      'ğŸ”½ Î± bÃ¼yÃ¼dÃ¼kÃ§e bileÅŸke kÃ¼Ã§Ã¼lÃ¼r',
-      'ğŸšï¸ AÃ§Ä±yÄ± deÄŸiÅŸtir, bileÅŸkeyi gÃ¶r'
+    ortaokul: { emoji: '📐', title: 'Açılı İki Kuvvet', points: [
+      '📐 Aralarında α açısı olan F₁ ve F₂',
+      '↗️ Bileşke paralelkenarın köşegenidir',
+      '🔼 α küçüldükçe bileşke büyür',
+      '🔽 α büyüdükçe bileşke küçülür',
+      '🎚️ Açıyı değiştir, bileşkeyi gör'
     ]},
-    lise: { emoji: 'ğŸ“', title: 'KosinÃ¼s Teoremi ile BileÅŸke', points: [
-      'ğŸ“ R = âˆš(Fâ‚Â² + Fâ‚‚Â² + 2Â·Fâ‚Â·Fâ‚‚Â·cos Î±)',
-      'ğŸ”º Î±=0Â° â†’ R=Fâ‚+Fâ‚‚ (maksimum)',
-      'ğŸ”» Î±=180Â° â†’ R=|Fâ‚âˆ’Fâ‚‚| (minimum)',
-      'âŸ‚ Î±=90Â° â†’ R=âˆš(Fâ‚Â²+Fâ‚‚Â²)',
-      'ğŸ§­ YÃ¶n: tan Î² = (Fâ‚‚Â·sin Î±)/(Fâ‚ + Fâ‚‚Â·cos Î±)'
+    lise: { emoji: '📐', title: 'Kosinüs Teoremi ile Bileşke', points: [
+      '📐 R = √(F₁² + F₂² + 2·F₁·F₂·cos α)',
+      '🔺 α=0° → R=F₁+F₂ (maksimum)',
+      '🔻 α=180° → R=|F₁−F₂| (minimum)',
+      '⟂ α=90° → R=√(F₁²+F₂²)',
+      '🧭 Yön: tan β = (F₂·sin α)/(F₁ + F₂·cos α)'
     ]},
-    tyt_ayt: { emoji: 'ğŸ“', title: 'AÃ§Ä±lÄ± BileÅŸke (TYT/AYT)', points: [
-      'ğŸ“ |R| = âˆš(Fâ‚Â² + Fâ‚‚Â² + 2Â·Fâ‚Â·Fâ‚‚Â·cos Î±)',
-      'ğŸŸ° EÅŸit kuvvetler: R = 2FÂ·cos(Î±/2)',
-      'ğŸ“Š EÅŸit F\'de Î±=60Â° â†’ R=Fâˆš3 ; Î±=120Â° â†’ R=F',
-      'ğŸ§­ YÃ¶n: tan Î² = Fâ‚‚Â·sin Î±/(Fâ‚ + Fâ‚‚Â·cos Î±)',
-      'ğŸ” cos Î± arttÄ±kÃ§a (Î±â†“) bileÅŸke artar',
-      'ğŸšï¸ Î± kaydÄ±rÄ±cÄ±sÄ±yla R\'nin deÄŸiÅŸimini izle'
+    tyt_ayt: { emoji: '📐', title: 'Açılı Bileşke (TYT/AYT)', points: [
+      '📐 |R| = √(F₁² + F₂² + 2·F₁·F₂·cos α)',
+      '🟰 Eşit kuvvetler: R = 2F·cos(α/2)',
+      '📊 Eşit F\'de α=60° → R=F√3 ; α=120° → R=F',
+      '🧭 Yön: tan β = F₂·sin α/(F₁ + F₂·cos α)',
+      '🔁 cos α arttıkça (α↓) bileşke artar',
+      '🎚️ α kaydırıcısıyla R\'nin değişimini izle'
     ]}
   },
   denge: {
-    ilkokul: { emoji: 'âš–ï¸', title: 'Dengede Durmak', points: [
-      'âš–ï¸ Kuvvetler birbirini dengelerse cisim durur',
-      'ğŸŸ° Toplam kuvvet sÄ±fÄ±r olur',
-      'ğŸª¢ Ä°pler eÅŸit Ã§ekerse dÃ¼ÄŸÃ¼m kÄ±pÄ±rdamaz'
+    ilkokul: { emoji: '⚖️', title: 'Dengede Durmak', points: [
+      '⚖️ Kuvvetler birbirini dengelerse cisim durur',
+      '🟰 Toplam kuvvet sıfır olur',
+      '🪢 İpler eşit çekerse düğüm kıpırdamaz'
     ]},
-    ortaokul: { emoji: 'âš–ï¸', title: 'Kuvvet Dengesi', points: [
-      'âš–ï¸ Kuvvetlerin bileÅŸkesi sÄ±fÄ±rsa cisim dengededir',
-      'ğŸŸ° Î£F = 0 (net kuvvet yok)',
-      'ğŸ›‘ Dengedeki cisim durur ya da sabit hÄ±zla gider',
-      'ğŸ”» Dengeleyici kuvvet: bileÅŸkeye eÅŸit, zÄ±t yÃ¶nlÃ¼',
-      'ğŸª¢ Kuvvetler kapalÄ± Ã¼Ã§gen oluÅŸturur'
+    ortaokul: { emoji: '⚖️', title: 'Kuvvet Dengesi', points: [
+      '⚖️ Kuvvetlerin bileşkesi sıfırsa cisim dengededir',
+      '🟰 ΣF = 0 (net kuvvet yok)',
+      '🛑 Dengedeki cisim durur ya da sabit hızla gider',
+      '🔻 Dengeleyici kuvvet: bileşkeye eşit, zıt yönlü',
+      '🪢 Kuvvetler kapalı üçgen oluşturur'
     ]},
-    lise: { emoji: 'âš–ï¸', title: 'Denge ve Dengeleyici Kuvvet', points: [
-      'âš–ï¸ Denge koÅŸulu: Î£Fâ‚“ = 0 ve Î£F_y = 0',
-      'ğŸ”» <b>Dengeleyici</b> = âˆ’BileÅŸke (eÅŸit bÃ¼yÃ¼k, zÄ±t yÃ¶n)',
-      'ğŸª¢ Kuvvetler kapalÄ± Ã§okgen oluÅŸturur',
-      'ğŸ›‘ a = 0: durur veya sabit hÄ±zlÄ± (Newton I)',
-      'ğŸ“ ÃœÃ§ kuvvet dengede ise kuvvet Ã¼Ã§geni Ã§izilir'
+    lise: { emoji: '⚖️', title: 'Denge ve Dengeleyici Kuvvet', points: [
+      '⚖️ Denge koşulu: ΣFₓ = 0 ve ΣF_y = 0',
+      '🔻 <b>Dengeleyici</b> = −Bileşke (eşit büyük, zıt yön)',
+      '🪢 Kuvvetler kapalı çokgen oluşturur',
+      '🛑 a = 0: durur veya sabit hızlı (Newton I)',
+      '📐 Üç kuvvet dengede ise kuvvet üçgeni çizilir'
     ]},
-    tyt_ayt: { emoji: 'âš–ï¸', title: 'Denge KoÅŸulu (TYT/AYT)', points: [
-      'âš–ï¸ Ã–teleme dengesi: Î£Fâ‚“ = 0, Î£F_y = 0',
-      'ğŸª¢ Lami teoremi: Fâ‚/sin Î± = Fâ‚‚/sin Î² = Fâ‚ƒ/sin Î³',
-      'ğŸ”» Dengeleyici kuvvet = âˆ’Râƒ—',
-      'ğŸ“ ÃœÃ§ kuvvet dengede â†’ kapalÄ± kuvvet Ã¼Ã§geni',
-      'ğŸ”¢ AÃ§Ä±lar, kuvvetlerin karÅŸÄ±sÄ±ndaki aÃ§Ä±lardÄ±r'
+    tyt_ayt: { emoji: '⚖️', title: 'Denge Koşulu (TYT/AYT)', points: [
+      '⚖️ Öteleme dengesi: ΣFₓ = 0, ΣF_y = 0',
+      '🪢 Lami teoremi: F₁/sin α = F₂/sin β = F₃/sin γ',
+      '🔻 Dengeleyici kuvvet = −R⃗',
+      '📐 Üç kuvvet dengede → kapalı kuvvet üçgeni',
+      '🔢 Açılar, kuvvetlerin karşısındaki açılardır'
     ]}
   },
   egikDuzlem: {
-    ilkokul: { emoji: 'â›°ï¸', title: 'Kaygan Rampa', points: [
-      'â›°ï¸ EÄŸimli yÃ¼zeyde cisim aÅŸaÄŸÄ± kaymak ister',
-      'â¬‡ï¸ AÄŸÄ±rlÄ±k onu aÅŸaÄŸÄ± Ã§eker',
-      'ğŸ“ Rampa dikleÅŸince daha hÄ±zlÄ± kayar'
+    ilkokul: { emoji: '⛰️', title: 'Kaygan Rampa', points: [
+      '⛰️ Eğimli yüzeyde cisim aşağı kaymak ister',
+      '⬇️ Ağırlık onu aşağı çeker',
+      '📐 Rampa dikleşince daha hızlı kayar'
     ]},
-    ortaokul: { emoji: 'â›°ï¸', title: 'EÄŸik DÃ¼zlemde Kuvvet', points: [
-      'â›°ï¸ EÄŸik dÃ¼zlemde aÄŸÄ±rlÄ±k (G) iki bileÅŸene ayrÄ±lÄ±r',
-      'â¬‡ï¸ YÃ¼zey boyunca: cisimi aÅŸaÄŸÄ± kaydÄ±ran bileÅŸen',
-      'âŸ‚ YÃ¼zeye dik: cisimi yÃ¼zeye bastÄ±ran bileÅŸen',
-      'ğŸ“ EÄŸim aÃ§Ä±sÄ± arttÄ±kÃ§a kaydÄ±ran kuvvet artar',
-      'ğŸ§± YÃ¼zeye dik bileÅŸen eÄŸim arttÄ±kÃ§a azalÄ±r'
+    ortaokul: { emoji: '⛰️', title: 'Eğik Düzlemde Kuvvet', points: [
+      '⛰️ Eğik düzlemde ağırlık (G) iki bileşene ayrılır',
+      '⬇️ Yüzey boyunca: cisimi aşağı kaydıran bileşen',
+      '⟂ Yüzeye dik: cisimi yüzeye bastıran bileşen',
+      '📐 Eğim açısı arttıkça kaydıran kuvvet artar',
+      '🧱 Yüzeye dik bileşen eğim arttıkça azalır'
     ]},
-    lise: { emoji: 'â›°ï¸', title: 'EÄŸik DÃ¼zlemde AÄŸÄ±rlÄ±ÄŸÄ±n BileÅŸenleri', points: [
-      'â›°ï¸ EÄŸim aÃ§Ä±sÄ± Î¸, aÄŸÄ±rlÄ±k G = mÂ·g',
-      'â¬‡ï¸ YÃ¼zeye paralel: GÂ·sin Î¸ (kaydÄ±ran)',
-      'âŸ‚ YÃ¼zeye dik: GÂ·cos Î¸ (bastÄ±ran = Normal)',
-      'ğŸ“ Î¸=0 â†’ kaydÄ±ran=0; Î¸=90Â° â†’ serbest dÃ¼ÅŸme',
-      'ğŸ§² SÃ¼rtÃ¼nmesizse ivme: a = gÂ·sin Î¸'
+    lise: { emoji: '⛰️', title: 'Eğik Düzlemde Ağırlığın Bileşenleri', points: [
+      '⛰️ Eğim açısı θ, ağırlık G = m·g',
+      '⬇️ Yüzeye paralel: G·sin θ (kaydıran)',
+      '⟂ Yüzeye dik: G·cos θ (bastıran = Normal)',
+      '📐 θ=0 → kaydıran=0; θ=90° → serbest düşme',
+      '🧲 Sürtünmesizse ivme: a = g·sin θ'
     ]},
-    tyt_ayt: { emoji: 'â›°ï¸', title: 'EÄŸik DÃ¼zlem (TYT/AYT)', points: [
-      'â¬‡ï¸ G_paralel = mÂ·gÂ·sin Î¸, G_dik = mÂ·gÂ·cos Î¸',
-      'ğŸ§± Normal kuvvet: N = mÂ·gÂ·cos Î¸',
-      'ğŸ§² SÃ¼rtÃ¼nmeli: F_s = Î¼Â·N = Î¼Â·mÂ·gÂ·cos Î¸',
-      'ğŸƒ SÃ¼rtÃ¼nmesiz ivme: a = gÂ·sin Î¸',
-      'ğŸ”¢ Î¸=37Â° â†’ sin=0,6 cos=0,8 ; Î¸=53Â° â†’ sin=0,8 cos=0,6',
-      'ğŸšï¸ EÄŸimi deÄŸiÅŸtir, bileÅŸenleri izle'
+    tyt_ayt: { emoji: '⛰️', title: 'Eğik Düzlem (TYT/AYT)', points: [
+      '⬇️ G_paralel = m·g·sin θ, G_dik = m·g·cos θ',
+      '🧱 Normal kuvvet: N = m·g·cos θ',
+      '🧲 Sürtünmeli: F_s = μ·N = μ·m·g·cos θ',
+      '🏃 Sürtünmesiz ivme: a = g·sin θ',
+      '🔢 θ=37° → sin=0,6 cos=0,8 ; θ=53° → sin=0,8 cos=0,6',
+      '🎚️ Eğimi değiştir, bileşenleri izle'
     ]}
   },
   bagilHiz: {
-    ilkokul: { emoji: 'ğŸš¤', title: 'AkÄ±ntÄ±da Tekne', points: [
-      'ğŸš¤ Tekne karÅŸÄ±ya geÃ§mek ister',
-      'ğŸŒŠ AkÄ±ntÄ± onu yana sÃ¼rÃ¼kler',
-      'â†—ï¸ GerÃ§ek yol Ã§apraz olur'
+    ilkokul: { emoji: '🚤', title: 'Akıntıda Tekne', points: [
+      '🚤 Tekne karşıya geçmek ister',
+      '🌊 Akıntı onu yana sürükler',
+      '↗️ Gerçek yol çapraz olur'
     ]},
-    ortaokul: { emoji: 'ğŸš¤', title: 'BaÄŸÄ±l HÄ±z', points: [
-      'ğŸš¤ Teknenin hÄ±zÄ± + akÄ±ntÄ± hÄ±zÄ± vektÃ¶rel toplanÄ±r',
-      'â†—ï¸ GerÃ§ek (bileÅŸke) hÄ±z Ã§apraz yÃ¶nde olur',
-      'âŸ‚ Dik akÄ±ntÄ±da: bileÅŸke = âˆš(v_tekneÂ² + v_akÄ±ntÄ±Â²)',
-      'ğŸ§­ Tekne biraz akÄ±ntÄ±ya karÅŸÄ± kÃ¼rek Ã§ekmeli',
-      'â±ï¸ GeÃ§iÅŸ sÃ¼resi yalnÄ±z teknenin dik hÄ±zÄ±na baÄŸlÄ±'
+    ortaokul: { emoji: '🚤', title: 'Bağıl Hız', points: [
+      '🚤 Teknenin hızı + akıntı hızı vektörel toplanır',
+      '↗️ Gerçek (bileşke) hız çapraz yönde olur',
+      '⟂ Dik akıntıda: bileşke = √(v_tekne² + v_akıntı²)',
+      '🧭 Tekne biraz akıntıya karşı kürek çekmeli',
+      '⏱️ Geçiş süresi yalnız teknenin dik hızına bağlı'
     ]},
-    lise: { emoji: 'ğŸš¤', title: 'BaÄŸÄ±l HÄ±z (VektÃ¶rel Toplama)', points: [
-      'ğŸš¤ v_yer = v_tekne + v_akÄ±ntÄ± (vektÃ¶rel)',
-      'âŸ‚ Dik akÄ±ntÄ±: |v| = âˆš(v_tÂ² + v_aÂ²)',
-      'â±ï¸ GeÃ§iÅŸ sÃ¼resi: t = geniÅŸlik / v_tekne',
-      'â¡ï¸ SÃ¼rÃ¼klenme: x = v_akÄ±ntÄ± Â· t',
-      'ğŸ§­ En kÄ±sa yol iÃ§in tekne akÄ±ntÄ±ya karÅŸÄ± aÃ§Ä±lanmalÄ±'
+    lise: { emoji: '🚤', title: 'Bağıl Hız (Vektörel Toplama)', points: [
+      '🚤 v_yer = v_tekne + v_akıntı (vektörel)',
+      '⟂ Dik akıntı: |v| = √(v_t² + v_a²)',
+      '⏱️ Geçiş süresi: t = genişlik / v_tekne',
+      '➡️ Sürüklenme: x = v_akıntı · t',
+      '🧭 En kısa yol için tekne akıntıya karşı açılanmalı'
     ]},
-    tyt_ayt: { emoji: 'ğŸš¤', title: 'BaÄŸÄ±l Hareket (TYT/AYT)', points: [
-      'ğŸ§® vâƒ—_AB = vâƒ—_A âˆ’ vâƒ—_B (A\'nÄ±n B\'ye gÃ¶re hÄ±zÄ±)',
-      'ğŸš¤ vâƒ—_yer = vâƒ—_tekne + vâƒ—_akÄ±ntÄ±',
-      'â±ï¸ t = d/v_dik (yalnÄ±z karÅŸÄ±ya bileÅŸeni sÃ¼reyi belirler)',
-      'â¡ï¸ SÃ¼rÃ¼klenme = v_akÄ±ntÄ± Â· t',
-      'ğŸ§­ En kÄ±sa sÃ¼rede karÅŸÄ±ya: pruva tam dik tutulur',
-      'ğŸ“ En kÄ±sa yolda karÅŸÄ±ya: sin Î± = v_akÄ±ntÄ±/v_tekne'
+    tyt_ayt: { emoji: '🚤', title: 'Bağıl Hareket (TYT/AYT)', points: [
+      '🧮 v⃗_AB = v⃗_A − v⃗_B (A\'nın B\'ye göre hızı)',
+      '🚤 v⃗_yer = v⃗_tekne + v⃗_akıntı',
+      '⏱️ t = d/v_dik (yalnız karşıya bileşeni süreyi belirler)',
+      '➡️ Sürüklenme = v_akıntı · t',
+      '🧭 En kısa sürede karşıya: pruva tam dik tutulur',
+      '📐 En kısa yolda karşıya: sin α = v_akıntı/v_tekne'
     ]}
   }
 };
 const SubBuilders = {};
 window.SubBuilders = SubBuilders;
 
-// ============== KARÅILAÅTIRMA VERÄ°LERÄ° ==============
+// ============== KARŞILAŞTIRMA VERİLERİ ==============
 const COMPARE_DATA = {
   vektorTanim: {
-    ilkokul: { title: 'VektÃ¶r mÃ¼ Skaler mi?', cols: ['Nicelik', 'TÃ¼r'],
-      rows: [['Kuvvet ğŸ§²', 'VektÃ¶r'], ['HÄ±z ğŸƒ', 'VektÃ¶r'], ['KÃ¼tle âš–ï¸', 'Skaler'], ['Zaman â±ï¸', 'Skaler']] },
-    ortaokul: { title: 'VektÃ¶rel vs Skaler', cols: ['VektÃ¶rel', 'Skaler'],
-      rows: [['Kuvvet', 'KÃ¼tle'], ['HÄ±z', 'SÃ¼rat (yol/zaman)'], ['Yer deÄŸiÅŸtirme', 'Yol'], ['Ä°vme', 'Zaman']] },
-    lise: { title: 'Nicelik SÄ±nÄ±flandÄ±rma', cols: ['TÃ¼r', 'Ã–rnekler', 'Bilgi'],
-      rows: [['VektÃ¶rel', 'Kuvvet, hÄ±z, ivme, momentum', 'BÃ¼yÃ¼klÃ¼k + yÃ¶n'], ['Skaler', 'KÃ¼tle, zaman, enerji, yol', 'YalnÄ±z bÃ¼yÃ¼klÃ¼k']] },
-    tyt_ayt: { title: 'VektÃ¶r Ã–zellikleri', cols: ['Kavram', 'TanÄ±m'],
-      rows: [['EÅŸit vektÃ¶r', 'AynÄ± bÃ¼yÃ¼klÃ¼k, doÄŸrultu, yÃ¶n'], ['ZÄ±t vektÃ¶r (âˆ’Fâƒ—)', 'AynÄ± bÃ¼yÃ¼klÃ¼k, zÄ±t yÃ¶n'], ['Birim vektÃ¶r', 'BÃ¼yÃ¼klÃ¼ÄŸÃ¼ 1 olan vektÃ¶r'], ['BileÅŸen', 'Fâ‚“ = FÂ·cos Î¸, F_y = FÂ·sin Î¸']] }
+    ilkokul: { title: 'Vektör mü Skaler mi?', cols: ['Nicelik', 'Tür'],
+      rows: [['Kuvvet 🧲', 'Vektör'], ['Hız 🏃', 'Vektör'], ['Kütle ⚖️', 'Skaler'], ['Zaman ⏱️', 'Skaler']] },
+    ortaokul: { title: 'Vektörel vs Skaler', cols: ['Vektörel', 'Skaler'],
+      rows: [['Kuvvet', 'Kütle'], ['Hız', 'Sürat (yol/zaman)'], ['Yer değiştirme', 'Yol'], ['İvme', 'Zaman']] },
+    lise: { title: 'Nicelik Sınıflandırma', cols: ['Tür', 'Örnekler', 'Bilgi'],
+      rows: [['Vektörel', 'Kuvvet, hız, ivme, momentum', 'Büyüklük + yön'], ['Skaler', 'Kütle, zaman, enerji, yol', 'Yalnız büyüklük']] },
+    tyt_ayt: { title: 'Vektör Özellikleri', cols: ['Kavram', 'Tanım'],
+      rows: [['Eşit vektör', 'Aynı büyüklük, doğrultu, yön'], ['Zıt vektör (−F⃗)', 'Aynı büyüklük, zıt yön'], ['Birim vektör', 'Büyüklüğü 1 olan vektör'], ['Bileşen', 'Fₓ = F·cos θ, F_y = F·sin θ']] }
   },
   vektorBilesenleri: {
-    ortaokul: { title: 'AÃ§Ä± ve BileÅŸenler', cols: ['AÃ§Ä± Î¸', 'Yatay Fâ‚“', 'Dikey F_y'],
-      rows: [['KÃ¼Ã§Ã¼k', 'BÃ¼yÃ¼k', 'KÃ¼Ã§Ã¼k'], ['45Â°', 'EÅŸit', 'EÅŸit'], ['BÃ¼yÃ¼k', 'KÃ¼Ã§Ã¼k', 'BÃ¼yÃ¼k']] },
-    lise: { title: 'BileÅŸen FormÃ¼lleri', cols: ['BÃ¼yÃ¼klÃ¼k', 'FormÃ¼l'],
-      rows: [['Yatay', 'Fâ‚“ = FÂ·cos Î¸'], ['Dikey', 'F_y = FÂ·sin Î¸'], ['BÃ¼yÃ¼klÃ¼k', 'F = âˆš(Fâ‚“Â²+F_yÂ²)'], ['YÃ¶n', 'tan Î¸ = F_y/Fâ‚“']] },
-    tyt_ayt: { title: 'Ã–zel AÃ§Ä± DeÄŸerleri', cols: ['Î¸', 'cos Î¸', 'sin Î¸'],
-      rows: [['30Â°', 'âˆš3/2 â‰ˆ 0,87', '0,5'], ['37Â°', '0,8', '0,6'], ['45Â°', 'âˆš2/2 â‰ˆ 0,71', 'âˆš2/2 â‰ˆ 0,71'], ['53Â°', '0,6', '0,8'], ['60Â°', '0,5', 'âˆš3/2 â‰ˆ 0,87']] }
+    ortaokul: { title: 'Açı ve Bileşenler', cols: ['Açı θ', 'Yatay Fₓ', 'Dikey F_y'],
+      rows: [['Küçük', 'Büyük', 'Küçük'], ['45°', 'Eşit', 'Eşit'], ['Büyük', 'Küçük', 'Büyük']] },
+    lise: { title: 'Bileşen Formülleri', cols: ['Büyüklük', 'Formül'],
+      rows: [['Yatay', 'Fₓ = F·cos θ'], ['Dikey', 'F_y = F·sin θ'], ['Büyüklük', 'F = √(Fₓ²+F_y²)'], ['Yön', 'tan θ = F_y/Fₓ']] },
+    tyt_ayt: { title: 'Özel Açı Değerleri', cols: ['θ', 'cos θ', 'sin θ'],
+      rows: [['30°', '√3/2 ≈ 0,87', '0,5'], ['37°', '0,8', '0,6'], ['45°', '√2/2 ≈ 0,71', '√2/2 ≈ 0,71'], ['53°', '0,6', '0,8'], ['60°', '0,5', '√3/2 ≈ 0,87']] }
   },
   ucUca: {
-    ortaokul: { title: 'Toplama YÃ¶ntemleri', cols: ['YÃ¶ntem', 'NasÄ±l'],
-      rows: [['UÃ§ uca', 'Biri biterken diÄŸeri baÅŸlar'], ['Paralelkenar', 'AynÄ± noktadan, kÃ¶ÅŸegen'], ['BileÅŸke', 'Ä°lk baÅŸtan son uca']] },
-    lise: { title: 'UÃ§ Uca vs Paralelkenar', cols: ['Ã–zellik', 'UÃ§ Uca', 'Paralelkenar'],
-      rows: [['BaÅŸlangÄ±Ã§', 'SÄ±ralÄ±', 'Ortak nokta'], ['Ã‡ok vektÃ¶r', 'Uygun', 'Zor'], ['SonuÃ§', 'AynÄ±', 'AynÄ±']] },
-    tyt_ayt: { title: 'Poligon KuralÄ±', cols: ['Durum', 'BileÅŸke'],
-      rows: [['AÃ§Ä±k poligon', 'Ä°lk kuyruk â†’ son baÅŸ'], ['KapalÄ± poligon', 'Râƒ— = 0'], ['DÃ¼zgÃ¼n Ã§okgen kenarlarÄ±', 'Toplam = 0']] }
+    ortaokul: { title: 'Toplama Yöntemleri', cols: ['Yöntem', 'Nasıl'],
+      rows: [['Uç uca', 'Biri biterken diğeri başlar'], ['Paralelkenar', 'Aynı noktadan, köşegen'], ['Bileşke', 'İlk baştan son uca']] },
+    lise: { title: 'Uç Uca vs Paralelkenar', cols: ['Özellik', 'Uç Uca', 'Paralelkenar'],
+      rows: [['Başlangıç', 'Sıralı', 'Ortak nokta'], ['Çok vektör', 'Uygun', 'Zor'], ['Sonuç', 'Aynı', 'Aynı']] },
+    tyt_ayt: { title: 'Poligon Kuralı', cols: ['Durum', 'Bileşke'],
+      rows: [['Açık poligon', 'İlk kuyruk → son baş'], ['Kapalı poligon', 'R⃗ = 0'], ['Düzgün çokgen kenarları', 'Toplam = 0']] }
   },
   paralelkenar: {
-    ortaokul: { title: 'AÃ§Ä± ve BileÅŸke', cols: ['AÃ§Ä± Î±', 'BileÅŸke'],
-      rows: [['0Â° (aynÄ± yÃ¶n)', 'En bÃ¼yÃ¼k: A+B'], ['90Â° (dik)', 'âˆš(AÂ²+BÂ²)'], ['180Â° (zÄ±t)', 'En kÃ¼Ã§Ã¼k: |Aâˆ’B|']] },
-    lise: { title: 'EÅŸit Kuvvetler (A=B=F)', cols: ['AÃ§Ä± Î±', 'BileÅŸke R'],
-      rows: [['0Â°', '2F'], ['60Â°', 'Fâˆš3 â‰ˆ 1,73F'], ['90Â°', 'Fâˆš2 â‰ˆ 1,41F'], ['120Â°', 'F'], ['180Â°', '0']] },
-    tyt_ayt: { title: 'BileÅŸke FormÃ¼lleri', cols: ['BÃ¼yÃ¼klÃ¼k', 'Ä°fade'],
-      rows: [['BileÅŸke', 'R = âˆš(AÂ²+BÂ²+2ABÂ·cos Î±)'], ['EÅŸit kuvvet', 'R = 2FÂ·cos(Î±/2)'], ['YÃ¶n', 'tan Î² = BÂ·sin Î±/(A+BÂ·cos Î±)']] }
+    ortaokul: { title: 'Açı ve Bileşke', cols: ['Açı α', 'Bileşke'],
+      rows: [['0° (aynı yön)', 'En büyük: A+B'], ['90° (dik)', '√(A²+B²)'], ['180° (zıt)', 'En küçük: |A−B|']] },
+    lise: { title: 'Eşit Kuvvetler (A=B=F)', cols: ['Açı α', 'Bileşke R'],
+      rows: [['0°', '2F'], ['60°', 'F√3 ≈ 1,73F'], ['90°', 'F√2 ≈ 1,41F'], ['120°', 'F'], ['180°', '0']] },
+    tyt_ayt: { title: 'Bileşke Formülleri', cols: ['Büyüklük', 'İfade'],
+      rows: [['Bileşke', 'R = √(A²+B²+2AB·cos α)'], ['Eşit kuvvet', 'R = 2F·cos(α/2)'], ['Yön', 'tan β = B·sin α/(A+B·cos α)']] }
   },
   ayniZitYon: {
-    ilkokul: { title: 'Hangi YÃ¶n KazanÄ±r?', cols: ['Durum', 'SonuÃ§'],
-      rows: [['AynÄ± yÃ¶n', 'ToplanÄ±r'], ['ZÄ±t yÃ¶n, eÅŸit', 'Durur (0)'], ['ZÄ±t yÃ¶n, farklÄ±', 'BÃ¼yÃ¼k olan kazanÄ±r']] },
-    ortaokul: { title: 'Kolineer Kuvvetler', cols: ['YÃ¶n', 'BileÅŸke'],
-      rows: [['AynÄ±', 'Fâ‚ + Fâ‚‚'], ['ZÄ±t', '|Fâ‚ âˆ’ Fâ‚‚|'], ['EÅŸit ve zÄ±t', '0 (denge)']] },
-    lise: { title: 'BileÅŸke AralÄ±ÄŸÄ±', cols: ['Durum', 'BileÅŸke'],
-      rows: [['Maksimum (aynÄ± yÃ¶n)', 'Fâ‚ + Fâ‚‚'], ['Minimum (zÄ±t yÃ¶n)', '|Fâ‚ âˆ’ Fâ‚‚|'], ['Denge', 'Î£F = 0']] },
-    tyt_ayt: { title: 'Ã–rnek Hesaplar', cols: ['Fâ‚', 'Fâ‚‚', 'YÃ¶n', 'R'],
-      rows: [['8 N â†’', '5 N â†’', 'AynÄ±', '13 N â†’'], ['8 N â†’', '5 N â†', 'ZÄ±t', '3 N â†’'], ['6 N â†’', '6 N â†', 'ZÄ±t', '0']] }
+    ilkokul: { title: 'Hangi Yön Kazanır?', cols: ['Durum', 'Sonuç'],
+      rows: [['Aynı yön', 'Toplanır'], ['Zıt yön, eşit', 'Durur (0)'], ['Zıt yön, farklı', 'Büyük olan kazanır']] },
+    ortaokul: { title: 'Kolineer Kuvvetler', cols: ['Yön', 'Bileşke'],
+      rows: [['Aynı', 'F₁ + F₂'], ['Zıt', '|F₁ − F₂|'], ['Eşit ve zıt', '0 (denge)']] },
+    lise: { title: 'Bileşke Aralığı', cols: ['Durum', 'Bileşke'],
+      rows: [['Maksimum (aynı yön)', 'F₁ + F₂'], ['Minimum (zıt yön)', '|F₁ − F₂|'], ['Denge', 'ΣF = 0']] },
+    tyt_ayt: { title: 'Örnek Hesaplar', cols: ['F₁', 'F₂', 'Yön', 'R'],
+      rows: [['8 N →', '5 N →', 'Aynı', '13 N →'], ['8 N →', '5 N ←', 'Zıt', '3 N →'], ['6 N →', '6 N ←', 'Zıt', '0']] }
   },
   dikKuvvetler: {
-    ortaokul: { title: 'Pisagor ÃœÃ§lÃ¼leri', cols: ['Fâ‚', 'Fâ‚‚', 'BileÅŸke R'],
+    ortaokul: { title: 'Pisagor Üçlüleri', cols: ['F₁', 'F₂', 'Bileşke R'],
       rows: [['3 N', '4 N', '5 N'], ['6 N', '8 N', '10 N'], ['5 N', '12 N', '13 N']] },
-    lise: { title: 'Dik BileÅŸke', cols: ['BÃ¼yÃ¼klÃ¼k', 'FormÃ¼l'],
-      rows: [['BileÅŸke', 'R = âˆš(Fâ‚Â²+Fâ‚‚Â²)'], ['YÃ¶n', 'tan Î¸ = Fâ‚‚/Fâ‚'], ['EÅŸit F', 'R = Fâˆš2']] },
-    tyt_ayt: { title: 'Pisagor ÃœÃ§lÃ¼leri', cols: ['ÃœÃ§lÃ¼', 'HipotenÃ¼s'],
+    lise: { title: 'Dik Bileşke', cols: ['Büyüklük', 'Formül'],
+      rows: [['Bileşke', 'R = √(F₁²+F₂²)'], ['Yön', 'tan θ = F₂/F₁'], ['Eşit F', 'R = F√2']] },
+    tyt_ayt: { title: 'Pisagor Üçlüleri', cols: ['Üçlü', 'Hipotenüs'],
       rows: [['3-4', '5'], ['5-12', '13'], ['8-15', '17'], ['7-24', '25'], ['20-21', '29']] }
   },
   aciliKuvvetler: {
-    ortaokul: { title: 'AÃ§Ä±nÄ±n Etkisi', cols: ['AÃ§Ä± Î±', 'BileÅŸke'],
-      rows: [['KÃ¼Ã§Ã¼k (0Â°)', 'BÃ¼yÃ¼k'], ['Orta (90Â°)', 'Orta'], ['BÃ¼yÃ¼k (180Â°)', 'KÃ¼Ã§Ã¼k']] },
-    lise: { title: 'EÅŸit Kuvvet (F=F)', cols: ['Î±', 'R = 2FÂ·cos(Î±/2)'],
-      rows: [['0Â°', '2F'], ['60Â°', 'Fâˆš3'], ['90Â°', 'Fâˆš2'], ['120Â°', 'F'], ['180Â°', '0']] },
-    tyt_ayt: { title: 'KosinÃ¼s Teoremi', cols: ['Durum', 'BileÅŸke R'],
-      rows: [['Genel', 'âˆš(Fâ‚Â²+Fâ‚‚Â²+2Fâ‚Fâ‚‚cos Î±)'], ['Î±=90Â°', 'âˆš(Fâ‚Â²+Fâ‚‚Â²)'], ['EÅŸit, Î±', '2FÂ·cos(Î±/2)']] }
+    ortaokul: { title: 'Açının Etkisi', cols: ['Açı α', 'Bileşke'],
+      rows: [['Küçük (0°)', 'Büyük'], ['Orta (90°)', 'Orta'], ['Büyük (180°)', 'Küçük']] },
+    lise: { title: 'Eşit Kuvvet (F=F)', cols: ['α', 'R = 2F·cos(α/2)'],
+      rows: [['0°', '2F'], ['60°', 'F√3'], ['90°', 'F√2'], ['120°', 'F'], ['180°', '0']] },
+    tyt_ayt: { title: 'Kosinüs Teoremi', cols: ['Durum', 'Bileşke R'],
+      rows: [['Genel', '√(F₁²+F₂²+2F₁F₂cos α)'], ['α=90°', '√(F₁²+F₂²)'], ['Eşit, α', '2F·cos(α/2)']] }
   },
   denge: {
-    ortaokul: { title: 'Denge Durumu', cols: ['KoÅŸul', 'SonuÃ§'],
-      rows: [['Î£F = 0', 'Dengede'], ['Î£F â‰  0', 'Hareketlenir'], ['EÅŸit zÄ±t kuvvet', 'Durur']] },
-    lise: { title: 'Denge KoÅŸullarÄ±', cols: ['KoÅŸul', 'AnlamÄ±'],
-      rows: [['Î£Fâ‚“ = 0', 'Yatay denge'], ['Î£F_y = 0', 'Dikey denge'], ['Dengeleyici', 'âˆ’BileÅŸke']] },
-    tyt_ayt: { title: 'Lami Teoremi', cols: ['Oran', 'EÅŸitlik'],
-      rows: [['Fâ‚/sin Î±', '= Fâ‚‚/sin Î²'], ['Fâ‚‚/sin Î²', '= Fâ‚ƒ/sin Î³'], ['AÃ§Ä±lar', 'Kuvvet karÅŸÄ±sÄ±']] }
+    ortaokul: { title: 'Denge Durumu', cols: ['Koşul', 'Sonuç'],
+      rows: [['ΣF = 0', 'Dengede'], ['ΣF ≠ 0', 'Hareketlenir'], ['Eşit zıt kuvvet', 'Durur']] },
+    lise: { title: 'Denge Koşulları', cols: ['Koşul', 'Anlamı'],
+      rows: [['ΣFₓ = 0', 'Yatay denge'], ['ΣF_y = 0', 'Dikey denge'], ['Dengeleyici', '−Bileşke']] },
+    tyt_ayt: { title: 'Lami Teoremi', cols: ['Oran', 'Eşitlik'],
+      rows: [['F₁/sin α', '= F₂/sin β'], ['F₂/sin β', '= F₃/sin γ'], ['Açılar', 'Kuvvet karşısı']] }
   },
   egikDuzlem: {
-    ortaokul: { title: 'EÄŸim ve Kuvvet', cols: ['EÄŸim Î¸', 'KaydÄ±ran', 'BastÄ±ran'],
-      rows: [['KÃ¼Ã§Ã¼k', 'KÃ¼Ã§Ã¼k', 'BÃ¼yÃ¼k'], ['45Â°', 'EÅŸit', 'EÅŸit'], ['BÃ¼yÃ¼k', 'BÃ¼yÃ¼k', 'KÃ¼Ã§Ã¼k']] },
-    lise: { title: 'AÄŸÄ±rlÄ±k BileÅŸenleri', cols: ['BileÅŸen', 'FormÃ¼l'],
-      rows: [['KaydÄ±ran', 'GÂ·sin Î¸'], ['BastÄ±ran (Normal)', 'GÂ·cos Î¸'], ['Ä°vme (sÃ¼rtÃ¼nmesiz)', 'gÂ·sin Î¸']] },
-    tyt_ayt: { title: 'EÄŸik DÃ¼zlem (Î¸)', cols: ['Î¸', 'sin Î¸', 'cos Î¸'],
-      rows: [['30Â°', '0,5', '0,87'], ['37Â°', '0,6', '0,8'], ['45Â°', '0,71', '0,71'], ['53Â°', '0,8', '0,6']] }
+    ortaokul: { title: 'Eğim ve Kuvvet', cols: ['Eğim θ', 'Kaydıran', 'Bastıran'],
+      rows: [['Küçük', 'Küçük', 'Büyük'], ['45°', 'Eşit', 'Eşit'], ['Büyük', 'Büyük', 'Küçük']] },
+    lise: { title: 'Ağırlık Bileşenleri', cols: ['Bileşen', 'Formül'],
+      rows: [['Kaydıran', 'G·sin θ'], ['Bastıran (Normal)', 'G·cos θ'], ['İvme (sürtünmesiz)', 'g·sin θ']] },
+    tyt_ayt: { title: 'Eğik Düzlem (θ)', cols: ['θ', 'sin θ', 'cos θ'],
+      rows: [['30°', '0,5', '0,87'], ['37°', '0,6', '0,8'], ['45°', '0,71', '0,71'], ['53°', '0,8', '0,6']] }
   },
   bagilHiz: {
-    ortaokul: { title: 'Tekne ve AkÄ±ntÄ±', cols: ['BÃ¼yÃ¼klÃ¼k', 'Etki'],
-      rows: [['Teknenin hÄ±zÄ±', 'KarÅŸÄ±ya gÃ¶tÃ¼rÃ¼r'], ['AkÄ±ntÄ± hÄ±zÄ±', 'Yana sÃ¼rÃ¼kler'], ['BileÅŸke', 'Ã‡apraz yol']] },
-    lise: { title: 'Dik AkÄ±ntÄ±', cols: ['BÃ¼yÃ¼klÃ¼k', 'FormÃ¼l'],
-      rows: [['BileÅŸke hÄ±z', 'âˆš(v_tÂ²+v_aÂ²)'], ['GeÃ§iÅŸ sÃ¼resi', 't = d/v_t'], ['SÃ¼rÃ¼klenme', 'x = v_aÂ·t']] },
-    tyt_ayt: { title: 'BaÄŸÄ±l HÄ±z', cols: ['AmaÃ§', 'YÃ¶ntem'],
-      rows: [['En kÄ±sa sÃ¼re', 'Pruva tam dik'], ['En kÄ±sa yol', 'AkÄ±ntÄ±ya karÅŸÄ± aÃ§Ä±'], ['AÃ§Ä±', 'sin Î± = v_a/v_t']] }
+    ortaokul: { title: 'Tekne ve Akıntı', cols: ['Büyüklük', 'Etki'],
+      rows: [['Teknenin hızı', 'Karşıya götürür'], ['Akıntı hızı', 'Yana sürükler'], ['Bileşke', 'Çapraz yol']] },
+    lise: { title: 'Dik Akıntı', cols: ['Büyüklük', 'Formül'],
+      rows: [['Bileşke hız', '√(v_t²+v_a²)'], ['Geçiş süresi', 't = d/v_t'], ['Sürüklenme', 'x = v_a·t']] },
+    tyt_ayt: { title: 'Bağıl Hız', cols: ['Amaç', 'Yöntem'],
+      rows: [['En kısa süre', 'Pruva tam dik'], ['En kısa yol', 'Akıntıya karşı açı'], ['Açı', 'sin α = v_a/v_t']] }
   }
 };
 
-// ============== TABLO VERÄ°LERÄ° ==============
+// ============== TABLO VERİLERİ ==============
 const TABLE_DATA = {
   vektorTanim: {
-    ortaokul: { title: 'VektÃ¶rel ve Skaler Nicelikler', cols: ['Nicelik', 'TÃ¼r', 'Birim'],
-      rows: [['Kuvvet', 'VektÃ¶rel', 'N'], ['HÄ±z', 'VektÃ¶rel', 'm/s'], ['KÃ¼tle', 'Skaler', 'kg'], ['Zaman', 'Skaler', 's'], ['Enerji', 'Skaler', 'J']] },
-    lise: { title: 'VektÃ¶r GÃ¶sterimi', cols: ['Kavram', 'GÃ¶sterim'],
-      rows: [['VektÃ¶r', 'Fâƒ— veya koyu F'], ['BÃ¼yÃ¼klÃ¼k', '|Fâƒ—| = F'], ['BileÅŸen', 'Fâ‚“, F_y'], ['Birim vektÃ¶r', 'Ã®, Äµ']] },
-    tyt_ayt: { title: 'Temel TanÄ±mlar', cols: ['Terim', 'AÃ§Ä±klama'],
-      rows: [['DoÄŸrultu', 'VektÃ¶rÃ¼n Ã¼zerinde bulunduÄŸu doÄŸru'], ['YÃ¶n', 'DoÄŸrultu Ã¼zerinde ileri/geri'], ['EÅŸit vektÃ¶r', 'ÃœÃ§ Ã¶zelliÄŸi de aynÄ±'], ['BileÅŸke', 'VektÃ¶rlerin toplamÄ±']] }
+    ortaokul: { title: 'Vektörel ve Skaler Nicelikler', cols: ['Nicelik', 'Tür', 'Birim'],
+      rows: [['Kuvvet', 'Vektörel', 'N'], ['Hız', 'Vektörel', 'm/s'], ['Kütle', 'Skaler', 'kg'], ['Zaman', 'Skaler', 's'], ['Enerji', 'Skaler', 'J']] },
+    lise: { title: 'Vektör Gösterimi', cols: ['Kavram', 'Gösterim'],
+      rows: [['Vektör', 'F⃗ veya koyu F'], ['Büyüklük', '|F⃗| = F'], ['Bileşen', 'Fₓ, F_y'], ['Birim vektör', 'î, ĵ']] },
+    tyt_ayt: { title: 'Temel Tanımlar', cols: ['Terim', 'Açıklama'],
+      rows: [['Doğrultu', 'Vektörün üzerinde bulunduğu doğru'], ['Yön', 'Doğrultu üzerinde ileri/geri'], ['Eşit vektör', 'Üç özelliği de aynı'], ['Bileşke', 'Vektörlerin toplamı']] }
   },
   vektorBilesenleri: {
-    lise: { title: 'BileÅŸen HesabÄ± (F=10 N)', cols: ['Î¸', 'Fâ‚“', 'F_y'],
-      rows: [['37Â°', '8 N', '6 N'], ['45Â°', '7,1 N', '7,1 N'], ['53Â°', '6 N', '8 N'], ['60Â°', '5 N', '8,7 N']] },
-    tyt_ayt: { title: 'BileÅŸen FormÃ¼lleri', cols: ['BÃ¼yÃ¼klÃ¼k', 'FormÃ¼l', 'Not'],
-      rows: [['Yatay', 'Fâ‚“ = FÂ·cos Î¸', 'x ekseni'], ['Dikey', 'F_y = FÂ·sin Î¸', 'y ekseni'], ['BÃ¼yÃ¼klÃ¼k', 'âˆš(Fâ‚“Â²+F_yÂ²)', 'Geri birleÅŸtirme'], ['YÃ¶n', 'arctan(F_y/Fâ‚“)', 'AÃ§Ä±']] }
+    lise: { title: 'Bileşen Hesabı (F=10 N)', cols: ['θ', 'Fₓ', 'F_y'],
+      rows: [['37°', '8 N', '6 N'], ['45°', '7,1 N', '7,1 N'], ['53°', '6 N', '8 N'], ['60°', '5 N', '8,7 N']] },
+    tyt_ayt: { title: 'Bileşen Formülleri', cols: ['Büyüklük', 'Formül', 'Not'],
+      rows: [['Yatay', 'Fₓ = F·cos θ', 'x ekseni'], ['Dikey', 'F_y = F·sin θ', 'y ekseni'], ['Büyüklük', '√(Fₓ²+F_y²)', 'Geri birleştirme'], ['Yön', 'arctan(F_y/Fₓ)', 'Açı']] }
   },
   ucUca: {
-    lise: { title: 'Toplama KurallarÄ±', cols: ['Ã–zellik', 'Ä°fade'],
-      rows: [['DeÄŸiÅŸme', 'A + B = B + A'], ['BirleÅŸme', '(A+B)+C = A+(B+C)'], ['KapalÄ± poligon', 'R = 0']] },
-    tyt_ayt: { title: 'BileÅŸen ToplamÄ±', cols: ['Eksen', 'Toplam'],
-      rows: [['Yatay', 'Râ‚“ = Î£Fâ‚“'], ['Dikey', 'R_y = Î£F_y'], ['BileÅŸke', 'R = âˆš(Râ‚“Â²+R_yÂ²)']] }
+    lise: { title: 'Toplama Kuralları', cols: ['Özellik', 'İfade'],
+      rows: [['Değişme', 'A + B = B + A'], ['Birleşme', '(A+B)+C = A+(B+C)'], ['Kapalı poligon', 'R = 0']] },
+    tyt_ayt: { title: 'Bileşen Toplamı', cols: ['Eksen', 'Toplam'],
+      rows: [['Yatay', 'Rₓ = ΣFₓ'], ['Dikey', 'R_y = ΣF_y'], ['Bileşke', 'R = √(Rₓ²+R_y²)']] }
   },
   paralelkenar: {
-    lise: { title: 'EÅŸit Kuvvetler (A=B=F)', cols: ['Î±', 'R', 'Oran'],
-      rows: [['0Â°', '2F', '2,00'], ['60Â°', 'Fâˆš3', '1,73'], ['90Â°', 'Fâˆš2', '1,41'], ['120Â°', 'F', '1,00'], ['180Â°', '0', '0,00']] },
-    tyt_ayt: { title: 'BileÅŸke SÄ±nÄ±rlarÄ±', cols: ['AÃ§Ä±', 'BileÅŸke'],
-      rows: [['Î± = 0Â°', 'R = A+B (max)'], ['Î± = 180Â°', 'R = |Aâˆ’B| (min)'], ['Genel', '|Aâˆ’B| â‰¤ R â‰¤ A+B']] }
+    lise: { title: 'Eşit Kuvvetler (A=B=F)', cols: ['α', 'R', 'Oran'],
+      rows: [['0°', '2F', '2,00'], ['60°', 'F√3', '1,73'], ['90°', 'F√2', '1,41'], ['120°', 'F', '1,00'], ['180°', '0', '0,00']] },
+    tyt_ayt: { title: 'Bileşke Sınırları', cols: ['Açı', 'Bileşke'],
+      rows: [['α = 0°', 'R = A+B (max)'], ['α = 180°', 'R = |A−B| (min)'], ['Genel', '|A−B| ≤ R ≤ A+B']] }
   },
   ayniZitYon: {
-    lise: { title: 'Kolineer Ã–rnekler', cols: ['Fâ‚', 'Fâ‚‚', 'YÃ¶n', 'R'],
-      rows: [['10 N', '6 N', 'AynÄ±', '16 N'], ['10 N', '6 N', 'ZÄ±t', '4 N'], ['7 N', '7 N', 'ZÄ±t', '0']] },
-    tyt_ayt: { title: 'Newton I', cols: ['Durum', 'Î£F', 'SonuÃ§'],
-      rows: [['Denge', '0', 'a = 0 (durur/sabit hÄ±z)'], ['Net kuvvet var', 'â‰  0', 'a = Î£F/m']] }
+    lise: { title: 'Kolineer Örnekler', cols: ['F₁', 'F₂', 'Yön', 'R'],
+      rows: [['10 N', '6 N', 'Aynı', '16 N'], ['10 N', '6 N', 'Zıt', '4 N'], ['7 N', '7 N', 'Zıt', '0']] },
+    tyt_ayt: { title: 'Newton I', cols: ['Durum', 'ΣF', 'Sonuç'],
+      rows: [['Denge', '0', 'a = 0 (durur/sabit hız)'], ['Net kuvvet var', '≠ 0', 'a = ΣF/m']] }
   },
   dikKuvvetler: {
-    lise: { title: 'Dik BileÅŸke Ã–rnekleri', cols: ['Fâ‚', 'Fâ‚‚', 'R'],
+    lise: { title: 'Dik Bileşke Örnekleri', cols: ['F₁', 'F₂', 'R'],
       rows: [['3 N', '4 N', '5 N'], ['6 N', '8 N', '10 N'], ['5 N', '12 N', '13 N'], ['9 N', '12 N', '15 N']] },
-    tyt_ayt: { title: 'Dik BileÅŸke', cols: ['BÃ¼yÃ¼klÃ¼k', 'FormÃ¼l', 'EÅŸit F'],
-      rows: [['BileÅŸke', 'âˆš(Fâ‚Â²+Fâ‚‚Â²)', 'Fâˆš2'], ['YÃ¶n', 'tan Î¸=Fâ‚‚/Fâ‚', '45Â°']] }
+    tyt_ayt: { title: 'Dik Bileşke', cols: ['Büyüklük', 'Formül', 'Eşit F'],
+      rows: [['Bileşke', '√(F₁²+F₂²)', 'F√2'], ['Yön', 'tan θ=F₂/F₁', '45°']] }
   },
   aciliKuvvetler: {
-    lise: { title: 'AÃ§Ä±-BileÅŸke (Fâ‚=Fâ‚‚=F)', cols: ['Î±', 'R'],
-      rows: [['0Â°', '2F'], ['60Â°', 'Fâˆš3'], ['90Â°', 'Fâˆš2'], ['120Â°', 'F'], ['180Â°', '0']] },
-    tyt_ayt: { title: 'KosinÃ¼s Teoremi', cols: ['Terim', 'Ä°fade'],
-      rows: [['BileÅŸke', 'R=âˆš(Fâ‚Â²+Fâ‚‚Â²+2Fâ‚Fâ‚‚cos Î±)'], ['YÃ¶n', 'tan Î²=Fâ‚‚sin Î±/(Fâ‚+Fâ‚‚cos Î±)'], ['EÅŸit kuvvet', 'R=2FÂ·cos(Î±/2)']] }
+    lise: { title: 'Açı-Bileşke (F₁=F₂=F)', cols: ['α', 'R'],
+      rows: [['0°', '2F'], ['60°', 'F√3'], ['90°', 'F√2'], ['120°', 'F'], ['180°', '0']] },
+    tyt_ayt: { title: 'Kosinüs Teoremi', cols: ['Terim', 'İfade'],
+      rows: [['Bileşke', 'R=√(F₁²+F₂²+2F₁F₂cos α)'], ['Yön', 'tan β=F₂sin α/(F₁+F₂cos α)'], ['Eşit kuvvet', 'R=2F·cos(α/2)']] }
   },
   denge: {
-    lise: { title: 'Denge KoÅŸullarÄ±', cols: ['KoÅŸul', 'AnlamÄ±'],
-      rows: [['Î£Fâ‚“ = 0', 'Yatayda denge'], ['Î£F_y = 0', 'Dikeyde denge'], ['Dengeleyici', 'âˆ’Râƒ— (zÄ±t)']] },
-    tyt_ayt: { title: 'Lami Teoremi', cols: ['Kuvvet', 'KarÅŸÄ± AÃ§Ä±', 'Oran'],
-      rows: [['Fâ‚', 'Î±', 'Fâ‚/sin Î±'], ['Fâ‚‚', 'Î²', 'Fâ‚‚/sin Î²'], ['Fâ‚ƒ', 'Î³', 'Fâ‚ƒ/sin Î³']] }
+    lise: { title: 'Denge Koşulları', cols: ['Koşul', 'Anlamı'],
+      rows: [['ΣFₓ = 0', 'Yatayda denge'], ['ΣF_y = 0', 'Dikeyde denge'], ['Dengeleyici', '−R⃗ (zıt)']] },
+    tyt_ayt: { title: 'Lami Teoremi', cols: ['Kuvvet', 'Karşı Açı', 'Oran'],
+      rows: [['F₁', 'α', 'F₁/sin α'], ['F₂', 'β', 'F₂/sin β'], ['F₃', 'γ', 'F₃/sin γ']] }
   },
   egikDuzlem: {
-    lise: { title: 'BileÅŸenler (G=100 N)', cols: ['Î¸', 'KaydÄ±ran', 'Normal'],
-      rows: [['30Â°', '50 N', '87 N'], ['37Â°', '60 N', '80 N'], ['45Â°', '71 N', '71 N'], ['53Â°', '80 N', '60 N']] },
-    tyt_ayt: { title: 'EÄŸik DÃ¼zlem FormÃ¼lleri', cols: ['BÃ¼yÃ¼klÃ¼k', 'FormÃ¼l'],
-      rows: [['KaydÄ±ran', 'mÂ·gÂ·sin Î¸'], ['Normal', 'mÂ·gÂ·cos Î¸'], ['SÃ¼rtÃ¼nme', 'Î¼Â·mÂ·gÂ·cos Î¸'], ['Ä°vme (sÃ¼rtÃ¼nmesiz)', 'gÂ·sin Î¸']] }
+    lise: { title: 'Bileşenler (G=100 N)', cols: ['θ', 'Kaydıran', 'Normal'],
+      rows: [['30°', '50 N', '87 N'], ['37°', '60 N', '80 N'], ['45°', '71 N', '71 N'], ['53°', '80 N', '60 N']] },
+    tyt_ayt: { title: 'Eğik Düzlem Formülleri', cols: ['Büyüklük', 'Formül'],
+      rows: [['Kaydıran', 'm·g·sin θ'], ['Normal', 'm·g·cos θ'], ['Sürtünme', 'μ·m·g·cos θ'], ['İvme (sürtünmesiz)', 'g·sin θ']] }
   },
   bagilHiz: {
-    lise: { title: 'Dik AkÄ±ntÄ± (d=60 m)', cols: ['v_tekne', 'v_akÄ±ntÄ±', 'SÃ¼re', 'SÃ¼rÃ¼klenme'],
+    lise: { title: 'Dik Akıntı (d=60 m)', cols: ['v_tekne', 'v_akıntı', 'Süre', 'Sürüklenme'],
       rows: [['6 m/s', '0', '10 s', '0'], ['6 m/s', '4 m/s', '10 s', '40 m'], ['6 m/s', '8 m/s', '10 s', '80 m']] },
-    tyt_ayt: { title: 'BaÄŸÄ±l HÄ±z Stratejileri', cols: ['AmaÃ§', 'Pruva YÃ¶nÃ¼', 'SonuÃ§'],
-      rows: [['En kÄ±sa sÃ¼re', 'Tam dik', 't=d/v_t, sÃ¼rÃ¼klenir'], ['En kÄ±sa yol', 'AkÄ±ntÄ±ya karÅŸÄ± aÃ§Ä±', 'sin Î±=v_a/v_t']] }
+    tyt_ayt: { title: 'Bağıl Hız Stratejileri', cols: ['Amaç', 'Pruva Yönü', 'Sonuç'],
+      rows: [['En kısa süre', 'Tam dik', 't=d/v_t, sürüklenir'], ['En kısa yol', 'Akıntıya karşı açı', 'sin α=v_a/v_t']] }
   }
 };
 
@@ -2865,16 +3186,16 @@ function makeSunBody(opts = {}) {
 
 
 // ============================================================
-// ====== VEKTÃ–R FÄ°ZÄ°ÄÄ° â€” 3D HELPER KÃœTÃœPHANESÄ° ==============
+// ====== VEKTÖR FİZİĞİ — 3D HELPER KÜTÜPHANESİ ==============
 // ============================================================
 const _AXIS_Y = 0;
 
 const VCOL = {
-  f1: 0x5fc8e0,   // mavi  (Fâ‚ / yatay / tekne)
-  f2: 0xc45d5d,   // kÄ±rmÄ±zÄ± (Fâ‚‚ / dikey / akÄ±ntÄ± / aÄŸÄ±rlÄ±k)
-  res: 0xf6b93b,  // sarÄ±  (bileÅŸke R)
-  comp: 0x9d7fe6, // mor   (bileÅŸen)
-  g: 0x2ecc40     // yeÅŸil (Ã¼Ã§Ã¼ncÃ¼ kuvvet / normal)
+  f1: 0x5fc8e0,   // mavi  (F₁ / yatay / tekne)
+  f2: 0xc45d5d,   // kırmızı (F₂ / dikey / akıntı / ağırlık)
+  res: 0xf6b93b,  // sarı  (bileşke R)
+  comp: 0x9d7fe6, // mor   (bileşen)
+  g: 0x2ecc40     // yeşil (üçüncü kuvvet / normal)
 };
 
 function _fmt(v, d) {
@@ -2978,7 +3299,7 @@ function makeAngleArc(center, r, a0, a1, colorHex) {
   return l;
 }
 
-// dik aÃ§Ä± iÅŸareti (saÄŸ aÃ§Ä± karesi) kÃ¶ÅŸe c, iki yÃ¶n u,v birim
+// dik açı işareti (sağ açı karesi) köşe c, iki yön u,v birim
 function makeRightAngle(c, u, v, s, colorHex) {
   s = s || 0.5;
   const p0 = c.clone().add(u.clone().multiplyScalar(s));
@@ -3013,59 +3334,93 @@ function _newRoot() {
 }
 
 // ============================================================
-// ====== SUBBUILDERS â€” 3D SAHNE KURUCULAR ===================
+// ====== SUBBUILDERS — 3D SAHNE KURUCULAR ===================
 // ============================================================
 
 SubBuilders.buildVektorTanim = function() {
   const root = _newRoot();
-  const O = new THREE.Vector3(0, 0, 0);
-  const tip = new THREE.Vector3(6, 4, 0);
+  const S = window._sceneState;
+  if (S.vt_F === undefined) S.vt_F = 7;
+  if (S.vt_ang === undefined) S.vt_ang = 34;
 
-  root.add(makeDot(O, 0xffffff, 0.16));
-  root.add(makeArrow3D(O, tip, VCOL.res, { width: 0.1 }));
+  // başlangıç noktası (uygulama noktası) — sabit
+  const O = new THREE.Vector3(-4, -3, 0);
+  const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
 
-  // bÃ¼yÃ¼klÃ¼k gÃ¶stergesi (kesikli uzunluk Ã§izgisi)
-  root.add(makeDashedSeg(O, tip, 0xffd166, { opacity: 0.0 }));
+  // başlangıç noktası belirteci
+  root.add(makeDot(O, 0xffffff, 0.18));
+  // yatay referans ekseni (doğrultu kıyası için ince çizgi)
+  root.add(makeDashedSeg(O.clone(), new THREE.Vector3(O.x + 9, O.y, 0), 0x5a6478, { opacity: 0.45 }));
 
-  // eÅŸ vektÃ¶r (Ã¶teleme): aynÄ± bÃ¼yÃ¼klÃ¼k + yÃ¶n, farklÄ± konum
-  const eO = new THREE.Vector3(-7, -2.5, 0);
-  const eTip = eO.clone().add(new THREE.Vector3(6, 4, 0));
-  root.add(makeArrow3D(eO, eTip, 0xffe39a, { width: 0.07 }));
+  function tipOf() {
+    const a = S.vt_ang * Math.PI / 180;
+    return new THREE.Vector3(O.x + S.vt_F * Math.cos(a), O.y + S.vt_F * Math.sin(a), 0);
+  }
 
-  // zÄ±t vektÃ¶r (âˆ’F): aynÄ± bÃ¼yÃ¼klÃ¼k, zÄ±t yÃ¶n
-  const zO = new THREE.Vector3(-1.2, 6.5, 0);
-  const zTip = zO.clone().add(new THREE.Vector3(-6, -4, 0));
-  root.add(makeArrow3D(zO, zTip, VCOL.f2, { width: 0.07 }));
+  function rebuild() {
+    _disposeGroup(dyn);
+    const a = S.vt_ang * Math.PI / 180;
+    const tip = tipOf();
+
+    // ana vektör oku (yeşil/bileşke rengi — tek ok üzerinde 4 öge)
+    dyn.add(makeArrow3D(O, tip, VCOL.res, { width: 0.11 }));
+
+    // DOĞRULTU: okun üzerinden geçen tam doğru (her iki yöne uzanan kesikli)
+    const dir = new THREE.Vector3(Math.cos(a), Math.sin(a), 0);
+    dyn.add(makeDashedSeg(
+      O.clone().sub(dir.clone().multiplyScalar(2.4)),
+      tip.clone().add(dir.clone().multiplyScalar(2.4)),
+      VCOL.f1, { opacity: 0.5, dash: 0.35, gap: 0.25 }));
+
+    // BÜYÜKLÜK: ok boyunca kalın paralel ölçü çizgisi
+    const perp = new THREE.Vector3(-Math.sin(a), Math.cos(a), 0).multiplyScalar(0.55);
+    dyn.add(makeDashedSeg(O.clone().add(perp), tip.clone().add(perp), 0xffd166, { opacity: 0.7, dash: 0.25, gap: 0.15 }));
+
+    // YÖN açısı yayı (yatay eksenle)
+    if (S.vt_ang > 1) dyn.add(makeAngleArc(O, 1.4, 0, a, '#ffd166'));
+  }
+  rebuild();
 
   addInfo3DLabels([
-    { text: { ilkokul: 'â¡ï¸ VektÃ¶r (ok)', ortaokul: 'â¡ï¸ VektÃ¶r Fâƒ—', lise: 'â¡ï¸ VektÃ¶r Fâƒ—', tyt_ayt: 'â¡ï¸ Fâƒ— = Fâ‚“ Ã® + F_y Äµ' },
-      position: [3.2, 3.0, 0], target: [3, 2, 0], color: '#f6b93b' },
-    { text: { ilkokul: 'ğŸ“ Uzunluk = bÃ¼yÃ¼klÃ¼k', ortaokul: 'ğŸ“ BÃ¼yÃ¼klÃ¼k |Fâƒ—|', lise: 'ğŸ“ BÃ¼yÃ¼klÃ¼k |Fâƒ—| = F', tyt_ayt: 'ğŸ“ |Fâƒ—| = âˆš(Fâ‚“Â²+F_yÂ²)' },
-      position: [6.6, 4.6, 0], target: [6, 4, 0], color: '#ffd166' },
-    { text: { ortaokul: 'ğŸŸ° EÅŸ vektÃ¶r (Ã¶teleme)', lise: 'ğŸŸ° EÅŸ vektÃ¶r: aynÄ± bÃ¼yÃ¼klÃ¼k+yÃ¶n', tyt_ayt: 'ğŸŸ° EÅŸ vektÃ¶r (Ã¶telenebilir)' },
-      position: [-4, -3.4, 0], target: [-4, -0.5, 0], color: '#ffe39a', minLevel: 2 },
-    { text: { ortaokul: 'â– ZÄ±t vektÃ¶r', lise: 'â– ZÄ±t vektÃ¶r (âˆ’Fâƒ—)', tyt_ayt: 'â– âˆ’Fâƒ—: zÄ±t yÃ¶n (180Â°)' },
-      position: [-5.4, 3.2, 0], target: [-4.2, 4.4, 0], color: '#c45d5d', minLevel: 2 }
+    { text: { ilkokul: '⚫ Başlangıç (kuyruk)', ortaokul: '⚫ Başlangıç noktası', lise: '⚫ Uygulama noktası', tyt_ayt: '⚫ Uygulama noktası (kuyruk)' },
+      position: [-6.2, -3.6, 0], target: [-4, -3, 0], color: '#ffffff' },
+    { text: { ilkokul: '📏 Uzunluk = büyüklük', ortaokul: '📏 Büyüklük |F⃗|', lise: '📏 Büyüklük |F⃗| = F', tyt_ayt: '📏 Büyüklük (modül) |F⃗|' },
+      position: [-1.5, 1.8, 0], target: [-2.0, -0.7, 0], color: '#ffd166' },
+    { text: { ortaokul: '➖ Doğrultu (okun doğrusu)', lise: '➖ Doğrultu: okun üzerindeki doğru', tyt_ayt: '➖ Doğrultu (taşıyıcı doğru)' },
+      position: [3.2, -1.4, 0], target: [1.4, -1.6, 0], color: '#5fc8e0', minLevel: 2 },
+    { text: { ilkokul: '➡️ Yön (okun ucu)', ortaokul: '➡️ Yön (ok ucu)', lise: '➡️ Yön (θ ile belirli)', tyt_ayt: '➡️ Yön: θ açısı' },
+      position: [2.6, 2.6, 0], target: [-2.2, -2.0, 0], color: '#f6b93b' }
   ]);
 
   setSceneSliders([
-    { type: 'section', label: 'VektÃ¶r Bilgisi' },
-    { type: 'display', label: 'BÃ¼yÃ¼klÃ¼k', getValue: () => 'Okun uzunluÄŸu' },
-    { type: 'display', label: 'DoÄŸrultu', getValue: () => 'Okun Ã¼zerindeki doÄŸru' },
-    { type: 'display', label: 'YÃ¶n', getValue: () => 'Okun gÃ¶sterdiÄŸi taraf' },
-    { type: 'formula', text: 'VektÃ¶r = bÃ¼yÃ¼klÃ¼k + yÃ¶n' }
-  ], { title: 'VektÃ¶r ve Skaler' });
+    { type: 'section', label: 'Vektörü Ayarla' },
+    { type: 'slider', label: '📏 Büyüklük |F⃗|', min: 2, max: 9, step: 0.5, unit: ' N',
+      getValue: () => S.vt_F, setValue: (v) => { S.vt_F = v; rebuild(); }, format: (v) => _fmt(v, 1),
+      sub: 'Okun uzunluğu = büyüklük' },
+    { type: 'slider', label: '🧭 Yön (açı θ)', min: 0, max: 180, step: 1, unit: '°',
+      getValue: () => S.vt_ang, setValue: (v) => { S.vt_ang = v; rebuild(); }, format: (v) => v.toFixed(0),
+      sub: 'Yatay eksenle yapılan açı' },
+    { type: 'section', label: 'Vektörün 4 Ögesi' },
+    { type: 'display', label: 'Başlangıç', getValue: () => 'Okun kuyruğu (sabit)' },
+    { type: 'display', label: 'Doğrultu', getValue: () => 'Ok ekseni · ' + S.vt_ang.toFixed(0) + '° doğru' },
+    { type: 'display', label: 'Yön', getValue: () => (S.vt_ang <= 90 ? 'Sağ-yukarı (' : 'Sol-yukarı (') + S.vt_ang.toFixed(0) + '°)' },
+    { type: 'display', label: 'Büyüklük', highlight: true, getValue: () => _fmt(S.vt_F, 1) + ' N' },
+    { type: 'section', label: 'Skaler ↔ Vektörel' },
+    { type: 'display', label: 'Skaler örnek', getValue: () => 'Kütle, sıcaklık (yön YOK)' },
+    { type: 'display', label: 'Vektörel örnek', getValue: () => 'Kuvvet, hız (yön VAR)' },
+    { type: 'formula', text: 'Vektör = büyüklük + doğrultu + yön' }
+  ], { title: 'Vektör ve Skaler' });
 };
 
 SubBuilders.buildVektorBilesenleri = function() {
   const root = _newRoot();
   const S = window._sceneState;
-  S.vb_F = 8;
-  S.vb_ang = 37;
+  if (S.vb_F === undefined) S.vb_F = 8;
+  if (S.vb_ang === undefined) S.vb_ang = 37;
+
   const O = new THREE.Vector3(-4, -3, 0);
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
-
-  root.add(makeDot(O, 0xffffff, 0.15));
+  root.add(makeDot(O, 0xffffff, 0.16));
 
   function rebuild() {
     _disposeGroup(dyn);
@@ -3073,196 +3428,281 @@ SubBuilders.buildVektorBilesenleri = function() {
     const F = S.vb_F;
     const fx = F * Math.cos(a);
     const fy = F * Math.sin(a);
-    const corner = new THREE.Vector3(O.x + fx, O.y, 0);
-    const tip = new THREE.Vector3(O.x + fx, O.y + fy, 0);
+    const corner = new THREE.Vector3(O.x + fx, O.y, 0);     // yatay bileşen ucu
+    const upLeft = new THREE.Vector3(O.x, O.y + fy, 0);     // dikey bileşen ucu (eksende)
+    const tip = new THREE.Vector3(O.x + fx, O.y + fy, 0);   // F vektörünün ucu
 
-    // bileÅŸke vektÃ¶r (sarÄ±)
-    dyn.add(makeArrow3D(O, tip, VCOL.res, { width: 0.085 }));
-    // yatay bileÅŸen Fx (mavi)
-    if (fx > 0.2) dyn.add(makeArrow3D(O, corner, VCOL.f1, { width: 0.07 }));
-    // dikey bileÅŸen Fy (kÄ±rmÄ±zÄ±)
-    if (fy > 0.2) dyn.add(makeArrow3D(corner, tip, VCOL.f2, { width: 0.07 }));
-    // kesikli kÄ±lavuzlar
-    dyn.add(makeDashedSeg(tip, corner, VCOL.f1));
-    dyn.add(makeDashedSeg(tip, new THREE.Vector3(O.x, tip.y, 0), VCOL.f2));
-    // aÃ§Ä± yayÄ± + dik aÃ§Ä±
-    dyn.add(makeAngleArc(O, 1.3, 0, a, '#ffd166'));
+    // ana F vektörü (sarı/bileşke rengi)
+    dyn.add(makeArrow3D(O, tip, VCOL.res, { width: 0.1 }));
+    // yatay bileşen Fx (mavi)
+    if (fx > 0.2) dyn.add(makeArrow3D(O, corner, VCOL.f1, { width: 0.075 }));
+    // dikey bileşen Fy (kırmızı) — eksen üzerinde (mor kılavuzdan ayrı, net izdüşüm)
+    if (fy > 0.2) dyn.add(makeArrow3D(O, upLeft, VCOL.f2, { width: 0.075 }));
+
+    // kesikli izdüşüm çizgileri (tip → bileşen uçları)
+    dyn.add(makeDashedSeg(tip, corner, VCOL.f2, { opacity: 0.7 }));
+    dyn.add(makeDashedSeg(tip, upLeft, VCOL.f1, { opacity: 0.7 }));
+
+    // açı yayı + dik açı işareti (Fx ile Fy dik)
+    if (S.vb_ang > 1) dyn.add(makeAngleArc(O, 1.3, 0, a, '#ffd166'));
     dyn.add(makeRightAngle(corner, new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 1, 0), 0.45, '#9d7fe6'));
   }
   rebuild();
 
   addInfo3DLabels([
-    { text: { ilkokul: 'â¡ï¸ EÄŸik ok', ortaokul: 'â¡ï¸ VektÃ¶r F', lise: 'â¡ï¸ VektÃ¶r F', tyt_ayt: 'â¡ï¸ F (bÃ¼yÃ¼klÃ¼k)' },
-      position: [0, 2.5, 0], target: [-1.5, 0, 0], color: '#f6b93b' },
-    { text: { ilkokul: 'â¡ï¸ Yatay parÃ§a', ortaokul: 'â¡ï¸ Yatay Fâ‚“', lise: 'â¡ï¸ Fâ‚“ = FÂ·cos Î¸', tyt_ayt: 'â¡ï¸ Fâ‚“ = FÂ·cos Î¸' },
-      position: [-0.5, -3.9, 0], target: [-1, -3, 0], color: '#5fc8e0' },
-    { text: { ilkokul: 'â¬†ï¸ Dikey parÃ§a', ortaokul: 'â¬†ï¸ Dikey F_y', lise: 'â¬†ï¸ F_y = FÂ·sin Î¸', tyt_ayt: 'â¬†ï¸ F_y = FÂ·sin Î¸' },
-      position: [3.4, 0.5, 0], target: [2.4, -1, 0], color: '#c45d5d' },
-    { text: { ortaokul: 'ğŸ“ Î¸ aÃ§Ä±sÄ±', lise: 'ğŸ“ Î¸ (yatay ile aÃ§Ä±)', tyt_ayt: 'ğŸ“ Î¸ = arctan(F_y/Fâ‚“)' },
-      position: [-2.2, -1.6, 0], target: [-3, -2.6, 0], color: '#ffd166', minLevel: 2 }
+    { text: { ilkokul: '➡️ Eğik ok', ortaokul: '➡️ Vektör F', lise: '➡️ Vektör F⃗', tyt_ayt: '➡️ F⃗ = Fₓ î + F_y ĵ' },
+      position: [1.0, 2.6, 0], target: [-1.5, -0.6, 0], color: '#f6b93b' },
+    { text: { ilkokul: '➡️ Yatay parça', ortaokul: '➡️ Yatay Fₓ', lise: '➡️ Fₓ = F·cos θ', tyt_ayt: '➡️ Fₓ = F·cos θ' },
+      position: [-0.5, -4.0, 0], target: [-1.4, -3.0, 0], color: '#5fc8e0' },
+    { text: { ilkokul: '⬆️ Dikey parça', ortaokul: '⬆️ Dikey F_y', lise: '⬆️ F_y = F·sin θ', tyt_ayt: '⬆️ F_y = F·sin θ' },
+      position: [-6.3, 0.5, 0], target: [-4, -1.0, 0], color: '#c45d5d' },
+    { text: { ortaokul: '📐 θ açısı', lise: '📐 θ (yatay ile açı)', tyt_ayt: '📐 θ = arctan(F_y/Fₓ)' },
+      position: [-1.6, -1.5, 0], target: [-2.6, -2.6, 0], color: '#ffd166', minLevel: 2 }
   ]);
 
   setSceneSliders([
-    { type: 'section', label: 'VektÃ¶rÃ¼ Ayarla' },
-    { type: 'slider', label: 'ğŸ“ BÃ¼yÃ¼klÃ¼k F', min: 3, max: 9, step: 0.5, unit: ' N',
+    { type: 'section', label: 'Vektörü Ayarla' },
+    { type: 'slider', label: '📏 Büyüklük F', min: 3, max: 9, step: 0.5, unit: ' N',
       getValue: () => S.vb_F, setValue: (v) => { S.vb_F = v; rebuild(); }, format: (v) => _fmt(v, 1) },
-    { type: 'slider', label: 'ğŸ“ AÃ§Ä± Î¸', min: 0, max: 90, step: 1, unit: 'Â°',
+    { type: 'slider', label: '📐 Açı θ', min: 0, max: 90, step: 1, unit: '°',
       getValue: () => S.vb_ang, setValue: (v) => { S.vb_ang = v; rebuild(); }, format: (v) => v.toFixed(0),
-      sub: 'Yatay eksenle yapÄ±lan aÃ§Ä±' },
-    { type: 'section', label: 'BileÅŸenler' },
-    { type: 'display', label: 'Yatay Fâ‚“', getValue: () => _fmt(S.vb_F * Math.cos(S.vb_ang * Math.PI / 180), 2) + ' N' },
-    { type: 'display', label: 'Dikey F_y', getValue: () => _fmt(S.vb_F * Math.sin(S.vb_ang * Math.PI / 180), 2) + ' N' },
-    { type: 'display', label: 'Kontrol âˆš(Fâ‚“Â²+F_yÂ²)', highlight: true, getValue: () => _fmt(S.vb_F, 2) + ' N' },
+      sub: 'Yatay eksenle yapılan açı' },
+    { type: 'section', label: 'Bileşenler (canlı)' },
+    { type: 'display', label: '🔵 Yatay Fₓ', getValue: () => _fmt(S.vb_F * Math.cos(S.vb_ang * Math.PI / 180), 2) + ' N' },
+    { type: 'display', label: '🔴 Dikey F_y', getValue: () => _fmt(S.vb_F * Math.sin(S.vb_ang * Math.PI / 180), 2) + ' N' },
+    { type: 'display', label: 'Kontrol √(Fₓ²+F_y²)', highlight: true, getValue: () => _fmt(S.vb_F, 2) + ' N' },
     { type: 'formula', getValue: () => {
         const a = S.vb_ang * Math.PI / 180;
-        return 'Fâ‚“=' + _fmt(S.vb_F * Math.cos(a), 1) + ' &nbsp; F_y=' + _fmt(S.vb_F * Math.sin(a), 1);
-      }, text: 'Fâ‚“ = FÂ·cos Î¸, F_y = FÂ·sin Î¸' }
-  ], { title: 'VektÃ¶rÃ¼n BileÅŸenleri' });
+        return 'Fₓ = ' + _fmt(S.vb_F * Math.cos(a), 1) + ' N &nbsp;·&nbsp; F_y = ' + _fmt(S.vb_F * Math.sin(a), 1) + ' N';
+      }, text: 'Fₓ = F·cos θ, &nbsp; F_y = F·sin θ' }
+  ], { title: 'Vektörün Bileşenleri' });
 };
 
 SubBuilders.buildUcUca = function() {
   const root = _newRoot();
-  const O = new THREE.Vector3(-5, -3, 0);
-  const A = new THREE.Vector3(5, 1, 0);   // 1. vektÃ¶r
-  const B = new THREE.Vector3(1, 4, 0);   // 2. vektÃ¶r
-  const p1 = O.clone().add(A);
-  const p2 = p1.clone().add(B);
+  const S = window._sceneState;
+  // step: 0 = ayrık (B kendi yerinde), 1 = B taşınmış (A'nın ucuna), bileşke görünür
+  if (S.uu_step === undefined) S.uu_step = 0;
 
-  root.add(makeDot(O, 0xffffff, 0.15));
-  root.add(makeArrow3D(O, p1, VCOL.f1, { width: 0.08 }));    // A mavi
-  root.add(makeArrow3D(p1, p2, VCOL.f2, { width: 0.08 }));   // B kÄ±rmÄ±zÄ± (uÃ§ uca)
-  root.add(makeArrow3D(O, p2, VCOL.res, { width: 0.1 }));    // R bileÅŸke sarÄ±
+  const O = new THREE.Vector3(-5, -3, 0);
+  const A = new THREE.Vector3(5, 1, 0);       // 1. vektör
+  const B = new THREE.Vector3(1.5, 4, 0);     // 2. vektör
+  const Bstart = new THREE.Vector3(-5, 1.5, 0); // B'nin başlangıç (ayrık) konumu
+  const p1 = O.clone().add(A);                // A'nın ucu
+  const p2 = p1.clone().add(B);               // bileşke ucu
+
+  root.add(makeDot(O, 0xffffff, 0.16));
+  root.add(makeArrow3D(O, p1, VCOL.f1, { width: 0.085 }));   // A — mavi (sabit)
+
+  const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+
+  // animasyon ilerlemesi: 0..1 (B'nin kuyruğunun Bstart→p1 yolculuğu)
+  function lerpV(a, b, t) { return a.clone().lerp(b, t); }
+
+  function drawAt(prog) {
+    _disposeGroup(dyn);
+    const bTail = lerpV(Bstart, p1, prog);
+    const bTip = bTail.clone().add(B);
+    // taşınan B oku (kırmızı)
+    dyn.add(makeArrow3D(bTail, bTip, VCOL.f2, { width: 0.085 }));
+    // taşıma yolu (kesikli hayalet iz)
+    if (prog > 0.02 && prog < 0.98) dyn.add(makeDashedSeg(Bstart, p1, 0x5a6478, { opacity: 0.4 }));
+    // bileşke R (baştan-sona) — B uca oturduğunda belirir
+    if (prog > 0.985) dyn.add(makeArrow3D(O, p2, VCOL.res, { width: 0.11 }));
+  }
+  drawAt(S.uu_step ? 1 : 0);
+
+  // Oynat: B kuyruğu yumuşakça A'nın ucuna kayar, sonra bileşke çizilir
+  window._customAnim = function(t, dt) {
+    const a = S._uuAnim || (S._uuAnim = { p: (S.uu_step ? 1 : 0) });
+    const target = S.uu_step ? 1 : 0;
+    const speed = 0.9; // /sn
+    if (Math.abs(a.p - target) > 0.001) {
+      a.p += Math.sign(target - a.p) * Math.min(speed * dt, Math.abs(target - a.p));
+      drawAt(a.p);
+    }
+  };
 
   addInfo3DLabels([
-    { text: { ilkokul: 'â‘ . ok', ortaokul: 'â¡ï¸ 1. vektÃ¶r A', lise: 'â¡ï¸ Aâƒ—', tyt_ayt: 'â¡ï¸ Aâƒ—' },
-      position: [-0.5, -3.6, 0], target: [0, -2.5, 0], color: '#5fc8e0' },
-    { text: { ilkokul: 'â‘¡. ok (ucundan)', ortaokul: 'â¡ï¸ 2. vektÃ¶r B', lise: 'â¡ï¸ Bâƒ— (A\'nÄ±n ucundan)', tyt_ayt: 'â¡ï¸ Bâƒ—' },
-      position: [1.5, 0.5, 0], target: [0.5, -0.5, 0], color: '#c45d5d' },
-    { text: { ilkokul: 'ğŸ Yeni ok = sonuÃ§', ortaokul: 'ğŸ BileÅŸke (baÅŸtan sona)', lise: 'ğŸ BileÅŸke Râƒ— = Aâƒ—+Bâƒ—', tyt_ayt: 'ğŸ Râƒ— = Aâƒ— + Bâƒ—' },
-      position: [-3, 1.5, 0], target: [-1, -0.8, 0], color: '#f6b93b' }
+    { text: { ilkokul: '① . ok', ortaokul: '➡️ 1. vektör A', lise: '➡️ A⃗', tyt_ayt: '➡️ A⃗' },
+      position: [-1.0, -3.7, 0], target: [-2.5, -2.5, 0], color: '#5fc8e0' },
+    { text: { ilkokul: '② . ok (ucundan)', ortaokul: '➡️ 2. vektör B', lise: '➡️ B⃗ (A\'nın ucundan)', tyt_ayt: '➡️ B⃗' },
+      position: [2.4, 0.5, 0], target: [1.4, -0.6, 0], color: '#c45d5d' },
+    { text: { ilkokul: '🏁 Yeni ok = sonuç', ortaokul: '🏁 Bileşke (baştan sona)', lise: '🏁 Bileşke R⃗ = A⃗ + B⃗', tyt_ayt: '🏁 R⃗ = A⃗ + B⃗' },
+      position: [-3.5, 1.8, 0], target: [-1.5, -0.9, 0], color: '#f6b93b' }
   ]);
 
+  const Rmag = Math.sqrt(p2.clone().sub(O).lengthSq());
   setSceneSliders([
-    { type: 'section', label: 'UÃ§ Uca Ekleme' },
-    { type: 'display', label: 'YÃ¶ntem', getValue: () => 'BaÅŸtan son uca' },
-    { type: 'display', label: 'A + B', getValue: () => 'B + A (eÅŸit)' },
-    { type: 'formula', text: 'Râƒ— = Aâƒ— + Bâƒ—' }
-  ], { title: 'UÃ§ Uca Ekleme' });
+    { type: 'section', label: 'Uç Uca Ekleme' },
+    { type: 'presets', activeIdx: S.uu_step ? 1 : 0, options: [
+        { label: 'Ayrık (başla)', action: () => { S.uu_step = 0; if (S._uuAnim) S._uuAnim.p = 0; drawAt(0); } },
+        { label: '▶ B\'yi uca taşı', action: () => {
+            S.uu_step = 1;
+            // animasyon açıksa _customAnim yumuşatır; kapalıysa anında oturt
+            if (window._isPlayingActive) { if (S._uuAnim) S._uuAnim.p = Math.min(S._uuAnim.p, 0.001); }
+            else { if (S._uuAnim) S._uuAnim.p = 1; drawAt(1); }
+          } }
+      ] },
+    { type: 'display', label: 'Yöntem', getValue: () => 'B⃗, A⃗\'nın ucuna ötelenir' },
+    { type: 'display', label: 'Bileşke R', highlight: true, getValue: () => _fmt(Rmag, 2) + ' N' },
+    { type: 'display', label: 'Değişme özelliği', getValue: () => 'A⃗+B⃗ = B⃗+A⃗' },
+    { type: 'formula', getValue: () => 'R = √((Aₓ+Bₓ)² + (A_y+B_y)²) = <b>' + _fmt(Rmag, 2) + '</b> N',
+      text: 'R⃗ = A⃗ + B⃗ (baştan sona)' }
+  ], { title: 'Uç Uca Ekleme' });
 };
 
 SubBuilders.buildParalelkenar = function() {
   const root = _newRoot();
   const S = window._sceneState;
-  S.pk_alpha = 60;
-  const A = 6;   // 1. vektÃ¶r bÃ¼yÃ¼klÃ¼ÄŸÃ¼ (yatay)
-  const B = 5;   // 2. vektÃ¶r bÃ¼yÃ¼klÃ¼ÄŸÃ¼
+  if (S.pk_alpha === undefined) S.pk_alpha = 60;
+  const F1 = 6;   // 1. vektör büyüklüğü (yatay)
+  const F2 = 5;   // 2. vektör büyüklüğü
   const O = new THREE.Vector3(-3, -2.5, 0);
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
-  root.add(makeDot(O, 0xffffff, 0.15));
+  root.add(makeDot(O, 0xffffff, 0.16));
+
+  function Rof() {
+    const a = S.pk_alpha * Math.PI / 180;
+    return Math.sqrt(F1 * F1 + F2 * F2 + 2 * F1 * F2 * Math.cos(a));
+  }
 
   function rebuild() {
     _disposeGroup(dyn);
     const a = S.pk_alpha * Math.PI / 180;
-    const va = new THREE.Vector3(A, 0, 0);
-    const vb = new THREE.Vector3(B * Math.cos(a), B * Math.sin(a), 0);
+    const va = new THREE.Vector3(F1, 0, 0);
+    const vb = new THREE.Vector3(F2 * Math.cos(a), F2 * Math.sin(a), 0);
     const pa = O.clone().add(va);
     const pb = O.clone().add(vb);
     const pr = O.clone().add(va).add(vb);
 
-    // paralelkenar kenarlarÄ± (kesikli)
-    dyn.add(makeDashedSeg(pa, pr, VCOL.f2));
-    dyn.add(makeDashedSeg(pb, pr, VCOL.f1));
-    // vektÃ¶rler
-    dyn.add(makeArrow3D(O, pa, VCOL.f1, { width: 0.08 }));   // A
-    dyn.add(makeArrow3D(O, pb, VCOL.f2, { width: 0.08 }));   // B
-    dyn.add(makeArrow3D(O, pr, VCOL.res, { width: 0.1 }));   // R kÃ¶ÅŸegen
-    dyn.add(makeAngleArc(O, 1.2, 0, a, '#ffd166'));
+    // paralelkenar tamamlama kenarları (kesikli)
+    dyn.add(makeDashedSeg(pa, pr, VCOL.f2, { opacity: 0.7 }));  // F1 ucundan, F2'ye paralel
+    dyn.add(makeDashedSeg(pb, pr, VCOL.f1, { opacity: 0.7 }));  // F2 ucundan, F1'e paralel
+    // iki vektör (aynı başlangıçtan)
+    dyn.add(makeArrow3D(O, pa, VCOL.f1, { width: 0.085 }));     // F1 — mavi
+    dyn.add(makeArrow3D(O, pb, VCOL.f2, { width: 0.085 }));     // F2 — kırmızı
+    // köşegen bileşke R (yeşil/sarı)
+    dyn.add(makeArrow3D(O, pr, VCOL.res, { width: 0.11 }));     // R köşegen
+    // aradaki açı yayı
+    if (S.pk_alpha > 1 && S.pk_alpha < 179) dyn.add(makeAngleArc(O, 1.25, 0, a, '#ffd166'));
   }
   rebuild();
 
   addInfo3DLabels([
-    { text: { ilkokul: 'â¡ï¸ 1. ok', ortaokul: 'â¡ï¸ A', lise: 'â¡ï¸ Aâƒ—', tyt_ayt: 'â¡ï¸ Aâƒ—' },
-      position: [0.5, -3.1, 0], target: [0, -2.5, 0], color: '#5fc8e0' },
-    { text: { ilkokul: 'â¡ï¸ 2. ok', ortaokul: 'â¡ï¸ B', lise: 'â¡ï¸ Bâƒ—', tyt_ayt: 'â¡ï¸ Bâƒ—' },
-      position: [-2.5, 1.5, 0], target: [-1.5, 0, 0], color: '#c45d5d' },
-    { text: { ilkokul: 'â†—ï¸ KÃ¶ÅŸegen = sonuÃ§', ortaokul: 'â†—ï¸ BileÅŸke (kÃ¶ÅŸegen)', lise: 'â†—ï¸ BileÅŸke Râƒ—', tyt_ayt: 'â†—ï¸ R=âˆš(AÂ²+BÂ²+2ABÂ·cos Î±)' },
-      position: [4, 2.5, 0], target: [2, 0.5, 0], color: '#f6b93b' },
-    { text: { ortaokul: 'ğŸ“ Î± aÃ§Ä±sÄ±', lise: 'ğŸ“ Î± (aradaki aÃ§Ä±)', tyt_ayt: 'ğŸ“ Î±' },
-      position: [-1.5, -1.5, 0], target: [-2.2, -2.2, 0], color: '#ffd166', minLevel: 2 }
+    { text: { ilkokul: '➡️ 1. ok', ortaokul: '➡️ F₁', lise: '➡️ F₁⃗', tyt_ayt: '➡️ F₁⃗' },
+      position: [0.8, -3.2, 0], target: [0, -2.5, 0], color: '#5fc8e0' },
+    { text: { ilkokul: '➡️ 2. ok', ortaokul: '➡️ F₂', lise: '➡️ F₂⃗', tyt_ayt: '➡️ F₂⃗' },
+      position: [-2.8, 1.6, 0], target: [-1.8, 0.1, 0], color: '#c45d5d' },
+    { text: { ilkokul: '↗️ Köşegen = sonuç', ortaokul: '↗️ Bileşke (köşegen)', lise: '↗️ Bileşke R⃗ (köşegen)', tyt_ayt: '↗️ R = √(F₁²+F₂²+2F₁F₂cos α)' },
+      position: [4.0, 2.6, 0], target: [2.0, 0.6, 0], color: '#f6b93b' },
+    { text: { ortaokul: '📐 α açısı', lise: '📐 α (aradaki açı)', tyt_ayt: '📐 α (F₁ ile F₂ arası)' },
+      position: [-1.4, -1.4, 0], target: [-2.2, -2.1, 0], color: '#ffd166', minLevel: 2 }
   ]);
 
   setSceneSliders([
-    { type: 'section', label: 'Aradaki AÃ§Ä±' },
-    { type: 'slider', label: 'ğŸ“ AÃ§Ä± Î±', min: 0, max: 180, step: 1, unit: 'Â°',
+    { type: 'section', label: 'Aradaki Açı (F₁=6, F₂=5)' },
+    { type: 'slider', label: '📐 Açı α', min: 0, max: 180, step: 1, unit: '°',
       getValue: () => S.pk_alpha, setValue: (v) => { S.pk_alpha = v; rebuild(); }, format: (v) => v.toFixed(0),
-      sub: '0Â°=aynÄ± yÃ¶n, 180Â°=zÄ±t yÃ¶n' },
-    { type: 'section', label: 'SonuÃ§ (A=6, B=5)' },
-    { type: 'display', label: 'BileÅŸke R', highlight: true, getValue: () => {
-        const a = S.pk_alpha * Math.PI / 180;
-        return _fmt(Math.sqrt(36 + 25 + 60 * Math.cos(a)), 2);
-      } },
+      sub: '0°=aynı yön, 90°=dik, 180°=zıt' },
+    { type: 'presets', activeIdx: 1, options: [
+        { label: 'α=0° (aynı)', action: () => { S.pk_alpha = 0; rebuild(); } },
+        { label: 'α=90° (dik)', action: () => { S.pk_alpha = 90; rebuild(); } },
+        { label: 'α=180° (zıt)', action: () => { S.pk_alpha = 180; rebuild(); } }
+      ] },
+    { type: 'section', label: 'Sonuç (canlı)' },
+    { type: 'display', label: 'Bileşke R', highlight: true, getValue: () => _fmt(Rof(), 2) + ' N' },
     { type: 'formula', getValue: () => {
-        const a = S.pk_alpha * Math.PI / 180;
-        return 'R = âˆš(36+25+60Â·cos ' + S.pk_alpha + 'Â°) = <b>' + _fmt(Math.sqrt(36 + 25 + 60 * Math.cos(a)), 2) + '</b>';
-      }, text: 'R = âˆš(AÂ²+BÂ²+2ABÂ·cos Î±)' }
-  ], { title: 'Paralelkenar YÃ¶ntemi' });
+        return 'R = √(36+25+60·cos ' + S.pk_alpha.toFixed(0) + '°) = <b>' + _fmt(Rof(), 2) + '</b> N';
+      }, text: 'R = √(F₁²+F₂²+2·F₁·F₂·cos α)' }
+  ], { title: 'Paralelkenar Yöntemi' });
 };
 
 SubBuilders.buildAyniZitYon = function() {
   const root = _newRoot();
   const S = window._sceneState;
-  S.az_f1 = 8;
-  S.az_f2 = 5;
-  S.az_dir = 1; // 1 = aynÄ± yÃ¶n, -1 = zÄ±t yÃ¶n
+  if (S.az_f1 === undefined) S.az_f1 = 8;
+  if (S.az_f2 === undefined) S.az_f2 = 5;
+  if (S.az_dir === undefined) S.az_dir = -1; // 1 = aynı yön, -1 = zıt yön (halat çekme)
+
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+  const sc = 0.55; // N → birim uzunluk
+
+  // bileşke: aynı yön → f1+f2 ; zıt yön → f1 - f2 (büyüğün yönünde)
+  function Rval() {
+    return (S.az_dir === 1) ? (S.az_f1 + S.az_f2) : (S.az_f1 - S.az_f2);
+  }
 
   function rebuild() {
     _disposeGroup(dyn);
-    const sc = 0.6;
-    const f1 = S.az_f1, f2 = S.az_f2 * S.az_dir;
-    const O1 = new THREE.Vector3(-6, 2.5, 0);
-    dyn.add(makeArrow3D(O1, new THREE.Vector3(O1.x + f1 * sc, O1.y, 0), VCOL.f1, { width: 0.09 }));
-    const O2 = new THREE.Vector3(-6, 0, 0);
-    dyn.add(makeArrow3D(O2, new THREE.Vector3(O2.x + f2 * sc, O2.y, 0), VCOL.f2, { width: 0.09 }));
-    const R = S.az_f1 + f2;
-    const O3 = new THREE.Vector3(-6, -2.5, 0);
-    if (Math.abs(R) > 0.1) {
+    const R = Rval();
+
+    // ---- HALAT ÇEKME GÖRSELİ ----
+    // orta düğüm (halatın ortası) — zıt yönde net kuvvete göre kayar
+    const knotX = (S.az_dir === -1) ? Math.max(-3.5, Math.min(3.5, R * sc * 0.6)) : 0;
+    const ropeY = 3.2;
+    // halat
+    dyn.add(makeDashedSeg(new THREE.Vector3(-7, ropeY, 0), new THREE.Vector3(7, ropeY, 0), 0xb08968, { opacity: 0.85, dash: 0.5, gap: 0.0 }));
+    dyn.add(makeDot(new THREE.Vector3(knotX, ropeY, 0), 0xffe39a, 0.22)); // düğüm
+    // sol takım kuvveti F1 (mavi, sağa çeker)
+    dyn.add(makeArrow3D(new THREE.Vector3(-5, ropeY, 0), new THREE.Vector3(-5 + S.az_f1 * sc, ropeY, 0), VCOL.f1, { width: 0.09 }));
+    // sağ takım kuvveti F2 (kırmızı). Aynı yönde sağa, zıt yönde sola
+    const f2dir = (S.az_dir === 1) ? 1 : -1;
+    dyn.add(makeArrow3D(new THREE.Vector3(5, ropeY, 0), new THREE.Vector3(5 + S.az_f2 * sc * f2dir, ropeY, 0), VCOL.f2, { width: 0.09 }));
+
+    // ---- VEKTÖR DİYAGRAMI (alt) ----
+    const O1 = new THREE.Vector3(-6, 0.3, 0);
+    dyn.add(makeArrow3D(O1, new THREE.Vector3(O1.x + S.az_f1 * sc, O1.y, 0), VCOL.f1, { width: 0.085 }));
+    const O2 = new THREE.Vector3(-6, -1.6, 0);
+    dyn.add(makeArrow3D(O2, new THREE.Vector3(O2.x + S.az_f2 * sc * f2dir, O2.y, 0), VCOL.f2, { width: 0.085 }));
+    const O3 = new THREE.Vector3(-6, -3.6, 0);
+    if (Math.abs(R) > 0.05) {
       dyn.add(makeArrow3D(O3, new THREE.Vector3(O3.x + R * sc, O3.y, 0), VCOL.res, { width: 0.11 }));
     } else {
-      dyn.add(makeDot(O3, VCOL.res, 0.22));
+      dyn.add(makeDot(O3, VCOL.res, 0.24)); // R=0 → denge
     }
   }
   rebuild();
 
   addInfo3DLabels([
-    { text: { ilkokul: 'â¡ï¸ 1. kuvvet', ortaokul: 'â¡ï¸ Fâ‚', lise: 'â¡ï¸ Fâ‚', tyt_ayt: 'â¡ï¸ Fâ‚' },
-      position: [-6.5, 3.4, 0], target: [-5, 2.5, 0], color: '#5fc8e0' },
-    { text: { ilkokul: 'â¡ï¸ 2. kuvvet', ortaokul: 'â¡ï¸ Fâ‚‚', lise: 'â¡ï¸ Fâ‚‚', tyt_ayt: 'â¡ï¸ Fâ‚‚' },
-      position: [-6.5, 0.9, 0], target: [-5, 0, 0], color: '#c45d5d' },
-    { text: { ilkokul: 'ğŸ Toplam kuvvet', ortaokul: 'ğŸ BileÅŸke R', lise: 'ğŸ BileÅŸke R', tyt_ayt: 'ğŸ R = Î£F' },
-      position: [-6.5, -1.6, 0], target: [-4, -2.5, 0], color: '#f6b93b' }
+    { text: { ilkokul: '🪢 Halat çekme', ortaokul: '🪢 Halat çekme', lise: '🪢 Halat çekme', tyt_ayt: '🪢 Halat çekme (düğüm = net yön)' },
+      position: [0, 4.3, 0], target: [0, 3.2, 0], color: '#ffe39a' },
+    { text: { ilkokul: '➡️ 1. kuvvet', ortaokul: '➡️ F₁', lise: '➡️ F₁', tyt_ayt: '➡️ F₁' },
+      position: [-7.0, 1.0, 0], target: [-5, 0.3, 0], color: '#5fc8e0' },
+    { text: { ilkokul: '➡️ 2. kuvvet', ortaokul: '➡️ F₂', lise: '➡️ F₂', tyt_ayt: '➡️ F₂' },
+      position: [-7.0, -1.0, 0], target: [-5, -1.6, 0], color: '#c45d5d' },
+    { text: { ilkokul: '🏁 Toplam kuvvet', ortaokul: '🏁 Bileşke R', lise: '🏁 Bileşke R', tyt_ayt: '🏁 R = ΣF' },
+      position: [-7.0, -3.0, 0], target: [-4.5, -3.6, 0], color: '#f6b93b' }
   ]);
 
   setSceneSliders([
-    { type: 'section', label: 'Kuvvetler' },
-    { type: 'slider', label: 'ğŸ”µ Fâ‚', min: 1, max: 12, step: 1, unit: ' N',
-      getValue: () => S.az_f1, setValue: (v) => { S.az_f1 = v; rebuild(); }, format: (v) => v.toFixed(0) },
-    { type: 'slider', label: 'ğŸ”´ Fâ‚‚', min: 1, max: 12, step: 1, unit: ' N',
-      getValue: () => S.az_f2, setValue: (v) => { S.az_f2 = v; rebuild(); }, format: (v) => v.toFixed(0) },
-    { type: 'presets', activeIdx: 0, options: [
-        { label: 'AynÄ± yÃ¶n', action: () => { S.az_dir = 1; rebuild(); } },
-        { label: 'ZÄ±t yÃ¶n', action: () => { S.az_dir = -1; rebuild(); } }
+    { type: 'section', label: 'Senaryo' },
+    { type: 'presets', activeIdx: (S.az_dir === 1 ? 0 : 1), options: [
+        { label: 'Aynı yön →→', action: () => { S.az_dir = 1; rebuild(); } },
+        { label: 'Zıt yön →←', action: () => { S.az_dir = -1; rebuild(); } }
       ] },
-    { type: 'section', label: 'SonuÃ§' },
-    { type: 'display', label: 'BileÅŸke R', highlight: true, getValue: () => {
-        const R = S.az_f1 + S.az_f2 * S.az_dir;
-        return _fmt(Math.abs(R), 0) + ' N ' + (R >= 0 ? 'â†’' : 'â†');
+    { type: 'section', label: 'Kuvvetler' },
+    { type: 'slider', label: '🔵 F₁', min: 1, max: 12, step: 1, unit: ' N',
+      getValue: () => S.az_f1, setValue: (v) => { S.az_f1 = v; rebuild(); }, format: (v) => v.toFixed(0) },
+    { type: 'slider', label: '🔴 F₂', min: 1, max: 12, step: 1, unit: ' N',
+      getValue: () => S.az_f2, setValue: (v) => { S.az_f2 = v; rebuild(); }, format: (v) => v.toFixed(0) },
+    { type: 'section', label: 'Sonuç (canlı)' },
+    { type: 'display', label: 'Bileşke R', highlight: true, getValue: () => {
+        const R = Rval();
+        if (Math.abs(R) < 0.05) return '0 N (denge)';
+        return _fmt(Math.abs(R), 0) + ' N ' + (R >= 0 ? '→' : '←');
+      } },
+    { type: 'display', label: 'Kazanan', getValue: () => {
+        if (S.az_dir === 1) return 'İkisi birlikte (→)';
+        const R = Rval();
+        if (Math.abs(R) < 0.05) return 'Berabere (denge)';
+        return R > 0 ? 'F₁ (büyük) →' : 'F₂ (büyük) ←';
       } },
     { type: 'formula', getValue: () => (S.az_dir === 1
-        ? 'R = Fâ‚+Fâ‚‚ = ' + (S.az_f1 + S.az_f2) + ' N'
-        : 'R = |Fâ‚âˆ’Fâ‚‚| = ' + Math.abs(S.az_f1 - S.az_f2) + ' N'),
-      text: 'R = Fâ‚ Â± Fâ‚‚' }
-  ], { title: 'AynÄ±/ZÄ±t YÃ¶n' });
+        ? 'R = F₁ + F₂ = ' + (S.az_f1 + S.az_f2) + ' N (aynı yön)'
+        : 'R = |F₁ − F₂| = ' + Math.abs(S.az_f1 - S.az_f2) + ' N (büyüğün yönünde)'),
+      text: 'Aynı yön: R = F₁+F₂ &nbsp;·&nbsp; Zıt yön: R = |F₁−F₂|' }
+  ], { title: 'Aynı / Zıt Yön' });
 };
 
 SubBuilders.buildDikKuvvetler = function() {
@@ -3270,49 +3710,94 @@ SubBuilders.buildDikKuvvetler = function() {
   const S = window._sceneState;
   S.dk_f1 = 4;
   S.dk_f2 = 3;
-  const O = new THREE.Vector3(-3, -3, 0);
+  const O = new THREE.Vector3(-3.5, -3.2, 0);
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
-  root.add(makeDot(O, 0xffffff, 0.15));
+  root.add(makeDot(O, 0xffffff, 0.16));
 
   function rebuild() {
     _disposeGroup(dyn);
-    const sc = 0.85;
+    const sc = 0.9;
     const f1 = S.dk_f1, f2 = S.dk_f2;
-    const pa = new THREE.Vector3(O.x + f1 * sc, O.y, 0);
-    const pb = new THREE.Vector3(O.x, O.y + f2 * sc, 0);
-    const pr = new THREE.Vector3(O.x + f1 * sc, O.y + f2 * sc, 0);
+    const pa = new THREE.Vector3(O.x + f1 * sc, O.y, 0);          // F1 ucu (yatay)
+    const pb = new THREE.Vector3(O.x, O.y + f2 * sc, 0);          // F2 ucu (dikey)
+    const pr = new THREE.Vector3(O.x + f1 * sc, O.y + f2 * sc, 0); // bileşke ucu (köşe)
+    const R = Math.sqrt(f1 * f1 + f2 * f2);
+
+    // Dik üçgen yüzü (Pisagor görseli): O - pa - pr
+    const triGeo = new THREE.BufferGeometry();
+    triGeo.setFromPoints([O, pa, pr]);
+    triGeo.setIndex([0, 1, 2]);
+    triGeo.computeVertexNormals();
+    const tri = new THREE.Mesh(triGeo, new THREE.MeshBasicMaterial({
+      color: 0xf6b93b, transparent: true, opacity: 0.10, side: THREE.DoubleSide, depthWrite: false
+    }));
+    tri.userData.dynamic = true;
+    dyn.add(tri);
+
+    // Kenarları kesikli (dik üçgen vurgusu)
+    dyn.add(makeDashedSeg(pa, pr, VCOL.f2));   // dikey kenar (F2 uzunluğu)
+    dyn.add(makeDashedSeg(pb, pr, VCOL.f1));   // yatay kenar (F1 uzunluğu)
+
+    // Kuvvet okları
     dyn.add(makeArrow3D(O, pa, VCOL.f1, { width: 0.085 }));  // F1 yatay
     dyn.add(makeArrow3D(O, pb, VCOL.f2, { width: 0.085 }));  // F2 dikey
-    dyn.add(makeArrow3D(O, pr, VCOL.res, { width: 0.11 }));  // R
-    dyn.add(makeDashedSeg(pa, pr, VCOL.f2));
-    dyn.add(makeDashedSeg(pb, pr, VCOL.f1));
+    dyn.add(makeArrow3D(O, pr, VCOL.res, { width: 0.115 })); // R hipotenüs
+
+    // Dik açı işareti (O köşesi)
     dyn.add(makeRightAngle(O, new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), 0.5, '#ffffff'));
+
+    // Kareler (Pisagor: a²+b²=c²) — lise/tyt seviyesinde, küçük dolgu kareleri
+    const curLv = ({ ilkokul:1, ortaokul:2, lise:3, tyt_ayt:4 })[currentLevel] || 3;
+    if (curLv >= 3) {
+      const sq = (corner, dx, dy, colorHex) => {
+        const p0 = corner.clone();
+        const p1 = corner.clone().add(new THREE.Vector3(dx, 0, 0));
+        const p2 = corner.clone().add(new THREE.Vector3(dx, dy, 0));
+        const p3 = corner.clone().add(new THREE.Vector3(0, dy, 0));
+        const g = new THREE.BufferGeometry().setFromPoints([p0, p1, p2, p3, p0]);
+        const l = new THREE.Line(g, new THREE.LineBasicMaterial({ color: colorHex, transparent: true, opacity: 0.55 }));
+        l.userData.dynamic = true;
+        return l;
+      };
+      // F1² karesi (yatay kenarın altında)
+      dyn.add(sq(new THREE.Vector3(O.x, O.y - 0.18, 0), f1 * sc, -f1 * sc, VCOL.f1));
+      // F2² karesi (dikey kenarın solunda)
+      dyn.add(sq(new THREE.Vector3(O.x - 0.18, O.y, 0), -f2 * sc, f2 * sc, VCOL.f2));
+    }
   }
   rebuild();
 
   addInfo3DLabels([
-    { text: { ilkokul: 'â¡ï¸ SaÄŸa kuvvet', ortaokul: 'â¡ï¸ Fâ‚ (yatay)', lise: 'â¡ï¸ Fâ‚', tyt_ayt: 'â¡ï¸ Fâ‚' },
-      position: [0.5, -3.6, 0], target: [-1, -3, 0], color: '#5fc8e0' },
-    { text: { ilkokul: 'â¬†ï¸ YukarÄ± kuvvet', ortaokul: 'â¬†ï¸ Fâ‚‚ (dikey)', lise: 'â¬†ï¸ Fâ‚‚', tyt_ayt: 'â¬†ï¸ Fâ‚‚' },
-      position: [-4.2, 0, 0], target: [-3, -1.5, 0], color: '#c45d5d' },
-    { text: { ilkokul: 'â†—ï¸ KÃ¶ÅŸegen', ortaokul: 'â†—ï¸ BileÅŸke R', lise: 'â†—ï¸ R = âˆš(Fâ‚Â²+Fâ‚‚Â²)', tyt_ayt: 'â†—ï¸ R=âˆš(Fâ‚Â²+Fâ‚‚Â²), tan Î¸=Fâ‚‚/Fâ‚' },
-      position: [2.5, 1.5, 0], target: [0.5, -1, 0], color: '#f6b93b' }
+    { text: { ilkokul: '➡️ Sağa kuvvet', ortaokul: '➡️ F₁ (yatay)', lise: '➡️ F₁', tyt_ayt: '➡️ F₁' },
+      position: [0.5, -3.8, 0], target: [-1.5, -3.2, 0], color: '#5fc8e0' },
+    { text: { ilkokul: '⬆️ Yukarı kuvvet', ortaokul: '⬆️ F₂ (dikey)', lise: '⬆️ F₂', tyt_ayt: '⬆️ F₂' },
+      position: [-5, -0.5, 0], target: [-3.5, -1.8, 0], color: '#c45d5d' },
+    { text: { ilkokul: '↗️ Köşegen', ortaokul: '↗️ Bileşke R', lise: '↗️ R = √(F₁²+F₂²)', tyt_ayt: '↗️ R=√(F₁²+F₂²), tan θ=F₂/F₁' },
+      position: [3, 1.5, 0], target: [0.2, -1.2, 0], color: '#f6b93b' },
+    { text: { lise: '⟂ Dik açı (90°)', tyt_ayt: '⟂ F₁⊥F₂ → Pisagor' },
+      position: [-2.2, -2.4, 0], target: [-2.9, -2.7, 0], color: '#ffffff', minLevel: 3 }
   ]);
 
   setSceneSliders([
     { type: 'section', label: 'Dik Kuvvetler' },
-    { type: 'slider', label: 'ğŸ”µ Fâ‚ (yatay)', min: 1, max: 8, step: 1, unit: ' N',
+    { type: 'slider', label: '🔵 F₁ (yatay)', min: 1, max: 8, step: 1, unit: ' N',
       getValue: () => S.dk_f1, setValue: (v) => { S.dk_f1 = v; rebuild(); }, format: (v) => v.toFixed(0) },
-    { type: 'slider', label: 'ğŸ”´ Fâ‚‚ (dikey)', min: 1, max: 8, step: 1, unit: ' N',
+    { type: 'slider', label: '🔴 F₂ (dikey)', min: 1, max: 8, step: 1, unit: ' N',
       getValue: () => S.dk_f2, setValue: (v) => { S.dk_f2 = v; rebuild(); }, format: (v) => v.toFixed(0) },
-    { type: 'section', label: 'SonuÃ§' },
-    { type: 'display', label: 'BileÅŸke R', highlight: true,
+    { type: 'presets', activeIdx: 0, options: [
+        { label: '3-4-5', action: () => { S.dk_f1 = 4; S.dk_f2 = 3; rebuild(); } },
+        { label: '6-8-10', action: () => { S.dk_f1 = 8; S.dk_f2 = 6; rebuild(); } },
+        { label: 'Eşit (45°)', action: () => { S.dk_f1 = 5; S.dk_f2 = 5; rebuild(); } }
+      ] },
+    { type: 'section', label: 'Sonuç (Pisagor)' },
+    { type: 'display', label: 'Bileşke R', highlight: true,
       getValue: () => _fmt(Math.sqrt(S.dk_f1 * S.dk_f1 + S.dk_f2 * S.dk_f2), 2) + ' N' },
-    { type: 'display', label: 'YÃ¶n Î¸',
-      getValue: () => _fmt(Math.atan2(S.dk_f2, S.dk_f1) * 180 / Math.PI, 1) + 'Â°' },
-    { type: 'formula', getValue: () => 'R = âˆš(' + S.dk_f1 + 'Â²+' + S.dk_f2 + 'Â²) = <b>' +
+    { type: 'display', label: 'Yön θ',
+      getValue: () => _fmt(Math.atan2(S.dk_f2, S.dk_f1) * 180 / Math.PI, 1) + '°' },
+    { type: 'formula', getValue: () => 'R = √(' + S.dk_f1 + '²+' + S.dk_f2 + '²) = √' +
+        (S.dk_f1 * S.dk_f1 + S.dk_f2 * S.dk_f2) + ' = <b>' +
         _fmt(Math.sqrt(S.dk_f1 * S.dk_f1 + S.dk_f2 * S.dk_f2), 2) + '</b> N',
-      text: 'R = âˆš(Fâ‚Â²+Fâ‚‚Â²)' }
+      text: 'R = √(F₁²+F₂²)' }
   ], { title: 'Dik Kuvvetler' });
 };
 
@@ -3326,6 +3811,11 @@ SubBuilders.buildAciliKuvvetler = function() {
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
   root.add(makeDot(O, 0xffffff, 0.15));
 
+  function Rval() {
+    const a = S.ac_alpha * Math.PI / 180;
+    return Math.sqrt(S.ac_f1 * S.ac_f1 + S.ac_f2 * S.ac_f2 + 2 * S.ac_f1 * S.ac_f2 * Math.cos(a));
+  }
+
   function rebuild() {
     _disposeGroup(dyn);
     const sc = 0.7;
@@ -3335,87 +3825,188 @@ SubBuilders.buildAciliKuvvetler = function() {
     const pa = O.clone().add(va);
     const pb = O.clone().add(vb);
     const pr = O.clone().add(va).add(vb);
+
+    // Paralelkenar kesikli kenarları
     dyn.add(makeDashedSeg(pa, pr, VCOL.f2));
     dyn.add(makeDashedSeg(pb, pr, VCOL.f1));
+    // Kuvvet okları
     dyn.add(makeArrow3D(O, pa, VCOL.f1, { width: 0.08 }));
     dyn.add(makeArrow3D(O, pb, VCOL.f2, { width: 0.08 }));
-    dyn.add(makeArrow3D(O, pr, VCOL.res, { width: 0.11 }));
+    dyn.add(makeArrow3D(O, pr, VCOL.res, { width: 0.115 }));
+    // Aradaki açı yayı
     dyn.add(makeAngleArc(O, 1.2, 0, a, '#ffd166'));
+
+    // "Kosinüs etkisi" göstergesi: R'nin uzunluğunu temsil eden yatay ölçek çubuğu (sağ üstte)
+    const rMax = S.ac_f1 + S.ac_f2;                 // teorik max (0°)
+    const rMin = Math.abs(S.ac_f1 - S.ac_f2);       // teorik min (180°)
+    const R = Rval();
+    const barX = 4.5, barY0 = -3.5, barH = 7.0;
+    // dış çerçeve (min..max aralığı)
+    const frame = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(barX, barY0, 0), new THREE.Vector3(barX, barY0 + barH, 0)
+    ]);
+    dyn.add((() => {
+      const l = new THREE.Line(frame, new THREE.LineBasicMaterial({ color: 0x5a6478, transparent: true, opacity: 0.6 }));
+      l.userData.dynamic = true; return l;
+    })());
+    // R'ye karşılık gelen dolu çubuk (min en altta, max en üstte)
+    const frac = rMax > rMin ? (R - rMin) / (rMax - rMin) : 0;
+    const fillTop = barY0 + barH * Math.max(0, Math.min(1, frac));
+    const fillGeo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(barX, barY0, 0), new THREE.Vector3(barX, fillTop, 0)
+    ]);
+    const fill = new THREE.Line(fillGeo, new THREE.LineBasicMaterial({ color: VCOL.res, transparent: true, opacity: 0.95, linewidth: 3 }));
+    fill.userData.dynamic = true;
+    dyn.add(fill);
+    dyn.add(makeDot(new THREE.Vector3(barX, fillTop, 0), VCOL.res, 0.14));
+    // min/max uç işaretleri
+    dyn.add(makeDot(new THREE.Vector3(barX, barY0, 0), VCOL.f2, 0.09));
+    dyn.add(makeDot(new THREE.Vector3(barX, barY0 + barH, 0), VCOL.f1, 0.09));
   }
   rebuild();
 
   addInfo3DLabels([
-    { text: { ilkokul: 'â¡ï¸ 1. kuvvet', ortaokul: 'â¡ï¸ Fâ‚', lise: 'â¡ï¸ Fâ‚', tyt_ayt: 'â¡ï¸ Fâ‚' },
+    { text: { ilkokul: '➡️ 1. kuvvet', ortaokul: '➡️ F₁', lise: '➡️ F₁', tyt_ayt: '➡️ F₁' },
       position: [0.5, -3.1, 0], target: [0, -2.5, 0], color: '#5fc8e0' },
-    { text: { ilkokul: 'â¡ï¸ 2. kuvvet', ortaokul: 'â¡ï¸ Fâ‚‚', lise: 'â¡ï¸ Fâ‚‚', tyt_ayt: 'â¡ï¸ Fâ‚‚' },
+    { text: { ilkokul: '➡️ 2. kuvvet', ortaokul: '➡️ F₂', lise: '➡️ F₂', tyt_ayt: '➡️ F₂' },
       position: [-2, 1.5, 0], target: [-1.5, 0, 0], color: '#c45d5d' },
-    { text: { ilkokul: 'â†—ï¸ BileÅŸke', ortaokul: 'â†—ï¸ BileÅŸke R', lise: 'â†—ï¸ R (kosinÃ¼s teoremi)', tyt_ayt: 'â†—ï¸ R=âˆš(Fâ‚Â²+Fâ‚‚Â²+2Fâ‚Fâ‚‚cos Î±)' },
-      position: [3.5, 2, 0], target: [1.5, 0, 0], color: '#f6b93b' },
-    { text: { ortaokul: 'ğŸ“ Î±', lise: 'ğŸ“ Î± (aradaki aÃ§Ä±)', tyt_ayt: 'ğŸ“ Î±' },
-      position: [-1.4, -1.5, 0], target: [-2.2, -2.2, 0], color: '#ffd166', minLevel: 2 }
+    { text: { ilkokul: '↗️ Bileşke', ortaokul: '↗️ Bileşke R', lise: '↗️ R (kosinüs teoremi)', tyt_ayt: '↗️ R=√(F₁²+F₂²+2F₁F₂cos α)' },
+      position: [2.5, 2.5, 0], target: [1, -0.2, 0], color: '#f6b93b' },
+    { text: { ortaokul: '📐 α', lise: '📐 α (aradaki açı)', tyt_ayt: '📐 α' },
+      position: [-1.4, -1.5, 0], target: [-2.2, -2.2, 0], color: '#ffd166', minLevel: 2 },
+    { text: { ortaokul: '📊 R ölçeği', lise: '📊 α↓ → R büyür', tyt_ayt: '📊 R∈[|F₁−F₂|, F₁+F₂]' },
+      position: [6.2, 1.5, 0], target: [4.5, 0.5, 0], color: '#ffd166', minLevel: 2 }
   ]);
 
   setSceneSliders([
-    { type: 'section', label: 'Kuvvetler ve AÃ§Ä±' },
-    { type: 'slider', label: 'ğŸ”µ Fâ‚', min: 2, max: 8, step: 1, unit: ' N',
+    { type: 'section', label: 'Kuvvetler ve Açı' },
+    { type: 'slider', label: '🔵 F₁', min: 2, max: 8, step: 1, unit: ' N',
       getValue: () => S.ac_f1, setValue: (v) => { S.ac_f1 = v; rebuild(); }, format: (v) => v.toFixed(0) },
-    { type: 'slider', label: 'ğŸ”´ Fâ‚‚', min: 2, max: 8, step: 1, unit: ' N',
+    { type: 'slider', label: '🔴 F₂', min: 2, max: 8, step: 1, unit: ' N',
       getValue: () => S.ac_f2, setValue: (v) => { S.ac_f2 = v; rebuild(); }, format: (v) => v.toFixed(0) },
-    { type: 'slider', label: 'ğŸ“ AÃ§Ä± Î±', min: 0, max: 180, step: 5, unit: 'Â°',
-      getValue: () => S.ac_alpha, setValue: (v) => { S.ac_alpha = v; rebuild(); }, format: (v) => v.toFixed(0) },
-    { type: 'section', label: 'SonuÃ§' },
-    { type: 'display', label: 'BileÅŸke R', highlight: true, getValue: () => {
-        const a = S.ac_alpha * Math.PI / 180;
-        return _fmt(Math.sqrt(S.ac_f1 * S.ac_f1 + S.ac_f2 * S.ac_f2 + 2 * S.ac_f1 * S.ac_f2 * Math.cos(a)), 2) + ' N';
+    { type: 'slider', label: '📐 Açı α', min: 0, max: 180, step: 5, unit: '°',
+      getValue: () => S.ac_alpha, setValue: (v) => { S.ac_alpha = v; rebuild(); }, format: (v) => v.toFixed(0),
+      sub: '0°=en büyük R, 180°=en küçük R' },
+    { type: 'presets', activeIdx: 1, options: [
+        { label: '0° (max)', action: () => { S.ac_alpha = 0; rebuild(); } },
+        { label: '60°', action: () => { S.ac_alpha = 60; rebuild(); } },
+        { label: '90° (dik)', action: () => { S.ac_alpha = 90; rebuild(); } },
+        { label: '180° (min)', action: () => { S.ac_alpha = 180; rebuild(); } }
+      ] },
+    { type: 'section', label: 'Sonuç' },
+    { type: 'display', label: 'Bileşke R', highlight: true, getValue: () => _fmt(Rval(), 2) + ' N' },
+    { type: 'display', label: 'Aralık [min, max]',
+      getValue: () => _fmt(Math.abs(S.ac_f1 - S.ac_f2), 0) + ' … ' + (S.ac_f1 + S.ac_f2) + ' N' },
+    { type: 'display', label: 'Durum', getValue: () => {
+        if (S.ac_alpha <= 1) return 'α≈0° → R en BÜYÜK (F₁+F₂)';
+        if (S.ac_alpha >= 179) return 'α=180° → R en KÜÇÜK |F₁−F₂|';
+        if (S.ac_alpha >= 89 && S.ac_alpha <= 91) return 'α=90° → R=√(F₁²+F₂²)';
+        return S.ac_alpha < 90 ? 'α küçük → cos α>0 → R artar' : 'α büyük → cos α<0 → R azalır';
       } },
-    { type: 'formula', text: 'R = âˆš(Fâ‚Â²+Fâ‚‚Â²+2Fâ‚Fâ‚‚Â·cos Î±)' }
-  ], { title: 'AÃ§Ä±lÄ± Ä°ki Kuvvet' });
+    { type: 'formula', getValue: () => 'R = √(' + S.ac_f1 + '²+' + S.ac_f2 + '²+2·' + S.ac_f1 + '·' + S.ac_f2 +
+        '·cos ' + S.ac_alpha + '°) = <b>' + _fmt(Rval(), 2) + '</b> N',
+      text: 'R = √(F₁²+F₂²+2F₁F₂·cos α)' }
+  ], { title: 'Açılı İki Kuvvet' });
 };
 
 SubBuilders.buildDenge = function() {
   const root = _newRoot();
-  const O = new THREE.Vector3(0, 1.5, 0);
-  // AsÄ±lÄ± cisim: G aÅŸaÄŸÄ±, iki ip simetrik yukarÄ± (53Â°-53Â°)
-  const G = 8;
-  const th = 53 * Math.PI / 180;
-  const sc = 0.55;
-  // T1 sol-yukarÄ±, T2 saÄŸ-yukarÄ±; dengede: 2TÂ·sin(th)=G yatay denge saÄŸlanÄ±r (simetri)
-  const T = G / (2 * Math.sin(th));
-  const t1 = new THREE.Vector3(-Math.cos(th), Math.sin(th), 0).multiplyScalar(T * sc);
-  const t2 = new THREE.Vector3(Math.cos(th), Math.sin(th), 0).multiplyScalar(T * sc);
-  const g = new THREE.Vector3(0, -1, 0).multiplyScalar(G * sc);
+  const S = window._sceneState;
+  S.dn_f1 = 5;
+  S.dn_f2 = 5;
+  S.dn_alpha = 90;   // F1 ile F2 arasındaki açı
+  S.dn_tri = false;  // kapalı üçgen (uç uca) gösterimi
+  const O = new THREE.Vector3(-1.5, -1.5, 0);
+  const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+  root.add(makeDot(O, 0xffffff, 0.16));
 
-  root.add(makeDot(O, 0xffffff, 0.2));
-  root.add(makeArrow3D(O, O.clone().add(t1), VCOL.f1, { width: 0.085 }));
-  root.add(makeArrow3D(O, O.clone().add(t2), VCOL.g, { width: 0.085 }));
-  root.add(makeArrow3D(O, O.clone().add(g), VCOL.f2, { width: 0.095 }));
+  // dengeleyici büyüklüğü = bileşke büyüklüğü (zıt yön)
+  function Rval() {
+    const a = S.dn_alpha * Math.PI / 180;
+    return Math.sqrt(S.dn_f1 * S.dn_f1 + S.dn_f2 * S.dn_f2 + 2 * S.dn_f1 * S.dn_f2 * Math.cos(a));
+  }
 
-  // kÃ¼Ã§Ã¼k asÄ±lÄ± kÃ¼tle
-  const box = new THREE.Mesh(
-    new THREE.BoxGeometry(1, 1, 1),
-    new THREE.MeshStandardMaterial({ color: 0x3a4252, roughness: 0.6, metalness: 0.3 })
-  );
-  box.position.copy(O.clone().add(g)).add(new THREE.Vector3(0, -0.6, 0));
-  box.castShadow = true;
-  root.add(box);
+  function vecs() {
+    const a = S.dn_alpha * Math.PI / 180;
+    // F1 yatay sağa, F2 a açısıyla
+    const v1 = new THREE.Vector3(S.dn_f1, 0, 0);
+    const v2 = new THREE.Vector3(S.dn_f2 * Math.cos(a), S.dn_f2 * Math.sin(a), 0);
+    const vR = v1.clone().add(v2);              // bileşke
+    const vE = vR.clone().multiplyScalar(-1);   // dengeleyici (eşit-zıt)
+    return { v1, v2, vR, vE };
+  }
+
+  function rebuild() {
+    _disposeGroup(dyn);
+    const sc = 0.7;
+    const { v1, v2, vR, vE } = vecs();
+
+    if (!S.dn_tri) {
+      // ---- Ortak kuyruk gösterimi: F1, F2, dengeleyici hepsi O'dan ----
+      const p1 = O.clone().add(v1.clone().multiplyScalar(sc));
+      const p2 = O.clone().add(v2.clone().multiplyScalar(sc));
+      const pE = O.clone().add(vE.clone().multiplyScalar(sc));
+      const pR = O.clone().add(vR.clone().multiplyScalar(sc));
+
+      // bileşke (soluk sarı, kesikli) — dengeleyicinin tam zıttı olduğunu göster
+      dyn.add(makeDashedSeg(O, pR, VCOL.res, { opacity: 0.5 }));
+      // kuvvetler
+      dyn.add(makeArrow3D(O, p1, VCOL.f1, { width: 0.085 }));   // F1
+      dyn.add(makeArrow3D(O, p2, VCOL.f2, { width: 0.085 }));   // F2
+      dyn.add(makeArrow3D(O, pE, VCOL.g, { width: 0.1 }));      // dengeleyici (yeşil)
+      dyn.add(makeAngleArc(O, 1.1, 0, S.dn_alpha * Math.PI / 180, '#ffd166'));
+      // asılı küçük kütle (dengelenen cisim)
+      const box = new THREE.Mesh(
+        new THREE.BoxGeometry(0.7, 0.7, 0.7),
+        new THREE.MeshStandardMaterial({ color: 0x3a4252, roughness: 0.6, metalness: 0.3 })
+      );
+      box.position.copy(O); box.castShadow = true; box.userData.dynamic = true;
+      dyn.add(box);
+    } else {
+      // ---- Kapalı üçgen: F1 → F2 → dengeleyici uç uca = başa döner (Σ=0) ----
+      const A = new THREE.Vector3(-3.5, -2.5, 0);
+      const B = A.clone().add(v1.clone().multiplyScalar(sc));
+      const C = B.clone().add(v2.clone().multiplyScalar(sc));
+      const D = C.clone().add(vE.clone().multiplyScalar(sc)); // ≈ A (kapanır)
+      dyn.add(makeArrow3D(A, B, VCOL.f1, { width: 0.08 }));
+      dyn.add(makeArrow3D(B, C, VCOL.f2, { width: 0.08 }));
+      dyn.add(makeArrow3D(C, D, VCOL.g, { width: 0.09 }));
+      // kapanış noktası vurgusu
+      dyn.add(makeDot(A, 0xffffff, 0.18));
+      dyn.add(makeDot(D, VCOL.res, 0.12));
+    }
+  }
+  rebuild();
 
   addInfo3DLabels([
-    { text: { ilkokul: 'ğŸª¢ Ä°p 1', ortaokul: 'â¬†ï¸ Tâ‚ (ip gerilimi)', lise: 'â¬†ï¸ Tâ‚', tyt_ayt: 'â¬†ï¸ Tâ‚' },
-      position: [-3.5, 4, 0], target: [-1.5, 3, 0], color: '#5fc8e0' },
-    { text: { ilkokul: 'ğŸª¢ Ä°p 2', ortaokul: 'â¬†ï¸ Tâ‚‚ (ip gerilimi)', lise: 'â¬†ï¸ Tâ‚‚', tyt_ayt: 'â¬†ï¸ Tâ‚‚' },
-      position: [3.5, 4, 0], target: [1.5, 3, 0], color: '#2ecc40' },
-    { text: { ilkokul: 'â¬‡ï¸ AÄŸÄ±rlÄ±k', ortaokul: 'â¬‡ï¸ G (aÄŸÄ±rlÄ±k)', lise: 'â¬‡ï¸ G = mÂ·g', tyt_ayt: 'â¬‡ï¸ G = mÂ·g' },
-      position: [1.8, -2, 0], target: [0, -1.5, 0], color: '#c45d5d' },
-    { text: { ortaokul: 'âš–ï¸ Î£F = 0', lise: 'âš–ï¸ Î£Fâ‚“=0, Î£F_y=0', tyt_ayt: 'âš–ï¸ Lami: F/sin(karÅŸÄ± aÃ§Ä±) sabit' },
-      position: [-3.5, 0.5, 0], target: [0, 1.5, 0], color: '#f6b93b', minLevel: 2 }
+    { text: { ilkokul: '➡️ 1. kuvvet', ortaokul: '➡️ F₁', lise: '➡️ F₁', tyt_ayt: '➡️ F₁' },
+      position: [1.2, -2.2, 0], target: [0.5, -1.5, 0], color: '#5fc8e0' },
+    { text: { ilkokul: '↗️ 2. kuvvet', ortaokul: '↗️ F₂', lise: '↗️ F₂', tyt_ayt: '↗️ F₂' },
+      position: [-0.5, 1.5, 0], target: [-0.8, 0.2, 0], color: '#c45d5d' },
+    { text: { ilkokul: '🟢 Dengeleyici', ortaokul: '🟢 Dengeleyici kuvvet', lise: '🟢 F₃ = −(F₁+F₂)', tyt_ayt: '🟢 F₃ = −R (eşit-zıt)' },
+      position: [-3.5, 0.5, 0], target: [-2, -0.5, 0], color: '#2ecc40' },
+    { text: { ortaokul: '⚖️ Σ F = 0', lise: '⚖️ ΣFₓ=0, ΣF_y=0', tyt_ayt: '⚖️ ΣF=0 → üçgen kapanır' },
+      position: [2.5, 2, 0], target: [-1.5, -1.5, 0], color: '#f6b93b', minLevel: 2 }
   ]);
 
   setSceneSliders([
-    { type: 'section', label: 'Denge Durumu' },
-    { type: 'display', label: 'BileÅŸke', getValue: () => 'R = 0' },
-    { type: 'display', label: 'KoÅŸul', highlight: true, getValue: () => 'Î£F = 0' },
-    { type: 'display', label: 'Ä°vme', getValue: () => 'a = 0' },
-    { type: 'formula', text: 'Tâ‚ + Tâ‚‚ + Gâƒ— = 0' }
+    { type: 'section', label: 'İlk İki Kuvvet' },
+    { type: 'slider', label: '🔵 F₁', min: 2, max: 8, step: 1, unit: ' N',
+      getValue: () => S.dn_f1, setValue: (v) => { S.dn_f1 = v; rebuild(); }, format: (v) => v.toFixed(0) },
+    { type: 'slider', label: '🔴 F₂', min: 2, max: 8, step: 1, unit: ' N',
+      getValue: () => S.dn_f2, setValue: (v) => { S.dn_f2 = v; rebuild(); }, format: (v) => v.toFixed(0) },
+    { type: 'slider', label: '📐 Aradaki açı α', min: 0, max: 180, step: 5, unit: '°',
+      getValue: () => S.dn_alpha, setValue: (v) => { S.dn_alpha = v; rebuild(); }, format: (v) => v.toFixed(0) },
+    { type: 'presets', activeIdx: 0, options: [
+        { label: 'Ortak kuyruk', action: () => { S.dn_tri = false; rebuild(); } },
+        { label: 'Kapalı üçgen', action: () => { S.dn_tri = true; rebuild(); } }
+      ] },
+    { type: 'section', label: 'Dengeleyici (otomatik)' },
+    { type: 'display', label: 'Bileşke R', getValue: () => _fmt(Rval(), 2) + ' N' },
+    { type: 'display', label: 'Dengeleyici F₃', highlight: true,
+      getValue: () => _fmt(Rval(), 2) + ' N (R\'ye zıt)' },
+    { type: 'display', label: 'Toplam', getValue: () => 'Σ F = 0 N (denge)' },
+    { type: 'formula', text: 'F₁ + F₂ + F₃ = 0  →  F₃ = −(F₁+F₂)' }
   ], { title: 'Kuvvet Dengesi' });
 };
 
@@ -3423,18 +4014,20 @@ SubBuilders.buildEgikDuzlem = function() {
   const root = _newRoot();
   const S = window._sceneState;
   S.eg_theta = 30;
+  S.eg_mu = 0.40;   // sürtünme katsayısı (kayma eşiği hissi)
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
 
   function rebuild() {
     _disposeGroup(dyn);
     const th = S.eg_theta * Math.PI / 180;
     const baseY = -4;
-    const L = 11;                         // taban uzunluÄŸu
+    const L = 11;
     const x0 = -5.5;
-    const A = new THREE.Vector3(x0, baseY, 0);             // sol alt kÃ¶ÅŸe
-    const Bc = new THREE.Vector3(x0 + L, baseY, 0);        // saÄŸ alt kÃ¶ÅŸe
-    const C = new THREE.Vector3(x0 + L, baseY + L * Math.tan(th), 0); // Ã¼st kÃ¶ÅŸe (saÄŸda)
-    // eÄŸik dÃ¼zlem Ã¼Ã§geni
+    const A = new THREE.Vector3(x0, baseY, 0);              // sol alt köşe
+    const Bc = new THREE.Vector3(x0 + L, baseY, 0);         // sağ alt köşe (açı burada)
+    const C = new THREE.Vector3(x0 + L, baseY + L * Math.tan(th), 0); // üst köşe
+
+    // eğik düzlem üçgeni
     const triGeo = new THREE.BufferGeometry();
     triGeo.setFromPoints([A, Bc, C]);
     triGeo.setIndex([0, 1, 2]);
@@ -3446,16 +4039,21 @@ SubBuilders.buildEgikDuzlem = function() {
     dyn.add(tri);
     dyn.add(makeDashedSeg(A, C, 0x5a6478, { opacity: 0.5 }));
 
-    // blok eÄŸik yÃ¼zeyin ortasÄ±nda
+    // blok eğik yüzeyin ortasında
     const t = 0.55;
-    const onSurf = new THREE.Vector3().lerpVectors(C, A, t); // yÃ¼zey Ã¼stÃ¼nde nokta
-    const slopeDir = new THREE.Vector3().subVectors(A, C).normalize(); // aÅŸaÄŸÄ± eÄŸim yÃ¶nÃ¼
-    const normalDir = new THREE.Vector3(-Math.sin(th), Math.cos(th), 0); // yÃ¼zeye dik (dÄ±ÅŸa)
-    const P = onSurf.clone().add(normalDir.clone().multiplyScalar(0.55));
+    const onSurf = new THREE.Vector3().lerpVectors(C, A, t);
+    const slopeDir = new THREE.Vector3().subVectors(A, C).normalize(); // aşağı eğim yönü
+    const normalDir = new THREE.Vector3(-Math.sin(th), Math.cos(th), 0); // yüzeye dik (dışa)
+    const P = onSurf.clone().add(normalDir.clone().multiplyScalar(0.62));
 
+    // kayma eşiği: tan θ > μ ise blok kayar
+    const willSlide = Math.tan(th) > S.eg_mu;
     const box = new THREE.Mesh(
-      new THREE.BoxGeometry(1.1, 1.1, 1.1),
-      new THREE.MeshStandardMaterial({ color: 0x6b5bd0, roughness: 0.5, metalness: 0.25 })
+      new THREE.BoxGeometry(1.15, 1.15, 1.15),
+      new THREE.MeshStandardMaterial({
+        color: willSlide ? 0xd0563a : 0x6b5bd0, roughness: 0.5, metalness: 0.25,
+        emissive: willSlide ? 0x5a1505 : 0x000000, emissiveIntensity: willSlide ? 0.4 : 0
+      })
     );
     box.position.copy(P);
     box.rotation.z = th;
@@ -3463,107 +4061,188 @@ SubBuilders.buildEgikDuzlem = function() {
     box.userData.dynamic = true;
     dyn.add(box);
 
-    // kuvvetler (blok merkezinden)
+    // kuvvetler (blok merkezinden) — sabit görsel ölçek
     const G = 6;
-    const gv = new THREE.Vector3(0, -1, 0).multiplyScalar(G * 0.6);
-    const gpar = slopeDir.clone().multiplyScalar(G * Math.sin(th) * 0.6);   // G sin Î¸
-    const gdik = normalDir.clone().multiplyScalar(-G * Math.cos(th) * 0.6); // G cos Î¸ (yÃ¼zeye doÄŸru)
-    const norm = normalDir.clone().multiplyScalar(G * Math.cos(th) * 0.6);  // Normal (dÄ±ÅŸa)
-    dyn.add(makeArrow3D(P, P.clone().add(gv), VCOL.f2, { width: 0.08 }));     // aÄŸÄ±rlÄ±k (kÄ±rmÄ±zÄ±)
-    dyn.add(makeArrow3D(P, P.clone().add(gpar), VCOL.res, { width: 0.08 }));  // kaydÄ±ran (sarÄ±)
-    dyn.add(makeArrow3D(P, P.clone().add(gdik), VCOL.comp, { width: 0.07 })); // dik bileÅŸen (mor)
-    dyn.add(makeArrow3D(P, P.clone().add(norm), VCOL.g, { width: 0.07 }));    // normal (yeÅŸil)
+    const vScale = 0.62;
+    const gv = new THREE.Vector3(0, -1, 0).multiplyScalar(G * vScale);                 // mg
+    const gpar = slopeDir.clone().multiplyScalar(G * Math.sin(th) * vScale);           // mg·sinθ
+    const gdik = normalDir.clone().multiplyScalar(-G * Math.cos(th) * vScale);         // mg·cosθ (yüzeye)
+    const norm = normalDir.clone().multiplyScalar(G * Math.cos(th) * vScale);          // Normal (dışa)
+    dyn.add(makeArrow3D(P, P.clone().add(gv), VCOL.f2, { width: 0.085 }));    // mg (kırmızı)
+    dyn.add(makeArrow3D(P, P.clone().add(gpar), VCOL.res, { width: 0.085 })); // mg·sinθ kaydıran (sarı)
+    dyn.add(makeArrow3D(P, P.clone().add(gdik), VCOL.comp, { width: 0.07 })); // mg·cosθ dik (mor)
+    dyn.add(makeArrow3D(P, P.clone().add(norm), VCOL.g, { width: 0.07 }));    // Normal (yeşil)
+    // mg → bileşenler kesikli kılavuz (dik açı paralelkenarı)
+    dyn.add(makeDashedSeg(P.clone().add(gpar), P.clone().add(gv), VCOL.comp, { opacity: 0.5 }));
+    dyn.add(makeDashedSeg(P.clone().add(gdik), P.clone().add(gv), VCOL.res, { opacity: 0.5 }));
+    // eğim açısı yayı (Bc köşesinde)
     dyn.add(makeAngleArc(Bc, 1.4, Math.PI - th, Math.PI, '#ffd166'));
   }
   rebuild();
 
   addInfo3DLabels([
-    { text: { ilkokul: 'â¬‡ï¸ AÄŸÄ±rlÄ±k', ortaokul: 'â¬‡ï¸ G (aÄŸÄ±rlÄ±k)', lise: 'â¬‡ï¸ G = mÂ·g', tyt_ayt: 'â¬‡ï¸ G = mÂ·g' },
+    { text: { ilkokul: '⬇️ Ağırlık', ortaokul: '⬇️ G (ağırlık)', lise: '⬇️ G = m·g', tyt_ayt: '⬇️ G = m·g' },
       position: [2.5, -1, 0], target: [0.5, -1.5, 0], color: '#c45d5d' },
-    { text: { ilkokul: 'â†˜ï¸ KaydÄ±ran', ortaokul: 'â†˜ï¸ KaydÄ±ran kuvvet', lise: 'â†˜ï¸ GÂ·sin Î¸', tyt_ayt: 'â†˜ï¸ GÂ·sin Î¸' },
+    { text: { ilkokul: '↘️ Kaydıran', ortaokul: '↘️ Kaydıran kuvvet', lise: '↘️ G·sin θ', tyt_ayt: '↘️ G·sin θ (yüzeye paralel)' },
       position: [-3.5, 1.5, 0], target: [-1.5, 0.5, 0], color: '#f6b93b' },
-    { text: { lise: 'âŸ‚ Normal N = GÂ·cos Î¸', tyt_ayt: 'âŸ‚ N = mÂ·gÂ·cos Î¸' },
-      position: [4, 3, 0], target: [1.5, 1.5, 0], color: '#2ecc40', minLevel: 3 },
-    { text: { ortaokul: 'ğŸ“ EÄŸim aÃ§Ä±sÄ±', lise: 'ğŸ“ Î¸ (eÄŸim)', tyt_ayt: 'ğŸ“ Î¸' },
+    { text: { lise: '⟂ Yüzeye dik G·cos θ', tyt_ayt: '⟂ G·cos θ = N (yüzeye dik)' },
+      position: [4, 2.8, 0], target: [1.5, 1.3, 0], color: '#9d7fe6', minLevel: 3 },
+    { text: { lise: '🟢 Normal N', tyt_ayt: '🟢 N = m·g·cos θ' },
+      position: [-4.5, 3.2, 0], target: [-1.8, 1.6, 0], color: '#2ecc40', minLevel: 3 },
+    { text: { ortaokul: '📐 Eğim açısı', lise: '📐 θ (eğim)', tyt_ayt: '📐 θ' },
       position: [4.8, -3, 0], target: [4, -3.6, 0], color: '#ffd166', minLevel: 2 }
   ]);
 
   setSceneSliders([
-    { type: 'section', label: 'EÄŸim' },
-    { type: 'slider', label: 'ğŸ“ EÄŸim aÃ§Ä±sÄ± Î¸', min: 10, max: 70, step: 1, unit: 'Â°',
+    { type: 'section', label: 'Eğik Düzlem' },
+    { type: 'slider', label: '📐 Eğim açısı θ', min: 10, max: 70, step: 1, unit: '°',
       getValue: () => S.eg_theta, setValue: (v) => { S.eg_theta = v; rebuild(); }, format: (v) => v.toFixed(0) },
-    { type: 'section', label: 'BileÅŸenler (G=100 N)' },
-    { type: 'display', label: 'KaydÄ±ran GÂ·sin Î¸', highlight: true,
+    { type: 'slider', label: '🪵 Sürtünme μ', min: 0, max: 1, step: 0.05, unit: '',
+      getValue: () => S.eg_mu, setValue: (v) => { S.eg_mu = v; rebuild(); }, format: (v) => _fmt(v, 2),
+      sub: 'tan θ > μ → blok kayar' },
+    { type: 'section', label: 'Bileşenler (G=100 N)' },
+    { type: 'display', label: 'Kaydıran G·sin θ', highlight: true,
       getValue: () => _fmt(100 * Math.sin(S.eg_theta * Math.PI / 180), 1) + ' N' },
-    { type: 'display', label: 'Normal GÂ·cos Î¸',
+    { type: 'display', label: 'Dik / Normal G·cos θ',
       getValue: () => _fmt(100 * Math.cos(S.eg_theta * Math.PI / 180), 1) + ' N' },
-    { type: 'formula', text: 'GÂ·sin Î¸ (kaydÄ±ran), GÂ·cos Î¸ (normal)' }
-  ], { title: 'EÄŸik DÃ¼zlem' });
+    { type: 'display', label: 'Durum', highlight: true, getValue: () => {
+        const tan = Math.tan(S.eg_theta * Math.PI / 180);
+        return tan > S.eg_mu
+          ? '🔴 KAYAR (tan θ=' + _fmt(tan, 2) + ' > μ)'
+          : '🟣 Durur (tan θ=' + _fmt(tan, 2) + ' ≤ μ)';
+      } },
+    { type: 'formula', text: 'G·sin θ (kaydıran),  G·cos θ = N (dik)' }
+  ], { title: 'Eğik Düzlem' });
 };
 
 SubBuilders.buildBagilHiz = function() {
   const root = _newRoot();
   const S = window._sceneState;
-  S.bh_vt = 6;  // tekne hÄ±zÄ± (dik)
-  S.bh_va = 4;  // akÄ±ntÄ± hÄ±zÄ± (yatay)
+  S.bh_vt = 6;   // tekne hızı (karşıya, dik)
+  S.bh_va = 4;   // akıntı hızı (yatay)
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
 
-  // nehir bandÄ± (iki kÄ±yÄ± Ã§izgisi)
-  const bankMat = new THREE.MeshBasicMaterial({ color: 0x1b4a6b, transparent: true, opacity: 0.35, side: THREE.DoubleSide });
-  const river = new THREE.Mesh(new THREE.PlaneGeometry(22, 7), bankMat);
-  river.position.set(0, 1.5, -0.05);
-  root.add(river);
+  // Nehir geometrisi (sahne koordinatları)
+  const W = 5.0;            // nehir görsel genişliği (y: yStart..yEnd)
+  const yStart = -3.0;      // alt kıyı (kalkış)
+  const yEnd = yStart + W;  // üst kıyı (varış)
+  const xStart = -4.0;      // kalkış x
+  const RIVER_W = 60;       // gerçek genişlik (m) — display için
 
-  const O = new THREE.Vector3(-4, -2, 0); // tekne baÅŸlangÄ±Ã§
+  // nehir bandı + kıyılar
+  const riverMat = new THREE.MeshBasicMaterial({ color: 0x1b4a6b, transparent: true, opacity: 0.35, side: THREE.DoubleSide });
+  const river = new THREE.Mesh(new THREE.PlaneGeometry(22, W), riverMat);
+  river.position.set(0, (yStart + yEnd) / 2, -0.06);
+  root.add(river);
+  const bankGeo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-11, yStart, 0), new THREE.Vector3(11, yStart, 0),
+    new THREE.Vector3(-11, yEnd, 0), new THREE.Vector3(11, yEnd, 0)
+  ]);
+  root.add(new THREE.LineSegments(bankGeo, new THREE.LineBasicMaterial({ color: 0x3fa0d0, transparent: true, opacity: 0.7 })));
+
+  const O = new THREE.Vector3(xStart, yStart, 0); // kalkış noktası
+
+  // sürüklenme (m) ve varış x (sahne) hesabı
+  function drift() { return S.bh_vt > 0 ? (S.bh_va * RIVER_W / S.bh_vt) : 0; }
+  function landX() {
+    // bileşke yön eğimi kadar yatay kayma (W yüksekliğe karşılık); aşırı kaymayı sınırla
+    const slip = W * (S.bh_va / Math.max(S.bh_vt, 0.001));
+    return xStart + Math.min(slip, 13);
+  }
 
   function rebuild() {
     _disposeGroup(dyn);
-    const sc = 0.7;
-    const vt = new THREE.Vector3(0, S.bh_vt * sc, 0);   // tekne dik
-    const va = new THREE.Vector3(S.bh_va * sc, 0, 0);   // akÄ±ntÄ± yatay
-    const vr = vt.clone().add(va);                       // bileÅŸke
+    const sc = 0.55;
+    const vt = new THREE.Vector3(0, S.bh_vt * sc, 0);  // tekne (karşıya)
+    const va = new THREE.Vector3(S.bh_va * sc, 0, 0);  // akıntı
+    const vr = vt.clone().add(va);                      // bileşke (yer hızı)
+
+    // vektör okları (O kuyruğundan)
     dyn.add(makeArrow3D(O, O.clone().add(vt), VCOL.f1, { width: 0.085 }));
     dyn.add(makeArrow3D(O, O.clone().add(va), VCOL.f2, { width: 0.085 }));
     dyn.add(makeArrow3D(O, O.clone().add(vr), VCOL.res, { width: 0.1 }));
     dyn.add(makeDashedSeg(O.clone().add(vt), O.clone().add(vr), VCOL.f2));
     dyn.add(makeDashedSeg(O.clone().add(va), O.clone().add(vr), VCOL.f1));
-    // tekne
+
+    // gerçek rota (kalkıştan varış noktasına kesikli çizgi)
+    const land = new THREE.Vector3(landX(), yEnd, 0);
+    dyn.add(makeDashedSeg(O, land, VCOL.res, { opacity: 0.55, dash: 0.4, gap: 0.25 }));
+    // varış noktası işareti (üst kıyı)
+    dyn.add(makeDot(land, VCOL.res, 0.18));
+    dyn.add(makeDot(new THREE.Vector3(xStart, yEnd, 0), 0x9a9aa2, 0.1)); // hedef (sürüklenmesiz)
+
+    // tekne (animasyon başlangıç konumunda O)
     const boat = new THREE.Mesh(
-      new THREE.ConeGeometry(0.35, 0.9, 4),
-      new THREE.MeshStandardMaterial({ color: 0xd0a040, roughness: 0.5 })
+      new THREE.ConeGeometry(0.34, 0.95, 4),
+      new THREE.MeshStandardMaterial({ color: 0xd0a040, roughness: 0.5, metalness: 0.2 })
     );
     boat.position.copy(O);
-    boat.rotation.z = -Math.atan2(va.x, vt.y);
+    boat.rotation.z = -Math.atan2(vr.x, vr.y); // bileşke yönüne baksın
     boat.userData.dynamic = true;
+    boat.userData.isBoat = true;
     dyn.add(boat);
+    window._bhBoat = boat;
+    window._bhLand = land;
+
+    // Gerçekçi CC0 yelkenli modeli yüklenince koni teknenin yerini alır
+    if (window.ensureGlb) window.ensureGlb('yelkenli', window._GLB_YELKENLI, m => {
+      if (!m || !dyn.children.includes(boat) || window._bhBoat !== boat) return;
+      const g = window.glbSelfLight(window.fitGlb(m.clone(), 1.6), 0.3);
+      g.rotation.x = Math.PI / 2; // üstten bakışta güverte kameraya dönük
+      const grp = new THREE.Group(); grp.add(g);
+      grp.position.copy(boat.position);
+      grp.rotation.z = boat.rotation.z;
+      grp.userData.dynamic = true; grp.userData.isBoat = true;
+      dyn.remove(boat); dyn.add(grp);
+      window._bhBoat = grp;
+    });
   }
   rebuild();
 
+  // ---- Animasyon: ▶️ ile tekne karşıya geçer, başa sarar (window._customAnim) ----
+  let _bhPhase = 0; // 0..1 ilerleme
+  window._customAnim = function(t, dt) {
+    const boat = window._bhBoat;
+    const land = window._bhLand;
+    if (!boat || !land) return;
+    const total = Math.max(0.6, RIVER_W / Math.max(S.bh_vt, 0.001) * 0.12); // görsel süre (s)
+    _bhPhase += dt / total;
+    if (_bhPhase > 1) _bhPhase = 0;
+    boat.position.lerpVectors(O, land, _bhPhase);
+    boat.rotation.z = -Math.atan2(land.x - O.x, land.y - O.y);
+  };
+
   addInfo3DLabels([
-    { text: { ilkokul: 'ğŸš¤ Tekne', ortaokul: 'â¬†ï¸ Tekne hÄ±zÄ±', lise: 'â¬†ï¸ v_tekne', tyt_ayt: 'â¬†ï¸ vâƒ—_tekne' },
-      position: [-5.5, 1, 0], target: [-4, 0, 0], color: '#5fc8e0' },
-    { text: { ilkokul: 'ğŸŒŠ AkÄ±ntÄ±', ortaokul: 'â¡ï¸ AkÄ±ntÄ± hÄ±zÄ±', lise: 'â¡ï¸ v_akÄ±ntÄ±', tyt_ayt: 'â¡ï¸ vâƒ—_akÄ±ntÄ±' },
-      position: [-1.5, -2.8, 0], target: [-2.5, -2, 0], color: '#c45d5d' },
-    { text: { ilkokul: 'â†—ï¸ GerÃ§ek yol', ortaokul: 'â†—ï¸ GerÃ§ek (bileÅŸke) hÄ±z', lise: 'â†—ï¸ v_yer = âˆš(v_tÂ²+v_aÂ²)', tyt_ayt: 'â†—ï¸ vâƒ—_yer = vâƒ—_t + vâƒ—_a' },
-      position: [2, 1.5, 0], target: [-1, 0, 0], color: '#f6b93b' }
+    { text: { ilkokul: '🚤 Tekne', ortaokul: '⬆️ Tekne hızı', lise: '⬆️ v_tekne', tyt_ayt: '⬆️ v⃗_tekne (karşıya)' },
+      position: [-5.5, 0.2, 0], target: [-4, -1.2, 0], color: '#5fc8e0' },
+    { text: { ilkokul: '🌊 Akıntı', ortaokul: '➡️ Akıntı hızı', lise: '➡️ v_akıntı', tyt_ayt: '➡️ v⃗_akıntı' },
+      position: [-1.5, -3.8, 0], target: [-2.5, -3, 0], color: '#c45d5d' },
+    { text: { ilkokul: '↗️ Gerçek yol', ortaokul: '↗️ Gerçek (bileşke) hız', lise: '↗️ v_yer = √(v_t²+v_a²)', tyt_ayt: '↗️ v⃗_yer = v⃗_t + v⃗_a' },
+      position: [2, -0.5, 0], target: [-1.5, -1.5, 0], color: '#f6b93b' },
+    { text: { ortaokul: '📍 Varış noktası', lise: '📍 Sürüklenme ile varış', tyt_ayt: '📍 x = v_a·(d/v_t)' },
+      position: [3, 2.5, 0], target: [landX(), yEnd, 0], color: '#ffd166', minLevel: 2 }
   ]);
 
   setSceneSliders([
-    { type: 'section', label: 'HÄ±zlar' },
-    { type: 'slider', label: 'ğŸš¤ Tekne hÄ±zÄ±', min: 2, max: 9, step: 1, unit: ' m/s',
-      getValue: () => S.bh_vt, setValue: (v) => { S.bh_vt = v; rebuild(); }, format: (v) => v.toFixed(0) },
-    { type: 'slider', label: 'ğŸŒŠ AkÄ±ntÄ± hÄ±zÄ±', min: 0, max: 9, step: 1, unit: ' m/s',
-      getValue: () => S.bh_va, setValue: (v) => { S.bh_va = v; rebuild(); }, format: (v) => v.toFixed(0) },
-    { type: 'section', label: 'SonuÃ§ (geniÅŸlik=60 m)' },
-    { type: 'display', label: 'BileÅŸke hÄ±z', highlight: true,
+    { type: 'section', label: 'Hızlar' },
+    { type: 'slider', label: '🚤 Tekne hızı', min: 2, max: 9, step: 1, unit: ' m/s',
+      getValue: () => S.bh_vt, setValue: (v) => { S.bh_vt = v; rebuild(); }, format: (v) => v.toFixed(0),
+      sub: 'Karşı kıyıya doğru (dik)' },
+    { type: 'slider', label: '🌊 Akıntı hızı', min: 0, max: 9, step: 1, unit: ' m/s',
+      getValue: () => S.bh_va, setValue: (v) => { S.bh_va = v; rebuild(); }, format: (v) => v.toFixed(0),
+      sub: 'Nehir boyunca (yatay)' },
+    { type: 'section', label: 'Sonuç (genişlik=60 m)' },
+    { type: 'display', label: 'Bileşke hız', highlight: true,
       getValue: () => _fmt(Math.sqrt(S.bh_vt * S.bh_vt + S.bh_va * S.bh_va), 2) + ' m/s' },
-    { type: 'display', label: 'GeÃ§iÅŸ sÃ¼resi', getValue: () => _fmt(60 / S.bh_vt, 1) + ' s' },
-    { type: 'display', label: 'SÃ¼rÃ¼klenme', getValue: () => _fmt(S.bh_va * 60 / S.bh_vt, 1) + ' m' },
-    { type: 'formula', text: 'v = âˆš(v_tÂ² + v_aÂ²),  t = d/v_t' }
-  ], { title: 'BaÄŸÄ±l HÄ±z' });
+    { type: 'display', label: 'Geçiş süresi', getValue: () => _fmt(RIVER_W / S.bh_vt, 1) + ' s' },
+    { type: 'display', label: 'Sürüklenme', highlight: true,
+      getValue: () => _fmt(drift(), 1) + ' m' },
+    { type: 'formula', getValue: () => 'v = √(' + S.bh_vt + '²+' + S.bh_va + '²) = <b>' +
+        _fmt(Math.sqrt(S.bh_vt * S.bh_vt + S.bh_va * S.bh_va), 2) + '</b> m/s,  sürüklenme = v_a·(d/v_t)',
+      text: 'v = √(v_t² + v_a²),  t = d/v_t,  x = v_a·t' }
+  ], { title: 'Bağıl Hız' });
 };
 
-// ============================================================
 // ====== SİSTEM: SEVİYE, MOD, NAVİGASYON, UI ================
 // ============================================================
 let currentLevel = 'lise';
@@ -3642,6 +4321,27 @@ function applySceneTheme() {
   scene.fog = new THREE.Fog(fogColor, fogNear, fogFar);
 }
 
+// Bilgi paneli özel kaydırma çubuğu (eksikti — eklendi)
+function updateInfoScrollbar() {
+  const list = document.getElementById('infoList');
+  const bar = document.getElementById('infoScrollbar');
+  const thumb = document.getElementById('infoScrollThumb');
+  if (!list || !bar || !thumb) return;
+  const sh = list.scrollHeight, ch = list.clientHeight;
+  if (ch < 5) return;
+  if (sh <= ch + 3) { bar.classList.remove('visible'); return; }
+  bar.classList.add('visible');
+  const trackH = bar.clientHeight || ch;
+  const thumbH = Math.max(26, trackH * ch / sh);
+  const maxScroll = sh - ch;
+  const maxThumb = trackH - thumbH;
+  const top = maxScroll > 0 ? (list.scrollTop / maxScroll) * maxThumb : 0;
+  thumb.style.height = thumbH + 'px';
+  thumb.style.top = top + 'px';
+}
+if (document.getElementById('infoList')) {
+  document.getElementById('infoList').addEventListener('scroll', updateInfoScrollbar, { passive: true });
+}
 function selectSub(subKey) {
   currentSub = subKey;
   clearScene();
@@ -3672,7 +4372,9 @@ function selectSub(subKey) {
   applyModeToLabels();
 
   if (controls) {
-    controls.target.set(1.2, _AXIS_Y - 0.5, 0);
+    // Hedefi daha aşağı al → model ekranda daha YUKARIDA dursun
+    controls.target.set(0, -1.15, 0);
+    if (camera) camera.position.set(0, 1.85, 25.0);
     controls.captureInitialState && controls.captureInitialState();
   }
 
@@ -3682,6 +4384,14 @@ function selectSub(subKey) {
     const cur = allSubs.find(s => s.key === subKey);
     if (cur) window._showGestureToast('📍 ' + cur.label);
   }
+  // Geçiş Motoru: yeni sahne için Ayarlar'a göre giriş animasyonu + ses + geri bildirim
+  try {
+    if (window.GECIS && window._currentModelGroup) {
+      const tEl = document.getElementById('infoTitle');
+      const lbl = tEl ? tEl.textContent.split('/').pop().trim() : '';
+      window.GECIS.onScene(window._currentModelGroup, lbl);
+    }
+  } catch(e) {}
 }
 
 function applyModeToLabels() {
@@ -3698,8 +4408,9 @@ function applyModeToLabels() {
   });
 }
 
+function _dataKey(subKey) { return subKey; }
 function updateInfoPanel(subKey) {
-  const data = _resolveLevelData(INFO_DATA[subKey]);
+  const data = _resolveLevelData(INFO_DATA[_dataKey(subKey)]);
   if (!data) return;
   document.getElementById('infoEmoji').textContent = data.emoji || '🔦';
   let mainTitle = '', subTitle = '';
@@ -3707,6 +4418,8 @@ function updateInfoPanel(subKey) {
     const s = MODULES[mk].subs.find(x => x.key === subKey);
     if (s) {
       mainTitle = (MODULES[mk].title || '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]*Modül\s*\d+:\s*/i, '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]+/, '').trim();
+      // Başlığın başındaki eğitim seviyesini ("İlkokul:", "Lise/TYT:" vb.) kaldır → sadece ana konu kalsın
+      mainTitle = mainTitle.replace(/^[^:]*:\s*/, '').trim();
       subTitle = (s.label || '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]+/, '').trim();
       break;
     }
@@ -3717,12 +4430,20 @@ function updateInfoPanel(subKey) {
   list.innerHTML = '';
   let points = data.points || [];
   const showCount = (currentMode === 'sade') ? 3 : points.length;
+  // Satır başındaki ikon/emojileri temizleyen yardımcı (madde başında ikon olmasın)
+  const stripIcon = (txt) => txt.replace(/^\s*(?:[\p{Extended_Pictographic}️‍⃣]\s*)+/u, '').trim();
   points.slice(0, showCount).forEach(p => {
     const li = document.createElement('li');
-    if (p.startsWith('##')) { li.className = 'subhead'; li.innerHTML = p.replace('##','').trim(); }
-    else li.innerHTML = p;
+    let txt = p;
+    if (txt.startsWith('###')) { li.className = 'subhead2'; txt = txt.replace(/^###/, '').trim(); } // yan başlık → mavi
+    else if (txt.startsWith('##')) { li.className = 'subhead'; txt = txt.replace(/^##/, '').trim(); } // ara başlık → sarı
+    li.innerHTML = stripIcon(txt);
     list.appendChild(li);
   });
+  list.scrollTop = 0;
+  setTimeout(updateInfoScrollbar, 30);
+  setTimeout(updateInfoScrollbar, 150);
+  setTimeout(updateInfoScrollbar, 400);
 }
 
 function getAllSubs() {
@@ -3780,6 +4501,24 @@ function renderCompareTable() {
   window._cmpIdx = 0;
   _showComparePage();
 }
+function _renderCompareHTML(data) {
+  const cols = data.cols || [], rows = data.rows || [];
+  if (cols.length < 2 || rows.length < 1) return _renderTableHTML(data, 'compare-style');
+  const aspectLabel = cols[0];
+  const entities = rows.map(r => r[0]);
+  let html = '<table class="cmp-table compare-style cmp-versus"><thead><tr>';
+  html += `<th class="cmp-aspect">${aspectLabel}</th>`;
+  entities.forEach((e, i) => { html += `<th class="cmp-ent cmp-ent-${i % 4}">${e}</th>`; });
+  html += '</tr></thead><tbody>';
+  for (let c = 1; c < cols.length; c++) {
+    html += `<tr><td class="cmp-aspect-cell">${cols[c]}</td>`;
+    rows.forEach(r => { html += `<td>${(r[c] !== undefined && r[c] !== null) ? r[c] : '—'}</td>`; });
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
 function _showComparePage() {
   const body = document.getElementById('compareBody');
   const titleEl = document.getElementById('compareTitle');
@@ -3795,7 +4534,7 @@ function _showComparePage() {
   const i = window._cmpIdx;
   const data = pages[i];
   if (titleEl) titleEl.textContent = '⚖️ ' + (data.title || 'Karşılaştırma');
-  body.innerHTML = _renderTableHTML(data, 'compare-style');
+  body.innerHTML = _renderCompareHTML(data);
   if (nav) {
     if (pages.length > 1) {
       nav.classList.remove('hidden');
@@ -3950,11 +4689,78 @@ function attachEvents() {
     if (window._haptic) window._haptic(15);
   };
 
-  document.getElementById('btnFs').onclick = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+    // ── Bilgi panelini büyüt/küçült: ince çubuğu YUKARI/AŞAĞI SÜRÜKLE (parmağı takip eder) ──
+  (function(){
+    const handle = document.getElementById('infoResizeHandle');
+    const panel = document.getElementById('bottomPanel');
+    const list = document.getElementById('infoList');
+    if (!handle || !panel || !list) return;
+    const MIN_H = 70;
+    const maxH = () => Math.max(MIN_H, Math.round(window.innerHeight - 150)); // üst sekmelere kadar
+    function curH() {
+      const v = getComputedStyle(panel).getPropertyValue('--info-h').trim();
+      if (v.endsWith('px')) return parseFloat(v);
+      return list.getBoundingClientRect().height || Math.round(window.innerHeight * 0.24);
+    }
+    function setH(h) {
+      h = Math.max(MIN_H, Math.min(maxH(), h));
+      panel.style.setProperty('--info-h', h + 'px');
+      if (typeof updateInfoScrollbar === 'function') updateInfoScrollbar();
+    }
+    let dragging = false, startY = 0, startH = 0, pid = null;
+    function onDown(e) {
+      dragging = true; startH = curH();
+      startY = (e.touches ? e.touches[0].clientY : e.clientY);
+      list.style.transition = 'none';
+      if (e.pointerId !== undefined) { pid = e.pointerId; try { handle.setPointerCapture(pid); } catch(_){} }
+      if (window._haptic) window._haptic(10);
+      if (e.cancelable) e.preventDefault();
+      e.stopPropagation();
+    }
+    function onMove(e) {
+      if (!dragging) return;
+      const y = (e.touches ? e.touches[0].clientY : e.clientY);
+      setH(startH + (startY - y)); // yukarı sürükle → büyür
+      if (e.cancelable) e.preventDefault();
+    }
+    function onUp() {
+      if (!dragging) return;
+      dragging = false; list.style.transition = '';
+      if (pid !== null) { try { handle.releasePointerCapture(pid); } catch(_){} pid = null; }
+    }
+    if (window.PointerEvent) {
+      handle.addEventListener('pointerdown', onDown);
+      handle.addEventListener('pointermove', onMove);
+      handle.addEventListener('pointerup', onUp);
+      handle.addEventListener('pointercancel', onUp);
     } else {
-      document.exitFullscreen && document.exitFullscreen();
+      handle.addEventListener('touchstart', onDown, { passive: false });
+      window.addEventListener('touchmove', onMove, { passive: false });
+      window.addEventListener('touchend', onUp);
+      window.addEventListener('touchcancel', onUp);
+      handle.addEventListener('mousedown', onDown);
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    }
+    // çift dokunuş: büyük ↔ normal yükseklik arası geçiş
+    let lastTap = 0;
+    handle.addEventListener('click', (e) => {
+      const now = Date.now();
+      if (now - lastTap < 320) { const big = maxH() - 30; setH(curH() > big - 40 ? Math.round(window.innerHeight * 0.24) : big); }
+      lastTap = now;
+    });
+  })();
+
+  document.getElementById('btnFs').onclick = () => {
+    const el = document.documentElement;
+    const isFs = document.fullscreenElement || document.webkitFullscreenElement;
+    if (!isFs) {
+      // navigationUI:'hide' → tarayıcı/sistem çubuklarını (üstteki saat/şarj vb.) gizlemeyi iste
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (req) { try { req.call(el, { navigationUI: 'hide' }); } catch(_) { req.call(el); } }
+    } else {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) exit.call(document);
     }
     if (window._haptic) window._haptic(15);
   };
@@ -4012,7 +4818,17 @@ function attachEvents() {
     if (window._tblIdx < window._tblPages.length - 1) { window._tblIdx++; _showTablePage(); if (window._haptic) window._haptic(10); }
   };
 
-  ['shareOverlay','compareOverlay','tableOverlay'].forEach(id => {
+  // "Bu sayfa nasıl çalışır?" yardım penceresi
+  document.getElementById('btnHelp').onclick = () => {
+    closeAllDropdowns();
+    document.getElementById('helpOverlay').classList.add('show');
+    if (window._haptic) window._haptic(12);
+  };
+  document.getElementById('helpClose').onclick = () => {
+    document.getElementById('helpOverlay').classList.remove('show');
+  };
+
+  ['shareOverlay','compareOverlay','tableOverlay','helpOverlay'].forEach(id => {
     const ov = document.getElementById(id);
     ov.onclick = (e) => { if (e.target === ov) ov.classList.remove('show'); };
   });
@@ -4025,7 +4841,7 @@ function attachEvents() {
 }
 
 // ============================================================
-// ====== BAÅLATMA ============================================
+// ====== BAŞLATMA ============================================
 // ============================================================
 init();
 attachEvents();
@@ -4033,7 +4849,7 @@ buildTopicDropdown();
 selectSub('vektorTanim');
 animate();
 
-console.log('âœ“ BileÅŸke kuvvet ve vektÃ¶rler simÃ¼lasyonu baÅŸlatÄ±ldÄ±');
+console.log('✓ Bileşke kuvvet ve vektörler simülasyonu başlatıldı');
 </script>
 </body>
 </html>

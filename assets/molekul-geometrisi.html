@@ -45,14 +45,16 @@
     width:100vw; height:100vh;
     transition:background 0.3s, color 0.3s;
   }
-  body { touch-action:none; }
+  /* touch-action:none YALNIZCA 3B alanda olmalı; body'de olursa alt panel
+     içindeki yazılar kaydırılamaz (atası none olan eleman pan-y olsa bile kayamaz). */
   canvas { display:block; cursor:grab; }
   canvas:active { cursor:grabbing; }
-  #canvasContainer { position:absolute; inset:0; width:100%; height:100%; z-index:1; }
+  #canvasContainer { position:absolute; inset:0; width:100%; height:100%; z-index:1; touch-action:none; }
+  #canvasContainer canvas { touch-action:none; }
 
   .left-stack {
     position:absolute;
-    top:6px; right:14px;
+    top:2px; right:14px;
     z-index:30;
     display:flex; flex-direction:column; gap:8px;
     align-items:flex-end;
@@ -140,7 +142,7 @@
 
   .right-tools {
     position:absolute;
-    top:6px; left:8px;
+    top:2px; left:8px;
     z-index:30;
     display:flex; gap:8px;
     flex-wrap:nowrap;
@@ -167,6 +169,23 @@
 
   .tool-icon-btn.fs { border-color:var(--joint); color:var(--joint); }
   .tool-icon-btn.fs:hover { background:var(--joint); color:#0a1420; }
+  .tool-icon-btn.help { border-color:var(--accent-glow); color:var(--accent-glow); }
+  .tool-icon-btn.help:hover { background:var(--accent-glow); color:#0a1420; }
+  /* "Bu sayfa nasıl çalışır?" yardım penceresi */
+  .help-card { width:min(460px, 94vw) !important; max-height:86vh; overflow-y:auto; }
+  .help-sec-title {
+    font-family:'Baloo 2', cursive; font-weight:800; font-size:13px;
+    color:var(--accent-glow); margin:13px 2px 6px; letter-spacing:0.3px;
+    border-top:1px solid var(--panel-line); padding-top:11px;
+  }
+  .help-sec-title:first-child { border-top:none; margin-top:2px; padding-top:0; }
+  .help-row {
+    display:flex; gap:10px; align-items:flex-start;
+    padding:5px 4px; font-size:13px; color:var(--ink); line-height:1.42;
+  }
+  .help-row .he { font-size:17px; flex-shrink:0; width:24px; text-align:center; }
+  .help-row b { color:var(--accent-glow); font-weight:700; }
+  .help-intro { font-size:12.5px; color:var(--ink-soft); line-height:1.45; padding:2px 4px 6px; }
   .tool-icon-btn.send { border-color:var(--warning); color:var(--warning); }
   .tool-icon-btn.send:hover { background:var(--warning); color:#0a1420; }
   .tool-icon-btn.theme { border-color:var(--cartilage); color:var(--cartilage); }
@@ -193,30 +212,27 @@
   }
   .bottom-panel.hidden { display:none; }
 
-  /* Bilgi panelini yukari/asagi cekerek genisleten tutamac (ust cercevenin tam ustunde) */
+  /* Bilgi panelini büyüt/küçült: bilgi çerçevesinin tam üstünde YAN YANA ▲▼ ok (sürükle-bırak).
+     Yukarı/aşağı sürükle → panel büyür/küçülür. Dokunma hedefi geniş, görünen kısım sade iki ok. */
   .info-resize-handle {
     position:absolute;
-    top:-15px; left:50%; transform:translateX(-50%);
-    width:64px; height:24px;
-    background:var(--panel);
-    border:2px solid var(--accent);
-    border-bottom:none;
-    border-radius:12px 12px 0 0;
-    display:flex; align-items:center; justify-content:center;
-    gap:3px;
+    top:-19px; left:50%; transform:translateX(-50%);
+    width:100px; height:28px;
+    display:flex; flex-direction:row; align-items:center; justify-content:center;
+    gap:7px;
+    cursor:ns-resize; touch-action:none; z-index:4;
+    background:transparent; border:none; padding:0;
     color:var(--accent);
-    font-size:13px; line-height:1;
-    cursor:ns-resize; touch-action:none;
-    z-index:3;
-    box-shadow:0 -3px 10px rgba(0,0,0,0.3);
   }
-  .info-resize-handle::before {
-    content:''; position:absolute; top:7px;
-    width:34px; height:4px; border-radius:3px;
-    background:var(--accent); opacity:0.55;
+  .info-resize-handle span {
+    font-size:12px; line-height:1; opacity:0.82; pointer-events:none;
+    text-shadow:0 1px 3px rgba(0,0,0,0.5);
+    transition:opacity 0.15s ease, transform 0.15s ease, color 0.15s ease;
   }
-  .info-resize-handle span { position:relative; top:4px; font-size:11px; opacity:0.9; }
-  .info-resize-handle:active { background:var(--panel-soft); }
+  .info-resize-handle:hover span { opacity:1; }
+  .info-resize-handle:active span { opacity:1; color:var(--accent-glow); }
+  .info-resize-handle:active .rz-up { transform:translateY(-2px); }
+  .info-resize-handle:active .rz-down { transform:translateY(2px); }
 
   .info-close-btn {
     position:absolute;
@@ -265,7 +281,7 @@
   }
   .info-title {
     font-family:'Baloo 2', cursive; font-weight:800;
-    font-size:12.5px;
+    font-size:14px;
     color:var(--accent-glow);
   }
   .nav-buttons {
@@ -291,6 +307,7 @@
     list-style:none;
     padding:0; margin:0;
     max-height:var(--info-h, 24vh);
+    transition:max-height 0.12s ease;
     overflow-y:auto;
     overflow-x:hidden;
     -webkit-overflow-scrolling:touch;
@@ -317,42 +334,52 @@
     border:1px solid rgba(0,0,0,0.3);
   }
   .info-list li {
-    padding:1px 0 1px 11px;
+    padding:3px 0 3px 15px;
     margin-bottom:0;
     background:transparent;
     border:none;
     border-radius:0;
-    font-size:10.5px;
-    line-height:1.32;
+    font-size:12px;
+    line-height:1.5;
     color:var(--ink);
     position:relative;
   }
+  /* Madde başında küçük MAVİ nokta */
   .info-list li::before {
     content:'•';
+    color:var(--joint);
     position:absolute;
-    left:2px; top:1px;
-    color:var(--accent);
-    font-weight:700;
-    font-size:11px;
+    left:3px; top:3px;
+    font-size:13px; line-height:1.45;
   }
   .info-list li b {
     color:var(--accent-glow);
     font-weight:700;
   }
+  /* Ara başlık (##) → SARI, nokta yok */
   .info-list li.subhead {
     background:transparent;
     border-left:none;
     color:var(--warning);
     font-weight:700;
-    font-size:11.5px;
+    font-size:12px;
     margin-top:5px;
     margin-bottom:2px;
     padding:0 0 1px 0;
     font-style:normal;
   }
-  .info-list li.subhead::before {
-    content:'';
+  .info-list li.subhead::before { content:''; }
+  /* Yan başlık (###) → MAVİ, nokta yok */
+  .info-list li.subhead2 {
+    background:transparent;
+    color:var(--joint);
+    font-weight:700;
+    font-size:12px;
+    margin-top:4px;
+    margin-bottom:1px;
+    padding:0 0 1px 0;
   }
+  .info-list li.subhead2::before { content:''; }
 
   .action-row {
     display:grid;
@@ -548,6 +575,14 @@
   .cmp-table th:nth-child(3),
   .cmp-table th:nth-child(4) { border-left:1px dashed rgba(255,255,255,0.3); }
   .cmp-table tr:hover td { background:rgba(246,185,59,0.20) !important; }
+  /* Karşılaştırma (versus): karşılaştırılan varlıklar SÜTUN başlığında ayrı renkte */
+  .cmp-versus th.cmp-aspect { background:linear-gradient(135deg,#3a4668,#2a3450); color:var(--ink); text-shadow:none; }
+  .cmp-versus th.cmp-ent { color:#0a1420; }
+  .cmp-versus th.cmp-ent-0 { background:linear-gradient(135deg,#ffd166,#f6b93b); }
+  .cmp-versus th.cmp-ent-1 { background:linear-gradient(135deg,#7adcf0,#3aa0c8); }
+  .cmp-versus th.cmp-ent-2 { background:linear-gradient(135deg,#cbb3ff,#9d7fe6); }
+  .cmp-versus th.cmp-ent-3 { background:linear-gradient(135deg,#a6e3a1,#5fb377); }
+  .cmp-versus td.cmp-aspect-cell { font-weight:700; color:var(--ink); white-space:nowrap; border-right:2px solid var(--accent); background:rgba(255,255,255,0.05); }
   .cmp-no-data {
     text-align:center;
     padding:24px 12px;
@@ -624,13 +659,14 @@
 
   @media (max-width:600px) {
     .stack-btn { min-width:140px; font-size:11px; padding:7px 11px; }
-    .stack-btn .sb-label { font-size:11px; }
+    .stack-btn .sb-label, .sp-toggle .sb-label { font-size:11px; }
+    .sp-toggle { font-size:11px; padding:7px 11px; min-width:140px; }
     .right-tools { gap:5px; left:8px; }
     .tool-icon-btn { width:34px; height:34px; font-size:14px; border-radius:9px; }
     .bottom-panel { padding:11px 10px 9px; gap:9px; }
     .info-emoji-box { width:36px; height:36px; font-size:20px; }
-    .info-title { font-size:13px; }
-    .info-list li { font-size:11.5px; padding:4px 7px; }
+    .info-title { font-size:14px; }
+    .info-list li { font-size:12px; padding:3px 0 3px 15px; }
     .info-list { max-height:var(--info-h, 28vh); }
     .action-btn { font-size:11px; padding:7px 8px; }
     .dropdown-panel { min-width:200px; }
@@ -639,12 +675,14 @@
   }
   @media (max-width:420px) {
     .stack-btn { min-width:130px; font-size:10.5px; padding:6px 9px; }
+    .sp-toggle { font-size:10.5px; padding:6px 9px; min-width:130px; }
     .right-tools { gap:4px; left:6px; }
     .tool-icon-btn { width:30px; height:30px; font-size:13px; border-radius:8px; border-width:1.5px; }
     #panelMode { left:6px !important; }
   }
   @media (max-width:360px) {
     .stack-btn { min-width:115px; font-size:10px; padding:5px 8px; }
+    .sp-toggle { font-size:10px; padding:5px 8px; min-width:115px; }
     .right-tools { gap:3px; left:5px; }
     .tool-icon-btn { width:28px; height:28px; font-size:12px; }
     #panelMode { left:5px !important; }
@@ -654,45 +692,45 @@
     display: none !important;
   }
 
-  .scene-panel {
-    position: fixed;
-    right: 14px;
-    top: 98px;
-    width: 208px;
-    max-height: calc(100vh - 98px - 200px);
-    overflow-y: auto;
-    background: rgba(15, 20, 30, 0.88);
-    border: 1px solid rgba(246, 185, 59, 0.35);
-    border-radius: 13px;
-    padding: 8px;
-    z-index: 40;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-    font-size: 10px;
-    color: rgba(255, 255, 255, 0.92);
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    transition: all 0.3s ease;
-  }
-  .scene-panel.collapsed {
-    width: auto;
-    padding: 6px 10px;
-  }
-  .scene-panel.collapsed > *:not(.sp-toggle) { display: none; }
-  .scene-panel.empty { display: none; }
+  /* Eğitim Seviyesi (üstte) altında: Değişkenler + Konu Rehberi AYNI SATIRDA,
+     Değişkenler solda. Üçü de aynı ebat (stack-btn / sp-toggle). */
+  .stack-row { display: flex; gap: 8px; align-items: flex-start; }
 
-  body.dropdown-open .scene-panel {
-    transform: none;
+  /* Değişkenler içeriği: sekmenin hemen altında, TAM GENİŞLİK (telefon solu→sağı),
+     kontroller YATAY yan yana (flex-wrap). */
+  .scene-vars-body {
+    position: fixed;
+    left: 6px; right: 6px;
+    top: 92px; /* JS ile sekmenin altına hizalanır */
+    z-index: 39;
+    display: flex; flex-wrap: wrap; align-items: stretch;
+    gap: 7px;
+    background: rgba(15, 20, 30, 0.96);
+    border: 1.5px solid var(--panel-line);
+    border-radius: 12px;
+    padding: 8px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    max-height: 46vh; overflow-y: auto;
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 10px;
   }
+  .scene-vars-body.closed { display: none; }
+  .scene-vars-body .sp-section { flex-basis: 100%; margin: 2px 4px 0; }
+  .scene-vars-body .sp-slider-row { flex: 1 1 150px; min-width: 132px; max-width: 260px; }
+  .scene-vars-body .sp-display { flex: 1 1 120px; min-width: 108px; }
+  .scene-vars-body .sp-presets { flex-basis: 100%; }
+  .scene-vars-body .sp-formula { flex-basis: 100%; font-size: 11px; }
+  /* Dar yatay kartlarda yazılar sığsın */
+  .scene-vars-body .sp-slider-row .sp-slider-head { font-size: 10px; }
+  .scene-vars-body .sp-slider-row .sp-slider-head .sp-val { font-size: 10px; min-width: 40px; padding: 2px 5px; }
+  .scene-vars-body .sp-display { font-size: 9.5px; }
+  .scene-vars-body .sp-preset-btn { font-size: 10px; }
 
   @media (min-width: 768px) {
     canvas {
       transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    body.scene-panel-open canvas {
-      transform: translateX(-15vw);
     }
     body.panel-open canvas {
       transform: translateX(-22vw);
@@ -735,22 +773,29 @@
     padding: 0 4px;
     font-size: 11px;
   }
+  /* Sekme: TURUNCU; Lise/Konu Rehberi ile aynı boyut/yapı (ikon başta, ok sağda) */
   .sp-toggle {
-    background: rgba(246, 185, 59, 0.18);
-    border: 1px solid rgba(246, 185, 59, 0.5);
+    background: linear-gradient(135deg, #f59f0a, #f97316);
+    border: 2px solid rgba(255, 184, 92, 0.6);
     color: #fff;
-    font-size: 11px;
+    font-family: 'Fredoka', sans-serif;
+    font-size: 12.5px;
     font-weight: 600;
-    padding: 6px 10px;
-    border-radius: 10px;
+    padding: 8px 14px;
+    border-radius: 12px;
     cursor: pointer;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    width: 100%;
+    gap: 7px;
+    min-width: 170px; /* Konu Rehberi (stack-btn) ile aynı ebat */
+    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.35);
+    transition: all 0.15s;
   }
-  .sp-toggle:hover { background: rgba(246, 185, 59, 0.32); }
+  .sp-toggle:hover { border-color: #fff; }
+  .sp-toggle:active { transform: scale(0.97); }
+  .sp-toggle .sb-emoji { font-size: 16px; line-height: 1; flex-shrink: 0; }
+  .sp-toggle .sb-label { flex: 1; text-align: left; }
+  .sp-chev { font-size: 10px; opacity: 0.9; }
   .sp-section {
     font-size: 9px; font-weight: 700;
     color: rgba(255, 209, 90, 0.85);
@@ -865,18 +910,23 @@
   }
 
   @media (max-width: 768px) {
-    .scene-panel {
-      right: 12px;
-      top: 92px;
-      width: 178px;
-      font-size: 9.5px;
-      padding: 7px;
-    }
     .sp-slider-row { padding: 5px 7px; }
     .sp-slider-row input[type=range] { height: 5px; }
   }
 
-  body.panel-open .scene-panel { }
+  /* Değişkenler paneli TAM ŞEFFAF — açıkken 3D model arkada görünmeye devam eder */
+  .scene-vars-body {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.85);
+  }
+  .scene-vars-body .sp-slider-row,
+  .scene-vars-body .sp-display,
+  .scene-vars-body .sp-formula,
+  .scene-vars-body .sp-preset-btn { background: rgba(0, 0, 0, 0.30); }
 </style>
 </head>
 <body>
@@ -917,7 +967,7 @@
 </div>
 
 <div id="regionList" class="region-list"></div>
-<div id="scenePanel" class="scene-panel"></div>
+<div id="sceneVarsBody" class="scene-vars-body closed"></div>
 
 <div id="gestureToast" style="
   position:fixed; top:90px; left:50%; transform:translateX(-50%) translateY(-20px);
@@ -937,11 +987,14 @@
     <span class="sb-label" id="levelLabel">Lise</span>
     <span class="sb-arrow">▼</span>
   </button>
-  <button class="stack-btn topic" id="btnTopic">
-    <span class="sb-emoji">📚</span>
-    <span class="sb-label">Konu Rehberi</span>
-    <span class="sb-arrow">▼</span>
-  </button>
+  <div class="stack-row" id="stackRow">
+    <!-- Değişkenler sekmesi (sp-toggle) JS ile buraya, Konu Rehberi'nin SOLUNA eklenir -->
+    <button class="stack-btn topic" id="btnTopic">
+      <span class="sb-emoji">📚</span>
+      <span class="sb-label">Konu Rehberi</span>
+      <span class="sb-arrow">▼</span>
+    </button>
+  </div>
 </div>
 
 <div class="dropdown-panel" id="panelLevel" style="top:48px; right:14px; max-height:70vh; overflow-y:auto;">
@@ -966,6 +1019,7 @@
   <button class="tool-icon-btn theme" id="btnTheme" title="Tema değiştir">🌙</button>
   <button class="tool-icon-btn send" id="btnSend" title="Gönder/Paylaş">📤</button>
   <button class="tool-icon-btn fs" id="btnFs" title="Tam ekran">⛶</button>
+  <button class="tool-icon-btn help" id="btnHelp" title="Bu sayfa nasıl çalışır?">❓</button>
 </div>
 
 <div class="dropdown-panel" id="panelMode" style="top:48px; left:8px;">
@@ -975,7 +1029,7 @@
 </div>
 
 <div class="bottom-panel" id="bottomPanel">
-  <div class="info-resize-handle" id="infoResizeHandle" title="Yukari/asagi cekerek genislet"><span>⇕</span></div>
+  <div class="info-resize-handle" id="infoResizeHandle" title="Yukarı/aşağı sürükleyerek büyüt/küçült"><span class="rz-up">▲</span><span class="rz-down">▼</span></div>
   <button class="info-close-btn" id="infoCloseBtn" title="Bilgi panelini kapat">✕</button>
   <div class="info-area">
     <div class="info-emoji-box" id="infoEmoji" style="display:none;">🧪</div>
@@ -1079,6 +1133,39 @@
   </div>
 </div>
 
+<div class="share-overlay" id="helpOverlay">
+  <div class="share-card help-card">
+    <div class="share-head">
+      <div class="share-head-text">❓ Bu Sayfa Nasıl Çalışır?</div>
+      <button class="share-close-btn" id="helpClose">✕</button>
+    </div>
+    <div class="help-intro">3 boyutlu modeli parmaklarınla incele; üstteki menülerden seviye ve konu seç; alttaki panelden bilgileri oku.</div>
+
+    <div class="help-sec-title">🖐️ Dokunma Hareketleri</div>
+    <div class="help-row"><span class="he">👆</span><span><b>Döndür:</b> tek parmakla sürükle</span></div>
+    <div class="help-row"><span class="he">✌️</span><span><b>Yakınlaştır:</b> iki parmağı aç/kapa — istediğin yere odaklanır</span></div>
+    <div class="help-row"><span class="he">🤏</span><span><b>Taşı:</b> iki parmağı birlikte kaydır</span></div>
+    <div class="help-row"><span class="he">👆👆</span><span><b>Çift dokun:</b> dokunduğun noktaya yakınlaş</span></div>
+    <div class="help-row"><span class="he">🖐️</span><span><b>Sıfırla:</b> üç parmakla dokun</span></div>
+
+    <div class="help-sec-title">🧭 Üst Menüler</div>
+    <div class="help-row"><span class="he">🎓</span><span><b>Eğitim Seviyesi</b> (sağ üst): İlkokul / Ortaokul / Lise / Sınav</span></div>
+    <div class="help-row"><span class="he">📚</span><span><b>Konu Rehberi</b> (sağ üst): konular arasında geç</span></div>
+    <div class="help-row"><span class="he">📄</span><span><b>Görünüm Modu</b> (sol üst): Sade / Detaylı bilgi</span></div>
+    <div class="help-row"><span class="he">🎛️</span><span><b>Değişkenler</b> (Konu Rehberi'nin altında): sahnedeki kaydırıcı ve seçenekler — konu değişince kısa görünür, dokununca açılır</span></div>
+
+    <div class="help-sec-title">🛠️ Araçlar (sol üst)</div>
+    <div class="help-row"><span class="he">⚖️</span><span><b>Karşılaştırma</b> &nbsp;·&nbsp; <span class="he" style="display:inline">📋</span> <b>Bilgi Tablosu</b></span></div>
+    <div class="help-row"><span class="he">🌙</span><span><b>Tema</b> &nbsp;·&nbsp; 📤 <b>Paylaş</b> &nbsp;·&nbsp; ⛶ <b>Tam ekran</b></span></div>
+
+    <div class="help-sec-title">📖 Alt Bilgi Paneli</div>
+    <div class="help-row"><span class="he">⇕</span><span><b>Tutamacı sürükle:</b> paneli büyüt / küçült</span></div>
+    <div class="help-row"><span class="he">📜</span><span><b>Kaydır:</b> yazılar sığmazsa panel içinde yukarı/aşağı kaydır</span></div>
+    <div class="help-row"><span class="he">◀▶</span><span><b>Önceki / Sonraki</b> konuya geç</span></div>
+    <div class="help-row"><span class="he">🔄</span><span><b>Döndür</b> · 🏷️ <b>Etiketler</b> · ▶️ <b>Çalıştır</b> (animasyon)</span></div>
+  </div>
+</div>
+
 <div id="canvasContainer">
   <svg id="leaderLines" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:9;"></svg>
 </div>
@@ -1103,6 +1190,118 @@ window.__moduleLoaded = false;
 
 <!-- Three.js OFFLINE: klasik global script (window.THREE) — file:// altında ES modül yok -->
 <script src="three.global.js"></script>
+
+<!-- ===== GEÇİŞ MOTORU: Ayarlar'a (Geçiş Stüdyosu) göre sahne geçiş animasyonu + ses + geri bildirim ===== -->
+<script>
+(function(){
+  const DEF={ level:'karisik', enterMode:'rastgele', exitMode:'rastgele', speed:1.0, overlap:true, sound:true, stereo:true, emoji:false, title:false, confetti:false, calm:false };
+  function readS(){ let S=Object.assign({},DEF); try{ const v=localStorage.getItem('gecisAyar3'); if(v) S=Object.assign({},DEF,JSON.parse(v)); }catch(e){} return S; }
+
+  // CSS (emoji/uçan başlık/konfeti) bir kez enjekte
+  if(!document.getElementById('gecisFxCss')){ const st=document.createElement('style'); st.id='gecisFxCss'; st.textContent=
+    ".gx-emoji{position:fixed;z-index:120;pointer-events:none;font-size:clamp(40px,9vw,64px);filter:drop-shadow(0 6px 12px rgba(0,0,0,.45));}"+
+    ".gx-emoji.happy{animation:gxHappy 1.5s cubic-bezier(.2,.9,.3,1.1) forwards;}"+
+    "@keyframes gxHappy{0%{opacity:0;transform:translate(-50%,-20%) scale(.2) rotate(-12deg);}22%{opacity:1;transform:translate(-50%,-78%) scale(1.25) rotate(8deg);}45%{transform:translate(-50%,-70%) scale(1);}100%{opacity:0;transform:translate(-50%,-108%) scale(.85);}}"+
+    ".gx-title{position:fixed;top:26%;left:50%;z-index:118;pointer-events:none;font-weight:800;font-size:clamp(20px,4.6vw,36px);color:#fff;text-shadow:0 3px 18px rgba(90,209,255,.55),0 1px 3px rgba(0,0,0,.6);font-family:'Baloo 2',sans-serif;animation:gxTitle 2s ease forwards;}"+
+    "@keyframes gxTitle{0%{opacity:0;transform:translate(-30%,0) scale(.9);}18%{opacity:1;transform:translate(-50%,0) scale(1);}80%{opacity:1;transform:translate(-50%,0) scale(1);}100%{opacity:0;transform:translate(-62%,0) scale(.96);}}"+
+    ".gx-conf{position:fixed;top:30%;z-index:119;pointer-events:none;width:9px;height:14px;border-radius:2px;}"+
+    "@keyframes gxConf{0%{opacity:1;transform:translateY(0) rotate(0);}100%{opacity:0;transform:translateY(300px) rotate(560deg);}}";
+    (document.head||document.documentElement).appendChild(st); }
+
+  // ---- SES (WebAudio) ----
+  let actx=null, pan=0;
+  const TH={ ilkokul:{p:1.18,g:1.12}, ortaokul:{p:1.0,g:1.0}, lise:{p:0.84,g:0.82}, karisik:{p:1.0,g:1.0} };
+  function th(S){ return TH[S.level]||TH.karisik; }
+  function ensure(){ try{ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==='suspended') actx.resume(); }catch(e){} return actx; }
+  function pn(a,S){ try{ const p=a.createStereoPanner(); p.pan.value=S.stereo?pan:0; return p; }catch(e){ return a.createGain(); } }
+  function blip(S,freq,t0,dur,type,g,slide){ const a=ensure(); if(!a)return; const t=th(S); freq*=t.p; if(slide)slide*=t.p; g=(g||0.16)*t.g; const o=a.createOscillator(),gn=a.createGain(),p=pn(a,S); o.type=type||'sine'; const T=a.currentTime+t0; o.frequency.setValueAtTime(freq,T); if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(1,slide),T+dur); gn.gain.setValueAtTime(0.0001,T); gn.gain.exponentialRampToValueAtTime(g,T+0.012); gn.gain.exponentialRampToValueAtTime(0.0001,T+dur); o.connect(gn).connect(p).connect(a.destination); o.start(T); o.stop(T+dur+0.03); }
+  function noise(S,t0,dur,g,filt,type,sweep){ const a=ensure(); if(!a)return; const T=a.currentTime+t0; const n=a.createBufferSource(),buf=a.createBuffer(1,Math.max(1,a.sampleRate*dur),a.sampleRate),d=buf.getChannelData(0); for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1; n.buffer=buf; const f=a.createBiquadFilter(); f.type=type||'lowpass'; f.frequency.setValueAtTime(filt||1200,T); if(sweep)f.frequency.exponentialRampToValueAtTime(Math.max(20,sweep),T+dur); const gn=a.createGain(),p=pn(a,S); gn.gain.setValueAtTime((g||0.12)*th(S).g,T); gn.gain.exponentialRampToValueAtTime(0.0001,T+dur); n.connect(f).connect(gn).connect(p).connect(a.destination); n.start(T); n.stop(T+dur+0.03); }
+  const ESND={ don(S){ blip(S,200,0,0.55,'sawtooth',0.10,820); }, balon(S){ blip(S,380,0,0.14,'sine',0.2,920); blip(S,920,0.12,0.07,'sine',0.1); }, zipla(S){ blip(S,160,0,0.22,'triangle',0.22,520); blip(S,520,0.18,0.12,'sine',0.12,260); }, uzaydan(S){ noise(S,0,0.4,0.12,3000,'highpass',300); blip(S,900,0.34,0.18,'sine',0.14); }, sagdan(S){ noise(S,0,0.5,0.10,400,'lowpass',2200); blip(S,300,0.1,0.4,'sine',0.12,760); }, yerden(S){ blip(S,70,0,0.6,'sine',0.2,320); noise(S,0,0.55,0.07,400,'lowpass',1600); }, buyu(S){ [392,523,659,880].forEach((f,i)=>blip(S,f,i*0.08,0.14,'triangle',0.12)); } };
+  function vedaSound(S){ pan=-0.5; [523,440,392,294].forEach((f,i)=>blip(S,f,i*0.10,0.16,'triangle',0.10)); pan=0; }
+
+  // ---- Geri bildirim ----
+  const EMO={ ilkokul:['😄','🤩','🥳','🎉','😍','🙌'], ortaokul:['😄','😎','🤩','✨','👍','🔥'], lise:['🙂','😌','👍','✨','🎯','🆕'], karisik:['😄','🤩','🥳','😍','🎉','✨'] };
+  function emoji(S){ if(!S.emoji)return; const pool=EMO[S.level]||EMO.karisik; const el=document.createElement('div'); el.className='gx-emoji happy'; el.style.left='62%'; el.style.top='40%'; el.textContent=pool[Math.floor(Math.random()*pool.length)]; document.body.appendChild(el); setTimeout(()=>el.remove(),1550); }
+  function flyTitle(S,t){ if(!S.title||!t)return; const el=document.createElement('div'); el.className='gx-title'; el.textContent=t; document.body.appendChild(el); setTimeout(()=>el.remove(),2050); }
+  function confetti(){ const cols=['#ff5b6b','#ffcf5a','#5ad1ff','#66bb6a','#ab47bc','#ff8ab0']; for(let i=0;i<22;i++){ const d=document.createElement('div'); d.className='gx-conf'; d.style.left=(36+Math.random()*28)+'%'; d.style.background=cols[i%cols.length]; const du=1.1+Math.random()*0.7; d.style.animation='gxConf '+du+'s ease-in '+(Math.random()*0.2)+'s forwards'; document.body.appendChild(d); setTimeout(()=>d.remove(),(du+0.4)*1000); } try{ navigator.vibrate&&navigator.vibrate(30); }catch(e){} }
+
+  // ====== ENTER EFEKTLERİ (model parçaları + sahne FX üzerinde; window.THREE/scene) ======
+  const ez=t=>t*t*(3-2*t);
+  const clamp=(v,a,b)=>{a=(a===undefined?0:a);b=(b===undefined?1:b);return v<a?a:v>b?b:v;};
+  function eBack(x){ const c1=1.70158,c3=c1+1; return 1+c3*Math.pow(x-1,3)+c1*Math.pow(x-1,2); }
+  function eBounce(x){ const n1=7.5625,d1=2.75; if(x<1/d1)return n1*x*x; if(x<2/d1){x-=1.5/d1;return n1*x*x+0.75;} if(x<2.5/d1){x-=2.25/d1;return n1*x*x+0.9375;} x-=2.625/d1; return n1*x*x+0.984375; }
+  const T=()=>window.THREE, SC=()=>window.scene;
+  function gh(o){ return {px:o.position.x,py:o.position.y,pz:o.position.z,sx:o.scale.x,sy:o.scale.y,sz:o.scale.z,rx:o.rotation.x,ry:o.rotation.y,rz:o.rotation.z}; }
+  function setT(o,h){ o.position.set(h.px,h.py,h.pz); o.scale.set(h.sx,h.sy,h.sz); o.rotation.set(h.rx,h.ry,h.rz); }
+  function pOpacity(piece,a){ piece.traverse(o=>{ if(o.isMesh&&o.material){ o.material.transparent=a<1; o.material.opacity=a; } }); piece.visible=a>0.005; }
+  function setOpacityMs(ms,a){ ms.forEach(m=>{ if(m.material){ m.material.transparent=a<1; m.material.opacity=a; } }); }
+  // root'tan model alt-gruplarını ayıkla (ışık/grid mesh değil → otomatik hariç;
+  // ETİKET grubu da hariç → etiketler geçişten etkilenmez, hep görünür kalır)
+  function capture(group){ const mk=group.children.filter(ch=>{ if(ch.userData._gxFx||ch.userData.isLabelGroup)return false; let h=false; ch.traverse(o=>{ if(o.isMesh)h=true; }); return h; });
+    let pc=[]; mk.forEach(g=>g.children.forEach(c=>pc.push(c))); if(pc.length<2) pc=mk.slice();
+    const ms=[]; mk.forEach(g=>g.traverse(o=>{ if(o.isMesh)ms.push(o); }));
+    mk.forEach(o=>o.userData._gh=gh(o)); pc.forEach(o=>{ o.userData._gh=gh(o); });
+    ms.forEach(m=>{ if(m.material){ m.userData._go={op:(m.material.opacity!==undefined?m.material.opacity:1),tr:!!m.material.transparent,he:!!m.material.emissive,em:m.material.emissive?m.material.emissive.getHex():0,ei:m.material.emissiveIntensity||0}; m.material.transparent=true; } });
+    return {mk,pc,ms,sceneFx:[],tmp:{}}; }
+  function bounds(fx){ const TT=T(); const b=new TT.Box3(); fx.mk.forEach(g=>{ try{ b.expandByObject(g); }catch(e){} }); if(b.isEmpty()) b.set(new TT.Vector3(-1,-1,-1),new TT.Vector3(1,1,1)); return b; }
+  function addFx(fx,m){ m.userData._gxFx=true; m.userData.dynamic=true; const sc=SC(); if(sc)sc.add(m); fx.sceneFx.push(m); return m; }
+  function clearFx(fx){ const sc=SC(); (fx.sceneFx||[]).forEach(o=>{ if(sc)sc.remove(o); if(o.geometry)o.geometry.dispose(); if(o.material&&o.material.dispose)o.material.dispose(); }); fx.sceneFx=[]; }
+  function restoreAll(fx){ fx.mk.forEach(o=>{ if(o.userData._gh)setT(o,o.userData._gh); }); fx.pc.forEach(o=>{ if(o.userData._gh){ setT(o,o.userData._gh); o.visible=true; } }); fx.ms.forEach(m=>{ const g=m.userData._go; if(g&&m.material){ m.material.opacity=g.op; m.material.transparent=g.tr; if(g.he&&m.material.emissive){ m.material.emissive.setHex(g.em); m.material.emissiveIntensity=g.ei; } } }); clearFx(fx); }
+  const _v=()=>new (T().Vector3)();
+  function rdir(){ const TT=T(); return new TT.Vector3(Math.random()-0.5,Math.random()-0.5,Math.random()-0.5).normalize(); }
+  function streaks(fx,color,b){ if(readS().calm)return; const TT=T(); const cy=(b.min.y+b.max.y)/2; const arr=[]; for(let i=0;i<4;i++){ const m=new TT.Mesh(new TT.PlaneGeometry(3.2,0.06),new TT.MeshBasicMaterial({color,transparent:true,opacity:0,blending:TT.AdditiveBlending,depthWrite:false,side:TT.DoubleSide})); m.position.set(0,cy-1.6+i*1.0,0); addFx(fx,m); arr.push(m); } fx.tmp.streaks=arr; }
+  function updStreaks(fx,p,dirX,mx){ const a=Math.sin(clamp(p)*Math.PI); (fx.tmp.streaks||[]).forEach((m,i)=>{ m.position.x=(mx||0)+dirX*(1.4+i*0.15); m.material.opacity=a*0.5; m.scale.x=0.7+a*1.0; }); }
+
+  // Tüm efektler — her biri fx (mk/pc/ms) + bounds üzerinde çalışır
+  const EFFECTS={
+    buyu:{ dur:1100, update(fx,p){ const e=Math.max(0.001,eBack(p)); fx.mk.forEach(g=>{const h=g.userData._gh; g.scale.set(h.sx*e,h.sy*e,h.sz*e);}); setOpacityMs(fx.ms,ez(p)); } },
+    don:{ dur:1200, update(fx,p){ const e=Math.max(0.001,eBack(p)); fx.mk.forEach(g=>{const h=g.userData._gh; g.scale.set(h.sx*e,h.sy*e,h.sz*e); g.rotation.y=h.ry-Math.PI*4*(1-ez(p));}); setOpacityMs(fx.ms,ez(p)); } },
+    balon:{ dur:1250, update(fx,p){ const e=Math.max(0.001,eBack(p)),w=1+0.12*Math.sin(p*Math.PI*6); fx.mk.forEach(g=>{const h=g.userData._gh; g.scale.set(h.sx*e*w,h.sy*e*w,h.sz*e*w);}); setOpacityMs(fx.ms,ez(clamp(p*1.5))); } },
+    zipla:{ dur:1300, update(fx,p){ const e=eBounce(p); fx.mk.forEach(g=>{const h=g.userData._gh; g.position.y=h.py+(1-e)*6; const sq=Math.max(0,Math.sin(p*Math.PI*3))*(p>0.25?1:0)*0.12; g.scale.set(h.sx*(1+sq*0.6),h.sy*(1-sq),h.sz*(1+sq*0.6));}); } },
+    uzaydan:{ dur:1300, init(fx){ fx.mk.forEach(g=>{const h=g.userData._gh; g.rotation.y=h.ry-1.2;}); }, update(fx,p){ const e=eBack(clamp(p)); fx.mk.forEach(g=>{const h=g.userData._gh; g.position.z=h.pz-22*(1-e); g.rotation.y=h.ry-1.2*(1-ez(p));}); setOpacityMs(fx.ms,clamp(p*2)); } },
+    sagdan:{ dur:1500, init(fx){ streaks(fx,0x9be7ff,bounds(fx)); }, update(fx,p){ const e=ez(p); fx.mk.forEach(g=>{const h=g.userData._gh; g.position.x=h.px+12*(1-e); g.position.z=h.pz-9*(1-e); const s=0.6+0.4*e; g.scale.set(h.sx*s,h.sy*s,h.sz*s); g.rotation.y=h.ry+0.9*(1-e);}); setOpacityMs(fx.ms,clamp(p*1.5)); updStreaks(fx,p,1, fx.mk[0]?fx.mk[0].position.x:0); } },
+    yerden:{ dur:1400, init(fx){ const TT=T(),b=bounds(fx); const ring=new TT.Mesh(new TT.TorusGeometry(1.2,0.12,12,40),new TT.MeshBasicMaterial({color:0x7be0ff,transparent:true,opacity:0.9})); ring.rotation.x=-Math.PI/2; ring.position.y=b.min.y+0.05; ring.scale.set(0.1,0.1,0.1); addFx(fx,ring); fx.tmp.ring=ring; }, update(fx,p){ const e=ez(p); fx.mk.forEach(g=>{const h=g.userData._gh; g.position.y=h.py-5*(1-e);}); setOpacityMs(fx.ms,clamp(e*1.5)); const rs=0.3+ez(clamp(p*1.3))*2.6; if(fx.tmp.ring){ fx.tmp.ring.scale.set(rs,rs,rs); fx.tmp.ring.material.opacity=Math.sin(clamp(p)*Math.PI)*0.9; } } },
+    insa:{ dur:1500, init(fx){ const arr=fx.pc.slice().sort((a,b)=>a.userData._gh.py-b.userData._gh.py); arr.forEach((c,i)=>{ c.userData._o=i/Math.max(1,arr.length-1); pOpacity(c,0); }); }, update(fx,p){ fx.pc.forEach(c=>{ const h=c.userData._gh; const a=ez(clamp((p-c.userData._o*0.55)/0.45)); c.position.set(h.px,h.py-3.5*(1-a),h.pz); pOpacity(c,a); }); } },
+    dalga:{ dur:1400, init(fx){ const arr=fx.pc.slice().sort((a,b)=>a.userData._gh.px-b.userData._gh.px); arr.forEach((c,i)=>{ c.userData._o=i/Math.max(1,arr.length-1); c.scale.set(0.001,0.001,0.001); pOpacity(c,0); }); }, update(fx,p){ fx.pc.forEach(c=>{ const h=c.userData._gh; const a=clamp((p-c.userData._o*0.6)/0.4); const e=Math.max(0.001,eBack(clamp(a))); c.scale.set(h.sx*e,h.sy*e,h.sz*e); c.position.set(h.px,h.py+(1-clamp(a))*-0.5,h.pz); pOpacity(c,clamp(a*1.3)); }); } },
+    patla:{ dur:1400, init(fx){ fx.pc.forEach(c=>{ const h=c.userData._gh; const d=rdir().multiplyScalar(6+Math.random()*2); c.userData._ps={px:h.px+d.x,py:h.py+d.y,pz:h.pz+d.z}; c.userData._spin=(Math.random()-0.5)*10; c.position.set(c.userData._ps.px,c.userData._ps.py,c.userData._ps.pz); c.scale.set(0.001,0.001,0.001); pOpacity(c,0); }); }, update(fx,p){ const e=ez(p); fx.pc.forEach(c=>{ const h=c.userData._gh,s=c.userData._ps; c.position.set(s.px+(h.px-s.px)*e,s.py+(h.py-s.py)*e,s.pz+(h.pz-s.pz)*e); c.scale.set(h.sx*e,h.sy*e,h.sz*e); c.rotation.set(c.userData._spin*(1-e),c.userData._spin*(1-e),0); pOpacity(c,clamp(e*1.4)); }); } },
+    toz:{ dur:1500, init(fx){ const TT=T(),b=bounds(fx),c=b.getCenter(new TT.Vector3()); fx.tmp.center=c; fx.tmp.dust=[]; fx.mk.forEach(g=>g.scale.set(0.001,0.001,0.001)); setOpacityMs(fx.ms,0); for(let i=0;i<40;i++){ const s=new TT.Mesh(new TT.SphereGeometry(0.07+Math.random()*0.06,8,8),new TT.MeshBasicMaterial({color:[0xfff1a8,0x9be7ff,0xffd56b,0xb59bff][i%4],transparent:true,opacity:1,blending:TT.AdditiveBlending,depthWrite:false})); s.position.copy(c); s.userData.v=rdir().multiplyScalar(3.5+Math.random()*2.5); addFx(fx,s); fx.tmp.dust.push(s); } }, update(fx,p){ const c=fx.tmp.center; (fx.tmp.dust||[]).forEach(s=>{ s.position.copy(c).addScaledVector(s.userData.v,ez(p)); s.material.opacity=clamp(1-p*1.1); const sc=clamp(1-p); s.scale.set(sc,sc,sc); }); const a=ez(clamp((p-0.18)/0.7)); fx.mk.forEach(g=>{const h=g.userData._gh,e=Math.max(0.001,a); g.scale.set(h.sx*e,h.sy*e,h.sz*e);}); setOpacityMs(fx.ms,a); } },
+    hologram:{ dur:1500, init(fx){ const TT=T(),b=bounds(fx); setOpacityMs(fx.ms,0); const disk=new TT.Mesh(new TT.CircleGeometry(3.2,40),new TT.MeshBasicMaterial({color:0x6fe9ff,transparent:true,opacity:0.5,side:TT.DoubleSide,depthWrite:false})); disk.rotation.x=-Math.PI/2; disk.position.y=b.min.y; addFx(fx,disk); fx.tmp.disk=disk; fx.tmp.minY=b.min.y-0.6; fx.tmp.maxY=b.max.y+0.6; fx.tmp.tv=_v(); }, update(fx,p){ const t=fx.tmp; const scan=t.minY+(t.maxY-t.minY)*ez(p); t.disk.position.y=scan; t.disk.material.opacity=0.5*(1-p); fx.ms.forEach(m=>{ const wy=m.getWorldPosition(t.tv).y; const a=ez(clamp((scan-wy)/0.9+0.1)); m.material.opacity=a; m.visible=a>0.01; if(m.material.emissive){ m.material.emissive.setHex(0x36c6ff); m.material.emissiveIntensity=(1-a)*0.9; } }); } }
+  };
+  // efektlere özel sesler (studio'dan)
+  Object.assign(ESND,{ insa(S){ for(let i=0;i<5;i++) blip(S,200+i*30,i*0.10,0.07,'square',0.10); blip(S,880,0.55,0.18,'sine',0.12); }, hologram(S){ blip(S,300,0,0.5,'sine',0.16,1300); noise(S,0,0.5,0.05,1800,'highpass'); }, patla(S){ noise(S,0,0.32,0.24,260,'lowpass'); blip(S,80,0,0.3,'sine',0.18,40); blip(S,700,0.26,0.2,'sine',0.12,1100); }, toz(S){ for(let i=0;i<7;i++) blip(S,1200+Math.random()*1400,Math.random()*0.6,0.10,'sine',0.07); }, dalga(S){ [523,659,784,1047].forEach((f,i)=>blip(S,f,i*0.09,0.14,'sine',0.13)); } });
+
+  const ALLE=['insa','hologram','zipla','patla','don','toz','dalga','yerden','uzaydan','balon','buyu','sagdan'];
+  const POOL={ ilkokul:['zipla','toz','balon','dalga','don','yerden'], ortaokul:['insa','dalga','patla','uzaydan','don','yerden','balon'], lise:['insa','hologram','uzaydan','patla','dalga','don'], karisik:ALLE.slice() };
+  let last='';
+  function pickEnter(S){ if(S.enterMode && S.enterMode!=='rastgele' && EFFECTS[S.enterMode]) return S.enterMode; const p=POOL[S.level]||POOL.karisik; let n; do{ n=p[Math.floor(Math.random()*p.length)]; }while(n===last&&p.length>1); last=n; return n; }
+
+  let tween=null;
+  function tick(){ requestAnimationFrame(tick); if(!tween)return; const p=Math.min(1,(performance.now()-tween.t0)/tween.dur); try{ tween.eff.update(tween.fx,p); }catch(e){ try{ restoreAll(tween.fx); }catch(_){} tween=null; return; } if(p>=1){ restoreAll(tween.fx); tween=null; } }
+  requestAnimationFrame(tick);
+
+  function startEnter(group,S){ if(!window.THREE||!window.scene)return;
+    if(tween){ clearFx(tween.fx); tween=null; }
+    try{ group.updateMatrixWorld(true); }catch(e){} // bbox/dünya konumu doğru olsun
+    const fx=capture(group); if(fx.mk.length===0) return;
+    const name=pickEnter(S); const eff=EFFECTS[name]||EFFECTS.buyu;
+    try{ eff.init&&eff.init(fx); eff.update(fx,0); }catch(e){ return; }
+    tween={ eff, fx, t0:performance.now(), dur:eff.dur*(S.calm?1.4:S.speed) };
+    if(S.sound && ESND[name]) try{ ESND[name](S); }catch(e){}
+  }
+
+  window.GECIS={
+    settings: readS,
+    // sahne değişiminde çağrılır: group = yeni model grubu (THREE.Group), label = konu adı
+    onScene(group, label){ const S=readS();
+      if(S.sound) vedaSound(S); // eski sahne için kısa veda tonu
+      emoji(S); flyTitle(S, label);
+      if(S.confetti && !S.calm && S.level==='ilkokul') confetti();
+      if(group) startEnter(group,S);
+    }
+  };
+})();
+</script>
+
 
 <script>
 const THREE = window.THREE;
@@ -1248,44 +1447,38 @@ class OrbitControls extends THREE.EventDispatcher {
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
 
-    this._zoomToScreenPoint = (screenX, screenY, factor) => {
+    // Ekran noktasının altındaki 3B noktayı bul: KAMERA BAKIŞINA DİK, target'tan
+    // geçen düzlemle kesiştir. (Eski sürüm y=target.y düzlemi kullanıyordu; kamera
+    // yataya yakınken ışın düzleme paralel olup kesişim çok uzakta çıkıyor ve model
+    // ekran dışına uçuyordu. Bu yöntemde kesişim her açıda ~radius mesafede kalır.)
+    this._hitOnFocusPlane = (screenX, screenY) => {
       const rect = dom.getBoundingClientRect();
       const ndcX = ((screenX - rect.left) / rect.width) * 2 - 1;
       const ndcY = -((screenY - rect.top) / rect.height) * 2 + 1;
       const ndc = new THREE.Vector3(ndcX, ndcY, 0.5);
       ndc.unproject(this.object);
       const dir = ndc.sub(this.object.position).normalize();
-      const t = (this.target.y - this.object.position.y) / dir.y;
-      if (t > 0 && isFinite(t)) {
-        const hit = new THREE.Vector3(
-          this.object.position.x + dir.x * t,
-          this.target.y,
-          this.object.position.z + dir.z * t
-        );
-        this.target.lerp(hit, 0.65);
-      }
+      const camDir = new THREE.Vector3();
+      this.object.getWorldDirection(camDir);
+      const denom = dir.dot(camDir);
+      if (Math.abs(denom) < 1e-5) return null;
+      const t = this.target.clone().sub(this.object.position).dot(camDir) / denom;
+      if (!(t > 0) || !isFinite(t)) return null;
+      return this.object.position.clone().addScaledVector(dir, t);
+    };
+
+    this._zoomToScreenPoint = (screenX, screenY, factor) => {
+      const hit = this._hitOnFocusPlane(screenX, screenY);
+      if (hit) this.target.lerp(hit, 0.65);
       this._sphericalTarget.radius = Math.max(this.minDistance,
         Math.min(this.maxDistance, this._sphericalTarget.radius * factor));
     };
 
-    // Ekrandaki bir noktanin altindaki 3B noktayi, hedefi (ekran merkezini) ona
-    // dogru k oraninda kaydirarak yavasca merkeze getirir (pinch zoom-to-point).
+    // Hedefi (ekran merkezini), işaret edilen noktaya doğru `k` oranında kaydırır →
+    // pinch/tekerlekte "nereyi yakınlaştırırsam orası ortaya gelsin" davranışı.
     this._panToScreenPoint = (screenX, screenY, k) => {
-      const rect = dom.getBoundingClientRect();
-      const ndcX = ((screenX - rect.left) / rect.width) * 2 - 1;
-      const ndcY = -((screenY - rect.top) / rect.height) * 2 + 1;
-      const ndc = new THREE.Vector3(ndcX, ndcY, 0.5);
-      ndc.unproject(this.object);
-      const dir = ndc.sub(this.object.position).normalize();
-      const t = (this.target.y - this.object.position.y) / dir.y;
-      if (t > 0 && isFinite(t)) {
-        const hit = new THREE.Vector3(
-          this.object.position.x + dir.x * t,
-          this.target.y,
-          this.object.position.z + dir.z * t
-        );
-        this.target.lerp(hit, k);
-      }
+      const hit = this._hitOnFocusPlane(screenX, screenY);
+      if (hit) this.target.lerp(hit, k);
     };
 
     let touchStart = null;
@@ -1304,6 +1497,9 @@ class OrbitControls extends THREE.EventDispatcher {
       radius: this._sphericalTarget.radius
     };
     this.captureInitialState = () => {
+      // selectSub kamera/target'ı yeni set ettiyse, spherical'i ona göre türet ki
+      // hem ilk görünüm doğru olsun hem de resetView doğru açı/yarıçapa dönsün.
+      this._syncFromCamera();
       this._initialCameraState = {
         position: this.object.position.clone(),
         target: this.target.clone(),
@@ -1402,7 +1598,7 @@ class OrbitControls extends THREE.EventDispatcher {
         const dist = Math.hypot(dx, dy);
         const newCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
         const newCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        // 1) Iki parmagin ortak kaymasi -> pan (modeli serbestce tasi)
+        // 1) İki parmağın ortak kayması → pan (modeli serbestçe taşı)
         const panDx = newCenterX - pinchCenter.x;
         const panDy = newCenterY - pinchCenter.y;
         pinchCenter.x = newCenterX;
@@ -1413,10 +1609,17 @@ class OrbitControls extends THREE.EventDispatcher {
         const panFactor = this._sphericalTarget.radius * 0.0045;
         this.target.addScaledVector(right, -panDx * panFactor);
         this.target.addScaledVector(up, panDy * panFactor);
-        // 2) Parmak arasi acilma/kapanma -> zoom; iki parmagin ortasindaki nokta
-        //    yavasca ekran merkezine gelsin (oraya odaklanip yakinlas)
-        this._panToScreenPoint(newCenterX, newCenterY, 0.16);
-        this._sphericalTarget.radius = Math.max(this.minDistance, Math.min(this.maxDistance, pinchStartRadius * (pinchStartDist / dist)));
+        // 2) Parmak arası açılma/kapanma → zoom. Parmakların ortasındaki nokta
+        //    ekranda SABİT kalacak şekilde hedefi yarıçap oranıyla ORANTILI kaydır
+        //    (sabit lerp drift'i kaldırıldı → ne kaçıyor ne de sıçrıyor).
+        const oldR = this._sphericalTarget.radius;
+        const newR = Math.max(this.minDistance, Math.min(this.maxDistance, pinchStartRadius * (pinchStartDist / dist)));
+        const hit = this._hitOnFocusPlane(newCenterX, newCenterY);
+        if (hit && oldR > 0.0001) {
+          const f = Math.max(-0.4, Math.min(0.4, 1 - newR / oldR)); // yakınlaş: hedef noktaya doğru; uzaklaş: tersine
+          this.target.lerp(hit, f);
+        }
+        this._sphericalTarget.radius = newR;
       }
     }, { passive: false });
 
@@ -1438,6 +1641,7 @@ class OrbitControls extends THREE.EventDispatcher {
     dom.addEventListener('wheel', (e) => {
       if (!this.enabled) return;
       e.preventDefault();
+      // Tekerlekle yakınlaşma imlecin olduğu noktaya odaklansın
       const factor = e.deltaY > 0 ? 1.1 : 0.9;
       this._panToScreenPoint(e.clientX, e.clientY, factor < 1 ? 0.22 : 0.12);
       this._sphericalTarget.radius = Math.max(this.minDistance,
@@ -1467,7 +1671,11 @@ class OrbitControls extends THREE.EventDispatcher {
   }
 
   update() {
-    if (!this._lastCamPos.equals(this.object.position) || !this._lastTarget.equals(this.target)) {
+    // YALNIZCA kamera DIŞARIDAN taşındıysa (ör. selectSub camera.position.set) yeniden
+    // türet. target'ı kontrol'ün kendisi (pan/zoom-odak/reset) değiştirdiğinde sync
+    // ÇALIŞMAMALI; yoksa ayarlanan zoom yarıçapı/açılar her kare sıfırlanır →
+    // "yakınlaşmıyor" + kamera sıçrayıp model ekran dışına uçuyordu.
+    if (!this._lastCamPos.equals(this.object.position)) {
       this._syncFromCamera();
     }
     if (this.enableDamping) {
@@ -1699,7 +1907,7 @@ function clearScene() {
   });
   dynamicObjects = [];
   window._labelRefs = [];
-  window._labelPlaced = []; // etiket çakışma önleme: yerleşmiş etiket konumları
+  window._labelPlaced = [];
   window._currentModelGroup = null;
   window._customAnim = null;
   window._flowRays = [];
@@ -1823,7 +2031,7 @@ function updateLeaderLines() {
 
     ref.anchorObj.getWorldPosition(_projVec);
     _projVec.project(camera);
-    if (_projVec.z > 1 || _projVec.z < -1) return;
+    if (!(_projVec.z >= -1 && _projVec.z <= 1)) return;
     const ax = (_projVec.x + 1) / 2 * w;
     const ay = (1 - _projVec.y) / 2 * h;
 
@@ -1857,6 +2065,7 @@ function updateLeaderLines() {
     const midX = (edgeX + ax) / 2;
     const midY = (edgeY + ay) / 2;
     const distLine = Math.hypot(ax - edgeX, ay - edgeY);
+    if (!(distLine > 0)) return;
     const normalX = -(ay - edgeY) / distLine;
     const normalY = (ax - edgeX) / distLine;
     const curveAmount = Math.min(distLine * 0.18, 35);
@@ -1895,30 +2104,50 @@ window._sceneState = {
   _displayUpdaters: []
 };
 
+function positionVarsBody() {
+  const t = document.getElementById('sceneToggle');
+  const b = document.getElementById('sceneVarsBody');
+  if (t && b && !b.classList.contains('closed')) {
+    b.style.top = Math.round(t.getBoundingClientRect().bottom + 6) + 'px';
+  }
+}
+window.positionVarsBody = positionVarsBody;
+
 function setSceneSliders(items, opts = {}) {
-  const panel = document.getElementById('scenePanel');
-  if (!panel) return;
-  panel.innerHTML = '';
-  panel.classList.remove('empty', 'collapsed');
+  const row = document.getElementById('stackRow');
+  const bodyPanel = document.getElementById('sceneVarsBody');
+  if (!row || !bodyPanel) return;
+  // Eski Değişkenler sekmesini kaldır (her sahne yeniden kurar)
+  const oldT = document.getElementById('sceneToggle'); if (oldT) oldT.remove();
+  bodyPanel.innerHTML = '';
   document.body.classList.add('scene-panel-open');
   window._sceneState._displayUpdaters = [];
-
+  // Değişkenler sekmesi → Konu Rehberi'nin SOLUNA (aynı satır, aynı ebat)
   const toggle = document.createElement('button');
+  toggle.id = 'sceneToggle';
   toggle.className = 'sp-toggle';
-  toggle.innerHTML = `<span>🎛️ ${opts.title || 'Kontroller'}</span><span class="sp-chev">▼</span>`;
+  toggle.innerHTML = `<span class="sb-emoji">🎛️</span><span class="sb-label">Değişkenler</span><span class="sp-chev">▼</span>`;
+  row.insertBefore(toggle, document.getElementById('btnTopic'));
+  // İçerik tam-genişlik yatay panelde
+  const body = bodyPanel;
+  const _chev = toggle.querySelector('.sp-chev');
+  // Basınca aç/kapat: tam genişlik pencere sekmenin altına gelir
+  function setSceneOpen(open) {
+    bodyPanel.classList.toggle('closed', !open);
+    if (_chev) _chev.textContent = open ? '▲' : '▼';
+    if (open) positionVarsBody();
+  }
+  window._setSceneOpen = setSceneOpen;
   toggle.onclick = () => {
-    panel.classList.toggle('collapsed');
-    toggle.querySelector('.sp-chev').textContent = panel.classList.contains('collapsed') ? '◀' : '▼';
+    setSceneOpen(bodyPanel.classList.contains('closed'));
     if (window._haptic) window._haptic(10);
   };
-  panel.appendChild(toggle);
-
   items.forEach(item => {
     if (item.type === 'section') {
       const t = document.createElement('div');
       t.className = 'sp-section';
       t.textContent = item.label;
-      panel.appendChild(t);
+      body.appendChild(t);
       return;
     }
     if (item.type === 'slider') {
@@ -1928,7 +2157,7 @@ function setSceneSliders(items, opts = {}) {
       head.className = 'sp-slider-head';
       head.innerHTML = `<span>${item.label}</span>
         <div class="sp-stepper">
-          <button class="sp-step-btn sp-minus">-</button>
+          <button class="sp-step-btn sp-minus">−</button>
           <span class="sp-val"></span>
           <button class="sp-step-btn sp-plus">+</button>
         </div>`;
@@ -1973,7 +2202,7 @@ function setSceneSliders(items, opts = {}) {
         slider.value = nv; item.setValue(nv); updateVal();
         if (window._haptic) window._haptic(8);
       });
-      panel.appendChild(row);
+      body.appendChild(row);
       updateVal();
       window._sceneState._displayUpdaters.push(() => {
         const v = item.getValue();
@@ -1986,18 +2215,17 @@ function setSceneSliders(items, opts = {}) {
       row.innerHTML = `<span class="sp-label">${item.label}</span><span class="sp-val"></span>`;
       const val = row.querySelector('.sp-val');
       val.textContent = item.getValue();
-      panel.appendChild(row);
+      body.appendChild(row);
       window._sceneState._displayUpdaters.push(() => { val.textContent = item.getValue(); });
     }
     if (item.type === 'formula') {
-      // İlkokul/ortaokul: karmaşık formülleri gösterme (matematiksel sembol içeriyorsa atla)
       const hasMath = /[=√÷×²·]|sin|cos|1\//.test(item.text || '') || /q₁|q₂|kq|k·q|qE|qV|ε₀|½|Σ|ΔV|N\/C|qE\/m|V\/d/.test(item.text||'');
       const skip = (currentLevel === 'ilkokul' || currentLevel === 'ortaokul') && hasMath && !item.keepSimple;
       if (!skip) {
         const row = document.createElement('div');
         row.className = 'sp-formula';
         row.innerHTML = item.text;
-        panel.appendChild(row);
+        body.appendChild(row);
         if (item.getValue && !((currentLevel === 'ilkokul' || currentLevel === 'ortaokul') && hasMath)) {
           window._sceneState._displayUpdaters.push(() => { row.innerHTML = item.getValue(); });
         }
@@ -2019,14 +2247,18 @@ function setSceneSliders(items, opts = {}) {
         };
         row.appendChild(b);
       });
-      panel.appendChild(row);
+      body.appendChild(row);
     }
   });
+  // Değişkenler varsayılan KAPALI; konu değişince OTOMATİK AÇILMAZ (kullanıcı basar).
+  bodyPanel.classList.add('closed');
+  if (_chev) _chev.textContent = '▼';
 }
 
 function clearSceneSliders() {
-  const panel = document.getElementById('scenePanel');
-  if (panel) { panel.innerHTML = ''; panel.classList.add('empty'); }
+  const oldT = document.getElementById('sceneToggle'); if (oldT) oldT.remove();
+  const bodyPanel = document.getElementById('sceneVarsBody');
+  if (bodyPanel) { bodyPanel.innerHTML = ''; bodyPanel.classList.add('closed'); }
   document.body.classList.remove('scene-panel-open');
   if (window._sceneState) window._sceneState._displayUpdaters = [];
 }
@@ -3261,6 +3493,7 @@ function makeSharedDot(color){ return new THREE.Mesh(new THREE.SphereGeometry(0.
 
 
 const SubBuilders = {};
+window.SubBuilders = SubBuilders; // test/dis erisim icin
 function ezz(u){u=u<0?0:u>1?1:u;return u*u*(3-2*u);}
 function ppong(t,p){const u=((t%p)+p)%p/p;return u<0.5?u*2:2-u*2;}
 function rhr(t,p){const u=((t%p)+p)%p/p;return u<0.8?ezz(u/0.8):1;}
@@ -3288,250 +3521,526 @@ SubBuilders.buildMolekulSekli = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
-  let mols=[],acc=0;
-  function rebuild(){ clr(dyn); acc=0; mols=[];
-    const co2=mkMol([{el:'C',pos:[0,0,0]},{el:'O',pos:[-1.1,0,0]},{el:'O',pos:[1.1,0,0]}],[[0,1,2],[0,2,2]]); co2.position.set(-3.6,0.6,0); dyn.add(co2); mols.push(co2);
-    const h2o=mkMol([{el:'O',pos:[0,0.3,0]},{el:'H',pos:[-0.95,-0.5,0]},{el:'H',pos:[0.95,-0.5,0]}],[[0,1],[0,2]]); h2o.position.set(0,0.6,0); dyn.add(h2o); mols.push(h2o);
-    const ch4=mkMol([{el:'C',pos:[0,0,0]},{el:'H',pos:[TET[0][0]*1.3,TET[0][1]*1.3,TET[0][2]*1.3]},{el:'H',pos:[TET[1][0]*1.3,TET[1][1]*1.3,TET[1][2]*1.3]},{el:'H',pos:[TET[2][0]*1.3,TET[2][1]*1.3,TET[2][2]*1.3]},{el:'H',pos:[TET[3][0]*1.3,TET[3][1]*1.3,TET[3][2]*1.3]}],[[0,1],[0,2],[0,3],[0,4]]); ch4.position.set(3.6,0.6,0); dyn.add(ch4); mols.push(ch4);
-    addInfo3DLabels([ {text:{ilkokul:'CO₂ · düz'},position:[-3.6,2.7,0],target:[-3.6,0.6,0],color:'#ef5350'},
-      {text:{ilkokul:'Su · bükük'},position:[0,2.7,0],target:[0,0.6,0],color:'#4fc3f7'},
-      {text:{ilkokul:'Metan · piramit'},position:[3.6,2.7,0],target:[3.6,0.6,0],color:'#90caf9'} ]);
+  const S=window._sceneState; if(S.ms_p===undefined)S.ms_p=2; // 0=CO2,1=H2O,2=CH4
+  const D2R=Math.PI/180;
+  // Her molekül: düz "kağıt çizimi" (z=0, açılar yanlış/düz) SOLDA  vs  gerçek 3B SAĞDA
+  const MOL=[
+    {ad:'Karbondioksit (CO₂)', flat:'Düz çizgi', real:'Doğrusal (3B)', cen:'C',
+      flatAtoms:()=>[{el:'C',pos:[0,0,0]},{el:'O',pos:[-1.5,0,0]},{el:'O',pos:[1.5,0,0]}],
+      flatBonds:[[0,1,2],[0,2,2]],
+      realAtoms:()=>[{el:'C',pos:[0,0,0]},{el:'O',pos:[-1.5,0,0]},{el:'O',pos:[1.5,0,0]}],
+      realBonds:[[0,1,2],[0,2,2]] },
+    {ad:'Su (H₂O)', flat:'Düz çizilir', real:'Bükük "V" (3B)', cen:'O',
+      flatAtoms:()=>[{el:'O',pos:[0,0,0]},{el:'H',pos:[-1.4,0,0]},{el:'H',pos:[1.4,0,0]}],
+      flatBonds:[[0,1],[0,2]],
+      realAtoms:()=>{ const L=1.45,h=104.5/2*D2R; return [{el:'O',pos:[0,0.5,0]},{el:'H',pos:[-Math.sin(h)*L,0.5-Math.cos(h)*L,0]},{el:'H',pos:[Math.sin(h)*L,0.5-Math.cos(h)*L,0]}]; },
+      realBonds:[[0,1],[0,2]] },
+    {ad:'Metan (CH₄)', flat:'Artı (+) gibi', real:'Dörtyüzlü (3B)', cen:'C',
+      flatAtoms:()=>[{el:'C',pos:[0,0,0]},{el:'H',pos:[0,1.5,0]},{el:'H',pos:[0,-1.5,0]},{el:'H',pos:[-1.5,0,0]},{el:'H',pos:[1.5,0,0]}],
+      flatBonds:[[0,1],[0,2],[0,3],[0,4]],
+      realAtoms:()=>{ const L=1.5,v=TET.map(d=>[d[0]*L,d[1]*L,d[2]*L]); return [{el:'C',pos:[0,0,0]},{el:'H',pos:v[0]},{el:'H',pos:v[1]},{el:'H',pos:v[2]},{el:'H',pos:v[3]}]; },
+      realBonds:[[0,1],[0,2],[0,3],[0,4]] }
+  ];
+  let gFlat,gReal,acc=0;
+  function rebuild(){ clr(dyn); acc=0; const m=MOL[S.ms_p];
+    // SOL: düz kağıt çizimi — gri, düz (atomlar küçük, çubuk ince) + "kağıt" zemini
+    gFlat=mkMol(m.flatAtoms(),m.flatBonds); gFlat.scale.setScalar(0.92); gFlat.position.set(-3.6,0.6,0); dyn.add(gFlat);
+    const paper=new THREE.Mesh(new THREE.PlaneGeometry(4.6,4.6), new THREE.MeshBasicMaterial({color:0xf3f4ff,transparent:true,opacity:0.10,side:THREE.DoubleSide}));
+    paper.position.set(-3.6,0.6,-0.6); dyn.add(paper);
+    // SAĞ: gerçek 3B
+    gReal=mkMol(m.realAtoms(),m.realBonds); gReal.scale.setScalar(1.05); gReal.position.set(3.6,0.6,0); dyn.add(gReal);
+    addInfo3DLabels([
+      {text:{ilkokul:'📄 Kağıt çizimi (düz)'},position:[-3.6,3.4,0],target:[-3.6,0.6,0],color:'#9aa3c0'},
+      {text:{ilkokul:'🧊 Gerçek 3B şekil'},position:[3.6,3.4,0],target:[3.6,0.6,0],color:'#ffd166'},
+      {text:{ilkokul:m.flat},position:[-3.6,-2.6,0],target:[-3.6,-0.6,0],color:'#9aa3c0'},
+      {text:{ilkokul:m.real},position:[3.6,-2.6,0],target:[3.6,-0.6,0],color:'#4fc3f7'},
+      {text:{ilkokul:m.ad},position:[0,3.9,0],target:[3.6,0.6,0],color:'#cfd6e0'},
+      {text:{ilkokul:'🔄 Çevir → derinliği gör'},position:[0,-3.6,0],target:[3.6,0.6,0],color:'#a6e3a1'}
+    ]);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; mols.forEach((m,i)=>{ m.rotation.y+=dt*(0.6+i*0.1); m.position.y=0.6+Math.sin(acc*1.4+i)*0.12; }); };
-  setSceneSliders([ {type:'section',label:'Moleküllerin Şekli'},
-    {type:'display',label:'CO₂',highlight:true,getValue:()=>'Düz (doğrusal)'},
-    {type:'display',label:'Su (H₂O)',getValue:()=>'Bükük (V)'},
-    {type:'display',label:'Metan (CH₄)',getValue:()=>'Piramit'} ],{title:'Moleküllerin 3D Şekli'});
+  // SOL düz kalır (kağıt), SAĞ döner → 3B'nin farkı hissedilir
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt;
+    if(gReal){ gReal.rotation.y+=dt*0.8; gReal.rotation.x=Math.sin(acc*0.6)*0.25; }
+    if(gFlat){ gFlat.rotation.y=Math.sin(acc*0.9)*0.18; } };
+  setSceneSliders([ {type:'section',label:'Molekül seç'},
+    {type:'presets',activeIdx:S.ms_p,options:[
+      {label:'CO₂',action:()=>{S.ms_p=0;rebuild();}},
+      {label:'Su',action:()=>{S.ms_p=1;rebuild();}},
+      {label:'Metan',action:()=>{S.ms_p=2;rebuild();}} ]},
+    {type:'display',label:'Molekül',highlight:true,getValue:()=>MOL[S.ms_p].ad},
+    {type:'display',label:'Kağıtta',getValue:()=>MOL[S.ms_p].flat},
+    {type:'display',label:'Gerçekte',getValue:()=>MOL[S.ms_p].real} ],{title:'Moleküllerin 3D Şekli'});
 };
 
 SubBuilders.buildSuSekli = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
-  let mol,acc=0;
-  function rebuild(){ clr(dyn); acc=0;
-    mol=mkMol([{el:'O',pos:[0,0.5,0],r:0.6},{el:'H',pos:[-1.25,-0.6,0],r:0.34},{el:'H',pos:[1.25,-0.6,0],r:0.34}],[[0,1],[0,2]]); mol.scale.setScalar(1.2); dyn.add(mol);
-    addInfo3DLabels([ {text:{ilkokul:'Oksijen'},position:[0,2.6,0],target:[0,1.1,0],color:'#ef5350'},
-      {text:{ilkokul:'Hidrojen'},position:[-2.6,-1.0,0],target:[-1.5,-0.7,0],color:'#eceff1'},
-      {text:{ilkokul:'V şekli'},position:[2.6,-1.0,0],target:[1.5,-0.7,0],color:'#4fc3f7'} ]);
+  const S=window._sceneState; if(S.su_lp===undefined)S.su_lp=true; // ortaklanmamış çiftleri göster
+  const D2R=Math.PI/180;
+  let mol,clouds=[],acc=0;
+  function rebuild(){ clr(dyn); acc=0; clouds=[];
+    mol=new THREE.Group();
+    const L=1.7, h=104.5/2*D2R;
+    const O=[0,0.6,0];
+    const H1=[-Math.sin(h)*L, 0.6-Math.cos(h)*L, 0];
+    const H2=[ Math.sin(h)*L, 0.6-Math.cos(h)*L, 0];
+    // bağlar
+    mol.add(makeBond(V3(O),V3(H1),0xb0bec5,0.08));
+    mol.add(makeBond(V3(O),V3(H2),0xb0bec5,0.08));
+    // atomlar (CPK: O kırmızı, H beyaz)
+    const oA=mkA(0.6,OATOM.O.c); oA.position.set(...O); mol.add(oA);
+    const h1=mkA(0.34,OATOM.H.c); h1.position.set(...H1); mol.add(h1);
+    const h2=mkA(0.34,OATOM.H.c); h2.position.set(...H2); mol.add(h2);
+    // 2 ortaklanmamış çift — şeffaf loblar, bağların TERS yönünde (yukarı/arkaya)
+    if(S.su_lp){
+      [[ -0.42, 0.55, 0.72],[ 0.42, 0.55, -0.72]].forEach(d=>{
+        const lp=makeLonePair(d,0x7e57c2); lp.position.set(O[0]+d[0]*1.0, O[1]+d[1]*1.0, O[2]+d[2]*1.0); mol.add(lp); clouds.push(lp);
+      });
+    }
+    dyn.add(mol);
+    // açı yayı (O merkezli, iki bağ arası) — etiketli 104,5°
+    const aL=Math.atan2(H1[1]-O[1],H1[0]-O[0]);
+    const aR=Math.atan2(H2[1]-O[1],H2[0]-O[0]);
+    dyn.add(makeAngleArc(new THREE.Vector3(...O), aR, aL, {r:1.05, color:0xffd54f, label:'104,5°', labelOut:0.5}));
+    const labs=[
+      {text:{ilkokul:'🔴 Oksijen',ortaokul:'🔴 Oksijen (merkez)'},position:[0,3.2,0],target:O,color:'#ef5350'},
+      {text:{ilkokul:'⚪ Hidrojen'},position:[-3.4,-1.6,0],target:H1,color:'#eceff1'},
+      {text:{ilkokul:'⚪ Hidrojen'},position:[3.4,-1.6,0],target:H2,color:'#eceff1'},
+      {text:{ilkokul:'💧 Bükük "V" şekli'},position:[0,-3.4,0],target:O,color:'#4fc3f7'}
+    ];
+    if(S.su_lp){
+      labs.push({text:{ilkokul:'☁️ Boş çiftler iter',ortaokul:'☁️ 2 ortaklanmamış çift'},position:[2.8,3.2,0],target:[O[0]+0.42,O[1]+0.55,O[2]-0.72],color:'#9d7fe6'});
+      labs.push({text:{ilkokul:'⤵️ Bu yüzden kırık'},position:[-3.0,3.0,0],target:O,color:'#a6e3a1'});
+    }
+    addInfo3DLabels(labs);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(mol){ mol.rotation.y+=dt*0.6; mol.position.y=Math.sin(acc*1.4)*0.14; } };
-  setSceneSliders([ {type:'section',label:'Su Molekülünün Şekli'},
-    {type:'display',label:'Şekli',highlight:true,getValue:()=>'Bükük (V / bumerang)'},
-    {type:'display',label:'Ortadaki',getValue:()=>'Oksijen (kırmızı)'},
-    {type:'display',label:'Yanlardaki',getValue:()=>'2 hidrojen (beyaz)'} ],{title:'Su Neden V Şeklinde?'});
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(mol){ mol.rotation.y+=dt*0.55; mol.rotation.x=Math.sin(acc*0.5)*0.12; }
+    clouds.forEach((c,i)=>{ const s=1+0.16*Math.sin(acc*3+i); c.scale.set(0.72*s,0.72*s,1.35*s); }); };
+  setSceneSliders([ {type:'section',label:'Su Molekülü (104,5°)'},
+    {type:'presets',activeIdx:S.su_lp?0:1,options:[
+      {label:'☁️ Boş çiftli',action:()=>{S.su_lp=true;rebuild();}},
+      {label:'Sadece bağlar',action:()=>{S.su_lp=false;rebuild();}} ]},
+    {type:'display',label:'Bağ açısı',highlight:true,getValue:()=>'104,5°'},
+    {type:'display',label:'Neden kırık?',getValue:()=>'2 boş çift iter'},
+    {type:'display',label:'Bağ / boş çift',getValue:()=>'2 bağ · 2 ortaklanmamış'} ],{title:'Su Neden V Şeklinde?'});
 };
 
 SubBuilders.buildTopCubukModel = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
-  const S=window._sceneState; if(S.tc_tip===undefined)S.tc_tip=0;
+  const S=window._sceneState; if(S.tc_p===undefined)S.tc_p=1; // 0=Su,1=Metan,2=CO2
+  const D2R=Math.PI/180;
+  const MOL=[
+    {ad:'Su (H₂O)', cen:'O', atoms:()=>{ const L=1.5,h=104.5/2*D2R; return [{el:'O',pos:[0,0.4,0],r:0.55},{el:'H',pos:[-Math.sin(h)*L,0.4-Math.cos(h)*L,0],r:0.32},{el:'H',pos:[Math.sin(h)*L,0.4-Math.cos(h)*L,0],r:0.32}]; }, bonds:[[0,1],[0,2]], els:['O','H'] },
+    {ad:'Metan (CH₄)', cen:'C', atoms:()=>{ const L=1.5,v=TET.map(d=>[d[0]*L,d[1]*L,d[2]*L]); return [{el:'C',pos:[0,0,0],r:0.5},{el:'H',pos:v[0],r:0.3},{el:'H',pos:v[1],r:0.3},{el:'H',pos:v[2],r:0.3},{el:'H',pos:v[3],r:0.3}]; }, bonds:[[0,1],[0,2],[0,3],[0,4]], els:['C','H'] },
+    {ad:'Karbondioksit (CO₂)', cen:'C', atoms:()=>[{el:'C',pos:[0,0,0],r:0.48},{el:'O',pos:[-1.6,0,0],r:0.5},{el:'O',pos:[1.6,0,0],r:0.5}], bonds:[[0,1,2],[0,2,2]], els:['C','O'] }
+  ];
+  // CPK renk lejantı — küçük renkli küre + harf, sahnenin altına dizilir
+  function legend(g){
+    const items=[['H',OATOM.H.c,'Hidrojen'],['C',OATOM.C.c,'Karbon'],['O',OATOM.O.c,'Oksijen'],['N',OATOM.N.c,'Azot']];
+    items.forEach((it,i)=>{ const x=-3.6+i*2.4; const dot=mkA(0.22,it[1]); dot.position.set(x,-3.0,0); g.add(dot); });
+  }
   let mol,acc=0;
-  function rebuild(){ clr(dyn); acc=0;
-    if(S.tc_tip===0) mol=mkMol([{el:'O',pos:[0,0.4,0],r:0.55},{el:'H',pos:[-1.15,-0.5,0],r:0.32},{el:'H',pos:[1.15,-0.5,0],r:0.32}],[[0,1],[0,2]]);
-    else mol=mkMol([{el:'C',pos:[0,0,0],r:0.5},{el:'H',pos:[TET[0][0]*1.4,TET[0][1]*1.4,TET[0][2]*1.4],r:0.3},{el:'H',pos:[TET[1][0]*1.4,TET[1][1]*1.4,TET[1][2]*1.4],r:0.3},{el:'H',pos:[TET[2][0]*1.4,TET[2][1]*1.4,TET[2][2]*1.4],r:0.3},{el:'H',pos:[TET[3][0]*1.4,TET[3][1]*1.4,TET[3][2]*1.4],r:0.3}],[[0,1],[0,2],[0,3],[0,4]]);
-    mol.scale.setScalar(1.2); dyn.add(mol);
-    addInfo3DLabels([ {text:{ilkokul:'⚪ Toplar = atom'},position:[-2.7,2.6,0],target:[0,0,0],color:'#90caf9'},
-      {text:{ilkokul:'Çubuk = bağ'},position:[2.7,2.6,0],target:[0,0,0],color:'#ffd166'} ]);
+  function rebuild(){ clr(dyn); acc=0; const m=MOL[S.tc_p];
+    mol=mkMol(m.atoms(),m.bonds); mol.scale.setScalar(1.15); mol.position.set(0,0.5,0); dyn.add(mol);
+    legend(dyn);
+    const a=m.atoms();
+    addInfo3DLabels([
+      {text:{ilkokul:'⚪ Top = atom',ortaokul:'⚪ Toplar atomları gösterir'},position:[-3.4,3.2,0],target:[a[1].pos[0]*1.15,a[1].pos[1]*1.15+0.5,a[1].pos[2]*1.15],color:'#7adcf0'},
+      {text:{ilkokul:'➖ Çubuk = bağ',ortaokul:'➖ Çubuklar bağları gösterir'},position:[3.4,3.2,0],target:[a[1].pos[0]*0.55,a[1].pos[1]*0.55+0.5,a[1].pos[2]*0.55],color:'#ffd166'},
+      {text:{ilkokul:'🎨 Renk = atom türü'},position:[0,3.9,0],target:[0,0.5,0],color:'#a6e3a1'},
+      {text:{ilkokul:'H beyaz · C gri · O kırmızı'},position:[0,-3.9,0],target:[0,-3.0,0],color:'#cfd6e0'},
+      {text:{ilkokul:m.ad},position:[0,-2.5,0],target:[0,0.5,0],color:'#90caf9'}
+    ]);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(mol){ mol.rotation.y+=dt*0.7; mol.rotation.x=Math.sin(acc*0.5)*0.15; } };
-  setSceneSliders([ {type:'section',label:'Top-Çubuk Modeli'},
-    {type:'presets',activeIdx:S.tc_tip,options:[ {label:'💧 Su',action:()=>{S.tc_tip=0;rebuild();}}, {label:'🔥 Metan',action:()=>{S.tc_tip=1;rebuild();}} ]},
-    {type:'display',label:'Toplar',highlight:true,getValue:()=>'Atomları gösterir'},
-    {type:'display',label:'Çubuklar',getValue:()=>'Bağları gösterir'},
-    {type:'display',label:'Renkler',getValue:()=>'O kırmızı, C gri, H beyaz'} ],{title:'Top-Çubuk Modeli'});
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(mol){ mol.rotation.y+=dt*0.7; mol.rotation.x=Math.sin(acc*0.5)*0.18; } };
+  setSceneSliders([ {type:'section',label:'Örnek molekül'},
+    {type:'presets',activeIdx:S.tc_p,options:[
+      {label:'💧 Su',action:()=>{S.tc_p=0;rebuild();}},
+      {label:'🔥 Metan',action:()=>{S.tc_p=1;rebuild();}},
+      {label:'CO₂',action:()=>{S.tc_p=2;rebuild();}} ]},
+    {type:'display',label:'Toplar',highlight:true,getValue:()=>'Atomlar'},
+    {type:'display',label:'Çubuklar',getValue:()=>'Bağlar'},
+    {type:'display',label:'Renk kodu',getValue:()=>'H beyaz · C gri · O kırmızı'} ],{title:'Top-Çubuk Modeli'});
 };
 
-// ============================================================
-// MODÜL 2 — ORTAOKUL (KISA etiket, açıklama panelde)
-// ============================================================
 SubBuilders.buildElektronCiftleri = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  const S=window._sceneState; if(S.ec_p===undefined)S.ec_p=1; // 0=CH4(0 çift),1=NH3(1 çift),2=H2O(2 çift)
+  const D2R=Math.PI/180;
+  // Hepsi 4 elektron alanı (dörtyüzlü iskelet). Bazı yönler bağ, bazıları ortaklanmamış çift.
+  const SET=[
+    {ad:'Metan (CH₄)', cen:'C', el:'H', nBond:4, nLone:0, aci:'109,5°', geo:'Dörtyüzlü'},
+    {ad:'Amonyak (NH₃)', cen:'N', el:'H', nBond:3, nLone:1, aci:'107°', geo:'Üçgen piramit'},
+    {ad:'Su (H₂O)', cen:'O', el:'H', nBond:2, nLone:2, aci:'104,5°', geo:'Açısal'}
+  ];
   let mol,clouds=[],acc=0;
-  function rebuild(){ clr(dyn); acc=0; clouds=[];
-    const c=mkA(0.55,0x5c6bc0); mol=new THREE.Group(); mol.add(c);
-    PYR.forEach(d=>{ const h=mkA(0.3,0xeceff1); h.position.set(d[0]*1.6,d[1]*1.6,d[2]*1.6); mol.add(h); mol.add(makeBond(new THREE.Vector3(0,0,0),new THREE.Vector3(d[0]*1.6,d[1]*1.6,d[2]*1.6),0x90a4ae,0.06)); });
-    const lp=makeLonePair([0,1,0],0xffb74d); lp.position.set(0,1.15,0); mol.add(lp); clouds.push(lp);
+  function rebuild(){ clr(dyn); acc=0; clouds=[]; const g=SET[S.ec_p];
+    mol=new THREE.Group();
+    mol.add(mkA(0.5,OATOM[g.cen].c));
+    const L=1.6;
+    const dirs=TET; // 4 yön: ilk nBond bağ, kalanı ortaklanmamış çift
+    dirs.forEach((d,i)=>{
+      const pos=[d[0]*L,d[1]*L,d[2]*L];
+      if(i<g.nBond){
+        // BAĞ ÇİFTİ — atom + çubuk + ince mavi lob (paylaşılan)
+        const h=mkA(0.3,OATOM[g.el].c); h.position.set(...pos); mol.add(h);
+        mol.add(makeBond(new THREE.Vector3(0,0,0),V3(pos),0x90a4ae,0.06));
+        const lobe=makeLobe(d,1.2,0x42a5f5,0.20); mol.add(lobe);
+      } else {
+        // ORTAKLANMAMIŞ ÇİFT — şişkin mor lob (paylaşılmaz), atom yok
+        const lp=makeLonePair(d,0x7e57c2); lp.position.set(d[0]*1.05,d[1]*1.05,d[2]*1.05); mol.add(lp); clouds.push(lp);
+      }
+    });
     dyn.add(mol);
-    addInfo3DLabels([ {text:{ortaokul:'🔗 bağ çifti'},position:[-2.7,-1.0,0],target:[-1.0,-0.6,0],color:'#90caf9'},
-      {text:{ortaokul:'🟠 ortaklanmamış çift'},position:[0,3.0,0],target:[0,1.4,0],color:'#ffb74d'} ]);
+    const labs=[
+      {text:{ortaokul:'🔗 Bağ çifti (paylaşılan)',lise:'🔗 Bağ çifti — atomlar paylaşır'},position:[-3.4,2.8,0],target:[TET[0][0]*0.9,TET[0][1]*0.9,TET[0][2]*0.9],color:'#42a5f5'},
+      {text:{ortaokul:g.geo+' · '+g.aci,lise:g.ad+' — '+g.geo},position:[0,-3.5,0],target:[0,0,0],color:'#ffd166'},
+      {text:{ortaokul:'↔️ Çiftler birbirini iter'},position:[0,3.8,0],target:[0,0,0],color:'#a6e3a1'},
+      {text:{ortaokul:'Bağ: '+g.nBond+' · Boş çift: '+g.nLone},position:[3.4,-2.6,0],target:[0,0,0],color:'#cfd6e0'}
+    ];
+    if(g.nLone>0){
+      labs.push({text:{ortaokul:'🟣 Ortaklanmamış çift',lise:'🟣 Ortaklanmamış çift (daha geniş)'},position:[3.4,2.8,0],target:[TET[3][0]*1.05,TET[3][1]*1.05,TET[3][2]*1.05],color:'#9d7fe6'});
+    }
+    addInfo3DLabels(labs);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(mol)mol.rotation.y+=dt*0.6; clouds.forEach((c,i)=>{ const s=1+Math.sin(acc*3+i)*0.14; c.scale.set(0.72*s,0.72*s,1.35*s); }); };
-  setSceneSliders([ {type:'section',label:'Elektron Çiftleri'},
-    {type:'display',label:'Bağ çifti',highlight:true,getValue:()=>'Atomların paylaştığı'},
-    {type:'display',label:'Ortaklanmamış',getValue:()=>'Paylaşılmayan (turuncu)'},
-    {type:'display',label:'Hepsi',getValue:()=>'Yer kaplar, birbirini iter'} ],{title:'Bağ ve Ortaklanmamış Çiftler'});
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(mol){ mol.rotation.y+=dt*0.6; mol.rotation.x=Math.sin(acc*0.5)*0.15; }
+    clouds.forEach((c,i)=>{ const s=1+0.15*Math.sin(acc*3+i); c.scale.set(0.72*s,0.72*s,1.35*s); }); };
+  setSceneSliders([ {type:'section',label:'Ortaklanmamış çift sayısı'},
+    {type:'presets',activeIdx:S.ec_p,options:[
+      {label:'0 (CH₄)',action:()=>{S.ec_p=0;rebuild();}},
+      {label:'1 (NH₃)',action:()=>{S.ec_p=1;rebuild();}},
+      {label:'2 (H₂O)',action:()=>{S.ec_p=2;rebuild();}} ]},
+    {type:'display',label:'Molekül',highlight:true,getValue:()=>SET[S.ec_p].ad},
+    {type:'display',label:'Bağ / boş çift',getValue:()=>SET[S.ec_p].nBond+' bağ · '+SET[S.ec_p].nLone+' çift'},
+    {type:'display',label:'Geometri',getValue:()=>SET[S.ec_p].geo+' ('+SET[S.ec_p].aci+')'} ],{title:'Bağ ve Ortaklanmamış Çiftler'});
 };
 
 SubBuilders.buildBagAcilari = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
-  let group,balloons=[],acc=0;
-  function rebuild(){ clr(dyn); acc=0; balloons=[];
-    group=new THREE.Group(); const knot=mkA(0.3,0x607d8b); group.add(knot);
-    const cols=[0xef5350,0x42a5f5,0x66bb6a,0xffca28];
-    TET.forEach((d,i)=>{ const b=new THREE.Mesh(new THREE.SphereGeometry(0.5,16,12),new THREE.MeshStandardMaterial({color:cols[i],roughness:0.35,toneMapped:false})); b.scale.set(0.8,0.8,1.2); b.userData={d:V3(d)}; group.add(b); group.add(makeBond(new THREE.Vector3(0,0,0),V3(d).multiplyScalar(1.9),0xb0bec5,0.05)); balloons.push(b); });
-    dyn.add(group);
-    addInfo3DLabels([ {text:{ortaokul:'🎈 balonlar iter'},position:[0,3.2,0],target:[0,0,0],color:'#ef5350'},
-      {text:{ortaokul:'en uzak dururlar'},position:[0,-3.2,0],target:[0,0,0],color:'#90caf9'} ]);
+  const S=window._sceneState; if(S.ba_p===undefined)S.ba_p=2; // 0=CO2(180),1=BF3(120),2=CH4(109.5)
+  const D2R=Math.PI/180;
+  // Açı yayı düzlemde okunabilsin diye iki bağ XY-düzlemine yerleştirilir.
+  const SET=[
+    {ad:'Karbondioksit (CO₂)', cen:'C', el:'O', aci:'180°', geo:'Doğrusal', nBalon:2,
+      dirs:[[ -1,0,0],[1,0,0]] },
+    {ad:'Bor triflorür (BF₃)', cen:'C', el:'F', aci:'120°', geo:'Üçgen düzlem', nBalon:3,
+      dirs:[[0,1,0],[Math.sin(120*D2R),Math.cos(120*D2R),0],[Math.sin(240*D2R),Math.cos(240*D2R),0]] },
+    {ad:'Metan (CH₄)', cen:'C', el:'H', aci:'109,5°', geo:'Dörtyüzlü', nBalon:4,
+      // dörtyüzlüde iki bağı XY düzlemine alıp açıyı yay ile gösteririz
+      dirs:[[Math.sin(109.5/2*D2R),Math.cos(109.5/2*D2R),0],[-Math.sin(109.5/2*D2R),Math.cos(109.5/2*D2R),0],[0,-0.5,0.866],[0,-0.5,-0.866]] }
+  ];
+  let mol,acc=0;
+  function rebuild(){ clr(dyn); acc=0; const g=SET[S.ba_p]; const L=1.9;
+    mol=new THREE.Group(); mol.add(mkA(0.46,OATOM[g.cen].c));
+    const ends=[];
+    g.dirs.forEach(d=>{ const n=Math.hypot(d[0],d[1],d[2])||1; const p=[d[0]/n*L,d[1]/n*L,d[2]/n*L]; ends.push(p);
+      const a=mkA(0.34,OATOM[g.el].c); a.position.set(...p); mol.add(a);
+      mol.add(makeBond(new THREE.Vector3(0,0,0),V3(p),0xb0bec5,0.06)); });
+    dyn.add(mol);
+    // açı yayı: ilk iki bağ arası (XY düzleminde)
+    const a0=Math.atan2(ends[0][1],ends[0][0]);
+    const a1=Math.atan2(ends[1][1],ends[1][0]);
+    let lo=Math.min(a0,a1), hi=Math.max(a0,a1);
+    if(hi-lo>Math.PI){ const t=lo; lo=hi; hi=t+Math.PI*2; }
+    dyn.add(makeAngleArc(new THREE.Vector3(0,0,0), lo, hi, {r:1.15, color:0xffd54f, label:g.aci, labelOut:0.55}));
+    addInfo3DLabels([
+      {text:{ortaokul:'🎈 '+g.nBalon+' balon (bağ)',lise:'🎈 '+g.nBalon+' elektron alanı'},position:[0,3.7,0],target:[0,0,0],color:'#ef5350'},
+      {text:{ortaokul:'📐 '+g.geo,lise:g.ad+' — '+g.geo},position:[0,-3.6,0],target:[0,0,0],color:'#90caf9'},
+      {text:{ortaokul:'En uzak dururlar'},position:[-3.6,2.6,0],target:V3(ends[0]).multiplyScalar(0.6).toArray(),color:'#a6e3a1'},
+      {text:{ortaokul:'Açı: '+g.aci},position:[3.6,2.6,0],target:V3(ends[1]).multiplyScalar(0.6).toArray(),color:'#ffd166'}
+    ]);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(group)group.rotation.y+=dt*0.5; const sp=1.55+0.35*ezz(ppong(acc,5)); balloons.forEach(b=>{ b.position.copy(b.userData.d.clone().multiplyScalar(sp)); }); };
-  setSceneSliders([ {type:'section',label:'Bağ Açıları (Balon Modeli)'},
-    {type:'display',label:'Balonlar',highlight:true,getValue:()=>'Birbirini iter'},
-    {type:'display',label:'Sonuç',getValue:()=>'En uzak dizilim'},
-    {type:'display',label:'4 balon',getValue:()=>'Dörtyüzlü (109,5°)'} ],{title:'Bağlar Neden Açılır?'});
+  // CO2/BF3 düzlemsel kalsın (açı görünür); CH4 dörtyüzlü için hafif eksen çevrimi
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(mol){ mol.rotation.y+=dt*0.4; } };
+  setSceneSliders([ {type:'section',label:'Açı vitrini'},
+    {type:'presets',activeIdx:S.ba_p,options:[
+      {label:'180° CO₂',action:()=>{S.ba_p=0;rebuild();}},
+      {label:'120° BF₃',action:()=>{S.ba_p=1;rebuild();}},
+      {label:'109,5° CH₄',action:()=>{S.ba_p=2;rebuild();}} ]},
+    {type:'display',label:'Molekül',highlight:true,getValue:()=>SET[S.ba_p].ad},
+    {type:'display',label:'Bağ açısı',getValue:()=>SET[S.ba_p].aci},
+    {type:'display',label:'Geometri',getValue:()=>SET[S.ba_p].geo} ],{title:'Bağ Açıları'});
 };
 
 SubBuilders.buildMolekulModelleri = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
-  const S=window._sceneState; if(S.mm_tip===undefined)S.mm_tip=0;
-  const SET=[ {n:'Doğrusal (CO₂)',geo:'linear',el:'O',cen:'C',ang:'180°',tag:'Doğrusal'}, {n:'Açısal (H₂O)',geo:'bent',el:'H',cen:'O',ang:'~104°',tag:'Açısal'}, {n:'Üçgen Piramit (NH₃)',geo:'pyr',el:'H',cen:'N',ang:'~107°',tag:'Piramit'}, {n:'Dörtyüzlü (CH₄)',geo:'tet',el:'H',cen:'C',ang:'109,5°',tag:'Dörtyüzlü'} ];
-  let mol,acc=0;
-  function rebuild(){ clr(dyn); acc=0; const g=SET[S.mm_tip];
-    mol=new THREE.Group(); mol.add(mkA(0.5,OATOM[g.cen].c));
-    let dirs; if(g.geo==='linear')dirs=DIRS.linear; else if(g.geo==='bent')dirs=BENT; else if(g.geo==='pyr')dirs=PYR; else dirs=TET;
-    dirs.forEach(d=>{ const s=mkA(0.32,OATOM[g.el].c); s.position.set(d[0]*1.6,d[1]*1.6,d[2]*1.6); mol.add(s); mol.add(makeBond(new THREE.Vector3(0,0,0),new THREE.Vector3(d[0]*1.6,d[1]*1.6,d[2]*1.6),0x90a4ae,0.06)); });
-    dyn.add(mol);
-    addInfo3DLabels([ {text:{ortaokul:g.tag},position:[0,3.2,0],target:[0,0,0],color:'#90caf9'},
-      {text:{ortaokul:'açı '+g.ang},position:[0,-3.1,0],target:[0,0,0],color:'#ffd166'} ]);
+  const S=window._sceneState; if(S.mm_g===undefined)S.mm_g=0; // gösterim: 0=top-çubuk,1=uzay-dolgu,2=Lewis
+  if(S.mm_m===undefined)S.mm_m=0; // molekül: 0=Su,1=Metan,2=CO2
+  const D2R=Math.PI/180;
+  const RVDW={O:0.95,H:0.62,C:1.0,N:0.95};
+  const MOL=[
+    {ad:'Su (H₂O)', cen:'O', atoms:()=>{ const L=1.5,h=104.5/2*D2R; return [{el:'O',pos:[0,0.3,0]},{el:'H',pos:[-Math.sin(h)*L,0.3-Math.cos(h)*L,0]},{el:'H',pos:[Math.sin(h)*L,0.3-Math.cos(h)*L,0]}]; }, bonds:[[0,1,1],[0,2,1]], lone:2 },
+    {ad:'Metan (CH₄)', cen:'C', atoms:()=>{ const L=1.5,v=TET.map(d=>[d[0]*L,d[1]*L,d[2]*L]); return [{el:'C',pos:[0,0,0]},{el:'H',pos:v[0]},{el:'H',pos:v[1]},{el:'H',pos:v[2]},{el:'H',pos:v[3]}]; }, bonds:[[0,1,1],[0,2,1],[0,3,1],[0,4,1]], lone:0 },
+    {ad:'Karbondioksit (CO₂)', cen:'C', atoms:()=>[{el:'C',pos:[0,0,0]},{el:'O',pos:[-1.6,0,0]},{el:'O',pos:[1.6,0,0]}], bonds:[[0,1,2],[0,2,2]], lone:0 }
+  ];
+  const RBS={O:0.48,H:0.3,C:0.48,N:0.45};
+  let mol,acc=0, isLewis=false;
+  function rebuild(){ clr(dyn); acc=0; const m=MOL[S.mm_m]; const a=m.atoms(); isLewis=(S.mm_g===2);
+    mol=new THREE.Group();
+    if(S.mm_g===0){ // TOP-ÇUBUK
+      m.bonds.forEach(b=>{ mol.add(obond(V3(a[b[0]].p),V3(a[b[1]].p),b[2]||1,0x90a4ae)); });
+      a.forEach(at=>{ const me=mkA(RBS[at.el],OATOM[at.el].c); me.position.set(...at.p); mol.add(me); });
+    } else if(S.mm_g===1){ // UZAY-DOLGU (vdW, çubuk yok, büyük dolgun küre)
+      a.forEach(at=>{ const me=mkA(RVDW[at.el],OATOM[at.el].c); me.position.set(...at.p); mol.add(me); });
+    } else { // LEWIS NOKTA — düz (z=0), bağ çizgisi + ortaklanmamış çift noktaları
+      const flat=a.map(at=>[at.p[0],at.p[1],0]);
+      m.bonds.forEach(b=>{ const n=b[2]||1; const p1=V3(flat[b[0]]),p2=V3(flat[b[1]]);
+        const dir=new THREE.Vector3().subVectors(p2,p1); const perp=new THREE.Vector3(-dir.y,dir.x,0).normalize();
+        const offs=n===2?[-0.1,0.1]:[0]; offs.forEach(o=>mol.add(makePoly([p1.clone().addScaledVector(perp,o),p2.clone().addScaledVector(perp,o)],0xcfd6e0,0.9))); });
+      a.forEach(at=>{ const me=mkA(0.42,OATOM[at.el].c); me.position.set(at.p[0],at.p[1],0); mol.add(me); });
+      // ortaklanmamış çift noktaları (sadece su) — merkez atom üstünde
+      if(m.lone>0){ [[-0.35,0.95],[0.35,0.95]].forEach(d=>{ const dt=new THREE.Mesh(new THREE.SphereGeometry(0.1,10,8),new THREE.MeshBasicMaterial({color:0x7e57c2,toneMapped:false})); dt.position.set(a[0].p[0]+d[0],a[0].p[1]+d[1]*0.7,0.02); mol.add(dt); }); }
+    }
+    mol.scale.setScalar(1.05); mol.position.set(0,0.4,0); dyn.add(mol);
+    const nm=['🧷 Top-çubuk','⚪ Uzay-dolgu','✏️ Lewis nokta'][S.mm_g];
+    addInfo3DLabels([
+      {text:{ortaokul:nm,lise:nm+' gösterimi'},position:[0,3.8,0],target:[0,0.4,0],color:'#ffd166'},
+      {text:{ortaokul:m.ad},position:[0,-3.6,0],target:[0,0.4,0],color:'#90caf9'},
+      {text:{ortaokul:['Bağları net gösterir','Gerçek hacmi gösterir','Düz kağıt gösterimi'][S.mm_g]},position:[-3.4,2.6,0],target:[0,0.4,0],color:'#a6e3a1'},
+      {text:{ortaokul:'Aynı molekül, farklı çizim'},position:[3.4,2.6,0],target:[0,0.4,0],color:'#cfd6e0'}
+    ]);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(mol){ mol.rotation.y+=dt*0.6; mol.position.y=Math.sin(acc*1.3)*0.1; } };
-  setSceneSliders([ {type:'section',label:'Molekül Şekilleri'},
-    {type:'presets',activeIdx:S.mm_tip,options:SET.map((g,i)=>({label:g.tag,action:()=>{S.mm_tip=i;rebuild();}}))},
-    {type:'display',label:'Şekil',highlight:true,getValue:()=>SET[S.mm_tip].n},
-    {type:'display',label:'Bağ açısı',getValue:()=>SET[S.mm_tip].ang} ],{title:'Temel Molekül Şekilleri'});
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(mol && !isLewis){ mol.rotation.y+=dt*0.7; mol.rotation.x=Math.sin(acc*0.5)*0.18; } };
+  setSceneSliders([ {type:'section',label:'Gösterim türü'},
+    {type:'presets',activeIdx:S.mm_g,options:[
+      {label:'🧷 Top-çubuk',action:()=>{S.mm_g=0;rebuild();}},
+      {label:'⚪ Uzay-dolgu',action:()=>{S.mm_g=1;rebuild();}},
+      {label:'✏️ Lewis',action:()=>{S.mm_g=2;rebuild();}} ]},
+    {type:'section',label:'Molekül'},
+    {type:'presets',activeIdx:S.mm_m,options:[
+      {label:'Su',action:()=>{S.mm_m=0;rebuild();}},
+      {label:'Metan',action:()=>{S.mm_m=1;rebuild();}},
+      {label:'CO₂',action:()=>{S.mm_m=2;rebuild();}} ]},
+    {type:'display',label:'Gösterim',highlight:true,getValue:()=>['Top-çubuk','Uzay-dolgu','Lewis nokta'][S.mm_g]},
+    {type:'display',label:'Molekül',getValue:()=>MOL[S.mm_m].ad} ],{title:'Molekül Gösterim Türleri'});
 };
 
 SubBuilders.buildPolarMolekulGiris = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
-  let mol,plus,minus,acc=0;
-  function rebuild(){ clr(dyn); acc=0;
-    mol=mkMol([{el:'O',pos:[0,0.5,0],r:0.55},{el:'H',pos:[-1.1,-0.4,0],r:0.32},{el:'H',pos:[1.1,-0.4,0],r:0.32}],[[0,1],[0,2]]); mol.scale.setScalar(1.15); dyn.add(mol);
-    minus=new THREE.Mesh(new THREE.SphereGeometry(0.9,16,12),new THREE.MeshBasicMaterial({color:0xef5350,transparent:true,opacity:0.16,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false})); minus.position.set(0,0.7,0); dyn.add(minus);
-    plus=new THREE.Mesh(new THREE.SphereGeometry(1.0,16,12),new THREE.MeshBasicMaterial({color:0x42a5f5,transparent:true,opacity:0.13,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false})); plus.position.set(0,-0.6,0); dyn.add(plus);
-    addInfo3DLabels([ {text:{ortaokul:'➖ eksi uç'},position:[2.7,1.4,0],target:[0,0.7,0],color:'#ef5350'},
-      {text:{ortaokul:'➕ artı uç'},position:[-2.7,-1.4,0],target:[0,-0.6,0],color:'#42a5f5'},
-      {text:{ortaokul:'🧲 polar'},position:[0,3.0,0],target:[0,0.5,0],color:'#ffd166'} ]);
+  const D2R=Math.PI/180;
+  let net=null, acc=0;
+  function rebuild(){ clr(dyn); acc=0; net=null;
+    // SOL: CO₂ doğrusal/simetrik → dipoller iptal → APOLAR
+    const co2=new THREE.Group(); co2.position.set(-3.7,0.4,0);
+    co2.add(obond(V3([-1.5,0,0]),V3([0,0,0]),2,0x90a4ae));
+    co2.add(obond(V3([0,0,0]),V3([1.5,0,0]),2,0x90a4ae));
+    [['C',[0,0,0]],['O',[-1.5,0,0]],['O',[1.5,0,0]]].forEach(([el,p])=>{ const a=mkA(el==='C'?0.46:0.5,OATOM[el].c); a.position.set(...p); co2.add(a); });
+    // bağ dipolleri: O'ya doğru (zıt, eşit) → iptal
+    co2.add(makeArrow3D(V3([-0.5,0,0]),V3([-1.35,0,0]),0xef5350,0.06));
+    co2.add(makeArrow3D(V3([0.5,0,0]),V3([1.35,0,0]),0xef5350,0.06));
+    dyn.add(co2);
+    // SAĞ: H₂O açısal/asimetrik → dipoller toplanır → POLAR
+    const h2o=new THREE.Group(); h2o.position.set(3.7,0.4,0);
+    const L=1.5,h=104.5/2*D2R; const Op=[0,0.4,0], H1=[-Math.sin(h)*L,0.4-Math.cos(h)*L,0], H2=[Math.sin(h)*L,0.4-Math.cos(h)*L,0];
+    h2o.add(makeBond(V3(Op),V3(H1),0x90a4ae,0.07)); h2o.add(makeBond(V3(Op),V3(H2),0x90a4ae,0.07));
+    [['O',Op],['H',H1],['H',H2]].forEach(([el,p])=>{ const a=mkA(el==='O'?0.5:0.3,OATOM[el].c); a.position.set(...p); h2o.add(a); });
+    // bağ dipolleri H→O + net dipol (yukarı, O'ya doğru)
+    h2o.add(makeArrow3D(V3([H1[0]*0.6,0.4+(H1[1]-0.4)*0.6,0]),V3([H1[0]*0.15,0.4+(H1[1]-0.4)*0.15,0]),0xffa726,0.05));
+    h2o.add(makeArrow3D(V3([H2[0]*0.6,0.4+(H2[1]-0.4)*0.6,0]),V3([H2[0]*0.15,0.4+(H2[1]-0.4)*0.15,0]),0xffa726,0.05));
+    net=makeArrow3D(V3([0,0.4,0]),V3([0,2.1,0]),0xef5350,0.08); h2o.add(net);
+    dyn.add(h2o);
+    addInfo3DLabels([
+      {text:{ortaokul:'⚖️ CO₂ simetrik',lise:'⚖️ Simetrik (doğrusal)'},position:[-3.7,3.2,0],target:[-3.7,0.4,0],color:'#7adcf0'},
+      {text:{ortaokul:'➡️⬅️ Oklar iptal → APOLAR'},position:[-3.7,-2.8,0],target:[-3.7,0.4,0],color:'#a6e3a1'},
+      {text:{ortaokul:'🧲 H₂O asimetrik',lise:'🧲 Asimetrik (açısal)'},position:[3.7,3.2,0],target:[3.7,0.4,0],color:'#ffd166'},
+      {text:{ortaokul:'⬆️ Oklar toplanır → POLAR'},position:[3.7,-2.8,0],target:[3.7,0.9,0],color:'#ef5350'},
+      {text:{ortaokul:'🧭 Net dipol'},position:[5.6,2.4,0],target:[3.7,2.0,0],color:'#ef5350'},
+      {text:{ortaokul:'Şekil → polar mı belirler'},position:[0,3.9,0],target:[3.7,0.4,0],color:'#cfd6e0'}
+    ]);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(mol)mol.rotation.y+=dt*0.5; const p=0.5+0.5*Math.sin(acc*2.5); if(minus)minus.material.opacity=0.10+0.10*p; if(plus)plus.material.opacity=0.08+0.09*(1-p); };
-  setSceneSliders([ {type:'section',label:'Polar Molekül (Su)'},
-    {type:'display',label:'Oksijen ucu',highlight:true,getValue:()=>'Hafif eksi (-)'},
-    {type:'display',label:'Hidrojen ucu',getValue:()=>'Hafif artı (+)'},
-    {type:'display',label:'Sonuç',getValue:()=>'Mıknatıs gibi → çözer'} ],{title:'Polar Molekül Nedir?'});
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt;
+    if(net){ const s=1+0.10*Math.sin(acc*2.4); net.scale.set(1,s,1); } };
+  setSceneSliders([ {type:'section',label:'Simetri → Polarite'},
+    {type:'display',label:'CO₂ (simetrik)',highlight:true,getValue:()=>'Apolar (oklar iptal)'},
+    {type:'display',label:'H₂O (asimetrik)',getValue:()=>'Polar (oklar toplanır)'},
+    {type:'display',label:'Belirleyen',getValue:()=>'Molekülün şekli (geometri)'} ],{title:'Polar mı Apolar mı?'});
 };
 
-// ============================================================
-// MODÜL 3 — LİSE (tam, sınav odaklı; açıklayıcı etiket uygun)
-// ============================================================
 SubBuilders.buildVseprTemel = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
   const S=window._sceneState; if(S.vt_n===undefined)S.vt_n=4;
-  let group,domains=[],acc=0; const geoFor={2:'linear',3:'trigonal',4:'tetrahedral',5:'bipyramid',6:'octahedral'};
-  function rebuild(){ clr(dyn); acc=0; domains=[];
-    group=new THREE.Group(); group.add(mkA(0.5,0x607d8b)); const dirs=DIRS[geoFor[S.vt_n]];
-    dirs.forEach(d=>{ const end=V3(d).normalize().multiplyScalar(1.6); const cl=new THREE.Mesh(new THREE.SphereGeometry(0.45,16,12),new THREE.MeshBasicMaterial({color:0x7e57c2,transparent:true,opacity:0.42,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false})); cl.scale.set(0.72,0.72,1.35); cl.position.copy(end); cl.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),V3(d).normalize()); group.add(cl); group.add(makeBond(new THREE.Vector3(0,0,0),end,0x90a4ae,0.05)); domains.push(cl); });
+  const geoFor={2:'linear',3:'trigonal',4:'tetrahedral',5:'bipyramid',6:'octahedral'};
+  const NAME={2:'Doğrusal (180°)',3:'Üçgen düzlem (120°)',4:'Dörtyüzlü (109,5°)',5:'Üçgen çift piramit',6:'Oktahedral (90°)'};
+  const balCols=[0xef5350,0x42a5f5,0x66bb6a,0xffca28,0x9d7fe6,0x26c6da];
+  let group,balloons=[],acc=0, spread=0;
+  function rebuild(){ clr(dyn); acc=0; spread=0; balloons=[];
+    group=new THREE.Group(); const knot=mkA(0.3,0x607d8b); group.add(knot);
+    const dirs=DIRS[geoFor[S.vt_n]];
+    dirs.forEach((d,i)=>{ const dir=V3(d).normalize();
+      // BALON: çiftleri temsil eden şişkin renkli küre + düğüme bağ
+      const b=new THREE.Mesh(new THREE.SphereGeometry(0.5,18,14),new THREE.MeshStandardMaterial({color:balCols[i%balCols.length],roughness:0.32,toneMapped:false}));
+      b.scale.set(0.78,0.78,1.18); b.userData={dir}; group.add(b);
+      group.add(makeBond(new THREE.Vector3(0,0,0),dir.clone().multiplyScalar(1.9),0xb0bec5,0.05));
+      balloons.push(b); });
     dyn.add(group);
-    addInfo3DLabels([ {text:{lise:'VSEPR: merkez atomun çevresindeki elektron alanları birbirini İTER'},position:[0,3.6,0],target:[0,0,0],color:'#7e57c2'},
-      {text:{lise:'En uzak (minimum itme) dizilime geçer → geometri'},position:[0,-3.5,0],target:[0,0,0],color:'#90caf9'} ]);
+    addInfo3DLabels([
+      {text:{lise:'🎈 '+S.vt_n+' balon = '+S.vt_n+' elektron çifti'},position:[0,3.8,0],target:[0,0,0],color:'#ffd166'},
+      {text:{lise:'↔️ Çiftler birbirini İTER'},position:[-3.6,2.6,0],target:[0,0,0],color:'#ef5350'},
+      {text:{lise:'📐 Maksimum uzaklığa yerleşir'},position:[3.6,2.6,0],target:[0,0,0],color:'#a6e3a1'},
+      {text:{lise:'→ '+NAME[S.vt_n]},position:[0,-3.6,0],target:[0,0,0],color:'#7e57c2'}
+    ]);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(group){ group.rotation.y+=dt*0.5; group.rotation.x=Math.sin(acc*0.35)*0.12; } domains.forEach((c,i)=>{ const s=1+0.16*Math.sin(acc*2.6+i); c.scale.set(0.72*s,0.72*s,1.35*s); }); };
-  setSceneSliders([ {type:'section',label:'VSEPR Temel İlke'},
-    {type:'presets',activeIdx:S.vt_n-2,options:[2,3,4,5,6].map(n=>({label:n+' alan',action:()=>{S.vt_n=n;rebuild();}}))},
-    {type:'display',label:'Elektron alanı',highlight:true,getValue:()=>S.vt_n+' adet'},
-    {type:'display',label:'Geometri',getValue:()=>({2:'Doğrusal',3:'Üçgen düzlem',4:'Dörtyüzlü',5:'Üçgen çift piramit',6:'Oktahedral'})[S.vt_n]},
-    {type:'display',label:'İlke',getValue:()=>'En uzak (min. itme) dizilim'} ],{title:'VSEPR: Elektron İtme İlkesi'});
+  // Balonlar önce düğüme yakın, sonra "itilerek" en uzak konuma açılır (analoji animasyonu)
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt;
+    if(group){ group.rotation.y+=dt*0.5; group.rotation.x=Math.sin(acc*0.35)*0.12; }
+    const sp=1.05+0.65*ezz(ppong(acc,5));
+    balloons.forEach((b,i)=>{ b.position.copy(b.userData.dir.clone().multiplyScalar(sp)); b.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),b.userData.dir);
+      const pu=1+0.07*Math.sin(acc*3+i); b.scale.set(0.78*pu,0.78*pu,1.18*pu); }); };
+  setSceneSliders([ {type:'section',label:'Kaç balon (elektron çifti)?'},
+    {type:'presets',activeIdx:S.vt_n-2,options:[2,3,4,5,6].map(n=>({label:n+' balon',action:()=>{S.vt_n=n;rebuild();}}))},
+    {type:'display',label:'Elektron çifti',highlight:true,getValue:()=>S.vt_n+' adet'},
+    {type:'display',label:'İlke',getValue:()=>'İterler → en uzak dizilim'},
+    {type:'display',label:'Geometri',getValue:()=>NAME[S.vt_n]} ],{title:'VSEPR: İtme İlkesi (Balon)'});
 };
 
 SubBuilders.buildLonePairItme = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  const D2R=Math.PI/180;
   let mols=[],clouds=[],acc=0;
-  function molWith(cen,kind,x){ const g=new THREE.Group(); g.add(mkA(0.5,OATOM[cen].c)); let bdirs,lps;
-    if(kind==='ch4'){ bdirs=TET; lps=[]; } else if(kind==='nh3'){ bdirs=PYR; lps=[[0,1,0]]; } else { bdirs=BENT; lps=[[-0.4,0.86,0.34],[0.4,0.86,-0.34]]; }
-    bdirs.forEach(d=>{ const h=mkA(0.3,0xeceff1); h.position.set(d[0]*1.5,d[1]*1.5,d[2]*1.5); g.add(h); g.add(makeBond(new THREE.Vector3(0,0,0),new THREE.Vector3(d[0]*1.5,d[1]*1.5,d[2]*1.5),0x90a4ae,0.06)); });
-    lps.forEach(d=>{ const lp=makeLonePair(d,0xffb74d); lp.position.copy(V3(d).normalize().multiplyScalar(1.0)); g.add(lp); clouds.push(lp); });
-    g.position.set(x,0.3,0); return g; }
+  // Her molekül: merkez + 2 bağ XY-düzleminde (açı yayı okunur) + ortaklanmamış çiftler yukarı.
+  function molWith(cen,el,nLone,aciDeg,x){
+    const g=new THREE.Group(); g.position.set(x,0.3,0);
+    g.add(mkA(0.46,OATOM[cen].c));
+    const L=1.55, h=aciDeg/2*D2R;
+    const H1=[-Math.sin(h)*L,-Math.cos(h)*L,0], H2=[Math.sin(h)*L,-Math.cos(h)*L,0];
+    [H1,H2].forEach(p=>{ const a=mkA(0.3,OATOM[el].c); a.position.set(...p); g.add(a); g.add(makeBond(new THREE.Vector3(0,0,0),V3(p),0x90a4ae,0.06)); });
+    // ortaklanmamış çiftler (yukarı doğru yelpaze)
+    const lpDirs = nLone===0?[] : nLone===1?[[0,1,0]] : [[-0.45,0.89,0],[0.45,0.89,0]];
+    lpDirs.forEach(d=>{ const lp=makeLonePair(d,0x7e57c2); lp.position.copy(V3(d).normalize().multiplyScalar(1.0)); g.add(lp); clouds.push(lp); });
+    // açı yayı (iki bağ arası, merkez 0)
+    const a0=Math.atan2(H1[1],H1[0]), a1=Math.atan2(H2[1],H2[0]);
+    g.add(makeAngleArc(new THREE.Vector3(0,0,0), Math.min(a0,a1), Math.max(a0,a1), {r:0.95, color:0xffd54f, label:aciDeg.toString().replace('.',',')+'°', labelOut:0.35, labelDY:-0.3}));
+    return g;
+  }
   function rebuild(){ clr(dyn); acc=0; mols=[]; clouds=[];
-    mols.push(molWith('C','ch4',-4.2)); mols.push(molWith('N','nh3',0)); mols.push(molWith('O','h2o',4.2));
-    mols.forEach(m=>dyn.add(m));
-    addInfo3DLabels([ {text:{lise:'CH₄ 109,5°   ·   NH₃ 107°   ·   H₂O 104,5°'},position:[0,3.5,0],target:[0,0.3,0],color:'#ffb74d'},
-      {text:{lise:'Ortaklanmamış çift sayısı arttıkça açı DARALIR'},position:[0,-3.4,0],target:[0,0.3,0],color:'#90caf9'} ]);
+    const a=molWith('C','H',0,109.5,-4.3); // CH4 (sahnede 2 bağ + açı gösterimi)
+    const b=molWith('N','H',1,107,0);       // NH3
+    const c=molWith('O','H',2,104.5,4.3);   // H2O
+    mols=[a,b,c]; mols.forEach(m=>dyn.add(m));
+    addInfo3DLabels([
+      {text:{lise:'CH₄ · 0 boş çift'},position:[-4.3,3.0,0],target:[-4.3,0.6,0],color:'#7adcf0'},
+      {text:{lise:'NH₃ · 1 boş çift'},position:[0,3.2,0],target:[0,1.0,0],color:'#ffd166'},
+      {text:{lise:'H₂O · 2 boş çift'},position:[4.3,3.0,0],target:[4.3,1.0,0],color:'#ef5350'},
+      {text:{lise:'🟣 Ortaklanmamış çift daha çok iter'},position:[0,-3.0,0],target:[0,1.0,0],color:'#9d7fe6'},
+      {text:{lise:'➡️ Boş çift arttıkça açı DARALIR'},position:[0,-3.9,0],target:[4.3,0.6,0],color:'#a6e3a1'}
+    ]);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; mols.forEach((m,i)=>{ m.rotation.y+=dt*0.55; m.position.y=0.3+Math.sin(acc*1.3+i)*0.1; }); clouds.forEach((c,i)=>{ const s=1+0.16*Math.sin(acc*3+i); c.scale.set(0.72*s,0.72*s,1.35*s); }); };
-  setSceneSliders([ {type:'section',label:'Ortaklanmamış Çift İtmesi'},
-    {type:'display',label:'CH₄',highlight:true,getValue:()=>'4 bağ, 0 çift → 109,5°'},
-    {type:'display',label:'NH₃',getValue:()=>'3 bağ, 1 çift → 107°'},
-    {type:'display',label:'H₂O',getValue:()=>'2 bağ, 2 çift → 104,5°'},
-    {type:'display',label:'Kural',getValue:()=>'Çift > bağ itmesi → açı daralır'} ],{title:'CH₄ / NH₃ / H₂O Açı Karşılaştırması'});
+  // Düzlemsel kalsın (açılar okunur); hafif salınım
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt;
+    mols.forEach((m,i)=>{ m.rotation.y=Math.sin(acc*0.7+i)*0.12; m.position.y=0.3+Math.sin(acc*1.3+i)*0.06; });
+    clouds.forEach((c,i)=>{ const s=1+0.15*Math.sin(acc*3+i); c.scale.set(0.72*s,0.72*s,1.35*s); }); };
+  setSceneSliders([ {type:'section',label:'Açı Daralması (boş çift)'},
+    {type:'display',label:'CH₄ (0 çift)',highlight:true,getValue:()=>'109,5°'},
+    {type:'display',label:'NH₃ (1 çift)',getValue:()=>'107°'},
+    {type:'display',label:'H₂O (2 çift)',getValue:()=>'104,5°'},
+    {type:'display',label:'Kural',getValue:()=>'Boş çift > bağ itmesi'} ],{title:'CH₄ / NH₃ / H₂O Açı Karşılaştırması'});
 };
 
 SubBuilders.buildMolekulBukme = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
-  const ideal=104.5; const L=1.75; let armL,armR,acc=0;
+  const S=window._sceneState; if(S.mb_lp===undefined)S.mb_lp=2; // ortaklanmamış çift sayısı 0,1,2
+  const L=1.85, CY=0.55;
+  // ortaklanmamış çift sayısına göre ideal açı + ad (4 elektron alanı sabit: 4-lp bağ)
+  const TBL={ 0:{ang:109.5,name:'Dörtyüzlü',cen:'C',hcol:0xeceff1}, 1:{ang:107,name:'Üçgen piramit',cen:'N',hcol:0xeceff1}, 2:{ang:104.5,name:'Açısal (kırık)',cen:'O',hcol:0xeceff1} };
+  let armL,armR,arm3,lobes=[],acc=0,curAng=109.5;
+  function tr(n){ return (Math.round(n*10)/10).toString().replace('.',','); }
+  function arm(col,r){ const a=new THREE.Group(); a.position.set(0,CY,0); a.add(makeBond(new THREE.Vector3(0,0,0),new THREE.Vector3(0,-L,0),0x90a4ae,0.07)); const h=mkA(r||0.32,col); h.position.set(0,-L,0); a.add(h); return a; }
   function setAngle(ang){ const h=ang*Math.PI/360; if(armL)armL.rotation.z=h; if(armR)armR.rotation.z=-h; }
-  function arm(){ const a=new THREE.Group(); a.position.set(0,0.7,0); a.add(makeBond(new THREE.Vector3(0,0,0),new THREE.Vector3(0,-L,0),0x90a4ae,0.07)); const h=mkA(0.32,0xeceff1); h.position.set(0,-L,0); a.add(h); return a; }
-  function rebuild(){ clr(dyn); acc=0;
-    const O=mkA(0.55,0xef5350); O.position.set(0,0.7,0); dyn.add(O);
-    armL=arm(); armR=arm(); dyn.add(armL); dyn.add(armR);
-    const lp1=makeLonePair([0.4,0.9,0.35],0xffb74d); lp1.position.set(0.4,1.55,0.32); dyn.add(lp1);
-    const lp2=makeLonePair([-0.4,0.9,-0.35],0xffb74d); lp2.position.set(-0.4,1.55,-0.32); dyn.add(lp2);
-    setAngle(ideal);
-    addInfo3DLabels([ {text:{lise:'▶ Çalıştır: bağ sıkıştırılır, bırakılınca YAY gibi 104,5°\'ye geri fırlar'},position:[0,3.5,0],target:[0,0.4,0],color:'#4fc3f7'},
-      {text:{lise:'Elektron çiftlerinin itmesi molekülü ideal açısında tutar'},position:[0,-3.4,0],target:[0,-0.6,0],color:'#90caf9'} ]);
+  function rebuild(){ clr(dyn); acc=0; lobes=[]; const c=TBL[S.mb_lp];
+    const C=mkA(0.55,OATOM[c.cen].c); C.position.set(0,CY,0); dyn.add(C);
+    // 4 elektron alanı: (4 - lp) bağ + lp ortaklanmamış çift  → daima dörtyüzlü iskelet
+    armL=arm(c.hcol); armR=arm(c.hcol); dyn.add(armL); dyn.add(armR);
+    if(S.mb_lp===0){ // CH4: 4 bağ → 3.& 4. H'yi öne/arkaya koy (dörtyüzlü)
+      arm3=new THREE.Group(); arm3.position.set(0,CY,0);
+      [[0,-0.34,0.94],[0,-0.34,-0.94]].forEach(d=>{ arm3.add(makeBond(new THREE.Vector3(0,0,0),V3(d).multiplyScalar(L),0x90a4ae,0.07)); const h=mkA(0.32,c.hcol); h.position.copy(V3(d).multiplyScalar(L)); arm3.add(h); }); dyn.add(arm3);
+    }
+    // ortaklanmamış çiftler (turuncu loblar) — sayısı slider ile
+    const lpDirs=[[0.45,0.92,0.30],[-0.45,0.92,-0.30]];
+    for(let i=0;i<S.mb_lp;i++){ const lp=makeLonePair(lpDirs[i],0xffb74d); lp.position.copy(V3(lpDirs[i]).normalize().multiplyScalar(1.05).add(new THREE.Vector3(0,CY,0))); dyn.add(lp); lobes.push(lp); }
+    setAngle(c.ang); curAng=c.ang;
+    addInfo3DLabels([
+      {text:{lise:'Ortaklanmamış çift = '+S.mb_lp+' → '+c.name},position:[0,3.6,0],target:[0,CY,0],color:'#ffb74d'},
+      {text:{lise:'Açı '+tr(c.ang)+'° (çift arttıkça DARALIR)'},position:[3.0,-1.4,0],target:[0,CY-0.4,0],color:'#4fc3f7'},
+      {text:{lise:'🔗 bağ çifti (atomlar paylaşır)'},position:[-3.2,-1.6,0],target:[-0.9,CY-1.0,0],color:'#90caf9'},
+      {text:{lise:'merkez '+c.cen+' atomu'},position:[-3.0,2.4,0],target:[0,CY,0],color:'#cfd6e0'}
+    ]);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; const u=(acc%5)/5; let ang;
-    if(u<0.35){ ang=ideal-32*ezz(u/0.35); } else { const k=(u-0.35)/0.65; ang=ideal-32*Math.cos(k*12)*Math.exp(-k*3); }
-    setAngle(ang); };
-  setSceneSliders([ {type:'section',label:'Açı Esnekliği (Su)'},
-    {type:'display',label:'İdeal açı',highlight:true,getValue:()=>'104,5°'},
-    {type:'display',label:'Sıkıştırınca',getValue:()=>'Elektron itmesi direnir'},
-    {type:'display',label:'Bırakınca',getValue:()=>'Yay gibi ideale döner'} ],{title:'Su Molekülü: Açı Yayı'});
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; dyn.rotation.y+=dt*0.45;
+    // ideal açı çevresinde küçük 'yay' titreşimi → açının esnek olduğunu hissettir
+    const a=curAng + 4*Math.sin(acc*2.4); setAngle(a);
+    lobes.forEach((c,i)=>{ const s=1+0.16*Math.sin(acc*3+i); c.scale.set(0.72*s,0.72*s,1.35*s); });
+  };
+  setSceneSliders([ {type:'section',label:'Çift Ekledikçe Bükülme'},
+    {type:'slider',label:'Ortaklanmamış çift',min:0,max:2,step:1,unit:' çift',getValue:()=>S.mb_lp,setValue:(v)=>{S.mb_lp=v|0;rebuild();}},
+    {type:'display',label:'Geometri',highlight:true,getValue:()=>TBL[S.mb_lp].name},
+    {type:'display',label:'Bağ açısı',getValue:()=>tr(TBL[S.mb_lp].ang)+'°'},
+    {type:'display',label:'Örnek',getValue:()=>({0:'CH₄ (109,5°)',1:'NH₃ (107°)',2:'H₂O (104,5°)'})[S.mb_lp]},
+    {type:'display',label:'Kural',getValue:()=>'Çift itmesi > bağ itmesi → açı küçülür'} ],{title:'Molekül Bükülmesi: Çift Sayısı vs Açı'});
 };
 
 SubBuilders.buildVseprSekiller = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
-  const S=window._sceneState; if(S.vs_tip===undefined)S.vs_tip=2;
-  const SET=[ {n:'Doğrusal',geo:'linear',ang:'180°',ex:'CO₂, BeCl₂'}, {n:'Üçgen Düzlem',geo:'trigonal',ang:'120°',ex:'BF₃, SO₃'}, {n:'Dörtyüzlü',geo:'tetrahedral',ang:'109,5°',ex:'CH₄, NH₄⁺'}, {n:'Üçgen Çift Piramit',geo:'bipyramid',ang:'90°/120°',ex:'PCl₅'}, {n:'Oktahedral',geo:'octahedral',ang:'90°',ex:'SF₆'} ];
+  const S=window._sceneState; if(S.vs_tip===undefined)S.vs_tip=3;
+  // AXmEn galeri — bağ yönü (geo) + ortaklanmamış çift yönü (lp) ayrı
+  const SET=[
+    {n:'Doğrusal',ax:'AX₂',ang:'180°',ex:'CO₂, BeCl₂',geo:[[1,0,0],[-1,0,0]],lp:[]},
+    {n:'Düzlem Üçgen',ax:'AX₃',ang:'120°',ex:'BF₃, SO₃',geo:[[0,1,0],[0.866,-0.5,0],[-0.866,-0.5,0]],lp:[]},
+    {n:'Dörtyüzlü',ax:'AX₄',ang:'109,5°',ex:'CH₄, NH₄⁺',geo:TET,lp:[]},
+    {n:'Üçgen Piramit',ax:'AX₃E',ang:'107°',ex:'NH₃, PCl₃',geo:PYR,lp:[[0,1,0]]},
+    {n:'Açısal (Kırık)',ax:'AX₂E₂',ang:'104,5°',ex:'H₂O, H₂S',geo:BENT,lp:[[-0.4,0.86,0.34],[0.4,0.86,-0.34]]},
+    {n:'Üçgen Çift Piramit',ax:'AX₅',ang:'90° / 120°',ex:'PCl₅',geo:DIRS.bipyramid,lp:[]},
+    {n:'Oktahedral',ax:'AX₆',ang:'90°',ex:'SF₆',geo:DIRS.octahedral,lp:[]}
+  ];
   let mol,acc=0;
   function rebuild(){ clr(dyn); acc=0; const g=SET[S.vs_tip];
     mol=new THREE.Group(); mol.add(mkA(0.5,0x607d8b));
-    DIRS[g.geo].forEach(d=>{ const end=V3(d).normalize().multiplyScalar(1.7); const s=mkA(0.32,0x66bb6a); s.position.copy(end); mol.add(s); mol.add(makeBond(new THREE.Vector3(0,0,0),end,0x90a4ae,0.06)); });
+    g.geo.forEach(d=>{ const end=V3(d).normalize().multiplyScalar(1.75); const s=mkA(0.32,0x66bb6a); s.position.copy(end); mol.add(s); mol.add(makeBond(new THREE.Vector3(0,0,0),end,0x90a4ae,0.06)); });
+    g.lp.forEach(d=>{ const lp=makeLonePair(d,0xffb74d); lp.position.copy(V3(d).normalize().multiplyScalar(1.05)); mol.add(lp); });
     dyn.add(mol);
-    addInfo3DLabels([ {text:{lise:g.n+' — bağ açısı '+g.ang},position:[0,3.6,0],target:[0,0,0],color:'#66bb6a'},
-      {text:{lise:'Örnek: '+g.ex},position:[0,-3.4,0],target:[0,0,0],color:'#90caf9'} ]);
+    addInfo3DLabels([
+      {text:{lise:g.ax+' — '+g.n},position:[0,3.6,0],target:[0,0,0],color:'#66bb6a'},
+      {text:{lise:'bağ açısı '+g.ang},position:[3.2,1.4,0],target:[0,0,0],color:'#4fc3f7'},
+      {text:{lise:'örnek: '+g.ex},position:[0,-3.4,0],target:[0,0,0],color:'#90caf9'},
+      g.lp.length?{text:{lise:'🟠 ortaklanmamış çift ×'+g.lp.length},position:[-3.2,2.2,0],target:[0,1.0,0],color:'#ffb74d'}:
+                  {text:{lise:'merkez atom (A)'},position:[-3.2,-1.6,0],target:[0,0,0],color:'#cfd6e0'}
+    ]);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(mol){ mol.rotation.y+=dt*0.5; mol.rotation.x=Math.sin(acc*0.4)*0.15; } };
-  setSceneSliders([ {type:'section',label:'VSEPR Geometrileri'},
-    {type:'presets',activeIdx:S.vs_tip,options:SET.map((g,i)=>({label:g.n.split(' ')[0],action:()=>{S.vs_tip=i;rebuild();}}))},
-    {type:'display',label:'Geometri',highlight:true,getValue:()=>SET[S.vs_tip].n},
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(mol){ mol.rotation.y+=dt*0.5; mol.rotation.x=Math.sin(acc*0.4)*0.14; } };
+  setSceneSliders([ {type:'section',label:'VSEPR Şekil Galerisi'},
+    {type:'presets',activeIdx:S.vs_tip,options:SET.map((g,i)=>({label:g.ax,action:()=>{S.vs_tip=i;rebuild();}}))},
+    {type:'display',label:'Tip',highlight:true,getValue:()=>SET[S.vs_tip].ax+' · '+SET[S.vs_tip].n},
     {type:'display',label:'Bağ açısı',getValue:()=>SET[S.vs_tip].ang},
-    {type:'display',label:'Örnek',getValue:()=>SET[S.vs_tip].ex} ],{title:'Temel VSEPR Şekilleri'});
+    {type:'display',label:'Örnek',getValue:()=>SET[S.vs_tip].ex} ],{title:'VSEPR Şekilleri (AXₘEₙ)'});
 };
 
 SubBuilders.buildHibritlesme = function() {
@@ -3539,65 +4048,119 @@ SubBuilders.buildHibritlesme = function() {
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
   const S=window._sceneState; if(S.hib_tip===undefined)S.hib_tip=2;
-  let atomic=[],hybrid=[],acc=0; const conf={0:{nh:2,d:'linear',name:'sp'},1:{nh:3,d:'trigonal',name:'sp²'},2:{nh:4,d:'tetrahedral',name:'sp³'}};
-  function rebuild(){ clr(dyn); acc=0; atomic=[]; hybrid=[]; const c=conf[S.hib_tip];
-    dyn.add(mkA(0.4,0x607d8b));
-    const s=new THREE.Mesh(new THREE.SphereGeometry(0.85,18,14),new THREE.MeshBasicMaterial({color:0x42a5f5,transparent:true,opacity:0.3,depthWrite:false,toneMapped:false})); dyn.add(s); atomic.push(s);
-    [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]].forEach((d,i)=>{ const lobe=makeLobe(d,1.4,(i<2?0xab47bc:i<4?0xec407a:0xffa726),0.3); dyn.add(lobe); atomic.push(lobe); });
-    DIRS[c.d].forEach(d=>{ const lobe=makeLobe(d,1.6,0x26c6da,0.36); dyn.add(lobe); hybrid.push(lobe); const back=makeLobe(V3(d).multiplyScalar(-1),0.5,0x26c6da,0.18); dyn.add(back); hybrid.push(back); });
-    addInfo3DLabels([ {text:{lise:'Hibritleşme: 1 s + birkaç p orbitali ERİYİP özdeş hibrit orbitaller oluşturur'},position:[0,3.7,0],target:[0,0,0],color:'#26c6da'},
-      {text:{lise:c.name+' → '+c.nh+' özdeş gözyaşı orbitali'},position:[0,-3.5,0],target:[0,0,0],color:'#90caf9'} ]);
+  // sp: 1s+1p, sp²: 1s+2p, sp³: 1s+3p → eşdeğer hibrit lob sayısı
+  const conf={
+    0:{name:'sp', np:1, d:DIRS.linear,     ex:'BeH₂', geo:'Doğrusal 180°'},
+    1:{name:'sp²',np:2, d:DIRS.trigonal,   ex:'BF₃',  geo:'Düzlemsel 120°'},
+    2:{name:'sp³',np:3, d:TET,             ex:'CH₄',  geo:'Dörtyüzlü 109,5°'}
+  };
+  const PDIRS=[[1,0,0],[0,1,0],[0,0,1]]; // p_x, p_y, p_z eksenleri
+  let sLobe,pLobes=[],hybLobes=[],acc=0;
+  function rebuild(){ clr(dyn); acc=0; pLobes=[]; hybLobes=[]; const c=conf[S.hib_tip];
+    dyn.add(mkA(0.36,0x607d8b));
+    // 1) saf s orbitali (mavi küre)
+    sLobe=new THREE.Mesh(new THREE.SphereGeometry(0.9,18,14),new THREE.MeshBasicMaterial({color:0x42a5f5,transparent:true,opacity:0.32,depthWrite:false,toneMapped:false})); dyn.add(sLobe);
+    // 2) saf p orbitalleri (mor çift-lob) — np tane
+    for(let i=0;i<c.np;i++){ const a=makeLobe(PDIRS[i],1.5,0xab47bc,0.30); const b=makeLobe(V3(PDIRS[i]).multiplyScalar(-1),1.5,0xab47bc,0.30); dyn.add(a); dyn.add(b); pLobes.push(a,b); }
+    // 3) eşdeğer hibrit orbitaller (turkuaz gözyaşı) — (np+1) tane
+    c.d.forEach(d=>{ const big=makeLobe(d,1.7,0x26c6da,0.40); dyn.add(big); hybLobes.push(big); const back=makeLobe(V3(d).multiplyScalar(-1),0.5,0x26c6da,0.16); dyn.add(back); hybLobes.push(back); });
+    addInfo3DLabels([
+      {text:{lise:'1 s (mavi) + '+c.np+' p (mor) ERİR'},position:[0,3.7,0],target:[0,0,0],color:'#42a5f5'},
+      {text:{lise:'→ '+(c.np+1)+' eşdeğer '+c.name+' hibrit (turkuaz)'},position:[0,-3.5,0],target:[0,0,0],color:'#26c6da'},
+      {text:{lise:'örnek: '+c.ex},position:[3.4,1.6,0],target:[0,0,0],color:'#90caf9'},
+      {text:{lise:c.geo},position:[-3.4,1.6,0],target:[0,0,0],color:'#cfd6e0'}
+    ]);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; const m=0.5+0.5*Math.sin(acc*1.2); atomic.forEach(o=>{ o.material.opacity=0.32*(1-m); }); hybrid.forEach(o=>{ o.material.opacity=0.36*m; }); dyn.rotation.y+=dt*0.4; };
-  setSceneSliders([ {type:'section',label:'Hibritleşme'},
+  // mix animasyonu: saf s+p sönerken hibrit loblar belirir, ileri-geri döner
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; dyn.rotation.y+=dt*0.4;
+    const m=0.5+0.5*Math.sin(acc*1.1); // 0=saf orbital, 1=hibrit
+    if(sLobe)sLobe.material.opacity=0.34*(1-m);
+    pLobes.forEach(o=>o.material.opacity=0.30*(1-m));
+    hybLobes.forEach(o=>o.material.opacity=0.40*m);
+  };
+  setSceneSliders([ {type:'section',label:'Orbital Hibritleşmesi'},
     {type:'presets',activeIdx:S.hib_tip,options:[ {label:'sp',action:()=>{S.hib_tip=0;rebuild();}}, {label:'sp²',action:()=>{S.hib_tip=1;rebuild();}}, {label:'sp³',action:()=>{S.hib_tip=2;rebuild();}} ]},
     {type:'display',label:'Hibrit tür',highlight:true,getValue:()=>conf[S.hib_tip].name},
-    {type:'display',label:'Orbital sayısı',getValue:()=>conf[S.hib_tip].nh+' özdeş hibrit'},
-    {type:'display',label:'Geometri',getValue:()=>({0:'Doğrusal 180°',1:'Düzlemsel 120°',2:'Dörtyüzlü 109,5°'})[S.hib_tip]} ],{title:'Orbital Hibritleşmesi (sp/sp²/sp³)'});
+    {type:'display',label:'Karışım',getValue:()=>'1 s + '+conf[S.hib_tip].np+' p → '+(conf[S.hib_tip].np+1)+' hibrit'},
+    {type:'display',label:'Geometri',getValue:()=>conf[S.hib_tip].geo},
+    {type:'display',label:'Örnek molekül',getValue:()=>conf[S.hib_tip].ex} ],{title:'Hibritleşme (sp / sp² / sp³)'});
 };
 
 SubBuilders.buildSigmaPiBaglari = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
-  let sigma,piT,piB,acc=0;
-  function rebuild(){ clr(dyn); acc=0;
-    const c1=mkA(0.42,0x607d8b); c1.position.set(-0.9,0,0); dyn.add(c1);
-    const c2=mkA(0.42,0x607d8b); c2.position.set(0.9,0,0); dyn.add(c2);
-    sigma=new THREE.Mesh(new THREE.SphereGeometry(0.5,16,12),new THREE.MeshBasicMaterial({color:0x66bb6a,transparent:true,opacity:0.5,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false})); sigma.scale.set(1.6,0.7,0.7); dyn.add(sigma);
-    piT=new THREE.Mesh(new THREE.SphereGeometry(0.5,16,12),new THREE.MeshBasicMaterial({color:0xab47bc,transparent:true,opacity:0.32,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false})); piT.scale.set(1.9,0.6,0.7); piT.position.set(0,0.7,0); dyn.add(piT);
-    piB=new THREE.Mesh(new THREE.SphereGeometry(0.5,16,12),new THREE.MeshBasicMaterial({color:0xab47bc,transparent:true,opacity:0.32,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false})); piB.scale.set(1.9,0.6,0.7); piB.position.set(0,-0.7,0); dyn.add(piB);
-    addInfo3DLabels([ {text:{lise:'σ (sigma): orbitaller eksende KAFA-KAFAYA örtüşür (güçlü)'},position:[0,3.7,0],target:[0,0,0],color:'#66bb6a'},
-      {text:{lise:'π (pi): p orbitalleri YAN YANA, alt-üst sandviç (zayıf)'},position:[0,-3.5,0],target:[0,0.7,0],color:'#ab47bc'} ]);
+  const S=window._sceneState; if(S.sp_tip===undefined)S.sp_tip=1;
+  // 0: tek bağ (1σ), 1: ikili C=C (1σ+1π), 2: üçlü C≡C (1σ+2π)
+  const conf={0:{order:1,sig:1,pi:0,name:'Tek bağ',ex:'H₃C–CH₃'},1:{order:2,sig:1,pi:1,name:'İkili bağ',ex:'H₂C=CH₂'},2:{order:3,sig:1,pi:2,name:'Üçlü bağ',ex:'HC≡CH'}};
+  let sigma,piPairs=[],acc=0; const X=0.95;
+  function makePiPair(axis,col){ // yan-yana örtüşen üst+alt lob çiftleri (iki C üzerinde)
+    const g=new THREE.Group();
+    [-X,X].forEach(cx=>{ [1,-1].forEach(sgn=>{ const lob=makeLobe(V3(axis).multiplyScalar(sgn),0.95,col,0.30); lob.position.set(cx,0,0); g.add(lob); }); });
+    return g;
+  }
+  function rebuild(){ clr(dyn); acc=0; piPairs=[]; const c=conf[S.sp_tip];
+    const c1=mkA(0.42,0x607d8b); c1.position.set(-X,0,0); dyn.add(c1);
+    const c2=mkA(0.42,0x607d8b); c2.position.set(X,0,0); dyn.add(c2);
+    // σ bağı: eksende kafa-kafaya örtüşme (yatay elips, yeşil)
+    sigma=new THREE.Mesh(new THREE.SphereGeometry(0.5,18,14),new THREE.MeshBasicMaterial({color:0x66bb6a,transparent:true,opacity:0.5,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false})); sigma.scale.set(1.7,0.72,0.72); dyn.add(sigma);
+    // π bağları: 1. π üst-alt (y), 2. π ön-arka (z)
+    if(c.pi>=1){ const p=makePiPair([0,1,0],0xab47bc); dyn.add(p); piPairs.push(p); }
+    if(c.pi>=2){ const p=makePiPair([0,0,1],0xf06292); dyn.add(p); piPairs.push(p); }
+    addInfo3DLabels([
+      {text:{lise:'σ: eksende KAFA-KAFAYA örtüşme (güçlü)'},position:[0,3.6,0],target:[0,0,0],color:'#66bb6a'},
+      c.pi>=1?{text:{lise:'π: p orbitalleri YAN YANA (üst-alt sandviç)'},position:[0,-3.5,0],target:[0,0.9,0],color:'#ab47bc'}:
+              {text:{lise:'tek bağ → yalnız 1 σ'},position:[0,-3.4,0],target:[0,0,0],color:'#90caf9'},
+      {text:{lise:c.name+': 1 σ + '+c.pi+' π'},position:[3.4,1.6,0],target:[0,0,0],color:'#4fc3f7'},
+      {text:{lise:'örnek: '+c.ex},position:[-3.4,1.6,0],target:[0,0,0],color:'#cfd6e0'}
+    ]);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; dyn.rotation.y+=dt*0.4; const p=0.5+0.5*Math.sin(acc*2.2); if(piT){piT.material.opacity=0.22+0.18*p;piB.material.opacity=0.22+0.18*p;} if(sigma)sigma.material.opacity=0.4+0.15*Math.sin(acc*3); };
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; dyn.rotation.y+=dt*0.4;
+    const p=0.5+0.5*Math.sin(acc*2.2);
+    piPairs.forEach(g=>g.children.forEach(o=>o.material.opacity=0.20+0.18*p));
+    if(sigma)sigma.material.opacity=0.42+0.14*Math.sin(acc*3);
+  };
   setSceneSliders([ {type:'section',label:'σ ve π Bağları'},
-    {type:'display',label:'σ (sigma)',highlight:true,getValue:()=>'Kafa-kafaya (güçlü)'},
-    {type:'display',label:'π (pi)',getValue:()=>'Yan yana (alt/üst, zayıf)'},
-    {type:'display',label:'İkili bağ',getValue:()=>'1 σ + 1 π'},
-    {type:'display',label:'Üçlü bağ',getValue:()=>'1 σ + 2 π'} ],{title:'Sigma ve Pi Bağları'});
+    {type:'presets',activeIdx:S.sp_tip,options:[ {label:'Tek',action:()=>{S.sp_tip=0;rebuild();}}, {label:'İkili',action:()=>{S.sp_tip=1;rebuild();}}, {label:'Üçlü',action:()=>{S.sp_tip=2;rebuild();}} ]},
+    {type:'display',label:'Bağ',highlight:true,getValue:()=>conf[S.sp_tip].name},
+    {type:'display',label:'σ sayısı',getValue:()=>conf[S.sp_tip].sig+' (kafa-kafaya)'},
+    {type:'display',label:'π sayısı',getValue:()=>conf[S.sp_tip].pi+' (yan yana)'},
+    {type:'display',label:'Örnek',getValue:()=>conf[S.sp_tip].ex} ],{title:'Sigma (σ) ve Pi (π) Bağları'});
 };
 
 SubBuilders.buildBagDipolu = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
-  let grp,arrow,acc=0;
+  const S=window._sceneState; if(S.bd_en===undefined)S.bd_en=2.1; // EN farkı ΔEN (H–Cl ≈ 0,9; H–F ≈ 1,9; örnek ölçek 0..3)
+  const H_X=-1.3, X_X=1.1, AY=1.15; // ok yüksekliği
+  let grp,arrowG,acc=0;
+  function tr(n){ return (Math.round(n*10)/10).toString().replace('.',','); }
+  function arrowLen(){ return 0.45 + 1.7*Math.max(0,Math.min(1,S.bd_en/3)); } // ΔEN büyür → ok büyür
   function rebuild(){ clr(dyn); acc=0; grp=new THREE.Group();
-    grp.add(mkMol([{el:'H',pos:[-1.3,0,0],r:0.34},{el:'Cl',pos:[1.1,0,0]}],[[0,1]]));
-    arrow=makeArrow3D(new THREE.Vector3(-0.3,1.1,0),new THREE.Vector3(0.9,1.1,0),0xffca28,0.07); grp.add(arrow);
+    grp.add(mkMol([{el:'H',pos:[H_X,0,0],r:0.34},{el:'Cl',pos:[X_X,0,0]}],[[0,1]]));
+    arrowG=new THREE.Group(); grp.add(arrowG); drawArrow();
     dyn.add(grp);
-    addInfo3DLabels([ {text:{lise:'Bağ dipolü: ortak elektronlar daha ELEKTRONEGATİF atoma kayar'},position:[0,3.6,0],target:[0,0,0],color:'#ffca28'},
-      {text:{lise:'Ok δ⁺ (H) → δ⁻ (Cl) yönünde'},position:[0,-3.4,0],target:[0.9,1.1,0],color:'#66bb6a'} ]);
+    addInfo3DLabels([
+      {text:{lise:'Bağ dipolü: e⁻ daha ELEKTRONEGATİF atoma kayar'},position:[0,3.6,0],target:[0,0,0],color:'#ffca28'},
+      {text:{lise:'δ⁺ (H)'},position:[-3.0,-1.6,0],target:[H_X,0,0],color:'#42a5f5'},
+      {text:{lise:'δ⁻ (Cl)'},position:[3.0,-1.6,0],target:[X_X,0,0],color:'#ef5350'},
+      {text:{lise:'ΔEN büyüdükçe ok (dipol) büyür'},position:[0,-3.4,0],target:[0,AY,0],color:'#66bb6a'}
+    ]);
+  }
+  function drawArrow(){ if(!arrowG)return; clr(arrowG); const len=arrowLen();
+    const from=new THREE.Vector3(H_X+0.4,AY,0); const to=new THREE.Vector3(from.x+len,AY,0);
+    arrowG.add(makeArrow3D(from,to,0xffca28,0.07));
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(grp)grp.rotation.y+=dt*0.35; if(arrow){ const s=1+0.13*Math.sin(acc*3); arrow.scale.set(s,1,1); } };
-  setSceneSliders([ {type:'section',label:'Bağ Dipolü'},
-    {type:'display',label:'Yön',highlight:true,getValue:()=>'δ⁺ atomdan δ⁻ atoma'},
-    {type:'display',label:'Belirleyen',getValue:()=>'Elektronegatiflik farkı'},
-    {type:'display',label:'Örnek (HCl)',getValue:()=>'Ok H → Cl'} ],{title:'Bağ Dipol Momenti'});
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(grp)grp.rotation.y+=dt*0.3; if(arrowG){ const s=1+0.08*Math.sin(acc*3); arrowG.scale.set(1,s,1); } };
+  setSceneSliders([ {type:'section',label:'Tek Bağın Dipolü (HCl)'},
+    {type:'slider',label:'Elektronegatiflik farkı (ΔEN)',min:0,max:3,step:0.1,getValue:()=>S.bd_en,setValue:(v)=>{S.bd_en=v;drawArrow();},format:(v)=>tr(v)},
+    {type:'display',label:'Bağ türü',highlight:true,getValue:()=>S.bd_en<0.4?'Apolar kovalent':S.bd_en<1.7?'Polar kovalent':'Kuvvetli polar / iyonik eğilim'},
+    {type:'display',label:'Dipol yönü',getValue:()=>'δ⁺ (H) → δ⁻ (Cl)'},
+    {type:'display',label:'Ok boyu',getValue:()=>S.bd_en<0.3?'≈ sıfır':S.bd_en<1.5?'orta':'büyük'} ],{title:'Bağ Dipol Momenti (μ)'});
 };
 
 SubBuilders.buildNetDipolVektoru = function() {
@@ -3606,24 +4169,37 @@ SubBuilders.buildNetDipolVektoru = function() {
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
   const S=window._sceneState; if(S.nd_tip===undefined)S.nd_tip=1;
   let grp,netArrow,acc=0,isPolar=false;
-  function rebuild(){ clr(dyn); acc=0; grp=new THREE.Group();
-    if(S.nd_tip===0){ grp.add(mkMol([{el:'C',pos:[0,0,0]},{el:'O',pos:[-1.3,0,0]},{el:'O',pos:[1.3,0,0]}],[[0,1,2],[0,2,2]]));
-      grp.add(makeArrow3D(new THREE.Vector3(0,1.0,0),new THREE.Vector3(-1.1,1.0,0),0xffca28,0.06));
-      grp.add(makeArrow3D(new THREE.Vector3(0,1.0,0),new THREE.Vector3(1.1,1.0,0),0xffca28,0.06)); isPolar=false; netArrow=null;
-    } else { grp.add(mkMol([{el:'O',pos:[0,0.5,0],r:0.5},{el:'H',pos:[-1.0,-0.4,0],r:0.32},{el:'H',pos:[1.0,-0.4,0],r:0.32}],[[0,1],[0,2]]));
-      grp.add(makeArrow3D(new THREE.Vector3(-1.0,-0.4,0),new THREE.Vector3(-0.15,0.4,0),0xffca28,0.05));
-      grp.add(makeArrow3D(new THREE.Vector3(1.0,-0.4,0),new THREE.Vector3(0.15,0.4,0),0xffca28,0.05));
-      netArrow=makeArrow3D(new THREE.Vector3(0,0.5,0),new THREE.Vector3(0,2.6,0),0xff5252,0.09); grp.add(netArrow); isPolar=true; }
+  function rebuild(){ clr(dyn); acc=0; grp=new THREE.Group(); netArrow=null;
+    if(S.nd_tip===0){ // CO2 — zıt iki dipol, bileşke sıfır (apolar)
+      grp.add(mkMol([{el:'C',pos:[0,0,0]},{el:'O',pos:[-1.35,0,0]},{el:'O',pos:[1.35,0,0]}],[[0,1,2],[0,2,2]]));
+      // bağ dipolleri (C→O, dışa doğru): zıt yönde, eşit
+      grp.add(makeArrow3D(new THREE.Vector3(0,1.1,0),new THREE.Vector3(-1.15,1.1,0),0xffca28,0.06));
+      grp.add(makeArrow3D(new THREE.Vector3(0,1.1,0),new THREE.Vector3(1.15,1.1,0),0xffca28,0.06));
+      isPolar=false;
+    } else { // H2O — açısal: iki dipol yukarı bileşke verir (polar)
+      const oy=0.5, hL=new THREE.Vector3(-1.0,-0.4,0), hR=new THREE.Vector3(1.0,-0.4,0), O=new THREE.Vector3(0,oy,0);
+      grp.add(mkMol([{el:'O',pos:[0,oy,0],r:0.5},{el:'H',pos:[hL.x,hL.y,0],r:0.32},{el:'H',pos:[hR.x,hR.y,0],r:0.32}],[[0,1],[0,2]]));
+      // bağ dipolleri H→O (δ⁺'tan δ⁻'a)
+      grp.add(makeArrow3D(hL.clone(),new THREE.Vector3(-0.18,oy-0.05,0),0xffca28,0.05));
+      grp.add(makeArrow3D(hR.clone(),new THREE.Vector3(0.18,oy-0.05,0),0xffca28,0.05));
+      // net dipol = vektörel toplam (yukarı yönlü) — büyük kırmızı
+      netArrow=makeArrow3D(new THREE.Vector3(0,oy,0),new THREE.Vector3(0,2.7,0),0xff5252,0.09); grp.add(netArrow);
+      isPolar=true;
+    }
     dyn.add(grp);
-    addInfo3DLabels([ {text:{lise:(isPolar?'Bağ dipolleri TOPLANIR → büyük NET dipol → POLAR':'Bağ dipolleri zıt yönde → SIFIRLANIR → net dipol YOK (APOLAR)')},position:[0,3.7,0],target:[0,0.5,0],color:(isPolar?'#ff5252':'#66bb6a')},
-      {text:{lise:(isPolar?'H₂O: açısal şekil dipolleri toplar':'CO₂: doğrusal şekil dipolleri iptal eder')},position:[0,-3.5,0],target:[0,0.5,0],color:'#90caf9'} ]);
+    addInfo3DLabels([
+      {text:{lise:(isPolar?'Bağ dipolleri TOPLANIR → NET dipol → POLAR':'Bağ dipolleri ZIT → toplam SIFIR → APOLAR')},position:[0,3.7,0],target:[0,0.5,0],color:(isPolar?'#ff5252':'#66bb6a')},
+      {text:{lise:(isPolar?'⬆ net dipol (bileşke vektör)':'⬅➡ vektörler birbirini iptal eder')},position:[3.2,1.4,0],target:[0,isPolar?2.0:1.1,0],color:'#ffca28'},
+      {text:{lise:(isPolar?'H₂O: açısal şekil → toplanır':'CO₂: doğrusal şekil → iptal')},position:[0,-3.5,0],target:[0,0.3,0],color:'#90caf9'},
+      {text:{lise:'her bağ dipolü = ok (sarı)'},position:[-3.2,-1.6,0],target:[isPolar?-0.5:-1.0,isPolar?0.1:1.1,0],color:'#cfd6e0'}
+    ]);
   }
   rebuild();
   window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(grp){grp.rotation.y+=dt*0.4;grp.position.y=Math.sin(acc*1.2)*0.1;} if(netArrow){ const s=1+0.15*Math.sin(acc*2.5); netArrow.scale.set(1,s,1); } };
-  setSceneSliders([ {type:'section',label:'Net Dipol Vektörü'},
+  setSceneSliders([ {type:'section',label:'Net Dipol = Vektörel Toplam'},
     {type:'presets',activeIdx:S.nd_tip,options:[ {label:'CO₂ (apolar)',action:()=>{S.nd_tip=0;rebuild();}}, {label:'H₂O (polar)',action:()=>{S.nd_tip=1;rebuild();}} ]},
-    {type:'display',label:'Bağ dipolleri',highlight:true,getValue:()=>S.nd_tip===0?'Zıt yönde, eşit':'Bileşke verir'},
-    {type:'display',label:'Net dipol',getValue:()=>S.nd_tip===0?'Sıfır (iptal)':'Büyük (yukarı)'},
+    {type:'display',label:'Bağ dipolleri',highlight:true,getValue:()=>S.nd_tip===0?'Zıt yönde, eşit büyüklük':'Açılı → bileşke verir'},
+    {type:'display',label:'Net dipol',getValue:()=>S.nd_tip===0?'Σμ = 0 (iptal)':'Σμ ≠ 0 (yukarı)'},
     {type:'display',label:'Sonuç',getValue:()=>S.nd_tip===0?'APOLAR molekül':'POLAR molekül'} ],{title:'Net Dipol: CO₂ vs H₂O'});
 };
 
@@ -3632,48 +4208,82 @@ SubBuilders.buildMolekulPolarite = function() {
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
   const S=window._sceneState; if(S.mp_tip===undefined)S.mp_tip=0;
-  const SET=[ {n:'H₂O',geo:'bent',cen:'O',el:'H',polar:true}, {n:'CO₂',geo:'linear',cen:'C',el:'O',polar:false}, {n:'NH₃',geo:'pyr',cen:'N',el:'H',polar:true}, {n:'CH₄',geo:'tet',cen:'C',el:'H',polar:false}, {n:'CCl₄',geo:'tet',cen:'C',el:'Cl',polar:false} ];
+  // molekül galerisi: geometri + polarite + neden
+  const SET=[
+    {n:'H₂O', geo:'bent',  cen:'O',el:'H', lp:[[-0.4,0.86,0.34],[0.4,0.86,-0.34]], polar:true,  why:'Açısal → dipoller toplanır'},
+    {n:'NH₃', geo:'pyr',   cen:'N',el:'H', lp:[[0,1,0]],                            polar:true,  why:'Piramit → dipoller toplanır'},
+    {n:'HCl', geo:'di',    cen:'Cl',el:'H',lp:[],                                   polar:true,  why:'Tek polar bağ → kalıcı dipol'},
+    {n:'CO₂', geo:'linear',cen:'C',el:'O', lp:[],                                   polar:false, why:'Doğrusal simetri → iptal'},
+    {n:'CH₄', geo:'tet',   cen:'C',el:'H', lp:[],                                   polar:false, why:'Dörtyüzlü simetri → iptal'},
+    {n:'CCl₄',geo:'tet',   cen:'C',el:'Cl',lp:[],                                   polar:false, why:'Dörtyüzlü simetri → iptal'},
+    {n:'BF₃', geo:'trigonal',cen:'C',el:'F',lp:[],                                  polar:false, why:'Düzlem üçgen simetri → iptal'}
+  ];
   let grp,netArrow,acc=0;
+  function dirsFor(geo){ if(geo==='linear')return DIRS.linear; if(geo==='trigonal')return DIRS.trigonal; if(geo==='bent')return BENT; if(geo==='pyr')return PYR; if(geo==='di')return [[1,0,0]]; return TET; }
   function rebuild(){ clr(dyn); acc=0; const g=SET[S.mp_tip]; grp=new THREE.Group();
-    const mol=new THREE.Group(); mol.add(mkA(0.5,OATOM[g.cen].c)); let dirs;
-    if(g.geo==='linear')dirs=DIRS.linear; else if(g.geo==='bent')dirs=BENT; else if(g.geo==='pyr')dirs=PYR; else dirs=TET;
-    dirs.forEach(d=>{ const end=V3(d).normalize().multiplyScalar(1.6); const s=mkA(0.3,OATOM[g.el].c); s.position.copy(end); mol.add(s); mol.add(makeBond(new THREE.Vector3(0,0,0),end,0x90a4ae,0.06)); });
+    const mol=new THREE.Group(); mol.add(mkA(g.geo==='di'?0.46:0.5,(OATOM[g.cen]||OATOM.C).c));
+    dirsFor(g.geo).forEach(d=>{ const end=V3(d).normalize().multiplyScalar(1.6); const s=mkA(0.3,(OATOM[g.el]||OATOM.H).c); s.position.copy(end); mol.add(s); mol.add(makeBond(new THREE.Vector3(0,0,0),end,0x90a4ae,0.06)); });
+    g.lp.forEach(d=>{ const lp=makeLonePair(d,0xffb74d); lp.position.copy(V3(d).normalize().multiplyScalar(1.0)); mol.add(lp); });
     grp.add(mol);
-    if(g.polar){ netArrow=makeArrow3D(new THREE.Vector3(0,0,0),new THREE.Vector3(0,2.4,0),0xff5252,0.09); grp.add(netArrow); } else netArrow=null;
+    if(g.polar){ const dir=(g.geo==='di')?new THREE.Vector3(1.4,0,0):new THREE.Vector3(0,2.4,0); netArrow=makeArrow3D(new THREE.Vector3(0,0,0),dir,0xff5252,0.09); grp.add(netArrow); } else netArrow=null;
     dyn.add(grp);
-    addInfo3DLabels([ {text:{lise:g.n+' → '+(g.polar?'POLAR (net dipol var)':'APOLAR (simetri iptal eder)')},position:[0,3.6,0],target:[0,0,0],color:(g.polar?'#ff5252':'#66bb6a')},
-      {text:{lise:'Polarite = bağ polaritesi + GEOMETRİ (simetri)'},position:[0,-3.5,0],target:[0,0,0],color:'#90caf9'} ]);
+    addInfo3DLabels([
+      {text:{lise:g.n+' → '+(g.polar?'POLAR':'APOLAR')},position:[0,3.6,0],target:[0,0,0],color:(g.polar?'#ff5252':'#66bb6a')},
+      {text:{lise:g.why},position:[0,-3.5,0],target:[0,0,0],color:'#90caf9'},
+      g.polar?{text:{lise:'⬆ net dipol var'},position:[3.2,1.6,0],target:[0,1.2,0],color:'#ff5252'}:
+              {text:{lise:'net dipol = 0 (simetri)'},position:[3.2,1.6,0],target:[0,0,0],color:'#66bb6a'},
+      {text:{lise:'polarite = bağ polaritesi + GEOMETRİ'},position:[-3.2,2.0,0],target:[0,0,0],color:'#cfd6e0'}
+    ]);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(grp)grp.rotation.y+=dt*0.4; if(netArrow){ const s=1+0.13*Math.sin(acc*2.5); netArrow.scale.set(1,s,1); } };
-  setSceneSliders([ {type:'section',label:'Molekül Polaritesi'},
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(grp)grp.rotation.y+=dt*0.4; if(netArrow){ const s=1+0.12*Math.sin(acc*2.5); netArrow.scale.set(1,s,1); } };
+  setSceneSliders([ {type:'section',label:'Polar mı Apolar mı?'},
     {type:'presets',activeIdx:S.mp_tip,options:SET.map((g,i)=>({label:g.n,action:()=>{S.mp_tip=i;rebuild();}}))},
     {type:'display',label:'Molekül',highlight:true,getValue:()=>SET[S.mp_tip].n},
+    {type:'display',label:'Net dipol',getValue:()=>SET[S.mp_tip].polar?'Var (≠ 0)':'Yok (= 0)'},
     {type:'display',label:'Polarite',getValue:()=>SET[S.mp_tip].polar?'POLAR':'APOLAR'},
-    {type:'display',label:'Neden?',getValue:()=>SET[S.mp_tip].polar?'Geometri dipolleri toplar':'Simetri iptal eder'} ],{title:'Polar mı Apolar mı?'});
+    {type:'display',label:'Neden',getValue:()=>SET[S.mp_tip].why} ],{title:'Molekül Polaritesi Galerisi'});
 };
 
 SubBuilders.buildElektronYogunluk = function() {
   const root=new THREE.Group(); markDynamic(root); scene.add(root); window._currentModelGroup=root;
   root.add(setupVectorLighting()); root.add(makeGridSystem({size:16,divisions:16}));
   const dyn=new THREE.Group(); dyn.userData.dynamic=true; root.add(dyn);
+  const S=window._sceneState; if(S.ey_tip===undefined)S.ey_tip=0;
+  // molekül galerisi: atomlar + her atomda yük (δ⁻ kırmızı .. δ⁺ mavi) bulutu
+  // q: -1=tam kırmızı (δ⁻), +1=tam mavi (δ⁺)
+  const SET={
+    0:{n:'H₂O', atoms:[{el:'O',pos:[0,0.5,0],r:0.55,q:-0.9},{el:'H',pos:[-1.05,-0.45,0],r:0.32,q:0.45},{el:'H',pos:[1.05,-0.45,0],r:0.32,q:0.45}],bonds:[[0,1],[0,2]],sc:1.1,why:'O elektronları çeker → O kırmızı, H mavi'},
+    1:{n:'HCl', atoms:[{el:'H',pos:[-1.2,0,0],r:0.34,q:0.7},{el:'Cl',pos:[1.0,0,0],r:0.5,q:-0.7}],bonds:[[0,1]],sc:1.1,why:'Cl daha elektronegatif → Cl kırmızı, H mavi'},
+    2:{n:'NH₃', atoms:[{el:'N',pos:[0,0.35,0],r:0.5,q:-0.8},{el:'H',pos:[0*1.5,-0.38*1.5+0.35,0.92*1.5],r:0.3,q:0.4},{el:'H',pos:[0.8*1.5,-0.38*1.5+0.35,-0.46*1.5],r:0.3,q:0.4},{el:'H',pos:[-0.8*1.5,-0.38*1.5+0.35,-0.46*1.5],r:0.3,q:0.4}],bonds:[[0,1],[0,2],[0,3]],sc:1.0,why:'N elektronca zengin (kırmızı), H fakir (mavi)'}
+  };
+  function qColor(q){ // q:-1 kırmızı(δ⁻) .. 0 yeşil .. +1 mavi(δ⁺)
+    const u=Math.max(-1,Math.min(1,q));
+    if(u<0){ const t=-u; return new THREE.Color().lerpColors(new THREE.Color(0x43a047),new THREE.Color(0xd32f2f),t).getHex(); }
+    const t=u; return new THREE.Color().lerpColors(new THREE.Color(0x43a047),new THREE.Color(0x1e88e5),t).getHex();
+  }
   let grp,fogs=[],acc=0;
-  function rebuild(){ clr(dyn); acc=0; fogs=[]; grp=new THREE.Group();
-    const pts=[{pos:[0,0.5,0],col:0xd32f2f,r:0.55},{pos:[-1.05,-0.45,0],col:0x1e88e5,r:0.34},{pos:[1.05,-0.45,0],col:0x1e88e5,r:0.34}];
-    const mol=mkMol([{el:'O',pos:[0,0.5,0],col:0xef5350},{el:'H',pos:[-1.05,-0.45,0]},{el:'H',pos:[1.05,-0.45,0]}],[[0,1],[0,2]]); mol.scale.setScalar(1.1); grp.add(mol);
-    pts.forEach(p=>{ const fog=new THREE.Mesh(new THREE.SphereGeometry(p.r*1.9,16,12),new THREE.MeshBasicMaterial({color:p.col,transparent:true,opacity:0.22,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false})); fog.position.set(p.pos[0]*1.1,p.pos[1]*1.1,0); grp.add(fog); fogs.push(fog); });
+  function rebuild(){ clr(dyn); acc=0; fogs=[]; grp=new THREE.Group(); const g=SET[S.ey_tip];
+    const mol=mkMol(g.atoms.map(a=>({el:a.el,pos:a.pos})),g.bonds); mol.scale.setScalar(g.sc); grp.add(mol);
+    g.atoms.forEach(a=>{ const col=qColor(a.q); const fog=new THREE.Mesh(new THREE.SphereGeometry(a.r*2.0,18,14),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:0.26,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false})); fog.position.set(a.pos[0]*g.sc,a.pos[1]*g.sc,a.pos[2]*g.sc); grp.add(fog); fogs.push(fog); });
     dyn.add(grp);
-    addInfo3DLabels([ {text:{lise:'Yük haritası: kırmızı = elektronca zengin (δ⁻), mavi = fakir (δ⁺)'},position:[0,3.6,0],target:[0,0.5,0],color:'#d32f2f'},
-      {text:{lise:'Oksijen elektronları çeker (kırmızı) → su POLAR'},position:[0,-3.4,0],target:[0,0.5,0],color:'#1e88e5'} ]);
+    addInfo3DLabels([
+      {text:{lise:'Yük haritası: 🔴 kırmızı = e⁻ zengin (δ⁻)'},position:[0,3.6,0],target:[0,0.5,0],color:'#d32f2f'},
+      {text:{lise:'🔵 mavi = e⁻ fakir (δ⁺)'},position:[3.2,1.4,0],target:[g.atoms[g.atoms.length-1].pos[0]*g.sc,0,0],color:'#1e88e5'},
+      {text:{lise:g.why},position:[0,-3.4,0],target:[0,0.3,0],color:'#90caf9'},
+      {text:{lise:g.n+' yüzeyi'},position:[-3.2,2.0,0],target:[0,0.5,0],color:'#cfd6e0'}
+    ]);
   }
   rebuild();
-  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(grp)grp.rotation.y+=dt*0.4; fogs.forEach((f,i)=>{ f.material.opacity=0.16+0.12*Math.abs(Math.sin(acc*2+i)); }); };
+  window._customAnim=function(t,dt){ if(!window._isPlayingActive)return; acc+=dt; if(grp)grp.rotation.y+=dt*0.4; fogs.forEach((f,i)=>{ f.material.opacity=0.18+0.12*Math.abs(Math.sin(acc*2+i)); }); };
   setSceneSliders([ {type:'section',label:'Elektron Yoğunluğu Haritası'},
-    {type:'display',label:'Kırmızı',highlight:true,getValue:()=>'Elektronca zengin (δ⁻)'},
-    {type:'display',label:'Mavi',getValue:()=>'Elektronca fakir (δ⁺)'},
-    {type:'display',label:'Su',getValue:()=>'O kırmızı, H mavi → polar'} ],{title:'Elektron Yoğunluğu Haritası'});
+    {type:'presets',activeIdx:S.ey_tip,options:[ {label:'H₂O',action:()=>{S.ey_tip=0;rebuild();}}, {label:'HCl',action:()=>{S.ey_tip=1;rebuild();}}, {label:'NH₃',action:()=>{S.ey_tip=2;rebuild();}} ]},
+    {type:'display',label:'Molekül',highlight:true,getValue:()=>SET[S.ey_tip].n},
+    {type:'display',label:'Kırmızı (δ⁻)',getValue:()=>'Elektronegatif atom'},
+    {type:'display',label:'Mavi (δ⁺)',getValue:()=>'Elektronca fakir atom'},
+    {type:'display',label:'Neden',getValue:()=>SET[S.ey_tip].why} ],{title:'Elektron Yoğunluğu (δ⁻ → δ⁺)'});
 };
-// ============================================================
+
 // ====== SİSTEM: SEVİYE, MOD, NAVİGASYON, UI ================
 // ============================================================
 let currentLevel = 'lise';        // 'ilkokul' | 'ortaokul' | 'lise' | sınav modunda da 'lise' içeriği
@@ -3810,9 +4420,7 @@ function applySceneTheme() {
 function selectSub(subKey) {
   currentSub = subKey;
   clearScene();
-  window._isSpaceScene = false;
   applySceneTheme();
-
   const builderName = (function() {
     for (const mk of Object.keys(MODULES)) {
       const s = MODULES[mk].subs.find(x => x.key === subKey);
@@ -3820,7 +4428,6 @@ function selectSub(subKey) {
     }
     return null;
   })();
-
   if (builderName && typeof SubBuilders[builderName] === 'function') {
     try {
       SubBuilders[builderName]();
@@ -3828,32 +4435,33 @@ function selectSub(subKey) {
       console.error('Builder hatası:', builderName, e);
     }
   }
-
-  // Bilgi panelini güncelle (kapalıysa tekrar aç — konu seçilince bilgi görünür olsun)
   const _bp = document.getElementById('bottomPanel');
   if (_bp) _bp.classList.remove('hidden');
   updateInfoPanel(subKey);
   highlightActiveTopic();
-
-  // Sade modda bazı 3D etiketleri gizle (her ikincisi)
   applyModeToLabels();
-
-  // Kamerayı sahneye göre hafif yukarı + modeli belirgin şekilde sola kaydır
-  // (sağdaki panel/menüler 3D modelin üstüne binmesin diye target sağa alınır → model sola öteler)
   if (controls) {
-    // Sahne sabit bir yere bagli degil: ekranda serbest/ortada dursun, kullanici
-    // iki parmakla istedigi yeri ortaya getirip yakinlastirabilsin.
-    controls.target.set(0, 0.4, 0);
-    if (camera) camera.position.set(0, 3.4, 25.0);
+    // Sahne sabit bir yere bağlı değil: ekranda serbest/ortada dursun, kullanıcı
+    // iki parmakla istediği yeri ortaya getirip yakınlaştırabilsin.
+    // Hedefi daha aşağı al → model ekranda daha YUKARIDA dursun
+    controls.target.set(0, -1.15, 0);
+    if (camera) camera.position.set(0, 1.85, 25.0);
     controls.captureInitialState && controls.captureInitialState();
   }
-
   if (window._showGestureToast) {
     const allSubs = [];
     Object.keys(MODULES).forEach(mk => MODULES[mk].subs.forEach(s => allSubs.push(s)));
     const cur = allSubs.find(s => s.key === subKey);
     if (cur) window._showGestureToast('📍 ' + cur.label);
   }
+  // Geçiş Motoru: yeni sahne için Ayarlar'a göre giriş animasyonu + ses + geri bildirim
+  try {
+    if (window.GECIS && window._currentModelGroup) {
+      const tEl = document.getElementById('infoTitle');
+      const lbl = tEl ? tEl.textContent.split('/').pop().trim() : '';
+      window.GECIS.onScene(window._currentModelGroup, lbl);
+    }
+  } catch(e) {}
 }
 
 function applyModeToLabels() {
@@ -3880,14 +4488,13 @@ function updateInfoPanel(subKey) {
   const data = _resolveLevelData(INFO_DATA[_dataKey(subKey)]);
   if (!data) return;
   document.getElementById('infoEmoji').textContent = data.emoji || '🔦';
-  // Başlık: "Modül ana başlığı / alt başlık" (eğitim seviyesi gösterilmez)
   let mainTitle = '', subTitle = '';
   for (const mk of Object.keys(MODULES)) {
     const s = MODULES[mk].subs.find(x => x.key === subKey);
     if (s) {
-      // Modül ana başlığından emoji ve "Modül N:" kısmını temizle
       mainTitle = (MODULES[mk].title || '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]*Modül\s*\d+:\s*/i, '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]+/, '').trim();
-      // Alt başlık: sahne etiketinden baştaki emojiyi at
+      // Başlığın başındaki eğitim seviyesini ("İlkokul:", "Lise/TYT:" vb.) kaldır → sadece ana konu kalsın
+      mainTitle = mainTitle.replace(/^[^:]*:\s*/, '').trim();
       subTitle = (s.label || '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]+/, '').trim();
       break;
     }
@@ -3897,15 +4504,17 @@ function updateInfoPanel(subKey) {
   const list = document.getElementById('infoList');
   list.innerHTML = '';
   let points = data.points || [];
-  // Sade modda ilk 3, detaylıda hepsi
   const showCount = (currentMode === 'sade') ? 3 : points.length;
+  // Satır başındaki ikon/emojileri temizleyen yardımcı (madde başında ikon olmasın)
+  const stripIcon = (txt) => txt.replace(/^\s*(?:[\p{Extended_Pictographic}️‍⃣]\s*)+/u, '').trim();
   points.slice(0, showCount).forEach(p => {
     const li = document.createElement('li');
-    if (p.startsWith('##')) { li.className = 'subhead'; li.innerHTML = p.replace('##','').trim(); }
-    else li.innerHTML = p;
+    let txt = p;
+    if (txt.startsWith('###')) { li.className = 'subhead2'; txt = txt.replace(/^###/, '').trim(); } // yan başlık → mavi
+    else if (txt.startsWith('##')) { li.className = 'subhead'; txt = txt.replace(/^##/, '').trim(); } // ara başlık → sarı
+    li.innerHTML = stripIcon(txt);
     list.appendChild(li);
   });
-  // içerik değişti → kaydırma çubuğunu yeniden hesapla (layout için çoklu deneme)
   list.scrollTop = 0;
   setTimeout(updateInfoScrollbar, 30);
   setTimeout(updateInfoScrollbar, 150);
@@ -3996,6 +4605,24 @@ function renderCompareTable() {
   window._cmpIdx = 0;
   _showComparePage();
 }
+function _renderCompareHTML(data) {
+  const cols = data.cols || [], rows = data.rows || [];
+  if (cols.length < 2 || rows.length < 1) return _renderTableHTML(data, 'compare-style');
+  const aspectLabel = cols[0];
+  const entities = rows.map(r => r[0]);
+  let html = '<table class="cmp-table compare-style cmp-versus"><thead><tr>';
+  html += `<th class="cmp-aspect">${aspectLabel}</th>`;
+  entities.forEach((e, i) => { html += `<th class="cmp-ent cmp-ent-${i % 4}">${e}</th>`; });
+  html += '</tr></thead><tbody>';
+  for (let c = 1; c < cols.length; c++) {
+    html += `<tr><td class="cmp-aspect-cell">${cols[c]}</td>`;
+    rows.forEach(r => { html += `<td>${(r[c] !== undefined && r[c] !== null) ? r[c] : '—'}</td>`; });
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
 function _showComparePage() {
   const body = document.getElementById('compareBody');
   const titleEl = document.getElementById('compareTitle');
@@ -4011,7 +4638,7 @@ function _showComparePage() {
   const i = window._cmpIdx;
   const data = pages[i];
   if (titleEl) titleEl.textContent = '⚖️ ' + (data.title || 'Karşılaştırma');
-  body.innerHTML = _renderTableHTML(data, 'compare-style');
+  body.innerHTML = _renderCompareHTML(data);
   if (nav) {
     if (pages.length > 1) {
       nav.classList.remove('hidden');
@@ -4073,7 +4700,7 @@ function attachEvents() {
       infoList.addEventListener('scroll', updateInfoScrollbar, { passive: true });
     }
     // tüm popup/panel gövdeleri için de aynı koruma (kaydırılabilir alanlar)
-    ['compareBody','tableBody','scenePanel'].forEach(id => {
+    ['compareBody','tableBody','sceneVarsBody'].forEach(id => {
       const el = document.getElementById(id);
       if (el) ['touchstart','touchmove','touchend','wheel'].forEach(ev => {
         el.addEventListener(ev, (e) => { e.stopPropagation(); }, { passive: true });
@@ -4146,15 +4773,14 @@ function attachEvents() {
     document.getElementById('bottomPanel').classList.add('hidden');
   };
 
-  // -- Bilgi panelini yukari/asagi cekerek genislet/daralt --
+  // ── Bilgi panelini büyüt/küçült: ince çubuğu YUKARI/AŞAĞI SÜRÜKLE (parmağı takip eder) ──
   (function(){
     const handle = document.getElementById('infoResizeHandle');
     const panel = document.getElementById('bottomPanel');
     const list = document.getElementById('infoList');
     if (!handle || !panel || !list) return;
-    const MIN_H = 90;
-    const maxH = () => Math.max(MIN_H, Math.round(window.innerHeight * 0.74));
-    let dragging = false, startY = 0, startH = 0;
+    const MIN_H = 70;
+    const maxH = () => Math.max(MIN_H, Math.round(window.innerHeight - 150)); // üst sekmelere kadar
     function curH() {
       const v = getComputedStyle(panel).getPropertyValue('--info-h').trim();
       if (v.endsWith('px')) return parseFloat(v);
@@ -4165,31 +4791,46 @@ function attachEvents() {
       panel.style.setProperty('--info-h', h + 'px');
       if (typeof updateInfoScrollbar === 'function') updateInfoScrollbar();
     }
+    let dragging = false, startY = 0, startH = 0, pid = null;
     function onDown(e) {
       dragging = true; startH = curH();
       startY = (e.touches ? e.touches[0].clientY : e.clientY);
       list.style.transition = 'none';
-      if (window._haptic) window._haptic(12);
-      e.preventDefault(); e.stopPropagation();
+      if (e.pointerId !== undefined) { pid = e.pointerId; try { handle.setPointerCapture(pid); } catch(_){} }
+      if (window._haptic) window._haptic(10);
+      if (e.cancelable) e.preventDefault();
+      e.stopPropagation();
     }
     function onMove(e) {
       if (!dragging) return;
       const y = (e.touches ? e.touches[0].clientY : e.clientY);
-      setH(startH + (startY - y));
-      e.preventDefault();
+      setH(startH + (startY - y)); // yukarı sürükle → büyür
+      if (e.cancelable) e.preventDefault();
     }
-    function onUp() { if (!dragging) return; dragging = false; list.style.transition = ''; }
-    handle.addEventListener('touchstart', onDown, { passive: false });
-    window.addEventListener('touchmove', onMove, { passive: false });
-    window.addEventListener('touchend', onUp);
-    window.addEventListener('touchcancel', onUp);
-    handle.addEventListener('mousedown', onDown);
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    function onUp() {
+      if (!dragging) return;
+      dragging = false; list.style.transition = '';
+      if (pid !== null) { try { handle.releasePointerCapture(pid); } catch(_){} pid = null; }
+    }
+    if (window.PointerEvent) {
+      handle.addEventListener('pointerdown', onDown);
+      handle.addEventListener('pointermove', onMove);
+      handle.addEventListener('pointerup', onUp);
+      handle.addEventListener('pointercancel', onUp);
+    } else {
+      handle.addEventListener('touchstart', onDown, { passive: false });
+      window.addEventListener('touchmove', onMove, { passive: false });
+      window.addEventListener('touchend', onUp);
+      window.addEventListener('touchcancel', onUp);
+      handle.addEventListener('mousedown', onDown);
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    }
+    // çift dokunuş: büyük ↔ normal yükseklik arası geçiş
     let lastTap = 0;
-    handle.addEventListener('click', () => {
+    handle.addEventListener('click', (e) => {
       const now = Date.now();
-      if (now - lastTap < 320) { const big = maxH() - 40; setH(curH() > big - 30 ? Math.round(window.innerHeight*0.24) : big); }
+      if (now - lastTap < 320) { const big = maxH() - 30; setH(curH() > big - 40 ? Math.round(window.innerHeight * 0.24) : big); }
       lastTap = now;
     });
   })();
@@ -4260,10 +4901,15 @@ function attachEvents() {
 
   // Tam ekran
   document.getElementById('btnFs').onclick = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+    const el = document.documentElement;
+    const isFs = document.fullscreenElement || document.webkitFullscreenElement;
+    if (!isFs) {
+      // navigationUI:'hide' → tarayıcı/sistem çubuklarını (üstteki saat/şarj vb.) gizlemeyi iste
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (req) { try { req.call(el, { navigationUI: 'hide' }); } catch(_) { req.call(el); } }
     } else {
-      document.exitFullscreen && document.exitFullscreen();
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) exit.call(document);
     }
     if (window._haptic) window._haptic(15);
   };
@@ -4325,7 +4971,17 @@ function attachEvents() {
   };
 
   // Overlay dışına tıkla → kapat
-  ['shareOverlay','compareOverlay','tableOverlay'].forEach(id => {
+  // "Bu sayfa nasıl çalışır?" yardım penceresi
+  document.getElementById('btnHelp').onclick = () => {
+    closeAllDropdowns();
+    document.getElementById('helpOverlay').classList.add('show');
+    if (window._haptic) window._haptic(12);
+  };
+  document.getElementById('helpClose').onclick = () => {
+    document.getElementById('helpOverlay').classList.remove('show');
+  };
+
+  ['shareOverlay','compareOverlay','tableOverlay','helpOverlay'].forEach(id => {
     const ov = document.getElementById(id);
     ov.onclick = (e) => { if (e.target === ov) ov.classList.remove('show'); };
   });

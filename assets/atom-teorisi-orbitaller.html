@@ -212,30 +212,27 @@
   }
   .bottom-panel.hidden { display:none; }
 
-  /* Bilgi panelini yukarı/aşağı çekerek genişleten tutamaç (üst çerçevenin tam üstünde) */
+  /* Bilgi panelini büyüt/küçült: bilgi çerçevesinin tam üstünde YAN YANA ▲▼ ok (sürükle-bırak).
+     Yukarı/aşağı sürükle → panel büyür/küçülür. Dokunma hedefi geniş, görünen kısım sade iki ok. */
   .info-resize-handle {
     position:absolute;
-    top:-20px; left:50%; transform:translateX(-50%);
-    width:88px; height:30px;
-    background:var(--panel);
-    border:2px solid var(--accent);
-    border-bottom:none;
-    border-radius:13px 13px 0 0;
-    display:flex; align-items:center; justify-content:center;
-    gap:3px;
+    top:-19px; left:50%; transform:translateX(-50%);
+    width:100px; height:28px;
+    display:flex; flex-direction:row; align-items:center; justify-content:center;
+    gap:7px;
+    cursor:ns-resize; touch-action:none; z-index:4;
+    background:transparent; border:none; padding:0;
     color:var(--accent);
-    font-size:14px; line-height:1;
-    cursor:ns-resize; touch-action:none;
-    z-index:3;
-    box-shadow:0 -3px 10px rgba(0,0,0,0.3);
   }
-  .info-resize-handle::before {
-    content:''; position:absolute; top:8px;
-    width:44px; height:4px; border-radius:3px;
-    background:var(--accent); opacity:0.6;
+  .info-resize-handle span {
+    font-size:12px; line-height:1; opacity:0.82; pointer-events:none;
+    text-shadow:0 1px 3px rgba(0,0,0,0.5);
+    transition:opacity 0.15s ease, transform 0.15s ease, color 0.15s ease;
   }
-  .info-resize-handle span { position:relative; top:5px; font-size:12px; opacity:0.95; }
-  .info-resize-handle:active { background:var(--panel-soft); }
+  .info-resize-handle:hover span { opacity:1; }
+  .info-resize-handle:active span { opacity:1; color:var(--accent-glow); }
+  .info-resize-handle:active .rz-up { transform:translateY(-2px); }
+  .info-resize-handle:active .rz-down { transform:translateY(2px); }
 
   .info-close-btn {
     position:absolute;
@@ -310,6 +307,7 @@
     list-style:none;
     padding:0; margin:0;
     max-height:var(--info-h, 24vh);
+    transition:max-height 0.12s ease;
     overflow-y:auto;
     overflow-x:hidden;
     -webkit-overflow-scrolling:touch;
@@ -661,9 +659,8 @@
 
   @media (max-width:600px) {
     .stack-btn { min-width:140px; font-size:11px; padding:7px 11px; }
-    .scene-panel { width:140px; }
     .stack-btn .sb-label, .sp-toggle .sb-label { font-size:11px; }
-    .sp-toggle { font-size:11px; padding:7px 11px; }
+    .sp-toggle { font-size:11px; padding:7px 11px; min-width:140px; }
     .right-tools { gap:5px; left:8px; }
     .tool-icon-btn { width:34px; height:34px; font-size:14px; border-radius:9px; }
     .bottom-panel { padding:11px 10px 9px; gap:9px; }
@@ -678,16 +675,14 @@
   }
   @media (max-width:420px) {
     .stack-btn { min-width:130px; font-size:10.5px; padding:6px 9px; }
-    .scene-panel { width:130px; }
-    .sp-toggle { font-size:10.5px; padding:6px 9px; }
+    .sp-toggle { font-size:10.5px; padding:6px 9px; min-width:130px; }
     .right-tools { gap:4px; left:6px; }
     .tool-icon-btn { width:30px; height:30px; font-size:13px; border-radius:8px; border-width:1.5px; }
     #panelMode { left:6px !important; }
   }
   @media (max-width:360px) {
     .stack-btn { min-width:115px; font-size:10px; padding:5px 8px; }
-    .scene-panel { width:115px; }
-    .sp-toggle { font-size:10px; padding:5px 8px; }
+    .sp-toggle { font-size:10px; padding:5px 8px; min-width:115px; }
     .right-tools { gap:3px; left:5px; }
     .tool-icon-btn { width:28px; height:28px; font-size:12px; }
     #panelMode { left:5px !important; }
@@ -697,54 +692,45 @@
     display: none !important;
   }
 
-  /* Değişkenler: ŞEFFAF konumlandırıcı sarmal (kendi çerçevesi YOK → çift çerçeve olmaz).
-     Görünür çerçeve yalnızca sekmede (sp-toggle) ve açık gövdede (sp-body). */
-  .scene-panel {
+  /* Eğitim Seviyesi (üstte) altında: Değişkenler + Konu Rehberi AYNI SATIRDA,
+     Değişkenler solda. Üçü de aynı ebat (stack-btn / sp-toggle). */
+  .stack-row { display: flex; gap: 8px; align-items: flex-start; }
+
+  /* Değişkenler içeriği: sekmenin hemen altında, TAM GENİŞLİK (telefon solu→sağı),
+     kontroller YATAY yan yana (flex-wrap). */
+  .scene-vars-body {
     position: fixed;
-    right: 14px;
-    top: 88px;
-    width: 170px; /* Konu Rehberi (stack-btn) ile aynı genişlik */
-    max-height: calc(100vh - 88px - 190px);
-    overflow-y: auto;
-    z-index: 40;
-    background: transparent;
-    border: none;
-    box-shadow: none;
-    padding: 0;
-    font-size: 10px;
-    color: rgba(255, 255, 255, 0.92);
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 6px;
-  }
-  .scene-panel.empty { display: none; }
-  /* Değişkenler içeriği: konu değişince açık gelir, 1 sn sonra aşağıdan yukarıya
-     YAVAŞÇA kapanır (max-height JS ile ölçülür → pürüzsüz animasyon). */
-  .sp-body {
-    display: flex; flex-direction: column; gap: 6px;
-    overflow: hidden; opacity: 1;
-    background: rgba(15, 20, 30, 0.92);
-    border: 1px solid var(--panel-line);
+    left: 6px; right: 6px;
+    top: 92px; /* JS ile sekmenin altına hizalanır */
+    z-index: 39;
+    display: flex; flex-wrap: wrap; align-items: stretch;
+    gap: 7px;
+    background: rgba(15, 20, 30, 0.96);
+    border: 1.5px solid var(--panel-line);
     border-radius: 12px;
     padding: 8px;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    box-shadow: 0 8px 28px rgba(0,0,0,0.4);
-    transition: max-height 0.55s ease, opacity 0.4s ease, padding 0.45s ease;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    max-height: 46vh; overflow-y: auto;
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 10px;
   }
-  .sp-body.closed { opacity: 0; padding-top: 0; padding-bottom: 0; border-width: 0; }
-
-  body.dropdown-open .scene-panel {
-    transform: none;
-  }
+  .scene-vars-body.closed { display: none; }
+  .scene-vars-body .sp-section { flex-basis: 100%; margin: 2px 4px 0; }
+  .scene-vars-body .sp-slider-row { flex: 1 1 150px; min-width: 132px; max-width: 260px; }
+  .scene-vars-body .sp-display { flex: 1 1 120px; min-width: 108px; }
+  .scene-vars-body .sp-presets { flex-basis: 100%; }
+  .scene-vars-body .sp-formula { flex-basis: 100%; font-size: 11px; }
+  /* Dar yatay kartlarda yazılar sığsın */
+  .scene-vars-body .sp-slider-row .sp-slider-head { font-size: 10px; }
+  .scene-vars-body .sp-slider-row .sp-slider-head .sp-val { font-size: 10px; min-width: 40px; padding: 2px 5px; }
+  .scene-vars-body .sp-display { font-size: 9.5px; }
+  .scene-vars-body .sp-preset-btn { font-size: 10px; }
 
   @media (min-width: 768px) {
     canvas {
       transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    body.scene-panel-open canvas {
-      transform: translateX(-15vw);
     }
     body.panel-open canvas {
       transform: translateX(-22vw);
@@ -801,7 +787,7 @@
     display: flex;
     align-items: center;
     gap: 7px;
-    width: 100%;
+    min-width: 170px; /* Konu Rehberi (stack-btn) ile aynı ebat */
     box-shadow: 0 4px 12px rgba(249, 115, 22, 0.35);
     transition: all 0.15s;
   }
@@ -924,18 +910,23 @@
   }
 
   @media (max-width: 768px) {
-    .scene-panel {
-      right: 12px;
-      top: 92px;
-      width: 178px;
-      font-size: 9.5px;
-      padding: 7px;
-    }
     .sp-slider-row { padding: 5px 7px; }
     .sp-slider-row input[type=range] { height: 5px; }
   }
 
-  body.panel-open .scene-panel { }
+  /* Değişkenler paneli TAM ŞEFFAF — açıkken 3D model arkada görünmeye devam eder */
+  .scene-vars-body {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.85);
+  }
+  .scene-vars-body .sp-slider-row,
+  .scene-vars-body .sp-display,
+  .scene-vars-body .sp-formula,
+  .scene-vars-body .sp-preset-btn { background: rgba(0, 0, 0, 0.30); }
 </style>
 </head>
 <body>
@@ -976,7 +967,7 @@
 </div>
 
 <div id="regionList" class="region-list"></div>
-<div id="scenePanel" class="scene-panel"></div>
+<div id="sceneVarsBody" class="scene-vars-body closed"></div>
 
 <div id="gestureToast" style="
   position:fixed; top:90px; left:50%; transform:translateX(-50%) translateY(-20px);
@@ -996,11 +987,14 @@
     <span class="sb-label" id="levelLabel">Lise</span>
     <span class="sb-arrow">▼</span>
   </button>
-  <button class="stack-btn topic" id="btnTopic">
-    <span class="sb-emoji">📚</span>
-    <span class="sb-label">Konu Rehberi</span>
-    <span class="sb-arrow">▼</span>
-  </button>
+  <div class="stack-row" id="stackRow">
+    <!-- Değişkenler sekmesi (sp-toggle) JS ile buraya, Konu Rehberi'nin SOLUNA eklenir -->
+    <button class="stack-btn topic" id="btnTopic">
+      <span class="sb-emoji">📚</span>
+      <span class="sb-label">Konu Rehberi</span>
+      <span class="sb-arrow">▼</span>
+    </button>
+  </div>
 </div>
 
 <div class="dropdown-panel" id="panelLevel" style="top:48px; right:14px; max-height:70vh; overflow-y:auto;">
@@ -1035,7 +1029,7 @@
 </div>
 
 <div class="bottom-panel" id="bottomPanel">
-  <div class="info-resize-handle" id="infoResizeHandle" title="Yukarı/aşağı çekerek genişlet"><span>⇕</span></div>
+  <div class="info-resize-handle" id="infoResizeHandle" title="Yukarı/aşağı sürükleyerek büyüt/küçült"><span class="rz-up">▲</span><span class="rz-down">▼</span></div>
   <button class="info-close-btn" id="infoCloseBtn" title="Bilgi panelini kapat">✕</button>
   <div class="info-area">
     <div class="info-emoji-box" id="infoEmoji" style="display:none;">⚡</div>
@@ -1523,6 +1517,9 @@ class OrbitControls extends THREE.EventDispatcher {
       radius: this._sphericalTarget.radius
     };
     this.captureInitialState = () => {
+      // selectSub kamera/target'ı yeni set ettiyse, spherical'i ona göre türet ki
+      // hem ilk görünüm doğru olsun hem de resetView doğru açı/yarıçapa dönsün.
+      this._syncFromCamera();
       this._initialCameraState = {
         position: this.object.position.clone(),
         target: this.target.clone(),
@@ -1632,10 +1629,17 @@ class OrbitControls extends THREE.EventDispatcher {
         const panFactor = this._sphericalTarget.radius * 0.0045;
         this.target.addScaledVector(right, -panDx * panFactor);
         this.target.addScaledVector(up, panDy * panFactor);
-        // 2) Parmak arası açılma/kapanma → zoom; aynı anda iki parmağın ortasındaki
-        //    nokta yavaşça ekran merkezine gelsin (oraya odaklanıp yakınlaş)
-        this._panToScreenPoint(newCenterX, newCenterY, 0.16);
-        this._sphericalTarget.radius = Math.max(this.minDistance, Math.min(this.maxDistance, pinchStartRadius * (pinchStartDist / dist)));
+        // 2) Parmak arası açılma/kapanma → zoom. Parmakların ortasındaki nokta
+        //    ekranda SABİT kalacak şekilde hedefi yarıçap oranıyla ORANTILI kaydır
+        //    (sabit lerp drift'i kaldırıldı → ne kaçıyor ne de sıçrıyor).
+        const oldR = this._sphericalTarget.radius;
+        const newR = Math.max(this.minDistance, Math.min(this.maxDistance, pinchStartRadius * (pinchStartDist / dist)));
+        const hit = this._hitOnFocusPlane(newCenterX, newCenterY);
+        if (hit && oldR > 0.0001) {
+          const f = Math.max(-0.4, Math.min(0.4, 1 - newR / oldR)); // yakınlaş: hedef noktaya doğru; uzaklaş: tersine
+          this.target.lerp(hit, f);
+        }
+        this._sphericalTarget.radius = newR;
       }
     }, { passive: false });
 
@@ -1687,7 +1691,11 @@ class OrbitControls extends THREE.EventDispatcher {
   }
 
   update() {
-    if (!this._lastCamPos.equals(this.object.position) || !this._lastTarget.equals(this.target)) {
+    // YALNIZCA kamera DIŞARIDAN taşındıysa (ör. selectSub camera.position.set) yeniden
+    // türet. target'ı kontrol'ün kendisi (pan/zoom-odak/reset) değiştirdiğinde sync
+    // ÇALIŞMAMALI; yoksa ayarlanan zoom yarıçapı/açılar her kare sıfırlanır →
+    // "yakınlaşmıyor" + kamera sıçrayıp model ekran dışına uçuyordu.
+    if (!this._lastCamPos.equals(this.object.position)) {
       this._syncFromCamera();
     }
     if (this.enableDamping) {
@@ -1792,7 +1800,6 @@ function init() {
 
   window.addEventListener('resize', onResize);
   document.getElementById('loading').classList.add('hide');
-  setTimeout(syncScenePanelWidth, 60);
 
   (function() {
     const bp = document.getElementById('bottomPanel');
@@ -1868,20 +1875,7 @@ function onResize() {
   renderer.setSize(W, H);
   labelRenderer.setSize(W, H);
   if (typeof updateInfoScrollbar === 'function') updateInfoScrollbar();
-  syncScenePanelWidth();
-}
-// Değişkenler sekmesi genişliğini Konu Rehberi (#btnTopic) ile birebir eşitle
-// → sağda ve solda aynı hizada biter (içerik min-width'i aşsa bile).
-function syncScenePanelWidth() {
-  const tb = document.getElementById('btnTopic');
-  const sp = document.querySelector('.scene-panel');
-  if (tb && sp) {
-    const r = tb.getBoundingClientRect();
-    if (r.width > 0) {
-      sp.style.width = Math.round(r.width) + 'px';      // Konu Rehberi ile aynı genişlik
-      sp.style.top = Math.round(r.bottom + 8) + 'px';   // hemen altında, 8px boşluk
-    }
-  }
+  if (typeof positionVarsBody === 'function') positionVarsBody();
 }
 
 // ============== HELPERS ==============
@@ -2031,7 +2025,7 @@ function updateLeaderLines() {
     if (!ref.anchorObj) return;
     ref.anchorObj.getWorldPosition(_projVec);
     _projVec.project(camera);
-    if (_projVec.z > 1 || _projVec.z < -1) return;
+    if (!(_projVec.z >= -1 && _projVec.z <= 1)) return;
     const ax = (_projVec.x + 1) / 2 * w;
     const ay = (1 - _projVec.y) / 2 * h;
     const rect = ref.div.getBoundingClientRect();
@@ -2056,6 +2050,7 @@ function updateLeaderLines() {
     const midX = (edgeX + ax) / 2;
     const midY = (edgeY + ay) / 2;
     const distLine = Math.hypot(ax - edgeX, ay - edgeY);
+    if (!(distLine > 0)) return;
     const normalX = -(ay - edgeY) / distLine;
     const normalY = (ax - edgeX) / distLine;
     const curveAmount = Math.min(distLine * 0.18, 35);
@@ -2083,39 +2078,42 @@ function updateLeaderLines() {
 // ============== SCENE STATE & PANELS ==============
 window._sceneState = { R: 1.0, r: 1.0, d1: 5.0, d2: 5.0, mode: null, _displayUpdaters: [] };
 
+function positionVarsBody() {
+  const t = document.getElementById('sceneToggle');
+  const b = document.getElementById('sceneVarsBody');
+  if (t && b && !b.classList.contains('closed')) {
+    b.style.top = Math.round(t.getBoundingClientRect().bottom + 6) + 'px';
+  }
+}
+window.positionVarsBody = positionVarsBody;
+
 function setSceneSliders(items, opts = {}) {
-  const panel = document.getElementById('scenePanel');
-  if (!panel) return;
-  panel.innerHTML = '';
-  panel.classList.remove('empty', 'collapsed');
+  const row = document.getElementById('stackRow');
+  const bodyPanel = document.getElementById('sceneVarsBody');
+  if (!row || !bodyPanel) return;
+  // Eski Değişkenler sekmesini kaldır (her sahne yeniden kurar)
+  const oldT = document.getElementById('sceneToggle'); if (oldT) oldT.remove();
+  bodyPanel.innerHTML = '';
   document.body.classList.add('scene-panel-open');
   window._sceneState._displayUpdaters = [];
+  // Değişkenler sekmesi → Konu Rehberi'nin SOLUNA (aynı satır, aynı ebat)
   const toggle = document.createElement('button');
+  toggle.id = 'sceneToggle';
   toggle.className = 'sp-toggle';
   toggle.innerHTML = `<span class="sb-emoji">🎛️</span><span class="sb-label">Değişkenler</span><span class="sp-chev">▼</span>`;
-  panel.appendChild(toggle);
-  // Tüm değişkenler animasyonlu bir gövde içine konur (aşağıdan yukarıya kapanma)
-  const body = document.createElement('div');
-  body.className = 'sp-body';
-  panel.appendChild(body);
+  row.insertBefore(toggle, document.getElementById('btnTopic'));
+  // İçerik tam-genişlik yatay panelde
+  const body = bodyPanel;
   const _chev = toggle.querySelector('.sp-chev');
-  // open=true aç, false yavaşça kapat; yükseklik ölçülerek pürüzsüz animasyon
+  // Basınca aç/kapat: tam genişlik pencere sekmenin altına gelir
   function setSceneOpen(open) {
-    if (open) {
-      body.classList.remove('closed');
-      body.style.maxHeight = body.scrollHeight + 'px';
-      const te = () => { if (!body.classList.contains('closed')) body.style.maxHeight = 'none'; body.removeEventListener('transitionend', te); };
-      body.addEventListener('transitionend', te);
-    } else {
-      body.style.maxHeight = body.scrollHeight + 'px';
-      void body.offsetHeight; // reflow
-      requestAnimationFrame(() => { body.style.maxHeight = '0px'; body.classList.add('closed'); });
-    }
+    bodyPanel.classList.toggle('closed', !open);
     if (_chev) _chev.textContent = open ? '▲' : '▼';
+    if (open) positionVarsBody();
   }
   window._setSceneOpen = setSceneOpen;
   toggle.onclick = () => {
-    setSceneOpen(body.classList.contains('closed'));
+    setSceneOpen(bodyPanel.classList.contains('closed'));
     if (window._haptic) window._haptic(10);
   };
   items.forEach(item => {
@@ -2226,20 +2224,15 @@ function setSceneSliders(items, opts = {}) {
       body.appendChild(row);
     }
   });
-  // Değişkenler varsayılan KAPALI; konu değişince OTOMATİK AÇILMAZ.
-  // Anlık kapat (animasyonsuz), sonra transition'ı geri ver → toggle yine animasyonlu.
-  clearTimeout(window._scenePeekTimer);
-  body.style.transition = 'none';
-  body.classList.add('closed');
-  body.style.maxHeight = '0px';
-  void body.offsetHeight;
-  body.style.transition = '';
+  // Değişkenler varsayılan KAPALI; konu değişince OTOMATİK AÇILMAZ (kullanıcı basar).
+  bodyPanel.classList.add('closed');
   if (_chev) _chev.textContent = '▼';
 }
 
 function clearSceneSliders() {
-  const panel = document.getElementById('scenePanel');
-  if (panel) { panel.innerHTML = ''; panel.classList.add('empty'); }
+  const oldT = document.getElementById('sceneToggle'); if (oldT) oldT.remove();
+  const bodyPanel = document.getElementById('sceneVarsBody');
+  if (bodyPanel) { bodyPanel.innerHTML = ''; bodyPanel.classList.add('closed'); }
   document.body.classList.remove('scene-panel-open');
   if (window._sceneState) window._sceneState._displayUpdaters = [];
 }
@@ -3484,7 +3477,9 @@ SubBuilders.buildOrbitaller = function() {
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
   const S = window._sceneState;
   if (S.or_tip === undefined) S.or_tip = 0;
+  if (S.or_field === undefined) S.or_field = 0;
   const types=['s','px','py','pz','dxy','dz2'];
+  const lVal=[0,1,1,1,2,2];
   const cols=[ACOL.cloudS,ACOL.cloudP,ACOL.cloudP,ACOL.cloudP,ACOL.cloudD,ACOL.cloudD];
   let cloud=null;
   function rebuild() {
@@ -3493,10 +3488,18 @@ SubBuilders.buildOrbitaller = function() {
     cloud=makeOrbitalCloud(types[S.or_tip],cols[S.or_tip],2400,4.2); dyn.add(cloud);
     [['x',1,0,0],['y',0,1,0],['z',0,0,1]].forEach(([ad,x,y,z])=>{ dyn.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-4.5*x,-4.5*y,-4.5*z),new THREE.Vector3(4.5*x,4.5*y,4.5*z)]),new THREE.LineBasicMaterial({color:0x3a4658,transparent:true,opacity:0.4}))); });
     const ad=['s (l=0)','pₓ (l=1)','p_y (l=1)','p_z (l=1)','d_xy (l=2)','d_z² (l=2)'][S.or_tip];
-    addInfo3DLabels([
+    const _labels=[
       { text:{ lise:'☁️ '+ad }, position:[0,3.8,0], target:[0,0,0], color:'#'+cols[S.or_tip].toString(16).padStart(6,'0') },
       { text:{ lise:'🎯 Yoğunluk = ψ²' }, position:[4.8,-2.0,0], target:[1.5,0.5,0], color:'#cfd6e0' }
-    ]);
+    ];
+    if (S.or_field) {
+      const l=lVal[S.or_tip];
+      // Dış manyetik alan B (yukarı yönlü) + alan çizgileri
+      dyn.add(makeVectorArrow(new THREE.Vector3(-5.3,-3.4,0), new THREE.Vector3(0,6.8,0), {color:0x66ccff, shaftR:0.05, headR:0.17}));
+      for(let i=-1;i<=1;i++){ dyn.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-5.3,-3.4,i*1.5),new THREE.Vector3(-5.3,3.4,i*1.5)]),new THREE.LineBasicMaterial({color:0x66ccff,transparent:true,opacity:0.28}))); }
+      _labels.push({ text:{ lise:'🧲 B alanı → '+(2*l+1)+' alt seviye (mₗ)' }, position:[-5.3,4.0,0], target:[-5.3,2.6,0], color:'#66ccff' });
+    }
+    addInfo3DLabels(_labels);
   }
   rebuild();
   let tt=0;
@@ -3515,7 +3518,14 @@ SubBuilders.buildOrbitaller = function() {
     ]},
     { type:'display', label:'Şekil', highlight:true, getValue:()=>['Küre','Dambıl x','Dambıl y','Dambıl z','4 yaprak','2 lob+halka'][S.or_tip] },
     { type:'display', label:'Olasılık', getValue:()=>'Yoğun bölge = yüksek ψ²' },
-    { type:'formula', text:'l=0:s · l=1:p · l=2:d · l=3:f' }
+    { type:'section', label:'🧲 Manyetik Alan (Zeeman)' },
+    { type:'presets', activeIdx:S.or_field, options:[
+      { label:'B kapalı', action:()=>{S.or_field=0;rebuild();} },
+      { label:'B açık', action:()=>{S.or_field=1;rebuild();} }
+    ]},
+    { type:'display', label:'Manyetik kuantum mₗ', getValue:()=>{const l=lVal[S.or_tip];return l===0?'0':('−'+l+' … +'+l);} },
+    { type:'display', label:'B alanında', getValue:()=>{const l=lVal[S.or_tip];return S.or_field?((2*l+1)+' enerji alt seviyesine ayrışır'):'Seviyeler eşit enerjili (dejenere)';} },
+    { type:'formula', text:'l=0:s · l=1:p · l=2:d · l=3:f   ·   B alanında 2l+1 ayrışma' }
   ], { title:'Orbital Şekilleri (s, p, d)' });
 };
 
@@ -4216,7 +4226,7 @@ function attachEvents() {
       });
       infoList.addEventListener('scroll', updateInfoScrollbar, { passive: true });
     }
-    ['compareBody','tableBody','scenePanel'].forEach(id => {
+    ['compareBody','tableBody','sceneVarsBody'].forEach(id => {
       const el = document.getElementById(id);
       if (el) ['touchstart','touchmove','touchend','wheel'].forEach(ev => {
         el.addEventListener(ev, (e) => { e.stopPropagation(); }, { passive: true });
@@ -4281,21 +4291,17 @@ function attachEvents() {
     document.getElementById('bottomPanel').classList.add('hidden');
   };
 
-  // ── Bilgi panelini yukarı/aşağı çekerek genişlet/daralt ──
+  // ── Bilgi panelini büyüt/küçült: ince çubuğu YUKARI/AŞAĞI SÜRÜKLE (parmağı takip eder) ──
   (function(){
     const handle = document.getElementById('infoResizeHandle');
     const panel = document.getElementById('bottomPanel');
     const list = document.getElementById('infoList');
     if (!handle || !panel || !list) return;
-    // Tam takip: yukarı çekince üst sekmelere kadar açılsın, aşağı çekince
-    // neredeyse tamamen kapansın (parmağın gittiği yere kadar).
-    const MIN_H = 24;
-    const maxH = () => Math.max(MIN_H, Math.round(window.innerHeight - 150));
-    let dragging = false, startY = 0, startH = 0, moved = false;
+    const MIN_H = 70;
+    const maxH = () => Math.max(MIN_H, Math.round(window.innerHeight - 150)); // üst sekmelere kadar
     function curH() {
       const v = getComputedStyle(panel).getPropertyValue('--info-h').trim();
       if (v.endsWith('px')) return parseFloat(v);
-      // vh veya tanımsız → gerçek yükseklikten oku
       return list.getBoundingClientRect().height || Math.round(window.innerHeight * 0.24);
     }
     function setH(h) {
@@ -4303,27 +4309,46 @@ function attachEvents() {
       panel.style.setProperty('--info-h', h + 'px');
       if (typeof updateInfoScrollbar === 'function') updateInfoScrollbar();
     }
-    const yOf = (e) => (e.touches && e.touches[0]) ? e.touches[0].clientY
-                     : (e.changedTouches && e.changedTouches[0]) ? e.changedTouches[0].clientY
-                     : e.clientY;
-    // Dokunma + fare; move/up BELGEYE bağlı ki parmak küçük tutamaçtan çıksa da
-    // sürükleme kesilmesin. Tutamaçta touch-action:none olduğu için sayfa kaymaz.
-    function down(e){ dragging=true; moved=false; startH=curH(); startY=yOf(e); list.style.transition='none'; document.body.style.userSelect='none'; if(window._haptic)window._haptic(12); if(e.cancelable)e.preventDefault(); e.stopPropagation(); }
-    function move(e){ if(!dragging)return; const y=yOf(e); if(Math.abs(y-startY)>2)moved=true; setH(startH+(startY-y)); if(e.cancelable)e.preventDefault(); }
-    function up(){ if(!dragging)return; dragging=false; list.style.transition=''; document.body.style.userSelect=''; }
-    handle.addEventListener('touchstart', down, {passive:false});
-    document.addEventListener('touchmove', move, {passive:false});
-    document.addEventListener('touchend', up);
-    document.addEventListener('touchcancel', up);
-    handle.addEventListener('mousedown', down);
-    document.addEventListener('mousemove', move);
-    document.addEventListener('mouseup', up);
-    // Çift dokunuş: tam aç / varsayılana dön
+    let dragging = false, startY = 0, startH = 0, pid = null;
+    function onDown(e) {
+      dragging = true; startH = curH();
+      startY = (e.touches ? e.touches[0].clientY : e.clientY);
+      list.style.transition = 'none';
+      if (e.pointerId !== undefined) { pid = e.pointerId; try { handle.setPointerCapture(pid); } catch(_){} }
+      if (window._haptic) window._haptic(10);
+      if (e.cancelable) e.preventDefault();
+      e.stopPropagation();
+    }
+    function onMove(e) {
+      if (!dragging) return;
+      const y = (e.touches ? e.touches[0].clientY : e.clientY);
+      setH(startH + (startY - y)); // yukarı sürükle → büyür
+      if (e.cancelable) e.preventDefault();
+    }
+    function onUp() {
+      if (!dragging) return;
+      dragging = false; list.style.transition = '';
+      if (pid !== null) { try { handle.releasePointerCapture(pid); } catch(_){} pid = null; }
+    }
+    if (window.PointerEvent) {
+      handle.addEventListener('pointerdown', onDown);
+      handle.addEventListener('pointermove', onMove);
+      handle.addEventListener('pointerup', onUp);
+      handle.addEventListener('pointercancel', onUp);
+    } else {
+      handle.addEventListener('touchstart', onDown, { passive: false });
+      window.addEventListener('touchmove', onMove, { passive: false });
+      window.addEventListener('touchend', onUp);
+      window.addEventListener('touchcancel', onUp);
+      handle.addEventListener('mousedown', onDown);
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    }
+    // çift dokunuş: büyük ↔ normal yükseklik arası geçiş
     let lastTap = 0;
-    handle.addEventListener('click', () => {
-      if (moved) { moved = false; return; }
+    handle.addEventListener('click', (e) => {
       const now = Date.now();
-      if (now - lastTap < 320) { const big = maxH(); setH(curH() > big - 60 ? Math.round(window.innerHeight*0.24) : big); }
+      if (now - lastTap < 320) { const big = maxH() - 30; setH(curH() > big - 40 ? Math.round(window.innerHeight * 0.24) : big); }
       lastTap = now;
     });
   })();

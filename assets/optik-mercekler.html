@@ -45,14 +45,16 @@
     width:100vw; height:100vh;
     transition:background 0.3s, color 0.3s;
   }
-  body { touch-action:none; }
+  /* touch-action:none YALNIZCA 3B alanda olmalı; body'de olursa alt panel
+     içindeki yazılar kaydırılamaz (atası none olan eleman pan-y olsa bile kayamaz). */
   canvas { display:block; cursor:grab; }
   canvas:active { cursor:grabbing; }
-  #canvasContainer { position:absolute; inset:0; width:100%; height:100%; z-index:1; }
+  #canvasContainer { position:absolute; inset:0; width:100%; height:100%; z-index:1; touch-action:none; }
+  #canvasContainer canvas { touch-action:none; }
 
   .left-stack {
     position:absolute;
-    top:14px; right:14px;
+    top:2px; right:14px;
     z-index:30;
     display:flex; flex-direction:column; gap:8px;
     align-items:flex-end;
@@ -140,7 +142,7 @@
 
   .right-tools {
     position:absolute;
-    top:14px; left:14px;
+    top:2px; left:8px;
     z-index:30;
     display:flex; gap:8px;
     flex-wrap:nowrap;
@@ -167,6 +169,23 @@
 
   .tool-icon-btn.fs { border-color:var(--joint); color:var(--joint); }
   .tool-icon-btn.fs:hover { background:var(--joint); color:#0a1420; }
+  .tool-icon-btn.help { border-color:var(--accent-glow); color:var(--accent-glow); }
+  .tool-icon-btn.help:hover { background:var(--accent-glow); color:#0a1420; }
+  /* "Bu sayfa nasıl çalışır?" yardım penceresi */
+  .help-card { width:min(460px, 94vw) !important; max-height:86vh; overflow-y:auto; }
+  .help-sec-title {
+    font-family:'Baloo 2', cursive; font-weight:800; font-size:13px;
+    color:var(--accent-glow); margin:13px 2px 6px; letter-spacing:0.3px;
+    border-top:1px solid var(--panel-line); padding-top:11px;
+  }
+  .help-sec-title:first-child { border-top:none; margin-top:2px; padding-top:0; }
+  .help-row {
+    display:flex; gap:10px; align-items:flex-start;
+    padding:5px 4px; font-size:13px; color:var(--ink); line-height:1.42;
+  }
+  .help-row .he { font-size:17px; flex-shrink:0; width:24px; text-align:center; }
+  .help-row b { color:var(--accent-glow); font-weight:700; }
+  .help-intro { font-size:12.5px; color:var(--ink-soft); line-height:1.45; padding:2px 4px 6px; }
   .tool-icon-btn.send { border-color:var(--warning); color:var(--warning); }
   .tool-icon-btn.send:hover { background:var(--warning); color:#0a1420; }
   .tool-icon-btn.theme { border-color:var(--cartilage); color:var(--cartilage); }
@@ -180,18 +199,40 @@
   .tool-icon-btn.table:hover { background:var(--bone); color:#0a1420; }
   .bottom-panel {
     position:absolute;
-    bottom:10px;
-    left:14px; right:14px;
+    bottom:6px;
+    left:3px; right:3px;
     z-index:25;
     background:var(--panel);
     border:2px solid var(--panel-line);
     border-radius:12px;
-    padding:9px 12px 8px;
+    padding:9px 10px 8px;
     box-shadow:0 -6px 24px rgba(0,0,0,0.4);
     display:flex; flex-direction:column; gap:8px;
     touch-action:auto;
   }
   .bottom-panel.hidden { display:none; }
+
+  /* Bilgi panelini büyüt/küçült: bilgi çerçevesinin tam üstünde YAN YANA ▲▼ ok (sürükle-bırak).
+     Yukarı/aşağı sürükle → panel büyür/küçülür. Dokunma hedefi geniş, görünen kısım sade iki ok. */
+  .info-resize-handle {
+    position:absolute;
+    top:-19px; left:50%; transform:translateX(-50%);
+    width:100px; height:28px;
+    display:flex; flex-direction:row; align-items:center; justify-content:center;
+    gap:7px;
+    cursor:ns-resize; touch-action:none; z-index:4;
+    background:transparent; border:none; padding:0;
+    color:var(--accent);
+  }
+  .info-resize-handle span {
+    font-size:12px; line-height:1; opacity:0.82; pointer-events:none;
+    text-shadow:0 1px 3px rgba(0,0,0,0.5);
+    transition:opacity 0.15s ease, transform 0.15s ease, color 0.15s ease;
+  }
+  .info-resize-handle:hover span { opacity:1; }
+  .info-resize-handle:active span { opacity:1; color:var(--accent-glow); }
+  .info-resize-handle:active .rz-up { transform:translateY(-2px); }
+  .info-resize-handle:active .rz-down { transform:translateY(2px); }
 
   .info-close-btn {
     position:absolute;
@@ -240,23 +281,24 @@
   }
   .info-title {
     font-family:'Baloo 2', cursive; font-weight:800;
-    font-size:12.5px;
+    font-size:14px;
     color:var(--accent-glow);
   }
   .nav-buttons {
-    display:flex; gap:4px;
+    display:flex; gap:8px;
   }
   .nav-mini-btn {
-    width:19px; height:19px;
+    width:34px; height:34px;
     background:var(--panel-soft);
-    border:1.5px solid var(--accent);
-    border-radius:5px;
+    border:2px solid var(--accent);
+    border-radius:9px;
     cursor:pointer;
     display:grid; place-items:center;
     color:var(--accent);
-    font-size:9px;
+    font-size:15px;
     transition:all 0.12s;
   }
+  .nav-mini-btn:active { transform:scale(0.9); }
   .nav-mini-btn:hover {
     background:var(--accent);
     color:#0a1420;
@@ -264,7 +306,8 @@
   .info-list {
     list-style:none;
     padding:0; margin:0;
-    max-height:22vh;
+    max-height:var(--info-h, 24vh);
+    transition:max-height 0.12s ease;
     overflow-y:auto;
     overflow-x:hidden;
     -webkit-overflow-scrolling:touch;
@@ -291,42 +334,52 @@
     border:1px solid rgba(0,0,0,0.3);
   }
   .info-list li {
-    padding:1px 0 1px 11px;
+    padding:3px 0 3px 15px;
     margin-bottom:0;
     background:transparent;
     border:none;
     border-radius:0;
-    font-size:10.5px;
-    line-height:1.32;
+    font-size:12px;
+    line-height:1.5;
     color:var(--ink);
     position:relative;
   }
+  /* Madde başında küçük MAVİ nokta */
   .info-list li::before {
     content:'•';
+    color:var(--joint);
     position:absolute;
-    left:2px; top:1px;
-    color:var(--accent);
-    font-weight:700;
-    font-size:11px;
+    left:3px; top:3px;
+    font-size:13px; line-height:1.45;
   }
   .info-list li b {
     color:var(--accent-glow);
     font-weight:700;
   }
+  /* Ara başlık (##) → SARI, nokta yok */
   .info-list li.subhead {
     background:transparent;
     border-left:none;
     color:var(--warning);
     font-weight:700;
-    font-size:11.5px;
+    font-size:12px;
     margin-top:5px;
     margin-bottom:2px;
     padding:0 0 1px 0;
     font-style:normal;
   }
-  .info-list li.subhead::before {
-    content:'';
+  .info-list li.subhead::before { content:''; }
+  /* Yan başlık (###) → MAVİ, nokta yok */
+  .info-list li.subhead2 {
+    background:transparent;
+    color:var(--joint);
+    font-weight:700;
+    font-size:12px;
+    margin-top:4px;
+    margin-bottom:1px;
+    padding:0 0 1px 0;
   }
+  .info-list li.subhead2::before { content:''; }
 
   .action-row {
     display:grid;
@@ -356,7 +409,19 @@
     background:linear-gradient(135deg, var(--cartilage), #7a5fb8);
   }
   .action-btn.anim {
-    background:linear-gradient(135deg, var(--muscle), #a04545);
+    background:linear-gradient(135deg, #2ecc71, #1ba85c);
+    color:#06281a;
+    box-shadow:0 0 14px rgba(46,204,113,0.5);
+    animation:animPulse 1.8s ease-in-out infinite;
+  }
+  @keyframes animPulse {
+    0%,100% { box-shadow:0 0 10px rgba(46,204,113,0.4); }
+    50% { box-shadow:0 0 18px rgba(46,204,113,0.75); transform:scale(1.02); }
+  }
+  .action-btn.anim.active {
+    background:linear-gradient(135deg, #e74c3c, #c0392b);
+    color:#fff;
+    animation:none;
   }
   .action-btn.active {
     box-shadow:0 0 0 2px #fff, 0 0 12px rgba(255,255,255,0.4);
@@ -510,6 +575,14 @@
   .cmp-table th:nth-child(3),
   .cmp-table th:nth-child(4) { border-left:1px dashed rgba(255,255,255,0.3); }
   .cmp-table tr:hover td { background:rgba(246,185,59,0.20) !important; }
+  /* Karşılaştırma (versus): karşılaştırılan varlıklar SÜTUN başlığında ayrı renkte */
+  .cmp-versus th.cmp-aspect { background:linear-gradient(135deg,#3a4668,#2a3450); color:var(--ink); text-shadow:none; }
+  .cmp-versus th.cmp-ent { color:#0a1420; }
+  .cmp-versus th.cmp-ent-0 { background:linear-gradient(135deg,#ffd166,#f6b93b); }
+  .cmp-versus th.cmp-ent-1 { background:linear-gradient(135deg,#7adcf0,#3aa0c8); }
+  .cmp-versus th.cmp-ent-2 { background:linear-gradient(135deg,#cbb3ff,#9d7fe6); }
+  .cmp-versus th.cmp-ent-3 { background:linear-gradient(135deg,#a6e3a1,#5fb377); }
+  .cmp-versus td.cmp-aspect-cell { font-weight:700; color:var(--ink); white-space:nowrap; border-right:2px solid var(--accent); background:rgba(255,255,255,0.05); }
   .cmp-no-data {
     text-align:center;
     padding:24px 12px;
@@ -586,14 +659,15 @@
 
   @media (max-width:600px) {
     .stack-btn { min-width:140px; font-size:11px; padding:7px 11px; }
-    .stack-btn .sb-label { font-size:11px; }
+    .stack-btn .sb-label, .sp-toggle .sb-label { font-size:11px; }
+    .sp-toggle { font-size:11px; padding:7px 11px; min-width:140px; }
     .right-tools { gap:5px; left:8px; }
     .tool-icon-btn { width:34px; height:34px; font-size:14px; border-radius:9px; }
-    .bottom-panel { padding:11px 12px 9px; gap:9px; }
+    .bottom-panel { padding:11px 10px 9px; gap:9px; }
     .info-emoji-box { width:36px; height:36px; font-size:20px; }
-    .info-title { font-size:13px; }
-    .info-list li { font-size:11.5px; padding:4px 7px; }
-    .info-list { max-height:26vh; }
+    .info-title { font-size:14px; }
+    .info-list li { font-size:12px; padding:3px 0 3px 15px; }
+    .info-list { max-height:var(--info-h, 28vh); }
     .action-btn { font-size:11px; padding:7px 8px; }
     .dropdown-panel { min-width:200px; }
     .dropdown-item { font-size:11.5px; padding:7px 9px; }
@@ -601,12 +675,14 @@
   }
   @media (max-width:420px) {
     .stack-btn { min-width:130px; font-size:10.5px; padding:6px 9px; }
+    .sp-toggle { font-size:10.5px; padding:6px 9px; min-width:130px; }
     .right-tools { gap:4px; left:6px; }
     .tool-icon-btn { width:30px; height:30px; font-size:13px; border-radius:8px; border-width:1.5px; }
     #panelMode { left:6px !important; }
   }
   @media (max-width:360px) {
     .stack-btn { min-width:115px; font-size:10px; padding:5px 8px; }
+    .sp-toggle { font-size:10px; padding:5px 8px; min-width:115px; }
     .right-tools { gap:3px; left:5px; }
     .tool-icon-btn { width:28px; height:28px; font-size:12px; }
     #panelMode { left:5px !important; }
@@ -616,45 +692,45 @@
     display: none !important;
   }
 
-  .scene-panel {
-    position: fixed;
-    right: 12px;
-    top: 120px;
-    width: 280px;
-    max-height: calc(100vh - 120px - 220px);
-    overflow-y: auto;
-    background: rgba(15, 20, 30, 0.88);
-    border: 1px solid rgba(246, 185, 59, 0.35);
-    border-radius: 14px;
-    padding: 10px;
-    z-index: 40;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-    font-size: 11.5px;
-    color: rgba(255, 255, 255, 0.92);
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    transition: all 0.3s ease;
-  }
-  .scene-panel.collapsed {
-    width: auto;
-    padding: 6px 10px;
-  }
-  .scene-panel.collapsed > *:not(.sp-toggle) { display: none; }
-  .scene-panel.empty { display: none; }
+  /* Eğitim Seviyesi (üstte) altında: Değişkenler + Konu Rehberi AYNI SATIRDA,
+     Değişkenler solda. Üçü de aynı ebat (stack-btn / sp-toggle). */
+  .stack-row { display: flex; gap: 8px; align-items: flex-start; }
 
-  body.dropdown-open .scene-panel {
-    transform: none;
+  /* Değişkenler içeriği: sekmenin hemen altında, TAM GENİŞLİK (telefon solu→sağı),
+     kontroller YATAY yan yana (flex-wrap). */
+  .scene-vars-body {
+    position: fixed;
+    left: 6px; right: 6px;
+    top: 92px; /* JS ile sekmenin altına hizalanır */
+    z-index: 39;
+    display: flex; flex-wrap: wrap; align-items: stretch;
+    gap: 7px;
+    background: rgba(15, 20, 30, 0.96);
+    border: 1.5px solid var(--panel-line);
+    border-radius: 12px;
+    padding: 8px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    max-height: 46vh; overflow-y: auto;
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 10px;
   }
+  .scene-vars-body.closed { display: none; }
+  .scene-vars-body .sp-section { flex-basis: 100%; margin: 2px 4px 0; }
+  .scene-vars-body .sp-slider-row { flex: 1 1 150px; min-width: 132px; max-width: 260px; }
+  .scene-vars-body .sp-display { flex: 1 1 120px; min-width: 108px; }
+  .scene-vars-body .sp-presets { flex-basis: 100%; }
+  .scene-vars-body .sp-formula { flex-basis: 100%; font-size: 11px; }
+  /* Dar yatay kartlarda yazılar sığsın */
+  .scene-vars-body .sp-slider-row .sp-slider-head { font-size: 10px; }
+  .scene-vars-body .sp-slider-row .sp-slider-head .sp-val { font-size: 10px; min-width: 40px; padding: 2px 5px; }
+  .scene-vars-body .sp-display { font-size: 9.5px; }
+  .scene-vars-body .sp-preset-btn { font-size: 10px; }
 
   @media (min-width: 768px) {
     canvas {
       transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    body.scene-panel-open canvas {
-      transform: translateX(-15vw);
     }
     body.panel-open canvas {
       transform: translateX(-22vw);
@@ -697,44 +773,51 @@
     padding: 0 4px;
     font-size: 11px;
   }
+  /* Sekme: TURUNCU; Lise/Konu Rehberi ile aynı boyut/yapı (ikon başta, ok sağda) */
   .sp-toggle {
-    background: rgba(246, 185, 59, 0.18);
-    border: 1px solid rgba(246, 185, 59, 0.5);
+    background: linear-gradient(135deg, #f59f0a, #f97316);
+    border: 2px solid rgba(255, 184, 92, 0.6);
     color: #fff;
-    font-size: 12px;
+    font-family: 'Fredoka', sans-serif;
+    font-size: 12.5px;
     font-weight: 600;
-    padding: 8px 12px;
-    border-radius: 10px;
+    padding: 8px 14px;
+    border-radius: 12px;
     cursor: pointer;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    width: 100%;
+    gap: 7px;
+    min-width: 170px; /* Konu Rehberi (stack-btn) ile aynı ebat */
+    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.35);
+    transition: all 0.15s;
   }
-  .sp-toggle:hover { background: rgba(246, 185, 59, 0.32); }
+  .sp-toggle:hover { border-color: #fff; }
+  .sp-toggle:active { transform: scale(0.97); }
+  .sp-toggle .sb-emoji { font-size: 16px; line-height: 1; flex-shrink: 0; }
+  .sp-toggle .sb-label { flex: 1; text-align: left; }
+  .sp-chev { font-size: 10px; opacity: 0.9; }
   .sp-section {
-    font-size: 10px; font-weight: 700;
+    font-size: 9px; font-weight: 700;
     color: rgba(255, 209, 90, 0.85);
     text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin: 6px 4px 2px 4px;
+    letter-spacing: 0.6px;
+    margin: 5px 4px 2px 4px;
   }
 
   .sp-slider-row {
     display: flex; flex-direction: column; gap: 4px;
-    padding: 8px 10px;
+    padding: 6px 8px;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 10px;
   }
   .sp-slider-row .sp-slider-head {
     display: flex; justify-content: space-between; align-items: center;
-    font-size: 11.5px; font-weight: 500;
+    font-size: 10.5px; font-weight: 500;
   }
   .sp-slider-row .sp-slider-head .sp-val {
     font-family: 'Consolas', monospace;
-    font-size: 12px; font-weight: 700;
+    font-size: 11px; font-weight: 700;
     color: #FFD54F;
     background: rgba(0,0,0,0.45);
     padding: 2px 8px;
@@ -777,16 +860,16 @@
 
   .sp-display {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 7px 10px;
+    padding: 6px 8px;
     background: rgba(246, 185, 59, 0.10);
     border: 1px solid rgba(246, 185, 59, 0.28);
     border-radius: 9px;
-    font-size: 11px;
+    font-size: 10px;
   }
   .sp-display .sp-label { color: rgba(255,255,255,0.85); }
   .sp-display .sp-val {
     font-family: 'Consolas', monospace;
-    font-size: 12px; font-weight: 700; color: #FFE082;
+    font-size: 11px; font-weight: 700; color: #FFE082;
     background: rgba(0,0,0,0.35); padding: 2px 8px; border-radius: 6px;
   }
   .sp-display.highlight {
@@ -827,18 +910,23 @@
   }
 
   @media (max-width: 768px) {
-    .scene-panel {
-      right: 8px;
-      top: 110px;
-      width: 200px;
-      font-size: 10.5px;
-      padding: 8px;
-    }
-    .sp-slider-row { padding: 6px 8px; }
+    .sp-slider-row { padding: 5px 7px; }
     .sp-slider-row input[type=range] { height: 5px; }
   }
 
-  body.panel-open .scene-panel { }
+  /* Değişkenler paneli TAM ŞEFFAF — açıkken 3D model arkada görünmeye devam eder */
+  .scene-vars-body {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.85);
+  }
+  .scene-vars-body .sp-slider-row,
+  .scene-vars-body .sp-display,
+  .scene-vars-body .sp-formula,
+  .scene-vars-body .sp-preset-btn { background: rgba(0, 0, 0, 0.30); }
 </style>
 </head>
 
@@ -880,7 +968,7 @@
 </div>
 
 <div id="regionList" class="region-list"></div>
-<div id="scenePanel" class="scene-panel"></div>
+<div id="sceneVarsBody" class="scene-vars-body closed"></div>
 
 <div id="gestureToast" style="
   position:fixed; top:90px; left:50%; transform:translateX(-50%) translateY(-20px);
@@ -900,14 +988,17 @@
     <span class="sb-label" id="levelLabel">Lise</span>
     <span class="sb-arrow">▼</span>
   </button>
-  <button class="stack-btn topic" id="btnTopic">
-    <span class="sb-emoji">📚</span>
-    <span class="sb-label">Konu Rehberi</span>
-    <span class="sb-arrow">▼</span>
-  </button>
+  <div class="stack-row" id="stackRow">
+    <!-- Değişkenler sekmesi (sp-toggle) JS ile buraya, Konu Rehberi'nin SOLUNA eklenir -->
+    <button class="stack-btn topic" id="btnTopic">
+      <span class="sb-emoji">📚</span>
+      <span class="sb-label">Konu Rehberi</span>
+      <span class="sb-arrow">▼</span>
+    </button>
+  </div>
 </div>
 
-<div class="dropdown-panel" id="panelLevel" style="top:60px; right:14px;">
+<div class="dropdown-panel" id="panelLevel" style="top:48px; right:14px; max-height:70vh; overflow-y:auto;">
   <div class="dropdown-title">🎓 Eğitim Seviyesi</div>
   <button class="dropdown-item" data-level="ilkokul"><span class="di-emoji">🧒</span>İlkokul</button>
   <button class="dropdown-item" data-level="ortaokul"><span class="di-emoji">🎒</span>Ortaokul</button>
@@ -915,7 +1006,7 @@
   <button class="dropdown-item" data-level="tyt_ayt"><span class="di-emoji">🎯</span>TYT-AYT</button>
 </div>
 
-<div class="dropdown-panel" id="panelTopic" style="top:106px; right:14px;">
+<div class="dropdown-panel" id="panelTopic" style="top:92px; right:14px;">
   <div class="dropdown-title">📚 Konu Rehberi</div>
   <div id="topicList"></div>
 </div>
@@ -927,15 +1018,17 @@
   <button class="tool-icon-btn theme" id="btnTheme" title="Tema değiştir">🌙</button>
   <button class="tool-icon-btn send" id="btnSend" title="Gönder/Paylaş">📤</button>
   <button class="tool-icon-btn fs" id="btnFs" title="Tam ekran">⛶</button>
+  <button class="tool-icon-btn help" id="btnHelp" title="Bu sayfa nasıl çalışır?">❓</button>
 </div>
 
-<div class="dropdown-panel" id="panelMode" style="top:60px; left:14px;">
+<div class="dropdown-panel" id="panelMode" style="top:48px; left:8px;">
   <div class="dropdown-title">📚 Görünüm Modu</div>
   <button class="dropdown-item" data-mode="detayli"><span class="di-emoji">📚</span><span><b>Detaylı</b><br><small style="opacity:0.7;font-size:10.5px;">Daha çok bilgi</small></span></button>
   <button class="dropdown-item active" data-mode="sade"><span class="di-emoji">📄</span><span><b>Sade</b><br><small style="opacity:0.7;font-size:10.5px;">Sadece temel bilgiler</small></span></button>
 </div>
 
 <div class="bottom-panel" id="bottomPanel">
+  <div class="info-resize-handle" id="infoResizeHandle" title="Yukarı/aşağı sürükleyerek büyüt/küçült"><span class="rz-up">▲</span><span class="rz-down">▼</span></div>
   <button class="info-close-btn" id="infoCloseBtn" title="Bilgi panelini kapat">✕</button>
   <div class="info-area">
     <div class="info-emoji-box" id="infoEmoji" style="display:none;">🔍</div>
@@ -1039,6 +1132,39 @@
   </div>
 </div>
 
+<div class="share-overlay" id="helpOverlay">
+  <div class="share-card help-card">
+    <div class="share-head">
+      <div class="share-head-text">❓ Bu Sayfa Nasıl Çalışır?</div>
+      <button class="share-close-btn" id="helpClose">✕</button>
+    </div>
+    <div class="help-intro">3 boyutlu modeli parmaklarınla incele; üstteki menülerden seviye ve konu seç; alttaki panelden bilgileri oku.</div>
+
+    <div class="help-sec-title">🖐️ Dokunma Hareketleri</div>
+    <div class="help-row"><span class="he">👆</span><span><b>Döndür:</b> tek parmakla sürükle</span></div>
+    <div class="help-row"><span class="he">✌️</span><span><b>Yakınlaştır:</b> iki parmağı aç/kapa — istediğin yere odaklanır</span></div>
+    <div class="help-row"><span class="he">🤏</span><span><b>Taşı:</b> iki parmağı birlikte kaydır</span></div>
+    <div class="help-row"><span class="he">👆👆</span><span><b>Çift dokun:</b> dokunduğun noktaya yakınlaş</span></div>
+    <div class="help-row"><span class="he">🖐️</span><span><b>Sıfırla:</b> üç parmakla dokun</span></div>
+
+    <div class="help-sec-title">🧭 Üst Menüler</div>
+    <div class="help-row"><span class="he">🎓</span><span><b>Eğitim Seviyesi</b> (sağ üst): İlkokul / Ortaokul / Lise / Sınav</span></div>
+    <div class="help-row"><span class="he">📚</span><span><b>Konu Rehberi</b> (sağ üst): konular arasında geç</span></div>
+    <div class="help-row"><span class="he">📄</span><span><b>Görünüm Modu</b> (sol üst): Sade / Detaylı bilgi</span></div>
+    <div class="help-row"><span class="he">🎛️</span><span><b>Değişkenler</b> (Konu Rehberi'nin altında): sahnedeki kaydırıcı ve seçenekler — konu değişince kısa görünür, dokununca açılır</span></div>
+
+    <div class="help-sec-title">🛠️ Araçlar (sol üst)</div>
+    <div class="help-row"><span class="he">⚖️</span><span><b>Karşılaştırma</b> &nbsp;·&nbsp; <span class="he" style="display:inline">📋</span> <b>Bilgi Tablosu</b></span></div>
+    <div class="help-row"><span class="he">🌙</span><span><b>Tema</b> &nbsp;·&nbsp; 📤 <b>Paylaş</b> &nbsp;·&nbsp; ⛶ <b>Tam ekran</b></span></div>
+
+    <div class="help-sec-title">📖 Alt Bilgi Paneli</div>
+    <div class="help-row"><span class="he">⇕</span><span><b>Tutamacı sürükle:</b> paneli büyüt / küçült</span></div>
+    <div class="help-row"><span class="he">📜</span><span><b>Kaydır:</b> yazılar sığmazsa panel içinde yukarı/aşağı kaydır</span></div>
+    <div class="help-row"><span class="he">◀▶</span><span><b>Önceki / Sonraki</b> konuya geç</span></div>
+    <div class="help-row"><span class="he">🔄</span><span><b>Döndür</b> · 🏷️ <b>Etiketler</b> · ▶️ <b>Çalıştır</b> (animasyon)</span></div>
+  </div>
+</div>
+
 <div id="canvasContainer">
   <svg id="leaderLines" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:9;"></svg>
 </div>
@@ -1083,6 +1209,118 @@ setTimeout(function() {
 </script>
 
 <script src="./three.global.js"></script>
+
+<!-- ===== GEÇİŞ MOTORU: Ayarlar'a (Geçiş Stüdyosu) göre sahne geçiş animasyonu + ses + geri bildirim ===== -->
+<script>
+(function(){
+  const DEF={ level:'karisik', enterMode:'rastgele', exitMode:'rastgele', speed:1.0, overlap:true, sound:true, stereo:true, emoji:false, title:false, confetti:false, calm:false };
+  function readS(){ let S=Object.assign({},DEF); try{ const v=localStorage.getItem('gecisAyar3'); if(v) S=Object.assign({},DEF,JSON.parse(v)); }catch(e){} return S; }
+
+  // CSS (emoji/uçan başlık/konfeti) bir kez enjekte
+  if(!document.getElementById('gecisFxCss')){ const st=document.createElement('style'); st.id='gecisFxCss'; st.textContent=
+    ".gx-emoji{position:fixed;z-index:120;pointer-events:none;font-size:clamp(40px,9vw,64px);filter:drop-shadow(0 6px 12px rgba(0,0,0,.45));}"+
+    ".gx-emoji.happy{animation:gxHappy 1.5s cubic-bezier(.2,.9,.3,1.1) forwards;}"+
+    "@keyframes gxHappy{0%{opacity:0;transform:translate(-50%,-20%) scale(.2) rotate(-12deg);}22%{opacity:1;transform:translate(-50%,-78%) scale(1.25) rotate(8deg);}45%{transform:translate(-50%,-70%) scale(1);}100%{opacity:0;transform:translate(-50%,-108%) scale(.85);}}"+
+    ".gx-title{position:fixed;top:26%;left:50%;z-index:118;pointer-events:none;font-weight:800;font-size:clamp(20px,4.6vw,36px);color:#fff;text-shadow:0 3px 18px rgba(90,209,255,.55),0 1px 3px rgba(0,0,0,.6);font-family:'Baloo 2',sans-serif;animation:gxTitle 2s ease forwards;}"+
+    "@keyframes gxTitle{0%{opacity:0;transform:translate(-30%,0) scale(.9);}18%{opacity:1;transform:translate(-50%,0) scale(1);}80%{opacity:1;transform:translate(-50%,0) scale(1);}100%{opacity:0;transform:translate(-62%,0) scale(.96);}}"+
+    ".gx-conf{position:fixed;top:30%;z-index:119;pointer-events:none;width:9px;height:14px;border-radius:2px;}"+
+    "@keyframes gxConf{0%{opacity:1;transform:translateY(0) rotate(0);}100%{opacity:0;transform:translateY(300px) rotate(560deg);}}";
+    (document.head||document.documentElement).appendChild(st); }
+
+  // ---- SES (WebAudio) ----
+  let actx=null, pan=0;
+  const TH={ ilkokul:{p:1.18,g:1.12}, ortaokul:{p:1.0,g:1.0}, lise:{p:0.84,g:0.82}, karisik:{p:1.0,g:1.0} };
+  function th(S){ return TH[S.level]||TH.karisik; }
+  function ensure(){ try{ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==='suspended') actx.resume(); }catch(e){} return actx; }
+  function pn(a,S){ try{ const p=a.createStereoPanner(); p.pan.value=S.stereo?pan:0; return p; }catch(e){ return a.createGain(); } }
+  function blip(S,freq,t0,dur,type,g,slide){ const a=ensure(); if(!a)return; const t=th(S); freq*=t.p; if(slide)slide*=t.p; g=(g||0.16)*t.g; const o=a.createOscillator(),gn=a.createGain(),p=pn(a,S); o.type=type||'sine'; const T=a.currentTime+t0; o.frequency.setValueAtTime(freq,T); if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(1,slide),T+dur); gn.gain.setValueAtTime(0.0001,T); gn.gain.exponentialRampToValueAtTime(g,T+0.012); gn.gain.exponentialRampToValueAtTime(0.0001,T+dur); o.connect(gn).connect(p).connect(a.destination); o.start(T); o.stop(T+dur+0.03); }
+  function noise(S,t0,dur,g,filt,type,sweep){ const a=ensure(); if(!a)return; const T=a.currentTime+t0; const n=a.createBufferSource(),buf=a.createBuffer(1,Math.max(1,a.sampleRate*dur),a.sampleRate),d=buf.getChannelData(0); for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1; n.buffer=buf; const f=a.createBiquadFilter(); f.type=type||'lowpass'; f.frequency.setValueAtTime(filt||1200,T); if(sweep)f.frequency.exponentialRampToValueAtTime(Math.max(20,sweep),T+dur); const gn=a.createGain(),p=pn(a,S); gn.gain.setValueAtTime((g||0.12)*th(S).g,T); gn.gain.exponentialRampToValueAtTime(0.0001,T+dur); n.connect(f).connect(gn).connect(p).connect(a.destination); n.start(T); n.stop(T+dur+0.03); }
+  const ESND={ don(S){ blip(S,200,0,0.55,'sawtooth',0.10,820); }, balon(S){ blip(S,380,0,0.14,'sine',0.2,920); blip(S,920,0.12,0.07,'sine',0.1); }, zipla(S){ blip(S,160,0,0.22,'triangle',0.22,520); blip(S,520,0.18,0.12,'sine',0.12,260); }, uzaydan(S){ noise(S,0,0.4,0.12,3000,'highpass',300); blip(S,900,0.34,0.18,'sine',0.14); }, sagdan(S){ noise(S,0,0.5,0.10,400,'lowpass',2200); blip(S,300,0.1,0.4,'sine',0.12,760); }, yerden(S){ blip(S,70,0,0.6,'sine',0.2,320); noise(S,0,0.55,0.07,400,'lowpass',1600); }, buyu(S){ [392,523,659,880].forEach((f,i)=>blip(S,f,i*0.08,0.14,'triangle',0.12)); } };
+  function vedaSound(S){ pan=-0.5; [523,440,392,294].forEach((f,i)=>blip(S,f,i*0.10,0.16,'triangle',0.10)); pan=0; }
+
+  // ---- Geri bildirim ----
+  const EMO={ ilkokul:['😄','🤩','🥳','🎉','😍','🙌'], ortaokul:['😄','😎','🤩','✨','👍','🔥'], lise:['🙂','😌','👍','✨','🎯','🆕'], karisik:['😄','🤩','🥳','😍','🎉','✨'] };
+  function emoji(S){ if(!S.emoji)return; const pool=EMO[S.level]||EMO.karisik; const el=document.createElement('div'); el.className='gx-emoji happy'; el.style.left='62%'; el.style.top='40%'; el.textContent=pool[Math.floor(Math.random()*pool.length)]; document.body.appendChild(el); setTimeout(()=>el.remove(),1550); }
+  function flyTitle(S,t){ if(!S.title||!t)return; const el=document.createElement('div'); el.className='gx-title'; el.textContent=t; document.body.appendChild(el); setTimeout(()=>el.remove(),2050); }
+  function confetti(){ const cols=['#ff5b6b','#ffcf5a','#5ad1ff','#66bb6a','#ab47bc','#ff8ab0']; for(let i=0;i<22;i++){ const d=document.createElement('div'); d.className='gx-conf'; d.style.left=(36+Math.random()*28)+'%'; d.style.background=cols[i%cols.length]; const du=1.1+Math.random()*0.7; d.style.animation='gxConf '+du+'s ease-in '+(Math.random()*0.2)+'s forwards'; document.body.appendChild(d); setTimeout(()=>d.remove(),(du+0.4)*1000); } try{ navigator.vibrate&&navigator.vibrate(30); }catch(e){} }
+
+  // ====== ENTER EFEKTLERİ (model parçaları + sahne FX üzerinde; window.THREE/scene) ======
+  const ez=t=>t*t*(3-2*t);
+  const clamp=(v,a,b)=>{a=(a===undefined?0:a);b=(b===undefined?1:b);return v<a?a:v>b?b:v;};
+  function eBack(x){ const c1=1.70158,c3=c1+1; return 1+c3*Math.pow(x-1,3)+c1*Math.pow(x-1,2); }
+  function eBounce(x){ const n1=7.5625,d1=2.75; if(x<1/d1)return n1*x*x; if(x<2/d1){x-=1.5/d1;return n1*x*x+0.75;} if(x<2.5/d1){x-=2.25/d1;return n1*x*x+0.9375;} x-=2.625/d1; return n1*x*x+0.984375; }
+  const T=()=>window.THREE, SC=()=>window.scene;
+  function gh(o){ return {px:o.position.x,py:o.position.y,pz:o.position.z,sx:o.scale.x,sy:o.scale.y,sz:o.scale.z,rx:o.rotation.x,ry:o.rotation.y,rz:o.rotation.z}; }
+  function setT(o,h){ o.position.set(h.px,h.py,h.pz); o.scale.set(h.sx,h.sy,h.sz); o.rotation.set(h.rx,h.ry,h.rz); }
+  function pOpacity(piece,a){ piece.traverse(o=>{ if(o.isMesh&&o.material){ o.material.transparent=a<1; o.material.opacity=a; } }); piece.visible=a>0.005; }
+  function setOpacityMs(ms,a){ ms.forEach(m=>{ if(m.material){ m.material.transparent=a<1; m.material.opacity=a; } }); }
+  // root'tan model alt-gruplarını ayıkla (ışık/grid mesh değil → otomatik hariç;
+  // ETİKET grubu da hariç → etiketler geçişten etkilenmez, hep görünür kalır)
+  function capture(group){ const mk=group.children.filter(ch=>{ if(ch.userData._gxFx||ch.userData.isLabelGroup)return false; let h=false; ch.traverse(o=>{ if(o.isMesh)h=true; }); return h; });
+    let pc=[]; mk.forEach(g=>g.children.forEach(c=>pc.push(c))); if(pc.length<2) pc=mk.slice();
+    const ms=[]; mk.forEach(g=>g.traverse(o=>{ if(o.isMesh)ms.push(o); }));
+    mk.forEach(o=>o.userData._gh=gh(o)); pc.forEach(o=>{ o.userData._gh=gh(o); });
+    ms.forEach(m=>{ if(m.material){ m.userData._go={op:(m.material.opacity!==undefined?m.material.opacity:1),tr:!!m.material.transparent,he:!!m.material.emissive,em:m.material.emissive?m.material.emissive.getHex():0,ei:m.material.emissiveIntensity||0}; m.material.transparent=true; } });
+    return {mk,pc,ms,sceneFx:[],tmp:{}}; }
+  function bounds(fx){ const TT=T(); const b=new TT.Box3(); fx.mk.forEach(g=>{ try{ b.expandByObject(g); }catch(e){} }); if(b.isEmpty()) b.set(new TT.Vector3(-1,-1,-1),new TT.Vector3(1,1,1)); return b; }
+  function addFx(fx,m){ m.userData._gxFx=true; m.userData.dynamic=true; const sc=SC(); if(sc)sc.add(m); fx.sceneFx.push(m); return m; }
+  function clearFx(fx){ const sc=SC(); (fx.sceneFx||[]).forEach(o=>{ if(sc)sc.remove(o); if(o.geometry)o.geometry.dispose(); if(o.material&&o.material.dispose)o.material.dispose(); }); fx.sceneFx=[]; }
+  function restoreAll(fx){ fx.mk.forEach(o=>{ if(o.userData._gh)setT(o,o.userData._gh); }); fx.pc.forEach(o=>{ if(o.userData._gh){ setT(o,o.userData._gh); o.visible=true; } }); fx.ms.forEach(m=>{ const g=m.userData._go; if(g&&m.material){ m.material.opacity=g.op; m.material.transparent=g.tr; if(g.he&&m.material.emissive){ m.material.emissive.setHex(g.em); m.material.emissiveIntensity=g.ei; } } }); clearFx(fx); }
+  const _v=()=>new (T().Vector3)();
+  function rdir(){ const TT=T(); return new TT.Vector3(Math.random()-0.5,Math.random()-0.5,Math.random()-0.5).normalize(); }
+  function streaks(fx,color,b){ if(readS().calm)return; const TT=T(); const cy=(b.min.y+b.max.y)/2; const arr=[]; for(let i=0;i<4;i++){ const m=new TT.Mesh(new TT.PlaneGeometry(3.2,0.06),new TT.MeshBasicMaterial({color,transparent:true,opacity:0,blending:TT.AdditiveBlending,depthWrite:false,side:TT.DoubleSide})); m.position.set(0,cy-1.6+i*1.0,0); addFx(fx,m); arr.push(m); } fx.tmp.streaks=arr; }
+  function updStreaks(fx,p,dirX,mx){ const a=Math.sin(clamp(p)*Math.PI); (fx.tmp.streaks||[]).forEach((m,i)=>{ m.position.x=(mx||0)+dirX*(1.4+i*0.15); m.material.opacity=a*0.5; m.scale.x=0.7+a*1.0; }); }
+
+  // Tüm efektler — her biri fx (mk/pc/ms) + bounds üzerinde çalışır
+  const EFFECTS={
+    buyu:{ dur:1100, update(fx,p){ const e=Math.max(0.001,eBack(p)); fx.mk.forEach(g=>{const h=g.userData._gh; g.scale.set(h.sx*e,h.sy*e,h.sz*e);}); setOpacityMs(fx.ms,ez(p)); } },
+    don:{ dur:1200, update(fx,p){ const e=Math.max(0.001,eBack(p)); fx.mk.forEach(g=>{const h=g.userData._gh; g.scale.set(h.sx*e,h.sy*e,h.sz*e); g.rotation.y=h.ry-Math.PI*4*(1-ez(p));}); setOpacityMs(fx.ms,ez(p)); } },
+    balon:{ dur:1250, update(fx,p){ const e=Math.max(0.001,eBack(p)),w=1+0.12*Math.sin(p*Math.PI*6); fx.mk.forEach(g=>{const h=g.userData._gh; g.scale.set(h.sx*e*w,h.sy*e*w,h.sz*e*w);}); setOpacityMs(fx.ms,ez(clamp(p*1.5))); } },
+    zipla:{ dur:1300, update(fx,p){ const e=eBounce(p); fx.mk.forEach(g=>{const h=g.userData._gh; g.position.y=h.py+(1-e)*6; const sq=Math.max(0,Math.sin(p*Math.PI*3))*(p>0.25?1:0)*0.12; g.scale.set(h.sx*(1+sq*0.6),h.sy*(1-sq),h.sz*(1+sq*0.6));}); } },
+    uzaydan:{ dur:1300, init(fx){ fx.mk.forEach(g=>{const h=g.userData._gh; g.rotation.y=h.ry-1.2;}); }, update(fx,p){ const e=eBack(clamp(p)); fx.mk.forEach(g=>{const h=g.userData._gh; g.position.z=h.pz-22*(1-e); g.rotation.y=h.ry-1.2*(1-ez(p));}); setOpacityMs(fx.ms,clamp(p*2)); } },
+    sagdan:{ dur:1500, init(fx){ streaks(fx,0x9be7ff,bounds(fx)); }, update(fx,p){ const e=ez(p); fx.mk.forEach(g=>{const h=g.userData._gh; g.position.x=h.px+12*(1-e); g.position.z=h.pz-9*(1-e); const s=0.6+0.4*e; g.scale.set(h.sx*s,h.sy*s,h.sz*s); g.rotation.y=h.ry+0.9*(1-e);}); setOpacityMs(fx.ms,clamp(p*1.5)); updStreaks(fx,p,1, fx.mk[0]?fx.mk[0].position.x:0); } },
+    yerden:{ dur:1400, init(fx){ const TT=T(),b=bounds(fx); const ring=new TT.Mesh(new TT.TorusGeometry(1.2,0.12,12,40),new TT.MeshBasicMaterial({color:0x7be0ff,transparent:true,opacity:0.9})); ring.rotation.x=-Math.PI/2; ring.position.y=b.min.y+0.05; ring.scale.set(0.1,0.1,0.1); addFx(fx,ring); fx.tmp.ring=ring; }, update(fx,p){ const e=ez(p); fx.mk.forEach(g=>{const h=g.userData._gh; g.position.y=h.py-5*(1-e);}); setOpacityMs(fx.ms,clamp(e*1.5)); const rs=0.3+ez(clamp(p*1.3))*2.6; if(fx.tmp.ring){ fx.tmp.ring.scale.set(rs,rs,rs); fx.tmp.ring.material.opacity=Math.sin(clamp(p)*Math.PI)*0.9; } } },
+    insa:{ dur:1500, init(fx){ const arr=fx.pc.slice().sort((a,b)=>a.userData._gh.py-b.userData._gh.py); arr.forEach((c,i)=>{ c.userData._o=i/Math.max(1,arr.length-1); pOpacity(c,0); }); }, update(fx,p){ fx.pc.forEach(c=>{ const h=c.userData._gh; const a=ez(clamp((p-c.userData._o*0.55)/0.45)); c.position.set(h.px,h.py-3.5*(1-a),h.pz); pOpacity(c,a); }); } },
+    dalga:{ dur:1400, init(fx){ const arr=fx.pc.slice().sort((a,b)=>a.userData._gh.px-b.userData._gh.px); arr.forEach((c,i)=>{ c.userData._o=i/Math.max(1,arr.length-1); c.scale.set(0.001,0.001,0.001); pOpacity(c,0); }); }, update(fx,p){ fx.pc.forEach(c=>{ const h=c.userData._gh; const a=clamp((p-c.userData._o*0.6)/0.4); const e=Math.max(0.001,eBack(clamp(a))); c.scale.set(h.sx*e,h.sy*e,h.sz*e); c.position.set(h.px,h.py+(1-clamp(a))*-0.5,h.pz); pOpacity(c,clamp(a*1.3)); }); } },
+    patla:{ dur:1400, init(fx){ fx.pc.forEach(c=>{ const h=c.userData._gh; const d=rdir().multiplyScalar(6+Math.random()*2); c.userData._ps={px:h.px+d.x,py:h.py+d.y,pz:h.pz+d.z}; c.userData._spin=(Math.random()-0.5)*10; c.position.set(c.userData._ps.px,c.userData._ps.py,c.userData._ps.pz); c.scale.set(0.001,0.001,0.001); pOpacity(c,0); }); }, update(fx,p){ const e=ez(p); fx.pc.forEach(c=>{ const h=c.userData._gh,s=c.userData._ps; c.position.set(s.px+(h.px-s.px)*e,s.py+(h.py-s.py)*e,s.pz+(h.pz-s.pz)*e); c.scale.set(h.sx*e,h.sy*e,h.sz*e); c.rotation.set(c.userData._spin*(1-e),c.userData._spin*(1-e),0); pOpacity(c,clamp(e*1.4)); }); } },
+    toz:{ dur:1500, init(fx){ const TT=T(),b=bounds(fx),c=b.getCenter(new TT.Vector3()); fx.tmp.center=c; fx.tmp.dust=[]; fx.mk.forEach(g=>g.scale.set(0.001,0.001,0.001)); setOpacityMs(fx.ms,0); for(let i=0;i<40;i++){ const s=new TT.Mesh(new TT.SphereGeometry(0.07+Math.random()*0.06,8,8),new TT.MeshBasicMaterial({color:[0xfff1a8,0x9be7ff,0xffd56b,0xb59bff][i%4],transparent:true,opacity:1,blending:TT.AdditiveBlending,depthWrite:false})); s.position.copy(c); s.userData.v=rdir().multiplyScalar(3.5+Math.random()*2.5); addFx(fx,s); fx.tmp.dust.push(s); } }, update(fx,p){ const c=fx.tmp.center; (fx.tmp.dust||[]).forEach(s=>{ s.position.copy(c).addScaledVector(s.userData.v,ez(p)); s.material.opacity=clamp(1-p*1.1); const sc=clamp(1-p); s.scale.set(sc,sc,sc); }); const a=ez(clamp((p-0.18)/0.7)); fx.mk.forEach(g=>{const h=g.userData._gh,e=Math.max(0.001,a); g.scale.set(h.sx*e,h.sy*e,h.sz*e);}); setOpacityMs(fx.ms,a); } },
+    hologram:{ dur:1500, init(fx){ const TT=T(),b=bounds(fx); setOpacityMs(fx.ms,0); const disk=new TT.Mesh(new TT.CircleGeometry(3.2,40),new TT.MeshBasicMaterial({color:0x6fe9ff,transparent:true,opacity:0.5,side:TT.DoubleSide,depthWrite:false})); disk.rotation.x=-Math.PI/2; disk.position.y=b.min.y; addFx(fx,disk); fx.tmp.disk=disk; fx.tmp.minY=b.min.y-0.6; fx.tmp.maxY=b.max.y+0.6; fx.tmp.tv=_v(); }, update(fx,p){ const t=fx.tmp; const scan=t.minY+(t.maxY-t.minY)*ez(p); t.disk.position.y=scan; t.disk.material.opacity=0.5*(1-p); fx.ms.forEach(m=>{ const wy=m.getWorldPosition(t.tv).y; const a=ez(clamp((scan-wy)/0.9+0.1)); m.material.opacity=a; m.visible=a>0.01; if(m.material.emissive){ m.material.emissive.setHex(0x36c6ff); m.material.emissiveIntensity=(1-a)*0.9; } }); } }
+  };
+  // efektlere özel sesler (studio'dan)
+  Object.assign(ESND,{ insa(S){ for(let i=0;i<5;i++) blip(S,200+i*30,i*0.10,0.07,'square',0.10); blip(S,880,0.55,0.18,'sine',0.12); }, hologram(S){ blip(S,300,0,0.5,'sine',0.16,1300); noise(S,0,0.5,0.05,1800,'highpass'); }, patla(S){ noise(S,0,0.32,0.24,260,'lowpass'); blip(S,80,0,0.3,'sine',0.18,40); blip(S,700,0.26,0.2,'sine',0.12,1100); }, toz(S){ for(let i=0;i<7;i++) blip(S,1200+Math.random()*1400,Math.random()*0.6,0.10,'sine',0.07); }, dalga(S){ [523,659,784,1047].forEach((f,i)=>blip(S,f,i*0.09,0.14,'sine',0.13)); } });
+
+  const ALLE=['insa','hologram','zipla','patla','don','toz','dalga','yerden','uzaydan','balon','buyu','sagdan'];
+  const POOL={ ilkokul:['zipla','toz','balon','dalga','don','yerden'], ortaokul:['insa','dalga','patla','uzaydan','don','yerden','balon'], lise:['insa','hologram','uzaydan','patla','dalga','don'], karisik:ALLE.slice() };
+  let last='';
+  function pickEnter(S){ if(S.enterMode && S.enterMode!=='rastgele' && EFFECTS[S.enterMode]) return S.enterMode; const p=POOL[S.level]||POOL.karisik; let n; do{ n=p[Math.floor(Math.random()*p.length)]; }while(n===last&&p.length>1); last=n; return n; }
+
+  let tween=null;
+  function tick(){ requestAnimationFrame(tick); if(!tween)return; const p=Math.min(1,(performance.now()-tween.t0)/tween.dur); try{ tween.eff.update(tween.fx,p); }catch(e){ try{ restoreAll(tween.fx); }catch(_){} tween=null; return; } if(p>=1){ restoreAll(tween.fx); tween=null; } }
+  requestAnimationFrame(tick);
+
+  function startEnter(group,S){ if(!window.THREE||!window.scene)return;
+    if(tween){ clearFx(tween.fx); tween=null; }
+    try{ group.updateMatrixWorld(true); }catch(e){} // bbox/dünya konumu doğru olsun
+    const fx=capture(group); if(fx.mk.length===0) return;
+    const name=pickEnter(S); const eff=EFFECTS[name]||EFFECTS.buyu;
+    try{ eff.init&&eff.init(fx); eff.update(fx,0); }catch(e){ return; }
+    tween={ eff, fx, t0:performance.now(), dur:eff.dur*(S.calm?1.4:S.speed) };
+    if(S.sound && ESND[name]) try{ ESND[name](S); }catch(e){}
+  }
+
+  window.GECIS={
+    settings: readS,
+    // sahne değişiminde çağrılır: group = yeni model grubu (THREE.Group), label = konu adı
+    onScene(group, label){ const S=readS();
+      if(S.sound) vedaSound(S); // eski sahne için kısa veda tonu
+      emoji(S); flyTitle(S, label);
+      if(S.confetti && !S.calm && S.level==='ilkokul') confetti();
+      if(group) startEnter(group,S);
+    }
+  };
+})();
+</script>
+
 <script type="module">
 const THREE = window.THREE;
 
@@ -1221,24 +1459,38 @@ class OrbitControls extends THREE.EventDispatcher {
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
 
-    this._zoomToScreenPoint = (screenX, screenY, factor) => {
+    // Ekran noktasının altındaki 3B noktayı bul: KAMERA BAKIŞINA DİK, target'tan
+    // geçen düzlemle kesiştir. (Eski sürüm y=target.y düzlemi kullanıyordu; kamera
+    // yataya yakınken ışın düzleme paralel olup kesişim çok uzakta çıkıyor ve model
+    // ekran dışına uçuyordu. Bu yöntemde kesişim her açıda ~radius mesafede kalır.)
+    this._hitOnFocusPlane = (screenX, screenY) => {
       const rect = dom.getBoundingClientRect();
       const ndcX = ((screenX - rect.left) / rect.width) * 2 - 1;
       const ndcY = -((screenY - rect.top) / rect.height) * 2 + 1;
       const ndc = new THREE.Vector3(ndcX, ndcY, 0.5);
       ndc.unproject(this.object);
       const dir = ndc.sub(this.object.position).normalize();
-      const t = (this.target.y - this.object.position.y) / dir.y;
-      if (t > 0 && isFinite(t)) {
-        const hit = new THREE.Vector3(
-          this.object.position.x + dir.x * t,
-          this.target.y,
-          this.object.position.z + dir.z * t
-        );
-        this.target.lerp(hit, 0.65);
-      }
+      const camDir = new THREE.Vector3();
+      this.object.getWorldDirection(camDir);
+      const denom = dir.dot(camDir);
+      if (Math.abs(denom) < 1e-5) return null;
+      const t = this.target.clone().sub(this.object.position).dot(camDir) / denom;
+      if (!(t > 0) || !isFinite(t)) return null;
+      return this.object.position.clone().addScaledVector(dir, t);
+    };
+
+    this._zoomToScreenPoint = (screenX, screenY, factor) => {
+      const hit = this._hitOnFocusPlane(screenX, screenY);
+      if (hit) this.target.lerp(hit, 0.65);
       this._sphericalTarget.radius = Math.max(this.minDistance,
         Math.min(this.maxDistance, this._sphericalTarget.radius * factor));
+    };
+
+    // Hedefi (ekran merkezini), işaret edilen noktaya doğru `k` oranında kaydırır →
+    // pinch/tekerlekte "nereyi yakınlaştırırsam orası ortaya gelsin" davranışı.
+    this._panToScreenPoint = (screenX, screenY, k) => {
+      const hit = this._hitOnFocusPlane(screenX, screenY);
+      if (hit) this.target.lerp(hit, k);
     };
 
     let touchStart = null;
@@ -1257,6 +1509,9 @@ class OrbitControls extends THREE.EventDispatcher {
       radius: this._sphericalTarget.radius
     };
     this.captureInitialState = () => {
+      // selectSub kamera/target'ı yeni set ettiyse, spherical'i ona göre türet ki
+      // hem ilk görünüm doğru olsun hem de resetView doğru açı/yarıçapa dönsün.
+      this._syncFromCamera();
       this._initialCameraState = {
         position: this.object.position.clone(),
         target: this.target.clone(),
@@ -1355,7 +1610,7 @@ class OrbitControls extends THREE.EventDispatcher {
         const dist = Math.hypot(dx, dy);
         const newCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
         const newCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        this._sphericalTarget.radius = Math.max(this.minDistance, Math.min(this.maxDistance, pinchStartRadius * (pinchStartDist / dist)));
+        // 1) İki parmağın ortak kayması → pan (modeli serbestçe taşı)
         const panDx = newCenterX - pinchCenter.x;
         const panDy = newCenterY - pinchCenter.y;
         pinchCenter.x = newCenterX;
@@ -1366,6 +1621,17 @@ class OrbitControls extends THREE.EventDispatcher {
         const panFactor = this._sphericalTarget.radius * 0.0045;
         this.target.addScaledVector(right, -panDx * panFactor);
         this.target.addScaledVector(up, panDy * panFactor);
+        // 2) Parmak arası açılma/kapanma → zoom. Parmakların ortasındaki nokta
+        //    ekranda SABİT kalacak şekilde hedefi yarıçap oranıyla ORANTILI kaydır
+        //    (sabit lerp drift'i kaldırıldı → ne kaçıyor ne de sıçrıyor).
+        const oldR = this._sphericalTarget.radius;
+        const newR = Math.max(this.minDistance, Math.min(this.maxDistance, pinchStartRadius * (pinchStartDist / dist)));
+        const hit = this._hitOnFocusPlane(newCenterX, newCenterY);
+        if (hit && oldR > 0.0001) {
+          const f = Math.max(-0.4, Math.min(0.4, 1 - newR / oldR)); // yakınlaş: hedef noktaya doğru; uzaklaş: tersine
+          this.target.lerp(hit, f);
+        }
+        this._sphericalTarget.radius = newR;
       }
     }, { passive: false });
 
@@ -1387,7 +1653,9 @@ class OrbitControls extends THREE.EventDispatcher {
     dom.addEventListener('wheel', (e) => {
       if (!this.enabled) return;
       e.preventDefault();
+      // Tekerlekle yakınlaşma imlecin olduğu noktaya odaklansın
       const factor = e.deltaY > 0 ? 1.1 : 0.9;
+      this._panToScreenPoint(e.clientX, e.clientY, factor < 1 ? 0.22 : 0.12);
       this._sphericalTarget.radius = Math.max(this.minDistance,
         Math.min(this.maxDistance, this._sphericalTarget.radius * factor));
     }, { passive: false });
@@ -1415,7 +1683,11 @@ class OrbitControls extends THREE.EventDispatcher {
   }
 
   update() {
-    if (!this._lastCamPos.equals(this.object.position) || !this._lastTarget.equals(this.target)) {
+    // YALNIZCA kamera DIŞARIDAN taşındıysa (ör. selectSub camera.position.set) yeniden
+    // türet. target'ı kontrol'ün kendisi (pan/zoom-odak/reset) değiştirdiğinde sync
+    // ÇALIŞMAMALI; yoksa ayarlanan zoom yarıçapı/açılar her kare sıfırlanır →
+    // "yakınlaşmıyor" + kamera sıçrayıp model ekran dışına uçuyordu.
+    if (!this._lastCamPos.equals(this.object.position)) {
       this._syncFromCamera();
     }
     if (this.enableDamping) {
@@ -1647,6 +1919,7 @@ function clearScene() {
   });
   dynamicObjects = [];
   window._labelRefs = [];
+  window._labelPlaced = [];
   window._currentModelGroup = null;
   window._customAnim = null;
   window._flowRays = [];
@@ -1768,7 +2041,7 @@ function updateLeaderLines() {
 
     ref.anchorObj.getWorldPosition(_projVec);
     _projVec.project(camera);
-    if (_projVec.z > 1 || _projVec.z < -1) return;
+    if (!(_projVec.z >= -1 && _projVec.z <= 1)) return;
     const ax = (_projVec.x + 1) / 2 * w;
     const ay = (1 - _projVec.y) / 2 * h;
 
@@ -1802,6 +2075,7 @@ function updateLeaderLines() {
     const midX = (edgeX + ax) / 2;
     const midY = (edgeY + ay) / 2;
     const distLine = Math.hypot(ax - edgeX, ay - edgeY);
+    if (!(distLine > 0)) return;
     const normalX = -(ay - edgeY) / distLine;
     const normalY = (ax - edgeX) / distLine;
     const curveAmount = Math.min(distLine * 0.18, 35);
@@ -1840,30 +2114,50 @@ window._sceneState = {
   _displayUpdaters: []
 };
 
+function positionVarsBody() {
+  const t = document.getElementById('sceneToggle');
+  const b = document.getElementById('sceneVarsBody');
+  if (t && b && !b.classList.contains('closed')) {
+    b.style.top = Math.round(t.getBoundingClientRect().bottom + 6) + 'px';
+  }
+}
+window.positionVarsBody = positionVarsBody;
+
 function setSceneSliders(items, opts = {}) {
-  const panel = document.getElementById('scenePanel');
-  if (!panel) return;
-  panel.innerHTML = '';
-  panel.classList.remove('empty', 'collapsed');
+  const row = document.getElementById('stackRow');
+  const bodyPanel = document.getElementById('sceneVarsBody');
+  if (!row || !bodyPanel) return;
+  // Eski Değişkenler sekmesini kaldır (her sahne yeniden kurar)
+  const oldT = document.getElementById('sceneToggle'); if (oldT) oldT.remove();
+  bodyPanel.innerHTML = '';
   document.body.classList.add('scene-panel-open');
   window._sceneState._displayUpdaters = [];
-
+  // Değişkenler sekmesi → Konu Rehberi'nin SOLUNA (aynı satır, aynı ebat)
   const toggle = document.createElement('button');
+  toggle.id = 'sceneToggle';
   toggle.className = 'sp-toggle';
-  toggle.innerHTML = `<span>🎛️ ${opts.title || 'Kontroller'}</span><span class="sp-chev">▼</span>`;
+  toggle.innerHTML = `<span class="sb-emoji">🎛️</span><span class="sb-label">Değişkenler</span><span class="sp-chev">▼</span>`;
+  row.insertBefore(toggle, document.getElementById('btnTopic'));
+  // İçerik tam-genişlik yatay panelde
+  const body = bodyPanel;
+  const _chev = toggle.querySelector('.sp-chev');
+  // Basınca aç/kapat: tam genişlik pencere sekmenin altına gelir
+  function setSceneOpen(open) {
+    bodyPanel.classList.toggle('closed', !open);
+    if (_chev) _chev.textContent = open ? '▲' : '▼';
+    if (open) positionVarsBody();
+  }
+  window._setSceneOpen = setSceneOpen;
   toggle.onclick = () => {
-    panel.classList.toggle('collapsed');
-    toggle.querySelector('.sp-chev').textContent = panel.classList.contains('collapsed') ? '◀' : '▼';
+    setSceneOpen(bodyPanel.classList.contains('closed'));
     if (window._haptic) window._haptic(10);
   };
-  panel.appendChild(toggle);
-
   items.forEach(item => {
     if (item.type === 'section') {
       const t = document.createElement('div');
       t.className = 'sp-section';
       t.textContent = item.label;
-      panel.appendChild(t);
+      body.appendChild(t);
       return;
     }
     if (item.type === 'slider') {
@@ -1918,7 +2212,7 @@ function setSceneSliders(items, opts = {}) {
         slider.value = nv; item.setValue(nv); updateVal();
         if (window._haptic) window._haptic(8);
       });
-      panel.appendChild(row);
+      body.appendChild(row);
       updateVal();
       window._sceneState._displayUpdaters.push(() => {
         const v = item.getValue();
@@ -1931,16 +2225,20 @@ function setSceneSliders(items, opts = {}) {
       row.innerHTML = `<span class="sp-label">${item.label}</span><span class="sp-val"></span>`;
       const val = row.querySelector('.sp-val');
       val.textContent = item.getValue();
-      panel.appendChild(row);
+      body.appendChild(row);
       window._sceneState._displayUpdaters.push(() => { val.textContent = item.getValue(); });
     }
     if (item.type === 'formula') {
-      const row = document.createElement('div');
-      row.className = 'sp-formula';
-      row.innerHTML = item.text;
-      panel.appendChild(row);
-      if (item.getValue) {
-        window._sceneState._displayUpdaters.push(() => { row.innerHTML = item.getValue(); });
+      const hasMath = /[=√÷×²·]|sin|cos|1\//.test(item.text || '') || /q₁|q₂|kq|k·q|qE|qV|ε₀|½|Σ|ΔV|N\/C|qE\/m|V\/d/.test(item.text||'');
+      const skip = (currentLevel === 'ilkokul' || currentLevel === 'ortaokul') && hasMath && !item.keepSimple;
+      if (!skip) {
+        const row = document.createElement('div');
+        row.className = 'sp-formula';
+        row.innerHTML = item.text;
+        body.appendChild(row);
+        if (item.getValue && !((currentLevel === 'ilkokul' || currentLevel === 'ortaokul') && hasMath)) {
+          window._sceneState._displayUpdaters.push(() => { row.innerHTML = item.getValue(); });
+        }
       }
     }
     if (item.type === 'presets') {
@@ -1959,14 +2257,18 @@ function setSceneSliders(items, opts = {}) {
         };
         row.appendChild(b);
       });
-      panel.appendChild(row);
+      body.appendChild(row);
     }
   });
+  // Değişkenler varsayılan KAPALI; konu değişince OTOMATİK AÇILMAZ (kullanıcı basar).
+  bodyPanel.classList.add('closed');
+  if (_chev) _chev.textContent = '▼';
 }
 
 function clearSceneSliders() {
-  const panel = document.getElementById('scenePanel');
-  if (panel) { panel.innerHTML = ''; panel.classList.add('empty'); }
+  const oldT = document.getElementById('sceneToggle'); if (oldT) oldT.remove();
+  const bodyPanel = document.getElementById('sceneVarsBody');
+  if (bodyPanel) { bodyPanel.innerHTML = ''; bodyPanel.classList.add('closed'); }
   document.body.classList.remove('scene-panel-open');
   if (window._sceneState) window._sceneState._displayUpdaters = [];
 }
@@ -3223,27 +3525,69 @@ SubBuilders.buildKirilmaNedir = function() {
   S.kn_angle = 40;
   S.kn_n2 = 1.33;
 
+  // iki ortam: üst hava (n=1), alt yoğun (su/cam/elmas)
+  const media = new THREE.Group(); media.userData.dynamic = true; root.add(media);
+  function rebuildMedia() {
+    [...media.children].forEach(c=>{media.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
+    const op = Math.min(0.4, 0.12 + (S.kn_n2-1)*0.14);
+    media.add(makeTwoMedia({ w: 14, h: 9, lowColor: OCOL.water, lowOpacity: op }));
+  }
+
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
-  root.add(makeTwoMedia({ w: 14, h: 9, lowColor: OCOL.water, lowOpacity: 0.22 }));
+
+  // window._customAnim için aktif dalga cepheleri
+  window._knFronts = [];
 
   function rebuild() {
     [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
+    window._knFronts = [];
     const n1 = 1.0, n2 = S.kn_n2;
     const i = _deg2rad(S.kn_angle);
     const r = refractAngle(i, n1, n2);
     const O = new THREE.Vector3(0, 0, 0.03);
     const L = 5;
-    const inStart = new THREE.Vector3(-Math.sin(i)*L, Math.cos(i)*L, 0.03);
+
+    // gelen ışın (üstte)
+    const inDir = new THREE.Vector3(Math.sin(i), -Math.cos(i), 0).normalize();
+    const inStart = O.clone().add(inDir.clone().multiplyScalar(-L));
     dyn.add(makeRay(inStart, O, { color: OCOL.ray, r: 0.05 }));
+
+    // kırılan ışın (altta) — Snell ile gerçek hesap
+    let outDir = null, outEnd = null;
     if (r !== null) {
-      const outEnd = new THREE.Vector3(Math.sin(r)*L, -Math.cos(r)*L, 0.03);
+      outDir = new THREE.Vector3(Math.sin(r), -Math.cos(r), 0).normalize();
+      outEnd = O.clone().add(outDir.clone().multiplyScalar(L));
       dyn.add(makeRay(O, outEnd, { color: OCOL.refract, r: 0.05 }));
       dyn.add(makeFlowRay([inStart, O, outEnd], { color: 0xffffff, count: 6, speed: 0.5 }));
     } else {
       dyn.add(makeFlowRay([inStart, O], { color: 0xffffff, count: 4, speed: 0.5 }));
     }
-    const refEnd = new THREE.Vector3(Math.sin(i)*L*0.6, Math.cos(i)*L*0.6, 0.03);
-    dyn.add(makeRay(O, refEnd, { color: OCOL.reflect, r: 0.025, arrow: false }));
+    // zayıf yansıyan ışın
+    const refDir = new THREE.Vector3(Math.sin(i), Math.cos(i), 0).normalize();
+    dyn.add(makeRay(O, O.clone().add(refDir.multiplyScalar(L*0.55)), { color: OCOL.reflect, r: 0.022, arrow: false }));
+
+    // === DALGA CEPHELERİ (ışına dik kısa çizgiler) — hız/dalga boyu değişimi ===
+    // üstte geniş aralık (hızlı/uzun λ), altta sıkışık (yavaş/kısa λ)
+    const perpIn = new THREE.Vector3(-inDir.y, inDir.x, 0);
+    const perpOut = outDir ? new THREE.Vector3(-outDir.y, outDir.x, 0) : null;
+    const lam1 = 0.85;            // havada dalga boyu (referans)
+    const lam2 = lam1 * (n1/n2);  // yoğun ortamda kısalır
+    const frontHalf = 1.1;
+    const mkFront = (center, perp, dir, lam, sBound, col) => {
+      const a = center.clone().add(perp.clone().multiplyScalar(frontHalf));
+      const b = center.clone().add(perp.clone().multiplyScalar(-frontHalf));
+      const ln = makeSolidLine(a, b, { color: col, opacity: 0.85 });
+      ln.userData.dynamic = true;
+      dyn.add(ln);
+      window._knFronts.push({ ln, anchor: O.clone(), dir: dir.clone(), perp: perp.clone(), half: frontHalf, s0: center.clone().sub(O).dot(dir), lam, sBound });
+      return ln;
+    };
+    // üst cepheler (havada, hızlı → seyrek), s negatif (O'dan geriye)
+    for (let k = 1; k <= 4; k++) mkFront(O.clone().add(inDir.clone().multiplyScalar(-k*lam1)), perpIn, inDir, lam1, -L, 0xcfe6ff);
+    // alt cepheler (yoğun, yavaş → sık), s pozitif
+    if (outDir) for (let k = 1; k <= 4; k++) mkFront(O.clone().add(outDir.clone().multiplyScalar(k*lam2)), perpOut, outDir, lam2, L, 0x6ad6ff);
+
+    // açı yayları + normal
     const iLabel = _isElementary() ? 'Gelen ışık' : (_isPrimary() ? 'Gelme açısı' : 'i = ' + S.kn_angle + '°');
     dyn.add(makeAngleArc(O, Math.PI/2, Math.PI/2 + i, { r: 1.0, color: OCOL.ray, label: iLabel, labelDirX: -1, labelDY: 0.6, labelBg: 'rgba(180,150,20,0.95)' }));
     if (r !== null) {
@@ -3251,39 +3595,65 @@ SubBuilders.buildKirilmaNedir = function() {
       dyn.add(makeAngleArc(O, -Math.PI/2 + r, -Math.PI/2, { r: 1.0, color: OCOL.refract, label: rLabel, labelDirX: -1, labelDY: -0.6, labelBg: 'rgba(200,110,40,0.95)' }));
     }
     dyn.add(makeMeasureLabel(_isElementary()?'Dik çizgi':'Normal (N)', [0.1, 3.3, 0], 'rgba(159,176,216,0.9)'));
+    if (!_isPrimary()) {
+      dyn.add(makeMeasureLabel('hızlı · uzun λ', [-3.4, 2.4, 0], 'rgba(120,160,210,0.92)'));
+      if (r !== null) dyn.add(makeMeasureLabel('yavaş · kısa λ', [3.2, -2.4, 0], 'rgba(60,140,200,0.95)'));
+    }
   }
+  rebuildMedia();
   rebuild();
+
+  // dalga cephelerini ışın boyunca kaydır (akan dalga: yoğun ortamda daha yavaş)
+  window._customAnim = function(t) {
+    const fr = window._knFronts; if (!fr || !fr.length) return;
+    for (let q = 0; q < fr.length; q++) {
+      const f = fr[q];
+      // s konumunu kendi dalga boyu adımıyla kaydır, bölge sınırını aşınca sar
+      let s = f.s0 + ((t * f.lam * 0.9) % f.lam) * Math.sign(f.sBound);
+      // bölge içinde tut (0..sBound veya sBound..0)
+      const lo = Math.min(0, f.sBound), hi = Math.max(0, f.sBound);
+      if (s < lo) s += hi - lo; if (s > hi) s -= hi - lo;
+      const center = f.anchor.clone().add(f.dir.clone().multiplyScalar(s));
+      const a = center.clone().add(f.perp.clone().multiplyScalar(f.half));
+      const b = center.clone().add(f.perp.clone().multiplyScalar(-f.half));
+      f.ln.geometry.setFromPoints([a, b]);
+      f.ln.geometry.attributes.position.needsUpdate = true;
+    }
+  };
 
   const knFormula = _isElementary()
     ? 'Işık suya girince bükülür 💧'
-    : (_isPrimary() ? 'Yoğun ortama geçince normale yaklaşır' : 'Yoğun ortama → normale yaklaşır');
+    : (_isPrimary() ? 'Yoğun ortama geçince normale yaklaşır' : 'Yoğun ortama → yavaşlar, normale yaklaşır');
 
   setSceneSliders([
     { type: 'section', label: 'Işığın Kırılması' },
     { type: 'slider', label: 'Gelme açısı i', min: 0, max: 80, step: 5, unit: '°',
       getValue: () => S.kn_angle, setValue: (v)=>{ S.kn_angle=v; rebuild(); }, format:(x)=>x.toFixed(0) },
     { type: 'presets', activeIdx: 0, options: [
-      { label: '💧 Su (n=1.33)', action: ()=>{ S.kn_n2=1.33; rebuild(); } },
-      { label: '🪟 Cam (n=1.5)', action: ()=>{ S.kn_n2=1.5; rebuild(); } },
-      { label: '💎 Elmas (n=2.42)', action: ()=>{ S.kn_n2=2.42; rebuild(); } }
+      { label: '💧 Su (n=1.33)', action: ()=>{ S.kn_n2=1.33; rebuildMedia(); rebuild(); } },
+      { label: '🪟 Cam (n=1.5)', action: ()=>{ S.kn_n2=1.5; rebuildMedia(); rebuild(); } },
+      { label: '💎 Elmas (n=2.42)', action: ()=>{ S.kn_n2=2.42; rebuildMedia(); rebuild(); } }
     ]},
     { type: 'section', label: 'Sonuç' },
     { type: 'display', label: 'Alt ortam', highlight: true, getValue: () => _isElementary() ? 'Su 💧' : 'n₂ = ' + S.kn_n2 },
     { type: 'display', label: _isElementary()?'Işık':'Kırılma açısı r', getValue: () => { const r=refractAngle(_deg2rad(S.kn_angle),1,S.kn_n2); if(_isElementary()) return r===null?'Geri yansır':'Büküldü ✓'; return r===null?'—':(r*180/Math.PI).toFixed(1)+'°'; } },
+    { type: 'display', label: _isElementary()?'Hız':'Hız (alt ortam)', getValue: () => _isElementary()?'Yavaşlar':'v₂ = c/'+S.kn_n2.toFixed(2) },
     { type: 'formula', text: knFormula }
   ], { title: 'Işığın Kırılması' });
 
   addInfo3DLabels([
-    { text: { ilkokul:'💨 Hava (üst)', ortaokul:'💨 Az yoğun (hava)', lise:'💨 n₁ (hava)', tyt_ayt:'💨 n₁≈1 (hava)' },
+    { text: { ilkokul:'💨 Hava (üst)', ortaokul:'💨 Az yoğun (hava)', lise:'💨 n₁ (hava) · hızlı', tyt_ayt:'💨 n₁≈1 · v büyük' },
       position: [-4, 3, 0], target: [-2, 2, 0], color: '#cfe6ff' },
-    { text: { ilkokul:'💧 Su (alt)', ortaokul:'💧 Çok yoğun (su)', lise:'💧 n₂ (su/cam)', tyt_ayt:'💧 n₂ (yoğun)' },
+    { text: { ilkokul:'💧 Su (alt)', ortaokul:'💧 Çok yoğun (su)', lise:'💧 n₂ · yavaş', tyt_ayt:'💧 n₂ · v küçük' },
       position: [-4, -3, 0], target: [-2, -2, 0], color: '#2a8ad4' },
     { text: { ilkokul:'📏 Dik çizgi', ortaokul:'📏 Normal', lise:'📏 Normal (N)', tyt_ayt:'📏 Normal doğrultu' },
       position: [2.5, 3, 0], target: [0, 2.5, 0], color: '#9fb0d8' }
   ]);
+
+  if (typeof camera !== 'undefined' && camera) camera.position.set(0, 1.85, 25.0);
+  if (typeof controls !== 'undefined' && controls) controls.target.set(0, -1.15, 0);
 };
 
-// ---------- MODÜL 1.2: Snell Yasası (interaktif n1/n2) ----------
 SubBuilders.buildSnell = function() {
   const root = new THREE.Group();
   markDynamic(root); scene.add(root); window._currentModelGroup = root;
@@ -3291,39 +3661,56 @@ SubBuilders.buildSnell = function() {
   root.add(makeGridSystem({ size: 16, divisions: 16 }));
 
   const S = window._sceneState;
-  S.sn_angle = 45;
-  S.sn_n1 = 1.0;
-  S.sn_n2 = 1.5;
+  if (S.sn_angle === undefined) S.sn_angle = 45;
+  if (S.sn_n1 === undefined) S.sn_n1 = 1.0;
+  if (S.sn_n2 === undefined) S.sn_n2 = 1.5;
 
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
   const media = new THREE.Group(); media.userData.dynamic = true; root.add(media);
 
+  function presetIdx() {
+    if (Math.abs(S.sn_n2-1.33)<0.001) return 0;
+    if (Math.abs(S.sn_n2-1.5)<0.001) return 1;
+    if (Math.abs(S.sn_n2-2.42)<0.001) return 2;
+    return 1;
+  }
+
   function rebuildMedia() {
     [...media.children].forEach(c=>{media.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
-    const op = 0.1 + (S.sn_n2-1)*0.12;
-    media.add(makeTwoMedia({ w: 14, h: 9, lowColor: OCOL.water, lowOpacity: Math.min(0.4, op) }));
+    const op = Math.min(0.4, 0.1 + (S.sn_n2-1)*0.13);
+    media.add(makeTwoMedia({ w: 14, h: 9, lowColor: OCOL.water, lowOpacity: op }));
   }
   function rebuild() {
     [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
     const i = _deg2rad(S.sn_angle);
+    // GERÇEK Snell hesabı: n1 sinθ1 = n2 sinθ2
     const r = refractAngle(i, S.sn_n1, S.sn_n2);
     const O = new THREE.Vector3(0, 0, 0.03);
     const L = 5;
+
+    // gelen ışın (üst ortamdan gelir)
     const inStart = new THREE.Vector3(-Math.sin(i)*L, Math.cos(i)*L, 0.03);
     dyn.add(makeRay(inStart, O, { color: OCOL.ray, r: 0.05 }));
     const t1Label = _isPrimary() ? 'Gelen ışık' : 'θ₁ = ' + S.sn_angle + '°';
     dyn.add(makeAngleArc(O, Math.PI/2, Math.PI/2 + i, { r: 1.0, color: OCOL.ray, label: t1Label, labelDirX: -1, labelDY: 0.6, labelBg: 'rgba(180,150,20,0.95)' }));
+
     if (r !== null) {
       const outEnd = new THREE.Vector3(Math.sin(r)*L, -Math.cos(r)*L, 0.03);
       dyn.add(makeRay(O, outEnd, { color: OCOL.refract, r: 0.05 }));
       dyn.add(makeFlowRay([inStart, O, outEnd], { color: 0xffffff, count: 6, speed: 0.5 }));
       const t2Label = _isPrimary() ? 'Kırılan ışık' : 'θ₂ = ' + (r*180/Math.PI).toFixed(0) + '°';
       dyn.add(makeAngleArc(O, -Math.PI/2 + r, -Math.PI/2, { r: 1.0, color: OCOL.refract, label: t2Label, labelDirX: -1, labelDY: -0.6, labelBg: 'rgba(200,110,40,0.95)' }));
+      // hangi yöne büküldüğü ipucu
+      if (!_isPrimary()) {
+        const hint = S.sn_n2 > S.sn_n1 ? 'normale yaklaşır' : 'normalden uzaklaşır';
+        dyn.add(makeMeasureLabel(hint, [3.0, -2.6, 0], 'rgba(200,110,40,0.92)'));
+      }
     } else {
+      // n1>n2 ve açı sınırı geçti → tam yansıma
       const refEnd = new THREE.Vector3(Math.sin(i)*L, Math.cos(i)*L, 0.03);
       dyn.add(makeRay(O, refEnd, { color: OCOL.reflect, r: 0.05 }));
       dyn.add(makeFlowRay([inStart, O, refEnd], { color: 0xffffff, count: 6, speed: 0.5 }));
-      dyn.add(makeMeasureLabel('TAM YANSIMA', [2, 2.5, 0], 'rgba(106,214,255,0.95)'));
+      dyn.add(makeMeasureLabel('TAM YANSIMA', [2.4, 2.6, 0], 'rgba(106,214,255,0.95)'));
     }
     dyn.add(makeMeasureLabel('Normal (N)', [0.1, 3.3, 0], 'rgba(159,176,216,0.9)'));
   }
@@ -3333,25 +3720,31 @@ SubBuilders.buildSnell = function() {
     { type: 'section', label: 'Snell: n₁sinθ₁=n₂sinθ₂' },
     { type: 'slider', label: 'Gelme açısı θ₁', min: 0, max: 85, step: 5, unit: '°',
       getValue: () => S.sn_angle, setValue: (v)=>{ S.sn_angle=v; rebuild(); }, format:(x)=>x.toFixed(0) },
+    { type: 'presets', activeIdx: presetIdx(), options: [
+      { label: '💧 Su n₂=1.33', action: ()=>{ S.sn_n2=1.33; rebuildMedia(); rebuild(); } },
+      { label: '🪟 Cam n₂=1.5', action: ()=>{ S.sn_n2=1.5; rebuildMedia(); rebuild(); } },
+      { label: '💎 Elmas n₂=2.42', action: ()=>{ S.sn_n2=2.42; rebuildMedia(); rebuild(); } }
+    ]},
     { type: 'slider', label: 'Üst ortam n₁', min: 1.0, max: 2.0, step: 0.1, unit: '',
       getValue: () => S.sn_n1, setValue: (v)=>{ S.sn_n1=v; rebuild(); }, format:(x)=>x.toFixed(2) },
-    { type: 'slider', label: 'Alt ortam n₂', min: 1.0, max: 2.5, step: 0.1, unit: '',
-      getValue: () => S.sn_n2, setValue: (v)=>{ S.sn_n2=v; rebuildMedia(); rebuild(); }, format:(x)=>x.toFixed(2) },
     { type: 'section', label: 'Sonuç' },
     { type: 'display', label: 'Kırılma açısı θ₂', highlight: true, getValue: () => { const r=refractAngle(_deg2rad(S.sn_angle),S.sn_n1,S.sn_n2); return r===null?'TAM YANSIMA':(r*180/Math.PI).toFixed(1)+'°'; } },
+    { type: 'display', label: 'n₂ (alt)', getValue: () => S.sn_n2.toFixed(2) },
     { type: 'formula', text: 'n₁·sinθ₁ = n₂·sinθ₂',
-      getValue: () => S.sn_n1.toFixed(1) + '·sin' + S.sn_angle + '° = ' + S.sn_n2.toFixed(1) + '·sinθ₂' }
+      getValue: () => { const r=refractAngle(_deg2rad(S.sn_angle),S.sn_n1,S.sn_n2); const lhs=(S.sn_n1*Math.sin(_deg2rad(S.sn_angle))).toFixed(2); return S.sn_n1.toFixed(1)+'·sin'+S.sn_angle+'° = '+lhs+' = '+S.sn_n2.toFixed(1)+'·sinθ₂'; } }
   ], { title: 'Snell Yasası' });
 
   addInfo3DLabels([
-    { text: { ilkokul:'⬆️ 1. ortam', ortaokul:'⬆️ Üst ortam', lise:'⬆️ n₁', tyt_ayt:'⬆️ n₁ (gelen)' },
+    { text: { ilkokul:'⬆️ 1. ortam', ortaokul:'⬆️ Üst ortam', lise:'⬆️ n₁ (gelen)', tyt_ayt:'⬆️ n₁ (gelen ışın)' },
       position: [-4, 3, 0], target: [-2, 2, 0], color: '#cfe6ff' },
-    { text: { ilkokul:'⬇️ 2. ortam', ortaokul:'⬇️ Alt ortam', lise:'⬇️ n₂', tyt_ayt:'⬇️ n₂ (kırılan)' },
+    { text: { ilkokul:'⬇️ 2. ortam', ortaokul:'⬇️ Alt ortam', lise:'⬇️ n₂ (kırılan)', tyt_ayt:'⬇️ n₂ (kırılan ışın)' },
       position: [-4, -3, 0], target: [-2, -2, 0], color: '#2a8ad4' }
   ]);
+
+  if (typeof camera !== 'undefined' && camera) camera.position.set(0, 1.85, 25.0);
+  if (typeof controls !== 'undefined' && controls) controls.target.set(0, -1.15, 0);
 };
 
-// ---------- MODÜL 1.3: Tam Yansıma ve Sınır Açısı ----------
 SubBuilders.buildTamYansima = function() {
   const root = new THREE.Group();
   markDynamic(root); scene.add(root); window._currentModelGroup = root;
@@ -3359,37 +3752,76 @@ SubBuilders.buildTamYansima = function() {
   root.add(makeGridSystem({ size: 16, divisions: 16 }));
 
   const S = window._sceneState;
-  S.ty_angle = 30;
-  S.ty_n1 = 1.5;
+  if (S.ty_angle === undefined) S.ty_angle = 30;
+  if (S.ty_n1 === undefined) S.ty_n1 = 1.5;
 
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
   root.add(makeTwoMedia({ w: 14, h: 9, lowColor: OCOL.glass, lowOpacity: 0.28 }));
 
-  function sinirAcisi() { return Math.asin(1.0 / S.ty_n1) * 180/Math.PI; }
+  function sinirAcisi() { return Math.asin(Math.min(1, 1.0 / S.ty_n1)) * 180/Math.PI; }
+  function presetIdx() {
+    if (Math.abs(S.ty_n1-1.33)<0.001) return 0;
+    if (Math.abs(S.ty_n1-1.5)<0.001) return 1;
+    if (Math.abs(S.ty_n1-2.42)<0.001) return 2;
+    return 1;
+  }
 
   function rebuild() {
     [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
-    const n1 = S.ty_n1, n2 = 1.0;
+    const n1 = S.ty_n1, n2 = 1.0; // yoğun (alt) → az yoğun (üst, hava)
     const i = _deg2rad(S.ty_angle);
-    const r = refractAngle(i, n1, n2);
+    const r = refractAngle(i, n1, n2); // null ise tam yansıma
+    const isTotal = (r === null);
     const O = new THREE.Vector3(0, 0, 0.03);
     const L = 5;
+
+    // gelen ışın yoğun ortamdan (alttan) gelir
     const inStart = new THREE.Vector3(-Math.sin(i)*L, -Math.cos(i)*L, 0.03);
     dyn.add(makeRay(inStart, O, { color: OCOL.ray, r: 0.05 }));
     dyn.add(makeAngleArc(O, -Math.PI/2 - i, -Math.PI/2, { r: 1.0, color: OCOL.ray, label: 'i = ' + S.ty_angle + '°', labelDirX: -1, labelDY: -0.4, labelBg: 'rgba(180,150,20,0.95)' }));
-    const ths = Math.asin(1.0/S.ty_n1);
+
+    // sınır açısı yayı (referans)
+    const ths = Math.asin(Math.min(1, 1.0/S.ty_n1));
     dyn.add(makeAngleArc(O, -Math.PI/2 - ths, -Math.PI/2, { r: 2.5, color: 0x9fb0d8, noFill: true, label: 'θs = ' + (ths*180/Math.PI).toFixed(0) + '° (sınır)', labelDirX: -1, labelDY: -2.0, labelBg: 'rgba(120,135,170,0.95)' }));
-    if (r !== null) {
+
+    if (!isTotal) {
+      // kırılan ışın üst ortama çıkar
       const outEnd = new THREE.Vector3(Math.sin(r)*L, Math.cos(r)*L, 0.03);
       dyn.add(makeRay(O, outEnd, { color: OCOL.refract, r: 0.05 }));
       dyn.add(makeAngleArc(O, Math.PI/2, Math.PI/2 + r, { r: 1.0, color: OCOL.refract, label: 'r = ' + (r*180/Math.PI).toFixed(0) + '°', labelDirX: 1, labelDY: 0.6, labelBg: 'rgba(200,110,40,0.95)' }));
       dyn.add(makeFlowRay([inStart, O, outEnd], { color: 0xffffff, count: 6, speed: 0.5 }));
+      // zayıf yansıma
+      const refEnd = new THREE.Vector3(Math.sin(i)*L, -Math.cos(i)*L, 0.03);
+      dyn.add(makeRay(O, refEnd, { color: OCOL.reflect, r: 0.025, arrow: false }));
+    } else {
+      // TAM YANSIMA → ışın aynaya çarpmış gibi tamamen geri döner (parlak)
+      const refEnd = new THREE.Vector3(Math.sin(i)*L, -Math.cos(i)*L, 0.03);
+      dyn.add(makeRay(O, refEnd, { color: 0x6ad6ff, r: 0.055 }));
+      dyn.add(makeAngleArc(O, -Math.PI/2, -Math.PI/2 + i, { r: 1.0, color: 0x6ad6ff, label: 'yansıma = ' + S.ty_angle + '°', labelDirX: 1, labelDY: -0.6, labelBg: 'rgba(40,140,200,0.95)' }));
+      dyn.add(makeFlowRay([inStart, O, refEnd], { color: 0xffffff, count: 6, speed: 0.5 }));
+      dyn.add(makeMeasureLabel('TAM YANSIMA ✓', [2.6, -1.4, 0], 'rgba(106,214,255,0.95)'));
     }
-    const refEnd = new THREE.Vector3(Math.sin(i)*L, -Math.cos(i)*L, 0.03);
-    dyn.add(makeRay(O, refEnd, { color: OCOL.reflect, r: r===null?0.05:0.03, arrow: r===null }));
-    if (r === null) dyn.add(makeFlowRay([inStart, O, refEnd], { color: 0xffffff, count: 6, speed: 0.5 }));
     dyn.add(makeMeasureLabel('Normal (N)', [0.1, 3.3, 0], 'rgba(159,176,216,0.9)'));
-    if (r === null) dyn.add(makeMeasureLabel('TAM YANSIMA ✓', [2.5, -1.5, 0], 'rgba(106,214,255,0.95)'));
+
+    // === FİBER OPTİK MİNİ GÖSTERİM (sol altta) === ışık zikzak yansıyarak ilerler
+    const fy = -3.7, fx0 = -6.4, fx1 = -0.4, fh = 0.55;
+    const coreColor = isTotal ? 0x6ad6ff : 0x9fb0d8;
+    // kılıf (cam boru)
+    dyn.add(makeSolidLine(new THREE.Vector3(fx0, fy+fh, 0.02), new THREE.Vector3(fx1, fy+fh, 0.02), { color: 0xaadfff, opacity: 0.7 }));
+    dyn.add(makeSolidLine(new THREE.Vector3(fx0, fy-fh, 0.02), new THREE.Vector3(fx1, fy-fh, 0.02), { color: 0xaadfff, opacity: 0.7 }));
+    // zikzak ışın yolu
+    const zig = [];
+    let zx = fx0, zy = fy + fh*0.0, up = true;
+    zig.push(new THREE.Vector3(zx, fy, 0.04));
+    const stepN = 6;
+    for (let k = 0; k < stepN; k++) {
+      zx += (fx1 - fx0) / stepN;
+      zig.push(new THREE.Vector3(zx, fy + (up ? fh : -fh), 0.04));
+      up = !up;
+    }
+    for (let k = 0; k < zig.length-1; k++) dyn.add(makeRay(zig[k], zig[k+1], { color: coreColor, r: 0.03, arrow: false }));
+    dyn.add(makeFlowRay(zig.map(p=>p.clone()), { color: 0xffffff, count: 5, speed: 0.6, r: 0.06 }));
+    dyn.add(makeMeasureLabel('🔦 Fiber optik (tam yansıma ile ışık taşır)', [-3.4, fy-1.0, 0], 'rgba(40,120,180,0.92)'));
   }
   rebuild();
 
@@ -3397,27 +3829,29 @@ SubBuilders.buildTamYansima = function() {
     { type: 'section', label: 'Tam Yansıma' },
     { type: 'slider', label: 'Gelme açısı i', min: 0, max: 85, step: 5, unit: '°',
       getValue: () => S.ty_angle, setValue: (v)=>{ S.ty_angle=v; rebuild(); }, format:(x)=>x.toFixed(0) },
-    { type: 'presets', activeIdx: 0, options: [
-      { label: '💧 Su→Hava (sınır 49°)', action: ()=>{ S.ty_n1=1.33; rebuild(); } },
-      { label: '🪟 Cam→Hava (sınır 42°)', action: ()=>{ S.ty_n1=1.5; rebuild(); } },
-      { label: '💎 Elmas→Hava (sınır 24°)', action: ()=>{ S.ty_n1=2.42; rebuild(); } }
+    { type: 'presets', activeIdx: presetIdx(), options: [
+      { label: '💧 Su→Hava (49°)', action: ()=>{ S.ty_n1=1.33; rebuild(); } },
+      { label: '🪟 Cam→Hava (42°)', action: ()=>{ S.ty_n1=1.5; rebuild(); } },
+      { label: '💎 Elmas→Hava (24°)', action: ()=>{ S.ty_n1=2.42; rebuild(); } }
     ]},
     { type: 'section', label: 'Sonuç' },
-    { type: 'display', label: 'Sınır açısı', highlight: true, getValue: () => sinirAcisi().toFixed(1) + '°' },
-    { type: 'display', label: 'Durum', getValue: () => S.ty_angle > sinirAcisi() ? 'TAM YANSIMA' : 'Kırılır' },
-    { type: 'formula', text: 'sin(sınır açısı) = n₂/n₁',
+    { type: 'display', label: 'Sınır açısı θs', highlight: true, getValue: () => sinirAcisi().toFixed(1) + '°' },
+    { type: 'display', label: 'Durum', getValue: () => S.ty_angle >= sinirAcisi()-0.001 ? '🔵 TAM YANSIMA' : 'Kırılır' },
+    { type: 'formula', text: 'sinθs = n₂/n₁',
       getValue: () => 'sinθs = 1/' + S.ty_n1.toFixed(2) + ' → θs = ' + sinirAcisi().toFixed(0) + '°' }
   ], { title: 'Tam Yansıma' });
 
   addInfo3DLabels([
-    { text: { ilkokul:'💨 Hava (üst)', ortaokul:'💨 Az yoğun (üst)', lise:'💨 n₂ (az yoğun)', tyt_ayt:'💨 n₂<n₁' },
+    { text: { ilkokul:'💨 Hava (üst)', ortaokul:'💨 Az yoğun (üst)', lise:'💨 n₂ (az yoğun)', tyt_ayt:'💨 n₂ < n₁' },
       position: [-4, 3, 0], target: [-2, 2, 0], color: '#cfe6ff' },
-    { text: { ilkokul:'🪟 Cam (alt)', ortaokul:'🪟 Çok yoğun (alt)', lise:'🪟 n₁ (yoğun)', tyt_ayt:'🪟 n₁>n₂' },
-      position: [-4, -3, 0], target: [-2, -2, 0], color: '#aadfff' }
+    { text: { ilkokul:'🪟 Cam (alt)', ortaokul:'🪟 Çok yoğun (alt)', lise:'🪟 n₁ (yoğun)', tyt_ayt:'🪟 n₁ > n₂' },
+      position: [-4, -2.2, 0], target: [-2, -1.4, 0], color: '#aadfff' }
   ]);
+
+  if (typeof camera !== 'undefined' && camera) camera.position.set(0, 1.85, 25.0);
+  if (typeof controls !== 'undefined' && controls) controls.target.set(0, -1.15, 0);
 };
 
-// ---------- MODÜL 2.1: Görünür Derinlik ----------
 SubBuilders.buildGorunurDerinlik = function() {
   const root = new THREE.Group();
   markDynamic(root); scene.add(root); window._currentModelGroup = root;
@@ -3425,33 +3859,64 @@ SubBuilders.buildGorunurDerinlik = function() {
   root.add(makeGridSystem({ size: 16, divisions: 16 }));
 
   const S = window._sceneState;
-  S.gd_n = 1.33;
-  S.gd_depth = 2.5;
+  if (S.gd_n === undefined) S.gd_n = 1.33;
+  if (S.gd_depth === undefined) S.gd_depth = 2.5;
 
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
   root.add(makeTwoMedia({ w: 14, h: 9, lowColor: OCOL.water, lowOpacity: 0.22 }));
 
+  function presetIdx() { return Math.abs(S.gd_n-1.5)<0.001 ? 1 : 0; }
+
   function rebuild() {
     [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
     const h = S.gd_depth;
-    const hPrime = h / S.gd_n;
-    const fishX = -0.6;
-    const fish = makeMarker(new THREE.Vector3(fishX, -h, 0.05), { color: OCOL.object, r: 0.22 });
-    dyn.add(fish);
-    const ghost = makeMarker(new THREE.Vector3(fishX, -hPrime, 0.05), { color: 0xff5252, r: 0.18 });
-    ghost.material.opacity = 0.6; ghost.material.transparent = true;
+    const n = S.gd_n;
+    const hPrime = h / n;                 // görünür derinlik (paraksiyel)
+    const fishX = -0.4;
+    const fishPos = new THREE.Vector3(fishX, -h, 0.05);
+    const ghostPos = new THREE.Vector3(fishX, -hPrime, 0.05);
+
+    // gerçek cisim
+    dyn.add(makeMarker(fishPos, { color: OCOL.object, r: 0.22 }));
+    // görünür (sanal) konum
+    const ghost = makeMarker(ghostPos, { color: 0xff5252, r: 0.18 });
+    ghost.material.opacity = 0.65; ghost.material.transparent = true;
     dyn.add(ghost);
-    const eyePos = new THREE.Vector3(2.6, 3, 0.05);
+
+    // göz (havada, sağ üstte)
+    const eyePos = new THREE.Vector3(2.8, 3.2, 0.05);
     dyn.add(makeMarker(eyePos, { color: 0xffe14d, r: 0.16 }));
-    const surfPt = new THREE.Vector3(0.9, 0, 0.05);
-    dyn.add(makeRay(fish.position, surfPt, { color: OCOL.ray, r: 0.04, arrow: false }));
-    dyn.add(makeRay(surfPt, eyePos, { color: OCOL.refract, r: 0.04, arrow: false }));
-    dyn.add(makeFlowRay([fish.position.clone(), surfPt.clone(), eyePos.clone()], { color: 0xffffff, count: 5, speed: 0.5, r: 0.09 }));
-    dyn.add(makeDashedLine(eyePos, ghost.position, { color: 0xff5252, dash: 0.2, gap: 0.15, opacity: 0.7 }));
+
+    // İKİ ışın: cisimden yüzeye iki farklı noktadan → Snell ile kırılıp göze ulaşır.
+    // Geri uzantıları görünür konumda kesişir (sanal görüntü).
+    const surfXs = [0.55, 1.35];
+    surfXs.forEach((sx, idx) => {
+      const surfPt = new THREE.Vector3(sx, 0, 0.05);
+      // su içindeki gerçek ışın (cisim → yüzey)
+      dyn.add(makeRay(fishPos, surfPt, { color: OCOL.ray, r: 0.04, arrow: false }));
+      // gelme açısı (sudan, normalden ölçülü) → kırılma (havaya)
+      const din = surfPt.clone().sub(fishPos).normalize();
+      const thetaIn = Math.atan2(Math.abs(din.x), Math.abs(din.y)); // normalden açı (su tarafı)
+      const rr = refractAngle(thetaIn, n, 1.0);
+      let airDir;
+      if (rr !== null) airDir = new THREE.Vector3(Math.sin(rr), Math.cos(rr), 0).normalize();
+      else airDir = new THREE.Vector3(din.x, -din.y, 0).normalize();
+      const airEnd = surfPt.clone().add(airDir.clone().multiplyScalar(4.6));
+      dyn.add(makeRay(surfPt, airEnd, { color: OCOL.refract, r: 0.04, arrow: false }));
+      // geri uzantı (kesikli) → görünür konuma
+      dyn.add(makeDashedLine(surfPt, ghostPos, { color: 0xff5252, dash: 0.2, gap: 0.15, opacity: 0.55 }));
+      if (idx === 0) dyn.add(makeFlowRay([fishPos.clone(), surfPt.clone(), airEnd.clone()], { color: 0xffffff, count: 5, speed: 0.5, r: 0.08 }));
+    });
+
+    // göz → görünür konuma bakış doğrultusu (kesikli)
+    dyn.add(makeDashedLine(eyePos, ghostPos, { color: 0xffe14d, dash: 0.18, gap: 0.14, opacity: 0.4 }));
+
+    // derinlik ölçüleri
     dyn.add(makeDimension(new THREE.Vector3(-4.2, 0, 0), new THREE.Vector3(-4.2, -h, 0), 'h = ' + h.toFixed(1), { color: 0x3ed673, offset: [-0.6,0,0] }));
     dyn.add(makeDimension(new THREE.Vector3(-2.6, 0, 0), new THREE.Vector3(-2.6, -hPrime, 0), "h' = " + hPrime.toFixed(2), { color: 0xff5252, offset: [-0.6,0,0] }));
     dyn.add(makeDashedLine(new THREE.Vector3(-4.2, -h, 0), new THREE.Vector3(fishX, -h, 0), { color: 0x3ed673, dash:0.15, gap:0.12, opacity:0.4 }));
     dyn.add(makeDashedLine(new THREE.Vector3(-2.6, -hPrime, 0), new THREE.Vector3(fishX, -hPrime, 0), { color: 0xff5252, dash:0.15, gap:0.12, opacity:0.4 }));
+    if (!_isPrimary()) dyn.add(makeMeasureLabel('sığ görünür', [2.6, -hPrime+0.5, 0], 'rgba(200,80,80,0.92)'));
   }
   rebuild();
 
@@ -3459,28 +3924,30 @@ SubBuilders.buildGorunurDerinlik = function() {
     { type: 'section', label: 'Görünür Derinlik' },
     { type: 'slider', label: 'Gerçek derinlik h', min: 1.5, max: 3.5, step: 0.5, unit: '',
       getValue: () => S.gd_depth, setValue: (v)=>{ S.gd_depth=v; rebuild(); }, format:(x)=>x.toFixed(1) },
-    { type: 'presets', activeIdx: 0, options: [
+    { type: 'presets', activeIdx: presetIdx(), options: [
       { label: '💧 Su (n=1.33)', action: ()=>{ S.gd_n=1.33; rebuild(); } },
       { label: '🪟 Cam (n=1.5)', action: ()=>{ S.gd_n=1.5; rebuild(); } }
     ]},
     { type: 'section', label: 'Sonuç' },
-    { type: 'display', label: 'Görünür derinlik', highlight: true, getValue: () => (S.gd_depth/S.gd_n).toFixed(2) },
-    { type: 'display', label: 'Cisim', getValue: () => 'Sığ görünür (yukarıda)' },
-    { type: 'formula', text: "h'/h = n₂/n₁",
-      getValue: () => "h' = " + S.gd_depth.toFixed(1) + "/" + S.gd_n.toFixed(2) + " = " + (S.gd_depth/S.gd_n).toFixed(2) }
+    { type: 'display', label: 'Görünür derinlik h\'', highlight: true, getValue: () => (S.gd_depth/S.gd_n).toFixed(2) },
+    { type: 'display', label: 'Fark (h−h\')', getValue: () => (S.gd_depth - S.gd_depth/S.gd_n).toFixed(2) + ' yukarıda' },
+    { type: 'formula', text: "h' = h / n",
+      getValue: () => "h' = " + S.gd_depth.toFixed(1) + " / " + S.gd_n.toFixed(2) + " = " + (S.gd_depth/S.gd_n).toFixed(2) }
   ], { title: 'Görünür Derinlik' });
 
   addInfo3DLabels([
     { text: { ilkokul:'🐟 Gerçek balık', ortaokul:'🐟 Gerçek yer', lise:'🐟 Gerçek konum (h)', tyt_ayt:'🐟 Gerçek derinlik h' },
-      position: [-3.5, -4.2, 0], target: [-0.6, -S.gd_depth, 0], color: '#3ed673' },
+      position: [-3.5, -4.2, 0], target: [-0.4, -S.gd_depth, 0], color: '#3ed673' },
     { text: { ilkokul:'👀 Burada görünür', ortaokul:'👀 Görünen yer', lise:"👀 Görünür konum (h')", tyt_ayt:"👀 Görünür derinlik h'" },
-      position: [3.2, -2.2, 0], target: [-0.6, -S.gd_depth/S.gd_n, 0], color: '#ff5252' },
+      position: [3.2, -2.2, 0], target: [-0.4, -S.gd_depth/S.gd_n, 0], color: '#ff5252' },
     { text: { ilkokul:'👁️ Göz', ortaokul:'👁️ Gözlemci', lise:'👁️ Göz (havada)', tyt_ayt:'👁️ Gözlemci (n=1)' },
-      position: [4.2, 3.4, 0], target: [2.6, 3, 0], color: '#ffe14d' }
+      position: [4.4, 3.6, 0], target: [2.8, 3.2, 0], color: '#ffe14d' }
   ]);
+
+  if (typeof camera !== 'undefined' && camera) camera.position.set(0, 1.85, 25.0);
+  if (typeof controls !== 'undefined' && controls) controls.target.set(0, -1.15, 0);
 };
 
-// ---------- MODÜL 2.2: Prizma ve Renkler ----------
 SubBuilders.buildPrizma = function() {
   const root = new THREE.Group();
   markDynamic(root); scene.add(root); window._currentModelGroup = root;
@@ -3488,42 +3955,59 @@ SubBuilders.buildPrizma = function() {
   root.add(makeGridSystem({ size: 16, divisions: 16 }));
 
   const S = window._sceneState;
-  S.pr_spread = 1.0;
+  if (S.pr_spread === undefined) S.pr_spread = 1.0;
 
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
 
+  // === eşkenar üçgen cam prizma ===
+  const apexY = 1.8, baseY = -1.2, halfW = 1.6;
   const tri = new THREE.Shape();
-  tri.moveTo(0, 1.8); tri.lineTo(-1.6, -1.2); tri.lineTo(1.6, -1.2); tri.lineTo(0, 1.8);
+  tri.moveTo(0, apexY); tri.lineTo(-halfW, baseY); tri.lineTo(halfW, baseY); tri.lineTo(0, apexY);
   const prismGeo = new THREE.ExtrudeGeometry(tri, { depth: 1.6, bevelEnabled: false });
   prismGeo.translate(0, 0, -0.8);
-  const prismMat = new THREE.MeshStandardMaterial({ color: 0xaadfff, transparent: true, opacity: 0.35, roughness: 0.1, metalness: 0.1 });
+  const prismMat = new THREE.MeshPhysicalMaterial
+    ? new THREE.MeshPhysicalMaterial({ color: 0xaadfff, transparent: true, opacity: 0.32, roughness: 0.08, metalness: 0, transmission: 0.6, ior: 1.5 })
+    : new THREE.MeshStandardMaterial({ color: 0xaadfff, transparent: true, opacity: 0.35, roughness: 0.1, metalness: 0.1 });
   const prism = new THREE.Mesh(prismGeo, prismMat); prism.castShadow = true; dyn.add(prism);
   dyn.add(new THREE.LineSegments(new THREE.EdgesGeometry(prismGeo), new THREE.LineBasicMaterial({ color: 0x7fc8ff, transparent: true, opacity: 0.6 })));
 
+  // sol yüz normali (dışa doğru, sola): yüz apex→sol köşe doğrusu
+  // gökkuşağı sırası (üstte kırmızı en az sapan → altta mor en çok sapan)
+  const COLORS = [
+    { name:'Kırmızı', c: 0xff3030, dn: 0.00 },
+    { name:'Turuncu', c: 0xff9a3d, dn: 0.10 },
+    { name:'Sarı',    c: 0xffe14d, dn: 0.20 },
+    { name:'Yeşil',   c: 0x3ed673, dn: 0.34 },
+    { name:'Mavi',    c: 0x4a90e2, dn: 0.50 },
+    { name:'Mor',     c: 0x8a4aff, dn: 0.66 }
+  ];
+
   function rebuild() {
-    [...dyn.children].forEach(c=>{ if(c!==prism && c.type==='Group'){dyn.remove(c);} });
-    const entry = new THREE.Vector3(-1.0, 0.4, 0.02);
-    const inStart = new THREE.Vector3(-5, 1.6, 0.02);
+    // prizma ve kenarları KORU, gerisini temizle
+    [...dyn.children].forEach(c=>{ if (c !== prism && c.type !== 'LineSegments') { dyn.remove(c); if(c.geometry)c.geometry.dispose(); if(c.material&&c.material.dispose)c.material.dispose(); } });
+
+    // beyaz gelen ışın → sol yüze
+    const entry = new THREE.Vector3(-0.85, 0.45, 0.02);
+    const inStart = new THREE.Vector3(-5.2, 1.7, 0.02);
     dyn.add(makeRay(inStart, entry, { color: 0xffffff, r: 0.05 }));
     dyn.add(makeFlowRay([inStart.clone(), entry.clone()], { color: 0xffffff, count: 4, speed: 0.5, r: 0.1 }));
-    const colors = [
-      { c: 0xff3030, off: -0.0 },
-      { c: 0xff9a3d, off: 0.12 },
-      { c: 0xffe14d, off: 0.22 },
-      { c: 0x3ed673, off: 0.34 },
-      { c: 0x4a90e2, off: 0.46 },
-      { c: 0x8a4aff, off: 0.6 }
-    ];
-    const exit = new THREE.Vector3(0.9, -0.4, 0.02);
-    colors.forEach(col => {
-      const dir = new THREE.Vector3(1, -0.3 - col.off*S.pr_spread, 0).normalize();
-      const end = exit.clone().add(dir.multiplyScalar(4.5));
+
+    // prizma içinde (beyaz, kısa) → çıkış yüzeyi
+    const exit = new THREE.Vector3(0.95, -0.35, 0.02);
+    dyn.add(makeRay(entry, exit, { color: 0xffffff, r: 0.04, arrow: false }));
+
+    // çıkışta renklere ayrılma — her renk farklı açıda, kırmızı en az
+    COLORS.forEach((col) => {
+      const ang = -0.28 - col.dn * 0.42 * S.pr_spread; // aşağıya doğru artan sapma
+      const dir = new THREE.Vector3(Math.cos(ang), Math.sin(ang), 0).normalize();
+      const end = exit.clone().add(dir.multiplyScalar(4.6));
       dyn.add(makeRay(exit, end, { color: col.c, r: 0.035, arrow: false }));
       dyn.add(makeFlowRay([exit.clone(), end.clone()], { color: col.c, count: 3, speed: 0.5, r: 0.07 }));
     });
-    dyn.add(makeMeasureLabel('Beyaz ışık', [-3.5, 1.9, 0], 'rgba(255,255,255,0.9)'));
-    dyn.add(makeMeasureLabel('🔴 Kırmızı (en az)', [4.2, -1, 0], 'rgba(255,48,48,0.9)'));
-    dyn.add(makeMeasureLabel('🟣 Mor (en çok)', [3.8, -3, 0], 'rgba(138,74,255,0.9)'));
+
+    dyn.add(makeMeasureLabel('Beyaz ışık', [-3.6, 2.0, 0], 'rgba(255,255,255,0.92)'));
+    dyn.add(makeMeasureLabel('🔴 Kırmızı (en az kırılır)', [4.6, -0.6, 0], 'rgba(255,48,48,0.92)'));
+    dyn.add(makeMeasureLabel('🟣 Mor (en çok kırılır)', [4.2, -3.3, 0], 'rgba(138,74,255,0.92)'));
   }
   rebuild();
 
@@ -3532,20 +4016,23 @@ SubBuilders.buildPrizma = function() {
     { type: 'slider', label: 'Ayrışma (dispersiyon)', min: 0.4, max: 1.6, step: 0.2, unit: '×',
       getValue: () => S.pr_spread, setValue: (v)=>{ S.pr_spread=v; rebuild(); }, format:(x)=>x.toFixed(1) },
     { type: 'section', label: 'Bilgi' },
-    { type: 'display', label: 'En çok kırılan', highlight: true, getValue: () => 'Mor (λ küçük)' },
-    { type: 'display', label: 'En az kırılan', getValue: () => 'Kırmızı (λ büyük)' },
+    { type: 'display', label: 'En çok kırılan', highlight: true, getValue: () => 'Mor (λ küçük, n büyük)' },
+    { type: 'display', label: 'En az kırılan', getValue: () => 'Kırmızı (λ büyük, n küçük)' },
+    { type: 'display', label: 'Sıra', getValue: () => 'Kırmızı→…→Mor' },
     { type: 'formula', text: 'Beyaz ışık = tüm renkler · n_mor > n_kırmızı' }
   ], { title: 'Prizma ve Renkler' });
 
   addInfo3DLabels([
     { text: { ilkokul:'🔺 Cam prizma', ortaokul:'🔺 Üçgen prizma', lise:'🔺 Prizma (cam)', tyt_ayt:'🔺 Prizma (dispersiyon)' },
-      position: [0, 2.6, 0], target: [0, 0.6, 0], color: '#aadfff' },
+      position: [0, 2.8, 0], target: [0, 0.6, 0], color: '#aadfff' },
     { text: { ilkokul:'🌈 Renklere ayrılır', ortaokul:'🌈 Renk ayrışması', lise:'🌈 Spektrum', tyt_ayt:'🌈 Dispersiyon (renk ayrımı)' },
-      position: [4.5, 0.5, 0], target: [3, -1.2, 0], color: '#3ed673' }
+      position: [5.0, 0.6, 0], target: [3.2, -1.2, 0], color: '#3ed673' }
   ]);
+
+  if (typeof camera !== 'undefined' && camera) camera.position.set(0, 1.85, 25.0);
+  if (typeof controls !== 'undefined' && controls) controls.target.set(0, -1.15, 0);
 };
 
-// ---------- MODÜL 2.3: Mercek Türleri (ince/kalın kenarlı) ----------
 SubBuilders.buildMercekTur = function() {
   const root = new THREE.Group();
   markDynamic(root); scene.add(root); window._currentModelGroup = root;
@@ -3553,61 +4040,73 @@ SubBuilders.buildMercekTur = function() {
   root.add(makeGridSystem({ size: 16, divisions: 16 }));
 
   const S = window._sceneState;
-  S.mt_type = 'convex';
-  S.mt_f = 3.0;
+  if (S.mt_type === undefined) S.mt_type = 'convex';
+  if (S.mt_f === undefined) S.mt_f = 3.0;
 
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
+  // optik eksen
   root.add(makeSolidLine(new THREE.Vector3(-7,0,0), new THREE.Vector3(7,0,0), { color: window._lightMode ? 0x5a6a88 : 0x9fb0d8, opacity: window._lightMode ? 0.6 : 0.4 }));
 
   function rebuild() {
     [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
-    const lens = makeLens(S.mt_type, { h: 4.2, w: 0.9 });
-    dyn.add(lens);
+    const isConvex = (S.mt_type === 'convex');
     const f = S.mt_f;
-    if (S.mt_type === 'convex') {
-      dyn.add(makeMarker(new THREE.Vector3(f, 0, 0.05), { color: OCOL.focus, r: 0.13 }));
-      dyn.add(makeMarker(new THREE.Vector3(-f, 0, 0.05), { color: OCOL.focus, r: 0.13 }));
-    } else {
-      dyn.add(makeMarker(new THREE.Vector3(-f, 0, 0.05), { color: OCOL.focus, r: 0.11 }));
-      dyn.add(makeMarker(new THREE.Vector3(f, 0, 0.05), { color: OCOL.focus, r: 0.11 }));
-    }
-    const ys = [1.3, 0, -1.3];
+
+    // mercek kesiti
+    dyn.add(makeLens(S.mt_type, { h: 4.2, w: isConvex ? 0.9 : 0.95 }));
+
+    // odak işaretleri (F sağ, F' sol)
+    dyn.add(makeMarker(new THREE.Vector3(f, 0, 0.05), { color: OCOL.focus, r: 0.13 }));
+    dyn.add(makeMarker(new THREE.Vector3(-f, 0, 0.05), { color: OCOL.focus, r: 0.13 }));
+
+    // === paralel ışın demeti (eksene paralel, soldan gelir) ===
+    const ys = [1.5, 0.75, 0, -0.75, -1.5];
     ys.forEach(y => {
       const hit = new THREE.Vector3(0, y, 0.04);
       const inStart = new THREE.Vector3(-6, y, 0.04);
-      dyn.add(makeRay(inStart, hit, { color: OCOL.ray, r: 0.04, arrow: false }));
-      if (S.mt_type === 'convex') {
+      dyn.add(makeRay(inStart, hit, { color: OCOL.ray, r: 0.035, arrow: false }));
+
+      if (isConvex) {
+        // İNCE KENARLI: paralel ışınlar gerçek odakta (F, sağda) TOPLANIR
         const focusPt = new THREE.Vector3(f, 0, 0.04);
-        dyn.add(makeRay(hit, focusPt, { color: OCOL.refract, r: 0.04, arrow: false }));
-        dyn.add(makeFlowRay([inStart.clone(), hit.clone(), focusPt.clone()], { color: 0xffffff, count: 4, speed: 0.5, r: 0.08 }));
-        if (y !== 0) { const dir = focusPt.clone().sub(hit).normalize(); dyn.add(makeRay(focusPt, focusPt.clone().add(dir.multiplyScalar(3)), { color: OCOL.refract, r: 0.025, arrow: false })); }
+        dyn.add(makeRay(hit, focusPt, { color: OCOL.refract, r: 0.035, arrow: false }));
+        dyn.add(makeFlowRay([inStart.clone(), hit.clone(), focusPt.clone()], { color: 0xffffff, count: 4, speed: 0.5, r: 0.07 }));
+        // odaktan sonra ıraksayarak devam
+        if (y !== 0) {
+          const dir = focusPt.clone().sub(hit).normalize();
+          dyn.add(makeRay(focusPt, focusPt.clone().add(dir.multiplyScalar(2.8)), { color: OCOL.refract, r: 0.022, arrow: false }));
+        }
       } else {
+        // KALIN KENARLI: paralel ışınlar SAÇILIR; geri uzantıları sanal odakta (F', solda) kesişir
+        const virtualF = new THREE.Vector3(-f, 0, 0.04);
         if (y === 0) {
           const endC = new THREE.Vector3(6, 0, 0.04);
-          dyn.add(makeRay(hit, endC, { color: OCOL.refract, r: 0.04, arrow: false }));
-          dyn.add(makeFlowRay([inStart.clone(), hit.clone(), endC.clone()], { color: 0xffffff, count: 4, speed: 0.5, r: 0.08 }));
-        }
-        else {
-          const virtualF = new THREE.Vector3(-f, 0, 0.04);
+          dyn.add(makeRay(hit, endC, { color: OCOL.refract, r: 0.035, arrow: false }));
+          dyn.add(makeFlowRay([inStart.clone(), hit.clone(), endC.clone()], { color: 0xffffff, count: 4, speed: 0.5, r: 0.07 }));
+        } else {
+          // kırılan ışın, sanal odaktan geliyormuş gibi ıraksar
           const dir = hit.clone().sub(virtualF).normalize();
           const end = hit.clone().add(dir.multiplyScalar(5));
-          dyn.add(makeRay(hit, end, { color: OCOL.refract, r: 0.04, arrow: false }));
-          dyn.add(makeFlowRay([inStart.clone(), hit.clone(), end.clone()], { color: 0xffffff, count: 4, speed: 0.5, r: 0.08 }));
+          dyn.add(makeRay(hit, end, { color: OCOL.refract, r: 0.035, arrow: false }));
+          dyn.add(makeFlowRay([inStart.clone(), hit.clone(), end.clone()], { color: 0xffffff, count: 4, speed: 0.5, r: 0.07 }));
+          // geri uzantı (kesikli) → sanal odak
           dyn.add(makeDashedLine(hit, virtualF, { color: OCOL.refract, dash: 0.18, gap: 0.12, opacity: 0.5 }));
         }
       }
     });
-    dyn.add(makeMeasureLabel(S.mt_type==='convex'?'F (gerçek odak)':'F (sanal odak)', [f+0.3, 0.6, 0], 'rgba(255,82,82,0.92)'));
-    dyn.add(makeMeasureLabel("F'", [-f-0.3, 0.6, 0], 'rgba(255,82,82,0.9)'));
+
+    // etiketler
+    dyn.add(makeMeasureLabel(isConvex ? 'F (gerçek odak)' : "F (sanal odak)", [f+0.3, 0.65, 0], 'rgba(255,82,82,0.92)'));
+    dyn.add(makeMeasureLabel("F'", [-f-0.3, 0.65, 0], 'rgba(255,82,82,0.9)'));
     dyn.add(makeSpan(new THREE.Vector3(0, 2.7, 0), new THREE.Vector3(f, 2.7, 0), 'f = ' + f.toFixed(1), { color: OCOL.focus, offset:[0,0.4,0] }));
-    dyn.add(makeSpan(new THREE.Vector3(-f, -2.7, 0), new THREE.Vector3(0, -2.7, 0), 'f = ' + f.toFixed(1), { color: OCOL.focus, offset:[0,-0.4,0] }));
     dyn.add(makeMeasureLabel('O', [0, -0.55, 0], 'rgba(159,176,216,0.9)'));
+    dyn.add(makeMeasureLabel(isConvex ? '✅ Odakta TOPLANIR' : '⚠️ DAĞILIR (ıraksar)', [isConvex? f+0.4 : 3.4, isConvex?-1.6:-1.9, 0], isConvex ? 'rgba(60,150,80,0.92)' : 'rgba(200,110,40,0.92)'));
   }
   rebuild();
 
   setSceneSliders([
     { type: 'section', label: 'Mercek Türü' },
-    { type: 'presets', activeIdx: 0, options: [
+    { type: 'presets', activeIdx: S.mt_type==='convex'?0:1, options: [
       { label: '🔎 İnce kenarlı (toplar)', action: ()=>{ S.mt_type='convex'; rebuild(); } },
       { label: '🔆 Kalın kenarlı (dağıtır)', action: ()=>{ S.mt_type='concave'; rebuild(); } }
     ]},
@@ -3615,7 +4114,7 @@ SubBuilders.buildMercekTur = function() {
       getValue: () => S.mt_f, setValue: (v)=>{ S.mt_f=v; rebuild(); }, format:(x)=>x.toFixed(1) },
     { type: 'section', label: 'Bu Mercek' },
     { type: 'display', label: 'Tür', highlight: true, getValue: () => S.mt_type==='convex' ? 'İnce kenarlı (yakınsak)' : 'Kalın kenarlı (ıraksak)' },
-    { type: 'display', label: 'Işığı', getValue: () => S.mt_type==='convex' ? 'Odakta TOPLAR' : 'DAĞITIR' },
+    { type: 'display', label: 'Paralel ışınları', getValue: () => S.mt_type==='convex' ? 'Odakta TOPLAR' : 'DAĞITIR (sanal odak)' },
     { type: 'display', label: 'Odak', getValue: () => S.mt_type==='convex' ? 'Gerçek (f>0)' : 'Sanal (f<0)' },
     { type: 'formula', text: '1/f = (n−1)(1/R₁ − 1/R₂)' }
   ], { title: 'Mercek Türleri' });
@@ -3624,13 +4123,15 @@ SubBuilders.buildMercekTur = function() {
     { text: { ilkokul:'🔎 Mercek', ortaokul:'🔎 Mercek', lise:'🔎 Mercek (cam)', tyt_ayt:'🔎 İnce/kalın kenarlı' },
       position: [0, 2.8, 0], target: [0, 1.5, 0], color: '#aadfff' },
     { text: { ilkokul:'➡️ Işınlar gelir', ortaokul:'➡️ Paralel ışınlar', lise:'➡️ Paralel ışın demeti', tyt_ayt:'➡️ Eksene paralel ışınlar' },
-      position: [-5, 2.2, 0], target: [-4, 1.3, 0], color: '#ffe14d' },
+      position: [-5, 2.4, 0], target: [-4, 1.5, 0], color: '#ffe14d' },
     { text: { ilkokul:'🎯 Odak', ortaokul:'🎯 Odak noktası F', lise:'🎯 Odak F', tyt_ayt:'🎯 Odak (gerçek/sanal)' },
-      position: [S.mt_f+0.5, -1.2, 0], target: [S.mt_f, 0, 0], color: '#ff5252' }
+      position: [S.mt_f+0.6, -1.3, 0], target: [S.mt_f, 0, 0], color: '#ff5252' }
   ]);
+
+  if (typeof camera !== 'undefined' && camera) camera.position.set(0, 1.85, 25.0);
+  if (typeof controls !== 'undefined' && controls) controls.target.set(0, -1.15, 0);
 };
 
-// ---------- MODÜL 3.1: Mercekte Görüntü Oluşumu ----------
 SubBuilders.buildMercekGoruntu = function() {
   const root = new THREE.Group();
   markDynamic(root); scene.add(root); window._currentModelGroup = root;
@@ -3638,44 +4139,90 @@ SubBuilders.buildMercekGoruntu = function() {
   root.add(makeGridSystem({ size: 16, divisions: 16 }));
 
   const S = window._sceneState;
-  S.mg_d = 6.0;
-  S.mg_f = 2.0;
+  if (S.mg_d === undefined) S.mg_d = 6.0;
+  if (S.mg_f === undefined) S.mg_f = 2.0;
 
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
   root.add(makeSolidLine(new THREE.Vector3(-9,0,0), new THREE.Vector3(9,0,0), { color: window._lightMode ? 0x5a6a88 : 0x9fb0d8, opacity: window._lightMode ? 0.6 : 0.4 }));
 
+  // ışını uzunluk L kadar uzat
+  function extend(from, dir, L){ return from.clone().add(dir.clone().normalize().multiplyScalar(L)); }
+
   function rebuild() {
     [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
     const f = S.mg_f, d = S.mg_d;
-    const lens = makeLens('convex', { h: 4.5, w: 0.8 }); dyn.add(lens);
+    dyn.add(makeLens('convex', { h: 4.5, w: 0.8 }));
+
+    // odak / 2F işaretleri
     dyn.add(makeMarker(new THREE.Vector3(f,0,0.05), { color: OCOL.focus, r: 0.12 }));
     dyn.add(makeMarker(new THREE.Vector3(-f,0,0.05), { color: OCOL.focus, r: 0.12 }));
     dyn.add(makeMarker(new THREE.Vector3(2*f,0,0.05), { color: 0x6ad6ff, r: 0.09 }));
     dyn.add(makeMarker(new THREE.Vector3(-2*f,0,0.05), { color: 0x6ad6ff, r: 0.09 }));
-    const objH = 1.6;
+
+    const objH = 1.5;
     const objX = -d;
     const objTop = new THREE.Vector3(objX, objH, 0.05);
     const obj = makeObjectArrow(objH, { color: OCOL.object }); obj.position.set(objX, 0, 0.05); dyn.add(obj);
-    let dPrime = (d === f) ? Infinity : (f*d)/(d-f);
-    const m = -dPrime/d;
-    const imgH = objH * m;
-    const hit1 = new THREE.Vector3(0, objH, 0.04);
-    dyn.add(makeRay(objTop, hit1, { color: OCOL.ray, r: 0.035, arrow:false }));
-    if (isFinite(dPrime) && Math.abs(dPrime) < 12) {
-      const imgX = dPrime;
-      const imgTop = new THREE.Vector3(imgX, imgH, 0.05);
-      const fPt = new THREE.Vector3(f, 0, 0.04);
-      const dir1 = fPt.clone().sub(hit1).normalize();
-      const paraEnd = hit1.clone().add(dir1.multiplyScalar(Math.abs(imgX)+2));
-      dyn.add(makeRay(hit1, paraEnd, { color: OCOL.refract, r: 0.035, arrow:false }));
-      const cenEnd = new THREE.Vector3(imgX*1.3, imgH*1.3, 0.04);
-      dyn.add(makeRay(objTop, cenEnd, { color: 0x8a4aff, r: 0.03, arrow:false }));
-      dyn.add(makeFlowRay([objTop.clone(), hit1.clone(), paraEnd.clone()], { color: 0xffffff, count: 4, speed: 0.5, r: 0.08 }));
-      dyn.add(makeFlowRay([objTop.clone(), cenEnd.clone()], { color: 0xc9a8ff, count: 3, speed: 0.5, r: 0.07 }));
-      const img = makeObjectArrow(imgH, { color: 0xff5252 }); img.position.set(imgX, 0, 0.05); dyn.add(img);
-      makeLabeledPoint(dyn, [imgX, imgH, 0.05], [imgX + 1.8, (imgH>0?imgH+1.4:imgH-1.4), 0], 'Görüntü', { color: '#ff5252' });
-      dyn.add(makeSpan(new THREE.Vector3(0, -3.1, 0), new THREE.Vector3(imgX, -3.1, 0), "d' = " + Math.abs(dPrime).toFixed(1), { color: 0xff5252, offset:[0,-0.4,0] }));
+
+    // görüntü hesabı
+    const dPrime = (Math.abs(d - f) < 1e-4) ? Infinity : (f*d)/(d-f);
+    const m = isFinite(dPrime) ? (-dPrime/d) : Infinity;
+    const imgH = isFinite(m) ? objH * m : 0;
+    const real = isFinite(dPrime) && dPrime > 0;
+
+    // --- 3 ASIL IŞIN ---
+    // Lens noktaları
+    const hitPar = new THREE.Vector3(0, objH, 0.04);              // paralel ışın merceğe değer
+    // 1) PARALEL ışın: cisim tepesinden eksene paralel → mercekte kırılıp F'den geçer
+    dyn.add(makeRay(objTop, hitPar, { color: OCOL.ray, r: 0.035, arrow: false }));
+    const fR = new THREE.Vector3(f, 0, 0.04);
+    let dir1;
+    if (real) { dir1 = fR.clone().sub(hitPar).normalize(); }
+    else { dir1 = fR.clone().sub(hitPar).normalize(); } // sanal: yine F yönünde ıraksar
+    const par2 = extend(hitPar, dir1, real ? (Math.abs(dPrime)+2.5) : 7.5);
+    dyn.add(makeRay(hitPar, par2, { color: OCOL.refract, r: 0.035, arrow: false }));
+
+    // 2) MERKEZDEN geçen ışın: kırılmadan düz devam
+    const cDir = new THREE.Vector3(0,0,0.04).sub(objTop).normalize();
+    const cen2 = extend(new THREE.Vector3(0,0,0.04), cDir, real ? (Math.abs(dPrime)+2.5) : 7.5);
+    dyn.add(makeRay(objTop, cen2, { color: 0x8a4aff, r: 0.03, arrow: false }));
+
+    // 3) ODAKTAN (F', solda) geçen ışın → mercekten eksene paralel çıkar
+    // cisim tepesinden F'(-f,0) doğrultusu, mercekte y3'e değer
+    const fL = new THREE.Vector3(-f, 0, 0.04);
+    let hit3 = null;
+    if (objX < -f) { // cisim F' solunda → ışın F'den geçer
+      const dirToFL = fL.clone().sub(objTop);
+      const tLens = (0 - objTop.x) / dirToFL.x;
+      const y3 = objTop.y + dirToFL.y * tLens;
+      hit3 = new THREE.Vector3(0, y3, 0.04);
+      dyn.add(makeRay(objTop, hit3, { color: 0xffb84d, r: 0.03, arrow: false }));
+      const out3 = new THREE.Vector3(real ? (Math.abs(dPrime)+2.5) : 7.5, y3, 0.04);
+      dyn.add(makeRay(hit3, out3, { color: 0xffb84d, r: 0.03, arrow: false }));
     }
+
+    // akan fotonlar (1. ve 2. ışın)
+    dyn.add(makeFlowRay([objTop.clone(), hitPar.clone(), par2.clone()], { color: 0xffffff, count: 4, speed: 0.5, r: 0.07 }));
+    dyn.add(makeFlowRay([objTop.clone(), cen2.clone()], { color: 0xc9a8ff, count: 3, speed: 0.5, r: 0.06 }));
+
+    if (isFinite(dPrime) && Math.abs(dPrime) < 13) {
+      const imgX = dPrime;
+      const img = makeObjectArrow(imgH, { color: real ? 0xff5252 : 0xffa0a0 });
+      img.position.set(imgX, 0, 0.05);
+      if (!real) img.children.forEach(ch=>{ if(ch.material){ ch.material.transparent=true; ch.material.opacity=0.7; } });
+      dyn.add(img);
+      // sanal görüntü için ışınların geri uzantıları (kesikli)
+      if (!real) {
+        const imgTop = new THREE.Vector3(imgX, imgH, 0.05);
+        dyn.add(makeDashedLine(hitPar, imgTop, { color: 0xff7a7a, dash: 0.2, gap: 0.15, opacity: 0.5 }));
+        dyn.add(makeDashedLine(new THREE.Vector3(0,0,0.04), imgTop, { color: 0xc9a8ff, dash: 0.2, gap: 0.15, opacity: 0.45 }));
+      }
+      makeLabeledPoint(dyn, [imgX, imgH, 0.05], [imgX + (imgX>0?1.6:-1.6), (imgH>0?imgH+1.4:imgH-1.4), 0], real?'Görüntü (gerçek)':'Görüntü (sanal)', { color: '#ff5252' });
+      dyn.add(makeSpan(new THREE.Vector3(0, -3.1, 0), new THREE.Vector3(imgX, -3.1, 0), "d' = " + Math.abs(dPrime).toFixed(1), { color: 0xff5252, offset:[0,-0.4,0] }));
+    } else if (!isFinite(dPrime)) {
+      dyn.add(makeMeasureLabel('Görüntü SONSUZDA (d = f)', [3, 1.5, 0], 'rgba(255,82,82,0.92)'));
+    }
+
     makeLabeledPoint(dyn, [objX, objH, 0.05], [objX - 1.6, objH + 1.4, 0], 'Cisim', { color: '#3ed673' });
     const tickLabel = (x, y, txt, bg) => {
       dyn.add(makeSolidLine(new THREE.Vector3(x,0,0.04), new THREE.Vector3(x,y,0.04), { color: window._lightMode ? 0x5a6a88 : 0x9fb0d8, opacity: window._lightMode ? 0.6 : 0.4 }));
@@ -3693,10 +4240,18 @@ SubBuilders.buildMercekGoruntu = function() {
 
   function durum() {
     const f = S.mg_f, d = S.mg_d;
-    if (d > 2*f) return 'Küçük, ters, gerçek';
-    if (Math.abs(d-2*f)<0.3) return 'Eşit, ters, gerçek';
-    if (d > f) return 'Büyük, ters, gerçek';
-    return 'Büyük, düz, sanal (büyüteç)';
+    if (Math.abs(d-f) < 0.25) return 'Sonsuzda (görüntü yok)';
+    if (d > 2*f) return 'Küçük · ters · gerçek';
+    if (Math.abs(d-2*f) < 0.25) return 'Eşit · ters · gerçek';
+    if (d > f) return 'Büyük · ters · gerçek';
+    return 'Büyük · düz · sanal (büyüteç)';
+  }
+  function konum() {
+    const f = S.mg_f, d = S.mg_d;
+    if (d > 2*f) return 'Cisim 2F dışı';
+    if (Math.abs(d-2*f)<0.25) return 'Cisim 2F üstünde';
+    if (d > f) return 'Cisim F-2F arası';
+    return 'Cisim F içinde';
   }
   setSceneSliders([
     { type: 'section', label: 'Mercekte Görüntü' },
@@ -3705,8 +4260,9 @@ SubBuilders.buildMercekGoruntu = function() {
     { type: 'slider', label: 'Odak f', min: 1.5, max: 3, step: 0.5, unit: '',
       getValue: () => S.mg_f, setValue: (v)=>{ S.mg_f=v; rebuild(); }, format:(x)=>x.toFixed(1) },
     { type: 'section', label: 'Görüntü' },
-    { type: 'display', label: 'Özellik', highlight: true, getValue: () => durum() },
-    { type: 'display', label: 'Konum', getValue: () => S.mg_d > 2*S.mg_f ? 'F-2F arası' : (S.mg_d>S.mg_f ? '2F dışı' : 'Mercek arkası (sanal)') },
+    { type: 'display', label: 'Cisim konumu', highlight: true, getValue: () => konum() },
+    { type: 'display', label: 'Özellik', getValue: () => durum() },
+    { type: 'display', label: "d'", getValue: () => { const f=S.mg_f,d=S.mg_d; if(Math.abs(d-f)<1e-4) return '∞'; return ((f*d)/(d-f)).toFixed(2); } },
     { type: 'formula', text: "1/f = 1/d + 1/d'" }
   ], { title: 'Mercekte Görüntü' });
 
@@ -3714,9 +4270,11 @@ SubBuilders.buildMercekGoruntu = function() {
     { text: { ilkokul:'🔎 Mercek', ortaokul:'🔎 İnce kenarlı', lise:'🔎 Yakınsak mercek', tyt_ayt:'🔎 İnce kenarlı (f>0)' },
       position: [0, 3.6, 0], target: [0, 2.2, 0], color: '#aadfff' }
   ]);
+
+  if (typeof camera !== 'undefined' && camera) camera.position.set(0, 1.85, 25.0);
+  if (typeof controls !== 'undefined' && controls) controls.target.set(0, -1.15, 0);
 };
 
-// ---------- MODÜL 3.2: Mercek Denklemi (1/f=1/d+1/d') ----------
 SubBuilders.buildMercekDenklem = function() {
   const root = new THREE.Group();
   markDynamic(root); scene.add(root); window._currentModelGroup = root;
@@ -3724,25 +4282,65 @@ SubBuilders.buildMercekDenklem = function() {
   root.add(makeGridSystem({ size: 16, divisions: 16 }));
 
   const S = window._sceneState;
-  S.md_d = 5.0;
-  S.md_f = 2.0;
+  if (S.md_d === undefined) S.md_d = 5.0;
+  if (S.md_f === undefined) S.md_f = 2.0;
 
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
   root.add(makeSolidLine(new THREE.Vector3(-9,0,0), new THREE.Vector3(9,0,0), { color: window._lightMode ? 0x5a6a88 : 0x9fb0d8, opacity: window._lightMode ? 0.6 : 0.4 }));
 
-  function dPrime(){ const f=S.md_f,d=S.md_d; return (d===f)?Infinity:(f*d)/(d-f); }
-  function buyutme(){ return -dPrime()/S.md_d; }
+  function dPrime(){ const f=S.md_f,d=S.md_d; return (Math.abs(d-f)<1e-4)?Infinity:(f*d)/(d-f); }
+  function buyutme(){ const dp=dPrime(); return isFinite(dp) ? -dp/S.md_d : Infinity; }
+  function extend(from, dir, L){ return from.clone().add(dir.clone().normalize().multiplyScalar(L)); }
 
   function rebuild() {
     [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
     const f = S.md_f, d = S.md_d;
-    const lens = makeLens('convex', { h: 4.5, w: 0.8 }); dyn.add(lens);
+    dyn.add(makeLens('convex', { h: 4.5, w: 0.8 }));
     dyn.add(makeMarker(new THREE.Vector3(f,0,0.05), { color: OCOL.focus, r: 0.12 }));
     dyn.add(makeMarker(new THREE.Vector3(-f,0,0.05), { color: OCOL.focus, r: 0.12 }));
-    const objH = 1.4;
-    const obj = makeObjectArrow(objH, { color: OCOL.object }); obj.position.set(-d, 0, 0.05); dyn.add(obj);
     dyn.add(makeMarker(new THREE.Vector3(2*f,0,0.05), { color: 0x6ad6ff, r: 0.09 }));
     dyn.add(makeMarker(new THREE.Vector3(-2*f,0,0.05), { color: 0x6ad6ff, r: 0.09 }));
+
+    const objH = 1.4;
+    const objX = -d;
+    const objTop = new THREE.Vector3(objX, objH, 0.04);
+    const obj = makeObjectArrow(objH, { color: OCOL.object }); obj.position.set(objX, 0, 0.05); dyn.add(obj);
+
+    const dp = dPrime();
+    const m = buyutme();
+    const real = isFinite(dp) && dp > 0;
+
+    // 3 asıl ışın
+    const hitPar = new THREE.Vector3(0, objH, 0.04);
+    dyn.add(makeRay(objTop, hitPar, { color: OCOL.ray, r: 0.03, arrow: false }));
+    const fR = new THREE.Vector3(f, 0, 0.04);
+    const dir1 = fR.clone().sub(hitPar).normalize();
+    const par2 = extend(hitPar, dir1, isFinite(dp) ? Math.abs(dp)+2.5 : 8);
+    dyn.add(makeRay(hitPar, par2, { color: OCOL.refract, r: 0.03, arrow: false }));
+    // merkezden
+    const cDir = new THREE.Vector3(0,0,0.04).sub(objTop).normalize();
+    const cen2 = extend(new THREE.Vector3(0,0,0.04), cDir, isFinite(dp) ? Math.abs(dp)+2.5 : 8);
+    dyn.add(makeRay(objTop, cen2, { color: 0x8a4aff, r: 0.025, arrow: false }));
+
+    dyn.add(makeFlowRay([objTop.clone(), hitPar.clone(), par2.clone()], { color: 0xffffff, count: 4, speed: 0.5, r: 0.065 }));
+    dyn.add(makeFlowRay([objTop.clone(), cen2.clone()], { color: 0xc9a8ff, count: 3, speed: 0.5, r: 0.055 }));
+
+    if (isFinite(dp) && Math.abs(dp) < 13) {
+      const imgH = objH * m;
+      const img = makeObjectArrow(imgH, { color: real ? 0xff5252 : 0xffa0a0 });
+      img.position.set(dp, 0, 0.05);
+      if (!real) img.children.forEach(ch=>{ if(ch.material){ ch.material.transparent=true; ch.material.opacity=0.7; } });
+      dyn.add(img);
+      const imgTop = new THREE.Vector3(dp, imgH, 0.04);
+      if (!real) {
+        dyn.add(makeDashedLine(hitPar, imgTop, { color: 0xff7a7a, dash: 0.2, gap: 0.15, opacity: 0.5 }));
+        dyn.add(makeDashedLine(new THREE.Vector3(0,0,0.04), imgTop, { color: 0xc9a8ff, dash: 0.2, gap: 0.15, opacity: 0.45 }));
+      }
+      dyn.add(makeDimension(new THREE.Vector3(0, -3.2, 0), new THREE.Vector3(dp, -3.2, 0), "d' = " + dp.toFixed(2), { color: 0xff5252, offset:[0,-0.4,0] }));
+    } else if (!isFinite(dp)) {
+      dyn.add(makeMeasureLabel("d' = ∞ (görüntü sonsuzda)", [3, 1.6, 0], 'rgba(255,82,82,0.92)'));
+    }
+
     const tickLabel = (x, y, txt, bg) => {
       dyn.add(makeSolidLine(new THREE.Vector3(x,0,0.04), new THREE.Vector3(x,y,0.04), { color: window._lightMode ? 0x5a6a88 : 0x9fb0d8, opacity: window._lightMode ? 0.6 : 0.4 }));
       dyn.add(makeMeasureLabel(txt, [x, y-0.2, 0], bg));
@@ -3753,21 +4351,7 @@ SubBuilders.buildMercekDenklem = function() {
     tickLabel(2*f, -1.4, '2F', 'rgba(106,214,255,0.9)');
     tickLabel(-2*f, -1.4, "2F'", 'rgba(106,214,255,0.9)');
     dyn.add(makeSpan(new THREE.Vector3(0, 2.7, 0), new THREE.Vector3(f, 2.7, 0), 'f = ' + f.toFixed(1), { color: OCOL.focus, offset:[0,0.4,0] }));
-    dyn.add(makeDimension(new THREE.Vector3(-d, -2.4, 0), new THREE.Vector3(0, -2.4, 0), 'd = ' + d.toFixed(1), { color: 0x3ed673, offset:[0,-0.4,0] }));
-    const dp = dPrime();
-    if (isFinite(dp) && Math.abs(dp)<12) {
-      const m = buyutme();
-      const img = makeObjectArrow(objH*m, { color: 0xff5252 }); img.position.set(dp, 0, 0.05); dyn.add(img);
-      dyn.add(makeDimension(new THREE.Vector3(0, -3.2, 0), new THREE.Vector3(dp, -3.2, 0), "d' = " + dp.toFixed(2), { color: 0xff5252, offset:[0,-0.4,0] }));
-      const objTop = new THREE.Vector3(-d, objH, 0.04);
-      const hit = new THREE.Vector3(0, objH, 0.04);
-      dyn.add(makeRay(objTop, hit, { color: OCOL.ray, r:0.03, arrow:false }));
-      const imgTop = new THREE.Vector3(dp, objH*m, 0.04);
-      dyn.add(makeRay(hit, imgTop, { color: OCOL.refract, r:0.03, arrow:false }));
-      dyn.add(makeRay(objTop, imgTop, { color: 0x8a4aff, r:0.025, arrow:false }));
-      dyn.add(makeFlowRay([objTop.clone(), hit.clone(), imgTop.clone()], { color: 0xffffff, count: 4, speed: 0.5, r: 0.075 }));
-      dyn.add(makeFlowRay([objTop.clone(), imgTop.clone()], { color: 0xc9a8ff, count: 3, speed: 0.5, r: 0.065 }));
-    }
+    dyn.add(makeDimension(new THREE.Vector3(objX, -2.4, 0), new THREE.Vector3(0, -2.4, 0), 'd = ' + d.toFixed(1), { color: 0x3ed673, offset:[0,-0.4,0] }));
   }
   rebuild();
 
@@ -3779,10 +4363,10 @@ SubBuilders.buildMercekDenklem = function() {
       getValue: () => S.md_f, setValue: (v)=>{ S.md_f=v; rebuild(); }, format:(x)=>x.toFixed(1) },
     { type: 'section', label: 'Hesap' },
     { type: 'display', label: "Görüntü uzaklığı d'", highlight: true, getValue: () => { const dp=dPrime(); return isFinite(dp)?dp.toFixed(2):'∞'; } },
-    { type: 'display', label: 'Büyütme m', getValue: () => { const dp=dPrime(); return isFinite(dp)?buyutme().toFixed(2):'∞'; } },
-    { type: 'display', label: 'Görüntü türü', getValue: () => { const dp=dPrime(); return !isFinite(dp)?'Sonsuzda':(dp>0?'Gerçek':'Sanal'); } },
+    { type: 'display', label: 'Büyütme m', getValue: () => { const dp=dPrime(); return isFinite(dp)?buyutme().toFixed(2)+'×':'∞'; } },
+    { type: 'display', label: 'Görüntü türü', getValue: () => { const dp=dPrime(); return !isFinite(dp)?'Sonsuzda':(dp>0?'Gerçek · ters':'Sanal · düz'); } },
     { type: 'formula', text: "1/f = 1/d + 1/d'",
-      getValue: () => "1/" + S.md_f.toFixed(1) + " = 1/" + S.md_d.toFixed(1) + " + 1/d'" }
+      getValue: () => { const dp=dPrime(); const dps = isFinite(dp)?dp.toFixed(2):'∞'; return "1/"+S.md_f.toFixed(1)+" = 1/"+S.md_d.toFixed(1)+" + 1/"+dps; } }
   ], { title: 'Mercek Denklemi' });
 
   addInfo3DLabels([
@@ -3791,9 +4375,11 @@ SubBuilders.buildMercekDenklem = function() {
     { text: { ilkokul:"🔴 Görüntü", ortaokul:"🔴 Görüntü (d')", lise:"🔴 Görüntü uzaklığı d'", tyt_ayt:"🔴 d' (görüntü)" },
       position: [3.5, 2, 0], target: [2.5, 0.6, 0], color: '#ff5252' }
   ]);
+
+  if (typeof camera !== 'undefined' && camera) camera.position.set(0, 1.85, 25.0);
+  if (typeof controls !== 'undefined' && controls) controls.target.set(0, -1.15, 0);
 };
 
-// ---------- MODÜL 3.3: Göz Kusurları (miyop/hipermetrop) ----------
 SubBuilders.buildGozKusur = function() {
   const root = new THREE.Group();
   markDynamic(root); scene.add(root); window._currentModelGroup = root;
@@ -3801,76 +4387,151 @@ SubBuilders.buildGozKusur = function() {
   root.add(makeGridSystem({ size: 16, divisions: 16 }));
 
   const S = window._sceneState;
-  S.gk_kusur = 0;
-  S.gk_duzelt = false;
+  if (S.gk_kusur === undefined) S.gk_kusur = 0;   // 0 Normal · 1 Miyop · 2 Hipermetrop
+  if (S.gk_duzelt === undefined) S.gk_duzelt = false;
+
+  // --- yardımcı: optik eksen ---
+  root.add(makeSolidLine(new THREE.Vector3(-8, 0, 0), new THREE.Vector3(5.4, 0, 0),
+    { color: window._lightMode ? 0x5a6a88 : 0x9fb0d8, opacity: window._lightMode ? 0.55 : 0.35 }));
 
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
 
+  // göz kesiti: göz küresi merkezi eyeCx; kornea solda, retina sağda
+  const eyeCx = 3.0, eyeR = 1.9;
+  const corneaX = eyeCx - eyeR;          // korneanın (göz merceği düzlemi) x'i
+  const retinaX = eyeCx + eyeR * 0.78;   // retina (perde) x'i
+
+  function makeEyeCross() {
+    const g = new THREE.Group();
+    // göz küresi (yarı saydam beyaz)
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(eyeR, 36, 24),
+      new THREE.MeshStandardMaterial({ color: 0xeef3ff, transparent: true, opacity: 0.16, roughness: 0.35, side: THREE.DoubleSide }));
+    ball.position.set(eyeCx, 0, 0); g.add(ball);
+    // kornea (ön saydam kubbe)
+    const cornea = new THREE.Mesh(new THREE.SphereGeometry(0.85, 24, 16, 0, Math.PI*2, 0, Math.PI*0.62),
+      new THREE.MeshPhysicalMaterial ? new THREE.MeshPhysicalMaterial({ color: 0xbfe6ff, transparent: true, opacity: 0.4, roughness: 0.08, transmission: 0.5, ior: 1.37 })
+        : new THREE.MeshStandardMaterial({ color: 0xbfe6ff, transparent: true, opacity: 0.45, roughness: 0.1 }));
+    cornea.rotation.z = -Math.PI/2; cornea.position.set(corneaX + 0.1, 0, 0); g.add(cornea);
+    // göz merceği (mavi lens — odak gücünü belirler)
+    const lens = new THREE.Mesh(new THREE.SphereGeometry(0.6, 24, 16),
+      new THREE.MeshStandardMaterial({ color: 0xaadfff, transparent: true, opacity: 0.55, roughness: 0.1, toneMapped:false }));
+    lens.scale.set(0.42, 1.0, 1.0); lens.position.set(corneaX + 0.55, 0, 0); g.add(lens);
+    // iris halkası
+    const iris = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.08, 8, 24),
+      new THREE.MeshStandardMaterial({ color: 0x4a6a9a, roughness: 0.5 }));
+    iris.position.set(corneaX + 0.5, 0, 0); iris.rotation.y = Math.PI/2; g.add(iris);
+    // retina (sarı perde — arka iç yüzey)
+    const ret = new THREE.Mesh(new THREE.TorusGeometry(eyeR*0.74, 0.07, 8, 28, Math.PI*0.95),
+      new THREE.MeshStandardMaterial({ color: 0xffb84d, emissive: 0xffb84d, emissiveIntensity: 0.3, toneMapped:false }));
+    ret.rotation.z = Math.PI/2; ret.position.set(eyeCx + 0.35, 0, 0); g.add(ret);
+    return g;
+  }
+
   function rebuild() {
     [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
-    const eye = makeEye({ r: 1.8 }); eye.position.set(3, 0, 0); dyn.add(eye);
-    const eyeCenter = 3, retinaX = 3 + 1.8*0.55;
-    const ys = [0.9, -0.9];
+
+    dyn.add(makeEyeCross());
+
+    // Kusur → düzeltmesiz ışınların odak noktası (retinaya göre)
+    // Miyop  : göz fazla yakınsatır → odak retina ÖNÜNDE (sol)
+    // Hiperm.: göz az yakınsatır   → odak retina ARKASINDA (sağ)
     let focusX;
     if (S.gk_kusur === 0) focusX = retinaX;
-    else if (S.gk_kusur === 1) focusX = retinaX - 1.2;
-    else focusX = retinaX + 1.4;
-    if (S.gk_duzelt && S.gk_kusur !== 0) focusX = retinaX;
+    else if (S.gk_kusur === 1) focusX = retinaX - 1.15;   // miyop: önde
+    else focusX = retinaX + 1.35;                          // hipermetrop: arkada
 
-    if (S.gk_duzelt && S.gk_kusur !== 0) {
+    const corrected = (S.gk_duzelt && S.gk_kusur !== 0);
+    if (corrected) focusX = retinaX;                       // gözlükle retinaya çekilir
+
+    // Düzeltici mercek: MIYOP → KALIN KENARLI (ıraksak / concave, −D)
+    //                   HIPERMETROP → İNCE KENARLI (yakınsak / convex, +D)
+    if (corrected) {
       const corrType = (S.gk_kusur === 1) ? 'concave' : 'convex';
-      const corr = makeLens(corrType, { h: 3, w: 0.5 }); corr.position.set(0.6, 0, 0.05); corr.scale.set(0.7,0.7,0.7); dyn.add(corr);
-      dyn.add(makeMeasureLabel(corrType==='concave'?'👓 Kalın kenarlı (−)':'👓 İnce kenarlı (+)', [0.6, 2.2, 0], 'rgba(170,223,255,0.9)'));
+      const corr = makeLens(corrType, { h: 3.0, w: 0.55 });
+      corr.position.set(corneaX - 1.0, 0, 0.05); corr.scale.set(0.72, 0.72, 0.72); dyn.add(corr);
+      makeLabeledPoint(dyn, [corneaX - 1.0, 1.1, 0.1], [corneaX - 2.6, 2.4, 0],
+        corrType === 'concave' ? 'Kalın kenarlı mercek (−)' : 'İnce kenarlı mercek (+)',
+        { color: '#aadfff' });
     }
 
+    // Uzaktan gelen PARALEL ışınlar (iki demet, simetrik y), korneada kırılıp focusX'te kesişir
+    const ys = [0.78, -0.78];
+    const entryX = corrected ? corneaX - 1.0 : corneaX - 0.05;
     ys.forEach(y => {
-      const corneaPt = new THREE.Vector3(eyeCenter-1.5, y*0.55, 0.04);
-      const inStart = new THREE.Vector3(-6, y, 0.04);
-      dyn.add(makeRay(inStart, corneaPt, { color: OCOL.ray, r:0.035, arrow:false }));
+      const inStart = new THREE.Vector3(-7.5, y, 0.04);
+      const corneaPt = new THREE.Vector3(corneaX - 0.05, y, 0.04);
+      // paralel gelen kısım
+      dyn.add(makeRay(inStart, corneaPt, { color: OCOL.ray, r: 0.032, arrow:false }));
+      // korneadan focusX'e kırılan kısım
       const focusPt = new THREE.Vector3(focusX, 0, 0.04);
-      dyn.add(makeRay(corneaPt, focusPt, { color: OCOL.refract, r:0.035, arrow:false }));
-      dyn.add(makeFlowRay([inStart.clone(), corneaPt.clone(), focusPt.clone()], { color: 0xffffff, count: 4, speed: 0.5, r: 0.08 }));
+      dyn.add(makeRay(corneaPt, focusPt, { color: OCOL.refract, r: 0.032, arrow:false }));
+      // odaktan sonra ışın retinaya kadar ıraksar (perdede bulanık leke)
+      if (focusX < retinaX - 0.05) {
+        const dir = focusPt.clone().sub(corneaPt).normalize();
+        const spread = focusPt.clone().add(dir.multiplyScalar(retinaX - focusX));
+        dyn.add(makeRay(focusPt, spread, { color: OCOL.refract, r: 0.026, arrow:false }));
+      }
+      dyn.add(makeFlowRay([inStart.clone(), corneaPt.clone(), focusPt.clone()], { color: 0xffffff, count: 4, speed: 0.5, r: 0.07 }));
     });
-    dyn.add(makeMarker(new THREE.Vector3(focusX, 0, 0.06), { color: (Math.abs(focusX-retinaX)<0.2)?0x3ed673:0xff5252, r: 0.15 }));
-    dyn.add(makeMeasureLabel('Retina', [retinaX, -1.5, 0], 'rgba(255,184,77,0.9)'));
-    if (Math.abs(focusX-retinaX)<0.2) dyn.add(makeMeasureLabel('✓ Retinada odak', [focusX, 1.3, 0], 'rgba(62,214,115,0.92)'));
-    else dyn.add(makeMeasureLabel(focusX<retinaX?'Önde odak ✗':'Arkada odak ✗', [focusX, 1.3, 0], 'rgba(255,82,82,0.92)'));
+
+    // odak noktası işareti
+    const onRetina = Math.abs(focusX - retinaX) < 0.18;
+    dyn.add(makeMarker(new THREE.Vector3(focusX, 0, 0.06), { color: onRetina ? 0x3ed673 : 0xff5252, r: 0.14 }));
+
+    // bulanıklık lekesi (odak retinada değilse)
+    if (!onRetina) {
+      const blur = new THREE.Mesh(new THREE.CircleGeometry(0.45, 20),
+        new THREE.MeshBasicMaterial({ color: 0xff5252, transparent: true, opacity: 0.28, side: THREE.DoubleSide, toneMapped:false }));
+      blur.position.set(retinaX, 0, 0.05); blur.rotation.y = Math.PI/2; dyn.add(blur);
+    }
+
+    // retina etiketi + durum
+    dyn.add(makeMeasureLabel('Retina', [retinaX + 0.1, -1.7, 0], 'rgba(255,184,77,0.92)'));
+    if (onRetina) dyn.add(makeMeasureLabel('✓ Görüntü retinada — net', [eyeCx, 2.4, 0], 'rgba(62,214,115,0.94)'));
+    else dyn.add(makeMeasureLabel(focusX < retinaX ? 'Görüntü retina ÖNÜNDE — bulanık' : 'Görüntü retina ARKASINDA — bulanık',
+      [eyeCx, 2.4, 0], 'rgba(255,82,82,0.92)'));
   }
   rebuild();
 
   setSceneSliders([
     { type: 'section', label: 'Göz Kusuru' },
-    { type: 'presets', activeIdx: 0, options: [
+    { type: 'presets', activeIdx: S.gk_kusur, options: [
       { label: '👁️ Normal göz', action: ()=>{ S.gk_kusur=0; S.gk_duzelt=false; rebuild(); } },
-      { label: '🔭 Miyop (uzağı görmez)', action: ()=>{ S.gk_kusur=1; S.gk_duzelt=false; rebuild(); } },
-      { label: '📖 Hipermetrop (yakını görmez)', action: ()=>{ S.gk_kusur=2; S.gk_duzelt=false; rebuild(); } }
+      { label: '🔭 Miyop (uzağı seçemez)', action: ()=>{ S.gk_kusur=1; S.gk_duzelt=false; rebuild(); } },
+      { label: '📖 Hipermetrop (yakını seçemez)', action: ()=>{ S.gk_kusur=2; S.gk_duzelt=false; rebuild(); } }
     ]},
-    { type: 'presets', activeIdx: 0, options: [
+    { type: 'section', label: 'Düzeltici Mercek' },
+    { type: 'presets', activeIdx: S.gk_duzelt ? 1 : 0, options: [
       { label: '👀 Çıplak göz', action: ()=>{ S.gk_duzelt=false; rebuild(); } },
       { label: '👓 Gözlük tak', action: ()=>{ S.gk_duzelt=true; rebuild(); } }
     ]},
     { type: 'section', label: 'Durum' },
     { type: 'display', label: 'Kusur', highlight: true, getValue: () => ['Normal','Miyop','Hipermetrop'][S.gk_kusur] },
-    { type: 'display', label: 'Odak yeri', getValue: () => S.gk_kusur===0?'Retinada':(S.gk_kusur===1?'Retina önünde':'Retina arkasında') },
-    { type: 'display', label: 'Çözüm', getValue: () => S.gk_kusur===0?'—':(S.gk_kusur===1?'Iraksak (kalın kenarlı)':'Yakınsak (ince kenarlı)') },
-    { type: 'formula', text: 'Miyop → −D · Hipermetrop → +D' }
+    { type: 'display', label: 'Odak yeri', getValue: () => {
+        if (S.gk_duzelt && S.gk_kusur!==0) return 'Retinada (düzeldi)';
+        return S.gk_kusur===0 ? 'Retinada' : (S.gk_kusur===1 ? 'Retina önünde' : 'Retina arkasında');
+      } },
+    { type: 'display', label: 'Çözüm', getValue: () => S.gk_kusur===0 ? '—' :
+        (S.gk_kusur===1 ? 'Kalın kenarlı / ıraksak (−)' : 'İnce kenarlı / yakınsak (+)') },
+    { type: 'formula', text: 'Miyop → ıraksak (−D) · Hipermetrop → yakınsak (+D)' }
   ], { title: 'Göz Kusurları' });
 
   addInfo3DLabels([
-    { text: { ilkokul:'👁️ Göz', ortaokul:'👁️ Göz küresi', lise:'👁️ Göz (mercek+retina)', tyt_ayt:'👁️ Göz merceği' },
-      position: [3, 2.6, 0], target: [3, 1.2, 0], color: '#f0f4ff' },
-    { text: { ilkokul:'➡️ Işık gelir', ortaokul:'➡️ Paralel ışınlar', lise:'➡️ Uzaktan paralel ışın', tyt_ayt:'➡️ Sonsuzdan ışınlar' },
-      position: [-5, 1.8, 0], target: [-4, 0.9, 0], color: '#ffe14d' },
-    { text: { ilkokul:'🎯 Birleşme yeri', ortaokul:'🎯 Odak noktası', lise:'🎯 Görüntü odağı', tyt_ayt:'🎯 Odak (retinaya göre)' },
-      position: [4.8, -1.2, 0], target: [4, 0, 0], color: '#ff5252' }
+    { text: { ilkokul:'👁️ Göz', ortaokul:'👁️ Göz küresi', lise:'👁️ Göz (kornea + mercek + retina)', tyt_ayt:'👁️ Göz optik sistemi' },
+      position: [eyeCx, 2.9, 0], target: [eyeCx, 1.6, 0], color: '#f0f4ff' },
+    { text: { ilkokul:'💙 Göz merceği', ortaokul:'💙 Göz merceği', lise:'💙 Göz merceği (kırıcı)', tyt_ayt:'💙 Kristal mercek' },
+      position: [corneaX - 1.5, -2.2, 0], target: [corneaX + 0.5, -0.2, 0], color: '#aadfff' },
+    { text: { ilkokul:'➡️ Işık gelir', ortaokul:'➡️ Paralel ışınlar', lise:'➡️ Sonsuzdan paralel ışın', tyt_ayt:'➡️ Sonsuzdan ışınlar' },
+      position: [-6, 1.7, 0], target: [-5, 0.78, 0], color: '#ffe14d' },
+    { text: { ilkokul:'🎯 Birleşme yeri', ortaokul:'🎯 Odak (görüntü)', lise:'🎯 Görüntü noktası', tyt_ayt:'🎯 Odak (retinaya göre)' },
+      position: [retinaX + 1.4, 1.4, 0], target: [retinaX, 0, 0], color: '#ff5252' }
   ]);
+
+  window._customAnim = null;
+  if (controls) { controls.target.set(0, -1.15, 0); }
+  if (camera) camera.position.set(0, 1.85, 25.0);
 };
 
-// ============================================================
-// ====== MODÜL 4: YANSIMA VE AYNALAR ========================
-// ============================================================
-
-// ---------- MODÜL 4.1: Düzlem Ayna ----------
 SubBuilders.buildDuzlemAyna = function() {
   const root = new THREE.Group();
   markDynamic(root); scene.add(root); window._currentModelGroup = root;
@@ -3878,32 +4539,61 @@ SubBuilders.buildDuzlemAyna = function() {
   root.add(makeGridSystem({ size: 16, divisions: 16 }));
 
   const S = window._sceneState;
-  S.da_d = 3.0;
+  if (S.da_d === undefined) S.da_d = 3.0;
+  const objH = 1.8;
 
-  const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
-  const mirror = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 6),
-    new THREE.MeshStandardMaterial({ color: 0x9fd0ff, metalness: 0.9, roughness: 0.1, transparent: true, opacity: 0.75, side: THREE.DoubleSide }));
-  mirror.position.set(0, 0, 0); dyn.add(mirror);
-  const back = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 6), new THREE.MeshStandardMaterial({ color: 0x4a5a70, roughness: 0.6 }));
-  back.position.set(0.12, 0, -0.01); dyn.add(back);
+  // ayna (x=0 düzlemi), arka sırlı yüzey
+  const dyn0 = new THREE.Group(); dyn0.userData.dynamic = true; root.add(dyn0);
+  const mirror = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 6),
+    new THREE.MeshStandardMaterial({ color: 0x9fd0ff, metalness: 0.92, roughness: 0.08, transparent: true, opacity: 0.78, side: THREE.DoubleSide }));
+  mirror.position.set(0, 0, 0); dyn0.add(mirror);
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 6),
+    new THREE.MeshStandardMaterial({ color: 0x4a5a70, roughness: 0.6 }));
+  back.position.set(0.1, 0, -0.01); dyn0.add(back);
+  // sırlama tarama çizgileri (ayna olduğunu belli etsin)
+  for (let i=-5;i<=5;i++){
+    dyn0.add(makeSolidLine(new THREE.Vector3(0.05, i*0.5, 0.02), new THREE.Vector3(0.28, i*0.5-0.18, 0.02),
+      { color: 0x4a5a70, opacity: 0.6 }));
+  }
 
-  const ann = new THREE.Group(); ann.userData.dynamic = true; dyn.add(ann);
+  const ann = new THREE.Group(); ann.userData.dynamic = true; root.add(ann);
   function rebuild() {
     [...ann.children].forEach(c=>{ann.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
-    const d = S.da_d, objH = 1.8;
+    const d = S.da_d;
+
+    // cisim (solda) ve sanal görüntü (sağda, simetrik, soluk)
     const obj = makeObjectArrow(objH, { color: OCOL.object }); obj.position.set(-d, 0, 0.05); ann.add(obj);
     const img = makeObjectArrow(objH, { color: 0xff5252 });
     img.position.set(d, 0, 0.05);
-    img.traverse(c=>{ if(c.material){ c.material.transparent=true; c.material.opacity=0.45; } });
+    img.traverse(c=>{ if(c.material){ c.material.transparent=true; c.material.opacity=0.42; } });
     ann.add(img);
+
+    // göz (gözlemci) — aynaya bakan
+    const eye = new THREE.Vector3(-d*0.45, 2.5, 0.06);
+    ann.add(makeMarker(eye, { color: 0xffe14d, r: 0.13 }));
+
+    // İki gerçek ışın: cismin tepesinden çıkar, aynada yansır, göze gider.
+    // Uzantıları (kesikli) görüntünün tepesinde kesişir → sanal görüntü.
     const objTop = new THREE.Vector3(-d, objH, 0.06);
-    const eye = new THREE.Vector3(-d*0.4, 2.6, 0.06);
-    const hit = new THREE.Vector3(0, objH*0.55, 0.06);
-    ann.add(makeRay(objTop, hit, { color: OCOL.ray, r: 0.035, arrow:false }));
-    ann.add(makeRay(hit, eye, { color: OCOL.refract, r: 0.035, arrow:false }));
-    ann.add(makeFlowRay([objTop.clone(), hit.clone(), eye.clone()], { color: 0xffffff, count: 4, speed: 0.5, r: 0.08 }));
-    ann.add(makeDashedLine(eye, new THREE.Vector3(d, objH, 0.06), { color: 0xff5252, dash:0.2, gap:0.15, opacity:0.55 }));
-    ann.add(makeMarker(eye, { color: 0xffe14d, r: 0.14 }));
+    const imgTop = new THREE.Vector3(d, objH, 0.06);
+    // ayna üzerinde iki çarpma noktası seç
+    const hit1 = new THREE.Vector3(0, objH*0.55, 0.06);
+    const hit2 = new THREE.Vector3(0, objH*0.15, 0.06);
+    [hit1, hit2].forEach(hit => {
+      // gelen ışın (cisim → ayna)
+      ann.add(makeRay(objTop, hit, { color: OCOL.ray, r: 0.03, arrow:false }));
+      // yansıyan ışın (ayna → göz yönünde). Yön: görüntü tepesinden çarpma noktası üzerinden ileri.
+      const dir = hit.clone().sub(imgTop).normalize();
+      const reflEnd = hit.clone().add(dir.multiplyScalar( (hit.distanceTo(eye)) + 0.3 ));
+      ann.add(makeRay(hit, reflEnd, { color: OCOL.reflect, r: 0.03, arrow:false }));
+      // sanal uzantı (ayna arkasına, görüntü tepesine kadar kesikli)
+      ann.add(makeDashedLine(hit, imgTop, { color: 0xff5252, dash:0.18, gap:0.13, opacity:0.55 }));
+      ann.add(makeFlowRay([objTop.clone(), hit.clone(), reflEnd.clone()], { color: 0xffffff, count: 3, speed: 0.5, r: 0.07 }));
+    });
+
+    // simetri kanıtı: cisim tepesi ↔ görüntü tepesi yatay kesikli + eşit ölçüler
+    ann.add(makeDashedLine(new THREE.Vector3(-d, objH, 0.04), new THREE.Vector3(d, objH, 0.04),
+      { color: 0x9fb0d8, dash:0.15, gap:0.2, opacity:0.4 }));
     ann.add(makeDimension(new THREE.Vector3(-d, -2.4, 0), new THREE.Vector3(0, -2.4, 0), 'd = ' + d.toFixed(1), { color: 0x3ed673, offset:[0,-0.4,0] }));
     ann.add(makeDimension(new THREE.Vector3(0, -2.4, 0), new THREE.Vector3(d, -2.4, 0), "d' = " + d.toFixed(1), { color: 0xff5252, offset:[0,-0.4,0] }));
   }
@@ -3917,20 +4607,23 @@ SubBuilders.buildDuzlemAyna = function() {
     { type: 'display', label: 'Görüntü', highlight: true, getValue: () => 'Sanal, düz' },
     { type: 'display', label: 'Boy', getValue: () => 'Cisimle eşit' },
     { type: 'display', label: 'Uzaklık', getValue: () => "d' = d (arkada)" },
-    { type: 'formula', text: 'Görüntü sanal, eş boy, simetrik' }
+    { type: 'formula', text: 'Görüntü sanal, eş boy, simetrik (d′ = d)' }
   ], { title: 'Düzlem Ayna' });
 
   addInfo3DLabels([
     { text: { ilkokul:'🟢 Sen (cisim)', ortaokul:'🟢 Cisim', lise:'🟢 Cisim', tyt_ayt:'🟢 Cisim (d)' },
       position: [-S.da_d-1, 2.4, 0], target: [-S.da_d, 1.2, 0], color: '#3ed673' },
     { text: { ilkokul:'🪞 Ayna', ortaokul:'🪞 Düzlem ayna', lise:'🪞 Yansıtıcı yüzey', tyt_ayt:'🪞 Düzlem ayna' },
-      position: [0, 3.4, 0], target: [0, 2.5, 0], color: '#9fd0ff' },
+      position: [0, 3.4, 0], target: [0, 2.6, 0], color: '#9fd0ff' },
     { text: { ilkokul:'🔴 Görüntü', ortaokul:'🔴 Sanal görüntü', lise:'🔴 Sanal görüntü (arkada)', tyt_ayt:"🔴 Sanal görüntü (d')" },
       position: [S.da_d+1, 2.4, 0], target: [S.da_d, 1.2, 0], color: '#ff5252' }
   ]);
+
+  window._customAnim = null;
+  if (controls) { controls.target.set(0, -1.15, 0); }
+  if (camera) camera.position.set(0, 1.85, 25.0);
 };
 
-// ---------- MODÜL 4.2: Çukur Ayna ----------
 SubBuilders.buildCukurAyna = function() {
   const root = new THREE.Group();
   markDynamic(root); scene.add(root); window._currentModelGroup = root;
@@ -3938,57 +4631,106 @@ SubBuilders.buildCukurAyna = function() {
   root.add(makeGridSystem({ size: 16, divisions: 16 }));
 
   const S = window._sceneState;
-  S.ca_d = 6.0;
-  S.ca_f = 2.0;
+  if (S.ca_d === undefined) S.ca_d = 6.0;   // cisim uzaklığı (tepe T'ye)
+  if (S.ca_f === undefined) S.ca_f = 2.5;   // odak uzaklığı
 
+  // Geometri: ayna tepesi T = x=0, ayna SOLA bakar (içbükey). Işık tarafı = −x.
+  // F = (−f,0), C=2F = (−2f,0). Cisim = (−d,0). Gerçek görüntü = (−d',0).
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
-  root.add(makeSolidLine(new THREE.Vector3(-9,0,0), new THREE.Vector3(3,0,0), { color: window._lightMode ? 0x5a6a88 : 0x9fb0d8, opacity: window._lightMode ? 0.6 : 0.4 }));
+  // optik eksen
+  root.add(makeSolidLine(new THREE.Vector3(-10, 0, 0), new THREE.Vector3(1.5, 0, 0),
+    { color: window._lightMode ? 0x5a6a88 : 0x9fb0d8, opacity: window._lightMode ? 0.55 : 0.35 }));
 
   function rebuild() {
     [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
     const f = S.ca_f, d = S.ca_d, R = 2*f;
-    const arc = new THREE.Mesh(new THREE.TorusGeometry(R, 0.08, 8, 40, Math.PI*0.6),
-      new THREE.MeshStandardMaterial({ color: 0x9fd0ff, metalness: 0.85, roughness: 0.15, toneMapped:false }));
-    arc.position.set(R, 0, 0); arc.rotation.z = Math.PI - Math.PI*0.3; dyn.add(arc);
-    dyn.add(makeMarker(new THREE.Vector3(f, 0, 0.05), { color: OCOL.focus, r: 0.12 }));
-    dyn.add(makeMarker(new THREE.Vector3(2*f, 0, 0.05), { color: 0x6ad6ff, r: 0.1 }));
-    const tickLabel = (x, y, txt, bg) => {
-      dyn.add(makeSolidLine(new THREE.Vector3(x,0,0.04), new THREE.Vector3(x,y,0.04), { color: window._lightMode ? 0x5a6a88 : 0x9fb0d8, opacity: window._lightMode ? 0.6 : 0.4 }));
-      dyn.add(makeMeasureLabel(txt, [x, y-0.2, 0], bg));
+
+    // içbükey yay: yarıçap R, merkez C=(−R,0). Sola açık → torus parçası
+    const seg = Math.min(48, 44);
+    const arc = new THREE.Mesh(new THREE.TorusGeometry(R, 0.08, 8, seg, Math.PI*0.62),
+      new THREE.MeshStandardMaterial({ color: 0x9fd0ff, metalness: 0.88, roughness: 0.12, toneMapped:false }));
+    // torus merkezi C=(−R,0); açının ortası +x'e baksın → yay tepesi x=0'da
+    arc.position.set(-R, 0, 0); arc.rotation.z = -Math.PI*0.31; dyn.add(arc);
+
+    // F ve C işaretleri (eksen üzerinde, ölçekli çizgilerle)
+    dyn.add(makeMarker(new THREE.Vector3(-f, 0, 0.05), { color: OCOL.focus, r: 0.13 }));
+    dyn.add(makeMarker(new THREE.Vector3(-2*f, 0, 0.05), { color: 0x6ad6ff, r: 0.11 }));
+    const tick = (x, y, txt, bg) => {
+      dyn.add(makeSolidLine(new THREE.Vector3(x,0,0.04), new THREE.Vector3(x,y,0.04),
+        { color: window._lightMode ? 0x5a6a88 : 0x9fb0d8, opacity: 0.5 }));
+      dyn.add(makeMeasureLabel(txt, [x, y-0.22, 0], bg));
     };
-    tickLabel(0, -0.75, 'T (tepe)', 'rgba(159,176,216,0.9)');
-    tickLabel(f, -1.5, 'F', 'rgba(255,82,82,0.9)');
-    tickLabel(2*f, -0.75, 'C = 2F', 'rgba(106,214,255,0.9)');
-    dyn.add(makeSpan(new THREE.Vector3(0, 2.4, 0), new THREE.Vector3(f, 2.4, 0), 'f = R/2 = ' + f.toFixed(1), { color: OCOL.focus, offset:[0,0.4,0] }));
-    dyn.add(makeSpan(new THREE.Vector3(0, 3.5, 0), new THREE.Vector3(2*f, 3.5, 0), 'R = ' + (2*f).toFixed(1), { color: 0x6ad6ff, offset:[0,0.4,0] }));
+    tick(0, -0.7, 'T', 'rgba(159,176,216,0.9)');
+    tick(-f, -1.5, 'F', 'rgba(255,82,82,0.9)');
+    tick(-2*f, -0.7, 'C = 2F', 'rgba(106,214,255,0.9)');
+    dyn.add(makeSpan(new THREE.Vector3(0, 2.6, 0), new THREE.Vector3(-f, 2.6, 0), 'f = R/2 = ' + f.toFixed(1), { color: OCOL.focus, offset:[0,0.4,0] }));
+
+    // cisim (yeşil ok)
     const objH = 1.5;
     const obj = makeObjectArrow(objH, { color: OCOL.object }); obj.position.set(-d, 0, 0.05); dyn.add(obj);
-    makeLabeledPoint(dyn, [-d, objH, 0.05], [-d - 1.6, objH + 1.3, 0], 'Cisim', { color: '#3ed673' });
-    let dp = (d===f) ? Infinity : (f*d)/(d-f);
-    const m = -dp/d;
-    if (isFinite(dp) && Math.abs(dp) < 11) {
-      const imgX = -dp;
-      const imgH = objH*m;
+    makeLabeledPoint(dyn, [-d, objH, 0.05], [-d, objH + 1.4, 0], 'Cisim', { color: '#3ed673' });
+
+    // görüntü konumu: 1/f = 1/d + 1/d'  → d' = f·d/(d−f)
+    const objTop = new THREE.Vector3(-d, objH, 0.04);
+    const Tpt   = new THREE.Vector3(0, 0, 0.04);        // tepe
+    const Fpt   = new THREE.Vector3(-f, 0, 0.04);
+    const vertTop = new THREE.Vector3(0, objH, 0.04);   // eksene paralel ışının ayna ile kesişimi (tepe hizası)
+
+    // --- 3 ÖZEL IŞIN ---
+    // 1) Eksene PARALEL ışın → yansıyıp F'den geçer
+    dyn.add(makeRay(objTop, vertTop, { color: OCOL.ray, r: 0.028, arrow:false }));
+    const dir1 = Fpt.clone().sub(vertTop).normalize();
+    const end1 = vertTop.clone().add(dir1.multiplyScalar(d + 3));
+    dyn.add(makeRay(vertTop, end1, { color: OCOL.reflect, r: 0.028, arrow:false }));
+    dyn.add(makeFlowRay([objTop.clone(), vertTop.clone(), end1.clone()], { color: 0xffffff, count: 4, speed: 0.5, r: 0.07 }));
+
+    // 2) F'den geçen ışın → yansıyıp eksene PARALEL gider
+    // cisim tepesinden F'ye doğru, aynayla kesişimini bul (yaklaşık tepe düzlemi x≈0)
+    const dir2 = Fpt.clone().sub(objTop).normalize();
+    const hit2y = objTop.y + dir2.y * ((0 - objTop.x)/dir2.x);
+    const hit2 = new THREE.Vector3(0, hit2y, 0.04);
+    dyn.add(makeRay(objTop, hit2, { color: OCOL.ray, r: 0.024, arrow:false }));
+    const end2 = new THREE.Vector3(d + 3, hit2y, 0.04);  // paralel (yatay)
+    dyn.add(makeRay(hit2, end2, { color: OCOL.reflect, r: 0.024, arrow:false }));
+
+    // 3) Tepe T'ye gelen ışın → eksene göre simetrik yansır
+    dyn.add(makeRay(objTop, Tpt, { color: OCOL.ray, r: 0.024, arrow:false }));
+    const dir3 = new THREE.Vector3(Tpt.x - objTop.x, -(Tpt.y - objTop.y), 0).normalize();
+    const end3 = Tpt.clone().add(dir3.multiplyScalar(d + 3));
+    dyn.add(makeRay(Tpt, end3, { color: OCOL.reflect, r: 0.024, arrow:false }));
+
+    let dp = (Math.abs(d - f) < 0.05) ? Infinity : (f*d)/(d - f);
+    if (isFinite(dp) && dp > 0 && dp < 11) {
+      // GERÇEK görüntü (ters, eksenin altında)
+      const m = -dp/d;
+      const imgX = -dp, imgH = objH*m;
       const img = makeObjectArrow(imgH, { color: 0xff5252 }); img.position.set(imgX, 0, 0.05); dyn.add(img);
-      const objTop = new THREE.Vector3(-d, objH, 0.04);
-      const hitPara = new THREE.Vector3(0, objH, 0.04);
-      dyn.add(makeRay(objTop, hitPara, { color: OCOL.ray, r:0.03, arrow:false }));
-      const fPt = new THREE.Vector3(f, 0, 0.04);
-      const dir = fPt.clone().sub(hitPara).normalize();
-      const reflEnd = hitPara.clone().add(dir.multiplyScalar(d+2));
-      dyn.add(makeRay(hitPara, reflEnd, { color: OCOL.refract, r:0.03, arrow:false }));
-      dyn.add(makeFlowRay([objTop.clone(), hitPara.clone(), reflEnd.clone()], { color: 0xffffff, count: 4, speed: 0.5, r: 0.08 }));
-      const gY = imgH>0 ? imgH+1.3 : imgH-1.3;
-      makeLabeledPoint(dyn, [imgX, imgH, 0.05], [imgX + (imgX<-3?1.5:-1.5), gY, 0], 'Görüntü', { color: '#ff5252' });
+      const gY = imgH > 0 ? imgH+1.3 : imgH-1.3;
+      makeLabeledPoint(dyn, [imgX, imgH, 0.05], [imgX + (imgX < -4 ? 1.6 : -1.6), gY, 0], 'Görüntü (gerçek, ters)', { color: '#ff5252' });
+    } else if (dp < 0 && Math.abs(dp) < 11) {
+      // SANAL görüntü (d<f): büyük, düz, ayna ARKASINDA. Yansıyan ışınların ARKA uzantıları kesişir.
+      const m = -dp/d;          // dp<0 → m>0 (düz, büyük)
+      const imgX = -dp;         // pozitif → ayna arkası (+x)
+      const imgH = objH*m;
+      const img = makeObjectArrow(imgH, { color: 0xff5252 });
+      img.position.set(imgX, 0, 0.05);
+      img.traverse(c=>{ if(c.material){ c.material.transparent=true; c.material.opacity=0.5; } });
+      dyn.add(img);
+      // yansıyan ışınların arka uzantıları (kesikli) görüntü tepesine
+      const imgTop = new THREE.Vector3(imgX, imgH, 0.04);
+      dyn.add(makeDashedLine(vertTop, imgTop, { color: 0xff5252, dash:0.18, gap:0.13, opacity:0.5 }));
+      dyn.add(makeDashedLine(Tpt, imgTop, { color: 0xff5252, dash:0.18, gap:0.13, opacity:0.5 }));
+      makeLabeledPoint(dyn, [imgX, imgH, 0.05], [imgX + 1.7, imgH + 1.3, 0], 'Görüntü (sanal, düz, büyük)', { color: '#ff5252' });
     }
   }
   rebuild();
 
   function durum() {
-    const f=S.ca_f,d=S.ca_d;
-    if (d>2*f) return 'Küçük, ters, gerçek';
-    if (Math.abs(d-2*f)<0.3) return 'Eşit, ters, gerçek';
-    if (d>f) return 'Büyük, ters, gerçek';
+    const f=S.ca_f, d=S.ca_d;
+    if (Math.abs(d - f) < 0.06) return 'Görüntü oluşmaz (sonsuzda)';
+    if (d > 2*f + 0.05) return 'Küçük, ters, gerçek';
+    if (Math.abs(d - 2*f) < 0.06) return 'Eşit boy, ters, gerçek';
+    if (d > f) return 'Büyük, ters, gerçek';
     return 'Büyük, düz, sanal';
   }
   setSceneSliders([
@@ -3997,19 +4739,29 @@ SubBuilders.buildCukurAyna = function() {
       getValue: () => S.ca_d, setValue: (v)=>{ S.ca_d=v; rebuild(); }, format:(x)=>x.toFixed(1) },
     { type: 'slider', label: 'Odak f', min: 1.5, max: 3, step: 0.5, unit: '',
       getValue: () => S.ca_f, setValue: (v)=>{ S.ca_f=v; rebuild(); }, format:(x)=>x.toFixed(1) },
-    { type: 'section', label: 'Görüntü' },
-    { type: 'display', label: 'Özellik', highlight: true, getValue: () => durum() },
-    { type: 'display', label: 'Odak', getValue: () => 'Gerçek (F = R/2)' },
-    { type: 'formula', text: "1/f = 1/d + 1/d' · F = R/2" }
+    { type: 'section', label: 'Cisim Bölgesi' },
+    { type: 'display', label: 'Konum', getValue: () => {
+        const f=S.ca_f, d=S.ca_d;
+        if (Math.abs(d-f)<0.06) return 'F üzerinde';
+        if (d>2*f+0.05) return 'C dışında';
+        if (Math.abs(d-2*f)<0.06) return 'C üzerinde (2F)';
+        if (d>f) return 'F ile C arası';
+        return 'F içinde';
+      } },
+    { type: 'display', label: 'Görüntü', highlight: true, getValue: () => durum() },
+    { type: 'formula', text: "1/f = 1/d + 1/d'  ·  F = R/2" }
   ], { title: 'Çukur Ayna' });
 
   addInfo3DLabels([
     { text: { ilkokul:'🥄 Çukur ayna', ortaokul:'🥄 İç yüzey yansıtır', lise:'🥄 Yakınsak ayna', tyt_ayt:'🥄 Çukur ayna (F=R/2)' },
-      position: [2*S.ca_f+2.5, 2, 0], target: [2*S.ca_f, 0.8, 0], color: '#9fd0ff' }
+      position: [1.4, 2.2, 0], target: [0.1, 0.9, 0], color: '#9fd0ff' }
   ]);
+
+  window._customAnim = null;
+  if (controls) { controls.target.set(0, -1.15, 0); }
+  if (camera) camera.position.set(0, 1.85, 25.0);
 };
 
-// ---------- MODÜL 4.3: Tümsek Ayna ----------
 SubBuilders.buildTumsekAyna = function() {
   const root = new THREE.Group();
   markDynamic(root); scene.add(root); window._currentModelGroup = root;
@@ -4017,49 +4769,74 @@ SubBuilders.buildTumsekAyna = function() {
   root.add(makeGridSystem({ size: 16, divisions: 16 }));
 
   const S = window._sceneState;
-  S.ta_d = 5.0;
-  S.ta_f = 2.5;
+  if (S.ta_d === undefined) S.ta_d = 5.0;
+  if (S.ta_f === undefined) S.ta_f = 2.5;
 
+  // Tepe T = x=0, ayna SOLA bulgar (dışbükey). Işık tarafı = −x.
+  // Sanal odak F = (+f,0), sanal C = (+2f,0) → ayna ARKASINDA. Görüntü hep arkada (+x).
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
-  root.add(makeSolidLine(new THREE.Vector3(-9,0,0), new THREE.Vector3(3,0,0), { color: window._lightMode ? 0x5a6a88 : 0x9fb0d8, opacity: window._lightMode ? 0.6 : 0.4 }));
+  root.add(makeSolidLine(new THREE.Vector3(-10, 0, 0), new THREE.Vector3(5, 0, 0),
+    { color: window._lightMode ? 0x5a6a88 : 0x9fb0d8, opacity: window._lightMode ? 0.55 : 0.35 }));
 
-  function objHval(){ return 1.6; }
   function rebuild() {
     [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
-    const f = S.ta_f, d = S.ta_d, R = 2*f;
-    const arc = new THREE.Mesh(new THREE.TorusGeometry(R, 0.08, 8, 40, Math.PI*0.6),
-      new THREE.MeshStandardMaterial({ color: 0x9fd0ff, metalness: 0.85, roughness: 0.15, toneMapped:false }));
-    arc.position.set(-R, 0, 0); arc.rotation.z = -Math.PI*0.3; dyn.add(arc);
-    const fNeg = -f;
-    let dp = (fNeg*d)/(d - fNeg);
-    const m = -dp/d;
-    const imgX = Math.abs(dp)*0.6;
-    const imgH = objHval()*Math.abs(m);
+    const f = S.ta_f, d = S.ta_d, R = 2*f, objH = 1.6;
+
+    // dışbükey yay: merkez C=(+R,0) ayna arkasında, yay tepesi x=0'da
+    const arc = new THREE.Mesh(new THREE.TorusGeometry(R, 0.08, 8, 44, Math.PI*0.6),
+      new THREE.MeshStandardMaterial({ color: 0x9fd0ff, metalness: 0.88, roughness: 0.12, toneMapped:false }));
+    arc.position.set(R, 0, 0); arc.rotation.z = Math.PI - Math.PI*0.3; dyn.add(arc);
+
+    // sanal odak F (+f), kesikli (arka)
     dyn.add(makeMarker(new THREE.Vector3(f, 0, 0.05), { color: OCOL.focus, r: 0.11 }));
-    const tickLabel = (x, y, txt, bg) => {
-      dyn.add(makeSolidLine(new THREE.Vector3(x,0,0.04), new THREE.Vector3(x,y,0.04), { color: window._lightMode ? 0x5a6a88 : 0x9fb0d8, opacity: window._lightMode ? 0.6 : 0.4 }));
-      dyn.add(makeMeasureLabel(txt, [x, y-0.2, 0], bg));
+    const tick = (x, y, txt, bg) => {
+      dyn.add(makeSolidLine(new THREE.Vector3(x,0,0.04), new THREE.Vector3(x,y,0.04),
+        { color: window._lightMode ? 0x5a6a88 : 0x9fb0d8, opacity: 0.5 }));
+      dyn.add(makeMeasureLabel(txt, [x, y-0.22, 0], bg));
     };
-    tickLabel(0, -0.75, 'T (tepe)', 'rgba(159,176,216,0.9)');
-    tickLabel(f, -1.5, 'F (sanal)', 'rgba(255,82,82,0.9)');
-    dyn.add(makeSpan(new THREE.Vector3(0, 2.4, 0), new THREE.Vector3(f, 2.4, 0), '|f| = ' + f.toFixed(1) + ' (sanal)', { color: OCOL.focus, offset:[0,0.4,0] }));
-    const objH = objHval();
+    tick(0, -0.7, 'T', 'rgba(159,176,216,0.9)');
+    tick(f, -1.5, 'F (sanal)', 'rgba(255,82,82,0.9)');
+    dyn.add(makeSpan(new THREE.Vector3(0, 2.5, 0), new THREE.Vector3(f, 2.5, 0), '|f| = ' + f.toFixed(1) + ' (arkada)', { color: OCOL.focus, offset:[0,0.4,0] }));
+
+    // cisim
     const obj = makeObjectArrow(objH, { color: OCOL.object }); obj.position.set(-d, 0, 0.05); dyn.add(obj);
-    makeLabeledPoint(dyn, [-d, objH, 0.05], [-d - 1.6, objH + 1.3, 0], 'Cisim', { color: '#3ed673' });
+    makeLabeledPoint(dyn, [-d, objH, 0.05], [-d, objH + 1.4, 0], 'Cisim', { color: '#3ed673' });
+
+    // görüntü (tümsek ayna): d' = −f·d/(d+f) (sanal, +x), m = −d'/d = f/(d+f) (0<m<1, düz)
+    const dp = (f*d)/(d + f);    // |d'| (ayna arkasında pozitif x)
+    const m = f/(d + f);
+    const imgX = dp, imgH = objH*m;
+
+    const objTop = new THREE.Vector3(-d, objH, 0.04);
+    const vertTop = new THREE.Vector3(0, objH, 0.04);  // eksene paralel ışının ayna üzeri noktası
+    const Tpt = new THREE.Vector3(0, 0, 0.04);
+    const Fpt = new THREE.Vector3(f, 0, 0.04);
+    const imgTop = new THREE.Vector3(imgX, imgH, 0.04);
+
+    // --- ÖZEL IŞIN 1: eksene PARALEL → yansıdıktan sonra sanki F'den GELİYORMUŞ gibi ıraksar
+    dyn.add(makeRay(objTop, vertTop, { color: OCOL.ray, r: 0.028, arrow:false }));
+    const dir1 = vertTop.clone().sub(Fpt).normalize();          // F'den vertTop'a doğru (ıraksak)
+    const refl1 = vertTop.clone().add(dir1.multiplyScalar(d + 2));
+    dyn.add(makeRay(vertTop, refl1, { color: OCOL.reflect, r: 0.028, arrow:false }));
+    // arka uzantı (kesikli): vertTop → F (sanal odak)
+    dyn.add(makeDashedLine(vertTop, Fpt, { color: OCOL.refract, dash:0.16, gap:0.12, opacity:0.55 }));
+    dyn.add(makeFlowRay([objTop.clone(), vertTop.clone(), refl1.clone()], { color: 0xffffff, count: 4, speed: 0.5, r: 0.07 }));
+
+    // --- ÖZEL IŞIN 2: tepe T'ye gelen ışın → eksene göre simetrik yansır
+    dyn.add(makeRay(objTop, Tpt, { color: OCOL.ray, r: 0.024, arrow:false }));
+    const dir2 = new THREE.Vector3(Tpt.x - objTop.x, -(Tpt.y - objTop.y), 0).normalize();
+    const refl2 = Tpt.clone().add(dir2.multiplyScalar(d + 2));
+    dyn.add(makeRay(Tpt, refl2, { color: OCOL.reflect, r: 0.024, arrow:false }));
+    // arka uzantı (kesikli): T → görüntü tepesi
+    dyn.add(makeDashedLine(Tpt, imgTop, { color: 0xff5252, dash:0.16, gap:0.12, opacity:0.5 }));
+    dyn.add(makeDashedLine(vertTop, imgTop, { color: 0xff5252, dash:0.16, gap:0.12, opacity:0.5 }));
+
+    // SANAL görüntü (küçük, düz, ayna arkasında)
     const img = makeObjectArrow(imgH, { color: 0xff5252 });
     img.position.set(imgX, 0, 0.05);
-    img.traverse(c=>{ if(c.material){ c.material.transparent=true; c.material.opacity=0.5; } });
+    img.traverse(c=>{ if(c.material){ c.material.transparent=true; c.material.opacity=0.55; } });
     dyn.add(img);
-    const objTop = new THREE.Vector3(-d, objH, 0.04);
-    const hit = new THREE.Vector3(-R*0.15, objH*0.6, 0.04);
-    dyn.add(makeRay(objTop, hit, { color: OCOL.ray, r:0.03, arrow:false }));
-    const fPt = new THREE.Vector3(f, 0, 0.04);
-    const dir = hit.clone().sub(fPt).normalize();
-    const reflEnd = hit.clone().add(dir.multiplyScalar(5));
-    dyn.add(makeRay(hit, reflEnd, { color: OCOL.refract, r:0.03, arrow:false }));
-    dyn.add(makeFlowRay([objTop.clone(), hit.clone(), reflEnd.clone()], { color: 0xffffff, count: 4, speed: 0.5, r: 0.08 }));
-    dyn.add(makeDashedLine(hit, fPt, { color: OCOL.refract, dash:0.18, gap:0.12, opacity:0.5 }));
-    makeLabeledPoint(dyn, [imgX, imgH, 0.05], [imgX + 1.8, imgH + 1.4, 0], 'Görüntü (küçük, düz, sanal)', { color: '#ff5252' });
+    makeLabeledPoint(dyn, [imgX, imgH, 0.05], [imgX + 1.8, imgH + 1.3, 0], 'Görüntü (küçük, düz, sanal)', { color: '#ff5252' });
   }
   rebuild();
 
@@ -4067,24 +4844,27 @@ SubBuilders.buildTumsekAyna = function() {
     { type: 'section', label: 'Tümsek Ayna (Iraksak)' },
     { type: 'slider', label: 'Cisim uzaklığı d', min: 2, max: 7, step: 0.5, unit: '',
       getValue: () => S.ta_d, setValue: (v)=>{ S.ta_d=v; rebuild(); }, format:(x)=>x.toFixed(1) },
+    { type: 'slider', label: 'Odak |f|', min: 1.5, max: 3, step: 0.5, unit: '',
+      getValue: () => S.ta_f, setValue: (v)=>{ S.ta_f=v; rebuild(); }, format:(x)=>x.toFixed(1) },
     { type: 'section', label: 'Görüntü' },
     { type: 'display', label: 'Özellik', highlight: true, getValue: () => 'Küçük, düz, sanal' },
-    { type: 'display', label: 'Odak', getValue: () => 'Sanal (arkada, f<0)' },
-    { type: 'display', label: 'Görüş alanı', getValue: () => 'Geniş' },
-    { type: 'formula', text: 'Görüntü daima küçük, düz, sanal' }
+    { type: 'display', label: 'Odak', getValue: () => 'Sanal (arkada, f < 0)' },
+    { type: 'display', label: 'Görüş alanı', getValue: () => 'Geniş (güvenlik aynası)' },
+    { type: 'formula', text: 'Görüntü daima küçük, düz, sanal · f < 0' }
   ], { title: 'Tümsek Ayna' });
 
   addInfo3DLabels([
     { text: { ilkokul:'🔮 Tümsek ayna', ortaokul:'🔮 Dış yüzey yansıtır', lise:'🔮 Iraksak ayna', tyt_ayt:'🔮 Tümsek (f<0)' },
-      position: [-S.ta_f*2-2, 3.4, 0], target: [-S.ta_f*2+0.3, 1.2, 0], color: '#9fd0ff' }
+      position: [-2.4, 3.2, 0], target: [-0.2, 1.0, 0], color: '#9fd0ff' },
+    { text: { ilkokul:'🚗 Geniş görür', ortaokul:'🚗 Güvenlik / araç aynası', lise:'🪞 Geniş görüş alanı', tyt_ayt:'🪞 Güvenlik aynası kullanımı' },
+      position: [3.5, 2.4, 0], target: [S.ta_f, 0.0, 0], color: '#6ad6ff' }
   ]);
+
+  window._customAnim = null;
+  if (controls) { controls.target.set(0, -1.15, 0); }
+  if (camera) camera.position.set(0, 1.85, 25.0);
 };
 
-// ============================================================
-// ====== MODÜL 5: AYDINLANMA VE RENK ========================
-// ============================================================
-
-// ---------- MODÜL 5.1: Aydınlanma (E = I/d²) ----------
 SubBuilders.buildAydinlanma = function() {
   const root = new THREE.Group();
   markDynamic(root); scene.add(root); window._currentModelGroup = root;
@@ -4092,44 +4872,66 @@ SubBuilders.buildAydinlanma = function() {
   root.add(makeGridSystem({ size: 16, divisions: 16 }));
 
   const S = window._sceneState;
-  S.ay_d = 3.0;
-  S.ay_I = 100;
+  if (S.ay_d === undefined) S.ay_d = 3.0;
+  if (S.ay_I === undefined) S.ay_I = 100;
+  if (S.ay_tilt === undefined) S.ay_tilt = 0;   // 0° (dik) · 45° · 60° eğik yüzey
 
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
 
+  function Eval() {
+    const d = S.ay_d, I = S.ay_I;
+    const cosT = Math.cos(S.ay_tilt * Math.PI/180);
+    return I * cosT / (d*d);   // E = I·cosθ / d²
+  }
+
   function rebuild() {
     [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
-    const d = S.ay_d, I = S.ay_I;
-    const E = I / (d*d);
+    const d = S.ay_d, I = S.ay_I, E = Eval();
     const lampX = -d, surfX = 0;
+
+    // lamba + halo
     const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.4, 18, 14),
       new THREE.MeshStandardMaterial({ color: 0xfff0a0, emissive: 0xffe14d, emissiveIntensity: 0.9, toneMapped:false }));
     lamp.position.set(lampX, 0, 0); dyn.add(lamp);
-    const halo = new THREE.Mesh(new THREE.SphereGeometry(0.6, 16, 12),
+    const halo = new THREE.Mesh(new THREE.SphereGeometry(0.62, 16, 12),
       new THREE.MeshBasicMaterial({ color: 0xffe14d, transparent: true, opacity: 0.18, toneMapped:false }));
     halo.position.set(lampX, 0, 0); dyn.add(halo);
+
+    // yüzey (parlaklık E ile orantılı; eğikse y ekseninde döner)
     const bright = Math.min(1, E/12);
-    const surfMat = new THREE.MeshStandardMaterial({ color: 0xeaeaea, emissive: 0xffe14d, emissiveIntensity: bright*0.9, roughness: 0.7, side: THREE.DoubleSide });
-    const surf = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 3.6), surfMat);
+    const surfMat = new THREE.MeshStandardMaterial({ color: 0xeaeaea, emissive: 0xffe14d, emissiveIntensity: bright*0.95, roughness: 0.7, side: THREE.DoubleSide });
+    const surf = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 3.4), surfMat);
     surf.position.set(surfX, 0, 0);
-    surf.rotation.y = Math.PI/2;
+    surf.rotation.y = Math.PI/2;                       // başlangıçta ışına dik (cephe)
+    surf.rotation.x = S.ay_tilt * Math.PI/180;         // eğim
     dyn.add(surf);
-    const frameGeo = new THREE.EdgesGeometry(new THREE.PlaneGeometry(3.2, 3.6));
-    const frame = new THREE.LineSegments(frameGeo, new THREE.LineBasicMaterial({ color: 0xffe14d, transparent:true, opacity:0.7 }));
-    frame.position.set(surfX, 0, 0); frame.rotation.y = Math.PI/2; dyn.add(frame);
-    const fotonSayisi = Math.max(2, Math.round(I / 35));
-    const hedefY = [1.3, 0.65, 0, -0.65, -1.3];
+    const frame = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(3.0, 3.4)),
+      new THREE.LineBasicMaterial({ color: 0xffe14d, transparent:true, opacity:0.7 }));
+    frame.position.set(surfX, 0, 0); frame.rotation.y = Math.PI/2; frame.rotation.x = S.ay_tilt*Math.PI/180; dyn.add(frame);
+
+    // yüzey normali (eğik yüzeyde açı görünür olsun)
+    if (S.ay_tilt > 0) {
+      const nrm = new THREE.Vector3(-Math.cos(S.ay_tilt*Math.PI/180), Math.sin(S.ay_tilt*Math.PI/180), 0).multiplyScalar(1.4);
+      dyn.add(makeRay(new THREE.Vector3(surfX,0,0.05), new THREE.Vector3(surfX+nrm.x, nrm.y, 0.05),
+        { color: 0x9fb0d8, r: 0.025, arrow:true }));
+      dyn.add(makeMeasureLabel('θ = ' + S.ay_tilt + '°', [surfX-0.6, 1.5, 0], 'rgba(159,176,216,0.92)'));
+    }
+
+    // ışınlar (d büyüdükçe daha az foton akışı → I/d² hissi)
+    const fotonSayisi = Math.max(2, Math.min(6, Math.round(I / 35)));
+    const hedefY = [1.2, 0.6, 0, -0.6, -1.2];
     hedefY.forEach((y)=>{
       const from = new THREE.Vector3(lampX, 0, 0);
       const to = new THREE.Vector3(surfX, y, 0);
-      dyn.add(makeRay(from, to, { color: 0xffe14d, r: 0.022, arrow:false }));
-      dyn.add(makeFlowRay([from.clone(), to.clone()], { color: 0xffffff, count: fotonSayisi, speed: 0.35 + 0.8/d, r: 0.085 }));
+      dyn.add(makeRay(from, to, { color: 0xffe14d, r: 0.02, arrow:false }));
+      dyn.add(makeFlowRay([from.clone(), to.clone()], { color: 0xffffff, count: Math.min(4,fotonSayisi), speed: 0.35 + 0.8/d, r: 0.07 }));
     });
-    dyn.add(makeDimension(new THREE.Vector3(lampX, -2.4, 0), new THREE.Vector3(surfX, -2.4, 0), 'd = ' + d.toFixed(1), { color: 0x6ad6ff, offset:[0,-0.4,0] }));
+
+    dyn.add(makeDimension(new THREE.Vector3(lampX, -2.3, 0), new THREE.Vector3(surfX, -2.3, 0), 'd = ' + d.toFixed(1), { color: 0x6ad6ff, offset:[0,-0.4,0] }));
     if (_isElementary()) {
-      dyn.add(makeMeasureLabel(E > 8 ? 'Çok aydınlık ☀️' : (E > 3 ? 'Orta aydınlık' : 'Az aydınlık 🌙'), [surfX+0.4, 2.4, 0], 'rgba(255,225,77,0.95)'));
+      dyn.add(makeMeasureLabel(E > 8 ? 'Çok aydınlık ☀️' : (E > 3 ? 'Orta aydınlık' : 'Az aydınlık 🌙'), [surfX+0.5, 2.3, 0], 'rgba(255,225,77,0.95)'));
     } else {
-      dyn.add(makeMeasureLabel('E = ' + E.toFixed(1) + ' lx', [surfX+0.4, 2.4, 0], 'rgba(255,225,77,0.95)'));
+      dyn.add(makeMeasureLabel('E = ' + E.toFixed(1) + ' lx', [surfX+0.5, 2.3, 0], 'rgba(255,225,77,0.95)'));
     }
   }
   rebuild();
@@ -4140,11 +4942,17 @@ SubBuilders.buildAydinlanma = function() {
       getValue: () => S.ay_d, setValue: (v)=>{ S.ay_d=v; rebuild(); }, format:(x)=>x.toFixed(1) },
     { type: 'slider', label: 'Işık şiddeti I', min: 50, max: 200, step: 25, unit: ' cd',
       getValue: () => S.ay_I, setValue: (v)=>{ S.ay_I=v; rebuild(); }, format:(x)=>x.toFixed(0) },
+    { type: 'section', label: 'Yüzey Eğimi (θ)' },
+    { type: 'presets', activeIdx: 0, options: [
+      { label: '⬜ Dik yüzey (0°)', action: ()=>{ S.ay_tilt=0; rebuild(); } },
+      { label: '◳ Eğik 45°', action: ()=>{ S.ay_tilt=45; rebuild(); } },
+      { label: '◲ Eğik 60°', action: ()=>{ S.ay_tilt=60; rebuild(); } }
+    ]},
     { type: 'section', label: 'Sonuç' },
-    { type: 'display', label: 'Aydınlanma E', highlight: true, getValue: () => (S.ay_I/(S.ay_d*S.ay_d)).toFixed(1) + ' lüks' },
+    { type: 'display', label: 'Aydınlanma E', highlight: true, getValue: () => Eval().toFixed(1) + ' lüks' },
     { type: 'display', label: 'Uzaklık 2× olursa', getValue: () => 'E dörtte bire iner' },
-    { type: 'formula', text: 'E = I / d²',
-      getValue: () => 'E = ' + S.ay_I + '/' + S.ay_d.toFixed(1) + '² = <b>' + (S.ay_I/(S.ay_d*S.ay_d)).toFixed(1) + ' lx</b>' }
+    { type: 'formula', text: 'E = I·cos θ / d²',
+      getValue: () => 'E = ' + S.ay_I + '·cos' + S.ay_tilt + '° / ' + S.ay_d.toFixed(1) + '² = <b>' + Eval().toFixed(1) + ' lx</b>' }
   ], { title: 'Aydınlanma' });
 
   addInfo3DLabels([
@@ -4153,9 +4961,12 @@ SubBuilders.buildAydinlanma = function() {
     { text: { ilkokul:'🟨 Aydınlanan yüzey', ortaokul:'🟨 Aydınlanan yüzey', lise:'🟨 Yüzey (E)', tyt_ayt:'🟨 Aydınlanma E (lüks)' },
       position: [2.6, -2.0, 0], target: [0, -0.8, 0], color: '#fff0a0' }
   ]);
+
+  window._customAnim = null;
+  if (controls) { controls.target.set(0, -1.15, 0); }
+  if (camera) camera.position.set(0, 1.85, 25.0);
 };
 
-// ---------- MODÜL 5.2: Cisimlerin Rengi ----------
 SubBuilders.buildCisimRenk = function() {
   const root = new THREE.Group();
   markDynamic(root); scene.add(root); window._currentModelGroup = root;
@@ -4163,13 +4974,13 @@ SubBuilders.buildCisimRenk = function() {
   root.add(makeGridSystem({ size: 16, divisions: 16 }));
 
   const S = window._sceneState;
-  S.cr_isik = 0;
-  S.cr_cisim = 0;
+  if (S.cr_isik === undefined) S.cr_isik = 0;
+  if (S.cr_cisim === undefined) S.cr_cisim = 0;
   const ISIK = [
     { ad:'Beyaz', renk:0xffffff, rgb:[1,1,1] },
     { ad:'Kırmızı', renk:0xff3030, rgb:[1,0,0] },
-    { ad:'Yeşil', renk:0x3ed673, rgb:[0,1,0] },
-    { ad:'Mavi', renk:0x4a90e2, rgb:[0,0,1] }
+    { ad:'Yeşil', renk:0x30d060, rgb:[0,1,0] },
+    { ad:'Mavi', renk:0x3a78ff, rgb:[0,0,1] }
   ];
   const CISIM = [
     { ad:'Kırmızı', rgb:[1,0,0] },
@@ -4177,13 +4988,15 @@ SubBuilders.buildCisimRenk = function() {
     { ad:'Mavi', rgb:[0,0,1] },
     { ad:'Beyaz', rgb:[1,1,1] }
   ];
+  // tek bileşen ışın renkleri (RGB ayrışımı için)
+  const COMP = [ {hex:0xff3030, key:0}, {hex:0x30d060, key:1}, {hex:0x3a78ff, key:2} ];
 
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
 
   function gorunenRenk() {
     const ir = ISIK[S.cr_isik].rgb, cr = CISIM[S.cr_cisim].rgb;
     const r = ir[0]*cr[0], g = ir[1]*cr[1], b = ir[2]*cr[2];
-    if (r===0 && g===0 && b===0) return { hex: 0x1a1a1a, ad:'Siyah (soğurur)' };
+    if (r===0 && g===0 && b===0) return { hex: 0x161616, ad:'Siyah (tümü soğurulur)' };
     const hex = (Math.round(r*255)<<16) | (Math.round(g*255)<<8) | Math.round(b*255);
     let ad = '';
     if (r&&g&&b) ad='Beyaz'; else if (r&&g) ad='Sarı'; else if (r&&b) ad='Magenta'; else if (g&&b) ad='Cyan';
@@ -4193,37 +5006,67 @@ SubBuilders.buildCisimRenk = function() {
 
   function rebuild() {
     [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
+    const ir = ISIK[S.cr_isik].rgb, cr = CISIM[S.cr_cisim].rgb;
     const lampColor = ISIK[S.cr_isik].renk;
-    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.4, 18, 14),
-      new THREE.MeshStandardMaterial({ color: lampColor, emissive: lampColor, emissiveIntensity: 0.8, toneMapped:false }));
-    lamp.position.set(-4.5, 1.5, 0); dyn.add(lamp);
-    const inA = new THREE.Vector3(-4.5,1.5,0.02), inB = new THREE.Vector3(-0.8,0.3,0.02);
-    dyn.add(makeRay(inA, inB, { color: lampColor, r:0.05, arrow:true }));
-    dyn.add(makeFlowRay([inA, inB], { color: lampColor, count: 4, speed: 0.5, r: 0.1 }));
+
+    // lamba
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.42, 18, 14),
+      new THREE.MeshStandardMaterial({ color: lampColor, emissive: lampColor, emissiveIntensity: 0.85, toneMapped:false }));
+    lamp.position.set(-5, 1.6, 0); dyn.add(lamp);
+
+    // GELEN IŞIK: ışığın içerdiği her renk bileşeni ayrı ışın (RGB ayrışımı)
+    const objC = new THREE.Vector3(0.4, 0, 0);
+    const present = COMP.filter(c => ir[c.key] > 0);
+    const n = present.length;
+    present.forEach((c, i) => {
+      const yo = (n===1) ? 0 : (1.0 - 2.0*(i/(n-1))) * 0.55;
+      const a = new THREE.Vector3(-5+0.4, 1.6 + yo*0.3, 0.02);
+      const b = new THREE.Vector3(-1.05, yo, 0.02);
+      dyn.add(makeRay(a, b, { color: c.hex, r:0.045, arrow:true }));
+      dyn.add(makeFlowRay([a, b], { color: c.hex, count: 3, speed: 0.5, r: 0.09 }));
+    });
+
+    // cisim (görünen renge boyalı küre — fizik: yansıttığı bileşen)
     const gr = gorunenRenk();
-    const obj = new THREE.Mesh(new THREE.SphereGeometry(1.1, 28, 20),
-      new THREE.MeshStandardMaterial({ color: gr.hex, emissive: gr.hex, emissiveIntensity: 0.25, roughness: 0.5, toneMapped:false }));
-    obj.position.set(0.5, 0, 0); dyn.add(obj);
-    if (gr.hex !== 0x1a1a1a) {
-      const outA = new THREE.Vector3(1.3,0.5,0.02), outB = new THREE.Vector3(4,2,0.02);
-      dyn.add(makeRay(outA, outB, { color: gr.hex, r:0.05, arrow:true }));
-      dyn.add(makeFlowRay([outA, outB], { color: gr.hex, count: 3, speed: 0.5, r: 0.1 }));
+    const obj = new THREE.Mesh(new THREE.SphereGeometry(1.1, 32, 22),
+      new THREE.MeshStandardMaterial({ color: gr.hex, emissive: gr.hex, emissiveIntensity: gr.hex===0x161616?0.0:0.22, roughness: 0.5, toneMapped:false }));
+    obj.position.copy(objC); dyn.add(obj);
+
+    // YANSIYAN bileşenler (cismin yansıttığı = ir*cr) ve SOĞURULAN bileşenler (gelen ama yansımayan)
+    COMP.forEach((c) => {
+      const incoming = ir[c.key] > 0;
+      if (!incoming) return;
+      const reflected = (ir[c.key] * cr[c.key]) > 0;
+      if (reflected) {
+        const a = new THREE.Vector3(1.3, 0.45, 0.02), bb = new THREE.Vector3(4.2, 1.9, 0.02);
+        dyn.add(makeRay(a, bb, { color: c.hex, r:0.045, arrow:true }));
+        dyn.add(makeFlowRay([a, bb], { color: c.hex, count: 3, speed: 0.5, r: 0.09 }));
+      } else {
+        // soğurulan: cismin içinde sönen kısa kesikli ışın
+        dyn.add(makeDashedLine(new THREE.Vector3(-0.2, -0.1, 0.05), new THREE.Vector3(0.4, -0.1, 0.05),
+          { color: c.hex, dash:0.12, gap:0.1, opacity:0.5 }));
+      }
+    });
+
+    // göz (gözlemci)
+    dyn.add(makeMarker(new THREE.Vector3(4.4, 2.1, 0.02), { color: 0xffe14d, r: 0.14 }));
+    dyn.add(makeMeasureLabel('Görünen: ' + gr.ad, [0.4, -1.9, 0], 'rgba(20,28,46,0.95)'));
+    if (gr.hex === 0x161616) {
+      dyn.add(makeMeasureLabel('Yansıyacak renk yok → SİYAH', [0.4, 1.9, 0], 'rgba(40,40,40,0.95)'));
     }
-    dyn.add(makeMarker(new THREE.Vector3(4,2,0.02), { color: 0xffe14d, r: 0.14 }));
-    dyn.add(makeMeasureLabel('Görünen: ' + gr.ad, [0.5, -1.8, 0], 'rgba(20,28,46,0.95)'));
   }
   rebuild();
 
   setSceneSliders([
     { type: 'section', label: 'Gelen Işık Rengi' },
-    { type: 'presets', activeIdx: 0, options: [
+    { type: 'presets', activeIdx: S.cr_isik, options: [
       { label: '⚪ Beyaz ışık', action: ()=>{ S.cr_isik=0; rebuild(); } },
       { label: '🔴 Kırmızı ışık', action: ()=>{ S.cr_isik=1; rebuild(); } },
       { label: '🟢 Yeşil ışık', action: ()=>{ S.cr_isik=2; rebuild(); } },
       { label: '🔵 Mavi ışık', action: ()=>{ S.cr_isik=3; rebuild(); } }
     ]},
     { type: 'section', label: 'Cismin Gerçek Rengi' },
-    { type: 'presets', activeIdx: 0, options: [
+    { type: 'presets', activeIdx: S.cr_cisim, options: [
       { label: '🔴 Kırmızı cisim', action: ()=>{ S.cr_cisim=0; rebuild(); } },
       { label: '🟢 Yeşil cisim', action: ()=>{ S.cr_cisim=1; rebuild(); } },
       { label: '🔵 Mavi cisim', action: ()=>{ S.cr_cisim=2; rebuild(); } },
@@ -4235,16 +5078,19 @@ SubBuilders.buildCisimRenk = function() {
   ], { title: 'Cisimlerin Rengi' });
 
   addInfo3DLabels([
-    { text: { ilkokul:'💡 Işık', ortaokul:'💡 Gelen ışık', lise:'💡 Gelen ışık', tyt_ayt:'💡 Gelen ışık rengi' },
-      position: [-4.5, 3, 0], target: [-4.5, 1.5, 0], color: '#ffe14d' },
+    { text: { ilkokul:'💡 Işık', ortaokul:'💡 Gelen ışık', lise:'💡 Gelen ışık (bileşenleri)', tyt_ayt:'💡 Gelen ışık tayfı' },
+      position: [-5, 3.1, 0], target: [-5, 1.6, 0], color: '#ffe14d' },
     { text: { ilkokul:'🔵 Cisim', ortaokul:'🔵 Cisim', lise:'🔵 Cisim (gerçek renk)', tyt_ayt:'🔵 Cisim (soğurur/yansıtır)' },
-      position: [0.5, 2, 0], target: [0.5, 1, 0], color: '#aadfff' },
+      position: [0.4, 2.2, 0], target: [0.4, 1.1, 0], color: '#aadfff' },
     { text: { ilkokul:'👁️ Göz', ortaokul:'👁️ Gözlemci', lise:'👁️ Göze gelen renk', tyt_ayt:'👁️ Yansıyan renk' },
-      position: [4.5, 2.8, 0], target: [4, 2, 0], color: '#ffe14d' }
+      position: [4.9, 3.0, 0], target: [4.4, 2.1, 0], color: '#ffe14d' }
   ]);
+
+  window._customAnim = null;
+  if (controls) { controls.target.set(0, -1.15, 0); }
+  if (camera) camera.position.set(0, 1.85, 25.0);
 };
 
-// ---------- MODÜL 5.3: Işık Filtreleri ----------
 SubBuilders.buildIsikFiltre = function() {
   const root = new THREE.Group();
   markDynamic(root); scene.add(root); window._currentModelGroup = root;
@@ -4252,89 +5098,151 @@ SubBuilders.buildIsikFiltre = function() {
   root.add(makeGridSystem({ size: 16, divisions: 16 }));
 
   const S = window._sceneState;
-  S.if_isik = 0;
-  S.if_filtre = 1;
+  if (S.if_isik === undefined) S.if_isik = 0;
+  if (S.if_filtre === undefined) S.if_filtre = 1;
+  if (S.if_filtre2 === undefined) S.if_filtre2 = 0;   // 0 = ikinci filtre yok
   const ISIK = [
     { ad:'Beyaz', renk:0xffffff, rgb:[1,1,1] },
     { ad:'Kırmızı', renk:0xff3030, rgb:[1,0,0] },
-    { ad:'Yeşil', renk:0x3ed673, rgb:[0,1,0] },
-    { ad:'Mavi', renk:0x4a90e2, rgb:[0,0,1] }
+    { ad:'Yeşil', renk:0x30d060, rgb:[0,1,0] },
+    { ad:'Mavi', renk:0x3a78ff, rgb:[0,0,1] }
   ];
   const FILTRE = [
     null,
     { ad:'Kırmızı', renk:0xff3030, rgb:[1,0,0] },
-    { ad:'Yeşil', renk:0x3ed673, rgb:[0,1,0] },
-    { ad:'Mavi', renk:0x4a90e2, rgb:[0,0,1] },
+    { ad:'Yeşil', renk:0x30d060, rgb:[0,1,0] },
+    { ad:'Mavi', renk:0x3a78ff, rgb:[0,0,1] },
     { ad:'Sarı', renk:0xffe14d, rgb:[1,1,0] }
   ];
 
   const dyn = new THREE.Group(); dyn.userData.dynamic = true; root.add(dyn);
 
-  function gecenRenk() {
-    const ir = ISIK[S.if_isik].rgb, fr = FILTRE[S.if_filtre].rgb;
-    const r=ir[0]*fr[0], g=ir[1]*fr[1], b=ir[2]*fr[2];
-    if (r===0&&g===0&&b===0) return { hex:0x1a1a1a, ad:'Karanlık' };
+  function mul(rgb, fidx) {
+    if (!fidx) return rgb.slice();
+    const fr = FILTRE[fidx].rgb;
+    return [rgb[0]*fr[0], rgb[1]*fr[1], rgb[2]*fr[2]];
+  }
+  function rgbInfo(rgb) {
+    const r=rgb[0],g=rgb[1],b=rgb[2];
+    if (r===0&&g===0&&b===0) return { hex:0x161616, ad:'Karanlık', dark:true };
     const hex=(Math.round(r*255)<<16)|(Math.round(g*255)<<8)|Math.round(b*255);
-    let ad=''; if(r&&g&&b)ad='Beyaz'; else if(r&&g)ad='Sarı'; else if(r)ad='Kırmızı'; else if(g)ad='Yeşil'; else if(b)ad='Mavi';
-    return { hex, ad };
+    let ad=''; if(r&&g&&b)ad='Beyaz'; else if(r&&g)ad='Sarı'; else if(r&&b)ad='Magenta'; else if(g&&b)ad='Cyan';
+    else if(r)ad='Kırmızı'; else if(g)ad='Yeşil'; else if(b)ad='Mavi';
+    return { hex, ad, dark:false };
+  }
+
+  function makeFilterPlate(x, fidx) {
+    const fColor = FILTRE[fidx].renk;
+    const g = new THREE.Group();
+    const filt = new THREE.Mesh(new THREE.BoxGeometry(0.18, 3.8, 1.4),
+      new THREE.MeshStandardMaterial({ color: fColor, transparent:true, opacity:0.55, emissive: fColor, emissiveIntensity:0.25, toneMapped:false }));
+    filt.position.set(x, 0, 0); g.add(filt);
+    return g;
   }
 
   function rebuild() {
     [...dyn.children].forEach(c=>{dyn.remove(c);if(c.geometry)c.geometry.dispose();if(c.material&&c.material.dispose)c.material.dispose();});
+    const src = ISIK[S.if_isik].rgb;
     const lampColor = ISIK[S.if_isik].renk;
-    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.4,18,14),
+    const has2 = S.if_filtre2 > 0;
+
+    // lamba
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.42,18,14),
       new THREE.MeshStandardMaterial({ color: lampColor, emissive: lampColor, emissiveIntensity:0.8, toneMapped:false }));
-    lamp.position.set(-5,0,0); dyn.add(lamp);
-    const inA = new THREE.Vector3(-5,0,0.02), inB = new THREE.Vector3(-0.3,0,0.02);
-    dyn.add(makeRay(inA, inB, { color: lampColor, r:0.06, arrow:false }));
-    dyn.add(makeFlowRay([inA, inB], { color: lampColor, count: 4, speed: 0.5, r: 0.11 }));
-    const fColor = FILTRE[S.if_filtre].renk;
-    const filt = new THREE.Mesh(new THREE.BoxGeometry(0.2, 4, 1.5),
-      new THREE.MeshStandardMaterial({ color: fColor, transparent:true, opacity:0.55, emissive: fColor, emissiveIntensity:0.25, toneMapped:false }));
-    filt.position.set(0,0,0); dyn.add(filt);
-    const gr = gecenRenk();
-    if (gr.hex !== 0x1a1a1a) {
-      const outA = new THREE.Vector3(0.3,0,0.02), outB = new THREE.Vector3(5,0,0.02);
-      dyn.add(makeRay(outA, outB, { color: gr.hex, r:0.06, arrow:true }));
-      dyn.add(makeFlowRay([outA, outB], { color: gr.hex, count: 4, speed: 0.5, r: 0.11 }));
+    lamp.position.set(-5.5,0,0); dyn.add(lamp);
+
+    // konumlar
+    const f1x = has2 ? -1.5 : 0;
+    const f2x = 1.5;
+
+    // gelen ışık → 1. filtre
+    dyn.add(makeRay(new THREE.Vector3(-5.1,0,0.02), new THREE.Vector3(f1x-0.2,0,0.02), { color: lampColor, r:0.055, arrow:true }));
+    dyn.add(makeFlowRay([new THREE.Vector3(-5.1,0,0.02), new THREE.Vector3(f1x-0.2,0,0.02)], { color: lampColor, count: 4, speed: 0.5, r: 0.1 }));
+    dyn.add(makeFilterPlate(f1x, S.if_filtre));
+
+    const after1 = mul(src, S.if_filtre);
+    const r1 = rgbInfo(after1);
+
+    if (!has2) {
+      // tek filtre
+      if (!r1.dark) {
+        dyn.add(makeRay(new THREE.Vector3(f1x+0.2,0,0.02), new THREE.Vector3(5,0,0.02), { color: r1.hex, r:0.055, arrow:true }));
+        dyn.add(makeFlowRay([new THREE.Vector3(f1x+0.2,0,0.02), new THREE.Vector3(5,0,0.02)], { color: r1.hex, count: 4, speed: 0.5, r: 0.1 }));
+      } else {
+        dyn.add(makeMeasureLabel('🚫 Işık geçemez', [f1x+1.6, 0.7, 0], 'rgba(40,40,40,0.95)'));
+      }
+      dyn.add(makeMeasureLabel('Geçen: ' + r1.ad, [f1x+2.6, -1.6, 0], 'rgba(20,28,46,0.95)'));
+      dyn.add(makeMarker(new THREE.Vector3(5,0,0.02), { color: 0xffe14d, r: 0.13 }));
     } else {
-      dyn.add(makeMeasureLabel('🚫 Işık geçemez', [2.5, 0.6, 0], 'rgba(40,40,40,0.95)'));
+      // iki ardışık filtre
+      if (!r1.dark) {
+        dyn.add(makeRay(new THREE.Vector3(f1x+0.2,0,0.02), new THREE.Vector3(f2x-0.2,0,0.02), { color: r1.hex, r:0.05, arrow:true }));
+        dyn.add(makeFlowRay([new THREE.Vector3(f1x+0.2,0,0.02), new THREE.Vector3(f2x-0.2,0,0.02)], { color: r1.hex, count: 3, speed: 0.5, r: 0.09 }));
+      }
+      dyn.add(makeMeasureLabel('Ara: ' + r1.ad, [f1x+0.4, 1.7, 0], 'rgba(20,28,46,0.92)'));
+      dyn.add(makeFilterPlate(f2x, S.if_filtre2));
+      const after2 = mul(after1, S.if_filtre2);
+      const r2 = rgbInfo(after2);
+      if (!r2.dark) {
+        dyn.add(makeRay(new THREE.Vector3(f2x+0.2,0,0.02), new THREE.Vector3(5,0,0.02), { color: r2.hex, r:0.05, arrow:true }));
+        dyn.add(makeFlowRay([new THREE.Vector3(f2x+0.2,0,0.02), new THREE.Vector3(5,0,0.02)], { color: r2.hex, count: 3, speed: 0.5, r: 0.09 }));
+      } else {
+        dyn.add(makeMeasureLabel('🚫 Karanlık', [f2x+1.4, 0.7, 0], 'rgba(40,40,40,0.95)'));
+      }
+      dyn.add(makeMeasureLabel('Çıkan: ' + r2.ad, [f2x+2.4, -1.6, 0], 'rgba(20,28,46,0.95)'));
+      dyn.add(makeMarker(new THREE.Vector3(5,0,0.02), { color: 0xffe14d, r: 0.13 }));
     }
-    dyn.add(makeMeasureLabel('Geçen: ' + gr.ad, [2.8, -1.5, 0], 'rgba(20,28,46,0.95)'));
   }
   rebuild();
 
+  function sonucAd() {
+    const after1 = mul(ISIK[S.if_isik].rgb, S.if_filtre);
+    if (S.if_filtre2 > 0) return rgbInfo(mul(after1, S.if_filtre2)).ad;
+    return rgbInfo(after1).ad;
+  }
+
   setSceneSliders([
     { type: 'section', label: 'Gelen Işık' },
-    { type: 'presets', activeIdx: 0, options: [
+    { type: 'presets', activeIdx: S.if_isik, options: [
       { label: '⚪ Beyaz', action: ()=>{ S.if_isik=0; rebuild(); } },
       { label: '🔴 Kırmızı', action: ()=>{ S.if_isik=1; rebuild(); } },
       { label: '🟢 Yeşil', action: ()=>{ S.if_isik=2; rebuild(); } },
       { label: '🔵 Mavi', action: ()=>{ S.if_isik=3; rebuild(); } }
     ]},
-    { type: 'section', label: 'Filtre Rengi' },
-    { type: 'presets', activeIdx: 0, options: [
-      { label: '🔴 Kırmızı filtre', action: ()=>{ S.if_filtre=1; rebuild(); } },
-      { label: '🟢 Yeşil filtre', action: ()=>{ S.if_filtre=2; rebuild(); } },
-      { label: '🔵 Mavi filtre', action: ()=>{ S.if_filtre=3; rebuild(); } },
-      { label: '🟡 Sarı filtre', action: ()=>{ S.if_filtre=4; rebuild(); } }
+    { type: 'section', label: '1. Filtre' },
+    { type: 'presets', activeIdx: S.if_filtre-1, options: [
+      { label: '🔴 Kırmızı', action: ()=>{ S.if_filtre=1; rebuild(); } },
+      { label: '🟢 Yeşil', action: ()=>{ S.if_filtre=2; rebuild(); } },
+      { label: '🔵 Mavi', action: ()=>{ S.if_filtre=3; rebuild(); } },
+      { label: '🟡 Sarı', action: ()=>{ S.if_filtre=4; rebuild(); } }
+    ]},
+    { type: 'section', label: '2. Filtre (ardışık)' },
+    { type: 'presets', activeIdx: S.if_filtre2, options: [
+      { label: '— Yok', action: ()=>{ S.if_filtre2=0; rebuild(); } },
+      { label: '🔴 Kırmızı', action: ()=>{ S.if_filtre2=1; rebuild(); } },
+      { label: '🟢 Yeşil', action: ()=>{ S.if_filtre2=2; rebuild(); } },
+      { label: '🔵 Mavi', action: ()=>{ S.if_filtre2=3; rebuild(); } },
+      { label: '🟡 Sarı', action: ()=>{ S.if_filtre2=4; rebuild(); } }
     ]},
     { type: 'section', label: 'Sonuç' },
-    { type: 'display', label: 'Geçen ışık', highlight: true, getValue: () => gecenRenk().ad },
+    { type: 'display', label: 'Çıkan ışık', highlight: true, getValue: () => sonucAd() },
     { type: 'formula', text: 'Filtre kendi rengini geçirir, kalanı soğurur' }
   ], { title: 'Işık Filtreleri' });
 
   addInfo3DLabels([
     { text: { ilkokul:'💡 Işık', ortaokul:'💡 Gelen ışık', lise:'💡 Gelen ışık', tyt_ayt:'💡 Gelen ışık' },
-      position: [-5, 1.8, 0], target: [-5, 0.3, 0], color: '#ffe14d' },
+      position: [-5.5, 1.8, 0], target: [-5.5, 0.3, 0], color: '#ffe14d' },
     { text: { ilkokul:'🟥 Renkli cam', ortaokul:'🟥 Filtre', lise:'🟥 Renk filtresi', tyt_ayt:'🟥 Filtre (soğurucu)' },
-      position: [0, 2.6, 0], target: [0, 1.8, 0], color: '#aadfff' },
+      position: [0, 2.7, 0], target: [0, 1.6, 0], color: '#aadfff' },
     { text: { ilkokul:'👁️ Çıkan ışık', ortaokul:'👁️ Geçen ışık', lise:'👁️ Geçen renk', tyt_ayt:'👁️ Geçen ışık (filtreli)' },
-      position: [4, 1.5, 0], target: [4, 0, 0], color: '#ffe14d' }
+      position: [4.5, 1.6, 0], target: [5, 0, 0], color: '#ffe14d' }
   ]);
+
+  window._customAnim = null;
+  if (controls) { controls.target.set(0, -1.15, 0); }
+  if (camera) camera.position.set(0, 1.85, 25.0);
 };
 
-// ============================================================
 // ====== SİSTEM: SEVİYE, MOD, NAVİGASYON, UI ================
 // ============================================================
 let currentLevel = 'lise';
@@ -4455,8 +5363,9 @@ function selectSub(subKey) {
 
   // Kamerayı sahneye göre hafif yukarı + model biraz sola kaysın (target sağa)
   if (controls) {
-    controls.target.set(3.2, 0.6, 0);
-    if (camera) camera.position.set(3.2, 5.0, 27.0);
+    // Hedefi daha aşağı al → model ekranda daha YUKARIDA dursun
+    controls.target.set(0, -1.15, 0);
+    if (camera) camera.position.set(0, 1.85, 25.0);
     controls.captureInitialState && controls.captureInitialState();
   }
 
@@ -4466,6 +5375,14 @@ function selectSub(subKey) {
     const cur = allSubs.find(s => s.key === subKey);
     if (cur) window._showGestureToast('📍 ' + cur.label);
   }
+  // Geçiş Motoru: yeni sahne için Ayarlar'a göre giriş animasyonu + ses + geri bildirim
+  try {
+    if (window.GECIS && window._currentModelGroup) {
+      const tEl = document.getElementById('infoTitle');
+      const lbl = tEl ? tEl.textContent.split('/').pop().trim() : '';
+      window.GECIS.onScene(window._currentModelGroup, lbl);
+    }
+  } catch(e) {}
 }
 
 function applyModeToLabels() {
@@ -4484,18 +5401,18 @@ function applyModeToLabels() {
 }
 
 // ---------- BİLGİ PANELİ ----------
+function _dataKey(subKey) { return subKey; }
 function updateInfoPanel(subKey) {
-  const data = _resolveLevelData(INFO_DATA[subKey]);
+  const data = _resolveLevelData(INFO_DATA[_dataKey(subKey)]);
   if (!data) return;
   document.getElementById('infoEmoji').textContent = data.emoji || '🔦';
-  // Başlık: "Modül ana başlığı / alt başlık" (eğitim seviyesi gösterilmez)
   let mainTitle = '', subTitle = '';
   for (const mk of Object.keys(MODULES)) {
     const s = MODULES[mk].subs.find(x => x.key === subKey);
     if (s) {
-      // Modül ana başlığından emoji ve "Modül N:" kısmını temizle
       mainTitle = (MODULES[mk].title || '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]*Modül\s*\d+:\s*/i, '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]+/, '').trim();
-      // Alt başlık: sahne etiketinden baştaki emojiyi at
+      // Başlığın başındaki eğitim seviyesini ("İlkokul:", "Lise/TYT:" vb.) kaldır → sadece ana konu kalsın
+      mainTitle = mainTitle.replace(/^[^:]*:\s*/, '').trim();
       subTitle = (s.label || '').replace(/^[^\wçğıöşüÇĞİÖŞÜ]+/, '').trim();
       break;
     }
@@ -4505,15 +5422,17 @@ function updateInfoPanel(subKey) {
   const list = document.getElementById('infoList');
   list.innerHTML = '';
   let points = data.points || [];
-  // Sade modda ilk 3, detaylıda hepsi
   const showCount = (currentMode === 'sade') ? 3 : points.length;
+  // Satır başındaki ikon/emojileri temizleyen yardımcı (madde başında ikon olmasın)
+  const stripIcon = (txt) => txt.replace(/^\s*(?:[\p{Extended_Pictographic}️‍⃣]\s*)+/u, '').trim();
   points.slice(0, showCount).forEach(p => {
     const li = document.createElement('li');
-    if (p.startsWith('##')) { li.className = 'subhead'; li.innerHTML = p.replace('##','').trim(); }
-    else li.innerHTML = p;
+    let txt = p;
+    if (txt.startsWith('###')) { li.className = 'subhead2'; txt = txt.replace(/^###/, '').trim(); } // yan başlık → mavi
+    else if (txt.startsWith('##')) { li.className = 'subhead'; txt = txt.replace(/^##/, '').trim(); } // ara başlık → sarı
+    li.innerHTML = stripIcon(txt);
     list.appendChild(li);
   });
-  // içerik değişti → kaydırma çubuğunu yeniden hesapla (layout için çoklu deneme)
   list.scrollTop = 0;
   setTimeout(updateInfoScrollbar, 30);
   setTimeout(updateInfoScrollbar, 150);
@@ -4597,6 +5516,24 @@ function renderCompareTable() {
   window._cmpIdx = 0;
   _showComparePage();
 }
+function _renderCompareHTML(data) {
+  const cols = data.cols || [], rows = data.rows || [];
+  if (cols.length < 2 || rows.length < 1) return _renderTableHTML(data, 'compare-style');
+  const aspectLabel = cols[0];
+  const entities = rows.map(r => r[0]);
+  let html = '<table class="cmp-table compare-style cmp-versus"><thead><tr>';
+  html += `<th class="cmp-aspect">${aspectLabel}</th>`;
+  entities.forEach((e, i) => { html += `<th class="cmp-ent cmp-ent-${i % 4}">${e}</th>`; });
+  html += '</tr></thead><tbody>';
+  for (let c = 1; c < cols.length; c++) {
+    html += `<tr><td class="cmp-aspect-cell">${cols[c]}</td>`;
+    rows.forEach(r => { html += `<td>${(r[c] !== undefined && r[c] !== null) ? r[c] : '—'}</td>`; });
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
 function _showComparePage() {
   const body = document.getElementById('compareBody');
   const titleEl = document.getElementById('compareTitle');
@@ -4612,7 +5549,7 @@ function _showComparePage() {
   const i = window._cmpIdx;
   const data = pages[i];
   if (titleEl) titleEl.textContent = '⚖️ ' + (data.title || 'Karşılaştırma');
-  body.innerHTML = _renderTableHTML(data, 'compare-style');
+  body.innerHTML = _renderCompareHTML(data);
   if (nav) {
     if (pages.length > 1) {
       nav.classList.remove('hidden');
@@ -4674,7 +5611,7 @@ function attachEvents() {
       infoList.addEventListener('scroll', updateInfoScrollbar, { passive: true });
     }
     // tüm popup/panel gövdeleri için de aynı koruma (kaydırılabilir alanlar)
-    ['compareBody','tableBody','scenePanel'].forEach(id => {
+    ['compareBody','tableBody','sceneVarsBody'].forEach(id => {
       const el = document.getElementById(id);
       if (el) ['touchstart','touchmove','touchend','wheel'].forEach(ev => {
         el.addEventListener(ev, (e) => { e.stopPropagation(); }, { passive: true });
@@ -4803,11 +5740,78 @@ function attachEvents() {
   };
 
   // Tam ekran
-  document.getElementById('btnFs').onclick = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+    // ── Bilgi panelini büyüt/küçült: ince çubuğu YUKARI/AŞAĞI SÜRÜKLE (parmağı takip eder) ──
+  (function(){
+    const handle = document.getElementById('infoResizeHandle');
+    const panel = document.getElementById('bottomPanel');
+    const list = document.getElementById('infoList');
+    if (!handle || !panel || !list) return;
+    const MIN_H = 70;
+    const maxH = () => Math.max(MIN_H, Math.round(window.innerHeight - 150)); // üst sekmelere kadar
+    function curH() {
+      const v = getComputedStyle(panel).getPropertyValue('--info-h').trim();
+      if (v.endsWith('px')) return parseFloat(v);
+      return list.getBoundingClientRect().height || Math.round(window.innerHeight * 0.24);
+    }
+    function setH(h) {
+      h = Math.max(MIN_H, Math.min(maxH(), h));
+      panel.style.setProperty('--info-h', h + 'px');
+      if (typeof updateInfoScrollbar === 'function') updateInfoScrollbar();
+    }
+    let dragging = false, startY = 0, startH = 0, pid = null;
+    function onDown(e) {
+      dragging = true; startH = curH();
+      startY = (e.touches ? e.touches[0].clientY : e.clientY);
+      list.style.transition = 'none';
+      if (e.pointerId !== undefined) { pid = e.pointerId; try { handle.setPointerCapture(pid); } catch(_){} }
+      if (window._haptic) window._haptic(10);
+      if (e.cancelable) e.preventDefault();
+      e.stopPropagation();
+    }
+    function onMove(e) {
+      if (!dragging) return;
+      const y = (e.touches ? e.touches[0].clientY : e.clientY);
+      setH(startH + (startY - y)); // yukarı sürükle → büyür
+      if (e.cancelable) e.preventDefault();
+    }
+    function onUp() {
+      if (!dragging) return;
+      dragging = false; list.style.transition = '';
+      if (pid !== null) { try { handle.releasePointerCapture(pid); } catch(_){} pid = null; }
+    }
+    if (window.PointerEvent) {
+      handle.addEventListener('pointerdown', onDown);
+      handle.addEventListener('pointermove', onMove);
+      handle.addEventListener('pointerup', onUp);
+      handle.addEventListener('pointercancel', onUp);
     } else {
-      document.exitFullscreen && document.exitFullscreen();
+      handle.addEventListener('touchstart', onDown, { passive: false });
+      window.addEventListener('touchmove', onMove, { passive: false });
+      window.addEventListener('touchend', onUp);
+      window.addEventListener('touchcancel', onUp);
+      handle.addEventListener('mousedown', onDown);
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    }
+    // çift dokunuş: büyük ↔ normal yükseklik arası geçiş
+    let lastTap = 0;
+    handle.addEventListener('click', (e) => {
+      const now = Date.now();
+      if (now - lastTap < 320) { const big = maxH() - 30; setH(curH() > big - 40 ? Math.round(window.innerHeight * 0.24) : big); }
+      lastTap = now;
+    });
+  })();
+
+  document.getElementById('btnFs').onclick = () => {
+    const el = document.documentElement;
+    const isFs = document.fullscreenElement || document.webkitFullscreenElement;
+    if (!isFs) {
+      // navigationUI:'hide' → tarayıcı/sistem çubuklarını (üstteki saat/şarj vb.) gizlemeyi iste
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (req) { try { req.call(el, { navigationUI: 'hide' }); } catch(_) { req.call(el); } }
+    } else {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) exit.call(document);
     }
     if (window._haptic) window._haptic(15);
   };
@@ -4869,7 +5873,17 @@ function attachEvents() {
   };
 
   // Overlay dışına tıkla → kapat
-  ['shareOverlay','compareOverlay','tableOverlay'].forEach(id => {
+  // "Bu sayfa nasıl çalışır?" yardım penceresi
+  document.getElementById('btnHelp').onclick = () => {
+    closeAllDropdowns();
+    document.getElementById('helpOverlay').classList.add('show');
+    if (window._haptic) window._haptic(12);
+  };
+  document.getElementById('helpClose').onclick = () => {
+    document.getElementById('helpOverlay').classList.remove('show');
+  };
+
+  ['shareOverlay','compareOverlay','tableOverlay','helpOverlay'].forEach(id => {
     const ov = document.getElementById(id);
     ov.onclick = (e) => { if (e.target === ov) ov.classList.remove('show'); };
   });

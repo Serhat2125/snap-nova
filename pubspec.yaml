@@ -143,6 +143,16 @@ flutter:
     - assets/dunya-cografyasi.html
     - assets/three.module.min.js
     - assets/three.global.js
+    # CC0 hazır 3D modeller (base64 gömülü) + GLB yükleyici
+    - assets/gltf-loader.global.js
+    - assets/models/pil.glb.js
+    - assets/models/ampul.glb.js
+    - assets/models/telefon.glb.js
+    - assets/models/hoparlor.glb.js
+    - assets/models/yelkenli.glb.js
+    - assets/models/fener.glb.js
+    - assets/models/kulube.glb.js
+    - assets/models/beyin.glb.js
     # 3D Eğitim Modelleri — Ortak Ayarlar (Geçiş Stüdyosu)
     - assets/gecis-studyosu.html
     # 3D Eğitim Modelleri — Fizik

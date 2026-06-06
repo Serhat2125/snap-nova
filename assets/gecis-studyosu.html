@@ -83,13 +83,14 @@
   <div class="dbody" id="dbody"></div>
 </aside>
 
-<!-- Çevrimdışı: three çekirdeği yerel modülden gelir (CDN yok) -->
+<!-- Çevrimdışı: three çekirdeği yerel klasik scriptten gelir (CDN yok, importmap/ES-module gerektirmez — eski WebView'lerde de çalışır) -->
 <script type="importmap">
 { "imports": { "three": "./three.module.min.js" } }
 </script>
+<script src="./three.global.js"></script>
 
 <script type="module">
-import * as THREE from 'three';
+const THREE = window.THREE;
 
 // ---------- INLINE OrbitControls (çevrimdışı; CDN addon yok) ----------
 // three OrbitControls ile uyumlu temel API: enableDamping, dampingFactor,
