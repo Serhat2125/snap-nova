@@ -97,13 +97,16 @@ class TtsService {
         if (saved != null) _rate = saved.clamp(0.15, 1.50);
       } catch (_) {}
 
-      // ── İnsansı tonlama ─────────────────────────────────────────────────
-      //   pitch 1.02  → düz robotik değil, çok hafifçe canlı
+      // ── İnsansı KADIN tonlama ───────────────────────────────────────────
+      //   pitch 1.08  → kadın sesine yakın, doğal-canlı (robotik düz değil)
       //   rate  _rate → varsayılan 0.58 ~155 WPM; kullanıcı hızı SharedPrefs'te
       //   volume 1.0  → tam ses
-      await _tts.setPitch(1.02);
+      await _tts.setPitch(1.08);
       await _tts.setSpeechRate(_rate);
       await _tts.setVolume(1.0);
+
+      // tr-TR KADIN + en doğal (network/enhanced) sesi seç.
+      await _applyPreferredVoice();
 
       // KRİTİK: `await speak(...)` cümle bitene kadar bloklasın → worker
       // döngüsü doğrudan kuyruk gibi davranır, manuel completer şart değil.
@@ -139,6 +142,57 @@ class TtsService {
     }
   }
 
+  // ── Sesli okumadan emoji/simge/ikon temizliği ──────────────────────────
+  // Ekran/etiket emojileri ("🧠", "•", "→", "⚡") sesli anlatımda OKUNMAZ.
+  static final RegExp _symRe = RegExp(
+    r'[\u{1F000}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{27BF}\u{2B00}-\u{2BFF}'
+    r'\u{2600}-\u{26FF}\u{25A0}-\u{25FF}\u{2022}\u{2023}\u{25CF}\u{25CB}'
+    r'\u{FE00}-\u{FE0F}\u{200D}]',
+    unicode: true,
+  );
+  static String _sanitize(String t) =>
+      t.replaceAll(_symRe, ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+
+  /// tr-TR için KADIN + en doğal (network/enhanced) sesi seçer.
+  /// Cihazda kadın ses yoksa pitch 1.08 zaten kadınsı tona yaklaştırır.
+  static Future<void> _applyPreferredVoice() async {
+    try {
+      final voices = await _tts.getVoices;
+      if (voices is! List) return;
+      final tr = voices.whereType<Map>().where((v) {
+        final loc = (v['locale'] ?? v['language'] ?? '').toString().toLowerCase();
+        return loc.startsWith('tr');
+      }).toList();
+      if (tr.isEmpty) return;
+      final femaleRe = RegExp(
+        r'female|kad[ıi]n|yelda|filiz|seda|elif|aylin|meltem|nazli',
+        caseSensitive: false,
+      );
+      final netRe =
+          RegExp(r'network|enhanced|premium|neural', caseSensitive: false);
+      Map? best;
+      int bestScore = -1;
+      for (final v in tr) {
+        final name = (v['name'] ?? '').toString();
+        final gender = (v['gender'] ?? '').toString().toLowerCase();
+        int score = 0;
+        if (gender == 'female' || femaleRe.hasMatch(name)) score += 4;
+        if (netRe.hasMatch(name)) score += 2;
+        if (score > bestScore) {
+          bestScore = score;
+          best = v;
+        }
+      }
+      if (best != null) {
+        await _tts.setVoice({
+          'name': (best['name'] ?? '').toString(),
+          'locale':
+              (best['locale'] ?? best['language'] ?? 'tr-TR').toString(),
+        });
+      }
+    } catch (_) {}
+  }
+
   /// `langCode` ('tr', 'en', 'ja') → BCP-47 ('tr-TR', 'en-US', 'ja-JP')
   static String _toBcp47(String langCode) {
     const map = {
@@ -154,13 +208,14 @@ class TtsService {
   /// Tek-shot konuşma — kısa metinler için.
   static Future<void> speak(String text, {String langCode = 'tr'}) async {
     if (!_initialized) await init();
-    if (text.trim().isEmpty) return;
+    final clean = _sanitize(text);
+    if (clean.isEmpty) return;
     _wantStop = false;
     try {
       await _tts.setVolume(1.0); // warmup koruması
       await _tts.setLanguage(_toBcp47(langCode));
       speakingNotifier.value = true;
-      await _tts.speak(text);
+      await _tts.speak(clean);
     } catch (e) {
       debugPrint('[TTS] speak failed: $e');
     }
@@ -172,7 +227,7 @@ class TtsService {
   /// İlk çağrı: engine init + setLanguage; ardından kuyruk çalıştırıcı
   /// async olarak başlar. Asistanın "ilk kelime" gecikmesi ~0.
   static void enqueue(String sentence, {String langCode = 'tr'}) {
-    final s = sentence.trim();
+    final s = _sanitize(sentence);
     if (s.isEmpty) return;
     _currentLang = _toBcp47(langCode);
     _wantStop = false;

@@ -1,8 +1,81 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../theme/app_theme.dart';
 import 'lesson_3d_screen.dart';
+
+/// Sürükle-bırak ile sıralanabilen, sırası kalıcı (SharedPreferences) kart listesi.
+/// Karta dokun → açılır; basılı tutup sürükle → sırasını değiştir.
+class _ReorderList extends StatefulWidget {
+  final String storageKey;
+  final EdgeInsets? padding;
+  final List<Widget> children;
+  const _ReorderList(
+      {required this.storageKey, this.padding, required this.children});
+  @override
+  State<_ReorderList> createState() => _ReorderListState();
+}
+
+class _ReorderListState extends State<_ReorderList> {
+  late final List<Widget> _cards =
+      widget.children.where((w) => w is! SizedBox).toList();
+  late List<int> _order = List.generate(_cards.length, (i) => i);
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final p = await SharedPreferences.getInstance();
+    final saved = p.getStringList('order_${widget.storageKey}');
+    if (saved == null) return;
+    final savedIdx = saved
+        .map(int.tryParse)
+        .whereType<int>()
+        .where((i) => i >= 0 && i < _cards.length)
+        .toList();
+    final seen = savedIdx.toSet();
+    final out = <int>[
+      ...savedIdx,
+      ...List.generate(_cards.length, (i) => i).where((i) => !seen.contains(i)),
+    ];
+    if (mounted) setState(() => _order = out);
+  }
+
+  Future<void> _save() async {
+    final p = await SharedPreferences.getInstance();
+    await p.setStringList(
+        'order_${widget.storageKey}', _order.map((e) => '$e').toList());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ReorderableListView(
+      padding: widget.padding ?? const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      onReorder: (oldI, newI) {
+        setState(() {
+          if (newI > oldI) newI--;
+          final v = _order.removeAt(oldI);
+          _order.insert(newI, v);
+        });
+        _save();
+      },
+      proxyDecorator: (child, index, anim) =>
+          Material(color: Colors.transparent, elevation: 8, child: child),
+      children: [
+        for (final idx in _order)
+          Padding(
+            key: ValueKey('it_$idx'),
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _cards[idx],
+          ),
+      ],
+    );
+  }
+}
 
 /// 3D Eğitim Modelleri — Ders seçim ekranı.
 /// Kütüphane → 3D Eğitim Modelleri kartından açılır.
@@ -50,8 +123,8 @@ class Edu3DSubjectsScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      body: _ReorderList(
+        storageKey: 'subjects',
         children: [
           _SubjectCard(
             icon: Icons.public_rounded,
@@ -61,16 +134,22 @@ class Edu3DSubjectsScreen extends StatelessWidget {
               MaterialPageRoute(builder: (_) => const Edu3DCografyaScreen()),
             ),
           ),
-          const SizedBox(height: 10),
+          _SubjectCard(
+            icon: Icons.calculate_rounded,
+            title: 'Matematik',
+            color: const Color(0xFFF97316),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const Edu3DMatematikScreen()),
+            ),
+          ),
           _SubjectCard(
             icon: Icons.category_rounded,
             title: 'Geometrik Cisimler',
-            color: const Color(0xFFF97316),
+            color: const Color(0xFFEAB308),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const Edu3DGeometriScreen()),
             ),
           ),
-          const SizedBox(height: 10),
           _SubjectCard(
             icon: Icons.biotech_rounded,
             title: 'Biyoloji',
@@ -79,7 +158,6 @@ class Edu3DSubjectsScreen extends StatelessWidget {
               MaterialPageRoute(builder: (_) => const Edu3DBiyolojiScreen()),
             ),
           ),
-          const SizedBox(height: 10),
           _SubjectCard(
             icon: Icons.science_rounded,
             title: 'Fizik',
@@ -88,7 +166,6 @@ class Edu3DSubjectsScreen extends StatelessWidget {
               MaterialPageRoute(builder: (_) => const Edu3DFizikScreen()),
             ),
           ),
-          const SizedBox(height: 10),
           _SubjectCard(
             icon: Icons.science_outlined,
             title: 'Kimya',
@@ -131,7 +208,8 @@ class Edu3DCografyaScreen extends StatelessWidget {
           ],
         ),
       ),
-      body: ListView(
+      body: _ReorderList(
+        storageKey: "cografya",
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [
           _TopicCard(
@@ -210,7 +288,90 @@ class Edu3DCografyaScreen extends StatelessWidget {
   }
 }
 
-/// Geometrik Cisimler dersinin 3D konu listesi.
+/// Matematik dersinin 3D konu listesi. Yeni matematik dersleri buraya _TopicCard olarak eklenir.
+class Edu3DMatematikScreen extends StatelessWidget {
+  const Edu3DMatematikScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppPalette.bg(context),
+      appBar: AppBar(
+        backgroundColor: AppPalette.card(context),
+        elevation: 0,
+        foregroundColor: AppPalette.textPrimary(context),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.calculate_rounded,
+                color: Color(0xFFF97316), size: 22),
+            const SizedBox(width: 8),
+            Text(
+              'Matematik',
+              style: GoogleFonts.poppins(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: _ReorderList(
+        storageKey: "matematik",
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        children: [
+          _TopicCard(
+            emoji: '🔢',
+            title: 'Üslü Sayılar',
+            subtitle: 'Üs, taban, kuvvet kuralları, 3B görselleştirme',
+            tint: const Color(0xFF6366F1),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/uslu-sayilar.html',
+                  title: 'Üslü Sayılar',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _TopicCard(
+            emoji: '📚',
+            title: 'Temel Kavramlar',
+            subtitle: 'Sayılar, kümeler ve temel matematik kavramları',
+            tint: const Color(0xFF14B8A6),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/temel-kavramlar.html',
+                  title: 'Temel Kavramlar',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _TopicCard(
+            emoji: '🔢',
+            title: 'Sayı Basamakları',
+            subtitle: 'Basamak değeri ve sayı çözümleme',
+            tint: const Color(0xFFFFC857),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/sayi-basamaklari.html',
+                  title: 'Sayı Basamakları',
+                ),
+              ),
+            ),
+          ),
+          // ⬇️ YENİ MATEMATİK DERSLERİ BURAYA EKLENİR (gönderilen kod → assets/<ad>.html + pubspec + _TopicCard)
+        ],
+      ),
+    );
+  }
+}
+
+/// Geometrik Cisimler dersinin 3D konu listesi (ayrı branş).
 class Edu3DGeometriScreen extends StatelessWidget {
   const Edu3DGeometriScreen({super.key});
 
@@ -226,7 +387,7 @@ class Edu3DGeometriScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.category_rounded,
-                color: Color(0xFFF97316), size: 22),
+                color: Color(0xFFEAB308), size: 22),
             const SizedBox(width: 8),
             Text(
               'Geometrik Cisimler',
@@ -238,14 +399,15 @@ class Edu3DGeometriScreen extends StatelessWidget {
           ],
         ),
       ),
-      body: ListView(
+      body: _ReorderList(
+        storageKey: "geometri",
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [
           _TopicCard(
             emoji: '📐',
             title: 'Geometrik Cisimler ve Hesaplamalar',
             subtitle: 'Küp, prizma, silindir, koni, küre — hacim & alan',
-            tint: const Color(0xFFF97316),
+            tint: const Color(0xFFEAB308),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (_) => const Lesson3DScreen(
@@ -289,7 +451,8 @@ class Edu3DFizikScreen extends StatelessWidget {
           ],
         ),
       ),
-      body: ListView(
+      body: _ReorderList(
+        storageKey: "fizik",
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [
           _TopicCard(
@@ -445,7 +608,8 @@ class Edu3DKimyaScreen extends StatelessWidget {
           ],
         ),
       ),
-      body: ListView(
+      body: _ReorderList(
+        storageKey: "kimya",
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [
           // ── KİMYA KONULARI ──
@@ -602,7 +766,8 @@ class Edu3DBiyolojiScreen extends StatelessWidget {
           ],
         ),
       ),
-      body: ListView(
+      body: _ReorderList(
+        storageKey: "biyoloji",
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [
           _TopicCard(

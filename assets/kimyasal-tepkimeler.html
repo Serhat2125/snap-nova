@@ -24,6 +24,10 @@
     --phloem:#5fb8e8;
     --chloro:#2ecc40;
     --bone:#e0c088;
+    --col-a:#ffd166;
+    --col-b:#7adcf0;
+    --col-c:#cbb3ff;
+    --grid-line:#3a4668;
   }
 
   body.light-mode {
@@ -35,6 +39,10 @@
     --ink-soft:#5a6070;
     --accent:#e0901b;
     --accent-glow:#c47a10;
+    --col-a:#a66a00;
+    --col-b:#0e7fa3;
+    --col-c:#7a5cb8;
+    --grid-line:#c5cedd;
   }
 
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; margin:0; padding:0; }
@@ -211,6 +219,8 @@
     touch-action:auto;
   }
   .bottom-panel.hidden { display:none; }
+  .bottom-panel { transition: transform 0.38s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease; }
+  .bottom-panel.vars-hidden { transform: translateY(calc(100% + 14px)); opacity: 0; pointer-events: none; }
 
   /* Bilgi panelini büyüt/küçült: bilgi çerçevesinin tam üstünde YAN YANA ▲▼ ok (sürükle-bırak).
      Yukarı/aşağı sürükle → panel büyür/küçülür. Dokunma hedefi geniş, görünen kısım sade iki ok. */
@@ -513,6 +523,7 @@
     border-color:var(--accent);
     background:var(--panel-line);
   }
+  .share-preview { width:100%; border-radius:12px; border:1.5px solid var(--panel-line); margin-bottom:12px; display:block; background:var(--bg); }
   .share-action-btn .sa-ico {
     font-size:22px; flex-shrink:0;
   }
@@ -536,44 +547,47 @@
     overflow-x:auto;
     padding:4px 0 8px;
   }
+  .cmp-cap { font-size:11.5px; color:var(--ink-soft); line-height:1.45; padding:2px 2px 9px; }
   .cmp-table {
     width:100%;
-    border-collapse:collapse;
+    border-collapse:separate;
+    border-spacing:0;
     font-size:12.5px;
-    border-radius:8px;
+    border:1.5px solid var(--accent);
+    border-radius:9px;
     overflow:hidden;
   }
   .cmp-table th, .cmp-table td {
-    padding:9px 11px;
+    padding:7px 10px;
     text-align:left;
-    border-bottom:1px solid var(--panel-line);
+    vertical-align:top;
+    border-right:1px solid var(--grid-line);
+    border-bottom:1px solid var(--grid-line);
   }
+  .cmp-table th:last-child, .cmp-table td:last-child { border-right:none; }
+  .cmp-table tbody tr:last-child td { border-bottom:none; }
   .cmp-table th {
     background:linear-gradient(135deg, var(--accent) 0%, var(--accent-glow) 100%);
     color:#0a1420;
     font-family:'Baloo 2', cursive;
     font-weight:800;
     font-size:12px;
-    position:sticky; top:0;
+    text-align:center;
+    border-right:1px solid rgba(10,20,32,0.25);
+    border-bottom:1.5px solid var(--accent);
+    position:sticky; top:0; z-index:2;
     text-shadow:0 1px 0 rgba(255,255,255,0.2);
   }
-  .cmp-table th:first-child { border-radius:7px 0 0 0; }
-  .cmp-table th:last-child { border-radius:0 7px 0 0; }
-  .cmp-table tbody tr:nth-child(odd) td { background:rgba(246,185,59,0.04); }
-  .cmp-table tbody tr:nth-child(even) td { background:rgba(246,185,59,0.10); }
+  .cmp-table tbody tr:nth-child(even) td { background:rgba(246,185,59,0.07); }
   .cmp-table td { color:var(--ink); line-height:1.4; }
   .cmp-table td:first-child {
     font-weight:700;
-    color:var(--warning);
-    white-space:nowrap;
-    border-right:2px solid var(--accent);
+    color:var(--accent-glow);
+    background:rgba(255,255,255,0.05);
   }
-  .cmp-table.compare-style td:nth-child(2) { color:#ffd166; font-weight:600; }
-  .cmp-table.compare-style td:nth-child(3) { color:#7adcf0; font-weight:600; }
-  .cmp-table.compare-style td:nth-child(4) { color:#9d7fe6; font-weight:600; }
-  .cmp-table th:nth-child(2),
-  .cmp-table th:nth-child(3),
-  .cmp-table th:nth-child(4) { border-left:1px dashed rgba(255,255,255,0.3); }
+  .cmp-table.compare-style td:nth-child(2) { color:var(--col-a); font-weight:600; }
+  .cmp-table.compare-style td:nth-child(3) { color:var(--col-b); font-weight:600; }
+  .cmp-table.compare-style td:nth-child(4) { color:var(--col-c); font-weight:600; }
   .cmp-table tr:hover td { background:rgba(246,185,59,0.20) !important; }
   /* Karşılaştırma (versus): karşılaştırılan varlıklar SÜTUN başlığında ayrı renkte */
   .cmp-versus th.cmp-aspect { background:linear-gradient(135deg,#3a4668,#2a3450); color:var(--ink); text-shadow:none; }
@@ -927,6 +941,82 @@
   .scene-vars-body .sp-display,
   .scene-vars-body .sp-formula,
   .scene-vars-body .sp-preset-btn { background: rgba(0, 0, 0, 0.30); }
+
+  /* === Servis butonları + Renk Paleti (coğrafya paritesi) === */
+  .tool-icon-btn.exam { border-color:#2ecc40; color:#2ecc40; }
+  .tool-icon-btn.exam:hover { background:#2ecc40; color:#06210d; }
+  .tool-icon-btn.ai { border-color:#9d7fe6; color:#9d7fe6; }
+  .tool-icon-btn.ai:hover { background:#9d7fe6; color:#fff; }
+  .tool-icon-btn.tts { border-color:#4fd6e0; color:#4fd6e0; }
+  .tool-icon-btn.tts:hover { background:#4fd6e0; color:#08252a; }
+  .tool-icon-btn.tts.active { background:#4fd6e0; color:#08252a; }
+  .tool-icon-btn.palette { border-color:#34d3c0; color:#34d3c0; }
+  .tool-icon-btn.palette:hover { background:#34d3c0; color:#08252a; }
+  /* paletten gelen yazı rengi (ayarlanmadıysa mevcut --ink'e düşer) */
+  #bottomPanel .info-list li { color:var(--info-ink, var(--ink)); }
+  .palette-pop {
+    position:absolute; z-index:60; background:var(--panel,#161b2e);
+    border:2px solid var(--accent,#f6b93b); border-radius:14px;
+    padding:11px 12px 12px; box-shadow:0 12px 32px rgba(0,0,0,0.55);
+    width:min(330px,92vw); display:none;
+  }
+  .palette-pop.show { display:block; }
+  .palette-head { display:flex; align-items:center; justify-content:space-between;
+    padding:0 2px 8px; border-bottom:1px solid var(--panel-line,#2f3a5f); margin-bottom:9px; }
+  .palette-title { font-family:'Baloo 2',cursive; font-weight:800; font-size:11.5px;
+    color:var(--accent-glow,#ffd166); text-transform:uppercase; letter-spacing:0.5px; }
+  .palette-head-btns { display:flex; gap:6px; align-items:center; }
+  .palette-x, .palette-move {
+    width:26px; height:26px; flex-shrink:0; border-radius:8px; cursor:pointer;
+    background:var(--panel-soft,#1f2540); display:grid; place-items:center;
+    font-size:13px; line-height:1; transition:all 0.12s;
+  }
+  .palette-x { border:1.5px solid #c45d5d; color:#c45d5d; }
+  .palette-x:hover { background:#c45d5d; color:#fff; }
+  .palette-move { border:1.5px solid var(--accent,#f6b93b); color:var(--accent,#f6b93b); cursor:grab; touch-action:none; user-select:none; }
+  .palette-move:hover { background:var(--accent,#f6b93b); color:#0a1420; }
+  .palette-targets { display:flex; gap:6px; margin-bottom:8px; }
+  .pal-chip { flex:1; text-align:center; padding:6px 4px; border-radius:9px;
+    font-family:'Fredoka',sans-serif; font-size:11px; font-weight:700; cursor:pointer;
+    background:var(--panel-soft,#1f2540); border:1.5px solid var(--panel-line,#2f3a5f); color:var(--ink,#eef0ff); transition:all 0.12s; }
+  .pal-chip.active { background:linear-gradient(135deg,var(--accent,#f6b93b),var(--accent-glow,#ffd166)); color:#0a1420; border-color:var(--accent-glow,#ffd166); }
+  .palette-hint { font-size:10px; color:var(--ink-soft,#8a93b0); margin:0 2px 8px; line-height:1.3; }
+  .palette-grid { display:grid; grid-auto-flow:column; grid-template-rows:repeat(2,1fr); gap:7px; overflow-x:auto; padding-bottom:5px; }
+  .palette-grid::-webkit-scrollbar { height:6px; }
+  .palette-grid::-webkit-scrollbar-thumb { background:var(--accent,#f6b93b); border-radius:4px; }
+  .swatch { width:30px; height:30px; border-radius:8px; cursor:pointer; border:2px solid rgba(255,255,255,0.3);
+    box-shadow:0 2px 6px rgba(0,0,0,0.4); transition:transform 0.12s,border-color 0.12s; padding:0; flex-shrink:0; }
+  .swatch:hover { transform:scale(1.15); border-color:#fff; }
+  .palette-reset { margin-top:10px; width:100%; padding:7px; border-radius:9px;
+    background:var(--panel-soft,#1f2540); border:1.5px solid var(--panel-line,#2f3a5f); color:var(--ink,#eef0ff);
+    font-family:'Fredoka',sans-serif; font-size:11px; font-weight:700; cursor:pointer; transition:all 0.12s; }
+  .palette-reset:hover { border-color:var(--accent,#f6b93b); color:var(--accent,#f6b93b); }
+
+  /* === DOCK MİMARİSİ (coğrafya ile aynı) === */
+  .scene-top-title{position:absolute;top:6px;left:50%;transform:translateX(-50%);z-index:28;pointer-events:none;max-width:calc(100% - 110px);font-family:'Baloo 2',cursive;font-weight:800;font-size:15px;line-height:1.1;color:var(--accent-glow,#ffd166);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 2px 8px rgba(0,0,0,.6);}
+  .tool-icon-btn.scene-help{position:absolute!important;top:6px!important;right:8px!important;left:auto!important;bottom:auto!important;z-index:30;}
+  #bottomDock{position:absolute;left:0;right:0;bottom:0;z-index:25;display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:0 2px 7px;pointer-events:none;}
+  #bottomDock>*{pointer-events:auto;}
+  #bottomDock .bottom-panel{position:relative!important;left:auto!important;right:auto!important;bottom:auto!important;top:auto!important;}
+  .dock-row{display:flex;flex-direction:row;gap:4px;justify-content:flex-start;align-items:center;flex-wrap:nowrap;overflow-x:auto;padding:1px 2px;}
+  .dock-row::-webkit-scrollbar{height:0;}
+  #toolsRow .tool-icon-btn{width:36px;height:36px;font-size:15px;flex:0 0 auto;}
+  @media (max-width:430px){#toolsRow .tool-icon-btn{width:33px;height:33px;font-size:14px;}#bottomDock .dock-row{gap:3px;}}
+  @media (max-width:375px){#toolsRow .tool-icon-btn{width:30px;height:30px;font-size:12.5px;}#bottomDock .dock-row{gap:2px;}}
+  @media (max-width:340px){#toolsRow .tool-icon-btn{width:27px;height:27px;font-size:11.5px;}}
+  #btnMenu{margin-left:auto;}
+  .tool-icon-btn.menu{border-color:var(--accent-glow,#ffd166);color:var(--accent-glow,#ffd166);}
+  .tool-icon-btn.menu:hover{background:var(--accent-glow,#ffd166);color:#0a1420;}
+  .action-pop{display:none;grid-template-columns:1fr 1fr 1fr;gap:8px;background:var(--panel,#161b2e);border:2px solid var(--accent,#f6b93b);border-radius:12px;padding:8px;box-shadow:0 8px 24px rgba(0,0,0,.5);}
+  .action-pop.show{display:grid;}
+  .action-pop .action-btn{width:100%;min-width:0;}
+  .menu-pop{position:absolute;z-index:60;background:var(--panel,#161b2e);border:2px solid var(--accent,#f6b93b);border-radius:14px;padding:11px 12px 12px;box-shadow:0 12px 32px rgba(0,0,0,.55);display:none;flex-direction:column;gap:9px;width:min(250px,86vw);}
+  .menu-pop.show{display:flex;}
+  .menu-pop-title{font-family:'Baloo 2',cursive;font-weight:800;font-size:11.5px;color:var(--accent-glow,#ffd166);text-transform:uppercase;letter-spacing:.5px;padding:0 2px 7px;border-bottom:1px solid var(--panel-line,#2f3a5f);}
+  .menu-pop .stack-row{display:flex;flex-direction:column;gap:9px;}
+  .menu-pop .stack-btn{width:100%;min-width:0;}
+  .nav-mini-btn.act{border-color:#4fd6e0;color:#4fd6e0;}
+  .scene-vars-body:not(.closed){top:auto!important;bottom:150px!important;left:6px!important;right:6px!important;max-height:46vh;}
 </style>
 </head>
 <body>
@@ -1017,9 +1107,13 @@
   <button class="tool-icon-btn compare" id="btnCompare" title="Karşılaştırma">⚖️</button>
   <button class="tool-icon-btn table" id="btnTable" title="Bilgi Tablosu">📋</button>
   <button class="tool-icon-btn theme" id="btnTheme" title="Tema değiştir">🌙</button>
-  <button class="tool-icon-btn send" id="btnSend" title="Gönder/Paylaş">📤</button>
+  <button class="tool-icon-btn send wa-send" id="btnSend" title="Gönder/Paylaş"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
   <button class="tool-icon-btn fs" id="btnFs" title="Tam ekran">⛶</button>
   <button class="tool-icon-btn help" id="btnHelp" title="Bu sayfa nasıl çalışır?">❓</button>
+  <button class="tool-icon-btn exam" id="btnExam" title="Sınav Soruları Oluştur">📝</button>
+  <button class="tool-icon-btn ai" id="btnAsk" title="AI'ya Sor">🤖</button>
+  <button class="tool-icon-btn tts" id="btnTts" title="Sesli Anlatım">🔊</button>
+  <button class="tool-icon-btn palette" id="btnPalette" title="Renk paleti">🎨</button>
 </div>
 
 <div class="dropdown-panel" id="panelMode" style="top:48px; left:8px;">
@@ -1074,29 +1168,30 @@
 <div class="share-overlay" id="shareOverlay">
   <div class="share-card">
     <div class="share-head">
-      <div class="share-head-text">📤 Paylaş</div>
+      <div class="share-head-text">📤 Ekranı Paylaş</div>
       <button class="share-close-btn" id="shareClose">✕</button>
     </div>
+    <img class="share-preview" id="sharePreview" alt="önizleme" />
     <div class="share-actions">
-      <button class="share-action-btn primary" id="shareWhatsApp">
-        <span class="sa-ico">💬</span>
+      <button class="share-action-btn primary" id="shareNative">
+        <span class="sa-ico">📲</span>
         <span class="sa-text">
-          <b>WhatsApp ile gönder</b>
-          <small>Arkadaşlarınıza paylaşın</small>
+          <b>Arkadaşına gönder</b>
+          <small>WhatsApp, Telegram, mesaj...</small>
         </span>
       </button>
-      <button class="share-action-btn" id="shareCopy">
-        <span class="sa-ico">📋</span>
+      <button class="share-action-btn" id="shareSocial">
+        <span class="sa-ico">🌐</span>
         <span class="sa-text">
-          <b>Bağlantıyı kopyala</b>
-          <small>Panoya kopyala</small>
+          <b>Sosyal medyada paylaş</b>
+          <small>Instagram, X, Facebook...</small>
         </span>
       </button>
       <button class="share-action-btn" id="shareDownload">
         <span class="sa-ico">💾</span>
         <span class="sa-text">
-          <b>Ekran görüntüsü kaydet</b>
-          <small>Cihaza indir</small>
+          <b>Cihaza kaydet</b>
+          <small>Galeriye / indirilenlere</small>
         </span>
       </button>
     </div>
@@ -1107,7 +1202,10 @@
   <div class="share-card cmp-card">
     <div class="share-head">
       <div class="share-head-text"><span id="compareTitle">⚖️ Karşılaştırma</span></div>
-      <button class="share-close-btn" id="compareClose">✕</button>
+      <div class="share-head-btns">
+        <button class="cmp-send-btn wa-send" id="compareSend" title="Arkadaşına gönder / Paylaş"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
+        <button class="share-close-btn" id="compareClose">✕</button>
+      </div>
     </div>
     <div class="cmp-body" id="compareBody"></div>
     <div class="cmp-nav hidden" id="compareNav">
@@ -1122,7 +1220,10 @@
   <div class="share-card cmp-card">
     <div class="share-head">
       <div class="share-head-text" style="color:var(--bone);"><span id="tableTitle">📋 Bilgi Tablosu</span></div>
-      <button class="share-close-btn" id="tableClose">✕</button>
+      <div class="share-head-btns">
+        <button class="cmp-send-btn wa-send" id="tableSend" title="Arkadaşına gönder / Paylaş"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
+        <button class="share-close-btn" id="tableClose">✕</button>
+      </div>
     </div>
     <div class="cmp-body" id="tableBody"></div>
     <div class="cmp-nav hidden" id="tableNav">
@@ -1139,30 +1240,39 @@
       <div class="share-head-text">❓ Bu Sayfa Nasıl Çalışır?</div>
       <button class="share-close-btn" id="helpClose">✕</button>
     </div>
-    <div class="help-intro">3 boyutlu modeli parmaklarınla incele; üstteki menülerden seviye ve konu seç; alttaki panelden bilgileri oku.</div>
+    <div class="help-intro">3 boyutlu modeli parmaklarınla incele; alttaki ☰ menüden seviye ve konu seç; alttaki panelden bilgileri oku. Konuyu arkadaşlarınla paylaşabilir, AI'ya soru sorabilirsin.</div>
 
     <div class="help-sec-title">🖐️ Dokunma Hareketleri</div>
     <div class="help-row"><span class="he">👆</span><span><b>Döndür:</b> tek parmakla sürükle</span></div>
     <div class="help-row"><span class="he">✌️</span><span><b>Yakınlaştır:</b> iki parmağı aç/kapa — istediğin yere odaklanır</span></div>
     <div class="help-row"><span class="he">🤏</span><span><b>Taşı:</b> iki parmağı birlikte kaydır</span></div>
-    <div class="help-row"><span class="he">👆👆</span><span><b>Çift dokun:</b> dokunduğun noktaya yakınlaş</span></div>
-    <div class="help-row"><span class="he">🖐️</span><span><b>Sıfırla:</b> üç parmakla dokun</span></div>
+    <div class="help-row"><span class="he">🏷️</span><span><b>Etikete dokun:</b> o parçanın konusu açılır</span></div>
 
-    <div class="help-sec-title">🧭 Üst Menüler</div>
-    <div class="help-row"><span class="he">🎓</span><span><b>Eğitim Seviyesi</b> (sağ üst): İlkokul / Ortaokul / Lise / Sınav</span></div>
-    <div class="help-row"><span class="he">📚</span><span><b>Konu Rehberi</b> (sağ üst): konular arasında geç</span></div>
-    <div class="help-row"><span class="he">📄</span><span><b>Görünüm Modu</b> (sol üst): Sade / Detaylı bilgi</span></div>
-    <div class="help-row"><span class="he">🎛️</span><span><b>Değişkenler</b> (Konu Rehberi'nin altında): sahnedeki kaydırıcı ve seçenekler — konu değişince kısa görünür, dokununca açılır</span></div>
+    <div class="help-sec-title">🧭 Ders Ayarları (☰ menü)</div>
+    <div class="help-row"><span class="he">🎓</span><span><b>Eğitim Seviyesi</b>: İlkokul / Ortaokul / Lise / Sınavlara Hazırlık / Üniversite — liste alttaki araçların hemen üstünde açılır</span></div>
+    <div class="help-row"><span class="he">📚</span><span><b>Konu Rehberi</b>: konular arasında geç</span></div>
+    <div class="help-row"><span class="he">🎛️</span><span><b>Değişkenler</b>: sahnedeki kaydırıcılar — alttaki araçların hemen üstünde açılır</span></div>
 
-    <div class="help-sec-title">🛠️ Araçlar (sol üst)</div>
-    <div class="help-row"><span class="he">⚖️</span><span><b>Karşılaştırma</b> &nbsp;·&nbsp; <span class="he" style="display:inline">📋</span> <b>Bilgi Tablosu</b></span></div>
-    <div class="help-row"><span class="he">🌙</span><span><b>Tema</b> &nbsp;·&nbsp; 📤 <b>Paylaş</b> &nbsp;·&nbsp; ⛶ <b>Tam ekran</b></span></div>
+    <div class="help-sec-title">🛠️ Alt Araç Çubuğu</div>
+    <div class="help-row"><span class="he">📄</span><span><b>Sade / Detaylı</b> görünüm &nbsp;·&nbsp; ⚖️ <b>Karşılaştırma</b> &nbsp;·&nbsp; 📋 <b>Bilgi Tablosu</b></span></div>
+    <div class="help-row"><span class="he">✈️</span><span><b>Gönder:</b> ekranı arkadaşına gönder / sosyal medyada paylaş</span></div>
+    <div class="help-row"><span class="he">🎨</span><span><b>Renk Paleti</b> &nbsp;·&nbsp; 📝 <b>Sınav Soruları</b></span></div>
+    <div class="help-row"><span class="he">🤖</span><span><b>AI'ya Sor:</b> kısa, net ve seviyene uygun cevap &nbsp;·&nbsp; 🔊 <b>Sesli Anlatım</b></span></div>
+
+    <div class="help-sec-title">✈️ Karşılaştırma & Bilgi Tablosu</div>
+    <div class="help-row"><span class="he">✈️</span><span>Tablonun sağ üstündeki <b>yeşil gönder</b> tuşuyla o tabloyu arkadaşına gönderebilir / paylaşabilirsin.</span></div>
+
+    <div class="help-sec-title">🎨 Renk Paleti — 6 hedef</div>
+    <div class="help-row"><span class="he">🌌</span><span><b>Arka plan → Başlık → Etiketler</b> (üst satır)</span></div>
+    <div class="help-row"><span class="he">📋</span><span><b>Bilgi paneli → Başlık yazısı → Yazılar</b> (alt satır). Önce hedefi seç, sonra renge bas.</span></div>
 
     <div class="help-sec-title">📖 Alt Bilgi Paneli</div>
     <div class="help-row"><span class="he">⇕</span><span><b>Tutamacı sürükle:</b> paneli büyüt / küçült</span></div>
-    <div class="help-row"><span class="he">📜</span><span><b>Kaydır:</b> yazılar sığmazsa panel içinde yukarı/aşağı kaydır</span></div>
     <div class="help-row"><span class="he">◀▶</span><span><b>Önceki / Sonraki</b> konuya geç</span></div>
     <div class="help-row"><span class="he">🔄</span><span><b>Döndür</b> · 🏷️ <b>Etiketler</b> · ▶️ <b>Çalıştır</b> (animasyon)</span></div>
+
+    <div class="help-sec-title">⬅️ Geri Tuşu</div>
+    <div class="help-row"><span class="he">⬅️</span><span>Açık bir pencere varsa geri tuşu <b>sadece o pencereyi kapatır</b>; ders açık kalır. Pencere yokken konu listesine döner.</span></div>
   </div>
 </div>
 
@@ -1190,6 +1300,7 @@ window.__moduleLoaded = false;
 
 <!-- Three.js OFFLINE: klasik global script (window.THREE) — file:// altında ES modül yok -->
 <script src="three.global.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
 <!-- ===== GEÇİŞ MOTORU: Ayarlar'a (Geçiş Stüdyosu) göre sahne geçiş animasyonu + ses + geri bildirim ===== -->
 <script>
@@ -1836,6 +1947,7 @@ function onResize() {
   camera.updateProjectionMatrix();
   renderer.setSize(W, H);
   labelRenderer.setSize(W, H);
+  if(typeof updateSceneShiftTarget==='function') updateSceneShiftTarget();
   if (typeof updateInfoScrollbar === 'function') updateInfoScrollbar();
 }
 
@@ -1977,6 +2089,13 @@ function animate() {
 
   if (typeof _updateSceneDisplays === 'function') _updateSceneDisplays();
 
+  const _sh = window._sceneShift;
+  if (_sh) {
+    _sh.cur += (_sh.target - _sh.cur) * 0.1;
+    if (Math.abs(_sh.target - _sh.cur) < 0.4) _sh.cur = _sh.target;
+    // Sahneyi basligin altina al (yapismadan) - atolye ek kaydirmasi
+    camera.setViewOffset(window.innerWidth, window.innerHeight, 0, Math.round(window.innerHeight*0.08) - _sh.cur, window.innerWidth, window.innerHeight);
+  }
   renderer.render(scene, camera);
   labelRenderer.render(scene, camera);
 
@@ -2071,13 +2190,23 @@ window._sceneState = {
 };
 
 function positionVarsBody() {
-  const t = document.getElementById('sceneToggle');
+  const tools = document.getElementById('toolsRow');
   const b = document.getElementById('sceneVarsBody');
-  if (t && b && !b.classList.contains('closed')) {
-    b.style.top = Math.round(t.getBoundingClientRect().bottom + 6) + 'px';
+  if (tools && b && !b.classList.contains('closed')) {
+    const r = tools.getBoundingClientRect();
+    b.style.top = 'auto';
+    b.style.bottom = Math.round(window.innerHeight - r.top + 8) + 'px';
   }
 }
 window.positionVarsBody = positionVarsBody;
+window._sceneShift = { cur: 0, target: 0 };
+function updateSceneShiftTarget() {
+  const b = document.getElementById('sceneVarsBody');
+  if (!b || b.classList.contains('closed')) { window._sceneShift.target = 0; return; }
+  const rect = b.getBoundingClientRect();
+  window._sceneShift.target = 0; /* model sabit kalsın (Değişkenler açılınca kaymasın) */
+}
+window.updateSceneShiftTarget = updateSceneShiftTarget;
 
 function setSceneSliders(items, opts = {}) {
   const row = document.getElementById('stackRow');
@@ -2101,7 +2230,15 @@ function setSceneSliders(items, opts = {}) {
   function setSceneOpen(open) {
     bodyPanel.classList.toggle('closed', !open);
     if (_chev) _chev.textContent = open ? '▲' : '▼';
-    if (open) positionVarsBody();
+    const bp = document.getElementById('bottomPanel');
+    if (open) {
+      positionVarsBody();
+      if (bp) bp.classList.add('vars-hidden');
+      updateSceneShiftTarget();
+    } else {
+      if (bp) bp.classList.remove('vars-hidden');
+      window._sceneShift.target = 0;
+    }
   }
   window._setSceneOpen = setSceneOpen;
   toggle.onclick = () => {
@@ -2217,14 +2354,16 @@ function setSceneSliders(items, opts = {}) {
     }
   });
   // Değişkenler varsayılan KAPALI; konu değişince OTOMATİK AÇILMAZ (kullanıcı basar).
-  bodyPanel.classList.add('closed');
-  if (_chev) _chev.textContent = '▼';
+  setSceneOpen(false);
 }
 
 function clearSceneSliders() {
   const oldT = document.getElementById('sceneToggle'); if (oldT) oldT.remove();
   const bodyPanel = document.getElementById('sceneVarsBody');
   if (bodyPanel) { bodyPanel.innerHTML = ''; bodyPanel.classList.add('closed'); }
+  const _bp = document.getElementById('bottomPanel');
+  if (_bp) _bp.classList.remove('vars-hidden');
+  if (window._sceneShift) window._sceneShift.target = 0;
   document.body.classList.remove('scene-panel-open');
   if (window._sceneState) window._sceneState._displayUpdaters = [];
 }
@@ -4191,30 +4330,104 @@ function attachEvents() {
     if (window._haptic) window._haptic(15);
   };
 
-  document.getElementById('btnSend').onclick = () => {
-    document.getElementById('shareOverlay').classList.add('show');
-  };
-  document.getElementById('shareClose').onclick = () => {
-    document.getElementById('shareOverlay').classList.remove('show');
-  };
-  document.getElementById('shareWhatsApp').onclick = () => {
-    const txt = encodeURIComponent('🔗 Kimyasal Türler Arası Etkileşimler (Bağlar) — 3D interaktif kimya simülasyonu (ilkokuldan liseye)!');
-    window.open('https://wa.me/?text=' + txt, '_blank');
-  };
-  document.getElementById('shareCopy').onclick = () => {
-    try { navigator.clipboard.writeText(window.location.href); } catch(e){}
-    if (window._showGestureToast) window._showGestureToast('📋 Bağlantı kopyalandı');
-    document.getElementById('shareOverlay').classList.remove('show');
-  };
-  document.getElementById('shareDownload').onclick = () => {
+  let shareCanvas = null;
+  function shareFileName() { return 'kimyasal-tepkimeler-' + (typeof currentSub !== 'undefined' && currentSub ? currentSub : 'sahne') + '.png'; }
+  function shareText() {
+    let subLabel = '';
+    try { const sub = MODULES[currentModule].subs.find(s => s.key === currentSub); if (sub) subLabel = ' · ' + sub.label; } catch (e) {}
+    return '⚗️ Kimyasal Tepkimeler' + subLabel + ' · Qualsar 3D';
+  }
+  async function captureFullScreen() {
+    renderer.render(scene, camera);
+    if (typeof labelRenderer !== 'undefined' && labelRenderer) labelRenderer.render(scene, camera);
+    let glDataURL = null;
+    try { glDataURL = renderer.domElement.toDataURL('image/png'); } catch (e) {}
+    if (typeof html2canvas !== 'function' || !glDataURL) {
+      const c = document.createElement('canvas');
+      c.width = renderer.domElement.width; c.height = renderer.domElement.height;
+      c.getContext('2d').drawImage(renderer.domElement, 0, 0);
+      return c;
+    }
     try {
-      const link = document.createElement('a');
-      link.download = 'kimyasal-tepkimeler.png';
-      link.href = renderer.domElement.toDataURL('image/png');
-      link.click();
-    } catch(e){}
-    document.getElementById('shareOverlay').classList.remove('show');
+      return await html2canvas(document.body, {
+        backgroundColor: document.body.classList.contains('light-mode') ? '#f0f4f9' : '#0a0e1a',
+        scale: Math.min(window.devicePixelRatio || 1, 2),
+        logging: false, useCORS: true,
+        ignoreElements: (el) => el.classList && el.classList.contains('share-overlay') || el.id === 'gestureToast' || el.id === 'loading',
+        onclone: (doc) => {
+          const cv2 = doc.querySelector('#canvasContainer canvas');
+          if (cv2 && glDataURL) {
+            const img = doc.createElement('img');
+            img.src = glDataURL;
+            img.style.cssText = cv2.style.cssText + ';width:' + cv2.clientWidth + 'px;height:' + cv2.clientHeight + 'px;display:block;position:absolute;top:0;left:0;';
+            cv2.parentNode.replaceChild(img, cv2);
+          }
+        }
+      });
+    } catch (e) {
+      const c = document.createElement('canvas');
+      c.width = renderer.domElement.width; c.height = renderer.domElement.height;
+      c.getContext('2d').drawImage(renderer.domElement, 0, 0);
+      return c;
+    }
+  }
+  document.getElementById('btnSend').onclick = async () => {
+    if (window._showGestureToast) window._showGestureToast('📸 Ekran hazırlanıyor...', 3200);
+    try {
+      shareCanvas = await captureFullScreen();
+      document.getElementById('sharePreview').src = shareCanvas.toDataURL('image/png');
+      document.getElementById('shareOverlay').classList.add('show');
+    } catch (e) { if (window._showGestureToast) window._showGestureToast('⚠️ Ekran görüntüsü alınamadı.', 3200); }
   };
+  document.getElementById('shareClose').onclick = () => { document.getElementById('shareOverlay').classList.remove('show'); };
+  document.getElementById('shareOverlay').onclick = (e) => { if (e.target.id === 'shareOverlay') document.getElementById('shareOverlay').classList.remove('show'); };
+  function canvasToFile(cb) {
+    if (!shareCanvas) { cb(null); return; }
+    shareCanvas.toBlob(blob => {
+      if (!blob) { cb(null); return; }
+      try { cb(new File([blob], shareFileName(), { type: 'image/png' }), blob); } catch (e) { cb(null, blob); }
+    }, 'image/png');
+  }
+  function shareViaFlutter() {
+    if (!shareCanvas) return false;
+    if (window.FlutterShare && typeof window.FlutterShare.postMessage === 'function') {
+      try {
+        window.FlutterShare.postMessage(JSON.stringify({ image: shareCanvas.toDataURL('image/png'), text: shareText(), file: shareFileName() }));
+        document.getElementById('shareOverlay').classList.remove('show');
+        return true;
+      } catch (e) {}
+    }
+    return false;
+  }
+  document.getElementById('shareNative').onclick = () => {
+    if (shareViaFlutter()) return;
+    canvasToFile(async (file) => {
+      if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: 'Qualsar 3D', text: shareText() }); document.getElementById('shareOverlay').classList.remove('show'); return; }
+        catch (e) { if (e.name === 'AbortError') return; }
+      }
+      if (navigator.share) {
+        try { await navigator.share({ title: 'Qualsar 3D', text: shareText() }); document.getElementById('shareOverlay').classList.remove('show'); return; }
+        catch (e) { if (e.name === 'AbortError') return; }
+      }
+      downloadShareImage();
+    });
+  };
+  document.getElementById('shareSocial').onclick = () => document.getElementById('shareNative').click();
+  document.getElementById('shareDownload').onclick = () => { if (!shareViaFlutter()) downloadShareImage(); };
+  function downloadShareImage() {
+    if (!shareCanvas) return;
+    shareCanvas.toBlob(blob => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = shareFileName();
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+      if (window._showGestureToast) window._showGestureToast('💾 Kaydedildi!', 2000);
+    }, 'image/png');
+    document.getElementById('shareOverlay').classList.remove('show');
+  }
 
   document.getElementById('btnCompare').onclick = () => {
     renderCompareTable();
@@ -4278,5 +4491,229 @@ animate();
 
 console.log('Kimyasal Tepkimeler ve Tepkime Hizi simulasyonu baslatildi');
 </script>
+<!-- Renk paleti popup'ı (coğrafya paritesi) -->
+<div class="palette-pop" id="palettePop">
+  <div class="palette-head">
+    <span class="palette-title">🎨 Renk Paleti</span>
+    <span class="palette-head-btns">
+      <button class="palette-x" id="paletteClose" title="Kapat">✕</button>
+      <button class="palette-move" id="paletteMove" title="Sürükleyerek taşı">✥</button>
+    </span>
+  </div>
+  <div class="palette-targets">
+    <button class="pal-chip active" data-target="bg">Arka plan</button>
+    <span class="pal-arrow">→</span>
+    <button class="pal-chip" data-target="sceneTitle">Başlık</button>
+    <span class="pal-arrow">→</span>
+    <button class="pal-chip" data-target="labels">Etiketler</button>
+  </div>
+  <div class="palette-targets">
+    <button class="pal-chip" data-target="panel">Bilgi paneli</button>
+    <span class="pal-arrow">→</span>
+    <button class="pal-chip" data-target="panelTitle">Başlık yazısı</button>
+    <span class="pal-arrow">→</span>
+    <button class="pal-chip" data-target="panelText">Yazılar</button>
+  </div>
+  <div class="palette-hint">Önce hedefi seç, sonra renge bas.</div>
+  <div class="palette-grid" id="paletteGrid"></div>
+  <button class="palette-reset" id="paletteReset">↺ Sıfırla</button>
+</div>
+<script>
+(function(){
+// ===== Servis butonları (Sınav / AI / Sesli) + Renk Paleti — coğrafya paritesi =====
+function _bridge(o){ if(window.FlutterBridge&&typeof window.FlutterBridge.postMessage==='function'){ try{ window.FlutterBridge.postMessage(JSON.stringify(o)); return true; }catch(e){} } return false; }
+function _stripSym(s){ return String(s).replace(/[\u{1F000}-\u{1FAFF}\u{1F300}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{27BF}\u{2B00}-\u{2BFF}\u{2600}-\u{26FF}\u{25A0}-\u{25FF}\u{2022}\u{2023}\u{FE0F}\u{200D}]/gu,' '); }
+function _readableText(){
+  const t=((document.getElementById('infoTitle')||{}).textContent||'');
+  const items=Array.from(document.querySelectorAll('#infoList li')).map(li=>li.textContent.trim()).filter(Boolean);
+  return _stripSym(t+'. '+items.join('. ')).replace(/\s+/g,' ').trim();
+}
+const LESSON_SUBJECT='Kimya', LESSON_NAME='Kimyasal Tepkimeler';
+(function(){
+  const e=document.getElementById('btnExam'); if(e) e.onclick=()=>{ if(!_bridge({action:'exam',subject:LESSON_SUBJECT,topic:LESSON_NAME})&&window._showGestureToast) window._showGestureToast('📝 Sınav oluşturma uygulamada açılır.'); if(window._haptic)window._haptic(12); };
+  const a=document.getElementById('btnAsk'); if(a) a.onclick=()=>{ const tp=((document.getElementById('infoTitle')||{}).textContent||'').trim(); const _lv=document.querySelector('#panelLevel .dropdown-item.active'); const _LN=['İlkokul','Ortaokul','Lise','Sınavlara Hazırlık','Üniversite']; const level=_lv?(_LN[+_lv.dataset.level]||''):''; if(!_bridge({action:'ai',topic:tp,level:level})&&window._showGestureToast) window._showGestureToast('🤖 AI uygulamada açılır.'); if(window._haptic)window._haptic(12); };
+  let _ttsOn=false; const tb=document.getElementById('btnTts');
+  if(tb) tb.onclick=function(){ _ttsOn=!_ttsOn; this.classList.toggle('active',_ttsOn);
+    if(_ttsOn){ const txt=_readableText(); if(!_bridge({action:'speak',text:txt})){ try{ if(window.speechSynthesis){ const u=new SpeechSynthesisUtterance(txt); u.lang='tr-TR'; u.rate=0.95; u.pitch=1.1; try{ const vs=window.speechSynthesis.getVoices()||[]; const fv=vs.find(function(v){return /^tr/i.test(v.lang)&&/(female|kad[\u0131i]n|yelda|filiz|seda|elif|aylin|meltem|nazli)/i.test(v.name);})||vs.find(function(v){return /^tr/i.test(v.lang);}); if(fv)u.voice=fv; }catch(e){} window.speechSynthesis.cancel(); window.speechSynthesis.speak(u); } }catch(e){} } }
+    else { if(!_bridge({action:'stopSpeak'})){ try{ if(window.speechSynthesis) window.speechSynthesis.cancel(); }catch(e){} } }
+    if(window._haptic)window._haptic(10); };
+})();
+const PALETTE_COLORS=['#FFFFFF','#F3F4F6','#D1D5DB','#9CA3AF','#0F172A','#FFEFD5','#FFD1DC','#FCA5A5','#FF6A00','#C8102E','#DB2777','#FBBF24','#DCFCE7','#86EFAC','#10B981','#E0F2FE','#22D3EE','#2563EB','#E9D5FF','#A855F7','#7C3AED','#F5F5DC','#D4A373','#92400E'];
+let _palTarget='bg', _palettePos=null, _origBg;
+const _PAL_KEY='kimyasal-tepkimeler_palette_v1', _palState={};
+function _contrastInk(hex){ const h=String(hex).replace('#',''); if(h.length<6) return '#f4f6ff'; const r=parseInt(h.substr(0,2),16),g=parseInt(h.substr(2,2),16),b=parseInt(h.substr(4,2),16); return (0.299*r+0.587*g+0.114*b)>140?'#10131f':'#f4f6ff'; }
+function _savePalette(){ try{ localStorage.setItem(_PAL_KEY, JSON.stringify(_palState)); }catch(e){} }
+const _PAL_TARGETS=['bg','sceneTitle','labels','panel','panelTitle','panelText'];
+function _palStyleEl(){ let s=document.getElementById('palDynStyle'); if(!s){ s=document.createElement('style'); s.id='palDynStyle'; document.head.appendChild(s); } return s; }
+function _applyPalCss(){ let css=''; if(_palState.labels){ css+='.label3d .txt{color:'+_palState.labels+'!important;border-color:'+_palState.labels+'!important;}'; } if(_palState.panelText){ css+='#infoList li,#infoList li b,#infoList li.subhead,#infoList li.subhead2{color:'+_palState.panelText+'!important;}'; } _palStyleEl().textContent=css; }
+function applyPaletteColor(target,c,_skip){
+  const bp=document.getElementById('bottomPanel');
+  if(target==='bg'){ if(window.scene&&window.THREE){ if(_origBg===undefined) _origBg=window.scene.background; window.scene.background=new window.THREE.Color(c); } }
+  else if(target==='sceneTitle'){ const t=document.getElementById('sceneMainTitle'); if(t) t.style.setProperty('color',c,'important'); }
+  else if(target==='labels'){ _palState.labels=c; _applyPalCss(); }
+  else if(target==='panel'){ if(bp){ bp.style.background=c; bp.style.setProperty('--info-ink',_contrastInk(c)); } }
+  else if(target==='panelTitle'){ const t=document.getElementById('infoTitle'); if(t) t.style.setProperty('color',c,'important'); }
+  else if(target==='panelText'){ _palState.panelText=c; _applyPalCss(); }
+  _palState[target]=c; if(!_skip) _savePalette();
+}
+function resetPalette(){
+  const bp=document.getElementById('bottomPanel');
+  if(window.scene && _origBg!==undefined) window.scene.background=_origBg;
+  if(bp){ bp.style.background=''; bp.style.removeProperty('--info-ink'); }
+  const st=document.getElementById('sceneMainTitle'); if(st) st.style.removeProperty('color');
+  const it=document.getElementById('infoTitle'); if(it) it.style.removeProperty('color');
+  Object.keys(_palState).forEach(k=>delete _palState[k]); _applyPalCss();
+  try{ localStorage.removeItem(_PAL_KEY); }catch(e){}
+}
+function _loadPalette(){ try{ const raw=localStorage.getItem(_PAL_KEY); if(!raw) return; const o=JSON.parse(raw); if(o.text&&!o.panelText){ o.panelText=o.text; delete o.text; } ['bg','sceneTitle','labels','panel','panelTitle','panelText'].forEach(k=>{ if(o[k]) applyPaletteColor(k,o[k],true); }); }catch(e){} }
+function positionPaletteUnder(){
+  const pop=document.getElementById('palettePop'), btn=document.getElementById('btnPalette'); if(!pop||!btn) return;
+  if(_palettePos){ let l=Math.max(6,Math.min(_palettePos.left,window.innerWidth-pop.offsetWidth-6)); let t=Math.max(6,Math.min(_palettePos.top,window.innerHeight-pop.offsetHeight-6)); pop.style.left=l+'px'; pop.style.top=t+'px'; return; }
+  const r=btn.getBoundingClientRect(), w=pop.offsetWidth||250;
+  let left=Math.round(r.left+r.width/2-w/2); left=Math.max(6,Math.min(left,window.innerWidth-w-6));
+  const _ph=pop.offsetHeight||240; let _pt=Math.round(r.bottom+6); if(_pt+_ph>window.innerHeight-6) _pt=Math.round(r.top-_ph-6); _pt=Math.max(6,Math.min(_pt,window.innerHeight-_ph-6)); pop.style.left=left+'px'; pop.style.top=_pt+'px';
+}
+(function buildPalette(){
+  const grid=document.getElementById('paletteGrid'); if(!grid) return;
+  PALETTE_COLORS.forEach(c=>{ const b=document.createElement('button'); b.className='swatch'; b.style.background=c; b.title=c; b.onclick=()=>{ applyPaletteColor(_palTarget,c); if(window._haptic)window._haptic(10); }; grid.appendChild(b); });
+  document.querySelectorAll('#palettePop .pal-chip').forEach(chip=>{ chip.onclick=()=>{ _palTarget=chip.dataset.target; document.querySelectorAll('#palettePop .pal-chip').forEach(x=>x.classList.toggle('active',x===chip)); if(window._haptic)window._haptic(8); }; });
+  const rst=document.getElementById('paletteReset'); if(rst) rst.onclick=()=>{ resetPalette(); if(window._haptic)window._haptic(12); };
+  const clo=document.getElementById('paletteClose'); if(clo) clo.onclick=()=>{ document.getElementById('palettePop').classList.remove('show'); if(window._haptic)window._haptic(8); };
+  const handle=document.getElementById('paletteMove'), pop=document.getElementById('palettePop');
+  if(handle&&pop){ let dr=false,sx=0,sy=0,sl=0,st=0;
+    const down=e=>{ dr=true; const p=e.touches?e.touches[0]:e; const r=pop.getBoundingClientRect(); sl=r.left; st=r.top; sx=p.clientX; sy=p.clientY; pop.style.left=sl+'px'; pop.style.top=st+'px'; e.preventDefault(); e.stopPropagation(); };
+    const mv=e=>{ if(!dr)return; const p=e.touches?e.touches[0]:e; let nl=sl+(p.clientX-sx),nt=st+(p.clientY-sy); nl=Math.max(6,Math.min(nl,window.innerWidth-pop.offsetWidth-6)); nt=Math.max(6,Math.min(nt,window.innerHeight-pop.offsetHeight-6)); pop.style.left=nl+'px'; pop.style.top=nt+'px'; _palettePos={left:nl,top:nt}; e.preventDefault(); };
+    const up=()=>{ dr=false; };
+    handle.addEventListener('mousedown',down); window.addEventListener('mousemove',mv); window.addEventListener('mouseup',up);
+    handle.addEventListener('touchstart',down,{passive:false}); window.addEventListener('touchmove',mv,{passive:false}); window.addEventListener('touchend',up);
+  }
+  setTimeout(_loadPalette, 1500);
+})();
+(function(){ const btn=document.getElementById('btnPalette'); if(!btn) return;
+  btn.onclick=(e)=>{ e.stopPropagation(); const pop=document.getElementById('palettePop'); const show=!pop.classList.contains('show'); pop.classList.toggle('show',show); if(show){ positionPaletteUnder(); if(window._haptic)window._haptic(12); } };
+  document.addEventListener('click',(e)=>{ if(!e.target.closest('#palettePop')&&!e.target.closest('#btnPalette')) document.getElementById('palettePop').classList.remove('show'); });
+})();
+})();
+</script>
+<script>
+(function _bioDock(){
+  try{
+    var $=function(id){return document.getElementById(id);};
+    if($('bottomDock')) return;
+    var title=document.createElement('div'); title.className='scene-top-title'; title.id='sceneMainTitle'; title.textContent="Kimyasal Tepkimeler"; document.body.appendChild(title);
+    var help=$('btnHelp'); if(help){ help.classList.add('scene-help'); document.body.appendChild(help); }
+    var dock=document.createElement('div'); dock.id='bottomDock'; document.body.appendChild(dock);
+    var ap=document.createElement('div'); ap.className='action-pop'; ap.id='actionPop'; dock.appendChild(ap);
+    ['spinBtn','labelBtn','animBtn'].forEach(function(id){ var b=$(id); if(b){ ap.appendChild(b); b.addEventListener('click',function(){ ap.classList.remove('show'); }); } });
+    var bp=$('bottomPanel'); if(bp) dock.appendChild(bp);
+    var tr=document.createElement('div'); tr.className='dock-row'; tr.id='toolsRow'; dock.appendChild(tr);
+    ['btnMode','btnStory','btnCompare','btnTable','btnSend','btnPalette','btnExam','btnAsk','btnTts'].forEach(function(id){ var b=$(id); if(b) tr.appendChild(b); });
+    var menuBtn=document.createElement('button'); menuBtn.className='tool-icon-btn menu'; menuBtn.id='btnMenu'; menuBtn.title='Seviye · Konu'; menuBtn.textContent='\u2630'; tr.appendChild(menuBtn);
+    ['btnTheme','btnFs'].forEach(function(id){ var b=$(id); if(b){ b.style.display='none'; document.body.appendChild(b); } });
+    var mp=document.createElement('div'); mp.className='menu-pop'; mp.id='menuPop';
+    var ttl=document.createElement('div'); ttl.className='menu-pop-title'; ttl.textContent='\u2699\uFE0F Ders Ayarlar\u0131'; mp.appendChild(ttl);
+    var lvl=$('btnLevel'); if(lvl) mp.appendChild(lvl);
+    var sr=$('stackRow'); if(sr){ mp.appendChild(sr); } else { var tp0=$('btnTopic'); if(tp0) mp.appendChild(tp0); }
+    document.body.appendChild(mp);
+    var navWrap=document.querySelector('.nav-buttons');
+    if(navWrap){ var na=document.createElement('button'); na.className='nav-mini-btn act'; na.id='navActions'; na.title='D\u00f6nd\u00fcr \u00b7 Etiketler \u00b7 \u00c7al\u0131\u015ft\u0131r'; na.textContent='\uD83C\uDFAC'; navWrap.insertBefore(na, navWrap.firstChild); na.onclick=function(e){ e.stopPropagation(); ap.classList.toggle('show'); if(window._haptic)window._haptic(10); }; }
+    document.querySelectorAll('.left-stack,.right-tools').forEach(function(el){ if(el) el.remove(); });
+    document.querySelectorAll('.action-row').forEach(function(el){ if(el && !el.querySelector('button')) el.remove(); });
+    function posMenu(){ var r=menuBtn.getBoundingClientRect(); var w=mp.offsetWidth||240,h=mp.offsetHeight||200; var l=Math.max(6,Math.min(Math.round(r.right-w),window.innerWidth-w-6)); mp.style.left=l+'px'; mp.style.top=Math.max(6,Math.round(r.top-h-6))+'px'; }
+    menuBtn.onclick=function(e){ e.stopPropagation(); var show=!mp.classList.contains('show'); mp.classList.toggle('show',show); if(show){ posMenu(); if(window._haptic)window._haptic(12); } };
+    document.addEventListener('click',function(e){ if(!e.target.closest('#menuPop')&&!e.target.closest('#btnMenu')&&!e.target.closest('.dropdown-panel')) mp.classList.remove('show'); });
+    document.addEventListener('click',function(e){ if(!e.target.closest('#actionPop')&&!e.target.closest('#navActions')) ap.classList.remove('show'); });
+    function _posPop(popId, anchorEl){ var pop=$(popId); if(!pop||!anchorEl||!pop.classList.contains('show')) return; var r=anchorEl.getBoundingClientRect(); var w=pop.offsetWidth||240, h=pop.offsetHeight||240; var l=Math.max(6, Math.min(Math.round(r.right-w), window.innerWidth-w-6)); pop.style.left=l+'px'; pop.style.right='auto'; pop.style.top=Math.max(6, Math.round(r.top-h-6))+'px'; }
+    if(lvl){ lvl.addEventListener('click',function(){ mp.classList.remove('show'); setTimeout(function(){ _posPop('panelLevel', menuBtn); },0); }); }
+    var tp=$('btnTopic'); if(tp){ tp.addEventListener('click',function(){ mp.classList.remove('show'); setTimeout(function(){ _posPop('panelTopic', menuBtn); },0); }); }
+    var km=$('btnKonum'); if(km){ km.addEventListener('click',function(){ mp.classList.remove('show'); }); }
+    // Fizik/kimya: Değişkenler (sp-toggle) menüye modülce eklenir → tıklanınca menü kapansın
+    mp.addEventListener('click',function(e){ if(e.target.closest&&e.target.closest('.sp-toggle')) mp.classList.remove('show'); });
+    var bm=$('btnMode'); if(bm){ bm.addEventListener('click',function(){ setTimeout(function(){ _posPop('panelMode', bm); },0); }); }
+    // NOT: scene-lift uygulanmaz — dock alt-ayak izi orijinalle benzer; her ders modeli kendi yerinde kalır.
+  }catch(e){ try{ console.warn('bio dock error',e); }catch(_){} }
+})();
+</script>
+
+<style id="dunyaPatchCss">
+  .wa-send svg{ width:18px; height:18px; fill:currentColor; transform:rotate(-45deg); display:block; }
+  .tool-icon-btn.send.wa-send{ display:grid; place-items:center; }
+  .share-head-btns{ display:flex; align-items:center; gap:7px; flex-shrink:0; }
+  .cmp-send-btn{ background:var(--chloro,#2ecc40); color:#0a1420; border:none; border-radius:9px; width:30px; height:30px; cursor:pointer; display:grid; place-items:center; flex-shrink:0; box-shadow:0 3px 10px rgba(0,0,0,0.35); }
+  .cmp-send-btn:active{ transform:scale(0.9); }
+  .cmp-send-btn svg{ width:17px; height:17px; }
+  .palette-targets{ flex-wrap:nowrap; align-items:center; gap:4px; }
+  .palette-targets .pal-chip{ flex:1 1 0; min-width:0; padding:5px 3px; font-size:10px; text-align:center; }
+  .pal-arrow{ color:var(--accent,#f6b93b); font-size:11px; flex-shrink:0; opacity:.65; }
+  .menu-pop{ width:min(188px,66vw)!important; padding:9px 9px 10px!important; gap:7px!important; }
+  .menu-pop-title{ font-size:10.5px!important; padding:0 1px 6px!important; }
+  .menu-pop .stack-btn, .menu-pop .sp-toggle{ font-size:12px!important; padding:7px 9px!important; }
+</style>
+<script>
+(function(){
+  // Karşılaştırma / Bilgi Tablosu kartını fotoğraflayıp doğrudan paylaş.
+  let _cardCanvas=null;
+  function _fname(){ return 'cografya-tablo.png'; }
+  function _text(){ const t=((document.getElementById('sceneMainTitle')||{}).textContent||'Coğrafya'); return '🌍 '+t+' · Qualsar 3D'; }
+  async function shareCardEl(cardEl){
+    if(!cardEl||typeof html2canvas!=='function') return;
+    if(window._showGestureToast) window._showGestureToast('📸 Hazırlanıyor...');
+    try{
+      _cardCanvas=await html2canvas(cardEl,{ backgroundColor:document.body.classList.contains('light-mode')?'#f3f6fb':'#0a0e1a', scale:Math.min(window.devicePixelRatio||1,2), logging:false, useCORS:true });
+      if(window.FlutterShare&&typeof window.FlutterShare.postMessage==='function'){ try{ window.FlutterShare.postMessage(JSON.stringify({ image:_cardCanvas.toDataURL('image/png'), text:_text(), file:_fname() })); return; }catch(e){} }
+      _cardCanvas.toBlob(async(blob)=>{ if(!blob) return; let file=null; try{ file=new File([blob],_fname(),{type:'image/png'}); }catch(e){}
+        if(file&&navigator.canShare&&navigator.canShare({files:[file]})){ try{ await navigator.share({files:[file],title:'Qualsar 3D',text:_text()}); return; }catch(e){ if(e.name==='AbortError') return; } }
+        if(navigator.share){ try{ await navigator.share({title:'Qualsar 3D',text:_text()}); return; }catch(e){ if(e.name==='AbortError') return; } }
+        const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=_fname(); document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(()=>URL.revokeObjectURL(url),1500);
+      },'image/png');
+    }catch(e){ if(window._showGestureToast) window._showGestureToast('⚠️ Görüntü alınamadı.'); }
+  }
+  function _wireSend(){
+    const cs=document.getElementById('compareSend'); if(cs&&!cs._w){ cs._w=1; cs.onclick=()=>{ shareCardEl(document.querySelector('#compareOverlay .cmp-card')); if(window._haptic)window._haptic(12); }; }
+    const ts=document.getElementById('tableSend'); if(ts&&!ts._w){ ts._w=1; ts.onclick=()=>{ shareCardEl(document.querySelector('#tableOverlay .cmp-card')); if(window._haptic)window._haptic(12); }; }
+  }
+
+  // GERİ TUŞU: açık pencere/panel varsa SADECE onu kapat (Flutter PopScope → webview goBack → popstate)
+  const _OVERLAYS=['helpOverlay','shareOverlay','compareOverlay','tableOverlay'];
+  function _anyLayerOpen(){
+    if(_OVERLAYS.some(id=>{ const e=document.getElementById(id); return e&&e.classList.contains('show'); })) return true;
+    if(document.querySelector('.dropdown-panel.show')) return true;
+    if(['menuPop','palettePop','actionPop'].some(id=>{ const e=document.getElementById(id); return e&&e.classList.contains('show'); })) return true;
+    const vb=document.getElementById('sceneVarsBody'); if(vb && !vb.classList.contains('closed')) return true;
+    return false;
+  }
+  function _closeTopLayer(){
+    for(const id of _OVERLAYS){ const e=document.getElementById(id); if(e&&e.classList.contains('show')){ e.classList.remove('show'); return true; } }
+    const dp=document.querySelector('.dropdown-panel.show'); if(dp){ dp.classList.remove('show'); return true; }
+    const pp=document.getElementById('palettePop'); if(pp&&pp.classList.contains('show')){ pp.classList.remove('show'); return true; }
+    const mp=document.getElementById('menuPop'); if(mp&&mp.classList.contains('show')){ mp.classList.remove('show'); return true; }
+    const ap=document.getElementById('actionPop'); if(ap&&ap.classList.contains('show')){ ap.classList.remove('show'); return true; }
+    const vb=document.getElementById('sceneVarsBody'); if(vb && !vb.classList.contains('closed')){ if(window._setSceneOpen) window._setSceneOpen(false); else vb.classList.add('closed'); return true; }
+    return false;
+  }
+  let _armed=false, _selfBack=false;
+  function _sync(){
+    const open=_anyLayerOpen();
+    if(open && !_armed){ try{ history.pushState({_dunyaGuard:1},''); }catch(e){} _armed=true; }
+    else if(!open && _armed && !_selfBack){ _selfBack=true; try{ history.back(); }catch(e){ _selfBack=false; _armed=false; } }
+  }
+  window.addEventListener('popstate', function(){
+    if(_selfBack){ _selfBack=false; _armed=false; return; }
+    _armed=false;
+    if(_anyLayerOpen()){ _closeTopLayer(); }
+  });
+  function _init(){
+    _wireSend();
+    const _watch=['helpOverlay','shareOverlay','compareOverlay','tableOverlay','menuPop','palettePop','actionPop','panelLevel','panelTopic','panelMode','sceneVarsBody'];
+    try{ const _mo=new MutationObserver(()=>{ _wireSend(); _sync(); }); _watch.forEach(id=>{ const e=document.getElementById(id); if(e) _mo.observe(e,{attributes:true,attributeFilter:['class']}); });
+      // menuPop/actionPop runtime'da oluşabilir → body'yi de izle (çocuk eklenince yeniden bağla)
+      const _bo=new MutationObserver(()=>{ ['menuPop','actionPop'].forEach(id=>{ const e=document.getElementById(id); if(e&&!e._obs){ e._obs=1; _mo.observe(e,{attributes:true,attributeFilter:['class']}); } }); });
+      _bo.observe(document.body,{childList:true});
+    }catch(e){}
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', _init); else _init();
+})();
+</script>
+
 </body>
 </html>

@@ -28,6 +28,10 @@
     --space-deep:#070b22;
     --sun-gold:#ffb627; --sun-glow:#ff8c1a;
     --accent-cyan:#4fd6e0;
+    /* tablo sütun renkleri (karşılaştırma A/B) */
+    --col-a:#ffd166;
+    --col-b:#7adcf0;
+    --grid-line:#3a4668;
   }
 
   body.light-mode {
@@ -39,6 +43,9 @@
     --ink-soft:#5a6070;
     --accent:#e0901b;
     --accent-glow:#c47a10;
+    --col-a:#a66a00;
+    --col-b:#0e7fa3;
+    --grid-line:#c5cedd;
   }
 
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; margin:0; padding:0; }
@@ -53,27 +60,30 @@
   canvas { display:block; cursor:grab; touch-action:none; }
   canvas:active { cursor:grabbing; }
 
+  /* Üst sıralı sekmeler: SOL ÜST, yatay sıra → Eğitim Seviyesi · Konu Rehberi · Değişkenler */
   .left-stack {
     position:absolute;
-    top:2px; right:14px;
+    top:6px; left:10px;
     z-index:30;
-    display:flex; flex-direction:column; gap:8px;
-    align-items:flex-end;
+    display:flex; flex-direction:row; gap:11px;
+    align-items:flex-start;
+    flex-wrap:nowrap;
+    max-width:calc(100% - 20px);
   }
 
   .stack-btn {
-    display:flex; align-items:center; gap:7px;
+    display:flex; align-items:center; gap:8px;
     background:var(--panel);
     border:2px solid var(--panel-line);
-    border-radius:12px;
-    padding:8px 14px;
+    border-radius:13px;
+    padding:10px 16px;
     font-family:'Fredoka',sans-serif; font-weight:600;
-    font-size:12.5px;
+    font-size:14px;
     color:var(--ink);
     cursor:pointer;
     box-shadow:0 4px 12px rgba(0,0,0,0.25);
     transition:all 0.15s;
-    min-width:170px;
+    min-width:0; white-space:nowrap; flex:0 1 auto;
   }
   .stack-btn:hover {
     border-color:var(--accent);
@@ -81,7 +91,7 @@
     box-shadow:0 6px 16px rgba(0,0,0,0.35);
   }
   .stack-btn:active { transform:scale(0.97); }
-  .stack-btn .sb-emoji { font-size:16px; line-height:1; flex-shrink:0; }
+  .stack-btn .sb-emoji { font-size:17px; line-height:1; flex-shrink:0; }
   .stack-btn .sb-label { flex:1; text-align:left; }
   .stack-btn .sb-arrow { font-size:10px; opacity:0.7; }
 
@@ -143,7 +153,7 @@
 
   .right-tools {
     position:absolute;
-    top:2px; left:8px;
+    top:6px; right:8px; left:auto;
     z-index:30;
     display:flex; gap:8px;
     flex-wrap:nowrap;
@@ -197,10 +207,164 @@
   .tool-icon-btn.compare:hover { background:var(--muscle); color:#fff; }
   .tool-icon-btn.table { border-color:var(--bone); color:var(--bone); }
   .tool-icon-btn.table:hover { background:var(--bone); color:#0a1420; }
+  .tool-icon-btn.palette { border-color:var(--accent-cyan); color:var(--accent-cyan); }
+  .tool-icon-btn.palette:hover { background:var(--accent-cyan); color:#0a1420; }
+
+  /* === RENK PALETİ POPUP (Konu Özeti sayfasıyla aynı renkler + mantık) === */
+  .palette-pop {
+    position:absolute; z-index:60;
+    background:var(--panel);
+    border:2px solid var(--accent);
+    border-radius:14px;
+    padding:11px 12px 12px;
+    box-shadow:0 12px 32px rgba(0,0,0,0.55);
+    width:min(330px, 92vw);
+    display:none;
+  }
+  .palette-pop.show { display:block; }
+  /* Başlık + sağ üstte taşıma butonu */
+  .palette-head {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0 2px 8px; border-bottom:1px solid var(--panel-line); margin-bottom:9px;
+  }
+  .palette-title {
+    font-family:'Baloo 2', cursive; font-weight:800; font-size:11.5px;
+    color:var(--accent-glow); text-transform:uppercase; letter-spacing:0.5px;
+  }
+  .palette-move {
+    width:26px; height:26px; flex-shrink:0;
+    background:var(--panel-soft); border:1.5px solid var(--accent);
+    border-radius:8px; color:var(--accent); cursor:grab;
+    display:grid; place-items:center; font-size:14px; line-height:1;
+    transition:all 0.12s; touch-action:none; user-select:none;
+  }
+  .palette-move:hover { background:var(--accent); color:#0a1420; }
+  .palette-move:active { cursor:grabbing; transform:scale(0.94); }
+  .palette-head-btns { display:flex; gap:6px; align-items:center; }
+  .palette-x {
+    width:26px; height:26px; flex-shrink:0;
+    background:var(--panel-soft); border:1.5px solid var(--muscle);
+    border-radius:8px; color:var(--muscle); cursor:pointer;
+    display:grid; place-items:center; font-size:13px; line-height:1; transition:all 0.12s;
+  }
+  .palette-x:hover { background:var(--muscle); color:#fff; }
+  .palette-x:active { transform:scale(0.92); }
+  /* Hedef seçici: Arka plan / Panel / Yazı */
+  .palette-targets { display:flex; gap:6px; margin-bottom:8px; }
+  .pal-chip {
+    flex:1; text-align:center; padding:6px 4px;
+    border-radius:9px; font-family:'Fredoka',sans-serif;
+    font-size:11px; font-weight:700; cursor:pointer;
+    background:var(--panel-soft); border:1.5px solid var(--panel-line);
+    color:var(--ink); transition:all 0.12s;
+  }
+  .pal-chip.active {
+    background:linear-gradient(135deg, var(--accent), var(--accent-glow));
+    color:#0a1420; border-color:var(--accent-glow);
+  }
+  .palette-hint { font-size:10px; color:var(--ink-soft); margin:0 2px 8px; line-height:1.3; }
+  /* 2 sıra, yatay kaydırmalı (özet sayfasıyla aynı) */
+  .palette-grid {
+    display:grid; grid-auto-flow:column;
+    grid-template-rows:repeat(2, 1fr);
+    gap:7px; overflow-x:auto; padding-bottom:5px;
+  }
+  .palette-grid::-webkit-scrollbar { height:6px; }
+  .palette-grid::-webkit-scrollbar-thumb { background:var(--accent); border-radius:4px; }
+  .swatch {
+    width:30px; height:30px; border-radius:8px; cursor:pointer;
+    border:2px solid rgba(255,255,255,0.3);
+    box-shadow:0 2px 6px rgba(0,0,0,0.4);
+    transition:transform 0.12s, border-color 0.12s;
+    padding:0; flex-shrink:0;
+  }
+  .swatch:hover { transform:scale(1.15); border-color:#fff; }
+  .palette-reset {
+    margin-top:10px; width:100%;
+    padding:7px; border-radius:9px;
+    background:var(--panel-soft); border:1.5px solid var(--panel-line);
+    color:var(--ink); font-family:'Fredoka',sans-serif;
+    font-size:11px; font-weight:700; cursor:pointer; transition:all 0.12s;
+  }
+  .palette-reset:hover { border-color:var(--accent); color:var(--accent); }
+
+  /* ===== ÜST: yalnız konu adı ===== */
+  .scene-top-title {
+    position:absolute; top:6px; left:50%; transform:translateX(-50%);
+    z-index:28; pointer-events:none;
+    max-width:calc(100% - 110px);
+    font-family:'Baloo 2', cursive; font-weight:800; font-size:15px; line-height:1.1;
+    color:var(--accent-glow);
+    text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    text-shadow:0 2px 8px rgba(0,0,0,0.6);
+  }
+  /* 3D sahnenin sağ üstünde ❓ */
+  .scene-help { position:absolute; top:6px; right:8px; z-index:30; }
+  /* Bilgi paneli içindeki başlık (konu adı) */
+  .info-panel-title {
+    flex:1; min-width:0;
+    font-family:'Baloo 2', cursive; font-weight:800; font-size:14px;
+    color:var(--info-ink, var(--accent-glow));
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+
+  /* ===== ALT DOCK: panel + iki sekme satırı ===== */
+  #bottomDock {
+    position:absolute; left:0; right:0; bottom:0; z-index:25;
+    display:flex; flex-direction:column; align-items:stretch; gap:8px;
+    padding:0 2px 7px; pointer-events:none;
+  }
+  #bottomDock > * { pointer-events:auto; }
+  .dock-row {
+    display:flex; flex-direction:row; gap:5px;
+    justify-content:flex-start; align-items:center;
+    flex-wrap:nowrap; overflow-x:auto; padding:1px 2px;
+  }
+  #toolsRow { gap:4px; }
+  #toolsRow .tool-icon-btn { width:36px; height:36px; font-size:15px; }
+  .dock-row::-webkit-scrollbar { height:0; }
+  /* Menü butonu satırın en sağında */
+  #btnMenu { margin-left:auto; }
+  .tool-icon-btn.menu { border-color:var(--accent-glow); color:var(--accent-glow); }
+  .tool-icon-btn.menu:hover { background:var(--accent-glow); color:#0a1420; }
+  .tool-icon-btn.exam { border-color:var(--chloro); color:var(--chloro); }
+  .tool-icon-btn.exam:hover { background:var(--chloro); color:#0a1420; }
+  .tool-icon-btn.ai { border-color:var(--cartilage); color:var(--cartilage); }
+  .tool-icon-btn.ai:hover { background:var(--cartilage); color:#fff; }
+  .tool-icon-btn.tts { border-color:var(--joint); color:var(--joint); }
+  .tool-icon-btn.tts:hover { background:var(--joint); color:#0a1420; }
+  .tool-icon-btn.tts.active { background:var(--joint); color:#0a1420; }
+
+  /* Menü popup'ı (Eğitim Seviyesi · Konu Rehberi · Değişkenler) */
+  .menu-pop {
+    position:absolute; z-index:60;
+    background:var(--panel); border:2px solid var(--accent);
+    border-radius:14px; padding:11px 12px 12px;
+    box-shadow:0 12px 32px rgba(0,0,0,0.55);
+    display:none; flex-direction:column; gap:9px;
+    width:min(250px, 86vw);
+  }
+  .menu-pop.show { display:flex; }
+  .menu-pop-title {
+    font-family:'Baloo 2', cursive; font-weight:800; font-size:11.5px;
+    color:var(--accent-glow); text-transform:uppercase; letter-spacing:0.5px;
+    padding:0 2px 7px; border-bottom:1px solid var(--panel-line);
+  }
+  .menu-pop .stack-row { display:flex; flex-direction:column; gap:9px; }
+  .menu-pop .stack-btn, .menu-pop .sp-toggle { width:100%; min-width:0; }
+
+  /* Aksiyon popup: Döndür / Etiketler / Çalıştır (panelin hemen üstünde) */
+  .action-pop {
+    display:none;
+    grid-template-columns:1fr 1fr 1fr; gap:8px;
+    background:var(--panel); border:2px solid var(--accent);
+    border-radius:12px; padding:8px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.5);
+  }
+  .action-pop.show { display:grid; }
+
   .bottom-panel {
-    position:absolute;
-    bottom:6px;
-    left:3px; right:3px;
+    position:relative;
     z-index:25;
     background:var(--panel);
     border:2px solid var(--panel-line);
@@ -211,6 +375,13 @@
     touch-action:auto;
   }
   .bottom-panel.hidden { display:none; }
+  /* Değişkenler açıkken alt panel aşağı kayarak gizlenir (display korunur, animasyonlu) */
+  .bottom-panel { transition: transform 0.38s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease; }
+  .bottom-panel.vars-hidden {
+    transform: translateY(calc(100% + 14px));
+    opacity: 0;
+    pointer-events: none;
+  }
 
   .info-resize-handle {
     position:absolute;
@@ -301,6 +472,8 @@
     background:var(--accent);
     color:#0a1420;
   }
+  .nav-mini-btn.act { border-color:var(--accent-cyan); color:var(--accent-cyan); }
+  .nav-mini-btn.act:hover { background:var(--accent-cyan); color:#0a1420; }
   .info-list {
     list-style:none;
     padding:0; margin:0;
@@ -338,24 +511,24 @@
     border-radius:0;
     font-size:12px;
     line-height:1.5;
-    color:var(--ink);
+    color:var(--info-ink, var(--ink));
     position:relative;
   }
   .info-list li::before {
     content:'•';
-    color:var(--joint);
+    color:var(--info-ink, var(--joint));
     position:absolute;
     left:3px; top:3px;
     font-size:13px; line-height:1.45;
   }
   .info-list li b {
-    color:var(--accent-glow);
+    color:var(--info-ink, var(--accent-glow));
     font-weight:700;
   }
   .info-list li.subhead {
     background:transparent;
     border-left:none;
-    color:var(--warning);
+    color:var(--info-ink, var(--warning));
     font-weight:700;
     font-size:12px;
     margin-top:5px;
@@ -366,7 +539,7 @@
   .info-list li.subhead::before { content:''; }
   .info-list li.subhead2 {
     background:transparent;
-    color:var(--joint);
+    color:var(--info-ink, var(--joint));
     font-weight:700;
     font-size:12px;
     margin-top:4px;
@@ -374,6 +547,27 @@
     padding:0 0 1px 0;
   }
   .info-list li.subhead2::before { content:''; }
+
+  /* Değişkenler tablosu başlığı + kapatma (✕) */
+  .scene-vars-head {
+    flex-basis:100%;
+    display:flex; align-items:center; justify-content:space-between;
+    margin:0 2px 4px; padding-bottom:4px;
+    border-bottom:1px solid rgba(255,255,255,0.18);
+  }
+  .scene-vars-head .svh-title {
+    font-family:'Baloo 2', cursive; font-weight:800; font-size:11px;
+    color:var(--accent-glow);
+  }
+  .scene-vars-close {
+    width:24px; height:24px; flex-shrink:0;
+    background:rgba(0,0,0,0.35); border:1.5px solid var(--accent);
+    border-radius:7px; color:var(--accent); cursor:pointer;
+    display:grid; place-items:center; font-size:12px; line-height:1;
+    transition:all 0.12s;
+  }
+  .scene-vars-close:hover { background:var(--accent); color:#0a1420; }
+  .scene-vars-close:active { transform:scale(0.92); }
 
   .action-row {
     display:grid;
@@ -421,6 +615,7 @@
     box-shadow:0 0 0 2px #fff, 0 0 12px rgba(255,255,255,0.4);
   }
 
+  .leader-svg { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:7; }
   .label3d {
     position:absolute; transform:translate(-50%,-50%);
     pointer-events:none; z-index:8;
@@ -428,12 +623,8 @@
     font-size:12px; white-space:nowrap;
     transition:opacity .15s ease;
   }
-  .label3d .dot {
-    width:9px; height:9px; border-radius:50%;
-    background:#fff; display:inline-block;
-    margin-right:5px; vertical-align:middle;
-    box-shadow:0 0 8px currentColor;
-  }
+  /* Uç noktayı artık SVG çiziyor → pill içindeki nokta gizli */
+  .label3d .dot { display:none; }
   .label3d .txt {
     background:rgba(7,11,34,0.82);
     padding:3px 9px; border-radius:11px;
@@ -498,6 +689,10 @@
     border-color:var(--accent);
     background:var(--panel-line);
   }
+  .share-preview {
+    width:100%; border-radius:12px; border:1.5px solid var(--panel-line);
+    margin-bottom:12px; display:block; background:var(--bg);
+  }
   .share-action-btn .sa-ico {
     font-size:22px; flex-shrink:0;
   }
@@ -514,45 +709,62 @@
   }
 
   .cmp-card {
-    width:min(540px, 92vw) !important;
+    width:min(980px, 99vw) !important;
     max-height:85vh; overflow-y:auto;
   }
   .cmp-body {
     overflow-x:auto;
     padding:4px 0 8px;
   }
+  /* Tablo üstü kısa açıklama */
+  .cmp-cap {
+    font-size:11.5px;
+    color:var(--ink-soft);
+    line-height:1.45;
+    padding:2px 2px 9px;
+  }
+  /* Excel tarzı tam çizgili tablo */
   .cmp-table {
     width:100%;
-    border-collapse:collapse;
+    border-collapse:separate;
+    border-spacing:0;
     font-size:12.5px;
-    border-radius:8px;
+    border:1.5px solid var(--accent);
+    border-radius:9px;
     overflow:hidden;
   }
   .cmp-table th, .cmp-table td {
-    padding:9px 11px;
+    padding:7px 10px;
     text-align:left;
-    border-bottom:1px solid var(--panel-line);
+    vertical-align:top;
+    border-right:1px solid var(--grid-line);
+    border-bottom:1px solid var(--grid-line);
   }
+  .cmp-table th:last-child, .cmp-table td:last-child { border-right:none; }
+  .cmp-table tbody tr:last-child td { border-bottom:none; }
   .cmp-table th {
     background:linear-gradient(135deg, var(--accent) 0%, var(--accent-glow) 100%);
     color:#0a1420;
     font-family:'Baloo 2', cursive;
     font-weight:800;
     font-size:12px;
-    position:sticky; top:0;
+    text-align:center;
+    border-right:1px solid rgba(10,20,32,0.25);
+    border-bottom:1.5px solid var(--accent);
+    position:sticky; top:0; z-index:2;
     text-shadow:0 1px 0 rgba(255,255,255,0.2);
   }
-  .cmp-table th:first-child { border-radius:7px 0 0 0; }
-  .cmp-table th:last-child { border-radius:0 7px 0 0; }
-  .cmp-table tbody tr:nth-child(odd) td { background:rgba(246,185,59,0.04); }
-  .cmp-table tbody tr:nth-child(even) td { background:rgba(246,185,59,0.10); }
-  .cmp-table td { color:var(--ink); line-height:1.4; }
+  .cmp-table tbody tr:nth-child(even) td { background:rgba(246,185,59,0.07); }
+  .cmp-table td { color:var(--ink); line-height:1.45; }
   .cmp-table td:first-child {
     font-weight:700;
-    color:var(--warning);
-    white-space:nowrap;
-    border-right:2px solid var(--accent);
+    color:var(--accent-glow);
+    background:rgba(246,185,59,0.10);
   }
+  /* Karşılaştırma tablosunda A/B sütunları ayrı renk tonunda */
+  .cmp-table.compare-style td:nth-child(2) { color:var(--col-a); font-weight:600; }
+  .cmp-table.compare-style td:nth-child(3) { color:var(--col-b); font-weight:600; }
+  .cmp-table tr:hover td { background:rgba(246,185,59,0.16); }
   .cmp-versus th.cmp-aspect { background:linear-gradient(135deg,#3a4668,#2a3450); color:var(--ink); text-shadow:none; }
   .cmp-versus th.cmp-ent { color:#0a1420; }
   .cmp-versus th.cmp-ent-0 { background:linear-gradient(135deg,#ffd166,#f6b93b); }
@@ -633,10 +845,12 @@
   }
 
   @media (max-width:600px) {
-    .stack-btn { min-width:140px; font-size:11px; padding:7px 11px; }
-    .stack-btn .sb-label, .sp-toggle .sb-label { font-size:11px; }
-    .sp-toggle { font-size:11px; padding:7px 11px; min-width:140px; }
-    .right-tools { gap:5px; left:8px; }
+    .stack-btn { min-width:0; font-size:12.5px; padding:8px 12px; }
+    .stack-btn .sb-label, .sp-toggle .sb-label { font-size:12.5px; }
+    .sp-toggle { font-size:12.5px; padding:8px 12px; min-width:0; }
+    .left-stack { gap:8px; }
+    .stack-row { gap:8px; }
+    .right-tools { gap:5px; }
     .tool-icon-btn { width:34px; height:34px; font-size:14px; border-radius:9px; }
     .bottom-panel { padding:11px 10px 9px; gap:9px; }
     .info-emoji-box { width:36px; height:36px; font-size:20px; }
@@ -646,25 +860,25 @@
     .action-btn { font-size:11px; padding:7px 8px; }
     .dropdown-panel { min-width:200px; }
     .dropdown-item { font-size:11.5px; padding:7px 9px; }
-    #panelMode { left:8px !important; }
   }
   @media (max-width:420px) {
-    .stack-btn { min-width:130px; font-size:10.5px; padding:6px 9px; }
-    .sp-toggle { font-size:10.5px; padding:6px 9px; min-width:130px; }
-    .right-tools { gap:4px; left:6px; }
+    .stack-btn { font-size:11.5px; padding:7px 10px; gap:6px; }
+    .sp-toggle { font-size:11.5px; padding:7px 10px; gap:6px; }
+    .left-stack { gap:6px; }
+    .stack-row { gap:6px; }
+    .stack-btn .sb-arrow, .sp-chev { display:none; }
+    .right-tools { gap:4px; }
     .tool-icon-btn { width:30px; height:30px; font-size:13px; border-radius:8px; border-width:1.5px; }
-    #panelMode { left:6px !important; }
   }
   @media (max-width:360px) {
-    .stack-btn { min-width:115px; font-size:10px; padding:5px 8px; }
-    .sp-toggle { font-size:10px; padding:5px 8px; min-width:115px; }
-    .right-tools { gap:3px; left:5px; }
+    .stack-btn { font-size:10.5px; padding:6px 8px; }
+    .sp-toggle { font-size:10.5px; padding:6px 8px; }
+    .right-tools { gap:3px; }
     .tool-icon-btn { width:28px; height:28px; font-size:12px; }
-    #panelMode { left:5px !important; }
   }
 
-  /* Eğitim Seviyesi altında: Değişkenler + Konu Rehberi aynı satırda */
-  .stack-row { display: flex; gap: 8px; align-items: flex-start; }
+  /* Konu Rehberi + Değişkenler aynı satırda (üst sıranın devamı) */
+  .stack-row { display: flex; gap: 11px; align-items: flex-start; }
 
   .scene-vars-body {
     position: fixed;
@@ -720,10 +934,10 @@
     border: 2px solid rgba(255, 184, 92, 0.6);
     color: #fff;
     font-family: 'Fredoka', sans-serif;
-    font-size: 12.5px; font-weight: 600;
-    padding: 8px 14px; border-radius: 12px; cursor: pointer;
-    display: flex; align-items: center; gap: 7px;
-    min-width: 170px;
+    font-size: 14px; font-weight: 600;
+    padding: 10px 16px; border-radius: 13px; cursor: pointer;
+    display: flex; align-items: center; gap: 8px;
+    min-width: 0; white-space: nowrap; flex: 0 1 auto;
     box-shadow: 0 4px 12px rgba(249, 115, 22, 0.35);
     transition: all 0.15s;
   }
@@ -889,32 +1103,18 @@
 
 <div id="sceneVarsBody" class="scene-vars-body closed"></div>
 
-<!-- =========== SAĞ ÜST: Sekmeler (Seviye üstte; Değişkenler + Konu Rehberi aynı satırda) =========== -->
-<div class="left-stack">
-  <button class="stack-btn level" id="btnLevel">
-    <span class="sb-emoji">🎓</span>
-    <span class="sb-label" id="levelLabel">İlkokul</span>
-    <span class="sb-arrow">▼</span>
-  </button>
-
-  <div class="stack-row" id="stackRow">
-    <!-- Değişkenler sekmesi (sp-toggle) JS ile buraya, Konu Rehberi'nin SOLUNA eklenir -->
-    <button class="stack-btn topic" id="btnTopic">
-      <span class="sb-emoji">📚</span>
-      <span class="sb-label">Konu Rehberi</span>
-      <span class="sb-arrow">▼</span>
-    </button>
-  </div>
-</div>
+<!-- =========== ÜST: dersin ana başlığı (sabit) + sağ üstte ❓ =========== -->
+<div class="scene-top-title" id="sceneMainTitle">Dünyanın Şekli ve Hareketi</div>
+<button class="tool-icon-btn help scene-help" id="btnHelp" title="Bu sayfa nasıl çalışır?">❓</button>
 
 <!-- Dropdown panelleri -->
 <div class="dropdown-panel" id="panelLevel" style="top:48px; right:14px;">
   <div class="dropdown-title">🎓 Eğitim Seviyesi</div>
-  <button class="dropdown-item active" data-level="0"><span class="di-emoji">🧒</span>İlkokul (1-4)</button>
-  <button class="dropdown-item" data-level="1"><span class="di-emoji">🎒</span>Ortaokul (5-8)</button>
-  <button class="dropdown-item" data-level="2"><span class="di-emoji">📘</span>Lise (9-11)</button>
-  <button class="dropdown-item" data-level="3"><span class="di-emoji">🎯</span>Lise 12 · TYT/AYT</button>
-  <button class="dropdown-item" data-level="4"><span class="di-emoji">🏛️</span>KPSS Hazırlık</button>
+  <button class="dropdown-item active" data-level="0"><span class="di-emoji">🧒</span>İlkokul</button>
+  <button class="dropdown-item" data-level="1"><span class="di-emoji">🎒</span>Ortaokul</button>
+  <button class="dropdown-item" data-level="2"><span class="di-emoji">📘</span>Lise</button>
+  <button class="dropdown-item" data-level="3"><span class="di-emoji">🎯</span>Sınavlara Hazırlık</button>
+  <button class="dropdown-item" data-level="4"><span class="di-emoji">🏛️</span>Üniversite</button>
 </div>
 
 <div class="dropdown-panel" id="panelTopic" style="top:92px; right:14px;">
@@ -922,15 +1122,32 @@
   <div id="topicList"></div>
 </div>
 
-<!-- =========== SOL ÜST: Tool butonları (Görünüm Modu en solda) =========== -->
-<div class="right-tools">
-  <button class="tool-icon-btn mode active" id="btnMode" title="Görünüm Modu: Sade">📄</button>
-  <button class="tool-icon-btn compare" id="btnCompare" title="Karşılaştırma">⚖️</button>
-  <button class="tool-icon-btn table" id="btnTable" title="Bilgi Tablosu">📋</button>
-  <button class="tool-icon-btn theme" id="btnTheme" title="Tema değiştir">🌙</button>
-  <button class="tool-icon-btn send" id="btnSend" title="Gönder/Paylaş">📤</button>
-  <button class="tool-icon-btn fs" id="btnFs" title="Tam ekran">⛶</button>
-  <button class="tool-icon-btn help" id="btnHelp" title="Bu sayfa nasıl çalışır?">❓</button>
+<!-- Renk paleti popup'ı (Konu Özeti sayfasıyla aynı 24 renk + hedef seçici mantığı) -->
+<div class="palette-pop" id="palettePop">
+  <div class="palette-head">
+    <span class="palette-title">🎨 Renk Paleti</span>
+    <span class="palette-head-btns">
+      <button class="palette-x" id="paletteClose" title="Kapat">✕</button>
+      <button class="palette-move" id="paletteMove" title="Sürükleyerek taşı">✥</button>
+    </span>
+  </div>
+  <div class="palette-targets">
+    <button class="pal-chip active" data-target="bg">Arka plan</button>
+    <span class="pal-arrow">→</span>
+    <button class="pal-chip" data-target="sceneTitle">Başlık</button>
+    <span class="pal-arrow">→</span>
+    <button class="pal-chip" data-target="labels">Etiketler</button>
+  </div>
+  <div class="palette-targets">
+    <button class="pal-chip" data-target="panel">Bilgi paneli</button>
+    <span class="pal-arrow">→</span>
+    <button class="pal-chip" data-target="panelTitle">Başlık yazısı</button>
+    <span class="pal-arrow">→</span>
+    <button class="pal-chip" data-target="panelText">Yazılar</button>
+  </div>
+  <div class="palette-hint">Önce hedefi seç, sonra renge bas.</div>
+  <div class="palette-grid" id="paletteGrid"></div>
+  <button class="palette-reset" id="paletteReset">↺ Sıfırla</button>
 </div>
 
 <!-- Görünüm Modu dropdown'ı -->
@@ -940,39 +1157,69 @@
   <button class="dropdown-item active" data-mode="sade"><span class="di-emoji">📄</span><span><b>Sade</b><br><small style="opacity:0.7;font-size:10.5px;">Sadece temel bilgiler</small></span></button>
 </div>
 
-<!-- =========== ALT KART =========== -->
-<div class="bottom-panel" id="bottomPanel">
-  <div class="info-resize-handle" id="infoResizeHandle" title="Yukarı/aşağı sürükleyerek büyüt/küçült"><span class="rz-up">▲</span><span class="rz-down">▼</span></div>
-  <button class="info-close-btn" id="infoCloseBtn" title="Bilgi panelini kapat">✕</button>
-  <div class="info-area">
-    <div class="info-emoji-box" id="infoEmoji" style="display:none;">🌍</div>
-    <div class="info-text-area">
-      <div class="info-title-row">
-        <div class="info-title" id="infoTitle">İki Hareket Birden</div>
-        <div class="nav-buttons">
-          <button class="nav-mini-btn" id="navPrev" title="Önceki">◀</button>
-          <button class="nav-mini-btn" id="navNext" title="Sonraki">▶</button>
+<!-- =========== ALT DOCK: aksiyon popup + bilgi paneli + sekme satırları =========== -->
+<div id="bottomDock">
+
+  <!-- Döndür / Etiketler / Çalıştır — panelin hemen üstünde açılır; birine basınca kapanır -->
+  <div class="action-pop" id="actionPop">
+    <button class="action-btn spin" id="spinBtn"><span class="ico">🔄</span><span>Eksen Dönüşü</span></button>
+    <button class="action-btn label" id="labelBtn"><span class="ico">🏷️</span><span>Etiketler</span></button>
+    <button class="action-btn anim" id="animBtn"><span class="ico">🌍</span><span>Yörünge</span></button>
+  </div>
+
+  <!-- Bilgi paneli -->
+  <div class="bottom-panel" id="bottomPanel">
+    <div class="info-resize-handle" id="infoResizeHandle" title="Yukarı/aşağı sürükleyerek büyüt/küçült"><span class="rz-up">▲</span><span class="rz-down">▼</span></div>
+    <button class="info-close-btn" id="infoCloseBtn" title="Bilgi panelini kapat">✕</button>
+    <div class="info-area">
+      <div class="info-emoji-box" id="infoEmoji" style="display:none;">🌍</div>
+      <div class="info-text-area">
+        <div class="info-title-row">
+          <div class="info-panel-title" id="infoTitle">İki Hareket Birden</div>
+          <div class="nav-buttons">
+            <button class="nav-mini-btn act" id="navActions" title="Döndür · Etiketler · Çalıştır">🎬</button>
+            <button class="nav-mini-btn" id="navPrev" title="Önceki">◀</button>
+            <button class="nav-mini-btn" id="navNext" title="Sonraki">▶</button>
+          </div>
         </div>
-      </div>
-      <div class="info-scroll-wrap">
-        <ul class="info-list" id="infoList"></ul>
-        <div class="info-scrollbar" id="infoScrollbar"><div class="info-scrollthumb" id="infoScrollThumb"></div></div>
+        <div class="info-scroll-wrap">
+          <ul class="info-list" id="infoList"></ul>
+          <div class="info-scrollbar" id="infoScrollbar"><div class="info-scrollthumb" id="infoScrollThumb"></div></div>
+        </div>
       </div>
     </div>
   </div>
 
-  <div class="action-row">
-    <button class="action-btn spin" id="spinBtn">
-      <span class="ico">🔄</span>
-      <span>Eksen Dönüşü</span>
-    </button>
-    <button class="action-btn label" id="labelBtn">
-      <span class="ico">🏷️</span>
-      <span>Etiketler</span>
-    </button>
-    <button class="action-btn anim" id="animBtn">
-      <span class="ico">🌍</span>
-      <span>Yörünge</span>
+  <!-- Tek araç satırı: 6 araç (en soldan) + en sağda Menü butonu -->
+  <div class="dock-row" id="toolsRow">
+    <button class="tool-icon-btn mode active" id="btnMode" title="Görünüm Modu: Sade">📄</button>
+    <button class="tool-icon-btn compare" id="btnCompare" title="Karşılaştırma">⚖️</button>
+    <button class="tool-icon-btn table" id="btnTable" title="Bilgi Tablosu">📋</button>
+    <button class="tool-icon-btn send wa-send" id="btnSend" title="Gönder/Paylaş"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
+    <button class="tool-icon-btn palette" id="btnPalette" title="Renk paleti">🎨</button>
+    <button class="tool-icon-btn exam" id="btnExam" title="Sınav Soruları Oluştur">📝</button>
+    <button class="tool-icon-btn ai" id="btnAsk" title="AI'ya Sor">🤖</button>
+    <button class="tool-icon-btn tts" id="btnTts" title="Sesli Anlatım">🔊</button>
+    <button class="tool-icon-btn menu" id="btnMenu" title="Seviye · Konu · Değişkenler">☰</button>
+    <button class="tool-icon-btn theme" id="btnTheme" title="Tema değiştir" style="display:none;">🌙</button>
+    <button class="tool-icon-btn fs" id="btnFs" title="Tam ekran" style="display:none;">⛶</button>
+  </div>
+</div>
+
+<!-- Menü popup'ı: Eğitim Seviyesi · Konu Rehberi · Değişkenler (☰ ile açılır) -->
+<div class="menu-pop" id="menuPop">
+  <div class="menu-pop-title">⚙️ Ders Ayarları</div>
+  <button class="stack-btn level" id="btnLevel">
+    <span class="sb-emoji">🎓</span>
+    <span class="sb-label" id="levelLabel">İlkokul</span>
+    <span class="sb-arrow">▼</span>
+  </button>
+  <div class="stack-row" id="stackRow">
+    <!-- Değişkenler (sp-toggle) JS ile Konu Rehberi'nin SAĞINA eklenir -->
+    <button class="stack-btn topic" id="btnTopic">
+      <span class="sb-emoji">📚</span>
+      <span class="sb-label">Konu Rehberi</span>
+      <span class="sb-arrow">▼</span>
     </button>
   </div>
 </div>
@@ -981,29 +1228,30 @@
 <div class="share-overlay" id="shareOverlay">
   <div class="share-card">
     <div class="share-head">
-      <div class="share-head-text">📤 Paylaş</div>
+      <div class="share-head-text">📤 Ekranı Paylaş</div>
       <button class="share-close-btn" id="shareClose">✕</button>
     </div>
+    <img class="share-preview" id="sharePreview" alt="önizleme" />
     <div class="share-actions">
-      <button class="share-action-btn primary" id="shareWhatsApp">
-        <span class="sa-ico">💬</span>
+      <button class="share-action-btn primary" id="shareNative">
+        <span class="sa-ico">📲</span>
         <span class="sa-text">
-          <b>WhatsApp ile gönder</b>
-          <small>Arkadaşlarınıza paylaşın</small>
+          <b>Arkadaşına gönder</b>
+          <small>WhatsApp, Telegram, mesaj...</small>
         </span>
       </button>
-      <button class="share-action-btn" id="shareCopy">
-        <span class="sa-ico">📋</span>
+      <button class="share-action-btn" id="shareSocial">
+        <span class="sa-ico">🌐</span>
         <span class="sa-text">
-          <b>Bağlantıyı kopyala</b>
-          <small>Panoya kopyala</small>
+          <b>Sosyal medyada paylaş</b>
+          <small>Instagram, X, Facebook...</small>
         </span>
       </button>
       <button class="share-action-btn" id="shareDownload">
         <span class="sa-ico">💾</span>
         <span class="sa-text">
-          <b>Ekran görüntüsü kaydet</b>
-          <small>Cihaza indir</small>
+          <b>Cihaza kaydet</b>
+          <small>Galeriye / indirilenlere</small>
         </span>
       </button>
     </div>
@@ -1015,7 +1263,10 @@
   <div class="share-card cmp-card">
     <div class="share-head">
       <div class="share-head-text"><span id="compareTitle">⚖️ Karşılaştırma</span></div>
-      <button class="share-close-btn" id="compareClose">✕</button>
+      <div class="share-head-btns">
+        <button class="cmp-send-btn wa-send" id="compareSend" title="Arkadaşına gönder / Paylaş"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
+        <button class="share-close-btn" id="compareClose">✕</button>
+      </div>
     </div>
     <div class="cmp-body" id="compareBody"></div>
     <div class="cmp-nav hidden" id="compareNav">
@@ -1031,7 +1282,10 @@
   <div class="share-card cmp-card">
     <div class="share-head">
       <div class="share-head-text" style="color:var(--bone);"><span id="tableTitle">📋 Bilgi Tablosu</span></div>
-      <button class="share-close-btn" id="tableClose">✕</button>
+      <div class="share-head-btns">
+        <button class="cmp-send-btn wa-send" id="tableSend" title="Arkadaşına gönder / Paylaş"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
+        <button class="share-close-btn" id="tableClose">✕</button>
+      </div>
     </div>
     <div class="cmp-body" id="tableBody"></div>
     <div class="cmp-nav hidden" id="tableNav">
@@ -1049,7 +1303,7 @@
       <div class="share-head-text">❓ Bu Sayfa Nasıl Çalışır?</div>
       <button class="share-close-btn" id="helpClose">✕</button>
     </div>
-    <div class="help-intro">Güneş, Dünya ve Ay'ı parmaklarınla incele; üstteki menülerden seviye ve konu seç; alttaki panelden bilgileri oku.</div>
+    <div class="help-intro">Güneş, Dünya ve Ay'ı parmaklarınla incele; alttaki menüden seviye ve konu seç; alttaki panelden bilgileri oku. Konuyu arkadaşlarınla paylaşabilir, AI'ya soru sorabilirsin.</div>
 
     <div class="help-sec-title">🖐️ Dokunma Hareketleri</div>
     <div class="help-row"><span class="he">👆</span><span><b>Döndür:</b> tek parmakla sürükle</span></div>
@@ -1057,22 +1311,60 @@
     <div class="help-row"><span class="he">👆👆</span><span><b>Çift dokun:</b> dokunduğun noktaya yakınlaş</span></div>
     <div class="help-row"><span class="he">🏷️</span><span><b>Etikete dokun</b> (Güneş, Dünya, Ay, Meridyen, Paralel…): o konu açılır</span></div>
 
-    <div class="help-sec-title">🧭 Üst Menüler</div>
-    <div class="help-row"><span class="he">🎓</span><span><b>Eğitim Seviyesi</b> (sağ üst): İlkokul / Ortaokul / Lise / TYT-AYT / KPSS</span></div>
-    <div class="help-row"><span class="he">📚</span><span><b>Konu Rehberi</b> (sağ üst): Dünya, Ay, Mevsimler, Meridyenler, 21 Haziran…</span></div>
-    <div class="help-row"><span class="he">📄</span><span><b>Görünüm Modu</b> (sol üst): Sade / Detaylı bilgi</span></div>
-    <div class="help-row"><span class="he">🎛️</span><span><b>Değişkenler</b> (Konu Rehberi'nin solunda): hız, yakınlık, eksen-ekvator gibi kaydırıcılar</span></div>
+    <div class="help-sec-title">🧭 Ders Ayarları (☰ menü)</div>
+    <div class="help-row"><span class="he">🎓</span><span><b>Eğitim Seviyesi</b>: İlkokul / Ortaokul / Lise / Sınavlara Hazırlık / Üniversite — liste alttaki araçların hemen üstünde açılır</span></div>
+    <div class="help-row"><span class="he">📚</span><span><b>Konu Rehberi</b>: Dünya, Ay, Mevsimler, Meridyenler, 21 Haziran…</span></div>
+    <div class="help-row"><span class="he">🎛️</span><span><b>Değişkenler</b>: hız, yakınlık, eksen-ekvator kaydırıcıları — alttaki araçların hemen üstünde açılır</span></div>
 
-    <div class="help-sec-title">🛠️ Araçlar (sol üst)</div>
-    <div class="help-row"><span class="he">⚖️</span><span><b>Karşılaştırma</b> &nbsp;·&nbsp; <span class="he" style="display:inline">📋</span> <b>Bilgi Tablosu</b></span></div>
-    <div class="help-row"><span class="he">🌙</span><span><b>Tema</b> &nbsp;·&nbsp; 📤 <b>Paylaş</b> &nbsp;·&nbsp; ⛶ <b>Tam ekran</b></span></div>
+    <div class="help-sec-title">🛠️ Alt Araç Çubuğu</div>
+    <div class="help-row"><span class="he">📄</span><span><b>Sade / Detaylı</b> görünüm &nbsp;·&nbsp; ⚖️ <b>Karşılaştırma</b> &nbsp;·&nbsp; 📋 <b>Bilgi Tablosu</b></span></div>
+    <div class="help-row"><span class="he">✈️</span><span><b>Gönder:</b> ekranı arkadaşına gönder / sosyal medyada paylaş</span></div>
+    <div class="help-row"><span class="he">🎨</span><span><b>Renk Paleti</b> &nbsp;·&nbsp; 📝 <b>Sınav Soruları</b></span></div>
+    <div class="help-row"><span class="he">🤖</span><span><b>AI'ya Sor:</b> kısa, net ve seviyene uygun cevap &nbsp;·&nbsp; 🔊 <b>Sesli Anlatım</b></span></div>
+
+    <div class="help-sec-title">✈️ Karşılaştırma & Bilgi Tablosu</div>
+    <div class="help-row"><span class="he">✈️</span><span>Tablonun sağ üstündeki <b>yeşil gönder</b> tuşuyla o tabloyu arkadaşına gönderebilir / paylaşabilirsin.</span></div>
+
+    <div class="help-sec-title">🎨 Renk Paleti — 6 hedef</div>
+    <div class="help-row"><span class="he">🌌</span><span><b>Arka plan → Başlık → Etiketler</b> (üst satır)</span></div>
+    <div class="help-row"><span class="he">📋</span><span><b>Bilgi paneli → Başlık yazısı → Yazılar</b> (alt satır). Önce hedefi seç, sonra renge bas.</span></div>
 
     <div class="help-sec-title">📖 Alt Bilgi Paneli</div>
     <div class="help-row"><span class="he">⇕</span><span><b>Tutamacı sürükle:</b> paneli büyüt / küçült</span></div>
     <div class="help-row"><span class="he">◀▶</span><span><b>Önceki / Sonraki</b> bilgi sayfasına geç</span></div>
     <div class="help-row"><span class="he">🔄</span><span><b>Eksen Dönüşü</b> · 🏷️ <b>Etiketler</b> · 🌍 <b>Yörünge</b> (başlat/durdur)</span></div>
+
+    <div class="help-sec-title">⬅️ Geri Tuşu</div>
+    <div class="help-row"><span class="he">⬅️</span><span>Açık bir pencere varsa geri tuşu <b>sadece o pencereyi kapatır</b>; ders açık kalır. Pencere yokken geri, konu listesine döner.</span></div>
   </div>
 </div>
+
+<style id="dunyaPatchCss">
+  /* WhatsApp tarzı gönder ikonu — +x,+y yönünde 45° dönük */
+  .wa-send svg{ width:18px; height:18px; fill:currentColor; transform:rotate(-45deg); display:block; }
+  .tool-icon-btn.send.wa-send{ display:grid; place-items:center; }
+  /* Karşılaştırma/Tablo kartı içindeki gönder butonu (flu DEĞİL, aktif) */
+  .share-head-btns{ display:flex; align-items:center; gap:7px; flex-shrink:0; }
+  .cmp-send-btn{
+    background:var(--chloro,#2ecc40); color:#0a1420; border:none;
+    border-radius:9px; width:30px; height:30px; cursor:pointer;
+    display:grid; place-items:center; flex-shrink:0;
+    box-shadow:0 3px 10px rgba(0,0,0,0.35);
+  }
+  .cmp-send-btn:active{ transform:scale(0.9); }
+  .cmp-send-btn svg{ width:17px; height:17px; }
+
+  /* Palet hedef satırları: ok (→) ile ayrılmış 3'er hedef, iki satır */
+  .palette-targets{ flex-wrap:nowrap; align-items:center; gap:4px; }
+  .palette-targets .pal-chip{ flex:1 1 0; min-width:0; padding:5px 3px; font-size:10px; text-align:center; }
+  .pal-arrow{ color:var(--accent); font-size:11px; flex-shrink:0; opacity:.65; }
+
+  /* Ders Ayarları menüsü daha küçük / yatayda daha dar */
+  .menu-pop{ width:min(188px,66vw); padding:9px 9px 10px; gap:7px; border-radius:12px; }
+  .menu-pop-title{ font-size:10.5px; padding:0 1px 6px; }
+  .menu-pop .stack-btn, .menu-pop .sp-toggle{ font-size:12px; padding:7px 9px; }
+  .menu-pop .sb-emoji{ font-size:14px; }
+</style>
 
 <div id="app"></div>
 
@@ -1114,6 +1406,7 @@ setTimeout(function() {
 </script>
 
 <script src="./three.global.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script type="module">
 const THREE = window.THREE;
 window.__moduleLoaded = true;
@@ -1127,8 +1420,13 @@ const renderer = new THREE.WebGLRenderer({ antialias:true });
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.1;
+renderer.toneMappingExposure = 1.45;
 app.appendChild(renderer.domElement);
+// Etiket okları (leader line) için SVG katmanı — canvas üstünde, etiketlerin altında
+const leaderSvg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+leaderSvg.setAttribute('id','leaderSvg');
+leaderSvg.setAttribute('class','leader-svg');
+app.appendChild(leaderSvg);
 
 function makeStars(count, range, size, color){
   const g=new THREE.BufferGeometry(); const pos=[];
@@ -1298,9 +1596,12 @@ coronaSprite.scale.setScalar(SUN_R*5.2);
 sunGroup.add(coronaSprite);
 window._coronaSprite=coronaSprite;
 
-const sunLight=new THREE.PointLight(0xfff4d6, 3.3, 0, 0);
+const sunLight=new THREE.PointLight(0xfff4d6, 3.8, 0, 0);
 sunGroup.add(sunLight);
-scene.add(new THREE.AmbientLight(0x1a2542, 0.32));
+// Nesneler/gezegenlerin karanlık tarafı da görünsün diye daha güçlü dolgu ışık
+scene.add(new THREE.AmbientLight(0x3a4a78, 0.72));
+const fillLight=new THREE.HemisphereLight(0xbfd4ff, 0x202842, 0.55);
+scene.add(fillLight);
 
 function planetTexture(base, accent, dark){
   const c=document.createElement('canvas'); c.width=512; c.height=256;
@@ -1361,8 +1662,8 @@ PLANET_DEFS.forEach(def=>{
   const orbitLine=new THREE.Mesh(
     new THREE.RingGeometry(def.orbit-0.35, def.orbit+0.35, 256),
     new THREE.MeshBasicMaterial({
-      color:orbitCol, transparent:true, opacity:.55,
-      side:THREE.DoubleSide, blending:THREE.AdditiveBlending, depthWrite:false
+      color:orbitCol, transparent:true, opacity:.85,
+      side:THREE.DoubleSide, depthWrite:false
     })
   );
   orbitLine.rotation.x=Math.PI/2;
@@ -1387,8 +1688,8 @@ earthHolder.position.x = EARTH_ORBIT;
 const earthOrbitLine=new THREE.Mesh(
   new THREE.RingGeometry(EARTH_ORBIT-0.45, EARTH_ORBIT+0.45, 256),
   new THREE.MeshBasicMaterial({
-    color:0x4fd6e0, transparent:true, opacity:.6,
-    side:THREE.DoubleSide, blending:THREE.AdditiveBlending, depthWrite:false
+    color:0x4fd6e0, transparent:true, opacity:.9,
+    side:THREE.DoubleSide, depthWrite:false
   })
 );
 earthOrbitLine.rotation.x=Math.PI/2;
@@ -2221,11 +2522,11 @@ function freeFocusAt(){
 }
 
 const LEVELS=[
-  {id:'ilk', emoji:'🧒', name:'İlkokul (1-4)',  desc:'Basit ve eğlenceli anlatım', idx:0},
-  {id:'orta',emoji:'🎒', name:'Ortaokul (5-8)', desc:'Temel kavramlar ve sebep-sonuç', idx:1},
-  {id:'lise',emoji:'📘', name:'Lise (9-11)',    desc:'Detaylı süreçler ve terimler', idx:2},
-  {id:'tyt', emoji:'🎯', name:'Lise 12 · TYT/AYT', desc:'Sınav odaklı, derinlemesine', idx:3},
-  {id:'kpss',emoji:'🏛️', name:'KPSS Hazırlık',  desc:'Sınav ipuçları ve ince ayrıntılar', idx:4}
+  {id:'ilk',  emoji:'🧒', name:'İlkokul',            desc:'Basit ve eğlenceli anlatım', idx:0},
+  {id:'orta', emoji:'🎒', name:'Ortaokul',           desc:'Temel kavramlar ve sebep-sonuç', idx:1},
+  {id:'lise', emoji:'📘', name:'Lise',               desc:'Detaylı süreçler ve terimler', idx:2},
+  {id:'sinav',emoji:'🎯', name:'Sınavlara Hazırlık', desc:'TYT/AYT/Sınav — tam detay, tuzaklar', idx:3},
+  {id:'uni',  emoji:'🏛️', name:'Üniversite',         desc:'En kapsamlı, akademik tam detay', idx:4}
 ];
 let curLevel=0;
 
@@ -2235,40 +2536,40 @@ const CONCEPTS={
     'Dünya aynı anda <b>iki hareket</b> yapar: kendi ekseni etrafında döner ve Güneş etrafında dolanır.',
     'Dünya iki temel hareketi eş zamanlı yürütür: <b>günlük hareket</b> (eksen dönüşü) ve <b>yıllık hareket</b> (Güneş çevresinde dolanım).',
     'Dünya\'nın günlük hareketi gece-gündüzü, yıllık hareketi mevsimleri doğurur. İkisi <b>bağımsız</b> ama eş zamanlıdır.',
-    '<b>Günlük hareket:</b> batıdan doğuya, 24 saat. <b>Yıllık hareket:</b> batıdan doğuya, 365 gün 6 saat. KPSS\'de ikisinin sonuçları sık karıştırılır — ayırt et.'
+    '<b>Günlük hareket:</b> batıdan doğuya, 24 saat. <b>Yıllık hareket:</b> batıdan doğuya, 365 gün 6 saat. Sınav\'de ikisinin sonuçları sık karıştırılır — ayırt et.'
   ],more:[
     ['<b>Günlük hareket:</b> Dünya kendi etrafında döner → gece-gündüz olur.','<b>Yıllık hareket:</b> Dünya Güneş etrafında dolanır → mevsimler olur.'],
     ['Her iki hareket <b>batıdan doğuya</b> doğrudur. Bu yüzden Güneş hep doğudan doğar, batıdan batar.','İki hareket aynı anda olur ama <b>birbirinden bağımsızdır</b>.'],
     ['Günlük hareket 24 saatte, yıllık hareket 365 gün 6 saatte tamamlanır.','Her ikisinin sonuçları farklıdır — gece-gündüz günlük, mevsimler yıllıktır.'],
     ['Günlük sonuçlar: gece-gündüz, günlük sıcaklık farkı, yerel saat, gel-git, Coriolis.','Yıllık sonuçlar: mevsimler, gündönümleri, ekinokslar, artık yıl, yıllık görünen Güneş hareketi.'],
-    ['KPSS klasiği: Hangi sonuç hangi hareketin? — gece/gündüz GÜNLÜK, mevsim YILLIK hareketin.','KPSS tuzağı: "Mevsim dönmeden olur" → YANLIŞ. Mevsim dolanım + eksen eğikliği ile olur.']
+    ['Sınav klasiği: Hangi sonuç hangi hareketin? — gece/gündüz GÜNLÜK, mevsim YILLIK hareketin.','Sınav tuzağı: "Mevsim dönmeden olur" → YANLIŞ. Mevsim dolanım + eksen eğikliği ile olur.']
   ]},
   eksen:{ico:'📍',head:'Dönme Ekseni',highlight:'eksen',minLevel:0,t:[
     'Dünya\'nın ortasından geçen, görünmeyen bir <b>çubuk</b> gibidir. Dünya bunun etrafında döner.',
     'Dünya\'nın içinden geçtiği düşünülen <b>hayali çizgidir</b>. Kuzey ve Güney kutuplarını birleştirir.',
     'Kutuplardan geçen hayali eksen, Dünya\'nın günlük dönme hareketinin merkezidir.',
     'Eksen, yörünge düzlemine <b>66.5°</b> eğiklikle durur (eksenin dikey ile açısı 23.5°).',
-    'Eksen eğikliği yörünge düzlemiyle 66.5°, dikeyle 23.5°. Bu değerler KPSS\'de doğrudan sorulur.'
+    'Eksen eğikliği yörünge düzlemiyle 66.5°, dikeyle 23.5°. Bu değerler Sınav\'de doğrudan sorulur.'
   ]},
   eksenDonus:{ico:'🔄',head:'Eksen Etrafında Dönme',highlight:'eksen',minLevel:0,t:[
     'Dünya kendi etrafında döner. Bir tam tur <b>bir gün</b> sürer. Bu yüzden gece ve gündüz olur.',
     'Dünya ekseni etrafında <b>24 saatte</b> bir tur atar. Bu hareket <b>gece ve gündüzü</b> oluşturur.',
     'Günlük hareket batıdan doğuya, 24 saatte tamamlanır. Sonuçları: gece-gündüz, Güneş\'in görünen hareketi.',
     'Eksen dönüşü 24 saat sürer; sonuçları: gece-gündüz, yerel saat farkları, Coriolis (yön sapması), gel-git çizgisi kayması.',
-    'Günlük hareketin sonuçları KPSS klasiği: gece-gündüz, <b>günlük sıcaklık farkı</b>, yerel saat, dinamik basınç, Coriolis sapması.'
+    'Günlük hareketin sonuçları Sınav klasiği: gece-gündüz, <b>günlük sıcaklık farkı</b>, yerel saat, dinamik basınç, Coriolis sapması.'
   ],more:[
     ['Dünya 24 saatte kendi etrafında bir tur atar — bu <b>bir gündür</b>.','Bu dönüş yüzünden Güneş gökyüzünde doğudan batıya kayıyor gibi görünür.'],
     ['Dönüş yönü <b>batıdan doğuya</b>dır. Bu yüzden Güneş doğudan doğar, batıdan batar.','Eksen dönüşünün ana sonucu: <b>gece ve gündüz</b>.'],
     ['Eksen dönüşü 24 saatte 360° tamamlanır → saatte <b>15°</b> dönüş.','Aynı meridyendeki tüm noktalarda yerel saat aynıdır; meridyenler arası 4 dk fark.'],
     ['Sonuçlar: gece-gündüz, günlük sıcaklık farkı, yerel saat, <b>Coriolis kuvveti</b> (rüzgarların yön sapması).','Coriolis: Kuzey\'de cisimler sağa, güneyde sola sapar. Hava akımları, deniz akıntıları bu etkiyi gösterir.'],
-    ['Günlük hareketin 6 sonucu: gece-gündüz, günlük sıcaklık farkı, yerel saat, dinamik basınç, Coriolis, günlük gel-git ritmi.','KPSS klasik tuzak: "Hangisi günlük hareketin sonucu DEĞİL?" → cevap mevsim (mevsim yıllık harekete bağlı).']
+    ['Günlük hareketin 6 sonucu: gece-gündüz, günlük sıcaklık farkı, yerel saat, dinamik basınç, Coriolis, günlük gel-git ritmi.','Sınav klasik tuzak: "Hangisi günlük hareketin sonucu DEĞİL?" → cevap mevsim (mevsim yıllık harekete bağlı).']
   ]},
   eksenEgik:{ico:'📐',head:'Eksen Eğikliği',highlight:'eksen',minLevel:1,t:[
     '',
     'Dünya\'nın ekseni dik değil, <b>biraz yana yatıktır</b>. Bu yatıklık mevsimleri oluşturur.',
     'Eksen, yörünge düzlemine <b>23.5°</b> eğiktir ve bu eğiklik yıl boyu aynı yöne bakar — paralellik.',
     'Eksenin <b>23.5°</b> eğikliği + eksenin paralelliği = mevsimlerin tek gerçek sebebi. Eğiklik olmasa mevsim olmazdı.',
-    'Eğiklik 23.5°. <b>Eksen kayması</b> (presesyon) 26.000 yılda bir tur — KPSS\'de "eğiklik sabit mi" tuzağına dikkat: kısa vadede sabit kabul edilir.'
+    'Eğiklik 23.5°. <b>Eksen kayması</b> (presesyon) 26.000 yılda bir tur — Sınav\'de "eğiklik sabit mi" tuzağına dikkat: kısa vadede sabit kabul edilir.'
   ],more:[
     ['',''],
     ['Eğiklik olmasaydı her yer yıl boyu <b>aynı havayı</b> yaşardı — mevsim olmazdı!','Yatık eksen yıl boyu aynı yöne bakar — sabittir.'],
@@ -2281,27 +2582,27 @@ const CONCEPTS={
     'Dünya\'nın Güneş\'e bakan yarısı aydınlıktır; burada <b>gündüz</b> yaşanır.',
     'Aydınlanma çemberinin Güneş\'e bakan tarafı gündüz yarısıdır.',
     'Gündüz süresi enleme ve tarihe göre değişir; <b>aydınlanma çemberi</b> gündüz-gece sınırını çizer.',
-    'Gündüz süresi: Ekvator\'da hep 12 saat, kutuplara gidildikçe mevsime göre değişir. KPSS: 21 Haziran\'da Kuzey\'de en uzun gündüz.'
+    'Gündüz süresi: Ekvator\'da hep 12 saat, kutuplara gidildikçe mevsime göre değişir. Sınav ipucu: 21 Haziran\'da Kuzey\'de en uzun gündüz.'
   ]},
   gece:{ico:'🌙',head:'Gece',highlight:'dunya',minLevel:0,t:[
     'Dünya\'nın <b>Güneş\'i görmeyen</b> tarafı karanlıktır. Orada gece olur.',
     'Dünya\'nın Güneş\'ten ışık almayan, gölgede kalan yarısıdır; burada <b>gece</b> olur.',
     'Aydınlanma çemberinin Güneş\'e ters tarafı gece yarısıdır.',
     'Gece süresi gündüzü tamamlar (toplam 24 saat); kutup bölgelerinde <b>kutup gecesi</b> aylarca sürebilir.',
-    'Kutup gecesi/gündüzü: Kutup dairelerinde (66.5°) başlar, kutup noktasında 6 ay sürer. KPSS\'de sık sorulur.'
+    'Kutup gecesi/gündüzü: Kutup dairelerinde (66.5°) başlar, kutup noktasında 6 ay sürer. Sınav\'de sık sorulur.'
   ]},
   yorunge:{ico:'🛸',head:'Yörünge',highlight:'dunya',minLevel:0,t:[
     'Dünya\'nın Güneş çevresinde dolaşırken izlediği <b>yoldur</b>. Mavi çizgi ile gösterilir.',
     'Dünya\'nın Güneş etrafında dolanırken izlediği <b>oval (elips) yoldur</b>.',
     'Yörünge bir <b>elipstir</b>; Güneş elipsin odak noktalarından birindedir.',
     'Elips yörünge → Dünya-Güneş mesafesi yıl boyu değişir (Günberi/Günöte). Bu, mevsim sebebi <b>değildir</b>.',
-    'KPSS tuzağı: Mevsimlerin sebebi yörüngenin elips olması <b>DEĞİL</b>, eksen eğikliğidir. Mesafe farkı mevsimi açıklamaz.'
+    'Sınav tuzağı: Mevsimlerin sebebi yörüngenin elips olması <b>DEĞİL</b>, eksen eğikliğidir. Mesafe farkı mevsimi açıklamaz.'
   ],more:[
     ['Dünya Güneş\'in çevresinde <b>oval bir yolda</b> dolaşır. Bu yola "yörünge" denir.','Yörünge çizgisi 3D modelde <b>cyan/mavi</b> renkle gösterilir.'],
     ['Yörünge bir <b>elipstir</b> (oval), tam daire değil. Güneş elipsin tam ortasında değildir, biraz kenardadır.','Dünya yörüngede sabit hızla dolanmaz — Güneş\'e yakınken hızlı, uzakken yavaştır.'],
     ['Kepler\'in 1. yasası: Gezegenler elips yörüngeler izler; Güneş elipsin <b>odak noktalarından birindedir</b>.','Kepler\'in 2. yasası: Gezegen-Güneş çizgisi <b>eşit zamanlarda eşit alanlar</b> tarar.'],
     ['Yörünge dış merkezliği (eccentricity) 0.017 — neredeyse daire. Günberi-Günöte mesafe farkı ~5 milyon km.','Yörünge düzlemine <b>ekliptik</b> denir. Gezegenlerin çoğu hemen hemen aynı düzlemde dolaşır.'],
-    ['KPSS tuzağı: Yörünge elips → mesafe yıl boyu değişir. AMA bu mevsim sebebi DEĞİL.','Kuzey\'de yaz uzun (~93 gün), kış kısa (~89 gün) — çünkü Günöte\'de yörünge hızı düşer.']
+    ['Sınav tuzağı: Yörünge elips → mesafe yıl boyu değişir. AMA bu mevsim sebebi DEĞİL.','Kuzey\'de yaz uzun (~93 gün), kış kısa (~89 gün) — çünkü Günöte\'de yörünge hızı düşer.']
   ]},
   donanim:{ico:'🌍',head:'Güneş Etrafında Dolanma',highlight:'dunya',minLevel:0,t:[
     'Dünya Güneş\'in çevresinde döner. Bir tam tur <b>bir yıl</b> sürer.',
@@ -2321,20 +2622,20 @@ const CONCEPTS={
     'Eksen eğikliği yüzünden bir yarımküre Güneş\'e <b>eğik bakınca yaz</b>, <b>ters bakınca kış</b> yaşar.',
     'Mevsimler, eksen eğikliği nedeniyle Güneş ışınlarının <b>geliş açısının</b> ve <b>gündüz süresinin</b> yıl boyu değişmesiyle oluşur.',
     'Mevsim = ışın geliş açısı + gündüz süresi. İki yarımkürede mevsimler <b>terstir</b>. Eğiklik tek sebep.',
-    'KPSS: Mevsimin 2 sebebi — eksen eğikliği ve eksenin paralelliği. Sonuçları: ışın açısı, gündüz süresi, gölge boyu farkları.'
+    'Sınav ipucu: Mevsimin 2 sebebi — eksen eğikliği ve eksenin paralelliği. Sonuçları: ışın açısı, gündüz süresi, gölge boyu farkları.'
   ],more:[
     ['Yılda 4 mevsim olur. Her biri yaklaşık 3 ay sürer.','İki yarımkürede mevsimler <b>terstir</b>: Türkiye\'de yaz iken Arjantin\'de kış yaşanır!'],
     ['Mevsimlerin sebebi <b>eksen eğikliği</b>dir. Eğiklik olmasa mevsim olmazdı.','Yarımkürelerden biri Güneş\'e eğik bakınca <b>yaz</b>, ters bakınca <b>kış</b> yaşar.'],
     ['Mevsim oluşumunda iki şey değişir: <b>ışın açısı</b> ve <b>gündüz süresi</b>.','Dik ışın + uzun gündüz = yaz. Eğik ışın + kısa gündüz = kış.'],
     ['Mevsim başlangıçları (Kuzey için): 21 Mart (ilkbahar), 21 Haziran (yaz), 23 Eylül (sonbahar), 21 Aralık (kış).','Astronomik mevsim 21\'lerde başlar; takvimsel mevsim ayın 1\'inde başlar.'],
-    ['Mevsim 2 sebebi: eksen eğikliği + paralellik. Sonuçları: ışın açısı, gündüz süresi, gölge boyu.','KPSS tuzağı: Yörünge elipsi mevsim sebebi DEĞİL. 3 Ocak\'ta Dünya Güneş\'e en yakındır ama Kuzey kıştadır!']
+    ['Mevsim 2 sebebi: eksen eğikliği + paralellik. Sonuçları: ışın açısı, gündüz süresi, gölge boyu.','Sınav tuzağı: Yörünge elipsi mevsim sebebi DEĞİL. 3 Ocak\'ta Dünya Güneş\'e en yakındır ama Kuzey kıştadır!']
   ]},
   ekvator:{ico:'🔥',head:'Ekvator',highlight:'ekvator',minLevel:0,t:[
     'Dünya\'yı tam ortadan saran <b>çizgidir</b>. Orası en sıcak yerdir.',
     'Dünya\'yı ortadan ikiye bölen <b>hayali çizgidir</b>. Güneş ışığını dik aldığı için <b>en sıcak</b> kuşaktır.',
     'Ekvator 0° enlemdir; en uzun paralel dairedir, gece-gündüz hep eşittir (12 saat).',
     'Ekvator: 0° enlem, çizgisel hızın en yüksek olduğu yer, yıl boyu 12 saat gece-gündüz, yılda 2 kez tepe noktası.',
-    'KPSS: Ekvator\'da çizgisel hız en fazla (~1670 km/s), gece-gündüz hep eşit, ışınlar yılda 2 kez (21 Mart, 23 Eylül) dik gelir.'
+    'Sınav ipucu: Ekvator\'da çizgisel hız en fazla (~1670 km/s), gece-gündüz hep eşit, ışınlar yılda 2 kez (21 Mart, 23 Eylül) dik gelir.'
   ],more:[
     ['Ekvator Dünya\'yı <b>tam ortadan</b> ikiye böler. Yukarısı Kuzey, aşağısı Güney Yarımküre\'dir.','Ekvator\'da hava genellikle <b>sıcak ve nemli</b>dir — tropik iklim!'],
     ['Ekvator <b>0° enlemdir</b>. Tüm paralellerin en uzun olanıdır (~40.075 km).','Ekvator\'da gece-gündüz <b>her zaman 12\'şer saat</b> sürer.'],
@@ -2347,7 +2648,7 @@ const CONCEPTS={
     'Dünya\'nın en kuzey ve en güney uçlarıdır; ışınları çok eğik aldıkları için <b>en soğuk</b> yerlerdir.',
     'Kutuplar 90° enlemdir; çizgisel hız sıfırdır, ışınlar en eğik gelir.',
     'Kutuplarda: çizgisel hız 0, 6 ay gündüz + 6 ay gece, ışın açısı en küçük.',
-    'KPSS: Kutupta çizgisel hız sıfır, açısal hız her yerde eşit. 6 ay aydınlık/karanlık kutup noktasına özgü.'
+    'Sınav ipucu: Kutupta çizgisel hız sıfır, açısal hız her yerde eşit. 6 ay aydınlık/karanlık kutup noktasına özgü.'
   ],more:[
     ['<b>Kuzey Kutbu</b> Dünya\'nın en üstü, <b>Güney Kutbu</b> en altıdır.','Kutuplar <b>çok soğuktur</b>. Yıl boyu kar ve buz vardır!'],
     ['Kutuplar <b>90° enlemdir</b>. Burada çizgisel hız <b>sıfırdır</b> — sadece bir nokta!','Kutuplarda <b>6 ay gündüz</b>, 6 ay gece olur. Güneş hiç batmaz veya hiç doğmaz.'],
@@ -2360,7 +2661,7 @@ const CONCEPTS={
     'Güneş sisteminin merkezindeki <b>yıldızdır</b>; Dünya\'ya ışık ve ısı verir.',
     'Güneş, sistemin merkezindeki orta büyüklükte bir yıldızdır; enerjisini çekirdek füzyonundan alır.',
     'Güneş gök cisimleri içinde tek <b>kendi ışığını üreten</b> (yıldız) cisimdir; gezegenler ışığı yansıtır.',
-    'KPSS: Güneş bir yıldız (kendi ışığı), Ay ve gezegenler ışığı yansıtır. Bu ayrım sık sorulur.'
+    'Sınav ipucu: Güneş bir yıldız (kendi ışığı), Ay ve gezegenler ışığı yansıtır. Bu ayrım sık sorulur.'
   ],more:[
     ['Güneş <b>ateş</b> değildir — dev bir gaz topudur. Oksijensiz yanar!','İçi çok sıcaktır: <b>15 milyon derece</b>! Yüzeyi "sadece" 5500 derece.'],
     ['Güneş bir <b>yıldızdır</b>. Geceleri gördüğümüz yıldızlar da Güneş gibidir ama çok uzaktadırlar.','Güneş\'in enerjisi <b>nükleer füzyon</b> ile üretilir: hidrojen → helyum.'],
@@ -2373,7 +2674,7 @@ const CONCEPTS={
     'Ay, Dünya\'nın tek <b>uydusudur</b>; Dünya etrafında yaklaşık 27 günde bir döner.',
     'Ay, Dünya\'nın doğal uydusudur; dönme ve dolanma süresi eşit olduğu için hep aynı yüzünü gösterir.',
     'Ay\'ın evreleri, tutulmalar ve gel-git olayları Ay-Dünya-Güneş konumuna bağlıdır.',
-    'KPSS: Ay\'ın günlük+yıllık hareketi gel-gite, evrelere ve tutulmalara yol açar. Ay\'da atmosfer yoktur.'
+    'Sınav ipucu: Ay\'ın günlük+yıllık hareketi gel-gite, evrelere ve tutulmalara yol açar. Ay\'da atmosfer yoktur.'
   ],more:[
     ['Ay <b>kendi ışığını üretmez</b>; Güneş\'ten aldığı ışığı bize yansıtır.','Ay\'da <b>hava (atmosfer) yoktur</b>. Bu yüzden ses yayılmaz, gökyüzü hep siyahtır.'],
     ['Ay\'ın <b>evreleri</b> vardır: yeni ay, hilal, ilk dördün, dolunay, son dördün. Bu evreler Ay-Dünya-Güneş konumuna bağlıdır.','Ay\'ın dönme ve dolanma süresi eşit olduğu için <b>hep aynı yüzünü</b> bize gösterir.'],
@@ -2386,7 +2687,7 @@ const CONCEPTS={
     'Üzerinde yaşadığımız gezegendir; hem kendi ekseninde döner hem Güneş etrafında dolanır.',
     'Dünya, Güneş\'e 3. gezegendir; <b>geoit</b> şeklindedir (kutuplardan basık).',
     'Dünya geoittir: kutup yarıçapı ekvator yarıçapından kısadır → yer çekimi kutupta fazla.',
-    'KPSS: Dünya\'nın geoit şekli → kutuplarda çizgisel hız az, yer çekimi fazla; ekvatorda tersi.'
+    'Sınav ipucu: Dünya\'nın geoit şekli → kutuplarda çizgisel hız az, yer çekimi fazla; ekvatorda tersi.'
   ],more:[
     ['Dünya Güneş\'e <b>3. gezegendir</b>: Merkür, Venüs, sonra Dünya.','Dünya\'da hayat olmasının sebebi <b>su, atmosfer ve uygun sıcaklık</b>tır.'],
     ['Dünya\'nın yarıçapı yaklaşık <b>6.371 km</b>; çevresi ~40.000 km.','Dünya tam yuvarlak <b>değildir</b> — kutuplardan basıktır (geoit şekli).'],
@@ -2399,106 +2700,106 @@ const CONCEPTS={
     'Güneş ve çevresinde dolanan <b>8 gezegen</b> ile uydularından oluşur. Dünya 3. gezegendir.',
     'Güneş sistemi: 1 yıldız, 8 gezegen, cüce gezegenler, uydular, asteroitler ve kuyruklu yıldızlar.',
     'İç gezegenler (kayaç) ve dış gezegenler (gaz devleri) farklı özellikler taşır.',
-    'KPSS: Sıra — Merkür, Venüs, Dünya, Mars, Jüpiter, Satürn, Uranüs, Neptün. Plüton cüce gezegen.'
+    'Sınav ipucu: Sıra — Merkür, Venüs, Dünya, Mars, Jüpiter, Satürn, Uranüs, Neptün. Plüton cüce gezegen.'
   ]},
   mevsimOlusum:{ico:'🌗',head:'Mevsimlerin Oluşumu',highlight:'eksen',minLevel:1,t:[
     '',
     'Mevsimler, Dünya\'nın <b>yatık ekseni</b> ve Güneş etrafında dolanması yüzünden oluşur.',
     'Eksen eğikliği + yıllık hareket → ışın açısı ve gündüz süresi değişir → mevsimler oluşur.',
     'Mevsim oluşumu zinciri: eğik+paralel eksen → yıl boyu farklı ışın açısı → farklı ısınma → mevsim.',
-    'KPSS net cevabı: Mevsimlerin sebebi <b>eksen eğikliği ve eksenin paralelliği</b>. Mesafe ya da dönme hızı DEĞİL.'
+    'Sınav net cevabı: Mevsimlerin sebebi <b>eksen eğikliği ve eksenin paralelliği</b>. Mesafe ya da dönme hızı DEĞİL.'
   ]},
   haziran21:{ico:'☀️',head:'21 Haziran',highlight:'eksen',minLevel:1,jumpTo:180,t:[
     '',
     '<b>Yaz başlangıcı.</b> Güneş ışınları Kuzey Yarımküre\'ye dik gelir; Kuzey\'de yaz, Güney\'de kış.',
     '21 Haziran: Güneş ışınları <b>Yengeç Dönencesi\'ne</b> (23.5° Kuzey) dik gelir; Kuzey\'de yaz gündönümü.',
     '21 Haziran — Yengeç Dönencesi\'ne dik ışın. Kuzey\'de en uzun gündüz, en kısa gece; Güney\'de tersi.',
-    'KPSS: 21 Haziran — ışınlar Yengeç Dönencesi\'ne dik. Kuzey\'de yaz gündönümü, kutup noktasında 6 aylık gündüzün ortası.'
+    'Sınav ipucu: 21 Haziran — ışınlar Yengeç Dönencesi\'ne dik. Kuzey\'de yaz gündönümü, kutup noktasında 6 aylık gündüzün ortası.'
   ]},
   aralik21:{ico:'❄️',head:'21 Aralık',highlight:'eksen',minLevel:1,jumpTo:0,t:[
     '',
     '<b>Kış başlangıcı.</b> Güneş ışınları Güney Yarımküre\'ye dik gelir; Kuzey\'de kış, Güney\'de yaz.',
     '21 Aralık: Güneş ışınları <b>Oğlak Dönencesi\'ne</b> (23.5° Güney) dik gelir; Kuzey\'de kış gündönümü.',
     '21 Aralık — Oğlak Dönencesi\'ne dik ışın. Kuzey\'de en kısa gündüz, en uzun gece.',
-    'KPSS: 21 Aralık — ışınlar Oğlak Dönencesi\'ne dik. Kuzey Yarımküre\'de kış gündönümü, en uzun gece.'
+    'Sınav ipucu: 21 Aralık — ışınlar Oğlak Dönencesi\'ne dik. Kuzey Yarımküre\'de kış gündönümü, en uzun gece.'
   ]},
   mart21:{ico:'🌸',head:'21 Mart',highlight:'ekvator',minLevel:1,jumpTo:90,t:[
     '',
     '<b>İlkbahar başlangıcı.</b> Güneş ışınları Ekvator\'a dik gelir; her yerde gece-gündüz eşit.',
     '21 Mart: ışınlar <b>Ekvator\'a</b> dik gelir — ilkbahar ekinoksu; tüm Dünya\'da gece-gündüz 12\'şer saat.',
     '21 Mart ekinoksu — ışın Ekvator\'a dik, aydınlanma çemberi kutuplardan geçer, her yerde 12 saat gündüz.',
-    'KPSS: 21 Mart — ışın Ekvator\'a dik, gece-gündüz tüm Dünya\'da eşit; aydınlanma çemberi her iki kutba teğet.'
+    'Sınav ipucu: 21 Mart — ışın Ekvator\'a dik, gece-gündüz tüm Dünya\'da eşit; aydınlanma çemberi her iki kutba teğet.'
   ]},
   eylul23:{ico:'🍂',head:'23 Eylül',highlight:'ekvator',minLevel:1,jumpTo:270,t:[
     '',
     '<b>Sonbahar başlangıcı.</b> Güneş ışınları Ekvator\'a dik gelir; her yerde gece-gündüz eşit.',
     '23 Eylül: ışınlar <b>Ekvator\'a</b> dik — sonbahar ekinoksu; gece-gündüz her yerde eşit.',
     '23 Eylül ekinoksu — 21 Mart\'ın benzeri; ışın Ekvator\'a dik, her yerde 12 saat gündüz.',
-    'KPSS: 23 Eylül ekinoksu — ışın Ekvator\'da dik. İki ekinoks yılın tek "gece=gündüz" anlarıdır.'
+    'Sınav ipucu: 23 Eylül ekinoksu — ışın Ekvator\'da dik. İki ekinoks yılın tek "gece=gündüz" anlarıdır.'
   ]},
   ocak3:{ico:'🟡',head:'3 Ocak (Günberi)',highlight:'dunya',minLevel:2,t:[
     '','',
     'Dünya\'nın Güneş\'e <b>en yakın</b> olduğu konumdur (Günberi/Perihel).',
     '3 Ocak Günberi — Dünya Güneş\'e en yakın; yörünge hızı en <b>yüksek</b>tir.',
-    'KPSS: 3 Ocak Günberi — en yakın konum, en hızlı yörünge hareketi → Kuzey\'de kış kısa sürer.'
+    'Sınav ipucu: 3 Ocak Günberi — en yakın konum, en hızlı yörünge hareketi → Kuzey\'de kış kısa sürer.'
   ]},
   temmuz4:{ico:'🟠',head:'4 Temmuz (Günöte)',highlight:'dunya',minLevel:2,t:[
     '','',
     'Dünya\'nın Güneş\'ten <b>en uzak</b> olduğu konumdur (Günöte/Aphel).',
     '4 Temmuz Günöte — Dünya Güneş\'ten en uzak; yörünge hızı en <b>düşük</b>tür.',
-    'KPSS: 4 Temmuz Günöte — en uzak konum, en yavaş hareket → Kuzey\'de yaz uzun sürer.'
+    'Sınav ipucu: 4 Temmuz Günöte — en uzak konum, en yavaş hareket → Kuzey\'de yaz uzun sürer.'
   ]},
   uzunGunduz:{ico:'🌅',head:'En Uzun Gündüz',highlight:'eksen',minLevel:1,jumpTo:180,t:[
     '',
     'Kuzey Yarımküre\'de <b>21 Haziran</b> en uzun gündüzdür; Güneş uzun süre gökyüzünde kalır.',
     '21 Haziran Kuzey Yarımküre\'nin en uzun gündüzü; enlem arttıkça gündüz daha da uzar.',
     'En uzun gündüz enleme bağlıdır: 21 Haziran\'da Kuzey\'de enlem arttıkça gündüz uzar, kutupta 24 saat.',
-    'KPSS: 21 Haziran Kuzey\'de en uzun gündüz; Kutup Dairesi\'nde (66.5°) gündüz 24 saate ulaşır.'
+    'Sınav ipucu: 21 Haziran Kuzey\'de en uzun gündüz; Kutup Dairesi\'nde (66.5°) gündüz 24 saate ulaşır.'
   ]},
   uzunGece:{ico:'🌃',head:'En Uzun Gece',highlight:'eksen',minLevel:1,jumpTo:0,t:[
     '',
     'Kuzey Yarımküre\'de <b>21 Aralık</b> en uzun gecedir; gündüz çok kısa olur.',
     '21 Aralık Kuzey Yarımküre\'nin en uzun gecesi; enlem arttıkça gece daha da uzar.',
     'En uzun gece: 21 Aralık\'ta Kuzey\'de enlem arttıkça gece uzar, Kutup Dairesi\'nde 24 saat.',
-    'KPSS: 21 Aralık Kuzey\'de en uzun gece; aynı tarihte Güney Yarımküre en uzun gündüzü yaşar.'
+    'Sınav ipucu: 21 Aralık Kuzey\'de en uzun gece; aynı tarihte Güney Yarımküre en uzun gündüzü yaşar.'
   ]},
   ekinoks:{ico:'⚖️',head:'Ekinoks (Eşitlik)',highlight:'ekvator',minLevel:1,t:[
     '',
     'Gece ile gündüzün <b>eşit olduğu</b> günlerdir: 21 Mart ve 23 Eylül.',
     'Ekinoks: ışınların Ekvator\'a dik geldiği, tüm Dünya\'da gece-gündüzün eşit olduğu 2 gün.',
     'Ekinokslarda aydınlanma çemberi kutuplardan geçer; her enlemde 12 saat gündüz.',
-    'KPSS: Ekinoks (21 Mart, 23 Eylül) — gece-gündüz her yerde eşit, aydınlanma çemberi kutuplara teğet, ışın Ekvator\'a dik.'
+    'Sınav ipucu: Ekinoks (21 Mart, 23 Eylül) — gece-gündüz her yerde eşit, aydınlanma çemberi kutuplara teğet, ışın Ekvator\'a dik.'
   ]},
   isinAci:{ico:'📐',head:'Güneş Işınlarının Açısı',highlight:'ekvator',minLevel:1,t:[
     '',
     'Işınlar bir yere <b>dik gelirse</b> orası çok ısınır, <b>yan gelirse</b> az ısınır.',
     'Işın geliş açısı büyüdükçe (dike yaklaştıkça) birim alana düşen enerji artar → sıcaklık artar.',
     'Dik ışın → dar alana yoğun enerji → fazla ısınma. Eğik ışın → geniş alana yayılır → az ısınma.',
-    'KPSS: Işın açısı enleme, tarihe, günün saatine ve bakı yönüne bağlı. Dik ışın = küçük gölge = fazla ısınma.'
+    'Sınav ipucu: Işın açısı enleme, tarihe, günün saatine ve bakı yönüne bağlı. Dik ışın = küçük gölge = fazla ısınma.'
   ]},
   donenceler:{ico:'📏',head:'Dönenceler',highlight:'ekvator',minLevel:2,t:[
     '','',
     'Güneş ışınlarının dik geldiği <b>en kuzey ve en güney</b> noktalardır: 23.5° enlemleri.',
     'Yengeç Dönencesi (23.5°K) ve Oğlak Dönencesi (23.5°G) — ışınların dik gelebildiği son enlemler.',
-    'KPSS: Dönenceler 23.5° enlemde; ışın yılda 1 kez dik gelir. Aralarındaki kuşakta (Tropikal) ışın yılda 2 kez dik.'
+    'Sınav ipucu: Dönenceler 23.5° enlemde; ışın yılda 1 kez dik gelir. Aralarındaki kuşakta (Tropikal) ışın yılda 2 kez dik.'
   ]},
   kutupDaire:{ico:'🧭',head:'Kutup Daireleri',highlight:'kutup',minLevel:2,t:[
     '','',
     '<b>66.5°</b> enlemlerdir; bu çizgilerden sonra 24 saatlik gündüz/gece görülebilir.',
     'Kutup Daireleri (66.5°) — kutup gündüzü ve kutup gecesinin başladığı enlemler.',
-    'KPSS: 66.5° Kutup Daireleri. Bu enlemde yılda 1 kez 24 saat gündüz / 24 saat gece görülür; kutba gidildikçe süre uzar.'
+    'Sınav ipucu: 66.5° Kutup Daireleri. Bu enlemde yılda 1 kez 24 saat gündüz / 24 saat gece görülür; kutba gidildikçe süre uzar.'
   ]},
   cizgiselHiz:{ico:'💨',head:'Çizgisel Hız',highlight:'ekvator',minLevel:2,t:[
     '','',
     'Dünya dönerken Ekvator\'daki bir nokta, kutuptaki noktadan <b>daha hızlı</b> yol alır.',
     'Çizgisel hız Ekvator\'da en yüksek (~1670 km/s), kutuplara doğru azalır, kutupta sıfırdır.',
-    'KPSS: Çizgisel hız enleme bağlı — Ekvator\'da maksimum, kutupta sıfır. <b>Açısal hız</b> ise her yerde eşittir.'
+    'Sınav ipucu: Çizgisel hız enleme bağlı — Ekvator\'da maksimum, kutupta sıfır. <b>Açısal hız</b> ise her yerde eşittir.'
   ]},
   aydinlanmaCember:{ico:'🌓',head:'Aydınlanma Çemberi',highlight:'dunya',minLevel:2,t:[
     '','',
     'Dünya\'nın <b>aydınlık ve karanlık</b> yarısını ayıran sınır çizgisidir.',
     'Aydınlanma çemberi gece ile gündüzü ayırır; eksen eğikliği nedeniyle kutuplardan geçmez (ekinokslar hariç).',
-    'KPSS: Aydınlanma çemberi ekinokslarda kutuplara teğet, gündönümlerinde Kutup Dairelerine teğet geçer.'
+    'Sınav ipucu: Aydınlanma çemberi ekinokslarda kutuplara teğet, gündönümlerinde Kutup Dairelerine teğet geçer.'
   ]},
   meridyen:{ico:'📏',head:'Meridyenler',highlight:'meridyen',minLevel:0,t:[
     'Meridyenler, Kuzey Kutbu ile Güney Kutbu arasında uzanan <b>hayali pembe çizgilerdir</b>. Toplam <b>360 tanedir</b> ve hepsi birbirine eşit uzunluktadır.',
@@ -2534,15 +2835,15 @@ const CONCEPTS={
       'Tarih Değiştirme Çizgisi 180° meridyeni — doğudan batıya geçen 1 gün kazanır (cuma → cumartesi), batıdan doğuya geçen 1 gün kaybeder (cumartesi → cuma).',
       'Türkiye 26°-45°D arası, ortak saat 45° (UTC+3). Edirne-Iğdır arası boylam farkı 19° → 76 dakika fark; ama herkes saat 12:00\'da öğle vakti gibi davranır.',
       'Meridyen boyları eşit (yarım çember), aralarındaki mesafe ekvatorda maksimum (~111 km) → kutuplara doğru sıfıra azalır. Bu paralellerden farkıdır.',
-      'KPSS klasiği: İki şehrin <b>boylam farkını bul → 4 ile çarp → doğudaki ileri yazıp ekle</b>. Aynı meridyen üzerinde olanlar aynı yerel saati paylaşır.'
+      'Sınav klasiği: İki şehrin <b>boylam farkını bul → 4 ile çarp → doğudaki ileri yazıp ekle</b>. Aynı meridyen üzerinde olanlar aynı yerel saati paylaşır.'
     ],
     [
       'Yerel saat formülü: <b>fark = (boylam farkı) × 4 dakika</b>. Dakika cinsinden çıkar, 60\'a böl → saate çevir. Doğusu ileri, batısı geridir.',
-      'Doğudaki ileri kuralı KPSS\'de sürekli sorulur: A şehri B\'nin doğusundaysa A\'da saat ileri (B\'ye saatten dakika ekle); batıdaysa A\'da saat geri (B\'den dakika çıkar).',
+      'Doğudaki ileri kuralı Sınav\'de sürekli sorulur: A şehri B\'nin doğusundaysa A\'da saat ileri (B\'ye saatten dakika ekle); batıdaysa A\'da saat geri (B\'den dakika çıkar).',
       'Tarih Değiştirme Çizgisi <b>180° meridyeni</b>: doğusundan batısına geçince <b>1 gün kazanılır</b> (gün ileri); batısından doğusuna geçince 1 gün kaybedilir.',
       'Meridyen özellikleri: 360 adet, hepsi yarım çember (eşit boy), kutuplarda birleşir, aralarındaki mesafe ekvatorda max → kutuplara doğru 0. Paralellerle karıştırılmaz.',
       'Türkiye 26°-45°D; ortak saat boylamı <b>45°</b> (UTC+3). En doğu-batı arası 19° → 76 dakika yerel saat farkı. Yaz saati uygulaması bu farkı değiştirmez.',
-      'KPSS tuzakları: (1) Aynı meridyen ≠ aynı iklim (enlem farklı). (2) Aynı paralel ≠ aynı yerel saat (boylam farklı). <b>Boylam saati, enlem iklimi belirler.</b>'
+      'Sınav tuzakları: (1) Aynı meridyen ≠ aynı iklim (enlem farklı). (2) Aynı paralel ≠ aynı yerel saat (boylam farklı). <b>Boylam saati, enlem iklimi belirler.</b>'
     ]
   ]},
   paralel:{ico:'➖',head:'Paraleller',highlight:'paralel',minLevel:0,t:[
@@ -2582,12 +2883,12 @@ const CONCEPTS={
       'Önemli paraleller ezberi: 0° Ekvator, 23.5° Yengeç/Oğlak Dönenceleri, 66.5° Kutup Daireleri, 90° Kutup Noktaları. Bu derecelerin her birinin özel anlamı vardır.'
     ],
     [
-      'Ardışık 2 paralel arası mesafe ~<b>111 km sabit</b> — Dünya çevresi / 360 = 40.000 / 360 ≈ 111 km. Türkiye sınırından KPSS sorusu sıkça gelir.',
+      'Ardışık 2 paralel arası mesafe ~<b>111 km sabit</b> — Dünya çevresi / 360 = 40.000 / 360 ≈ 111 km. Türkiye sınırından Sınav sorusu sıkça gelir.',
       'Çizgisel hız ekvatorda ~1670 km/saat (max), kutupta 0. Açısal hız her yerde 15°/saat. Yer çekimi: kutupta max (geoit), ekvatorda min.',
       'Önemli paraleller: <b>Ekvator (0°)</b>, Yengeç (23.5°K, 21 Haziran dik), Oğlak (23.5°G, 21 Aralık dik), Kutup Daireleri (66.5°, kutup gündüzü/gecesi başlar), Kutup Noktaları (90°).',
       'Türkiye 36°-42°K paralelleri arası → orta kuşak iklimi; 4 mevsim belirgin, en uzun gündüz ~15 saat, en kısa ~9 saat civarı.',
-      'KPSS klasiği: <b>aynı paralel</b> → aynı gündüz, aynı ışın açısı, aynı çizgisel hız. <b>Aynı meridyen</b> → aynı yerel saat ama farklı enlem farklı iklim verebilir.',
-      'KPSS tuzakları: (1) "Aynı enlemde 2 nokta arasında saat farkı vardır" → YANLIŞ (boylam saati belirler). (2) Paraleller kutuplarda birleşmez (meridyenlerle karıştırma).'
+      'Sınav klasiği: <b>aynı paralel</b> → aynı gündüz, aynı ışın açısı, aynı çizgisel hız. <b>Aynı meridyen</b> → aynı yerel saat ama farklı enlem farklı iklim verebilir.',
+      'Sınav tuzakları: (1) "Aynı enlemde 2 nokta arasında saat farkı vardır" → YANLIŞ (boylam saati belirler). (2) Paraleller kutuplarda birleşmez (meridyenlerle karıştırma).'
     ]
   ]},
   kis:{ico:'❄️',head:'Kış',highlight:'eksen',minLevel:0,jumpTo:0,t:[
@@ -2595,7 +2896,7 @@ const CONCEPTS={
     'Kuzey Yarımküre\'de <b>21 Aralık - 21 Mart</b> arası yaşanır. Güneş ışınları daha eğik gelir, hava soğur, gündüzler kısalır.',
     'Kuzey Yarımküre\'de kış, Güneş\'in en güneyde göründüğü dönemdir. Işın açısı küçük, gündüz süresi kısa, gölgeler en uzun olur.',
     'Kuzey\'de kış: ışın açısı küçük, gündüz kısa, sıcaklık düşük. Güney\'de aynı anda <b>yaz</b> yaşanır — mevsimler her zaman terstir.',
-    'KPSS: Kuzey\'in kışı 21 Aralık\'ta başlar; ışınlar <b>Oğlak Dönencesi (23.5°G)</b>\'ne dik gelir. En uzun gece kuzeyde, en uzun gündüz güneyde.'
+    'Sınav ipucu: Kuzey\'in kışı 21 Aralık\'ta başlar; ışınlar <b>Oğlak Dönencesi (23.5°G)</b>\'ne dik gelir. En uzun gece kuzeyde, en uzun gündüz güneyde.'
   ],more:[
     [
       'Kış aylarında gündüz çok kısadır — bazen güneş daha 4-5 saat yukarıda kalır.',
@@ -2624,9 +2925,9 @@ const CONCEPTS={
     [
       '21 Aralık <b>kış gündönümü</b>: ışınlar Oğlak Dönencesi\'ne dik. Kuzey\'de en uzun gece, en kısa gündüz; Güney\'de tersi.',
       'Aydınlanma çemberi 21 Aralık\'ta Kuzey Kutup Dairesi\'ne teğet → 66.5°K kuzeyinde 24 saat gece, 66.5°G güneyinde 24 saat gündüz.',
-      'KPSS klasiği: Kuzey kışı (21 Aralık - 21 Mart) ~89 gün; Kuzey yazı (21 Haziran - 23 Eylül) ~93 gün. <b>Kuzey kışı daha kısadır</b> — Günberi yakınlığı.',
+      'Sınav klasiği: Kuzey kışı (21 Aralık - 21 Mart) ~89 gün; Kuzey yazı (21 Haziran - 23 Eylül) ~93 gün. <b>Kuzey kışı daha kısadır</b> — Günberi yakınlığı.',
       'Kuzey\'de kış başlangıcında Güney\'de yaz gündönümü; Güney Kutbu\'nda 6 aylık gündüzün ortası, Kuzey Kutbu\'nda 6 aylık gecenin ortası.',
-      '3 Ocak Günberi: Dünya Güneş\'e <b>en yakın</b> ama Kuzey kıştadır. Bu KPSS tuzağı — mevsim sebebi mesafe DEĞİL, eksen eğikliğidir.',
+      '3 Ocak Günberi: Dünya Güneş\'e <b>en yakın</b> ama Kuzey kıştadır. Bu Sınav tuzağı — mevsim sebebi mesafe DEĞİL, eksen eğikliğidir.',
       'Türkiye orta kuşak (36°-42°K) kışı: ılımlı, Karadeniz/Doğu Anadolu sert; iç kesimde karasal, kıyıda Akdeniz/Karadeniz ılıman.'
     ]
   ]},
@@ -2635,7 +2936,7 @@ const CONCEPTS={
     'Kuzey Yarımküre\'de <b>21 Mart - 21 Haziran</b> arası yaşanır. Güneş ışınları daha dik gelmeye başlar, gündüzler uzar.',
     '21 Mart <b>ekinoksu</b> ile başlar. Işın açısı büyür, gündüz süresi sürekli artar, hava ısınır.',
     'İlkbahar, kıştan yaza geçiş dönemidir. <b>21 Mart ekinoksunda</b> gece ve gündüz tüm Dünya\'da eşitlenir (12\'şer saat).',
-    'KPSS: Kuzey\'de ilkbahar 21 Mart - 21 Haziran arası; ışınlar Ekvator\'dan Yengeç Dönencesi\'ne doğru kayar. Gündüz süresi artar, ışın açısı dikleşir.'
+    'Sınav ipucu: Kuzey\'de ilkbahar 21 Mart - 21 Haziran arası; ışınlar Ekvator\'dan Yengeç Dönencesi\'ne doğru kayar. Gündüz süresi artar, ışın açısı dikleşir.'
   ],more:[
     [
       'İlkbaharda her şey canlanır: ağaçlar yeşillenir, çiçekler açar, kuşlar şarkı söyler.',
@@ -2665,10 +2966,10 @@ const CONCEPTS={
     [
       '21 Mart <b>ilkbahar ekinoksu</b>: ışın Ekvator\'a dik (90° tepe açısı), gece-gündüz tüm Dünya\'da 12\'şer saat eşit.',
       'Aydınlanma çemberi 21 Mart\'ta her iki kutba <b>teğet</b> → her enlem 12 saat aydınlık alır. 23 Eylül ekinoksu da aynı.',
-      'KPSS klasiği: ekinokslar (21 Mart, 23 Eylül) yılın tek "gece=gündüz" anlarıdır. Sadece ekvator için her gün böyledir.',
+      'Sınav klasiği: ekinokslar (21 Mart, 23 Eylül) yılın tek "gece=gündüz" anlarıdır. Sadece ekvator için her gün böyledir.',
       'Kuzey ilkbaharı (~92 gün): Güneş Ekvator → Yengeç Dönencesi arası kayar; gündüz uzar, ışın açısı dikleşir.',
       'Aynı anda Güney Yarımküre\'de sonbahar yaşanır; mevsimler iki yarımkürede daima zıttır.',
-      'KPSS tuzağı: "İlkbahar ekinoksunda her yerde 12 saat gündüz" → DOĞRU, sadece kutup noktasında belirsizlik vardır (Güneş ufukta).'
+      'Sınav tuzağı: "İlkbahar ekinoksunda her yerde 12 saat gündüz" → DOĞRU, sadece kutup noktasında belirsizlik vardır (Güneş ufukta).'
     ]
   ]},
   yaz:{ico:'☀️',head:'Yaz',highlight:'eksen',minLevel:0,jumpTo:180,t:[
@@ -2676,7 +2977,7 @@ const CONCEPTS={
     'Kuzey Yarımküre\'de <b>21 Haziran - 23 Eylül</b> arası yaşanır. Güneş ışınları dik gelir, hava ısınır, gündüzler uzar.',
     'Kuzey\'de yaz Güneş\'in en kuzeyde göründüğü dönemdir. Işın açısı büyük, gündüzler uzun, geceler kısa.',
     'Kuzey\'de yaz: ışın açısı büyük, gündüz uzun, sıcaklık yüksek. Güney\'de aynı anda <b>kış</b> yaşanır.',
-    'KPSS: Kuzey\'in yazı 21 Haziran\'da başlar; ışınlar <b>Yengeç Dönencesi (23.5°K)</b>\'ne dik gelir. En uzun gündüz kuzeyde, en uzun gece güneyde.'
+    'Sınav ipucu: Kuzey\'in yazı 21 Haziran\'da başlar; ışınlar <b>Yengeç Dönencesi (23.5°K)</b>\'ne dik gelir. En uzun gündüz kuzeyde, en uzun gece güneyde.'
   ],more:[
     [
       'Yazın güneş gökyüzünde yüksekte parlar; bu yüzden bizi çok ısıtır.',
@@ -2706,9 +3007,9 @@ const CONCEPTS={
     [
       '21 Haziran <b>yaz gündönümü</b>: ışınlar Yengeç Dönencesi\'ne (23.5°K) dik. Kuzey\'de en uzun gündüz, en kısa gece; Güney\'de tersi.',
       'Aydınlanma çemberi Güney Kutup Dairesi\'ne teğet; 66.5°K kuzeyinde 24 saat aydınlık, 66.5°G güneyinde 24 saat karanlık.',
-      'KPSS klasiği: Kuzey yazı (21 Haziran - 23 Eylül) ~93 gün; Kuzey kışı (21 Aralık - 21 Mart) ~89 gün. <b>Kuzey yazı daha uzundur</b> — Günöte\'de yavaş hareket.',
+      'Sınav klasiği: Kuzey yazı (21 Haziran - 23 Eylül) ~93 gün; Kuzey kışı (21 Aralık - 21 Mart) ~89 gün. <b>Kuzey yazı daha uzundur</b> — Günöte\'de yavaş hareket.',
       'Kuzey yarımküre yaz başlangıcında Güney\'de kış gündönümü. Kuzey Kutbu\'nda 6 aylık gündüzün ortası, Güney Kutbu\'nda 6 aylık gecenin ortası.',
-      '4 Temmuz Günöte: Dünya Güneş\'ten <b>en uzak</b> ama Kuzey yazdadır. Bu KPSS tuzağı — mevsim sebebi mesafe DEĞİL, eksen eğikliği.',
+      '4 Temmuz Günöte: Dünya Güneş\'ten <b>en uzak</b> ama Kuzey yazdadır. Bu Sınav tuzağı — mevsim sebebi mesafe DEĞİL, eksen eğikliği.',
       'Türkiye orta kuşak yazı: Akdeniz/Ege sıcak-kurak, iç bölge karasal sıcak-kurak, Karadeniz ılıman-yağışlı. Yaz mevsimi turizm yoğun dönem.'
     ]
   ]},
@@ -2717,7 +3018,7 @@ const CONCEPTS={
     'Kuzey Yarımküre\'de <b>23 Eylül - 21 Aralık</b> arası yaşanır. Güneş ışınları eğikleşir, gündüzler kısalır, hava soğur.',
     '<b>23 Eylül ekinoksu</b> ile başlar. Işın açısı küçülür, gündüz süresi sürekli azalır, hava serinler.',
     'Sonbahar, yazdan kışa geçiş dönemidir. 23 Eylül ekinoksunda gece-gündüz tüm Dünya\'da eşitlenir (12\'şer saat).',
-    'KPSS: Kuzey\'de sonbahar 23 Eylül - 21 Aralık. Bu dönemde gündüz süresi sürekli azalır, ışın açısı eğilir; Güneş Ekvator\'dan Oğlak Dönencesi\'ne kayar.'
+    'Sınav ipucu: Kuzey\'de sonbahar 23 Eylül - 21 Aralık. Bu dönemde gündüz süresi sürekli azalır, ışın açısı eğilir; Güneş Ekvator\'dan Oğlak Dönencesi\'ne kayar.'
   ],more:[
     [
       'Sonbaharda yapraklar sararır, kızarır, sonra düşer — doğa kışa hazırlanır.',
@@ -2747,10 +3048,10 @@ const CONCEPTS={
     [
       '23 Eylül <b>sonbahar ekinoksu</b>: ışın Ekvator\'a dik (90° tepe açısı), gece-gündüz tüm Dünya\'da 12\'şer saat eşit.',
       'Aydınlanma çemberi 23 Eylül\'de her iki kutba <b>teğet</b> → her enlem 12 saat aydınlık alır. 21 Mart ekinoksu ile aynı.',
-      'KPSS klasiği: ekinokslar (21 Mart, 23 Eylül) yılın tek "gece=gündüz" anlarıdır. Aydınlanma çemberi kutuplara teğet geçer.',
+      'Sınav klasiği: ekinokslar (21 Mart, 23 Eylül) yılın tek "gece=gündüz" anlarıdır. Aydınlanma çemberi kutuplara teğet geçer.',
       'Kuzey sonbaharı (~90 gün): Güneş Ekvator → Oğlak Dönencesi arası kayar; gündüz kısalır, ışın açısı eğilir.',
       'Aynı anda Güney Yarımküre\'de ilkbahar yaşanır; mevsimler iki yarımkürede daima zıttır.',
-      'KPSS tuzağı: "Ekinokslar yörüngenin elips olmasıyla ilgilidir" → YANLIŞ. Ekinokslar eksen eğikliğinden kaynaklanır; mesafe ile alakası yok.'
+      'Sınav tuzağı: "Ekinokslar yörüngenin elips olmasıyla ilgilidir" → YANLIŞ. Ekinokslar eksen eğikliğinden kaynaklanır; mesafe ile alakası yok.'
     ]
   ]}
 };
@@ -2858,14 +3159,27 @@ function updateInfoScrollbar() {
 
 // ============== SCENE STATE & DEĞİŞKENLER SEKMESİ ==============
 window._sceneState = { _displayUpdaters: [] };
+// Tüm kontroller alta indiği için 3D modeli SABİT miktarda YUKARI kaydırırız (dock ile çakışmasın)
+window._sceneShift = { cur: 0, target: 0 };
+// Değişkenler sliders paneli, alttaki sekmelerin HEMEN ÜSTÜNDE açılır (yukarı doğru)
 function positionVarsBody() {
-  const t = document.getElementById('sceneToggle');
+  // Alt araç satırının (küçük sekmeler) HEMEN ÜSTÜNDE aç → her zaman görünür bir çıpaya sabitle
+  const tools = document.getElementById('toolsRow');
   const b = document.getElementById('sceneVarsBody');
-  if (t && b && !b.classList.contains('closed')) {
-    b.style.top = Math.round(t.getBoundingClientRect().bottom + 6) + 'px';
+  if (tools && b && !b.classList.contains('closed')) {
+    const r = tools.getBoundingClientRect();
+    b.style.top = 'auto';
+    b.style.bottom = Math.round(window.innerHeight - r.top + 8) + 'px';
   }
 }
 window.positionVarsBody = positionVarsBody;
+// 3D modeli yukarı kaydırma miktarı = alt dock yüksekliğinin bir kısmı (sabit)
+function updateSceneShiftTarget() {
+  const dock = document.getElementById('bottomDock');
+  const h = dock ? dock.getBoundingClientRect().height : 0;
+  window._sceneShift.target = Math.min(Math.round(h * 0.5), Math.round(window.innerHeight * 0.24));
+}
+window.updateSceneShiftTarget = updateSceneShiftTarget;
 function setSceneSliders(items, opts = {}) {
   const row = document.getElementById('stackRow');
   const bodyPanel = document.getElementById('sceneVarsBody');
@@ -2877,19 +3191,29 @@ function setSceneSliders(items, opts = {}) {
   toggle.id = 'sceneToggle';
   toggle.className = 'sp-toggle';
   toggle.innerHTML = `<span class="sb-emoji">🎛️</span><span class="sb-label">Değişkenler</span><span class="sp-chev">▼</span>`;
-  row.insertBefore(toggle, document.getElementById('btnTopic'));
+  row.appendChild(toggle); // Değişkenler en sağda (Konu Rehberi'nin sağında)
   const body = bodyPanel;
   const _chev = toggle.querySelector('.sp-chev');
   function setSceneOpen(open) {
     bodyPanel.classList.toggle('closed', !open);
     if (_chev) _chev.textContent = open ? '▲' : '▼';
-    if (open) positionVarsBody();
+    const bp = document.getElementById('bottomPanel');
+    const mp = document.getElementById('menuPop');
+    // Değişkenler açılınca: Ders Ayarları menüsü + bilgi paneli kapanır.
+    if (open) { positionVarsBody(); if (bp) bp.classList.add('vars-hidden'); if (mp) mp.classList.remove('show'); closeActionPop(); }
+    else { if (bp) bp.classList.remove('vars-hidden'); }
   }
   window._setSceneOpen = setSceneOpen;
   toggle.onclick = () => {
     setSceneOpen(bodyPanel.classList.contains('closed'));
     if (window._haptic) window._haptic(10);
   };
+  // Değişkenler tablosunun sağ üstünde kapatma (✕) — basınca Değişkenler kapanır
+  const _vh = document.createElement('div');
+  _vh.className = 'scene-vars-head';
+  _vh.innerHTML = '<span class="svh-title">🎛️ Değişkenler</span><button class="scene-vars-close" title="Kapat">✕</button>';
+  _vh.querySelector('.scene-vars-close').onclick = () => setSceneOpen(false);
+  body.appendChild(_vh);
   items.forEach(item => {
     if (item.type === 'section') {
       const t = document.createElement('div');
@@ -2974,8 +3298,7 @@ function setSceneSliders(items, opts = {}) {
       body.appendChild(r);
     }
   });
-  bodyPanel.classList.add('closed');
-  if (_chev) _chev.textContent = '▼';
+  setSceneOpen(false);
 }
 function _updateSceneDisplays() {
   if (window._sceneState && window._sceneState._displayUpdaters) {
@@ -3017,7 +3340,7 @@ function buildTopicDropdown(){
 function setLevel(idx){
   curLevel=idx;
   const lv=LEVELS[idx];
-  const shortMap=['İlkokul','Ortaokul','Lise','TYT/AYT','KPSS'];
+  const shortMap=['İlkokul','Ortaokul','Lise','Sınav Hazırlık','Üniversite'];
   document.getElementById('levelLabel').textContent=shortMap[idx];
   document.getElementById('btnLevel').querySelector('.sb-emoji').textContent=lv.emoji;
   document.querySelectorAll('#panelLevel .dropdown-item').forEach(b=>
@@ -3032,11 +3355,39 @@ document.querySelectorAll('#panelLevel .dropdown-item').forEach(btn=>{
 });
 
 // ============== DROPDOWN AÇ/KAPA ==============
+// Açılan paneli tetikleyen butonun ALTINA hizala (sekmeler artık sol üstte yatay sıra)
+const _PANEL_BTN={ panelLevel:'btnLevel', panelTopic:'btnTopic', panelMode:'btnMode' };
+function positionDropdownUnder(panelId){
+  const panel=document.getElementById(panelId);
+  const btn=document.getElementById(_PANEL_BTN[panelId]);
+  if(!panel||!btn) return;
+  const r=btn.getBoundingClientRect();
+  const w=panel.offsetWidth||240;
+  const h=panel.offsetHeight||240;
+  let left=Math.round(r.left);
+  left=Math.max(6, Math.min(left, window.innerWidth-w-6)); // ekran dışına taşma
+  panel.style.left=left+'px';
+  panel.style.right='auto';
+  // Seviye/Konu (Ders Ayarları menüsünden açılır): alt araç satırının HEMEN ÜSTÜNDE başlasın.
+  const tools=document.getElementById('toolsRow');
+  if(tools && (panelId==='panelLevel' || panelId==='panelTopic')){
+    const tr=tools.getBoundingClientRect();
+    panel.style.top=Math.max(6, Math.round(tr.top - h - 8))+'px';
+  } else {
+    // Diğerleri (Görünüm Modu): tetikleyen butonun üstünde açılır
+    panel.style.top=Math.max(6, Math.round(r.top-h-6))+'px';
+  }
+}
 function toggleDropdown(panelId){
   ['panelLevel','panelTopic','panelMode'].forEach(p=>{
     const el=document.getElementById(p); if(!el) return;
     if(p===panelId) el.classList.toggle('show'); else el.classList.remove('show');
   });
+  if(document.getElementById(panelId).classList.contains('show')){
+    positionDropdownUnder(panelId);
+    // Seviye/Konu dropdown'ı açılınca Ders Ayarları menüsü kaybolsun
+    const mp=document.getElementById('menuPop'); if(mp) mp.classList.remove('show');
+  }
 }
 document.getElementById('btnLevel').onclick=()=>toggleDropdown('panelLevel');
 document.getElementById('btnTopic').onclick=()=>{ buildTopicDropdown(); toggleDropdown('panelTopic'); };
@@ -3052,7 +3403,7 @@ document.getElementById('btnMode').onclick=(e)=>{
   const panel=document.getElementById('panelMode');
   const wasShown=panel.classList.contains('show');
   document.querySelectorAll('.dropdown-panel').forEach(p=>p.classList.remove('show'));
-  if(!wasShown) panel.classList.add('show');
+  if(!wasShown){ panel.classList.add('show'); positionDropdownUnder('panelMode'); }
 };
 document.querySelectorAll('#panelMode .dropdown-item').forEach(btn=>{
   btn.onclick=()=>{
@@ -3082,29 +3433,388 @@ document.getElementById('btnHelp').onclick=()=>{ document.getElementById('helpOv
 document.getElementById('helpClose').onclick=()=>document.getElementById('helpOverlay').classList.remove('show');
 document.getElementById('helpOverlay').onclick=(e)=>{ if(e.target.id==='helpOverlay') document.getElementById('helpOverlay').classList.remove('show'); };
 
-document.getElementById('btnSend').onclick=()=>document.getElementById('shareOverlay').classList.add('show');
-document.getElementById('shareClose').onclick=()=>document.getElementById('shareOverlay').classList.remove('show');
-document.getElementById('shareOverlay').onclick=(e)=>{ if(e.target.id==='shareOverlay') document.getElementById('shareOverlay').classList.remove('show'); };
-document.getElementById('shareWhatsApp').onclick=()=>{
+// ============== RENK PALETİ (Konu Özeti sayfasıyla AYNI 24 renk + mantık) ==============
+// Hedef seç (Arka plan / Panel / Yazı) → renge bas → o hedefe uygulanır.
+const PALETTE_COLORS=[
+  '#FFFFFF','#F3F4F6','#D1D5DB','#9CA3AF','#0F172A','#FFEFD5',
+  '#FFD1DC','#FCA5A5','#FF6A00','#C8102E','#DB2777','#FBBF24',
+  '#DCFCE7','#86EFAC','#10B981','#E0F2FE','#22D3EE','#2563EB',
+  '#E9D5FF','#A855F7','#7C3AED','#F5F5DC','#D4A373','#92400E'
+];
+let _palTarget='bg'; // 'bg' = 3D arka plan, 'panel' = bilgi paneli, 'text' = yazı
+// Bir rengin parlaklığına göre okunur (kontrast) yazı rengi seç
+function _contrastInk(hex){
+  const h=String(hex).replace('#','');
+  if(h.length<6) return '#f4f6ff';
+  const r=parseInt(h.substr(0,2),16), g=parseInt(h.substr(2,2),16), b=parseInt(h.substr(4,2),16);
+  const lum=0.299*r+0.587*g+0.114*b;     // 0=koyu, 255=açık
+  return lum>140 ? '#10131f' : '#f4f6ff'; // açık zemin→koyu yazı, koyu zemin→açık yazı
+}
+// Renk tercihlerini kalıcı sakla (uygulamadan çıkıp girince de korunur)
+const _PAL_KEY='dunya_palette_v1';
+const _palState={};
+function _savePalette(){ try{ localStorage.setItem(_PAL_KEY, JSON.stringify(_palState)); }catch(e){} }
+const _PAL_TARGETS=['bg','sceneTitle','labels','panel','panelTitle','panelText'];
+function _loadPalette(){
+  try{
+    const raw=localStorage.getItem(_PAL_KEY); if(!raw) return;
+    const o=JSON.parse(raw);
+    // Geriye dönük: eski 'text' hedefi → 'panelText'
+    if(o.text && !o.panelText){ o.panelText=o.text; delete o.text; }
+    _PAL_TARGETS.forEach(k=>{ if(o[k]) applyPaletteColor(k, o[k], true); });
+  }catch(e){}
+}
+// Etiket + panel yazıları için dinamik !important CSS (per-element renkleri ezer)
+function _palStyleEl(){
+  let s=document.getElementById('palDynStyle');
+  if(!s){ s=document.createElement('style'); s.id='palDynStyle'; document.head.appendChild(s); }
+  return s;
+}
+function _applyPalCss(){
+  let css='';
+  if(_palState.labels){ css+='.label3d .txt{color:'+_palState.labels+'!important;border-color:'+_palState.labels+'!important;}'; }
+  if(_palState.panelText){ css+='#infoList li,#infoList li b,#infoList li.subhead,#infoList li.subhead2{color:'+_palState.panelText+'!important;}'; }
+  _palStyleEl().textContent=css;
+}
+// 6 hedef: Arka plan / Başlık (sahne) / Etiketler — Bilgi paneli / Başlık yazısı / Yazılar.
+// Global değişkenlere DOKUNMAZ → palet penceresi ve alt sekmeler hiç etkilenmez.
+function applyPaletteColor(target, c, _skipSave){
+  const bp=document.getElementById('bottomPanel');
+  if(target==='bg'){
+    if(typeof scene!=='undefined' && scene){ scene.background=new THREE.Color(c); }
+  } else if(target==='sceneTitle'){
+    const t=document.getElementById('sceneMainTitle'); if(t) t.style.setProperty('color', c, 'important');
+  } else if(target==='labels'){
+    _palState.labels=c; _applyPalCss();
+  } else if(target==='panel'){
+    if(bp){
+      bp.style.background=c;
+      // Panel rengi değişince yazı otomatik okunur kontrasta geçsin
+      bp.style.setProperty('--info-ink', _contrastInk(c));
+    }
+  } else if(target==='panelTitle'){
+    const t=document.getElementById('infoTitle'); if(t) t.style.setProperty('color', c, 'important');
+  } else if(target==='panelText'){
+    _palState.panelText=c; _applyPalCss();
+  }
+  _palState[target]=c;
+  if(!_skipSave) _savePalette();
+}
+function resetPalette(){
+  const bp=document.getElementById('bottomPanel');
+  if(typeof scene!=='undefined' && scene){ scene.background=new THREE.Color('#0a0e1a'); }
+  if(bp){ bp.style.background=''; bp.style.removeProperty('--info-ink'); }
+  const st=document.getElementById('sceneMainTitle'); if(st) st.style.removeProperty('color');
+  const it=document.getElementById('infoTitle'); if(it) it.style.removeProperty('color');
+  Object.keys(_palState).forEach(k=>delete _palState[k]);
+  _applyPalCss();
+  try{ localStorage.removeItem(_PAL_KEY); }catch(e){}
+}
+(function buildPalette(){
+  const grid=document.getElementById('paletteGrid');
+  if(!grid) return;
+  PALETTE_COLORS.forEach(c=>{
+    const b=document.createElement('button');
+    b.className='swatch';
+    b.style.background=c;
+    b.title=c;
+    b.onclick=()=>{ applyPaletteColor(_palTarget, c); if(window._haptic)window._haptic(10); };
+    grid.appendChild(b);
+  });
+  document.querySelectorAll('#palettePop .pal-chip').forEach(chip=>{
+    chip.onclick=()=>{
+      _palTarget=chip.dataset.target;
+      document.querySelectorAll('#palettePop .pal-chip').forEach(x=>x.classList.toggle('active', x===chip));
+      if(window._haptic)window._haptic(8);
+    };
+  });
+  const rst=document.getElementById('paletteReset');
+  if(rst) rst.onclick=()=>{ resetPalette(); if(window._haptic)window._haptic(12); };
+  const clo=document.getElementById('paletteClose');
+  if(clo) clo.onclick=()=>{ document.getElementById('palettePop').classList.remove('show'); if(window._haptic)window._haptic(8); };
+  // Sağ üstteki taşıma butonu ile paleti sürükle-bırak
+  setupPaletteDrag();
+  // Kayıtlı renkleri uygula (uygulamadan çıkıp girince korunur)
+  _loadPalette();
+})();
+// Kullanıcı paleti taşıdıysa konumu hatırla; aksi halde butonun üstüne aç
+let _palettePos=null;
+function setupPaletteDrag(){
+  const pop=document.getElementById('palettePop');
+  const handle=document.getElementById('paletteMove');
+  if(!pop||!handle) return;
+  let dragging=false, sx=0, sy=0, sl=0, st=0;
+  function down(e){
+    dragging=true;
+    const p=e.touches?e.touches[0]:e;
+    const r=pop.getBoundingClientRect();
+    sl=r.left; st=r.top; sx=p.clientX; sy=p.clientY;
+    pop.style.left=sl+'px'; pop.style.top=st+'px';
+    e.preventDefault(); e.stopPropagation();
+  }
+  function move(e){
+    if(!dragging) return;
+    const p=e.touches?e.touches[0]:e;
+    let nl=sl+(p.clientX-sx), nt=st+(p.clientY-sy);
+    nl=Math.max(6, Math.min(nl, window.innerWidth-pop.offsetWidth-6));
+    nt=Math.max(6, Math.min(nt, window.innerHeight-pop.offsetHeight-6));
+    pop.style.left=nl+'px'; pop.style.top=nt+'px';
+    _palettePos={left:nl, top:nt};
+    e.preventDefault();
+  }
+  function up(){ dragging=false; }
+  handle.addEventListener('mousedown',down);
+  window.addEventListener('mousemove',move);
+  window.addEventListener('mouseup',up);
+  handle.addEventListener('touchstart',down,{passive:false});
+  window.addEventListener('touchmove',move,{passive:false});
+  window.addEventListener('touchend',up);
+}
+function positionPaletteUnder(){
+  const pop=document.getElementById('palettePop');
+  const btn=document.getElementById('btnPalette');
+  if(!pop||!btn) return;
+  // Daha önce taşındıysa o konumda aç
+  if(_palettePos){
+    let l=Math.max(6, Math.min(_palettePos.left, window.innerWidth-pop.offsetWidth-6));
+    let t=Math.max(6, Math.min(_palettePos.top, window.innerHeight-pop.offsetHeight-6));
+    pop.style.left=l+'px'; pop.style.top=t+'px'; return;
+  }
+  const r=btn.getBoundingClientRect();
+  const w=pop.offsetWidth||250;
+  const h=pop.offsetHeight||200;
+  let left=Math.round(r.left+r.width/2-w/2);   // buton üstünde ortalı
+  left=Math.max(6, Math.min(left, window.innerWidth-w-6));
+  pop.style.left=left+'px';
+  // Buton altta → palet YUKARI açılır
+  pop.style.top=Math.max(6, Math.round(r.top-h-6))+'px';
+}
+document.getElementById('btnPalette').onclick=(e)=>{
+  e.stopPropagation();
+  const pop=document.getElementById('palettePop');
+  const show=!pop.classList.contains('show');
+  document.querySelectorAll('.dropdown-panel').forEach(p=>p.classList.remove('show'));
+  pop.classList.toggle('show', show);
+  if(show){ positionPaletteUnder(); if(window._haptic)window._haptic(12); }
+};
+document.addEventListener('click',(e)=>{
+  if(!e.target.closest('#palettePop') && !e.target.closest('#btnPalette')){
+    document.getElementById('palettePop').classList.remove('show');
+  }
+});
+
+// ============== MENÜ POPUP (Eğitim Seviyesi · Konu Rehberi · Değişkenler) ==============
+function positionMenuPop(){
+  const pop=document.getElementById('menuPop');
+  const btn=document.getElementById('btnMenu');
+  if(!pop||!btn) return;
+  const r=btn.getBoundingClientRect();
+  const w=pop.offsetWidth||240, h=pop.offsetHeight||200;
+  let left=Math.round(r.right-w);                       // butonla sağ kenara hizalı
+  left=Math.max(6, Math.min(left, window.innerWidth-w-6));
+  pop.style.left=left+'px';
+  pop.style.top=Math.max(6, Math.round(r.top-h-6))+'px'; // yukarı doğru açılır
+}
+window.positionMenuPop=positionMenuPop;
+document.getElementById('btnMenu').onclick=(e)=>{
+  e.stopPropagation();
+  const pop=document.getElementById('menuPop');
+  const show=!pop.classList.contains('show');
+  document.querySelectorAll('.dropdown-panel, .palette-pop').forEach(p=>p.classList.remove('show'));
+  pop.classList.toggle('show', show);
+  if(show){ positionMenuPop(); if(window._haptic)window._haptic(12); }
+};
+document.addEventListener('click',(e)=>{
+  // Menü dışına tıklanınca kapat (içindeki sekmeler ve onların açtığı dropdown'lar hariç)
+  if(!e.target.closest('#menuPop') && !e.target.closest('#btnMenu') && !e.target.closest('.dropdown-panel')){
+    document.getElementById('menuPop').classList.remove('show');
+  }
+});
+
+// ============== SINAV · AI'YA SOR · SESLİ ANLATIM (Flutter köprüsü) ==============
+function _bridge(obj){
+  if(window.FlutterBridge && typeof window.FlutterBridge.postMessage==='function'){
+    try{ window.FlutterBridge.postMessage(JSON.stringify(obj)); return true; }catch(e){}
+  }
+  return false;
+}
+// Bilgi panelindeki okunacak metni topla (konu adı + maddeler)
+function _readableText(){
+  const title=(document.getElementById('infoTitle')||{}).textContent||'';
+  const items=Array.from(document.querySelectorAll('#infoList li')).map(li=>li.textContent.trim()).filter(Boolean);
+  return (title+'. '+items.join('. ')).replace(/\s+/g,' ').trim();
+}
+// Bu dersin sınav/test için ders adı + GENEL konu adı (kütüphanedeki Test Oluştur'a gider)
+const LESSON_SUBJECT='Coğrafya';
+const LESSON_NAME='Dünyanın Şekli ve Hareketi';
+document.getElementById('btnExam').onclick=()=>{
+  // Alt başlık değil, GENEL konu → tüm konuyu kapsayan sorular
+  if(!_bridge({action:'exam', subject:LESSON_SUBJECT, topic:LESSON_NAME}))
+    showToast('📝 Sınav oluşturma uygulamada açılır.');
+  if(window._haptic)window._haptic(12);
+};
+const _AI_LEVEL_NAMES=['İlkokul','Ortaokul','Lise','Sınavlara Hazırlık','Üniversite'];
+document.getElementById('btnAsk').onclick=()=>{
+  const topic=((document.getElementById('infoTitle')||{}).textContent||'').trim();
+  const level=_AI_LEVEL_NAMES[curLevel]||'';
+  if(!_bridge({action:'ai', topic:topic, level:level})) showToast('🤖 AI\'ya Sor uygulamada açılır.');
+  if(window._haptic)window._haptic(12);
+};
+// Sesli anlatım: ilk basışta okur, tekrar basışta durur
+let _ttsOn=false;
+document.getElementById('btnTts').onclick=function(){
+  _ttsOn=!_ttsOn;
+  this.classList.toggle('active',_ttsOn);
+  if(_ttsOn){
+    const txt=_readableText();
+    const sent=_bridge({action:'speak', text:txt});
+    if(!sent){
+      // Web/tarayıcı yedeği
+      try{ if(window.speechSynthesis){ const u=new SpeechSynthesisUtterance(txt); u.lang='tr-TR'; u.rate=0.95; window.speechSynthesis.cancel(); window.speechSynthesis.speak(u); } }catch(e){}
+    }
+  } else {
+    if(!_bridge({action:'stopSpeak'})){ try{ if(window.speechSynthesis) window.speechSynthesis.cancel(); }catch(e){} }
+  }
+  if(window._haptic)window._haptic(10);
+};
+
+// --- Paylaş: ekranın fotoğrafını çek + Flutter köprüsü / native share ---
+let shareCanvas=null;
+const shareOverlay=document.getElementById('shareOverlay');
+function shareFileName(){
+  return 'dunyanin-hareketleri-'+lastConcept+'.png';
+}
+function shareText(){
   const c=CONCEPTS[lastConcept];
-  const text='🌍 3D Dünya\'nın Hareketleri - '+(c?c.head:'')+'\n\nQualsar simülasyonunu inceliyorum!';
-  window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank');
-  document.getElementById('shareOverlay').classList.remove('show');
+  return '🌍 Dünya\'nın Şekli ve Hareketi'+(c?' · '+c.head:'')+' · Qualsar 3D';
+}
+// Ekranda ne varsa (3D sahne + paneller) tek görüntüye çevirir.
+async function captureFullScreen(){
+  renderer.render(scene,camera);
+  let glDataURL=null;
+  try{ glDataURL=renderer.domElement.toDataURL('image/png'); }catch(e){}
+  if(typeof html2canvas!=='function'||!glDataURL){
+    const c=document.createElement('canvas');
+    c.width=renderer.domElement.width; c.height=renderer.domElement.height;
+    c.getContext('2d').drawImage(renderer.domElement,0,0);
+    return c;
+  }
+  try{
+    return await html2canvas(document.body,{
+      backgroundColor:document.body.classList.contains('light-mode')?'#f3f6fb':'#0a0e1a',
+      scale:Math.min(window.devicePixelRatio||1,2),
+      logging:false,
+      useCORS:true,
+      ignoreElements:(el)=>el.classList&&el.classList.contains('share-overlay')||el.id==='gestureToast'||el.id==='loading',
+      onclone:(doc)=>{
+        const cv2=doc.querySelector('#app canvas');
+        if(cv2&&glDataURL){
+          const img=doc.createElement('img');
+          img.src=glDataURL;
+          img.style.cssText=cv2.style.cssText+';width:'+cv2.clientWidth+'px;height:'+cv2.clientHeight+'px;display:block;position:absolute;top:0;left:0;';
+          cv2.parentNode.replaceChild(img,cv2);
+        }
+      }
+    });
+  }catch(e){
+    const c=document.createElement('canvas');
+    c.width=renderer.domElement.width; c.height=renderer.domElement.height;
+    c.getContext('2d').drawImage(renderer.domElement,0,0);
+    return c;
+  }
+}
+document.getElementById('btnSend').onclick=async()=>{
+  showToast('📸 Ekran hazırlanıyor...');
+  try{
+    shareCanvas=await captureFullScreen();
+    document.getElementById('sharePreview').src=shareCanvas.toDataURL('image/png');
+    shareOverlay.classList.add('show');
+  }catch(e){ showToast('⚠️ Ekran görüntüsü alınamadı.'); }
 };
-document.getElementById('shareCopy').onclick=()=>{
-  if(navigator.clipboard){ navigator.clipboard.writeText(window.location.href).then(()=>alert('✓ Bağlantı kopyalandı!')); }
-  else { alert('Bağlantı: '+window.location.href); }
-  document.getElementById('shareOverlay').classList.remove('show');
+document.getElementById('shareClose').onclick=()=>shareOverlay.classList.remove('show');
+shareOverlay.onclick=(e)=>{ if(e.target.id==='shareOverlay') shareOverlay.classList.remove('show'); };
+
+function canvasToFile(cb){
+  if(!shareCanvas){ cb(null); return; }
+  shareCanvas.toBlob(blob=>{
+    if(!blob){ cb(null); return; }
+    try{ cb(new File([blob],shareFileName(),{type:'image/png'}),blob); }
+    catch(e){ cb(null,blob); }
+  },'image/png');
+}
+
+// Flutter WebView'de navigator.share yoktur; varsa Flutter köprüsüyle paylaş.
+function shareViaFlutter(){
+  if(!shareCanvas) return false;
+  if(window.FlutterShare&&typeof window.FlutterShare.postMessage==='function'){
+    try{
+      window.FlutterShare.postMessage(JSON.stringify({
+        image:shareCanvas.toDataURL('image/png'),
+        text:shareText(),
+        file:shareFileName()
+      }));
+      shareOverlay.classList.remove('show');
+      return true;
+    }catch(e){}
+  }
+  return false;
+}
+
+document.getElementById('shareNative').onclick=()=>{
+  if(shareViaFlutter()) return;
+  canvasToFile(async(file)=>{
+    if(file&&navigator.canShare&&navigator.canShare({files:[file]})){
+      try{ await navigator.share({files:[file],title:'Qualsar 3D',text:shareText()}); shareOverlay.classList.remove('show'); return; }
+      catch(e){ if(e.name==='AbortError') return; }
+    }
+    if(navigator.share){
+      try{ await navigator.share({title:'Qualsar 3D',text:shareText()}); shareOverlay.classList.remove('show'); return; }
+      catch(e){ if(e.name==='AbortError') return; }
+    }
+    downloadShareImage();
+  });
 };
-document.getElementById('shareDownload').onclick=()=>{
-  try {
-    const dataUrl=renderer.domElement.toDataURL('image/png');
-    const link=document.createElement('a');
-    link.download='dunyanin-hareketleri-'+lastConcept+'.png';
-    link.href=dataUrl; link.click();
-  } catch(e){ alert('Ekran kaydedilemedi: '+e.message); }
-  document.getElementById('shareOverlay').classList.remove('show');
-};
+document.getElementById('shareSocial').onclick=()=>document.getElementById('shareNative').click();
+document.getElementById('shareDownload').onclick=()=>{ if(!shareViaFlutter()) downloadShareImage(); };
+
+function downloadShareImage(){
+  if(!shareCanvas) return;
+  shareCanvas.toBlob(blob=>{
+    if(!blob) return;
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=shareFileName();
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),1500);
+    showToast('💾 Kaydedildi!');
+  },'image/png');
+  shareOverlay.classList.remove('show');
+}
+
+// Karşılaştırma / Bilgi Tablosu kartını fotoğraflayıp doğrudan paylaş (arka plan flu kalır,
+// kart üstündeki gönder butonu aktiftir → arkadaşına gönder / sosyal medyada paylaş).
+async function shareCardEl(cardEl){
+  if(!cardEl) return;
+  showToast('📸 Hazırlanıyor...');
+  try{
+    shareCanvas=await html2canvas(cardEl,{
+      backgroundColor:document.body.classList.contains('light-mode')?'#f3f6fb':'#0a0e1a',
+      scale:Math.min(window.devicePixelRatio||1,2), logging:false, useCORS:true
+    });
+    if(shareViaFlutter()) return;
+    canvasToFile(async(file)=>{
+      if(file&&navigator.canShare&&navigator.canShare({files:[file]})){
+        try{ await navigator.share({files:[file],title:'Qualsar 3D',text:shareText()}); return; }
+        catch(e){ if(e.name==='AbortError') return; }
+      }
+      if(navigator.share){
+        try{ await navigator.share({title:'Qualsar 3D',text:shareText()}); return; }
+        catch(e){ if(e.name==='AbortError') return; }
+      }
+      downloadShareImage();
+    });
+  }catch(e){ showToast('⚠️ Görüntü alınamadı.'); }
+}
 
 // ============== ODAK / SAHNE ==============
 function focusObjectFor(key){
@@ -3124,9 +3834,19 @@ function focusObjectFor(key){
 }
 
 // Bir kavramın tüm metin sayfalarını topla (t[curLevel] + more[curLevel])
+// Sınavlara Hazırlık (3) ve Üniversite (4): seviye 3+4 içerikleri birleşik → TAM detay
 function conceptPages(key){
   const c=CONCEPTS[key];
   if(!c) return [];
+  if(curLevel>=3){
+    const pages=[];
+    [3,4].forEach(lv=>{
+      if(c.t[lv] && !pages.includes(c.t[lv])) pages.push(c.t[lv]);
+      ((c.more && c.more[lv])||[]).forEach(p=>{ if(p && !pages.includes(p)) pages.push(p); });
+    });
+    if(!pages.length){ const base=conceptText(key); if(base) pages.push(base); }
+    return pages;
+  }
   const base=conceptText(key);
   const moreArr=(c.more && c.more[curLevel]) ? c.more[curLevel] : [];
   return [base, ...(moreArr||[])].filter(x=>x && x.length>0);
@@ -3141,7 +3861,8 @@ function selectConcept(key){
   const listEl=document.getElementById('infoList');
   listEl.innerHTML='';
   const pages=conceptPages(key);
-  const use = currentMode==='sade' ? pages.slice(0,3) : pages;
+  // Sınavlara Hazırlık ve Üniversite'de Sade mod kısaltmaz — her zaman tam detay
+  const use = (currentMode==='sade') ? pages.slice(0,3) : pages;
   use.forEach(html=>{
     const li=document.createElement('li');
     li.innerHTML=html;
@@ -3237,24 +3958,39 @@ document.getElementById('infoCloseBtn').onclick=()=>document.getElementById('bot
   });
 })();
 
-// ============== ALT KART AKSİYON DÜĞMELERİ ==============
+// ============== AKSİYON POPUP (Döndür / Etiketler / Çalıştır) ==============
 const spinBtn=document.getElementById('spinBtn');
 const animBtn=document.getElementById('animBtn');
 const labelBtn=document.getElementById('labelBtn');
+
+// Bilgi panelinin üstündeki aksiyon popup'ı (navActions ile aç/kapa)
+function closeActionPop(){ const p=document.getElementById('actionPop'); if(p) p.classList.remove('show'); }
+window.closeActionPop=closeActionPop;
+document.getElementById('navActions').onclick=(e)=>{
+  e.stopPropagation();
+  const p=document.getElementById('actionPop');
+  p.classList.toggle('show');
+  if(window._haptic)window._haptic(10);
+};
+document.addEventListener('click',(e)=>{
+  if(!e.target.closest('#actionPop') && !e.target.closest('#navActions')) closeActionPop();
+});
 
 function refreshButtons(){
   spinBtn.classList.toggle('active', spinOn);
   animBtn.classList.toggle('active', orbitOn);
   animBtn.querySelector('span:last-child').textContent = orbitOn ? 'Yörünge Açık' : 'Yörünge';
 }
-spinBtn.onclick=()=>{ spinOn=!spinOn; refreshButtons(); if(window._haptic)window._haptic(10); };
-animBtn.onclick=()=>{ orbitOn=!orbitOn; refreshButtons(); if(window._haptic)window._haptic(10); };
+// Bir aksiyona basınca çerçeve (popup) otomatik kapansın
+spinBtn.onclick=()=>{ spinOn=!spinOn; refreshButtons(); closeActionPop(); if(window._haptic)window._haptic(10); };
+animBtn.onclick=()=>{ orbitOn=!orbitOn; refreshButtons(); closeActionPop(); if(window._haptic)window._haptic(10); };
 
 let labelsOn=true;
 labelBtn.onclick=function(){
   labelsOn=!labelsOn;
   this.classList.toggle('active',!labelsOn);
   anchors.forEach(a=>{ a.el.style.display = labelsOn ? '' : 'none'; });
+  closeActionPop();
   if(window._haptic)window._haptic(10);
 };
 
@@ -3477,14 +4213,14 @@ const INFO_TABLES=[
 
 function escTd(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
 function buildCompareTable(t){
-  let h='<div class="data-cap">'+escTd(t.cap)+'</div>';
-  h+='<table class="data-table"><thead><tr><th>Özellik</th><th>'+escTd(t.aName)+'</th><th>'+escTd(t.bName)+'</th></tr></thead><tbody>';
+  let h='<div class="cmp-cap">'+escTd(t.cap)+'</div>';
+  h+='<table class="cmp-table compare-style"><thead><tr><th>Özellik</th><th>'+escTd(t.aName)+'</th><th>'+escTd(t.bName)+'</th></tr></thead><tbody>';
   t.rows.forEach(r=>{ h+='<tr><td>'+escTd(r[0])+'</td><td>'+escTd(r[1])+'</td><td>'+escTd(r[2])+'</td></tr>'; });
   return h+'</tbody></table>';
 }
 function buildInfoTable(t){
-  let h='<div class="data-cap">'+escTd(t.cap)+'</div>';
-  h+='<table class="data-table"><thead><tr><th>'+escTd(t.cols[0])+'</th><th>'+escTd(t.cols[1])+'</th></tr></thead><tbody>';
+  let h='<div class="cmp-cap">'+escTd(t.cap)+'</div>';
+  h+='<table class="cmp-table"><thead><tr><th>'+escTd(t.cols[0])+'</th><th>'+escTd(t.cols[1])+'</th></tr></thead><tbody>';
   t.rows.forEach(r=>{ h+='<tr><td>'+escTd(r[0])+'</td><td>'+escTd(r[1])+'</td></tr>'; });
   return h+'</tbody></table>';
 }
@@ -3508,6 +4244,7 @@ function renderCompareOverlay(){
   } else { nav.classList.add('hidden'); }
 }
 document.getElementById('btnCompare').onclick=()=>{ _compareIdx=0; renderCompareOverlay(); document.getElementById('compareOverlay').classList.add('show'); if(window._haptic)window._haptic(12); };
+document.getElementById('compareSend').onclick=()=>{ shareCardEl(document.querySelector('#compareOverlay .cmp-card')); if(window._haptic)window._haptic(12); };
 document.getElementById('compareClose').onclick=()=>document.getElementById('compareOverlay').classList.remove('show');
 document.getElementById('compareOverlay').onclick=(e)=>{ if(e.target.id==='compareOverlay') document.getElementById('compareOverlay').classList.remove('show'); };
 document.getElementById('comparePrev').onclick=()=>{ if(_compareIdx>0){ _compareIdx--; renderCompareOverlay(); } };
@@ -3529,6 +4266,7 @@ function renderInfoOverlay(){
   } else { nav.classList.add('hidden'); }
 }
 document.getElementById('btnTable').onclick=()=>{ _tableIdx=0; renderInfoOverlay(); document.getElementById('tableOverlay').classList.add('show'); if(window._haptic)window._haptic(12); };
+document.getElementById('tableSend').onclick=()=>{ shareCardEl(document.querySelector('#tableOverlay .cmp-card')); if(window._haptic)window._haptic(12); };
 document.getElementById('tableClose').onclick=()=>document.getElementById('tableOverlay').classList.remove('show');
 document.getElementById('tableOverlay').onclick=(e)=>{ if(e.target.id==='tableOverlay') document.getElementById('tableOverlay').classList.remove('show'); };
 document.getElementById('tablePrev').onclick=()=>{ if(_tableIdx>0){ _tableIdx--; renderInfoOverlay(); } };
@@ -3561,8 +4299,8 @@ function tick(){
   moon.rotation.y += dt*0.5*speed;
 
   planets.forEach(p=>{
-    p.pivot.rotation.y += dt*0.12*speed*p.def.spd;
-    p.mesh.rotation.y  += dt*0.4*speed;
+    if(orbitOn) p.pivot.rotation.y += dt*0.12*speed*p.def.spd; // yörüngede ilerleme
+    p.mesh.rotation.y  += dt*0.4*speed;                         // kendi ekseninde dönüş
   });
 
   clouds.rotation.y += dt*0.04;
@@ -3622,6 +4360,18 @@ function tick(){
   camera.position.lerp(want,0.08);
   camera.lookAt(cam.target);
 
+  // 3D modeli yukarı kaydır — sadece DEĞİŞİRKEN setViewOffset çağır (sabitken atla)
+  const _sh=window._sceneShift;
+  if(_sh && Math.abs(_sh.target - _sh.cur) > 0.4){
+    _sh.cur += (_sh.target - _sh.cur) * 0.12;
+    if(Math.abs(_sh.target - _sh.cur) < 0.4) _sh.cur = _sh.target;
+    if(_sh.cur > 0.4){
+      camera.setViewOffset(innerWidth, innerHeight, 0, _sh.cur, innerWidth, innerHeight);
+    } else if(camera.view && camera.view.enabled){
+      camera.clearViewOffset();
+    }
+  }
+
   if(highlightTimer>0){highlightTimer-=dt; if(highlightTimer<=0) highlightKey=null;}
   updateLabels();
 
@@ -3629,25 +4379,51 @@ function tick(){
 }
 
 const tmp=new THREE.Vector3();
+// SVG ok öğelerini bir kez oluştur (her karede innerHTML reparse YOK → kasılma yok)
+const _NS='http://www.w3.org/2000/svg';
+function _ensureLeader(a){
+  if(a._ln) return;
+  const svg=document.getElementById('leaderSvg'); if(!svg) return;
+  const col='#'+a.color.toString(16).padStart(6,'0');
+  a._ln=document.createElementNS(_NS,'line'); a._ln.setAttribute('stroke',col);
+  a._dot=document.createElementNS(_NS,'circle'); a._dot.setAttribute('fill',col);
+  a._ring=document.createElementNS(_NS,'circle'); a._ring.setAttribute('fill','none'); a._ring.setAttribute('stroke','#fff'); a._ring.setAttribute('stroke-width','1');
+  svg.appendChild(a._ln); svg.appendChild(a._dot); svg.appendChild(a._ring);
+}
+function _hideLeader(a){ if(a._ln){ a._ln.style.display='none'; a._dot.style.display='none'; a._ring.style.display='none'; } }
 function updateLabels(){
+  const labelsHidden = (typeof labelsOn!=='undefined' && !labelsOn);
   anchors.forEach(a=>{
-    if(a.kind==='farOnly' && viewMode!=='far'){ a.el.style.opacity='0'; return; }
+    if(labelsHidden || (a.kind==='farOnly' && viewMode!=='far')){ a.el.style.opacity='0'; _hideLeader(a); return; }
     a.holder.getWorldPosition(tmp);
     const dist=camera.position.distanceTo(tmp);
     tmp.project(camera);
     const onScreen=tmp.z<1&&tmp.x>-1.1&&tmp.x<1.1&&tmp.y>-1.1&&tmp.y<1.1;
-    if(!onScreen){a.el.style.opacity='0';return;}
-    a.el.style.left=((tmp.x*0.5+0.5)*innerWidth)+'px';
-    a.el.style.top =((-tmp.y*0.5+0.5)*innerHeight)+'px';
+    if(!onScreen){ a.el.style.opacity='0'; _hideLeader(a); return; }
+    const ex=(tmp.x*0.5+0.5)*innerWidth;
+    const ey=(-tmp.y*0.5+0.5)*innerHeight;
     const isHL=highlightKey&&a.key===highlightKey;
-    a.el.classList.toggle('hl',!!isHL);
+    const LEAD=isHL?48:36;
+    let ly=ey-LEAD, above=true;
+    if(ly<10){ ly=ey+LEAD; above=false; }
+    a.el.style.left=ex+'px';
+    a.el.style.top=ly+'px';
+    if(a._wasHL!==isHL){ a.el.classList.toggle('hl',!!isHL); a.el.style.fontSize=isHL?'13.5px':'11.5px'; a.el.style.zIndex=isHL?14:8; a._wasHL=isHL; }
     let op;
     if(a.kind==='farOnly') op=THREE.MathUtils.clamp(2.2-dist/260,0.3,1);
     else op=THREE.MathUtils.clamp(1.5-dist/120,0.15,1);
     if(isHL) op=1;
     a.el.style.opacity=op.toFixed(2);
-    a.el.style.fontSize=isHL?'13.5px':'11.5px';
-    a.el.style.zIndex=isHL?14:8;
+    // Leader line + uç işareti — sadece attribute güncelle (reparse yok)
+    _ensureLeader(a);
+    if(a._ln){
+      const pillEdge=above ? (ly+12) : (ly-12);
+      const sw=isHL?2.4:1.5, rr=isHL?5:3.6, os=op.toFixed(2);
+      a._ln.style.display=''; a._dot.style.display=''; a._ring.style.display='';
+      a._ln.setAttribute('x1',ex); a._ln.setAttribute('y1',pillEdge); a._ln.setAttribute('x2',ex); a._ln.setAttribute('y2',ey); a._ln.setAttribute('stroke-width',sw); a._ln.setAttribute('opacity',os);
+      a._dot.setAttribute('cx',ex); a._dot.setAttribute('cy',ey); a._dot.setAttribute('r',rr); a._dot.setAttribute('opacity',os);
+      a._ring.setAttribute('cx',ex); a._ring.setAttribute('cy',ey); a._ring.setAttribute('r',rr); a._ring.setAttribute('opacity',os);
+    }
   });
 }
 
@@ -3658,6 +4434,13 @@ selectConcept('ikiHareket');
 highlightKey=null;
 refreshButtons();
 tick();
+
+// 3D modeli alt dock'un üstüne kaldır (başlangıçta ve dock boyutu oturduktan sonra)
+if(typeof updateSceneShiftTarget==='function'){
+  updateSceneShiftTarget();
+  setTimeout(updateSceneShiftTarget,150);
+  setTimeout(updateSceneShiftTarget,500);
+}
 
 // Yükleme ekranını gizle + dokunma ipucu
 (function(){
@@ -3676,7 +4459,54 @@ addEventListener('resize',()=>{
   renderer.setSize(innerWidth,innerHeight);
   if(typeof updateInfoScrollbar==='function') updateInfoScrollbar();
   if(typeof positionVarsBody==='function') positionVarsBody();
+  if(typeof updateSceneShiftTarget==='function') updateSceneShiftTarget();
 });
+</script>
+
+<!-- ============================================================
+     GERİ TUŞU: açık pencere/panel varsa SADECE onu kapat (derse devam);
+     hiçbir şey açık değilse normal geri (ders listesine döner).
+     Flutter tarafı (PopScope): webview canGoBack → goBack → buradaki popstate.
+     ============================================================ -->
+<script>
+(function(){
+  const _OVERLAYS=['helpOverlay','shareOverlay','compareOverlay','tableOverlay'];
+  function _anyLayerOpen(){
+    if(_OVERLAYS.some(id=>{ const e=document.getElementById(id); return e&&e.classList.contains('show'); })) return true;
+    if(document.querySelector('.dropdown-panel.show')) return true;
+    const ids=['menuPop','palettePop','actionPop'];
+    if(ids.some(id=>{ const e=document.getElementById(id); return e&&e.classList.contains('show'); })) return true;
+    const vb=document.getElementById('sceneVarsBody'); if(vb && !vb.classList.contains('closed')) return true;
+    return false;
+  }
+  function _closeTopLayer(){
+    for(const id of _OVERLAYS){ const e=document.getElementById(id); if(e&&e.classList.contains('show')){ e.classList.remove('show'); return true; } }
+    const dp=document.querySelector('.dropdown-panel.show'); if(dp){ dp.classList.remove('show'); return true; }
+    const pp=document.getElementById('palettePop'); if(pp&&pp.classList.contains('show')){ pp.classList.remove('show'); return true; }
+    const mp=document.getElementById('menuPop'); if(mp&&mp.classList.contains('show')){ mp.classList.remove('show'); return true; }
+    const ap=document.getElementById('actionPop'); if(ap&&ap.classList.contains('show')){ ap.classList.remove('show'); return true; }
+    const vb=document.getElementById('sceneVarsBody'); if(vb && !vb.classList.contains('closed')){ if(window._setSceneOpen) window._setSceneOpen(false); else vb.classList.add('closed'); return true; }
+    return false;
+  }
+  let _armed=false, _selfBack=false;
+  function _sync(){
+    const open=_anyLayerOpen();
+    if(open && !_armed){ try{ history.pushState({_dunyaGuard:1},''); }catch(e){} _armed=true; }
+    else if(!open && _armed && !_selfBack){ _selfBack=true; try{ history.back(); }catch(e){ _selfBack=false; _armed=false; } }
+  }
+  window.addEventListener('popstate', function(){
+    if(_selfBack){ _selfBack=false; _armed=false; return; }   // bizim guard temizleme back'imiz
+    _armed=false;                                             // kullanıcı geri bastı → guard tüketildi
+    if(_anyLayerOpen()){ _closeTopLayer(); }                  // sadece üstteki katmanı kapat; _sync gerekirse yeniden arm eder
+    // hiçbir katman yoksa: dokunma → bir sonraki geri Flutter rotasını kapatır
+  });
+  // Katman aç/kapanışlarını merkezi izle (her buton call-site'ını düzenlemeye gerek yok)
+  const _watch=['helpOverlay','shareOverlay','compareOverlay','tableOverlay','menuPop','palettePop','actionPop','panelLevel','panelTopic','panelMode','sceneVarsBody'];
+  try{
+    const _mo=new MutationObserver(()=>_sync());
+    _watch.forEach(id=>{ const e=document.getElementById(id); if(e) _mo.observe(e,{attributes:true,attributeFilter:['class']}); });
+  }catch(e){}
+})();
 </script>
 </body>
 </html>
