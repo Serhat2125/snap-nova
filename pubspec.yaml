@@ -179,9 +179,18 @@ flutter:
     - assets/uslu-sayilar.html
     # 3D Eğitim Modelleri — Matematik: Temel Kavramlar
     - assets/temel-kavramlar.html
+    # 3D Eğitim Modelleri — Matematik: Kesirler ve Rasyonel Sayılar
+    - assets/kesirler-rasyonel.html
+    # 3D Eğitim Modelleri — Matematik: Bölme ve Bölünebilme
+    - assets/bolme-bolunebilme.html
+    # 3D Eğitim Modelleri — Matematik: Basit Eşitsizlikler
+    - assets/basit-esitsizlikler.html
     # 3D Eğitim Modelleri — Matematik: Sayı Basamakları
-    # NOT: Dosya assets/'e konulunca aşağıdaki satırı tekrar aç:
-    # - assets/sayi-basamaklari.html
+    - assets/sayi-basamaklari.html
+    # 3D Eğitim Modelleri — Matematik: Köklü Sayılar
+    - assets/koklu-sayilar.html
+    # 3D Eğitim Modelleri — Matematik: Mutlak Değer
+    - assets/mutlak-deger.html
     # 3D Eğitim Modelleri — Biyoloji: Denetleyici ve Düzenleyici Sistem
     - assets/denetleyici-duzenleyici-sistem.html
     # 3D Eğitim Modelleri — Biyoloji: Destek ve Hareket Sistemi

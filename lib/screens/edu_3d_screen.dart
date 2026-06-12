@@ -349,7 +349,48 @@ class Edu3DMatematikScreen extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 10),
+          _TopicCard(
+            emoji: '➗',
+            title: 'Kesirler ve Rasyonel Sayılar',
+            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test',
+            tint: const Color(0xFF14B8A6),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/kesirler-rasyonel.html',
+                  title: 'Kesirler ve Rasyonel Sayılar',
+                ),
+              ),
+            ),
+          ),
+          _TopicCard(
+            emoji: '➗',
+            title: 'Bölme ve Bölünebilme',
+            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test',
+            tint: const Color(0xFF6366F1),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/bolme-bolunebilme.html',
+                  title: 'Bölme ve Bölünebilme',
+                ),
+              ),
+            ),
+          ),
+          _TopicCard(
+            emoji: '⚖️',
+            title: 'Basit Eşitsizlikler',
+            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test',
+            tint: const Color(0xFFEC4899),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/basit-esitsizlikler.html',
+                  title: 'Basit Eşitsizlikler',
+                ),
+              ),
+            ),
+          ),
           _TopicCard(
             emoji: '🔢',
             title: 'Sayı Basamakları',
@@ -360,6 +401,34 @@ class Edu3DMatematikScreen extends StatelessWidget {
                 builder: (_) => const Lesson3DScreen(
                   assetHtml: 'assets/sayi-basamaklari.html',
                   title: 'Sayı Basamakları',
+                ),
+              ),
+            ),
+          ),
+          _TopicCard(
+            emoji: '√',
+            title: 'Köklü Sayılar',
+            subtitle: 'Kök, üs ve rasyonel ifadeler — 3B sahneler',
+            tint: const Color(0xFF22C55E),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/koklu-sayilar.html',
+                  title: 'Köklü Sayılar',
+                ),
+              ),
+            ),
+          ),
+          _TopicCard(
+            emoji: '|x|',
+            title: 'Mutlak Değer',
+            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test',
+            tint: const Color(0xFFF59E0B),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/mutlak-deger.html',
+                  title: 'Mutlak Değer',
                 ),
               ),
             ),

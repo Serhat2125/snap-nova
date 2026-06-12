@@ -1,6 +1,7 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="tr">
 <head>
+<script>/*RAF_THROTTLE_SHIM*/(function(){if(window.__rafShim)return;window.__rafShim=1;var raf=window.requestAnimationFrame.bind(window);var FT=1000/30,lastMap=new WeakMap();window.requestAnimationFrame=function(cb){return raf(function(ts){if(document.hidden){window.requestAnimationFrame(cb);return;}var l=lastMap.get(cb)||0;if(ts-l<FT){window.requestAnimationFrame(cb);return;}lastMap.set(cb,ts);cb(ts);});};})();</script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>Denetleyici ve Düzenleyici Sistem · 3D Anatomi</title>
@@ -47,7 +48,7 @@
     width:100vw; height:100vh;
     transition:background 0.3s, color 0.3s;
   }
-  canvas { display:block; cursor:grab; }
+  canvas { display:block; cursor:grab; max-width:100vw; }
   canvas:active { cursor:grabbing; }
   #app { position:absolute; inset:0; width:100%; height:100%; z-index:1; }
   #app canvas { touch-action:none; }
@@ -225,23 +226,24 @@
 
   .info-resize-handle {
     position:absolute;
-    top:-19px; left:50%; transform:translateX(-50%);
-    width:100px; height:28px;
+    top:-14px; left:50%; transform:translateX(-50%);
+    width:56px; height:20px;
     display:flex; flex-direction:row; align-items:center; justify-content:center;
     gap:7px;
     cursor:ns-resize; touch-action:none; z-index:4;
     background:transparent; border:none; padding:0;
     color:var(--accent);
   }
-  .info-resize-handle span {
-    font-size:12px; line-height:1; opacity:0.82; pointer-events:none;
-    text-shadow:0 1px 3px rgba(0,0,0,0.5);
-    transition:opacity 0.15s ease, transform 0.15s ease, color 0.15s ease;
+  .info-resize-handle::after {
+    content:""; display:block;
+    width:36px; height:4px;
+    background:rgba(255,255,255,0.28);
+    border-radius:3px;
+    margin:auto;
+    transition:background 0.15s ease, transform 0.15s ease;
   }
-  .info-resize-handle:hover span { opacity:1; }
-  .info-resize-handle:active span { opacity:1; color:var(--accent-glow); }
-  .info-resize-handle:active .rz-up { transform:translateY(-2px); }
-  .info-resize-handle:active .rz-down { transform:translateY(2px); }
+  .info-resize-handle:hover::after { background:rgba(255,255,255,0.55); }
+  .info-resize-handle:active::after { background:rgba(255,255,255,0.75); transform:scaleX(0.88); }
 
   .info-close-btn {
     position:absolute;
@@ -752,7 +754,7 @@
   .palette-reset:hover { border-color:var(--accent,#f6b93b); color:var(--accent,#f6b93b); }
 
   /* === DOCK MİMARİSİ (coğrafya ile aynı) === */
-  .scene-top-title{position:absolute;top:6px;left:50%;transform:translateX(-50%);z-index:28;pointer-events:none;max-width:calc(100% - 110px);font-family:'Baloo 2',cursive;font-weight:800;font-size:15px;line-height:1.1;color:var(--accent-glow,#ffd166);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 2px 8px rgba(0,0,0,.6);}
+  .scene-top-title{position:absolute;top:6px;left:8px;transform:none;z-index:28;pointer-events:none;max-width:calc(100% - 50px);font-family:'Baloo 2',cursive;font-weight:800;font-size:15px;line-height:1.1;color:var(--accent-glow,#ffd166);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 2px 8px rgba(0,0,0,.6);}
   .tool-icon-btn.scene-help{position:absolute!important;top:6px!important;right:8px!important;left:auto!important;bottom:auto!important;z-index:30;}
   #bottomDock{position:absolute;left:0;right:0;bottom:0;z-index:25;display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:0 2px 7px;pointer-events:none;}
   #bottomDock>*{pointer-events:auto;}
@@ -853,8 +855,9 @@
 
 <!-- ALT KART -->
 <div class="bottom-panel" id="bottomPanel">
-  <div class="info-resize-handle" id="infoResizeHandle" title="Yukarı/aşağı sürükleyerek büyüt/küçült"><span class="rz-up">▲</span><span class="rz-down">▼</span></div>
-  <button class="info-close-btn" id="infoCloseBtn" title="Bilgi panelini kapat">✕</button>
+  <div class="info-resize-handle" id="infoResizeHandle" title="Paneli büyüt / küçült"></div>
+  <button class="info-close-btn" id="infoCloseBtn" title="Bilgi panelini küçült">✕</button>
+  <div class="info-mini-chip" id="infoMiniChip"><span class="dtb-ico">📋</span><span class="dtb-lbl" id="infoMiniLbl">bilgi</span></div>
   <div class="info-area">
     <div class="info-emoji-box" id="infoEmoji" style="display:none;">🧠</div>
     <div class="info-text-area">
@@ -952,43 +955,49 @@
 <!-- YARDIM -->
 <div class="share-overlay" id="helpOverlay">
   <div class="share-card help-card">
-    <div class="share-head">
-      <div class="share-head-text">❓ Bu Sayfa Nasıl Çalışır?</div>
-      <button class="share-close-btn" id="helpClose">✕</button>
-    </div>
-    <div class="help-intro">3 boyutlu modeli parmaklarınla incele; alttaki ☰ menüden seviye ve konu seç; alttaki panelden bilgileri oku. Konuyu arkadaşlarınla paylaşabilir, AI'ya soru sorabilirsin.</div>
+  <div class="share-head hc-head">
+    <div class="share-head-text hc-title">❓ Nasıl Çalışır?</div>
+    <button class="share-close-btn" id="helpClose">✕</button>
+  </div>
+  <div class="hc-intro">3 boyutlu modeli parmaklarınla incele; alt menüden seviye ve konu seç; bilgi panelinden içerikleri oku ve araçları kullan.</div>
 
-    <div class="help-sec-title">🖐️ Dokunma Hareketleri</div>
-    <div class="help-row"><span class="he">👆</span><span><b>Döndür:</b> tek parmakla sürükle</span></div>
-    <div class="help-row"><span class="he">✌️</span><span><b>Yakınlaştır:</b> iki parmağı aç/kapa — istediğin yere odaklanır</span></div>
-    <div class="help-row"><span class="he">🤏</span><span><b>Taşı:</b> iki parmağı birlikte kaydır</span></div>
-    <div class="help-row"><span class="he">🏷️</span><span><b>Etikete dokun:</b> o parçanın konusu açılır</span></div>
+  <div class="hc-sec">🖐️ Dokunma Hareketleri</div>
+  <div class="hc-block">
+    <div class="hc-row"><span class="hc-ico">👆</span><span><b>Döndür</b> — tek parmakla sürükle</span></div>
+    <div class="hc-row"><span class="hc-ico">✌️</span><span><b>Yakınlaştır / Uzaklaştır</b> — iki parmağı aç ya da kapat</span></div>
+    <div class="hc-row"><span class="hc-ico">🤏</span><span><b>Taşı</b> — iki parmağı birlikte kaydır</span></div>
+    <div class="hc-row"><span class="hc-ico">🏷️</span><span><b>Etikete dokun</b> — o parçanın bilgisi açılır</span></div>
+  </div>
 
-    <div class="help-sec-title">🧭 Ders Ayarları (☰ menü)</div>
-    <div class="help-row"><span class="he">🎓</span><span><b>Eğitim Seviyesi</b>: İlkokul / Ortaokul / Lise / Sınavlara Hazırlık / Üniversite — liste alttaki araçların hemen üstünde açılır</span></div>
-    <div class="help-row"><span class="he">📚</span><span><b>Konu Rehberi</b>: konular arasında geç</span></div>
-    <div class="help-row"><span class="he">🎛️</span><span><b>Değişkenler</b>: sahnedeki kaydırıcılar — alttaki araçların hemen üstünde açılır</span></div>
+  <div class="hc-sec">🧭 Ders Ayarları (☰ Menü)</div>
+  <div class="hc-block">
+    <div class="hc-row"><span class="hc-ico">🎓</span><span><b>Eğitim Seviyesi</b> — İlkokul · Ortaokul · Lise · Sınav · Üniversite</span></div>
+    <div class="hc-row"><span class="hc-ico">🧬</span><span><b>Konu Rehberi</b> — konular arasında geç</span></div>
+    <div class="hc-row"><span class="hc-ico">🎛️</span><span><b>Değişkenler</b> — sahnedeki kaydırıcılar ve animasyon</span></div>
+    <div class="hc-row"><span class="hc-ico">📍</span><span><b>Konum</b> — vücuttaki yerini 3D harita üzerinde gör; başka sekmeye basınca normale döner</span></div>
+  </div>
 
-    <div class="help-sec-title">🛠️ Alt Araç Çubuğu</div>
-    <div class="help-row"><span class="he">📄</span><span><b>Sade / Detaylı</b> görünüm &nbsp;·&nbsp; ⚖️ <b>Karşılaştırma</b> &nbsp;·&nbsp; 📋 <b>Bilgi Tablosu</b></span></div>
-    <div class="help-row"><span class="he">✈️</span><span><b>Gönder:</b> ekranı arkadaşına gönder / sosyal medyada paylaş</span></div>
-    <div class="help-row"><span class="he">🎨</span><span><b>Renk Paleti</b> &nbsp;·&nbsp; 📝 <b>Sınav Soruları</b></span></div>
-    <div class="help-row"><span class="he">🤖</span><span><b>AI'ya Sor:</b> kısa, net ve seviyene uygun cevap &nbsp;·&nbsp; 🔊 <b>Sesli Anlatım</b></span></div>
+  <div class="hc-sec">🧰 Araç Çubuğu</div>
+  <div class="hc-block">
+    <div class="hc-row"><span class="hc-ico">📄</span><span><b>Sade / Detaylı</b> — bilgi yoğunluğunu değiştir</span></div>
+    <div class="hc-row"><span class="hc-ico">🧰</span><span><b>Araçlar</b> — tablolar · sorular · AI destek · sesli mod · renk paleti · paylaş</span></div>
+    <div class="hc-row hc-indent"><span class="hc-ico">⚖️</span><span>Karşılaştırma Tablosu &amp; 📋 Bilgi Tablosu</span></div>
+    <div class="hc-row hc-indent"><span class="hc-ico">📝</span><span>Test Soruları · 🤖 AI Destek · 🔊 Sesli Anlatım</span></div>
+    <div class="hc-row hc-indent"><span class="hc-ico">🎨</span><span>Renk Paleti — arka plan, etiketler ve panel rengini özelleştir</span></div>
+    <div class="hc-row hc-indent"><span class="hc-ico">✈️</span><span>Gönder — ekranı arkadaşına gönder ya da sosyal medyada paylaş</span></div>
+  </div>
 
-    <div class="help-sec-title">✈️ Karşılaştırma & Bilgi Tablosu</div>
-    <div class="help-row"><span class="he">✈️</span><span>Tablonun sağ üstündeki <b>yeşil gönder</b> tuşuyla o tabloyu arkadaşına gönderebilir / paylaşabilirsin.</span></div>
+  <div class="hc-sec">📖 Bilgi Paneli</div>
+  <div class="hc-block">
+    <div class="hc-row"><span class="hc-ico">⇕</span><span><b>Tutamacı sürükle</b> — paneli büyüt / küçült</span></div>
+    <div class="hc-row"><span class="hc-ico">✕</span><span><b>Küçült</b> — bilgi sekmesi sade/detaylı butonunun üstüne küçülür; tekrar bas aç</span></div>
+    <div class="hc-row"><span class="hc-ico">◀▶</span><span><b>Önceki / Sonraki</b> konuya geç</span></div>
+    <div class="hc-row"><span class="hc-ico">🔄</span><span><b>Değişkenler</b> — döndür · etiketler · animasyon</span></div>
+  </div>
 
-    <div class="help-sec-title">🎨 Renk Paleti — 6 hedef</div>
-    <div class="help-row"><span class="he">🌌</span><span><b>Arka plan → Başlık → Etiketler</b> (üst satır)</span></div>
-    <div class="help-row"><span class="he">📋</span><span><b>Bilgi paneli → Başlık yazısı → Yazılar</b> (alt satır). Önce hedefi seç, sonra renge bas.</span></div>
-
-    <div class="help-sec-title">📖 Alt Bilgi Paneli</div>
-    <div class="help-row"><span class="he">⇕</span><span><b>Tutamacı sürükle:</b> paneli büyüt / küçült</span></div>
-    <div class="help-row"><span class="he">◀▶</span><span><b>Önceki / Sonraki</b> konuya geç</span></div>
-    <div class="help-row"><span class="he">🔄</span><span><b>Döndür</b> · 🏷️ <b>Etiketler</b> · ▶️ <b>Çalıştır</b> (animasyon)</span></div>
-
-    <div class="help-sec-title">⬅️ Geri Tuşu</div>
-    <div class="help-row"><span class="he">⬅️</span><span>Açık bir pencere varsa geri tuşu <b>sadece o pencereyi kapatır</b>; ders açık kalır. Pencere yokken konu listesine döner.</span></div>
+  <div class="hc-sec">⬅️ Geri Tuşu</div>
+  <div class="hc-block">
+    <div class="hc-row"><span class="hc-ico">⬅️</span><span>Açık bir pencere varsa <b>sadece o pencereyi kapatır</b>; ders açık kalır. Pencere yokken konu listesine döner.</span></div>
   </div>
 </div>
 
@@ -3123,7 +3132,7 @@ bodyMapGroup.visible = false;
 scene.add(bodyMapGroup);
 const bodyOrgansMap = {};
 const bodyHighlightItems = [];
-let bodyMapMode = false;
+let bodyMapMode = false, _bodyMapExtraY = 0;
 let bodyAnimT = 0;
 
 // İki nokta arası kemik silindiri
@@ -3484,6 +3493,8 @@ function toggleBodyMap(){
     if(lbl) lbl.textContent='Konum ✓';
     if(current){ showBodyMap(current.key); }
     document.querySelectorAll('.label3d, .organ-label, .dir-arrow').forEach(el => el.style.display = 'none');
+    var _bpK=document.getElementById('bottomPanel'); if(_bpK) _bpK.classList.add('konum-hidden');
+    _bodyMapExtraY = Math.round(window.innerHeight * 0.20);
   } else {
     shapeGroup.visible = true;
     bodyMapGroup.visible = false;
@@ -3493,6 +3504,8 @@ function toggleBodyMap(){
     if(current) frameOrgan(current.key); else { cam.radius = 9; cam.lookX = 0; cam.lookY = -0.3; }
     const balloon = document.getElementById('bodyMapBalloon');
     if(balloon) balloon.classList.remove('show');
+    _bodyMapExtraY = 0;
+    var _bpK2=document.getElementById('bottomPanel'); if(_bpK2) _bpK2.classList.remove('konum-hidden');
     document.querySelectorAll('.label3d, .organ-label, .dir-arrow').forEach(el => el.style.display = '');
   }
 }
@@ -3840,6 +3853,14 @@ document.addEventListener('click',(e)=>{
     document.querySelectorAll('.dropdown-panel').forEach(p=>p.classList.remove('show'));
   }
 });
+window._toggleMode=function(){
+  currentMode=currentMode==='sade'?'detayli':'sade';
+  document.querySelectorAll('#panelMode .dropdown-item').forEach(x=>x.classList.toggle('active',x.dataset.mode===currentMode));
+  const bt=document.getElementById('btnModTab');
+  if(bt) bt.innerHTML=currentMode==='sade'?'<span class="dtb-ico">📖</span><span class="dtb-lbl">sade</span>':'<span class="dtb-ico">📚</span><span class="dtb-lbl">detaylı</span>';
+  if(current) loadOverviewTopic();
+  return currentMode;
+};
 
 // ----- Alt kart aksiyon düğmeleri -----
 spinBtn.addEventListener('click',()=>{
@@ -3871,6 +3892,15 @@ animBtn.addEventListener('click',()=>{
 document.getElementById('btnKonum').addEventListener('click',()=>{
   toggleBodyMap();
 });
+// Konum modu açıkken başka sekmeye basınca 3D görünüme geri dön
+(function(){
+  ['btnTopic','btnModTab','btnAraclarCombo','btnMenu'].forEach(function(id){
+    var el=document.getElementById(id);
+    if(el) el.addEventListener('click',function(){ if(bodyMapMode) toggleBodyMap(); });
+  });
+  var lvl=document.querySelector('.stack-btn.level');
+  if(lvl) lvl.addEventListener('click',function(){ if(bodyMapMode) toggleBodyMap(); });
+})();
 
 /* ============================================================
    ETİKETLER
@@ -3880,28 +3910,89 @@ const tmpW=new THREE.Vector3();
 const tmpC=new THREE.Vector3();
 const tmpP=new THREE.Vector3();
 function updateLabels(){
+  const W=innerWidth, H=innerHeight;
+  const TOP=50, BOT=H-155;
+  const DIST=62; // etiket-anchor mesafesi (px)
+
+  if(!labelsVisible){
+    labelAnchors.forEach(a=>{ a.elM.style.display='none'; if(a.ln)a.ln.style.display='none'; if(a.dot)a.dot.style.display='none'; });
+    return;
+  }
+
+  // Model merkezini ekrana projektle
   tmpC.set(0,0,0); shapeGroup.localToWorld(tmpC);
   const dCenter=camera.position.distanceTo(tmpC);
+  tmpV.copy(tmpC); tmpV.project(camera);
+  const csx=(tmpV.x*0.5+0.5)*W, csy=(-tmpV.y*0.5+0.5)*H;
+
+  // Görünür etiketleri topla + derinlik & opaklık hesapla
+  const items=[];
   labelAnchors.forEach(a=>{
     const hide=()=>{ a.elM.style.display='none'; if(a.ln)a.ln.style.display='none'; if(a.dot)a.dot.style.display='none'; };
-    if(!labelsVisible){ hide(); return; }
     tmpW.copy(a.pos); shapeGroup.localToWorld(tmpW);
-    const dLabel=camera.position.distanceTo(tmpW);
-    if(dLabel>dCenter+0.8){ hide(); return; }
+    const dL=camera.position.distanceTo(tmpW);
+    // Arka tarafa döndüğünde kademeli soluyor
+    const behind=dL-dCenter;
+    const opa=behind>0 ? Math.max(0,1-behind/1.4) : 1;
+    if(opa<0.04){ hide(); return; }
     tmpV.copy(tmpW); tmpV.project(camera);
-    if(tmpV.z>=1||tmpV.x<-1||tmpV.x>1||tmpV.y<-1||tmpV.y>1){ hide(); return; }
+    if(tmpV.z>=1||Math.abs(tmpV.x)>1.12||Math.abs(tmpV.y)>1.12){ hide(); return; }
+    const ax=(tmpV.x*0.5+0.5)*W, ay=(-tmpV.y*0.5+0.5)*H;
+    const elW=(a.elM.offsetWidth||88)+8;
+    // Başlangıç konumu: anchor'dan model merkezine uzanan yönde DIST px uzakta
+    let dx=ax-csx, dy=ay-csy;
+    const len=Math.sqrt(dx*dx+dy*dy)||1;
+    dx/=len; dy/=len;
+    let lx=ax+dx*DIST, ly=ay+dy*DIST;
+    lx=Math.max(elW/2+4,Math.min(W-elW/2-4,lx));
+    ly=Math.max(TOP,Math.min(BOT,ly));
+    items.push({a,ax,ay,lx,ly,elW,opa});
+  });
+  if(!items.length) return;
+
+  // Çakışma çözümü: etiketleri birbirinden it (16 iterasyon)
+  for(let it=0;it<16;it++){
+    let mv=false;
+    for(let i=0;i<items.length;i++){
+      for(let j=i+1;j<items.length;j++){
+        const A=items[i],B=items[j];
+        const ddx=B.lx-A.lx, ddy=B.ly-A.ly;
+        const d=Math.sqrt(ddx*ddx+ddy*ddy)||0.01;
+        const minS=(A.elW+B.elW)/2+6;
+        if(d<minS){
+          const p=(minS-d)/2, nx=ddx/d, ny=ddy/d;
+          A.lx-=nx*p; A.ly-=ny*p;
+          B.lx+=nx*p; B.ly+=ny*p;
+          mv=true;
+        }
+      }
+    }
+    // Ekrana geri kilitle
+    items.forEach(m=>{
+      m.lx=Math.max(m.elW/2+4,Math.min(W-m.elW/2-4,m.lx));
+      m.ly=Math.max(TOP,Math.min(BOT,m.ly));
+    });
+    if(!mv) break;
+  }
+
+  // Uygula
+  items.forEach(({a,ax,ay,lx,ly,opa})=>{
     a.elM.style.display='block';
-    const lx=(tmpV.x*0.5+0.5)*innerWidth, ly=(-tmpV.y*0.5+0.5)*innerHeight;
-    a.elM.style.left=lx+'px'; a.elM.style.top=ly+'px';
+    a.elM.style.left=lx+'px';
+    a.elM.style.top=ly+'px';
+    a.elM.style.opacity=opa;
     if(a.ln && _partWorldPos(a.partKey,tmpP)){
       tmpP.project(camera);
-      const px=(tmpP.x*0.5+0.5)*innerWidth, py=(-tmpP.y*0.5+0.5)*innerHeight;
-      a.ln.setAttribute('x1',px); a.ln.setAttribute('y1',py); a.ln.setAttribute('x2',lx); a.ln.setAttribute('y2',ly);
+      const px=(tmpP.x*0.5+0.5)*W, py=(-tmpP.y*0.5+0.5)*H;
+      a.ln.setAttribute('x1',lx); a.ln.setAttribute('y1',ly);
+      a.ln.setAttribute('x2',px); a.ln.setAttribute('y2',py);
       a.dot.setAttribute('cx',px); a.dot.setAttribute('cy',py);
       a.ln.style.display='block'; a.dot.style.display='block';
+      a.ln.style.opacity=opa; a.dot.style.opacity=opa;
     } else if(a.ln){ a.ln.style.display='none'; a.dot.style.display='none'; }
   });
 }
+
 
 /* ============================================================
    ANİMASYONLAR
@@ -4113,7 +4204,7 @@ function tick(){
     _sh.cur += (_sh.target - _sh.cur) * 0.1;
     if (Math.abs(_sh.target - _sh.cur) < 0.4) _sh.cur = _sh.target;
     // Sahneyi basligin hemen altina al: sabit yukari kaydirma - atolye ek kaydirmasi
-    camera.setViewOffset(window.innerWidth, window.innerHeight, 0, Math.round(window.innerHeight*0.10) - _sh.cur, window.innerWidth, window.innerHeight);
+    camera.setViewOffset(window.innerWidth, window.innerHeight, 0, Math.round(window.innerHeight*0.20) - _sh.cur - _bodyMapExtraY, window.innerWidth, window.innerHeight);
   }
   renderer.render(scene,camera);
 }
@@ -4514,7 +4605,20 @@ function setSceneSliders(items, opts = {}) {
     if (open) {
       positionVarsBody();
       if (bp) bp.classList.add('vars-hidden');
-      updateSceneShiftTarget();
+      if (!bodyPanel.querySelector('._varsAR')) {
+        var ar = document.createElement('div');
+        ar.className = '_varsAR';
+        ar.style.cssText = 'display:flex;justify-content:space-between;gap:6px;padding:8px 4px 2px;margin-top:6px;border-top:1px solid rgba(255,255,255,0.15)';
+        [{icon:'🔄',label:'Döndür',tid:'spinBtn'},{icon:'🏷️',label:'Etiketler',tid:'labelBtn'},{icon:'▶️',label:'Çalıştır',tid:'animBtn'}].forEach(function(a){
+          var btn=document.createElement('button'); btn.className='action-btn';
+          btn.innerHTML='<span class="ico">'+a.icon+'</span><span>'+a.label+'</span>';
+          (function(tid){ btn.onclick=function(){ var t=document.getElementById(tid); if(t) t.click(); }; })(a.tid);
+          ar.appendChild(btn);
+        });
+        bodyPanel.appendChild(ar);
+      }
+      var ab=document.getElementById('animBtn');
+      if (ab && !ab.classList.contains('active')) setTimeout(function(){ ab.click(); }, 80);
     } else {
       if (bp) bp.classList.remove('vars-hidden');
       window._sceneShift.target = 0;
@@ -4693,7 +4797,16 @@ function setupSceneVarsFor(key){
 
 // Alt paneli kapat
 const _infoCloseBtn=document.getElementById('infoCloseBtn');
-if(_infoCloseBtn) _infoCloseBtn.onclick=()=>document.getElementById('bottomPanel').classList.add('hidden');
+if(_infoCloseBtn) _infoCloseBtn.onclick=()=>{
+  const bp=document.getElementById('bottomPanel');
+  if(!bp) return;
+  bp.classList.add('info-mini');
+  // Update mini label to current topic
+  const lbl=document.getElementById('infoMiniLbl');
+  if(lbl){ const t=document.getElementById('infoTitle'); if(t&&t.textContent) lbl.textContent=t.textContent+' konusunu aç'; }
+};
+const _miniChip=document.getElementById('infoMiniChip');
+if(_miniChip) _miniChip.onclick=()=>{ const bp=document.getElementById('bottomPanel'); if(bp) bp.classList.remove('info-mini'); };
 
 // Bilgi panelini yukarı/aşağı çekerek büyüt/küçült
 (function(){
@@ -4821,7 +4934,7 @@ function positionPaletteUnder(){
   PALETTE_COLORS.forEach(c=>{ const b=document.createElement('button'); b.className='swatch'; b.style.background=c; b.title=c; b.onclick=()=>{ applyPaletteColor(_palTarget,c); if(window._haptic)window._haptic(10); }; grid.appendChild(b); });
   document.querySelectorAll('#palettePop .pal-chip').forEach(chip=>{ chip.onclick=()=>{ _palTarget=chip.dataset.target; document.querySelectorAll('#palettePop .pal-chip').forEach(x=>x.classList.toggle('active',x===chip)); if(window._haptic)window._haptic(8); }; });
   const rst=document.getElementById('paletteReset'); if(rst) rst.onclick=()=>{ resetPalette(); if(window._haptic)window._haptic(12); };
-  const clo=document.getElementById('paletteClose'); if(clo) clo.onclick=()=>{ document.getElementById('palettePop').classList.remove('show'); if(window._haptic)window._haptic(8); };
+  const clo=document.getElementById('paletteClose'); if(clo) clo.onclick=()=>{ var _pp3=document.getElementById('palettePop'); if(_pp3)_pp3.style.display='none'; if(window._haptic)window._haptic(8); };
   const handle=document.getElementById('paletteMove'), pop=document.getElementById('palettePop');
   if(handle&&pop){ let dr=false,sx=0,sy=0,sl=0,st=0;
     const down=e=>{ dr=true; const p=e.touches?e.touches[0]:e; const r=pop.getBoundingClientRect(); sl=r.left; st=r.top; sx=p.clientX; sy=p.clientY; pop.style.left=sl+'px'; pop.style.top=st+'px'; e.preventDefault(); e.stopPropagation(); };
@@ -4834,7 +4947,7 @@ function positionPaletteUnder(){
 })();
 (function(){ const btn=document.getElementById('btnPalette'); if(!btn) return;
   btn.onclick=(e)=>{ e.stopPropagation(); const pop=document.getElementById('palettePop'); const show=!pop.classList.contains('show'); pop.classList.toggle('show',show); if(show){ positionPaletteUnder(); if(window._haptic)window._haptic(12); } };
-  document.addEventListener('click',(e)=>{ if(!e.target.closest('#palettePop')&&!e.target.closest('#btnPalette')) document.getElementById('palettePop').classList.remove('show'); });
+  document.addEventListener('click',(e)=>{ if(!e.target.closest('#palettePop')&&!e.target.closest('#btnPalette')) var _pp2=document.getElementById('palettePop'); if(_pp2)_pp2.style.display='none'; });
 })();
 })();
 </script>
@@ -4843,16 +4956,18 @@ function positionPaletteUnder(){
   try{
     var $=function(id){return document.getElementById(id);};
     if($('bottomDock')) return;
-    var title=document.createElement('div'); title.className='scene-top-title'; title.id='sceneMainTitle'; title.textContent="Denetleyici ve Düzenleyici Sistem"; document.body.appendChild(title);
+    var title=document.createElement('div'); title.className='scene-top-title'; title.id='sceneMainTitle'; title.textContent=''; title.style.display='none'; document.body.appendChild(title);
     var help=$('btnHelp'); if(help){ help.classList.add('scene-help'); document.body.appendChild(help); }
     var dock=document.createElement('div'); dock.id='bottomDock'; document.body.appendChild(dock);
     var ap=document.createElement('div'); ap.className='action-pop'; ap.id='actionPop'; dock.appendChild(ap);
     ['spinBtn','labelBtn','animBtn'].forEach(function(id){ var b=$(id); if(b){ ap.appendChild(b); b.addEventListener('click',function(){ ap.classList.remove('show'); }); } });
     var bp=$('bottomPanel'); if(bp) dock.appendChild(bp);
     var tr=document.createElement('div'); tr.className='dock-row'; tr.id='toolsRow'; dock.appendChild(tr);
-    ['btnMode','btnStory','btnCompare','btnTable','btnSend','btnPalette','btnExam','btnAsk','btnTts'].forEach(function(id){ var b=$(id); if(b) tr.appendChild(b); });
+        var btnMod=document.createElement('button'); btnMod.className='dock-tab-btn mod-btn'; btnMod.id='btnModTab'; btnMod.title='Görünüm Modu'; btnMod.innerHTML='<span class="dtb-ico">📖</span><span class="dtb-lbl">sade</span>'; tr.appendChild(btnMod);
+    var btnTbl=document.createElement('button'); btnTbl.className='dock-tab-btn tablo-btn'; btnTbl.id='btnTabloCombo'; btnTbl.title='Tablolar'; btnTbl.innerHTML='<span class="dtb-ico">📊</span><span class="dtb-lbl">tablo</span>'; tr.appendChild(btnTbl);
+    var btnArc=document.createElement('button'); btnArc.className='dock-tab-btn araclar-btn'; btnArc.id='btnAraclarCombo'; btnArc.title='Araçlar'; btnArc.innerHTML='<span class="dtb-ico">🧰</span><span class="dtb-lbl">araçlar</span>'; tr.appendChild(btnArc);
     var menuBtn=document.createElement('button'); menuBtn.className='tool-icon-btn menu'; menuBtn.id='btnMenu'; menuBtn.title='Seviye · Konu'; menuBtn.textContent='\u2630'; tr.appendChild(menuBtn);
-    ['btnTheme','btnFs'].forEach(function(id){ var b=$(id); if(b){ b.style.display='none'; document.body.appendChild(b); } });
+    ['btnMode','btnStory','btnCompare','btnTable','btnSend','btnPalette','btnExam','btnAsk','btnTts','btnTheme','btnFs'].forEach(function(id){ var b=$(id); if(b){ b.style.display='none'; document.body.appendChild(b); } });
     var mp=document.createElement('div'); mp.className='menu-pop'; mp.id='menuPop';
     var ttl=document.createElement('div'); ttl.className='menu-pop-title'; ttl.textContent='\u2699\uFE0F Ders Ayarlar\u0131'; mp.appendChild(ttl);
     var lvl=$('btnLevel'); if(lvl) mp.appendChild(lvl);
@@ -4889,6 +5004,92 @@ function positionPaletteUnder(){
   .menu-pop{ width:min(188px,66vw)!important; padding:9px 9px 10px!important; gap:7px!important; }
   .menu-pop-title{ font-size:10.5px!important; padding:0 1px 6px!important; }
   .menu-pop .stack-btn, .menu-pop .sp-toggle{ font-size:12px!important; padding:7px 9px!important; }
+  /* === YENİ DOCK SEKME BUTONLARI === */
+  .dock-tab-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;background:var(--panel);border:2px solid var(--panel-line);border-radius:10px;cursor:pointer;min-width:46px;height:38px;padding:2px 7px;font-family:'Fredoka',sans-serif;color:var(--ink);box-shadow:0 3px 8px rgba(0,0,0,.25);transition:all .15s;flex:0 0 auto;}
+  .dock-tab-btn .dtb-ico{font-size:15px;line-height:1;}
+  .dock-tab-btn .dtb-lbl{font-size:9px;font-weight:700;line-height:1;opacity:.85;}
+  .dock-tab-btn:hover{border-color:var(--accent);}
+  .dock-tab-btn:active{transform:scale(.95);}
+  .dock-tab-btn.mod-btn{border-color:var(--joint);}
+  .dock-tab-btn.tablo-btn{border-color:var(--sense);}
+  .dock-tab-btn.araclar-btn{border-color:var(--hormone);}
+  /* combo popup */
+  .combo-pop{position:absolute;z-index:62;background:var(--panel);border:2px solid var(--neural);border-radius:14px;padding:8px;box-shadow:0 12px 32px rgba(0,0,0,.55);display:none;flex-direction:column;gap:5px;width:min(230px,82vw);}
+  .combo-pop.show{display:flex;}
+  .combo-pop-title{font-family:'Baloo 2',cursive;font-weight:800;font-size:11px;color:var(--neural);text-transform:uppercase;letter-spacing:.4px;padding:2px 4px 7px;border-bottom:1px solid var(--panel-line);margin-bottom:2px;}
+  .combo-pop-item{display:flex;align-items:center;gap:10px;background:var(--panel-soft);border:1.5px solid var(--panel-line);border-radius:10px;padding:9px 12px;cursor:pointer;font-family:'Fredoka',sans-serif;font-weight:600;font-size:13px;color:var(--ink);transition:all .12s;}
+  .combo-pop-item:hover{border-color:var(--neural);background:var(--panel-line);}
+  .combo-pop-item:active{transform:scale(.97);}
+  .combo-pop-item .cpi-ico{font-size:18px;flex-shrink:0;}
+  .combo-pop-item.tts-active{background:rgba(79,214,224,.15);border-color:var(--neural);}
+  /* Karşılaştırma & Bilgi Tablosu — kırmızı/turuncu YOK, mavi + yeşil */
+  #compareOverlay .share-card{border-color:#5fc8e0!important;}
+  #compareOverlay .share-head-text{color:#5fc8e0!important;}
+  #compareOverlay .cmp-table th{background:linear-gradient(135deg,#1a6b8a,#1f7a5e)!important;color:#e8f8ff!important;text-shadow:none!important;}
+  #compareOverlay .cmp-table tr:hover td{background:rgba(95,200,224,.18)!important;}
+  #compareOverlay .cmp-table td:first-child{color:#5fc8e0!important;background:rgba(95,200,224,.07)!important;}
+  #compareOverlay .cmp-nav-btn{border-color:#5fc8e0!important;color:#5fc8e0!important;}
+  #compareOverlay .cmp-nav-btn:hover{background:#5fc8e0!important;color:#0a1420!important;}
+  #compareOverlay .cmp-send-btn{background:#5fc8e0!important;color:#0a1420!important;}
+  #tableOverlay .share-card{border-color:#5fd99a!important;}
+  #tableOverlay .share-head-text{color:#5fd99a!important;}
+  #tableOverlay .cmp-table th{background:linear-gradient(135deg,#1f7a5e,#1a6b8a)!important;color:#e8fff4!important;text-shadow:none!important;}
+  #tableOverlay .cmp-table tr:hover td{background:rgba(95,217,154,.18)!important;}
+  #tableOverlay .cmp-table td:first-child{color:#5fd99a!important;background:rgba(95,217,154,.07)!important;}
+  #tableOverlay .cmp-nav-btn{border-color:#5fd99a!important;color:#5fd99a!important;}
+  #tableOverlay .cmp-nav-btn:hover{background:#5fd99a!important;color:#0a1420!important;}
+  #tableOverlay .cmp-send-btn{background:#5fd99a!important;color:#0a1420!important;}
+  /* === BİLGİ PANELİ RENK OVERRIDES === */
+  #bottomPanel .nav-mini-btn{border-color:#5fd99a;color:#5fd99a;}
+  #bottomPanel .nav-mini-btn:hover{background:#5fd99a;color:#0a1420;}
+  #bottomPanel .nav-mini-btn:disabled:hover{background:var(--panel-soft);color:#5fd99a;}
+  #bottomPanel .info-title{color:#5fc8e0;}
+  #bottomPanel .info-list li.subhead{color:#5fd99a;}
+  #bottomPanel .info-list li b{color:#5fc8e0;}
+  #bottomPanel .info-scrollthumb{background:#5fd99a;}
+  #bottomPanel .info-list::-webkit-scrollbar-thumb{background:#5fd99a;}
+  /* ✕ butonu tıklanabilir */
+  .info-close-btn{pointer-events:all!important;}
+  /* Menü margin sıfırla — tablo+araçlar flex gruba bırakılır */
+  #btnMenu{margin-left:0!important;}
+  /* WhatsApp gönder SVG */
+  .wa-send svg{width:20px;height:20px;fill:currentColor;transform:rotate(-45deg);display:block;}
+  /* === MİNİ BİLGİ PANELİ === */
+  #bottomPanel.info-mini{left:2px!important;right:auto!important;bottom:50px!important;padding:0!important;border:none!important;background:transparent!important;box-shadow:none!important;min-height:0!important;overflow:visible!important;}
+  #bottomPanel.info-mini>*:not(.info-mini-chip){display:none!important;}
+  .info-mini-chip{display:none;flex-direction:column;align-items:center;justify-content:center;gap:1px;background:var(--panel);border:2px solid #5fc8e0;border-radius:10px;cursor:pointer;min-width:46px;height:38px;padding:2px 7px;font-family:'Fredoka',sans-serif;color:#5fc8e0;box-shadow:0 3px 8px rgba(0,0,0,.35);transition:all .15s;pointer-events:all;}
+  .info-mini-chip .dtb-ico{font-size:15px;line-height:1;}
+  .info-mini-chip .dtb-lbl{font-size:9px;font-weight:700;line-height:1;opacity:.85;}
+  .info-mini-chip:hover{background:var(--panel-soft);}
+  .info-mini-chip:active{transform:scale(.95);}
+  #bottomPanel.info-mini .info-mini-chip{display:flex;}
+  /* Blur overlay for popups */
+  #_popBlur{position:fixed;inset:0;z-index:58;background:rgba(0,0,0,.45);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);display:none;touch-action:none;}
+
+/* === NASIL ÇALIŞIR YENİDEN === */
+.help-card{border:2px solid #5fc8e0!important;border-radius:16px!important;}
+.hc-head{background:rgba(95,200,224,0.10)!important;border-bottom:2px solid #5fc8e0!important;border-radius:14px 14px 0 0!important;}
+.hc-title{color:#5fc8e0!important;font-size:15px!important;font-weight:800!important;letter-spacing:.2px;}
+.hc-intro{font-size:12.5px;color:var(--ink-soft);line-height:1.5;padding:8px 12px 4px;border-bottom:1px solid rgba(95,200,224,0.25);margin-bottom:2px;}
+.hc-sec{font-family:'Baloo 2',cursive;font-weight:800;font-size:13px;color:#5fd99a;
+  margin:12px 8px 0;padding-top:10px;border-top:1.5px solid rgba(95,200,224,0.35);letter-spacing:.2px;}
+.hc-block{background:rgba(95,200,224,0.05);border:1.5px solid rgba(95,200,224,0.22);border-radius:10px;
+  margin:5px 6px 2px;padding:4px 8px;}
+.hc-row{display:flex;gap:9px;align-items:flex-start;padding:5px 2px;font-size:12.5px;color:var(--ink);line-height:1.42;}
+.hc-ico{font-size:16px;flex-shrink:0;width:22px;text-align:center;margin-top:1px;}
+.hc-row b{color:#5fc8e0;font-weight:700;}
+.hc-indent{padding-left:14px!important;}
+.hc-indent .hc-ico{font-size:14px;opacity:.85;}
+
+@keyframes ttsPulse{0%,100%{box-shadow:0 2px 10px rgba(239,68,68,0.6);transform:scale(1);}50%{box-shadow:0 4px 18px rgba(239,68,68,0.9);transform:scale(1.06);}}
+#ttsActiveChip{display:none;flex-direction:row;align-items:center;gap:4px;}
+.konum-hidden{display:none!important;}
+#palettePop{position:fixed!important;}
+.info-resize-handle{flex-direction:column!important;gap:2px!important;}
+.info-resize-handle::before{content:""!important;display:block!important;width:0!important;height:0!important;border-left:8px solid transparent!important;border-right:8px solid transparent!important;border-bottom:6px solid rgba(255,255,255,0.38)!important;background:none!important;border-radius:0!important;}
+.info-resize-handle::after{content:""!important;display:block!important;width:0!important;height:0!important;border-left:8px solid transparent!important;border-right:8px solid transparent!important;border-top:6px solid rgba(255,255,255,0.38)!important;background:none!important;border-radius:0!important;transform:none!important;}
+.info-resize-handle:hover::before{border-bottom-color:rgba(255,255,255,0.62)!important;}
+.info-resize-handle:hover::after{border-top-color:rgba(255,255,255,0.62)!important;}
 </style>
 <script>
 (function(){
@@ -4956,5 +5157,109 @@ function positionPaletteUnder(){
 })();
 </script>
 
-</body>
+<script>
+(function(){
+  // ---- ARAÇLAR COMBO POPUP (Tablolar buraya taşındı) ----
+  var arcPop=document.createElement('div'); arcPop.id='araclarComboP'; arcPop.className='combo-pop'; arcPop.style.borderColor='var(--hormone)';
+  arcPop.innerHTML='<div class="combo-pop-title" style="color:var(--hormone)">🧰 Araçlar</div>'+
+    '<button class="combo-pop-item" id="cpArcKarsi" style="border-color:#f59e0b;"><span class="cpi-ico" style="background:rgba(245,158,11,.18);border-radius:8px;padding:3px 5px">⚖️</span><span style="color:#f59e0b">Karşılaştırma Tablosu</span></button>'+
+    '<button class="combo-pop-item" id="cpArcBilgi" style="border-color:#3b82f6;"><span class="cpi-ico" style="background:rgba(59,130,246,.18);border-radius:8px;padding:3px 5px">📋</span><span style="color:#3b82f6">Bilgi Tablosu</span></button>'+
+    '<button class="combo-pop-item" id="cpArcExam" style="border-color:#8b5cf6;"><span class="cpi-ico" style="background:rgba(139,92,246,.18);border-radius:8px;padding:3px 5px">📝</span><span style="color:#8b5cf6">Test Soruları Oluştur</span></button>'+
+    '<button class="combo-pop-item" id="cpArcAi" style="border-color:#06b6d4;"><span class="cpi-ico" style="background:rgba(6,182,212,.18);border-radius:8px;padding:3px 5px">🤖</span><span style="color:#06b6d4">AI Destek</span></button>'+
+    '<button class="combo-pop-item" id="cpArcTts" style="border-color:#22c55e;"><span class="cpi-ico" style="background:rgba(34,197,94,.18);border-radius:8px;padding:3px 5px">🔊</span><span style="color:#22c55e">Sesli Mod</span></button>'+
+    '<button class="combo-pop-item" id="cpArcPalette" style="border-color:#ec4899;"><span class="cpi-ico" style="background:rgba(236,72,153,.18);border-radius:8px;padding:3px 5px">🎨</span><span style="color:#ec4899">Renk Paleti</span></button>'+
+    '<button class="combo-pop-item" id="cpArcGonder" style="border-color:#6366f1;"><span class="cpi-ico wa-send" style="background:rgba(99,102,241,.18);border-radius:8px;padding:3px 5px"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></span><span style="color:#6366f1">Gönder</span></button>';
+  document.body.appendChild(arcPop);
+  // Tablo butonu gizle — araçlar butonuna taşındı
+  (function(){ var bHide=document.getElementById('btnTabloCombo'); if(bHide) bHide.style.display='none'; })();
+  // Değişkenler açıkken alt sekme butonlarına basınca vars paneli kapat
+  (function(){
+    var tr=document.getElementById('toolsRow');
+    if(tr) tr.addEventListener('click',function(){
+      var vb=document.getElementById('sceneVarsBody');
+      if(vb&&!vb.classList.contains('closed')&&window._setSceneOpen) window._setSceneOpen(false);
+    },true);
+  })();
+  function posAbove(pop,btn){
+    var r=btn.getBoundingClientRect(),w=pop.offsetWidth||230,h=pop.offsetHeight||270;
+    var l=Math.max(6,Math.min(Math.round(r.left+r.width/2-w/2),window.innerWidth-w-6));
+    pop.style.left=l+'px'; pop.style.top=Math.max(6,Math.round(r.top-h-6))+'px';
+  }
+  // Blur overlay
+  var _pb=document.createElement('div'); _pb.id='_popBlur'; document.body.appendChild(_pb);
+  function _showBlur(){ _pb.style.display='block'; }
+  function _hideBlur(){ _pb.style.display='none'; }
+  _pb.addEventListener('click',function(){ closeAll(); var mp=document.getElementById('menuPop'); if(mp)mp.classList.remove('show'); var pp=document.getElementById('palettePop'); if(pp)pp.style.display='none'; _hideBlur(); });
+  function closeAll(){ arcPop.classList.remove('show'); _hideBlur(); }
+  // Araçlar butonu
+  var bArc=document.getElementById('btnAraclarCombo');
+  if(bArc) bArc.onclick=function(e){ e.stopPropagation(); var s=!arcPop.classList.contains('show'); closeAll(); if(s){arcPop.classList.add('show');_showBlur();setTimeout(function(){posAbove(arcPop,bArc);},0);} if(window._haptic)window._haptic(10); };
+  // Mod butonu
+  var bMod=document.getElementById('btnModTab');
+  if(bMod) bMod.onclick=function(){ closeAll(); if(window._toggleMode)window._toggleMode(); if(window._haptic)window._haptic(10); };
+  // Araçlar combo öğeleri
+  document.getElementById('cpArcKarsi').onclick=function(){closeAll();var b=document.getElementById('btnCompare');if(b)b.click();};
+  document.getElementById('cpArcBilgi').onclick=function(){closeAll();var b=document.getElementById('btnTable');if(b)b.click();};
+  document.getElementById('cpArcExam').onclick=function(){closeAll();var b=document.getElementById('btnExam');if(b)b.click();};
+  document.getElementById('cpArcAi').onclick=function(){closeAll();var b=document.getElementById('btnAsk');if(b)b.click();};
+  document.getElementById('cpArcTts').onclick=function(){closeAll();var b=document.getElementById('btnTts');if(b)b.click();};
+  document.getElementById('cpArcPalette').onclick=function(e){ e.stopPropagation(); e.preventDefault();
+  closeAll();
+  var pop=document.getElementById('palettePop'); if(!pop) return;
+  var isShowing=pop.style.display==='block';
+  if(isShowing){ pop.style.display='none'; return; }
+  pop.style.cssText='display:block!important;position:fixed!important;z-index:80!important;';
+  setTimeout(function(){
+    var pw=pop.offsetWidth||Math.min(330,Math.round(window.innerWidth*0.92));
+    var ph=pop.offsetHeight||290;
+    var pl=Math.max(6,Math.round((window.innerWidth-pw)/2));
+    var pt=Math.max(6,Math.round((window.innerHeight-ph)/2-30));
+    pop.style.left=pl+'px'; pop.style.top=pt+'px';
+  },10);
+  _showBlur();
+  if(window._haptic)window._haptic(12);
+};
+  document.getElementById('cpArcGonder').onclick=function(){
+  closeAll();
+  setTimeout(function(){
+    if(window.FlutterNativeShot){
+      window.FlutterNativeShot.postMessage('1');
+    } else {
+      var b=document.getElementById('btnSend'); if(b) b.click();
+    }
+  },80);
+};
+  // 3 sekme araçlar etrafında gruplu
+  setTimeout(function(){
+    var tr2=document.getElementById('toolsRow');
+    if(tr2){ tr2.style.justifyContent='center'; tr2.style.gap='18px'; }
+  },80);
+  // Sesli mod toggle durumunu senkronize et
+  var origTts=document.getElementById('btnTts');
+  var _ttsChip=(function(){
+    var ch=document.createElement('button'); ch.id='ttsActiveChip';
+    ch.innerHTML='<span style="font-size:15px">🔊</span><span style="font-size:10px;font-weight:800;letter-spacing:.3px">KES</span>';
+    ch.style.cssText='display:none;position:fixed;bottom:54px;right:8px;z-index:72;background:#ef4444;color:#fff;border:none;border-radius:20px;padding:6px 11px;gap:4px;align-items:center;cursor:pointer;box-shadow:0 2px 10px rgba(239,68,68,0.6);font-family:Fredoka,sans-serif;animation:ttsPulse 1.2s ease-in-out infinite;';
+    ch.onclick=function(){ var b=document.getElementById('btnTts'); if(b)b.click(); };
+    document.body.appendChild(ch); return ch;
+  })();
+  if(origTts){new MutationObserver(function(){var a=origTts.classList.contains('active');var i=document.getElementById('cpArcTts');if(i)i.classList.toggle('tts-active',a);if(_ttsChip)_ttsChip.style.display=a?'flex':'none';}).observe(origTts,{attributes:true,attributeFilter:['class']});}
+  // Dışarı tıklanınca kapat
+  // menuPop blur: observe menuPop show/hide to sync blur overlay
+  function _syncMenuBlur(){
+    var mp=document.getElementById('menuPop');
+    if(!mp) return;
+    if(mp.classList.contains('show')) _showBlur(); else if(!arcPop.classList.contains('show')) _hideBlur();
+  }
+  function _wireMenuBlur(){
+    var mp=document.getElementById('menuPop');
+    if(mp&&!mp._blurObs){ mp._blurObs=1; new MutationObserver(_syncMenuBlur).observe(mp,{attributes:true,attributeFilter:['class']}); }
+  }
+  setTimeout(_wireMenuBlur,300);
+  new MutationObserver(function(){ _wireMenuBlur(); }).observe(document.body,{childList:true});
+  document.addEventListener('click',function(e){
+    if(!e.target.closest('#tabloComboP')&&!e.target.closest('#btnTabloCombo')&&!e.target.closest('#araclarComboP')&&!e.target.closest('#btnAraclarCombo')) closeAll();
+  });
+})();
+</script></body>
 </html>

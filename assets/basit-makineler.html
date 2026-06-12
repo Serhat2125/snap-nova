@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
+<script>/*RAF_THROTTLE_SHIM*/(function(){if(window.__rafShim)return;window.__rafShim=1;var raf=window.requestAnimationFrame.bind(window);var FT=1000/30,lastMap=new WeakMap();window.requestAnimationFrame=function(cb){return raf(function(ts){if(document.hidden){window.requestAnimationFrame(cb);return;}var l=lastMap.get(cb)||0;if(ts-l<FT){window.requestAnimationFrame(cb);return;}lastMap.set(cb,ts);cb(ts);});};})();</script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>⚙️ Basit Makineler (TYT/AYT)</title>

@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 //  lib/screens/lesson_3d_screen.dart
 //  3D interaktif ders ekranı (HTML + Three.js).
 //
@@ -11,9 +11,11 @@
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -51,6 +53,7 @@ class _Lesson3DScreenState extends State<Lesson3DScreen> {
   WebViewController? _controller;
   bool _loading = true;
   String? _error;
+  final GlobalKey _screenshotKey = GlobalKey();
 
   /// Web hedefinde iframe src'i: Flutter web asset'leri `assets/<assetKey>`
   /// yolundan sunar (assetKey zaten 'assets/...' ile başladığı için çift olur).
@@ -70,6 +73,10 @@ class _Lesson3DScreenState extends State<Lesson3DScreen> {
       ..addJavaScriptChannel(
         'FlutterShare',
         onMessageReceived: (msg) => _handleShare(msg.message),
+      )
+      ..addJavaScriptChannel(
+        'FlutterNativeShot',
+        onMessageReceived: (_) => _takeNativeScreenshot(),
       )
       ..addJavaScriptChannel(
         // Sınav oluştur / AI'ya sor / Sesli anlatım köprüsü
@@ -167,6 +174,25 @@ class _Lesson3DScreenState extends State<Lesson3DScreen> {
   /// HTML tarafından gönderilen ekran görüntüsünü native paylaşım
   /// sayfasıyla paylaşır. WebView'de `navigator.share` desteklenmediği
   /// için paylaşım Flutter (share_plus) üzerinden yapılır.
+  Future<void> _takeNativeScreenshot() async {
+    try {
+      final boundary = _screenshotKey.currentContext
+          ?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return;
+      final image = await boundary.toImage(pixelRatio: 3.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+      final bytes = byteData.buffer.asUint8List();
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/qualsar-3d.png');
+      await file.writeAsBytes(bytes, flush: true);
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'image/png')],
+        text: 'Qualsar 3D',
+      );
+    } catch (_) {}
+  }
+
   Future<void> _handleShare(String message) async {
     try {
       final data = jsonDecode(message) as Map<String, dynamic>;
@@ -193,7 +219,9 @@ class _Lesson3DScreenState extends State<Lesson3DScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
+    return RepaintBoundary(
+      key: _screenshotKey,
+      child: PopScope(
       // Mobilde geri tuşunu biz yönetiriz: önce HTML'deki açık pencereyi kapat.
       canPop: kIsWeb || _controller == null,
       onPopInvokedWithResult: (didPop, _) async {
@@ -251,7 +279,8 @@ class _Lesson3DScreenState extends State<Lesson3DScreen> {
         ),
       ),
       ), // Scaffold
-    ); // PopScope
+      ), // PopScope
+    ); // RepaintBoundary
   }
 }
 
@@ -437,7 +466,7 @@ class _AskAiSheetState extends State<_AskAiSheet> {
                 children: [
                   const Expanded(
                     child: Text(
-                      '🤖 Sana nasıl yardımcı olabilirim?',
+                      '🤖 Size nasıl yardımcı olabilirim?',
                       style: TextStyle(
                         color: Color(0xFFFFD166),
                         fontSize: 16,
@@ -456,11 +485,13 @@ class _AskAiSheetState extends State<_AskAiSheet> {
             // Mesajlar / boş durumda ipucu
             Expanded(
               child: _msgs.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Padding(
-                        padding: EdgeInsets.all(24),
+                        padding: const EdgeInsets.all(24),
                         child: Text(
-                          'Bu konuda merak ettiğin her şeyi sorabilirsin.\nÖrn: "Mevsimler neden oluşur?"',
+                          widget.topic.isNotEmpty
+                              ? '${widget.topic} hakkında merak ettiğin her şeyi sorabilirsin.'
+                              : 'Bu konuda merak ettiğin her şeyi sorabilirsin.',
                           textAlign: TextAlign.center,
                           style: TextStyle(color: Color(0xFF8A93B0), fontSize: 13, height: 1.4),
                         ),
@@ -520,7 +551,7 @@ class _AskAiSheetState extends State<_AskAiSheet> {
                         textInputAction: TextInputAction.send,
                         onSubmitted: (_) => _send(),
                         decoration: InputDecoration(
-                          hintText: 'Sorunu yaz…',
+                          hintText: widget.topic.isNotEmpty ? '${widget.topic} hakkında merak ettiğin her şeyi sorabilirsin' : 'Sorunuzu yazın…',
                           hintStyle: const TextStyle(color: Color(0xFF8A93B0)),
                           filled: true,
                           fillColor: const Color(0xFF1F2540),
