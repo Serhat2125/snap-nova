@@ -551,7 +551,7 @@ class _AskAiSheetState extends State<_AskAiSheet> {
                         textInputAction: TextInputAction.send,
                         onSubmitted: (_) => _send(),
                         decoration: InputDecoration(
-                          hintText: widget.topic.isNotEmpty ? '${widget.topic} hakkında merak ettiğin her şeyi sorabilirsin' : 'Sorunuzu yazın…',
+                          hintText: _msgs.isEmpty ? '' : 'istediğin herhangi bir şeyi sorabilirsin',
                           hintStyle: const TextStyle(color: Color(0xFF8A93B0)),
                           filled: true,
                           fillColor: const Color(0xFF1F2540),

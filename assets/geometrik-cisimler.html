@@ -1975,6 +1975,9 @@ function startAtelier(){
   buildAtelierSliders();
   // Alt bilgi paneli aşağı kayarak gizlensin, 3D cisim aşağı insin
   document.getElementById('panel').classList.add('vars-hidden');
+  // Yeni dock: bilgi paneli yerine değişkenler (atölye) görünsün
+  { var _gbp1=document.getElementById('gBottomPanel'); if(_gbp1) _gbp1.style.display='none'; }
+  window.atelierActive=true; window.stopAtelier=stopAtelier;
   updateSceneShiftTarget();
 }
 
@@ -1983,6 +1986,8 @@ function stopAtelier(){
   atelierPanel.classList.remove('show');
   // Atölye kapandı: bilgi paneli geri gelsin, sahne eski yerine dönsün
   document.getElementById('panel').classList.remove('vars-hidden');
+  { var _gbp2=document.getElementById('gBottomPanel'); if(_gbp2) _gbp2.style.display=''; }
+  window.atelierActive=false;
   window._sceneShift.target=0;
 }
 
@@ -2339,18 +2344,19 @@ function _doLoadShape(key){
 }
 function refreshInfo(){
   const def=SHAPE_DEFS[curKey];
-  infoEmoji.textContent=def.emoji;
-  infoHead.textContent=def.name;
-  const arr=SHAPE_INFO[curKey];
-  // Sade = tek/kısa madde; Detaylı = bir üst seviyenin açıklaması da eklenir (tam)
-  let parts;
-  if(window.gDetailMode==='detayli'){
-    parts = (curLevel>=3) ? [arr[3],arr[4]] : [arr[curLevel],arr[curLevel+1]];
-  } else {
-    parts = [ arr[Math.min(curLevel,4)] ];
-  }
-  parts=parts.filter((x,i,a)=>x && a.indexOf(x)===i);
-  infoText.innerHTML=parts.join('<br><br>');
+  infoEmoji.textContent=def.emoji; infoHead.textContent=def.name;
+  const arr=SHAPE_INFO[curKey]||[];
+  const defSentence=((arr[0]||'').split('.')[0]||def.name)+'.';
+  const M=(typeof buildMeasures==='function'? buildMeasures(curKey):null)||{};
+  let html='<div class="gi-def">'+defSentence+'</div>';
+  if(M.dims&&M.dims.length){ html+='<div class="gi-dims">'+M.dims.map(function(d){return '<b>'+d[1]+'</b> = '+d[0];}).join('   •   ')+'</div>'; }
+  html+='<div class="gi-formulas">';
+  if(M.surf) html+='<div class="gi-f"><span class="gi-lbl">Alan</span>'+M.surf.formula+'</div>';
+  if(M.vol) html+='<div class="gi-f"><span class="gi-lbl">Hacim</span>'+M.vol.formula+'</div>';
+  if(M.base) html+='<div class="gi-f"><span class="gi-lbl">Taban</span>'+M.base.formula+'</div>';
+  if(M.extra) M.extra.filter(function(e){return curLevel>=e[0];}).forEach(function(e){ html+='<div class="gi-f"><span class="gi-lbl">'+e[1]+'</span>'+e[2]+'</div>'; });
+  html+='</div>';
+  infoText.innerHTML=html;
 }
 dictTab.addEventListener('click',function(){
   const open=dictPanel.classList.toggle('show');
@@ -2612,7 +2618,7 @@ function tick(){
     }
   });
 
-  const r=cam.radius;
+  const r=cam.radius*1.15;
   camera.position.set(
     r*Math.sin(cam.phi)*Math.sin(cam.theta),
     r*Math.cos(cam.phi) + 0.95,
@@ -2625,11 +2631,7 @@ function tick(){
   if(_sh){
     _sh.cur += (_sh.target - _sh.cur) * 0.1;
     if(Math.abs(_sh.target - _sh.cur) < 0.4) _sh.cur = _sh.target;
-    if(_sh.cur > 0.4){
-      camera.setViewOffset(innerWidth, innerHeight, 0, -_sh.cur, innerWidth, innerHeight);
-    } else if(camera.view && camera.view.enabled){
-      camera.clearViewOffset();
-    }
+    { camera.setViewOffset(innerWidth, innerHeight, 0, Math.round(innerHeight*0.15)-_sh.cur, innerWidth, innerHeight); }
   }
 
   updateDimLabels();
@@ -3147,51 +3149,64 @@ applyTheme();
     modeBtn.onclick=(e)=>{ e.stopPropagation(); gDetailMode=(gDetailMode==='sade')?'detayli':'sade'; applyModeBtn(); if(typeof refreshInfo==='function') refreshInfo(); if(typeof refreshMeasures==='function') refreshMeasures(); };
     tr.appendChild(modeBtn);
 
-    // 2) 📊 Bilgi Tablosu (o anki cisim)  3) 📖 Bilgi
-    const tblBtn=document.createElement('button'); tblBtn.className='g-tool-btn'; tblBtn.id='gBtnTable'; tblBtn.title='Bilgi Tablosu'; tblBtn.textContent='📊'; tr.appendChild(tblBtn);
-    const infBtn=document.createElement('button'); infBtn.className='g-tool-btn'; infBtn.id='gBtnInfo'; infBtn.title='Bilgi'; infBtn.textContent='📖'; tr.appendChild(infBtn);
-
-    // 4) Gönder — WhatsApp/uçak (kâğıt-uçak) ikonu, +x ile +y arası 45° yukarı. shotBtn handler'ı KORUNUR.
-    const send=$('shotBtn'); if(send){ send.className='g-tool-btn'; send.title='Gönder / Paylaş'; send.innerHTML='<svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>'; tr.appendChild(send); }
-    // 5) Renk  6) AI  7) Sesli (mevcut butonlar, handler korunur)
-    ['btnPalette','btnAsk','btnTts'].forEach(id=>{ const b=$(id); if(b){ b.className='g-tool-btn'; tr.appendChild(b); } });
-
-    // ▥ Karşılaştır — ana sıradan çıkarıldı, menüye taşındı (handler korunur; DOM'a eklenmez)
+    // Bilgi Tablosu / Bilgi / Gönder / Renk / AI / Sesli / Karşılaştır — gToolsRow'a EKLENMEZ; araçlar popup'tan tetiklenir (handler'lar korunur)
+    const tblBtn=document.createElement('button'); tblBtn.className='g-tool-btn'; tblBtn.id='gBtnTable'; tblBtn.title='Bilgi Tablosu'; tblBtn.textContent='📊';
+    const infBtn=document.createElement('button'); infBtn.className='g-tool-btn'; infBtn.id='gBtnInfo'; infBtn.title='Bilgi'; infBtn.textContent='📖';
+    const send=$('shotBtn'); if(send){ send.className='g-tool-btn'; send.title='Gönder / Paylaş'; send.innerHTML='<svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>'; }
+    ['btnPalette','btnAsk','btnTts'].forEach(id=>{ const b=$(id); if(b){ b.className='g-tool-btn'; } });
     const cmpBtn=document.createElement('button'); cmpBtn.id='gBtnCompare';
 
-    // 8) ☰ Menü (en sağ köşe)
-    const menuBtn=document.createElement('button'); menuBtn.className='g-tool-btn g-menu'; menuBtn.id='gBtnMenu'; menuBtn.title='Eğitim Seviyesi · Değişkenler · Konu Rehberi'; menuBtn.textContent='☰'; tr.appendChild(menuBtn);
+    // 2) ARAÇLAR (orta) — popup: Karşılaştırma · Bilgi Tablosu · Test · AI · Sesli · Renk · Gönder
+    const aracBtn=document.createElement('button'); aracBtn.className='g-tool-btn g-act'; aracBtn.id='gBtnArac'; aracBtn.title='Araçlar'; aracBtn.textContent='🌿'; tr.appendChild(aracBtn);
+    const arc=document.createElement('div'); arc.className='combo-pop'; arc.id='gAracPop'; document.body.appendChild(arc);
+    arc.innerHTML='<div class="combo-pop-title">🧰 Araçlar</div>';
+    function arcItem(emoji,label,color,fn){ const b=document.createElement('button'); b.className='combo-pop-item'; b.style.borderColor=color; b.innerHTML='<span class="cpi-ico" style="background:'+color+'2e;border-radius:8px;padding:3px 5px">'+emoji+'</span><span style="color:'+color+'">'+label+'</span>'; b.onclick=()=>{ arc.classList.remove('show'); if(typeof _gBlurHide==='function')_gBlurHide(); fn(); }; arc.appendChild(b); return b; }
+    arcItem('⚖️','Kıyaslama Tablosu','#f59e0b',()=>cmpBtn.click());
+    arcItem('📋','Bilgi Tablosu','#3b82f6',()=>tblBtn.click());
+    arcItem('📝','Test Soruları Oluştur','#8b5cf6',()=>{ const e=$('btnExam'); if(e) e.click(); });
+    arcItem('🤖','AI Destek','#06b6d4',()=>{ const a=$('btnAsk'); if(a) a.click(); });
+    arcItem('🔊','Sesli Mod','#22c55e',()=>{ const t=$('btnTts'); if(t) t.click(); });
+    arcItem('🎨','Renk Paleti','#ec4899',()=>{ setTimeout(()=>{ const p=$('btnPalette'); if(p) p.click(); }, 40); });
+    arcItem(`<svg viewBox="0 0 24 24" width="19" height="19" fill="#6366f1" style="vertical-align:middle"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>`,'Gönder','#6366f1',()=>{ if(send) send.click(); });
+
+    // 3) DERS AYARLARI (sağ) — ☰ menü
+    const menuBtn=document.createElement('button'); menuBtn.className='g-tool-btn g-menu'; menuBtn.id='gBtnMenu'; menuBtn.title='Ders Ayarları'; menuBtn.textContent='☰'; tr.appendChild(menuBtn);
 
     // Menü pop (proxy butonlar → orijinal gizli butonları tetikler, handler korunur)
     const mp=document.createElement('div'); mp.className='g-menu-pop'; mp.id='gMenuPop'; document.body.appendChild(mp);
-    function posAboveDock(el){ if(!el) return; const r=dock.getBoundingClientRect(); el.style.top='auto'; el.style.bottom=(window.innerHeight - r.top + 6)+'px'; el.style.left='10px'; el.style.right='auto'; el.style.zIndex='45'; el.style.maxHeight=Math.max(120, Math.round(r.top - 16))+'px'; el.style.overflowY='auto'; }
+    function posAboveDock(el){ if(!el) return; const r=dock.getBoundingClientRect(); el.style.top='auto'; el.style.bottom=(window.innerHeight - r.top + 6)+'px'; el.style.left='auto'; el.style.right='10px'; el.style.zIndex='45'; el.style.maxHeight=Math.max(120, Math.round(r.top - 16))+'px'; el.style.overflowY='auto'; }
     function menuItem(emoji,label,srcId,after){ const b=document.createElement('button'); b.className='g-menu-item'; b.innerHTML='<span class="gmi-ico">'+emoji+'</span><span>'+label+'</span>'; b.onclick=()=>{ mp.classList.remove('show'); const s=$(srcId); if(s){ s.click(); if(typeof after==='function') setTimeout(after,0); } }; mp.appendChild(b); return b; }
-    // SPEC sırası — üstten alta: Eğitim Seviyesi → Değişkenler → Konu Rehberi (kimya menüsüyle aynı mantık)
+    // SPEC sırası — üstten alta: Eğitim Seviyesi → Konu Rehberi → Değişkenler
     menuItem('🎓','Eğitim Seviyesi','levelBadge',()=>{ const lp=$('levelPanel'); if(lp&&lp.classList.contains('show')) posAboveDock(lp); });
-    // Değişkenler → atölye (boyut sliderları). atelierBtn handler'ı korunur.
-    (function(){ const b=document.createElement('button'); b.className='g-menu-item'; b.innerHTML='<span class="gmi-ico">🎛️</span><span>Değişkenler</span>'; b.onclick=()=>{ mp.classList.remove('show'); const a=$('atelierBtn'); if(a) a.click(); }; mp.appendChild(b); })();
     // Konu Rehberi → cisim listesi (dock üstünde)
-    (function(){ const b=document.createElement('button'); b.className='g-menu-item'; b.innerHTML='<span class="gmi-ico">📚</span><span>Konu Rehberi</span>'; b.onclick=()=>{ mp.classList.remove('show'); const dp=$('dictPanel'); const open=!dp.classList.contains('show'); dp.classList.toggle('show',open); if(open){ posAboveDock(dp); $('levelPanel').classList.remove('show'); } }; mp.appendChild(b); })();
-    // ── ek araçlar (özellik kaybı olmasın) ──
-    const sep=document.createElement('div'); sep.className='g-menu-sep'; mp.appendChild(sep);
-    (function(){ const b=document.createElement('button'); b.className='g-menu-item'; b.innerHTML='<span class="gmi-ico">▥</span><span>Karşılaştır</span>'; b.onclick=()=>{ mp.classList.remove('show'); cmpBtn.click(); }; mp.appendChild(b); })();
-    menuItem('📝','Sınav','btnExam');
-    menuItem('🌙','Tema','themeBtn');
-    menuItem('👤','Adın','userBtn');
-    menuItem('⛶','Tam ekran','fsBtn');
-    menuItem('↺','Sıfırla','resetBtn');
+    (function(){ const b=document.createElement('button'); b.className='g-menu-item'; b.innerHTML='<span class="gmi-ico">📚</span><span>Konu Rehberi</span>'; b.onclick=()=>{ mp.classList.remove('show'); if(typeof _gBlurHide==='function')_gBlurHide(); const dp=$('dictPanel'); const open=!dp.classList.contains('show'); dp.classList.toggle('show',open); if(open){ posAboveDock(dp); $('levelPanel').classList.remove('show'); } }; mp.appendChild(b); })();
+    // Değişkenler → atölye (boyut sliderları + canlı hacim/alan değişimi). atelierBtn handler'ı korunur.
+    (function(){ const b=document.createElement('button'); b.className='g-menu-item'; b.innerHTML='<span class="gmi-ico">🎛️</span><span>Değişkenler</span>'; b.onclick=()=>{ mp.classList.remove('show'); if(typeof _gBlurHide==='function')_gBlurHide(); const a=$('atelierBtn'); if(a) a.click(); }; mp.appendChild(b); })();
+    // (Tema · Adın · Tam ekran · Sıfırla kaldırıldı — sadece Eğitim Seviyesi · Konu Rehberi · Değişkenler)
 
     // ◀▶ cisim gezinme (mevcut dict-item handler'larını tetikler)
     function go(delta){ const items=Array.from(document.querySelectorAll('.dict-item')); if(!items.length) return; let i=items.findIndex(x=>x.classList.contains('active')); if(i<0) i=0; items[(i+delta+items.length)%items.length].click(); }
     prev.onclick=()=>go(-1); next.onclick=()=>go(1);
 
+    // Arka plan flu (alt sekme açılınca)
+    let _gBlur=document.getElementById('_gBlur');
+    if(!_gBlur){ _gBlur=document.createElement('div'); _gBlur.id='_gBlur'; _gBlur.style.cssText='display:none;position:fixed;inset:0;z-index:40;background:rgba(0,0,0,0.5);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);'; document.body.appendChild(_gBlur); }
+    function _gBlurShow(){ _gBlur.style.display='block'; }
+    function _gBlurHide(){ _gBlur.style.display='none'; }
+    _gBlur.addEventListener('click',()=>{ arc.classList.remove('show'); mp.classList.remove('show'); ap.classList.remove('show'); _gBlurHide(); });
+
     // 🎬 aksiyon popup
-    act.onclick=(e)=>{ e.stopPropagation(); ap.classList.toggle('show'); };
+    act.onclick=(e)=>{ e.stopPropagation(); const open=!ap.classList.contains('show'); ap.classList.toggle('show',open); if(open){ _gBlurShow(); arc.classList.remove('show'); mp.classList.remove('show'); } else _gBlurHide(); };
     document.addEventListener('click',(e)=>{ if(!e.target.closest('#gActionPop')&&!e.target.closest('#gNavAct')) ap.classList.remove('show'); });
 
-    // ☰ menü
+    // 🧰 araçlar popup
+    function posArac(){ const r=aracBtn.getBoundingClientRect(); const w=arc.offsetWidth||210,h=arc.offsetHeight||260; arc.style.left=Math.max(6,Math.min(Math.round(r.left+r.width/2-w/2),window.innerWidth-w-6))+'px'; arc.style.top=Math.max(6,Math.round(r.top-h-8))+'px'; arc.style.bottom='auto'; arc.style.right='auto'; }
+    aracBtn.onclick=(e)=>{ e.stopPropagation(); const open=!arc.classList.contains('show'); arc.classList.toggle('show',open); if(open){ posArac(); _gBlurShow(); mp.classList.remove('show'); ap.classList.remove('show'); } else _gBlurHide(); };
+    document.addEventListener('click',(e)=>{ if(!e.target.closest('#gAracPop')&&!e.target.closest('#gBtnArac')) arc.classList.remove('show'); });
+
+    // ☰ menü (ders ayarları)
     function posMenu(){ const r=menuBtn.getBoundingClientRect(); const w=mp.offsetWidth||200,h=mp.offsetHeight||220; mp.style.left=Math.max(6,Math.min(Math.round(r.right-w),window.innerWidth-w-6))+'px'; mp.style.top=Math.max(6,Math.round(r.top-h-6))+'px'; }
-    menuBtn.onclick=(e)=>{ e.stopPropagation(); const open=!mp.classList.contains('show'); mp.classList.toggle('show',open); if(open){ posMenu(); $('dictPanel').classList.remove('show'); $('levelPanel').classList.remove('show'); ap.classList.remove('show'); } };
+    menuBtn.onclick=(e)=>{ e.stopPropagation(); const open=!mp.classList.contains('show'); mp.classList.toggle('show',open); if(open){ posMenu(); _gBlurShow(); arc.classList.remove('show'); $('dictPanel').classList.remove('show'); $('levelPanel').classList.remove('show'); ap.classList.remove('show'); } else _gBlurHide(); };
     document.addEventListener('click',(e)=>{ if(!e.target.closest('#gMenuPop')&&!e.target.closest('#gBtnMenu')&&!e.target.closest('#levelPanel')) mp.classList.remove('show'); });
 
     /* ===== ▥ KARŞILAŞTIR + 📊 BİLGİ TABLOSU ===== */
@@ -3284,9 +3299,64 @@ applyTheme();
       cov.card.querySelector('#gCmpB').onchange=ev=>{ cmpB=ev.target.value; renderCmp(); };
     }
     cmpBtn.onclick=(e)=>{ e.stopPropagation(); renderCmp(); cov.ov.classList.add('show'); mp.classList.remove('show'); };
+
+    // Atölye (Değişkenler) açıkken başka sekmeye basınca → bilgi paneli geri gelsin
+    document.addEventListener('click', function(ev){
+      if(!window.atelierActive || typeof window.stopAtelier!=='function') return;
+      const t=ev.target; if(!t||!t.closest) return;
+      if(t.closest('#atelierPanel')) return; // atölye içi
+      const mi=t.closest('.g-menu-item'); if(mi && /Değişkenler/.test(mi.textContent)) return; // Değişkenler öğesi
+      if(t.closest('#gBtnMode')||t.closest('#gBtnArac')||t.closest('#gAracPop')||t.closest('#gBtnMenu')||t.closest('#gMenuPop')||t.closest('#gNavPrev')||t.closest('#gNavNext')||t.closest('.dict-item')){
+        window.stopAtelier();
+      }
+    }, true);
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', run); else run();
 })();
 </script>
+<style id="geoTitleHide">#gTopTitle, .g-top-title{ display:none !important; }</style>
+<style id="giInfoFix">.gi-def{color:var(--ink);font-size:13px;line-height:1.4;margin-bottom:7px;} .gi-dims{color:#5fc8e0;font-size:12.5px;margin-bottom:7px;} .gi-dims b{color:#ffd166;} .gi-formulas{display:flex;flex-direction:column;gap:3px;} .gi-f{font-size:13px;color:var(--ink);border:none!important;background:none!important;padding:1px 0;box-shadow:none!important;} .gi-f .gi-lbl{display:inline-block;min-width:62px;color:#5fd99a;font-weight:700;}</style>
+<style id="gDockFrame">
+/* Coğrafya görünümü: full-width gri-siyah bar, mavi oval çerçeve, 3 eşit sekme */
+#gBottomDock{ padding-left:0 !important; padding-right:0 !important; }
+#gBottomDock #gToolsRow{
+  background:rgba(12,15,22,0.97) !important;
+  border:2px solid #2f8fd0 !important;
+  border-radius:20px !important;
+  margin:0 14px 4px !important;
+  padding:6px 14px !important;
+  display:grid !important;
+  grid-template-columns:1fr 1fr 1fr !important;
+  justify-items:center !important;
+  align-items:center !important;
+  width:auto !important;
+  box-sizing:border-box !important;
+  box-shadow:0 3px 12px rgba(0,0,0,.45) !important;
+  gap:4px !important;
+}
+/* ders ayarları (☰) biraz sola */
+#gBottomDock #gToolsRow #gBtnMenu{ justify-self:end !important; margin-right:2px !important; }
+#gBottomDock #gToolsRow #gBtnMode{ justify-self:start !important; margin-left:2px !important; }
+</style>
+<style id="gMeasureHeadHide">.g-measure-head{ display:none !important; }</style>
+<style id="gComboPopCss">
+.combo-pop{position:fixed;z-index:62;background:var(--panel,#161b2e);border:2px solid #f6b93b;border-radius:14px;padding:9px;box-shadow:0 12px 32px rgba(0,0,0,.55);display:none;flex-direction:column;gap:6px;width:min(300px,86vw);}
+.combo-pop.show{display:flex;}
+.combo-pop-title{font-family:'Baloo 2',cursive;font-weight:800;font-size:13px;color:#f6b93b;text-transform:uppercase;letter-spacing:.5px;padding:2px 4px 9px;border-bottom:1px solid var(--panel-line,#2f3a5f);margin-bottom:3px;}
+.combo-pop-item{display:flex;align-items:center;gap:11px;background:var(--panel-soft,#1f2540);border:1.5px solid;border-radius:11px;padding:11px 13px;cursor:pointer;font-family:'Fredoka',sans-serif;font-weight:700;font-size:15px;color:var(--ink,#eef0ff);transition:transform .12s;width:100%;text-align:left;}
+.combo-pop-item:active{transform:scale(.97);}
+.combo-pop-item .cpi-ico{font-size:20px;flex-shrink:0;}
+</style>
+<style id="atelierPosFix">
+/* Değişkenler (atölye) bilgi panelinin yerine: altta, geniş */
+#atelierPanel.show{
+  position:fixed !important;
+  left:8px !important; right:8px !important;
+  bottom:62px !important; top:auto !important;
+  width:auto !important; max-width:none !important;
+  max-height:40vh !important; overflow-y:auto !important;
+  z-index:26 !important;
+}
+</style>
 </body>
 </html>

@@ -2271,7 +2271,7 @@ function addLabel(pos,partKey,colorClass){
   el.className='organ-label '+(colorClass||'accent');
   el.textContent=part.name;
   document.getElementById('app').appendChild(el);
-  const _lc=getComputedStyle(el).borderTopColor||'#ffd166';
+  const _lc=(colorClass==='accent'||!colorClass)?'#ffd166':'#5fd99a';
   const _ln=document.createElementNS('http://www.w3.org/2000/svg','line'); _ln.setAttribute('stroke',_lc); _ln.setAttribute('stroke-width','2'); _ln.setAttribute('stroke-linecap','round'); _ln.setAttribute('opacity','0.9');
   const _dt=document.createElementNS('http://www.w3.org/2000/svg','circle'); _dt.setAttribute('r','3.6'); _dt.setAttribute('fill',_lc);
   leaderSvg.appendChild(_ln); leaderSvg.appendChild(_dt);
@@ -3605,7 +3605,7 @@ function renderInfoList(p){
     const li=document.createElement('li');
     if(typeof t==='object' && t && t.subhead){
       li.className='subhead';
-      li.innerHTML=t.subhead;
+      li.innerHTML=(t.subhead||'').replace(/^[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{2BFF}\u{FE0F}\u{200D}\s]+/u,'');
     } else {
       li.innerHTML=t;
     }
@@ -3912,7 +3912,7 @@ const tmpP=new THREE.Vector3();
 function updateLabels(){
   const W=innerWidth, H=innerHeight;
   const TOP=50, BOT=H-155;
-  const DIST=62; // etiket-anchor mesafesi (px)
+  const DIST=20; // etiket-anchor mesafesi (px)
 
   if(!labelsVisible){
     labelAnchors.forEach(a=>{ a.elM.style.display='none'; if(a.ln)a.ln.style.display='none'; if(a.dot)a.dot.style.display='none'; });
@@ -3946,19 +3946,19 @@ function updateLabels(){
     let lx=ax+dx*DIST, ly=ay+dy*DIST;
     lx=Math.max(elW/2+4,Math.min(W-elW/2-4,lx));
     ly=Math.max(TOP,Math.min(BOT,ly));
-    items.push({a,ax,ay,lx,ly,elW,opa});
+    if(items.length>=4){hide();return;}items.push({a,ax,ay,lx,ly,elW,opa});
   });
   if(!items.length) return;
 
   // Çakışma çözümü: etiketleri birbirinden it (16 iterasyon)
-  for(let it=0;it<16;it++){
+  for(let it=0;it<30;it++){
     let mv=false;
     for(let i=0;i<items.length;i++){
       for(let j=i+1;j<items.length;j++){
         const A=items[i],B=items[j];
         const ddx=B.lx-A.lx, ddy=B.ly-A.ly;
         const d=Math.sqrt(ddx*ddx+ddy*ddy)||0.01;
-        const minS=(A.elW+B.elW)/2+6;
+        const minS=(A.elW+B.elW)/2+3;
         if(d<minS){
           const p=(minS-d)/2, nx=ddx/d, ny=ddy/d;
           A.lx-=nx*p; A.ly-=ny*p;
@@ -5232,7 +5232,7 @@ function positionPaletteUnder(){
   // 3 sekme araçlar etrafında gruplu
   setTimeout(function(){
     var tr2=document.getElementById('toolsRow');
-    if(tr2){ tr2.style.justifyContent='center'; tr2.style.gap='18px'; }
+    if(tr2){ tr2.style.justifyContent='space-evenly'; tr2.style.padding='0 24px'; }
   },80);
   // Sesli mod toggle durumunu senkronize et
   var origTts=document.getElementById('btnTts');
@@ -5261,5 +5261,212 @@ function positionPaletteUnder(){
     if(!e.target.closest('#tabloComboP')&&!e.target.closest('#btnTabloCombo')&&!e.target.closest('#araclarComboP')&&!e.target.closest('#btnAraclarCombo')) closeAll();
   });
 })();
-</script></body>
+</script>
+<script>
+/* == BIO-MODE-FIX == */
+(function(){
+  // 1. _toggleMode — only if the module script didn't already define it (denetleyici has its own)
+  setTimeout(function(){
+    if(!window._toggleMode){
+      window._toggleMode=function(){
+        var items=document.querySelectorAll('#panelMode .dropdown-item[data-mode]');
+        var toClick=null;
+        items.forEach(function(item){ if(!item.classList.contains('active')) toClick=item; });
+        if(!toClick) return;
+        toClick.click(); // triggers module-level handler: currentMode change + loadOverviewTopic()
+        setTimeout(function(){
+          var mode=toClick.dataset.mode;
+          var btn=document.getElementById('btnModTab');
+          if(btn) btn.innerHTML=mode==='sade'
+            ?'<span class="dtb-ico">📖</span><span class="dtb-lbl">sade</span>'
+            :'<span class="dtb-ico">📚</span><span class="dtb-lbl">detaylı</span>';
+        },30);
+      };
+    }
+  },500);
+
+  // 2. Araçlar centering — 3 equal-width grid columns (overrides space-evenly from DOCK FIX)
+  setTimeout(function(){
+    var tr=document.getElementById('toolsRow');
+    if(!tr) return;
+    tr.style.display='grid';
+    tr.style.gridTemplateColumns='1fr 1fr 1fr';
+    tr.style.justifyItems='center';
+    tr.style.alignItems='center';
+    tr.style.padding='0 8px';
+    tr.style.gap='4px';
+  },500);
+
+  // 3. Strip leading emoji from li.subhead section headings in info panel
+  function stripSubheadIcons(root){
+    if(!root) return;
+    root.querySelectorAll('.info-list li.subhead').forEach(function(el){
+      var t=el.textContent;
+      if(!t) return;
+      var code=t.codePointAt(0);
+      // Above BMP emoji (surrogate pair, e.g. 🧩🫃👄): skip 2 UTF-16 chars
+      if(code>0xFFFF){
+        el.textContent=t.slice(2).replace(/^s+/,'');
+      // Basic plane emoji block (☀✈♦ etc U+2600-U+2BFF):
+      } else if(code>=0x2600 && code<=0x2BFF){
+        el.textContent=t.slice(1).replace(/^s+/,'');
+      }
+    });
+  }
+  var bp=document.getElementById('bottomPanel');
+  if(bp){
+    new MutationObserver(function(){ stripSubheadIcons(bp); })
+      .observe(bp,{childList:true,subtree:true});
+    stripSubheadIcons(bp);
+  }
+})();
+</script>
+
+<style id="tableColorFix">
+/* Bilgi & Karşılaştırma tabloları: kırmızı yok — sadece mavi + yeşil */
+#compareOverlay .cmp-table, #tableOverlay .cmp-table{ border-color:#2f8fd0 !important; }
+#compareOverlay .cmp-table th, #tableOverlay .cmp-table th{
+  background:linear-gradient(135deg,#1a6b8a 0%,#1f7a5e 100%) !important;
+  color:#eafaff !important; border-color:#2f8fd0 !important;
+}
+#compareOverlay .cmp-table td, #tableOverlay .cmp-table td{ border-color:rgba(95,200,224,.22) !important; }
+#compareOverlay .cmp-table td:first-child, #tableOverlay .cmp-table td:first-child{ color:#5fd99a !important; }
+#compareOverlay .cmp-table tbody tr:nth-child(odd) td, #tableOverlay .cmp-table tbody tr:nth-child(odd) td{ background:rgba(95,200,224,.06) !important; }
+#compareOverlay .cmp-table tbody tr:nth-child(even) td, #tableOverlay .cmp-table tbody tr:nth-child(even) td{ background:rgba(95,217,154,.10) !important; }
+#compareOverlay .cmp-table tr:hover td, #tableOverlay .cmp-table tr:hover td{ background:rgba(95,200,224,.20) !important; }
+/* Başlık + gezinme + çerçeve */
+#compareTitle, #tableTitle{ color:#5fc8e0 !important; }
+#compareNav button, #tableNav button{ border-color:#2f8fd0 !important; color:#5fc8e0 !important; }
+#compareOverlay .cmp-overlay-box, #tableOverlay .cmp-overlay-box,
+#compareOverlay .overlay-box, #tableOverlay .overlay-box{ border-color:#2f8fd0 !important; }
+/* İçerikte kırmızımsı vurgu metinleri → yeşil (✗/farklılık işaretleri vb.) */
+#compareOverlay .cmp-table td [style*="color:#e74c3c"], #tableOverlay .cmp-table td [style*="color:#e74c3c"],
+#compareOverlay .cmp-table td [style*="color:#ef4444"], #tableOverlay .cmp-table td [style*="color:#ef4444"],
+#compareOverlay .cmp-table td [style*="color:#ff6f00"], #tableOverlay .cmp-table td [style*="color:#ff6f00"]{ color:#5fd99a !important; }
+</style>
+
+<style id="bioStyleV2">
+/* === ALT DOCK BAR: tam genişlik, gri-siyah, mavi çerçeve === */
+#bottomDock{ padding-left:0 !important; padding-right:0 !important; }
+#bottomDock #toolsRow{
+  background:rgba(12,15,22,0.97) !important;
+  border-top:2px solid #2f8fd0 !important;
+  border-radius:0 !important;
+  width:100% !important; box-sizing:border-box !important;
+  padding:7px 12px 9px !important; margin:0 !important;
+}
+/* 3 sekmenin çerçeve çizgileri mavi */
+#toolsRow .dock-tab-btn, #toolsRow #btnMenu, #toolsRow .tool-icon-btn.menu{
+  border-color:#2f8fd0 !important;
+}
+#toolsRow #btnMenu, #toolsRow .tool-icon-btn.menu{ color:#5fc8e0 !important; }
+#toolsRow #btnMenu:hover, #toolsRow .tool-icon-btn.menu:hover{ background:#2f8fd0 !important; color:#08121e !important; }
+/* Araçlar sekmesi açık yeşil vurgu (ikon JS ile 🌿) */
+#btnAraclarCombo{ border-color:#5fd99a !important; }
+#btnAraclarCombo .dtb-lbl{ color:#7fe6a8 !important; }
+
+/* === BİLGİ PANELİ renkleri === */
+.bottom-panel{ border-color:#2f8fd0 !important; }
+.info-title, #infoTitle{ color:#3b5bd9 !important; }                 /* başlık lacivert */
+.info-list li.subhead, #infoList li.subhead, #infoList li.subhead2{ color:#5fd99a !important; }  /* alt başlık yeşil */
+.info-list li b, #infoList li b{ color:#5fc8e0 !important; }          /* kırmızı/coral vurgu → mavi */
+.info-list li, #infoList li{ color:#eef0ff !important; }
+.info-list li::before, #infoList li::before{ color:#2f8fd0 !important; }   /* madde imi mavi */
+
+/* === İLERİ / GERİ (◀ ▶) butonları yeşil çerçeve === */
+.nav-mini-btn{ border-color:#5fd99a !important; color:#5fd99a !important; }
+.nav-mini-btn:hover{ background:#5fd99a !important; color:#0a1420 !important; }
+.nav-mini-btn:disabled{ opacity:.3 !important; }
+
+/* === RENK PALETİ çerçevesi açık === */
+.palette-pop{ border-color:#aee0f0 !important; }
+.palette-title{ color:#aee0f0 !important; }
+
+/* === BLUR güçlendir (3 sekme popup'larında belirgin flu) === */
+#_popBlur{ background:rgba(0,0,0,0.5) !important; backdrop-filter:blur(3px) !important; -webkit-backdrop-filter:blur(3px) !important; }
+</style>
+<script>
+/* == BIO-STYLE-V2 ICON == */
+(function(){
+  function setIcon(){
+    var ico=document.querySelector('#btnAraclarCombo .dtb-ico');
+    if(ico){ ico.textContent='🌿'; return true; }
+    return false;
+  }
+  var n=0;
+  (function spin(){ if(setIcon()||n++>8) return; setTimeout(spin,250); })();
+})();
+</script>
+
+<style id="resizeHandleFix">
+/* Bilgi paneli çekme çubuğu: kalın kısa çizgi + ↕ simge */
+.info-resize-handle{ display:flex!important; flex-direction:column!important; align-items:center!important; justify-content:center!important; gap:2px!important; width:64px!important; height:24px!important; top:-20px!important; }
+.info-resize-handle::before{ content:"↕"!important; display:block!important; width:auto!important; height:auto!important; border:none!important; border-top:none!important; border-bottom:none!important; border-left:none!important; border-right:none!important; background:none!important; border-radius:0!important; color:#5fc8e0!important; font-size:11px!important; font-weight:700!important; line-height:1!important; transform:none!important; opacity:.95!important; }
+.info-resize-handle::after{ content:""!important; display:block!important; width:44px!important; height:5px!important; border:none!important; border-top:none!important; border-bottom:none!important; border-left:none!important; border-right:none!important; background:#5fc8e0!important; border-radius:3px!important; transform:none!important; }
+.info-resize-handle:hover::after{ background:#7fe0f0!important; }
+.info-resize-handle:hover::before{ color:#7fe0f0!important; }
+.info-resize-handle:active::after{ background:#9fe8f5!important; transform:scaleX(.9)!important; }
+</style>
+
+<script>
+/* == MENU-BLUR-FIX == */
+(function(){
+  function wire(){
+    var mp=document.getElementById('menuPop'), pb=document.getElementById('_popBlur');
+    if(!pb) return false;
+    if(!mp) return false;
+    if(mp.__menuBlurWired) return true;
+    mp.__menuBlurWired=1;
+    new MutationObserver(function(){
+      var open=mp.classList.contains('show');
+      if(open){ pb.style.display='block'; }
+      else {
+        var arc=document.getElementById('araclarComboP');
+        if(!(arc&&arc.classList.contains('show'))) pb.style.display='none';
+      }
+    }).observe(mp,{attributes:true,attributeFilter:['class']});
+    return true;
+  }
+  var n=0;(function s(){ if(wire()||n++>25) return; setTimeout(s,200); })();
+})();
+</script>
+
+<style id="labelFitFix">
+.label3d, .organ-label{
+  max-width:42vw !important;
+  white-space:normal !important;
+  font-size:10px !important;
+  line-height:1.2 !important;
+  text-align:center !important;
+  padding:3px 7px !important;
+  word-break:break-word !important;
+}
+</style>
+<style id="dockFrameFix">
+/* 3 sekme: oval çerçeve, 4 kenar görünür, simetrik */
+#bottomDock{ padding-left:0 !important; padding-right:0 !important; padding-bottom:7px !important; }
+#bottomDock #toolsRow{
+  background:rgba(12,15,22,0.97) !important;
+  border:2px solid #2f8fd0 !important;
+  border-radius:20px !important;
+  margin:0 14px 2px !important;
+  padding:6px 14px !important;
+  display:grid !important;
+  grid-template-columns:1fr 1fr 1fr !important;
+  justify-items:center !important;
+  align-items:center !important;
+  width:auto !important;
+  box-sizing:border-box !important;
+  box-shadow:0 3px 12px rgba(0,0,0,.45) !important;
+  overflow:visible !important;
+}
+</style>
+<style id="helpPanelFix">
+/* Nasıl Çalışır paneli: çerçeve mavi, ana başlık yeşil, alt başlık sarı */
+#helpOverlay .help-card, #helpOverlay .share-card{ border:2px solid #2f8fd0 !important; border-radius:16px !important; }
+#helpOverlay .share-head-text{ color:#5fd99a !important; }
+#helpOverlay .help-sec-title{ color:#ffd166 !important; }
+#helpOverlay .help-row b{ color:#5fc8e0 !important; }
+</style>
+</body>
 </html>

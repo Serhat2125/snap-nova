@@ -48,7 +48,7 @@
     width:100vw; height:100vh;
     transition:background 0.3s, color 0.3s;
   }
-  canvas { display:block; cursor:grab; }
+  canvas { display:block; cursor:grab; max-width:100vw; }
   canvas:active { cursor:grabbing; }
   #app { position:absolute; inset:0; width:100%; height:100%; z-index:1; }
   #app canvas { touch-action:none; }
@@ -852,6 +852,7 @@
 <div class="bottom-panel" id="bottomPanel">
   <div class="info-resize-handle" id="infoResizeHandle" title="Yukarı/aşağı sürükleyerek büyüt/küçült"><span class="rz-up">▲</span><span class="rz-down">▼</span></div>
   <button class="info-close-btn" id="infoCloseBtn" title="Bilgi panelini kapat">✕</button>
+  <div class="info-mini-chip" id="infoMiniChip"><span class="dtb-ico">📋</span><span class="dtb-lbl" id="infoMiniLbl">bilgi</span></div>
   <div class="info-area">
     <div class="info-emoji-box" id="infoEmoji" style="display:none;">🔄</div>
     <div class="info-text-area">
@@ -3490,7 +3491,7 @@ function addLabel(pos,partKey,colorClass){
   el.className='organ-label '+(colorClass||'accent');
   el.textContent=part.name;
   document.getElementById('app').appendChild(el);
-  const _lc=getComputedStyle(el).borderTopColor||'#ffd166';
+  const _lc=(colorClass==='accent'||!colorClass)?'#ffd166':'#5fd99a';
   const _ln=document.createElementNS('http://www.w3.org/2000/svg','line'); _ln.setAttribute('stroke',_lc); _ln.setAttribute('stroke-width','2'); _ln.setAttribute('stroke-linecap','round'); _ln.setAttribute('opacity','0.9');
   const _dt=document.createElementNS('http://www.w3.org/2000/svg','circle'); _dt.setAttribute('r','3.6'); _dt.setAttribute('fill',_lc);
   leaderSvg.appendChild(_ln); leaderSvg.appendChild(_dt);
@@ -5460,7 +5461,7 @@ function renderInfoList(p){
     const li=document.createElement('li');
     if(typeof t==='object' && t && t.subhead){
       li.className='subhead';
-      li.innerHTML=t.subhead;
+      li.innerHTML=(t.subhead||'').replace(/^[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{2BFF}\u{FE0F}\u{200D}\s]+/u,'');
     } else {
       li.innerHTML=t;
     }
@@ -5748,25 +5749,85 @@ const tmpW=new THREE.Vector3();
 const tmpC=new THREE.Vector3();
 const tmpP=new THREE.Vector3();
 function updateLabels(){
+  const W=innerWidth, H=innerHeight;
+  const TOP=50, BOT=H-155;
+  const DIST=20; // etiket-anchor mesafesi (px)
+
+  if(!labelsVisible){
+    labelAnchors.forEach(a=>{ a.elM.style.display='none'; if(a.ln)a.ln.style.display='none'; if(a.dot)a.dot.style.display='none'; });
+    return;
+  }
+
+  // Model merkezini ekrana projektle
   tmpC.set(0,0,0); shapeGroup.localToWorld(tmpC);
   const dCenter=camera.position.distanceTo(tmpC);
+  tmpV.copy(tmpC); tmpV.project(camera);
+  const csx=(tmpV.x*0.5+0.5)*W, csy=(-tmpV.y*0.5+0.5)*H;
+
+  // Görünür etiketleri topla + derinlik & opaklık hesapla
+  const items=[];
   labelAnchors.forEach(a=>{
     const hide=()=>{ a.elM.style.display='none'; if(a.ln)a.ln.style.display='none'; if(a.dot)a.dot.style.display='none'; };
-    if(!labelsVisible){ hide(); return; }
     tmpW.copy(a.pos); shapeGroup.localToWorld(tmpW);
-    const dLabel=camera.position.distanceTo(tmpW);
-    if(dLabel>dCenter+0.8){ hide(); return; }
+    const dL=camera.position.distanceTo(tmpW);
+    // Arka tarafa döndüğünde kademeli soluyor
+    const behind=dL-dCenter;
+    const opa=behind>0 ? Math.max(0,1-behind/1.4) : 1;
+    if(opa<0.04){ hide(); return; }
     tmpV.copy(tmpW); tmpV.project(camera);
-    if(tmpV.z>=1||tmpV.x<-1||tmpV.x>1||tmpV.y<-1||tmpV.y>1){ hide(); return; }
+    if(tmpV.z>=1||Math.abs(tmpV.x)>1.12||Math.abs(tmpV.y)>1.12){ hide(); return; }
+    const ax=(tmpV.x*0.5+0.5)*W, ay=(-tmpV.y*0.5+0.5)*H;
+    const elW=(a.elM.offsetWidth||88)+8;
+    // Başlangıç konumu: anchor'dan model merkezine uzanan yönde DIST px uzakta
+    let dx=ax-csx, dy=ay-csy;
+    const len=Math.sqrt(dx*dx+dy*dy)||1;
+    dx/=len; dy/=len;
+    let lx=ax+dx*DIST, ly=ay+dy*DIST;
+    lx=Math.max(elW/2+4,Math.min(W-elW/2-4,lx));
+    ly=Math.max(TOP,Math.min(BOT,ly));
+    if(items.length>=4){hide();return;}items.push({a,ax,ay,lx,ly,elW,opa});
+  });
+  if(!items.length) return;
+
+  // Çakışma çözümü: etiketleri birbirinden it (16 iterasyon)
+  for(let it=0;it<30;it++){
+    let mv=false;
+    for(let i=0;i<items.length;i++){
+      for(let j=i+1;j<items.length;j++){
+        const A=items[i],B=items[j];
+        const ddx=B.lx-A.lx, ddy=B.ly-A.ly;
+        const d=Math.sqrt(ddx*ddx+ddy*ddy)||0.01;
+        const minS=(A.elW+B.elW)/2+3;
+        if(d<minS){
+          const p=(minS-d)/2, nx=ddx/d, ny=ddy/d;
+          A.lx-=nx*p; A.ly-=ny*p;
+          B.lx+=nx*p; B.ly+=ny*p;
+          mv=true;
+        }
+      }
+    }
+    // Ekrana geri kilitle
+    items.forEach(m=>{
+      m.lx=Math.max(m.elW/2+4,Math.min(W-m.elW/2-4,m.lx));
+      m.ly=Math.max(TOP,Math.min(BOT,m.ly));
+    });
+    if(!mv) break;
+  }
+
+  // Uygula
+  items.forEach(({a,ax,ay,lx,ly,opa})=>{
     a.elM.style.display='block';
-    const lx=(tmpV.x*0.5+0.5)*innerWidth, ly=(-tmpV.y*0.5+0.5)*innerHeight;
-    a.elM.style.left=lx+'px'; a.elM.style.top=ly+'px';
+    a.elM.style.left=lx+'px';
+    a.elM.style.top=ly+'px';
+    a.elM.style.opacity=opa;
     if(a.ln && _partWorldPos(a.partKey,tmpP)){
       tmpP.project(camera);
-      const px=(tmpP.x*0.5+0.5)*innerWidth, py=(-tmpP.y*0.5+0.5)*innerHeight;
-      a.ln.setAttribute('x1',px); a.ln.setAttribute('y1',py); a.ln.setAttribute('x2',lx); a.ln.setAttribute('y2',ly);
+      const px=(tmpP.x*0.5+0.5)*W, py=(-tmpP.y*0.5+0.5)*H;
+      a.ln.setAttribute('x1',lx); a.ln.setAttribute('y1',ly);
+      a.ln.setAttribute('x2',px); a.ln.setAttribute('y2',py);
       a.dot.setAttribute('cx',px); a.dot.setAttribute('cy',py);
       a.ln.style.display='block'; a.dot.style.display='block';
+      a.ln.style.opacity=opa; a.dot.style.opacity=opa;
     } else if(a.ln){ a.ln.style.display='none'; a.dot.style.display='none'; }
   });
 }
@@ -5999,7 +6060,7 @@ function tick(){
     bodyMapGroup.rotation.y += labelsVisible ? 0.002 : 0.005;
   }
 
-  const r=cam.radius;
+  const r=cam.radius*1.38;
   camera.position.set(
     r*Math.sin(cam.phi)*Math.sin(cam.theta),
     r*Math.cos(cam.phi)+0.5,
@@ -6013,7 +6074,7 @@ function tick(){
     _sh.cur += (_sh.target - _sh.cur) * 0.1;
     if (Math.abs(_sh.target - _sh.cur) < 0.4) _sh.cur = _sh.target;
     // Sahneyi basligin hemen altina al: sabit yukari kaydirma - atolye ek kaydirmasi
-    camera.setViewOffset(window.innerWidth, window.innerHeight, 0, Math.round(window.innerHeight*0.10) - _sh.cur, window.innerWidth, window.innerHeight);
+    camera.setViewOffset(window.innerWidth, window.innerHeight, 0, Math.round(window.innerHeight*0.20) - _sh.cur, window.innerWidth, window.innerHeight);
   }
   renderer.render(scene,camera);
 }
@@ -6784,6 +6845,30 @@ function positionPaletteUnder(){
   .menu-pop{ width:min(188px,66vw)!important; padding:9px 9px 10px!important; gap:7px!important; }
   .menu-pop-title{ font-size:10.5px!important; padding:0 1px 6px!important; }
   .menu-pop .stack-btn, .menu-pop .sp-toggle{ font-size:12px!important; padding:7px 9px!important; }
+
+  .dock-tab-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;background:var(--panel);border:2px solid var(--panel-line);border-radius:10px;cursor:pointer;min-width:46px;height:38px;padding:2px 7px;font-family:'Fredoka',sans-serif;color:var(--ink);box-shadow:0 3px 8px rgba(0,0,0,.25);transition:all .15s;flex:0 0 auto;}
+  .dock-tab-btn .dtb-ico{font-size:15px;line-height:1;}
+  .dock-tab-btn .dtb-lbl{font-size:9px;font-weight:700;line-height:1;opacity:.85;}
+  .dock-tab-btn:hover{border-color:var(--accent);}
+  .dock-tab-btn:active{transform:scale(.95);}
+  .dock-tab-btn.araclar-btn{border-color:var(--accent,#3b82f6);}
+  .combo-pop{position:absolute;z-index:62;background:var(--panel);border:2px solid var(--accent,#3b82f6);border-radius:14px;padding:8px;box-shadow:0 12px 32px rgba(0,0,0,.55);display:none;flex-direction:column;gap:5px;width:min(230px,82vw);}
+  .combo-pop.show{display:flex;}
+  .combo-pop-title{font-family:'Baloo 2',cursive;font-weight:800;font-size:11px;color:var(--accent,#3b82f6);text-transform:uppercase;letter-spacing:.4px;padding:2px 4px 7px;border-bottom:1px solid var(--panel-line);margin-bottom:2px;}
+  .combo-pop-item{display:flex;align-items:center;gap:10px;background:var(--panel-soft,var(--panel));border:1.5px solid var(--panel-line);border-radius:10px;padding:9px 12px;cursor:pointer;font-family:'Fredoka',sans-serif;font-weight:600;font-size:13px;color:var(--ink);transition:all .12s;}
+  .combo-pop-item:hover{border-color:var(--accent);background:var(--panel-line);}
+  .combo-pop-item:active{transform:scale(.97);}
+  .combo-pop-item .cpi-ico{font-size:18px;flex-shrink:0;}
+  .combo-pop-item.tts-active{background:rgba(95,200,224,.15);border-color:var(--accent,#3b82f6);}
+  @keyframes ttsPulse{0%,100%{box-shadow:0 2px 10px rgba(239,68,68,0.6);transform:scale(1);}50%{box-shadow:0 4px 18px rgba(239,68,68,0.9);transform:scale(1.06);}}
+  #bottomPanel.info-mini{left:2px!important;right:auto!important;bottom:50px!important;padding:0!important;border:none!important;background:transparent!important;box-shadow:none!important;min-height:0!important;overflow:visible!important;}
+  #bottomPanel.info-mini>*:not(.info-mini-chip){display:none!important;}
+  .info-mini-chip{display:none;flex-direction:column;align-items:center;justify-content:center;gap:1px;background:var(--panel);border:2px solid #5fc8e0;border-radius:10px;cursor:pointer;min-width:46px;height:38px;padding:2px 7px;font-family:'Fredoka',sans-serif;color:#5fc8e0;box-shadow:0 3px 8px rgba(0,0,0,.35);transition:all .15s;pointer-events:all;}
+  .info-mini-chip .dtb-ico{font-size:15px;line-height:1;}
+  .info-mini-chip .dtb-lbl{font-size:9px;font-weight:700;line-height:1;opacity:.85;}
+  .info-mini-chip:hover{background:var(--panel-soft,var(--panel));}
+  .info-mini-chip:active{transform:scale(.95);}
+  #bottomPanel.info-mini .info-mini-chip{display:flex;}
 </style>
 <script>
 (function(){
@@ -6851,5 +6936,419 @@ function positionPaletteUnder(){
 })();
 </script>
 
+
+<script>
+/* == ARAÇLAR COMBO IIFE == */
+(function(){
+  var _pb=document.getElementById('_popBlur');
+  if(!_pb){ _pb=document.createElement('div'); _pb.id='_popBlur'; _pb.style.cssText='display:none;position:fixed;top:0;left:0;right:0;bottom:56px;background:rgba(0,0,0,0.55);z-index:58;'; document.body.appendChild(_pb); }
+  function _showBlur(){ if(_pb) _pb.style.display='block'; }
+  function _hideBlur(){ if(_pb) _pb.style.display='none'; }
+  var arcPop=document.createElement('div'); arcPop.id='araclarComboP'; arcPop.className='combo-pop'; arcPop.style.borderColor='var(--accent,#3b82f6)';
+  arcPop.innerHTML='<div class="combo-pop-title" style="color:var(--accent,#3b82f6)">\u{1F9F0} Ara\u00e7lar</div>'+
+    '<button class="combo-pop-item" id="cpArcKarsi" style="border-color:#f59e0b;"><span class="cpi-ico" style="background:rgba(245,158,11,.18);border-radius:8px;padding:3px 5px">\u2696\uFE0F</span><span style="color:#f59e0b">K\u0131yaslama Tablosu</span></button>'+
+    '<button class="combo-pop-item" id="cpArcBilgi" style="border-color:#3b82f6;"><span class="cpi-ico" style="background:rgba(59,130,246,.18);border-radius:8px;padding:3px 5px">\u{1F4CB}</span><span style="color:#3b82f6">Bilgi Tablosu</span></button>'+
+    '<button class="combo-pop-item" id="cpArcExam" style="border-color:#8b5cf6;"><span class="cpi-ico" style="background:rgba(139,92,246,.18);border-radius:8px;padding:3px 5px">\u{1F4DD}</span><span style="color:#8b5cf6">Test Sorular\u0131 Olu\u015ftur</span></button>'+
+    '<button class="combo-pop-item" id="cpArcAi" style="border-color:#06b6d4;"><span class="cpi-ico" style="background:rgba(6,182,212,.18);border-radius:8px;padding:3px 5px">\u{1F916}</span><span style="color:#06b6d4">AI Destek</span></button>'+
+    '<button class="combo-pop-item" id="cpArcTts" style="border-color:#22c55e;"><span class="cpi-ico" style="background:rgba(34,197,94,.18);border-radius:8px;padding:3px 5px">\u{1F50A}</span><span style="color:#22c55e">Sesli Mod</span></button>'+
+    '<button class="combo-pop-item" id="cpArcPalette" style="border-color:#ec4899;"><span class="cpi-ico" style="background:rgba(236,72,153,.18);border-radius:8px;padding:3px 5px">\u{1F3A8}</span><span style="color:#ec4899">Renk Paleti</span></button>'+
+    '<button class="combo-pop-item" id="cpArcGonder" style="border-color:#6366f1;"><span class="cpi-ico wa-send" style="background:rgba(99,102,241,.18);border-radius:8px;padding:3px 5px"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></span><span style="color:#6366f1">G\u00f6nder</span></button>';
+  document.body.appendChild(arcPop);
+  function posAbove(pop,anchor){ var r=anchor.getBoundingClientRect(),w=pop.offsetWidth||240; var l=Math.max(6,Math.min(Math.round(r.left+r.width/2-w/2),window.innerWidth-w-6)); pop.style.left=l+'px'; pop.style.right='auto'; pop.style.bottom=(window.innerHeight-r.top+8)+'px'; pop.style.top='auto'; }
+  function closeAll(){ arcPop.classList.remove('show'); _hideBlur(); }
+  document.addEventListener('click',function(e){ if(!e.target.closest('#araclarComboP')&&!e.target.closest('#btnAraclarCombo')) closeAll(); });
+  var tr=document.getElementById('toolsRow');
+  var bArc=document.createElement('button'); bArc.className='dock-tab-btn araclar-btn'; bArc.id='btnAraclarCombo'; bArc.title='Ara\u00e7lar';
+  bArc.innerHTML='<span class="dtb-ico">\u{1F9F0}</span><span class="dtb-lbl">Ara\u00e7lar</span>';
+  if(tr) tr.insertBefore(bArc,tr.firstChild);
+  bArc.onclick=function(e){ e.stopPropagation(); var s=!arcPop.classList.contains('show'); closeAll(); if(s){arcPop.classList.add('show');_showBlur();setTimeout(function(){posAbove(arcPop,bArc);},0);} if(window._haptic)window._haptic(10); };
+  document.getElementById('cpArcKarsi').onclick=function(){closeAll();var b=document.getElementById('btnCompare');if(b)b.click();};
+  document.getElementById('cpArcBilgi').onclick=function(){closeAll();var b=document.getElementById('btnTable');if(b)b.click();};
+  document.getElementById('cpArcExam').onclick=function(){closeAll();var b=document.getElementById('btnExam');if(b)b.click();};
+  document.getElementById('cpArcAi').onclick=function(){closeAll();var b=document.getElementById('btnAsk');if(b)b.click();};
+  document.getElementById('cpArcTts').onclick=function(){closeAll();var b=document.getElementById('btnTts');if(b)b.click();};
+  document.getElementById('cpArcPalette').onclick=function(e){
+    e.stopPropagation(); e.preventDefault(); closeAll();
+    var pop=document.getElementById('palettePop'); if(!pop) return;
+    pop.style.cssText='display:block!important;position:fixed!important;z-index:80!important;';
+    setTimeout(function(){ var w=Math.min(pop.offsetWidth,window.innerWidth-12),h=pop.offsetHeight; pop.style.left=Math.max(6,Math.round((window.innerWidth-w)/2))+'px'; pop.style.top=Math.max(6,Math.round((window.innerHeight-h)/2))+'px'; pop.style.right='auto'; pop.style.bottom='auto'; },0);
+    _showBlur();
+  };
+  document.getElementById('cpArcGonder').onclick=function(){
+    closeAll(); var _pb4=document.getElementById('_popBlur'); if(_pb4) _pb4.style.display='none';
+    setTimeout(function(){ if(window.FlutterNativeShot) window.FlutterNativeShot.postMessage('1'); else { var b=document.getElementById('btnSend'); if(b) b.click(); } },350);
+  };
+  setTimeout(function(){ if(tr){ tr.style.justifyContent='space-between'; tr.style.padding='0 18px'; } },80);
+  var origTts=document.getElementById('btnTts');
+  var _ttsChip=(function(){
+    var ch=document.createElement('button'); ch.id='ttsActiveChip';
+    ch.innerHTML='<span style="font-size:15px">\u{1F50A}</span><span style="font-size:10px;font-weight:800;letter-spacing:.3px">KES</span>';
+    ch.style.cssText='display:none;position:fixed;bottom:54px;right:8px;z-index:72;background:#ef4444;color:#fff;border:none;border-radius:20px;padding:6px 11px;gap:4px;align-items:center;cursor:pointer;box-shadow:0 2px 10px rgba(239,68,68,0.6);font-family:Fredoka,sans-serif;animation:ttsPulse 1.2s ease-in-out infinite;';
+    ch.onclick=function(){ var b=document.getElementById('btnTts'); if(b)b.click(); };
+    document.body.appendChild(ch); return ch;
+  })();
+  if(origTts){ new MutationObserver(function(){ var a=origTts.classList.contains('active'); var i=document.getElementById('cpArcTts'); if(i)i.classList.toggle('tts-active',a); if(_ttsChip)_ttsChip.style.display=a?'flex':'none'; }).observe(origTts,{attributes:true,attributeFilter:['class']}); }
+  var _icb=document.getElementById('infoCloseBtn');
+  if(_icb) _icb.onclick=function(){
+    var bp=document.getElementById('bottomPanel'); if(!bp) return;
+    bp.classList.add('info-mini');
+    var lbl=document.getElementById('infoMiniLbl');
+    if(lbl){ var t=document.getElementById('infoTitle'); if(t&&t.textContent) lbl.textContent=t.textContent+' konusunu a\u00e7'; }
+  };
+  var _mc=document.getElementById('infoMiniChip');
+  if(_mc) _mc.onclick=function(){ var bp=document.getElementById('bottomPanel'); if(bp) bp.classList.remove('info-mini'); };
+  (function(){
+    var dock=document.getElementById('bottomDock');
+    if(dock) dock.addEventListener('click',function(e){
+      if(!window.bodyMapMode) return;
+      var btn=e.target.closest('button'); if(!btn||btn.id==='btnKonum') return;
+      if(typeof window.toggleBodyMap==='function') window.toggleBodyMap();
+      var bp=document.getElementById('bottomPanel'); if(bp){ bp.classList.remove('vars-hidden'); bp.classList.remove('info-mini'); }
+    });
+  })();
+  (function(){
+    function _cv(){ if(window._setSceneOpen){var vb=document.getElementById('sceneVarsBody');if(vb&&!vb.classList.contains('closed'))window._setSceneOpen(false);} }
+    ['btnAraclarCombo','btnMenu'].forEach(function(id){ var b=document.getElementById(id); if(b) b.addEventListener('click',_cv); });
+    var sr=document.getElementById('stackRow');
+    if(sr) sr.addEventListener('click',function(e){ if(!e.target.closest('#sceneToggle')) _cv(); });
+  })();
+  var _bm2=document.getElementById('btnMode');
+  if(_bm2) _bm2.onclick=function(){ if(window._toggleMode) window._toggleMode(); else { var pm=document.getElementById('panelMode'); if(pm) pm.classList.toggle('show'); } };
+})();
+</script>
+
+<script>
+/* == DOCK FIX == */
+(function(){
+  setTimeout(function(){
+    var tr=document.getElementById('toolsRow');
+    if(!tr||document.getElementById('btnModTab')) return;
+    // Remove old tool buttons from toolsRow + hide them (they stay accessible for popup delegates)
+    ['btnMode','btnStory','btnCompare','btnTable','btnSend','btnPalette','btnExam','btnAsk','btnTts'].forEach(function(id){
+      var b=document.getElementById(id);
+      if(b){ if(b.parentNode===tr) tr.removeChild(b); b.style.display='none'; if(b.parentNode!==document.body) document.body.appendChild(b); }
+    });
+    // Create 📖 sade button (dock-tab-btn)
+    var btnMod=document.createElement('button');
+    btnMod.className='dock-tab-btn mod-btn'; btnMod.id='btnModTab'; btnMod.title='Görünüm Modu';
+    btnMod.innerHTML='<span class="dtb-ico">📖</span><span class="dtb-lbl">sade</span>';
+    btnMod.onclick=function(){
+      if(window._toggleMode) window._toggleMode();
+      else { var bm=document.getElementById('btnMode'); if(bm) bm.click(); }
+      if(window._haptic) window._haptic(10);
+    };
+    var bArc=document.getElementById('btnAraclarCombo');
+    var menuBtn=document.getElementById('btnMenu');
+    // Rebuild toolsRow in correct order: [sade] [araçlar] [☰menu]
+    while(tr.firstChild) tr.removeChild(tr.firstChild);
+    tr.appendChild(btnMod);
+    if(bArc) tr.appendChild(bArc);
+    if(menuBtn) tr.appendChild(menuBtn);
+    tr.style.justifyContent='space-evenly';
+    tr.style.padding='0 24px';
+    // Hide scene title text (matches denetleyici behaviour)
+    var title=document.getElementById('sceneMainTitle');
+    if(title){ title.style.display='none'; title.textContent=''; }
+    // Extra CSS for mod-btn accent colour
+    if(!document.getElementById('dockFixCss')){
+      var s=document.createElement('style'); s.id='dockFixCss';
+      s.textContent='.dock-tab-btn.mod-btn{border-color:var(--joint,#5fc8e0);}';
+      document.head.appendChild(s);
+    }
+  },300);
+})();
+</script>
+
+<script>
+/* == BIO-MODE-FIX == */
+(function(){
+  // 1. _toggleMode — only if the module script didn't already define it (denetleyici has its own)
+  setTimeout(function(){
+    if(!window._toggleMode){
+      window._toggleMode=function(){
+        var items=document.querySelectorAll('#panelMode .dropdown-item[data-mode]');
+        var toClick=null;
+        items.forEach(function(item){ if(!item.classList.contains('active')) toClick=item; });
+        if(!toClick) return;
+        toClick.click(); // triggers module-level handler: currentMode change + loadOverviewTopic()
+        setTimeout(function(){
+          var mode=toClick.dataset.mode;
+          var btn=document.getElementById('btnModTab');
+          if(btn) btn.innerHTML=mode==='sade'
+            ?'<span class="dtb-ico">📖</span><span class="dtb-lbl">sade</span>'
+            :'<span class="dtb-ico">📚</span><span class="dtb-lbl">detaylı</span>';
+        },30);
+      };
+    }
+  },500);
+
+  // 2. Araçlar centering — 3 equal-width grid columns (overrides space-evenly from DOCK FIX)
+  setTimeout(function(){
+    var tr=document.getElementById('toolsRow');
+    if(!tr) return;
+    tr.style.display='grid';
+    tr.style.gridTemplateColumns='1fr 1fr 1fr';
+    tr.style.justifyItems='center';
+    tr.style.alignItems='center';
+    tr.style.padding='0 8px';
+    tr.style.gap='4px';
+  },500);
+
+  // 3. Strip leading emoji from li.subhead section headings in info panel
+  function stripSubheadIcons(root){
+    if(!root) return;
+    root.querySelectorAll('.info-list li.subhead').forEach(function(el){
+      var t=el.textContent;
+      if(!t) return;
+      var code=t.codePointAt(0);
+      // Above BMP emoji (surrogate pair, e.g. 🧩🫃👄): skip 2 UTF-16 chars
+      if(code>0xFFFF){
+        el.textContent=t.slice(2).replace(/^s+/,'');
+      // Basic plane emoji block (☀✈♦ etc U+2600-U+2BFF):
+      } else if(code>=0x2600 && code<=0x2BFF){
+        el.textContent=t.slice(1).replace(/^s+/,'');
+      }
+    });
+  }
+  var bp=document.getElementById('bottomPanel');
+  if(bp){
+    new MutationObserver(function(){ stripSubheadIcons(bp); })
+      .observe(bp,{childList:true,subtree:true});
+    stripSubheadIcons(bp);
+  }
+})();
+</script>
+
+<script>
+/* == BIO-MASTER-FIX == */
+(function(){
+  function $(id){ return document.getElementById(id); }
+  function run(){
+    // ---- 1. RENK PALETİ: X ve blur ile kesin kapanma (display !important ezilir) ----
+    function killPalette(){
+      var pp=$('palettePop');
+      if(pp){ pp.style.setProperty('display','none','important'); pp.classList.remove('show'); }
+      var pb=$('_popBlur'); if(pb) pb.style.display='none';
+    }
+    var pc=$('paletteClose');
+    if(pc) pc.onclick=function(e){ if(e){e.stopPropagation();e.preventDefault();} killPalette(); if(window._haptic)window._haptic(8); };
+    var pb=$('_popBlur');
+    if(pb && !pb.__killWired){ pb.__killWired=1; pb.addEventListener('click',killPalette); }
+
+    // ---- 2. BİLGİ PANELİ X: tam kapanma DEĞİL, küçülüp altta chip olarak kalsın ----
+    var icb=$('infoCloseBtn');
+    if(icb) icb.onclick=function(){
+      var bp=$('bottomPanel'); if(!bp) return;
+      bp.classList.remove('hidden');     // eski yanlış davranışı temizle
+      bp.classList.add('info-mini');
+      var lbl=$('infoMiniLbl');
+      if(lbl){ var t=$('infoTitle'); if(t&&t.textContent) lbl.textContent=t.textContent+' konusunu aç'; }
+    };
+    var mc=$('infoMiniChip');
+    if(mc) mc.onclick=function(){ var bp=$('bottomPanel'); if(bp){ bp.classList.remove('info-mini'); bp.classList.remove('hidden'); } };
+
+    // ---- 3. ARAÇLAR sekmesi tam ortada (3 eşit kolon) ----
+    var tr=$('toolsRow');
+    if(tr){
+      tr.style.display='grid';
+      tr.style.gridTemplateColumns='1fr 1fr 1fr';
+      tr.style.justifyItems='center';
+      tr.style.alignItems='center';
+      tr.style.padding='0 8px';
+      tr.style.gap='4px';
+    }
+
+    // ---- 4. SADE/DETAYLI toggle: panelMode'daki pasif item'a tıkla → modül re-render eder ----
+    window._toggleMode=function(){
+      var items=document.querySelectorAll('#panelMode .dropdown-item[data-mode]');
+      if(!items.length) return;
+      var target=null;
+      items.forEach(function(it){ if(!it.classList.contains('active')) target=it; });
+      if(!target) target=items[0];
+      target.click(); // modül handler'ı: currentMode değişir + loadOverviewTopic()/selectSub()
+      var mode=target.dataset.mode;
+      var bt=$('btnModTab');
+      if(bt) bt.innerHTML = (mode==='sade')
+        ? '<span class="dtb-ico">📖</span><span class="dtb-lbl">sade</span>'
+        : '<span class="dtb-ico">📚</span><span class="dtb-lbl">detaylı</span>';
+      if(window._haptic)window._haptic(10);
+    };
+    var bmt=$('btnModTab');
+    if(bmt) bmt.onclick=function(e){ if(e)e.stopPropagation(); window._toggleMode(); };
+
+    // ---- 5. ARAÇLAR popup öğeleri: Test Soruları + AI Destek kesin bağlı ----
+    function delegate(srcId, dstId){
+      var s=$(srcId); if(!s) return;
+      s.onclick=function(){
+        // araçlar popup'ı kapat
+        var ap=$('araclarComboP'); if(ap) ap.classList.remove('show');
+        var pbb=$('_popBlur'); if(pbb) pbb.style.display='none';
+        var d=$(dstId); if(d) d.click();
+      };
+    }
+    delegate('cpArcExam','btnExam');   // Test Soruları Oluştur → sınav sayfası (_bridge action:exam)
+    delegate('cpArcAi','btnAsk');      // AI Destek → AI sheet (_bridge action:ai)
+    delegate('cpArcKarsi','btnCompare');
+    delegate('cpArcBilgi','btnTable');
+    delegate('cpArcTts','btnTts');
+
+    // ---- 6. Bilgi panelindeki bölüm başlıklarının başındaki emojiyi kaldır ----
+    function stripIcons(){
+      var bp=$('bottomPanel'); if(!bp) return;
+      bp.querySelectorAll('.info-list li.subhead').forEach(function(el){
+        var t=el.textContent; if(!t) return;
+        var cp=t.codePointAt(0);
+        if(cp>0xFFFF) el.textContent=t.slice(2).replace(/^\s+/,'');
+        else if(cp>=0x2190 && cp<=0x2BFF) el.textContent=t.slice(1).replace(/^\s+/,'');
+      });
+    }
+    var bp2=$('bottomPanel');
+    if(bp2 && !bp2.__stripWired){
+      bp2.__stripWired=1;
+      new MutationObserver(stripIcons).observe(bp2,{childList:true,subtree:true});
+    }
+    stripIcons();
+  }
+  var tries=0;
+  (function spin(){ try{ run(); }catch(e){} if(++tries<6) setTimeout(spin, tries*250); })();
+})();
+</script>
+
+<style id="tableColorFix">
+/* Bilgi & Karşılaştırma tabloları: kırmızı yok — sadece mavi + yeşil */
+#compareOverlay .cmp-table, #tableOverlay .cmp-table{ border-color:#2f8fd0 !important; }
+#compareOverlay .cmp-table th, #tableOverlay .cmp-table th{
+  background:linear-gradient(135deg,#1a6b8a 0%,#1f7a5e 100%) !important;
+  color:#eafaff !important; border-color:#2f8fd0 !important;
+}
+#compareOverlay .cmp-table td, #tableOverlay .cmp-table td{ border-color:rgba(95,200,224,.22) !important; }
+#compareOverlay .cmp-table td:first-child, #tableOverlay .cmp-table td:first-child{ color:#5fd99a !important; }
+#compareOverlay .cmp-table tbody tr:nth-child(odd) td, #tableOverlay .cmp-table tbody tr:nth-child(odd) td{ background:rgba(95,200,224,.06) !important; }
+#compareOverlay .cmp-table tbody tr:nth-child(even) td, #tableOverlay .cmp-table tbody tr:nth-child(even) td{ background:rgba(95,217,154,.10) !important; }
+#compareOverlay .cmp-table tr:hover td, #tableOverlay .cmp-table tr:hover td{ background:rgba(95,200,224,.20) !important; }
+/* Başlık + gezinme + çerçeve */
+#compareTitle, #tableTitle{ color:#5fc8e0 !important; }
+#compareNav button, #tableNav button{ border-color:#2f8fd0 !important; color:#5fc8e0 !important; }
+#compareOverlay .cmp-overlay-box, #tableOverlay .cmp-overlay-box,
+#compareOverlay .overlay-box, #tableOverlay .overlay-box{ border-color:#2f8fd0 !important; }
+/* İçerikte kırmızımsı vurgu metinleri → yeşil (✗/farklılık işaretleri vb.) */
+#compareOverlay .cmp-table td [style*="color:#e74c3c"], #tableOverlay .cmp-table td [style*="color:#e74c3c"],
+#compareOverlay .cmp-table td [style*="color:#ef4444"], #tableOverlay .cmp-table td [style*="color:#ef4444"],
+#compareOverlay .cmp-table td [style*="color:#ff6f00"], #tableOverlay .cmp-table td [style*="color:#ff6f00"]{ color:#5fd99a !important; }
+</style>
+
+<style id="bioStyleV2">
+/* === ALT DOCK BAR: tam genişlik, gri-siyah, mavi çerçeve === */
+#bottomDock{ padding-left:0 !important; padding-right:0 !important; }
+#bottomDock #toolsRow{
+  background:rgba(12,15,22,0.97) !important;
+  border-top:2px solid #2f8fd0 !important;
+  border-radius:0 !important;
+  width:100% !important; box-sizing:border-box !important;
+  padding:7px 12px 9px !important; margin:0 !important;
+}
+/* 3 sekmenin çerçeve çizgileri mavi */
+#toolsRow .dock-tab-btn, #toolsRow #btnMenu, #toolsRow .tool-icon-btn.menu{
+  border-color:#2f8fd0 !important;
+}
+#toolsRow #btnMenu, #toolsRow .tool-icon-btn.menu{ color:#5fc8e0 !important; }
+#toolsRow #btnMenu:hover, #toolsRow .tool-icon-btn.menu:hover{ background:#2f8fd0 !important; color:#08121e !important; }
+/* Araçlar sekmesi açık yeşil vurgu (ikon JS ile 🌿) */
+#btnAraclarCombo{ border-color:#5fd99a !important; }
+#btnAraclarCombo .dtb-lbl{ color:#7fe6a8 !important; }
+
+/* === BİLGİ PANELİ renkleri === */
+.bottom-panel{ border-color:#2f8fd0 !important; }
+.info-title, #infoTitle{ color:#3b5bd9 !important; }                 /* başlık lacivert */
+.info-list li.subhead, #infoList li.subhead, #infoList li.subhead2{ color:#5fd99a !important; }  /* alt başlık yeşil */
+.info-list li b, #infoList li b{ color:#5fc8e0 !important; }          /* kırmızı/coral vurgu → mavi */
+.info-list li, #infoList li{ color:#eef0ff !important; }
+.info-list li::before, #infoList li::before{ color:#2f8fd0 !important; }   /* madde imi mavi */
+
+/* === İLERİ / GERİ (◀ ▶) butonları yeşil çerçeve === */
+.nav-mini-btn{ border-color:#5fd99a !important; color:#5fd99a !important; }
+.nav-mini-btn:hover{ background:#5fd99a !important; color:#0a1420 !important; }
+.nav-mini-btn:disabled{ opacity:.3 !important; }
+
+/* === RENK PALETİ çerçevesi açık === */
+.palette-pop{ border-color:#aee0f0 !important; }
+.palette-title{ color:#aee0f0 !important; }
+
+/* === BLUR güçlendir (3 sekme popup'larında belirgin flu) === */
+#_popBlur{ background:rgba(0,0,0,0.5) !important; backdrop-filter:blur(3px) !important; -webkit-backdrop-filter:blur(3px) !important; }
+</style>
+<script>
+/* == BIO-STYLE-V2 ICON == */
+(function(){
+  function setIcon(){
+    var ico=document.querySelector('#btnAraclarCombo .dtb-ico');
+    if(ico){ ico.textContent='🌿'; return true; }
+    return false;
+  }
+  var n=0;
+  (function spin(){ if(setIcon()||n++>8) return; setTimeout(spin,250); })();
+})();
+</script>
+
+<script>
+/* == MENU-BLUR-FIX == */
+(function(){
+  function wire(){
+    var mp=document.getElementById('menuPop'), pb=document.getElementById('_popBlur');
+    if(!pb) return false;
+    if(!mp) return false;
+    if(mp.__menuBlurWired) return true;
+    mp.__menuBlurWired=1;
+    new MutationObserver(function(){
+      var open=mp.classList.contains('show');
+      if(open){ pb.style.display='block'; }
+      else {
+        var arc=document.getElementById('araclarComboP');
+        if(!(arc&&arc.classList.contains('show'))) pb.style.display='none';
+      }
+    }).observe(mp,{attributes:true,attributeFilter:['class']});
+    return true;
+  }
+  var n=0;(function s(){ if(wire()||n++>25) return; setTimeout(s,200); })();
+})();
+</script>
+
+<style id="labelFitFix">
+.label3d, .organ-label{
+  max-width:42vw !important;
+  white-space:normal !important;
+  font-size:10px !important;
+  line-height:1.2 !important;
+  text-align:center !important;
+  padding:3px 7px !important;
+  word-break:break-word !important;
+}
+</style>
+<style id="dockFrameFix">
+/* 3 sekme: oval çerçeve, 4 kenar görünür, simetrik */
+#bottomDock{ padding-left:0 !important; padding-right:0 !important; padding-bottom:7px !important; }
+#bottomDock #toolsRow{
+  background:rgba(12,15,22,0.97) !important;
+  border:2px solid #2f8fd0 !important;
+  border-radius:20px !important;
+  margin:0 14px 2px !important;
+  padding:6px 14px !important;
+  display:grid !important;
+  grid-template-columns:1fr 1fr 1fr !important;
+  justify-items:center !important;
+  align-items:center !important;
+  width:auto !important;
+  box-sizing:border-box !important;
+  box-shadow:0 3px 12px rgba(0,0,0,.45) !important;
+  overflow:visible !important;
+}
+</style>
+<style id="helpPanelFix">
+/* Nasıl Çalışır paneli: çerçeve mavi, ana başlık yeşil, alt başlık sarı */
+#helpOverlay .help-card, #helpOverlay .share-card{ border:2px solid #2f8fd0 !important; border-radius:16px !important; }
+#helpOverlay .share-head-text{ color:#5fd99a !important; }
+#helpOverlay .help-sec-title{ color:#ffd166 !important; }
+#helpOverlay .help-row b{ color:#5fc8e0 !important; }
+</style>
 </body>
 </html>
