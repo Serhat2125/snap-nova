@@ -336,6 +336,96 @@ class Edu3DMatematikScreen extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           _TopicCard(
+            emoji: '🟰',
+            title: 'Denklemler',
+            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test',
+            tint: const Color(0xFF8B5CF6),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/denklemler.html',
+                  title: 'Denklemler',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _TopicCard(
+            emoji: '🧮',
+            title: 'Problemler',
+            subtitle: 'Sözel problemler, kurulum ve çözüm adımları',
+            tint: const Color(0xFFEC4899),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/problemler.html',
+                  title: 'Problemler',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _TopicCard(
+            emoji: '🔵',
+            title: 'Kümeler',
+            subtitle: 'Küme işlemleri, Venn şemaları, 3B görselleştirme',
+            tint: const Color(0xFF0EA5E9),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/kumeler.html',
+                  title: 'Kümeler',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _TopicCard(
+            emoji: '📈',
+            title: 'Fonksiyonlar',
+            subtitle: 'Fonksiyon kavramı, grafikler ve dönüşümler',
+            tint: const Color(0xFF10B981),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/fonksiyonlar.html',
+                  title: 'Fonksiyonlar',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _TopicCard(
+            emoji: '🔣',
+            title: 'Polinomlar',
+            subtitle: 'Polinom işlemleri, çarpanlara ayırma, 3B görselleştirme',
+            tint: const Color(0xFFF59E0B),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/polinomlar.html',
+                  title: 'Polinomlar',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _TopicCard(
+            emoji: '🧠',
+            title: 'Mantık',
+            subtitle: 'Önermeler, bağlaçlar, doğruluk tabloları',
+            tint: const Color(0xFF8B5CF6),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/mantik.html',
+                  title: 'Mantık',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _TopicCard(
             emoji: '📚',
             title: 'Temel Kavramlar',
             subtitle: 'Sayılar, kümeler ve temel matematik kavramları',
@@ -429,6 +519,81 @@ class Edu3DMatematikScreen extends StatelessWidget {
                 builder: (_) => const Lesson3DScreen(
                   assetHtml: 'assets/mutlak-deger.html',
                   title: 'Mutlak Değer',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _TopicCard(
+            emoji: '🔀',
+            title: 'Permütasyon ve Kombinasyon',
+            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test',
+            tint: const Color(0xFF14B8A6),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/permutasyon-kombinasyon.html',
+                  title: 'Permütasyon ve Kombinasyon',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _TopicCard(
+            emoji: '📐',
+            title: 'İkinci Dereceden Denklemler',
+            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test',
+            tint: const Color(0xFFEF4444),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/ikinci-dereceden-denklemler.html',
+                  title: 'İkinci Dereceden Denklemler',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _TopicCard(
+            emoji: '🎲',
+            title: 'Olasılık',
+            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test',
+            tint: const Color(0xFF8B5CF6),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/olasilik.html',
+                  title: 'Olasılık',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _TopicCard(
+            emoji: '📊',
+            title: 'Veri ve İstatistik',
+            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test',
+            tint: const Color(0xFF0EA5E9),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/veri-istatistik.html',
+                  title: 'Veri ve İstatistik',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          _TopicCard(
+            emoji: '📐',
+            title: 'Geometri',
+            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test',
+            tint: const Color(0xFFEC4899),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const Lesson3DScreen(
+                  assetHtml: 'assets/geometri.html',
+                  title: 'Geometri',
                 ),
               ),
             ),

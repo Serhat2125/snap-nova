@@ -3,7 +3,7 @@ description: "A new Flutter project."
 
 publish_to: 'none'
 
-version: 1.0.0+22
+version: 1.0.0+25
 
 environment:
   sdk: '>=3.2.3 <4.0.0'
@@ -177,6 +177,18 @@ flutter:
     - assets/geometrik-cisimler.html
     # 3D Eğitim Modelleri — Matematik: Üslü Sayılar
     - assets/uslu-sayilar.html
+    # 3D Eğitim Modelleri — Matematik: Denklemler
+    - assets/denklemler.html
+    # 3D Eğitim Modelleri — Matematik: Problemler
+    - assets/problemler.html
+    # 3D Eğitim Modelleri — Matematik: Kümeler
+    - assets/kumeler.html
+    # 3D Eğitim Modelleri — Matematik: Fonksiyonlar
+    - assets/fonksiyonlar.html
+    # 3D Eğitim Modelleri — Matematik: Polinomlar
+    - assets/polinomlar.html
+    # 3D Eğitim Modelleri — Matematik: Mantık
+    - assets/mantik.html
     # 3D Eğitim Modelleri — Matematik: Temel Kavramlar
     - assets/temel-kavramlar.html
     # 3D Eğitim Modelleri — Matematik: Kesirler ve Rasyonel Sayılar
@@ -191,6 +203,16 @@ flutter:
     - assets/koklu-sayilar.html
     # 3D Eğitim Modelleri — Matematik: Mutlak Değer
     - assets/mutlak-deger.html
+    # 3D Eğitim Modelleri — Matematik: Permütasyon ve Kombinasyon
+    - assets/permutasyon-kombinasyon.html
+    # 3D Eğitim Modelleri — Matematik: İkinci Dereceden Denklemler
+    - assets/ikinci-dereceden-denklemler.html
+    # 3D Eğitim Modelleri — Matematik: Olasılık
+    - assets/olasilik.html
+    # 3D Eğitim Modelleri — Matematik: Veri ve İstatistik
+    - assets/veri-istatistik.html
+    # 3D Eğitim Modelleri — Matematik: Geometri
+    - assets/geometri.html
     # 3D Eğitim Modelleri — Biyoloji: Denetleyici ve Düzenleyici Sistem
     - assets/denetleyici-duzenleyici-sistem.html
     # 3D Eğitim Modelleri — Biyoloji: Destek ve Hareket Sistemi

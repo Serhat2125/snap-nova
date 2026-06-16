@@ -21,7 +21,7 @@ Soru çek, anında çöz, özet ve test oluştur; şehrinde, ülkende, dünyada 
 ### Tam açıklama (Full description) — 4000 karakter limit
 ```
 QuAlsar — Sınava hazırlanan her öğrencinin cebindeki AI asistan.
-Fotoğrafla soruyu çek, anında çözüm al; konuyu kendi seviyene göre özetle, test çöz, kalıcı öğren.
+Fotoğrafla soruyu çek, anında çözüm al; konuyu 3 boyutlu keşfet, kendi seviyene göre özetle, test çöz, kalıcı öğren.
 
 ━━━━━━━━━━━━━━━━━━━━
 ✨ PREMIUM AVANTAJLARI
@@ -33,13 +33,16 @@ QuAlsar yanında ChatGPT-5.5, Gemini 3.1, Claude 4.7 Opus, DeepSeek-V4 Pro ve Gr
 🎯 02 — Sana uygun çözüm modu
 İstediğin sorunun fotoğrafını çek; sade çözüm, adım adım çözüm veya AI arkadaşın sohbet havasında çözsün.
 
-📚 03 — Kişiselleştirilmiş konu özetleri
+🧬 03 — 50+ İnteraktif 3D Ders (YENİ!)
+Biyoloji, kimya, fizik, coğrafya ve matematik konularını 3 boyutlu sahnelerde keşfet. Hücreyi ve organelleri döndür, DNA'yı aç, atom ve molekülleri incele, kuvvet vektörlerini ve mercekleri gör, levha tektoniğini izle, geometrik cisimleri elinle çevir. Soyut konular gözünün önünde canlanır — seviyene göre sadeleşir.
+
+📚 04 — Kişiselleştirilmiş konu özetleri
 İstediğin dersten istediğin konudan kendi seviyene göre özet oluştur. Özetin içinde sesli ve yazılı not oluştur.
 
-📝 04 — Sana özel test soruları
+📝 05 — Sana özel test soruları
 İstediğin dersten istediğin konudan kendi seviyene göre test soruları oluştur.
 
-🧠 05 — Her soruyu kalıcı öğren
+🧠 06 — Her soruyu kalıcı öğren
 Çözdüğün her sorunun ardından 5 benzer soru, bilgi kartları ve eşleştirme kartları ile pekiştir.
 
 ━━━━━━━━━━━━━━━━━━━━
@@ -59,8 +62,8 @@ Her 25 dakikalık seansta bir kapsül ek, oksijen üret, koloniyi büyüt.
 🌍 HERKES İÇİN
 ━━━━━━━━━━━━━━━━━━━━
 
-🎓 Ülkene ve sınıfına göre kişisel müfredat (70+ ülke desteği, Türkiye için YKS uyumlu).
-🌐 55 dil desteği — Türkçe, İngilizce, Almanca, Fransızca, Arapça, İspanyolca, Çince ve daha fazlası.
+🎓 Ülkene ve sınıfına göre kişisel müfredat (70+ ülke desteği).
+🌐 55 dil desteği — Çince, İngilizce, Almanca, Fransızca, Arapça, İspanyolca, Hintçe ve daha fazlası.
 🎤 Sesli komut — soruyu yazmak istemediğinde mikrofona söyle.
 🛡️ Gizlilik — sorular AI'a iletilir ama sunucumuzda kalıcı saklanmaz. Sesli komut cihazında işleniyor.
 
