@@ -9,6 +9,8 @@ import '../screens/account_type_screen.dart';
 import '../screens/onboarding_screen.dart';
 import '../screens/premium_screen.dart';
 import '../screens/topic_3d_list_screen.dart';
+import '../screens/ai_model_picker_page.dart';
+import '../services/ai_provider_service.dart';
 import '../services/account_service.dart';
 import '../services/auth_service.dart';
 import '../services/subscription_service.dart';
@@ -189,6 +191,18 @@ class _MainMenu extends StatelessWidget {
                           context,
                           MaterialPageRoute(
                               builder: (_) => const Topic3DListScreen()),
+                        )),
+
+                _Item(
+                    icon: Icons.smart_toy_outlined,
+                    color: Color(0xFF8B5CF6),
+                    title: 'AI Modeli'.tr(),
+                    subtitle:
+                        '${AiProviderService.selectedInfo.emoji} ${AiProviderService.selectedInfo.label}',
+                    onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const AiModelPickerPage()),
                         )),
 
                 SizedBox(height: 10),

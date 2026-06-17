@@ -11,6 +11,7 @@ if (getApps().length === 0) {
 }
 
 export { geminiProxy } from "./gemini_proxy";
+export { aiProxy } from "./ai_proxy";
 export {
   onSummaryCandidateCreated,
   triggerSummaryJudge,

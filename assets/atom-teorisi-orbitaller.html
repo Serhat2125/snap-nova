@@ -227,23 +227,14 @@
      Yukarı/aşağı sürükle → panel büyür/küçülür. Dokunma hedefi geniş, görünen kısım sade iki ok. */
   .info-resize-handle {
     position:absolute;
-    top:-19px; left:50%; transform:translateX(-50%);
-    width:100px; height:28px;
-    display:flex; flex-direction:row; align-items:center; justify-content:center;
-    gap:7px;
+    top:-10px; left:50%; transform:translateX(-50%);
+    width:56px; height:10px;
+    background:#fff;
+    border-radius:16px 16px 0 0;
     cursor:ns-resize; touch-action:none; z-index:4;
-    background:transparent; border:none; padding:0;
-    color:var(--accent);
+    display:block; border:none; padding:0;
   }
-  .info-resize-handle span {
-    font-size:12px; line-height:1; opacity:0.82; pointer-events:none;
-    text-shadow:0 1px 3px rgba(0,0,0,0.5);
-    transition:opacity 0.15s ease, transform 0.15s ease, color 0.15s ease;
-  }
-  .info-resize-handle:hover span { opacity:1; }
-  .info-resize-handle:active span { opacity:1; color:var(--accent-glow); }
-  .info-resize-handle:active .rz-up { transform:translateY(-2px); }
-  .info-resize-handle:active .rz-down { transform:translateY(2px); }
+  .info-resize-handle span { display:none; }
 
   .info-close-btn {
     position:absolute;
@@ -1124,7 +1115,7 @@
 </div>
 
 <div class="bottom-panel" id="bottomPanel">
-  <div class="info-resize-handle" id="infoResizeHandle" title="Yukarı/aşağı sürükleyerek büyüt/küçült"><span class="rz-up">▲</span><span class="rz-down">▼</span></div>
+  <div class="info-resize-handle" id="infoResizeHandle"></div>
   <button class="info-close-btn" id="infoCloseBtn" title="Bilgi panelini kapat">✕</button>
   <div class="info-mini-chip" id="infoMiniChip"><span class="dtb-ico">📋</span><span class="dtb-lbl" id="infoMiniLbl">bilgi</span></div>
   <div class="info-area">
@@ -2123,7 +2114,7 @@ function animate() {
     _sh.cur += (_sh.target - _sh.cur) * 0.1;
     if (Math.abs(_sh.target - _sh.cur) < 0.4) _sh.cur = _sh.target;
     // Sahneyi basligin altina al (basliga yapismadan, kucuk bosluk) - atolye ek kaydirmasi
-    camera.setViewOffset(window.innerWidth, window.innerHeight, 0, Math.round(window.innerHeight*0.08) - _sh.cur, window.innerWidth, window.innerHeight);
+    camera.setViewOffset(window.innerWidth, window.innerHeight, 0, Math.round(window.innerHeight*0.23) - _sh.cur, window.innerWidth, window.innerHeight);
   }
   renderer.render(scene, camera);
   labelRenderer.render(scene, camera);
@@ -4005,7 +3996,7 @@ function _subLevel(sub) {
 }
 let currentMode = 'sade';
 window._autoSpinActive = false;
-window._isPlayingActive = false;
+window._isPlayingActive = true;
 
 const LEVEL_ORDER = ['ilkokul', 'ortaokul', 'lise', 'tyt_ayt'];
 
@@ -4537,8 +4528,10 @@ function attachEvents() {
     }
     if (window._haptic) window._haptic(15);
   };
-  animBtn.classList.remove('active');
-  animBtn.querySelector('.ico').textContent = '▶️';
+  animBtn.classList.add('active');
+  animBtn.querySelector('.ico').textContent = '⏸️';
+  const _animLbl = animBtn.querySelector('span:last-child');
+  if (_animLbl) _animLbl.textContent = 'Durdur';
 
   document.getElementById('btnTheme').onclick = () => {
     document.body.classList.toggle('light-mode');
@@ -5354,7 +5347,7 @@ function positionPaletteUnder(){
 #toolsRow .dock-tab-btn, #toolsRow #btnMenu, #toolsRow .tool-icon-btn.menu{
   border-color:#2f8fd0 !important;
 }
-#toolsRow #btnMenu, #toolsRow .tool-icon-btn.menu{ color:#5fc8e0 !important; }
+#toolsRow #btnMenu, #toolsRow .tool-icon-btn.menu{ color:#5fc8e0 !important; min-width:46px !important; height:38px !important; font-size:15px !important; padding:2px 7px !important; }
 #toolsRow #btnMenu:hover, #toolsRow .tool-icon-btn.menu:hover{ background:#2f8fd0 !important; color:#08121e !important; }
 /* Araçlar sekmesi açık yeşil vurgu (ikon JS ile 🌿) */
 #btnAraclarCombo{ border-color:#5fd99a !important; }

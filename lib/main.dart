@@ -20,6 +20,7 @@ import 'screens/profile_screen.dart';
 import 'theme/app_theme.dart';
 import 'firebase_options.dart';
 import 'services/analytics.dart';
+import 'services/ai_provider_service.dart';
 import 'services/auth_service.dart';
 import 'services/push_service.dart';
 import 'services/deep_link_service.dart';
@@ -223,6 +224,7 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
     try { await localeService.init(); } catch (_) {}
     try { await themeService.init(); } catch (_) {}
     try { await connectivityService.init(); } catch (_) {}
+    try { await AiProviderService.loadSelection(); } catch (_) {}
     // Voice & TTS — Sesli Komut için. Hata atmaz; başarısızsa no-op.
     unawaited(VoiceInputService.init());
     unawaited(TtsService.init());

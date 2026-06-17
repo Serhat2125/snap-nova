@@ -5,6 +5,7 @@ import 'error_logger.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'ai_provider_service.dart';
 import 'curriculum_catalog.dart';
 import 'education_profile.dart';
 import 'locale_service.dart';
@@ -1559,6 +1560,33 @@ Karmaşık terimi açıkla, örnekle pekiştir, samimi ama saygılı ton.''';
       _               => (16384, 0.3,  0),
     };
     _log('[5/5] Google AI isteği gönderiliyor... (maxTok: $visionMaxTok, thinking: $visionThinking)');
+
+    // ── Çoklu sağlayıcı (fotoğraflı soru çözme = TÜM sağlayıcılar) ──────────
+    // aiProxy deploy + anahtarlar eklenince kEnabled=true olur; o ana kadar
+    // doğrudan Gemini yoluna düşer.
+    if (AiProviderService.kEnabled) {
+      try {
+        final swMp = Stopwatch()..start();
+        final t = await AiProviderService.askTask(
+          AiTask.photoSolve,
+          prompt: prompt,
+          maxTokens: visionMaxTok,
+          image: AiImageInput(mimeType: mime, base64: base64Image),
+          timeout: const Duration(seconds: 90),
+        );
+        swMp.stop();
+        if (t.trim().isNotEmpty) {
+          _log('[5/5] OK (multi-provider): ${t.length} karakter — ${swMp.elapsedMilliseconds} ms');
+          _log('analyzeImage() BAŞARILI ✅ (multi-provider)');
+          _log('══════════════════════════════════════════');
+          return t;
+        }
+        _log('[5/5] multi-provider boş döndü → Gemini fallback');
+      } catch (e) {
+        _log('[5/5] multi-provider hata ($e) → Gemini fallback');
+      }
+    }
+
     try {
       final sw = Stopwatch()..start();
 
@@ -1723,8 +1751,8 @@ Karmaşık terimi açıkla, örnekle pekiştir, samimi ama saygılı ton.''';
     }
     _log('[DS 1/2] OK (${extracted.length} karakter)');
 
-    // 2) Gemini — çözüm (yüksek token + tamamlama garantisi)
-    _log('[DS 2/2] Gemini çözüm...');
+    // 2) Çözüm (yüksek token + tamamlama garantisi)
+    _log('[DS 2/2] çözüm...');
     final prompt = _buildPrompt(solutionType, isMulti: isMulti);
     final (solverMax, solverThink) = switch (solutionType) {
       'Basit Çöz'     => (4096, 0),
@@ -1733,6 +1761,32 @@ Karmaşık terimi açıkla, örnekle pekiştir, samimi ama saygılı ton.''';
       'AI Öğretmen' || 'AI Arkadaşım' => (24576, 2048),
       _               => (16384, 512),
     };
+
+    // Çoklu sağlayıcı: OCR metni hazır → DeepSeek reasoner ile çöz (asıl amaç).
+    if (AiProviderService.kEnabled) {
+      try {
+        final t = await AiProviderService.chat(
+          provider: AiProvider.deepseek,
+          model: 'deepseek-reasoner',
+          messages: [
+            AiChatMessage('user',
+                'Aşağıdaki soruyu yukarıdaki kurallara göre çöz:\n\n$extracted'),
+          ],
+          system: prompt,
+          maxTokens: solverMax,
+          timeout: const Duration(seconds: 120),
+        );
+        if (t.trim().isNotEmpty) {
+          _log('[DS 2/2] OK (DeepSeek): ${t.length} karakter');
+          _log('analyzeImageWithDeepseek() BAŞARILI ✅ (DeepSeek)');
+          return t;
+        }
+        _log('[DS 2/2] DeepSeek boş → Gemini fallback');
+      } catch (e) {
+        _log('[DS 2/2] DeepSeek hata ($e) → Gemini fallback');
+      }
+    }
+
     final initial = await _callGeminiFull(
       systemPrompt: prompt,
       userMessage:
@@ -2321,16 +2375,34 @@ KURALLAR:
 - Tüm metin KULLANICININ DİLİNDE.''';
 
     try {
-      final res = await _callGeminiFull(
-        systemPrompt: systemPrompt,
-        userMessage: 'Yukarıdaki şablonu doldur — sadece JSON.',
-        maxTokens: 1024,
-        temperature: 0.2,
-        thinkingBudget: 0,
-        responseMimeType: 'application/json',
-        timeout: const Duration(seconds: 30),
-      );
-      var text = res.text
+      String rawText = '';
+      // Çoklu sağlayıcı (konu adları = müfredat doğruluğu hassas), orta seviye + failover.
+      if (AiProviderService.kEnabled) {
+        try {
+          rawText = await AiProviderService.askTask(
+            AiTask.factual,
+            prompt: 'Yukarıdaki şablonu doldur — sadece JSON.',
+            system: systemPrompt,
+            maxTokens: 1024,
+          );
+        } catch (e) {
+          _log('fetchTopicNames multi-provider hata ($e) → Gemini');
+          rawText = '';
+        }
+      }
+      if (rawText.trim().isEmpty) {
+        final res = await _callGeminiFull(
+          systemPrompt: systemPrompt,
+          userMessage: 'Yukarıdaki şablonu doldur — sadece JSON.',
+          maxTokens: 1024,
+          temperature: 0.2,
+          thinkingBudget: 0,
+          responseMimeType: 'application/json',
+          timeout: const Duration(seconds: 30),
+        );
+        rawText = res.text;
+      }
+      var text = rawText
           .replaceAll(RegExp(r'```json\s*'), '')
           .replaceAll(RegExp(r'```\s*'), '')
           .trim();
@@ -2460,6 +2532,51 @@ Ders: $subjectName
 Konu: $topicName''';
 
     String generated;
+    // Çoklu sağlayıcı (özet = kaliteli görev): en iyi modeller, failover'lı.
+    if (AiProviderService.kEnabled) {
+      try {
+        final t = await AiProviderService.askTask(
+          AiTask.summary,
+          prompt: 'Bu konunun özetini çıkar.',
+          system: systemPrompt,
+          maxTokens: 1200,
+        );
+        if (t.trim().isNotEmpty) {
+          _log('fetchSingleTopicSummary OK (multi-provider): ${t.length} kar');
+          generated = t;
+          // Aday cache yazımı ve dönüş ortak akışa devam etsin.
+          String? candidateDocId;
+          String? cacheDocId;
+          try {
+            candidateDocId = await SummaryCacheService.addCandidate(
+              profile: profile,
+              subject: subjectName,
+              topic: topicName,
+              body: generated,
+              model: _model,
+            );
+            if (candidateDocId != null) {
+              cacheDocId = SummaryCacheService.makeCacheKey(
+                profile: profile,
+                subject: subjectName,
+                topic: topicName,
+              );
+            }
+          } catch (e, st) {
+            ErrorLogger.instance.capture(e, st, context: 'topic_summary_cache_write');
+          }
+          return (
+            text: generated,
+            candidateDocId: candidateDocId,
+            cacheDocId: cacheDocId,
+            isCanonical: false,
+            fromCache: false,
+          );
+        }
+      } catch (e) {
+        _log('fetchSingleTopicSummary multi-provider hata ($e) → Gemini');
+      }
+    }
     try {
       generated = await _callGemini(
         systemPrompt: systemPrompt,
@@ -2867,6 +2984,30 @@ Cevabı Türkçe ver.''';
     }
 
     try {
+      // Çoklu-sağlayıcı + failover (kalite: sınav/özet/çözüm = en iyi modeller).
+      // Kapalıysa veya başarısızsa mevcut Gemini yoluna düşer.
+      if (AiProviderService.kEnabled) {
+        final task = switch (solutionType) {
+          'TestSorulari' => AiTask.examGen,
+          'KonuÖzeti' => AiTask.summary,
+          _ => AiTask.homeworkSolve,
+        };
+        try {
+          final t = await AiProviderService.chatTask(
+            task,
+            messages: [AiChatMessage('user', question)],
+            system: systemPrompt,
+            maxTokens: maxTok,
+            timeout: reqTimeout,
+          );
+          if (t.trim().isNotEmpty) {
+            _log('solveHomework OK (çoklu/${task.name}): ${t.length} kar');
+            return t;
+          }
+        } catch (e) {
+          _log('solveHomework çoklu başarısız → Gemini fallback: $e');
+        }
+      }
       final text = await attemptOrRetry();
       _log('solveHomework OK: ${text.length} karakter');
       return text;
@@ -3004,6 +3145,24 @@ Dolar işareti, markdown yıldızı, başlık (#) KULLANMA.
 
 ÇÖZÜM:
 $previousSolution''';
+
+    // Çoklu sağlayıcı (takip sorusu = koç): Gemini + ChatGPT failover.
+    if (AiProviderService.kEnabled) {
+      try {
+        final t = await AiProviderService.chatTask(
+          AiTask.coach,
+          messages: [AiChatMessage('user', userQuestion)],
+          system: systemPrompt,
+          maxTokens: 1024,
+        );
+        if (t.trim().isNotEmpty) {
+          _log('askFollowUp OK (multi-provider): ${t.length} karakter');
+          return t;
+        }
+      } catch (e) {
+        _log('askFollowUp multi-provider hata ($e) → Gemini fallback');
+      }
+    }
 
     try {
       final text = await _callGemini(
@@ -3183,6 +3342,24 @@ $historyBlock
 ''';
 
     try {
+      // Çoklu-sağlayıcı: Gemini + ChatGPT (biri geç gelirse diğeri). Kapalıysa
+      // veya başarısızsa mevcut Gemini yoluna düşer.
+      if (AiProviderService.kEnabled) {
+        try {
+          final t = await AiProviderService.chatTask(
+            AiTask.coach,
+            messages: [AiChatMessage('user', userMessage)],
+            system: systemPrompt,
+            maxTokens: 512,
+          );
+          if (t.trim().isNotEmpty) {
+            _log('chatWithCoach OK (çoklu): ${t.length} kar');
+            return t.trim();
+          }
+        } catch (e) {
+          _log('chatWithCoach çoklu başarısız → Gemini fallback: $e');
+        }
+      }
       final text = await _callGemini(
         systemPrompt: systemPrompt,
         userMessage: userMessage,
@@ -3254,6 +3431,23 @@ KURALLAR:
 
 $lang
 ''';
+    // Çoklu sağlayıcı (formül listesi = doğruluk-hassas), orta seviye + failover.
+    if (AiProviderService.kEnabled) {
+      try {
+        final t = await AiProviderService.askTask(
+          AiTask.factual,
+          prompt: '$subject — $topic konusunun formüllerini ver.',
+          system: systemPrompt,
+          maxTokens: 2048,
+        );
+        if (t.trim().isNotEmpty) {
+          _log('generateFormulas OK (multi-provider): ${t.length} kar');
+          return t.trim();
+        }
+      } catch (e) {
+        _log('generateFormulas multi-provider hata ($e) → Gemini');
+      }
+    }
     try {
       final text = await _callGemini(
         systemPrompt: systemPrompt,
@@ -3371,7 +3565,7 @@ $lang
         .map((e) {
           final h = (e.value / 60).toStringAsFixed(1);
           final s = subjectSuccess[e.key]?.toStringAsFixed(0) ?? '-';
-          return '- ${e.key}: ${h} sa, başarı %$s';
+          return '- ${e.key}: $h sa, başarı %$s';
         }).join('\n');
     final sys = '''
 [SYSTEM — EBEVEYN İÇGÖRÜSÜ]
@@ -4275,13 +4469,29 @@ KURALLAR:
     Biyoloji - Hücre Bölünmesi''';
 
     try {
-      var text = await _callGemini(
-        systemPrompt: systemPrompt,
-        userMessage: snippet,
-        maxTokens: 32,
-        temperature: 0.1,
-        timeout: const Duration(seconds: 20),
-      );
+      var text = '';
+      // Çoklu sağlayıcı (başlık = önemsiz): en ucuz.
+      if (AiProviderService.kEnabled) {
+        try {
+          text = await AiProviderService.askTask(
+            AiTask.cheap,
+            prompt: snippet,
+            system: systemPrompt,
+            maxTokens: 32,
+          );
+        } catch (_) {
+          text = '';
+        }
+      }
+      if (text.trim().isEmpty) {
+        text = await _callGemini(
+          systemPrompt: systemPrompt,
+          userMessage: snippet,
+          maxTokens: 32,
+          temperature: 0.1,
+          timeout: const Duration(seconds: 20),
+        );
+      }
 
       // Temizle: ilk satırı al, tırnakları/noktalamayı kaldır.
       text = text.split('\n').first.trim();
@@ -4385,13 +4595,30 @@ JSON ÇIKTI ÜRET:
 ''';
 
     try {
-      final text = await _callGemini(
-        systemPrompt: systemPrompt,
-        userMessage: userMessage,
-        maxTokens: 1024,
-        temperature: 0.6,
-        timeout: const Duration(seconds: 25),
-      );
+      String text = '';
+      // Çoklu sağlayıcı (koç planı = koç): Gemini + ChatGPT failover.
+      if (AiProviderService.kEnabled) {
+        try {
+          text = await AiProviderService.chatTask(
+            AiTask.coach,
+            messages: [AiChatMessage('user', userMessage)],
+            system: systemPrompt,
+            maxTokens: 1024,
+          );
+        } catch (e) {
+          _log('generateCoachPlan multi-provider hata ($e) → Gemini');
+          text = '';
+        }
+      }
+      if (text.trim().isEmpty) {
+        text = await _callGemini(
+          systemPrompt: systemPrompt,
+          userMessage: userMessage,
+          maxTokens: 1024,
+          temperature: 0.6,
+          timeout: const Duration(seconds: 25),
+        );
+      }
       // JSON'u temizle (```json ... ``` veya inline ```)
       var clean = text.trim();
       clean = clean.replaceAll(RegExp(r'^```(?:json)?\s*'), '');
@@ -4452,17 +4679,36 @@ Format:
 { "isFederation": false, "subdivisions": [] }''';
 
     try {
-      final res = await _callGeminiFull(
-        systemPrompt: systemPrompt,
-        userMessage:
-            '$countryName için eyalet listesi. Üniter ülkeyse boş dizi.',
-        maxTokens: 2048,
-        temperature: 0.0,
-        thinkingBudget: 0,
-        responseMimeType: 'application/json',
-        timeout: const Duration(seconds: 25),
-      );
-      var text = res.text
+      String rawText = '';
+      // Çoklu sağlayıcı (idari coğrafya = doğruluk-hassas), orta seviye + failover.
+      if (AiProviderService.kEnabled) {
+        try {
+          rawText = await AiProviderService.askTask(
+            AiTask.factual,
+            prompt:
+                '$countryName için eyalet listesi. Üniter ülkeyse boş dizi.',
+            system: systemPrompt,
+            maxTokens: 2048,
+          );
+        } catch (e) {
+          _log('fetchCountrySubdivisions multi-provider hata ($e) → Gemini');
+          rawText = '';
+        }
+      }
+      if (rawText.trim().isEmpty) {
+        final res = await _callGeminiFull(
+          systemPrompt: systemPrompt,
+          userMessage:
+              '$countryName için eyalet listesi. Üniter ülkeyse boş dizi.',
+          maxTokens: 2048,
+          temperature: 0.0,
+          thinkingBudget: 0,
+          responseMimeType: 'application/json',
+          timeout: const Duration(seconds: 25),
+        );
+        rawText = res.text;
+      }
+      var text = rawText
           .replaceAll(RegExp(r'```json\s*'), '')
           .replaceAll(RegExp(r'```\s*'), '')
           .trim();
@@ -4530,17 +4776,36 @@ Format:
 }''';
 
     try {
-      final res = await _callGeminiFull(
-        systemPrompt: systemPrompt,
-        userMessage:
-            '$stateName ($countryName) için şehirleri listele. Sadece JSON.',
-        maxTokens: 3072,
-        temperature: 0.1,
-        thinkingBudget: 0,
-        responseMimeType: 'application/json',
-        timeout: const Duration(seconds: 30),
-      );
-      var text = res.text
+      String rawText = '';
+      // Çoklu sağlayıcı (şehir listesi = doğruluk-hassas), orta seviye + failover.
+      if (AiProviderService.kEnabled) {
+        try {
+          rawText = await AiProviderService.askTask(
+            AiTask.factual,
+            prompt:
+                '$stateName ($countryName) için şehirleri listele. Sadece JSON.',
+            system: systemPrompt,
+            maxTokens: 3072,
+          );
+        } catch (e) {
+          _log('fetchStateCities multi-provider hata ($e) → Gemini');
+          rawText = '';
+        }
+      }
+      if (rawText.trim().isEmpty) {
+        final res = await _callGeminiFull(
+          systemPrompt: systemPrompt,
+          userMessage:
+              '$stateName ($countryName) için şehirleri listele. Sadece JSON.',
+          maxTokens: 3072,
+          temperature: 0.1,
+          thinkingBudget: 0,
+          responseMimeType: 'application/json',
+          timeout: const Duration(seconds: 30),
+        );
+        rawText = res.text;
+      }
+      var text = rawText
           .replaceAll(RegExp(r'```json\s*'), '')
           .replaceAll(RegExp(r'```\s*'), '')
           .trim();
@@ -4612,17 +4877,36 @@ Format:
 }''';
 
     try {
-      final res = await _callGeminiFull(
-        systemPrompt: systemPrompt,
-        userMessage:
-            '$countryName için tüm il/eyalet/şehirleri listele. Sadece JSON.',
-        maxTokens: 4096,
-        temperature: 0.1,
-        thinkingBudget: 0,
-        responseMimeType: 'application/json',
-        timeout: const Duration(seconds: 30),
-      );
-      var text = res.text
+      String rawText = '';
+      // Çoklu sağlayıcı (ülke şehir listesi = doğruluk-hassas), orta seviye + failover.
+      if (AiProviderService.kEnabled) {
+        try {
+          rawText = await AiProviderService.askTask(
+            AiTask.factual,
+            prompt:
+                '$countryName için tüm il/eyalet/şehirleri listele. Sadece JSON.',
+            system: systemPrompt,
+            maxTokens: 4096,
+          );
+        } catch (e) {
+          _log('fetchCountryCities multi-provider hata ($e) → Gemini');
+          rawText = '';
+        }
+      }
+      if (rawText.trim().isEmpty) {
+        final res = await _callGeminiFull(
+          systemPrompt: systemPrompt,
+          userMessage:
+              '$countryName için tüm il/eyalet/şehirleri listele. Sadece JSON.',
+          maxTokens: 4096,
+          temperature: 0.1,
+          thinkingBudget: 0,
+          responseMimeType: 'application/json',
+          timeout: const Duration(seconds: 30),
+        );
+        rawText = res.text;
+      }
+      var text = rawText
           .replaceAll(RegExp(r'```json\s*'), '')
           .replaceAll(RegExp(r'```\s*'), '')
           .trim();
@@ -4761,17 +5045,36 @@ Format:
 }''';
 
     try {
-      final res = await _callGeminiFull(
-        systemPrompt: systemPrompt,
-        userMessage:
-            'Yukarıdaki profile + konuya $count soruluk MCQ üret. Sadece JSON.',
-        maxTokens: 4096,
-        temperature: 0.4,
-        thinkingBudget: 0,
-        responseMimeType: 'application/json',
-        timeout: const Duration(seconds: 60),
-      );
-      var text = res.text
+      String rawText = '';
+      // Çoklu sağlayıcı (sınav soruları üretimi = kaliteli görev), failover'lı.
+      if (AiProviderService.kEnabled) {
+        try {
+          rawText = await AiProviderService.askTask(
+            AiTask.examGen,
+            prompt:
+                'Yukarıdaki profile + konuya $count soruluk MCQ üret. Sadece JSON.',
+            system: systemPrompt,
+            maxTokens: 4096,
+          );
+        } catch (e) {
+          _log('_generateRawMcq multi-provider hata ($e) → Gemini');
+          rawText = '';
+        }
+      }
+      if (rawText.trim().isEmpty) {
+        final res = await _callGeminiFull(
+          systemPrompt: systemPrompt,
+          userMessage:
+              'Yukarıdaki profile + konuya $count soruluk MCQ üret. Sadece JSON.',
+          maxTokens: 4096,
+          temperature: 0.4,
+          thinkingBudget: 0,
+          responseMimeType: 'application/json',
+          timeout: const Duration(seconds: 60),
+        );
+        rawText = res.text;
+      }
+      var text = rawText
           .replaceAll(RegExp(r'```json\s*'), '')
           .replaceAll(RegExp(r'```\s*'), '')
           .trim();

@@ -8597,6 +8597,9 @@ function positionPaletteUnder(){
    +'.bq-q{background:linear-gradient(162deg,#52565f,#42454c);border:1px solid #6a6f79;border-radius:16px;padding:15px 16px;margin:0 auto 14px;max-width:680px;box-shadow:0 6px 20px rgba(0,0,0,.28)}'
    +'.bq-qn{font:800 11px "DM Mono",monospace;color:#9fd0ff;letter-spacing:.5px}'
    +'.bq-qt{font:600 15px system-ui;color:#f1f6ff;margin:7px 0 10px;line-height:1.5}'
+   +'.bq-fig{background:#f5f7fa;border:1px solid #d4dcea;border-radius:10px;padding:10px;margin:2px auto 12px;max-width:420px;text-align:center}'
+   +'.bq-fig svg{max-width:100%;height:auto;display:block;margin:0 auto}'
+   +'.bq-stp .bq-fig{max-width:340px;margin:6px 0}'
    +'.bq-opts{display:flex;flex-wrap:wrap;gap:8px}'
    +'.bq-opt{display:flex;gap:8px;align-items:center;text-align:left;border:1.5px solid #6b7079;background:rgba(255,255,255,.07);color:#f0f2f6;border-radius:11px;padding:9px 12px;font:600 13.5px system-ui;cursor:pointer}'
    +'.bq-opt .ql{width:22px;height:22px;flex:none;border-radius:6px;background:#5a5e67;color:#eef1f5;font:800 11px "DM Mono",monospace;display:flex;align-items:center;justify-content:center}'
@@ -8638,20 +8641,21 @@ function positionPaletteUnder(){
   function closePick(){ document.getElementById('bqBack').classList.remove('on'); document.getElementById('bqPick').classList.remove('on'); }
   function openOverlay(t){ document.getElementById('bqTitle').innerHTML=t; document.getElementById('bqOverlay').classList.add('on'); }
   function closeOverlay(){ document.getElementById('bqOverlay').classList.remove('on'); if(window.__bqTimer){clearInterval(window.__bqTimer);window.__bqTimer=null;} }
-  function stepsHtml(steps){ return steps.map(function(s,i){ var d=s.d||(s.a?('Bu adımda: '+s.a):''); return '<div class="bq-stp"><div class="sn">'+(i+1)+'. ADIM</div><div class="so">'+rich(s.t)+'</div>'+(s.a?'<div class="sa">→ '+rich(s.a)+'</div>':'')+(d?'<button class="bq-dtg" type="button">detaya bak ▸</button><div class="bq-dd">'+rich(d)+'</div>':'')+'</div>'; }).join(''); }
+  function figHtml(f){ return f?'<div class="bq-fig">'+f+'</div>':''; }
+  function stepsHtml(steps){ return steps.map(function(s,i){ var d=s.d||(s.a?('Bu adımda: '+s.a):''); return '<div class="bq-stp"><div class="sn">'+(i+1)+'. ADIM</div><div class="so">'+rich(s.t)+'</div>'+figHtml(s.fig)+(s.a?'<div class="sa">→ '+rich(s.a)+'</div>':'')+(d?'<button class="bq-dtg" type="button">detaya bak ▸</button><div class="bq-dd">'+rich(d)+'</div>':'')+'</div>'; }).join(''); }
   function start(mode,diff,n){ var dn=diff==='zor'?'Zor':'Kolay';
     if(mode==='step'){ var ps=poolStep(diff); if(ps===null){ openOverlay('📝 '+curTopicName()); document.getElementById('bqScroll').innerHTML='<div class="bq-empty">Bu alt konunun soruları henüz hazırlanıyor.</div>'; document.getElementById('bqTimer').textContent=''; document.getElementById('bqCevap').textContent=''; return; } renderBoard(ps.slice(0,n),dn); return; }
     renderQuiz(pool(diff).slice(0,n),dn); }
   function renderBoard(qs,dn){ openOverlay('📝 '+curTopicName()+' <small>'+lvName()+' · '+dn+' · '+qs.length+' soru · adım adım</small>'); var sc=document.getElementById('bqScroll'); sc.innerHTML=''; document.getElementById('bqTimer').textContent=''; document.getElementById('bqCevap').textContent=qs.length+' soru';
     if(!qs.length){ sc.innerHTML='<div class="bq-empty">Bu seviye/zorlukta soru bulunamadı.</div>'; document.getElementById('bqCevap').textContent=''; return; }
-    qs.forEach(function(q,i){ var blk=document.createElement('div'); blk.className='bq-q'; blk.innerHTML='<div class="bq-qn">SORU '+(i+1)+'</div><div class="bq-qt">'+rich(q.q)+'</div><button class="bq-soltgl" type="button">çözümü göster ▸</button><div class="bq-sol">'+stepsHtml(q.steps)+'<div class="bq-ans">✓ Sonuç: '+rich(q.ans)+'</div></div>'; sc.appendChild(blk); });
+    qs.forEach(function(q,i){ var blk=document.createElement('div'); blk.className='bq-q'; blk.innerHTML='<div class="bq-qn">SORU '+(i+1)+'</div><div class="bq-qt">'+rich(q.q)+'</div>'+figHtml(q.fig)+'<button class="bq-soltgl" type="button">çözümü göster ▸</button><div class="bq-sol">'+stepsHtml(q.steps)+'<div class="bq-ans">✓ Sonuç: '+rich(q.ans)+'</div></div>'; sc.appendChild(blk); });
     bindToggles(sc); sc.scrollTop=0; }
   function renderQuiz(qs,dn){ var no=nOpt(); openOverlay('🎲 Test Soruları <small>'+lvName()+' · '+dn+' · '+qs.length+' soru · '+no+' şıklı</small>'); var sc=document.getElementById('bqScroll'); sc.innerHTML=''; var tEl=document.getElementById('bqTimer'),cEl=document.getElementById('bqCevap');
     if(!qs.length){ sc.innerHTML='<div class="bq-empty">Bu seviye/zorlukta soru bulunamadı.</div>'; tEl.textContent=''; cEl.textContent=''; return; }
     var answered=0,correct=0,LET=['A','B','C','D','E']; cEl.textContent='0 cevap'; var t0=Date.now();
     if(window.__bqTimer){clearInterval(window.__bqTimer);window.__bqTimer=null;} tEl.textContent='';
     if(isTimed()){ window.__bqTimer=setInterval(function(){ var s=Math.floor((Date.now()-t0)/1000); tEl.textContent='⏱ '+(Math.floor(s/60)?Math.floor(s/60)+'d ':'')+(s%60)+'s'; },1000); }
-    qs.forEach(function(q,i){ var blk=document.createElement('div'); blk.className='bq-q'; var head='<div class="bq-qn">SORU '+(i+1)+' / '+qs.length+'</div><div class="bq-qt">'+rich(q.q)+'</div>';
+    qs.forEach(function(q,i){ var blk=document.createElement('div'); blk.className='bq-q'; var head='<div class="bq-qn">SORU '+(i+1)+' / '+qs.length+'</div><div class="bq-qt">'+rich(q.q)+'</div>'+figHtml(q.fig);
       var dist=(q.o||[]).slice(0,no-1); var pos=i%no; var opts=dist.slice(); opts.splice(pos,0,q.ans);
       var ow=document.createElement('div'); ow.className='bq-opts'; blk.innerHTML=head; blk.appendChild(ow);
       var fb=document.createElement('div'); fb.className='bq-fb';

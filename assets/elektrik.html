@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="tr">
 <head>
 <script>/*RAF_THROTTLE_SHIM*/(function(){if(window.__rafShim)return;window.__rafShim=1;var raf=window.requestAnimationFrame.bind(window);var FT=1000/30,lastMap=new WeakMap();window.requestAnimationFrame=function(cb){return raf(function(ts){if(document.hidden){window.requestAnimationFrame(cb);return;}var l=lastMap.get(cb)||0;if(ts-l<FT){window.requestAnimationFrame(cb);return;}lastMap.set(cb,ts);cb(ts);});};})();</script>
@@ -7546,7 +7546,7 @@ function _subLevel(sub) {
   return lvNum === 1 ? 'ilkokul' : lvNum === 2 ? 'ortaokul' : 'lise';
 }
 window._autoSpinActive = false;
-window._isPlayingActive = false;
+window._isPlayingActive = true;
 
 const LEVEL_ORDER = ['ilkokul', 'ortaokul', 'lise', 'tyt_ayt'];
 
@@ -8017,8 +8017,10 @@ function attachEvents() {
     }
     if (window._haptic) window._haptic(15);
   };
-  animBtn.classList.remove('active');
-  animBtn.querySelector('.ico').textContent = '▶️';
+  animBtn.classList.add('active');
+  animBtn.querySelector('.ico').textContent = '⏸️';
+  const _animLbl = animBtn.querySelector('span:last-child');
+  if (_animLbl) _animLbl.textContent = 'Durdur';
 
   document.getElementById('btnTheme').onclick = () => {
     document.body.classList.toggle('light-mode');
