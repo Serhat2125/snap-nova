@@ -44,6 +44,7 @@ import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -174,6 +175,8 @@ class ReferralService {
   /// yeni üretir + Firestore'a yazar. Collision olasılığı 31^5 ≈ 28M, çok düşük;
   /// yine de var ise yeniden üret.
   static Future<String?> ensureMyCode() async {
+    // Firebase yoksa (web simülasyonu) Firestore/Auth'a hiç dokunma.
+    if (Firebase.apps.isEmpty) return null;
     var fbUser = FirebaseAuth.instance.currentUser;
     // Kullanıcı henüz sign-in olmamışsa anonim auth dene — referral kodu
     // üretebilmek için uid şart. Bu sayede onboarding'i tamamlamamış
@@ -230,6 +233,9 @@ class ReferralService {
   /// Bu kullanıcının davet durumu — kod + davet ettikleri.
   /// `ensureMyCode` çağrılmamışsa boş döner.
   static Future<ReferralStats> myStats() async {
+    // Firebase başlatılmamışsa (örn. web simülasyonu — web için yapılandırma
+    // yok) Firebase singleton'larına dokunmadan boş dön.
+    if (Firebase.apps.isEmpty) return ReferralStats.empty;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return ReferralStats.empty;
     try {
@@ -335,15 +341,10 @@ class ReferralService {
         });
       });
 
-      // ── HOŞGELDİN PROMOSYONU — Yeni kullanıcıya 7 gün Premium ────────────
-      // Davet kodunu kullanan YENİ kullanıcıya hoşgeldin hediyesi.
-      // Davet edenin ödülü YOK (önceki "3 davet → 30 gün" akışı kaldırıldı)
-      // çünkü kullanıcı talebi: "sen 7 ben 30 deme, sadece karşı tarafın
-      // avantajını söyle". Farm engelleyici: aynı cihaz/uid 1 kez redeem
-      // edebilir (anti-fraud yukarıda).
-      await _grantPremium(user.uid,
-          days: _kRedemptionRewardDays, source: 'referral_redeem');
-
+      // Premium grant artık server-side: `onReferralCompleted` Cloud Function
+      // `referrals/{ownerUid}.invitedUsers` güncellenince tetiklenir ve admin SDK
+      // ile hem invitee'ye 7 gün hem inviter'a (3 kişide) 30 gün Premium yazar.
+      // Client-side grant Firestore rules'ta bloklandığından burada yapılmıyor.
       return RedeemResult.success;
     } on FirebaseException catch (e) {
       debugPrint('[Referral] redeem firestore error: ${e.code} ${e.message}');
@@ -351,57 +352,6 @@ class ReferralService {
     } catch (e) {
       debugPrint('[Referral] redeem error: $e');
       return RedeemResult.networkError;
-    }
-  }
-
-  /// Kullanıcının kendi UID'sine N gün Premium yazar (Firestore + lokal cache).
-  /// Sadece yeni kullanıcının hoşgeldin promosyonu için kullanılır. Cross-user
-  /// write değil (Firestore rules izin verir).
-  static Future<void> _grantPremium(String uid,
-      {required int days, required String source}) async {
-    try {
-      final doc =
-          _col.collection('users').doc(uid).collection('premium').doc('state');
-      await _col.runTransaction((tx) async {
-        final snap = await tx.get(doc);
-        final existing = snap.data();
-        final now = DateTime.now();
-        DateTime base = now;
-        if (existing != null) {
-          final until = existing['premiumUntil'];
-          if (until is Timestamp) {
-            final t = until.toDate();
-            if (t.isAfter(now)) base = t;
-          }
-        }
-        final newUntil = base.add(Duration(days: days));
-        tx.set(
-          doc,
-          {
-            'premiumUntil': Timestamp.fromDate(newUntil),
-            'lastGrantSource': source,
-            'lastGrantAt': FieldValue.serverTimestamp(),
-          },
-          SetOptions(merge: true),
-        );
-      });
-      final prefs = await SharedPreferences.getInstance();
-      final currentUid = FirebaseAuth.instance.currentUser?.uid;
-      if (currentUid == uid) {
-        final until = DateTime.now().add(Duration(days: days));
-        final existingIso = prefs.getString('premium_until_iso');
-        final existingDate =
-            existingIso != null ? DateTime.tryParse(existingIso) : null;
-        DateTime finalUntil = until;
-        if (existingDate != null && existingDate.isAfter(until)) {
-          finalUntil = existingDate.add(Duration(days: days));
-        }
-        await prefs.setString(
-            'premium_until_iso', finalUntil.toIso8601String());
-        await prefs.setString('premium_source', source);
-      }
-    } catch (e) {
-      debugPrint('[Referral] grantPremium error: $e');
     }
   }
 

@@ -12,12 +12,15 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+import '../services/ai_quota_service.dart';
 import '../services/error_logger.dart';
 import '../services/pomodoro_stats.dart';
 import '../services/push_service.dart';
 import '../services/user_profile_service.dart';
 import '../services/runtime_translator.dart';
 import 'academic_planner.dart' show logPomodoroSessionToCalendar;
+import 'premium_screen.dart';
 
 // Canlı domain — paylaşım kartlarındaki QR kod ve attribution linki için.
 const String _kQualsarShareUrl = 'https://qualsar.app';
@@ -167,6 +170,14 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
       vsync: this,
       duration: const Duration(seconds: 4),
     )..repeat();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || AiQuotaService.instance.isPremium) return;
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool('mars_pomodoro_used') ?? false) {
+        _showMarsPremiumGate();
+      }
+    });
   }
 
   @override
@@ -210,8 +221,18 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
     }
   }
 
-  void _start() {
+  void _start() async {
     if (_signalLost) return;
+    if (!AiQuotaService.instance.isPremium) {
+      final prefs = await SharedPreferences.getInstance();
+      final alreadyUsed = prefs.getBool('mars_pomodoro_used') ?? false;
+      if (alreadyUsed) {
+        if (mounted) _showMarsPremiumGate();
+        return;
+      }
+      await prefs.setBool('mars_pomodoro_used', true);
+    }
+    if (!mounted) return;
     setState(() => _running = true);
     WakelockPlus.enable();
     HapticFeedback.mediumImpact();
@@ -223,6 +244,75 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
       });
       if (_timeLeft <= 0) _advance();
     });
+  }
+
+  void _showMarsPremiumGate() {
+    if (!mounted) return;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isDismissible: false,
+      enableDrag: false,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64, height: 64,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(colors: [Color(0xFFB91C1C), Color(0xFF7C3AED)]),
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: const Text('🚀', style: TextStyle(fontSize: 30)),
+            ),
+            const SizedBox(height: 16),
+            Text('Premium\'a Geç',
+                style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.black)),
+            const SizedBox(height: 8),
+            Text(
+              'QuAlsar Mars Pomodoro tek seferlik ücretsiz.\nSınırsız Mars seferleri için Premium\'a geç.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(fontSize: 13, color: Colors.black54, height: 1.5),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                style: TextButton.styleFrom(
+                  backgroundColor: const Color(0xFF7C3AED),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PremiumScreen()));
+                },
+                child: Text('Premium\'a Geç',
+                    style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                Navigator.of(context).maybePop();
+              },
+              child: Text('Geri Dön',
+                  style: GoogleFonts.poppins(fontSize: 13, color: Colors.black38)),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _pause() {

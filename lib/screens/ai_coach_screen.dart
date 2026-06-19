@@ -15,9 +15,11 @@
 //  yine kişisel önerilerini görür.
 // ═══════════════════════════════════════════════════════════════════════════════
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../main.dart' show localeService;
+import '../services/ai_quota_service.dart';
 import '../services/coach_data_service.dart';
 import '../services/gemini_service.dart';
 import '../services/pomodoro_stats.dart';
@@ -26,6 +28,7 @@ import '../services/user_profile_service.dart';
 import '../theme/app_theme.dart';
 import 'academic_planner.dart' show AcademicPlanner, LibraryMode;
 import 'ai_coach_chat_screen.dart';
+import 'premium_screen.dart';
 
 class AICoachScreen extends StatefulWidget {
   const AICoachScreen({super.key});
@@ -37,6 +40,9 @@ class AICoachScreen extends StatefulWidget {
 class _AICoachScreenState extends State<AICoachScreen> {
   bool _loading = true;
   bool _refreshing = false;
+
+  // ── Free tier: 5dk ücretsiz süre ──────────────────────────────────────────
+  Timer? _freeTimer;
 
   // ── Veri ────────────────────────────────────────────────────────────────
   PomodoroStatsSnapshot _stats = PomodoroStatsSnapshot.empty;
@@ -50,6 +56,18 @@ class _AICoachScreenState extends State<AICoachScreen> {
   void initState() {
     super.initState();
     _bootstrap();
+    if (!AiQuotaService.instance.isPremium) {
+      _freeTimer = Timer(const Duration(minutes: 5), () {
+        if (!mounted) return;
+        _showFreeExpiredSheet();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _freeTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _bootstrap() async {
@@ -239,6 +257,75 @@ class _AICoachScreenState extends State<AICoachScreen> {
     if (l.contains('ing') || l.contains('eng')) return '🗣️';
     if (l.contains('fels') || l.contains('phil')) return '🤔';
     return '📚';
+  }
+
+  void _showFreeExpiredSheet() {
+    if (!mounted) return;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isDismissible: false,
+      enableDrag: false,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64, height: 64,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFFEC4899)]),
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 32),
+            ),
+            const SizedBox(height: 16),
+            Text('Premium\'a Geç',
+                style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.black)),
+            const SizedBox(height: 8),
+            Text(
+              '5 dakikalık ücretsiz AI Koç süren doldu.\nSınırsız analiz ve plan için Premium\'a geç.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(fontSize: 13, color: Colors.black54, height: 1.5),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                style: TextButton.styleFrom(
+                  backgroundColor: const Color(0xFF7C3AED),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PremiumScreen()));
+                },
+                child: Text('Premium\'a Geç',
+                    style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                Navigator.of(context).maybePop();
+              },
+              child: Text('Geri Dön',
+                  style: GoogleFonts.poppins(fontSize: 13, color: Colors.black38)),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   // ── Build ────────────────────────────────────────────────────────────────

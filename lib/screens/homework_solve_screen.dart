@@ -21,6 +21,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../models/education_models.dart';
 import '../services/activity_writer_service.dart';
+import '../services/app_settings_service.dart';
 import '../services/homework_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
@@ -128,6 +129,11 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen> {
       _wrongCount = wrong;
     });
     if (ok) {
+      if (correct >= wrong) {
+        AppSettingsService.instance.notifySuccess();
+      } else {
+        AppSettingsService.instance.notifyError();
+      }
       // Aktivite log — ebeveyn dashboard
       unawaited(ActivityWriterService.recordTestCompleted(
         correct: correct,

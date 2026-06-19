@@ -23,6 +23,15 @@ service cloud.firestore {
         && request.auth.token.admin == true;
     }
 
+    // İstek sahibi, `childUid`'e AKTİF olarak bağlı bir ebeveyn mi?
+    // parent_links/{parentUid}/children/{childUid}.status == 'active'
+    // Ebeveyn paneli (Gelişim Paneli) bağlı çocuğun verisini bu sayede okur.
+    function isLinkedParent(childUid) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/parent_links/$(request.auth.uid)/children/$(childUid))
+        && get(/databases/$(database)/documents/parent_links/$(request.auth.uid)/children/$(childUid)).data.status == 'active';
+    }
+
     // ── app_errors: istemciler sadece yazabilir ──────────────────────────
     //    Okuma sadece admin. Hata raporları dışarı açılmaz.
     match /app_errors/{doc} {
@@ -68,7 +77,8 @@ service cloud.firestore {
       //    reddedilir; sadece üstteki `match /premium/{doc=**}` rule
       //    (allow write: if false) geçerli olur — yani client yazamaz.
       match /{sub=**} {
-        allow read: if isOwner(uid);
+        // Sahibi her zaman; ayrıca AKTİF bağlı ebeveyn salt-okur (panel için).
+        allow read: if isOwner(uid) || isLinkedParent(uid);
         allow write: if isOwner(uid)
           && !string(sub).matches('premium(/.*)?');
       }
@@ -298,6 +308,17 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['status', 'acceptedAt']);
       allow delete: if isOwner(childUid) || isOwner(parentUid);
+    }
+
+    // ── parent_link_codes/{code}: çocuğun ürettiği kısa-ömürlü eşleşme kodu ─
+    //   Çocuk kendi kodunu üretir (childUid == kendisi). Ebeveyn kodu okuyup
+    //   childUid'i bulur, sonra siler. Kod yalnızca childUid + zaman içerir;
+    //   veri erişimi yine ÇOCUĞUN ONAYINA bağlı (sadece kod yetki vermez).
+    match /parent_link_codes/{code} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.childUid == request.auth.uid;
+      allow delete: if isSignedIn();
     }
 
     // ── classes/{classId}: öğretmen sınıfı ────────────────────────────────

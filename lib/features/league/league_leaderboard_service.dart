@@ -22,6 +22,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../services/education_profile.dart';
@@ -157,7 +158,7 @@ class LeagueLeaderboardService {
     String? topic,
     int limit = 50,
   }) {
-    if (location.countryCode.isEmpty) {
+    if (Firebase.apps.isEmpty || location.countryCode.isEmpty) {
       return Stream.value(const <LeagueLeaderRow>[]);
     }
     final col = FirebaseFirestore.instance.collection('league_attempts');

@@ -20,6 +20,7 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'error_logger.dart';
 
@@ -475,6 +476,7 @@ class DueloMatchmakingService {
 
   /// Bekleyen düello davetlerini stream — UI badge ve inbox için.
   static Stream<List<DueloInvite>> watchInvites() {
+    if (Firebase.apps.isEmpty) return Stream.value(const []);
     final me = FirebaseAuth.instance.currentUser?.uid;
     if (me == null) return Stream.value(const []);
     return FirebaseFirestore.instance

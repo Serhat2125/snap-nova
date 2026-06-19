@@ -31,6 +31,7 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -44,12 +45,19 @@ class PreferencesSyncService {
   static const _kNotifPrefix = 'notif_';
   static const _notifKeys = [
     'master',
+    'friend_request',
+    'duello_invite',
+    'league_update',
     'study_reminder',
     'streak_alert',
-    'league_update',
+    'exam_countdown',
+    'achievement',
     'premium_offer',
     'newsletter',
   ];
+
+  // Varsayılan kapalı olan kategoriler (geri kalanı varsayılan açık).
+  static const _notifDefaultOff = {'premium_offer', 'newsletter'};
 
   static String? get _uid => FirebaseAuth.instance.currentUser?.uid;
   static DocumentReference<Map<String, dynamic>>? get _doc {
@@ -65,17 +73,19 @@ class PreferencesSyncService {
   /// Yerel tercihleri Firestore'a yaz.
   /// UI tercihi değiştirdikten sonra fire-and-forget çağırılır.
   static Future<void> syncFromLocal() async {
+    if (Firebase.apps.isEmpty) return; // web simülasyonu — Firebase yok
     try {
       final doc = _doc;
       if (doc == null) return;
       final prefs = await SharedPreferences.getInstance();
       final notif = <String, bool>{};
       for (final key in _notifKeys) {
-        notif[key] = prefs.getBool('$_kNotifPrefix$key') ?? true;
+        notif[key] =
+            prefs.getBool('$_kNotifPrefix$key') ?? !_notifDefaultOff.contains(key);
       }
       await doc.set({
         'locale': prefs.getString(_kLocale) ?? '',
-        'themeIndex': prefs.getInt(_kThemeIdx) ?? 2,
+        'themeIndex': prefs.getInt(_kThemeIdx) ?? 1,
         'startupScreen': prefs.getString(_kStartup) ?? 'camera',
         'notifications': notif,
         'updatedAt': FieldValue.serverTimestamp(),
@@ -89,11 +99,12 @@ class PreferencesSyncService {
   /// Locale yoksa cloud'daki dili yereline yaz ve `true` döner.
   /// Çağıran (main.dart) true alırsa locale/theme servislerini yeniden init eder.
   static Future<bool> restoreFromCloudIfEmpty() async {
+    if (Firebase.apps.isEmpty) return false; // web simülasyonu — Firebase yok
     try {
       final doc = _doc;
       if (doc == null) return false;
       final prefs = await SharedPreferences.getInstance();
-      // Yerel boş kriteri: locale yok VE startup yok VE theme default (2)
+      // Yerel boş kriteri: locale yok VE startup yok VE theme key yok
       final hasLocale = (prefs.getString(_kLocale) ?? '').isNotEmpty;
       final hasStartup = (prefs.getString(_kStartup) ?? '').isNotEmpty;
       final hasTheme = prefs.containsKey(_kThemeIdx);
@@ -145,12 +156,13 @@ class PreferencesSyncService {
     unawaited(syncFromLocal());
   }
 
-  /// Bildirim tercihlerini okur — varsayılan true.
+  /// Bildirim tercihlerini okur — kategoriye göre varsayılan
+  /// ([_notifDefaultOff] içindekiler kapalı, geri kalanı açık).
   static Future<Map<String, bool>> readNotificationPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     final out = <String, bool>{};
     for (final k in _notifKeys) {
-      out[k] = prefs.getBool('$_kNotifPrefix$k') ?? true;
+      out[k] = prefs.getBool('$_kNotifPrefix$k') ?? !_notifDefaultOff.contains(k);
     }
     return out;
   }

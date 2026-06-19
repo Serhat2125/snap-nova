@@ -33,6 +33,9 @@ class StudentActivityModel {
   final int correctAnswers;
   final int wrongAnswers;
   final int blankAnswers;
+  /// Ders bazlı test doğru/yanlış birikimi (ebeveyn paneli ders tablosu).
+  final Map<String, int> subjectCorrect;
+  final Map<String, int> subjectWrong;
   /// Bugünkü ortalama başarı yüzdesi (0-100). Test yapılmadıysa null.
   final double? successPercent;
 
@@ -46,6 +49,8 @@ class StudentActivityModel {
     this.correctAnswers = 0,
     this.wrongAnswers = 0,
     this.blankAnswers = 0,
+    this.subjectCorrect = const {},
+    this.subjectWrong = const {},
     this.successPercent,
   });
 
@@ -82,6 +87,12 @@ class StudentActivityModel {
       correctAnswers: (j['correctAnswers'] ?? 0) as int,
       wrongAnswers: (j['wrongAnswers'] ?? 0) as int,
       blankAnswers: (j['blankAnswers'] ?? 0) as int,
+      subjectCorrect: (j['subjectCorrect'] as Map<String, dynamic>?)
+              ?.map((k, v) => MapEntry(k, (v ?? 0) as int)) ??
+          const {},
+      subjectWrong: (j['subjectWrong'] as Map<String, dynamic>?)
+              ?.map((k, v) => MapEntry(k, (v ?? 0) as int)) ??
+          const {},
       successPercent: (j['successPercent'] as num?)?.toDouble(),
     );
   }

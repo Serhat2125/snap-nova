@@ -25,9 +25,42 @@ interface NotifData {
   fromDisplayName?: string;
   targetUsername?: string;
   subjectKey?: string;
+  milestone?: string;
+  rewardDays?: number;
+  // Dinamik bildirimler (örn. haftalık ebeveyn özeti) title/body'yi doc'a
+  // doğrudan yazar; buildContent bunları olduğu gibi kullanır.
+  title?: string;
+  body?: string;
+}
+
+/**
+ * Bildirim türünü, kullanıcı ayarlarındaki kategori anahtarına eşler.
+ * (Bkz. PreferencesSyncService._notifKeys + bildirim ayarları sheet'i.)
+ * null dönerse → kategorisiz/sistem bildirimi, her zaman gönderilir.
+ */
+function categoryForType(type?: string): string | null {
+  switch (type) {
+    case "friend_request":
+    case "friend_accepted":
+    case "referral_joined":
+    case "referral_complete":
+      return "friend_request";
+    case "duelo_invite":
+      return "duello_invite";
+    case "rank_passed":
+      return "league_update";
+    case "streak_milestone":
+      return "streak_alert";
+    default:
+      return null;
+  }
 }
 
 function buildContent(data: NotifData): { title: string; body: string } {
+  // Doc'a doğrudan yazılmış dinamik metin varsa onu kullan.
+  if (data.title && data.body) {
+    return { title: data.title, body: data.body };
+  }
   const who = data.fromDisplayName || data.fromUsername || "Birisi";
   switch (data.type) {
     case "friend_request":
@@ -55,6 +88,18 @@ function buildContent(data: NotifData): { title: string; body: string } {
         title: "Streak ödülü",
         body: `Üst üste günlerin yeni rekor`,
       };
+    case "referral_joined": {
+      const progress = data.subjectKey || "";
+      return {
+        title: "Arkadaşın QuAlsar'a katıldı!",
+        body: `Davet hedefin: ${progress} — devam et!`,
+      };
+    }
+    case "referral_complete":
+      return {
+        title: "Tebrikler! 30 gün Premium kazandın",
+        body: "3 arkadaşını davet ettin — Premium ödülün aktif!",
+      };
     default:
       return {
         title: "QuAlsar",
@@ -76,9 +121,34 @@ export const pushOnNotificationCreated = onDocumentCreated(
     }
     const uid = event.params.uid;
     const data = snap.data() as NotifData;
+    const db = getFirestore();
+
+    // 0) Kullanıcının bildirim tercihlerini oku — kapalı kategoriye veya
+    //    ana anahtar kapalıyken HİÇ push gönderme. (İn-app inbox doc'u yine
+    //    durur; sadece push pop-up bastırılır.) Tercih okunamazsa gönder.
+    try {
+      const prefSnap = await db
+        .collection("users")
+        .doc(uid)
+        .collection("preferences")
+        .doc("main")
+        .get();
+      const notif =
+        (prefSnap.data()?.notifications as Record<string, boolean>) || {};
+      if (notif.master === false) {
+        logger.info(`[push] master kapalı uid=${uid} — atlandı`);
+        return;
+      }
+      const cat = categoryForType(data.type);
+      if (cat && notif[cat] === false) {
+        logger.info(`[push] '${cat}' kategorisi kapalı uid=${uid} — atlandı`);
+        return;
+      }
+    } catch (e) {
+      logger.warn("[push] tercih okunamadı, yine de gönderiliyor", e);
+    }
 
     // 1) Hedefin fcmTokens'larını çek
-    const db = getFirestore();
     const tokensSnap = await db
       .collection("users")
       .doc(uid)

@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
+import '../services/activity_writer_service.dart';
 import '../services/gemini_service.dart';
 import '../services/solutions_storage.dart';
 import '../services/feedback_service.dart';
@@ -295,6 +296,10 @@ class _AiResultScreenState extends State<AiResultScreen> {
       studySuite: _cachedStudySuite, // Konuyu Pekiştir cache — silinmesin
     );
     await SolutionsStorage.saveOrUpdate(record);
+    // Ebeveyn paneli / Gelişimim — foto-soru sayacı (yalnızca ilk kayıt).
+    if (widget.existingRecordId == null) {
+      unawaited(ActivityWriterService.recordPhotoQuestion(subject));
+    }
   }
 
   Future<void> _sendFollowUp() async {

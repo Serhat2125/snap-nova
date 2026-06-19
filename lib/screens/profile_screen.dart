@@ -28,6 +28,7 @@ import '../services/referral_service.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:image/image.dart' as img;
 import '../services/auth_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -44,7 +45,8 @@ import '../services/solutions_storage.dart';
 import '../theme/app_theme.dart';
 import '../main.dart' show themeService, localeService;
 import 'premium_screen.dart';
-import 'academic_planner.dart' show askParentGate, ParentReportPage;
+import 'academic_planner.dart' show askParentGate;
+import 'my_progress_screen.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 // ── Kullanıcı ID yardımcısı (ilk açılışta üret, kalıcı sakla) ──────────────
@@ -494,7 +496,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     final ok = await askParentGate(context);
                     if (!ok || !mounted) return;
                     nav.push(MaterialPageRoute(
-                      builder: (_) => const ParentReportPage(),
+                      builder: (_) => const MyProgressScreen(),
                     ));
                   },
                   child: Container(
@@ -880,14 +882,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _showNotificationsBottomSheet(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _NotificationsSettingsSheet(),
-    );
-  }
+  void _showNotificationsBottomSheet(BuildContext context) =>
+      showNotificationSettingsSheet(context);
 
   void _showAppSettingsBottomSheet(BuildContext context) {
     showModalBottomSheet<void>(
@@ -4476,6 +4472,8 @@ class _InvitePageState extends State<InvitePage> {
   /// Cloud Function 3. davette 30 gün Premium yazınca `users/{myUid}/premium/state`
   /// değişir → premium listener tetiklenir → "Premium kazandın" kartı görünür.
   void _attachLiveListeners() {
+    // Web simülasyonunda Firebase başlatılmaz; singleton'lara dokunma.
+    if (Firebase.apps.isEmpty) return;
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
     _referralSub = FirebaseFirestore.instance
@@ -6268,7 +6266,8 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
                     const SizedBox(height: 16),
 
                     // ═══ 🎯 Çalışma ─────────────────────────────────
-                    _sectionTitle('🎯', 'Çalışma'.tr()),
+                    _sectionTitle('🎯', 'Çalışma'.tr(),
+                        const Color(0xFFFF6A00)),
                     _StartupOptionRow(
                       emoji: '📷',
                       title: 'Kamera ekranı'.tr(),
@@ -6289,12 +6288,14 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
                     const SizedBox(height: 18),
 
                     // ═══ 🔇 Sessiz Saatler ──────────────────────────
-                    _sectionTitle('🔇', 'Sessiz Saatler'.tr()),
+                    _sectionTitle('🔇', 'Sessiz Saatler'.tr(),
+                        const Color(0xFF6366F1)),
                     _toggleRow(
                       icon: Icons.do_not_disturb_on_rounded,
                       title: 'Sessiz saatleri aç'.tr(),
                       subtitle:
                           'Belirlediğin aralıkta hiç bildirim gelmez.'.tr(),
+                      color: const Color(0xFF6366F1),
                       value: s.quietEnabled,
                       onChanged: (v) => s.setQuiet(v,
                           startMin: s.quietStartMin,
@@ -6312,13 +6313,15 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
                     const SizedBox(height: 18),
 
                     // ═══ 🌙 Otomatik Karanlık Mod ───────────────────
-                    _sectionTitle('🌙', 'Otomatik Karanlık Mod'.tr()),
+                    _sectionTitle('🌙', 'Otomatik Karanlık Mod'.tr(),
+                        const Color(0xFF8B5CF6)),
                     _toggleRow(
                       icon: Icons.brightness_4_rounded,
                       title: 'Saat tabanlı karanlık'.tr(),
                       subtitle:
                           'Gece otomatik karanlık, sabah aydınlık moda geçer.'
                               .tr(),
+                      color: const Color(0xFF8B5CF6),
                       value: s.autoDarkEnabled,
                       onChanged: (v) => s.setAutoDark(v,
                           startMin: s.autoDarkStartMin,
@@ -6338,50 +6341,93 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
                     const SizedBox(height: 18),
 
                     // ═══ 🔊 Ses & Titreşim ─────────────────────────
-                    _sectionTitle('🔊', 'Ses ve Titreşim'.tr()),
+                    // İkon chip'ine dokununca efekt anında önizlenir; toggle
+                    // açılınca da bir kez çalar — kullanıcı çalıştığını duyar.
+                    _sectionTitle('🔊', 'Ses ve Titreşim'.tr(),
+                        const Color(0xFF06B6D4)),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        'İpucu: Soldaki renkli simgeye dokunarak sesi/titreşimi test edebilirsin.'
+                            .tr(),
+                        style: GoogleFonts.poppins(
+                          fontSize: 10.5,
+                          color: AppPalette.textSecondary(context)
+                              .withValues(alpha: 0.8),
+                          height: 1.3,
+                        ),
+                      ),
+                    ),
                     _toggleRow(
-                      icon: Icons.volume_up_rounded,
+                      icon: Icons.touch_app_rounded,
                       title: 'Buton tıklama sesi'.tr(),
+                      subtitle: 'Dokun ve dinle.'.tr(),
+                      color: const Color(0xFF3B82F6),
                       value: s.clickSound,
-                      onChanged: s.setClickSound,
+                      onPreview: s.previewClick,
+                      onChanged: (v) {
+                        s.setClickSound(v);
+                        if (v) s.previewClick();
+                      },
                     ),
                     _toggleRow(
                       icon: Icons.celebration_rounded,
                       title: 'Başarı sesi'.tr(),
-                      subtitle: 'Test tamamlandığında çalar.'.tr(),
+                      subtitle: 'Test tamamlandığında çalar — dokun, dinle.'
+                          .tr(),
+                      color: const Color(0xFF10B981),
                       value: s.successSound,
-                      onChanged: s.setSuccessSound,
+                      onPreview: s.previewSuccess,
+                      onChanged: (v) {
+                        s.setSuccessSound(v);
+                        if (v) s.previewSuccess();
+                      },
                     ),
                     _toggleRow(
                       icon: Icons.error_outline_rounded,
                       title: 'Hata sesi'.tr(),
+                      subtitle: 'Yanlış cevapta çalar — dokun, dinle.'.tr(),
+                      color: const Color(0xFFEF4444),
                       value: s.errorSound,
-                      onChanged: s.setErrorSound,
+                      onPreview: s.previewError,
+                      onChanged: (v) {
+                        s.setErrorSound(v);
+                        if (v) s.previewError();
+                      },
                     ),
                     _toggleRow(
                       icon: Icons.vibration_rounded,
                       title: 'Titreşim (haptic)'.tr(),
+                      subtitle: 'Dokun ve hisset.'.tr(),
+                      color: const Color(0xFFF59E0B),
                       value: s.haptic,
-                      onChanged: s.setHaptic,
+                      onPreview: s.previewHaptic,
+                      onChanged: (v) {
+                        s.setHaptic(v);
+                        if (v) s.previewHaptic();
+                      },
                     ),
                     _toggleRow(
                       icon: Icons.headset_off_rounded,
                       title: 'Test sırasında sessiz'.tr(),
                       subtitle:
                           'Sınav simülasyonu için ses/titreşim kapanır.'.tr(),
+                      color: const Color(0xFF64748B),
                       value: s.testSilent,
                       onChanged: s.setTestSilent,
                     ),
                     const SizedBox(height: 18),
 
                     // ═══ 🔐 Uygulama Kilidi ────────────────────────
-                    _sectionTitle('🔐', 'Uygulama Kilidi'.tr()),
+                    _sectionTitle('🔐', 'Uygulama Kilidi'.tr(),
+                        const Color(0xFF14B8A6)),
                     _toggleRow(
                       icon: Icons.lock_rounded,
                       title: 'Uygulama kilidini aç'.tr(),
                       subtitle: s.hasAppLockPin
                           ? 'PIN aktif. Devre dışı bırakmak için kapat.'.tr()
                           : 'PIN belirleyerek uygulamayı kilitle.'.tr(),
+                      color: const Color(0xFF14B8A6),
                       value: s.appLockEnabled,
                       onChanged: (v) async {
                         if (v) {
@@ -6397,6 +6443,7 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
                         title: 'Parmak izi / Face ID'.tr(),
                         subtitle:
                             'PIN yerine biyometrik ile aç.'.tr(),
+                        color: const Color(0xFF06B6D4),
                         value: s.appLockBiometric,
                         onChanged: (v) async {
                           if (v) {
@@ -6410,13 +6457,15 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
                     const SizedBox(height: 18),
 
                     // ═══ 🎯 Kişiselleştirme Verisi ─────────────────
-                    _sectionTitle('🎯', 'Kişiselleştirme'.tr()),
+                    _sectionTitle('🎯', 'Kişiselleştirme'.tr(),
+                        const Color(0xFFA855F7)),
                     _toggleRow(
                       icon: Icons.auto_awesome_rounded,
                       title: 'AI Koç önerileri'.tr(),
                       subtitle:
                           'Geçmişine göre günlük plan üret. Kapatırsan veri toplanmaz.'
                               .tr(),
+                      color: const Color(0xFFA855F7),
                       value: s.aiCoachData,
                       onChanged: s.setAiCoachData,
                     ),
@@ -6425,16 +6474,19 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
                       title: 'Topluluk önerileri'.tr(),
                       subtitle:
                           'Diğer öğrencilerin özet/test havuzunu kullan.'.tr(),
+                      color: const Color(0xFF22D3EE),
                       value: s.communityData,
                       onChanged: s.setCommunityData,
                     ),
                     const SizedBox(height: 18),
 
                     // ═══ 📱 Yönlendirme ─────────────────────────────
-                    _sectionTitle('📱', 'Yönlendirme'.tr()),
+                    _sectionTitle('📱', 'Yönlendirme'.tr(),
+                        const Color(0xFF3B82F6)),
                     _segmentedRow(
                       icon: Icons.screen_rotation_rounded,
                       label: 'Ekran yönlendirme'.tr(),
+                      color: const Color(0xFF3B82F6),
                       options: const [
                         ('portrait', 'Sadece dikey'),
                         ('system', 'Sistem'),
@@ -6445,10 +6497,12 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
                     const SizedBox(height: 18),
 
                     // ═══ ⌨️ Klavye Tipi ────────────────────────────
-                    _sectionTitle('⌨️', 'Klavye Tipi'.tr()),
+                    _sectionTitle('⌨️', 'Klavye Tipi'.tr(),
+                        const Color(0xFFEC4899)),
                     _segmentedRow(
                       icon: Icons.keyboard_rounded,
                       label: 'Yazma sayfası klavyesi'.tr(),
+                      color: const Color(0xFFEC4899),
                       options: const [
                         ('standard', 'Standart'),
                         ('scientific', 'Bilimsel'),
@@ -6522,16 +6576,26 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
   }
 
   // ── UI helpers ────────────────────────────────────────────────────────────
-  Widget _sectionTitle(String emoji, String text) {
+  Widget _sectionTitle(String emoji, String text, [Color? accent]) {
+    final c = accent ?? const Color(0xFF8B5CF6);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8, top: 2),
+      padding: const EdgeInsets.only(bottom: 10, top: 2),
       child: Row(
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 16)),
-          const SizedBox(width: 6),
+          Container(
+            width: 26,
+            height: 26,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: c.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(emoji, style: const TextStyle(fontSize: 14)),
+          ),
+          const SizedBox(width: 8),
           Text(text,
               style: GoogleFonts.poppins(
-                fontSize: 13,
+                fontSize: 13.5,
                 fontWeight: FontWeight.w900,
                 color: AppPalette.textPrimary(context),
                 letterSpacing: 0.3,
@@ -6547,13 +6611,30 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
     String? subtitle,
     required bool value,
     required ValueChanged<bool> onChanged,
+    Color color = const Color(0xFF3B82F6),
+    VoidCallback? onPreview,
   }) {
+    final chip = Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: value ? 0.20 : 0.10),
+        borderRadius: BorderRadius.circular(11),
+      ),
+      child: Icon(icon,
+          size: 20,
+          color: value ? color : color.withValues(alpha: 0.6)),
+    );
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: AppPalette.textPrimary(context)),
-          const SizedBox(width: 12),
+          // Önizleme varsa ikon chip'ine dokunulabilir (sesi/titreşimi test et).
+          if (onPreview != null)
+            GestureDetector(onTap: onPreview, child: chip)
+          else
+            chip,
+          const SizedBox(width: 13),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -6581,7 +6662,7 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
             value: value,
             onChanged: onChanged,
             activeThumbColor: Colors.white,
-            activeTrackColor: const Color(0xFF2563EB),
+            activeTrackColor: color,
           ),
         ],
       ),
@@ -6594,6 +6675,7 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
     required List<(String, String)> options,
     required String value,
     required ValueChanged<String> onChanged,
+    Color color = const Color(0xFF3B82F6),
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -6602,8 +6684,16 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
         children: [
           Row(
             children: [
-              Icon(icon, size: 18, color: AppPalette.textPrimary(context)),
-              const SizedBox(width: 8),
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Icon(icon, size: 17, color: color),
+              ),
+              const SizedBox(width: 9),
               Text(label,
                   style: GoogleFonts.poppins(
                     fontSize: 12.5,
@@ -6631,7 +6721,7 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: value == opt.$1
-                              ? const Color(0xFFFF6A00)
+                              ? color
                               : Colors.transparent,
                           borderRadius: BorderRadius.circular(8),
                         ),
@@ -6933,8 +7023,41 @@ class _StartupOptionRow extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  Bildirim Ayarları Sheet — pref tabanlı 6 kategori.
+//  Bildirim Ayarları Sheet — renkli ikonlu, bölümlere ayrılmış 9 kategori.
+//
+//  Tercihler PreferencesSyncService üzerinden saklanır (notif_<key>) ve
+//  buluta senkronlanır → kullanıcı yeni cihazda ayarlarını bulur.
 // ═══════════════════════════════════════════════════════════════════════════════
+
+/// Bildirim ayarları sheet'ini açar. Hem profil ekranı hem de ayarlar
+/// çekmecesi (settings_drawer) aynı kanonik UI'yı kullanır.
+void showNotificationSettingsSheet(BuildContext context) {
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _NotificationsSettingsSheet(),
+  );
+}
+
+/// Tek bir bildirim kategorisinin sunum verisi.
+class _NotifCat {
+  final String key;
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  const _NotifCat(
+      this.key, this.icon, this.color, this.title, this.subtitle);
+}
+
+/// Bir başlık altında gruplanmış kategoriler.
+class _NotifGroup {
+  final String title;
+  final List<_NotifCat> items;
+  const _NotifGroup(this.title, this.items);
+}
+
 class _NotificationsSettingsSheet extends StatefulWidget {
   @override
   State<_NotificationsSettingsSheet> createState() =>
@@ -6943,13 +7066,38 @@ class _NotificationsSettingsSheet extends StatefulWidget {
 
 class _NotificationsSettingsSheetState
     extends State<_NotificationsSettingsSheet> {
-  bool _allEnabled = true;
-  bool _studyReminders = true;
-  bool _streakAlerts = true;
-  bool _leagueUpdates = true;
-  bool _premiumOffers = false;
-  bool _newsletters = false;
+  Map<String, bool> _prefs = {};
   bool _loading = true;
+
+  // Bölüm + kategori tanımları (renkli ikonlar).
+  static const List<_NotifGroup> _groups = [
+    _NotifGroup('Sosyal', [
+      _NotifCat('friend_request', Icons.group_rounded, Color(0xFF8B5CF6),
+          'Arkadaşlık istekleri', 'Yeni arkadaşlık isteği ve kabulleri.'),
+      _NotifCat('duello_invite', Icons.bolt_rounded, Color(0xFFEF4444),
+          'Düello davetleri', '1v1 yarışmaya davet edildiğinde haber ver.'),
+      _NotifCat('league_update', Icons.leaderboard_rounded, Color(0xFF3B82F6),
+          'Sıralama & Bilgi Ligi', 'Sıralaman değiştiğinde ve yarışmalarda.'),
+    ]),
+    _NotifGroup('Çalışma', [
+      _NotifCat('study_reminder', Icons.menu_book_rounded, Color(0xFF10B981),
+          'Çalışma hatırlatıcıları', 'Günlük hedef ve çalışma planı uyarıları.'),
+      _NotifCat('streak_alert', Icons.local_fire_department_rounded,
+          Color(0xFFF97316), 'Seri (streak) uyarıları',
+          'Çalışma serini kaçırmaman için hatırlatma.'),
+      _NotifCat('exam_countdown', Icons.event_available_rounded,
+          Color(0xFF06B6D4), 'Sınav geri sayımı',
+          'Yaklaşan sınavlar için geri sayım bildirimi.'),
+      _NotifCat('achievement', Icons.emoji_events_rounded, Color(0xFFFBBF24),
+          'Başarı & rozetler', 'Yeni rozet ve başarı kazandığında.'),
+    ]),
+    _NotifGroup('Diğer', [
+      _NotifCat('premium_offer', Icons.local_offer_rounded, Color(0xFFEC4899),
+          'Premium teklifler', 'Sınırlı süreli indirim ve kampanyalar.'),
+      _NotifCat('newsletter', Icons.mail_outline_rounded, Color(0xFF64748B),
+          'Bülten & haberler', 'Yeni özellikler ve uygulama haberleri.'),
+    ]),
+  ];
 
   @override
   void initState() {
@@ -6958,24 +7106,21 @@ class _NotificationsSettingsSheetState
   }
 
   Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
+    final p = await PreferencesSyncService.readNotificationPrefs();
     if (!mounted) return;
     setState(() {
-      _allEnabled = prefs.getBool('notif_all') ?? true;
-      _studyReminders = prefs.getBool('notif_study') ?? true;
-      _streakAlerts = prefs.getBool('notif_streak') ?? true;
-      _leagueUpdates = prefs.getBool('notif_league') ?? true;
-      _premiumOffers = prefs.getBool('notif_premium') ?? false;
-      _newsletters = prefs.getBool('notif_news') ?? false;
+      _prefs = p;
       _loading = false;
     });
   }
 
+  bool _val(String key) => _prefs[key] ?? true;
+  bool get _master => _val('master');
+
   Future<void> _save(String key, bool v) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(key, v);
-    // Cloud sync — yeni cihazda kullanıcı bildirim tercihlerini bulur
-    unawaited(PreferencesSyncService.syncFromLocal());
+    setState(() => _prefs[key] = v);
+    // PreferencesSyncService canonical yol — notif_<key> + cloud sync.
+    await PreferencesSyncService.setNotificationPref(key, v);
   }
 
   /// Test bildirim — kullanıcı ayarlarını değiştirdikten sonra çalıştığını
@@ -7032,16 +7177,16 @@ class _NotificationsSettingsSheetState
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
-      initialChildSize: 0.7,
-      minChildSize: 0.4,
-      maxChildSize: 0.92,
+      initialChildSize: 0.82,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
       expand: false,
       builder: (_, sc) => Container(
         decoration: BoxDecoration(
           color: AppPalette.card(context),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
         ),
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+        padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -7055,19 +7200,38 @@ class _NotificationsSettingsSheetState
                 ),
               ),
             ),
-            const SizedBox(height: 14),
-            Text(
-              'Bildirim Ayarları'.tr(),
-              style: GoogleFonts.poppins(
-                fontSize: 17,
-                fontWeight: FontWeight.w800,
-                color: AppPalette.textPrimary(context),
-              ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF22D3EE), Color(0xFF8B5CF6)],
+                    ),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: const Icon(Icons.notifications_active_rounded,
+                      color: Colors.white, size: 21),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Bildirim Ayarları'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: AppPalette.textPrimary(context),
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 14),
             if (_loading)
               const Padding(
-                padding: EdgeInsets.symmetric(vertical: 40),
+                padding: EdgeInsets.symmetric(vertical: 60),
                 child: Center(child: CircularProgressIndicator()),
               )
             else
@@ -7075,123 +7239,38 @@ class _NotificationsSettingsSheetState
                 child: ListView(
                   controller: sc,
                   children: [
-                    _row(
-                      icon: Icons.notifications_active_rounded,
-                      title: 'Tüm bildirimler'.tr(),
-                      subtitle:
-                          'Ana anahtar — kapatırsan hiç bildirim almazsın.'
-                              .tr(),
-                      value: _allEnabled,
-                      onChanged: (v) {
-                        setState(() => _allEnabled = v);
-                        _save('notif_all', v);
-                      },
-                    ),
-                    Divider(color: AppPalette.border(context)),
-                    _row(
-                      icon: Icons.menu_book_rounded,
-                      title: 'Çalışma hatırlatıcıları'.tr(),
-                      subtitle: 'Günlük hedef ve plan bildirimleri.'.tr(),
-                      value: _studyReminders && _allEnabled,
-                      onChanged: !_allEnabled
-                          ? null
-                          : (v) {
-                              setState(() => _studyReminders = v);
-                              _save('notif_study', v);
-                            },
-                    ),
-                    _row(
-                      icon: Icons.local_fire_department_rounded,
-                      title: 'Streak uyarıları'.tr(),
-                      subtitle:
-                          'Üst üste çalışma serini koruma uyarısı.'.tr(),
-                      value: _streakAlerts && _allEnabled,
-                      onChanged: !_allEnabled
-                          ? null
-                          : (v) {
-                              setState(() => _streakAlerts = v);
-                              _save('notif_streak', v);
-                            },
-                    ),
-                    _row(
-                      icon: Icons.emoji_events_rounded,
-                      title: 'Bilgi Ligi güncellemeleri'.tr(),
-                      subtitle:
-                          'Sıralama değişiklikleri ve yarışma duyuruları.'
-                              .tr(),
-                      value: _leagueUpdates && _allEnabled,
-                      onChanged: !_allEnabled
-                          ? null
-                          : (v) {
-                              setState(() => _leagueUpdates = v);
-                              _save('notif_league', v);
-                            },
-                    ),
-                    _row(
-                      icon: Icons.local_offer_rounded,
-                      title: 'Premium teklifler'.tr(),
-                      subtitle: 'Sınırlı süreli indirim duyuruları.'.tr(),
-                      value: _premiumOffers && _allEnabled,
-                      onChanged: !_allEnabled
-                          ? null
-                          : (v) {
-                              setState(() => _premiumOffers = v);
-                              _save('notif_premium', v);
-                            },
-                    ),
-                    _row(
-                      icon: Icons.mail_outline_rounded,
-                      title: 'Bülten ve haberler'.tr(),
-                      subtitle:
-                          'Yeni özellikler ve uygulama haberleri.'.tr(),
-                      value: _newsletters && _allEnabled,
-                      onChanged: !_allEnabled
-                          ? null
-                          : (v) {
-                              setState(() => _newsletters = v);
-                              _save('notif_news', v);
-                            },
-                    ),
-                    const SizedBox(height: 16),
-                    // Test bildirim butonu — kullanıcı bildirimlerin gerçekten
-                    // çalıştığını gözleriyle görsün. iOS+Android izin akışı
-                    // burada otomatik tetiklenir.
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: _sendTestNotification,
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1A73E8)
-                                .withValues(alpha: 0.10),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: const Color(0xFF1A73E8)
-                                  .withValues(alpha: 0.30),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.notifications_active_rounded,
-                                  color: Color(0xFF1A73E8), size: 22),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  'Test bildirim gönder'.tr(),
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                    color: const Color(0xFF1A73E8),
-                                  ),
-                                ),
-                              ),
-                              const Icon(Icons.chevron_right_rounded,
-                                  color: Color(0xFF1A73E8), size: 22),
+                    _masterCard(),
+                    const SizedBox(height: 10),
+                    AnimatedOpacity(
+                      duration: const Duration(milliseconds: 200),
+                      opacity: _master ? 1.0 : 0.45,
+                      child: IgnorePointer(
+                        ignoring: !_master,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            for (final g in _groups) ...[
+                              _groupHeader(g.title),
+                              ...g.items.map(_catRow),
+                              const SizedBox(height: 6),
                             ],
-                          ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _testButton(),
+                    const SizedBox(height: 6),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Text(
+                        'Bazı bildirimler cihazının sistem ayarlarına da bağlıdır.'
+                            .tr(),
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          color: AppPalette.textSecondary(context)
+                              .withValues(alpha: 0.7),
+                          height: 1.4,
                         ),
                       ),
                     ),
@@ -7204,56 +7283,207 @@ class _NotificationsSettingsSheetState
     );
   }
 
-  Widget _row({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required bool value,
-    required ValueChanged<bool>? onChanged,
-  }) {
-    final disabled = onChanged == null;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+  /// Üstteki büyük "Tüm bildirimler" ana anahtarı (gradient kart).
+  Widget _masterCard() {
+    final on = _master;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: on
+            ? const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0x3322D3EE), Color(0x338B5CF6)],
+              )
+            : null,
+        color: on ? null : AppPalette.cardMuted(context),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: on
+              ? const Color(0xFF22D3EE).withValues(alpha: 0.45)
+              : AppPalette.border(context),
+          width: 1.4,
+        ),
+      ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon,
-              size: 22,
-              color: disabled
-                  ? AppPalette.textSecondary(context).withValues(alpha: 0.4)
-                  : AppPalette.textPrimary(context)),
-          const SizedBox(width: 12),
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: on ? 0.16 : 0.06),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Icon(
+              on
+                  ? Icons.notifications_active_rounded
+                  : Icons.notifications_off_rounded,
+              color: on ? const Color(0xFF22D3EE) : AppPalette.textSecondary(context),
+              size: 25,
+            ),
+          ),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
+                  'Tüm bildirimler'.tr(),
                   style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: disabled
-                        ? AppPalette.textSecondary(context)
-                            .withValues(alpha: 0.5)
-                        : AppPalette.textPrimary(context),
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w800,
+                    color: AppPalette.textPrimary(context),
                   ),
                 ),
+                const SizedBox(height: 2),
                 Text(
-                  subtitle,
+                  on
+                      ? 'Bildirimler açık — türleri aşağıdan ayarla.'.tr()
+                      : 'Kapalı — hiçbir bildirim almazsın.'.tr(),
                   style: GoogleFonts.poppins(
                     fontSize: 11.5,
                     color: AppPalette.textSecondary(context),
-                    height: 1.35,
+                    height: 1.3,
                   ),
                 ),
               ],
             ),
           ),
           Switch.adaptive(
-            value: value,
-            onChanged: onChanged,
+            value: on,
+            activeThumbColor: const Color(0xFF22D3EE),
+            onChanged: (v) => _save('master', v),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _groupHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 14, 4, 8),
+      child: Text(
+        title.tr().toUpperCase(),
+        style: GoogleFonts.poppins(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.8,
+          color: AppPalette.textSecondary(context),
+        ),
+      ),
+    );
+  }
+
+  /// Renkli ikonlu kategori satırı.
+  Widget _catRow(_NotifCat c) {
+    final on = _val(c.key);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: on
+            ? c.color.withValues(alpha: 0.08)
+            : AppPalette.cardMuted(context).withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: on
+              ? c.color.withValues(alpha: 0.28)
+              : AppPalette.border(context),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: c.color.withValues(alpha: on ? 0.20 : 0.10),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(c.icon,
+                color: on ? c.color : c.color.withValues(alpha: 0.55),
+                size: 21),
+          ),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  c.title.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppPalette.textPrimary(context),
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  c.subtitle.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    color: AppPalette.textSecondary(context),
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          Switch.adaptive(
+            value: on,
+            activeThumbColor: c.color,
+            onChanged: (v) => _save(c.key, v),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Test bildirim butonu — kullanıcı bildirimlerin çalıştığını görür.
+  Widget _testButton() {
+    const accent = Color(0xFF1A73E8);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _sendTestNotification,
+        borderRadius: BorderRadius.circular(13),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(color: accent.withValues(alpha: 0.30)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.send_rounded,
+                    color: accent, size: 18),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Test bildirimi gönder'.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: accent,
+                  ),
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded,
+                  color: accent, size: 22),
+            ],
+          ),
+        ),
       ),
     );
   }

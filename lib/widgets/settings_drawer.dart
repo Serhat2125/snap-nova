@@ -8,6 +8,7 @@ import '../main.dart' show themeService;
 import '../screens/account_type_screen.dart';
 import '../screens/onboarding_screen.dart';
 import '../screens/premium_screen.dart';
+import '../screens/profile_screen.dart' show showNotificationSettingsSheet;
 import '../screens/topic_3d_list_screen.dart';
 import '../screens/ai_model_picker_page.dart';
 import '../services/ai_provider_service.dart';
@@ -974,18 +975,8 @@ void _showAccountSettingsSheet(BuildContext context) {
               tile(Icons.notifications_outlined,
                   'Bildirim Tercihleri'.tr(),
                   'Hatırlatma ve uyarı ayarları'.tr(),
-                  const Color(0xFF8B5CF6), () async {
-                final prefs = await SharedPreferences.getInstance();
-                final on = prefs.getBool('notifications_enabled_v1') ?? true;
-                await prefs.setBool('notifications_enabled_v1', !on);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text(!on
-                        ? 'Bildirimler açıldı'.tr()
-                        : 'Bildirimler kapatıldı'.tr()),
-                    backgroundColor: Colors.cyanAccent,
-                  ));
-                }
+                  const Color(0xFF8B5CF6), () {
+                showNotificationSettingsSheet(context);
               }),
               tile(Icons.privacy_tip_outlined, 'Gizlilik & Veri'.tr(),
                   'Verilerimi yönet, dışa aktar'.tr(),

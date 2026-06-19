@@ -27,6 +27,7 @@ export {
   rejudgeUnchecked,
 } from "./question_judge";
 export { pushOnNotificationCreated } from "./push_on_notification";
+export { weeklyParentSummary } from "./weekly_parent_summary";
 export { pushOnRankPassed } from "./rank_passed";
 export { onDueloInviteAccepted } from "./duelo_invite_accepted";
 export { onReferralCompleted } from "./referral_reward";

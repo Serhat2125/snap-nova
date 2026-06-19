@@ -32,6 +32,8 @@ import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'ai_quota_service.dart';
+
 /// Plan tipi ve karşılık gelen Play/Store product ID + süresi.
 enum SubscriptionPlan {
   monthly('qualsar_premium_monthly', 30),
@@ -327,6 +329,10 @@ class SubscriptionService {
     } catch (e) {
       debugPrint('[SubscriptionService] local write error: $e');
     }
+
+    // AI kota servisi premium durumunu hemen yenilesin → satın alma sonrası
+    // kullanıcı uygulamayı kapatmadan sınırsız erişime geçer.
+    try { await AiQuotaService.instance.refresh(); } catch (_) {}
 
     revision.value++;
   }

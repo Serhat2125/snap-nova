@@ -45,6 +45,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
 class FriendUser {
@@ -441,6 +442,7 @@ class FriendService {
 
   /// Kendi arkadaş listesini real-time dinle.
   static Stream<List<Friend>> watchFriends() {
+    if (Firebase.apps.isEmpty) return Stream.value(const []);
     final uid = _myUid;
     if (uid == null) return Stream.value(const []);
     return _fs
@@ -458,6 +460,7 @@ class FriendService {
 
   /// Bekleyen gelen istekleri dinle.
   static Stream<List<FriendRequest>> watchPendingRequests() {
+    if (Firebase.apps.isEmpty) return Stream.value(const []);
     final uid = _myUid;
     if (uid == null) return Stream.value(const []);
     return _fs

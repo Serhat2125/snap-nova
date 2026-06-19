@@ -19,6 +19,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../features/league/league_scores.dart';
 import '../features/league/quiz_pool_service.dart';
+import '../services/app_settings_service.dart';
 import '../services/education_profile.dart';
 import '../services/gemini_service.dart';
 import '../services/runtime_translator.dart';
@@ -295,8 +296,10 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
     _userAnswers[_index] = _selected;
     if (correct) {
       _correctCount++;
+      AppSettingsService.instance.notifySuccess();
     } else {
       _wrongCount++;
+      AppSettingsService.instance.notifyError();
     }
     _advance();
   }

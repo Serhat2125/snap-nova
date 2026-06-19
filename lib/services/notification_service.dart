@@ -22,6 +22,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
 enum AppNotifType {
@@ -162,6 +163,7 @@ class NotificationService {
 
   /// Tüm bildirimler (en yeni üstte), limit ile.
   static Stream<List<AppNotification>> watch({int limit = 50}) {
+    if (Firebase.apps.isEmpty) return Stream.value(const []);
     final uid = _myUid;
     if (uid == null) return Stream.value(const []);
     return _fs
@@ -180,6 +182,7 @@ class NotificationService {
 
   /// Okunmamış sayım — bell badge için.
   static Stream<int> watchUnreadCount() {
+    if (Firebase.apps.isEmpty) return Stream.value(0);
     final uid = _myUid;
     if (uid == null) return Stream.value(0);
     return _fs

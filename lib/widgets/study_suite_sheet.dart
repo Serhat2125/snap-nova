@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
+import '../services/app_settings_service.dart';
 import '../services/gemini_service.dart';
 import 'latex_text.dart';
 import 'qualsar_numeric_loader.dart';
@@ -22,7 +23,8 @@ import 'qualsar_numeric_loader.dart';
 class _SimilarQ {
   final String question;
   final String solution;
-  _SimilarQ({required this.question, required this.solution});
+  final String correct; // "A", "B", "C", "D" — boşsa interaktif mod yok
+  _SimilarQ({required this.question, required this.solution, this.correct = ''});
 }
 
 class _InfoCardItem {
@@ -56,7 +58,8 @@ class _SuiteData {
     return _SuiteData(
       questions: parse('similar_questions', (m) => _SimilarQ(
             question: m['question']?.toString() ?? '',
-            solution: m['solution']?.toString() ?? '')),
+            solution: m['solution']?.toString() ?? '',
+            correct:  (m['correct']?.toString() ?? '').trim().toUpperCase())),
       infoCards: parse('info_cards', (m) => _InfoCardItem(
             title:   m['title']?.toString()   ?? '',
             content: m['content']?.toString() ?? '')),
@@ -400,6 +403,7 @@ class _StudySuiteContentState extends State<_StudySuiteContent> {
             index:    e.key + 1,
             question: e.value.question,
             solution: e.value.solution,
+            correct:  e.value.correct,
           ),
         ),
       ).toList(),
@@ -618,10 +622,12 @@ class _SimilarQuestionCard extends StatefulWidget {
   final int    index;
   final String question;
   final String solution;
+  final String correct;
   const _SimilarQuestionCard({
     required this.index,
     required this.question,
     required this.solution,
+    this.correct = '',
   });
 
   @override
@@ -630,7 +636,8 @@ class _SimilarQuestionCard extends StatefulWidget {
 
 class _SimilarQuestionCardState extends State<_SimilarQuestionCard>
     with SingleTickerProviderStateMixin {
-  bool _expanded = false;
+  bool    _expanded = false;
+  String? _picked;
   late final AnimationController _ctrl;
   late final Animation<double>   _fade;
   late final Animation<double>   _rotate;
@@ -650,6 +657,24 @@ class _SimilarQuestionCardState extends State<_SimilarQuestionCard>
     setState(() => _expanded = !_expanded);
     _expanded ? _ctrl.forward() : _ctrl.reverse();
   }
+
+  void _onPickOption(String letter) {
+    if (_picked != null) return;
+    setState(() => _picked = letter);
+    final isCorrect = letter == widget.correct.toUpperCase();
+    if (isCorrect) {
+      AppSettingsService.instance.notifySuccess();
+    } else {
+      AppSettingsService.instance.notifyError();
+    }
+    if (!_expanded) {
+      setState(() => _expanded = true);
+      _ctrl.forward();
+    }
+  }
+
+  String _letterOf(String opt) =>
+      opt.trim().isEmpty ? '' : opt.trim()[0].toUpperCase();
 
   // "Soru\nA) ..\nB) ..." → ["Soru", ["A) ..", "B) ..", ...]]
   String get _questionStem {
@@ -741,20 +766,49 @@ class _SimilarQuestionCardState extends State<_SimilarQuestionCard>
                             ),
                           ),
                           if (_options.isNotEmpty) ...[
-                            SizedBox(height: 6),
-                            for (final opt in _options)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 2),
-                                child: Text(
-                                  opt,
-                                  style: TextStyle(
-                                    color: AppPalette.textPrimary(context),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                    height: 1.45,
+                            SizedBox(height: 8),
+                            for (final opt in _options) Builder(builder: (_) {
+                              final letter   = _letterOf(opt);
+                              final correct  = widget.correct.toUpperCase();
+                              final isPicked = _picked == letter;
+                              final isCorrectOpt = correct.isNotEmpty && letter == correct;
+                              final isWrongPick   = _picked != null && isPicked && !isCorrectOpt;
+                              Color bg = Colors.transparent;
+                              Color border = Colors.transparent;
+                              if (isCorrectOpt && _picked != null) {
+                                bg = const Color(0xFF10B981).withValues(alpha: 0.12);
+                                border = const Color(0xFF10B981);
+                              } else if (isWrongPick) {
+                                bg = const Color(0xFFEF4444).withValues(alpha: 0.12);
+                                border = const Color(0xFFEF4444);
+                              }
+                              return GestureDetector(
+                                onTap: correct.isNotEmpty && _picked == null
+                                    ? () => _onPickOption(letter)
+                                    : null,
+                                child: AnimatedContainer(
+                                  duration: Duration(milliseconds: 220),
+                                  margin: EdgeInsets.only(bottom: 4),
+                                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: bg,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: border != Colors.transparent
+                                        ? Border.all(color: border, width: 1.2)
+                                        : null,
+                                  ),
+                                  child: Text(
+                                    opt,
+                                    style: TextStyle(
+                                      color: AppPalette.textPrimary(context),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      height: 1.45,
+                                    ),
                                   ),
                                 ),
-                              ),
+                              );
+                            }),
                           ],
                         ],
                       ),
@@ -1106,6 +1160,12 @@ class _MatchCardsPanelState extends State<_MatchCardsPanel> {
         );
         _firstIdx = null;
       });
+      AppSettingsService.instance.notifySuccess();
+      if (_matched >= widget.pairs.length && widget.pairs.isNotEmpty) {
+        Future.delayed(Duration(milliseconds: 300), () {
+          AppSettingsService.instance.notifySuccess();
+        });
+      }
     } else {
       _locked = true;
       Future.delayed(Duration(milliseconds: 700), () {

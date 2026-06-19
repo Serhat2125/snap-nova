@@ -36,7 +36,9 @@ import '../services/error_logger.dart';
 import '../services/runtime_translator.dart';
 import '../services/user_profile_service.dart';
 import '../theme/app_theme.dart';
+import '../services/ai_quota_service.dart';
 import 'bilgi_ligi_quiz_screen.dart';
+import 'premium_screen.dart';
 
 enum _Scope { city, country, world }
 
@@ -4064,6 +4066,18 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
     final profile = _profile;
     if (profile == null) return;
 
+    // Dünya sıralaması: ücretsiz kullanıcı günde 1 quiz hakkı
+    if (_scope == _Scope.world && !AiQuotaService.instance.isPremium) {
+      final prefs = await SharedPreferences.getInstance();
+      final today = DateTime.now().toIso8601String().substring(0, 10);
+      if ((prefs.getString('bilgi_ligi_world_date') ?? '') == today &&
+          (prefs.getInt('bilgi_ligi_world_count') ?? 0) >= 1) {
+        if (!context.mounted) return;
+        _showWorldPremiumGate();
+        return;
+      }
+    }
+
     final result = await Navigator.of(context).push<Map<String, num>>(
       MaterialPageRoute(
         builder: (_) => BilgiLigiQuizScreen(
@@ -4077,6 +4091,13 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
       ),
     );
     if (result == null) return;
+    // Dünya quiz hakkı kullanıldı → bugünkü sayacı artır
+    if (_scope == _Scope.world && !AiQuotaService.instance.isPremium) {
+      final prefs = await SharedPreferences.getInstance();
+      final today = DateTime.now().toIso8601String().substring(0, 10);
+      await prefs.setString('bilgi_ligi_world_date', today);
+      await prefs.setInt('bilgi_ligi_world_count', 1);
+    }
     final score = (result['score'] ?? 0).toDouble();
     final durationSec = (result['durationSec'] ?? 0).toInt();
     final user = FirebaseAuth.instance.currentUser;
@@ -4172,6 +4193,73 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
     } finally {
       dismissDialog();
     }
+  }
+
+  void _showWorldPremiumGate() {
+    if (!mounted) return;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isDismissible: true,
+      enableDrag: true,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+        decoration: BoxDecoration(
+          color: AppPalette.card(context),
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64, height: 64,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(colors: [Color(0xFFFF6A00), Color(0xFF7C3AED)]),
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: const Icon(Icons.public_rounded, color: Colors.white, size: 32),
+            ),
+            const SizedBox(height: 16),
+            Text('Günlük Hakkın Doldu',
+                style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w800,
+                    color: AppPalette.textPrimary(context))),
+            const SizedBox(height: 8),
+            Text(
+              'Dünya sıralamasında günde 1 ücretsiz quiz hakkın var.\nYarın tekrar katılabilir veya Premium\'a geçerek sınırsız oynayabilirsin.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(fontSize: 13, color: AppPalette.textSecondary(context), height: 1.5),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                style: TextButton.styleFrom(
+                  backgroundColor: const Color(0xFF7C3AED),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PremiumScreen()));
+                },
+                child: Text('Premium\'a Geç',
+                    style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text('Tamam',
+                  style: GoogleFonts.poppins(fontSize: 13, color: AppPalette.textSecondary(context))),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

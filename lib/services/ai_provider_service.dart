@@ -48,7 +48,7 @@ const List<AiProviderInfo> kAiProviders = [
     AiModel('gpt-4o', 'GPT-4o · pahalı'),
   ]),
   AiProviderInfo(AiProvider.claude, 'claude', 'Claude', '🟣', [
-    AiModel('claude-haiku-4-5', 'Claude Haiku 4.5 · en ucuz'),
+    AiModel('claude-sonnet-4-6', 'Claude Haiku 4.5 · en ucuz'),
     AiModel('claude-sonnet-4-6', 'Claude Sonnet 4.6 · pahalı'),
   ]),
   AiProviderInfo(AiProvider.grok, 'grok', 'Grok', '⚡', [
@@ -90,57 +90,124 @@ class AiTaskConfig {
   const AiTaskConfig(this.hops, {this.maxTokens = 2048, this.perProviderTimeoutMs = 8000});
 }
 
-/// Araştırmaya dayalı görev → model eşlemesi.
-/// Kaliteli gereken yerlerde en iyi modeller (maliyet ikincil); düşük-eforda en ucuz.
-const Map<AiTask, AiTaskConfig> kAiTaskConfig = {
-  // Fotoğraflı çözüm: en iyi vision+akıl yürütme, tüm sağlayıcılar failover.
+/// Günlük ücretsiz soru limiti.
+const int kFreeQuotaPerDay = 3;
+
+// ── ÜCRETSİZ kullanıcı task config ──────────────────────────────────────────
+// Tüm task'larda Gemini Flash (birincil) → GPT-4o-mini (yedek).
+const Map<AiTask, AiTaskConfig> kAiTaskConfigFree = {
   AiTask.photoSolve: AiTaskConfig([
-    AiHop(AiProvider.gemini, 'gemini-2.5-pro'), // vision ✓
-    AiHop(AiProvider.openai, 'gpt-4o'), // vision ✓
-    AiHop(AiProvider.claude, 'claude-opus-4-8'), // vision ✓
-    AiHop(AiProvider.grok, 'grok-2-vision-1212'), // xAI vision
-    AiHop(AiProvider.deepseek, 'deepseek-reasoner'), // vision yok → OCR metniyle son çare
-  ], maxTokens: 4096, perProviderTimeoutMs: 14000),
-  AiTask.homeworkSolve: AiTaskConfig([
-    AiHop(AiProvider.gemini, 'gemini-2.5-pro'),
-    AiHop(AiProvider.openai, 'gpt-4o'),
-    AiHop(AiProvider.deepseek, 'deepseek-reasoner'),
-  ], maxTokens: 4096, perProviderTimeoutMs: 12000),
-  // AI Koç: yalnız Gemini + ChatGPT, biri geç gelirse diğeri (kullanıcı kuralı).
-  AiTask.coach: AiTaskConfig([
-    AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
-    AiHop(AiProvider.openai, 'gpt-4o'),
-  ], maxTokens: 2048, perProviderTimeoutMs: 6000),
-  AiTask.voice: AiTaskConfig([
     AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
     AiHop(AiProvider.openai, 'gpt-4o-mini'),
-  ], maxTokens: 1536, perProviderTimeoutMs: 5000),
-  AiTask.cameraLive: AiTaskConfig([
-    AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
-    AiHop(AiProvider.openai, 'gpt-4o'),
-  ], maxTokens: 2048, perProviderTimeoutMs: 6000),
-  // Özet: KALİTELİ.
-  AiTask.summary: AiTaskConfig([
-    AiHop(AiProvider.gemini, 'gemini-2.5-pro'),
-    AiHop(AiProvider.openai, 'gpt-4o'),
-  ], maxTokens: 3072, perProviderTimeoutMs: 14000),
-  // Sınav/soru üretimi: KALİTELİ.
-  AiTask.examGen: AiTaskConfig([
-    AiHop(AiProvider.gemini, 'gemini-2.5-pro'),
-    AiHop(AiProvider.openai, 'gpt-4o'),
-    AiHop(AiProvider.deepseek, 'deepseek-reasoner'),
-  ], maxTokens: 4096, perProviderTimeoutMs: 16000),
-  // Doğruluk-hassas üretim (formül listesi, idari coğrafya): orta seviye —
-  // flash-lite yerine flash; hatalı/eksik üretim riskini düşürür, maliyeti makul.
-  AiTask.factual: AiTaskConfig([
+  ], maxTokens: 2048, perProviderTimeoutMs: 12000),
+  AiTask.homeworkSolve: AiTaskConfig([
     AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
     AiHop(AiProvider.openai, 'gpt-4o-mini'),
   ], maxTokens: 2048, perProviderTimeoutMs: 10000),
-  // Ucuz: kalite önemsiz, en düşük maliyet.
-  AiTask.cheap: AiTaskConfig([
-    AiHop(AiProvider.gemini, 'gemini-2.5-flash-lite'),
-    AiHop(AiProvider.deepseek, 'deepseek-chat'),
+  AiTask.coach: AiTaskConfig([
+    AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
+    AiHop(AiProvider.openai, 'gpt-4o-mini'),
   ], maxTokens: 1536, perProviderTimeoutMs: 8000),
+  AiTask.voice: AiTaskConfig([
+    AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
+    AiHop(AiProvider.openai, 'gpt-4o-mini'),
+  ], maxTokens: 1024, perProviderTimeoutMs: 6000),
+  AiTask.cameraLive: AiTaskConfig([
+    AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
+    AiHop(AiProvider.openai, 'gpt-4o-mini'),
+  ], maxTokens: 1536, perProviderTimeoutMs: 8000),
+  AiTask.summary: AiTaskConfig([
+    AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
+    AiHop(AiProvider.openai, 'gpt-4o-mini'),
+  ], maxTokens: 2048, perProviderTimeoutMs: 10000),
+  AiTask.examGen: AiTaskConfig([
+    AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
+    AiHop(AiProvider.openai, 'gpt-4o-mini'),
+  ], maxTokens: 2048, perProviderTimeoutMs: 12000),
+  AiTask.factual: AiTaskConfig([
+    AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
+    AiHop(AiProvider.openai, 'gpt-4o-mini'),
+  ], maxTokens: 1536, perProviderTimeoutMs: 8000),
+  AiTask.cheap: AiTaskConfig([
+    AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
+    AiHop(AiProvider.openai, 'gpt-4o-mini'),
+  ], maxTokens: 1024, perProviderTimeoutMs: 6000),
+};
+
+// ── PREMİUM kullanıcı task config ────────────────────────────────────────────
+// 5 sağlayıcı tam failover zinciri. Claude + ChatGPT + Grok yalnız burada.
+const Map<AiTask, AiTaskConfig> kAiTaskConfigPremium = {
+  // ── SAYISAL / ANALİTİK (Pro zinciri) ─────────────────────────────────────
+  // Fotoğraflı çözüm: vision + derin analiz → Pro zinciri.
+  AiTask.photoSolve: AiTaskConfig([
+    AiHop(AiProvider.gemini, 'gemini-2.5-pro'),
+    AiHop(AiProvider.openai, 'gpt-4o'),
+    AiHop(AiProvider.claude, 'claude-sonnet-4-6'),
+    AiHop(AiProvider.grok, 'grok-2-vision-1212'),
+    AiHop(AiProvider.deepseek, 'deepseek-reasoner'), // R1 — vision yok, metin fallback
+  ], maxTokens: 4096, perProviderTimeoutMs: 14000),
+  // Ödev/metin çözüm: karmaşık matematik/fizik → Pro + R1 zinciri.
+  AiTask.homeworkSolve: AiTaskConfig([
+    AiHop(AiProvider.gemini, 'gemini-2.5-pro'),
+    AiHop(AiProvider.openai, 'gpt-4o'),
+    AiHop(AiProvider.claude, 'claude-sonnet-4-6'),
+    AiHop(AiProvider.grok, 'grok-3'),
+    AiHop(AiProvider.deepseek, 'deepseek-reasoner'), // R1
+  ], maxTokens: 4096, perProviderTimeoutMs: 12000),
+  // Sınav/soru üretimi: sayısal soru doğruluğu kritik → Pro + R1.
+  AiTask.examGen: AiTaskConfig([
+    AiHop(AiProvider.gemini, 'gemini-2.5-pro'),
+    AiHop(AiProvider.openai, 'gpt-4o'),
+    AiHop(AiProvider.claude, 'claude-sonnet-4-6'),
+    AiHop(AiProvider.grok, 'grok-3'),
+    AiHop(AiProvider.deepseek, 'deepseek-reasoner'), // R1
+  ], maxTokens: 4096, perProviderTimeoutMs: 16000),
+
+  // ── SAYISAL GEREKTİRMEYEN (Flash zinciri) ────────────────────────────────
+  // Koç sohbet: hız + doğal dil → Flash yeterli.
+  AiTask.coach: AiTaskConfig([
+    AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
+    AiHop(AiProvider.openai, 'gpt-4o-mini'),
+    AiHop(AiProvider.grok, 'grok-3-mini'),
+    AiHop(AiProvider.claude, 'claude-sonnet-4-6'),
+    AiHop(AiProvider.deepseek, 'deepseek-chat'),
+  ], maxTokens: 2048, perProviderTimeoutMs: 6000),
+  // Sesli mod: hız kritik → Flash.
+  AiTask.voice: AiTaskConfig([
+    AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
+    AiHop(AiProvider.openai, 'gpt-4o-mini'),
+    AiHop(AiProvider.grok, 'grok-3-mini'),
+    AiHop(AiProvider.deepseek, 'deepseek-chat'),
+  ], maxTokens: 1536, perProviderTimeoutMs: 5000),
+  // Canlı kamera: hız kritik → Flash (vision için GPT-4o yedek).
+  AiTask.cameraLive: AiTaskConfig([
+    AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
+    AiHop(AiProvider.openai, 'gpt-4o'),
+    AiHop(AiProvider.grok, 'grok-2-vision-1212'),
+    AiHop(AiProvider.deepseek, 'deepseek-chat'),
+  ], maxTokens: 2048, perProviderTimeoutMs: 6000),
+  // Konu özeti: metin üretimi → Flash yeterli.
+  AiTask.summary: AiTaskConfig([
+    AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
+    AiHop(AiProvider.openai, 'gpt-4o-mini'),
+    AiHop(AiProvider.grok, 'grok-3-mini'),
+    AiHop(AiProvider.claude, 'claude-sonnet-4-6'),
+    AiHop(AiProvider.deepseek, 'deepseek-chat'),
+  ], maxTokens: 3072, perProviderTimeoutMs: 10000),
+  // Müfredat/formül/coğrafya: doğruluk önemli ama sayısal değil → Flash.
+  AiTask.factual: AiTaskConfig([
+    AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
+    AiHop(AiProvider.openai, 'gpt-4o-mini'),
+    AiHop(AiProvider.grok, 'grok-3-mini'),
+    AiHop(AiProvider.claude, 'claude-sonnet-4-6'),
+    AiHop(AiProvider.deepseek, 'deepseek-chat'),
+  ], maxTokens: 2048, perProviderTimeoutMs: 8000),
+  // Başlık/etiket: tek satır çıktı → en ucuz Flash.
+  AiTask.cheap: AiTaskConfig([
+    AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
+    AiHop(AiProvider.openai, 'gpt-4o-mini'),
+    AiHop(AiProvider.grok, 'grok-3-mini'),
+  ], maxTokens: 1024, perProviderTimeoutMs: 6000),
 };
 
 class AiChatMessage {
@@ -262,18 +329,18 @@ class AiProviderService {
     return _post(payload, timeout, '${info.wireName}/$modelId');
   }
 
-  /// Görev-bazlı çağrı: `kAiTaskConfig`'teki sıralı sağlayıcılarla failover.
-  /// Kaliteli görevlerde en iyi modeller, ucuz görevlerde en düşük maliyet.
-  /// Biri zaman aşımına uğrar/hata verirse proxy anında sıradakine geçer.
+  /// Görev-bazlı çağrı: premium/ücretsiz config seçimi + sıralı failover.
+  /// [isPremium] true → 5 sağlayıcı zinciri; false → Flash-Lite + DeepSeek.
   static Future<String> chatTask(
     AiTask task, {
     required List<AiChatMessage> messages,
+    bool isPremium = false,
     String? system,
     int? maxTokens,
     AiImageInput? image,
     Duration timeout = const Duration(seconds: 120),
   }) {
-    final cfg = kAiTaskConfig[task]!;
+    final cfg = (isPremium ? kAiTaskConfigPremium : kAiTaskConfigFree)[task]!;
     final payload = <String, dynamic>{
       'providers': cfg.hops
           .map((h) => {'provider': aiProviderInfo(h.provider).wireName, 'model': h.model})
@@ -292,6 +359,7 @@ class AiProviderService {
   static Future<String> askTask(
     AiTask task, {
     required String prompt,
+    bool isPremium = false,
     String? system,
     int? maxTokens,
     AiImageInput? image,
@@ -299,6 +367,7 @@ class AiProviderService {
   }) =>
       chatTask(task,
           messages: [AiChatMessage('user', prompt)],
+          isPremium: isPremium,
           system: system,
           maxTokens: maxTokens,
           image: image,

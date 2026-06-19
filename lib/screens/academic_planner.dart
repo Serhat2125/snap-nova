@@ -42,7 +42,11 @@ import 'bilgi_ligi_screen.dart';
 import '../widgets/study_toolbar.dart';
 import 'qualsar_mars_screen.dart';
 import 'edu_3d_screen.dart';
+import 'my_progress_screen.dart';
 import '../services/pomodoro_stats.dart';
+import '../services/activity_writer_service.dart';
+import '../services/ai_quota_service.dart';
+import 'premium_screen.dart';
 
 import '../theme/app_theme.dart';
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -271,6 +275,10 @@ class _ActivityStore {
         debugPrint('[ActivityStore] log fail: $e');
       }
       if (entry != null) unawaited(_cloudAppend(entry));
+      // Ebeveyn paneli / Gelişimim verisi — özet üretimi sayacı.
+      if (type == 'özet') {
+        unawaited(ActivityWriterService.recordSummaryCreated(subject));
+      }
     });
   }
 
@@ -311,6 +319,8 @@ class _ActivityStore {
         debugPrint('[ActivityStore] logSession fail: $e');
       }
       if (entry != null) unawaited(_cloudAppend(entry));
+      // Ebeveyn paneli / Gelişimim verisi — çalışma süresi (özet + soru).
+      unawaited(ActivityWriterService.recordFocus(durationSec, subject));
       StudySessionTracker.instance._notifyDataChanged();
     });
   }
@@ -413,6 +423,161 @@ Future<void> logPomodoroSessionToCalendar({
     durationSec: durationSec,
   );
 }
+
+/// Ebeveyn paneli / Gelişimim — son 7 günün LOKAL aktivite verisini
+/// StudentActivityModel.fromJson uyumlu JSON listesi olarak döndürür
+/// (focusSeconds + subjectDurations). Firestore `activity` dökümanı yeni
+/// olduğu için eski/birikmiş veri yalnızca lokal `_ActivityStore`'dadır;
+/// panel boş görünmesin diye buradan beslenir.
+Future<List<Map<String, dynamic>>> readLocalActivityLast7Days() async {
+  String keyFor(DateTime d) {
+    final l = d.isUtc ? d.toLocal() : d;
+    return '${l.year}-${l.month.toString().padLeft(2, '0')}-'
+        '${l.day.toString().padLeft(2, '0')}';
+  }
+
+  final now = DateTime.now();
+  final byDay = <String, Map<String, dynamic>>{};
+  for (int d = 6; d >= 0; d--) {
+    final day = DateTime(now.year, now.month, now.day - d);
+    final key = keyFor(day);
+    byDay[key] = {
+      'dateKey': key,
+      'focusSeconds': 0,
+      'subjectDurations': <String, int>{},
+    };
+  }
+  try {
+    final all = await _ActivityStore.readAll();
+    for (final e in all) {
+      if (e.durationSec <= 0) continue;
+      final m = byDay[keyFor(e.when)];
+      if (m == null) continue; // 7 günden eski
+      m['focusSeconds'] = (m['focusSeconds'] as int) + e.durationSec;
+      if (e.subject.isNotEmpty) {
+        final subs = m['subjectDurations'] as Map<String, int>;
+        subs[e.subject] = (subs[e.subject] ?? 0) + e.durationSec;
+      }
+    }
+  } catch (_) {}
+  return byDay.values.toList();
+}
+
+/// Gelişim Paneli kategori sekmeleri — bu HAFTANIN (Pazartesi→Pazar) ham
+/// aktivite kayıtlarını döndürür. Her kayıt:
+///   {dateKey, weekday (1=Pzt..7=Paz), type, subject, topic, sec}
+/// Kaynak: lokal `_ActivityStore` (özet/soru/pomodoro/3d/yarisma/foto tipleri).
+Future<List<Map<String, dynamic>>> readLocalWeekEntries() async {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final monday = today.subtract(Duration(days: now.weekday - 1));
+  String keyFor(DateTime d) {
+    final l = d.isUtc ? d.toLocal() : d;
+    return '${l.year}-${l.month.toString().padLeft(2, '0')}-'
+        '${l.day.toString().padLeft(2, '0')}';
+  }
+
+  final out = <Map<String, dynamic>>[];
+  try {
+    final all = await _ActivityStore.readAll();
+    for (final e in all) {
+      final w = e.when.isUtc ? e.when.toLocal() : e.when;
+      final day = DateTime(w.year, w.month, w.day);
+      if (day.isBefore(monday)) continue; // bu haftadan önce
+      out.add({
+        'dateKey': keyFor(w),
+        'weekday': w.weekday, // 1=Pzt .. 7=Paz
+        'type': e.type,
+        'subject': e.subject,
+        'topic': e.topic,
+        'sec': e.durationSec,
+      });
+    }
+  } catch (_) {}
+  return out;
+}
+
+/// Aylık rapor — son N günün LOKAL günlük aktivite verisi (focus + ders süresi).
+Future<List<Map<String, dynamic>>> readLocalActivityLastNDays(int n) async {
+  String keyFor(DateTime d) {
+    final l = d.isUtc ? d.toLocal() : d;
+    return '${l.year}-${l.month.toString().padLeft(2, '0')}-'
+        '${l.day.toString().padLeft(2, '0')}';
+  }
+
+  final now = DateTime.now();
+  final byDay = <String, Map<String, dynamic>>{};
+  for (int d = n - 1; d >= 0; d--) {
+    final day = DateTime(now.year, now.month, now.day - d);
+    byDay[keyFor(day)] = {
+      'dateKey': keyFor(day),
+      'focusSeconds': 0,
+      'subjectDurations': <String, int>{},
+    };
+  }
+  try {
+    final all = await _ActivityStore.readAll();
+    for (final e in all) {
+      if (e.durationSec <= 0) continue;
+      final m = byDay[keyFor(e.when)];
+      if (m == null) continue;
+      m['focusSeconds'] = (m['focusSeconds'] as int) + e.durationSec;
+      if (e.subject.isNotEmpty) {
+        final subs = m['subjectDurations'] as Map<String, int>;
+        subs[e.subject] = (subs[e.subject] ?? 0) + e.durationSec;
+      }
+    }
+  } catch (_) {}
+  return byDay.values.toList();
+}
+
+/// Aylık rapor — son N günün LOKAL ham aktivite kayıtları (type/ders/süre).
+Future<List<Map<String, dynamic>>> readLocalEntriesLastNDays(int n) async {
+  final now = DateTime.now();
+  final from = DateTime(now.year, now.month, now.day - (n - 1));
+  String keyFor(DateTime d) {
+    final l = d.isUtc ? d.toLocal() : d;
+    return '${l.year}-${l.month.toString().padLeft(2, '0')}-'
+        '${l.day.toString().padLeft(2, '0')}';
+  }
+
+  final out = <Map<String, dynamic>>[];
+  try {
+    final all = await _ActivityStore.readAll();
+    for (final e in all) {
+      final w = e.when.isUtc ? e.when.toLocal() : e.when;
+      final day = DateTime(w.year, w.month, w.day);
+      if (day.isBefore(from)) continue;
+      out.add({
+        'dateKey': keyFor(w),
+        'type': e.type,
+        'subject': e.subject,
+        'topic': e.topic,
+        'sec': e.durationSec,
+      });
+    }
+  } catch (_) {}
+  return out;
+}
+
+/// 3D ders / yarışma gibi süre tabanlı aktiviteleri lokal mağazaya yazar
+/// (Gelişim Paneli kategori kırılımı için). Public sarmalayıcı.
+Future<void> logActivitySession({
+  required String subject,
+  required String topic,
+  required String type,
+  required int durationSec,
+}) =>
+    _ActivityStore.logSession(
+      subject: subject, topic: topic, type: type, durationSec: durationSec);
+
+/// Foto-soru gibi anlık (süresiz) aktiviteleri lokal mağazaya yazar.
+Future<void> logActivityEvent({
+  required String subject,
+  required String topic,
+  required String type,
+}) =>
+    _ActivityStore.log(subject: subject, topic: topic, type: type);
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  StudySessionTracker — kullanıcının özet/test sayfasında geçirdiği süreyi
@@ -3070,13 +3235,20 @@ class _LibraryLandingState extends State<LibraryLanding> {
           ),
         ],
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (_showColorPicker) _buildLibraryColorPanel(),
             if (_showColorPicker) SizedBox(height: 10),
+            // ── En üstte boydan boya: Ebeveyn Paneli / Gelişimim ─────
+            _ParentPanelBanner(
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const MyProgressScreen()),
+              ),
+            ),
+            SizedBox(height: 12),
             // ── 1. satır: Konu Özeti (sol) | Sınav Soruları (sağ) ────
             Row(
               children: [
@@ -3493,6 +3665,71 @@ class _LibraryLandingState extends State<LibraryLanding> {
         color: c,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppPalette.border(context), width: 1),
+      ),
+    );
+  }
+}
+
+// ── Kütüphanem üstündeki boydan boya Ebeveyn Paneli / Gelişimim banner'ı ──
+class _ParentPanelBanner extends StatelessWidget {
+  final VoidCallback onTap;
+  const _ParentPanelBanner({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF10B981), Color(0xFF059669)],
+          ),
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF10B981).withValues(alpha: 0.30),
+              blurRadius: 14,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 46, height: 46,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.20),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              alignment: Alignment.center,
+              child: const Text('👨‍👩‍👧', style: TextStyle(fontSize: 24)),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Ebeveyn Paneli'.tr(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 16, fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                      )),
+                  const SizedBox(height: 2),
+                  Text('Çalışma istatistikleri ve gelişim raporu'.tr(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 12, fontWeight: FontWeight.w600,
+                        color: Colors.white.withValues(alpha: 0.88),
+                      )),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios_rounded,
+                color: Colors.white, size: 18),
+          ],
+        ),
       ),
     );
   }
@@ -5171,11 +5408,167 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
   // Public: detail page'in çağırdığı "yeni konu ekle" akışı (page açık kalır)
   // [forcedLength] — özet modunda kullanıcı UI'da "Kısa" veya "Kapsamlı"
   // slot'una bastıysa diyalog atlanır, bu uzunlukla üretilir.
+  void _showSummaryPremiumGate() {
+    if (!mounted) return;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isDismissible: false,
+      enableDrag: false,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
+        decoration: const BoxDecoration(
+          color: Color(0xFF161B2E),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border(top: BorderSide(color: Color(0xFF9D7FE6), width: 2)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64, height: 64,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF7C3AED), Color(0xFF4F46E5)],
+                  begin: Alignment.topLeft, end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: const Icon(Icons.lock_rounded, color: Colors.white, size: 32),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Premium Özellik',
+              style: TextStyle(
+                color: Color(0xFFFFD166), fontSize: 20, fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              '7 günlük ücretsiz deneme süren sona erdi. Konu özetleri oluşturmaya devam etmek için Premium\'a geç.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Color(0xFFB9C2EE), fontSize: 14, height: 1.5),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF7C3AED),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const PremiumScreen()),
+                  );
+                },
+                child: const Text(
+                  'Premium\'a Geç',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Geri Dön', style: TextStyle(color: Color(0xFF8A93B0))),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showTestPremiumGate() {
+    if (!mounted) return;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isDismissible: false,
+      enableDrag: false,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
+        decoration: const BoxDecoration(
+          color: Color(0xFF161B2E),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border(top: BorderSide(color: Color(0xFF9D7FE6), width: 2)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64, height: 64,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF7C3AED), Color(0xFF4F46E5)],
+                  begin: Alignment.topLeft, end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: const Icon(Icons.lock_rounded, color: Colors.white, size: 32),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Premium Özellik',
+              style: TextStyle(
+                color: Color(0xFFFFD166), fontSize: 20, fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Her konudan 1 test ücretsiz oluşturabilirsin. Sınırsız test için Premium\'a geç.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Color(0xFFB9C2EE), fontSize: 14, height: 1.5),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF7C3AED),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const PremiumScreen()),
+                  );
+                },
+                child: const Text(
+                  'Premium\'a Geç',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Geri Dön', style: TextStyle(color: Color(0xFF8A93B0))),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<bool> _generateForExistingSubject(
       _Subject subject, String topic,
       {_TestConfig? config, _SummaryLength? forcedLength}) async {
     final isQuestions = widget.mode == LibraryMode.questions;
     final cfg = config ?? _TestConfig();
+
+    // Deneme süresi (7 gün) bittiyse özet üretimi premium gerektirir.
+    if (!isQuestions && !AiQuotaService.instance.isPremium) {
+      _showSummaryPremiumGate();
+      return false;
+    }
 
     // ── ÖZET UZUNLUK ROUTING (kısa vs kapsamlı) ─────────────────────────
     // Aynı konuda max 2 özet: 1 kısa + 1 kapsamlı.
@@ -5238,6 +5631,13 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
           existingSummary = s;
           break;
         }
+      }
+      // Ücretsiz kullanıcı (deneme bitti): konudan sadece 1 test.
+      if (existingSummary != null &&
+          existingSummary.tests.isNotEmpty &&
+          !AiQuotaService.instance.isPremium) {
+        _showTestPremiumGate();
+        return false;
       }
       if (existingSummary != null && existingSummary.tests.length >= 6) {
         _showSnack(

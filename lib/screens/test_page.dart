@@ -13,6 +13,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
+import '../services/activity_writer_service.dart';
+import '../services/app_settings_service.dart';
 import '../services/education_profile.dart';
 import '../services/question_pool_service.dart';
 import '../services/runtime_translator.dart';
@@ -308,6 +310,9 @@ class _TestPageState extends State<TestPage> {
         _answers[_idx] = null;
       } else {
         _answers[_idx] = letter;
+        if (letter == _questions[_idx].ans) {
+          AppSettingsService.instance.notifySuccess();
+        }
       }
     });
     _scheduleAutoSave();
@@ -799,6 +804,24 @@ class _TestPageState extends State<TestPage> {
     _saveDebounce?.cancel();
     final answersSnapshot = Map<int, String?>.from(_answers);
     final elapsed = DateTime.now().difference(_startedAt);
+    // Ebeveyn paneli / Gelişimim — test sonucu (doğru/yanlış/boş).
+    int correct = 0, wrong = 0, blank = 0;
+    for (var i = 0; i < _questions.length; i++) {
+      final a = answersSnapshot[i];
+      if (a == null) {
+        blank++;
+      } else if (a == _questions[i].ans) {
+        correct++;
+      } else {
+        wrong++;
+      }
+    }
+    unawaited(ActivityWriterService.recordTestCompleted(
+      correct: correct,
+      wrong: wrong,
+      blank: blank,
+      subject: widget.subjectName,
+    ));
     if (widget.onFinish != null) {
       await widget.onFinish!(answersSnapshot);
     }

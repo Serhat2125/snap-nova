@@ -33,7 +33,17 @@ class ThemeService extends ChangeNotifier {
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
-    _index = prefs.getInt(_prefsKey) ?? 1;
+    final stored = prefs.getInt(_prefsKey);
+    if (stored == null) {
+      // Temiz kurulum → AÇIK mod. Pref'e HEMEN yaz: aksi halde bulut
+      // senkronu (PreferencesSyncService) key'i bulamayıp "sistem" (2)
+      // varsayar; cihaz sistem teması koyuysa uygulama yanlışlıkla koyu
+      // kalır. Pref'i somutlaştırınca bu zincir kırılır.
+      _index = 1;
+      await prefs.setInt(_prefsKey, 1);
+    } else {
+      _index = stored;
+    }
     notifyListeners();
     // AppSettings değişimlerini dinle — otomatik karanlık toggle/saat
     // değişince tema da hemen yansısın.

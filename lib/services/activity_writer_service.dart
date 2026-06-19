@@ -140,6 +140,15 @@ class ActivityWriterService {
         final successPercent = totalAnswered > 0
             ? (newCorrect * 100.0 / totalAnswered)
             : 0.0;
+        // Ders-bazlı doğru/yanlış birikimi (ebeveyn paneli test tablosu için).
+        final s = subject?.trim() ?? '';
+        int sc0 = 0, sw0 = 0;
+        if (s.isNotEmpty) {
+          final scMap = (current['subjectCorrect'] as Map?) ?? const {};
+          final swMap = (current['subjectWrong'] as Map?) ?? const {};
+          sc0 = (scMap[s] as num?)?.toInt() ?? 0;
+          sw0 = (swMap[s] as num?)?.toInt() ?? 0;
+        }
         tx.set(doc, {
           'dateKey': _todayKey(),
           'testsSolved': t0 + 1,
@@ -147,8 +156,11 @@ class ActivityWriterService {
           'wrongAnswers': newWrong,
           'blankAnswers': newBlank,
           'successPercent': successPercent,
-          if (subject != null && subject.trim().isNotEmpty)
-            'subjectScores.${subject.trim()}': successPercent,
+          if (s.isNotEmpty) ...{
+            'subjectScores.$s': successPercent,
+            'subjectCorrect.$s': sc0 + correct,
+            'subjectWrong.$s': sw0 + wrong,
+          },
           'lastUpdate': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
       });

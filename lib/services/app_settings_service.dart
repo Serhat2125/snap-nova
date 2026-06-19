@@ -375,4 +375,31 @@ class AppSettingsService extends ChangeNotifier {
   /// Test sayfasında çağrılır — eğer "Test Sessiz Mod" açıksa hiçbir
   /// click sesi veya titreşim çalmaz. Caller bu flag'i kontrol eder.
   bool get inTestSilentMode => _testSilent;
+
+  // ── Önizleme (preview) — ayar ekranında kullanıcı efekti test edebilsin ───
+  // Bunlar flag'lerden BAĞIMSIZ çalışır: kullanıcı kapalıyken bile "nasıl bir
+  // ses/titreşim" olduğunu duyabilsin diye. Ayarın kendisi yine flag ile gate'li.
+  Future<void> previewClick() async {
+    try {
+      await SystemSound.play(SystemSoundType.click);
+    } catch (_) {}
+  }
+
+  Future<void> previewSuccess() async {
+    try {
+      await SystemSound.play(SystemSoundType.click);
+    } catch (_) {}
+    HapticFeedback.lightImpact();
+  }
+
+  Future<void> previewError() async {
+    try {
+      await SystemSound.play(SystemSoundType.alert);
+    } catch (_) {}
+    HapticFeedback.heavyImpact();
+  }
+
+  Future<void> previewHaptic() async {
+    HapticFeedback.mediumImpact();
+  }
 }

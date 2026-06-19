@@ -28,6 +28,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -94,7 +95,9 @@ class PremiumStatus {
       await clear();
       return PremiumStatusSnapshot.inactive;
     }
-    // 2) Auth varsa cloud ile senkronize et
+    // 2) Auth varsa cloud ile senkronize et.
+    // Firebase başlatılmamışsa (web simülasyonu) sadece lokal cache ile dön.
+    if (Firebase.apps.isEmpty) return local;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return local;
     try {

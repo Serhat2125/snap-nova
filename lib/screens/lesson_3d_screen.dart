@@ -9,6 +9,7 @@
 //  İnternet gerektirmez.
 // ============================================================
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -20,9 +21,11 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import '../services/ai_quota_service.dart';
 import '../services/tts_service.dart';
 import '../services/gemini_service.dart';
 import 'academic_planner.dart';
+import 'premium_screen.dart';
 
 // Web'de webview_flutter desteklenmediği için HTML asset iframe ile gösterilir.
 // Mobil/masaüstünde stub döner (kIsWeb ile dallanılır, çağrılmaz).
@@ -54,6 +57,8 @@ class _Lesson3DScreenState extends State<Lesson3DScreen> {
   bool _loading = true;
   String? _error;
   final GlobalKey _screenshotKey = GlobalKey();
+  // Gelişim Paneli — 3D derste geçirilen süre (dispose'da yazılır).
+  final DateTime _openedAt = DateTime.now();
 
   /// Web hedefinde iframe src'i: Flutter web asset'leri `assets/<assetKey>`
   /// yolundan sunar (assetKey zaten 'assets/...' ile başladığı için çift olur).
@@ -85,8 +90,11 @@ class _Lesson3DScreenState extends State<Lesson3DScreen> {
       )
       ..setNavigationDelegate(
         NavigationDelegate(
-          onPageFinished: (_) {
+          onPageFinished: (_) async {
             if (mounted) setState(() => _loading = false);
+            if (!AiQuotaService.instance.isPremium) {
+              await _injectPremiumGate();
+            }
           },
           onWebResourceError: (err) {
             // ES module veya alt-frame hataları main frame'i bozmaz —
@@ -149,6 +157,8 @@ class _Lesson3DScreenState extends State<Lesson3DScreen> {
           ),
         ),
       );
+    } else if (action == 'premiumGate') {
+      _showPremiumGateSheet();
     } else if (action == 'ai') {
       // Koç akışı DEĞİL — doğrudan "Sana nasıl yardımcı olabilirim?" paneli.
       final topic = (data['topic'] as String? ?? '').trim();
@@ -162,11 +172,134 @@ class _Lesson3DScreenState extends State<Lesson3DScreen> {
     }
   }
 
+  /// JavaScript enjekte eder: sahne ileri/geri, Araçlar popup öğeleri ve
+  /// Konu Rehberi dropdown öğelerini premium kapısına yönlendirir.
+  /// Ücretsiz: spinBtn/labelBtn/animBtn (sol panel), btnHelp, btnLevel.
+  Future<void> _injectPremiumGate() async {
+    final ctrl = _controller;
+    if (ctrl == null) return;
+    const js = r"""
+(function(){
+  "use strict";
+  function _gate(f){try{window.FlutterBridge.postMessage(JSON.stringify({action:"premiumGate",feature:f}));}catch(e){}}
+  function _block(el,f){if(!el||el._pg)return;el._pg=true;el.addEventListener("click",function(e){e.stopImmediatePropagation();e.preventDefault();_gate(f);},true);}
+  _block(document.getElementById("navPrev"),"scene");
+  _block(document.getElementById("navNext"),"scene");
+  function _gArc(){
+    var p=document.getElementById("araclarComboP");
+    if(p&&!p._pg){p._pg=true;p.addEventListener("click",function(e){
+      var it=e.target.closest(".combo-pop-item");
+      if(it){e.stopImmediatePropagation();e.preventDefault();try{p.classList.remove("show");}catch(_){}try{var bl=document.getElementById("_popBlur");if(bl)bl.style.display="none";}catch(_){}_gate("tools");}
+    },true);}
+  }
+  function _gTop(){
+    var p=document.getElementById("panelTopic");
+    if(p&&!p._pg){p._pg=true;p.addEventListener("click",function(e){
+      var it=e.target.closest(".dropdown-item");
+      if(it){e.stopImmediatePropagation();e.preventDefault();try{p.classList.remove("show");}catch(_){}_gate("topic");}
+    },true);}
+  }
+  _gArc();_gTop();
+  var _mo=new MutationObserver(function(){_gArc();_gTop();});
+  _mo.observe(document.documentElement,{childList:true,subtree:true});
+  setTimeout(function(){
+    _gArc();_gTop();
+    _block(document.getElementById("navPrev"),"scene");
+    _block(document.getElementById("navNext"),"scene");
+  },700);
+  setTimeout(function(){_gArc();_gTop();},1600);
+})();
+""";
+    try { await ctrl.runJavaScript(js); } catch (_) {}
+  }
+
+  void _showPremiumGateSheet() {
+    if (!mounted) return;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isDismissible: false,
+      enableDrag: false,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
+        decoration: const BoxDecoration(
+          color: Color(0xFF161B2E),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border(top: BorderSide(color: Color(0xFF9D7FE6), width: 2)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64, height: 64,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF7C3AED), Color(0xFF4F46E5)],
+                  begin: Alignment.topLeft, end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: const Icon(Icons.lock_rounded, color: Colors.white, size: 32),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Premium Özellik',
+              style: TextStyle(
+                color: Color(0xFFFFD166), fontSize: 20, fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Bu özellik Premium üyelere özeldir. Tüm sahnelere, araçlara ve konu rehberine sınırsız erişmek için Premium\'a geç.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Color(0xFFB9C2EE), fontSize: 14, height: 1.5),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF7C3AED),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const PremiumScreen()),
+                  );
+                },
+                child: const Text(
+                  'Premium\'a Geç',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Geri Dön', style: TextStyle(color: Color(0xFF8A93B0))),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     // Dersten çıkınca sesli anlatımı durdur.
     if (!kIsWeb) {
       try { TtsService.stop(); } catch (_) {}
+    }
+    // Gelişim Paneli — 3D ders süresini kaydet (type '3d').
+    final sec = DateTime.now().difference(_openedAt).inSeconds;
+    if (sec >= 5) {
+      final t = widget.title.trim().isEmpty ? '3D Ders' : widget.title.trim();
+      unawaited(logActivitySession(
+        subject: t, topic: t, type: '3d', durationSec: sec));
     }
     super.dispose();
   }

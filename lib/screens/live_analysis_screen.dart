@@ -34,6 +34,8 @@ import '../services/voice_input_service.dart';
 import '../widgets/latex_text.dart';
 
 import '../theme/app_theme.dart';
+import '../services/ai_quota_service.dart';
+import 'premium_screen.dart';
 // ─── Const renkler (build içinde Color allocation yapmamak için) ──────────
 const _kBlue1 = Color(0xFF1E90FF);
 const _kBlue2 = Color(0xFF00BFFF);
@@ -101,6 +103,10 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
 
   bool _showTranscript = false;
 
+  // ── Free tier: 60sn ücretsiz süre ─────────────────────────────────────────
+  Timer? _freeSessionTimer;
+  bool _freeExpired = false;
+
   late final AnimationController _wave;
   late final AnimationController _pulse;
   late final AnimationController _logoRot; // header logo yavaş dönüş
@@ -129,6 +135,15 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
       // VoiceInputService callback API kaldırıldı; init yeterli.
       await VoiceInputService.init();
       await TtsService.init();
+      if (mounted && !AiQuotaService.instance.isPremium) {
+        _freeSessionTimer = Timer(const Duration(seconds: 60), () {
+          if (!mounted) return;
+          setState(() => _freeExpired = true);
+          TtsService.stop();
+          if (_listening) VoiceInputService.cancel();
+          _showFreeExpiredSheet();
+        });
+      }
     });
   }
 
@@ -330,6 +345,7 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
   }
 
   Future<void> _sendUserMessage(String text) async {
+    if (_freeExpired) { _showFreeExpiredSheet(); return; }
     final quota = await UsageQuota.get(QuotaKind.solution);
     if (quota.isExhausted) {
       Analytics.logQuotaExhausted(QuotaKind.solution.name);
@@ -682,6 +698,75 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
     return out.join('\n').trimRight();
   }
 
+  void _showFreeExpiredSheet() {
+    if (!mounted) return;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isDismissible: false,
+      enableDrag: false,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64, height: 64,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFFEC4899)]),
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: const Icon(Icons.workspace_premium_rounded, color: Colors.white, size: 32),
+            ),
+            const SizedBox(height: 16),
+            Text('Premium\'a Geç',
+                style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.black)),
+            const SizedBox(height: 8),
+            Text(
+              '1 dakikalık ücretsiz süren doldu.\nSınırsız Canlı Analiz için Premium\'a geç.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(fontSize: 13, color: Colors.black54, height: 1.5),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                style: TextButton.styleFrom(
+                  backgroundColor: const Color(0xFF7C3AED),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PremiumScreen()));
+                },
+                child: Text('Premium\'a Geç',
+                    style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                Navigator.of(context).maybePop();
+              },
+              child: Text('Geri Dön',
+                  style: GoogleFonts.poppins(fontSize: 13, color: Colors.black38)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showSnack(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -702,6 +787,7 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
   void dispose() {
     // SIRA ÖNEMLİ: önce in-flight stream'i durdur, sonra resource'ları kapat
     _cancelStream = true;
+    _freeSessionTimer?.cancel();
     _slowConnTimer?.cancel();
     if (_listening) VoiceInputService.cancel();
     TtsService.stop();

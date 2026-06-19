@@ -23,6 +23,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../firebase_options.dart';
 import 'app_settings_service.dart';
@@ -183,6 +184,15 @@ class PushService {
     String? payload,
     int id = 0xFA001,
   }) async {
+    // Ana anahtar kontrolü — "Tüm bildirimler" kapalıysa yerel hatırlatma
+    // da gösterilmez (kanonik anahtar: notif_master).
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool('notif_master') == false) {
+        debugPrint('[Push] tüm bildirimler kapalı — atlandı: $title');
+        return;
+      }
+    } catch (_) {/* pref okunamadı → göster */}
     // Sessiz Saatler kontrolü — kullanıcı belirli aralık tanımlamışsa
     // o aralıkta hiçbir bildirim göstermeyiz.
     if (AppSettingsService.instance.inQuietHours) {

@@ -7,6 +7,8 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
+import '../services/app_settings_service.dart';
+import 'academic_planner.dart' show logActivitySession;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flutter/material.dart';
@@ -38,6 +40,8 @@ import '../features/leaderboard/providers/location_controller.dart';
 import '../features/leaderboard/widgets/location_selection_sheet.dart';
 import '../widgets/qualsar_numeric_loader.dart';
 import '../widgets/qualsar_loading_widget.dart';
+import '../services/ai_quota_service.dart';
+import 'premium_screen.dart';
 
 import '../theme/app_theme.dart';
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -5278,8 +5282,99 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
     );
   }
 
+  void _showDueloPremiumGate() {
+    if (!mounted) return;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isDismissible: false,
+      enableDrag: false,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
+        decoration: const BoxDecoration(
+          color: Color(0xFF161B2E),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border(top: BorderSide(color: Color(0xFF9D7FE6), width: 2)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64, height: 64,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF7C3AED), Color(0xFF4F46E5)],
+                  begin: Alignment.topLeft, end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: const Icon(Icons.lock_rounded, color: Colors.white, size: 32),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Premium Özellik',
+              style: TextStyle(
+                color: Color(0xFFFFD166), fontSize: 20, fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Günlük 1 ücretsiz 1v1 yarışma hakkın var. Sınırsız yarışmak için Premium\'a geç.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Color(0xFFB9C2EE), fontSize: 14, height: 1.5),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF7C3AED),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const PremiumScreen()),
+                  );
+                },
+                child: const Text(
+                  'Premium\'a Geç',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Geri Dön', style: TextStyle(color: Color(0xFF8A93B0))),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _findMatch({String raceType = 'test'}) async {
     if (!_canStart) return;
+
+    // Ücretsiz kullanıcı (deneme bitti): günde 1 yarışma hakkı.
+    if (!AiQuotaService.instance.isPremium) {
+      final prefs = await SharedPreferences.getInstance();
+      final today = DateTime.now().toIso8601String().substring(0, 10);
+      final lastDate = prefs.getString('duelo_1v1_date') ?? '';
+      final count = lastDate == today ? (prefs.getInt('duelo_1v1_count') ?? 0) : 0;
+      if (count >= 1) {
+        if (!mounted) return;
+        _showDueloPremiumGate();
+        return;
+      }
+      // İzin verildi — sayacı güncelle.
+      await prefs.setString('duelo_1v1_date', today);
+      await prefs.setInt('duelo_1v1_count', count + 1);
+    }
 
     // Quota kontrolü — Bilgi Yarışı her oturum 5 soru veya 6 eşleştirme üretir.
     // Free tier: 50/gün, 500/ay. Aşılırsa snackbar + Analytics event.
@@ -8218,7 +8313,7 @@ class _DueloWaitingOverlay extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════════════
 //  _DueloResultsScreen — iki taraf da bitince çıkan karşılaştırma ekranı
 // ═══════════════════════════════════════════════════════════════════════════════
-class _DueloResultsScreen extends StatelessWidget {
+class _DueloResultsScreen extends StatefulWidget {
   final String subjectName;
   final String topicName;
   final int totalQuestions;
@@ -8267,13 +8362,54 @@ class _DueloResultsScreen extends StatelessWidget {
     required this.opponentElapsed,
   });
 
+  @override
+  State<_DueloResultsScreen> createState() => _DueloResultsScreenState();
+}
+
+class _DueloResultsScreenState extends State<_DueloResultsScreen> {
+  // Field forwarders so existing build/helper methods compile unchanged.
+  String get subjectName    => widget.subjectName;
+  String get topicName      => widget.topicName;
+  int    get totalQuestions => widget.totalQuestions;
+  String get scope          => widget.scope;
+  List<_QuizQuestion> get questions => widget.questions;
+  Map<int, int> get myAnswers => widget.myAnswers;
+  String get myName         => widget.myName;
+  String get myCountry      => widget.myCountry;
+  String get myFlag         => widget.myFlag;
+  int    get myCorrect      => widget.myCorrect;
+  int    get myWrong        => widget.myWrong;
+  int    get myEmpty        => widget.myEmpty;
+  int    get myElapsed      => widget.myElapsed;
+  String get opponentName    => widget.opponentName;
+  String get opponentCountry => widget.opponentCountry;
+  String get opponentFlag    => widget.opponentFlag;
+  int    get opponentElo     => widget.opponentElo;
+  int    get opponentCorrect => widget.opponentCorrect;
+  int    get opponentWrong   => widget.opponentWrong;
+  int    get opponentEmpty   => widget.opponentEmpty;
+  int    get opponentElapsed => widget.opponentElapsed;
+
   // Kazanan kararı: önce doğru sayısı, eşitse daha hızlı olan (az süre).
   int get _winner {
-    if (myCorrect > opponentCorrect) return 1;
-    if (opponentCorrect > myCorrect) return -1;
-    if (myElapsed < opponentElapsed) return 1;
-    if (opponentElapsed < myElapsed) return -1;
+    if (widget.myCorrect > widget.opponentCorrect) return 1;
+    if (widget.opponentCorrect > widget.myCorrect) return -1;
+    if (widget.myElapsed < widget.opponentElapsed) return 1;
+    if (widget.opponentElapsed < widget.myElapsed) return -1;
     return 0;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (_winner == 1) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        AppSettingsService.instance.notifySuccess();
+        Future.delayed(Duration(milliseconds: 350), () {
+          AppSettingsService.instance.notifySuccess();
+        });
+      });
+    }
   }
 
   String _fmtTime(int s) {
@@ -15950,14 +16086,19 @@ class _QuizScreenState extends State<_QuizScreen> {
     if (isCorrect) {
       _combo += 1;
       if (_combo > _comboMax) _comboMax = _combo;
+      AppSettingsService.instance.notifySuccess();
       if (_combo >= 3) {
         _showComboBurst = true;
+        Future.delayed(Duration(milliseconds: 300), () {
+          AppSettingsService.instance.notifySuccess();
+        });
         Future.delayed(Duration(milliseconds: 900), () {
           if (mounted) setState(() => _showComboBurst = false);
         });
       }
     } else {
       _combo = 0;
+      AppSettingsService.instance.notifyError();
       // Survival / Perfect modunda yanlış cevap → anında bitir
       final mode = widget.cfg.challengeMode;
       if (mode == 'survival' || mode == 'perfect') {
@@ -16041,6 +16182,12 @@ class _QuizScreenState extends State<_QuizScreen> {
       if (!ok) return;
     }
     _timer?.cancel();
+    // Gelişim Paneli — yarışma süresini kaydet (type 'yarisma').
+    if (_seconds >= 5) {
+      unawaited(logActivitySession(
+        subject: 'Bilgi Yarışı', topic: 'Bilgi Yarışı',
+        type: 'yarisma', durationSec: _seconds));
+    }
 
     // Callback varsa dış akışa bırak (düello bekleme/sonuç sayfasını açar).
     if (widget.onFinish != null) {

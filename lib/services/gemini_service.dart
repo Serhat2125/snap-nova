@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'ai_provider_service.dart';
+import 'ai_quota_service.dart';
 import 'curriculum_catalog.dart';
 import 'education_profile.dart';
 import 'locale_service.dart';
@@ -1514,6 +1515,12 @@ Karmaşık terimi açıkla, örnekle pekiştir, samimi ama saygılı ton.''';
     _log('Çözüm tipi : "$solutionType"');
     _log('Dosya yolu : $imagePath');
 
+    // ── 0. Günlük ücretsiz kota kontrolü (premium/trial → sınırsız) ──────────
+    if (!await AiQuotaService.instance.canUseAi()) {
+      _log('[0] Günlük ücretsiz soru hakkı doldu');
+      throw GeminiException.dailyLimitReached();
+    }
+
     // ── 1. DNS pre-check kaldırıldı — bazı cihazlarda yanlış noInternet ──
     //    hatası veriyordu. Gerçek bağlantı sorunu varsa http katmanı
     //    SocketException fırlatır, dış try-catch yakalar.
@@ -1569,6 +1576,7 @@ Karmaşık terimi açıkla, örnekle pekiştir, samimi ama saygılı ton.''';
         final swMp = Stopwatch()..start();
         final t = await AiProviderService.askTask(
           AiTask.photoSolve,
+          isPremium: AiQuotaService.instance.isPremium,
           prompt: prompt,
           maxTokens: visionMaxTok,
           image: AiImageInput(mimeType: mime, base64: base64Image),
@@ -1579,6 +1587,7 @@ Karmaşık terimi açıkla, örnekle pekiştir, samimi ama saygılı ton.''';
           _log('[5/5] OK (multi-provider): ${t.length} karakter — ${swMp.elapsedMilliseconds} ms');
           _log('analyzeImage() BAŞARILI ✅ (multi-provider)');
           _log('══════════════════════════════════════════');
+          await AiQuotaService.instance.recordUsage();
           return t;
         }
         _log('[5/5] multi-provider boş döndü → Gemini fallback');
@@ -1611,6 +1620,7 @@ Karmaşık terimi açıkla, örnekle pekiştir, samimi ama saygılı ton.''';
       _log('[5/5] OK: ${full.length} karakter — ${sw.elapsedMilliseconds} ms — finishReason: ${result.finishReason}');
       _log('analyzeImage() BAŞARILI ✅');
       _log('══════════════════════════════════════════');
+      await AiQuotaService.instance.recordUsage();
       return full;
 
     } on GeminiException {
@@ -1875,6 +1885,14 @@ Karmaşık terimi açıkla, örnekle pekiştir, samimi ama saygılı ton.''';
   }) async {
     _log('fetchStudySuite() — ders: "$subject"');
 
+    // Konuyu pekiştir (benzer soru + özet kartı + eşleştirme) = test/özet
+    // üretimi sınıfında → Premium özelliği (trial dahil). Free + trial bitti →
+    // sayfa açılır ama üretemez.
+    if (!AiQuotaService.instance.canGenerateStudyContent) {
+      _log('fetchStudySuite: premium gerektirir (trial bitti)');
+      throw GeminiException.premiumFeature();
+    }
+
     // DNS pre-check kaldırıldı — http.post zaten gerçek bağlantı sorununda
     // SocketException fırlatır, dış try-catch noInternet'e çevirir.
 
@@ -1934,7 +1952,7 @@ EŞLEŞTİRME KARTLARI KURALLARI:
 
 {
   "similar_questions": [
-    {"question": "Soru metni.\\nA) ...\\nB) ...\\nC) ...\\nD) ...", "solution": "Adım adım çözüm ve doğru şık"},
+    {"question": "Soru metni.\\nA) ...\\nB) ...\\nC) ...\\nD) ...", "correct": "A", "solution": "Adım adım çözüm ve doğru şık"},
     {"question": "...", "solution": "..."},
     {"question": "...", "solution": "..."},
     {"question": "...", "solution": "..."},
@@ -1957,6 +1975,27 @@ EŞLEŞTİRME KARTLARI KURALLARI:
 
 Aşağıdaki çözümü analiz ederek içerik üret:
 $solution''';
+
+    if (AiProviderService.kEnabled) {
+      try {
+        final aiText = await AiProviderService.askTask(
+          AiTask.summary,
+          isPremium: AiQuotaService.instance.isPremium,
+          prompt: 'Yukarıdaki JSON şablonunu eksiksiz doldur.',
+          system: systemPrompt,
+          maxTokens: 8192,
+        );
+        var text = aiText.replaceAll(RegExp(r'```json\s*'), '').replaceAll(RegExp(r'```\s*'), '').trim();
+        Map<String, dynamic> parsed;
+        try { parsed = jsonDecode(text) as Map<String, dynamic>; }
+        on FormatException { parsed = jsonDecode(_repairTruncatedJson(text)) as Map<String, dynamic>; }
+        if (parsed.containsKey('similar_questions') && parsed.containsKey('info_cards')) {
+          final similarRaw = parsed['similar_questions'];
+          final infoRaw    = parsed['info_cards'];
+          if (similarRaw is List && infoRaw is List) return parsed;
+        }
+      } catch (_) {}
+    }
 
     try {
       // LaTeX-ağır JSON (her \sqrt → \\\\sqrt escape) + 5 soru + 3 kart + 6
@@ -2064,6 +2103,33 @@ Konu: $topic
   ]
 }''';
 
+    if (AiProviderService.kEnabled) {
+      try {
+        final aiText = await AiProviderService.askTask(
+          AiTask.examGen,
+          isPremium: AiQuotaService.instance.isPremium,
+          prompt: 'Yukarıdaki JSON şablonunu doldur.',
+          system: systemPrompt,
+          maxTokens: 4096,
+        );
+        var text = aiText.replaceAll(RegExp(r'```json\s*'), '').replaceAll(RegExp(r'```\s*'), '').trim();
+        Map<String, dynamic> parsed;
+        try { parsed = jsonDecode(text) as Map<String, dynamic>; }
+        on FormatException { parsed = jsonDecode(_repairTruncatedJson(text)) as Map<String, dynamic>; }
+        final raw = parsed['match_pairs'];
+        if (raw is List) {
+          final out = <({String term, String definition})>[];
+          for (final m in raw) {
+            if (m is! Map) continue;
+            final term = (m['term'] ?? '').toString().trim();
+            final def  = (m['definition'] ?? '').toString().trim();
+            if (term.isNotEmpty && def.isNotEmpty) out.add((term: term, definition: def));
+          }
+          if (out.length >= 4) return out;
+        }
+      } catch (_) {}
+    }
+
     try {
       final res = await _callGeminiFull(
         systemPrompt: systemPrompt,
@@ -2138,6 +2204,19 @@ Son satır: Sonuç: [kesin cevap]
 
 MEVCUT ÇÖZÜM (referans için):
 $existingSolution''';
+
+    if (AiProviderService.kEnabled) {
+      try {
+        final t = await AiProviderService.askTask(
+          AiTask.homeworkSolve,
+          isPremium: AiQuotaService.instance.isPremium,
+          prompt: 'Bu çözümden benzer bir soru türet ve çöz.',
+          system: systemPrompt,
+          maxTokens: 2048,
+        );
+        if (t.isNotEmpty) return t;
+      } catch (_) {}
+    }
 
     try {
       final text = await _callGemini(
@@ -2381,6 +2460,7 @@ KURALLAR:
         try {
           rawText = await AiProviderService.askTask(
             AiTask.factual,
+            isPremium: AiQuotaService.instance.isPremium,
             prompt: 'Yukarıdaki şablonu doldur — sadece JSON.',
             system: systemPrompt,
             maxTokens: 1024,
@@ -2510,6 +2590,14 @@ KURALLAR:
     }
 
     // ── 2) AI üretimi ────────────────────────────────────────────────────────
+    // Cache'te yoksa YENİ özet üretimi gerekir. Bu = test/özet üretimi sınıfı →
+    // Premium özelliği (trial dahil). Cache'ten okuma (yukarıda) herkese açık;
+    // sadece yeni üretim premium gerektirir.
+    if (!AiQuotaService.instance.canGenerateStudyContent) {
+      _log('fetchSingleTopicSummary: yeni üretim premium gerektirir (trial bitti)');
+      throw GeminiException.premiumFeature();
+    }
+
     final ctx = educationContext(profile);
     final systemPrompt = '''$_sysIdentity
 
@@ -2537,6 +2625,7 @@ Konu: $topicName''';
       try {
         final t = await AiProviderService.askTask(
           AiTask.summary,
+          isPremium: AiQuotaService.instance.isPremium,
           prompt: 'Bu konunun özetini çıkar.',
           system: systemPrompt,
           maxTokens: 1200,
@@ -2771,6 +2860,23 @@ $existingSolution''';
   }) async {
     _log('solveHomework() — ders: $subject, tip: $solutionType');
 
+    // ── Erişim kontrolü ─────────────────────────────────────────────────────
+    // Test/özet üretimi = Premium özelliği (trial dahil). 7 gün sonra free
+    // kullanıcı sayfayı açar ama üretemez. Normal soru çözme = günlük limit.
+    final isStudyContent =
+        solutionType == 'KonuÖzeti' || solutionType == 'TestSorulari';
+    if (isStudyContent) {
+      if (!AiQuotaService.instance.canGenerateStudyContent) {
+        _log('solveHomework: test/özet premium gerektirir (trial bitti)');
+        throw GeminiException.premiumFeature();
+      }
+    } else {
+      if (!await AiQuotaService.instance.canUseAi()) {
+        _log('solveHomework: günlük ücretsiz soru hakkı doldu');
+        throw GeminiException.dailyLimitReached();
+      }
+    }
+
     // DNS pre-check kaldırıldı — bazı cihazlarda (mobil veri / VPN / DNS
     // yapılandırması) InternetAddress.lookup hatalı şekilde TimeoutException
     // fırlatıp kullanıcıyı yanıltıyordu. Doğrudan HTTPS isteğine geçiyoruz;
@@ -2995,6 +3101,7 @@ Cevabı Türkçe ver.''';
         try {
           final t = await AiProviderService.chatTask(
             task,
+            isPremium: AiQuotaService.instance.isPremium,
             messages: [AiChatMessage('user', question)],
             system: systemPrompt,
             maxTokens: maxTok,
@@ -3002,6 +3109,7 @@ Cevabı Türkçe ver.''';
           );
           if (t.trim().isNotEmpty) {
             _log('solveHomework OK (çoklu/${task.name}): ${t.length} kar');
+            if (!isStudyContent) await AiQuotaService.instance.recordUsage();
             return t;
           }
         } catch (e) {
@@ -3010,6 +3118,7 @@ Cevabı Türkçe ver.''';
       }
       final text = await attemptOrRetry();
       _log('solveHomework OK: ${text.length} karakter');
+      if (!isStudyContent) await AiQuotaService.instance.recordUsage();
       return text;
 
     } on GeminiException { rethrow; }
@@ -3151,6 +3260,7 @@ $previousSolution''';
       try {
         final t = await AiProviderService.chatTask(
           AiTask.coach,
+          isPremium: AiQuotaService.instance.isPremium,
           messages: [AiChatMessage('user', userQuestion)],
           system: systemPrompt,
           maxTokens: 1024,
@@ -3348,6 +3458,7 @@ $historyBlock
         try {
           final t = await AiProviderService.chatTask(
             AiTask.coach,
+            isPremium: AiQuotaService.instance.isPremium,
             messages: [AiChatMessage('user', userMessage)],
             system: systemPrompt,
             maxTokens: 512,
@@ -3436,6 +3547,7 @@ $lang
       try {
         final t = await AiProviderService.askTask(
           AiTask.factual,
+          isPremium: AiQuotaService.instance.isPremium,
           prompt: '$subject — $topic konusunun formüllerini ver.',
           system: systemPrompt,
           maxTokens: 2048,
@@ -3519,6 +3631,24 @@ $outcomeBlock
 
 $lang
 ''';
+    if (AiProviderService.kEnabled) {
+      try {
+        final aiText = await AiProviderService.askTask(
+          AiTask.examGen,
+          isPremium: AiQuotaService.instance.isPremium,
+          prompt: '$count soruluk ödev üret.',
+          system: sys,
+          maxTokens: 3000,
+        );
+        final s = aiText.indexOf('[');
+        final e = aiText.lastIndexOf(']');
+        if (s >= 0 && e > s) {
+          final parsed = jsonDecode(aiText.substring(s, e + 1));
+          if (parsed is List) return parsed.whereType<Map>().map((q) => Map<String, dynamic>.from(q)).toList();
+        }
+      } catch (_) {}
+    }
+
     try {
       final text = await _callGemini(
         systemPrompt: sys,
@@ -3586,6 +3716,19 @@ $subjLines
 
 $lang
 ''';
+    if (AiProviderService.kEnabled) {
+      try {
+        final t = await AiProviderService.askTask(
+          AiTask.cheap,
+          isPremium: AiQuotaService.instance.isPremium,
+          prompt: 'İçgörüyü yaz.',
+          system: sys,
+          maxTokens: 280,
+        );
+        if (t.trim().isNotEmpty) return t.trim();
+      } catch (_) {}
+    }
+
     try {
       return (await _callGemini(
         systemPrompt: sys,
@@ -4475,6 +4618,7 @@ KURALLAR:
         try {
           text = await AiProviderService.askTask(
             AiTask.cheap,
+            isPremium: AiQuotaService.instance.isPremium,
             prompt: snippet,
             system: systemPrompt,
             maxTokens: 32,
@@ -4601,6 +4745,7 @@ JSON ÇIKTI ÜRET:
         try {
           text = await AiProviderService.chatTask(
             AiTask.coach,
+            isPremium: AiQuotaService.instance.isPremium,
             messages: [AiChatMessage('user', userMessage)],
             system: systemPrompt,
             maxTokens: 1024,
@@ -4685,6 +4830,7 @@ Format:
         try {
           rawText = await AiProviderService.askTask(
             AiTask.factual,
+            isPremium: AiQuotaService.instance.isPremium,
             prompt:
                 '$countryName için eyalet listesi. Üniter ülkeyse boş dizi.',
             system: systemPrompt,
@@ -4782,6 +4928,7 @@ Format:
         try {
           rawText = await AiProviderService.askTask(
             AiTask.factual,
+            isPremium: AiQuotaService.instance.isPremium,
             prompt:
                 '$stateName ($countryName) için şehirleri listele. Sadece JSON.',
             system: systemPrompt,
@@ -4883,6 +5030,7 @@ Format:
         try {
           rawText = await AiProviderService.askTask(
             AiTask.factual,
+            isPremium: AiQuotaService.instance.isPremium,
             prompt:
                 '$countryName için tüm il/eyalet/şehirleri listele. Sadece JSON.',
             system: systemPrompt,
@@ -5051,6 +5199,7 @@ Format:
         try {
           rawText = await AiProviderService.askTask(
             AiTask.examGen,
+            isPremium: AiQuotaService.instance.isPremium,
             prompt:
                 'Yukarıdaki profile + konuya $count soruluk MCQ üret. Sadece JSON.',
             system: systemPrompt,
@@ -5227,6 +5376,8 @@ enum GeminiErrorType {
   emptyResponse,
   safetyBlocked,
   quotaExceeded,
+  dailyLimitReached,
+  premiumFeature,
   imageTooLarge,
   invalidKey,
   serverTimeout,
@@ -5278,6 +5429,22 @@ class GeminiException implements Exception {
             '(Gemini anahtarın günlük/dakikalık kullanım sınırını aştı — '
             'genellikle 1-2 dakika içinde tekrar aktif olur.)',
         type: GeminiErrorType.quotaExceeded,
+      );
+
+  factory GeminiException.dailyLimitReached() => const GeminiException._(
+        userMessage:
+            'Bugünlük ücretsiz soru hakkın doldu.\n\n'
+            'Premium’a geçerek sınırsız soru çözebilir veya yarın tekrar '
+            'deneyebilirsin.',
+        type: GeminiErrorType.dailyLimitReached,
+      );
+
+  factory GeminiException.premiumFeature() => const GeminiException._(
+        userMessage:
+            'Test ve özet oluşturma Premium özelliğidir.\n\n'
+            'Premium’a geçerek sınırsız test ve konu özeti üretebilirsin. '
+            'Daha önce oluşturduğun içerikleri görüntülemeye devam edebilirsin.',
+        type: GeminiErrorType.premiumFeature,
       );
 
   factory GeminiException.imageTooLarge() => const GeminiException._(

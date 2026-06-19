@@ -22,6 +22,7 @@ import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
 enum LinkRequestResult {
@@ -302,6 +303,8 @@ class ParentLinkService {
   /// Auth yoksa `Stream.value([])` — StreamBuilder spinner'da takılmasın diye
   /// boş liste emit ediyoruz (Stream.empty hiç emit etmeden tamamlanır).
   static Stream<List<ParentInvite>> incomingInvitesStream() {
+    // Web simülasyonunda Firebase başlatılmaz; singleton'a dokunma.
+    if (Firebase.apps.isEmpty) return Stream.value(const <ParentInvite>[]);
     final myUid = _myUid;
     if (myUid == null) return Stream.value(const <ParentInvite>[]);
     return _fs
@@ -476,6 +479,126 @@ class ParentLinkService {
       debugPrint('[ParentLink] readChildSummaries fail: $e');
       return [];
     }
+  }
+
+  /// Kod → childUid çözer (bağlamadan önce slot'a yazmak için). Geçersiz /
+  /// süresi dolmuş kodda null döner.
+  static Future<String?> resolveCodeChildUid(String rawCode) async {
+    final code = rawCode.trim().toUpperCase();
+    if (!RegExp(r'^EBEV-[A-Z0-9]{6}$').hasMatch(code)) return null;
+    try {
+      final doc =
+          await _fs.collection('parent_link_codes').doc(code).get();
+      if (!doc.exists) return null;
+      final exp = doc.data()?['expiresAt'];
+      if (exp is Timestamp && exp.toDate().isBefore(DateTime.now())) {
+        return null;
+      }
+      final cu = (doc.data()?['childUid'] ?? '').toString();
+      return cu.isEmpty ? null : cu;
+    } catch (e) {
+      debugPrint('[ParentLink] resolveCodeChildUid fail: $e');
+      return null;
+    }
+  }
+
+  /// Bağlı çocuğun BU HAFTASININ (Pzt→Paz) ham aktivite kayıtlarını okur.
+  /// Kaynak: users/{childUid}/study_activities (cihazın _ActivityStore cloud
+  /// kopyası). Gelişim Paneli kategori/gün kırılımı için kullanılır.
+  /// Format: {dateKey, weekday, type, subject, topic, sec}.
+  static Future<List<Map<String, dynamic>>> readChildWeekEntries(
+      String childUid) async {
+    final out = <Map<String, dynamic>>[];
+    try {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final monday = today.subtract(Duration(days: now.weekday - 1));
+      final snap = await _fs
+          .collection('users')
+          .doc(childUid)
+          .collection('study_activities')
+          .where('whenTs', isGreaterThanOrEqualTo: Timestamp.fromDate(monday))
+          .get();
+      String two(int n) => n.toString().padLeft(2, '0');
+      for (final d in snap.docs) {
+        final m = d.data();
+        final ts = m['whenTs'];
+        if (ts is! Timestamp) continue;
+        final w = ts.toDate().toLocal();
+        out.add({
+          'dateKey': '${w.year}-${two(w.month)}-${two(w.day)}',
+          'weekday': w.weekday,
+          'type': (m['type'] ?? '').toString(),
+          'subject': (m['subject'] ?? '').toString(),
+          'topic': (m['topic'] ?? '').toString(),
+          'sec': (m['durationSec'] as num?)?.toInt() ?? 0,
+        });
+      }
+    } catch (e) {
+      debugPrint('[ParentLink] readChildWeekEntries fail: $e');
+    }
+    return out;
+  }
+
+  /// Bağlı çocuğun SON N GÜNÜNÜN günlük aktivite dökümanları (aylık rapor).
+  /// users/{childUid}/activity/{yyyy-MM-dd}.
+  static Future<List<Map<String, dynamic>>> readChildActivityDays(
+      String childUid, int days) async {
+    final result = <Map<String, dynamic>>[];
+    final now = DateTime.now();
+    try {
+      for (int d = days - 1; d >= 0; d--) {
+        final day = DateTime(now.year, now.month, now.day - d);
+        final key = '${day.year}-'
+            '${day.month.toString().padLeft(2, '0')}-'
+            '${day.day.toString().padLeft(2, '0')}';
+        final snap = await _fs
+            .collection('users').doc(childUid)
+            .collection('activity').doc(key).get();
+        if (snap.exists) {
+          final m = Map<String, dynamic>.from(snap.data() ?? const {});
+          m['dateKey'] = key;
+          result.add(m);
+        } else {
+          result.add({'dateKey': key});
+        }
+      }
+    } catch (e) {
+      debugPrint('[ParentLink] readChildActivityDays fail: $e');
+    }
+    return result;
+  }
+
+  /// Bağlı çocuğun SON N GÜNÜNÜN ham aktivite kayıtları (study_activities).
+  static Future<List<Map<String, dynamic>>> readChildEntriesDays(
+      String childUid, int days) async {
+    final out = <Map<String, dynamic>>[];
+    try {
+      final now = DateTime.now();
+      final from = DateTime(now.year, now.month, now.day - (days - 1));
+      final snap = await _fs
+          .collection('users').doc(childUid)
+          .collection('study_activities')
+          .where('whenTs', isGreaterThanOrEqualTo: Timestamp.fromDate(from))
+          .get();
+      String two(int n) => n.toString().padLeft(2, '0');
+      for (final d in snap.docs) {
+        final m = d.data();
+        final ts = m['whenTs'];
+        if (ts is! Timestamp) continue;
+        final w = ts.toDate().toLocal();
+        out.add({
+          'dateKey': '${w.year}-${two(w.month)}-${two(w.day)}',
+          'type': (m['type'] ?? '').toString(),
+          'subject': (m['subject'] ?? '').toString(),
+          'topic': (m['topic'] ?? '').toString(),
+          'sec': (m['durationSec'] as num?)?.toInt() ?? 0,
+        });
+      }
+    } catch (e) {
+      debugPrint('[ParentLink] readChildEntriesDays fail: $e');
+    }
+    return out;
   }
 
   /// Ebeveyn bağlantıyı sonlandırır (çocuk verisi artık görünmez).
