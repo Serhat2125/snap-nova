@@ -115,6 +115,23 @@ class Analytics {
   static void logQuotaExhausted(String quotaKind) =>
       logEvent('quota_exhausted', params: {'kind': quotaKind});
 
+  /// Bir özelliğin/metodun açıldığını logla — Firebase'de `feature` parametresine
+  /// göre gruplanır. "Hangi metot daha çok kullanılıyor" ve hesap tipiyle
+  /// kesişince "hangi kesim neyi kullanıyor / hangisi geri getiriyor" analizinin
+  /// temeli. feature örn: '3d_lesson', 'league', 'ai_coach', 'arena',
+  /// 'homework', 'teacher_panel', 'parent_panel', 'summary'.
+  static void logFeatureOpen(String feature) =>
+      logEvent('feature_open', params: {'feature': feature});
+
+  /// Bir metot tamamlandığında (geri-getirme sinyali en güçlü olan olaylar).
+  static void logFeatureAction(String feature, String action,
+          [Map<String, Object>? extra]) =>
+      logEvent('feature_action', params: {
+        'feature': feature,
+        'action': action,
+        if (extra != null) ...extra,
+      });
+
   /// Premium funnel olayları.
   static void logPaywallShown(String trigger) =>
       logEvent('paywall_shown', params: {'trigger': trigger});

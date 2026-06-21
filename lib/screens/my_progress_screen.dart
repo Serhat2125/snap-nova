@@ -31,6 +31,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/education_models.dart';
+import '../services/analytics.dart';
 import '../services/parent_link_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
@@ -226,6 +227,7 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
   @override
   void initState() {
     super.initState();
+    Analytics.logFeatureOpen('parent_panel');
     _load();
   }
 

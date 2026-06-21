@@ -22,6 +22,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../services/ai_quota_service.dart';
+import '../services/analytics.dart';
 import '../services/tts_service.dart';
 import '../services/gemini_service.dart';
 import 'academic_planner.dart';
@@ -67,6 +68,7 @@ class _Lesson3DScreenState extends State<Lesson3DScreen> {
   @override
   void initState() {
     super.initState();
+    Analytics.logFeatureOpen('3d_lesson');
     if (kIsWeb) {
       // iframe anında yüklenir; yükleme katmanı gösterme.
       _loading = false;

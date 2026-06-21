@@ -21,6 +21,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
+import 'analytics.dart';
+
 enum JoinClassResult {
   success, invalidCode, classNotFound, alreadyJoined, selfJoin, notAuthed, error,
 }
@@ -199,6 +201,7 @@ class ClassService {
         'createdAt': FieldValue.serverTimestamp(),
       });
       await batch.commit();
+      Analytics.logFeatureAction('teacher_panel', 'class_created');
       return TeacherClass(
         id: classId,
         teacherUid: myUid,

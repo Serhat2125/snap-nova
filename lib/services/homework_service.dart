@@ -23,6 +23,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/education_models.dart';
 import 'ai_provider_service.dart';
+import 'analytics.dart';
 
 class HomeworkService {
   HomeworkService._();
@@ -99,6 +100,7 @@ class HomeworkService {
         );
       }
       await batch.commit();
+      Analytics.logFeatureAction('teacher_panel', 'homework_assigned');
       return hwRef.id;
     } catch (e) {
       debugPrint('[HomeworkService] assign fail: $e');
@@ -183,6 +185,8 @@ class HomeworkService {
         if (passiveMs != null) 'passiveMs': passiveMs,
         if (answers.isNotEmpty) 'answers': answers,
       }, SetOptions(merge: true));
+      Analytics.logFeatureAction('homework', 'submitted',
+          {'score': score.round()});
       return true;
     } catch (e) {
       debugPrint('[HomeworkService] submit fail: $e');

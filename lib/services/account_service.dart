@@ -14,6 +14,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'analytics.dart';
+
 enum AccountType { student, parent, teacher }
 
 extension AccountTypeX on AccountType {
@@ -80,6 +82,7 @@ class AccountService extends ChangeNotifier {
     } catch (_) {}
     _loaded = true;
     notifyListeners();
+    _reportSegment();
     // Firestore'dan canlı senkronize et (eğer cloud'da farklıysa cloud kazanır).
     unawaited(_syncFromFirestore());
   }
@@ -112,7 +115,10 @@ class AccountService extends ChangeNotifier {
         } catch (_) {}
         changed = true;
       }
-      if (changed) notifyListeners();
+      if (changed) {
+        notifyListeners();
+        _reportSegment();
+      }
     } catch (e) {
       debugPrint('[AccountService] firestore sync fail: $e');
     }
@@ -137,6 +143,7 @@ class AccountService extends ChangeNotifier {
       }
     }
     notifyListeners();
+    _reportSegment();
   }
 
   /// Öğretmen profilini (görünen ad + branş) Firestore users/{uid}'e yazar.
@@ -160,6 +167,16 @@ class AccountService extends ChangeNotifier {
       }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('[AccountService] teacher profile save fail: $e');
+    }
+  }
+
+  /// Hesap tipi + kullanıcı + branşı analytics user-property olarak yazar.
+  /// Böylece "kim (öğrenci/öğretmen/ebeveyn) neyi kullanıyor" dilimlenebilir.
+  void _reportSegment() {
+    Analytics.setUserId(FirebaseAuth.instance.currentUser?.uid);
+    Analytics.setUserProperty('account_type', _type.key);
+    if (_teacherBranch != null && _teacherBranch!.trim().isNotEmpty) {
+      Analytics.setUserProperty('teacher_branch', _teacherBranch);
     }
   }
 

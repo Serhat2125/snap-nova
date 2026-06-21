@@ -21,6 +21,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../main.dart' show localeService;
+import '../services/analytics.dart';
 import '../services/education_profile.dart';
 import '../services/gemini_service.dart';
 import '../services/runtime_translator.dart';
@@ -273,6 +274,7 @@ class _AICoachChatScreenState extends State<AICoachChatScreen> {
   @override
   void initState() {
     super.initState();
+    Analytics.logFeatureOpen('ai_coach');
     // 15 öneri arasından random 5 seç — her açılışta farklı.
     final shuffled = List<(String, String)>.from(_allSuggestions)
       ..shuffle(math.Random());

@@ -30,6 +30,7 @@ import '../features/leaderboard/domain/user_location.dart';
 import '../features/league/league_leaderboard_service.dart';
 import '../features/league/league_location_picker.dart';
 import '../features/league/league_scores.dart';
+import '../services/analytics.dart';
 import '../services/curriculum_catalog.dart';
 import '../services/education_profile.dart';
 import '../services/error_logger.dart';
@@ -1401,6 +1402,7 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
   @override
   void initState() {
     super.initState();
+    Analytics.logFeatureOpen('league');
     _bootstrap();
   }
 

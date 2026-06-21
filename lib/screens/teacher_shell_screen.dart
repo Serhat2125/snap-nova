@@ -18,6 +18,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../services/account_service.dart';
+import '../services/analytics.dart';
 import '../services/class_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
@@ -39,6 +40,12 @@ class TeacherShellScreen extends StatefulWidget {
 
 class _TeacherShellScreenState extends State<TeacherShellScreen> {
   int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    Analytics.logFeatureOpen('teacher_panel');
+  }
 
   void _goToTab(int i) => setState(() => _index = i);
 
