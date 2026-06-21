@@ -2,7 +2,7 @@
 //  TeacherIntroScreen — Öğretmen hesap tipi seçildikten sonra gösterilen 3
 //  slaytlı tanıtım akışı. Onboarding'in 2. sayfasında Auth tamamlanır
 //  tamamlanmaz pushAndRemoveUntil ile buraya gelinir. Son slayttan
-//  TeacherDashboardScreen'e geçer (opsiyonel olarak ilk sınıf oluşturur).
+//  TeacherShellScreen'e geçer (opsiyonel olarak ilk sınıf oluşturur).
 //
 //  Slaytlar:
 //   1) Avantajlar (öğretmen panelinin neyi mümkün kıldığı)
@@ -21,7 +21,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/class_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
-import 'teacher_dashboard_screen.dart';
+import 'teacher_shell_screen.dart';
 
 class TeacherIntroScreen extends StatefulWidget {
   const TeacherIntroScreen({super.key});
@@ -102,7 +102,7 @@ class _TeacherIntroScreenState extends State<TeacherIntroScreen> {
     }
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const TeacherDashboardScreen()),
+      MaterialPageRoute(builder: (_) => const TeacherShellScreen()),
       (route) => false,
     );
   }

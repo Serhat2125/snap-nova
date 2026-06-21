@@ -37,7 +37,8 @@ class HomeworkSolveScreen extends StatefulWidget {
   State<HomeworkSolveScreen> createState() => _HomeworkSolveScreenState();
 }
 
-class _HomeworkSolveScreenState extends State<HomeworkSolveScreen> {
+class _HomeworkSolveScreenState extends State<HomeworkSolveScreen>
+    with WidgetsBindingObserver {
   /// Soru index → kullanıcının cevabı
   final Map<int, String> _answers = {};
   /// Açık uçlu sorular için text controller'lar (sayfayı tekrar açtığında korumak için)
@@ -46,16 +47,44 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen> {
   bool _submitting = false;
   int _correctCount = 0;
   int _wrongCount = 0;
+  int _pendingOpen = 0; // öğretmen değerlendirmesi bekleyen açık uçlu sayısı
+
+  // ── Zaman takibi ──────────────────────────────────────────────────────
+  // Aktif: ekran önünde (resumed) geçen süre. Pasif: ödev açıkken uygulama
+  // arka plana alınınca/kapanınca geçen süre. Teslimde Firestore'a yazılır.
+  late final DateTime _startedAt;
+  final Stopwatch _activeWatch = Stopwatch();
+  int _passiveMs = 0;
+  DateTime? _pausedAt;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _startedAt = DateTime.now();
+    _activeWatch.start();
     // Status'u in_progress yap
     HomeworkService.markInProgress(widget.classId, widget.homework.id);
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (_pausedAt != null) {
+        _passiveMs += DateTime.now().difference(_pausedAt!).inMilliseconds;
+        _pausedAt = null;
+      }
+      _activeWatch.start();
+    } else {
+      // paused / inactive / hidden / detached → aktif sayacı durdur, pasifi başlat
+      if (_activeWatch.isRunning) _activeWatch.stop();
+      _pausedAt ??= DateTime.now();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     for (final c in _openCtrls.values) {
       c.dispose();
     }
@@ -71,7 +100,7 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen> {
     if (type == 'mc') {
       if (correct == given) return true;
       // Belki kullanıcı tam şıkı yapıştırdı: "A) Foo" — ilk harfi al
-      if (given.length >= 1 && given[0] == correct[0]) return true;
+      if (given.isNotEmpty && given[0] == correct[0]) return true;
     }
     if (type == 'tf') {
       return correct == given;
@@ -99,27 +128,56 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen> {
     if (qs.isEmpty) return;
     int correct = 0;
     int wrong = 0;
+    int pendingOpen = 0;
+    final answersList = <Map<String, dynamic>>[];
     for (int i = 0; i < qs.length; i++) {
+      final q = qs[i];
+      final type = (q['type'] ?? 'mc').toString();
       final ans = _answers[i] ?? '';
-      if (ans.trim().isEmpty) {
-        // Boş — yanlış sayma seçimi: yanlış'a değil ekstra "boş" sayacına
-        wrong++; // ödev için boş = teslim yapmadı sayılır
-        continue;
-      }
-      if (_isCorrect(qs[i], ans)) {
+      bool? isCorrect;
+      if (type == 'open') {
+        if (ans.trim().isEmpty) {
+          isCorrect = false; // boş bırakılan açık uçlu = yanlış
+          wrong++;
+        } else {
+          isCorrect = null; // dolu açık uçlu → öğretmen değerlendirecek
+          pendingOpen++;
+        }
+      } else if (ans.trim().isEmpty) {
+        isCorrect = false; // boş = teslim yapmadı sayılır
+        wrong++;
+      } else if (_isCorrect(q, ans)) {
+        isCorrect = true;
         correct++;
       } else {
+        isCorrect = false;
         wrong++;
       }
+      answersList.add({
+        'index': i,
+        'type': type,
+        'q': (q['q'] ?? '').toString(),
+        'studentAnswer': ans,
+        'isCorrect': isCorrect,
+      });
     }
     setState(() {
       _submitting = true;
     });
+    // Aktif/pasif süreyi sabitle (teslim anında pasif sayaç açıksa kapat).
+    if (_pausedAt != null) {
+      _passiveMs += DateTime.now().difference(_pausedAt!).inMilliseconds;
+      _pausedAt = null;
+    }
     final ok = await HomeworkService.submitAnswers(
       classId: widget.classId,
       homeworkId: widget.homework.id,
       correct: correct,
       wrong: wrong,
+      answers: answersList,
+      startedAt: _startedAt,
+      activeMs: _activeWatch.elapsedMilliseconds,
+      passiveMs: _passiveMs,
     );
     if (!mounted) return;
     setState(() {
@@ -127,6 +185,7 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen> {
       _submitted = ok;
       _correctCount = correct;
       _wrongCount = wrong;
+      _pendingOpen = pendingOpen;
     });
     if (ok) {
       if (correct >= wrong) {
@@ -462,6 +521,28 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen> {
               style: GoogleFonts.poppins(
                 fontSize: 13.5, color: AppPalette.textSecondary(context),
               )),
+          if (_pendingOpen > 0) ...[
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF7C3AED).withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFF7C3AED).withValues(alpha: 0.25),
+                ),
+              ),
+              child: Text(
+                '📝 $_pendingOpen ${'açık uçlu soru öğretmenin değerlendirmesini '
+                    'bekliyor. Notun güncellenecek.'.tr()}',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 12, fontWeight: FontWeight.w600,
+                  color: const Color(0xFF7C3AED), height: 1.4,
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 28),
           SizedBox(
             width: 200,

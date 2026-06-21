@@ -11,12 +11,16 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../models/education_models.dart';
+import '../services/account_service.dart';
 import '../services/class_service.dart';
 import '../services/curriculum_service.dart';
 import '../services/gemini_service.dart';
 import '../services/homework_service.dart';
+import '../services/locale_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
+import '../screens/teacher_homework_preview_screen.dart';
+import '../screens/teacher_grade_submission_screen.dart';
 
 // ─────────────────────────────────────────────────────────────────────────
 // 1) FILTER WIZARD BOTTOM SHEET
@@ -29,7 +33,7 @@ class FilterWizardBottomSheet extends StatefulWidget {
   const FilterWizardBottomSheet({
     super.key,
     this.initialLevel = 'Lise',
-    this.initialSubject = 'Matematik',
+    this.initialSubject = 'Genel',
     this.initialCurriculum = 'tr-MEB',
     required this.onSelected,
   });
@@ -62,9 +66,6 @@ class _FilterWizardBottomSheetState extends State<FilterWizardBottomSheet> {
       subject: _subject,
     );
     final levels = CurriculumService.levelsFor(_curriculum);
-    final subjects = CurriculumService.subjectsFor(
-      curriculumKey: _curriculum, level: _level,
-    );
     return DraggableScrollableSheet(
       initialChildSize: 0.78, minChildSize: 0.5, maxChildSize: 0.95,
       expand: false,
@@ -133,15 +134,34 @@ class _FilterWizardBottomSheetState extends State<FilterWizardBottomSheet> {
                     ),
                     const SizedBox(height: 12),
                     _label(context, 'Branş'.tr()),
-                    Wrap(
-                      spacing: 8, runSpacing: 8,
-                      children: subjects.map((s) {
-                        final sel = s == _subject;
-                        return _chipBtn(context, s, sel, () => setState(() {
-                          _subject = s;
-                          _topic = null;
-                        }));
-                      }).toList(),
+                    // Branş öğretmenin sabit branşıdır — sınıf bazında değişmez.
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF7C3AED).withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: const Color(0xFF7C3AED)
+                                .withValues(alpha: 0.25)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.school_rounded,
+                              size: 18, color: Color(0xFF7C3AED)),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(_subject,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13.5, fontWeight: FontWeight.w800,
+                                  color: ink,
+                                )),
+                          ),
+                          Icon(Icons.lock_outline_rounded,
+                              size: 15, color: muted),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 12),
                     _label(context, 'Kazanım / Konu (opsiyonel)'.tr()),
@@ -327,6 +347,8 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
   final _topicCtrl = TextEditingController();
   late String _level;
   late String _subject;
+  // Müfredat varsayılanı kullanıcının diline/ülkesine göre (öğrenci tarafıyla
+  // aynı mantık) — initState'te locale'den belirlenir.
   String _curriculum = 'tr-MEB';
   CurriculumTopic? _selectedTopic;
   final Set<HomeworkQuestionType> _selectedTypes = {HomeworkQuestionType.multipleChoice};
@@ -339,7 +361,12 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
   void initState() {
     super.initState();
     _level = widget.cls.level.isEmpty ? 'Lise' : widget.cls.level;
-    _subject = widget.cls.subject.isEmpty ? 'Matematik' : widget.cls.subject;
+    _subject = widget.cls.subject.isEmpty
+        ? (AccountService.instance.teacherBranch ?? 'Genel')
+        : widget.cls.subject;
+    // Müfredatı kullanıcının diline/ülkesine göre seç (öğrenci tarafı gibi).
+    _curriculum = CurriculumService.defaultCurriculumKey(
+        LocaleService.global?.localeCode ?? 'tr');
     _topicCtrl.text = '';
   }
 
@@ -390,7 +417,7 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
     });
   }
 
-  Future<void> _generateAndSend() async {
+  Future<void> _generateAndPreview() async {
     final topic = _topicCtrl.text.trim();
     final title = _titleCtrl.text.trim();
     if (topic.isEmpty || title.isEmpty) {
@@ -416,29 +443,38 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
         outcome: outcome.isEmpty ? null : outcome,
       );
       if (!mounted) return;
-      setState(() => _statusMsg = 'Sınıfa gönderiliyor...'.tr());
-      final hwId = await HomeworkService.assignToClass(
-        classId: widget.cls.id,
-        title: title,
-        subject: _subject,
-        topic: topic,
-        level: _level,
-        types: _selectedTypes.toList(),
-        questionCount: _count,
-        dueAt: _due,
-        questions: questions,
-      );
-      if (!mounted) return;
       setState(() {
         _generating = false;
-        if (hwId != null) {
-          _statusMsg = '✅ Ödev sınıfa gönderildi (${questions.length} soru).'.tr();
+        _statusMsg = null;
+      });
+      if (questions.isEmpty) {
+        setState(() => _statusMsg = 'AI soru üretemedi. Tekrar dene.'.tr());
+        return;
+      }
+      // Üretilen soruları doğrudan göndermek yerine önizleme/düzenleme
+      // ekranına aktar — öğretmen soruları görüp düzenleyip gönderir.
+      final sent = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (_) => TeacherHomeworkPreviewScreen(
+            classId: widget.cls.id,
+            title: title,
+            subject: _subject,
+            topic: topic,
+            level: _level,
+            types: _selectedTypes.toList(),
+            dueAt: _due,
+            questions: questions,
+          ),
+        ),
+      );
+      if (!mounted) return;
+      if (sent == true) {
+        setState(() {
+          _statusMsg = '✅ Ödev sınıfa gönderildi.'.tr();
           _titleCtrl.clear();
           _topicCtrl.clear();
-        } else {
-          _statusMsg = 'Sınıfa gönderilemedi.'.tr();
-        }
-      });
+        });
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -492,10 +528,9 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
           ),
           const SizedBox(height: 12),
           // Başlık
-          _input(context, _titleCtrl, 'Ödev başlığı'.tr(), Icons.title_rounded),
+          _input(context, _titleCtrl, 'Ödev başlığı'.tr()),
           const SizedBox(height: 8),
-          _input(context, _topicCtrl, 'Konu (örn: Üslü Sayılar)'.tr(),
-              Icons.topic_rounded),
+          _input(context, _topicCtrl, 'Konu (örn: Üslü Sayılar)'.tr()),
           const SizedBox(height: 8),
           // Müfredat / seviye / branş seçim butonu
           GestureDetector(
@@ -510,14 +545,11 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.filter_alt_rounded,
-                      color: Color(0xFF7C3AED), size: 18),
-                  const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('${_level} · $_subject',
+                        Text('$_level · $_subject',
                             style: GoogleFonts.poppins(
                               fontSize: 13, fontWeight: FontWeight.w700,
                               color: ink,
@@ -687,14 +719,14 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onPressed: _generating ? null : _generateAndSend,
+              onPressed: _generating ? null : _generateAndPreview,
               child: _generating
                   ? const SizedBox(
                       width: 18, height: 18,
                       child: CircularProgressIndicator(
                         strokeWidth: 2.2, color: Colors.white),
                     )
-                  : Text('AI Üret & Sınıfa Gönder'.tr(),
+                  : Text('AI Üret & Önizle'.tr(),
                       style: GoogleFonts.poppins(
                         fontSize: 14, fontWeight: FontWeight.w800,
                         color: Colors.white,
@@ -706,14 +738,15 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
     );
   }
 
-  Widget _input(BuildContext c, TextEditingController ctrl, String hint, IconData icon) {
+  Widget _input(BuildContext c, TextEditingController ctrl, String hint,
+      [IconData? icon]) {
     return Container(
       decoration: BoxDecoration(
         color: AppPalette.bg(c),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppPalette.border(c)),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       child: TextField(
         controller: ctrl,
         style: GoogleFonts.poppins(
@@ -722,8 +755,9 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
         ),
         decoration: InputDecoration(
           hintText: hint,
-          prefixIcon: Icon(icon, size: 18,
-              color: AppPalette.textSecondary(c)),
+          prefixIcon: icon == null
+              ? null
+              : Icon(icon, size: 18, color: AppPalette.textSecondary(c)),
           border: InputBorder.none,
           isDense: true,
           contentPadding: const EdgeInsets.symmetric(vertical: 12),
@@ -822,7 +856,7 @@ class StudentPerformanceList extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 10),
-                  ...subs.map((s) => _row(context, s)).toList(),
+                  ...subs.map((s) => _row(context, s)),
                 ],
               );
             },
@@ -859,6 +893,15 @@ class StudentPerformanceList extends StatelessWidget {
     );
   }
 
+  /// Süreyi kısa biçimde: "45sn", "12dk", "1s 5dk".
+  String _fmtDuration(Duration d) {
+    if (d.inMinutes < 1) return '${d.inSeconds}sn';
+    if (d.inHours < 1) return '${d.inMinutes}dk';
+    final h = d.inHours;
+    final m = d.inMinutes % 60;
+    return m == 0 ? '${h}s' : '${h}s ${m}dk';
+  }
+
   Widget _row(BuildContext c, HomeworkSubmissionModel s) {
     Color statusColor;
     String statusLabel;
@@ -868,12 +911,18 @@ class StudentPerformanceList extends StatelessWidget {
       case 'in_progress': statusColor = const Color(0xFF06B6D4); statusLabel = 'Çözüyor'.tr(); break;
       default:          statusColor = const Color(0xFF94A3B8); statusLabel = 'Bekliyor'.tr(); break;
     }
-    return Container(
+    final needsReview = s.needsReview;
+    final row = Container(
       margin: const EdgeInsets.only(top: 6),
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
       decoration: BoxDecoration(
-        color: AppPalette.bg(c),
+        color: needsReview
+            ? const Color(0xFF7C3AED).withValues(alpha: 0.06)
+            : AppPalette.bg(c),
         borderRadius: BorderRadius.circular(10),
+        border: needsReview
+            ? Border.all(color: const Color(0xFF7C3AED).withValues(alpha: 0.30))
+            : null,
       ),
       child: Row(
         children: [
@@ -888,28 +937,71 @@ class StudentPerformanceList extends StatelessWidget {
               maxLines: 1, overflow: TextOverflow.ellipsis,
             ),
           ),
-          if (s.scorePercent != null) ...[
-            Text('%${s.scorePercent!.toStringAsFixed(0)}',
+          // Çözüm süresi — "30 sn'de %10" gibi sallama davranışını yakalar.
+          if (s.solveDuration != null) ...[
+            Icon(Icons.timer_outlined, size: 13,
+                color: AppPalette.textSecondary(c)),
+            const SizedBox(width: 2),
+            Text(_fmtDuration(s.solveDuration!),
                 style: GoogleFonts.poppins(
-                  fontSize: 11, fontWeight: FontWeight.w800,
+                  fontSize: 10.5, fontWeight: FontWeight.w700,
                   color: AppPalette.textSecondary(c),
                 )),
             const SizedBox(width: 8),
           ],
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(999),
+          if (needsReview) ...[
+            // Açık uçlu cevap öğretmen puanlaması bekliyor → tıkla, değerlendir.
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: const Color(0xFF7C3AED).withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text('📝 ${'Değerlendir'.tr()}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 10.5, fontWeight: FontWeight.w800,
+                    color: const Color(0xFF7C3AED),
+                  )),
             ),
-            child: Text(statusLabel,
-                style: GoogleFonts.poppins(
-                  fontSize: 10.5, fontWeight: FontWeight.w800,
-                  color: statusColor,
-                )),
-          ),
+            const SizedBox(width: 6),
+            Icon(Icons.chevron_right_rounded, size: 16,
+                color: AppPalette.textSecondary(c)),
+          ] else ...[
+            if (s.scorePercent != null) ...[
+              Text('%${s.scorePercent!.toStringAsFixed(0)}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 11, fontWeight: FontWeight.w800,
+                    color: AppPalette.textSecondary(c),
+                  )),
+              const SizedBox(width: 8),
+            ],
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(statusLabel,
+                  style: GoogleFonts.poppins(
+                    fontSize: 10.5, fontWeight: FontWeight.w800,
+                    color: statusColor,
+                  )),
+            ),
+          ],
         ],
       ),
+    );
+    if (!needsReview) return row;
+    return GestureDetector(
+      onTap: () => Navigator.of(c).push(MaterialPageRoute(
+        builder: (_) => TeacherGradeSubmissionScreen(
+          classId: classId,
+          homeworkId: homework.id,
+          homeworkTitle: homework.title,
+          submission: s,
+        ),
+      )),
+      child: row,
     );
   }
 }

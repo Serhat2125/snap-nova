@@ -20,6 +20,8 @@ import '../services/homework_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
 import '../widgets/teacher_widgets.dart';
+import 'teacher_invite_student_screen.dart';
+import 'teacher_student_report_screen.dart';
 
 class TeacherClassDetailScreen extends StatefulWidget {
   final TeacherClass cls;
@@ -50,13 +52,13 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
 
   Future<void> _shareCode(BuildContext context) async {
     final msg =
-        'QuAlsar Sınıf Daveti\n\n'
+        '${'QuAlsar Sınıf Daveti'.tr()}\n\n'
         '${cls.name} · ${cls.subject}\n'
         '${cls.schoolName}\n\n'
-        'Sınıfa katılmak için QuAlsar uygulamasına bu kodu gir:\n'
-        '🔑 ${cls.code}';
+        '${'Sınıfa katılmak için QuAlsar uygulamasına bu kodu gir:'.tr()}\n'
+        '🔑 ${cls.shortCode}';
     try {
-      await Share.share(msg, subject: 'QuAlsar sınıf daveti');
+      await Share.share(msg, subject: 'QuAlsar sınıf daveti'.tr());
     } catch (_) {}
   }
 
@@ -148,7 +150,7 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
                   GestureDetector(
                     onTap: () async {
                       final messenger = ScaffoldMessenger.of(context);
-                      await Clipboard.setData(ClipboardData(text: cls.code));
+                      await Clipboard.setData(ClipboardData(text: cls.shortCode));
                       if (!context.mounted) return;
                       messenger.showSnackBar(SnackBar(
                         content: Text('Sınıf kodu kopyalandı'.tr()),
@@ -179,7 +181,7 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
                                       letterSpacing: 1.0,
                                     )),
                                 const SizedBox(height: 2),
-                                Text(cls.code,
+                                Text(cls.shortCode,
                                     style: GoogleFonts.poppins(
                                       fontSize: 20,
                                       fontWeight: FontWeight.w900,
@@ -228,7 +230,7 @@ class _TabbedContentState extends State<_TabbedContent> with SingleTickerProvide
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 2, vsync: this);
+    _tab = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -254,6 +256,7 @@ class _TabbedContentState extends State<_TabbedContent> with SingleTickerProvide
           tabs: [
             Tab(text: 'Öğrenciler'.tr()),
             Tab(text: 'Ödevler'.tr()),
+            Tab(text: 'Analiz'.tr()),
           ],
         ),
         Expanded(
@@ -262,6 +265,7 @@ class _TabbedContentState extends State<_TabbedContent> with SingleTickerProvide
             children: [
               _studentsTab(context, ink, muted),
               _homeworkTab(context, ink, muted),
+              _ClassAnalyticsTab(cls: widget.cls),
             ],
           ),
         ),
@@ -270,14 +274,40 @@ class _TabbedContentState extends State<_TabbedContent> with SingleTickerProvide
   }
 
   Widget _studentsTab(BuildContext context, Color ink, Color muted) {
-    return StreamBuilder<List<ClassStudent>>(
-      stream: ClassService.studentsStream(widget.cls.id),
-      builder: (context, snap) {
-        if (!snap.hasData) {
-          return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-        }
-        final students = snap.data!;
-        if (students.isEmpty) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 2),
+          child: SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => TeacherInviteStudentScreen(cls: widget.cls),
+              )),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF7C3AED),
+                side: const BorderSide(color: Color(0xFF7C3AED)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+              label: Text('Öğrenci Ara & Davet Et'.tr(),
+                  style: GoogleFonts.poppins(
+                      fontSize: 13, fontWeight: FontWeight.w800)),
+            ),
+          ),
+        ),
+        Expanded(
+          child: StreamBuilder<List<ClassStudent>>(
+            stream: ClassService.studentsStream(widget.cls.id),
+            builder: (context, snap) {
+              if (!snap.hasData) {
+                return const Center(
+                    child: CircularProgressIndicator(strokeWidth: 2));
+              }
+              final students = snap.data!;
+              if (students.isEmpty) {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(32),
@@ -295,7 +325,20 @@ class _TabbedContentState extends State<_TabbedContent> with SingleTickerProvide
           itemCount: students.length,
           itemBuilder: (ctx, i) {
                       final s = students[i];
-                      return Container(
+                      return GestureDetector(
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => TeacherStudentReportScreen(
+                              classId: widget.cls.id,
+                              studentUid: s.uid,
+                              studentName: s.displayName.isEmpty
+                                  ? '@${s.username}'
+                                  : s.displayName,
+                              studentAvatar: s.avatar,
+                            ),
+                          ),
+                        ),
+                        child: Container(
                         margin: const EdgeInsets.only(bottom: 8),
                         padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
                         decoration: BoxDecoration(
@@ -338,13 +381,19 @@ class _TabbedContentState extends State<_TabbedContent> with SingleTickerProvide
                                 ],
                               ),
                             ),
+                            Icon(Icons.chevron_right_rounded,
+                                size: 18, color: muted),
                           ],
                         ),
+                      ),
                       );
                     },
                   );
                 },
-              );
+              ),
+            ),
+          ],
+        );
   }
 
   Widget _homeworkTab(BuildContext context, Color ink, Color muted) {
@@ -402,4 +451,274 @@ class _TabbedContentState extends State<_TabbedContent> with SingleTickerProvide
       ],
     );
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Analiz sekmesi — sınıf-geneli özet (spot cümle + en zor konu + risk).
+// ═══════════════════════════════════════════════════════════════════════════
+class _ClassAnalyticsTab extends StatefulWidget {
+  final TeacherClass cls;
+  const _ClassAnalyticsTab({required this.cls});
+
+  @override
+  State<_ClassAnalyticsTab> createState() => _ClassAnalyticsTabState();
+}
+
+class _ClassAnalyticsTabState extends State<_ClassAnalyticsTab> {
+  late Future<ClassReport> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = HomeworkService.classReport(widget.cls.id);
+  }
+
+  Color _scoreColor(double? s) {
+    if (s == null) return const Color(0xFF94A3B8);
+    if (s >= 70) return const Color(0xFF10B981);
+    if (s >= 40) return const Color(0xFFFBBF24);
+    return const Color(0xFFEF4444);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = AppPalette.textSecondary(context);
+    return FutureBuilder<ClassReport>(
+      future: _future,
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+        }
+        final r = snap.data;
+        if (r == null || r.homeworkCount == 0) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('📊', style: TextStyle(fontSize: 40)),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Analiz için önce ödev gönder.\nÖğrenciler teslim ettikçe '
+                    'burada sınıfın durumu görünecek.'.tr(),
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13, color: muted, height: 1.45,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+          children: [
+            // ── Özet ──────────────────────────────────────────────────
+            Row(
+              children: [
+                _stat(context, '🎯', 'Sınıf Ort.'.tr(),
+                    r.avgScore == null
+                        ? '—'
+                        : '%${r.avgScore!.toStringAsFixed(0)}',
+                    _scoreColor(r.avgScore)),
+                const SizedBox(width: 10),
+                _stat(context, '📬', 'Teslim'.tr(),
+                    '%${(r.submissionRate * 100).toStringAsFixed(0)}',
+                    const Color(0xFF06B6D4)),
+                const SizedBox(width: 10),
+                _stat(context, '📝', 'Ödev'.tr(), '${r.homeworkCount}',
+                    const Color(0xFF7C3AED)),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // ── Spot cümle: en zor konu ───────────────────────────────
+            if (r.hardestTopics.isNotEmpty) ...[
+              _spotCard(context, r.hardestTopics.first),
+              const SizedBox(height: 20),
+            ],
+
+            // ── En zor konular ────────────────────────────────────────
+            if (r.hardestTopics.isNotEmpty) ...[
+              _label(context, 'EN ÇOK ZORLANILAN KONULAR'.tr()),
+              const SizedBox(height: 10),
+              ...r.hardestTopics.take(5).map((t) => _topicRow(context, t)),
+              const SizedBox(height: 20),
+            ],
+
+            // ── Risk altındaki öğrenciler ─────────────────────────────
+            _label(context, 'RİSK ALTINDAKİ ÖĞRENCİLER'.tr()),
+            const SizedBox(height: 10),
+            if (r.atRiskStudents.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: Text('🎉 ${'Risk altında öğrenci yok.'.tr()}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12.5, color: muted,
+                    )),
+              )
+            else
+              ...r.atRiskStudents.map((s) => _standingRow(context, s, risk: true)),
+            const SizedBox(height: 20),
+
+            // ── Sıralama ──────────────────────────────────────────────
+            _label(context, 'SINIF SIRALAMASI'.tr()),
+            const SizedBox(height: 10),
+            ...r.standings.map((s) => _standingRow(context, s)),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _stat(BuildContext c, String emoji, String label, String value,
+      Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
+        decoration: BoxDecoration(
+          color: AppPalette.card(c),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppPalette.border(c)),
+        ),
+        child: Column(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 18)),
+            const SizedBox(height: 6),
+            Text(value,
+                style: GoogleFonts.poppins(
+                  fontSize: 17, fontWeight: FontWeight.w900, color: color,
+                )),
+            const SizedBox(height: 2),
+            Text(label,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 10, fontWeight: FontWeight.w600,
+                  color: AppPalette.textSecondary(c),
+                )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _spotCard(BuildContext c, TopicDifficulty t) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF7C3AED), Color(0xFFEC4899)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          const Text('💡', style: TextStyle(fontSize: 26)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              '${'Sınıfın en çok zorlandığı konu:'.tr()} '
+              '${t.subject} · ${t.topic} '
+              '(%${t.avgScore.toStringAsFixed(0)})',
+              style: GoogleFonts.poppins(
+                fontSize: 13, fontWeight: FontWeight.w700,
+                color: Colors.white, height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _topicRow(BuildContext c, TopicDifficulty t) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text('${t.subject} · ${t.topic}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12.5, fontWeight: FontWeight.w700,
+                      color: AppPalette.textPrimary(c),
+                    ),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+              ),
+              Text('%${t.avgScore.toStringAsFixed(0)}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12.5, fontWeight: FontWeight.w800,
+                    color: _scoreColor(t.avgScore),
+                  )),
+            ],
+          ),
+          const SizedBox(height: 5),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: (t.avgScore / 100).clamp(0.0, 1.0),
+              minHeight: 7,
+              backgroundColor: AppPalette.border(c),
+              valueColor: AlwaysStoppedAnimation(_scoreColor(t.avgScore)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _standingRow(BuildContext c, StudentStanding s, {bool risk = false}) {
+    final muted = AppPalette.textSecondary(c);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: risk
+            ? const Color(0xFFEF4444).withValues(alpha: 0.06)
+            : AppPalette.card(c),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: risk
+              ? const Color(0xFFEF4444).withValues(alpha: 0.30)
+              : AppPalette.border(c),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(s.name,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13, fontWeight: FontWeight.w700,
+                      color: AppPalette.textPrimary(c),
+                    ),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text('${s.submitted}/${s.assigned} ${'ödev teslim'.tr()}',
+                    style: GoogleFonts.poppins(fontSize: 10.5, color: muted)),
+              ],
+            ),
+          ),
+          Text(
+            s.avgScore == null ? '—' : '%${s.avgScore!.toStringAsFixed(0)}',
+            style: GoogleFonts.poppins(
+              fontSize: 15, fontWeight: FontWeight.w900,
+              color: _scoreColor(s.avgScore),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _label(BuildContext c, String t) => Text(t,
+      style: GoogleFonts.poppins(
+        fontSize: 11, fontWeight: FontWeight.w800,
+        color: AppPalette.textSecondary(c), letterSpacing: 0.8,
+      ));
 }

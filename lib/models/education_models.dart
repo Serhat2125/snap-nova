@@ -243,42 +243,128 @@ class HomeworkModel {
 // Firestore yolu:
 //   classes/{classId}/homeworks/{hwId}/submissions/{studentUid}
 // ──────────────────────────────────────────────────────────────────────────
+/// Öğrencinin tek bir ödev sorusuna verdiği cevap (öğretmen değerlendirmesi
+/// için saklanır). Açık uçlu sorularda `isCorrect == null` ise öğretmenin
+/// manuel puanlamasını bekliyor demektir.
+class SubmissionAnswer {
+  final int index;
+  final String type;          // mc | tf | fill | open
+  final String questionText;
+  final String studentAnswer;
+  final bool? isCorrect;       // null = öğretmen değerlendirmesi bekliyor
+
+  const SubmissionAnswer({
+    required this.index,
+    required this.type,
+    required this.questionText,
+    required this.studentAnswer,
+    this.isCorrect,
+  });
+
+  bool get needsReview => isCorrect == null;
+
+  Map<String, dynamic> toJson() => {
+        'index': index,
+        'type': type,
+        'q': questionText,
+        'studentAnswer': studentAnswer,
+        'isCorrect': isCorrect,
+      };
+
+  factory SubmissionAnswer.fromMap(Map<String, dynamic> m) => SubmissionAnswer(
+        index: (m['index'] ?? 0) as int,
+        type: (m['type'] ?? 'mc').toString(),
+        questionText: (m['q'] ?? '').toString(),
+        studentAnswer: (m['studentAnswer'] ?? '').toString(),
+        isCorrect: m['isCorrect'] is bool ? m['isCorrect'] as bool : null,
+      );
+}
+
 class HomeworkSubmissionModel {
   final String studentUid;
   final String studentUsername;
   final String studentDisplayName;
+  final DateTime? startedAt;
   final DateTime? submittedAt;
   final int? correct;
   final int? wrong;
   final double? scorePercent;
   final String status; // 'pending' | 'in_progress' | 'submitted' | 'late'
+  /// Öğrencinin soru-soru cevapları (öğretmen puanlaması için saklanır).
+  final List<SubmissionAnswer> answers;
+  /// Ödevi çözerken ekran önündeyken geçen aktif süre (ms).
+  final int? activeMs;
+  /// Ödev açıkken uygulamadan çıkıp/arka planda geçen pasif süre (ms).
+  final int? passiveMs;
+  /// AI'nin bu teslim için ürettiği kısa performans yorumu (cache).
+  final String? aiComment;
 
   const HomeworkSubmissionModel({
     required this.studentUid,
     required this.studentUsername,
     required this.studentDisplayName,
+    this.startedAt,
     this.submittedAt,
     this.correct,
     this.wrong,
     this.scorePercent,
     this.status = 'pending',
+    this.answers = const [],
+    this.activeMs,
+    this.passiveMs,
+    this.aiComment,
   });
 
   bool get isSubmitted => status == 'submitted' || status == 'late';
   bool get isPending => status == 'pending';
 
+  /// Ekran önünde geçen aktif süre (yoksa null).
+  Duration? get activeTime =>
+      activeMs == null ? null : Duration(milliseconds: activeMs!);
+
+  /// Arka planda/dışarıda geçen pasif süre (yoksa null).
+  Duration? get passiveTime =>
+      passiveMs == null ? null : Duration(milliseconds: passiveMs!);
+
+  /// Açık uçlu cevaplardan en az biri öğretmen puanlaması bekliyor mu?
+  bool get needsReview =>
+      isSubmitted && answers.any((a) => a.needsReview);
+
+  /// Öğretmen puanlaması bekleyen cevaplar.
+  List<SubmissionAnswer> get pendingAnswers =>
+      answers.where((a) => a.needsReview).toList();
+
+  /// Öğrencinin ödevi çözmek için harcadığı süre (başlangıç → teslim).
+  /// startedAt veya submittedAt yoksa null döner ("salladı" tespiti için
+  /// öğretmen panelinde gösterilir).
+  Duration? get solveDuration {
+    if (startedAt == null || submittedAt == null) return null;
+    final d = submittedAt!.difference(startedAt!);
+    return d.isNegative ? null : d;
+  }
+
   Map<String, dynamic> toJson() => {
         'studentUid': studentUid,
         'studentUsername': studentUsername,
         'studentDisplayName': studentDisplayName,
+        if (startedAt != null) 'startedAt': Timestamp.fromDate(startedAt!),
         if (submittedAt != null) 'submittedAt': Timestamp.fromDate(submittedAt!),
         if (correct != null) 'correct': correct,
         if (wrong != null) 'wrong': wrong,
         if (scorePercent != null) 'scorePercent': scorePercent,
         'status': status,
+        if (answers.isNotEmpty)
+          'answers': answers.map((a) => a.toJson()).toList(),
+        if (activeMs != null) 'activeMs': activeMs,
+        if (passiveMs != null) 'passiveMs': passiveMs,
+        if (aiComment != null) 'aiComment': aiComment,
       };
 
   factory HomeworkSubmissionModel.fromMap(Map<String, dynamic> m) {
+    DateTime? started;
+    if (m['startedAt'] is Timestamp) {
+      started = (m['startedAt'] as Timestamp).toDate();
+    }
     DateTime? when;
     if (m['submittedAt'] is Timestamp) {
       when = (m['submittedAt'] as Timestamp).toDate();
@@ -287,11 +373,19 @@ class HomeworkSubmissionModel {
       studentUid: (m['studentUid'] ?? '').toString(),
       studentUsername: (m['studentUsername'] ?? '').toString(),
       studentDisplayName: (m['studentDisplayName'] ?? '').toString(),
+      startedAt: started,
       submittedAt: when,
       correct: (m['correct'] as int?),
       wrong: (m['wrong'] as int?),
       scorePercent: (m['scorePercent'] as num?)?.toDouble(),
       status: (m['status'] ?? 'pending').toString(),
+      answers: ((m['answers'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((e) => SubmissionAnswer.fromMap(Map<String, dynamic>.from(e)))
+          .toList(),
+      activeMs: (m['activeMs'] as num?)?.toInt(),
+      passiveMs: (m['passiveMs'] as num?)?.toInt(),
+      aiComment: (m['aiComment'] as String?),
     );
   }
 }

@@ -20,6 +20,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../services/class_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
 import 'student_homeworks_screen.dart';
@@ -119,6 +120,7 @@ class _NotificationCard extends StatelessWidget {
       case 'homework_assigned':   return Icons.assignment_rounded;
       case 'homework_reminder':   return Icons.alarm_rounded;
       case 'streak_milestone':    return Icons.emoji_events_rounded;
+      case 'class_invite':        return Icons.group_add_rounded;
       default:                    return Icons.notifications_rounded;
     }
   }
@@ -129,6 +131,7 @@ class _NotificationCard extends StatelessWidget {
       case 'homework_assigned':   return const Color(0xFF7C3AED);
       case 'homework_reminder':   return const Color(0xFFEF4444);
       case 'streak_milestone':    return const Color(0xFFFBBF24);
+      case 'class_invite':        return const Color(0xFF7C3AED);
       default:                    return const Color(0xFF06B6D4);
     }
   }
@@ -143,6 +146,8 @@ class _NotificationCard extends StatelessWidget {
         return '${'Ödev hatırlatma'.tr()}: ${data['fromDisplayName'] ?? ''}';
       case 'streak_milestone':
         return 'Ödül kazandın 🎉'.tr();
+      case 'class_invite':
+        return '${'Sınıf daveti'.tr()}: ${data['className'] ?? ''}';
       default:
         return data['fromDisplayName']?.toString() ?? 'Bildirim'.tr();
     }
@@ -159,6 +164,9 @@ class _NotificationCard extends StatelessWidget {
       case 'streak_milestone':
         final days = data['rewardDays'];
         return days != null ? '$days gün Premium ödülün hesabına eklendi.' : '';
+      case 'class_invite':
+        return '${data['fromDisplayName'] ?? 'Öğretmen'} seni '
+            '${data['subject'] ?? ''} dersine davet etti. Katılmak için dokun.';
       default:
         return '';
     }
@@ -177,7 +185,51 @@ class _NotificationCard extends StatelessWidget {
     } else if (type == 'parent_link_request') {
       Navigator.of(context).pop();
       // Profile'a yönlendirme: kullanıcı orada banner'ı görür ve onaylar
+    } else if (type == 'class_invite') {
+      await _handleClassInvite(context, data);
     }
+  }
+
+  /// Öğretmen davetini kabul → öğrenci kendini sınıfa ekler (joinByClassId).
+  Future<void> _handleClassInvite(
+      BuildContext context, Map<String, dynamic> data) async {
+    final classId = (data['classId'] ?? '').toString();
+    final className = (data['className'] ?? '').toString();
+    if (classId.isEmpty) return;
+    final join = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppPalette.card(ctx),
+        title: Text('Sınıfa katıl'.tr()),
+        content: Text(
+            '"$className" ${'sınıfına katılmak istiyor musun?'.tr()}'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Vazgeç'.tr()),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Katıl'.tr()),
+          ),
+        ],
+      ),
+    );
+    if (join != true || !context.mounted) return;
+    final res = await ClassService.joinByClassId(classId);
+    if (!context.mounted) return;
+    String msg;
+    if (res == JoinClassResult.success) {
+      msg = 'Sınıfa katıldın 🎉';
+    } else if (res == JoinClassResult.alreadyJoined) {
+      msg = 'Zaten bu sınıftasın.';
+    } else {
+      msg = 'Katılınamadı. Tekrar dene.';
+    }
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg.tr()),
+      behavior: SnackBarBehavior.floating,
+    ));
   }
 
   @override

@@ -1,5 +1,6 @@
 ﻿// ignore_for_file: unused_element
 
+import '../services/account_service.dart';
 import '../services/error_logger.dart';
 import '../services/runtime_translator.dart';
 import 'delete_account_screen.dart';
@@ -150,6 +151,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     final locale = LocaleInherited.of(context);
     final tr = locale.tr;
+    // Hesap tipine göre öğrenciye özgü bölümleri gizle / öğretmene branş ekle.
+    final isStudent = AccountService.instance.isStudent;
+    final isTeacher = AccountService.instance.isTeacher;
+    final teacherBranch = AccountService.instance.teacherBranch;
 
     return Scaffold(
       backgroundColor: AppPalette.bg(context),
@@ -361,8 +366,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               //  veya 3 davet tamamlanınca sekme kayboluyordu; artık
               //  premium olsa veya 3+ davet bitse bile görünmeye devam eder.
               //  Yaptırımlı ülkelerde hâlâ gizli (ödeme alamıyoruz).
+              //  Öğretmende gizli — öğretmenin arkadaş davet etmesine gerek yok.
               // ═════════════════════════════════════════════════════════════
-              if (!PricingService.isSanctionedCountry(
+              if (!isTeacher && !PricingService.isSanctionedCountry(
                       PricingService.countryFromLang(
                           localeService.localeCode))) ...[
                 _buildSectionTitle('Davet'.tr().toUpperCase()),
@@ -486,7 +492,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               // ═════════════════════════════════════════════════════════════
               //  Ebeveyn Paneli — DAVET ile alakası yok, kendi bölümünde.
               //  PIN/matematik doğrulamasından sonra ParentReportPage açılır.
+              //  Sadece ÖĞRENCİ hesabında — öğretmen/ebeveyn için anlamsız.
               // ═════════════════════════════════════════════════════════════
+              if (isStudent) ...[
               _buildSectionTitle('Aile'.tr().toUpperCase()),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -590,6 +598,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
 
               SizedBox(height: 24),
+              ],
 
               // ═════════════════════════════════════════════════════════════
               //  3. Uygulama Tercihleri
@@ -620,22 +629,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 title: 'Uygulama Ayarları'.tr(),
                 onTap: () => _showAppSettingsBottomSheet(context),
               ),
-              SizedBox(height: 10),
-              _buildOvalMenuItem(
-                emoji: '🏫',
-                title: 'Sınıfa Katıl'.tr(),
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const JoinClassScreen(),
-                )),
-              ),
-              SizedBox(height: 10),
-              _buildOvalMenuItem(
-                emoji: '📋',
-                title: 'Sınıf Ödevlerim'.tr(),
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const StudentHomeworksScreen(),
-                )),
-              ),
+              // Öğretmen: branşı salt-okunur göster.
+              if (isTeacher && teacherBranch != null &&
+                  teacherBranch.trim().isNotEmpty) ...[
+                SizedBox(height: 10),
+                _buildOvalMenuItem(
+                  emoji: '🎓',
+                  title: 'Branşım'.tr(),
+                  trailing: Text(
+                    teacherBranch,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12.5, fontWeight: FontWeight.w700,
+                      color: AppPalette.textSecondary(context),
+                    ),
+                  ),
+                ),
+              ],
+              // Sınıfa Katıl + Sınıf Ödevlerim — sadece ÖĞRENCİ.
+              if (isStudent) ...[
+                SizedBox(height: 10),
+                _buildOvalMenuItem(
+                  emoji: '🏫',
+                  title: 'Sınıfa Katıl'.tr(),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const JoinClassScreen(),
+                  )),
+                ),
+                SizedBox(height: 10),
+                _buildOvalMenuItem(
+                  emoji: '📋',
+                  title: 'Sınıf Ödevlerim'.tr(),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const StudentHomeworksScreen(),
+                  )),
+                ),
+              ],
               SizedBox(height: 10),
               _buildOvalMenuItem(
                 emoji: '🔔',
@@ -938,13 +966,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: ListView(
                   controller: sc,
                   children: [
-                    _faqTile(
-                      'Davet kodum çalışmıyor, ne yapmalıyım?'.tr(),
-                      'Davet kodu QuAls-XXXXXX formatında olmalıdır. '
-                              'Kendi kodunu kullanamazsın ve her cihazda '
-                              'bir kez kullanılabilir.'
-                          .tr(),
-                    ),
+                    // ── Öğretmene özgü SSS ──
+                    if (AccountService.instance.isTeacher) ...[
+                      _faqTile(
+                        'Nasıl sınıf oluştururum?'.tr(),
+                        'Sınıflar sekmesindeki ➕ butonuna bas → "Yeni Sınıf '
+                                'Oluştur". Eğitim seviyesi, okul ve sınıf adını '
+                                'gir; sana 5 haneli bir katılma kodu verilir.'
+                            .tr(),
+                      ),
+                      _faqTile(
+                        'Öğrencilerimi sınıfa nasıl eklerim?'.tr(),
+                        'Sınıf kartındaki katılma kodunu öğrencilerinle '
+                                'paylaş — onlar Profil → "Sınıfa Katıl"dan kodu '
+                                'girer. Ayrıca ➕ → "Öğrenci Davet Et" ile '
+                                'kullanıcı adından arayıp davet gönderebilirsin.'
+                            .tr(),
+                      ),
+                      _faqTile(
+                        'AI ile nasıl ödev oluştururum?'.tr(),
+                        'Bir sınıf aç → Ödevler → AI Ödev Üreticisi. Konu, '
+                                'soru tipi ve adedini seç; yapay zeka soruları '
+                                'üretir, önizleyip düzenleyip sınıfa gönderirsin. '
+                                'Branş otomatik olarak senin branşındır.'
+                            .tr(),
+                      ),
+                      _faqTile(
+                        'Öğrenci performansını nereden görürüm?'.tr(),
+                        'Sınıflar sekmesinde bir sınıfa bas → öğrenci → ödev → '
+                                'teslim detayı (doğru/yanlış/boş, aktif/pasif '
+                                'süre, AI değerlendirmesi). Nasıl göründüğünü '
+                                'denemek için "Demo veri ekle"yi kullanabilirsin.'
+                            .tr(),
+                      ),
+                    ] else ...[
+                      _faqTile(
+                        'Davet kodum çalışmıyor, ne yapmalıyım?'.tr(),
+                        'Davet kodu QuAls-XXXXXX formatında olmalıdır. '
+                                'Kendi kodunu kullanamazsın ve her cihazda '
+                                'bir kez kullanılabilir.'
+                            .tr(),
+                      ),
+                      _faqTile(
+                        'Çocuk hesabımı koruyabilir miyim?'.tr(),
+                        'Aile bölümündeki "Ebeveyn Paneli"ne bas. PIN veya '
+                                'matematik doğrulamasından sonra çocuğunun '
+                                'çalışma raporunu görebilir, sınırlar '
+                                'koyabilirsin.'
+                            .tr(),
+                      ),
+                    ],
+                    // ── Herkese ortak ──
                     _faqTile(
                       'Premium aboneliğimi nasıl iptal ederim?'.tr(),
                       'iOS: Ayarlar → Apple Kimliği → Abonelikler. '
@@ -958,14 +1030,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               'Geri Yükle" düğmesine bas. App Store / Play '
                               'Store hesabınla bağlı satın alımlar geri '
                               'yüklenir.'
-                          .tr(),
-                    ),
-                    _faqTile(
-                      'Çocuk hesabımı koruyabilir miyim?'.tr(),
-                      'Aile bölümündeki "Ebeveyn Paneli"ne bas. PIN veya '
-                              'matematik doğrulamasından sonra çocuğunun '
-                              'çalışma raporunu görebilir, sınırlar '
-                              'koyabilirsin.'
                           .tr(),
                     ),
                     _faqTile(
@@ -2631,6 +2695,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                         SizedBox(height: 24),
+
+                        // ── Öğretmenler İçin (sadece öğretmen hesabında) ──
+                        if (AccountService.instance.isTeacher) ...[
+                          _aboutSectionTitle('👨‍🏫', 'Öğretmenler İçin'.tr()),
+                          SizedBox(height: 12),
+                          _aboutFeatureCard(
+                            icon: Icons.class_rounded,
+                            color: Color(0xFF7C3AED),
+                            title: 'Sınıf Yönetimi'.tr(),
+                            desc:
+                                'Sınıf oluştur, 5 haneli kodla öğrencilerini ekle, hepsini tek yerden yönet.'
+                                    .tr(),
+                          ),
+                          SizedBox(height: 10),
+                          _aboutFeatureCard(
+                            icon: Icons.auto_awesome_rounded,
+                            color: Color(0xFFEC4899),
+                            title: 'AI ile Ödev Üretimi'.tr(),
+                            desc:
+                                'Branşına ve müfredata özel soruları yapay zeka üretir; önizleyip düzenleyip sınıfa gönderirsin.'
+                                    .tr(),
+                          ),
+                          SizedBox(height: 10),
+                          _aboutFeatureCard(
+                            icon: Icons.insights_rounded,
+                            color: Color(0xFF10B981),
+                            title: 'Performans Analizi'.tr(),
+                            desc:
+                                'Öğrenci · ödev · soru bazında doğru/yanlış/boş, aktif-pasif süre ve AI değerlendirmesi.'
+                                    .tr(),
+                          ),
+                          SizedBox(height: 20),
+                        ],
 
                         // ── 1. Yapay Zeka Destekli Çözüm ─────────────────
                         _aboutSectionTitle('📷', 'Kamera ile Soru Çözümü'.tr()),
@@ -6266,26 +6363,30 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
                     const SizedBox(height: 16),
 
                     // ═══ 🎯 Çalışma ─────────────────────────────────
-                    _sectionTitle('🎯', 'Çalışma'.tr(),
-                        const Color(0xFFFF6A00)),
-                    _StartupOptionRow(
-                      emoji: '📷',
-                      title: 'Kamera ekranı'.tr(),
-                      subtitle: 'Soru tarama doğrudan açılır'.tr(),
-                      selected: _startupScreen == 'camera',
-                      color: const Color(0xFFFF6A00),
-                      onTap: () => _setStartupScreen('camera'),
-                    ),
-                    const SizedBox(height: 8),
-                    _StartupOptionRow(
-                      emoji: '📚',
-                      title: 'Kütüphanem ekranı'.tr(),
-                      subtitle: 'Dersler, testler, özetler açılır'.tr(),
-                      selected: _startupScreen == 'library',
-                      color: const Color(0xFF8B5CF6),
-                      onTap: () => _setStartupScreen('library'),
-                    ),
-                    const SizedBox(height: 18),
+                    // Başlangıç ekranı (Kamera/Kütüphanem) öğrenciye özgü —
+                    // öğretmen hep öğretmen paneline açılır, gizlenir.
+                    if (!AccountService.instance.isTeacher) ...[
+                      _sectionTitle('🎯', 'Çalışma'.tr(),
+                          const Color(0xFFFF6A00)),
+                      _StartupOptionRow(
+                        emoji: '📷',
+                        title: 'Kamera ekranı'.tr(),
+                        subtitle: 'Soru tarama doğrudan açılır'.tr(),
+                        selected: _startupScreen == 'camera',
+                        color: const Color(0xFFFF6A00),
+                        onTap: () => _setStartupScreen('camera'),
+                      ),
+                      const SizedBox(height: 8),
+                      _StartupOptionRow(
+                        emoji: '📚',
+                        title: 'Kütüphanem ekranı'.tr(),
+                        subtitle: 'Dersler, testler, özetler açılır'.tr(),
+                        selected: _startupScreen == 'library',
+                        color: const Color(0xFF8B5CF6),
+                        onTap: () => _setStartupScreen('library'),
+                      ),
+                      const SizedBox(height: 18),
+                    ],
 
                     // ═══ 🔇 Sessiz Saatler ──────────────────────────
                     _sectionTitle('🔇', 'Sessiz Saatler'.tr(),

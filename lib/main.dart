@@ -30,7 +30,7 @@ import 'services/pomodoro_stats.dart';
 import 'services/account_service.dart';
 import 'services/app_settings_service.dart';
 import 'screens/parent_dashboard_screen.dart';
-import 'screens/teacher_dashboard_screen.dart';
+import 'screens/teacher_shell_screen.dart';
 import 'services/preferences_sync_service.dart';
 import 'services/user_profile_service.dart';
 import 'screens/app_lock_screen.dart';
@@ -559,7 +559,7 @@ class _HomeRouter extends StatelessWidget {
           return const ParentDashboardScreen();
         }
         if (type == AccountType.teacher) {
-          return const TeacherDashboardScreen();
+          return const TeacherShellScreen();
         }
         // Öğrenci akışı (mevcut)
         if (snap.data == 'library') return const _LibraryEntryShell();

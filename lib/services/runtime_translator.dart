@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'locale_service.dart';
 import 'secrets.dart';
+import 'translations_generated.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  RUNTIME TRANSLATOR — otomatik kaçış vanası
@@ -143,17 +144,28 @@ class RuntimeTranslator extends ChangeNotifier {
     });
   }
 
-  /// Senkron arama — cache'de varsa çeviriyi, yoksa kaynağı döner.
+  /// Senkron arama — önce SharedPreferences cache, sonra KODA GÖMÜLÜ (baked)
+  /// generated çeviri, ikisi de yoksa kaynak Türkçe döner.
   String lookup(String source) {
     final lang = LocaleService.global?.localeCode ?? _sourceLang;
     if (lang == _sourceLang) return source;
-    // Lazy: aktif dil cache'i henüz yüklenmediyse şimdi yükle.
+    // 1) Lazy SharedPreferences cache (runtime'da üretilmiş, varsa).
     _ensureLangLoaded(lang);
-    final byLang = _cache[lang];
-    if (byLang == null) return source;
-    final hit = byLang[source];
+    final hit = _cache[lang]?[source];
     if (hit != null && hit.trim().isNotEmpty) return hit;
+    // 2) Build-time'da generator ile üretilip koda gömülü çeviri (offline,
+    //    API çağrısı yok). `dart run tool/generate_translations.dart` bunu yazar.
+    final baked = generatedTranslations[lang]?[source];
+    if (baked != null && baked.isNotEmpty) return baked;
+    // 3) Çeviri yok → kaynak Türkçe.
     return source;
+  }
+
+  /// Bir kaynak string'in koda gömülü (baked) çevirisi var mı? preloadAll
+  /// gereksiz API çağrısı yapmasın diye kullanılır.
+  bool _hasBaked(String lang, String source) {
+    final b = generatedTranslations[lang]?[source];
+    return b != null && b.isNotEmpty;
   }
 
   /// Hedef dile geç + henüz çevrilmemiş tüm "seen" string'leri batch halinde
@@ -172,10 +184,14 @@ class RuntimeTranslator extends ChangeNotifier {
     _scheduleNotify(delay: const Duration(milliseconds: 100));
     try {
       final byLang = _cache.putIfAbsent(targetLang, () => {});
-      final todo =
-          _seen.where((s) => !byLang.containsKey(s)).toList(growable: false);
+      // Cache'te VEYA koda gömülü (baked) olanları atla — baked olanlar zaten
+      // offline çözülüyor, tekrar API'ye gitmeye gerek yok.
+      final todo = _seen
+          .where((s) =>
+              !byLang.containsKey(s) && !_hasBaked(targetLang, s))
+          .toList(growable: false);
       if (todo.isEmpty) {
-        _log('preload: $targetLang zaten tam (${byLang.length} çeviri)');
+        _log('preload: $targetLang zaten tam (baked + cache)');
         return;
       }
       _log('preload: $targetLang için ${todo.length} string çevriliyor…');

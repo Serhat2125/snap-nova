@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../main.dart' show localeService;
+import '../data/teacher_branches.dart';
 import '../services/account_service.dart';
 import '../services/auth_service.dart';
 import '../services/friend_service.dart';
@@ -4794,6 +4795,11 @@ class _UserSetupPageState extends State<_UserSetupPage> {
   final _codeCtrl = TextEditingController();
   bool _saving = false;
 
+  // Öğretmen seçilince: branş (zorunlu) + eğitim seviyesi.
+  String? _branch;
+  String _teacherLevel = 'Lise';
+  static const _teacherLevels = ['İlkokul', 'Ortaokul', 'Lise', 'Üniversite'];
+
   // Auth sonrası Firebase user'dan türetilen değerler — placeholder için kullanılır
   String? _existingUsername;
   String? _displayName;
@@ -4816,9 +4822,15 @@ class _UserSetupPageState extends State<_UserSetupPage> {
   /// Firestore değeri) ≥3 karakter olmalı.
   bool get _canContinue {
     if (_selectedType == null) return false;
+    if (_selectedType == AccountType.teacher && _branch == null) return false;
     final formLen = _usernameCtrl.text.trim().length;
     if (formLen >= 3) return true;
     return (_existingUsername ?? '').length >= 3;
+  }
+
+  Future<void> _openBranchPicker() async {
+    final sel = await showTeacherBranchPicker(context, selected: _branch);
+    if (sel != null && mounted) setState(() => _branch = sel);
   }
 
   Future<void> _loadProfile() async {
@@ -4913,6 +4925,17 @@ class _UserSetupPageState extends State<_UserSetupPage> {
 
       await AccountService.instance.setType(type);
 
+      // Öğretmen: branş + eğitim seviyesini kaydet (branş AccountService
+      // cache'ine de yazılır → ödev üretiminde sabit branş olarak kullanılır).
+      if (type == AccountType.teacher) {
+        await AccountService.instance
+            .saveTeacherProfile(username: username, branch: _branch ?? '');
+        try {
+          await FirebaseFirestore.instance.collection('users').doc(fb.uid)
+              .set({'teacherLevel': _teacherLevel}, SetOptions(merge: true));
+        } catch (_) {}
+      }
+
       // Kod sadece öğrenci için UI'da var (7 gün premium)
       final code = _codeCtrl.text.trim();
       if (code.isNotEmpty && type == AccountType.student) {
@@ -4950,91 +4973,144 @@ class _UserSetupPageState extends State<_UserSetupPage> {
                 fontSize: 22, fontWeight: FontWeight.w900,
                 color: ink, letterSpacing: -0.3,
               ))),
-          const SizedBox(height: 6),
-          Center(child: Text(
-              'Devam etmeden önce kim olduğunu söyle'.tr(),
-              style: TextStyle(fontSize: 12, color: muted, height: 1.4))),
-          const SizedBox(height: 22),
-
-          // Hesap Tipini Seç
-          Text('Hesap tipini seç'.tr(),
-              style: TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w800, color: ink,
-                letterSpacing: 0.2,
-              )),
-          const SizedBox(height: 10),
-          _stackedTypeCard(
-            type: AccountType.student,
-            title: 'Öğrenci',
-            desc: 'Sorularını çöz, sınıfında yarış, AI Koç ile çalış.',
-            emoji: '🎓',
-            color: const Color(0xFF2563EB),
-          ),
-          const SizedBox(height: 8),
-          _stackedTypeCard(
-            type: AccountType.teacher,
-            title: 'Öğretmen',
-            desc: 'Sınıfını yönet, AI ile ödev üret, ilerlemeyi izle.',
-            emoji: '👨‍🏫',
-            color: const Color(0xFF7C3AED),
-          ),
-          const SizedBox(height: 8),
-          _stackedTypeCard(
-            type: AccountType.parent,
-            title: 'Ebeveyn',
-            desc: 'Çocuğunun çalışma süresini ve başarısını izle.',
-            emoji: '👨‍👩‍👧',
-            color: const Color(0xFF10B981),
-          ),
-          const SizedBox(height: 22),
-
-          // Kullanıcı Adını Oluştur
-          Text('Kullanıcı adını oluştur'.tr(),
-              style: TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w800, color: ink,
-                letterSpacing: 0.2,
-              )),
-          const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-              color: AppPalette.card(context),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppPalette.border(context)),
+          // ── ÖĞRETMEN MODU — başlık altında sadece Öğretmen kartı + branş +
+          //    kullanıcı adı + eğitim seviyesi. Diğer her şey gizlenir.
+          if (_selectedType == AccountType.teacher) ...[
+            const SizedBox(height: 18),
+            _stackedTypeCard(
+              type: AccountType.teacher,
+              title: 'Öğretmen',
+              desc: 'Sınıfını yönet, AI ile ödev üret, ilerlemeyi izle.',
+              emoji: '👨‍🏫',
+              color: const Color(0xFF7C3AED),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: TextField(
-              controller: _usernameCtrl,
-              maxLength: 20,
-              textCapitalization: TextCapitalization.none,
-              autocorrect: false,
-              style: TextStyle(
-                fontSize: 15, fontWeight: FontWeight.w600, color: ink,
-              ),
-              decoration: InputDecoration(
-                hintText: placeholder,
-                hintStyle: TextStyle(
-                  fontSize: 15, fontWeight: FontWeight.w500,
-                  color: muted.withValues(alpha: 0.55),
-                ),
-                counterText: '',
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => setState(() => _selectedType = null),
+                child: Text('Değiştir'.tr(),
+                    style: const TextStyle(
+                      fontSize: 12.5, fontWeight: FontWeight.w700,
+                      color: Color(0xFF7C3AED),
+                    )),
               ),
             ),
-          ),
-          if (_existingUsername != null) Padding(
-            padding: const EdgeInsets.only(top: 4, left: 4),
-            child: Text(
-              'Mevcut: $_existingUsername (boş bırakırsan korunur)',
-              style: TextStyle(fontSize: 10.5, color: muted),
+            const SizedBox(height: 4),
+            Text('Branşını seç'.tr(),
+                style: TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w800, color: ink,
+                  letterSpacing: 0.2,
+                )),
+            const SizedBox(height: 8),
+            _branchButton(ink, muted),
+            const SizedBox(height: 22),
+            _usernameBlock(ink, muted, placeholder),
+            const SizedBox(height: 22),
+            Text('Eğitim seviyesi'.tr(),
+                style: TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w800, color: ink,
+                  letterSpacing: 0.2,
+                )),
+            const SizedBox(height: 8),
+            _levelChips(ink),
+            const SizedBox(height: 22),
+          ] else if (_selectedType == AccountType.student) ...[
+            // ── ÖĞRENCİ MODU — başlık altında sadece Öğrenci kartı +
+            //    kullanıcı adı + davet kodu. Diğer her şey gizlenir.
+            const SizedBox(height: 18),
+            _stackedTypeCard(
+              type: AccountType.student,
+              title: 'Öğrenci',
+              desc: 'Sorularını çöz, sınıfında yarış, AI Koç ile çalış.',
+              emoji: '🎓',
+              color: const Color(0xFF2563EB),
             ),
-          ),
-          const SizedBox(height: 22),
-
-          // ── Davet Kodu kartı — sadece öğrenci seçildiyse, afilli gradient
-          if (_selectedType == AccountType.student) ...[
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => setState(() => _selectedType = null),
+                child: Text('Değiştir'.tr(),
+                    style: const TextStyle(
+                      fontSize: 12.5, fontWeight: FontWeight.w700,
+                      color: Color(0xFF2563EB),
+                    )),
+              ),
+            ),
+            const SizedBox(height: 4),
+            _usernameBlock(ink, muted, placeholder),
+            const SizedBox(height: 22),
+            // Davet kodunu kullan
             _giftCard(),
+            const SizedBox(height: 12),
+            Center(child: Text(
+                'Davet kodun yoksa Devam Et\'e basabilirsin.'.tr(),
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: muted, height: 1.4))),
+            const SizedBox(height: 22),
+          ] else if (_selectedType == AccountType.parent) ...[
+            // ── EBEVEYN MODU — başlık altında sadece Ebeveyn kartı +
+            //    kullanıcı adı. Kod yok.
+            const SizedBox(height: 18),
+            _stackedTypeCard(
+              type: AccountType.parent,
+              title: 'Ebeveyn',
+              desc: 'Çocuğunun çalışma süresini ve başarısını izle.',
+              emoji: '👨‍👩‍👧',
+              color: const Color(0xFF10B981),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => setState(() => _selectedType = null),
+                child: Text('Değiştir'.tr(),
+                    style: const TextStyle(
+                      fontSize: 12.5, fontWeight: FontWeight.w700,
+                      color: Color(0xFF10B981),
+                    )),
+              ),
+            ),
+            const SizedBox(height: 4),
+            _usernameBlock(ink, muted, placeholder),
+            const SizedBox(height: 22),
+          ] else ...[
+            const SizedBox(height: 6),
+            Center(child: Text(
+                'Devam etmeden önce kim olduğunu söyle'.tr(),
+                style: TextStyle(fontSize: 12, color: muted, height: 1.4))),
+            const SizedBox(height: 22),
+
+            // Hesap Tipini Seç
+            Text('Hesap tipini seç'.tr(),
+                style: TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w800, color: ink,
+                  letterSpacing: 0.2,
+                )),
+            const SizedBox(height: 10),
+            _stackedTypeCard(
+              type: AccountType.student,
+              title: 'Öğrenci',
+              desc: 'Sorularını çöz, sınıfında yarış, AI Koç ile çalış.',
+              emoji: '🎓',
+              color: const Color(0xFF2563EB),
+            ),
+            const SizedBox(height: 8),
+            _stackedTypeCard(
+              type: AccountType.teacher,
+              title: 'Öğretmen',
+              desc: 'Sınıfını yönet, AI ile ödev üret, ilerlemeyi izle.',
+              emoji: '👨‍🏫',
+              color: const Color(0xFF7C3AED),
+            ),
+            const SizedBox(height: 8),
+            _stackedTypeCard(
+              type: AccountType.parent,
+              title: 'Ebeveyn',
+              desc: 'Çocuğunun çalışma süresini ve başarısını izle.',
+              emoji: '👨‍👩‍👧',
+              color: const Color(0xFF10B981),
+            ),
+            const SizedBox(height: 22),
+            _usernameBlock(ink, muted, placeholder),
             const SizedBox(height: 22),
           ],
 
@@ -5228,6 +5304,128 @@ class _UserSetupPageState extends State<_UserSetupPage> {
     );
   }
 
+  // Kullanıcı adı etiketi + alanı + (varsa) mevcut ad ipucu.
+  Widget _usernameBlock(Color ink, Color muted, String placeholder) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Kullanıcı adını oluştur'.tr(),
+            style: TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w800, color: ink,
+              letterSpacing: 0.2,
+            )),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: AppPalette.card(context),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppPalette.border(context)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: TextField(
+            controller: _usernameCtrl,
+            maxLength: 20,
+            textCapitalization: TextCapitalization.none,
+            autocorrect: false,
+            style: TextStyle(
+              fontSize: 15, fontWeight: FontWeight.w600, color: ink,
+            ),
+            decoration: InputDecoration(
+              hintText: placeholder,
+              hintStyle: TextStyle(
+                fontSize: 15, fontWeight: FontWeight.w500,
+                color: muted.withValues(alpha: 0.55),
+              ),
+              counterText: '',
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+          ),
+        ),
+        if (_existingUsername != null) Padding(
+          padding: const EdgeInsets.only(top: 4, left: 4),
+          child: Text(
+            'Mevcut: $_existingUsername (boş bırakırsan korunur)',
+            style: TextStyle(fontSize: 10.5, color: muted),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // "Branşını seç" butonu — basınca gruplu branş listesi açılır.
+  Widget _branchButton(Color ink, Color muted) {
+    const purple = Color(0xFF7C3AED);
+    final has = _branch != null;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _openBranchPicker,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+          decoration: BoxDecoration(
+            color: AppPalette.card(context),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: has ? purple : AppPalette.border(context),
+              width: has ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.school_rounded, size: 20,
+                  color: has ? purple : muted),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text((_branch ?? 'Branşını seç').tr(),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: has ? FontWeight.w700 : FontWeight.w600,
+                      color: has ? ink : muted,
+                    )),
+              ),
+              Icon(Icons.expand_more_rounded, color: muted),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Eğitim seviyesi çipleri: İlkokul / Ortaokul / Lise / Üniversite.
+  Widget _levelChips(Color ink) {
+    const purple = Color(0xFF7C3AED);
+    return Wrap(
+      spacing: 8, runSpacing: 8,
+      children: _teacherLevels.map((lvl) {
+        final sel = _teacherLevel == lvl;
+        return GestureDetector(
+          onTap: () => setState(() => _teacherLevel = lvl),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: sel ? purple.withValues(alpha: 0.10)
+                         : AppPalette.card(context),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: sel ? purple : AppPalette.border(context),
+                width: sel ? 1.5 : 1,
+              ),
+            ),
+            child: Text(lvl.tr(),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
+                  color: sel ? purple : ink,
+                )),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
   Widget _stackedTypeCard({
     required AccountType type,
     required String title,
@@ -5240,65 +5438,98 @@ class _UserSetupPageState extends State<_UserSetupPage> {
       color: Colors.transparent,
       child: InkWell(
         onTap: () => setState(() => _selectedType = type),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(20),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: sel ? color.withValues(alpha: 0.10)
                        : AppPalette.card(context),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: sel ? color : AppPalette.border(context),
               width: sel ? 1.8 : 1,
             ),
-          ),
-          child: Row(children: [
-            Container(
-              width: 44, height: 44,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(11),
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: sel ? 0.16 : 0.05),
+                blurRadius: 14, offset: const Offset(0, 5),
               ),
-              alignment: Alignment.center,
-              child: Text(emoji, style: const TextStyle(fontSize: 22)),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            ],
+          ),
+          child: Stack(
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Text(title.tr(),
-                      style: TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w900,
-                        color: sel ? color : AppPalette.textPrimary(context),
-                      )),
-                  const SizedBox(height: 2),
-                  Text(desc.tr(),
-                      style: TextStyle(
-                        fontSize: 12, height: 1.4,
-                        color: AppPalette.textSecondary(context),
-                      )),
+                  // Profil avatarı — kartın ~%30'u, dairesel gradient.
+                  Container(
+                    width: 96, height: 96,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          color.withValues(alpha: 0.28),
+                          color.withValues(alpha: 0.10),
+                        ],
+                      ),
+                      border: Border.all(
+                        color: color.withValues(alpha: 0.30), width: 1.5),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(emoji, style: const TextStyle(fontSize: 46)),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 22, top: 4),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(title.tr(),
+                              style: TextStyle(
+                                fontSize: 21, fontWeight: FontWeight.w900,
+                                color: sel
+                                    ? color
+                                    : AppPalette.textPrimary(context),
+                              )),
+                          const SizedBox(height: 6),
+                          Text(desc.tr(),
+                              style: TextStyle(
+                                fontSize: 14, height: 1.4,
+                                fontWeight: FontWeight.w500,
+                                color: AppPalette.textSecondary(context),
+                              )),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
               ),
-            ),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 160),
-              width: 22, height: 22,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: sel ? color : Colors.transparent,
-                border: Border.all(
-                  color: sel ? color : AppPalette.border(context),
-                  width: 1.8,
+              // Seçim onayı — sağ üst köşe.
+              Positioned(
+                top: 0, right: 0,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  width: 24, height: 24,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: sel ? color : Colors.transparent,
+                    border: Border.all(
+                      color: sel ? color : AppPalette.border(context),
+                      width: 1.8,
+                    ),
+                  ),
+                  child: sel
+                      ? const Icon(Icons.check_rounded,
+                          color: Colors.white, size: 15)
+                      : null,
                 ),
               ),
-              child: sel
-                  ? const Icon(Icons.check_rounded,
-                      color: Colors.white, size: 14)
-                  : null,
-            ),
-          ]),
+            ],
+          ),
         ),
       ),
     );

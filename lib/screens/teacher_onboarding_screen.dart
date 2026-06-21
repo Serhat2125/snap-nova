@@ -9,10 +9,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../services/account_service.dart';
 import '../services/class_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
-import 'teacher_dashboard_screen.dart';
+import 'teacher_shell_screen.dart';
 
 class TeacherOnboardingScreen extends StatefulWidget {
   const TeacherOnboardingScreen({super.key});
@@ -25,18 +26,16 @@ class TeacherOnboardingScreen extends StatefulWidget {
 class _TeacherOnboardingScreenState extends State<TeacherOnboardingScreen> {
   final _name = TextEditingController();
   final _school = TextEditingController();
-  String _subject = 'Matematik';
+  // Ders = öğretmenin hesap kurulumunda seçtiği branş (sabit, sınıf bazında
+  // değişmez — bir öğretmen tek branş verir).
+  late final String _subject =
+      AccountService.instance.teacherBranch ?? 'Genel';
   String _level = 'Lise';
   bool _saving = false;
   String? _error;
 
-  static const _subjects = [
-    'Matematik','Fizik','Kimya','Biyoloji','Geometri',
-    'Tarih','Coğrafya','Edebiyat','Türkçe','İngilizce',
-    'Felsefe','Din Kültürü','Genel',
-  ];
   static const _levels = [
-    'İlkokul','Ortaokul','Lise','Üniversite','Diğer',
+    'İlkokul','Ortaokul','Lise','Üniversite',
   ];
 
   @override
@@ -71,7 +70,7 @@ class _TeacherOnboardingScreenState extends State<TeacherOnboardingScreen> {
     }
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(
-        builder: (_) => const TeacherDashboardScreen(),
+        builder: (_) => const TeacherShellScreen(),
       ),
       (route) => false,
     );
@@ -80,7 +79,7 @@ class _TeacherOnboardingScreenState extends State<TeacherOnboardingScreen> {
   void _skipToDashboard() {
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(
-        builder: (_) => const TeacherDashboardScreen(),
+        builder: (_) => const TeacherShellScreen(),
       ),
       (route) => false,
     );
@@ -116,7 +115,7 @@ class _TeacherOnboardingScreenState extends State<TeacherOnboardingScreen> {
                 child: const Text('👨‍🏫', style: TextStyle(fontSize: 36)),
               ),
               const SizedBox(height: 16),
-              Text('İlk sınıfını oluştur'.tr(),
+              Text('Yeni bir sınıf oluştur'.tr(),
                   textAlign: TextAlign.center,
                   style: GoogleFonts.poppins(
                     fontSize: 22, fontWeight: FontWeight.w900,
@@ -135,15 +134,12 @@ class _TeacherOnboardingScreenState extends State<TeacherOnboardingScreen> {
               ),
               const SizedBox(height: 24),
 
-              _field(_name, 'Sınıf adı (örn: 10-A)'.tr(), Icons.class_rounded),
+              _dropdown('Eğitim seviyesi'.tr(), _level, _levels,
+                  (v) => setState(() => _level = v)),
               const SizedBox(height: 10),
               _field(_school, 'Okul adı'.tr(), Icons.school_rounded),
               const SizedBox(height: 10),
-              _dropdown('Ders'.tr(), _subject, _subjects,
-                  (v) => setState(() => _subject = v)),
-              const SizedBox(height: 10),
-              _dropdown('Eğitim seviyesi'.tr(), _level, _levels,
-                  (v) => setState(() => _level = v)),
+              _field(_name, 'Sınıf adı (örn: 10-A)'.tr(), Icons.class_rounded),
 
               if (_error != null) ...[
                 const SizedBox(height: 12),
@@ -245,7 +241,7 @@ class _TeacherOnboardingScreenState extends State<TeacherOnboardingScreen> {
           ),
           hint: Text(label),
           items: options.map((o) => DropdownMenuItem(
-            value: o, child: Text(o))).toList(),
+            value: o, child: Text(o.tr()))).toList(),
           onChanged: (v) { if (v != null) onChange(v); },
         ),
       ),

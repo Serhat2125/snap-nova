@@ -48,6 +48,10 @@ class TeacherClass {
     this.studentCount = 0,
   });
 
+  /// Gösterim/paylaşım için 5 haneli kod (eski "SINIF-XXXXX" önekini atar).
+  String get shortCode =>
+      code.startsWith('SINIF-') ? code.substring(6) : code;
+
   factory TeacherClass.fromDoc(DocumentSnapshot<Map<String, dynamic>> d, {int students = 0}) {
     final m = d.data() ?? const <String, dynamic>{};
     DateTime when = DateTime.now();
@@ -122,16 +126,30 @@ class JoinedClass {
   }
 }
 
+/// Öğretmenin "öğrenci ara & davet" akışında bir arama sonucu.
+class StudentSearchResult {
+  final String uid;
+  final String username;
+  final String displayName;
+  final String avatar;
+  const StudentSearchResult({
+    required this.uid,
+    required this.username,
+    required this.displayName,
+    required this.avatar,
+  });
+}
+
 class ClassService {
   ClassService._();
   static final _fs = FirebaseFirestore.instance;
   static String? get _myUid => FirebaseAuth.instance.currentUser?.uid;
 
-  // ── Kod üretimi (SINIF-XXXXX) ───────────────────────────────────────
+  // ── Kod üretimi (5 alfanümerik, ambiguous karakter yok) ─────────────
   static const _alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   static String _generateCode() {
     final rng = math.Random.secure();
-    final buf = StringBuffer('SINIF-');
+    final buf = StringBuffer();
     for (int i = 0; i < 5; i++) {
       buf.write(_alphabet[rng.nextInt(_alphabet.length)]);
     }
@@ -248,41 +266,70 @@ class ClassService {
     }
   }
 
-  // ── ÖĞRENCİ: Sınıfa katıl ───────────────────────────────────────────
+  // ── ÖĞRENCİ: Sınıfa katıl (kod ile) ─────────────────────────────────
   static Future<JoinClassResult> joinByCode(String rawCode) async {
     final myUid = _myUid;
     if (myUid == null) return JoinClassResult.notAuthed;
-    final code = rawCode.trim().toUpperCase();
-    if (!RegExp(r'^SINIF-[A-Z0-9]{5}$').hasMatch(code)) {
+    // Girişi normalize et: boşlukları sil, "SINIF-" önekini (varsa) ayır →
+    // 5 haneli çekirdek kodu elde et. Yeni kodlar 5 hanelidir; eski sınıflar
+    // "SINIF-XXXXX" formatında saklanmış olabilir, ikisini de destekliyoruz.
+    final raw = rawCode.trim().toUpperCase().replaceAll(' ', '');
+    final core = raw.startsWith('SINIF-') ? raw.substring(6) : raw;
+    if (!RegExp(r'^[A-Z0-9]{5}$').hasMatch(core)) {
       return JoinClassResult.invalidCode;
     }
     try {
-      final codeDoc = await _fs.collection('class_codes').doc(code).get();
+      // Önce yeni format (5 hane), bulunamazsa eski format (SINIF-XXXXX).
+      var codeDoc = await _fs.collection('class_codes').doc(core).get();
+      if (!codeDoc.exists) {
+        codeDoc = await _fs.collection('class_codes').doc('SINIF-$core').get();
+      }
       if (!codeDoc.exists) return JoinClassResult.classNotFound;
       final classId = codeDoc.data()?['classId'] as String?;
       final teacherUid = codeDoc.data()?['teacherUid'] as String?;
       if (classId == null) return JoinClassResult.error;
-      if (teacherUid == myUid) return JoinClassResult.selfJoin;
+      return _completeJoin(classId, teacherUid);
+    } catch (e) {
+      debugPrint('[ClassService] join fail: $e');
+      return JoinClassResult.error;
+    }
+  }
 
-      // Zaten katılmış mı?
+  // ── ÖĞRENCİ: Daveti kabul et (classId ile doğrudan katıl) ────────────
+  /// Öğretmen davetiyle gelen bildirimde "Katıl" → kod gerekmez.
+  static Future<JoinClassResult> joinByClassId(String classId) async {
+    try {
+      final classDoc = await _fs.collection('classes').doc(classId).get();
+      if (!classDoc.exists) return JoinClassResult.classNotFound;
+      final teacherUid = classDoc.data()?['teacherUid'] as String?;
+      return _completeJoin(classId, teacherUid);
+    } catch (e) {
+      debugPrint('[ClassService] joinByClassId fail: $e');
+      return JoinClassResult.error;
+    }
+  }
+
+  /// Ortak katılım mantığı — öğrenci KENDİNİ sınıfa ekler (rules: isOwner).
+  static Future<JoinClassResult> _completeJoin(
+      String classId, String? teacherUid) async {
+    final myUid = _myUid;
+    if (myUid == null) return JoinClassResult.notAuthed;
+    if (teacherUid == myUid) return JoinClassResult.selfJoin;
+    try {
       final existing = await _fs
           .collection('classes').doc(classId)
           .collection('students').doc(myUid)
           .get();
       if (existing.exists) return JoinClassResult.alreadyJoined;
 
-      // Öğrenci profilini al
       final myProfile = await _fs.collection('users').doc(myUid).get();
       final myData = myProfile.data() ?? const <String, dynamic>{};
-
-      // Sınıf bilgisini al (öğrencinin joined_classes'ına yazmak için)
       final classDoc = await _fs.collection('classes').doc(classId).get();
       final classData = classDoc.data() ?? const <String, dynamic>{};
-
-      // Öğretmen bilgisini al
-      final teacherProfile = await _fs
-          .collection('users').doc(teacherUid).get();
-      final teacherData = teacherProfile.data() ?? const <String, dynamic>{};
+      final teacherProfile = (teacherUid == null || teacherUid.isEmpty)
+          ? null
+          : await _fs.collection('users').doc(teacherUid).get();
+      final teacherData = teacherProfile?.data() ?? const <String, dynamic>{};
 
       final batch = _fs.batch();
       final now = FieldValue.serverTimestamp();
@@ -311,8 +358,79 @@ class ClassService {
       await batch.commit();
       return JoinClassResult.success;
     } catch (e) {
-      debugPrint('[ClassService] join fail: $e');
+      debugPrint('[ClassService] completeJoin fail: $e');
       return JoinClassResult.error;
+    }
+  }
+
+  // ── ÖĞRETMEN: Öğrenci ara (username ön ekiyle) ───────────────────────
+  /// users koleksiyonunda username prefix araması. Kendini ve öğretmenleri
+  /// hariç tutar. Tek alanlı range — composite index gerekmez.
+  static Future<List<StudentSearchResult>> searchStudents(String query) async {
+    final q = query.trim();
+    if (q.isEmpty) return const [];
+    final myUid = _myUid;
+    try {
+      final snap = await _fs
+          .collection('users')
+          .where('username', isGreaterThanOrEqualTo: q)
+          .where('username', isLessThan: q + String.fromCharCode(0xf8ff))
+          .limit(20)
+          .get();
+      return snap.docs
+          .where((d) => d.id != myUid)
+          .map((d) {
+            final m = d.data();
+            return StudentSearchResult(
+              uid: d.id,
+              username: (m['username'] ?? '').toString(),
+              displayName: (m['displayName'] ?? '').toString(),
+              avatar: (m['avatar'] ?? '👤').toString(),
+            );
+          })
+          .where((r) => r.username.isNotEmpty)
+          .toList();
+    } catch (e) {
+      debugPrint('[ClassService] searchStudents fail: $e');
+      return const [];
+    }
+  }
+
+  // ── ÖĞRETMEN: Öğrenciyi sınıfa davet et (bildirimle) ─────────────────
+  /// Öğrenciye 'class_invite' bildirimi yazar. Öğrenci bildirimden onaylar
+  /// (joinByClassId) — students'a KENDİSİ yazar, böylece rules ihlal olmaz.
+  static Future<bool> inviteStudent({
+    required String classId,
+    required String className,
+    required String subject,
+    required String studentUid,
+  }) async {
+    final myUid = _myUid;
+    if (myUid == null) return false;
+    try {
+      // Zaten sınıfta mı?
+      final existing = await _fs.collection('classes').doc(classId)
+          .collection('students').doc(studentUid).get();
+      if (existing.exists) return false;
+
+      final me = await _fs.collection('users').doc(myUid).get();
+      final teacherName = (me.data()?['displayName'] ??
+          me.data()?['username'] ?? 'Öğretmen').toString();
+
+      await _fs.collection('notifications').doc(studentUid)
+          .collection('items').doc().set({
+        'type': 'class_invite',
+        'classId': classId,
+        'className': className,
+        'subject': subject,
+        'fromDisplayName': teacherName,
+        'when': FieldValue.serverTimestamp(),
+        'read': false,
+      });
+      return true;
+    } catch (e) {
+      debugPrint('[ClassService] inviteStudent fail: $e');
+      return false;
     }
   }
 

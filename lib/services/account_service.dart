@@ -56,7 +56,9 @@ class AccountService extends ChangeNotifier {
   static final AccountService instance = AccountService._();
 
   static const _kPrefKey = 'account_type_v1';
+  static const _kBranchKey = 'teacher_branch_v1';
   AccountType _type = AccountType.student;
+  String? _teacherBranch;
   bool _loaded = false;
 
   AccountType get type => _type;
@@ -65,12 +67,16 @@ class AccountService extends ChangeNotifier {
   bool get isTeacher => _type == AccountType.teacher;
   bool get loaded => _loaded;
 
+  /// Öğretmenin branşı (hesap kurulumunda seçilir). null → henüz seçilmemiş.
+  String? get teacherBranch => _teacherBranch;
+
   Future<void> init() async {
     if (_loaded) return;
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString(_kPrefKey);
       _type = AccountTypeX.fromKey(raw);
+      _teacherBranch = prefs.getString(_kBranchKey);
     } catch (_) {}
     _loaded = true;
     notifyListeners();
@@ -88,14 +94,25 @@ class AccountService extends ChangeNotifier {
           .get();
       final cloudType = AccountTypeX.fromKey(
           snap.data()?['accountType'] as String?);
+      final cloudBranch = snap.data()?['teacherBranch'] as String?;
+      bool changed = false;
       if (cloudType != _type) {
         _type = cloudType;
         try {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString(_kPrefKey, _type.key);
         } catch (_) {}
-        notifyListeners();
+        changed = true;
       }
+      if (cloudBranch != null && cloudBranch != _teacherBranch) {
+        _teacherBranch = cloudBranch;
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_kBranchKey, cloudBranch);
+        } catch (_) {}
+        changed = true;
+      }
+      if (changed) notifyListeners();
     } catch (e) {
       debugPrint('[AccountService] firestore sync fail: $e');
     }
@@ -120,6 +137,30 @@ class AccountService extends ChangeNotifier {
       }
     }
     notifyListeners();
+  }
+
+  /// Öğretmen profilini (görünen ad + branş) Firestore users/{uid}'e yazar.
+  /// Hesap tipi ayrıca [setType] ile teacher yapılmalıdır.
+  Future<void> saveTeacherProfile({
+    required String username,
+    required String branch,
+  }) async {
+    _teacherBranch = branch;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kBranchKey, branch);
+    } catch (_) {}
+    notifyListeners();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(uid).set({
+        'teacherUsername': username,
+        'teacherBranch': branch,
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[AccountService] teacher profile save fail: $e');
+    }
   }
 
   Future<void> clear() async {

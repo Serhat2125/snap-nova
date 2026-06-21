@@ -333,9 +333,13 @@ service cloud.firestore {
         && resource.data.teacherUid == request.auth.uid;
 
       // students alt koleksiyonu — öğrenci kendini ekler, öğretmen yönetir
+      //   (öğretmen ayrıca demo öğrenci ekleyebilir → önizleme/test için).
       match /students/{studentUid} {
         allow read: if isSignedIn();
-        allow create: if isOwner(studentUid);
+        allow create: if isOwner(studentUid)
+          || (isSignedIn()
+              && get(/databases/$(database)/documents/classes/$(classId))
+                  .data.teacherUid == request.auth.uid);
         allow delete: if isOwner(studentUid)
           || (isSignedIn()
               && get(/databases/$(database)/documents/classes/$(classId))
@@ -351,6 +355,34 @@ service cloud.firestore {
         allow create, update, delete: if isSignedIn()
           && get(/databases/$(database)/documents/classes/$(classId))
               .data.teacherUid == request.auth.uid;
+      }
+
+      // homeworks alt koleksiyonu — sadece öğretmen oluşturur/yönetir,
+      //   sınıftaki öğrenciler okur (ödevi çözmek için).
+      match /homeworks/{homeworkId} {
+        allow read: if isSignedIn();
+        allow create, update, delete: if isSignedIn()
+          && get(/databases/$(database)/documents/classes/$(classId))
+              .data.teacherUid == request.auth.uid;
+
+        // submissions — her öğrenci KENDİ submission'ını okur/yazar;
+        //   öğretmen (sınıf sahibi) sınıfın tüm submission'larını okur
+        //   (ödev takibi + analitik + drill-down için).
+        match /submissions/{studentUid} {
+          allow read: if isOwner(studentUid)
+            || (isSignedIn()
+                && get(/databases/$(database)/documents/classes/$(classId))
+                    .data.teacherUid == request.auth.uid);
+          // Öğrenci yalnızca kendi submission'ını yazar; öğretmen
+          //   ödev dağıtırken (assignToClass) pending slot açabilir.
+          allow create, update: if isOwner(studentUid)
+            || (isSignedIn()
+                && get(/databases/$(database)/documents/classes/$(classId))
+                    .data.teacherUid == request.auth.uid);
+          allow delete: if isSignedIn()
+            && get(/databases/$(database)/documents/classes/$(classId))
+                .data.teacherUid == request.auth.uid;
+        }
       }
     }
 
