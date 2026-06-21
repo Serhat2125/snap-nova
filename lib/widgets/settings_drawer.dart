@@ -488,7 +488,7 @@ class _ProfileCard extends StatelessWidget {
                 return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Hoş geldin, $displayName 👋',
+                      Text('${'Hoş geldin'.tr()}, $displayName 👋',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -642,7 +642,7 @@ class _PageHeader extends StatelessWidget {
           icon: Icon(Icons.arrow_back_ios_rounded,
               color: Colors.cyanAccent, size: 20),
         ),
-        Text(title,
+        Text(title.tr(),
             style: TextStyle(
                 color: Colors.white,
                 fontSize: 18,
@@ -828,7 +828,7 @@ class _ProfilePageState extends State<_ProfilePage> {
 
   Widget _neonField(String label, String value, IconData icon) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label,
+      Text(label.tr(),
           style: TextStyle(
               color: Colors.white.withValues(alpha: 0.45),
               fontSize: 11,
@@ -867,7 +867,7 @@ class _ProfilePageState extends State<_ProfilePage> {
       child: Row(children: [
         Icon(icon, color: color, size: 20),
         SizedBox(width: 14),
-        Text(label,
+        Text(label.tr(),
             style: TextStyle(
                 color: color, fontSize: 14, fontWeight: FontWeight.w700)),
         Spacer(),
@@ -919,7 +919,7 @@ void _showAccountSettingsSheet(BuildContext context) {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title,
+                    Text(title.tr(),
                         style: const TextStyle(
                             color: Colors.white,
                             fontSize: 14,
@@ -1302,7 +1302,7 @@ class _ThemePageState extends State<_ThemePage> {
                   ),
                   SizedBox(width: 16),
                   Expanded(
-                      child: Text(label,
+                      child: Text(label.tr(),
                           style: TextStyle(
                               color: sel ? color : Colors.white,
                               fontSize: 15,
@@ -1524,7 +1524,7 @@ class _FaqPageState extends State<_FaqPage> {
                             horizontal: 14, vertical: 14),
                         child: Row(children: [
                           Expanded(
-                            child: Text(q,
+                            child: Text(q.tr(),
                                 style: TextStyle(
                                     color: open
                                         ? Colors.cyanAccent
@@ -1543,7 +1543,7 @@ class _FaqPageState extends State<_FaqPage> {
                       if (open)
                         Padding(
                           padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                          child: Text(a,
+                          child: Text(a.tr(),
                               style: TextStyle(
                                   color: Colors.white.withValues(alpha: 0.65),
                                   fontSize: 12.5,
@@ -1658,7 +1658,7 @@ class _AboutPage extends StatelessWidget {
       child: Row(children: [
         Icon(icon, color: color, size: 20),
         SizedBox(width: 12),
-        Text(label,
+        Text(label.tr(),
             style: TextStyle(
                 color: color, fontSize: 13, fontWeight: FontWeight.w600)),
         Spacer(),
@@ -1731,7 +1731,7 @@ class _TermsPage extends StatelessWidget {
   Widget _section(String title, String body) => Padding(
         padding: const EdgeInsets.only(bottom: 20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title,
+          Text(title.tr(),
               style: TextStyle(
                   color: Colors.white,
                   fontSize: 14,

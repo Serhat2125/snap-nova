@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/runtime_translator.dart';
 import '../services/topic_3d_registry.dart';
 import 'topic_3d_viewer_screen.dart';
 
@@ -16,7 +17,7 @@ class Topic3DListScreen extends StatelessWidget {
     final models = Topic3DRegistry.all();
     return Scaffold(
       appBar: AppBar(
-        title: const Text('3D Konu Modelleri'),
+        title: Text('3D Konu Modelleri'.tr()),
         elevation: 0,
       ),
       body: ListView.separated(
@@ -52,14 +53,14 @@ class Topic3DListScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            m.name,
+                            m.name.tr(),
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
                           Text(
-                            '${m.subject} • ${m.parts.length} parça',
+                            '${m.subject.tr()} • ${m.parts.length} ${'parça'.tr()}',
                             style: TextStyle(
                               fontSize: 11.5,
                               color: theme.colorScheme.onSurfaceVariant,
@@ -67,7 +68,7 @@ class Topic3DListScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            m.description,
+                            m.description.tr(),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(

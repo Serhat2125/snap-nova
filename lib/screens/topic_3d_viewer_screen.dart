@@ -5,6 +5,7 @@ import 'package:model_viewer_plus/model_viewer_plus.dart';
 
 import '../models/topic_3d_model.dart';
 import '../services/premium_status.dart';
+import '../services/runtime_translator.dart';
 import '../services/topic_3d_registry.dart';
 import 'ai_coach_chat_screen.dart';
 import 'premium_screen.dart';
@@ -106,17 +107,17 @@ class _Topic3DViewerScreenState extends State<Topic3DViewerScreen> {
     final goPremium = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Premium Özellik'),
-        content: Text('$featureName premium aboneliğe özeldir. '
-            'Şimdi premium aboneliğe geçmek ister misin?'),
+        title: Text('Premium Özellik'.tr()),
+        content: Text('$featureName ${'premium aboneliğe özeldir. '
+            'Şimdi premium aboneliğe geçmek ister misin?'.tr()}'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Vazgeç'),
+            child: Text('Vazgeç'.tr()),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Premium\'a Geç'),
+            child: Text('Premium\'a Geç'.tr()),
           ),
         ],
       ),
@@ -183,7 +184,7 @@ class _Topic3DViewerScreenState extends State<Topic3DViewerScreen> {
     for (var i = 0; i < widget.model.parts.length; i++) {
       final p = widget.model.parts[i];
       // Quiz modunda isimleri gösterme
-      final label = _quizMode ? '?' : p.name;
+      final label = _quizMode ? '?' : p.name.tr();
       buf.writeln(
         '<button class="Hotspot" slot="hotspot-${p.id}" '
         'data-position="${p.hotspotPosition}" '
@@ -228,7 +229,7 @@ class _Topic3DViewerScreenState extends State<Topic3DViewerScreen> {
     final m = widget.model;
     return Scaffold(
       appBar: AppBar(
-        title: Text(m.name),
+        title: Text(m.name.tr()),
         backgroundColor: theme.colorScheme.surface,
         elevation: 0,
         actions: [
@@ -276,7 +277,7 @@ class _Topic3DViewerScreenState extends State<Topic3DViewerScreen> {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-              m.subject,
+              m.subject.tr(),
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
@@ -287,7 +288,7 @@ class _Topic3DViewerScreenState extends State<Topic3DViewerScreen> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              m.description,
+              m.description.tr(),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -314,7 +315,7 @@ class _Topic3DViewerScreenState extends State<Topic3DViewerScreen> {
           final p = m.parts[i];
           final isSelected = _selected?.id == p.id;
           return ChoiceChip(
-            label: Text(p.name),
+            label: Text(p.name.tr()),
             selected: isSelected,
             onSelected: (_) => _selectPart(p),
             avatar: CircleAvatar(backgroundColor: p.color, radius: 6),
@@ -565,7 +566,7 @@ class _Topic3DViewerScreenState extends State<Topic3DViewerScreen> {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        p.name,
+                        p.name.tr(),
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
@@ -575,7 +576,7 @@ class _Topic3DViewerScreenState extends State<Topic3DViewerScreen> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    p.info,
+                    p.info.tr(),
                     style: TextStyle(
                       fontSize: 13,
                       height: 1.4,
