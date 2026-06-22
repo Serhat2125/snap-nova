@@ -15,8 +15,6 @@
             <action android:name="android.speech.RecognitionService" />
         </intent>
     </queries>
-    <!-- Contacts — rehberden arkadaş eşleştirme (opsiyonel, runtime permission) -->
-    <uses-permission android:name="android.permission.READ_CONTACTS" />
     <!-- FCM Push bildirimleri (Android 13+ runtime permission) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Google Play Billing — in_app_purchase için zorunlu izin -->

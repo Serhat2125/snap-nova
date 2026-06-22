@@ -4683,20 +4683,22 @@ class _AuthPageState extends State<_AuthPage> {
             busy: _busy && _activeProvider == 'google',
             onTap: () => _run('google', () => AuthService.signInWithGoogle()),
           ),
-          const SizedBox(height: 10),
-          _AuthBigButton(
-            label: localeService.tr('auth_with_apple'),
-            background: Colors.white,
-            foreground: Colors.black,
-            border: Border.all(color: Colors.black.withValues(alpha: 0.18)),
-            iconBuilder: (_) => Icon(
-              Icons.apple,
-              color: AppPalette.textPrimary(context),
-              size: 24,
-            ),
-            busy: _busy && _activeProvider == 'apple',
-            onTap: () => _run('apple', () => AuthService.signInWithApple()),
-          ),
+          // ── Apple ile giriş — iOS yapılandırması (Service ID, plist,
+          //    capability) tamamlanınca geri açılacak. Şimdilik gizli.
+          // const SizedBox(height: 10),
+          // _AuthBigButton(
+          //   label: localeService.tr('auth_with_apple'),
+          //   background: Colors.white,
+          //   foreground: Colors.black,
+          //   border: Border.all(color: Colors.black.withValues(alpha: 0.18)),
+          //   iconBuilder: (_) => Icon(
+          //     Icons.apple,
+          //     color: AppPalette.textPrimary(context),
+          //     size: 24,
+          //   ),
+          //   busy: _busy && _activeProvider == 'apple',
+          //   onTap: () => _run('apple', () => AuthService.signInWithApple()),
+          // ),
           const SizedBox(height: 10),
           _AuthBigButton(
             label: localeService.tr('auth_with_phone'),

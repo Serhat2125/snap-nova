@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <script>
+    // Firebase varsayilan URL'lerinden ozel domain'e yonlendirme.
+    (function () {
+      var h = window.location.hostname;
+      if (h === 'qualsar2-640f0.web.app' || h === 'qualsar2-640f0.firebaseapp.com') {
+        window.location.replace(
+          'https://qualsar.app' + window.location.pathname + window.location.search + window.location.hash
+        );
+      }
+    })();
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QuAlsar — Hesap Silme</title>
+  <style>
+    body { font-family: -apple-system, system-ui, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 20px; color: #111; line-height: 1.7; }
+    h1 { font-size: 28px; border-bottom: 2px solid #FF6A3C; padding-bottom: 12px; }
+    h2 { font-size: 18px; margin-top: 32px; color: #FF6A3C; }
+    p, li { font-size: 15px; }
+    .meta { color: #666; font-size: 13px; }
+    a { color: #FF6A3C; }
+    ol li { margin-bottom: 8px; }
+    .box { background: #fff7f4; border: 1px solid #ffd9cc; border-radius: 10px; padding: 16px 20px; margin: 20px 0; }
+  </style>
+</head>
+<body>
+  <h1>QuAlsar — Hesap ve Veri Silme</h1>
+  <p class="meta">Son güncelleme: 22 Haziran 2026 · Geliştirici: QuAlsar · Uygulama: QuAlsar (com.qualsar.ai)</p>
+
+  <p>Hesabını ve tüm kişisel verilerini istediğin zaman kalıcı olarak silebilirsin. İki yöntem sunuyoruz:</p>
+
+  <h2>Yöntem 1 — Uygulama içinden (anında)</h2>
+  <ol>
+    <li>QuAlsar uygulamasını aç.</li>
+    <li><b>Profil</b> sekmesine git.</li>
+    <li>En altta <b>"Hesabımı Sil"</b> seçeneğine dokun.</li>
+    <li>Onayla — hesabın ve verilerin kalıcı olarak silinir.</li>
+  </ol>
+
+  <h2>Yöntem 2 — E-posta ile talep (uygulama olmadan)</h2>
+  <div class="box">
+    <p style="margin:0;">Uygulamaya erişimin yoksa, hesabınla kayıtlı e-posta adresinden
+    <a href="mailto:destek@qualsar.app?subject=Hesap%20Silme%20Talebi">destek@qualsar.app</a>
+    adresine <b>"Hesap Silme Talebi"</b> konulu bir e-posta gönder. Talebini
+    <b>30 gün</b> içinde işleme alır ve onaylarız.</p>
+  </div>
+
+  <h2>Silinen veriler</h2>
+  <ul>
+    <li>Hesap bilgilerin (e-posta, ad-soyad, profil)</li>
+    <li>Eğitim profilin ve tercihlerin</li>
+    <li>Çözüm geçmişin, özetlerin ve test sonuçların</li>
+    <li>Sıralama / Bilgi Ligi kayıtların</li>
+    <li>Davet (referral) kayıtların</li>
+    <li>Sınıf/ebeveyn bağlantı verilerin</li>
+  </ul>
+
+  <h2>Saklanan veriler ve süreler</h2>
+  <p>Yasal yükümlülükler gereği, ödeme/fatura kayıtları (varsa) ilgili mevzuatın
+  öngördüğü süre boyunca saklanabilir. Bunun dışındaki tüm kişisel verilerin
+  silme işlemi tamamlandığında kalıcı olarak kaldırılır. Aktif aboneliğin varsa,
+  App Store / Google Play üzerinden ayrıca iptal etmelisin (hesap silme aboneliği
+  otomatik iptal etmez).</p>
+
+  <p class="meta">Sorular için: <a href="mailto:destek@qualsar.app">destek@qualsar.app</a></p>
+</body>
+</html>

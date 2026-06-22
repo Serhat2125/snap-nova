@@ -101,7 +101,6 @@ dependencies:
   flutter_local_notifications: ^17.2.3
   app_links: ^6.3.2
   mobile_scanner: ^5.2.3
-  flutter_contacts: ^1.1.9+2
 
   # WebView — 3D Eğitim Modelleri (HTML + Three.js) çevrimdışı oynatma.
   webview_flutter: ^4.7.0
