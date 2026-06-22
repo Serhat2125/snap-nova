@@ -29,7 +29,6 @@ import 'services/usage_quota.dart';
 import 'services/pomodoro_stats.dart';
 import 'services/account_service.dart';
 import 'services/app_settings_service.dart';
-import 'screens/parent_dashboard_screen.dart';
 import 'screens/teacher_shell_screen.dart';
 import 'services/preferences_sync_service.dart';
 import 'services/user_profile_service.dart';
@@ -549,21 +548,23 @@ class _HomeRouter extends StatelessWidget {
   Widget build(BuildContext context) {
     return FutureBuilder<String>(
       future: SharedPreferences.getInstance()
-          .then((p) => p.getString('startup_screen') ?? 'camera'),
+          .then((p) => p.getString('startup_screen') ?? 'library'),
       builder: (_, snap) {
         if (!snap.hasData) return const QuAlsarSplashScreen();
-        // Hesap tipine göre yönlendir — ebeveyn/öğretmen kendi paneline gider.
+        // Hesap tipine göre yönlendir.
         // AccountService.init() main.dart açılışta çağrıldığı için type hazır.
         final type = AccountService.instance.type;
-        if (type == AccountType.parent) {
-          return const ParentDashboardScreen();
-        }
         if (type == AccountType.teacher) {
           return const TeacherShellScreen();
         }
-        // Öğrenci akışı (mevcut)
-        if (snap.data == 'library') return const _LibraryEntryShell();
-        return CameraScreen();
+        // Ebeveyn de Kütüphanem'e açılır — üstteki büyük "Ebeveyn Paneli"
+        //   banner'ından gözetim ekranına geçer.
+        if (type == AccountType.parent) {
+          return const _LibraryEntryShell();
+        }
+        // Öğrenci: varsayılan Kütüphanem; kullanıcı kamera seçtiyse kamera.
+        if (snap.data == 'camera') return CameraScreen();
+        return const _LibraryEntryShell();
       },
     );
   }

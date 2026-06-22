@@ -33,6 +33,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/education_models.dart';
 import '../services/analytics.dart';
 import '../services/parent_link_service.dart';
+import 'parent_child_homeworks_screen.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
 import 'academic_planner.dart'
@@ -1564,6 +1565,74 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
     );
   }
 
+  // Çocuğun sınıf ödevlerine geçiş kartı — öğretmenin verdiği ödevleri ve
+  // çocuğun sonuçlarını (doğru/yanlış/başarı) gösteren ekranı açar.
+  Widget _homeworkCard(BuildContext context, String childUid) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => ParentChildHomeworksScreen(
+            childUid: childUid,
+            childName: _studentName,
+          ),
+        )),
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF2563EB).withValues(alpha: 0.28),
+                blurRadius: 14, offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48, height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.20),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                alignment: Alignment.center,
+                child: const Text('📚', style: TextStyle(fontSize: 26)),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Çocuğun Ödevleri'.tr(),
+                        style: GoogleFonts.poppins(
+                          fontSize: 16, fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                        )),
+                    const SizedBox(height: 3),
+                    Text('Öğretmen ödevleri + sonuçları (doğru/yanlış/başarı)'
+                        .tr(),
+                        style: GoogleFonts.poppins(
+                          fontSize: 12, fontWeight: FontWeight.w600,
+                          color: Colors.white.withValues(alpha: 0.90),
+                          height: 1.3,
+                        )),
+                  ],
+                ),
+              ),
+              const Icon(Icons.arrow_forward_ios_rounded,
+                  color: Colors.white, size: 18),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   List<Widget> _scrollChildren(BuildContext context) {
     final out = <Widget>[];
     if (_loadError) {
@@ -1597,9 +1666,15 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
         out.add(_demoBadge(context));
         out.add(const SizedBox(height: 10));
       }
+      final childUid = (_childUids[_childSlot] ?? '').trim();
       out.addAll([
         _summaryHeader(context),
         const SizedBox(height: 16),
+        // Çocuğun sınıf ödevleri (öğretmen verdiyse) — bağlı çocuk varsa.
+        if (childUid.isNotEmpty) ...[
+          _homeworkCard(context, childUid),
+          const SizedBox(height: 16),
+        ],
         _sectionTitle(context, 'Çalıştığı Alanlar'.tr()),
         const SizedBox(height: 10),
         _chipsGrid(context),

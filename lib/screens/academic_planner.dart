@@ -1,5 +1,6 @@
 ﻿// ignore_for_file: unused_element, unused_element_parameter
 
+import '../services/account_service.dart';
 import '../services/push_service.dart';
 import '../services/runtime_translator.dart';
 import 'dart:async';
@@ -3243,12 +3244,15 @@ class _LibraryLandingState extends State<LibraryLanding> {
             if (_showColorPicker) _buildLibraryColorPanel(),
             if (_showColorPicker) SizedBox(height: 10),
             // ── En üstte boydan boya: Ebeveyn Paneli / Gelişimim ─────
-            _ParentPanelBanner(
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const MyProgressScreen()),
+            //    Sadece EBEVEYN hesabında görünür; öğrencide gizli.
+            if (AccountService.instance.isParent) ...[
+              _ParentPanelBanner(
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const MyProgressScreen()),
+                ),
               ),
-            ),
-            SizedBox(height: 12),
+              SizedBox(height: 12),
+            ],
             // ── 1. satır: Konu Özeti (sol) | Sınav Soruları (sağ) ────
             Row(
               children: [
@@ -3680,54 +3684,55 @@ class _ParentPanelBanner extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [Color(0xFF10B981), Color(0xFF059669)],
           ),
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(22),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF10B981).withValues(alpha: 0.30),
-              blurRadius: 14,
-              offset: const Offset(0, 5),
+              color: const Color(0xFF10B981).withValues(alpha: 0.32),
+              blurRadius: 18,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
         child: Row(
           children: [
             Container(
-              width: 46, height: 46,
+              width: 80, height: 80,
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.20),
-                borderRadius: BorderRadius.circular(13),
+                borderRadius: BorderRadius.circular(20),
               ),
               alignment: Alignment.center,
-              child: const Text('👨‍👩‍👧', style: TextStyle(fontSize: 24)),
+              child: const Text('👨‍👩‍👧', style: TextStyle(fontSize: 42)),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 18),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Ebeveyn Paneli'.tr(),
                       style: GoogleFonts.poppins(
-                        fontSize: 16, fontWeight: FontWeight.w900,
+                        fontSize: 24, fontWeight: FontWeight.w900,
                         color: Colors.white,
                       )),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 6),
                   Text('Çalışma istatistikleri ve gelişim raporu'.tr(),
                       style: GoogleFonts.poppins(
-                        fontSize: 12, fontWeight: FontWeight.w600,
-                        color: Colors.white.withValues(alpha: 0.88),
+                        fontSize: 15, fontWeight: FontWeight.w600,
+                        color: Colors.white.withValues(alpha: 0.90),
+                        height: 1.35,
                       )),
                 ],
               ),
             ),
             const Icon(Icons.arrow_forward_ios_rounded,
-                color: Colors.white, size: 18),
+                color: Colors.white, size: 26),
           ],
         ),
       ),

@@ -2,6 +2,7 @@
 
 import '../services/account_service.dart';
 import '../services/error_logger.dart';
+import '../services/parent_link_service.dart';
 import '../services/runtime_translator.dart';
 import 'delete_account_screen.dart';
 import 'dart:io';
@@ -46,8 +47,6 @@ import '../services/solutions_storage.dart';
 import '../theme/app_theme.dart';
 import '../main.dart' show themeService, localeService;
 import 'premium_screen.dart';
-import 'academic_planner.dart' show askParentGate;
-import 'my_progress_screen.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 // ── Kullanıcı ID yardımcısı (ilk açılışta üret, kalıcı sakla) ──────────────
@@ -110,6 +109,76 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final s = await PremiumStatus.read();
     if (!mounted) return;
     setState(() => _premium = s);
+  }
+
+  /// Öğrenci: ebeveynini bağlamak için kod üretir ve gösterir. Ebeveyn bu kodu
+  /// kendi uygulamasında (Kütüphanem üstündeki panele basıp) girer; ardından
+  /// öğrenciye gelen onay banner'ından (ParentInviteBanner) onaylanır.
+  Future<void> _showParentLinkCode() async {
+    final code = await ParentLinkService.generateChildLinkCode();
+    if (!mounted) return;
+    if (code == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Kod üretilemedi. Giriş yaptığından emin ol.'.tr()),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppPalette.card(ctx),
+        title: Text('Ebeveyn Bağlanma Kodu'.tr(),
+            style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w800,
+                color: AppPalette.textPrimary(ctx))),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+                'Bu kodu ebeveynine ver. Ebeveynin, kendi uygulamasında '
+                'ebeveyn hesabıyla girip Kütüphanem sayfasının üstündeki '
+                'panele basıp bu kodu yazsın. Sonra sana gelen istekten '
+                'onayla — bağlantı kurulur.'.tr(),
+                style: GoogleFonts.poppins(
+                    fontSize: 12, color: AppPalette.textSecondary(ctx))),
+            const SizedBox(height: 16),
+            GestureDetector(
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: code.code));
+                ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                  content: Text('Kod kopyalandı'.tr()),
+                  behavior: SnackBarBehavior.floating,
+                ));
+              },
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SelectableText(code.code,
+                      style: GoogleFonts.poppins(
+                        fontSize: 28, fontWeight: FontWeight.w900,
+                        letterSpacing: 2, color: const Color(0xFF10B981),
+                      )),
+                  const SizedBox(width: 8),
+                  Icon(Icons.copy_rounded, size: 20,
+                      color: AppPalette.textSecondary(ctx)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text('15 dakika geçerli.'.tr(),
+                style: GoogleFonts.poppins(
+                    fontSize: 11, color: AppPalette.textSecondary(ctx))),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Kapat'.tr()),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadProfile() async {
@@ -499,14 +568,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: GestureDetector(
-                  onTap: () async {
-                    final nav = Navigator.of(context);
-                    final ok = await askParentGate(context);
-                    if (!ok || !mounted) return;
-                    nav.push(MaterialPageRoute(
-                      builder: (_) => const MyProgressScreen(),
-                    ));
-                  },
+                  onTap: _showParentLinkCode,
                   child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
@@ -539,23 +601,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                           ),
                           alignment: Alignment.center,
-                          child: ShaderMask(
-                            blendMode: BlendMode.srcIn,
-                            shaderCallback: (rect) => LinearGradient(
-                              begin: Alignment.centerLeft,
-                              end: Alignment.centerRight,
-                              colors: [
-                                Color(0xFFEF4444),
-                                Color(0xFFFBBF24),
-                                Color(0xFF10B981),
-                                Color(0xFF2563EB),
-                              ],
-                            ).createShader(rect),
-                            child: Icon(
-                              Icons.family_restroom_rounded,
-                              size: 28,
-                              color: Colors.white,
-                            ),
+                          child: Icon(
+                            Icons.link_rounded,
+                            size: 28,
+                            color: Color(0xFF1E3A8A),
                           ),
                         ),
                         SizedBox(width: 14),
@@ -564,7 +613,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Ebeveyn Paneli'.tr(),
+                                'Ebeveyni Bağla'.tr(),
                                 style: GoogleFonts.poppins(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w800,
@@ -574,7 +623,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                               SizedBox(height: 4),
                               Text(
-                                'Çocuğunun çalışma raporunu gör'.tr(),
+                                'Kod üret, ebeveynine ver — gelişimini takip etsin'.tr(),
                                 style: GoogleFonts.poppins(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
@@ -6139,7 +6188,7 @@ class _AppSettingsSheet extends StatefulWidget {
 }
 
 class _AppSettingsSheetState extends State<_AppSettingsSheet> {
-  String _startupScreen = 'camera';
+  String _startupScreen = 'library';
   bool _loaded = false;
 
   @override
@@ -6152,7 +6201,7 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     setState(() {
-      _startupScreen = prefs.getString('startup_screen') ?? 'camera';
+      _startupScreen = prefs.getString('startup_screen') ?? 'library';
       _loaded = true;
     });
   }
@@ -6365,7 +6414,7 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
                     // ═══ 🎯 Çalışma ─────────────────────────────────
                     // Başlangıç ekranı (Kamera/Kütüphanem) öğrenciye özgü —
                     // öğretmen hep öğretmen paneline açılır, gizlenir.
-                    if (!AccountService.instance.isTeacher) ...[
+                    if (AccountService.instance.isStudent) ...[
                       _sectionTitle('🎯', 'Çalışma'.tr(),
                           const Color(0xFFFF6A00)),
                       _StartupOptionRow(

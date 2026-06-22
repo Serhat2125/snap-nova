@@ -457,6 +457,25 @@ class ClassService {
         });
   }
 
+  /// Belirli bir kullanıcının (örn. bağlı çocuk) katıldığı sınıflar — ebeveyn
+  /// panelinde çocuğun ödevlerini görmek için tek seferlik okuma.
+  static Future<List<JoinedClass>> joinedClassesFor(String uid) async {
+    if (uid.trim().isEmpty) return const <JoinedClass>[];
+    try {
+      final snap = await _fs
+          .collection('users').doc(uid)
+          .collection('joined_classes').get();
+      final list = snap.docs
+          .map((d) => JoinedClass.fromMap(d.id, d.data()))
+          .toList();
+      list.sort((a, b) => b.joinedAt.compareTo(a.joinedAt));
+      return list;
+    } catch (e) {
+      debugPrint('[ClassService] joinedClassesFor fail: $e');
+      return const <JoinedClass>[];
+    }
+  }
+
   /// Öğrenci sınıftan ayrıl.
   static Future<bool> leaveClass(String classId) async {
     final myUid = _myUid;

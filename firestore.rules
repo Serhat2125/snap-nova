@@ -366,10 +366,11 @@ service cloud.firestore {
               .data.teacherUid == request.auth.uid;
 
         // submissions — her öğrenci KENDİ submission'ını okur/yazar;
-        //   öğretmen (sınıf sahibi) sınıfın tüm submission'larını okur
-        //   (ödev takibi + analitik + drill-down için).
+        //   öğretmen (sınıf sahibi) sınıfın tüm submission'larını okur;
+        //   bağlı EBEVEYN de çocuğunun teslimlerini okur (ödev takibi için).
         match /submissions/{studentUid} {
           allow read: if isOwner(studentUid)
+            || isLinkedParent(studentUid)
             || (isSignedIn()
                 && get(/databases/$(database)/documents/classes/$(classId))
                     .data.teacherUid == request.auth.uid);
