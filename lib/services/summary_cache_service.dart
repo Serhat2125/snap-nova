@@ -43,6 +43,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
+import 'app_settings_service.dart';
 import 'education_profile.dart';
 import 'error_logger.dart';
 
@@ -201,6 +202,9 @@ class SummaryCacheService {
     required String body,
     String model = 'gemini-2.5-flash',
   }) async {
+    // "Topluluk verisi" kapalıysa kullanıcının ürettiği özet topluluk havuzuna
+    // KATKI olarak yazılmaz (opt-out). Okuma/cache kullanımı etkilenmez.
+    if (!AppSettingsService.instance.communityData) return null;
     try {
       final key = makeCacheKey(
           profile: profile, subject: subject, topic: topic);

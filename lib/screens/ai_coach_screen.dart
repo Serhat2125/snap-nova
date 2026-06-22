@@ -20,6 +20,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../main.dart' show localeService;
 import '../services/ai_quota_service.dart';
+import '../services/app_settings_service.dart';
 import '../services/coach_data_service.dart';
 import '../services/gemini_service.dart';
 import '../services/pomodoro_stats.dart';
@@ -84,24 +85,29 @@ class _AICoachScreenState extends State<AICoachScreen> {
       _stats = results[0] as PomodoroStatsSnapshot;
       _coach = results[1] as CoachSnapshot;
 
-      // 2) AI önerisi (Gemini, ~25sn timeout — fail olursa fallback)
-      final aiPlan = await GeminiService.generateCoachPlan(
-        weakTopics: _coach.weakTopics
-            .take(8)
-            .map((w) => w.toCompactMap())
-            .toList(),
-        streakDays: _stats.streakDays,
-        todayFocusMin: _stats.todayPhases * 25,
-        lang: localeService.localeCode,
-        userName: UserProfileService.instance.username.isNotEmpty
-            ? UserProfileService.instance.username
-            : null,
-      );
-
-      if (aiPlan.isNotEmpty) {
-        _applyAiPlan(aiPlan);
-      } else {
+      // "AI Koç önerileri" kapalıysa kişisel çalışma verin (zayıf konular,
+      // streak vb.) AI'a GÖNDERİLMEZ → kişiselleştirilmemiş fallback gösterilir.
+      if (!AppSettingsService.instance.aiCoachData) {
         _applyFallback();
+      } else {
+        // 2) AI önerisi (Gemini, ~25sn timeout — fail olursa fallback)
+        final aiPlan = await GeminiService.generateCoachPlan(
+          weakTopics: _coach.weakTopics
+              .take(8)
+              .map((w) => w.toCompactMap())
+              .toList(),
+          streakDays: _stats.streakDays,
+          todayFocusMin: _stats.todayPhases * 25,
+          lang: localeService.localeCode,
+          userName: UserProfileService.instance.username.isNotEmpty
+              ? UserProfileService.instance.username
+              : null,
+        );
+        if (aiPlan.isNotEmpty) {
+          _applyAiPlan(aiPlan);
+        } else {
+          _applyFallback();
+        }
       }
     } catch (_) {
       _applyFallback();

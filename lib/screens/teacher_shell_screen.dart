@@ -505,9 +505,9 @@ class _TeacherAnalyticsTab extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
           child: Row(
             children: [
-              const Text('🏫', style: TextStyle(fontSize: 22)),
+              const Text('📊', style: TextStyle(fontSize: 22)),
               const SizedBox(width: 10),
-              Text('Sınıflar'.tr(),
+              Text('Analitik'.tr(),
                   style: GoogleFonts.poppins(
                     fontSize: 18, fontWeight: FontWeight.w900, color: ink,
                   )),

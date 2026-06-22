@@ -28,12 +28,15 @@ class TeacherStudentReportScreen extends StatefulWidget {
   final String studentUid;
   final String studentName;
   final String studentAvatar;
+  // Ebeveyn görünümü: salt-okuma (AI yorumu üretimi/yazımı devre dışı).
+  final bool readOnly;
   const TeacherStudentReportScreen({
     super.key,
     required this.classId,
     required this.studentUid,
     required this.studentName,
     this.studentAvatar = '👤',
+    this.readOnly = false,
   });
 
   @override
@@ -255,6 +258,7 @@ class _TeacherStudentReportScreenState
                     homework: hw,
                     submission: sub,
                     studentName: widget.studentName,
+                    readOnly: widget.readOnly,
                   ),
                 ))
             : null,

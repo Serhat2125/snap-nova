@@ -25,12 +25,16 @@ class TeacherSubmissionDetailScreen extends StatefulWidget {
   final HomeworkModel homework;
   final HomeworkSubmissionModel submission;
   final String studentName;
+  // Ebeveyn görünümü: salt-okuma. AI yorumu üretilmez/yazılmaz (yazma izni
+  // yok); yalnız cache'lenmiş yorum gösterilir.
+  final bool readOnly;
   const TeacherSubmissionDetailScreen({
     super.key,
     required this.classId,
     required this.homework,
     required this.submission,
     required this.studentName,
+    this.readOnly = false,
   });
 
   @override
@@ -54,7 +58,9 @@ class _TeacherSubmissionDetailScreenState
   void initState() {
     super.initState();
     _comment = widget.submission.aiComment;
-    if (widget.submission.isSubmitted &&
+    // Ebeveyn (readOnly) yorumu üretemez/yazamaz → yalnız cache varsa gösterir.
+    if (!widget.readOnly &&
+        widget.submission.isSubmitted &&
         (_comment == null || _comment!.trim().isEmpty)) {
       _loadComment();
     }
@@ -77,6 +83,7 @@ class _TeacherSubmissionDetailScreenState
       active: widget.submission.activeTime,
       passive: widget.submission.passiveTime,
       cached: widget.submission.aiComment,
+      allowGenerate: !widget.readOnly,
     );
     if (!mounted) return;
     setState(() {
@@ -226,6 +233,13 @@ class _TeacherSubmissionDetailScreenState
                   fontSize: 13.5, height: 1.5,
                   fontWeight: FontWeight.w500,
                   color: AppPalette.textPrimary(context),
+                ))
+          else if (widget.readOnly)
+            // Ebeveyn: yorum yoksa üretim denenmez — bilgilendir, buton yok.
+            Text('Performans yorumu henüz hazırlanmadı.'.tr(),
+                style: GoogleFonts.poppins(
+                  fontSize: 12.5,
+                  color: AppPalette.textSecondary(context),
                 ))
           else
             Row(

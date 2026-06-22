@@ -89,7 +89,11 @@ class _TeacherGradeSubmissionScreenState
       if (v != null) concrete[k] = v;
     });
     if (concrete.isEmpty) {
-      Navigator.of(context).pop(false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Henüz hiçbir cevap işaretlenmedi. '
+            'Doğru/yanlış seçip tekrar kaydet.'.tr()),
+        behavior: SnackBarBehavior.floating,
+      ));
       return;
     }
     setState(() => _saving = true);

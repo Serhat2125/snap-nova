@@ -444,7 +444,9 @@ class _SolutionScreenState extends State<SolutionScreen> {
       }
       return;
     }
-    await UsageQuota.increment(QuotaKind.solution);
+    // NOT: Kota burada DÜŞÜLMEZ — yalnızca AI başarılı sonuç döndürünce
+    // (aşağıda) düşülür. Aksi halde ağ/timeout/boş hata ve "Tekrar Dene"
+    // her seferinde kullanıcının hakkından bir daha yerdi.
     Analytics.logEvent('solution_started', params: {
       'model': model.name,
       'option': _selectedOption ?? 'unknown',
@@ -524,6 +526,9 @@ class _SolutionScreenState extends State<SolutionScreen> {
     }
 
     if (result != null) {
+      // Başarılı çözüm → kotayı şimdi düş (deneme değil, sonuç sayılır).
+      await UsageQuota.increment(QuotaKind.solution);
+      if (!mounted) return;
       await Navigator.push(
         context,
         PageRouteBuilder(

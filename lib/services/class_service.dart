@@ -253,13 +253,32 @@ class ClassService {
         });
   }
 
-  /// Sınıf sil.
+  /// Sınıf sil. Alt koleksiyonları (students, content, homeworks + her ödevin
+  /// submissions'ı) da temizler — Firestore döküman silince alt koleksiyonu
+  /// otomatik silmediği için aksi halde yetim veri kalırdı.
+  ///
+  /// Not: Öğrencilerin `users/{uid}/joined_classes/{classId}` kaydını öğretmen
+  /// (kurallar gereği) silemez; o kayıt öğrenci tarafında, sınıf bulunamayınca
+  /// otomatik temizlenir (bkz. [myJoinedClassesStream] self-heal).
   static Future<bool> deleteClass(String classId, String code) async {
     final myUid = _myUid;
     if (myUid == null) return false;
     try {
+      final classRef = _fs.collection('classes').doc(classId);
+
+      // 1) Alt koleksiyonlar (sınıf dökümanı SİLİNMEDEN önce — silme kuralları
+      //    teacherUid için class dökümanını okuduğundan hâlâ var olmalı).
+      await _deleteAllDocs(classRef.collection('students'));
+      await _deleteAllDocs(classRef.collection('content'));
+      final hwSnap = await classRef.collection('homeworks').get();
+      for (final hw in hwSnap.docs) {
+        await _deleteAllDocs(hw.reference.collection('submissions'));
+        await hw.reference.delete();
+      }
+
+      // 2) Sınıf dökümanı + kod reverse-index.
       final batch = _fs.batch();
-      batch.delete(_fs.collection('classes').doc(classId));
+      batch.delete(classRef);
       batch.delete(_fs.collection('class_codes').doc(code));
       await batch.commit();
       return true;
@@ -267,6 +286,25 @@ class ClassService {
       debugPrint('[ClassService] deleteClass fail: $e');
       return false;
     }
+  }
+
+  /// Bir koleksiyondaki tüm dökümanları 400'lük partiler halinde siler
+  /// (Firestore batch limiti 500).
+  static Future<void> _deleteAllDocs(
+      CollectionReference<Map<String, dynamic>> col) async {
+    final snap = await col.get();
+    if (snap.docs.isEmpty) return;
+    var batch = _fs.batch();
+    var n = 0;
+    for (final d in snap.docs) {
+      batch.delete(d.reference);
+      if (++n == 400) {
+        await batch.commit();
+        batch = _fs.batch();
+        n = 0;
+      }
+    }
+    if (n > 0) await batch.commit();
   }
 
   // ── ÖĞRENCİ: Sınıfa katıl (kod ile) ─────────────────────────────────
@@ -448,13 +486,42 @@ class ClassService {
         .doc(myUid)
         .collection('joined_classes')
         .snapshots()
-        .map((snap) {
-          final list = snap.docs
+        .asyncMap((snap) async {
+          final raw = snap.docs
               .map((d) => JoinedClass.fromMap(d.id, d.data()))
               .toList();
+          // Sınıfı silinmiş kayıtları ayıkla + kendi stale kaydını temizle.
+          final list = await _filterAliveClasses(myUid, raw, heal: true);
           list.sort((a, b) => b.joinedAt.compareTo(a.joinedAt));
           return list;
         });
+  }
+
+  /// joined_classes listesinden, `classes/{classId}` dökümanı artık VAR OLMAYAN
+  /// (öğretmenin sildiği) kayıtları çıkarır. [heal] true ise — yalnız kendi
+  /// kayıtlarımız için geçerli — stale kaydı sessizce siler (öğrenci kendi
+  /// joined_classes'ının sahibi olduğu için bu silme kurallarca serbesttir).
+  static Future<List<JoinedClass>> _filterAliveClasses(
+      String uid, List<JoinedClass> items, {bool heal = false}) async {
+    if (items.isEmpty) return items;
+    final alive = <JoinedClass>[];
+    for (final c in items) {
+      try {
+        final doc = await _fs.collection('classes').doc(c.classId).get();
+        if (doc.exists) {
+          alive.add(c);
+        } else if (heal) {
+          _fs
+              .collection('users').doc(uid)
+              .collection('joined_classes').doc(c.classId)
+              .delete()
+              .catchError((_) {});
+        }
+      } catch (_) {
+        alive.add(c); // okuma hatasında kaydı KORU (yanlışlıkla gizleme yok)
+      }
+    }
+    return alive;
   }
 
   /// Belirli bir kullanıcının (örn. bağlı çocuk) katıldığı sınıflar — ebeveyn
@@ -465,9 +532,11 @@ class ClassService {
       final snap = await _fs
           .collection('users').doc(uid)
           .collection('joined_classes').get();
-      final list = snap.docs
+      final raw = snap.docs
           .map((d) => JoinedClass.fromMap(d.id, d.data()))
           .toList();
+      // Silinmiş sınıfları gizle (heal yok — ebeveyn çocuğun kaydının sahibi değil).
+      final list = await _filterAliveClasses(uid, raw, heal: false);
       list.sort((a, b) => b.joinedAt.compareTo(a.joinedAt));
       return list;
     } catch (e) {

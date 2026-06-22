@@ -4917,6 +4917,7 @@ class DueloLobbyScreen extends StatefulWidget {
 class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
   Timer? _matchTimer;
   bool _matching = false;
+  bool _matchingCancelled = false; // kullanıcı eşleşmeyi iptal etti
   String _scope = 'world'; // world | country
   String? _selectedSubject;
   String? _selectedTopic;
@@ -5262,6 +5263,17 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
     final profile = EduProfile.current;
     final userId = await _currentUserId();
     if (userId == null || profile == null) return null;
+    // Gerçek ELO'yu profilden oku → kuyrukta rakiplere doğru ELO görünsün
+    // ve sonuç ekranı doğru delta hesaplasın.
+    int myElo = 1000;
+    try {
+      final uid = fb_auth.FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        final snap =
+            await FirebaseFirestore.instance.collection('users').doc(uid).get();
+        myElo = (snap.data()?['dueloElo'] as num?)?.toInt() ?? 1000;
+      }
+    } catch (_) {/* varsayılan 1000 */}
     final criteria = DueloMatchCriteria(
       userId: userId,
       username: _currentUsername,
@@ -5273,7 +5285,7 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
       scope: _scope,
       subjectKey: subjectKey,
       topic: topic,
-      elo: 1000,
+      elo: myElo,
     );
     return DueloMatchmakingService.findMatch(
       criteria,
@@ -5396,7 +5408,10 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
       'scope': _scope,
     });
 
-    setState(() => _matching = true);
+    setState(() {
+      _matching = true;
+      _matchingCancelled = false;
+    });
 
     final subjectKey = _selectedSubject!;
     final topic = _selectedTopic;
@@ -5650,6 +5665,16 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
       debugPrint('[Duelo] Mock rakip (gerçek bulunamadı): @$oppName');
     }
 
+    // Kullanıcı beklerken iptal ettiyse oyunu başlatma (kuyruk zaten temizlendi).
+    if (_matchingCancelled) {
+      if (mounted) setState(() => _matching = false);
+      return;
+    }
+    // Gerçek eşleşme varsa kendi duelo userId'mizi al → session senkronu için.
+    final String? myDueloId =
+        match != null ? await _currentUserId() : null;
+    if (!mounted) return;
+
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (_) => _DueloQuizScreen(
@@ -5663,6 +5688,11 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
           subjectName: subjectObj.name,
           topicName: topic,
           scope: _scope,
+          // GERÇEK mod parametreleri (match yoksa hepsi null → bot moduna düşer).
+          sessionId: match?.sessionId,
+          myUserId: myDueloId,
+          opponentUserId: match?.opponentUserId,
+          isOwner: match?.isOwner ?? false,
         ),
       ),
     );
@@ -7326,12 +7356,47 @@ KURALLAR:
         : QuAlsarLoaderVariant.verbal;
     return Scaffold(
       backgroundColor: AppPalette.card(context),
-      body: QuAlsarNumericLoader(
-        primaryText: label.tr(),
-        staticLabel: true,
-        variant: variant,
+      body: Stack(
+        children: [
+          QuAlsarNumericLoader(
+            primaryText: label.tr(),
+            staticLabel: true,
+            variant: variant,
+          ),
+          // İptal butonu — kullanıcı 12 sn beklemeye mahkûm kalmasın; kuyruk
+          // doc'u da temizlenir (artık kayıt bırakmaz).
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 40,
+            child: Center(
+              child: TextButton.icon(
+                onPressed: _cancelMatching,
+                icon: const Icon(Icons.close_rounded, size: 18),
+                label: Text('İptal'.tr()),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppPalette.textSecondary(context),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  /// Eşleşmeyi iptal et — kuyruk doc'unu temizle + lobiye dön.
+  Future<void> _cancelMatching() async {
+    if (mounted) {
+      setState(() {
+        _matchingCancelled = true;
+        _matching = false;
+      });
+    }
+    try {
+      final uid = await _currentUserId();
+      if (uid != null) await DueloMatchmakingService.cancelQueue(uid);
+    } catch (_) {/* best-effort */}
   }
 
   // Matematik, geometri, fizik, kimya, biyoloji gibi dersler sayısal.
@@ -7665,6 +7730,15 @@ class _DueloQuizScreen extends StatefulWidget {
   final String? subjectName;
   final String? topicName;
   final String scope; // 'world' | 'country'
+  // ── Gerçek senkron düello (null ise bot/simülasyon moduna düşer) ──────
+  // sessionId+myUserId+opponentUserId hepsi doluysa GERÇEK mod:
+  //   • owner soruları session'a yazar, rakip aynı soruları okur,
+  //   • ilerleme updateProgress/sessionStream ile canlı senkronlanır,
+  //   • kazanan gerçek rakip skorundan belirlenir.
+  final String? sessionId;
+  final String? myUserId;
+  final String? opponentUserId;
+  final bool isOwner;
   const _DueloQuizScreen({
     required this.cfg,
     required this.questions,
@@ -7676,6 +7750,10 @@ class _DueloQuizScreen extends StatefulWidget {
     this.subjectName,
     this.topicName,
     this.scope = 'world',
+    this.sessionId,
+    this.myUserId,
+    this.opponentUserId,
+    this.isOwner = false,
   });
 
   @override
@@ -7683,15 +7761,16 @@ class _DueloQuizScreen extends StatefulWidget {
 }
 
 class _DueloQuizScreenState extends State<_DueloQuizScreen> {
-  int _opponentProgress = 0; // rakibin çözdüğü soru sayısı (sahte)
+  int _opponentProgress = 0; // rakibin çözdüğü soru sayısı
+  int _opponentSolved = 0; // rakibin cevapladığı soru sayısı (wrong/empty için)
   Timer? _opponentTimer;
   int _mySolved = 0; // benim cevapladığım soru sayısı
 
   // Bitiş durumları — iki taraf bitene kadar sonuç ekranı gösterilmez.
   bool _iFinished = false;
   bool _opponentFinished = false;
-  int _opponentElapsed = 0; // opponent'ın toplam çözme süresi (sim)
-  int _opponentCorrect = 0; // opponent'ın doğru sayısı (sim)
+  int _opponentElapsed = 0; // opponent'ın toplam çözme süresi
+  int _opponentCorrect = 0; // opponent'ın doğru sayısı
   // Benim tarafımın snapshot'ı (answers/hints/combo ileri kullanım için)
   int _myElapsed = 0;
   int _myCorrect = 0;
@@ -7701,10 +7780,105 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
   // Bekleme ekranı göstermek için.
   bool _waitingForOpponent = false;
 
+  // ── Gerçek senkron düello state'i ────────────────────────────────────
+  // _questions: fiilen oynanan liste. Owner/bot → widget.questions; GUEST →
+  // owner'ın session'a yazdığı sorular (aynı set garantisi).
+  late List<_QuizQuestion> _questions;
+  bool _questionsReady = true; // guest, owner sorularını yükleyene kadar false
+  StreamSubscription? _sessionSub;
+  final Stopwatch _watch = Stopwatch();
+  bool get _isReal =>
+      widget.sessionId != null &&
+      (widget.myUserId ?? '').isNotEmpty &&
+      (widget.opponentUserId ?? '').isNotEmpty;
+
   @override
   void initState() {
     super.initState();
-    _scheduleOpponent();
+    _questions = widget.questions;
+    if (_isReal) {
+      _watch.start();
+      _startRealDuel();
+    } else {
+      _scheduleOpponent(); // gerçek rakip yok → bot simülasyonu (fallback)
+    }
+  }
+
+  // ── GERÇEK MOD: owner soruları yazar, guest okur; rakip ilerlemesi canlı ──
+  void _startRealDuel() {
+    if (widget.isOwner) {
+      // Soruları session'a yaz → rakip AYNI soruları görür.
+      DueloMatchmakingService.writeQuestions(
+        sessionId: widget.sessionId!,
+        questionsJson: widget.questions.map(_quizQuestionToJson).toList(),
+      );
+    } else {
+      // Guest: owner'ın yazacağı soruları bekle (aşağıda _onSession yükler).
+      _questionsReady = false;
+    }
+    _sessionSub =
+        DueloMatchmakingService.sessionStream(widget.sessionId!).listen(
+      _onSession,
+      onError: (_) {/* stream hatası → mevcut state korunur */},
+    );
+  }
+
+  void _onSession(DocumentSnapshot<Map<String, dynamic>> snap) {
+    final data = snap.data();
+    if (data == null || !mounted) return;
+
+    // 1) Guest: sorular geldiyse yükle ve oyunu başlat.
+    if (!_questionsReady) {
+      final qj = (data['questions'] as List?) ?? const [];
+      if (qj.isNotEmpty) {
+        final loaded = qj
+            .whereType<Map>()
+            .map((e) => _quizQuestionFromJson(Map<String, dynamic>.from(e)))
+            .toList();
+        if (loaded.isNotEmpty) {
+          setState(() {
+            _questions = loaded;
+            _questionsReady = true;
+          });
+        }
+      }
+    }
+
+    // 2) Rakibin canlı ilerlemesi.
+    final prog = (data['progress'] as Map?) ?? const {};
+    final opp = (prog[widget.opponentUserId] as Map?) ?? const {};
+    final oppSolved = (opp['solved'] as num?)?.toInt() ?? 0;
+    final oppCorrect = (opp['correct'] as num?)?.toInt() ?? 0;
+    final oppElapsed = (opp['elapsed'] as num?)?.toInt() ?? 0;
+    final oppFinished = opp['finished'] == true;
+    setState(() {
+      _opponentProgress = oppSolved;
+      _opponentSolved = oppSolved;
+      _opponentElapsed = oppElapsed;
+      if (oppCorrect > _opponentCorrect) _opponentCorrect = oppCorrect;
+    });
+    if (oppFinished && !_opponentFinished) {
+      setState(() {
+        _opponentFinished = true;
+        _opponentCorrect = oppCorrect;
+        _opponentElapsed = oppElapsed;
+        _waitingForOpponent = false;
+      });
+      _tryShowResults();
+    }
+  }
+
+  // Benim ilerlememi session'a yaz (gerçek modda her cevapta).
+  void _pushMyProgress({bool finished = false, int? correct}) {
+    if (!_isReal) return;
+    DueloMatchmakingService.updateProgress(
+      sessionId: widget.sessionId!,
+      userId: widget.myUserId!,
+      solved: finished ? _questions.length : _mySolved,
+      elapsedSeconds: _watch.elapsed.inSeconds,
+      finished: finished,
+      correct: correct,
+    );
   }
 
   void _scheduleOpponent() {
@@ -7758,6 +7932,8 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
       _myAnswers = Map<int, int>.from(answers);
       _waitingForOpponent = !_opponentFinished;
     });
+    // Gerçek modda bitişi + skoru rakibe bildir (rakip "bekliyor"dan çıkar).
+    _pushMyProgress(finished: true, correct: correctCount);
     // hintsUsed, comboMax şu an kullanılmıyor; signature korundu.
     _tryShowResults();
   }
@@ -7766,7 +7942,7 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
     // Rakip hala devam ediyorsa kullanıcıya uyarı dialog'u.
     if (_opponentFinished) return true;
     final remaining =
-        widget.questions.length - _opponentProgress;
+        _questions.length - _opponentProgress;
     final ok = await showDialog<bool>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.45),
@@ -7861,11 +8037,20 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
     // Küçük gecikme — "bekliyor" animasyonundan hemen sonra geçiş.
     Future.delayed(Duration(milliseconds: 600), () {
       if (!mounted) return;
-      final total = widget.questions.length;
+      final total = _questions.length;
       final myWrong = (_myAnswered - _myCorrect).clamp(0, total);
       final myEmpty = (total - _myAnswered).clamp(0, total);
-      final oppWrong = (total - _opponentCorrect).clamp(0, total);
-      // Rakip simülasyonu tüm soruları cevaplıyor sayılır → empty = 0.
+      // Gerçek modda rakibin GERÇEK çözüm sayısından hesapla; bot modda
+      // rakibin tüm soruları cevapladığı varsayılır (empty=0).
+      final int oppWrong;
+      final int oppEmpty;
+      if (_isReal) {
+        oppWrong = (_opponentSolved - _opponentCorrect).clamp(0, total);
+        oppEmpty = (total - _opponentSolved).clamp(0, total);
+      } else {
+        oppWrong = (total - _opponentCorrect).clamp(0, total);
+        oppEmpty = 0;
+      }
 
       // Lobide gösterilmek üzere yerel kayıt — best-effort.
       _DueloRecordStore.save(_DueloRecord(
@@ -7888,10 +8073,10 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
         opponentElo: widget.opponentElo,
         opponentCorrect: _opponentCorrect,
         opponentWrong: oppWrong,
-        opponentEmpty: 0,
+        opponentEmpty: oppEmpty,
         opponentElapsed: _opponentElapsed,
         questionsJson:
-            widget.questions.map(_quizQuestionToJson).toList(),
+            _questions.map(_quizQuestionToJson).toList(),
         myAnswers: Map<int, int>.from(_myAnswers),
       ));
 
@@ -7902,7 +8087,7 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
             topicName: widget.topicName ?? '',
             totalQuestions: total,
             scope: widget.scope,
-            questions: widget.questions,
+            questions: _questions,
             myAnswers: _myAnswers,
             myName: _currentUsername,
             myCountry: _userCountryName(),
@@ -7917,8 +8102,11 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
             opponentElo: widget.opponentElo,
             opponentCorrect: _opponentCorrect,
             opponentWrong: oppWrong,
-            opponentEmpty: 0,
+            opponentEmpty: oppEmpty,
             opponentElapsed: _opponentElapsed,
+            // Gerçek düelloda ELO kalıcılaştırılır (bot maçında yazılmaz).
+            isRealMatch: _isReal,
+            myUid: widget.myUserId,
           ),
         ),
       );
@@ -7942,6 +8130,8 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
   @override
   void dispose() {
     _opponentTimer?.cancel();
+    _sessionSub?.cancel();
+    _watch.stop();
     super.dispose();
   }
 
@@ -8133,7 +8323,7 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
                       _DueloAvatar(
                         name: _currentUsername,
                         avatar: 'A',
-                        progress: _mySolved / widget.questions.length,
+                        progress: _mySolved / _questions.length,
                         color: _Palette.brand,
                         flag: '🇹🇷',
                       ),
@@ -8159,7 +8349,7 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
                         name: widget.opponentName,
                         avatar: widget.opponentAvatar,
                         progress:
-                            _opponentProgress / widget.questions.length,
+                            _opponentProgress / _questions.length,
                         color: _Palette.accent,
                         flag: widget.opponentFlag,
                         mirror: true,
@@ -8173,36 +8363,60 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
           Expanded(
             child: Stack(
               children: [
-                _QuizScreen(
-                  cfg: widget.cfg,
-                  questions: widget.questions,
-                  onProgress: (idx) {
-                    if (mounted) setState(() => _mySolved = idx);
-                  },
-                  onBeforeFinish: _confirmFinishEarly,
-                  onFinish: ({
-                    required elapsedSeconds,
-                    required answers,
-                    required correctCount,
-                    required hintsUsed,
-                    required comboMax,
-                  }) {
-                    _onMyFinished(
-                      elapsedSeconds: elapsedSeconds,
-                      answers: answers,
-                      correctCount: correctCount,
-                      hintsUsed: hintsUsed,
-                      comboMax: comboMax,
-                    );
-                  },
-                ),
+                if (_questionsReady)
+                  _QuizScreen(
+                    cfg: widget.cfg,
+                    questions: _questions,
+                    onProgress: (idx) {
+                      if (mounted) setState(() => _mySolved = idx);
+                      _pushMyProgress(); // gerçek modda canlı senkron
+                    },
+                    onBeforeFinish: _confirmFinishEarly,
+                    onFinish: ({
+                      required elapsedSeconds,
+                      required answers,
+                      required correctCount,
+                      required hintsUsed,
+                      required comboMax,
+                    }) {
+                      _onMyFinished(
+                        elapsedSeconds: elapsedSeconds,
+                        answers: answers,
+                        correctCount: correctCount,
+                        hintsUsed: hintsUsed,
+                        comboMax: comboMax,
+                      );
+                    },
+                  )
+                else
+                  // Guest: owner soruları session'a yazana kadar bekle.
+                  Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(
+                          width: 30, height: 30,
+                          child: CircularProgressIndicator(strokeWidth: 2.4),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          '@${widget.opponentName} sorular hazırlanıyor…'.tr(),
+                          textAlign: TextAlign.center,
+                          style: _sans(
+                              size: 14,
+                              weight: FontWeight.w600,
+                              color: AppPalette.textSecondary(context)),
+                        ),
+                      ],
+                    ),
+                  ),
                 if (_waitingForOpponent)
                   _DueloWaitingOverlay(
                     opponentName: widget.opponentName,
                     opponentFlag: widget.opponentFlag,
                     opponentCountry: widget.opponentCountry,
                     opponentProgress: _opponentProgress,
-                    total: widget.questions.length,
+                    total: _questions.length,
                   ),
               ],
             ),
@@ -8336,6 +8550,9 @@ class _DueloResultsScreen extends StatefulWidget {
   final int opponentWrong;
   final int opponentEmpty;
   final int opponentElapsed;
+  // ELO kalıcılığı — yalnız GERÇEK düelloda (bot maçında ELO yazılmaz).
+  final bool isRealMatch;
+  final String? myUid;
 
   const _DueloResultsScreen({
     required this.subjectName,
@@ -8359,6 +8576,8 @@ class _DueloResultsScreen extends StatefulWidget {
     required this.opponentWrong,
     required this.opponentEmpty,
     required this.opponentElapsed,
+    this.isRealMatch = false,
+    this.myUid,
   });
 
   @override
@@ -8398,6 +8617,10 @@ class _DueloResultsScreenState extends State<_DueloResultsScreen> {
     return 0;
   }
 
+  // Kullanıcının gerçek ELO'su (Firestore'dan; yoksa 1000). Sonuç kartında
+  // gösterilir; gerçek maçta güncellenip geri yazılır.
+  int _myElo = 1000;
+
   @override
   void initState() {
     super.initState();
@@ -8408,6 +8631,42 @@ class _DueloResultsScreenState extends State<_DueloResultsScreen> {
           AppSettingsService.instance.notifySuccess();
         });
       });
+    }
+    _persistElo();
+  }
+
+  /// Gerçek düelloda: kendi ELO'mu oku → K=32 Elo deltası hesapla → yeni ELO +
+  /// galibiyet/beraberlik/mağlubiyet sayaçlarını profile yaz. Bot maçında
+  /// (isRealMatch=false) ELO YAZILMAZ — bot farmlama engellenir.
+  Future<void> _persistElo() async {
+    if (!widget.isRealMatch) return;
+    // ELO her zaman GERÇEK hesaba (Firebase Auth uid) yazılır — eşleşme
+    // yolundaki cihaz-bazlı duelo id'ye değil.
+    final uid = fb_auth.FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || uid.isEmpty) return;
+    try {
+      final ref = FirebaseFirestore.instance.collection('users').doc(uid);
+      final snap = await ref.get();
+      final cur = (snap.data()?['dueloElo'] as num?)?.toInt() ?? 1000;
+      if (mounted) setState(() => _myElo = cur);
+
+      final win = _winner; // 1 / 0 / -1
+      final myScore = win == 1 ? 1.0 : (win == 0 ? 0.5 : 0.0);
+      final expected =
+          1 / (1 + math.pow(10, (widget.opponentElo - cur) / 400.0));
+      final delta = (32 * (myScore - expected)).round();
+      final newElo = (cur + delta).clamp(100, 4000);
+
+      await ref.set({
+        'dueloElo': newElo,
+        'dueloGames': FieldValue.increment(1),
+        'dueloWins': FieldValue.increment(win == 1 ? 1 : 0),
+        'dueloDraws': FieldValue.increment(win == 0 ? 1 : 0),
+        'dueloLosses': FieldValue.increment(win == -1 ? 1 : 0),
+        'dueloEloUpdatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[Duelo] ELO persist fail: $e');
     }
   }
 
@@ -8554,8 +8813,8 @@ class _DueloResultsScreenState extends State<_DueloResultsScreen> {
                           : 0;
                       // ELO hesaplaması — standart K=32 Elo formülü.
                       // win → 1, tie → 0.5, loss → 0
-                      const int myElo = 1000; // kullanıcı ELO takibi yok,
-                                             //  baz 1000 kullanılıyor.
+                      final int myElo = _myElo; // gerçek ELO (Firestore'dan;
+                                               //  bot maçında baz 1000).
                       final double myScore = win == 1
                           ? 1.0
                           : (win == 0 ? 0.5 : 0.0);
@@ -11070,13 +11329,40 @@ class _DueloInvitesSheet extends StatelessWidget {
   const _DueloInvitesSheet();
 
   Future<void> _accept(BuildContext context, DueloInvite inv) async {
+    final me = fb_auth.FirebaseAuth.instance.currentUser?.uid;
+    final messenger = ScaffoldMessenger.of(context);
+    final nav = Navigator.of(context, rootNavigator: true);
+    if (me == null) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('Düello için giriş yapman gerekiyor.'.tr()),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
     final ok = await DueloMatchmakingService.acceptInvite(inviteId: inv.id);
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(ok
-          ? 'Düello başlatıldı — @${inv.fromUsername} ile yarış'
-          : 'Düello açılamadı'),
-      behavior: SnackBarBehavior.floating,
+    if (!ok) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('Düello açılamadı'.tr()),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    // Davet sheet'ini kapat → GUEST olarak bağlanma ekranına geç. CF session'ı
+    // açıp davet doc'una sessionId yazınca _DueloSessionEntryScreen'e (guest)
+    // geçilir; sorular owner'ın yazdığı setten yüklenir.
+    nav.pop(); // invites sheet'i kapat
+    nav.push(MaterialPageRoute(
+      builder: (_) => _DueloConnectScreen(
+        title: 'Düelloya bağlanılıyor…',
+        resolveSessionId: () => _waitInviteSessionId(me, inv.id),
+        isOwner: false,
+        myUid: me,
+        opponentUid: inv.fromUid,
+        subjectName: inv.subjectKey ?? 'Genel Kültür',
+        topic: inv.topic,
+        opponentName: inv.fromUsername,
+      ),
     ));
   }
 
@@ -11491,17 +11777,453 @@ class _FriendRequestsSheet extends StatelessWidget {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  FAZ 3 — Arkadaş daveti → gerçek senkron düelloya giriş
+//  Owner = davet eden (soruları üretip session'a yazar), guest = kabul eden
+//  (aynı soruları session'dan okur). Her iki taraf da _DueloSessionEntryScreen
+//  üzerinden _DueloQuizScreen'e (gerçek mod) girer.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Owner için standalone düello sorusu üretici. AI başarısız olursa boş liste.
+Future<List<_QuizQuestion>> _genDueloQuestions({
+  required String subjectName,
+  String? topic,
+  int count = 5,
+}) async {
+  final topicLabel = (topic == null || topic.trim().isEmpty) ? subjectName : topic;
+  final eduCtx = educationContext(EduProfile.current);
+  final prompt = '''
+[DÜELLO SORU ÜRETİMİ — $count SORU · JSON]
+${eduCtx.isNotEmpty ? '$eduCtx\n' : ''}Ders: $subjectName
+Konu: $topicLabel
+
+GÖREVİN: TAM OLARAK $count soru üret. SADECE "$topicLabel" konusu ve "$subjectName" dersi kapsamında. Başka dersten soru üretme.
+SEVİYE: öğrencinin eğitim seviyesi + ülke müfredatına göre.
+SADECE geçerli JSON array döndür — markdown fence / emoji başlık yok.
+Format: [{"q":"...","opts":{"A":"..","B":"..","C":"..","D":".."},"ans":"B","hint":"..","sol":"..","d":"medium"}]
+KURALLAR: TAM $count soru; opts 4 şık (A,B,C,D); ans A|B|C|D; kullanıcının dilinde; dolar işareti yok (LaTeX \\( \\)); markdown ** veya # yok.
+''';
+  String raw;
+  try {
+    raw = await GeminiService.solveHomework(
+        question: prompt, solutionType: 'TestSorulari', subject: subjectName);
+  } catch (_) {
+    return const [];
+  }
+  var s = raw.trim();
+  if (s.startsWith('```')) {
+    final nl = s.indexOf('\n');
+    if (nl > -1) s = s.substring(nl + 1);
+    final lf = s.lastIndexOf('```');
+    if (lf > -1) s = s.substring(0, lf);
+    s = s.trim();
+  }
+  final st = s.indexOf('[');
+  final en = s.lastIndexOf(']');
+  if (st < 0 || en <= st) return const [];
+  try {
+    final decoded = jsonDecode(s.substring(st, en + 1));
+    if (decoded is! List) return const [];
+    final out = <_QuizQuestion>[];
+    for (final item in decoded) {
+      if (item is! Map) continue;
+      final j = Map<String, dynamic>.from(item);
+      final q = (j['q'] ?? '').toString().trim();
+      final opts = j['opts'];
+      final ans = (j['ans'] ?? '').toString().trim().toUpperCase();
+      if (q.isEmpty || opts is! Map) continue;
+      const keys = ['A', 'B', 'C', 'D', 'E'];
+      final options = <String>[];
+      int ci = -1;
+      for (int i = 0; i < keys.length; i++) {
+        final v = opts[keys[i]];
+        if (v == null) continue;
+        options.add(v.toString());
+        if (keys[i] == ans) ci = options.length - 1;
+      }
+      if (options.length < 3 || ci < 0) continue;
+      out.add(_QuizQuestion(
+        subjectKey: subjectName.toLowerCase(),
+        subjectName: subjectName,
+        subjectEmoji: '📚',
+        subjectColor: const Color(0xFF7C3AED),
+        topic: topicLabel,
+        text: q,
+        options: options,
+        correctIndex: ci,
+        hint: (j['hint'] ?? '').toString(),
+        explanation: (j['sol'] ?? '').toString(),
+        difficulty: (j['d'] ?? 'medium').toString(),
+      ));
+    }
+    return out;
+  } catch (_) {
+    return const [];
+  }
+}
+
+/// Davet için hızlı ders seçici. Seçilen ders adını döndürür (iptal → null).
+Future<String?> _pickDueloSubject(BuildContext context) {
+  const subjects = [
+    'Matematik', 'Fizik', 'Kimya', 'Biyoloji', 'Türkçe',
+    'Tarih', 'Coğrafya', 'İngilizce', 'Genel Kültür',
+  ];
+  return showModalBottomSheet<String>(
+    context: context,
+    backgroundColor: AppPalette.bg(context),
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    builder: (ctx) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Düello dersi seç'.tr(),
+                style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: AppPalette.textPrimary(ctx))),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final s in subjects)
+                  GestureDetector(
+                    onTap: () => Navigator.of(ctx).pop(s),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppPalette.card(ctx),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppPalette.border(ctx)),
+                      ),
+                      child: Text(s.tr(),
+                          style: GoogleFonts.poppins(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppPalette.textPrimary(ctx))),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// Davet EDEN tarafı: kabul bildirimini (CF sessionId yazar) dinler. Yeni gelen
+/// duelo_invite bildiriminde sessionId + fromUid==friend eşleşince sid döner.
+Future<String?> _waitInviteAccepted(String me, String friendUid,
+    {Duration timeout = const Duration(minutes: 2)}) async {
+  final completer = Completer<String?>();
+  StreamSubscription? sub;
+  var first = true;
+  try {
+    sub = FirebaseFirestore.instance
+        .collection('notifications')
+        .doc(me)
+        .collection('items')
+        .where('type', isEqualTo: 'duelo_invite')
+        .snapshots()
+        .listen((snap) {
+      if (first) {
+        first = false;
+        return; // mevcut bildirimleri atla, yalnız YENİ kabulü yakala
+      }
+      for (final ch in snap.docChanges) {
+        if (ch.type != DocumentChangeType.added) continue;
+        final d = ch.doc.data() ?? const {};
+        final sid = d['sessionId']?.toString();
+        final from = d['fromUid']?.toString();
+        if (sid != null && sid.isNotEmpty && from == friendUid) {
+          if (!completer.isCompleted) completer.complete(sid);
+        }
+      }
+    }, onError: (_) {
+      if (!completer.isCompleted) completer.complete(null);
+    });
+  } catch (_) {
+    return null;
+  }
+  final r = await completer.future
+      .timeout(timeout, onTimeout: () => null)
+      .whenComplete(() => sub?.cancel());
+  return r;
+}
+
+/// Kabul EDEN tarafı: kendi davet doc'una CF'nin yazacağı sessionId'yi dinler.
+Future<String?> _waitInviteSessionId(String me, String inviteId,
+    {Duration timeout = const Duration(seconds: 30)}) async {
+  final completer = Completer<String?>();
+  StreamSubscription? sub;
+  try {
+    sub = FirebaseFirestore.instance
+        .collection('duelo_invites')
+        .doc(me)
+        .collection('inbox')
+        .doc(inviteId)
+        .snapshots()
+        .listen((doc) {
+      final sid = doc.data()?['sessionId']?.toString();
+      if (sid != null && sid.isNotEmpty && !completer.isCompleted) {
+        completer.complete(sid);
+      }
+    }, onError: (_) {
+      if (!completer.isCompleted) completer.complete(null);
+    });
+  } catch (_) {
+    return null;
+  }
+  return completer.future
+      .timeout(timeout, onTimeout: () => null)
+      .whenComplete(() => sub?.cancel());
+}
+
+/// Bağlanma/bekleme ekranı — resolver sessionId döndürünce giriş ekranına
+/// (owner/guest) geçer; null dönerse bilgilendirip kapanır. Cancel ile çıkılır.
+class _DueloConnectScreen extends StatefulWidget {
+  final String title;
+  final Future<String?> Function() resolveSessionId;
+  final bool isOwner;
+  final String myUid;
+  final String opponentUid;
+  final String subjectName;
+  final String? topic;
+  final String opponentName;
+  const _DueloConnectScreen({
+    required this.title,
+    required this.resolveSessionId,
+    required this.isOwner,
+    required this.myUid,
+    required this.opponentUid,
+    required this.subjectName,
+    required this.topic,
+    required this.opponentName,
+  });
+  @override
+  State<_DueloConnectScreen> createState() => _DueloConnectScreenState();
+}
+
+class _DueloConnectScreenState extends State<_DueloConnectScreen> {
+  bool _cancelled = false;
+  @override
+  void initState() {
+    super.initState();
+    _run();
+  }
+
+  Future<void> _run() async {
+    final sid = await widget.resolveSessionId();
+    if (!mounted || _cancelled) return;
+    if (sid == null || sid.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Düello başlamadı (zaman aşımı).'.tr()),
+        behavior: SnackBarBehavior.floating,
+      ));
+      Navigator.of(context).maybePop();
+      return;
+    }
+    Navigator.of(context).pushReplacement(MaterialPageRoute(
+      builder: (_) => _DueloSessionEntryScreen(
+        sessionId: sid,
+        isOwner: widget.isOwner,
+        myUid: widget.myUid,
+        opponentUid: widget.opponentUid,
+        subjectName: widget.subjectName,
+        topic: widget.topic,
+        opponentName: widget.opponentName,
+      ),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppPalette.bg(context),
+      body: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(
+                  width: 34,
+                  height: 34,
+                  child: CircularProgressIndicator(strokeWidth: 2.6)),
+              const SizedBox(height: 18),
+              Text(widget.title.tr(),
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppPalette.textPrimary(context))),
+              const SizedBox(height: 6),
+              Text('@${widget.opponentName}',
+                  style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      color: AppPalette.textSecondary(context))),
+              const SizedBox(height: 24),
+              TextButton(
+                onPressed: () {
+                  _cancelled = true;
+                  Navigator.of(context).maybePop();
+                },
+                child: Text('İptal'.tr()),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Giriş ekranı — owner soruları üretir+yazar; guest doğrudan girer (sorular
+/// session'dan yüklenir). İkisi de _DueloQuizScreen'e (gerçek mod) geçer.
+class _DueloSessionEntryScreen extends StatefulWidget {
+  final String sessionId;
+  final bool isOwner;
+  final String myUid;
+  final String opponentUid;
+  final String subjectName;
+  final String? topic;
+  final String opponentName;
+  const _DueloSessionEntryScreen({
+    required this.sessionId,
+    required this.isOwner,
+    required this.myUid,
+    required this.opponentUid,
+    required this.subjectName,
+    required this.topic,
+    required this.opponentName,
+  });
+  @override
+  State<_DueloSessionEntryScreen> createState() =>
+      _DueloSessionEntryScreenState();
+}
+
+class _DueloSessionEntryScreenState extends State<_DueloSessionEntryScreen> {
+  String _status = 'Düello hazırlanıyor…';
+  @override
+  void initState() {
+    super.initState();
+    _enter();
+  }
+
+  Future<void> _enter() async {
+    var questions = const <_QuizQuestion>[];
+    if (widget.isOwner) {
+      if (mounted) setState(() => _status = 'Sorular üretiliyor…');
+      questions = await _genDueloQuestions(
+          subjectName: widget.subjectName, topic: widget.topic, count: 5);
+      if (questions.length < 3) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Düello soruları üretilemedi. Tekrar dene.'.tr()),
+          behavior: SnackBarBehavior.floating,
+        ));
+        Navigator.of(context).maybePop();
+        return;
+      }
+    }
+    if (!mounted) return;
+    final cfg = _WizardConfig()
+      ..count = questions.isEmpty ? 5 : questions.length
+      ..selectedSubjects = {widget.subjectName.toLowerCase()}
+      ..timeMode = 'race';
+    final av = widget.opponentName.isEmpty
+        ? '?'
+        : widget.opponentName[0].toUpperCase();
+    Navigator.of(context).pushReplacement(MaterialPageRoute(
+      builder: (_) => _DueloQuizScreen(
+        cfg: cfg,
+        questions: questions, // guest: boş → session'dan yükler
+        opponentName: widget.opponentName,
+        opponentAvatar: av,
+        opponentFlag: '🏳️',
+        opponentCountry: '',
+        opponentElo: 1000,
+        subjectName: widget.subjectName,
+        topicName: widget.topic,
+        scope: 'country',
+        sessionId: widget.sessionId,
+        myUserId: widget.myUid,
+        opponentUserId: widget.opponentUid,
+        isOwner: widget.isOwner,
+      ),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppPalette.bg(context),
+      body: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(
+                  width: 34,
+                  height: 34,
+                  child: CircularProgressIndicator(strokeWidth: 2.6)),
+              const SizedBox(height: 18),
+              Text(_status.tr(),
+                  style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppPalette.textPrimary(context))),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 Future<void> _sendDuelInvite(BuildContext context, Friend friend) async {
+  final me = fb_auth.FirebaseAuth.instance.currentUser?.uid;
+  if (me == null) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Düello için giriş yapman gerekiyor.'.tr()),
+      behavior: SnackBarBehavior.floating,
+    ));
+    return;
+  }
+  // 1) Ders seç.
+  final subject = await _pickDueloSubject(context);
+  if (subject == null || !context.mounted) return;
+  // 2) Daveti gönder (subjectKey = ders adı; CF kabul edilince session açar).
   final ok = await DueloMatchmakingService.invite(
     targetUid: friend.uid,
     targetUsername: friend.username,
+    subjectKey: subject,
   );
   if (!context.mounted) return;
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-    content: Text(ok
-        ? '@${friend.username} adlı kullanıcıya düello daveti gönderildi'
-        : 'Davet gönderilemedi'),
-    behavior: SnackBarBehavior.floating,
+  if (!ok) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Davet gönderilemedi'.tr()),
+      behavior: SnackBarBehavior.floating,
+    ));
+    return;
+  }
+  // 3) Bekleme ekranı — kabul edilince OWNER olarak oyuna gir.
+  Navigator.of(context).push(MaterialPageRoute(
+    builder: (_) => _DueloConnectScreen(
+      title: 'Arkadaşın kabul etmesi bekleniyor…',
+      resolveSessionId: () => _waitInviteAccepted(me, friend.uid),
+      isOwner: true,
+      myUid: me,
+      opponentUid: friend.uid,
+      subjectName: subject,
+      topic: null,
+      opponentName: friend.username,
+    ),
   ));
 }
 

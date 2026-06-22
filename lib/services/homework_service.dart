@@ -342,8 +342,12 @@ class HomeworkService {
     Duration? active,
     Duration? passive,
     String? cached,
+    // false → yalnız cache'i döndür; AI çağrısı YAPMA ve submission'a YAZMA.
+    // Ebeveyn çocuğun teslimine yazamaz (rules), bu yüzden ebeveyn salt-okur.
+    bool allowGenerate = true,
   }) async {
     if (cached != null && cached.trim().isNotEmpty) return cached;
+    if (!allowGenerate) return null;
     final total = correct + wrong + blank;
     if (total == 0) return null;
     final pct = (correct + wrong) > 0

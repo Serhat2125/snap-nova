@@ -29,8 +29,12 @@ import '../theme/app_theme.dart';
 class HomeworkSolveScreen extends StatefulWidget {
   final String classId;
   final HomeworkModel homework;
+  /// Öğrencinin bu ödeve ait MEVCUT teslimi (varsa). Zaten teslim edilmişse
+  /// ekran salt-okunur sonuç modunda açılır — tekrar çözme/teslim ve statü
+  /// ezme engellenir.
+  final HomeworkSubmissionModel? submission;
   const HomeworkSolveScreen({
-    super.key, required this.classId, required this.homework,
+    super.key, required this.classId, required this.homework, this.submission,
   });
 
   @override
@@ -61,6 +65,18 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Zaten teslim edilmişse → salt-okunur sonuç modu. markInProgress
+    // ÇAĞRILMAZ (önceki teslimin statüsünü/skorunu bozmaz); süre sayacı
+    // başlatılmaz, "Teslim Et" butonu gizli kalır → üzerine yazma imkânsız.
+    final existing = widget.submission;
+    if (existing != null && existing.isSubmitted) {
+      _submitted = true;
+      _correctCount = existing.correct ?? 0;
+      _wrongCount = existing.wrong ?? 0;
+      _pendingOpen = existing.answers.where((a) => a.isCorrect == null).length;
+      _startedAt = existing.startedAt ?? DateTime.now();
+      return;
+    }
     _startedAt = DateTime.now();
     _activeWatch.start();
     // Status'u in_progress yap

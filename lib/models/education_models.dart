@@ -375,8 +375,8 @@ class HomeworkSubmissionModel {
       studentDisplayName: (m['studentDisplayName'] ?? '').toString(),
       startedAt: started,
       submittedAt: when,
-      correct: (m['correct'] as int?),
-      wrong: (m['wrong'] as int?),
+      correct: (m['correct'] as num?)?.toInt(),
+      wrong: (m['wrong'] as num?)?.toInt(),
       scorePercent: (m['scorePercent'] as num?)?.toDouble(),
       status: (m['status'] ?? 'pending').toString(),
       answers: ((m['answers'] as List?) ?? const [])

@@ -1,5 +1,6 @@
 import '../services/error_logger.dart';
 import '../services/runtime_translator.dart';
+import 'academic_planner.dart' show logActivityEvent;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -20,7 +21,6 @@ import '../services/image_share_service.dart';
 import '../widgets/adaptive_photo.dart';
 import '../widgets/latex_text.dart';
 import '../widgets/study_suite_sheet.dart';
-import '../widgets/topic_3d_button.dart';
 import '../main.dart' show localeService;
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -299,6 +299,12 @@ class _AiResultScreenState extends State<AiResultScreen> {
     // Ebeveyn paneli / Gelişimim — foto-soru sayacı (yalnızca ilk kayıt).
     if (widget.existingRecordId == null) {
       unawaited(ActivityWriterService.recordPhotoQuestion(subject));
+      // "Çalışma Takvimim"e de yaz — ana özellik foto-soru takvimde görünsün.
+      unawaited(logActivityEvent(
+        subject: subject.isEmpty ? 'Soru Çözümü' : subject,
+        topic: _aiTitle.isEmpty ? widget.solutionType : _aiTitle,
+        type: 'foto',
+      ));
     }
   }
 
@@ -415,7 +421,6 @@ class _AiResultScreenState extends State<AiResultScreen> {
                     ] else ...[
                       SizedBox(height: 10),
                       _buildDoneRow(),
-                      Topic3DButton(topic: widget.result),
                     ],
 
                     for (final qa in _qaList) ...[

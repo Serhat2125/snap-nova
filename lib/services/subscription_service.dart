@@ -204,12 +204,19 @@ class SubscriptionService {
 
         case PurchaseStatus.purchased:
         case PurchaseStatus.restored:
-          await _grantPremiumFor(p);
+          // Server-side doğrulama burada yapılır. SADECE verifyPurchase
+          // başarılı dönerse UI'a `success` bildirilir; aksi halde `error`
+          // ile döner ki kullanıcıya "premium aktif" yalanı söylenmesin.
+          final verified = await _grantPremiumFor(p);
           // Play Billing: complete edilmezse 3 gün içinde para iade edilir.
+          // Doğrulama başarısız olsa da satın alma akışını kapatmak gerekir;
+          // aksi halde aynı purchase tekrar tekrar stream'e düşer.
           if (p.pendingCompletePurchase) {
             await _iap.completePurchase(p);
           }
-          _completeActive(SubscriptionPurchaseResult.success);
+          _completeActive(verified
+              ? SubscriptionPurchaseResult.success
+              : SubscriptionPurchaseResult.error);
           break;
 
         case PurchaseStatus.canceled:
@@ -245,18 +252,18 @@ class SubscriptionService {
   /// bu fonksiyon Cloud Function'a delege etmek zorunda. Cloud Function
   /// deploy edilmemişse hata loglanır ve premium aktive olmaz — bu doğru
   /// güvenlik davranışı (sahte purchase event'leri engellenmiş olur).
-  Future<void> _grantPremiumFor(PurchaseDetails p) async {
+  Future<bool> _grantPremiumFor(PurchaseDetails p) async {
     final plan = SubscriptionPlan.byProductId(p.productID);
     if (plan == null) {
       debugPrint(
           '[SubscriptionService] unknown productID ${p.productID} — grant skipped');
-      return;
+      return false;
     }
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       debugPrint('[SubscriptionService] no user — grant skipped');
-      return;
+      return false;
     }
 
     // 1) Server-side doğrulama — Google Play / App Store receipt validate
@@ -311,10 +318,10 @@ class SubscriptionService {
           '[SubscriptionService] verifyPurchase FAIL code=${e.code} msg=${e.message}');
       // Premium AKTİVE EDİLMEZ — doğrulama başarısız olursa kullanıcı
       // gerçek satın alma yapmış olsa bile riskli kabul edilir.
-      return;
+      return false;
     } catch (e) {
       debugPrint('[SubscriptionService] verifyPurchase error: $e');
-      return;
+      return false;
     }
 
     // 2) Local cache — UI hızlı yansıma için (Firestore stream gecikme yapabilir).
@@ -335,6 +342,7 @@ class SubscriptionService {
     try { await AiQuotaService.instance.refresh(); } catch (_) {}
 
     revision.value++;
+    return true;
   }
 
   /// App shutdown / hot restart için.

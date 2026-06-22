@@ -150,6 +150,19 @@ class ParentLinkService {
         final st = (existing.data()?['status'] ?? '').toString();
         if (st == 'active') return LinkRequestResult.alreadyLinked;
         if (st == 'pending') return LinkRequestResult.pending;
+        // 'rejected' veya başka bir eski durum: aşağıdaki set() Firestore'da
+        // UPDATE sayılır ve kurallar parent_links/child_invites update'ini
+        // yalnız ['status','acceptedAt'] alanlarına kısıtladığından 5 alanlık
+        // yazım permission-denied alır. Eski kayıtları SİL → set() CREATE olur,
+        // böylece çocuk bir kez reddetse de ebeveyn yeniden istek gönderebilir.
+        try {
+          await _fs.collection('parent_links').doc(myUid)
+              .collection('children').doc(childUid).delete();
+        } catch (_) {}
+        try {
+          await _fs.collection('child_invites').doc(childUid)
+              .collection('from').doc(myUid).delete();
+        } catch (_) {}
       }
 
       final now = FieldValue.serverTimestamp();

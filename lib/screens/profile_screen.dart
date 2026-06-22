@@ -201,21 +201,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _pickProfileImage() async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.gallery, maxWidth: 512);
-    if (picked == null) return;
-
-    // Kalıcı dizine kopyala
-    final dir = await getApplicationDocumentsDirectory();
-    final savedPath = '${dir.path}/profile_avatar.jpg';
-    await File(picked.path).copy(savedPath);
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('profile_image', savedPath);
-    if (mounted) setState(() => _profileImagePath = savedPath);
-  }
-
   @override
   Widget build(BuildContext context) {
     final locale = LocaleInherited.of(context);
@@ -1051,7 +1036,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ] else ...[
                       _faqTile(
                         'Davet kodum çalışmıyor, ne yapmalıyım?'.tr(),
-                        'Davet kodu QuAls-XXXXXX formatında olmalıdır. '
+                        'Davet kodu QUALS-XXXXXX formatında olmalıdır. '
                                 'Kendi kodunu kullanamazsın ve her cihazda '
                                 'bir kez kullanılabilir.'
                             .tr(),
@@ -1092,7 +1077,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _faqTile(
                       'Dilimi nasıl değiştiririm?'.tr(),
                       'Profil → Uygulama Tercihleri → Dil Seçimi. '
-                              '55 dilde kullanılabilir.'
+                              '53 dilde kullanılabilir.'
                           .tr(),
                     ),
                   ],
@@ -1350,11 +1335,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     SizedBox(height: 20),
 
-                    // Mini avatar (tıklanabilir — galeri)
+                    // Mini avatar (tıklanabilir — profil düzenleme sayfasını aç).
+                    // Doğrudan galeri seçici yerine ProfileEditPage'e gider:
+                    // oradaki foto değişimi BULUTA da senkronlanır (avatar
+                    // arkadaş kartları/leaderboard'da güncellenir). Eski
+                    // doğrudan yol cloud-sync yapmıyordu.
                     GestureDetector(
-                      onTap: () {
+                      onTap: () async {
                         Navigator.pop(ctx);
-                        _pickProfileImage();
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => ProfileEditPage()),
+                        );
+                        await _loadProfile();
+                        if (mounted) setState(() {});
                       },
                       child: Stack(
                         children: [
@@ -2399,6 +2393,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   .toList(growable: false));
                           // 1) Firestore'a yaz (anonim auth ok, rules zaten
                           //    `allow create: if true` — sadece admin okur)
+                          var firestoreOk = false;
                           try {
                             await FirebaseFirestore.instance
                                 .collection('feedback')
@@ -2414,18 +2409,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               'locale': locale.localeCode,
                               'createdAt': FieldValue.serverTimestamp(),
                             });
+                            firestoreOk = true;
                           } catch (e) {
                             debugPrint('[Feedback] firestore write fail: $e');
                           }
-                          // 2) Email akışı — kullanıcı isterse copy/paste alır
-                          _launchEmail(
-                            subject: 'QuAlsar - Geri Bildirim',
-                            body: text,
-                          );
-                          setSheetState(() => sent = true);
-                          Future.delayed(Duration(milliseconds: 1200), () {
-                            if (ctx.mounted) Navigator.pop(ctx);
-                          });
+                          if (firestoreOk) {
+                            // Başarı — "Teşekkürler" göster, sheet kapansın.
+                            setSheetState(() => sent = true);
+                            Future.delayed(Duration(milliseconds: 1200), () {
+                              if (ctx.mounted) Navigator.pop(ctx);
+                            });
+                          } else {
+                            // Firestore başarısız (ağ yok vb.) → e-posta
+                            // fallback'i aç; kullanıcı oradan gönderebilsin.
+                            // "Gönderildi" DEME — gerçekte iletilmedi.
+                            _launchEmail(
+                              subject: 'QuAlsar - Geri Bildirim',
+                              body: text,
+                            );
+                            if (ctx.mounted) {
+                              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                                content: Text(
+                                    'Şu an gönderilemedi — açılan e-postadan iletebilirsin.'
+                                        .tr()),
+                                behavior: SnackBarBehavior.floating,
+                              ));
+                            }
+                          }
                         },
                         child: Container(
                           width: double.infinity,
@@ -2815,9 +2825,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _aboutFeatureCard(
                           icon: Icons.public_rounded,
                           color: Color(0xFF22D3EE),
-                          title: '131 Ülke, 55 Dil'.tr(),
+                          title: '131 Ülke, 53 Dil'.tr(),
                           desc:
-                              'ABD, Çin, Hindistan, Türkiye dahil 131 ülkenin tüm sınıfları için gerçek müfredat. Uygulama 55 dilde çalışır.'
+                              'ABD, Çin, Hindistan, Türkiye dahil 131 ülkenin tüm sınıfları için gerçek müfredat. Uygulama 53 dilde çalışır.'
                                   .tr(),
                         ),
                         SizedBox(height: 10),
@@ -2896,7 +2906,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                               SizedBox(height: 10),
                               Text(
-                                'QuAlsar, Google\'ın en yeni Gemini 2.5 Flash modeli üzerine kurulu. Çift AI doğrulama mimarisi (üretici + denetçi) ile soru çözüm doğruluğu artar; cevap kalitesi dünyanın en iyi eğitim platformlarına eşit.'
+                                'QuAlsar, Google\'ın Gemini 2.5 Flash modeli üzerine kurulu; cevap gelmezse otomatik olarak ChatGPT, DeepSeek gibi sağlayıcılara geçer. Test/sınav sorusu üretiminde çift AI doğrulama (üretici + denetçi) ile soru kalitesi artar; her ders ve konuda müfredata uygun, güvenilir içerik üretilir.'
                                     .tr(),
                                 style: GoogleFonts.poppins(
                                   fontSize: 14,
@@ -2929,7 +2939,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               _infoRow('Geliştirici'.tr(), 'QuAlsar Team'),
                               _infoRow('AI Modeli'.tr(), 'Gemini 2.5 Flash'),
                               _infoRow('Müfredat Kapsamı'.tr(),
-                                  '131 ülke • 55 dil'),
+                                  '131 ülke • 53 dil'),
                               _infoRow('Kuruluş'.tr(), '2026'),
                               _infoRow('İletişim'.tr(),
                                   'serhatdsme@gmail.com'),
@@ -3254,6 +3264,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // ── Tam ve GÜNCEL politikalar web'de. Aşağıdaki metin
+                        //    özettir; bağlayıcı/güncel sürüm bu linktedir.
+                        GestureDetector(
+                          onTap: () async {
+                            try {
+                              await launchUrl(
+                                Uri.parse('https://qualsar.app/privacy'),
+                                mode: LaunchMode.externalApplication,
+                              );
+                            } catch (_) {}
+                          },
+                          child: Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.only(bottom: 18),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color:
+                                  const Color(0xFF3B82F6).withValues(alpha: 0.10),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                  color: const Color(0xFF3B82F6)
+                                      .withValues(alpha: 0.35)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.open_in_new_rounded,
+                                    color: Color(0xFF3B82F6), size: 20),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'Tam ve güncel Gizlilik Politikası & Kullanım Koşulları (web)'
+                                        .tr(),
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppPalette.textPrimary(context),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                         // ══════════════════════════════════════════════════
                         //  KULLANIM KOŞULLARI
                         // ══════════════════════════════════════════════════
@@ -3347,7 +3400,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         // Alt bilgi
                         Center(
                           child: Text(
-                            localeService.tr('copyright_footer'),
+                            // Telif yılı dinamik: gömülü "2026" yerine içinde
+                            // bulunulan yıl gösterilir (çevirileri düzenlemeye gerek yok).
+                            localeService
+                                .tr('copyright_footer')
+                                .replaceAll('2026', DateTime.now().year.toString()),
                             style: GoogleFonts.poppins(
                               fontSize: 11,
                               color: AppPalette.textSecondary(context),
@@ -6645,23 +6702,6 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
                       onChanged: (v) => s.setOrientationMode(v),
                     ),
                     const SizedBox(height: 18),
-
-                    // ═══ ⌨️ Klavye Tipi ────────────────────────────
-                    _sectionTitle('⌨️', 'Klavye Tipi'.tr(),
-                        const Color(0xFFEC4899)),
-                    _segmentedRow(
-                      icon: Icons.keyboard_rounded,
-                      label: 'Yazma sayfası klavyesi'.tr(),
-                      color: const Color(0xFFEC4899),
-                      options: const [
-                        ('standard', 'Standart'),
-                        ('scientific', 'Bilimsel'),
-                        ('simple', 'Sade'),
-                      ],
-                      value: s.keyboardType,
-                      onChanged: (v) => s.setKeyboardType(v),
-                    ),
-                    const SizedBox(height: 22),
 
                     // ═══ 🗑️ Önbellek ───────────────────────────────
                     Material(

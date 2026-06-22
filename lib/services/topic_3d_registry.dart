@@ -290,9 +290,17 @@ class Topic3DRegistry {
     'cografya': 'yer_sekilleri',
   };
 
-  static Map<String, Topic3DModel> get _aliasMap => {
-        for (final e in _aliasIds.entries) e.key: _models[e.value]!,
-      };
+  // Null-safe: alias hedefi _models'te yoksa o girişi ATLA. (Önceki
+  // `_models[e.value]!` null-assertion'ı, ileride _models'te olmayan bir id
+  // alias'a eklenirse her findByKeywords çağrısında uygulamayı çökertirdi.)
+  static Map<String, Topic3DModel> get _aliasMap {
+    final out = <String, Topic3DModel>{};
+    for (final e in _aliasIds.entries) {
+      final m = _models[e.value];
+      if (m != null) out[e.key] = m;
+    }
+    return out;
+  }
 
   static String _normalize(String s) => s
       .toLowerCase()

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../services/error_logger.dart';
+import '../services/runtime_translator.dart';
 import 'package:camera/camera.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
@@ -295,7 +296,17 @@ class _CameraScreenState extends State<CameraScreen>
   // ── Galeri ───────────────────────────────────────────────────────────────────
 
   Future<void> _openGallery() async {
-    await Permission.photos.request();
+    final status = await Permission.photos.request();
+    // Kalıcı reddedildiyse sistem seçici hiç açılmaz → sessiz kalmak yerine
+    // kullanıcıyı ayarlara yönlendir (kamera izni reddiyle simetrik).
+    if (status.isPermanentlyDenied && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Galeri izni kapalı. Ayarlardan açabilirsin.'.tr()),
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(label: 'Ayarlar'.tr(), onPressed: openAppSettings),
+      ));
+      return;
+    }
     final file = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 90);
     if (file != null && mounted) {
       await Navigator.push(context, _slideUp(SolutionScreen(imagePath: file.path)));

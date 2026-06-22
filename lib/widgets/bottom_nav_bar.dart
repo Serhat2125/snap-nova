@@ -4,8 +4,9 @@ import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 // ═══════════════════════════════════════════════════════════════════════════════
 //  CameraBottomNav — 4 sekme: Sesli Komut · Tara · Akademik · Profil
-//  Çözümlerim sekmesi Library içine taşındı; Sesli Komut placeholder olarak
-//  yerini aldı. Neon turkuaz kalın kenarlık + cyan→mor→magenta gradient doku
+//  Çözümlerim sekmesi Library içine taşındı. "Sesli Komut" sekmesi (index 0)
+//  LiveAnalysisScreen'i açar — canlı sesli + opsiyonel kamera AI modu
+//  (VoiceInputService/speech_to_text ile). Neon turkuaz kenarlık + gradient doku
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class CameraBottomNav extends StatelessWidget {
@@ -19,8 +20,7 @@ class CameraBottomNav extends StatelessWidget {
   });
 
   static const _items = [
-    // Sesli Komut — şimdilik placeholder (sadece sekme adı + ikon).
-    // Gerçek sesli giriş özelliği (speech_to_text) sonraki fazda eklenecek.
+    // Sesli Komut → LiveAnalysisScreen (canlı sesli + kamera AI modu).
     _NavItem(
       icon: Icons.mic_none_rounded,
       activeIcon: Icons.mic_rounded,

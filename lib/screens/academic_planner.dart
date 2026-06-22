@@ -1,6 +1,7 @@
 ﻿// ignore_for_file: unused_element, unused_element_parameter
 
 import '../services/account_service.dart';
+import '../services/app_settings_service.dart';
 import '../services/push_service.dart';
 import '../services/runtime_translator.dart';
 import 'dart:async';
@@ -580,6 +581,12 @@ Future<void> logActivityEvent({
 }) =>
     _ActivityStore.log(subject: subject, topic: topic, type: type);
 
+/// Aktivite geçmişini buluttan geri yükle (yalnız yerel boşsa). main.dart
+/// bootstrap'ında çağrılır → yeni cihazda Gelişim Paneli/haftalık özet,
+/// kullanıcı takvim sayfasını açmadan da dolu gelir.
+Future<int> restoreActivityFromCloudIfEmpty() =>
+    _ActivityStore.restoreFromCloudIfEmpty();
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  StudySessionTracker — kullanıcının özet/test sayfasında geçirdiği süreyi
 //  ölçer; sayfa kapanınca _ActivityStore'a yazar. ChangeNotifier sayesinde
@@ -1039,12 +1046,11 @@ class _StudyCalendarPageState extends State<StudyCalendarPage> {
       final has = entries.any((e) => e.durationSec > 0);
       if (has) {
         streak++;
-      } else if (i > 0) {
-        // Bugün boş ama dün dolu olabilir → bugünü atla, dünden başla.
-        if (i == 0) continue;
-        break;
+      } else if (i == 0) {
+        // Bugün HENÜZ boş → seriyi bozma, düne bak (kullanıcı günü kaybetmesin).
+        continue;
       } else {
-        // i==0 ve bugün boş → streak 0
+        // Geçmiş bir gün boş → seri bitti.
         break;
       }
     }
@@ -5757,6 +5763,15 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
           'Bu konu için 6 test hakkın da bitti. Başka bir konu dene.'.tr());
       return;
     }
+    // Ücretsiz kullanıcı (deneme bitti): konudan yalnızca 1 YENİ test. Premium
+    // gate — diğer test üretim yollarıyla tutarlı. fromWrongs (yanlış tekrarı,
+    // AI'sız, kota harcamaz) muaf — yeni içerik üretmiyor.
+    if (!cfg.fromWrongs &&
+        summary.tests.isNotEmpty &&
+        !AiQuotaService.instance.isPremium) {
+      _showTestPremiumGate();
+      return;
+    }
     // ── YANLIŞLARDAN TEKRAR YOLU — AI çağrısı yok, kota tüketilmez ───
     if (cfg.fromWrongs) {
       final wrongs = cfg.wrongsToReuse.whereType<TestQuestion>().toList();
@@ -5803,7 +5818,8 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
     if (cfg.extraTopics.isEmpty) {
       try {
         final profile = await EduProfile.load();
-        if (profile != null) {
+        // "Topluluk önerileri" kapalıysa havuzu kullanma → doğrudan AI üretir.
+        if (profile != null && AppSettingsService.instance.communityData) {
           // 'medium' tüm havuz dahil; 'easy'/'hard' filtreli çek.
           final filterDifficulty =
               (cfg.difficulty == 'easy' || cfg.difficulty == 'hard')
@@ -5958,7 +5974,10 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
                 'difficulty': q.d,
               });
             }
-            if (qList.isNotEmpty) {
+            // "Topluluk önerileri" kapalıysa kullanıcının soruları havuza
+            // YAZILMAZ (veri toplanmaz).
+            if (qList.isNotEmpty &&
+                AppSettingsService.instance.communityData) {
               unawaited(QuestionPoolService.insertQuestions(
                 profile: profileForPool,
                 subject: subject.name,
@@ -6007,6 +6026,13 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
         }
         break;
       }
+    }
+    // Ücretsiz kullanıcı (deneme bitti): bir konudan yalnızca 1 test. Premium
+    // gate — _generateForExistingSubject (5641) ile aynı kural, iki test üretim
+    // yolu artık tutarlı. (isPremium deneme süresince true → deneme serbest.)
+    if (nextIdx >= 1 && !AiQuotaService.instance.isPremium) {
+      _showTestPremiumGate();
+      return;
     }
     if (nextIdx >= 6) {
       _showSnack(
@@ -6192,6 +6218,15 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
     final isQuestions = widget.mode == LibraryMode.questions;
     final cfg = config ?? _TestConfig();
 
+    // 7 günlük ücretsiz deneme bittiyse YENİ özet üretimi Premium gerektirir.
+    // (_generateForExistingSubject ile aynı kural — iki üretim yolu tutarlı.)
+    // NOT: Bu yalnız ÜRETİMİ engeller; deneme süresince üretilmiş eski özetler
+    // her zaman görüntülenebilir kalır.
+    if (!isQuestions && !AiQuotaService.instance.isPremium) {
+      _showSummaryPremiumGate();
+      return;
+    }
+
     // Subject ref'i ÖNCE bul — sonraki check'lerin (per-subject limit, varolan
     // summary lookup) buna ihtiyacı var. Türkçe karakterlere dayanıklı normalize.
     _Subject? subjectRef = existingSubject;
@@ -6342,7 +6377,10 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
       }
 
       if (cached != null && cached.body.isNotEmpty) {
-        // CACHE HIT — anında göster, stream'siz
+        // CACHE HIT — anında göster, stream'siz. AI çağrısı YAPILMADIĞI için
+        // 6280'de erkenden artırılan kotayı geri ver (topluluk cache'inin
+        // amacı kullanıcıya bedava içerik + kota tasarrufu sağlamak).
+        await UsageQuota.decrement(kind);
         final summary = _Summary(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
           topic: topic,
@@ -8964,8 +9002,8 @@ ${isVerbal ? '• Tarihte yıl, edebiyatta yazar/eser/dönem, felsefede filozof/
         : 'Konu Özetleri'.tr();
     final outputWord = isQuestions ? 'test sorularını' : 'özetini';
     final limitLine = isQuestions
-        ? 'Her dersin her konusu için en fazla 6 test hakkın var. 6. denemen bittikten sonra aynı konudan yeni test üretemezsin; başka bir konu seçebilirsin.'
-        : 'Bir ay içinde aynı dersten en fazla 4 konu özeti çıkarabilirsin. Limit dolduğunda bekle, yeni ay başında sayaç sıfırlanır. İstediğin kadar farklı dersle çalışabilirsin — toplam ders sayısı sınırsız.';
+        ? 'Her konu için en fazla 6 test üretebilirsin; 6. testten sonra o konudan yeni test üretilemez. 7 günlük ücretsiz deneme bittikten sonra bir konudan yalnızca 1 test ücretsizdir, fazlası Premium gerektirir. "Yanlışlardan Tekrar" her zaman ücretsizdir. Farklı ders/konu sayısı sınırsız.'
+        : 'Her konu için 1 kısa + 1 kapsamlı özet üretebilirsin. 7 günlük ücretsiz deneme bittikten sonra yeni özet oluşturmak Premium gerektirir; deneme süresince ürettiğin özetler her zaman açık kalmaya devam eder. Farklı ders ve konu sayısı sınırsız.';
     final steps = <(String, String, String)>[
       (
         '1',
@@ -12841,7 +12879,10 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
   // kendi konumunda kalsın. Eski davranış: kullanıcı en alttayken stream
   // akarken yapışık tutuyordu; özet oluşturulurken ilk sayfa görünmüyordu.
   void _handleScroll() {
-    // No-op; manuel scroll kullanıcıya bırakıldı.
+    // Scroll = kullanıcı etkileşimi → idle sayacını sıfırla (uzun özet okurken
+    // 2 dk hareketsiz sayılıp süre yanlışlıkla duraklatılmasın; idle yüzünden
+    // duraklamışsa otomatik devam etsin). notifyInteraction aktif değilse no-op.
+    StudySessionTracker.instance.notifyInteraction();
   }
 
   void _scrollToBottomIfFollowing() {
@@ -12936,7 +12977,14 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
         _parseDebounce = null;
         setState(() {
           _streaming = false;
-          if (finalContent.isNotEmpty) _ensureParsed(finalContent);
+          if (finalContent.isNotEmpty) {
+            _ensureParsed(finalContent);
+          } else {
+            // Boş ama "başarılı" biten stream → hata gibi davran. Aksi halde
+            // ekran boş fallback kartında kalır, banner/"Tekrar Dene" çıkmaz.
+            _streamFailed = true;
+            _streamFailMessage = 'AI yanıt veremedi.';
+          }
           widget.summary.content = finalContent;
         });
         // Son chunk'tan sonra alta yapışık kalmak isteyen kullanıcı için
@@ -13304,7 +13352,14 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
         }
       } catch (_) {}
     }
-    _toast('Bu konunun diğer versiyonu henüz oluşturulmamış.');
+    // Diğer uzunluk henüz üretilmemiş — geçilecek versiyon yok. Üretim AI
+    // hattı ana sayfada olduğundan buradan tetiklenemez; kullanıcıyı net
+    // şekilde yönlendir (etiket "geç" dese de oluşturma orada yapılır).
+    final otherLabel = widget.summary.length == _SummaryLength.short
+        ? 'kapsamlı'
+        : 'kısa';
+    _toast('Bu konunun $otherLabel özeti henüz yok. '
+        'Ana sayfadan aynı konuyu seçip "$otherLabel" üretebilirsin.');
   }
 
   Future<void> _shareSummary() async {
@@ -13825,46 +13880,8 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
     );
   }
 
-  // ── Sağ alt FAB — "Test Sorularını Çöz" ─────────────────────────────
-  // Tıklanınca: questions kütüphanesinden bu konunun testi varsa direkt aç,
-  // yoksa AcademicPlanner(questions, autoOpen) ile yönlendir.
-  // `enabled=false` → gri disabled görünür (stream akarken kullanıcı FAB'ı
-  // önceden görür ama tıklayamaz).
-  Widget _testQuestionsFab({bool enabled = true}) {
-    final bg = enabled ? Color(0xFFFF6A00) : Color(0x33808080);
-    final ink = enabled ? Colors.white : Color(0xCCFFFFFF);
-    final pill = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(999),
-        boxShadow: enabled
-            ? [
-                BoxShadow(
-                  color: Color(0xFFFF6A00).withValues(alpha: 0.40),
-                  blurRadius: 10,
-                  offset: Offset(0, 3),
-                ),
-              ]
-            : null,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.quiz_rounded, color: ink, size: 16),
-          SizedBox(width: 6),
-          Text('Test Çöz'.tr(),
-              style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 11,
-                  color: ink)),
-        ],
-      ),
-    );
-    if (!enabled) return IgnorePointer(child: pill);
-    return GestureDetector(onTap: _onTestQuestionsTap, child: pill);
-  }
-
+  // Test Sorularını Çöz aksiyonu — üst-sağ overflow menüsünden (testCoz)
+  // tetiklenir. (Eski turuncu "Test Çöz" FAB pill'i kaldırıldı.)
   Future<void> _onTestQuestionsTap() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getStringList('library_subjects_questions_v2') ?? const [];
@@ -13966,6 +13983,11 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
             onFinish: (answers) async {
               attempt.answers = Map<int, String?>.from(answers);
               attempt.completed = true;
+              // KALICILAŞTIR: bu kısayol AcademicPlanner state'inde olmadığı
+              // için _persistSubjects yok. questions store'unu yeniden oku,
+              // eşleşen konunun son denemesini güncelle, geri yaz — aksi halde
+              // çözülen test "tamamlanmamış" görünmeye devam ederdi.
+              await _persistQuestionsAttempt(subject, summary, answers);
             },
           ),
         ));
@@ -13980,6 +14002,45 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
         autoOpenTopic: summary.topic,
       ),
     ));
+  }
+
+  /// Özet ekranı kısayolundan çözülen testin sonucunu kalıcılaştırır.
+  /// questions store'unu yeniden okur, eşleşen ders+konunun SON denemesini
+  /// günceller, geri yazar (instance kimliğine güvenmeden ada/konuya göre).
+  Future<void> _persistQuestionsAttempt(
+      _Subject subject, _Summary summary, Map<int, String?> answers) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw =
+          prefs.getStringList('library_subjects_questions_v2') ?? const [];
+      final list = raw
+          .map((s) {
+            try {
+              return _Subject.fromJson(jsonDecode(s) as Map<String, dynamic>);
+            } catch (_) {
+              return null;
+            }
+          })
+          .whereType<_Subject>()
+          .toList();
+      final subjName = subject.name.toLowerCase().trim();
+      final topicName = summary.topic.toLowerCase().trim();
+      for (final s in list) {
+        if (s.name.toLowerCase().trim() != subjName) continue;
+        for (final sum in s.summaries) {
+          if (sum.topic.toLowerCase().trim() != topicName) continue;
+          if (sum.tests.isEmpty) break;
+          final t = sum.tests.last;
+          t.answers = Map<int, String?>.from(answers);
+          t.completed = true;
+          break;
+        }
+      }
+      await prefs.setStringList('library_subjects_questions_v2',
+          list.map((s) => jsonEncode(s.toJson())).toList());
+    } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'summary_test_persist');
+    }
   }
 
   // ── Spaced repetition due banner ─────────────────────────────────────
@@ -14680,10 +14741,10 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
 
     return Scaffold(
       backgroundColor: pageBg,
-      // ── Sağ alt FAB: "Test Sorularını Çöz" ─────────────────────────
-      // • _streamFailed → tamamen gizli (boş özetten test mantıksız)
-      // • _streaming    → gri/disabled (kullanıcı önceden görsün, tıklayamaz)
-      // • aksi          → normal aktif
+      // ── Sağ alt FAB sütunu: "başa dön" + "sesli okumayı durdur" ────
+      // (Test Sorularını Çöz aksiyonu üst-sağ overflow menüsünde —
+      //  testCoz → _onTestQuestionsTap.) _streamFailed iken tüm FAB'lar
+      // gizli (boş/başarısız özetten test/scroll mantıksız).
       floatingActionButton: _streamFailed
           ? null
           : Column(
@@ -17660,6 +17721,34 @@ class _TestSetupPageState extends State<_TestSetupPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // ── HIZLI YOLLAR ─────────────────────────────────────
+                    // Yanlışlardan tekrar (tamamlanmış denemede yanlış varsa,
+                    // AI'sız + kota harcamaz) ve özeti hatırlat (özet varsa).
+                    if (_wrongs.isNotEmpty) ...[
+                      _quickActionTile(
+                        icon: Icons.replay_rounded,
+                        tint: const Color(0xFFFF6A00),
+                        title: 'Yanlışlardan Tekrar',
+                        subtitle:
+                            '${_wrongs.length} yanlış soruyu yeniden çöz · ücretsiz',
+                        onTap: _replayWrongs,
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    if (widget.summaryContent.trim().isNotEmpty) ...[
+                      _quickActionTile(
+                        icon: Icons.menu_book_rounded,
+                        tint: const Color(0xFF7C3AED),
+                        title: 'Özeti Hatırlat',
+                        subtitle: 'Teste başlamadan konuyu hızlıca gözden geçir',
+                        onTap: _openSummarySheet,
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    // Hazır şablonlar — tek dokunuşla ayar (Hızlı Tekrar /
+                    // TYT Provası / Sınav Simülasyonu).
+                    _quickTemplatesRow(),
+                    const SizedBox(height: 14),
                     // Sıralama: Soru Tipi → Soru Sayısı → Zorluk → Süre Modu
                     // Soru Tipi — her label 2 kelime, alt alta satırlar (\n).
                     _TestPillGroup(

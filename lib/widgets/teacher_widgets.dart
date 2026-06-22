@@ -832,7 +832,7 @@ class StudentPerformanceList extends StatelessWidget {
               if (subs.isEmpty) {
                 return Padding(
                   padding: const EdgeInsets.all(8),
-                  child: Text('Henüz öğrenci yok.'.tr(),
+                  child: Text('Henüz teslim eden olmadı.'.tr(),
                       style: GoogleFonts.poppins(
                         fontSize: 12, color: muted,
                       )),

@@ -11,6 +11,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import 'dart:async';
+import '../services/ai_quota_service.dart';
+import 'premium_screen.dart';
 import 'dart:convert';
 import 'dart:math' as math;
 
@@ -271,6 +273,11 @@ class _AICoachChatScreenState extends State<AICoachChatScreen> {
   /// Her sohbet açılışında random seçilen 5 öneri.
   late final List<(String, String)> _suggestions;
 
+  // Ücretsiz koç süresi (hub ile tutarlı: 5 dk). Dolunca sohbet de premium
+  // gate'ine takılır — önceden chat ekranı bu limiti baypas ediyordu.
+  Timer? _freeTimer;
+  bool _freeExpired = false;
+
   @override
   void initState() {
     super.initState();
@@ -280,14 +287,105 @@ class _AICoachChatScreenState extends State<AICoachChatScreen> {
       ..shuffle(math.Random());
     _suggestions = shuffled.take(5).toList();
     _bootstrap();
+    if (!AiQuotaService.instance.isPremium) {
+      _freeTimer = Timer(const Duration(minutes: 5), () {
+        if (!mounted) return;
+        setState(() => _freeExpired = true);
+        _showCoachPremiumSheet();
+      });
+    }
   }
 
   @override
   void dispose() {
+    _freeTimer?.cancel();
     _ctrl.dispose();
     _scroll.dispose();
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  void _showCoachPremiumSheet() {
+    if (!mounted) return;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isDismissible: false,
+      enableDrag: false,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                    colors: [Color(0xFF7C3AED), Color(0xFFEC4899)]),
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: const Icon(Icons.auto_awesome_rounded,
+                  color: Colors.white, size: 32),
+            ),
+            const SizedBox(height: 16),
+            Text('Premium\'a Geç'.tr(),
+                style: GoogleFonts.poppins(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.black)),
+            const SizedBox(height: 8),
+            Text(
+              '5 dakikalık ücretsiz AI Koç süren doldu.\nSınırsız sohbet için Premium\'a geç.'
+                  .tr(),
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                  fontSize: 13, color: Colors.black54, height: 1.5),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                style: TextButton.styleFrom(
+                  backgroundColor: const Color(0xFF7C3AED),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const PremiumScreen()));
+                },
+                child: Text('Premium\'a Geç'.tr(),
+                    style: GoogleFonts.poppins(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white)),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                Navigator.of(context).maybePop();
+              },
+              child: Text('Geri Dön'.tr(),
+                  style: GoogleFonts.poppins(
+                      fontSize: 13, color: Colors.black38)),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _bootstrap() async {
@@ -349,7 +447,10 @@ class _AICoachChatScreenState extends State<AICoachChatScreen> {
     final g = grade.trim();
     switch (lvl) {
       case 'primary':
-        return 'İlkokul $g. sınıf (yaklaşık ${5 + int.tryParse(g)! < 0 ? 7 : 5 + (int.tryParse(g) ?? 3)} yaş)';
+        // int.tryParse(g)! null-assertion'ı sayısal olmayan sınıfta çökerdi +
+        // operatör önceliği hatası (ternary işlevsizdi). Güvenli hale getirildi.
+        final n = int.tryParse(g) ?? 3;
+        return 'İlkokul $g. sınıf (yaklaşık ${5 + n} yaş)';
       case 'middle':
         return 'Ortaokul $g. sınıf (yaklaşık ${9 + (int.tryParse(g) ?? 5)} yaş)';
       case 'high':
@@ -500,6 +601,11 @@ class _AICoachChatScreenState extends State<AICoachChatScreen> {
   Future<void> _send() async {
     final text = _ctrl.text.trim();
     if (text.isEmpty || _sending) return;
+    // Ücretsiz süre dolduysa premium gate (hub ile tutarlı; baypas kapatıldı).
+    if (_freeExpired && !AiQuotaService.instance.isPremium) {
+      _showCoachPremiumSheet();
+      return;
+    }
     setState(() {
       _messages.add(_ChatMessage(
         isUser: true,

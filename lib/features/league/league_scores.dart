@@ -26,6 +26,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../services/education_profile.dart';
+import '../../screens/academic_planner.dart' show logActivitySession;
 import '../leaderboard/domain/user_location.dart';
 
 enum LeaguePeriod { daily, weekly, monthly, allTime }
@@ -250,6 +251,18 @@ class LeagueScores {
         cityCodeSnapshot: attempt.cityCodeSnapshot ?? location?.cityCode,
         clientSubmitId: clientSubmitId,
       );
+
+      // "Çalışma Takvimim"e de yaz — lig quizleri takvimde görünsün.
+      if (withSnapshot.durationSec > 0) {
+        unawaited(logActivitySession(
+          subject: withSnapshot.subjectKey.isEmpty
+              ? 'Bilgi Ligi'
+              : withSnapshot.subjectKey,
+          topic: withSnapshot.topic ?? '',
+          type: 'lig',
+          durationSec: withSnapshot.durationSec,
+        ));
+      }
 
       // 1) Yerel cache + pref + backup
       final list = await loadAll();

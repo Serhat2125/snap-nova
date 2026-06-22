@@ -238,6 +238,9 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
     // Pomodoro istatistikleri cloud restore — yerel boşsa cloud'dan al,
     // yeni telefonda streak + toplam faz + rozet korunur.
     unawaited(PomodoroStats.restoreFromCloudIfEmpty());
+    // Çalışma aktivite geçmişi cloud restore — yerel boşsa cloud'dan al;
+    // yeni cihazda Gelişim Paneli/haftalık özet, takvim açılmadan da dolu gelir.
+    unawaited(restoreActivityFromCloudIfEmpty());
     // Uygulama Tercihleri cloud restore (dil/tema/bildirim/açılış ekranı)
     // — yerel eksikse cloud'daki kullanıcı tercihlerini yere yaz, yeni
     // telefonda kullanıcı ayarlarını tekrar yapmasın.
@@ -593,6 +596,38 @@ class _LibraryEntryShell extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+//  _GlobalTapSound — "Buton tıklama sesi" ayarı için uygulama-geneli tap sesi.
+//  Listener gesture'ları engellemez (sadece gözlemler). Pointer down→up arası
+//  hareket küçükse (gerçek tıklama, scroll/sürükleme değil) click sesi çalar.
+// ═══════════════════════════════════════════════════════════════════════════
+class _GlobalTapSound extends StatefulWidget {
+  final Widget child;
+  const _GlobalTapSound({required this.child});
+  @override
+  State<_GlobalTapSound> createState() => _GlobalTapSoundState();
+}
+
+class _GlobalTapSoundState extends State<_GlobalTapSound> {
+  Offset? _downPos;
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      onPointerDown: (e) => _downPos = e.position,
+      onPointerUp: (e) {
+        final d = _downPos;
+        _downPos = null;
+        if (d == null) return;
+        if ((e.position - d).distance > 12) return; // sürükleme → tıklama değil
+        if (AppSettingsService.instance.clickSound) {
+          unawaited(AppSettingsService.instance.playClick());
+        }
+      },
+      child: widget.child,
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 //  GlobalSidebarOverlay — Tüm sayfalarda görünen sürüklenebilir yan panel
 // ═══════════════════════════════════════════════════════════════════════════
 class _GlobalSidebarOverlay extends StatefulWidget {
@@ -900,12 +935,16 @@ class QuAlsarApp extends StatelessWidget {
                 GlobalCupertinoLocalizations.delegate,
               ],
               builder: (context, child) {
-                return Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    if (child != null) child,
-                    const _GlobalSidebarOverlay(),
-                  ],
+                // Global "Buton tıklama sesi" — ayar açıksa her GERÇEK tıklamada
+                // (sürükleme/scroll değil) sistem click sesi çalar.
+                return _GlobalTapSound(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (child != null) child,
+                      const _GlobalSidebarOverlay(),
+                    ],
+                  ),
                 );
               },
               home: const _StartupRouter(),

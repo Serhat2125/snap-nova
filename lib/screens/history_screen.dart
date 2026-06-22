@@ -283,7 +283,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
     for (final r in _records) {
       counts[r.subject] = (counts[r.subject] ?? 0) + 1;
     }
-    final subjects = List<String>.from(_allSubjects);
+    // Yalnızca KAYDI OLAN dersleri göster — 0 kayıtlı ders filtre barını
+    // gereksiz şişirip "boş kategori" yanılgısı vermesin. Çoğa göre azalan.
+    final subjects = _allSubjects.where((s) => (counts[s] ?? 0) > 0).toList();
     subjects.sort((a, b) => (counts[b] ?? 0).compareTo(counts[a] ?? 0));
     return subjects;
   }

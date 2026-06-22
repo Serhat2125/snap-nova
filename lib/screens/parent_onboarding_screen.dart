@@ -40,7 +40,7 @@ class _ParentOnboardingScreenState extends State<ParentOnboardingScreen> {
       _sending = true;
       _msg = null;
     });
-    final res = await ParentLinkService.requestLink(text);
+    final res = await ParentLinkService.requestLinkByCode(text);
     if (!mounted) return;
     setState(() => _sending = false);
     switch (res) {
@@ -61,7 +61,7 @@ class _ParentOnboardingScreenState extends State<ParentOnboardingScreen> {
         break;
       case LinkRequestResult.childNotFound:
         setState(() => _msg =
-            'Bu kullanıcı adıyla bir öğrenci bulunamadı.'.tr());
+            'Bu koda bağlı öğrenci bulunamadı. Kodu kontrol et.'.tr());
         break;
       case LinkRequestResult.selfLink:
         setState(() => _msg = 'Kendi hesabına bağlanamazsın.'.tr());
@@ -133,7 +133,8 @@ class _ParentOnboardingScreenState extends State<ParentOnboardingScreen> {
                   )),
               const SizedBox(height: 8),
               Text(
-                'Çocuğun QuAlsar kullanıcı adını yaz. Çocuğun uygulamada bildirim alır ve onaylar.'
+                'Çocuğun uygulamada profilinden ürettiği EBEV- kodunu yaz. '
+                'Çocuğun bildirim alır ve onaylar.'
                     .tr(),
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
@@ -158,12 +159,13 @@ class _ParentOnboardingScreenState extends State<ParentOnboardingScreen> {
                     fontSize: 15, fontWeight: FontWeight.w700,
                     color: AppPalette.textPrimary(context),
                   ),
+                  textCapitalization: TextCapitalization.characters,
                   decoration: InputDecoration(
-                    hintText: 'çocuk_kullanici_adi'.tr(),
+                    hintText: 'EBEV-XXXXXX'.tr(),
                     border: InputBorder.none,
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                    prefixIcon: Icon(Icons.alternate_email_rounded,
+                    prefixIcon: Icon(Icons.vpn_key_rounded,
                         color: AppPalette.textSecondary(context), size: 20),
                   ),
                 ),

@@ -35,6 +35,9 @@ class _GreenColonyScreenState extends State<GreenColonyScreen>
   // Persistance için ek: focus fazı başlangıç anı (takvime yazılan süre
   // gerçekten geçen saniye olsun).
   DateTime? _focusStartedAt;
+  // Duvar saati referansı: aktif fazın bitmesi gereken an. Sayaç buradan
+  // türetilir; arka planda Timer durdurulsa bile geri dönünce sürüklenme olmaz.
+  DateTime? _phaseEndsAt;
   int _session = 1;
   String _mode = 'focus';
   int _capsules = 0;
@@ -103,6 +106,10 @@ class _GreenColonyScreenState extends State<GreenColonyScreen>
       // Sayfanın açık kaldığı süreyi diske yaz — kullanıcı geri dönerse
       // 6 saat içinde kaldığı yerden devam.
       _persistSession();
+    } else if (state == AppLifecycleState.resumed) {
+      // Geri dönüşte duvar saatinden anlık resenkron — arka planda Timer
+      // duraklamış olsa bile kalan süre doğru olur, gerekiyorsa fazı bitirir.
+      if (_running) _tick();
     }
   }
 
@@ -141,23 +148,42 @@ class _GreenColonyScreenState extends State<GreenColonyScreen>
     if (_running) {
       _ticker?.cancel();
       WakelockPlus.disable();
+      // Duraklatınca kalan süreyi sabitle; bitiş referansını bırak.
+      _phaseEndsAt = null;
       setState(() => _running = false);
       return;
     }
     if (_mode == 'focus' && _focusStartedAt == null) {
       _focusStartedAt = DateTime.now();
     }
+    // Duvar saatine göre bitiş anını sabitle — kalan saniye buradan türetilir.
+    _phaseEndsAt = DateTime.now().add(Duration(seconds: _timeLeft));
     setState(() => _running = true);
     WakelockPlus.enable();
     HapticFeedback.lightImpact();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
-      setState(() {
-        _timeLeft--;
-        if (_mode == 'focus') _o2 = 100;
-      });
-      if (_timeLeft <= 0) _completePhase();
+      _tick();
     });
+  }
+
+  /// Duvar saatinden kalan süreyi hesapla. Arka plan/uyku sonrası geri
+  /// dönüldüğünde de doğru değeri verir (Timer sürüklenmesini telafi eder).
+  void _tick() {
+    final end = _phaseEndsAt;
+    if (end == null) return;
+    final remaining = end.difference(DateTime.now()).inSeconds;
+    setState(() {
+      _timeLeft = remaining < 0 ? 0 : remaining;
+      // O₂ jeneratörü: odak fazında geçen süreyle dolar (40% taban → 100%).
+      // Mola fazlarında stok yavaşça tükenir, böylece gösterge canlı kalır.
+      if (_mode == 'focus') {
+        _o2 = (40 + 60 * _progress).clamp(0.0, 100.0);
+      } else {
+        _o2 = (100 - 50 * _progress).clamp(0.0, 100.0);
+      }
+    });
+    if (_timeLeft <= 0) _completePhase();
   }
 
   Future<void> _completePhase() async {
@@ -202,8 +228,11 @@ class _GreenColonyScreenState extends State<GreenColonyScreen>
         _mode = 'focus';
         _timeLeft = _totalTime = _focus;
       }
+      // Yeni faza geçildi: O₂'yi faz başlangıç değerine çek.
+      _o2 = _mode == 'focus' ? 40 : 100;
     });
     _focusStartedAt = null;
+    _phaseEndsAt = null;
     // Yan etkiler (takvim + istatistik + rozet) sadece focus için.
     if (wasFocus) {
       unawaited(logPomodoroSessionToCalendar(
@@ -305,6 +334,7 @@ class _GreenColonyScreenState extends State<GreenColonyScreen>
       _o2 = 100;
     });
     _focusStartedAt = null;
+    _phaseEndsAt = null;
     await PomodoroStats.clearColonySession();
   }
 
@@ -347,11 +377,14 @@ class _GreenColonyScreenState extends State<GreenColonyScreen>
             _mode == 'longBreak' ? _longBreak : _shortBreak;
         if (_mode == 'break') _session++;
         if (_mode == 'longBreak') _session = 1;
+        _o2 = 100;
       });
       _focusStartedAt = null;
+      _phaseEndsAt = null;
       return;
     }
     _ticker?.cancel();
+    _phaseEndsAt = DateTime.now();
     setState(() => _timeLeft = 0);
     _completePhase();
   }

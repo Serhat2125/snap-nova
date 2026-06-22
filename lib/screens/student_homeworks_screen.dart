@@ -155,7 +155,7 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
         onTap: () async {
           await Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => HomeworkSolveScreen(
-              classId: cls.classId, homework: hw,
+              classId: cls.classId, homework: hw, submission: sub,
             ),
           ));
           _load(); // dönünce yenile

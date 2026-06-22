@@ -50,6 +50,7 @@ class _ParentChildHomeworksScreenState
         classId: c.classId,
         studentUid: widget.childUid,
         studentName: widget.childName,
+        readOnly: true, // ebeveyn: salt-okuma (çocuğun teslimine yazamaz)
       ),
     ));
   }

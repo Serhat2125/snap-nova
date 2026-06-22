@@ -68,6 +68,9 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
   bool _running = false;
   bool _done = false;
   Timer? _ticker;
+  // Duvar saati referansı: aktif fazın bitiş anı. Sayaç buradan türetilir,
+  // arka planda Timer dursa bile sürüklenme olmaz + kill sonrası restore.
+  DateTime? _phaseEndsAt;
 
   // ── Sinyal kaybı ───────────────────────────────────────────────────────────
   bool _signalLost = false;
@@ -172,7 +175,12 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
     )..repeat();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted || AiQuotaService.instance.isPremium) return;
+      if (!mounted) return;
+      // Yarım kalan oturumu geri yükle (kill sonrası kurtarma).
+      await _tryRestoreMarsSession();
+      if (!mounted) return;
+      // Premium kapısı: ücretsiz kullanıcı tek seferlik hakkını harcadıysa.
+      if (AiQuotaService.instance.isPremium) return;
       final prefs = await SharedPreferences.getInstance();
       if (prefs.getBool('mars_pomodoro_used') ?? false) {
         _showMarsPremiumGate();
@@ -233,17 +241,29 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
       await prefs.setBool('mars_pomodoro_used', true);
     }
     if (!mounted) return;
+    // Duvar saatine göre bitiş anını sabitle — kalan saniye buradan türetilir.
+    _phaseEndsAt = DateTime.now().add(Duration(seconds: _timeLeft));
     setState(() => _running = true);
     WakelockPlus.enable();
     HapticFeedback.mediumImpact();
+    _persistMarsSession();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
-      setState(() {
-        _timeLeft--;
-        _updateLiveProgress();
-      });
-      if (_timeLeft <= 0) _advance();
+      _tick();
     });
+  }
+
+  /// Duvar saatinden kalan süreyi hesapla — arka plan/uyku sonrası geri
+  /// dönüldüğünde de doğru değer; Timer sürüklenmesini telafi eder.
+  void _tick() {
+    final end = _phaseEndsAt;
+    if (end == null) return;
+    final remaining = end.difference(DateTime.now()).inSeconds;
+    setState(() {
+      _timeLeft = remaining < 0 ? 0 : remaining;
+      _updateLiveProgress();
+    });
+    if (_timeLeft <= 0) _advance();
   }
 
   void _showMarsPremiumGate() {
@@ -318,12 +338,122 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
   void _pause() {
     _ticker?.cancel();
     WakelockPlus.disable();
+    _phaseEndsAt = null;
     setState(() => _running = false);
+    // Duraklatılmış oturumu kalan süreyle persist et (kill sonrası restore).
+    _persistMarsSession();
+  }
+
+  // ── Aktif oturum kalıcılığı (kill sonrası kurtarma) ─────────────────────────
+  static const _kMarsPhase = 'mars_active_phase';
+  static const _kMarsEndsAt = 'mars_active_ends_at';
+  static const _kMarsTimeLeft = 'mars_active_time_left';
+  static const _kMarsRunning = 'mars_active_running';
+  static const _kMarsTotal = 'mars_active_total';
+  static const _kMarsP = 'mars_active_progress'; // "p1,p2,p3,p4"
+  static const _kMarsTest = 'mars_active_test';
+
+  Future<void> _persistMarsSession() async {
+    if (_done) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_kMarsPhase, _phase.index);
+    await prefs.setInt(_kMarsTimeLeft, _timeLeft);
+    await prefs.setInt(_kMarsTotal, _totalTime);
+    await prefs.setBool(_kMarsRunning, _running);
+    await prefs.setBool(_kMarsTest, _testMode);
+    await prefs.setString(
+        _kMarsP, '$_p1,$_p2,$_p3,$_p4');
+    if (_running && _phaseEndsAt != null) {
+      await prefs.setString(_kMarsEndsAt, _phaseEndsAt!.toIso8601String());
+    } else {
+      await prefs.remove(_kMarsEndsAt);
+    }
+  }
+
+  Future<void> _clearMarsSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    for (final k in [
+      _kMarsPhase,
+      _kMarsEndsAt,
+      _kMarsTimeLeft,
+      _kMarsRunning,
+      _kMarsTotal,
+      _kMarsP,
+      _kMarsTest,
+    ]) {
+      await prefs.remove(k);
+    }
+  }
+
+  /// Uygulama kill sonrası açılışta yarım kalan Mars oturumunu geri yükle.
+  /// Çalışan bir oturum bitiş anına göre türetilir; süre dolduysa fazı bitirir.
+  Future<void> _tryRestoreMarsSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    final phaseIdx = prefs.getInt(_kMarsPhase);
+    if (phaseIdx == null || phaseIdx < 0 || phaseIdx >= _PhaseKind.values.length) {
+      return;
+    }
+    final phase = _PhaseKind.values[phaseIdx];
+    if (phase == _PhaseKind.done) {
+      await _clearMarsSession();
+      return;
+    }
+    final pStr = prefs.getString(_kMarsP);
+    if (pStr != null) {
+      final parts = pStr.split(',');
+      if (parts.length == 4) {
+        _p1 = double.tryParse(parts[0]) ?? _p1;
+        _p2 = double.tryParse(parts[1]) ?? _p2;
+        _p3 = double.tryParse(parts[2]) ?? _p3;
+        _p4 = double.tryParse(parts[3]) ?? _p4;
+      }
+    }
+    final savedTotal = prefs.getInt(_kMarsTotal);
+    final wasRunning = prefs.getBool(_kMarsRunning) ?? false;
+    final endsAtStr = prefs.getString(_kMarsEndsAt);
+    _testMode = prefs.getBool(_kMarsTest) ?? _testMode;
+    _proMode = !_testMode;
+    _phase = phase;
+    _totalTime = savedTotal ?? _totalTime;
+
+    if (wasRunning && endsAtStr != null) {
+      final endsAt = DateTime.tryParse(endsAtStr);
+      if (endsAt != null) {
+        final remaining = endsAt.difference(DateTime.now()).inSeconds;
+        if (remaining <= 0) {
+          // Uzaktayken faz süresi doldu — fazı bitir (ilerleme/rozet işlenir).
+          if (!mounted) return;
+          setState(() {
+            _timeLeft = 0;
+            _updateLiveProgress();
+          });
+          _advance();
+          return;
+        }
+        // Çalışan oturum kaldığı yerden otomatik devam etmesin; duraklatılmış
+        // halde kalan süreyle aç (kullanıcı BAŞLAT'a basınca devam eder).
+        if (!mounted) return;
+        setState(() {
+          _timeLeft = remaining;
+          _running = false;
+        });
+        _phaseEndsAt = null;
+        return;
+      }
+    }
+    // Duraklatılmış oturum: kayıtlı kalan süreyle geri yükle.
+    final savedLeft = prefs.getInt(_kMarsTimeLeft);
+    if (!mounted) return;
+    setState(() {
+      _timeLeft = savedLeft ?? _timeLeft;
+      _running = false;
+    });
   }
 
   void _reset() {
     _ticker?.cancel();
     WakelockPlus.disable();
+    _phaseEndsAt = null;
     setState(() {
       _running = false;
       _done = false;
@@ -332,6 +462,7 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
       _p1 = _p2 = _p3 = _p4 = 0;
       _stormCollapsed = false;
     });
+    _clearMarsSession();
   }
 
   void _skip() {
@@ -428,11 +559,17 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
           break;
       }
     });
+    // Yeni faz duraklatılmış başlar — duvar saati referansını bırak.
+    _phaseEndsAt = null;
     if (finishedPhaseId != null) {
       _recordFinishedFocusPhase(finishedPhaseId!);
     }
     if (_done) {
+      _clearMarsSession();
       _showVictoryCard();
+    } else {
+      // Sıradaki faz/mola durumunu persist et (kill sonrası kurtarma).
+      _persistMarsSession();
     }
   }
 
@@ -564,11 +701,14 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
   }
 
   void _collapseFromStorm() {
+    _phaseEndsAt = null;
     setState(() {
       _stormCollapsed = true;
       _signalLost = false;
       _running = false;
     });
+    // Çöken oturum kurtarılamaz — diski temizle.
+    _clearMarsSession();
   }
 
   void _showVictoryCard() {

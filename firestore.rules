@@ -129,6 +129,32 @@ service cloud.firestore {
       allow update, delete: if isOwner(targetUid);
     }
 
+    // ── matchmaking_queue: Bilgi Yarışı eşleşme kuyruğu ──────────────────
+    //    Eşleşme için kullanıcılar birbirinin "waiting" doc'unu okur; eşleşen
+    //    taraf karşının doc'unu status=matched yapar. userId alanı cihaz-bazlı
+    //    duelo id (auth uid değil) olduğundan auth eşleşmesi zorlanamaz —
+    //    oturum açmış olmak yeterli.
+    match /matchmaking_queue/{id} {
+      allow read, create, update, delete: if isSignedIn();
+    }
+
+    // ── duelo_sessions: gerçek senkron düello oturumu ────────────────────
+    //    İki katılımcı session'ı okur; owner soruları, her oyuncu kendi
+    //    ilerlemesini yazar. (Davet session'ını CF admin SDK ile açar.)
+    match /duelo_sessions/{sid} {
+      allow read, create, update: if isSignedIn();
+    }
+
+    // ── presence: çevrimiçi işareti (best-effort) ────────────────────────
+    match /presence/{uid} {
+      allow read, write: if isSignedIn();
+    }
+
+    // ── rematch_requests: rövanş isteği ──────────────────────────────────
+    match /rematch_requests/{id} {
+      allow read, create: if isSignedIn();
+    }
+
     // ── leaderboards: herkes okur, sadece admin ya da Cloud Functions yazar
     match /leaderboards/{doc} {
       allow read: if true;

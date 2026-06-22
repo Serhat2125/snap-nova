@@ -9,7 +9,7 @@ import '../screens/account_type_screen.dart';
 import '../screens/onboarding_screen.dart';
 import '../screens/premium_screen.dart';
 import '../screens/profile_screen.dart' show showNotificationSettingsSheet;
-import '../screens/topic_3d_list_screen.dart';
+// import '../screens/topic_3d_list_screen.dart'; // GİZLENDİ — "3D Konu Modelleri" girişiyle birlikte geri açılır
 import '../screens/ai_model_picker_page.dart';
 import '../services/ai_provider_service.dart';
 import '../services/account_service.dart';
@@ -183,16 +183,20 @@ class _MainMenu extends StatelessWidget {
                     title: 'Hesap Tipi'.tr(),
                     subtitle: _accountTypeLabel(AccountService.instance.type),
                     onTap: () => _openAccountTypeSwitcher(context)),
-                _Item(
-                    icon: Icons.view_in_ar_rounded,
-                    color: Color(0xFF06B6D4),
-                    title: '3D Konu Modelleri'.tr(),
-                    subtitle: 'Hücre, Güneş Sistemi, Yer Şekilleri'.tr(),
-                    onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const Topic3DListScreen()),
-                        )),
+                // GİZLENDİ (inceleme öncesi): "3D Konu Modelleri" — Hücre/Güneş
+                // Sistemi/Yer Şekilleri modelleri henüz gerçek GLB içermiyor
+                // (placeholder astronot görünüyordu). Gerçek GLB dosyaları
+                // eklenince bu blok + üstteki import geri açılarak etkinleşir.
+                // _Item(
+                //     icon: Icons.view_in_ar_rounded,
+                //     color: Color(0xFF06B6D4),
+                //     title: '3D Konu Modelleri'.tr(),
+                //     subtitle: 'Hücre, Güneş Sistemi, Yer Şekilleri'.tr(),
+                //     onTap: () => Navigator.push(
+                //           context,
+                //           MaterialPageRoute(
+                //               builder: (_) => const Topic3DListScreen()),
+                //         )),
 
                 _Item(
                     icon: Icons.smart_toy_outlined,

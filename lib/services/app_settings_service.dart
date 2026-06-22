@@ -17,7 +17,6 @@
 //   12. Uygulama Kilidi      (PIN + biometric flag)
 //   15. Kişiselleştirme      (AI Koç / Topluluk verisi opt-out)
 //   20. Yönlendirme Kilidi   ('portrait' | 'system')
-//   21. Klavye Tipi          ('standard' | 'scientific' | 'simple')
 //
 //  Tüm değerler SharedPreferences'ta. ChangeNotifier ile UI dinler.
 //  Stream/listener gerektiren ayarlar (orientation, theme) için direkt
@@ -68,8 +67,6 @@ class AppSettingsService extends ChangeNotifier {
   static const _kOrientationMode = 'settings_orientation_v1';
   // 'portrait' | 'system'
 
-  static const _kKeyboardType = 'settings_keyboard_v1';
-  // 'standard' | 'scientific' | 'simple'
 
   // ── State ─────────────────────────────────────────────────────────────────
   bool _quietEnabled = false;
@@ -97,7 +94,6 @@ class AppSettingsService extends ChangeNotifier {
   bool _communityData = true;
 
   String _orientationMode = 'portrait';
-  String _keyboardType = 'standard';
 
   // ── Public getters ────────────────────────────────────────────────────────
   bool get quietEnabled => _quietEnabled;
@@ -124,7 +120,6 @@ class AppSettingsService extends ChangeNotifier {
   bool get communityData => _communityData;
 
   String get orientationMode => _orientationMode;
-  String get keyboardType => _keyboardType;
 
   /// Şu an Sessiz Saatler aralığında miyiz?
   bool get inQuietHours {
@@ -178,7 +173,6 @@ class AppSettingsService extends ChangeNotifier {
     _communityData = prefs.getBool(_kCommunityData) ?? true;
 
     _orientationMode = prefs.getString(_kOrientationMode) ?? 'portrait';
-    _keyboardType = prefs.getString(_kKeyboardType) ?? 'standard';
 
     // Yönlendirmeyi uygula
     _applyOrientation();
@@ -230,14 +224,6 @@ class AppSettingsService extends ChangeNotifier {
     _orientationMode = mode;
     await prefs.setString(_kOrientationMode, mode);
     _applyOrientation();
-    notifyListeners();
-  }
-
-  Future<void> setKeyboardType(String type) async {
-    if (!['standard', 'scientific', 'simple'].contains(type)) return;
-    final prefs = await SharedPreferences.getInstance();
-    _keyboardType = type;
-    await prefs.setString(_kKeyboardType, type);
     notifyListeners();
   }
 
@@ -350,6 +336,8 @@ class AppSettingsService extends ChangeNotifier {
 
   /// Başarı bildirimi — kısa ışıklı haptic + opsiyonel ses.
   Future<void> notifySuccess() async {
+    // "Test sırasında sessiz" açıksa cevap geri-bildirim sesi/titreşimi çalmaz.
+    if (_testSilent) return;
     if (_successSound) {
       try {
         await SystemSound.play(SystemSoundType.click);
@@ -362,6 +350,8 @@ class AppSettingsService extends ChangeNotifier {
 
   /// Hata bildirimi — orta ağır haptic + opsiyonel ses.
   Future<void> notifyError() async {
+    // "Test sırasında sessiz" açıksa cevap geri-bildirim sesi/titreşimi çalmaz.
+    if (_testSilent) return;
     if (_errorSound) {
       try {
         await SystemSound.play(SystemSoundType.alert);
