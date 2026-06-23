@@ -316,12 +316,15 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
       if (liveText.trim().isNotEmpty) {
         _onSpeechFinished(liveText);
       } else {
-        // STT durumunu da göster — debug için kritik (mic izni / locale / engine).
-        final status = VoiceInputService.lastStatus;
-        final err = VoiceInputService.lastError;
-        final detail = err.isNotEmpty ? '[$err]' : '[$status]';
+        // Kullanıcıya sade, lokalize mesaj göster — ham STT status/error
+        // kodları (debug detayları) yalnızca debug log'a yazılır.
+        if (kDebugMode) {
+          debugPrint(
+              '[LiveAnalysis] no-speech: status=${VoiceInputService.lastStatus} '
+              'error=${VoiceInputService.lastError}');
+        }
         _showSnack(
-            'Konuşman algılanamadı. $detail Tekrar dene — yüksek sesle ve mikrofona yakın konuş.'
+            'Konuşman algılanamadı. Tekrar dene — yüksek sesle ve mikrofona yakın konuş.'
                 .tr());
       }
     }
@@ -514,27 +517,26 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
     } on GeminiException catch (e) {
       if (!mounted) return;
       _slowConnTimer?.cancel();
-      // Hata mesajı + (varsa) ham HTTP detayı — debug için kullanıcı sebebi
-      // görebilsin. Ham detay yoksa sadece userMessage gösterilir.
-      final detail = e.rawError;
-      final fullMsg = detail.isEmpty
-          ? e.userMessage
-          : '${e.userMessage}\n\nDetay: $detail';
+      // Kullanıcıya sade, lokalize hata mesajı göster; ham HTTP detayı
+      // yalnızca debug log'a yazılır (Play sürümünde kullanıcıya sızmaz).
+      if (kDebugMode && e.rawError.isNotEmpty) {
+        debugPrint('[LiveAnalysis] GeminiException detail: ${e.rawError}');
+      }
       setState(() {
         _thinking = false;
         _slowConnection = false;
         if (_messages.isNotEmpty && _messages.last.pending) {
           _messages.removeLast();
         }
-        _messages.add(_ChatMsg(role: 'ai', text: fullMsg));
+        _messages.add(_ChatMsg(role: 'ai', text: e.userMessage));
       });
       _scrollToBottom();
     } catch (e, stack) {
       if (!mounted) return;
       _slowConnTimer?.cancel();
-      // Yakalanmamış istisna — stack trace'in ilk satırını da göster
-      // (debug yardımı). Production'da stack kırpılabilir.
-      final stackHead = stack.toString().split('\n').take(2).join('\n');
+      // Yakalanmamış istisna — ham hata/stack sadece debug log'a; kullanıcıya
+      // genel, lokalize bir mesaj gösterilir.
+      if (kDebugMode) debugPrint('[LiveAnalysis] unexpected error: $e\n$stack');
       setState(() {
         _thinking = false;
         _slowConnection = false;
@@ -543,7 +545,9 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
         }
         _messages.add(_ChatMsg(
           role: 'ai',
-          text: 'Hata: $e\n\n$stackHead',
+          text:
+              'Şu an cevap üretilemedi. İnternet bağlantını kontrol et, sonra tekrar dene.'
+                  .tr(),
         ));
       });
       _scrollToBottom();
@@ -726,11 +730,11 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
               child: const Icon(Icons.workspace_premium_rounded, color: Colors.white, size: 32),
             ),
             const SizedBox(height: 16),
-            Text('Premium\'a Geç',
+            Text('Premium\'a Geç'.tr(),
                 style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.black)),
             const SizedBox(height: 8),
             Text(
-              '1 dakikalık ücretsiz süren doldu.\nSınırsız Canlı Analiz için Premium\'a geç.',
+              '1 dakikalık ücretsiz süren doldu.\nSınırsız Canlı Analiz için Premium\'a geç.'.tr(),
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(fontSize: 13, color: Colors.black54, height: 1.5),
             ),
@@ -748,7 +752,7 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
                   Navigator.of(ctx).pop();
                   Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PremiumScreen()));
                 },
-                child: Text('Premium\'a Geç',
+                child: Text('Premium\'a Geç'.tr(),
                     style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
               ),
             ),
@@ -758,7 +762,7 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
                 Navigator.of(ctx).pop();
                 Navigator.of(context).maybePop();
               },
-              child: Text('Geri Dön',
+              child: Text('Geri Dön'.tr(),
                   style: GoogleFonts.poppins(fontSize: 13, color: Colors.black38)),
             ),
           ],
