@@ -19,6 +19,9 @@ import '../widgets/adaptive_photo.dart';
 import '../widgets/ai_model_card.dart';
 import '../widgets/qualsar_loading_widget.dart';
 import '../services/gemini_service.dart';
+// Sadece AiProvider enum'u — bu dosyadaki yerel `AiModel` ile çakışmasın diye
+// `show` ile sınırlı import.
+import '../services/ai_provider_service.dart' show AiProvider;
 import 'ai_result_screen.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -130,56 +133,52 @@ class _SolutionScreenState extends State<SolutionScreen> {
     AiModel(
       name: 'ChatGPT',
       subtitle: 'Detaylı ve mantıklı çözüm'.tr(),
-      badge: 'Yakında',
+      badge: 'Aktif',
       accentColor: Color(0xFF10A37F),
-      logo: Padding(
-        padding: EdgeInsets.all(2),
-        child: CustomPaint(painter: _OpenAiKnotPainter()),
-      ),
+      // Marka logosu yerine jenerik ikon (marka/inceleme riskini azaltmak için).
+      logo: Icon(Icons.forum_rounded, color: Color(0xFF10A37F), size: 22),
     ),
     AiModel(
       name: 'Gemini',
       subtitle: 'Hızlı analiz ve alternatif çözüm'.tr(),
       badge: 'Aktif',
       accentColor: Color(0xFF4796E3),
-      logo: Padding(
-        padding: EdgeInsets.all(2),
-        child: CustomPaint(painter: _GeminiStarPainter()),
-      ),
+      logo: Icon(Icons.bubble_chart_rounded, color: Color(0xFF4796E3), size: 22),
     ),
     AiModel(
       name: 'Grok',
       subtitle: 'Anlık ve yaratıcı çözüm'.tr(),
-      badge: 'Yakında',
+      badge: 'Aktif',
       accentColor: Color(0xFF1D1D1D),
-      logo: Padding(
-        padding: EdgeInsets.all(2),
-        child: CustomPaint(painter: _GrokXPainter()),
-      ),
+      logo: Icon(Icons.bolt_rounded, color: Color(0xFF1D1D1D), size: 22),
     ),
     AiModel(
       name: 'Deepseek',
       subtitle: 'Derin analiz ve akıl yürütme'.tr(),
       badge: 'Aktif',
       accentColor: Color(0xFF4B8BF5),
-      logo: Padding(
-        padding: EdgeInsets.all(1),
-        child: CustomPaint(
-            painter: _DeepseekWhalePainter(color: Color(0xFF4B8BF5))),
-      ),
+      logo: Icon(Icons.psychology_rounded, color: Color(0xFF4B8BF5), size: 22),
     ),
     AiModel(
       name: 'Claude',
       subtitle: 'Derin açıklama ve mantık yürütme'.tr(),
-      badge: 'Yakında',
+      badge: 'Aktif',
       accentColor: Color(0xFFD97706),
-      logo: Padding(
-        padding: EdgeInsets.all(2),
-        child: CustomPaint(
-            painter: _ClaudeBurstPainter(color: Color(0xFFD97706))),
-      ),
+      logo: Icon(Icons.lightbulb_rounded, color: Color(0xFFD97706), size: 22),
     ),
   ];
+
+  // ── Karosel modeli → foto-çözümde kullanılacak (vision-yetkin) sağlayıcı+model ──
+  // ÖNEMLİ: foto-çözüm görsel (vision) gerektirir. Grok'un varsayılanı
+  // (grok-3-mini) vision DESTEKLEMEZ; bu yüzden grok-2-vision-1212 şart.
+  // Deepseek burada YOK — kendi ayrı yolu (analyzeImageWithDeepseek) var.
+  static const Map<String, (AiProvider, String)> _photoProvider = {
+    'QuAlsar': (AiProvider.gemini, 'gemini-2.5-flash-lite'),
+    'Gemini':  (AiProvider.gemini, 'gemini-2.5-flash-lite'),
+    'ChatGPT': (AiProvider.openai, 'gpt-4o-mini'),
+    'Grok':    (AiProvider.grok,   'grok-2-vision-1212'),
+    'Claude':  (AiProvider.claude, 'claude-sonnet-4-6'),
+  };
 
   // ── Renk özelleştirme — ai_result_screen ile ortak prefs anahtarı ────────
   // Burada değiştirilen renkler çözüm ekranına da geçer (aynı prefs).
@@ -411,21 +410,8 @@ class _SolutionScreenState extends State<SolutionScreen> {
     if (_selectedOption == null || _isLoading || _centeredModelIdx == null) return;
     final model = _models[_centeredModelIdx!];
 
-    // QuAlsar, Gemini ve Deepseek aktif — diğerleri yakında
-    if (model.name != 'QuAlsar' &&
-        model.name != 'Gemini' &&
-        model.name != 'Deepseek') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${model.name} ${localeService.tr('coming_soon_suffix')}'),
-          backgroundColor: AppColors.surfaceElevated,
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
-      return;
-    }
+    // Tüm sağlayıcılar aktif: QuAlsar/Gemini/ChatGPT/Grok/Claude → çoklu-sağlayıcı
+    // proxy (aiProxy), Deepseek → kendi OCR+çözüm yolu. Engel yok.
 
     // Quota kontrolü — fotoğraf çözümü = Solution kategorisi.
     // Free tier: 100/gün, 1500/ay. Aşılırsa snackbar + Analytics event.
@@ -490,10 +476,16 @@ class _SolutionScreenState extends State<SolutionScreen> {
           isMulti: widget.isMultiCapture,
         );
       } else {
+        // Karoseldeki seçimi vision-yetkin sağlayıcı/modele eşle; askTask bunu
+        // zincirin EN BAŞINDA dener, cevap gelmezse Gemini→OpenAI→Grok yedeğe
+        // düşer. Bilinmeyen ad → null → Ayarlar'daki global seçim kullanılır.
+        final pick = _photoProvider[model.name];
         result = await GeminiService.analyzeImage(
           pathForAI,
           _selectedOption!,
           isMulti: widget.isMultiCapture,
+          provider: pick?.$1,
+          model: pick?.$2,
         );
       }
     } on GeminiException catch (e) {
@@ -1358,9 +1350,8 @@ class _SolutionScreenState extends State<SolutionScreen> {
 
   Widget _buildSolveButton() {
     final model    = _models[_centeredModelIdx ?? 0];
-    final isActive = model.name == 'QuAlsar' ||
-        model.name == 'Gemini' ||
-        model.name == 'Deepseek';
+    // Tüm sağlayıcılar artık aktif (çoklu-sağlayıcı proxy + Deepseek yolu);
+    // buton her zaman "Çözüme Başla" görünür.
     final color    = model.accentColor;
 
     return GestureDetector(
@@ -1371,21 +1362,15 @@ class _SolutionScreenState extends State<SolutionScreen> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 12),
         decoration: BoxDecoration(
-          gradient: isActive
-              ? LinearGradient(
-                  colors: [color.withValues(alpha: 0.72), color.withValues(alpha: 0.50)],
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                )
-              : null,
-          color: isActive ? null : AppColors.surfaceElevated,
+          gradient: LinearGradient(
+            colors: [color.withValues(alpha: 0.72), color.withValues(alpha: 0.50)],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
           borderRadius: BorderRadius.circular(16),
-          border: isActive
-              ? null
-              : Border.all(color: color.withValues(alpha: 0.45)),
-          boxShadow: isActive
-              ? [BoxShadow(color: color.withValues(alpha: 0.25), blurRadius: 16, spreadRadius: 0, offset: Offset(0, 3))]
-              : [],
+          boxShadow: [
+            BoxShadow(color: color.withValues(alpha: 0.25), blurRadius: 16, spreadRadius: 0, offset: Offset(0, 3)),
+          ],
         ),
         child: Row(
           children: [
@@ -1395,7 +1380,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
                 color: Colors.white.withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(Icons.auto_awesome_rounded, size: 18, color: isActive ? Colors.white : color),
+              child: Icon(Icons.auto_awesome_rounded, size: 18, color: Colors.white),
             ),
             SizedBox(width: 12),
             Expanded(
@@ -1404,7 +1389,7 @@ class _SolutionScreenState extends State<SolutionScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    isActive ? 'Çözüme Başla' : '${model.name} — Yakında',
+                    'Çözüme Başla',
                     style: GoogleFonts.inter(
                       color: Colors.white,
                       fontSize: 14,
@@ -1787,217 +1772,6 @@ class _ModeOption {
     required this.color,
     this.iconBuilder,
   });
-}
-
-// ─── Gemini 4-köşeli yıldız ikonu ────────────────────────────────────────────
-// İçbükey kenarlı 4-köşeli kıvılcım — Google'un blue → purple → pink degradesiyle.
-class _GeminiStarPainter extends CustomPainter {
-  const _GeminiStarPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final r  = math.min(size.width, size.height) / 2;
-    final k  = r * 0.30; // içbükeyliği belirleyen kontrol mesafesi
-
-    final path = Path()
-      ..moveTo(cx, cy - r)
-      ..cubicTo(cx + k, cy - k, cx + k, cy - k, cx + r, cy)
-      ..cubicTo(cx + k, cy + k, cx + k, cy + k, cx, cy + r)
-      ..cubicTo(cx - k, cy + k, cx - k, cy + k, cx - r, cy)
-      ..cubicTo(cx - k, cy - k, cx - k, cy - k, cx, cy - r)
-      ..close();
-
-    final paint = Paint()
-      ..isAntiAlias = true
-      ..shader = LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          Color(0xFF4796E3),
-          Color(0xFF9168C0),
-          Color(0xFFBB4287),
-        ],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
-
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _GeminiStarPainter oldDelegate) => false;
-}
-
-// ─── OpenAI / ChatGPT — siyah hexafoil knot (6-fold rotational symmetry) ────
-class _OpenAiKnotPainter extends CustomPainter {
-  const _OpenAiKnotPainter();
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..isAntiAlias = true
-      ..color = Colors.black
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = size.width * 0.11
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    // 3 örtüşen oval — 0°, 60°, 120° dönmeyle 6-fold simetri oluşturur.
-    for (int i = 0; i < 3; i++) {
-      canvas.save();
-      canvas.translate(cx, cy);
-      canvas.rotate(i * math.pi / 3);
-      final rect = Rect.fromCenter(
-        center: Offset.zero,
-        width: size.width * 0.78,
-        height: size.height * 0.36,
-      );
-      canvas.drawOval(rect, paint);
-      canvas.restore();
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _OpenAiKnotPainter oldDelegate) => false;
-}
-
-// ─── Grok / xAI — sert-italik X ─────────────────────────────────────────────
-class _GrokXPainter extends CustomPainter {
-  const _GrokXPainter();
-  Color get color => Colors.black;
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..isAntiAlias = true
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = size.width * 0.18
-      ..strokeCap = StrokeCap.square;
-    final m = size.width * 0.16;
-    // Hafif italik için üst-noktalar sağa kayık
-    final lean = size.width * 0.05;
-    canvas.drawLine(
-      Offset(m + lean, m),
-      Offset(size.width - m - lean, size.height - m),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(size.width - m + lean, m),
-      Offset(m - lean, size.height - m),
-      paint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _GrokXPainter oldDelegate) =>
-      oldDelegate.color != color;
-}
-
-// ─── Deepseek — stilize edilmiş yunus/balina silüeti ────────────────────────
-class _DeepseekWhalePainter extends CustomPainter {
-  final Color color;
-  const _DeepseekWhalePainter({required this.color});
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-    final paint = Paint()
-      ..isAntiAlias = true
-      ..color = color
-      ..style = PaintingStyle.fill;
-
-    // Gövde: curved teardrop facing right
-    final body = Path()
-      ..moveTo(w * 0.08, h * 0.56)
-      ..cubicTo(
-          w * 0.10, h * 0.35,
-          w * 0.40, h * 0.28,
-          w * 0.62, h * 0.36)
-      ..cubicTo(
-          w * 0.85, h * 0.42,
-          w * 0.95, h * 0.50,
-          w * 0.96, h * 0.58)
-      // Kuyruk üst kanat
-      ..lineTo(w * 0.86, h * 0.40)
-      ..lineTo(w * 0.94, h * 0.62)
-      // Kuyruk alt kanat
-      ..lineTo(w * 0.86, h * 0.78)
-      ..lineTo(w * 0.92, h * 0.62)
-      ..cubicTo(
-          w * 0.78, h * 0.78,
-          w * 0.40, h * 0.82,
-          w * 0.18, h * 0.74)
-      ..cubicTo(
-          w * 0.06, h * 0.68,
-          w * 0.04, h * 0.62,
-          w * 0.08, h * 0.56)
-      ..close();
-    canvas.drawPath(body, paint);
-
-    // Göz noktası (beyaz)
-    canvas.drawCircle(
-      Offset(w * 0.26, h * 0.50),
-      w * 0.045,
-      Paint()..color = Colors.white..isAntiAlias = true,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _DeepseekWhalePainter oldDelegate) =>
-      oldDelegate.color != color;
-}
-
-// ─── Claude / Anthropic — turuncu sunburst (4-noktalı asterisk) ────────────
-class _ClaudeBurstPainter extends CustomPainter {
-  final Color color;
-  const _ClaudeBurstPainter({required this.color});
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final r  = size.width * 0.42;
-    final paint = Paint()
-      ..isAntiAlias = true
-      ..color = color
-      ..style = PaintingStyle.fill;
-
-    // 4 sivri uçlu yıldız (sunburst): her ucu ince elmas
-    for (int i = 0; i < 4; i++) {
-      final angle = i * math.pi / 2;
-      canvas.save();
-      canvas.translate(cx, cy);
-      canvas.rotate(angle);
-      final path = Path()
-        ..moveTo(0, -r)
-        ..lineTo(r * 0.18, 0)
-        ..lineTo(0, r * 0.18)
-        ..lineTo(-r * 0.18, 0)
-        ..close();
-      canvas.drawPath(path, paint);
-      canvas.restore();
-    }
-
-    // Diyagonal ince ışınlar (45°, 135°, ...)
-    final raysPaint = Paint()
-      ..isAntiAlias = true
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = size.width * 0.06
-      ..strokeCap = StrokeCap.round;
-    for (int i = 0; i < 4; i++) {
-      final angle = math.pi / 4 + i * math.pi / 2;
-      canvas.drawLine(
-        Offset(cx, cy),
-        Offset(cx + r * 0.65 * math.cos(angle),
-            cy + r * 0.65 * math.sin(angle)),
-        raysPaint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _ClaudeBurstPainter oldDelegate) =>
-      oldDelegate.color != color;
 }
 
 // ─── Detaylı Robot ikonu (CustomPainter) ──────────────────────────────────────

@@ -1604,6 +1604,11 @@ Karmaşık terimi açıkla, örnekle pekiştir, samimi ama saygılı ton.''';
     String imagePath,
     String solutionType, {
     bool isMulti = false,
+    // Foto-çözüm karoselinden seçilen sağlayıcı/model — verilirse zincirin
+    // EN BAŞINDA denenir (global AI seçimini değiştirmez). null ise kullanıcının
+    // Ayarlar'daki seçimi (useSelectedFirst) kullanılır.
+    AiProvider? provider,
+    String? model,
   }) async {
     _log('══════════════════════════════════════════');
     _log('analyzeImage() BAŞLADI');
@@ -1675,9 +1680,12 @@ Karmaşık terimi açıkla, örnekle pekiştir, samimi ama saygılı ton.''';
           prompt: prompt,
           maxTokens: visionMaxTok,
           image: AiImageInput(mimeType: mime, base64: base64Image),
-          // Fotoğraflı çözüm: kullanıcının seçtiği model en başta denenir,
-          // cevap vermezse Gemini → OpenAI → Grok sırasıyla devam eder.
-          useSelectedFirst: true,
+          // Fotoğraflı çözüm: seçilen model en başta denenir, cevap vermezse
+          // Gemini → OpenAI → Grok sırasıyla devam eder. Karoselden açık
+          // sağlayıcı geldiyse onu kullan; yoksa Ayarlar'daki global seçimi.
+          useSelectedFirst: provider == null,
+          firstProvider: provider,
+          firstModel: model,
           timeout: const Duration(seconds: 90),
         );
         swMp.stop();

@@ -338,6 +338,11 @@ class AiProviderService {
     // true → kullanıcının seçtiği sağlayıcı zincirin EN BAŞINA eklenir.
     // Fotoğraflı çözümde kullanılır: (seçim) → Gemini → OpenAI → Grok.
     bool useSelectedFirst = false,
+    // Açık sağlayıcı/model — global seçimi DEĞİŞTİRMEDEN bu çağrı için zincirin
+    // en başına eklenir (ör. foto-çözüm karosel seçimi). Verilirse
+    // useSelectedFirst'ten önce gelir.
+    AiProvider? firstProvider,
+    String? firstModel,
     Duration timeout = const Duration(seconds: 120),
   }) {
     final cfg = (isPremium ? kAiTaskConfigPremium : kAiTaskConfigFree)[task]!;
@@ -347,9 +352,11 @@ class AiProviderService {
         .map((h) => {'provider': aiProviderInfo(h.provider).wireName, 'model': h.model})
         .toList();
 
-    if (useSelectedFirst) {
-      final selWire = aiProviderInfo(_selectedProvider).wireName;
-      final selModel = selectedModel;
+    if (firstProvider != null || useSelectedFirst) {
+      final p = firstProvider ?? _selectedProvider;
+      final selWire = aiProviderInfo(p).wireName;
+      final selModel = firstModel ??
+          (firstProvider != null ? aiProviderInfo(p).defaultModel.id : selectedModel);
       // Zincirde aynı sağlayıcı varsa çıkar, seçimi başa koy (çift çağrı yok).
       hops.removeWhere((h) => h['provider'] == selWire);
       hops.insert(0, {'provider': selWire, 'model': selModel});
@@ -376,6 +383,8 @@ class AiProviderService {
     int? maxTokens,
     AiImageInput? image,
     bool useSelectedFirst = false,
+    AiProvider? firstProvider,
+    String? firstModel,
     Duration timeout = const Duration(seconds: 120),
   }) =>
       chatTask(task,
@@ -385,6 +394,8 @@ class AiProviderService {
           maxTokens: maxTokens,
           image: image,
           useSelectedFirst: useSelectedFirst,
+          firstProvider: firstProvider,
+          firstModel: firstModel,
           timeout: timeout);
 
   // ── Ortak HTTP gönderim (auth token + proxy POST + normalize) ──────────

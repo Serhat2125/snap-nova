@@ -11,6 +11,8 @@ import 'package:flutter/rendering.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
 import '../services/activity_writer_service.dart';
@@ -211,6 +213,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
     _followFocus.addListener(() => setState(() {}));
     _followCtrl.addListener(() => setState(() {}));
     _loadResultColors();
+    _loadInappropriateFlag();
     if (widget.existingRecordId != null) {
       // Geçmişten açıldı — anında göster, tekrar kaydetme
       _displayed = _mainText;
@@ -227,6 +230,137 @@ class _AiResultScreenState extends State<AiResultScreen> {
     if (mounted && cached != null) {
       setState(() => _cachedStudySuite = cached);
     }
+  }
+
+  // ── Uygunsuz içerik bildirimi ──────────────────────────────────────────────
+  // Gen-AI politikası: kullanıcı, AI tarafından üretilmiş uygunsuz/saldırgan
+  // çıktıyı uygulama içinden bildirebilmeli. Bildirim yerel olarak işaretlenir
+  // (çift bildirim engeli) ve best-effort Firestore'a yazılır (inceleme için).
+  static const _kInappropriateKey = 'inappropriate_reported_ids_v1';
+  bool _reportedInappropriate = false;
+
+  Future<void> _loadInappropriateFlag() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final ids = prefs.getStringList(_kInappropriateKey) ?? const <String>[];
+      if (mounted && ids.contains(_recordId)) {
+        setState(() => _reportedInappropriate = true);
+      }
+    } catch (_) {/* sessiz */}
+  }
+
+  Future<void> _openInappropriateReport() async {
+    if (_reportedInappropriate) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Bu içerik zaten bildirildi.'.tr()),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    final reasons = <String, String>{
+      'inappropriate': 'Uygunsuz / zararlı içerik'.tr(),
+      'hate_violence': 'Nefret veya şiddet'.tr(),
+      'sexual': 'Cinsel içerik'.tr(),
+      'dangerous': 'Tehlikeli / yasa dışı'.tr(),
+      'misinformation': 'Yanıltıcı bilgi'.tr(),
+      'other': 'Diğer'.tr(),
+    };
+    String reason = 'inappropriate';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: Text('Uygunsuz içeriği bildir'.tr()),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final e in reasons.entries)
+                InkWell(
+                  onTap: () => setLocal(() => reason = e.key),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                    child: Row(
+                      children: [
+                        Icon(
+                          reason == e.key
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_unchecked,
+                          size: 20,
+                          color: reason == e.key
+                              ? const Color(0xFFDC2626)
+                              : Colors.grey,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(e.value,
+                              style: const TextStyle(fontSize: 13.5)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text('Vazgeç'.tr()),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text('Gönder'.tr()),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true) return;
+    await _submitInappropriate(reason);
+  }
+
+  Future<void> _submitInappropriate(String reason) async {
+    setState(() => _reportedInappropriate = true);
+    // 1) Yerel flag — çift bildirimi engelle, yeniden açılınca hatırlansın.
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final ids = prefs.getStringList(_kInappropriateKey) ?? <String>[];
+      if (!ids.contains(_recordId)) {
+        ids.add(_recordId);
+        await prefs.setStringList(_kInappropriateKey, ids);
+      }
+    } catch (_) {/* sessiz */}
+    // 2) Firestore'a yaz — fire-and-forget. Auth/ağ yoksa sessiz fail.
+    //    Şema: inappropriate_reports/{auto_id}
+    () async {
+      try {
+        final uid = FirebaseAuth.instance.currentUser?.uid ?? 'anon';
+        await FirebaseFirestore.instance
+            .collection('inappropriate_reports')
+            .add({
+          'reason': reason,
+          'solutionType': widget.solutionType,
+          'modelName': widget.modelName,
+          'aiTitle': _aiTitle,
+          'resultPreview': widget.result.length > 500
+              ? widget.result.substring(0, 500)
+              : widget.result,
+          'recordId': _recordId,
+          'userId': uid,
+          'reportedAt': FieldValue.serverTimestamp(),
+          'recordTimestamp': _createdAt.toIso8601String(),
+        });
+      } catch (e, st) {
+        ErrorLogger.instance
+            .capture(e, st, context: 'ai_result_report_inappropriate');
+      }
+    }();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('✓ Bildirildi. İncelenmek üzere iletildi, teşekkürler.'.tr()),
+      behavior: SnackBarBehavior.floating,
+      duration: const Duration(seconds: 3),
+    ));
   }
 
   // ── Kaynak satırlarını metinden çıkar ────────────────────────────────────────
@@ -560,6 +694,39 @@ class _AiResultScreenState extends State<AiResultScreen> {
                 ],
               ),
             ),
+          ),
+          // Daha fazla menü — uygunsuz içerik bildirme (Gen-AI politikası).
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert_rounded,
+                color: AppPalette.textPrimary(context), size: 20),
+            tooltip: 'Daha fazla'.tr(),
+            onSelected: (v) {
+              if (v == 'report_inappropriate') _openInappropriateReport();
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem<String>(
+                value: 'report_inappropriate',
+                child: Row(
+                  children: [
+                    Icon(
+                      _reportedInappropriate
+                          ? Icons.flag_rounded
+                          : Icons.flag_outlined,
+                      size: 18,
+                      color: const Color(0xFFDC2626),
+                    ),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(
+                        _reportedInappropriate
+                            ? 'Bildirildi'.tr()
+                            : 'Uygunsuz içeriği bildir'.tr(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),

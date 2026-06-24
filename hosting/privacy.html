@@ -27,7 +27,7 @@
 </head>
 <body>
   <h1>QuAlsar — Gizlilik Politikası</h1>
-  <p class="meta">Son güncelleme: 14 Haziran 2026 · Hizmet sağlayıcı: QuAlsar</p>
+  <p class="meta">Son güncelleme: 25 Haziran 2026 · Hizmet sağlayıcı: QuAlsar</p>
 
   <p>QuAlsar uygulaması ("biz", "uygulama") gizliliğine önem verir. Bu politika, hangi verileri topladığımızı, nasıl kullandığımızı ve haklarını açıklar.</p>
 
@@ -35,7 +35,7 @@
   <ul>
     <li><b>Hesap bilgileri:</b> E-posta adresin, ad-soyad (kayıt olduğunda Google/Apple/e-posta sağlar).</li>
     <li><b>Eğitim profili:</b> Ülke, sınıf, alan/bölüm tercihi (kişiselleştirilmiş içerik için).</li>
-    <li><b>Kamera ve soru fotoğrafları:</b> Soru tarama (OCR) ve görsel çözüm için kamerayla çektiğin veya galeriden seçtiğin fotoğraflar — yalnızca AI işleme için Google Gemini'ye iletilir, sunucumuzda kalıcı saklanmaz. Kamera erişimi yalnızca bu özelliği kullandığında devreye girer.</li>
+    <li><b>Kamera ve soru fotoğrafları:</b> Soru tarama (OCR) ve görsel çözüm için kamerayla çektiğin veya galeriden seçtiğin fotoğraflar — yalnızca AI işleme için, kullandığın özellikte seçili olan AI sağlayıcısına (Google Gemini, OpenAI/ChatGPT, Anthropic/Claude, xAI/Grok veya DeepSeek) iletilir; sunucumuzda kalıcı saklanmaz. Kamera erişimi yalnızca bu özelliği kullandığında devreye girer.</li>
     <li><b>Sesli komut:</b> Mikrofondan gelen ses cihaz üzerinde metne çevrilir (Apple/Google native API'leri). Ses dosyası sunucumuza gönderilmez.</li>
     <li><b>Kullanım istatistikleri:</b> Uygulamayı geliştirmek için açılan ekranlar, kullanılan özellikler ve oturum süresi gibi anonim veriler Firebase Analytics ile toplanır. Bu veriler kimliğini doğrudan tanımlamaz ve reklam amacıyla satılmaz.</li>
     <li><b>Çözüm geçmişi:</b> Kullandığın AI yanıtları cihazda + Firebase Firestore'da saklanır (cihaz değişikliğinde senkron için).</li>
@@ -45,7 +45,7 @@
 
   <h2>2. Veri Kullanım Amaçları</h2>
   <ul>
-    <li>AI destekli çözüm üretmek (Google Gemini API'sine sorgu göndererek).</li>
+    <li>AI destekli çözüm üretmek (seçili AI sağlayıcısına — bkz. §3 — sorgu göndererek).</li>
     <li>Kişisel müfredat ve öneri çıkarmak.</li>
     <li>Bilgi Ligi sıralama sistemini çalıştırmak.</li>
     <li>Uygulama hatalarını tespit ve düzeltme (Firebase Crashlytics).</li>
@@ -59,9 +59,17 @@
     <li><b>Google Firebase</b> — kimlik doğrulama, veritabanı, hata raporu (kendi gizlilik politikası: <a href="https://firebase.google.com/support/privacy">firebase.google.com/support/privacy</a>)</li>
     <li><b>Google Analytics for Firebase</b> — anonim kullanım istatistikleri</li>
     <li><b>Google Gemini</b> — AI çözüm üretimi (kendi gizlilik politikası: <a href="https://policies.google.com/privacy">policies.google.com/privacy</a>)</li>
+    <li><b>OpenAI (ChatGPT)</b> — kullanıcı seçerse AI çözüm üretimi (<a href="https://openai.com/policies/privacy-policy">openai.com/policies/privacy-policy</a>)</li>
+    <li><b>Anthropic (Claude)</b> — kullanıcı seçerse AI çözüm üretimi (<a href="https://www.anthropic.com/legal/privacy">anthropic.com/legal/privacy</a>)</li>
+    <li><b>xAI (Grok)</b> — kullanıcı seçerse AI çözüm üretimi (<a href="https://x.ai/legal/privacy-policy">x.ai/legal/privacy-policy</a>)</li>
+    <li><b>DeepSeek</b> — kullanıcı seçerse AI çözüm üretimi (<a href="https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html">DeepSeek Privacy Policy</a>)</li>
     <li><b>Google Play Billing</b> — abonelik ödemeleri</li>
     <li><b>Apple Sign-In / Google Sign-In</b> — kimlik doğrulama</li>
   </ul>
+  <p>Soru fotoğrafların ve metinlerin, yalnızca o anki çözümü üretmek için ilgili AI sağlayıcısına iletilir. Bu sağlayıcılar verini kendi modellerini eğitmek için kullanmama taahhüdü veren API/iş katmanları üzerinden çağrılır. Varsayılan sağlayıcı Google Gemini'dir; diğerleri yalnızca sen seçtiğinde devreye girer.</p>
+
+  <h2>3a. Uluslararası Veri Transferi</h2>
+  <p>Yukarıdaki AI ve altyapı sağlayıcıları verilerini Türkiye dışındaki sunucularda (başta ABD; DeepSeek'i seçersen ilgili sağlayıcının sunucuları) işleyebilir. Bu transferler yalnızca senin başlattığın çözüm isteğini karşılamak için ve şifreli (HTTPS/TLS) bağlantılar üzerinden yapılır.</p>
 
   <h2>4. Veri Saklama Süresi</h2>
   <ul>
@@ -72,7 +80,8 @@
   </ul>
 
   <h2>5. Çocukların Gizliliği</h2>
-  <p>Uygulama 13 yaş altı kullanıcılar için tasarlanmamıştır. 13 yaş altı kullanıcılardan bilinçli olarak kişisel veri toplamayız. Veliler, çocuklarının uygulamayı kullanmasından önce bu politikayı incelemelidir.</p>
+  <p>QuAlsar, ilkokul dâhil tüm eğitim seviyelerindeki öğrencilere yöneliktir. 13 yaşından küçük kullanıcıların uygulamayı yalnızca <b>ebeveyn/vasi onayı ve gözetimi</b> altında kullanması gerekir. Ebeveyn onayı olmadan 13 yaş altı kullanıcılardan bilerek kişisel veri toplamayız.</p>
+  <p>Ebeveynler, uygulamadaki <b>Ebeveyn Paneli</b> üzerinden çocuğun hesabını bir bağlama koduyla bağlayabilir, etkinlik özetini görebilir ve dilediğinde çocuğun verilerinin silinmesini talep edebilir (bkz. <a href="/delete">Hesap ve Veri Silme</a>). Çocuk hesapları için topladığımız veriyi eğitim hizmetini sağlamak için gerekli olanla sınırlar, reklam amacıyla kullanmaz ve satmayız.</p>
 
   <h2>6. Haklarınız (KVKK & GDPR)</h2>
   <p>Aşağıdaki haklara sahipsin:</p>

@@ -52,6 +52,18 @@ service cloud.firestore {
       allow read, update, delete: if isAdmin();
     }
 
+    // ── İçerik bildirimleri: kullanıcılar gönderir, sadece admin okur ─────
+    //    inappropriate_reports → uygunsuz/saldırgan AI çıktısı (Gen-AI politikası)
+    //    incorrect_reports     → yanlış AI cevabı (kalite iyileştirme)
+    match /inappropriate_reports/{doc} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+    match /incorrect_reports/{doc} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
     // ── users/{uid}: kullanıcı profili (arkadaş araması için public read) ─
     //    Read: oturum açmış herkes (username search, profil önizleme).
     //    Write: sadece sahibi.
