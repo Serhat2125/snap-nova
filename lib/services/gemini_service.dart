@@ -21,7 +21,7 @@ import 'summary_cache_service.dart';
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class GeminiService {
-  static const _model   = 'gemini-2.5-flash';
+  static const _model   = 'gemini-2.5-flash-lite';
   static const _baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
   static const _tag     = '🤖 [GeminiService]';
 
@@ -1252,7 +1252,7 @@ KURALLAR (sıkı):
 
     try {
       try {
-        final res = await attempt('gemini-2.5-pro');
+        final res = await attempt('gemini-2.5-flash-lite');
         _log('chatWithImage OK (pro) — ${res.text.length} kar');
         return res.text.trim();
       } on GeminiException catch (e) {
@@ -1266,12 +1266,12 @@ KURALLAR (sıkı):
             m.contains('unavailable');
         if (!isTransient) rethrow;
         _log('chatWithImage Pro fail → Flash fallback');
-        final res = await attempt('gemini-2.5-flash');
+        final res = await attempt('gemini-2.5-flash-lite');
         _log('chatWithImage OK (flash) — ${res.text.length} kar');
         return res.text.trim();
       } on TimeoutException {
         _log('chatWithImage timeout → Flash fallback');
-        final res = await attempt('gemini-2.5-flash');
+        final res = await attempt('gemini-2.5-flash-lite');
         return res.text.trim();
       }
     } on GeminiException {
@@ -1481,7 +1481,7 @@ KURALLAR:
     // gelmezse aşağıda çoklu sağlayıcı zincirine düşer (Gemini→ChatGPT→DeepSeek).
     var yielded = false;
     try {
-      await for (final c in tryStream('gemini-2.5-flash')) {
+      await for (final c in tryStream('gemini-2.5-flash-lite')) {
         if (c.isNotEmpty) yielded = true;
         yield c;
       }
@@ -1490,7 +1490,7 @@ KURALLAR:
     }
     if (!yielded) {
       try {
-        await for (final c in tryStream('gemini-2.5-pro')) {
+        await for (final c in tryStream('gemini-2.5-flash-lite')) {
           if (c.isNotEmpty) yielded = true;
           yield c;
         }
@@ -3119,6 +3119,14 @@ $existingSolution''';
     //  Ortak prompt kullanırsak "📖 Tanım" kuralı JSON çıktıyı bozuyor.
     final isKonuOzeti = solutionType == 'KonuÖzeti';
     final isTestSorulari = solutionType == 'TestSorulari';
+    // ÇIKTI DİLİ: kullanıcının aktif uygulama dili. Eskiden Türkçe'ye hardcode'luydu
+    // → özet/test her dilde Türkçe üretiliyordu. Artık locale'e göre dinamik.
+    final outLangCode = LocaleService.global?.localeCode ?? 'tr';
+    final outLangInstr = outLangCode == 'tr'
+        ? 'Cevabı Türkçe ver.'
+        : 'TÜM çıktıyı (soru, şık, açıklama, tanım, tablo hücreleri — HER ŞEY) '
+            '${_languageNameFor(outLangCode)} dilinde yaz (kod: "$outLangCode"). '
+            'Hedef dil bu olmadıkça Türkçe veya İngilizce KULLANMA.';
     String systemPrompt;
     if (isKonuOzeti) {
       systemPrompt = '''$_sysIdentity
@@ -3134,7 +3142,7 @@ KURAL:
   "Harika", "Tabii", "Bu konuyu inceleyelim", "Hemen başlayalım" YASAK.
 - "Sonuç:" / "Püf Nokta:" / "İpucu:" satırı YAZMA.
 - Çözüm adımı SADECE "🧪 Uygulama Örneği" hücresinin içinde (formül altında 2-4 adım).
-- Cevabı Türkçe ver.''';
+- $outLangInstr''';
     } else if (isTestSorulari) {
       systemPrompt = '''$_sysIdentity
 
@@ -3151,7 +3159,8 @@ KATI ÇIKTI KURALI:
 - Backtick fence (üç tırnak json) kullanma — ham JSON döndür.
 - LaTeX yalnızca soru/şık/sol içinde \\\\( ... \\\\) ya da \\\\[ ... \\\\].
 - DOLAR (\$) işareti çıktıda HİÇ olmayacak.
-- Türkçe yaz. Tam 10 soru.''';
+- $outLangInstr
+- TAM 10 soru.''';
     } else {
       systemPrompt = '''$_sysIdentity
 
@@ -3170,7 +3179,7 @@ $_sysExpertNotebook
 [ÖDEV ÇÖZME MODU]
 Ders: $subject
 $modeInstr
-Cevabı Türkçe ver.''';
+$outLangInstr''';
     }
 
     // Moda göre token bütçesi ve yaratıcılık. TestSorulari için bütçe
@@ -3278,6 +3287,13 @@ Cevabı Türkçe ver.''';
     final modeInstr = _summaryModeInstr(solutionType);
     final isSummary =
         solutionType == 'KonuÖzeti' || solutionType == 'TestSorulari';
+    // ÇIKTI DİLİ: aktif uygulama dili (eskiden Türkçe'ye hardcode'luydu).
+    final outLangCode = LocaleService.global?.localeCode ?? 'tr';
+    final outLangInstr = outLangCode == 'tr'
+        ? 'Cevabı Türkçe ver.'
+        : 'TÜM çıktıyı (soru, şık, açıklama, tanım, tablo hücreleri — HER ŞEY) '
+            '${_languageNameFor(outLangCode)} dilinde yaz (kod: "$outLangCode"). '
+            'Hedef dil bu olmadıkça Türkçe veya İngilizce KULLANMA.';
     final systemPrompt = isSummary
         ? '''$_sysIdentity
 
@@ -3290,7 +3306,7 @@ $modeInstr
 KURAL:
 - "Sonuç:" / "Püf Nokta:" / "İpucu:" satırı YAZMA.
 - Çözüm adımı SADECE "🧪 Uygulama Örneği" hücresinin içinde (formül altında 2-4 adım).
-- Cevabı Türkçe ver.'''
+- $outLangInstr'''
         : '''$_sysIdentity
 
 $_sysCoreRules
@@ -3308,7 +3324,7 @@ $_sysExpertNotebook
 [ÖDEV ÇÖZME MODU]
 Ders: $subject
 $modeInstr
-Cevabı Türkçe ver.''';
+$outLangInstr''';
 
     final (maxTok, temp) = switch (solutionType) {
       'Basit Çöz'     => (700,  0.1),

@@ -247,33 +247,33 @@ class _BilgiLigiHowItWorksPage extends StatelessWidget {
             _HowStepCard(
               step: 1,
               icon: Icons.menu_book_rounded,
-              title: 'Dersini seç',
+              title: 'Dersini seç'.tr(),
               desc:
-                  'Üstteki "Ders Seç" butonundan bir ders, sonra konu seç. Acelen varsa ⚡ Hızlı Test ile direkt başla.',
+                  'Üstteki "Ders Seç" butonundan bir ders, sonra konu seç. Acelen varsa ⚡ Hızlı Test ile direkt başla.'.tr(),
               accent: purple,
             ),
             _HowStepCard(
               step: 2,
               icon: Icons.quiz_rounded,
-              title: '10 soruyu çöz',
+              title: '10 soruyu çöz'.tr(),
               desc:
-                  'Çoktan seçmeli 10 soru. Süre tutulur — eşit puanda hızlı olan üstte. Yanlış cevaplar net puandan düşülür (ÖSYM tarzı).',
+                  'Çoktan seçmeli 10 soru. Süre tutulur — eşit puanda hızlı olan üstte. Yanlış cevaplar net puandan düşülür (ÖSYM tarzı).'.tr(),
               accent: purple,
             ),
             _HowStepCard(
               step: 3,
               icon: Icons.location_on_rounded,
-              title: 'Konum seç',
+              title: 'Konum seç'.tr(),
               desc:
-                  'Hangi şehirde-ülkede sıralandığını görmek için konum seç. Şehir / Ülke / Dünya filtresinden istediğin kapsama geç.',
+                  'Hangi şehirde-ülkede sıralandığını görmek için konum seç. Şehir / Ülke / Dünya filtresinden istediğin kapsama geç.'.tr(),
               accent: orange,
             ),
             _HowStepCard(
               step: 4,
               icon: Icons.access_time_rounded,
-              title: 'Periyot seç',
+              title: 'Periyot seç'.tr(),
               desc:
-                  'Günlük • Haftalık • Aylık • Genel. Günlük seçersen TÜM kullanıcılar O GÜN için aynı 10 soruyu çözer — adil challenge.',
+                  'Günlük • Haftalık • Aylık • Genel. Günlük seçersen TÜM kullanıcılar O GÜN için aynı 10 soruyu çözer — adil challenge.'.tr(),
               accent: orange,
             ),
             _HowStepCard(
@@ -287,7 +287,7 @@ class _BilgiLigiHowItWorksPage extends StatelessWidget {
             _HowStepCard(
               step: 6,
               icon: Icons.emoji_events_rounded,
-              title: 'Podyuma çık',
+              title: 'Podyuma çık'.tr(),
               desc:
                   'İlk 3 sıraya girersen 🥇🥈🥉 podyumda görünürsün. Yakın rakipler kartı kaç puan farkla yükseleceğini söyler.',
               accent: purple,
@@ -4111,7 +4111,7 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const PopScope(
+      builder: (_) => PopScope(
         canPop: false,
         child: Center(
           child: Card(
@@ -4127,8 +4127,8 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
                   CircularProgressIndicator(strokeWidth: 2.4),
                   SizedBox(height: 14),
                   Text(
-                    'Skorun kaydediliyor…',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                    'Skorun kaydediliyor…'.tr(),
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
                   ),
                 ],
               ),
@@ -4225,7 +4225,7 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
               child: const Icon(Icons.public_rounded, color: Colors.white, size: 32),
             ),
             const SizedBox(height: 16),
-            Text('Günlük Hakkın Doldu',
+            Text('Günlük Hakkın Doldu'.tr(),
                 style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w800,
                     color: AppPalette.textPrimary(context))),
             const SizedBox(height: 8),

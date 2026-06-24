@@ -3226,7 +3226,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
                       Text(
                         _showColorPicker
                             ? localeService.tr('close')
-                            : 'Renk Seç',
+                            : 'Renk Seç'.tr(),
                         style: GoogleFonts.poppins(
                           fontSize: 10,
                           fontWeight: FontWeight.w900,
@@ -6894,7 +6894,7 @@ $strategyStyleLine
   \\\\( C_6H_{12}O_6 \\\\). Düz "H2O" YASAK.
 • AKIŞ ŞEMASI: "sol" alanında çok adımlı çözümde "→" ok'lu zincir kullan
   (örn. "F=ma → a=12/4 → a=3 m/s²"). Adımlar arası mantığı bu şekilde göster.
-• Türkçe. $exam stiline uygun, tek doğru cevaplı.
+• ÇIKTI DİLİ: ${localeService.localeCode == 'tr' ? 'Türkçe' : 'TÜM içerik (soru, şık, çözüm) "${localeService.localeCode}" dil kodundaki dilde — Türkçe/İngilizce DEĞİL'}. $exam stiline uygun, tek doğru cevaplı.
 • Çıktın tek başına geçerli bir JSON array olmalı — baştan sondan fazla
   whitespace, açıklama, backtick fence YOK.
 ''';
@@ -7015,7 +7015,7 @@ duymayacağı "Nihai Özet". Anlatım mimarisi:
     sebep→sonuç zincirine yedirerek anlat — ANA BAŞLIKLARIN İÇİNDE.
   • ENTELEKTÜEL DERİNLİK: Felsefede kavramsal analiz, edebiyatta sanatsal
     yorum, tarihte dönemsel analiz — profesyonel dilde harmanlı.
-  • LaTeX KULLANMA — düz, akıcı Türkçe paragraf/maddeler.
+  • LaTeX KULLANMA — düz, akıcı paragraf/maddeler (yukarıdaki [ÇIKTI DİLİ] kuralındaki dilde).
 ''';
 
     final protocolBlock = isNumeric
@@ -7795,7 +7795,7 @@ KATI KURALLAR (bozarsan cevap geçersiz):
   bölümüdür; sonrasına hiçbir şey yazma.
 • "📌 Özetle" / kapanış paragrafı / "Sonuç:" YASAK — ekleme.
 • Toplam uzunluk ${isVerbal ? '70-110' : '60-95'} satır — derinlikli Nihai Özet, dolgu yok.
-• Türkçe yaz. $exam mantığına uygun, ders kitabı işlenişine sadık.
+• $exam mantığına uygun, ders kitabı işlenişine sadık. (Çıktı dili: yukarıdaki [ÇIKTI DİLİ] kuralına UY.)
 • YouTube/Web/kaynak önerisi EKLEME. [VIDEO:] ve [WEB:] yok.
 ${isNumeric ? '• Her sayısal tanımda sembol + BİRİM birlikte verilsin (boyut analizi).' : ''}
 ${isVerbal ? '• Tarihte yıl, edebiyatta yazar/eser/dönem, felsefede filozof/akım adı eksiksiz.' : ''}

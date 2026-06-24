@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
 import 'lesson_3d_screen.dart';
 
@@ -1243,7 +1244,7 @@ class _TopicCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      title,
+                      title.tr(),
                       style: GoogleFonts.poppins(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
@@ -1252,7 +1253,7 @@ class _TopicCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      subtitle,
+                      subtitle.tr(),
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         color: AppPalette.textSecondary(context),

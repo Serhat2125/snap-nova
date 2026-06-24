@@ -31,7 +31,7 @@ class RemoteConfigService {
     'maintenance_mode': false,
     'min_supported_build': 1,
     // AI
-    'gemini_primary_model': 'gemini-2.5-flash',
+    'gemini_primary_model': 'gemini-2.5-flash-lite',
     'gemini_fallback_enabled': true,
     'openai_fallback_enabled': true,
     // Feature flags

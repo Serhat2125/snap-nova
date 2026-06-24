@@ -169,18 +169,18 @@ class _AICoachScreenState extends State<AICoachScreen> {
         'Bilim: Yanlış yaptığın soruları 24 saat içinde tekrar et — bellek %60 daha sağlam tutar.';
     if (w.isEmpty) {
       _today = [
-        const _TodayRec(
+        _TodayRec(
           emoji: '📚',
-          title: 'Konu özeti üret',
+          title: 'Konu özeti üret'.tr(),
           subject: 'Genel',
           topic: 'Özet',
           durationMin: 15,
           why: 'Önce konuyu özetleyelim — temeli kuralım.',
           kind: 'summary',
         ),
-        const _TodayRec(
+        _TodayRec(
           emoji: '🎯',
-          title: 'Test çöz',
+          title: 'Test çöz'.tr(),
           subject: 'Sınav',
           topic: 'Genel deneme',
           durationMin: 15,
@@ -325,7 +325,7 @@ class _AICoachScreenState extends State<AICoachScreen> {
                 Navigator.of(ctx).pop();
                 Navigator.of(context).maybePop();
               },
-              child: Text('Geri Dön',
+              child: Text('Geri Dön'.tr(),
                   style: GoogleFonts.poppins(fontSize: 13, color: Colors.black38)),
             ),
           ],
@@ -365,7 +365,7 @@ class _AICoachScreenState extends State<AICoachScreen> {
             ),
             const SizedBox(width: 10),
             Text(
-              'AI Koç',
+              'AI Koç'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
@@ -465,7 +465,7 @@ class _AICoachScreenState extends State<AICoachScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'Verilerin analiz ediliyor…',
+            'Verilerin analiz ediliyor…'.tr(),
             style: GoogleFonts.poppins(
               fontSize: 13,
               fontWeight: FontWeight.w600,
@@ -518,7 +518,7 @@ class _AICoachScreenState extends State<AICoachScreen> {
               const Text('🧠', style: TextStyle(fontSize: 24)),
               const SizedBox(width: 8),
               Text(
-                'Senin Koçun',
+                'Senin Koçun'.tr(),
                 style: GoogleFonts.poppins(
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
@@ -772,7 +772,7 @@ class _AICoachScreenState extends State<AICoachScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Henüz yeterli veri yok',
+                    'Henüz yeterli veri yok'.tr(),
                     style: GoogleFonts.poppins(
                       fontSize: 13,
                       fontWeight: FontWeight.w800,
@@ -784,7 +784,7 @@ class _AICoachScreenState extends State<AICoachScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'AI Koç şu üç kaynaktan analiz yapar:',
+              'AI Koç şu üç kaynaktan analiz yapar:'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,

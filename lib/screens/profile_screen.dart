@@ -1154,11 +1154,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const PopScope(
+      builder: (_) => PopScope(
         canPop: false,
         child: Center(
           child: Card(
-            margin: EdgeInsets.symmetric(horizontal: 60),
+            margin: const EdgeInsets.symmetric(horizontal: 60),
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.all(Radius.circular(16))),
             child: Padding(
@@ -1169,8 +1169,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   CircularProgressIndicator(),
                   SizedBox(height: 14),
                   Text(
-                    'Hesabın siliniyor…',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                    'Hesabın siliniyor…'.tr(),
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
@@ -2939,7 +2939,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               _infoRow('Geliştirici'.tr(), 'QuAlsar Team'),
                               _infoRow('AI Modeli'.tr(), 'Gemini 2.5 Flash'),
                               _infoRow('Müfredat Kapsamı'.tr(),
-                                  '131 ülke • 53 dil'),
+                                  '131 ülke • 53 dil'.tr()),
                               _infoRow('Kuruluş'.tr(), '2026'),
                               _infoRow('İletişim'.tr(),
                                   'serhatdsme@gmail.com'),
@@ -7345,9 +7345,9 @@ class _NotificationsSettingsSheetState
         return;
       }
       await PushService.showLocal(
-        title: '🔔 Test bildirimi',
+        title: '🔔 Test bildirimi'.tr(),
         body:
-            'Tebrikler! Bildirimler düzgün çalışıyor. Bu mesajı sistem tepsisinde görmen lazım.',
+            'Tebrikler! Bildirimler düzgün çalışıyor. Bu mesajı sistem tepsisinde görmen lazım.'.tr(),
         id: 0xFA999,
       );
       if (!mounted) return;

@@ -30,7 +30,7 @@
 //        body: <markdown özet>
 //        generatedBy: <uid|anonymous>
 //        generatedAt: Timestamp
-//        model: 'gemini-2.5-flash'
+//        model: 'gemini-2.5-flash-lite'
 //        ratings: {sum: int, count: int, byDimension: {accuracy: ..., ...}}
 //        ratingsByUser: {<uid>: {accuracy: 8, clarity: 9, ...}}  (max 1/user)
 //        status: 'active'|'eliminated'
@@ -200,7 +200,7 @@ class SummaryCacheService {
     required String subject,
     required String topic,
     required String body,
-    String model = 'gemini-2.5-flash',
+    String model = 'gemini-2.5-flash-lite',
   }) async {
     // "Topluluk verisi" kapalıysa kullanıcının ürettiği özet topluluk havuzuna
     // KATKI olarak yazılmaz (opt-out). Okuma/cache kullanımı etkilenmez.

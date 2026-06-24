@@ -25,6 +25,8 @@ import '../services/ai_quota_service.dart';
 import '../services/analytics.dart';
 import '../services/tts_service.dart';
 import '../services/gemini_service.dart';
+import '../services/locale_service.dart';
+import '../services/runtime_translator.dart';
 import 'academic_planner.dart';
 import 'premium_screen.dart';
 
@@ -90,10 +92,18 @@ class _Lesson3DScreenState extends State<Lesson3DScreen> {
         'FlutterBridge',
         onMessageReceived: (msg) => _handleBridge(msg.message),
       )
+      ..addJavaScriptChannel(
+        // 3D ders içeriği çeviri köprüsü: HTML görünür Türkçe metinleri
+        // toplar, burada hedef dile çevrilip geri enjekte edilir.
+        'FlutterI18n',
+        onMessageReceived: (msg) => _handleI18nRequest(msg.message),
+      )
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (_) async {
             if (mounted) setState(() => _loading = false);
+            // Dil Türkçe değilse 3D ders içeriğini hedef dile çevir.
+            await _injectI18n();
             if (!AiQuotaService.instance.isPremium) {
               await _injectPremiumGate();
             }
@@ -105,7 +115,7 @@ class _Lesson3DScreenState extends State<Lesson3DScreen> {
             if (mounted) {
               setState(() {
                 _loading = false;
-                _error = 'Yükleme hatası: ${err.description}';
+                _error = '${'Yükleme hatası'.tr()}: ${err.description}';
               });
             }
           },
@@ -215,6 +225,189 @@ class _Lesson3DScreenState extends State<Lesson3DScreen> {
     try { await ctrl.runJavaScript(js); } catch (_) {}
   }
 
+  // ── 3D DERS İÇERİĞİ ÇEVİRİSİ (i18n) ───────────────────────────────────────
+  // Uygulama dili Türkçe değilse, HTML içindeki görünür Türkçe metinleri
+  // toplayıp hedef dile çevirir ve geri enjekte eder. Çeviri RuntimeTranslator
+  // üzerinden yapılır (cache + baked + Gemini); ikinci açılışta offline/anında.
+
+  /// Hedef dili sayfaya bildir + i18n motorunu enjekte et.
+  Future<void> _injectI18n() async {
+    final ctrl = _controller;
+    if (ctrl == null) return;
+    final lang = LocaleService.global?.localeCode ?? 'tr';
+    if (lang == 'tr') return; // kaynak dil — çeviriye gerek yok
+    try {
+      await ctrl.runJavaScript('window.__APP_LANG = ${jsonEncode(lang)};');
+      await ctrl.runJavaScript(_i18nEngineJs);
+    } catch (_) {}
+  }
+
+  /// WebView'dan gelen "şu Türkçe metinleri çevir" isteğini karşılar.
+  Future<void> _handleI18nRequest(String message) async {
+    final List<String> strings;
+    final String lang;
+    try {
+      final data = jsonDecode(message) as Map<String, dynamic>;
+      lang = (data['lang'] as String?) ?? '';
+      final raw = data['strings'];
+      if (raw is! List) return;
+      strings = raw.map((e) => e.toString()).toList();
+    } catch (_) {
+      return;
+    }
+    if (lang.isEmpty || lang == 'tr' || strings.isEmpty) return;
+
+    // 1) Anında hazır olanları (cache + baked) hemen geri gönder.
+    final instant = RuntimeTranslator.instance.peekCached(strings, lang);
+    if (instant.isNotEmpty) await _pushI18n(instant);
+    // 2) Eksikleri çevir (API) + kalıcılaştır. Her batch hazır olunca artımlı
+    //    olarak enjekte et — kullanıcı tümünü beklemeden çevirileri görür.
+    try {
+      await RuntimeTranslator.instance.translateStrings(
+        strings,
+        lang,
+        onBatch: (batch) => _pushI18n(batch),
+      );
+    } catch (_) {}
+  }
+
+  /// Çeviri haritasını WebView'a geri enjekte et.
+  Future<void> _pushI18n(Map<String, String> map) async {
+    final ctrl = _controller;
+    if (!mounted || ctrl == null || map.isEmpty) return;
+    // jsonEncode(map) → JSON metni; tekrar jsonEncode → güvenli JS string sabiti.
+    final js =
+        'window.__applyI18n && window.__applyI18n(${jsonEncode(jsonEncode(map))});';
+    try { await ctrl.runJavaScript(js); } catch (_) {}
+  }
+
+  // i18n motoru (idempotent): DOM metinlerini + seçili attribute'ları toplar,
+  // Flutter'a gönderir, gelen çeviriyi uygular ve MutationObserver ile dinamik
+  // içeriği (sahne değişimi vb.) yeniden çevirir. Zaten çevrilmiş düğümleri
+  // (__i18nOut) atlayarak çift-çeviri/döngü önlenir.
+  static const String _i18nEngineJs = r"""
+(function(){
+  "use strict";
+  if (window.__i18nReady) return;
+  window.__i18nReady = true;
+  var LANG = window.__APP_LANG || 'tr';
+  if (LANG === 'tr') return;
+
+  var DICT = Object.create(null);     // kaynak -> çeviri
+  var PENDING = Object.create(null);  // Flutter'a soruldu, bekleniyor
+  var QUEUE = Object.create(null);    // sıradaki istek
+  var TEXT_NODES = [];                // benzersiz metin düğümü kayıtları
+  var ATTR_NODES = [];               // benzersiz attribute kayıtları
+  var applying = false;
+  var SKIP = {SCRIPT:1, STYLE:1, NOSCRIPT:1, CANVAS:1, TEXTAREA:1, INPUT:1};
+  var ATTRS = ['placeholder','title','aria-label','data-label'];
+
+  function hasLetters(s){ return /[A-Za-zÀ-ɏĞğİıŞş]/.test(s); }
+  function norm(s){ return (s||'').replace(/\s+/g,' ').trim(); }
+  function want(src){ if (DICT[src] === undefined && !PENDING[src]) QUEUE[src] = true; }
+
+  function applyText(r){
+    var tr = DICT[r.src]; if (tr === undefined) return;
+    var raw = r.n.nodeValue || '';
+    var lead = (raw.match(/^\s*/)||[''])[0];
+    var trail = (raw.match(/\s*$/)||[''])[0];
+    var out = lead + tr + trail;
+    if (r.n.nodeValue !== out){ applying = true; r.n.nodeValue = out; r.n.__i18nOut = out; applying = false; }
+  }
+  function applyAttr(r){
+    var tr = DICT[r.src]; if (tr === undefined) return;
+    if (r.el.getAttribute(r.a) !== tr){ r.el.setAttribute(r.a, tr); r.el['__i18nA_'+r.a] = tr; }
+  }
+  function applyAll(){
+    for (var i=0;i<TEXT_NODES.length;i++) applyText(TEXT_NODES[i]);
+    for (var k=0;k<ATTR_NODES.length;k++) applyAttr(ATTR_NODES[k]);
+  }
+
+  // Tek metin düğümünü işle — düğüm başına TEK kayıt tutar (değişince günceller),
+  // böylece sık güncellenen sayaçlarda bile liste şişmez.
+  function takeText(n){
+    var p = n.parentNode;
+    if (!p || SKIP[p.nodeName]) return;
+    var cur = norm(n.nodeValue);
+    if (cur.length < 2 || !hasLetters(cur)) return;
+    if (n.__i18nOut && norm(n.__i18nOut) === cur) return; // bizim çıktımız → döngü yok
+    var rec = n.__i18nRec;
+    if (rec){ rec.src = cur; } else { rec = {n:n, src:cur}; n.__i18nRec = rec; TEXT_NODES.push(rec); }
+    if (DICT[cur] !== undefined) applyText(rec); else want(cur);
+  }
+  function takeAttrs(el){
+    if (!el.getAttribute) return;
+    for (var j=0;j<ATTRS.length;j++){
+      var a = ATTRS[j];
+      var v = el.getAttribute(a);
+      if (!v) continue;
+      var s = norm(v);
+      if (s.length < 2 || !hasLetters(s)) continue;
+      if (el['__i18nA_'+a] && norm(el['__i18nA_'+a]) === s) continue;
+      var rk = '__i18nRecA_'+a;
+      var rec = el[rk];
+      if (rec){ rec.src = s; } else { rec = {el:el, a:a, src:s}; el[rk] = rec; ATTR_NODES.push(rec); }
+      if (DICT[s] !== undefined) applyAttr(rec); else want(s);
+    }
+  }
+
+  // Bir alt-ağacı (yalnızca eklenen/değişen kısmı) tara — tüm DOM değil.
+  function scanSubtree(root){
+    if (!root) return;
+    if (root.nodeType === 3){ takeText(root); return; }
+    if (root.nodeType !== 1 || SKIP[root.nodeName]) return;
+    takeAttrs(root);
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+    var n; while ((n = walker.nextNode())) takeText(n);
+    var els;
+    try { els = root.querySelectorAll('[placeholder],[title],[aria-label],[data-label]'); }
+    catch(e){ els = []; }
+    for (var i=0;i<els.length;i++) takeAttrs(els[i]);
+  }
+
+  var flushT = null;
+  function scheduleFlush(){ if (flushT) clearTimeout(flushT); flushT = setTimeout(flush, 200); }
+  function flush(){
+    var arr = Object.keys(QUEUE);
+    if (!arr.length) return;
+    QUEUE = Object.create(null);
+    for (var i=0;i<arr.length;i++) PENDING[arr[i]] = true;
+    try { FlutterI18n.postMessage(JSON.stringify({lang:LANG, strings:arr})); } catch(e){}
+  }
+
+  // Flutter'dan çeviri geldiğinde
+  window.__applyI18n = function(json){
+    try {
+      var map = (typeof json === 'string') ? JSON.parse(json) : json;
+      for (var key in map){ DICT[key] = map[key]; delete PENDING[key]; }
+      applyAll();
+    } catch(e){}
+  };
+
+  // İlk tam tarama (yalnız bir kez)
+  scanSubtree(document.body);
+  scheduleFlush();
+
+  // Dinamik içerik: yalnızca değişen düğüm/alt-ağaç işlenir (tam yeniden tarama yok)
+  try {
+    var mo = new MutationObserver(function(muts){
+      var changed = false;
+      for (var i=0;i<muts.length;i++){
+        var m = muts[i];
+        if (m.type === 'characterData'){
+          if (applying) continue;
+          takeText(m.target); changed = true;
+        } else if (m.type === 'childList' && m.addedNodes){
+          for (var a=0;a<m.addedNodes.length;a++){ scanSubtree(m.addedNodes[a]); changed = true; }
+        }
+      }
+      if (changed) scheduleFlush();
+    });
+    mo.observe(document.body, {childList:true, subtree:true, characterData:true});
+  } catch(e){}
+})();
+""";
+
   void _showPremiumGateSheet() {
     if (!mounted) return;
     showModalBottomSheet<void>(
@@ -245,17 +438,17 @@ class _Lesson3DScreenState extends State<Lesson3DScreen> {
               child: const Icon(Icons.lock_rounded, color: Colors.white, size: 32),
             ),
             const SizedBox(height: 16),
-            const Text(
-              'Premium Özellik',
-              style: TextStyle(
+            Text(
+              'Premium Özellik'.tr(),
+              style: const TextStyle(
                 color: Color(0xFFFFD166), fontSize: 20, fontWeight: FontWeight.w800,
               ),
             ),
             const SizedBox(height: 10),
-            const Text(
-              'Bu özellik Premium üyelere özeldir. Tüm sahnelere, araçlara ve konu rehberine sınırsız erişmek için Premium\'a geç.',
+            Text(
+              'Bu özellik Premium üyelere özeldir. Tüm sahnelere, araçlara ve konu rehberine sınırsız erişmek için Premium\'a geç.'.tr(),
               textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFFB9C2EE), fontSize: 14, height: 1.5),
+              style: const TextStyle(color: Color(0xFFB9C2EE), fontSize: 14, height: 1.5),
             ),
             const SizedBox(height: 24),
             SizedBox(
@@ -273,16 +466,16 @@ class _Lesson3DScreenState extends State<Lesson3DScreen> {
                     MaterialPageRoute(builder: (_) => const PremiumScreen()),
                   );
                 },
-                child: const Text(
-                  'Premium\'a Geç',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                child: Text(
+                  'Premium\'a Geç'.tr(),
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                 ),
               ),
             ),
             const SizedBox(height: 10),
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Geri Dön', style: TextStyle(color: Color(0xFF8A93B0))),
+              child: Text('Geri Dön'.tr(), style: const TextStyle(color: Color(0xFF8A93B0))),
             ),
           ],
         ),
@@ -376,7 +569,7 @@ class _Lesson3DScreenState extends State<Lesson3DScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF161D49),
         foregroundColor: const Color(0xFFFFF4DC),
-        title: Text(widget.title),
+        title: Text(widget.title.tr()),
         elevation: 0,
       ),
       body: SafeArea(
@@ -397,15 +590,15 @@ class _Lesson3DScreenState extends State<Lesson3DScreen> {
                 ),
               ),
             if (_loading && _error == null)
-              const Center(
+              Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    CircularProgressIndicator(color: Color(0xFFFFB627)),
-                    SizedBox(height: 16),
+                    const CircularProgressIndicator(color: Color(0xFFFFB627)),
+                    const SizedBox(height: 16),
                     Text(
-                      '3D ders yükleniyor...',
-                      style: TextStyle(color: Color(0xFFB9C2EE)),
+                      '3D ders yükleniyor...'.tr(),
+                      style: const TextStyle(color: Color(0xFFB9C2EE)),
                     ),
                   ],
                 ),
@@ -522,7 +715,7 @@ class _AskAiSheetState extends State<_AskAiSheet> {
       if (!mounted) return;
       setState(() => _msgs.add((
             user: false,
-            text: 'Şu an cevap veremedim. İnternet bağlantını kontrol edip tekrar dene.'
+            text: 'Şu an cevap veremedim. İnternet bağlantını kontrol edip tekrar dene.'.tr()
           )));
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -599,10 +792,10 @@ class _AskAiSheetState extends State<_AskAiSheet> {
               padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
               child: Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      '🤖 Size nasıl yardımcı olabilirim?',
-                      style: TextStyle(
+                      '🤖 Size nasıl yardımcı olabilirim?'.tr(),
+                      style: const TextStyle(
                         color: Color(0xFFFFD166),
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
@@ -625,10 +818,10 @@ class _AskAiSheetState extends State<_AskAiSheet> {
                         padding: const EdgeInsets.all(24),
                         child: Text(
                           widget.topic.isNotEmpty
-                              ? '${widget.topic} hakkında merak ettiğin her şeyi sorabilirsin.'
-                              : 'Bu konuda merak ettiğin her şeyi sorabilirsin.',
+                              ? '${widget.topic} ${'hakkında merak ettiğin her şeyi sorabilirsin.'.tr()}'
+                              : 'Bu konuda merak ettiğin her şeyi sorabilirsin.'.tr(),
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: Color(0xFF8A93B0), fontSize: 13, height: 1.4),
+                          style: const TextStyle(color: Color(0xFF8A93B0), fontSize: 13, height: 1.4),
                         ),
                       ),
                     )
@@ -665,10 +858,10 @@ class _AskAiSheetState extends State<_AskAiSheet> {
                     ),
             ),
             if (_sending)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 6),
-                child: Text('AI yazıyor…',
-                    style: TextStyle(color: Color(0xFF8A93B0), fontSize: 12)),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text('AI yazıyor…'.tr(),
+                    style: const TextStyle(color: Color(0xFF8A93B0), fontSize: 12)),
               ),
             // Giriş satırı
             SafeArea(
@@ -686,7 +879,7 @@ class _AskAiSheetState extends State<_AskAiSheet> {
                         textInputAction: TextInputAction.send,
                         onSubmitted: (_) => _send(),
                         decoration: InputDecoration(
-                          hintText: _msgs.isEmpty ? '' : 'istediğin herhangi bir şeyi sorabilirsin',
+                          hintText: _msgs.isEmpty ? '' : 'istediğin herhangi bir şeyi sorabilirsin'.tr(),
                           hintStyle: const TextStyle(color: Color(0xFF8A93B0)),
                           filled: true,
                           fillColor: const Color(0xFF1F2540),

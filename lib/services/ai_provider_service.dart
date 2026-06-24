@@ -104,7 +104,7 @@ const int kFreeQuotaPerDay = 3;
 
 // Sohbet/metin (hız öncelikli) — ücretsiz.
 const List<AiHop> _hopsChatFree = [
-  AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
+  AiHop(AiProvider.gemini, 'gemini-2.5-flash-lite'),
   AiHop(AiProvider.openai, 'gpt-4o-mini'),
   AiHop(AiProvider.deepseek, 'deepseek-chat'),
   AiHop(AiProvider.grok, 'grok-3-mini'),
@@ -112,7 +112,7 @@ const List<AiHop> _hopsChatFree = [
 ];
 // Sayısal/çözüm (muhakeme öncelikli) — ücretsiz.
 const List<AiHop> _hopsSolveFree = [
-  AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
+  AiHop(AiProvider.gemini, 'gemini-2.5-flash-lite'),
   AiHop(AiProvider.openai, 'gpt-4o-mini'),
   AiHop(AiProvider.deepseek, 'deepseek-reasoner'),
   AiHop(AiProvider.grok, 'grok-3'),
@@ -120,7 +120,7 @@ const List<AiHop> _hopsSolveFree = [
 ];
 // Fotoğraflı çözüm (vision) — ücretsiz. Seçili model en başa eklenir.
 const List<AiHop> _hopsPhotoFree = [
-  AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
+  AiHop(AiProvider.gemini, 'gemini-2.5-flash-lite'),
   AiHop(AiProvider.openai, 'gpt-4o-mini'),
   AiHop(AiProvider.grok, 'grok-2-vision-1212'),
 ];
@@ -151,7 +151,7 @@ const Map<AiTask, AiTaskConfig> kAiTaskConfigFree = {
 // Aynı sağlayıcı sırası, daha güçlü modeller (Pro / 4o / reasoner).
 // Sohbet/metin — premium.
 const List<AiHop> _hopsChatPremium = [
-  AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
+  AiHop(AiProvider.gemini, 'gemini-2.5-flash-lite'),
   AiHop(AiProvider.openai, 'gpt-4o-mini'),
   AiHop(AiProvider.deepseek, 'deepseek-chat'),
   AiHop(AiProvider.grok, 'grok-3-mini'),
@@ -159,7 +159,7 @@ const List<AiHop> _hopsChatPremium = [
 ];
 // Sayısal/çözüm — premium (Pro + 4o + R1).
 const List<AiHop> _hopsSolvePremium = [
-  AiHop(AiProvider.gemini, 'gemini-2.5-pro'),
+  AiHop(AiProvider.gemini, 'gemini-2.5-flash-lite'),
   AiHop(AiProvider.openai, 'gpt-4o'),
   AiHop(AiProvider.deepseek, 'deepseek-reasoner'),
   AiHop(AiProvider.grok, 'grok-3'),
@@ -167,7 +167,7 @@ const List<AiHop> _hopsSolvePremium = [
 ];
 // Fotoğraflı çözüm (vision) — premium. Seçili model en başa eklenir.
 const List<AiHop> _hopsPhotoPremium = [
-  AiHop(AiProvider.gemini, 'gemini-2.5-pro'),
+  AiHop(AiProvider.gemini, 'gemini-2.5-flash-lite'),
   AiHop(AiProvider.openai, 'gpt-4o'),
   AiHop(AiProvider.grok, 'grok-2-vision-1212'),
 ];

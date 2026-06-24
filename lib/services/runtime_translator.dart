@@ -168,6 +168,86 @@ class RuntimeTranslator extends ChangeNotifier {
     return b != null && b.isNotEmpty;
   }
 
+  // ── DIŞ KAYNAK (WebView / HTML 3D ders) ÇEVİRİSİ ──────────────────────────
+  // 3D ders HTML'leri içindeki Türkçe metinler bu pipeline'a buradan girer.
+  // Akış: WebView görünür metinleri toplar → Flutter [translateStrings] çağırır
+  // → cache + baked'den karşılanır, eksikler Gemini ile çevrilip kalıcı
+  // cache'lenir → WebView'a geri enjekte edilir. İkinci açılışta tamamı
+  // cache/baked'den gelir (offline, anında).
+
+  /// SADECE elde hazır olan çevirileri (cache + baked) döndürür — API ÇAĞIRMAZ.
+  /// İlk boyamada WebView'ı hızlıca güncellemek için kullanılır.
+  Map<String, String> peekCached(List<String> sources, String lang) {
+    final out = <String, String>{};
+    if (lang == _sourceLang) return out;
+    _ensureLangLoaded(lang);
+    final byLang = _cache[lang];
+    for (final raw in sources) {
+      final src = raw.trim();
+      if (src.isEmpty) continue;
+      final c = byLang?[src];
+      if (c != null && c.trim().isNotEmpty) {
+        out[src] = c;
+        continue;
+      }
+      final b = generatedTranslations[lang]?[src];
+      if (b != null && b.isNotEmpty) out[src] = b;
+    }
+    return out;
+  }
+
+  /// Rastgele Türkçe string listesini hedef dile çevirir. Önce cache + baked'i
+  /// kullanır; eksikleri batch halinde çevirip cache'e yazar ve kalıcılaştırır.
+  /// Dönen map yalnızca çevirisi bulunan kaynakları içerir (kalanlar Türkçe
+  /// kalır). String'ler ileride generator ile bake edilebilmesi için "seen"
+  /// listesine de eklenir.
+  Future<Map<String, String>> translateStrings(
+      List<String> sources, String lang,
+      {void Function(Map<String, String> batch)? onBatch}) async {
+    final result = <String, String>{};
+    if (lang == _sourceLang) return result;
+    if (!LocaleService.supportedLocales.contains(lang)) return result;
+    _ensureLangLoaded(lang);
+    final byLang = _cache.putIfAbsent(lang, () => {});
+    final missing = <String>[];
+    final seenForBatch = <String>{};
+    bool anySeenAdded = false;
+    for (final raw in sources) {
+      final src = raw.trim();
+      if (src.isEmpty || src.length > 500) continue;
+      if (_seen.add(src)) anySeenAdded = true;
+      final cached = byLang[src];
+      if (cached != null && cached.trim().isNotEmpty) {
+        result[src] = cached;
+        continue;
+      }
+      final baked = generatedTranslations[lang]?[src];
+      if (baked != null && baked.isNotEmpty) {
+        result[src] = baked;
+        continue;
+      }
+      // Aynı string birden çok düğümde olabilir → batch'e bir kez koy.
+      if (seenForBatch.add(src)) missing.add(src);
+    }
+    if (anySeenAdded) {
+      _dirty = true;
+      _scheduleFlush();
+    }
+    for (int i = 0; i < missing.length; i += _batchSize) {
+      final end = (i + _batchSize).clamp(0, missing.length);
+      final chunk = missing.sublist(i, end);
+      final translated = await _translateBatch(chunk, lang);
+      if (translated.isNotEmpty) {
+        byLang.addAll(translated);
+        result.addAll(translated);
+        await _persistLang(lang);
+        // Her batch hazır olunca çağıranı bilgilendir (artımlı UI güncelleme).
+        if (onBatch != null) onBatch(translated);
+      }
+    }
+    return result;
+  }
+
   /// Hedef dile geç + henüz çevrilmemiş tüm "seen" string'leri batch halinde
   /// Gemini'ye çevirt + cache'e yaz + UI'ı tetikle.
   Future<void> preloadAll(String targetLang) async {

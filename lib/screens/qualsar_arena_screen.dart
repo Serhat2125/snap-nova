@@ -1,4 +1,4 @@
-﻿// ignore_for_file: unused_element, prefer_const_constructors_in_immutables
+// ignore_for_file: unused_element, prefer_const_constructors_in_immutables
 
 import 'dart:async';
 import 'dart:convert';
@@ -1542,7 +1542,7 @@ class _EducationSetupDialogState extends State<_EducationSetupDialog> {
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Eğitim seviyeni seç',
+                      'Eğitim seviyeni seç'.tr(),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: _serif(size: 18, weight: FontWeight.w700, letterSpacing: -0.02),
@@ -1552,7 +1552,7 @@ class _EducationSetupDialogState extends State<_EducationSetupDialog> {
               ),
               SizedBox(height: 4),
               Text(
-                'Sana uygun dersler ve konular otomatik olarak hazırlanır.',
+                'Sana uygun dersler ve konular otomatik olarak hazırlanır.'.tr(),
                 style: _sans(size: 11, color: AppPalette.textSecondary(context), height: 1.3),
               ),
               if (widget.trialEntryNumber > 0) ...[
@@ -1571,7 +1571,7 @@ class _EducationSetupDialogState extends State<_EducationSetupDialog> {
                       SizedBox(width: 6),
                       Flexible(
                         child: Text(
-                          'Deneme sürümü · ${widget.trialEntryNumber}/10 giriş',
+                          'Deneme sürümü · ${widget.trialEntryNumber}/10 giriş'.tr(),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: _sans(size: 11, weight: FontWeight.w700, color: _Palette.accent),
@@ -1878,7 +1878,7 @@ class _ExpandablePickerState extends State<_ExpandablePicker> {
                                     Text('🔍'.tr(), style: TextStyle(fontSize: 18)),
                                     SizedBox(width: 8),
                                     Text(
-                                      'Sonuç bulunamadı',
+                                      'Sonuç bulunamadı'.tr(),
                                       style: _sans(size: 13, color: AppPalette.textSecondary(context)),
                                     ),
                                   ],
@@ -2193,7 +2193,7 @@ class _ArenaHomeState extends State<_ArenaHome> {
             children: [
               Expanded(
                 child: Text(
-                  'Hangi dersten soru çözmek istersin?',
+                  'Hangi dersten soru çözmek istersin?'.tr(),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: _serif(size: 17, weight: FontWeight.w600, letterSpacing: -0.02, height: 1.25),
@@ -2467,7 +2467,7 @@ class _OtherSubjectsButton extends StatelessWidget {
             SizedBox(width: 6),
             Flexible(
               child: Text(
-                'Diğer Dersler',
+                'Diğer Dersler'.tr(),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: _sans(size: 12, weight: FontWeight.w700),
@@ -2514,7 +2514,7 @@ class _AddSubjectInlineButton extends StatelessWidget {
             SizedBox(width: 4),
             Flexible(
               child: Text(
-                'Ders Ekle',
+                'Ders Ekle'.tr(),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: _sans(size: 12, weight: FontWeight.w700, color: _Palette.brand),
@@ -2580,7 +2580,7 @@ class _OtherSubjectsSheetState extends State<_OtherSubjectsSheet> {
                 style: _serif(size: 22, weight: FontWeight.w600, letterSpacing: -0.02)),
             SizedBox(height: 4),
             Text(
-              'Başlangıçta gösterilmeyen dersler. Tıkla seç, basılı tut kaldır, + ile ana listene al.',
+              'Başlangıçta gösterilmeyen dersler. Tıkla seç, basılı tut kaldır, + ile ana listene al.'.tr(),
               style: _sans(size: 12, color: AppPalette.textSecondary(context), height: 1.4),
             ),
             if (widget.overflow.isNotEmpty) ...[
@@ -3194,7 +3194,7 @@ void _showNotificationsSheet(BuildContext context) {
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Bildirim tercihlerini ayarlar menüsünden belirleyebilirsin.',
+                      'Bildirim tercihlerini ayarlar menüsünden belirleyebilirsin.'.tr(),
                       style: _sans(size: 11, color: AppPalette.textSecondary(context), height: 1.4),
                     ),
                   ),
@@ -3402,7 +3402,7 @@ class _StatsRow extends StatelessWidget {
       ),
       (
         '${_arenaState.streak}',
-        'Günlük Seri',
+        'Günlük Seri'.tr(),
         '🔥',
         _Palette.brand,
       ),
@@ -3553,7 +3553,7 @@ class _DueloCard extends StatelessWidget {
                     ),
                     SizedBox(height: 6),
                     Text(
-                      'Ülkende ve dünyada kendi seviyendeki öğrencilerle canlı bilgi yarışına katıl. Aynı soruları aynı anda çöz, kim daha hızlı?',
+                      'Ülkende ve dünyada kendi seviyendeki öğrencilerle canlı bilgi yarışına katıl. Aynı soruları aynı anda çöz, kim daha hızlı?'.tr(),
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                       style: _sans(size: 12, color: Colors.white.withValues(alpha: 0.78), height: 1.4),
@@ -3722,7 +3722,7 @@ Future<_PickerOption?> _showLanguagePickerSheet(BuildContext context) {
             ),
             SizedBox(height: 4),
             Text(
-              'Dünyada en çok konuşulan 20 dil arasından seç. Seçtiğin dil bu derste gözükecek.',
+              'Dünyada en çok konuşulan 20 dil arasından seç. Seçtiğin dil bu derste gözükecek.'.tr(),
               style: _sans(size: 12, color: AppPalette.textSecondary(context), height: 1.4),
             ),
             SizedBox(height: 16),
@@ -5323,9 +5323,9 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
               child: const Icon(Icons.lock_rounded, color: Colors.white, size: 32),
             ),
             const SizedBox(height: 16),
-            const Text(
-              'Premium Özellik',
-              style: TextStyle(
+            Text(
+              'Premium Özellik'.tr(),
+              style: const TextStyle(
                 color: Color(0xFFFFD166), fontSize: 20, fontWeight: FontWeight.w800,
               ),
             ),
@@ -5360,7 +5360,7 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
             const SizedBox(height: 10),
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Geri Dön', style: TextStyle(color: Color(0xFF8A93B0))),
+              child: Text('Geri Dön'.tr(), style: const TextStyle(color: Color(0xFF8A93B0))),
             ),
           ],
         ),
@@ -7122,7 +7122,7 @@ KURALLAR:
             SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Bu ders için hazır konu yok.',
+                'Bu ders için hazır konu yok.'.tr(),
                 style: _sans(size: 12, color: AppPalette.textSecondary(context)),
               ),
             ),
@@ -7557,7 +7557,7 @@ class _AddDueloSubjectSheetState extends State<_AddDueloSubjectSheet> {
               ),
               SizedBox(height: 4),
               Text(
-                'Kendi konun için ders oluştur — düelloda seçmek için listende görünecek.',
+                'Kendi konun için ders oluştur — düelloda seçmek için listende görünecek.'.tr(),
                 style: _sans(size: 12, color: AppPalette.textSecondary(context), height: 1.4),
               ),
               SizedBox(height: 18),
@@ -11354,7 +11354,7 @@ class _DueloInvitesSheet extends StatelessWidget {
     nav.pop(); // invites sheet'i kapat
     nav.push(MaterialPageRoute(
       builder: (_) => _DueloConnectScreen(
-        title: 'Düelloya bağlanılıyor…',
+        title: 'Düelloya bağlanılıyor…'.tr(),
         resolveSessionId: () => _waitInviteSessionId(me, inv.id),
         isOwner: false,
         myUid: me,
@@ -12215,7 +12215,7 @@ Future<void> _sendDuelInvite(BuildContext context, Friend friend) async {
   // 3) Bekleme ekranı — kabul edilince OWNER olarak oyuna gir.
   Navigator.of(context).push(MaterialPageRoute(
     builder: (_) => _DueloConnectScreen(
-      title: 'Arkadaşın kabul etmesi bekleniyor…',
+      title: 'Arkadaşın kabul etmesi bekleniyor…'.tr(),
       resolveSessionId: () => _waitInviteAccepted(me, friend.uid),
       isOwner: true,
       myUid: me,

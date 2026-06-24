@@ -1585,7 +1585,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           _historyTargetToggle(orange),
           SizedBox(height: 6),
           Text(
-            'Renge bas ya da sürükleyip istediğin yere bırak.',
+            'Renge bas ya da sürükleyip istediğin yere bırak.'.tr(),
             style: GoogleFonts.poppins(
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
