@@ -67,6 +67,9 @@ export const geminiProxy = onRequest(
     memory: "512MiB",
     secrets: [GEMINI_API_KEY, GEMINI_API_KEY_FALLBACK],
     maxInstances: 50,
+    // Cold-start'ı önler: 1 konteyner hep sıcak → ilk çağrı da ~1.5sn
+    // (boştayken cold start ~3.5sn ekliyordu). Küçük sürekli maliyet.
+    minInstances: 1,
   },
   async (req, res) => {
     // ── 1) HTTP method kontrolü ────────────────────────────────────────────
@@ -131,6 +134,7 @@ export const geminiProxy = onRequest(
       res.status(400).json({ error: "Missing 'contents' in request body." });
       return;
     }
+    // flash-lite Google'da 503/yavaşlık veriyordu → varsayılan flash (kararlı).
     const model = body.model || "gemini-2.5-flash";
 
     // ── 5) Gemini API'ye proxy ───────────────────────────────────────────

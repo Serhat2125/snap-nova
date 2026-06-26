@@ -1105,17 +1105,18 @@ class _MyRankCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const orange = Color(0xFFFF6A00);
+    // "Senin Sıran" kartı yeşil tema (kullanıcı talebi).
+    const green = Color(0xFF16A34A);
     Widget rankBadge(int? r) {
       final label = r == null ? '—' : '#$r';
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: orange,
+          color: green,
           borderRadius: BorderRadius.circular(999),
           boxShadow: [
             BoxShadow(
-              color: orange.withValues(alpha: 0.30),
+              color: green.withValues(alpha: 0.30),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),
@@ -1141,11 +1142,11 @@ class _MyRankCard extends StatelessWidget {
             end: Alignment.bottomRight,
             colors: [
               Colors.white,
-              orange.withValues(alpha: 0.10),
+              green.withValues(alpha: 0.10),
             ],
           ),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: orange.withValues(alpha: 0.40)),
+          border: Border.all(color: green.withValues(alpha: 0.40)),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
@@ -1164,7 +1165,7 @@ class _MyRankCard extends StatelessWidget {
                         style: GoogleFonts.inter(
                           fontSize: 10,
                           fontWeight: FontWeight.w900,
-                          color: orange,
+                          color: green,
                           letterSpacing: 0.6,
                         ),
                       ),

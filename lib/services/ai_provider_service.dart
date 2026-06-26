@@ -40,15 +40,18 @@ class AiProviderInfo {
 /// Daha güçlü/pahalı seçenekler sonraki sıralarda. Yeni model: buraya ekle.
 const List<AiProviderInfo> kAiProviders = [
   AiProviderInfo(AiProvider.gemini, 'gemini', 'Gemini', '✨', [
+    // NOT: flash-lite Google tarafında sık sık 503 (high demand) + ~6sn
+    // gecikme veriyordu; etkileşimli varsayılan flash'a alındı (~0.8sn, kararlı).
+    // flash-lite hâlâ seçilebilir + arka plan batch işlerinde kullanılır.
+    AiModel('gemini-2.5-flash', 'Gemini 2.5 Flash · hızlı'),
     AiModel('gemini-2.5-flash-lite', 'Gemini 2.5 Flash-Lite · en ucuz'),
-    AiModel('gemini-2.5-flash', 'Gemini 2.5 Flash'),
   ]),
   AiProviderInfo(AiProvider.openai, 'openai', 'ChatGPT', '🟢', [
     AiModel('gpt-4o-mini', 'GPT-4o mini · en ucuz'),
     AiModel('gpt-4o', 'GPT-4o · pahalı'),
   ]),
   AiProviderInfo(AiProvider.claude, 'claude', 'Claude', '🟣', [
-    AiModel('claude-sonnet-4-6', 'Claude Haiku 4.5 · en ucuz'),
+    AiModel('claude-haiku-4-5', 'Claude Haiku 4.5 · en ucuz'),
     AiModel('claude-sonnet-4-6', 'Claude Sonnet 4.6 · pahalı'),
   ]),
   AiProviderInfo(AiProvider.grok, 'grok', 'Grok', '⚡', [
@@ -104,7 +107,7 @@ const int kFreeQuotaPerDay = 3;
 
 // Sohbet/metin (hız öncelikli) — ücretsiz.
 const List<AiHop> _hopsChatFree = [
-  AiHop(AiProvider.gemini, 'gemini-2.5-flash-lite'),
+  AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
   AiHop(AiProvider.openai, 'gpt-4o-mini'),
   AiHop(AiProvider.deepseek, 'deepseek-chat'),
   AiHop(AiProvider.grok, 'grok-3-mini'),
@@ -112,17 +115,29 @@ const List<AiHop> _hopsChatFree = [
 ];
 // Sayısal/çözüm (muhakeme öncelikli) — ücretsiz.
 const List<AiHop> _hopsSolveFree = [
-  AiHop(AiProvider.gemini, 'gemini-2.5-flash-lite'),
+  AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
   AiHop(AiProvider.openai, 'gpt-4o-mini'),
-  AiHop(AiProvider.deepseek, 'deepseek-reasoner'),
+  // Failover'da deepseek-chat (hızlı); reasoner/R1 20-60sn sürüp timeout'a
+  // takılıyordu → boşa bekleme. Kullanıcı isterse picker'dan reasoner seçebilir.
+  AiHop(AiProvider.deepseek, 'deepseek-chat'),
   AiHop(AiProvider.grok, 'grok-3'),
   AiHop(AiProvider.claude, 'claude-sonnet-4-6'),
 ];
 // Fotoğraflı çözüm (vision) — ücretsiz. Seçili model en başa eklenir.
 const List<AiHop> _hopsPhotoFree = [
-  AiHop(AiProvider.gemini, 'gemini-2.5-flash-lite'),
+  AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
   AiHop(AiProvider.openai, 'gpt-4o-mini'),
-  AiHop(AiProvider.grok, 'grok-2-vision-1212'),
+  // grok-2-vision-1212 xAI'da kaldırıldı ("Model not found"); grok-4.3
+  // multimodal (text+vision) güncel model. Canlı testte görseli okuyup çözdü.
+  AiHop(AiProvider.grok, 'grok-4.3'),
+];
+// Sınav/soru üretimi (test oluştur) — KISA zincir: Gemini → ChatGPT → Grok.
+// Kullanıcı talebi: "Gemini cevap vermediğinde ChatGPT, o da vermezse Grok".
+// DeepSeek/Claude kasıtlı olarak çıkarıldı (yavaşlık + maliyet).
+const List<AiHop> _hopsExamGen = [
+  AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
+  AiHop(AiProvider.openai, 'gpt-4o-mini'),
+  AiHop(AiProvider.grok, 'grok-3-mini'),
 ];
 
 // ── ÜCRETSİZ kullanıcı task config ──────────────────────────────────────────
@@ -140,7 +155,7 @@ const Map<AiTask, AiTaskConfig> kAiTaskConfigFree = {
   AiTask.summary:
       AiTaskConfig(_hopsChatFree, maxTokens: 2048, perProviderTimeoutMs: 10000),
   AiTask.examGen:
-      AiTaskConfig(_hopsSolveFree, maxTokens: 2048, perProviderTimeoutMs: 12000),
+      AiTaskConfig(_hopsExamGen, maxTokens: 4096, perProviderTimeoutMs: 18000),
   AiTask.factual:
       AiTaskConfig(_hopsChatFree, maxTokens: 1536, perProviderTimeoutMs: 8000),
   AiTask.cheap:
@@ -151,7 +166,7 @@ const Map<AiTask, AiTaskConfig> kAiTaskConfigFree = {
 // Aynı sağlayıcı sırası, daha güçlü modeller (Pro / 4o / reasoner).
 // Sohbet/metin — premium.
 const List<AiHop> _hopsChatPremium = [
-  AiHop(AiProvider.gemini, 'gemini-2.5-flash-lite'),
+  AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
   AiHop(AiProvider.openai, 'gpt-4o-mini'),
   AiHop(AiProvider.deepseek, 'deepseek-chat'),
   AiHop(AiProvider.grok, 'grok-3-mini'),
@@ -159,17 +174,25 @@ const List<AiHop> _hopsChatPremium = [
 ];
 // Sayısal/çözüm — premium (Pro + 4o + R1).
 const List<AiHop> _hopsSolvePremium = [
-  AiHop(AiProvider.gemini, 'gemini-2.5-flash-lite'),
-  AiHop(AiProvider.openai, 'gpt-4o'),
-  AiHop(AiProvider.deepseek, 'deepseek-reasoner'),
+  AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
+  // ChatGPT her zaman en ucuz gpt-4o-mini (multimodal: metin+vision). Eskiden
+  // premium zincirler pahalı gpt-4o kullanıyordu; kullanıcı isteği: en ucuz.
+  AiHop(AiProvider.openai, 'gpt-4o-mini'),
+  // Failover'da deepseek-chat (hızlı); reasoner/R1 20-60sn sürüp timeout'a
+  // takılıyordu → boşa bekleme. Kullanıcı isterse picker'dan reasoner seçebilir.
+  AiHop(AiProvider.deepseek, 'deepseek-chat'),
   AiHop(AiProvider.grok, 'grok-3'),
   AiHop(AiProvider.claude, 'claude-sonnet-4-6'),
 ];
 // Fotoğraflı çözüm (vision) — premium. Seçili model en başa eklenir.
 const List<AiHop> _hopsPhotoPremium = [
-  AiHop(AiProvider.gemini, 'gemini-2.5-flash-lite'),
-  AiHop(AiProvider.openai, 'gpt-4o'),
-  AiHop(AiProvider.grok, 'grok-2-vision-1212'),
+  AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
+  // ChatGPT her zaman en ucuz gpt-4o-mini (multimodal: metin+vision). Eskiden
+  // premium zincirler pahalı gpt-4o kullanıyordu; kullanıcı isteği: en ucuz.
+  AiHop(AiProvider.openai, 'gpt-4o-mini'),
+  // grok-2-vision-1212 xAI'da kaldırıldı ("Model not found"); grok-4.3
+  // multimodal (text+vision) güncel model. Canlı testte görseli okuyup çözdü.
+  AiHop(AiProvider.grok, 'grok-4.3'),
 ];
 
 // ── PREMİUM kullanıcı task config ────────────────────────────────────────────
@@ -179,7 +202,7 @@ const Map<AiTask, AiTaskConfig> kAiTaskConfigPremium = {
   AiTask.homeworkSolve:
       AiTaskConfig(_hopsSolvePremium, maxTokens: 4096, perProviderTimeoutMs: 12000),
   AiTask.examGen:
-      AiTaskConfig(_hopsSolvePremium, maxTokens: 4096, perProviderTimeoutMs: 16000),
+      AiTaskConfig(_hopsExamGen, maxTokens: 4096, perProviderTimeoutMs: 18000),
   AiTask.coach:
       AiTaskConfig(_hopsChatPremium, maxTokens: 2048, perProviderTimeoutMs: 6000),
   AiTask.voice:
@@ -405,11 +428,14 @@ class AiProviderService {
     if (user == null) {
       throw StateError('AI çağrısı için oturum açılmış olmalı.');
     }
+    // Cache'li token kullan (zorla yenileme YOK). getIdToken(true) her çağrıda
+    // Firebase Auth'a ağ round-trip'i yapıyordu (+200-800ms/çağrı). Token ~1sa
+    // geçerli ve SDK süresi dolmadan otomatik yeniler → cache'li okuma anında.
     String? idToken;
     try {
-      idToken = await user.getIdToken(true);
-    } catch (_) {
       idToken = await user.getIdToken();
+    } catch (_) {
+      idToken = await user.getIdToken(true); // cache başarısızsa zorla yenile
     }
 
     _log('İstek → $label');

@@ -26,6 +26,7 @@
 
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { defineSecret } from "firebase-functions/params";
+import { generateGeminiText } from "./gemini_util";
 
 const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 
@@ -114,33 +115,19 @@ async function judgeWithGemini(q: {
   correctIndex: number;
   explanation: string;
 }): Promise<JudgeResult> {
-  const apiKey = GEMINI_API_KEY.value();
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-
   const prompt = buildJudgePrompt(q);
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.1, // Deterministik puanlama
-        maxOutputTokens: 200,
-        responseMimeType: "application/json",
-      },
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Gemini HTTP ${response.status}`);
-  }
-
-  const j = (await response.json()) as {
-    candidates?: { content?: { parts?: { text?: string }[] } }[];
-  };
-  const text = j?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-  if (!text) throw new Error("Empty response");
+  // flash-lite → (503/hata) → flash fallback (gemini_util). Eskiden tek
+  // flash-lite + retry'sızdı; ~%60 503'te throw → soru puanlanamıyordu.
+  const text = await generateGeminiText(
+    GEMINI_API_KEY.value(),
+    {
+      temperature: 0.1, // Deterministik puanlama
+      maxOutputTokens: 200,
+      responseMimeType: "application/json",
+    },
+    prompt
+  );
 
   // Yanıt: {"score": 4, "reason": "..."}
   const parsed = JSON.parse(text) as JudgeResult;

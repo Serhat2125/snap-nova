@@ -75,7 +75,7 @@ class QuAlsarLoadingWidget extends StatelessWidget {
         return [
           t.isEmpty ? 'Konunuz analiz ediliyor' : '$t konusu analiz ediliyor',
           'Konunuzun özeti oluşturuluyor',
-          'Özetin neredeyse hazır',
+          'Özetiniz neredeyse hazır',
         ];
       case QuAlsarLoadingType.solution:
         return [

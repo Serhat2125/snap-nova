@@ -211,7 +211,12 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
     // runApp(QuAlsarApp) HİÇ ÇALIŞMAZ ve kullanıcı sonsuza dek beyaz
     // splash görür. Bu yüzden her adımı KENDI try/catch'inde sarmala —
     // bir tanesi patlayıp init devam etsin, runApp() garanti çalışsın.
-    try { await ErrorLogger.instance.init(); } catch (_) {}
+    try {
+      await ErrorLogger.instance.init();
+    } catch (e, st) {
+      // ErrorLogger'ın kendisi patladıysa capture() no-op olur; konsola yaz.
+      debugPrint('[init] ErrorLogger.init başarısız: $e\n$st');
+    }
 
     // ── Kamera, dil, tema, ağ, ülke, uzaktan ayar ─────────────────────
     try {
@@ -221,16 +226,28 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
       ErrorLogger.instance.capture(e, st, context: 'camera_enumeration');
     }
 
-    try { await localeService.init(); } catch (_) {}
-    try { await themeService.init(); } catch (_) {}
-    try { await connectivityService.init(); } catch (_) {}
-    try { await AiProviderService.loadSelection(); } catch (_) {}
-    try { await AiQuotaService.instance.init(); } catch (_) {}
+    try { await localeService.init(); } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'locale_init');
+    }
+    try { await themeService.init(); } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'theme_init');
+    }
+    try { await connectivityService.init(); } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'connectivity_init');
+    }
+    try { await AiProviderService.loadSelection(); } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'ai_provider_load');
+    }
+    try { await AiQuotaService.instance.init(); } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'ai_quota_init');
+    }
     // Voice & TTS — Sesli Komut için. Hata atmaz; başarısızsa no-op.
     unawaited(VoiceInputService.init());
     unawaited(TtsService.init());
     // Saklı oturumu yükle — auth_user_v1 prefs key'inden.
-    try { await AuthService.init(); } catch (_) {}
+    try { await AuthService.init(); } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'auth_init');
+    }
     // Premium-aware kota — UsageQuota.limits PremiumStatus revision değişince
     // otomatik FREE ↔ PREMIUM arasında swap edilir. Ödemeden sonra anında
     // yeni kotaya geçer; init'te de mevcut durum okunur.
@@ -266,7 +283,9 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
     // Deep link davet handler — uygulamayı linkten açana profil/davet sayfasını gösterir.
     unawaited(DeepLinkService.instance.init());
     // Runtime translator — kalıcı cache'i yükle + LocaleService'e hook bağla
-    try { await RuntimeTranslator.instance.init(); } catch (_) {}
+    try { await RuntimeTranslator.instance.init(); } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'runtime_translator_init');
+    }
     // bulkRegister ÇOK pahalı: 5000+ string'i set'e atar, 3sn sonra büyük
     // jsonEncode + SharedPreferences write yapar. Cihaz Türkçeyse hiçbir
     // çeviriye gerek olmadığı için tamamen atlanır. Diğer dillerde de
@@ -295,7 +314,9 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
               .preloadAll(localeService.localeCode);
         }());
       }
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'locale_hook_setup');
+    }
 
     // IP geolocation arka planda (UI'ı bekletmez). Başarılıysa
     // locale'i ve ülke çözümleyiciyi yeniden değerlendir.
@@ -309,7 +330,9 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
     // Ülke çözümleyiciyi mevcut sinyallerle hemen doldur
     try {
       await CountryResolver.instance.init(locale: localeService);
-    } catch (_) {}
+    } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'country_resolver_init');
+    }
 
     // Uzaktan ayar — cache anında, tazeleme arka planda. 4sn timeout:
     // ilk açılışta Remote Config fetch yavaş ağda sonsuz takılıyordu.
@@ -322,19 +345,29 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
     }
 
     // Müfredat kataloğu → education_profile'a bağla
-    try { initCurriculumCatalog(); } catch (_) {}
+    try { initCurriculumCatalog(); } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'curriculum_catalog_init');
+    }
 
     // İlk açılışsa cihaz locale'inden ülkeyi tespit et — onboarding'in ülke
     // seçicisi bu pref'i varsayılan olarak alır (kullanıcı manuel
     // değiştirebilir, ama pek çok kullanıcı için tek tıkla doğru ülke gelir).
-    try { await EduProfile.autoDetectCountryIfMissing(); } catch (_) {}
+    try { await EduProfile.autoDetectCountryIfMissing(); } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'auto_detect_country');
+    }
 
     // Mevcut öğrenci profilini cache'e yükle (AI prompt'larında kullanılır)
-    try { await EduProfile.load(); } catch (_) {}
+    try { await EduProfile.load(); } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'edu_profile_load');
+    }
     // AI'dan üretilmiş profil-özel müfredat varsa belleğe yükle (varsa).
     // Hem ders listesi (subjects) hem de konu haritası (topics) ayrı cache'lerde.
-    try { await EduProfile.loadAiSubjectCache(); } catch (_) {}
-    try { await EduProfile.loadAiTopicsCache(); } catch (_) {}
+    try { await EduProfile.loadAiSubjectCache(); } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'edu_ai_subject_cache');
+    }
+    try { await EduProfile.loadAiTopicsCache(); } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'edu_ai_topics_cache');
+    }
 
     // Önceki açılıştan kalan tamamlanmamış çalışma session'ı varsa kurtar.
     // (App kill / crash sonrası en kötü 30sn kayıpla session yine yazılır.)

@@ -383,10 +383,15 @@ Output (JSON array only):'''
         await Future<void>.delayed(
             Duration(milliseconds: retryDelaysMs[attempt - 1]));
       }
+      // İlk denemeler ucuz flash-lite; SON denemede güvenilir flash'a düş
+      // (flash-lite Google'da ~%60 503 "high demand" veriyor).
+      final model = attempt >= retryDelaysMs.length
+          ? 'gemini-2.5-flash'
+          : 'gemini-2.5-flash-lite';
       for (final key in keys) {
         final url = Uri.parse(
             'https://generativelanguage.googleapis.com/v1beta/models/'
-            'gemini-2.5-flash-lite:generateContent?key=$key');
+            '$model:generateContent?key=$key');
         try {
           final resp = await http
               .post(

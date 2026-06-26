@@ -24,6 +24,7 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { generateGeminiText } from "./gemini_util";
 
 const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 
@@ -307,34 +308,23 @@ interface RawQuestion {
 }
 
 async function callGeminiBatch(prompt: string): Promise<RawQuestion[]> {
-  const apiKey = GEMINI_API_KEY.value();
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
+  // flash-lite → (503/hata) → flash fallback (gemini_util). Eskiden tek
+  // flash-lite + retry'sızdı; ~%60 503'te boş batch dönüyordu.
+  let text: string;
+  try {
+    text = await generateGeminiText(
+      GEMINI_API_KEY.value(),
+      {
         temperature: 0.85, // çeşitlilik için yüksek
         maxOutputTokens: 6000,
         responseMimeType: "application/json",
       },
-    }),
-  });
-
-  if (!response.ok) {
-    console.error(`Gemini batch HTTP ${response.status}`);
+      prompt
+    );
+  } catch (e) {
+    console.error("Gemini batch başarısız:", e);
     return [];
   }
-
-  const j = (await response.json()) as {
-    candidates?: {
-      content?: { parts?: { text?: string }[] };
-    }[];
-  };
-  const text = j?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-  if (!text) return [];
 
   try {
     const parsed = JSON.parse(text) as RawQuestion[];

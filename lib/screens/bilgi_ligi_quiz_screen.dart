@@ -215,7 +215,10 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
           subjectName: widget.subjectName,
           topic: widget.topic,
           count: 10,
-          validate: true,
+          // Doğrulama (ikinci AI geçişi) kapalı: tek üretim çağrısı yeterli;
+          // çift geçiş süreyi ~ikiye katlıyor ve "test hazırlanamadı" timeout'a
+          // yol açıyordu. Üretim zinciri Gemini → ChatGPT → Grok ile failover'lı.
+          validate: false,
         );
         // Üretilen soruları havuza ekle (cap altındaysa). Hata yutulur.
         unawaited(QuizPoolService.addToPool(
@@ -353,8 +356,16 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
         if (mounted) navigator.pop();
       },
       child: Scaffold(
-        backgroundColor: bg,
-        body: SafeArea(child: _buildBody(context)),
+        // Yükleme sırasında loader saf beyaz; Scaffold arka planı da beyaz
+        // olsun ki status-bar inset bölgesinde gri/beyaz iki-renk çizgisi olmasın.
+        backgroundColor: _loading ? Colors.white : bg,
+        // Yüklemede loader TAM-EKRAN gösterilir (özet sayfasındaki dönen logonun
+        // birebir aynısı). QuAlsarLoadingWidget kendi iç SafeArea'sını içeriyor;
+        // burada dış SafeArea sarmalamak çift-padding'e + logonun aşağı kaymasına
+        // yol açıyordu. Diğer durumlarda (oyun/sonuç/hata) normal SafeArea.
+        body: _loading
+            ? _buildBody(context)
+            : SafeArea(child: _buildBody(context)),
       ),
     );
   }

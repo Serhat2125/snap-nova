@@ -229,16 +229,30 @@ class FriendService {
     final q = query.trim().toLowerCase();
     if (q.length < 2) return const [];
     try {
+      final me = _myUid;
       final snap = await _fs
           .collection('users')
           .where('searchTokens', arrayContains: q)
           .limit(limit)
           .get();
-      final me = _myUid;
-      return snap.docs
+      final results = snap.docs
           .where((d) => d.id != me) // kendini gösterme
           .map(FriendUser.fromDoc)
           .toList();
+      // YEDEK: token araması boş döndüyse (eski/eksik searchTokens'lı doc'lar)
+      // tam kullanıcı adıyla doğrudan eşleşmeyi dene — böylece kayıtlı her
+      // kullanıcı adı, token'ı olmasa bile bulunur (1v1 davet için kritik).
+      if (results.isEmpty) {
+        final exactSnap = await _fs
+            .collection('users')
+            .where('username', isEqualTo: q)
+            .limit(1)
+            .get();
+        for (final d in exactSnap.docs) {
+          if (d.id != me) results.add(FriendUser.fromDoc(d));
+        }
+      }
+      return results;
     } catch (e) {
       debugPrint('[FriendService] search fail: $e');
       return const [];
@@ -509,11 +523,13 @@ class FriendService {
 
   /// Username normalize — lower, sadece [a-z0-9_], maks 20 karakter.
   static String _normalizeUsername(String raw) {
-    return raw
-        .trim()
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9_]'), '')
-        .substring(0, raw.length > 20 ? 20 : raw.length);
+    // ÖNCE temizle (boşluk/Türkçe/özel karakterleri at), SONRA uzunluğa göre
+    // kırp. Eskiden substring bound'u orijinal `raw.length` idi; karakter
+    // silinince temizlenmiş string kısalıyor ve substring RangeError atıyordu
+    // (boşluk/Türkçe içeren her kullanıcı adı kaydı/araması sessizce patlıyordu).
+    final cleaned =
+        raw.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9_]'), '');
+    return cleaned.length > 20 ? cleaned.substring(0, 20) : cleaned;
   }
 
   /// Prefix search tokens — username ve displayName'in 2-N karakterlik

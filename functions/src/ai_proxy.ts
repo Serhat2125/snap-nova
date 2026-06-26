@@ -75,8 +75,9 @@ interface AiRequest {
 const DEFAULT_MODEL: Record<string, string> = {
   openai: "gpt-4o-mini",
   grok: "grok-3-mini",
-  claude: "claude-opus-4-8",
+  claude: "claude-sonnet-4-6",
   deepseek: "deepseek-chat",
+  // flash-lite Google'da 503/yavaşlık veriyordu → etkileşimli varsayılan flash.
   gemini: "gemini-2.5-flash",
 };
 
@@ -241,7 +242,11 @@ async function callGemini(
   });
   const payload: Record<string, unknown> = {
     contents,
-    generationConfig: { maxOutputTokens: maxTokens },
+    // thinkingBudget:0 → Gemini 2.5'in gizli "düşünme" adımı kapalı. Ölçümde
+    // gerçekçi cevap ~4sn'den ~2.3sn'ye düştü (cevap tam+doğru kaldı). Bu proxy
+    // genel sohbet/çözüm metni içindir; derin muhakeme isteyen foto/öğretmen
+    // modları gemini_service'te ayrı per-mod thinking bütçesiyle yönetilir.
+    generationConfig: { maxOutputTokens: maxTokens, thinkingConfig: { thinkingBudget: 0 } },
     // Sunucu-taraflı içerik güvenliği (Play uyumu): küfür/nefret/taciz, cinsel
     // ve tehlikeli içeriği Gemini engeller. BLOCK_MEDIUM_AND_ABOVE — bilimsel
     // akademik konuları (biyoloji üreme sistemi vb.) engellemeyen denge.
@@ -294,6 +299,9 @@ export const aiProxy = onRequest(
       GEMINI_API_KEY_FALLBACK,
     ],
     maxInstances: 50,
+    // Cold-start'ı önler: 1 konteyner hep sıcak → ilk çağrı da ~1.5sn
+    // (boştayken cold start ~3.5sn ekliyordu). Küçük sürekli maliyet.
+    minInstances: 1,
   },
   async (req, res) => {
     if (req.method !== "POST") {

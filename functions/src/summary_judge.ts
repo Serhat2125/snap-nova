@@ -26,6 +26,7 @@ import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { generateGeminiText } from "./gemini_util";
 
 const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 
@@ -89,7 +90,12 @@ export const triggerSummaryJudge = onCall(
     if (!uid) {
       throw new HttpsError("unauthenticated", "Sign in required.");
     }
-    // TODO: gerçek admin kontrolü (custom claim 'admin' veya whitelist)
+    // Gerçek admin kontrolü: custom claim 'admin' === true olmalı.
+    // Claim, Admin SDK ile setCustomUserClaims(uid, {admin: true}) çağrısıyla
+    // verilir. Giriş yapmış sıradan kullanıcılar bu endpoint'i çağıramaz.
+    if (request.auth?.token?.admin !== true) {
+      throw new HttpsError("permission-denied", "Admin privileges required.");
+    }
     const cacheKey = request.data?.cacheKey as string | undefined;
     if (!cacheKey) {
       throw new HttpsError("invalid-argument", "cacheKey required.");
@@ -262,88 +268,31 @@ YANIT FORMATI (sadece JSON, başka hiçbir şey ekleme):
   "winnerIndex": 1
 }`;
 
-  const apiKey = GEMINI_API_KEY.value();
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-
-  // Timeout + retry — Cloud Function inactivity timeout 60sn varsayılan;
-  // Gemini 503/429 dönerse 2 backoff retry. Toplam max ~25sn (10+5+10).
-  const RETRYABLE = new Set([408, 429, 500, 502, 503, 504]);
-  let lastErr: unknown = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const controller = new AbortController();
-    const timeoutMs = attempt === 0 ? 10000 : 8000; // ilk dene daha cömert
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.1,
-            maxOutputTokens: 600,
-            responseMimeType: "application/json",
-          },
-        }),
-        signal: controller.signal,
-      });
-      clearTimeout(timer);
-      if (!response.ok) {
-        if (RETRYABLE.has(response.status) && attempt < 2) {
-          await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
-          lastErr = new Error(`Gemini judge HTTP ${response.status}`);
-          continue;
-        }
-        throw new Error(`Gemini judge HTTP ${response.status}`);
-      }
-      const j = (await response.json()) as {
-        candidates?: {
-          content?: { parts?: { text?: string }[] };
-        }[];
-      };
-      const text = j?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-      if (!text) {
-        if (attempt < 2) {
-          await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
-          lastErr = new Error("judge boş yanıt");
-          continue;
-        }
-        throw new Error("judge boş yanıt");
-      }
-      let parsed: { winnerIndex?: number };
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        // Parse hatası — Gemini bazen ham metin döndürür; ilk denemede retry et.
-        if (attempt < 2) {
-          await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
-          lastErr = new Error("judge JSON parse error");
-          continue;
-        }
-        throw new Error("judge JSON parse error: " + text.slice(0, 200));
-      }
-      const winnerIdx = (parsed.winnerIndex ?? 1) - 1;
-      if (winnerIdx < 0 || winnerIdx >= group.length) {
-        // Geçersiz index — varsayılan olarak ilk özeti seç (fail-safe).
-        return group[0];
-      }
-      return group[winnerIdx];
-    } catch (e) {
-      clearTimeout(timer);
-      lastErr = e;
-      // Timeout (AbortError) veya network hatası — retry yap
-      if (attempt < 2) {
-        await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
-        continue;
-      }
-      // Son denemede de patladı — fail-safe: ilk özeti döndür ki judge
-      // tamamen bloke olmasın. Çağıran loop devam etsin.
-      console.warn(`[judge] tüm retry başarısız, fail-safe: ${e}`);
-      return group[0];
-    }
+  // flash-lite → (503/hata) → flash fallback (gemini_util). Eskiden 3× retry
+  // vardı ama hep flash-lite'a; ~%60 503 dalgasında fail-safe ile sürekli ilk
+  // özeti seçip jüriyi etkisiz bırakıyordu. Artık flash'a düşüp gerçek puanlıyor.
+  let text: string;
+  try {
+    text = await generateGeminiText(
+      GEMINI_API_KEY.value(),
+      { temperature: 0.1, maxOutputTokens: 600, responseMimeType: "application/json" },
+      prompt
+    );
+  } catch (e) {
+    // Fail-safe: jüri tamamen bloke olmasın, ilk özeti döndür.
+    console.warn(`[judge] Gemini başarısız, fail-safe: ${e}`);
+    return group[0];
   }
-  // Buraya teorik olarak ulaşılmaz ama TS exhaustiveness için.
-  throw lastErr instanceof Error
-      ? lastErr
-      : new Error(`judge retry tükendi: ${lastErr}`);
+
+  let parsed: { winnerIndex?: number };
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return group[0]; // parse edilemedi → fail-safe
+  }
+  const winnerIdx = (parsed.winnerIndex ?? 1) - 1;
+  if (winnerIdx < 0 || winnerIdx >= group.length) {
+    return group[0]; // geçersiz index → fail-safe
+  }
+  return group[winnerIdx];
 }

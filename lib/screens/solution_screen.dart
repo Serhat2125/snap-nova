@@ -169,14 +169,15 @@ class _SolutionScreenState extends State<SolutionScreen> {
   ];
 
   // ── Karosel modeli → foto-çözümde kullanılacak (vision-yetkin) sağlayıcı+model ──
-  // ÖNEMLİ: foto-çözüm görsel (vision) gerektirir. Grok'un varsayılanı
-  // (grok-3-mini) vision DESTEKLEMEZ; bu yüzden grok-2-vision-1212 şart.
+  // ÖNEMLİ: foto-çözüm görsel (vision) gerektirir. grok-2-vision-1212 xAI'da
+  // kaldırıldı ("Model not found") → grok-4.3 multimodal (text+vision) güncel
+  // model; canlı testte görseli okuyup çözdü.
   // Deepseek burada YOK — kendi ayrı yolu (analyzeImageWithDeepseek) var.
   static const Map<String, (AiProvider, String)> _photoProvider = {
-    'QuAlsar': (AiProvider.gemini, 'gemini-2.5-flash-lite'),
-    'Gemini':  (AiProvider.gemini, 'gemini-2.5-flash-lite'),
+    'QuAlsar': (AiProvider.gemini, 'gemini-2.5-flash'),
+    'Gemini':  (AiProvider.gemini, 'gemini-2.5-flash'),
     'ChatGPT': (AiProvider.openai, 'gpt-4o-mini'),
-    'Grok':    (AiProvider.grok,   'grok-2-vision-1212'),
+    'Grok':    (AiProvider.grok,   'grok-4.3'),
     'Claude':  (AiProvider.claude, 'claude-sonnet-4-6'),
   };
 

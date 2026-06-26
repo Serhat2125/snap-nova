@@ -21,7 +21,7 @@ import 'summary_cache_service.dart';
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class GeminiService {
-  static const _model   = 'gemini-2.5-flash-lite';
+  static const _model   = 'gemini-2.5-flash';
   static const _baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
   static const _tag     = '🤖 [GeminiService]';
 
@@ -73,7 +73,8 @@ class GeminiService {
   static String get _openaiKey => Secrets.openai;
   static const _openaiUrl = 'https://api.openai.com/v1/chat/completions';
   static const _openaiTextModel = 'gpt-4o-mini';
-  static const _openaiVisionModel = 'gpt-4o';
+  // gpt-4o-mini vision destekler (multimodal) → en ucuz; pahalı gpt-4o yerine.
+  static const _openaiVisionModel = 'gpt-4o-mini';
 
   // Tüm Gemini key'leri sıralı liste: birincil + yedekler.
   // Bir key 401/403/429 dönerse bir sonrakine otomatik geçilir.
@@ -1252,7 +1253,7 @@ KURALLAR (sıkı):
 
     try {
       try {
-        final res = await attempt('gemini-2.5-flash-lite');
+        final res = await attempt('gemini-2.5-flash');
         _log('chatWithImage OK (pro) — ${res.text.length} kar');
         return res.text.trim();
       } on GeminiException catch (e) {
@@ -1266,12 +1267,12 @@ KURALLAR (sıkı):
             m.contains('unavailable');
         if (!isTransient) rethrow;
         _log('chatWithImage Pro fail → Flash fallback');
-        final res = await attempt('gemini-2.5-flash-lite');
+        final res = await attempt('gemini-2.5-flash');
         _log('chatWithImage OK (flash) — ${res.text.length} kar');
         return res.text.trim();
       } on TimeoutException {
         _log('chatWithImage timeout → Flash fallback');
-        final res = await attempt('gemini-2.5-flash-lite');
+        final res = await attempt('gemini-2.5-flash');
         return res.text.trim();
       }
     } on GeminiException {
@@ -1481,7 +1482,7 @@ KURALLAR:
     // gelmezse aşağıda çoklu sağlayıcı zincirine düşer (Gemini→ChatGPT→DeepSeek).
     var yielded = false;
     try {
-      await for (final c in tryStream('gemini-2.5-flash-lite')) {
+      await for (final c in tryStream('gemini-2.5-flash')) {
         if (c.isNotEmpty) yielded = true;
         yield c;
       }
@@ -1490,7 +1491,7 @@ KURALLAR:
     }
     if (!yielded) {
       try {
-        await for (final c in tryStream('gemini-2.5-flash-lite')) {
+        await for (final c in tryStream('gemini-2.5-flash')) {
           if (c.isNotEmpty) yielded = true;
           yield c;
         }
@@ -5435,7 +5436,7 @@ Format:
           temperature: 0.4,
           thinkingBudget: 0,
           responseMimeType: 'application/json',
-          timeout: const Duration(seconds: 60),
+          timeout: const Duration(seconds: 30),
         );
         rawText = res.text;
       }

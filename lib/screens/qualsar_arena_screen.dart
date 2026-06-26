@@ -2659,7 +2659,7 @@ class _OtherSubjectsSheetState extends State<_OtherSubjectsSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(s.name,
+                    Text(s.name.tr(),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: _sans(size: 14, weight: FontWeight.w700)),
@@ -2926,7 +2926,7 @@ class _AddSubjectSheetState extends State<_AddSubjectSheet> {
                         Text(s.emoji, style: TextStyle(fontSize: 22)),
                         SizedBox(width: 12),
                         Expanded(
-                          child: Text(s.name,
+                          child: Text(s.name.tr(),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: _sans(size: 14, weight: FontWeight.w600)),
@@ -5951,8 +5951,8 @@ KURALLAR:
                               SizedBox(height: 6),
                               Text(
                                 _scope == 'world'
-                                    ? '🌍 Dünyadan aynı seviyede bir rakiple karşılaşırsın. Her iki taraf aynı evrensel dersi/konuyu seçer.'
-                                    : '🇹🇷 Ülkendeki aynı seviyede bir rakiple karşılaşırsın. Tüm derslerden yarışabilirsin.',
+                                    ? '🌍 Dünyadan aynı seviyede bir rakiple karşılaşırsın. Her iki taraf aynı evrensel dersi/konuyu seçer.'.tr()
+                                    : '🇹🇷 Ülkendeki aynı seviyede bir rakiple karşılaşırsın. Tüm derslerden yarışabilirsin.'.tr(),
                                 style: _sans(
                                     size: 11,
                                     color: AppPalette.textSecondary(context),
@@ -6065,8 +6065,8 @@ KURALLAR:
                   alignment: Alignment.center,
                   child: Text(
                     _selectedSubject == null
-                        ? 'Önce bir ders seç'
-                        : 'Şimdi bir konu seç',
+                        ? 'Önce bir ders seç'.tr()
+                        : 'Şimdi bir konu seç'.tr(),
                     style: _sans(size: 14, weight: FontWeight.w600, color: AppPalette.textSecondary(context)),
                   ),
                 ),
@@ -6082,8 +6082,8 @@ KURALLAR:
 
   Widget _buildScopeTabs() {
     final tabs = [
-      ('world', '🌍', 'Dünya Çapında'),
-      ('country', '🇹🇷', 'Ülke Çapında'),
+      ('world', '🌍', 'Dünya Çapında'.tr()),
+      ('country', '🇹🇷', 'Ülke Çapında'.tr()),
     ];
     return Container(
       padding: const EdgeInsets.all(4),
@@ -6781,7 +6781,7 @@ KURALLAR:
                 _isLanguagePickerSubject(s.key) &&
                         _chosenLanguage[s.key] != null
                     ? _chosenLanguage[s.key]!.label
-                    : s.name,
+                    : s.name.tr(),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
@@ -12440,7 +12440,7 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                   style: _serif(size: 22, weight: FontWeight.w600, letterSpacing: -0.02)),
               SizedBox(height: 4),
               Text(
-                'Birini ekle → düello yapabilirsiniz, karşılaştırabilirsiniz. Mesajlaşma yok.',
+                'Birini ekle → düello yapabilirsiniz, karşılaştırabilirsiniz. Mesajlaşma yok.'.tr(),
                 style: _sans(size: 12, color: AppPalette.textSecondary(context), height: 1.4),
               ),
               SizedBox(height: 16),
@@ -12456,8 +12456,8 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                   Expanded(
                     child: _QuickMethod(
                       emoji: '📲',
-                      label: 'QR Kod',
-                      sub: 'Göster / tara',
+                      label: 'QR Kod'.tr(),
+                      sub: 'Göster / tara'.tr(),
                       onTap: () => _showQRSheet(context),
                     ),
                   ),
@@ -12465,8 +12465,8 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                   Expanded(
                     child: _QuickMethod(
                       emoji: '🔗',
-                      label: 'Davet Linki',
-                      sub: 'Paylaş',
+                      label: 'Davet Linki'.tr(),
+                      sub: 'Paylaş'.tr(),
                       onTap: () async {
                         final link =
                             'https://qualsar.app/davet/$_currentUsername';

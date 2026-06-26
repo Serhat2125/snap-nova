@@ -1661,7 +1661,7 @@ class _PremiumFeaturesSlider extends StatelessWidget {
                             child: FittedBox(
                               fit: BoxFit.scaleDown,
                               child: Text(
-                                'Premium Avantajları',
+                                'Premium Avantajları'.tr(),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: GoogleFonts.poppins(
@@ -1782,7 +1782,7 @@ class _PremiumRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                item.title,
+                item.title.tr(),
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
@@ -1793,7 +1793,7 @@ class _PremiumRow extends StatelessWidget {
               ),
               SizedBox(height: 4),
               Text(
-                item.body,
+                item.body.tr(),
                 style: GoogleFonts.poppins(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
@@ -1816,46 +1816,48 @@ class _PremiumRow extends StatelessWidget {
 class _TermsSection extends StatelessWidget {
   const _TermsSection();
 
-  static const _items = <(String, String)>[
+  // Dil değişiminde çevrilsin diye getter: her build'de .tr() yeniden değerlenir.
+  // Düz string literalleri kullanıldığı için bake tarayıcısı güvenilir yakalar.
+  List<(String, String)> get _items => [
     (
-      'QuAlsar Premium Üyeliği',
-      'Premium paketimiz; sınırsız Yapay Zeka destekli arama, yüksek performanslı çözümleme algoritmaları ve tamamen reklamsız bir deneyim sunar.',
+      'QuAlsar Premium Üyeliği'.tr(),
+      'Premium paketimiz; sınırsız Yapay Zeka destekli arama, yüksek performanslı çözümleme algoritmaları ve tamamen reklamsız bir deneyim sunar.'.tr(),
     ),
     (
-      'Ücretsiz Deneme Hakkı',
-      'Deneme süresi her hesap ve cihaz için bir defaya mahsus 7 gündür. Deneme süresi bitiminde, kayıtlı ödeme yönteminiz üzerinden abonelik ücreti otomatik olarak tahsil edilecektir.',
+      'Ücretsiz Deneme Hakkı'.tr(),
+      'Deneme süresi her hesap ve cihaz için bir defaya mahsus 7 gündür. Deneme süresi bitiminde, kayıtlı ödeme yönteminiz üzerinden abonelik ücreti otomatik olarak tahsil edilecektir.'.tr(),
     ),
     (
-      'Fiyatlandırma ve KDV',
-      'Belirtilen tüm ücretlere KDV dahildir. QuAlsar, fiyatlar üzerinde önceden haber vermeksizin değişiklik yapma hakkını saklı tutar; ancak mevcut aktif aboneler, yenileme dönemlerinde kendi başlangıç fiyatlarını koruyacaklardır.',
+      'Fiyatlandırma ve KDV'.tr(),
+      'Belirtilen tüm ücretlere KDV dahildir. QuAlsar, fiyatlar üzerinde önceden haber vermeksizin değişiklik yapma hakkını saklı tutar; ancak mevcut aktif aboneler, yenileme dönemlerinde kendi başlangıç fiyatlarını koruyacaklardır.'.tr(),
     ),
     (
-      'Abonelik Süresi',
-      'Satın alınan veya yenilenen abonelikler, işlem tarihinden itibaren 30 gün boyunca geçerlidir.',
+      'Abonelik Süresi'.tr(),
+      'Satın alınan veya yenilenen abonelikler, işlem tarihinden itibaren 30 gün boyunca geçerlidir.'.tr(),
     ),
     (
-      'Otomatik Yenileme',
-      'Üyeliğiniz her ay otomatik olarak yenilenir. Aylık abonelik bedeli, yenileme tarihinde kayıtlı kartınızdan çekilir.',
+      'Otomatik Yenileme'.tr(),
+      'Üyeliğiniz her ay otomatik olarak yenilenir. Aylık abonelik bedeli, yenileme tarihinde kayıtlı kartınızdan çekilir.'.tr(),
     ),
     (
-      'İptal İşlemi',
-      'Üyeliğinizi dilediğiniz zaman "Menü > Aboneliğim" adımlarını takip ederek iptal edebilirsiniz. İptal durumunda mevcut süreniz dolana kadar Premium özelliklere erişiminiz devam eder ve yeni bir ücret alınmaz.',
+      'İptal İşlemi'.tr(),
+      'Üyeliğinizi dilediğiniz zaman "Menü > Aboneliğim" adımlarını takip ederek iptal edebilirsiniz. İptal durumunda mevcut süreniz dolana kadar Premium özelliklere erişiminiz devam eder ve yeni bir ücret alınmaz.'.tr(),
     ),
     (
-      'İade Politikası',
-      'İade talepleri, ödeme yapıldıktan sonraki ilk 7 gün içinde "Bize Ulaşın" sekmesinden veya serhatdsme@gmail.com adresinden iletilebilir. İadeler, yalnızca Premium özellikler henüz kullanılmamışsa ve 7 günlük süre aşılmamışsa değerlendirmeye alınır.',
+      'İade Politikası'.tr(),
+      'İade talepleri, ödeme yapıldıktan sonraki ilk 7 gün içinde "Bize Ulaşın" sekmesinden veya serhatdsme@gmail.com adresinden iletilebilir. İadeler, yalnızca Premium özellikler henüz kullanılmamışsa ve 7 günlük süre aşılmamışsa değerlendirmeye alınır.'.tr(),
     ),
     (
-      'İade Yöntemi',
-      'Onaylanan iadeler, satın alma sırasında kullanılan orijinal ödeme yöntemine geri aktarılır.',
+      'İade Yöntemi'.tr(),
+      'Onaylanan iadeler, satın alma sırasında kullanılan orijinal ödeme yöntemine geri aktarılır.'.tr(),
     ),
     (
-      'Hesap Güvenliği ve Kullanım',
-      'QuAlsar içeriğine yalnızca kendi hesabınızla giriş yaparak erişebilirsiniz. Hesapların devredilmesi, kiralanması veya üçüncü şahıslara satılması kesinlikle yasaktır.',
+      'Hesap Güvenliği ve Kullanım'.tr(),
+      'QuAlsar içeriğine yalnızca kendi hesabınızla giriş yaparak erişebilirsiniz. Hesapların devredilmesi, kiralanması veya üçüncü şahıslara satılması kesinlikle yasaktır.'.tr(),
     ),
     (
-      'Telif Hakları',
-      'İçeriğin kopyalanması, dağıtılması veya izinsiz satılması gibi yetkisiz faaliyetler; hesabın kalıcı olarak askıya alınmasına ve yasal süreç başlatılmasına neden olabilir.',
+      'Telif Hakları'.tr(),
+      'İçeriğin kopyalanması, dağıtılması veya izinsiz satılması gibi yetkisiz faaliyetler; hesabın kalıcı olarak askıya alınmasına ve yasal süreç başlatılmasına neden olabilir.'.tr(),
     ),
   ];
 
@@ -1890,13 +1892,13 @@ class _TermsSection extends StatelessWidget {
                     color: AppPalette.textPrimary(context),
                     letterSpacing: -0.2,
                   ),
-                  children: const [
-                    TextSpan(text: 'Qu'),
-                    TextSpan(
+                  children: [
+                    const TextSpan(text: 'Qu'),
+                    const TextSpan(
                       text: 'Al',
                       style: TextStyle(color: Color(0xFFE53935)),
                     ),
-                    TextSpan(text: 'sar Premium Kullanım Koşulları'),
+                    TextSpan(text: 'sar ${'Premium Kullanım Koşulları'.tr()}'),
                   ],
                 ),
                 textAlign: TextAlign.center,
