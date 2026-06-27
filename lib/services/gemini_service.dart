@@ -3800,29 +3800,95 @@ $lang
         default:     return '"mc" (çoktan seçmeli, 4 şık)';
       }
     }).join(', ');
+    // Yalnızca öğretmenin seçtiği tipler — prompt kuralları ve şema örnekleri
+    // bunlara göre kurulur. Aksi halde modele 4 tipin de örneği verildiğinden
+    // tek tip seçilse bile karışık tip üretiyordu.
+    final allowedSet =
+        (typeKeys.isEmpty ? const ['mc'] : typeKeys).toSet();
+
+    final ruleLines = <String>[];
+    if (allowedSet.contains('mc')) {
+      ruleLines.add(
+          '- "mc" için 4 şık ver: ["A) ...","B) ...","C) ...","D) ..."], "answer": "A".');
+    }
+    if (allowedSet.contains('tf')) {
+      ruleLines.add('- "tf" için "answer": "true" veya "false".');
+    }
+    if (allowedSet.contains('fill')) {
+      ruleLines.add(
+          '- "fill" için cümlede ___ ile boşluk bırak, "answer": "doğru kelime/sayı".');
+    }
+    if (allowedSet.contains('open')) {
+      ruleLines.add('- "open" için "answer": kısa örnek cevap (anahtar fikirler).');
+    }
+
+    final schemaLines = <String>[];
+    if (allowedSet.contains('mc')) {
+      schemaLines.add(
+          '  {"q": "...", "type": "mc",   "choices": ["A) ...","B) ...","C) ...","D) ..."], "answer": "A"}');
+    }
+    if (allowedSet.contains('tf')) {
+      schemaLines.add('  {"q": "...", "type": "tf",   "answer": "true"}');
+    }
+    if (allowedSet.contains('fill')) {
+      schemaLines.add('  {"q": "____ kelimesini doldur.", "type": "fill", "answer": "..."}');
+    }
+    if (allowedSet.contains('open')) {
+      schemaLines.add('  {"q": "Açıkla: ...", "type": "open", "answer": "..."}');
+    }
+
+    // Tek tip seçildiyse KESİN kısıt; çoklu seçimde dengeli dağılım.
+    final distLine = allowedSet.length > 1
+        ? '- Tip dağılımı yaklaşık eşit olsun; SADECE şu tipleri üret: $typeNames. Başka tip YASAK.'
+        : '- TÜM sorular İSTİSNASIZ $typeNames tipinde olacak. BAŞKA tip (mc/tf/fill/open) ÜRETME.';
+
+    // Eğitim seviyesine göre zorluk + dil. level ∈ {İlkokul, Ortaokul, Lise}.
+    // Türkçe büyük/küçük harf tuzağına düşmemek için ayırt edici alt-dize ile
+    // eşleştiriyoruz ('lkokul' → İlkokul, 'rtaokul' → Ortaokul, diğeri Lise).
+    final lvlRaw = level.trim();
+    String levelDirective;
+    if (lvlRaw.contains('lkokul')) {
+      levelDirective = '''
+[SEVİYE: İLKOKUL — zorluk ve dil]
+- Hedef: İlkokul (yaklaşık 1-4. sınıf, 6-10 yaş).
+- DİL: Çok sade, kısa cümleler. Tamamen GÜNLÜK HAYATTAN, somut örnekler (oyuncak, meyve, hayvan, sınıf, aile, oyun). Soyut/teknik terim YOK.
+- ZORLUK: Temel düzey; her soru TEK ADIMDA, doğrudan çözülür. Çok adımlı işlem, soyut muhakeme, karışık ifade YOK.
+- Sayılar küçük ve somut. Çeldiriciler açık ve kolay ayırt edilir. Sorular kısa olsun.''';
+    } else if (lvlRaw.contains('rtaokul')) {
+      levelDirective = '''
+[SEVİYE: ORTAOKUL — zorluk ve dil]
+- Hedef: Ortaokul (yaklaşık 5-8. sınıf, 11-13 yaş).
+- DİL: Orta düzey; kavramsal terimler kullanılabilir ama gerektiğinde kısaca açıklanır.
+- ZORLUK: Orta; 2 adımlı muhakeme, neden-sonuç ilişkisi, basit yorum/uygulama gerektirir.
+- Çeldiriciler mantıklı ve birbirine yakın olsun (rastgele değil). Günlük hayatla bağ kurulabilir ama düz değil.''';
+    } else {
+      levelDirective = '''
+[SEVİYE: LİSE — zorluk ve dil]
+- Hedef: Lise (yaklaşık 9-12. sınıf, 14-18 yaş).
+- DİL: TAM AKADEMİK; alana özgü doğru terminoloji kullan, basitleştirme.
+- ZORLUK: Yüksek; çok adımlı analiz, sentez, kavramlar arası ilişki ve derin muhakeme gerektirir. Ezber değil, kavrayış ölç.
+- Çeldiriciler ince ve sofistike olsun; yüzeysel bilgiyle ayırt edilememeli. Sorular akademik sınav düzeyinde olsun.''';
+    }
+
     final sys = '''
 [SYSTEM — ÖDEV ÜRETİMİ]
 Sen $level seviyesinde $subject dersi $topic konusu için AI ödev oluşturucusun.
 Çıktı SADECE JSON dizisi — başka açıklama, markdown, ön/son metin YOK.
 
+$levelDirective
+
 [KURALLAR]
 - Tam $count soru üret.
 - Soru tipleri: $typeNames.
-- Tip dağılımı yaklaşık eşit olsun.
-- "mc" için 4 şık ver: ["A) ...","B) ...","C) ...","D) ..."], "answer": "A".
-- "tf" için "answer": "true" veya "false".
-- "fill" için cümlede ___ ile boşluk bırak, "answer": "doğru kelime/sayı".
-- "open" için "answer": kısa örnek cevap (anahtar fikirler).
+$distLine
+${ruleLines.join('\n')}
 - Tüm sorular OKUNUR, GERÇEKÇİ, MÜFREDATA UYGUN olmalı.
 - LaTeX, markdown, # başlık YASAK.
 $outcomeBlock
 
 [ÇIKTI ŞEMASI]
 [
-  {"q": "...", "type": "mc",   "choices": ["A) ...","B) ...","C) ...","D) ..."], "answer": "A"},
-  {"q": "...", "type": "tf",   "answer": "true"},
-  {"q": "____ kelimesini doldur.", "type": "fill", "answer": "..."},
-  {"q": "Açıkla: ...", "type": "open", "answer": "..."}
+${schemaLines.join(',\n')}
 ]
 
 $lang
@@ -3840,7 +3906,10 @@ $lang
         final e = aiText.lastIndexOf(']');
         if (s >= 0 && e > s) {
           final parsed = jsonDecode(aiText.substring(s, e + 1));
-          if (parsed is List) return parsed.whereType<Map>().map((q) => Map<String, dynamic>.from(q)).toList();
+          if (parsed is List) {
+            final out = _filterByType(parsed, allowedSet);
+            if (out.isNotEmpty) return out;
+          }
         }
       } catch (_) {}
     }
@@ -3864,14 +3933,27 @@ $lang
       if (parsed is! List) {
         throw GeminiException.unknown('Beklenen JSON listesi gelmedi');
       }
-      return parsed
-          .whereType<Map>()
-          .map((q) => Map<String, dynamic>.from(q))
-          .toList();
+      return _filterByType(parsed, allowedSet);
     } on GeminiException { rethrow; }
      on TimeoutException  { throw GeminiException.serverTimeout(); }
      on SocketException   { throw GeminiException.noInternet(); }
      catch (e)            { throw GeminiException.unknown(e.toString()); }
+  }
+
+  /// Modelden gelen soru listesini yalnızca seçilen tiplere indirger.
+  /// Model yanlış tip ürettiyse (drift) onları eler. Eğer hiçbir soru
+  /// eşleşmezse (aşırı drift), öğretmen boş ödev almasın diye tüm liste
+  /// geri döner — prompt kısıtı zaten doğru tipi büyük ölçüde garanti eder.
+  static List<Map<String, dynamic>> _filterByType(
+      List<dynamic> parsed, Set<String> allowedSet) {
+    final mapped = parsed
+        .whereType<Map>()
+        .map((q) => Map<String, dynamic>.from(q))
+        .toList();
+    final filtered = mapped
+        .where((q) => allowedSet.contains((q['type'] ?? 'mc').toString().trim()))
+        .toList();
+    return filtered.isNotEmpty ? filtered : mapped;
   }
 
   // ── EBEVEYN AI İÇGÖRÜLERİ ─────────────────────────────────────────────

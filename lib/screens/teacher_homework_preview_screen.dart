@@ -34,6 +34,8 @@ class TeacherHomeworkPreviewScreen extends StatefulWidget {
   final String level;
   final List<HomeworkQuestionType> types;
   final DateTime dueAt;
+  /// Ödevin öğrencide görüneceği an. null = hemen yayınla.
+  final DateTime? publishAt;
   final List<Map<String, dynamic>> questions;
 
   const TeacherHomeworkPreviewScreen({
@@ -45,6 +47,7 @@ class TeacherHomeworkPreviewScreen extends StatefulWidget {
     required this.level,
     required this.types,
     required this.dueAt,
+    this.publishAt,
     required this.questions,
   });
 
@@ -86,6 +89,7 @@ class _TeacherHomeworkPreviewScreenState
       types: widget.types,
       questionCount: _questions.length,
       dueAt: widget.dueAt,
+      publishAt: widget.publishAt,
       questions: _questions,
     );
     if (!mounted) return;
@@ -200,26 +204,36 @@ class _TeacherHomeworkPreviewScreenState
               top: false,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
-                child: FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _kBrand,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _kBrand,
+                      padding: const EdgeInsets.symmetric(vertical: 17),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: _sending ? null : _send,
+                    icon: _sending
+                        ? const SizedBox(
+                            width: 18, height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.2, color: Colors.white),
+                          )
+                        : const Icon(Icons.send_rounded,
+                            size: 20, color: Colors.white),
+                    label: Text(
+                      _sending ? 'Gönderiliyor...'.tr() : 'Sınıfa Gönder'.tr(),
+                      maxLines: 1,
+                      overflow: TextOverflow.visible,
+                      softWrap: false,
+                      style: GoogleFonts.poppins(
+                        fontSize: 16.5, fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
-                  onPressed: _sending ? null : _send,
-                  child: _sending
-                      ? const SizedBox(
-                          width: 18, height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.2, color: Colors.white),
-                        )
-                      : Text('Sınıfa Gönder'.tr(),
-                          style: GoogleFonts.poppins(
-                            fontSize: 15, fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                          )),
                 ),
               ),
             ),
@@ -295,16 +309,28 @@ class _TeacherHomeworkPreviewScreenState
                     )),
               ),
               const Spacer(),
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.edit_outlined, size: 18),
-                color: muted,
+              // Kalem + "Düzenle" — öğretmen her AI sorusunu değiştirebilir.
+              TextButton.icon(
                 onPressed: () => _editQuestion(i),
+                style: TextButton.styleFrom(
+                  foregroundColor: _kBrand,
+                  visualDensity: VisualDensity.compact,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                icon: const Icon(Icons.edit_outlined, size: 16),
+                label: Text('Düzenle'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 11, fontWeight: FontWeight.w800,
+                    )),
               ),
               IconButton(
                 visualDensity: VisualDensity.compact,
                 icon: const Icon(Icons.delete_outline_rounded, size: 18),
                 color: const Color(0xFFEF4444),
+                tooltip: 'Sil'.tr(),
                 onPressed: () => setState(() => _questions.removeAt(i)),
               ),
             ],
@@ -560,36 +586,8 @@ class _QuestionEditorSheetState extends State<_QuestionEditorSheet> {
                     decoration: _dec('Soruyu yaz...'.tr(), muted),
                   )),
                   const SizedBox(height: 14),
-                  _label(muted, 'Soru tipi'.tr()),
-                  Wrap(
-                    spacing: 8, runSpacing: 8,
-                    children: HomeworkQuestionType.values.map((t) {
-                      final sel = _type == t.key;
-                      return GestureDetector(
-                        onTap: () => setState(() => _type = t.key),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 7),
-                          decoration: BoxDecoration(
-                            color: sel
-                                ? _kBrand.withValues(alpha: 0.10)
-                                : AppPalette.bg(context),
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(
-                              color: sel ? _kBrand : AppPalette.border(context),
-                              width: sel ? 1.5 : 1,
-                            ),
-                          ),
-                          child: Text('${t.emoji} ${t.tr}',
-                              style: GoogleFonts.poppins(
-                                fontSize: 11.5, fontWeight: FontWeight.w700,
-                                color: sel ? _kBrand : ink,
-                              )),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 14),
+                  // Soru tipi seçici kaldırıldı — soru üretildiği tipte
+                  // kalır; öğretmen yalnızca metni/şıkları/cevabı düzenler.
                   ..._answerEditor(context, ink, muted),
                   const SizedBox(height: 20),
                   FilledButton(

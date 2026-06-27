@@ -54,7 +54,7 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
         break;
       case JoinClassResult.invalidCode:
         setState(() => _msg =
-            'Kod geçersiz. SINIF-XXXXX formatında olmalı.'.tr());
+            'Kod geçersiz. Öğretmeninin paylaştığı 5 haneli kodu gir.'.tr());
         break;
       case JoinClassResult.classNotFound:
         setState(() => _msg = 'Bu kodla bir sınıf bulunamadı.'.tr());
@@ -148,7 +148,7 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
                           color: ink, letterSpacing: 1.5,
                         ),
                         decoration: InputDecoration(
-                          hintText: 'SINIF-XXXXX',
+                          hintText: 'XXXXX',
                           hintStyle: GoogleFonts.poppins(
                             color: AppPalette.textSecondary(context)
                                 .withValues(alpha: 0.5),

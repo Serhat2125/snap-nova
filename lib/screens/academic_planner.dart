@@ -38,6 +38,7 @@ import '../widgets/qualsar_loading_widget.dart';
 import 'test_page.dart';
 import 'green_colony_screen.dart';
 import 'ai_coach_screen.dart';
+import 'student_homeworks_screen.dart';
 import 'history_screen.dart';
 import 'qualsar_arena_screen.dart';
 import 'bilgi_ligi_screen.dart';
@@ -3417,9 +3418,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
               ],
             ),
             SizedBox(height: 12),
-            // ── 5. satır: Pomodoro (sol) | boş yer (sağ) ─────────────
-            // Tek kart ama diğer satırlardaki kartlarla aynı genişlikte
-            // olsun diye Row + Expanded(SizedBox) ile sağ yarı rezerve.
+            // ── 5. satır: Pomodoro (sol) | Sınıf Ödevlerim (sağ) ─────
             Row(
               children: [
                 Expanded(
@@ -3439,7 +3438,22 @@ class _LibraryLandingState extends State<LibraryLanding> {
                   ),
                 ),
                 SizedBox(width: 10),
-                const Expanded(child: SizedBox.shrink()),
+                Expanded(
+                  child: _LandingCard(
+                    icon: Icons.assignment_rounded,
+                    title: 'Sınıf Ödevlerim'.tr(),
+                    color: Color(0xFF7C3AED),
+                    customBg: _cardBgs['homeworks'],
+                    customTextColor: _cardInks['homeworks'],
+                    onColorAccept: (c) =>
+                        _applyLibraryColor('homeworks', c),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const StudentHomeworksScreen(),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ],

@@ -3,7 +3,7 @@
 //  ekranını dolu görmesi/önizlemesi için).
 //
 //  Yazdıkları (hepsi `demo: true` işaretli → tek tıkla temizlenebilir):
-//    • students/{demo_*}        → 6 demo öğrenci (TR isim + avatar)
+//    • students/{demo_*}        → 18 demo öğrenci (TR isim + avatar)
 //    • homeworks/{demo_*}       → 3 demo ödev (çoktan seçmeli / açık uçlu / boşluk)
 //    • homeworks/*/submissions  → her öğrenci×ödev için gerçekçi teslim
 //        (doğru/yanlış/boş, aktif/pasif süre, hazır AI yorumu → AI çağrısı YOK)
@@ -28,6 +28,18 @@ class DemoSeedService {
     ('Emre Şahin', 'emre.s', '👦'),
     ('Elif Çelik', 'elif.c', '👧'),
     ('Burak Aydın', 'burak.a', '🧑'),
+    ('Selin Arslan', 'selin.a', '👧'),
+    ('Can Yıldız', 'can.y', '👦'),
+    ('Deniz Koç', 'deniz.k', '🧒'),
+    ('Ece Öztürk', 'ece.o', '👧'),
+    ('Kaan Doğan', 'kaan.d', '👦'),
+    ('Merve Aksoy', 'merve.a', '👧'),
+    ('Ali Polat', 'ali.p', '🧑'),
+    ('Sıla Kurt', 'sila.k', '👧'),
+    ('Ozan Erdoğan', 'ozan.e', '👦'),
+    ('Naz Bulut', 'naz.b', '🧒'),
+    ('Yusuf Acar', 'yusuf.a', '👦'),
+    ('Defne Şen', 'defne.s', '👧'),
   ];
 
   static bool _isDemoClassEmptyName(String s) => s.trim().isEmpty;

@@ -39,7 +39,10 @@ import 'teacher_intro_screen.dart';
 // ═════════════════════════════════════════════════════════════════════════════
 
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({super.key});
+  /// Başlangıç slaytı. Test modunda 2 (UserSetup = rol + kullanıcı adı)
+  /// verilerek hero + giriş slaytları atlanır. Varsayılan 0 (normal akış).
+  final int initialPage;
+  const OnboardingScreen({super.key, this.initialPage = 0});
 
   /// İlk açılış kontrolü için SharedPreferences anahtarı.
   static const String prefKey = 'onboarding_done_v2';
@@ -52,7 +55,7 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  final _pageController = PageController();
+  late final PageController _pageController;
   int _currentPage = 0;
   String? _selectedGrade;
   /// Multi-select: kullanıcı birden fazla seviye seçmiş olabilir.
@@ -71,6 +74,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   void initState() {
     super.initState();
+    _currentPage = widget.initialPage;
+    _pageController = PageController(initialPage: widget.initialPage);
     // RuntimeTranslator çeviriler arka planda cache'e eklendikçe notify eder;
     // bu sayede gecikmeli gelen yeni dil metinleri tüm onboarding'de hemen
     // yansır (subject carousel, açılan maddeler, vb. dahil).
@@ -113,7 +118,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Future<void> _goBack() async {
-    if (_currentPage == 0) return;
+    // initialPage'in altına (test modunda hero/giriş slaytlarına) dönülemez.
+    if (_currentPage <= widget.initialPage) return;
     await _pageController.previousPage(
       duration: Duration(milliseconds: 420),
       curve: Curves.easeInOutCubic,
@@ -4903,27 +4909,31 @@ class _UserSetupPageState extends State<_UserSetupPage> {
     }
     setState(() => _saving = true);
     try {
-      final fb = FirebaseAuth.instance.currentUser;
-      if (fb == null) {
-        _snack('Önce giriş yap');
-        setState(() => _saving = false); return;
-      }
-      // Benzersizlik kontrolü (mevcut kullanıcı kendi adını yeniden yazıyorsa skip)
-      if (username != _existingUsername) {
-        final taken = await FirebaseFirestore.instance
-            .collection('users')
-            .where('username', isEqualTo: username)
-            .limit(1).get();
-        if (taken.docs.isNotEmpty && taken.docs.first.id != fb.uid) {
-          _snack('Bu kullanıcı adı dolu, başka dene');
-          setState(() => _saving = false); return;
+      // Firebase yapılandırılmamışsa (örn. web önizleme) FirebaseAuth.instance'a
+      // erişmek bile hata atar → tüm cloud adımlarını atla, yereli kaydet,
+      // akışa devam et. Gerçek cihaz/Android'de firebaseReady=true olur.
+      final fb = AuthService.firebaseReady
+          ? FirebaseAuth.instance.currentUser
+          : null;
+
+      if (AuthService.firebaseReady && fb != null) {
+        // Benzersizlik kontrolü (mevcut kullanıcı kendi adını yazıyorsa skip)
+        if (username != _existingUsername) {
+          final taken = await FirebaseFirestore.instance
+              .collection('users')
+              .where('username', isEqualTo: username)
+              .limit(1).get();
+          if (taken.docs.isNotEmpty && taken.docs.first.id != fb.uid) {
+            _snack('Bu kullanıcı adı dolu, başka dene');
+            setState(() => _saving = false); return;
+          }
         }
+        await FirebaseFirestore.instance.collection('users').doc(fb.uid).set({
+          'username': username,
+          'displayName': fb.displayName ?? username,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
       }
-      await FirebaseFirestore.instance.collection('users').doc(fb.uid).set({
-        'username': username,
-        'displayName': fb.displayName ?? username,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
 
       await AccountService.instance.setType(type);
 
@@ -4932,10 +4942,12 @@ class _UserSetupPageState extends State<_UserSetupPage> {
       if (type == AccountType.teacher) {
         await AccountService.instance
             .saveTeacherProfile(username: username, branch: _branch ?? '');
-        try {
-          await FirebaseFirestore.instance.collection('users').doc(fb.uid)
-              .set({'teacherLevel': _teacherLevel}, SetOptions(merge: true));
-        } catch (_) {}
+        if (AuthService.firebaseReady && fb != null) {
+          try {
+            await FirebaseFirestore.instance.collection('users').doc(fb.uid)
+                .set({'teacherLevel': _teacherLevel}, SetOptions(merge: true));
+          } catch (_) {}
+        }
       }
 
       // Kod sadece öğrenci için UI'da var (7 gün premium)

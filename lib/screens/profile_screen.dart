@@ -20,7 +20,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'join_class_screen.dart';
 import 'notifications_inbox_screen.dart';
 import 'onboarding_screen.dart';
-import 'student_homeworks_screen.dart';
 import '../widgets/parent_invite_banner.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/locale_service.dart';
@@ -679,7 +678,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               ],
-              // Sınıfa Katıl + Sınıf Ödevlerim — sadece ÖĞRENCİ.
+              // Sınıfa Katıl — sadece ÖĞRENCİ.
+              // (Sınıf Ödevlerim → Kütüphanem'e taşındı, Pomodoro yanına.)
               if (isStudent) ...[
                 SizedBox(height: 10),
                 _buildOvalMenuItem(
@@ -687,14 +687,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   title: 'Sınıfa Katıl'.tr(),
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => const JoinClassScreen(),
-                  )),
-                ),
-                SizedBox(height: 10),
-                _buildOvalMenuItem(
-                  emoji: '📋',
-                  title: 'Sınıf Ödevlerim'.tr(),
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => const StudentHomeworksScreen(),
                   )),
                 ),
               ],

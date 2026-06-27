@@ -63,7 +63,11 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
             .collection('homeworks')
             .orderBy('dueAt', descending: false)
             .limit(50).get();
-        final hws = hwSnap.docs.map(HomeworkModel.fromDoc).toList();
+        // Yayın zamanı gelmemiş (zamanlanmış) ödevler öğrencide gizli kalır.
+        final hws = hwSnap.docs
+            .map(HomeworkModel.fromDoc)
+            .where((hw) => hw.isPublished)
+            .toList();
         byClass[c.classId] = hws;
         for (final hw in hws) {
           final subSnap = await FirebaseFirestore.instance

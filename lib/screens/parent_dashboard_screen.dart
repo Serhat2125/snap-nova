@@ -16,6 +16,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/education_models.dart';
 import '../services/account_service.dart';
@@ -26,6 +27,7 @@ import '../theme/app_theme.dart';
 import '../widgets/parent_widgets.dart';
 import 'notifications_inbox_screen.dart';
 import 'onboarding_screen.dart';
+import 'parent_child_homeworks_screen.dart';
 import 'parent_onboarding_screen.dart';
 
 class ParentDashboardScreen extends StatefulWidget {
@@ -41,6 +43,21 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   List<Map<String, dynamic>> _summaries = [];
   Map<String, dynamic>? _baseStats;
   bool _loadingChildData = false;
+  String? _defaultLevel; // ParentIntro'da seçilen çocuk eğitim seviyesi
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDefaultLevel();
+  }
+
+  Future<void> _loadDefaultLevel() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lvl = (prefs.getString('parent_child_default_level') ?? '').trim();
+      if (lvl.isNotEmpty && mounted) setState(() => _defaultLevel = lvl);
+    } catch (_) {}
+  }
 
   Future<void> _selectChild(LinkedChild c) async {
     setState(() {
@@ -278,14 +295,21 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     );
   }
 
-  /// Activity verisinde foto-soru ders dağılımı yoksa subjectDurations'tan
-  /// kabaca türetilebilir; gerçek subjectBySubject alanı varsa onu kullan.
+  /// Foto-soru ders dağılımı. Öncelik: ActivityWriter'ın yazdığı gerçek
+  /// `photoBySubject` alanı. Eski/eksik kayıtlarda bu alan boşsa, o güne ait
+  /// foto-sorular en aktif derse (subjectDurations) tahminen atanır.
   Map<String, int> _aggregatePhotoBySubject(List<StudentActivityModel> acts) {
     final out = <String, int>{};
     for (final a in acts) {
-      // En aktif derslere göre dağıt — foto-soru ders bazlı veri yoksa
-      // tahminen subjectDurations en yüksek olana yaz.
       if (a.photoQuestionsSolved == 0) continue;
+      if (a.photoBySubject.isNotEmpty) {
+        // Gerçek ders kırılımı mevcut.
+        a.photoBySubject.forEach((k, v) {
+          out[k] = (out[k] ?? 0) + v;
+        });
+        continue;
+      }
+      // Geriye dönük tahmin: en çok çalışılan derse yaz.
       String? topSubject;
       int topSecs = 0;
       a.subjectDurations.forEach((k, v) {
@@ -366,6 +390,52 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 ));
               },
             ),
+            // Seçili çocuğa özel aksiyonlar (bağlı ve aktifse)
+            if (_selectedChild != null && _selectedChild!.isActive) ...[
+              ListTile(
+                leading: const Icon(Icons.assignment_turned_in_rounded,
+                    color: Color(0xFF0EA5E9)),
+                title: Text('Karne ve öğretmen geri bildirimi'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 14, fontWeight: FontWeight.w700, color: ink)),
+                subtitle: Text(
+                    (_selectedChild!.displayName.isEmpty
+                            ? '@${_selectedChild!.username}'
+                            : _selectedChild!.displayName) +
+                        ' • ödevler, yazılı/sözlü notları, öğretmen notları'
+                            .tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 11, color: AppPalette.textSecondary(context))),
+                onTap: () {
+                  final c = _selectedChild!;
+                  Navigator.pop(ctx);
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => ParentChildHomeworksScreen(
+                      childUid: c.uid,
+                      childName: c.displayName.isEmpty
+                          ? '@${c.username}'
+                          : c.displayName,
+                    ),
+                  ));
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.link_off_rounded,
+                    color: Color(0xFFEF4444)),
+                title: Text('Bağlantıyı kaldır'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 14, fontWeight: FontWeight.w700, color: ink)),
+                subtitle: Text('Bu çocuğun verilerini panelden çıkar'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 11, color: AppPalette.textSecondary(context))),
+                onTap: () {
+                  final c = _selectedChild!;
+                  Navigator.pop(ctx);
+                  _confirmUnlink(c);
+                },
+              ),
+              const Divider(height: 1),
+            ],
             ListTile(
               leading: const Icon(Icons.swap_horiz_rounded,
                   color: Color(0xFF7C3AED)),
@@ -410,6 +480,62 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     );
   }
 
+  Future<void> _confirmUnlink(LinkedChild c) async {
+    final name = c.displayName.isEmpty ? '@${c.username}' : c.displayName;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dctx) => AlertDialog(
+        backgroundColor: AppPalette.card(dctx),
+        title: Text('Bağlantıyı kaldır'.tr(),
+            style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w800,
+                color: AppPalette.textPrimary(dctx))),
+        content: Text(
+          '$name ile bağlantın kaldırılacak ve verileri panelinden kaybolacak. Çocuk yeniden kod paylaşırsa tekrar bağlanabilirsin.'
+              .tr(),
+          style: GoogleFonts.poppins(
+              fontSize: 13, color: AppPalette.textSecondary(dctx), height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dctx, false),
+            child: Text('Vazgeç'.tr(),
+                style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w700,
+                    color: AppPalette.textSecondary(dctx))),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFEF4444)),
+            onPressed: () => Navigator.pop(dctx, true),
+            child: Text('Kaldır'.tr(),
+                style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w800, color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final success = await ParentLinkService.unlinkChild(c.uid);
+    if (!mounted) return;
+    if (success && _selectedChild?.uid == c.uid) {
+      // Stream güncelleyecek; seçimi sıfırla ki ilk çocuğa atlasın.
+      setState(() {
+        _selectedChild = null;
+        _activity = [];
+        _summaries = [];
+        _baseStats = null;
+      });
+    }
+    messenger.showSnackBar(SnackBar(
+      content: Text(success
+          ? 'Bağlantı kaldırıldı'.tr()
+          : 'Bağlantı kaldırılamadı, tekrar dene'.tr()),
+    ));
+  }
+
   Widget _buildEmpty(BuildContext context) {
     return Center(
       child: Padding(
@@ -441,6 +567,33 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 height: 1.45,
               ),
             ),
+            if (_defaultLevel != null && _defaultLevel!.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.25)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.school_rounded,
+                        size: 16, color: Color(0xFF10B981)),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Seçilen seviye: '.tr() + _defaultLevel!.tr(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 12, fontWeight: FontWeight.w700,
+                        color: const Color(0xFF065F46),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),

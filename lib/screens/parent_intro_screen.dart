@@ -10,8 +10,8 @@
 //   3) Çocuğunun eğitim seviyesi (opsiyonel — atla mümkün)
 //
 //  Eğitim seviyesi seçimi ebeveyn için bağlayıcı değil (çocuk kendi
-//  profilinden günceller). Sadece ebeveyn dashboard'unda gösterilecek
-//  varsayılan müfredatı belirler.
+//  profilinden günceller). Çocuk eklenene kadar ParentDashboardScreen'in
+//  boş-durum ekranında "Seçilen seviye" rozeti olarak gösterilir.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import 'package:flutter/material.dart';
@@ -438,7 +438,7 @@ class _LevelSlide extends StatelessWidget {
               )),
           const SizedBox(height: 8),
           Text(
-            'Panelde gösterilecek varsayılan müfredatı belirler. Sonra değiştirebilirsin.'
+            'Panelini kişiselleştirir; çocuğunu ekleyene kadar seçtiğin seviye gösterilir. Sonra değiştirebilirsin.'
                 .tr(),
             style: GoogleFonts.poppins(
               fontSize: 13,

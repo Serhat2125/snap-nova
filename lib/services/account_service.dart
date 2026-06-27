@@ -59,8 +59,12 @@ class AccountService extends ChangeNotifier {
 
   static const _kPrefKey = 'account_type_v1';
   static const _kBranchKey = 'teacher_branch_v1';
+  static const _kPhotoKey = 'teacher_photo_path_v1';
+  static const _kStatusKey = 'teacher_status_v1';
   AccountType _type = AccountType.student;
   String? _teacherBranch;
+  String? _teacherPhotoPath;
+  String? _teacherStatus;
   bool _loaded = false;
 
   AccountType get type => _type;
@@ -72,6 +76,12 @@ class AccountService extends ChangeNotifier {
   /// Öğretmenin branşı (hesap kurulumunda seçilir). null → henüz seçilmemiş.
   String? get teacherBranch => _teacherBranch;
 
+  /// Öğretmenin profil fotoğrafı (yerel dosya yolu). null → emoji göster.
+  String? get teacherPhotoPath => _teacherPhotoPath;
+
+  /// Öğretmenin durum mesajı (örn: "10. sınıf fizik öğretmeni").
+  String? get teacherStatus => _teacherStatus;
+
   Future<void> init() async {
     if (_loaded) return;
     try {
@@ -79,6 +89,8 @@ class AccountService extends ChangeNotifier {
       final raw = prefs.getString(_kPrefKey);
       _type = AccountTypeX.fromKey(raw);
       _teacherBranch = prefs.getString(_kBranchKey);
+      _teacherPhotoPath = prefs.getString(_kPhotoKey);
+      _teacherStatus = prefs.getString(_kStatusKey);
     } catch (_) {}
     _loaded = true;
     notifyListeners();
@@ -95,17 +107,27 @@ class AccountService extends ChangeNotifier {
           .collection('users')
           .doc(uid)
           .get();
-      final cloudType = AccountTypeX.fromKey(
-          snap.data()?['accountType'] as String?);
+      final rawCloudType = (snap.data()?['accountType'] as String?)?.trim();
       final cloudBranch = snap.data()?['teacherBranch'] as String?;
       bool changed = false;
-      if (cloudType != _type) {
-        _type = cloudType;
-        try {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString(_kPrefKey, _type.key);
-        } catch (_) {}
-        changed = true;
+      // KRİTİK: Cloud'da accountType alanı YOKSA fromKey(null) → student döner
+      // ve yereldeki teacher/parent'ı ezerdi. Bu, anonim→e-posta uid geçişinde
+      // öğretmeni sessizce öğrenciye düşürüp her açılışta yanlış ekrana atıyordu.
+      // Çözüm: cloud yalnızca GERÇEK bir değer taşıyorsa kazanır; aksi halde
+      // yereldeki tipi cloud'a geri yazıp (uid göçü onarımı) koru.
+      if (rawCloudType != null && rawCloudType.isNotEmpty) {
+        final cloudType = AccountTypeX.fromKey(rawCloudType);
+        if (cloudType != _type) {
+          _type = cloudType;
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString(_kPrefKey, _type.key);
+          } catch (_) {}
+          changed = true;
+        }
+      } else if (_type != AccountType.student) {
+        // Cloud boş ama yerelde teacher/parent var → yereli cloud'a taşı.
+        unawaited(setType(_type));
       }
       if (cloudBranch != null && cloudBranch != _teacherBranch) {
         _teacherBranch = cloudBranch;
@@ -167,6 +189,31 @@ class AccountService extends ChangeNotifier {
       }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('[AccountService] teacher profile save fail: $e');
+    }
+  }
+
+  /// Öğretmenin profil fotoğrafı yolunu ve/veya durum mesajını kalıcı yazar.
+  /// Yalnızca verilen alanlar güncellenir (null → değişmez).
+  Future<void> saveTeacherPresentation({
+    String? photoPath,
+    String? status,
+  }) async {
+    if (photoPath != null) _teacherPhotoPath = photoPath;
+    if (status != null) _teacherStatus = status;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (photoPath != null) await prefs.setString(_kPhotoKey, photoPath);
+      if (status != null) await prefs.setString(_kStatusKey, status);
+    } catch (_) {}
+    notifyListeners();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(uid).set({
+        if (status != null) 'teacherStatus': status,
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[AccountService] teacher presentation save fail: $e');
     }
   }
 

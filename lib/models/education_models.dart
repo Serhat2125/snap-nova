@@ -27,6 +27,9 @@ class StudentActivityModel {
   final int summariesCreated;
   /// Bugün tarattığı (fotoğrafladığı) soru sayısı.
   final int photoQuestionsSolved;
+  /// Foto-soruların ders bazlı dağılımı (ders adı → adet). ActivityWriter
+  /// `photoBySubject.{ders}` olarak yazar; boşsa ders kırılımı bilinmiyordur.
+  final Map<String, int> photoBySubject;
   /// Bugün çözdüğü test sayısı.
   final int testsSolved;
   /// Bugünkü test cevap dağılımı.
@@ -45,6 +48,7 @@ class StudentActivityModel {
     this.subjectDurations = const {},
     this.summariesCreated = 0,
     this.photoQuestionsSolved = 0,
+    this.photoBySubject = const {},
     this.testsSolved = 0,
     this.correctAnswers = 0,
     this.wrongAnswers = 0,
@@ -67,6 +71,7 @@ class StudentActivityModel {
         'subjectDurations': subjectDurations,
         'summariesCreated': summariesCreated,
         'photoQuestionsSolved': photoQuestionsSolved,
+        if (photoBySubject.isNotEmpty) 'photoBySubject': photoBySubject,
         'testsSolved': testsSolved,
         'correctAnswers': correctAnswers,
         'wrongAnswers': wrongAnswers,
@@ -83,6 +88,9 @@ class StudentActivityModel {
           const {},
       summariesCreated: (j['summariesCreated'] ?? 0) as int,
       photoQuestionsSolved: (j['photoQuestionsSolved'] ?? 0) as int,
+      photoBySubject: (j['photoBySubject'] as Map<String, dynamic>?)
+              ?.map((k, v) => MapEntry(k, (v ?? 0) as int)) ??
+          const {},
       testsSolved: (j['testsSolved'] ?? 0) as int,
       correctAnswers: (j['correctAnswers'] ?? 0) as int,
       wrongAnswers: (j['wrongAnswers'] ?? 0) as int,
@@ -168,6 +176,9 @@ class HomeworkModel {
   final int questionCount;
   final DateTime assignedAt;
   final DateTime dueAt;
+  /// Ödevin öğrencide GÖRÜNECEĞİ an. null veya geçmişse hemen yayında.
+  /// Gelecekteyse öğrenci bu ana kadar ödevi görmez (öğretmen görür).
+  final DateTime? publishAt;
   /// AI tarafından üretilen ödev içeriği — soruları tutar.
   /// Şema: [{q: '...', type: 'mc', choices: [...], answer: '...'}, ...]
   final List<Map<String, dynamic>> questions;
@@ -186,12 +197,17 @@ class HomeworkModel {
     required this.questionCount,
     required this.assignedAt,
     required this.dueAt,
+    this.publishAt,
     this.questions = const [],
     this.reminderSent = false,
   });
 
   bool get isOverdue => DateTime.now().isAfter(dueAt);
   Duration get timeRemaining => dueAt.difference(DateTime.now());
+
+  /// Ödev öğrenciye görünür mü? (yayın zamanı yok veya geçmiş).
+  bool get isPublished =>
+      publishAt == null || !publishAt!.isAfter(DateTime.now());
 
   Map<String, dynamic> toJson() => {
         'classId': classId,
@@ -204,6 +220,7 @@ class HomeworkModel {
         'questionCount': questionCount,
         'assignedAt': Timestamp.fromDate(assignedAt),
         'dueAt': Timestamp.fromDate(dueAt),
+        if (publishAt != null) 'publishAt': Timestamp.fromDate(publishAt!),
         'questions': questions,
         'reminderSent': reminderSent,
       };
@@ -214,6 +231,8 @@ class HomeworkModel {
     DateTime due = DateTime.now().add(const Duration(days: 7));
     if (m['assignedAt'] is Timestamp) assigned = (m['assignedAt'] as Timestamp).toDate();
     if (m['dueAt'] is Timestamp) due = (m['dueAt'] as Timestamp).toDate();
+    DateTime? publish;
+    if (m['publishAt'] is Timestamp) publish = (m['publishAt'] as Timestamp).toDate();
     return HomeworkModel(
       id: d.id,
       classId: (m['classId'] ?? '').toString(),
@@ -228,6 +247,7 @@ class HomeworkModel {
       questionCount: (m['questionCount'] ?? 0) as int,
       assignedAt: assigned,
       dueAt: due,
+      publishAt: publish,
       questions: ((m['questions'] as List?) ?? const [])
           .whereType<Map>()
           .map((q) => Map<String, dynamic>.from(q))

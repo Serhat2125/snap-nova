@@ -44,9 +44,14 @@ class HomeworkService {
     required int questionCount,
     required DateTime dueAt,
     required List<Map<String, dynamic>> questions,
+    DateTime? publishAt,
   }) async {
     final myUid = _myUid;
     if (myUid == null) return null;
+    // Yayın zamanı gelecekteyse ödev gizli atanır; öğrenciye o ana kadar
+    // bildirim de gitmez (öğrenci listesi publishAt'a göre filtreler).
+    final publishedNow =
+        publishAt == null || !publishAt.isAfter(DateTime.now());
     try {
       final hwRef = _fs.collection('classes').doc(classId)
           .collection('homeworks').doc();
@@ -62,6 +67,7 @@ class HomeworkService {
         questionCount: questionCount,
         assignedAt: DateTime.now(),
         dueAt: dueAt,
+        publishAt: publishAt,
         questions: questions,
       );
       // Ödev doc'u
@@ -83,21 +89,25 @@ class HomeworkService {
             status: 'pending',
           ).toJson(),
         );
-        // Yeni ödev bildirimi (push trigger)
-        batch.set(
-          _fs.collection('notifications').doc(s.id)
-              .collection('items').doc(),
-          {
-            'type': 'homework_assigned',
-            'fromUsername': 'Öğretmen',
-            'fromDisplayName': title,
-            'when': FieldValue.serverTimestamp(),
-            'read': false,
-            'classId': classId,
-            'homeworkId': hwRef.id,
-            'dueAt': Timestamp.fromDate(dueAt),
-          },
-        );
+        // Yeni ödev bildirimi (push trigger) — yalnızca ödev YAYINDAYSA.
+        // Zamanlanmış (gelecek) ödevde bildirim atlanır; ödev yayın anına
+        // kadar öğrencide görünmez.
+        if (publishedNow) {
+          batch.set(
+            _fs.collection('notifications').doc(s.id)
+                .collection('items').doc(),
+            {
+              'type': 'homework_assigned',
+              'fromUsername': 'Öğretmen',
+              'fromDisplayName': title,
+              'when': FieldValue.serverTimestamp(),
+              'read': false,
+              'classId': classId,
+              'homeworkId': hwRef.id,
+              'dueAt': Timestamp.fromDate(dueAt),
+            },
+          );
+        }
       }
       await batch.commit();
       Analytics.logFeatureAction('teacher_panel', 'homework_assigned');
@@ -204,6 +214,7 @@ class HomeworkService {
     required String studentUid,
     required Map<int, bool> grades,
   }) async {
+    if (_myUid == null) return false;
     try {
       final ref = _fs.collection('classes').doc(classId)
           .collection('homeworks').doc(homeworkId)
@@ -216,7 +227,8 @@ class HomeworkService {
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
       for (final a in answers) {
-        final idx = (a['index'] ?? -1) as int;
+        // Firestore sayıyı double döndürebilir → güvenli int dönüşümü.
+        final idx = (a['index'] as num?)?.toInt() ?? -1;
         if (grades.containsKey(idx)) a['isCorrect'] = grades[idx];
       }
       int correct = 0;
@@ -500,9 +512,152 @@ class HomeworkService {
       );
     }
   }
+
+  /// Sınıftaki bir ödevin (newest-first) listesini döndürür — Özet filtresi
+  /// için. En son verilen ödev en üstte.
+  static Future<List<HomeworkModel>> classHomeworks(String classId) async {
+    try {
+      final snap = await _fs.collection('classes').doc(classId)
+          .collection('homeworks').get();
+      final list = snap.docs.map(HomeworkModel.fromDoc).toList();
+      list.sort((a, b) => b.assignedAt.compareTo(a.assignedAt));
+      return list;
+    } catch (e) {
+      debugPrint('[HomeworkService] classHomeworks fail: $e');
+      return [];
+    }
+  }
+
+  /// Sınıftaki TÜM öğrencilerin toplam soru/doğru/yanlış/boş + başarı %
+  /// kırılımını döndürür (Özet tablo). En başarılı en üstte sıralı.
+  /// Hiç teslimi olmayan öğrenciler de 0 değerleriyle listelenir.
+  /// [homeworkId] verilirse sadece o ödevin sonuçları toplanır.
+  static Future<List<StudentGradeSummary>> classGradeSummary(
+      String classId, {String? homeworkId}) async {
+    try {
+      final aggs = <String, _GradeAgg>{};
+
+      // 1) Tüm sınıf öğrencilerini ekle (teslimi olmayanlar da görünsün).
+      final studSnap = await _fs.collection('classes').doc(classId)
+          .collection('students').get();
+      for (final d in studSnap.docs) {
+        final m = d.data();
+        final alias = (m['teacherAlias'] ?? '').toString().trim();
+        final dispName = (m['displayName'] ?? '').toString().trim();
+        final uname = (m['username'] ?? '').toString().trim();
+        final name = alias.isNotEmpty
+            ? alias
+            : dispName.isNotEmpty
+                ? dispName
+                : '@$uname';
+        aggs[d.id] = _GradeAgg(name);
+      }
+
+      // 2) Ödev teslimlerinden soru/doğru/yanlış/boş topla.
+      //    Belirli ödev seçiliyse yalnızca onu işle.
+      final List<HomeworkModel> homeworks;
+      if (homeworkId != null) {
+        final d = await _fs.collection('classes').doc(classId)
+            .collection('homeworks').doc(homeworkId).get();
+        homeworks = d.exists ? [HomeworkModel.fromDoc(d)] : [];
+      } else {
+        final hwSnap = await _fs.collection('classes').doc(classId)
+            .collection('homeworks').get();
+        homeworks = hwSnap.docs.map(HomeworkModel.fromDoc).toList();
+      }
+      for (final hw in homeworks) {
+        final subs = await _fs.collection('classes').doc(classId)
+            .collection('homeworks').doc(hw.id)
+            .collection('submissions').get();
+        for (final sd in subs.docs) {
+          final sub = HomeworkSubmissionModel.fromMap(sd.data());
+          if (!sub.isSubmitted) continue;
+          final a = aggs.putIfAbsent(sub.studentUid, () => _GradeAgg(
+              sub.studentDisplayName.isEmpty
+                  ? '@${sub.studentUsername}'
+                  : sub.studentDisplayName));
+          final qCount =
+              hw.questionCount > 0 ? hw.questionCount : sub.answers.length;
+          a.total += qCount;
+          if (sub.answers.isNotEmpty) {
+            for (final ans in sub.answers) {
+              if (ans.studentAnswer.trim().isEmpty) {
+                a.empty++;
+              } else if (ans.isCorrect == true) {
+                a.correct++;
+              } else if (ans.isCorrect == false) {
+                a.wrong++;
+              }
+            }
+            // Cevap dizisinde olmayan (atlanan) sorular boş sayılır.
+            if (qCount > sub.answers.length) {
+              a.empty += qCount - sub.answers.length;
+            }
+          } else {
+            final c = sub.correct ?? 0;
+            final w = sub.wrong ?? 0;
+            a.correct += c;
+            a.wrong += w;
+            a.empty += (qCount - c - w).clamp(0, qCount);
+          }
+        }
+      }
+
+      final out = aggs.entries
+          .map((e) => StudentGradeSummary(
+                uid: e.key,
+                name: e.value.name,
+                totalQuestions: e.value.total,
+                correct: e.value.correct,
+                wrong: e.value.wrong,
+                empty: e.value.empty,
+              ))
+          .toList()
+        // En iyi en üstte; eşitlikte daha çok soru çözen üstte.
+        ..sort((x, y) {
+          final c = y.pct.compareTo(x.pct);
+          if (c != 0) return c;
+          return y.totalQuestions.compareTo(x.totalQuestions);
+        });
+      return out;
+    } catch (e) {
+      debugPrint('[HomeworkService] classGradeSummary fail: $e');
+      return [];
+    }
+  }
 }
 
 // ─── Analitik veri modelleri ───────────────────────────────────────────────
+
+/// Sınıf özeti — bir öğrencinin TÜM ödevlerdeki toplam soru/doğru/yanlış/boş
+/// kırılımı ve toplam başarı yüzdesi (Excel benzeri özet tablo satırı).
+class StudentGradeSummary {
+  final String uid;
+  final String name;
+  final int totalQuestions;
+  final int correct;
+  final int wrong;
+  final int empty;
+  const StudentGradeSummary({
+    required this.uid,
+    required this.name,
+    required this.totalQuestions,
+    required this.correct,
+    required this.wrong,
+    required this.empty,
+  });
+
+  /// Başarı yüzdesi — TOPLAM sorulan soru üzerinden.
+  double get pct =>
+      totalQuestions > 0 ? correct * 100 / totalQuestions : 0;
+}
+
+/// classGradeSummary iç toplayıcısı.
+class _GradeAgg {
+  String name;
+  int total = 0, correct = 0, wrong = 0, empty = 0;
+  _GradeAgg(this.name);
+}
 
 /// Bir öğrencinin tek bir ödevdeki durumu (karne satırı).
 class StudentReportEntry {

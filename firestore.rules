@@ -385,6 +385,36 @@ service cloud.firestore {
         allow update: if isSignedIn()
           && get(/databases/$(database)/documents/classes/$(classId))
               .data.teacherUid == request.auth.uid;
+
+        // grades alt koleksiyonu — öğrencinin yazılı/sözlü notları.
+        //   Read: öğrencinin kendisi, bağlı ebeveyni VE sınıf öğretmeni.
+        //   Write: SADECE sınıf öğretmeni.
+        match /grades/{gradeId} {
+          allow read: if isOwner(studentUid)
+            || isLinkedParent(studentUid)
+            || (isSignedIn()
+                && get(/databases/$(database)/documents/classes/$(classId))
+                    .data.teacherUid == request.auth.uid);
+          allow create, update, delete: if isSignedIn()
+            && get(/databases/$(database)/documents/classes/$(classId))
+                .data.teacherUid == request.auth.uid;
+        }
+
+        // notes alt koleksiyonu — öğretmenin öğrenci hakkındaki notları.
+        //   Read: sınıf öğretmeni (tümü) ve öğrencinin kendisi/ebeveyni
+        //   YALNIZCA sharedWithParent==true olan notları görebilir
+        //   (öğretmene özel gözlemler sızmasın).
+        //   Write: SADECE sınıf öğretmeni.
+        match /notes/{noteId} {
+          allow read: if (isSignedIn()
+                && get(/databases/$(database)/documents/classes/$(classId))
+                    .data.teacherUid == request.auth.uid)
+            || ((isOwner(studentUid) || isLinkedParent(studentUid))
+                && resource.data.sharedWithParent == true);
+          allow create, update, delete: if isSignedIn()
+            && get(/databases/$(database)/documents/classes/$(classId))
+                .data.teacherUid == request.auth.uid;
+        }
       }
 
       // content alt koleksiyonu — sadece öğretmen ekler, öğrenciler okur

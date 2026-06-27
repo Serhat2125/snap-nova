@@ -1,31 +1,29 @@
 // ═══════════════════════════════════════════════════════════════════════════
 //  TeacherShellScreen — Öğretmen panelinin alt-bar iskeleti.
 //
-//  Öğrenci tarafıyla simetrik 4 sekme + ortada büyük "➕ Oluştur" butonu:
+//  2 sekme + ortada büyük "➕ Oluştur" FAB'ı (ayrı "Oluştur"/"Analitik" YOK):
 //
-//    [ 🏠 Panel ]  [ 📚 Sınıflar ]  ( ➕ )  [ 📊 Analitik ]  [ 👤 Profil ]
+//    [ 📚 Sınıflar ]  ( ➕ )  [ 👤 Profil ]
 //
-//  • Panel    → karşılama + hızlı eylemler + sınıflarım şeridi (aksiyon odaklı)
 //  • Sınıflar → tüm sınıfların tam listesi → detayda Öğrenciler/Ödevler/Analiz
-//  • Analitik → sınıf-üstü kıyas (Faz 3'te dolar — şimdilik "yakında")
 //  • Profil   → öğretmen profili + store-zorunlu metinler (ProfileScreen)
 //
-//  ➕ → Yeni Sınıf / AI ile Ödev / Öğrenci Davet hızlı menüsü.
+//  ➕ → Yeni Sınıf / AI ile Ödev / Öğrenci Davet hızlı menüsü (merkez FAB).
 // ═══════════════════════════════════════════════════════════════════════════
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../services/account_service.dart';
 import '../services/analytics.dart';
 import '../services/class_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
+import '../widgets/class_profile_dialog.dart';
 import 'notifications_inbox_screen.dart';
 import 'profile_screen.dart';
-import 'teacher_analytics_class_screen.dart';
 import 'teacher_class_detail_screen.dart';
+import 'teacher_create_homework_screen.dart';
 import 'teacher_invite_student_screen.dart';
 import 'teacher_onboarding_screen.dart';
 
@@ -53,7 +51,6 @@ class _TeacherShellScreenState extends State<TeacherShellScreen> {
   Widget build(BuildContext context) {
     final tabs = [
       const _TeacherClassesTab(),
-      const _TeacherAnalyticsTab(),
       const ProfileScreen(),
     ];
     return Scaffold(
@@ -83,20 +80,13 @@ class _TeacherShellScreenState extends State<TeacherShellScreen> {
       notchMargin: 7,
       height: 62,
       padding: EdgeInsets.zero,
+      // İki sekme ➕ FAB'ın iki yanında simetrik: solda Sınıflar, sağda Profil,
+      // ortada ➕. "Oluştur" ayrı sekme değil; oluşturma ortadaki FAB.
       child: Row(
         children: [
-          Expanded(
-            child: Row(children: [
-              _navItem(0, Icons.add_circle_outline_rounded, 'Oluştur'.tr()),
-              _navItem(1, Icons.class_rounded, 'Sınıflar'.tr()),
-            ]),
-          ),
-          const SizedBox(width: 48), // ➕ FAB boşluğu (ortada)
-          Expanded(
-            child: Row(children: [
-              _navItem(2, Icons.person_rounded, 'Profil'.tr()),
-            ]),
-          ),
+          _navItem(0, Icons.class_rounded, 'Sınıflar'.tr()),
+          const SizedBox(width: 48), // ➕ FAB boşluğu (tam ortada)
+          _navItem(1, Icons.person_rounded, 'Profil'.tr()),
         ],
       ),
     );
@@ -159,7 +149,7 @@ class _TeacherShellScreenState extends State<TeacherShellScreen> {
               final cls = await _pickClass(context);
               if (cls == null || !context.mounted) return;
               Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => TeacherClassDetailScreen(cls: cls),
+                builder: (_) => TeacherCreateHomeworkScreen(cls: cls),
               ));
             }),
             _createTile(ctx, '👨‍🎓', 'Öğrenci Davet Et'.tr(),
@@ -349,6 +339,7 @@ class TeacherClassCard extends StatelessWidget {
         onTap: () => Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => TeacherClassDetailScreen(cls: cls),
         )),
+        onLongPress: () => _showManageMenu(context),
         borderRadius: BorderRadius.circular(16),
         child: Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -358,52 +349,66 @@ class TeacherClassCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: AppPalette.border(context)),
           ),
-          child: Column(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 44, height: 44,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      color: _kBrand.withValues(alpha: 0.12),
-                    ),
-                    alignment: Alignment.center,
-                    child: const Icon(Icons.class_rounded,
-                        color: _kBrand, size: 22),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              // ── SOL: profil avatarı + sağında sınıf adı; altında okul + durum ──
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Text(cls.name,
-                            style: GoogleFonts.poppins(
-                              fontSize: 16, fontWeight: FontWeight.w800,
-                              color: ink,
-                            ),
-                            maxLines: 1, overflow: TextOverflow.ellipsis),
-                        Text('${cls.schoolName} · ${cls.subject}',
-                            style: GoogleFonts.poppins(
-                              fontSize: 11.5, color: muted,
-                            ),
-                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                        // Avatara basınca fotoğraf + durum mesajı çerçevesi açılır.
+                        GestureDetector(
+                          onTap: () => showClassProfileDialog(context, cls),
+                          child: ClassAvatar(photoB64: cls.photoB64, size: 44),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(cls.name,
+                              style: GoogleFonts.poppins(
+                                fontSize: 16, fontWeight: FontWeight.w800,
+                                color: ink,
+                              ),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ),
                       ],
                     ),
-                  ),
-                  _StudentCountBadge(classId: cls.id),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerRight,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text('Katılma kodu'.tr(),
+                    const SizedBox(height: 8),
+                    Text(cls.schoolName,
                         style: GoogleFonts.poppins(
-                          fontSize: 12, fontWeight: FontWeight.w700,
+                          fontSize: 11.5, color: muted,
+                        ),
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                    if (cls.statusMessage.trim().isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 3),
+                        child: Text('💬 ${cls.statusMessage.trim()}',
+                            style: GoogleFonts.poppins(
+                              fontSize: 11, fontStyle: FontStyle.italic,
+                              color: _kBrand,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              // ── SAĞ: Katılma kodu etiketi + kod kutusu + öğrenci sayısı.
+              //    IntrinsicWidth + stretch → üçü de AYNI genişlikte (kutuya
+              //    göre), başlangıç ve bitiş hizaları aynı. ──
+              IntrinsicWidth(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Katılma Kodu'.tr(),
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.poppins(
+                          fontSize: 11, fontWeight: FontWeight.w700,
                           color: muted, letterSpacing: 0.3,
                         )),
                     const SizedBox(height: 4),
@@ -419,7 +424,7 @@ class TeacherClassCard extends StatelessWidget {
                         ));
                       },
                       child: Container(
-                        padding: const EdgeInsets.fromLTRB(12, 8, 10, 8),
+                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
                         decoration: BoxDecoration(
                           color: AppPalette.bg(context),
                           borderRadius: BorderRadius.circular(10),
@@ -428,9 +433,10 @@ class TeacherClassCard extends StatelessWidget {
                           ),
                         ),
                         child: Row(
-                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Text('🔑', style: TextStyle(fontSize: 15)),
+                            const Icon(Icons.vpn_key_rounded,
+                                size: 15, color: _kBrand),
                             const SizedBox(width: 8),
                             Text(cls.shortCode,
                                 style: GoogleFonts.poppins(
@@ -444,6 +450,9 @@ class TeacherClassCard extends StatelessWidget {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 8),
+                    // Öğrenci sayısı — kod kutusuyla aynı genişlikte.
+                    _StudentCountBadge(classId: cls.id),
                   ],
                 ),
               ),
@@ -452,6 +461,265 @@ class TeacherClassCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  // ── Uzun bas → yönet menüsü (adı değiştir / sil) ───────────────────────
+  Future<void> _showManageMenu(BuildContext context) async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: AppPalette.card(ctx),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 56),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+              child: Text(cls.name,
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 15, fontWeight: FontWeight.w900,
+                    color: AppPalette.textPrimary(ctx),
+                  )),
+            ),
+            Divider(height: 1, color: AppPalette.border(ctx)),
+            _menuRow(ctx, Icons.edit_rounded, 'Sınıfı düzenle'.tr(),
+                _kBrand, () {
+              Navigator.pop(ctx);
+              // Menü kapanışı bitmeden dialog açmak unmount çakışması
+              // (_dependents.isEmpty) yaratıyor — bir sonraki frame'e ertele.
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (context.mounted) _editClassDialog(context);
+              });
+            }),
+            Divider(height: 1, color: AppPalette.border(ctx)),
+            _menuRow(ctx, Icons.delete_outline_rounded, 'Sınıfı sil'.tr(),
+                const Color(0xFFEF4444), () {
+              Navigator.pop(ctx);
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (context.mounted) _confirmDelete(context);
+              });
+            }),
+            const SizedBox(height: 6),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _menuRow(BuildContext ctx, IconData icon, String label, Color color,
+      VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: color),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(label,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14, fontWeight: FontWeight.w700, color: color,
+                  )),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Sınıfı düzenle — ad, okul/başlık ve durum mesajı tek formda.
+  Future<void> _editClassDialog(BuildContext context) async {
+    final nameCtrl = TextEditingController(text: cls.name);
+    final schoolCtrl = TextEditingController(text: cls.schoolName);
+    final statusCtrl = TextEditingController(text: cls.statusMessage);
+    final messenger = ScaffoldMessenger.of(context);
+    bool save = false;
+
+    Widget field(BuildContext c, TextEditingController ctrl, String label,
+        String hint, IconData icon, Color iconColor,
+        {TextCapitalization cap = TextCapitalization.sentences,
+        int maxLines = 1}) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: GoogleFonts.poppins(
+                  fontSize: 12, fontWeight: FontWeight.w700,
+                  color: AppPalette.textSecondary(c))),
+          const SizedBox(height: 6),
+          Container(
+            decoration: BoxDecoration(
+              color: AppPalette.bg(c),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppPalette.border(c)),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: TextField(
+              controller: ctrl,
+              textCapitalization: cap,
+              maxLines: maxLines,
+              style: GoogleFonts.poppins(
+                  fontSize: 14, fontWeight: FontWeight.w600,
+                  color: AppPalette.textPrimary(c)),
+              decoration: InputDecoration(
+                hintText: hint,
+                hintStyle: GoogleFonts.poppins(
+                    fontSize: 12.5,
+                    color: AppPalette.textSecondary(c).withValues(alpha: 0.5)),
+                icon: Icon(icon, size: 20, color: iconColor),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 13),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppPalette.card(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => Padding(
+        padding: EdgeInsets.only(
+          left: 20, right: 20, top: 16,
+          bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 20,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                    color: AppPalette.border(sheetCtx),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text('Sınıfı düzenle'.tr(),
+                  style: GoogleFonts.poppins(
+                      fontSize: 17, fontWeight: FontWeight.w900,
+                      color: AppPalette.textPrimary(sheetCtx))),
+              const SizedBox(height: 16),
+              field(sheetCtx, nameCtrl, 'Sınıf adı'.tr(),
+                  'örn: 10-A'.tr(), Icons.class_rounded, const Color(0xFFF59E0B),
+                  cap: TextCapitalization.characters),
+              const SizedBox(height: 12),
+              field(sheetCtx, schoolCtrl, 'Okul / Başlık'.tr(),
+                  'örn: Atatürk Lisesi'.tr(), Icons.apartment_rounded,
+                  const Color(0xFF0EA5E9), cap: TextCapitalization.words),
+              const SizedBox(height: 12),
+              field(sheetCtx, statusCtrl, 'Durum mesajı'.tr(),
+                  'örn: Bu hafta deneme sınavı var'.tr(), Icons.chat_rounded,
+                  const Color(0xFF10B981), maxLines: 2),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _kBrand,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () {
+                    save = true;
+                    // Klavyeyi kapat + sheet'i ÖNCE kapat, sonra yaz.
+                    FocusManager.instance.primaryFocus?.unfocus();
+                    Navigator.pop(sheetCtx);
+                  },
+                  child: Text('Kaydet'.tr(),
+                      style: GoogleFonts.poppins(
+                          fontSize: 14, fontWeight: FontWeight.w800,
+                          color: Colors.white)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (save) {
+      final ok = await ClassService.updateClassInfo(
+        cls.id,
+        name: nameCtrl.text,
+        schoolName: schoolCtrl.text,
+        statusMessage: statusCtrl.text,
+      );
+      messenger.showSnackBar(SnackBar(
+        content: Text(ok ? 'Sınıf güncellendi'.tr()
+            : 'Güncellenemedi, tekrar dene'.tr()),
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+    nameCtrl.dispose();
+    schoolCtrl.dispose();
+    statusCtrl.dispose();
+  }
+
+  Future<void> _confirmDelete(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppPalette.card(ctx),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded,
+                color: Color(0xFFEF4444), size: 22),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text('Sınıfı sil'.tr(),
+                  style: GoogleFonts.poppins(
+                      fontSize: 15, fontWeight: FontWeight.w800,
+                      color: AppPalette.textPrimary(ctx))),
+            ),
+          ],
+        ),
+        content: Text(
+          '"${cls.name}" sınıfını silersen tüm sınıf verileri ve içindeki '
+                  'her şey (öğrenciler, ödevler, yazılı/sözlü notları ve '
+                  'sonuçlar) kalıcı olarak silinir. Bu işlem geri alınamaz.'
+              .tr(),
+          style: GoogleFonts.poppins(
+              fontSize: 13, height: 1.45,
+              color: AppPalette.textSecondary(ctx)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Vazgeç'.tr()),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFEF4444)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Kalıcı Olarak Sil'.tr(),
+                style: const TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final done = await ClassService.deleteClass(cls.id, cls.code);
+    messenger.showSnackBar(SnackBar(
+      content: Text(done ? 'Sınıf silindi'.tr()
+          : 'Silinemedi, tekrar dene'.tr()),
+      behavior: SnackBarBehavior.floating,
+    ));
   }
 }
 
@@ -462,10 +730,10 @@ class _StudentCountBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<List<ClassStudent>>(
-      stream: ClassService.studentsStream(classId),
+    return StreamBuilder<int>(
+      stream: ClassService.studentCountStream(classId),
       builder: (context, snap) {
-        final n = snap.data?.length ?? 0;
+        final n = snap.data ?? 0;
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
@@ -473,11 +741,11 @@ class _StudentCountBadge extends StatelessWidget {
             borderRadius: BorderRadius.circular(999),
           ),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Icon(Icons.people_alt_rounded, size: 13, color: _kBrand),
               const SizedBox(width: 4),
-              Text('$n',
+              Text('$n ${'öğrenci'.tr()}',
                   style: GoogleFonts.poppins(
                     fontSize: 12, fontWeight: FontWeight.w800, color: _kBrand,
                   )),
@@ -485,164 +753,6 @@ class _StudentCountBadge extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-//  SEKME 3 — ANALİTİK (Faz 3'te dolacak)
-// ═══════════════════════════════════════════════════════════════════════════
-class _TeacherAnalyticsTab extends StatelessWidget {
-  const _TeacherAnalyticsTab();
-
-  @override
-  Widget build(BuildContext context) {
-    final ink = AppPalette.textPrimary(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-          child: Row(
-            children: [
-              const Text('📊', style: TextStyle(fontSize: 22)),
-              const SizedBox(width: 10),
-              Text('Analitik'.tr(),
-                  style: GoogleFonts.poppins(
-                    fontSize: 18, fontWeight: FontWeight.w900, color: ink,
-                  )),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Builder(builder: (context) {
-            final branch = AccountService.instance.teacherBranch;
-            final txt = (branch != null && branch.trim().isNotEmpty)
-                ? '${'Branşın'.tr()}: $branch · '
-                    '${'bir sınıf seç ve performansı gör'.tr()}'
-                : 'Bir sınıf seç, öğrencilerin ödev performansını gör.'.tr();
-            return Text(txt,
-                style: GoogleFonts.poppins(
-                  fontSize: 12.5, color: AppPalette.textSecondary(context),
-                ));
-          }),
-        ),
-        Expanded(
-          child: StreamBuilder<List<TeacherClass>>(
-            stream: ClassService.myClassesStream(),
-            builder: (context, snap) {
-              if (snap.connectionState == ConnectionState.waiting &&
-                  !snap.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              final classes = snap.data ?? const <TeacherClass>[];
-              if (classes.isEmpty) return _empty(context, ink);
-              return GridView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
-                gridDelegate:
-                    const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: 1.15,
-                ),
-                itemCount: classes.length,
-                itemBuilder: (ctx, i) => _classTile(context, classes[i]),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _classTile(BuildContext context, TeacherClass cls) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => TeacherAnalyticsClassScreen(cls: cls),
-        )),
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppPalette.card(context),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppPalette.border(context)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 42, height: 42,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  color: _kBrand.withValues(alpha: 0.12),
-                ),
-                alignment: Alignment.center,
-                child: const Icon(Icons.class_rounded,
-                    color: _kBrand, size: 22),
-              ),
-              const Spacer(),
-              Text(cls.name,
-                  style: GoogleFonts.poppins(
-                    fontSize: 15.5, fontWeight: FontWeight.w900,
-                    color: AppPalette.textPrimary(context),
-                  ),
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 2),
-              Text(cls.subject,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12, fontWeight: FontWeight.w600,
-                    color: AppPalette.textSecondary(context),
-                  ),
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(Icons.people_alt_rounded, size: 14,
-                      color: AppPalette.textSecondary(context)),
-                  const SizedBox(width: 4),
-                  Text('${cls.studentCount} ${'öğrenci'.tr()}',
-                      style: GoogleFonts.poppins(
-                        fontSize: 11.5, fontWeight: FontWeight.w700,
-                        color: AppPalette.textSecondary(context),
-                      )),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _empty(BuildContext context, Color ink) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('🏫', style: TextStyle(fontSize: 44)),
-            const SizedBox(height: 14),
-            Text('Henüz sınıf yok'.tr(),
-                style: GoogleFonts.poppins(
-                  fontSize: 18, fontWeight: FontWeight.w900, color: ink,
-                )),
-            const SizedBox(height: 8),
-            Text('Önce bir sınıf oluştur, sonra öğrenci performansını '
-                'buradan izle.'.tr(),
-                textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(
-                  fontSize: 13, color: AppPalette.textSecondary(context),
-                  height: 1.45,
-                )),
-          ],
-        ),
-      ),
     );
   }
 }

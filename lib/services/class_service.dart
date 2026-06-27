@@ -37,6 +37,11 @@ class TeacherClass {
   final String level;
   final DateTime createdAt;
   final int studentCount;
+  /// Sınıf profil fotoğrafı — küçük thumbnail base64 (data URL). Boşsa
+  /// varsayılan sınıf ikonu gösterilir. (Firebase Storage yok; ~10KB doc'a sığar.)
+  final String photoB64;
+  /// Öğretmenin sınıf için yazdığı durum mesajı.
+  final String statusMessage;
 
   const TeacherClass({
     required this.id,
@@ -48,6 +53,8 @@ class TeacherClass {
     required this.level,
     required this.createdAt,
     this.studentCount = 0,
+    this.photoB64 = '',
+    this.statusMessage = '',
   });
 
   /// Gösterim/paylaşım için 5 haneli kod (eski "SINIF-XXXXX" önekini atar).
@@ -69,6 +76,8 @@ class TeacherClass {
       level: (m['level'] ?? '').toString(),
       createdAt: when,
       studentCount: students,
+      photoB64: (m['photoB64'] ?? '').toString(),
+      statusMessage: (m['statusMessage'] ?? '').toString(),
     );
   }
 }
@@ -79,6 +88,9 @@ class ClassStudent {
   final String displayName;
   final String avatar;
   final DateTime joinedAt;
+  /// Öğretmenin bu sınıf için belirlediği görünen ad (gerçek ad veya lakap).
+  /// Boşsa öğrencinin kendi adı/kullanıcı adı kullanılır.
+  final String teacherAlias;
 
   const ClassStudent({
     required this.uid,
@@ -86,7 +98,16 @@ class ClassStudent {
     required this.displayName,
     required this.avatar,
     required this.joinedAt,
+    this.teacherAlias = '',
   });
+
+  /// Sınıf listesinde gösterilecek ad — öncelik: öğretmen lakabı > öğrencinin
+  /// kendi adı > @kullanıcı adı.
+  String get displayLabel {
+    if (teacherAlias.trim().isNotEmpty) return teacherAlias.trim();
+    if (displayName.trim().isNotEmpty) return displayName.trim();
+    return '@$username';
+  }
 
   factory ClassStudent.fromMap(String uid, Map<String, dynamic> m) {
     DateTime when = DateTime.now();
@@ -98,6 +119,95 @@ class ClassStudent {
       displayName: (m['displayName'] ?? '').toString(),
       avatar: (m['avatar'] ?? '👤').toString(),
       joinedAt: when,
+      teacherAlias: (m['teacherAlias'] ?? '').toString(),
+    );
+  }
+}
+
+/// Öğretmenin öğrenciye girdiği yazılı/sözlü notu.
+/// Firestore: classes/{classId}/students/{uid}/grades/{gradeId}
+class StudentGrade {
+  final String id;
+  /// 'yazili' | 'sozlu'
+  final String type;
+  /// Kaçıncı sınav (1, 2, 3…). Sözlü için de sıra numarası.
+  final int order;
+  /// Dönem (1 veya 2).
+  final int term;
+  /// 0-100 arası not.
+  final int score;
+  /// Sınav tarihi.
+  final DateTime date;
+
+  const StudentGrade({
+    required this.id,
+    required this.type,
+    required this.order,
+    required this.term,
+    required this.score,
+    required this.date,
+  });
+
+  bool get isOral => type == 'sozlu';
+
+  /// "1. Yazılı" / "2. Sözlü" gibi okunur ad.
+  String get label => '$order. ${isOral ? 'Sözlü' : 'Yazılı'}';
+
+  factory StudentGrade.fromMap(String id, Map<String, dynamic> m) {
+    DateTime when = DateTime.now();
+    final ts = m['date'];
+    if (ts is Timestamp) when = ts.toDate();
+    return StudentGrade(
+      id: id,
+      type: (m['type'] ?? 'yazili').toString(),
+      order: (m['order'] as num?)?.toInt() ?? 1,
+      term: (m['term'] as num?)?.toInt() ?? 1,
+      score: (m['score'] as num?)?.toInt() ?? 0,
+      date: when,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+        'type': type,
+        'order': order,
+        'term': term,
+        'score': score,
+        'date': Timestamp.fromDate(date),
+        'createdAt': FieldValue.serverTimestamp(),
+      };
+}
+
+/// Öğretmenin öğrenci hakkında yazdığı bir not (Öğrenim sekmesi).
+/// Firestore: classes/{classId}/students/{uid}/notes/{noteId}
+class StudentNote {
+  final String id;
+  final String text;
+  final DateTime createdAt;
+  /// Ebeveyn panelinde görünür mü? (false = öğretmene özel gözlem)
+  final bool sharedWithParent;
+  /// 'note' = normal not | 'praise' = takdir/hızlı geri bildirim (👏)
+  final String kind;
+
+  const StudentNote({
+    required this.id,
+    required this.text,
+    required this.createdAt,
+    this.sharedWithParent = false,
+    this.kind = 'note',
+  });
+
+  bool get isPraise => kind == 'praise';
+
+  factory StudentNote.fromMap(String id, Map<String, dynamic> m) {
+    DateTime when = DateTime.now();
+    final ts = m['createdAt'];
+    if (ts is Timestamp) when = ts.toDate();
+    return StudentNote(
+      id: id,
+      text: (m['text'] ?? '').toString(),
+      createdAt: when,
+      sharedWithParent: m['sharedWithParent'] == true,
+      kind: (m['kind'] ?? 'note').toString(),
     );
   }
 }
@@ -147,6 +257,24 @@ class ClassService {
   static final _fs = FirebaseFirestore.instance;
   static String? get _myUid => FirebaseAuth.instance.currentUser?.uid;
 
+  /// Oturum açık bir uid döndürür. Test modunda giriş atlandığından anonim
+  /// oturum henüz hazır olmayabilir → yoksa bir kez anonim oturum dener.
+  /// Anonim auth Firebase Console'da kapalıysa null döner (ve loglanır).
+  static Future<String?> _ensureUid() async {
+    final existing = _myUid;
+    if (existing != null) return existing;
+    try {
+      final cred = await FirebaseAuth.instance
+          .signInAnonymously()
+          .timeout(const Duration(seconds: 8));
+      return cred.user?.uid;
+    } catch (e) {
+      debugPrint('[ClassService] anonim oturum açılamadı (Console\'da '
+          'Anonymous sign-in kapalı olabilir): $e');
+      return null;
+    }
+  }
+
   // ── Kod üretimi (5 alfanümerik, ambiguous karakter yok) ─────────────
   static const _alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   static String _generateCode() {
@@ -165,7 +293,7 @@ class ClassService {
     required String subject,
     required String level,
   }) async {
-    final myUid = _myUid;
+    final myUid = await _ensureUid();
     if (myUid == null) return null;
     try {
       // Benzersiz kod garanti et (max 5 deneme)
@@ -253,6 +381,327 @@ class ClassService {
         });
   }
 
+  /// Bir sınıftaki öğrenci sayısı (canlı) — demo öğrenciler dahil tüm
+  /// öğrenciler sayılır (demo öğrenciler bilinçli olarak ekleniyor ve sınıf
+  /// listesinde göründüğünden rozet de onları yansıtır).
+  static Stream<int> studentCountStream(String classId) {
+    return _fs
+        .collection('classes')
+        .doc(classId)
+        .collection('students')
+        .snapshots()
+        .map((snap) => snap.docs.length);
+  }
+
+  /// Öğretmen, bir öğrencinin sınıftaki görünen adını belirler (gerçek ad
+  /// ya da lakap). Boş string verilirse öğretmen lakabı temizlenir ve öğrenci
+  /// yeniden kendi adı/kullanıcı adıyla görünür. Firestore kuralları yalnızca
+  /// sınıfın öğretmenine bu yazmayı izin verir.
+  static Future<bool> setStudentAlias(
+      String classId, String studentUid, String alias) async {
+    if (_myUid == null) return false;
+    try {
+      await _fs
+          .collection('classes')
+          .doc(classId)
+          .collection('students')
+          .doc(studentUid)
+          .set({'teacherAlias': alias.trim()}, SetOptions(merge: true));
+      return true;
+    } catch (e) {
+      debugPrint('[ClassService] setStudentAlias fail: $e');
+      return false;
+    }
+  }
+
+  /// Öğretmenin bir öğrenci hakkındaki notları (canlı, yeni → eski).
+  /// [onlyShared] true → yalnızca ebeveynle paylaşılanlar (ebeveyn paneli).
+  static Stream<List<StudentNote>> notesStream(
+      String classId, String studentUid, {bool onlyShared = false}) {
+    Query<Map<String, dynamic>> q = _fs
+        .collection('classes')
+        .doc(classId)
+        .collection('students')
+        .doc(studentUid)
+        .collection('notes');
+    if (onlyShared) {
+      q = q.where('sharedWithParent', isEqualTo: true);
+    }
+    return q.snapshots().map((snap) {
+      final list = snap.docs
+          .map((d) => StudentNote.fromMap(d.id, d.data()))
+          .toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    });
+  }
+
+  /// Yeni not ekler. [sharedWithParent] true → ebeveyn panelinde görünür.
+  /// [kind] 'praise' → takdir/hızlı geri bildirim (her zaman paylaşılır).
+  static Future<bool> addNote(
+      String classId, String studentUid, String text,
+      {bool sharedWithParent = false, String kind = 'note'}) async {
+    if (_myUid == null) return false;
+    try {
+      await _fs
+          .collection('classes')
+          .doc(classId)
+          .collection('students')
+          .doc(studentUid)
+          .collection('notes')
+          .add({
+        'text': text.trim(),
+        'sharedWithParent': sharedWithParent || kind == 'praise',
+        'kind': kind,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      return true;
+    } catch (e) {
+      debugPrint('[ClassService] addNote fail: $e');
+      return false;
+    }
+  }
+
+  /// Mevcut bir notu günceller (metin + paylaşım durumu).
+  static Future<bool> updateNote(String classId, String studentUid,
+      String noteId, String text, {bool? sharedWithParent}) async {
+    if (_myUid == null) return false;
+    try {
+      await _fs
+          .collection('classes')
+          .doc(classId)
+          .collection('students')
+          .doc(studentUid)
+          .collection('notes')
+          .doc(noteId)
+          .set({
+        'text': text.trim(),
+        if (sharedWithParent != null) 'sharedWithParent': sharedWithParent,
+      }, SetOptions(merge: true));
+      return true;
+    } catch (e) {
+      debugPrint('[ClassService] updateNote fail: $e');
+      return false;
+    }
+  }
+
+  /// Bir notu siler.
+  static Future<bool> deleteNote(
+      String classId, String studentUid, String noteId) async {
+    if (_myUid == null) return false;
+    try {
+      await _fs
+          .collection('classes')
+          .doc(classId)
+          .collection('students')
+          .doc(studentUid)
+          .collection('notes')
+          .doc(noteId)
+          .delete();
+      return true;
+    } catch (e) {
+      debugPrint('[ClassService] deleteNote fail: $e');
+      return false;
+    }
+  }
+
+  /// Öğrencinin yazılı/sözlü notları (canlı, tarihe göre yeni → eski).
+  static Stream<List<StudentGrade>> gradesStream(
+      String classId, String studentUid) {
+    return _fs
+        .collection('classes')
+        .doc(classId)
+        .collection('students')
+        .doc(studentUid)
+        .collection('grades')
+        .snapshots()
+        .map((snap) {
+      final list = snap.docs
+          .map((d) => StudentGrade.fromMap(d.id, d.data()))
+          .toList();
+      // Önce dönem (artan), sonra tarih (yeni → eski).
+      list.sort((a, b) {
+        if (a.term != b.term) return a.term.compareTo(b.term);
+        return b.date.compareTo(a.date);
+      });
+      return list;
+    });
+  }
+
+  /// Yeni yazılı/sözlü notu ekler. Başarılıysa true.
+  static Future<bool> addGrade(
+      String classId, String studentUid, StudentGrade grade) async {
+    if (_myUid == null) return false;
+    try {
+      await _fs
+          .collection('classes')
+          .doc(classId)
+          .collection('students')
+          .doc(studentUid)
+          .collection('grades')
+          .add(grade.toMap());
+      return true;
+    } catch (e) {
+      debugPrint('[ClassService] addGrade fail: $e');
+      return false;
+    }
+  }
+
+  /// Mevcut bir yazılı/sözlü notunu günceller (öğretmen düzenleyebilir).
+  static Future<bool> updateGrade(
+      String classId, String studentUid, StudentGrade grade) async {
+    if (_myUid == null || grade.id.isEmpty) return false;
+    try {
+      await _fs
+          .collection('classes')
+          .doc(classId)
+          .collection('students')
+          .doc(studentUid)
+          .collection('grades')
+          .doc(grade.id)
+          .set({
+        'type': grade.type,
+        'order': grade.order,
+        'term': grade.term,
+        'score': grade.score,
+        'date': Timestamp.fromDate(grade.date),
+      }, SetOptions(merge: true));
+      return true;
+    } catch (e) {
+      debugPrint('[ClassService] updateGrade fail: $e');
+      return false;
+    }
+  }
+
+  /// Bir notu siler.
+  static Future<bool> deleteGrade(
+      String classId, String studentUid, String gradeId) async {
+    if (_myUid == null) return false;
+    try {
+      await _fs
+          .collection('classes')
+          .doc(classId)
+          .collection('students')
+          .doc(studentUid)
+          .collection('grades')
+          .doc(gradeId)
+          .delete();
+      return true;
+    } catch (e) {
+      debugPrint('[ClassService] deleteGrade fail: $e');
+      return false;
+    }
+  }
+
+  /// Sınıfın durum/duyuru mesajını tek seferlik okur (yoksa boş string).
+  /// Ebeveyn paneli "Öğretmenden duyuru" şeridi için kullanır.
+  static Future<String> classStatusMessage(String classId) async {
+    try {
+      final snap = await _fs.collection('classes').doc(classId).get();
+      return (snap.data()?['statusMessage'] as String?)?.trim() ?? '';
+    } catch (e) {
+      debugPrint('[ClassService] classStatusMessage fail: $e');
+      return '';
+    }
+  }
+
+  /// Sınıf profilini günceller — fotoğraf (thumbnail base64) ve/veya durum
+  /// mesajı. Yalnızca verilen alanlar yazılır. Firestore kuralları sınıf
+  /// güncellemesini sadece öğretmene izin verir.
+  static Future<bool> updateClassProfile(
+    String classId, {
+    String? photoB64,
+    String? statusMessage,
+  }) async {
+    if (_myUid == null) return false;
+    try {
+      final data = <String, dynamic>{};
+      if (photoB64 != null) data['photoB64'] = photoB64;
+      if (statusMessage != null) data['statusMessage'] = statusMessage.trim();
+      if (data.isEmpty) return true;
+      await _fs
+          .collection('classes')
+          .doc(classId)
+          .set(data, SetOptions(merge: true));
+      return true;
+    } catch (e) {
+      debugPrint('[ClassService] updateClassProfile fail: $e');
+      return false;
+    }
+  }
+
+  /// Sınıfın adını değiştirir. Boş ad reddedilir.
+  static Future<bool> renameClass(String classId, String newName) async {
+    if (_myUid == null) return false;
+    final name = newName.trim();
+    if (name.isEmpty) return false;
+    try {
+      await _fs
+          .collection('classes')
+          .doc(classId)
+          .set({'name': name}, SetOptions(merge: true));
+      return true;
+    } catch (e) {
+      debugPrint('[ClassService] renameClass fail: $e');
+      return false;
+    }
+  }
+
+  /// Sınıf bilgilerini günceller: ad (name), okul/başlık (schoolName) ve
+  /// durum mesajı (statusMessage). Yalnızca verilen alanlar yazılır.
+  static Future<bool> updateClassInfo(
+    String classId, {
+    String? name,
+    String? schoolName,
+    String? statusMessage,
+  }) async {
+    if (_myUid == null) return false;
+    try {
+      final data = <String, dynamic>{};
+      if (name != null && name.trim().isNotEmpty) data['name'] = name.trim();
+      if (schoolName != null) data['schoolName'] = schoolName.trim();
+      if (statusMessage != null) data['statusMessage'] = statusMessage.trim();
+      if (data.isEmpty) return true;
+      await _fs
+          .collection('classes')
+          .doc(classId)
+          .set(data, SetOptions(merge: true));
+      return true;
+    } catch (e) {
+      debugPrint('[ClassService] updateClassInfo fail: $e');
+      return false;
+    }
+  }
+
+  /// Öğrenciyi sınıftan çıkarır — öğrenci dökümanı + tüm ödev teslimleri +
+  /// yazılı/sözlü notları + karne notları kalıcı silinir. Yetim veri kalmasın
+  /// diye alt koleksiyonlar tek tek temizlenir. Sadece sınıf öğretmeni yapabilir.
+  ///
+  /// Not: Öğrencinin `users/{uid}/joined_classes/{classId}` kaydını öğretmen
+  /// (kurallar gereği) silemez; o kayıt öğrenci tarafında, sınıf üyeliği
+  /// bulunamayınca otomatik temizlenir.
+  static Future<bool> removeStudent(String classId, String studentUid) async {
+    if (_myUid == null) return false;
+    try {
+      final classRef = _fs.collection('classes').doc(classId);
+      // 1) Her ödevdeki bu öğrencinin teslimi (yoksa no-op).
+      final hwSnap = await classRef.collection('homeworks').get();
+      for (final hw in hwSnap.docs) {
+        await hw.reference.collection('submissions').doc(studentUid).delete();
+      }
+      // 2) Öğrencinin grades & notes alt koleksiyonları.
+      final studRef = classRef.collection('students').doc(studentUid);
+      await _deleteAllDocs(studRef.collection('grades'));
+      await _deleteAllDocs(studRef.collection('notes'));
+      // 3) Öğrenci dökümanı.
+      await studRef.delete();
+      return true;
+    } catch (e) {
+      debugPrint('[ClassService] removeStudent fail: $e');
+      return false;
+    }
+  }
+
   /// Sınıf sil. Alt koleksiyonları (students, content, homeworks + her ödevin
   /// submissions'ı) da temizler — Firestore döküman silince alt koleksiyonu
   /// otomatik silmediği için aksi halde yetim veri kalırdı.
@@ -268,6 +717,14 @@ class ClassService {
 
       // 1) Alt koleksiyonlar (sınıf dökümanı SİLİNMEDEN önce — silme kuralları
       //    teacherUid için class dökümanını okuduğundan hâlâ var olmalı).
+      // Öğrencilerin grades/notes alt koleksiyonlarını da temizle; aksi halde
+      // sınıf dökümanı silinince bu kayıtlar yetim kalır (kurallar classId'yi
+      // okuyamayınca hem okunamaz hem silinemez hale gelir).
+      final studSnap = await classRef.collection('students').get();
+      for (final st in studSnap.docs) {
+        await _deleteAllDocs(st.reference.collection('grades'));
+        await _deleteAllDocs(st.reference.collection('notes'));
+      }
       await _deleteAllDocs(classRef.collection('students'));
       await _deleteAllDocs(classRef.collection('content'));
       final hwSnap = await classRef.collection('homeworks').get();

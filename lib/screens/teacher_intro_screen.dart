@@ -590,7 +590,7 @@ class _ClassSetupSlide extends StatelessWidget {
                   color: AppPalette.textPrimary(context),
                 ),
                 items: subjects.map((o) => DropdownMenuItem(
-                  value: o, child: Text(o))).toList(),
+                  value: o, child: Text(o.tr()))).toList(),
                 onChanged: (v) { if (v != null) onSubjectSelect(v); },
               ),
             ),

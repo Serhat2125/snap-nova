@@ -66,7 +66,7 @@ class _ParentChildHomeworksScreenState
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Çocuğun Ödevleri'.tr(),
+            Text('Karne & Öğretmen'.tr(),
                 style: GoogleFonts.poppins(
                   fontSize: 16, fontWeight: FontWeight.w800, color: ink)),
             Text(widget.childName,

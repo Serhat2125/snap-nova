@@ -440,16 +440,20 @@ class _StartupRouterState extends State<_StartupRouter> {
   }
 
   Future<_StartupState> _resolve() async {
-    // Splash en az 5000ms (5 saniye) görünsün — QuAlsar logo + harf intro +
-    // disk animasyonu tam göstermeli; kullanıcı uygulamanın açıldığını net görsün.
-    final minSplash = Future<void>.delayed(const Duration(milliseconds: 5000));
+    // Splash en az süresi. Üretimde QuAlsar logo + harf intro + disk
+    // animasyonu tam görünsün diye 5sn; ama TEST modunda hızlı açılış için
+    // 0.5sn (her denemede 5sn beklemek test'i yavaşlatıyordu).
+    final minSplash = Future<void>.delayed(
+        Duration(milliseconds: kTestBypassAuth ? 500 : 5000));
     final prefs = await SharedPreferences.getInstance();
 
     // ── GELİŞTİRME BYPASS (yapım aşaması) ──────────────────────────────
     // Debug modda (flutter run) onboarding + giriş yöntemleri + eğitim
     // seçimi ekranlarını atlayıp doğrudan ana uygulamaya (CameraScreen) gir.
     // Release/profile build'i ETKİLEMEZ. Yayına çıkarken bu blok kalabilir.
-    if (kDebugMode) {
+    // Test modu açıkken bu bloğu ATLA — debug'da da rol seçim akışı gelsin
+    // (aksi halde flutter run her zaman öğrenciye zorluyordu).
+    if (kDebugMode && !kTestBypassAuth) {
       // İçerik EduProfile'a bağlı olduğundan eksikse varsayılan profil tohumla.
       if ((prefs.getString('mini_test_grade') ?? '').isEmpty) {
         await prefs.setString('mini_test_country', 'tr');
@@ -466,6 +470,28 @@ class _StartupRouterState extends State<_StartupRouter> {
     }
     // ───────────────────────────────────────────────────────────────────
 
+    // ── TEST MODU (giriş/auth atlanır) ─────────────────────────────────
+    // Tester'lar onboarding/giriş görmeden doğrudan rol + kullanıcı adı
+    // seçer. Öğrenci home'u kamera olsun diye startup_screen='camera'.
+    if (kTestBypassAuth) {
+      await prefs.setString('startup_screen', 'camera');
+      final done = prefs.getBool(OnboardingScreen.prefKey) ?? false;
+      if (!done) {
+        await minSplash;
+        // OnboardingScreen UserSetup slaytından (rol+kullanıcı adı) açılır.
+        return _StartupState.onboarding;
+      }
+      // Kurulum bitti → role göre: öğretmen/ebeveyn panel, öğrenci kamera.
+      if (AccountService.instance.type != AccountType.student) {
+        await minSplash;
+        return _StartupState.home;
+      }
+      final hasGradeT = (prefs.getString('mini_test_grade') ?? '').isNotEmpty;
+      await minSplash;
+      return hasGradeT ? _StartupState.home : _StartupState.educationSetup;
+    }
+    // ───────────────────────────────────────────────────────────────────
+
     // Launch counter — her açılışta artar.
     final count = (prefs.getInt('app_launch_count_v2') ?? 0) + 1;
     await prefs.setInt('app_launch_count_v2', count);
@@ -479,6 +505,15 @@ class _StartupRouterState extends State<_StartupRouter> {
     if (!onboardingDone) {
       await minSplash;
       return _StartupState.onboarding;
+    }
+
+    // Öğretmen/Ebeveyn'in öğrenci sınıf (grade) seçimine ihtiyacı yok —
+    // grade kapısı yalnızca öğrenciye uygulanır. Aksi halde grade'i olmayan
+    // öğretmen her açılışta öğrenci kurulum ekranına düşüp panele ulaşamıyordu.
+    // (AccountService.instance.init() main()'de zaten await edildi; tip hazır.)
+    if (AccountService.instance.type != AccountType.student) {
+      await minSplash;
+      return _StartupState.home;
     }
 
     // Setup tamamlandı mı? mini_test_grade pref'inde grade kayıtlıysa OK.
@@ -524,7 +559,9 @@ class _StartupRouterState extends State<_StartupRouter> {
         }
         switch (snap.data!) {
           case _StartupState.onboarding:
-            return OnboardingScreen();
+            // Test modunda doğrudan rol+kullanıcı adı slaytından (2) başla;
+            // normalde 0'dan (hero+giriş) başlar.
+            return OnboardingScreen(initialPage: kTestBypassAuth ? 2 : 0);
           case _StartupState.educationSetup:
             return FutureBuilder<int>(
               future: _currentTrialEntry(),
@@ -548,6 +585,12 @@ class _StartupRouterState extends State<_StartupRouter> {
     );
   }
 }
+
+/// TEST MODU — true iken giriş/auth (Google/e-posta) ekranı ATLANIR:
+/// uygulama doğrudan rol + kullanıcı adı seçimiyle başlar, öğrenci her
+/// açılışta "Fotoğraf Çek" (kamera) ekranına açılır. Test bitince/yayına
+/// çıkarken false yap → normal onboarding + giriş akışı geri gelir.
+const bool kTestBypassAuth = true;
 
 enum _StartupState { onboarding, educationSetup, home }
 
