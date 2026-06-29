@@ -248,6 +248,86 @@ class HomeworkService {
             .toList());
   }
 
+  /// Öğretmen ana ekranı özeti: ad + sınıf/öğrenci/bu-hafta-ödev/bekleyen
+  /// sayıları. Tüm sınıflar üzerinden tek seferde toplar.
+  static Future<
+      ({String name, int classes, int students, int weekHomeworks, int pending})>
+      teacherHomeSummary() async {
+    final myUid = _myUid;
+    if (myUid == null) {
+      return (name: '', classes: 0, students: 0, weekHomeworks: 0, pending: 0);
+    }
+    int students = 0, week = 0, pending = 0, classCount = 0;
+    String name = '';
+    try {
+      final me = await _fs.collection('users').doc(myUid).get();
+      name = (me.data()?['displayName'] ?? me.data()?['username'] ?? '')
+          .toString();
+      final now = DateTime.now();
+      final weekStart = DateTime(now.year, now.month, now.day)
+          .subtract(Duration(days: now.weekday - 1));
+      final clsSnap = await _fs.collection('classes')
+          .where('teacherUid', isEqualTo: myUid).get();
+      classCount = clsSnap.docs.length;
+      for (final c in clsSnap.docs) {
+        final sc = await c.reference.collection('students').count().get();
+        students += sc.count ?? 0;
+        final hwSnap = await c.reference.collection('homeworks').get();
+        for (final d in hwSnap.docs) {
+          final hw = HomeworkModel.fromDoc(d);
+          if (hw.assignedAt.isAfter(weekStart)) week++;
+          if (hw.isDraft || hw.isScheduledPending) pending++;
+        }
+      }
+    } catch (e) {
+      debugPrint('[HomeworkService] teacherHomeSummary fail: $e');
+    }
+    return (
+      name: name,
+      classes: classCount,
+      students: students,
+      weekHomeworks: week,
+      pending: pending,
+    );
+  }
+
+  /// Öğretmenin TÜM sınıflarındaki bekleyen (taslak + zamanlanmış) ödevleri
+  /// sınıf adıyla birlikte döndürür (birleşik bekleyenler ekranı için).
+  static Future<List<PendingHomeworkItem>> allPendingForTeacher() async {
+    final myUid = _myUid;
+    final out = <PendingHomeworkItem>[];
+    if (myUid == null) return out;
+    try {
+      final clsSnap = await _fs.collection('classes')
+          .where('teacherUid', isEqualTo: myUid).get();
+      for (final c in clsSnap.docs) {
+        final className = (c.data()['name'] ?? '').toString();
+        final hwSnap = await c.reference.collection('homeworks').get();
+        for (final d in hwSnap.docs) {
+          final hw = HomeworkModel.fromDoc(d);
+          if (hw.isDraft || hw.isScheduledPending) {
+            out.add(PendingHomeworkItem(hw: hw, className: className));
+          }
+        }
+      }
+      out.sort((a, b) => b.hw.assignedAt.compareTo(a.hw.assignedAt));
+    } catch (e) {
+      debugPrint('[HomeworkService] allPendingForTeacher fail: $e');
+    }
+    return out;
+  }
+
+  /// Bir sınıftaki YAYINDA (aktif, taslak/zamanlanmış değil) ödev sayısı.
+  static Stream<int> activeHomeworkCountStream(String classId) {
+    return _fs.collection('classes').doc(classId)
+        .collection('homeworks')
+        .snapshots()
+        .map((snap) => snap.docs
+            .map(HomeworkModel.fromDoc)
+            .where((hw) => hw.isPublished)
+            .length);
+  }
+
   /// Sınıfın aktif ödevlerini stream — öğretmen dashboard için.
   static Stream<List<HomeworkModel>> classHomeworksStream(String classId) {
     return _fs.collection('classes').doc(classId)
@@ -755,6 +835,13 @@ class HomeworkService {
       return [];
     }
   }
+}
+
+/// Birleşik "bekleyen ödevler" öğesi — ödev + sınıf adı.
+class PendingHomeworkItem {
+  final HomeworkModel hw;
+  final String className;
+  const PendingHomeworkItem({required this.hw, required this.className});
 }
 
 // ─── Analitik veri modelleri ───────────────────────────────────────────────

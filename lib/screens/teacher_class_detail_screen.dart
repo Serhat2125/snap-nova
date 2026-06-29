@@ -21,6 +21,8 @@ import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
 import 'teacher_student_report_screen.dart';
 
+const _kBrand = Color(0xFF7C3AED);
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  DEMO VERİSİ — Öğretmen paneli boşken nasıl görüneceğini göstermek için.
 //  "Demo Açık" sekmesi seçilince grid + Özet tablosu bu sahte (ödevini yapmış)
@@ -85,6 +87,7 @@ class TeacherClassDetailScreen extends StatefulWidget {
 
 class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
   TeacherClass get cls => widget.cls;
+  String? _nameOverride; // yeniden adlandırma sonrası başlık güncellemesi
 
   @override
   void initState() {
@@ -100,6 +103,206 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
     // (Dashboard kapansa da reminder akışı çalışsın diye stop ETMİYORUZ.
     //  Sadece app kapandığında timer otomatik ölür.)
     super.dispose();
+  }
+
+  /// ⋮ Sınıf menüsü — kompakt, dar, her seçenek kendi çerçevesinde + tek
+  /// dış çerçeve içinde (alt-ortada açılır).
+  Future<void> _showClassMenu(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 280),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(10, 10, 10, 2),
+                decoration: BoxDecoration(
+                  color: AppPalette.card(ctx),
+                  borderRadius: BorderRadius.circular(26),
+                  border: Border.all(color: _kBrand.withValues(alpha: 0.30)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.18),
+                      blurRadius: 18, offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _menuChip(ctx, Icons.vpn_key_rounded, _kBrand,
+                        'Davet kodunu kopyala'.tr(), () async {
+                      final messenger = ScaffoldMessenger.of(context);
+                      await Clipboard.setData(
+                          ClipboardData(text: cls.shortCode));
+                      if (ctx.mounted) Navigator.pop(ctx);
+                      messenger.showSnackBar(SnackBar(
+                        content: Text('Sınıf kodu kopyalandı'.tr()),
+                        behavior: SnackBarBehavior.floating));
+                    }),
+                    _menuChip(ctx, Icons.edit_rounded,
+                        const Color(0xFF0EA5E9), 'Sınıfı düzenle'.tr(),
+                        () { Navigator.pop(ctx); _renameDialog(); }),
+                    _menuChip(ctx, Icons.help_outline_rounded,
+                        const Color(0xFF7C3AED), 'Nasıl kullanılır?'.tr(),
+                        () { Navigator.pop(ctx); _showHelp(context); }),
+                    _menuChip(ctx, Icons.delete_outline_rounded,
+                        const Color(0xFFEF4444), 'Sınıfı sil'.tr(),
+                        () { Navigator.pop(ctx); _confirmDelete(); },
+                        danger: true),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Kompakt menü kartı — küçük ikon + başlık, kendi oval çerçevesi.
+  Widget _menuChip(BuildContext c, IconData icon, Color color, String title,
+      VoidCallback onTap, {bool danger = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: AppPalette.bg(c),
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                  color: color.withValues(alpha: danger ? 0.40 : 0.22)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 30, height: 30,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(icon, size: 16, color: color),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(title,
+                      style: GoogleFonts.poppins(
+                          fontSize: 13, fontWeight: FontWeight.w800,
+                          color: danger ? color : AppPalette.textPrimary(c))),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _renameDialog() async {
+    final ctrl = TextEditingController(text: _nameOverride ?? cls.name);
+    final messenger = ScaffoldMessenger.of(context);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (dctx) => AlertDialog(
+        backgroundColor: AppPalette.card(dctx),
+        title: Text('Sınıfı düzenle'.tr(),
+            style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w800,
+                color: AppPalette.textPrimary(dctx))),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          maxLength: 60,
+          style: GoogleFonts.poppins(
+              fontSize: 14, color: AppPalette.textPrimary(dctx)),
+          decoration: InputDecoration(
+            hintText: 'Sınıf adı'.tr(),
+            border: const OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dctx),
+            child: Text('Vazgeç'.tr())),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: _kBrand),
+            onPressed: () => Navigator.pop(dctx, ctrl.text.trim()),
+            child: Text('Kaydet'.tr(),
+                style: const TextStyle(color: Colors.white))),
+        ],
+      ),
+    );
+    if (newName == null || newName.isEmpty || newName == cls.name) return;
+    final ok = await ClassService.renameClass(cls.id, newName);
+    if (!mounted) return;
+    if (ok) {
+      setState(() => _nameOverride = newName);
+      messenger.showSnackBar(SnackBar(
+        content: Text('Sınıf adı güncellendi'.tr()),
+        behavior: SnackBarBehavior.floating));
+    } else {
+      messenger.showSnackBar(SnackBar(
+        content: Text('Güncellenemedi, tekrar dene'.tr()),
+        behavior: SnackBarBehavior.floating));
+    }
+  }
+
+  Future<void> _confirmDelete() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dctx) => AlertDialog(
+        backgroundColor: AppPalette.card(dctx),
+        title: Text('Sınıfı sil'.tr(),
+            style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w800,
+                color: AppPalette.textPrimary(dctx))),
+        content: Text(
+            'Bu sınıfı silersen sınıftaki tüm geçmiş veriler ve kişiler silinir. Yine de silmek istiyor musun?'.tr(),
+            style: GoogleFonts.poppins(
+                fontSize: 13, color: AppPalette.textSecondary(dctx),
+                height: 1.45)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dctx, false),
+            child: Text('Şimdilik kalsın'.tr(),
+                style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w700,
+                    color: AppPalette.textSecondary(dctx)))),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFEF4444)),
+            onPressed: () => Navigator.pop(dctx, true),
+            child: Text('Sil'.tr(),
+                style: const TextStyle(color: Colors.white))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final done = await ClassService.deleteClass(cls.id, cls.code);
+    if (!mounted) return;
+    if (done) {
+      navigator.pop(); // detay ekranını kapat — liste stream'le güncellenir
+      messenger.showSnackBar(SnackBar(
+        content: Text('Sınıf silindi'.tr()),
+        behavior: SnackBarBehavior.floating));
+    } else {
+      messenger.showSnackBar(SnackBar(
+        content: Text('Silinemedi, tekrar dene'.tr()),
+        behavior: SnackBarBehavior.floating));
+    }
   }
 
   /// "?" yardım paneli — bu sayfanın nasıl çalıştığını anlatır.
@@ -221,14 +424,14 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
       appBar: AppBar(
         backgroundColor: AppPalette.bg(context),
         elevation: 0,
-        title: Text(cls.name,
+        title: Text(_nameOverride ?? cls.name,
             style: GoogleFonts.poppins(
               fontSize: 16, fontWeight: FontWeight.w800, color: ink)),
         actions: [
           IconButton(
-            icon: Icon(Icons.help_outline_rounded, color: ink),
-            tooltip: 'Bu sayfa nasıl çalışır?'.tr(),
-            onPressed: () => _showHelp(context),
+            icon: Icon(Icons.more_vert_rounded, color: ink),
+            tooltip: 'Sınıf menüsü'.tr(),
+            onPressed: () => _showClassMenu(context),
           ),
         ],
       ),
@@ -259,6 +462,8 @@ class _StudentsViewState extends State<_StudentsView> {
   bool _demo = false; // true = sahte demo öğrenciler önizlemesi
   Future<List<StudentGradeSummary>>? _summaryFuture;
   String? _selectedHwId; // null = tüm ödevler
+  String? _sortKey; // null = varsayılan başarı sırası; 'name'/'correct'/...
+  bool _sortAsc = false;
   String _selectedHwTitle = '';
   Offset? _fabPos; // Sürüklenebilir Özet butonunun konumu
 
@@ -538,24 +743,23 @@ class _StudentsViewState extends State<_StudentsView> {
                 )),
                 child: Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0EA5E9).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                        color: const Color(0xFF0EA5E9).withValues(alpha: 0.4)),
+                    color: _kBrand.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: _kBrand, width: 1),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const Icon(Icons.fullscreen_rounded,
-                          size: 16, color: Color(0xFF0EA5E9)),
-                      const SizedBox(width: 6),
+                          size: 11, color: _kBrand),
+                      const SizedBox(width: 3),
                       Text('Tam ekran yap'.tr(),
                           style: GoogleFonts.poppins(
-                              fontSize: 12,
+                              fontSize: 8.5,
                               fontWeight: FontWeight.w800,
-                              color: const Color(0xFF0EA5E9))),
+                              color: _kBrand)),
                     ],
                   ),
                 ),
@@ -582,7 +786,27 @@ class _StudentsViewState extends State<_StudentsView> {
     const gray = Color(0xFF94A3B8);
     final medals = <int, String>{0: '🥇', 1: '🥈', 2: '🥉'};
 
-    // SOL sabit kısım: # + Öğrenci
+    // #2 Sıralama: başlığa basınca yerel sıralama. null = servis sırası (başarı).
+    final sorted = [...rows];
+    if (_sortKey != null) {
+      int cmp(StudentGradeSummary a, StudentGradeSummary b) {
+        switch (_sortKey) {
+          case 'name':
+            return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+          case 'total': return a.totalQuestions.compareTo(b.totalQuestions);
+          case 'correct': return a.correct.compareTo(b.correct);
+          case 'wrong': return a.wrong.compareTo(b.wrong);
+          case 'empty': return a.empty.compareTo(b.empty);
+          case 'pct': return a.pct.compareTo(b.pct);
+          default: return 0;
+        }
+      }
+      sorted.sort((a, b) => _sortAsc ? cmp(a, b) : cmp(b, a));
+    }
+    // Madalya yalnız varsayılan başarı sırasında anlamlı; özel sıralamada sıra no.
+    final showMedals = _sortKey == null;
+
+    // SOL sabit kısım: # + Öğrenci (satır tıklanınca rapora geçer)
     final frozen = Table(
       border: TableBorder.all(color: AppPalette.border(context)),
       defaultVerticalAlignment: TableCellVerticalAlignment.middle,
@@ -593,20 +817,21 @@ class _StudentsViewState extends State<_StudentsView> {
               color: const Color(0xFF7C3AED).withValues(alpha: 0.12)),
           children: [
             _tcell(context, '#', null, header: true),
-            _tcell(context, 'Öğrenci'.tr(), null, header: true, left: true),
+            _hcell(context, 'Öğrenci'.tr(), 'name', left: true),
           ],
         ),
-        for (var i = 0; i < rows.length; i++)
+        for (var i = 0; i < sorted.length; i++)
           TableRow(children: [
-            _tcell(context, medals[i] ?? '${i + 1}',
-                AppPalette.textPrimary(context)),
-            _tcell(context, rows[i].name, AppPalette.textPrimary(context),
-                left: true),
+            _tcell(context, showMedals ? (medals[i] ?? '${i + 1}') : '${i + 1}',
+                AppPalette.textPrimary(context),
+                onTap: () => _openStudentReport(sorted[i])),
+            _tcell(context, sorted[i].name, AppPalette.textPrimary(context),
+                left: true, onTap: () => _openStudentReport(sorted[i])),
           ]),
       ],
     );
 
-    // SAĞ kayan kısım: sayısal sütunlar
+    // SAĞ kayan kısım: sayısal sütunlar (başlıklar sıralanabilir)
     final scroll = Table(
       border: TableBorder.all(color: AppPalette.border(context)),
       defaultVerticalAlignment: TableCellVerticalAlignment.middle,
@@ -622,20 +847,25 @@ class _StudentsViewState extends State<_StudentsView> {
           decoration: BoxDecoration(
               color: const Color(0xFF7C3AED).withValues(alpha: 0.12)),
           children: [
-            _tcell(context, 'Soru'.tr(), null, header: true),
-            _tcell(context, 'Doğru'.tr(), null, header: true),
-            _tcell(context, 'Yanlış'.tr(), null, header: true),
-            _tcell(context, 'Boş'.tr(), null, header: true),
-            _tcell(context, 'Başarı'.tr(), null, header: true),
+            _hcell(context, 'Soru'.tr(), 'total'),
+            _hcell(context, 'Doğru'.tr(), 'correct'),
+            _hcell(context, 'Yanlış'.tr(), 'wrong'),
+            _hcell(context, 'Boş'.tr(), 'empty'),
+            _hcell(context, 'Başarı'.tr(), 'pct'),
           ],
         ),
-        for (final r in rows)
+        for (final r in sorted)
           TableRow(children: [
-            _tcell(context, '${r.totalQuestions}', const Color(0xFF6366F1)),
-            _tcell(context, '${r.correct}', green),
-            _tcell(context, '${r.wrong}', red),
-            _tcell(context, '${r.empty}', gray),
-            _tcell(context, '%${r.pct.toStringAsFixed(0)}', _scoreColor(r.pct)),
+            _tcell(context, '${r.totalQuestions}', const Color(0xFF6366F1),
+                onTap: () => _openStudentReport(r)),
+            _tcell(context, '${r.correct}', green,
+                onTap: () => _openStudentReport(r)),
+            _tcell(context, '${r.wrong}', red,
+                onTap: () => _openStudentReport(r)),
+            _tcell(context, '${r.empty}', gray,
+                onTap: () => _openStudentReport(r)),
+            _tcell(context, '%${r.pct.toStringAsFixed(0)}', _scoreColor(r.pct),
+                onTap: () => _openStudentReport(r)),
           ]),
       ],
     );
@@ -655,9 +885,10 @@ class _StudentsViewState extends State<_StudentsView> {
   }
 
   /// Sabit yükseklikli hücre — sol ve sağ tabloların satırları hizalı kalsın.
+  /// [onTap] verilirse satır tıklanabilir (öğrenci raporuna geçiş).
   Widget _tcell(BuildContext context, String t, Color? color,
-      {bool left = false, bool header = false}) {
-    return SizedBox(
+      {bool left = false, bool header = false, VoidCallback? onTap}) {
+    final cell = SizedBox(
       height: header ? _headH : _rowH,
       child: Align(
         alignment: left ? Alignment.centerLeft : Alignment.center,
@@ -673,6 +904,82 @@ class _StudentsViewState extends State<_StudentsView> {
         ),
       ),
     );
+    if (onTap == null) return cell;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque, onTap: onTap, child: cell);
+  }
+
+  /// Tıklanabilir başlık hücresi — sütuna göre sıralar; aktifse ↑/↓ gösterir.
+  Widget _hcell(BuildContext context, String label, String key,
+      {bool left = false}) {
+    final active = _sortKey == key;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => setState(() {
+        if (_sortKey == key) {
+          _sortAsc = !_sortAsc;
+        } else {
+          _sortKey = key;
+          _sortAsc = false; // ilk dokunuşta büyükten küçüğe
+        }
+      }),
+      child: SizedBox(
+        height: _headH,
+        child: Align(
+          alignment: left ? Alignment.centerLeft : Alignment.center,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment:
+                  left ? MainAxisAlignment.start : MainAxisAlignment.center,
+              children: [
+                Flexible(
+                  child: Text(label,
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                          fontSize: 11, fontWeight: FontWeight.w800,
+                          color: active
+                              ? _kBrand
+                              : AppPalette.textPrimary(context))),
+                ),
+                Icon(
+                  active
+                      ? (_sortAsc
+                          ? Icons.arrow_upward_rounded
+                          : Icons.arrow_downward_rounded)
+                      : Icons.unfold_more_rounded,
+                  size: 12,
+                  color: active
+                      ? _kBrand
+                      : AppPalette.textSecondary(context).withValues(alpha: 0.5),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Tablo satırından öğrenci raporuna geçiş (demo öğrencide uyarı).
+  void _openStudentReport(StudentGradeSummary r) {
+    if (r.uid.startsWith('demo_')) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        behavior: SnackBarBehavior.floating,
+        content: Text(
+            'Bu bir demo öğrencidir. Gerçek öğrenci katıldığında karnesi açılır.'
+                .tr())));
+      return;
+    }
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => TeacherStudentReportScreen(
+        classId: widget.cls.id,
+        studentUid: r.uid,
+        studentName: r.name,
+        studentAvatar: '👤',
+      ),
+    ));
   }
 
   Color _scoreColor(double score) {

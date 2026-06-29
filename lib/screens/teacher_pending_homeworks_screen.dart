@@ -60,7 +60,7 @@ class TeacherPendingHomeworksScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
               itemCount: list.length,
               itemBuilder: (ctx, i) =>
-                  _PendingCard(hw: list[i], classId: classId),
+                  PendingHomeworkCard(hw: list[i], classId: classId),
             );
           },
         ),
@@ -98,16 +98,16 @@ class TeacherPendingHomeworksScreen extends StatelessWidget {
   }
 }
 
-class _PendingCard extends StatefulWidget {
+class PendingHomeworkCard extends StatefulWidget {
   final HomeworkModel hw;
   final String classId;
-  const _PendingCard({required this.hw, required this.classId});
+  const PendingHomeworkCard({super.key, required this.hw, required this.classId});
 
   @override
-  State<_PendingCard> createState() => _PendingCardState();
+  State<PendingHomeworkCard> createState() => PendingHomeworkCardState();
 }
 
-class _PendingCardState extends State<_PendingCard> {
+class PendingHomeworkCardState extends State<PendingHomeworkCard> {
   bool _busy = false;
 
   HomeworkModel get hw => widget.hw;

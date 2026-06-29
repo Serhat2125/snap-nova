@@ -14,6 +14,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/education_models.dart';
 import '../services/analytics.dart';
@@ -28,6 +29,7 @@ import 'teacher_announcement_screen.dart';
 import 'teacher_class_detail_screen.dart';
 import 'teacher_create_homework_screen.dart';
 import 'teacher_invite_student_screen.dart';
+import 'teacher_all_pending_screen.dart';
 import 'teacher_material_screen.dart';
 import 'teacher_onboarding_screen.dart';
 import 'teacher_pending_homeworks_screen.dart';
@@ -121,110 +123,142 @@ class _TeacherShellScreenState extends State<TeacherShellScreen> {
     );
   }
 
-  // ── ➕ Oluştur menüsü ────────────────────────────────────────────────────
+  // ── ➕ Oluştur menüsü — + hizasında yukarı açılan kompakt kartlar ───────
   Future<void> _openCreateMenu(BuildContext context) async {
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: AppPalette.card(context),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
       builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40, height: 4,
-              margin: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(
-                color: AppPalette.border(context),
-                borderRadius: BorderRadius.circular(2),
+        child: Padding(
+          // Ortadaki ➕ FAB + alt bar üstünde, hizasında yukarı açılır.
+          padding: const EdgeInsets.only(bottom: 78, left: 16, right: 16),
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 280),
+              child: Container(
+                // Tüm seçenekleri saran tek dış çerçeve.
+                padding: const EdgeInsets.fromLTRB(10, 10, 10, 2),
+                decoration: BoxDecoration(
+                  color: AppPalette.card(ctx),
+                  borderRadius: BorderRadius.circular(26),
+                  border: Border.all(color: _kBrand.withValues(alpha: 0.30)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.18),
+                      blurRadius: 18, offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                  _createChip(ctx, '🏫', 'Yeni Sınıf'.tr(), () {
+                    Navigator.pop(ctx);
+                    Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const TeacherOnboardingScreen()));
+                  }),
+                  _createChip(ctx, '✨', 'AI ile Ödev'.tr(), () async {
+                    Navigator.pop(ctx);
+                    final cls = await _pickClass(context);
+                    if (cls == null || !context.mounted) return;
+                    Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => TeacherCreateHomeworkScreen(cls: cls)));
+                  }),
+                  _createChip(ctx, '👨‍🎓', 'Öğrenci Davet Et'.tr(), () async {
+                    Navigator.pop(ctx);
+                    final cls = await _pickClass(context);
+                    if (cls == null || !context.mounted) return;
+                    Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => TeacherInviteStudentScreen(cls: cls)));
+                  }),
+                  _sectionLabel(ctx, 'İçerik ve İletişim'.tr()),
+                  _createChip(ctx, '📢', 'Duyuru Yayınla'.tr(), () {
+                    Navigator.pop(ctx);
+                    Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const TeacherAnnouncementScreen()));
+                  }),
+                  _createChip(ctx, '📎', 'Kaynak Paylaş'.tr(), () async {
+                    Navigator.pop(ctx);
+                    final cls = await _pickClass(context);
+                    if (cls == null || !context.mounted) return;
+                    Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => TeacherMaterialScreen(cls: cls)));
+                  }),
+                  ],
+                ),
               ),
             ),
-            _createTile(ctx, '🏫', 'Yeni Sınıf Oluştur'.tr(),
-                'Sınıf kodu üret, öğrencilerinle paylaş'.tr(), () {
-              Navigator.pop(ctx);
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => const TeacherOnboardingScreen(),
-              ));
-            }),
-            _createTile(ctx, '✨', 'AI ile Ödev Oluştur'.tr(),
-                'Bir sınıf seç, yapay zeka soruları üretsin'.tr(), () async {
-              Navigator.pop(ctx);
-              final cls = await _pickClass(context);
-              if (cls == null || !context.mounted) return;
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => TeacherCreateHomeworkScreen(cls: cls),
-              ));
-            }),
-            _createTile(ctx, '👨‍🎓', 'Öğrenci Davet Et'.tr(),
-                'Kullanıcı adıyla ara ve sınıfa davet et'.tr(), () async {
-              Navigator.pop(ctx);
-              final cls = await _pickClass(context);
-              if (cls == null || !context.mounted) return;
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => TeacherInviteStudentScreen(cls: cls),
-              ));
-            }),
-            // ── İçerik ve İletişim Yönetimi ──────────────────────────────
-            _sectionLabel(ctx, 'İçerik ve İletişim Yönetimi'.tr()),
-            _createTile(ctx, '📢', 'Duyuru Yayınla'.tr(),
-                'Tüm sınıfa veya seçili sınıfa anlık bildirim gönder'.tr(), () {
-              Navigator.pop(ctx);
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => const TeacherAnnouncementScreen(),
-              ));
-            }),
-            _createTile(ctx, '📎', 'Kaynak/Materyal Paylaş'.tr(),
-                'PDF, web linki veya ders notunu sınıfa yükle'.tr(), () async {
-              Navigator.pop(ctx);
-              final cls = await _pickClass(context);
-              if (cls == null || !context.mounted) return;
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => TeacherMaterialScreen(cls: cls),
-              ));
-            }),
-            const SizedBox(height: 6),
-          ],
+          ),
         ),
       ),
     );
   }
 
+  // Bölüm etiketi — kartların arasında küçük, okunur bir pill.
   Widget _sectionLabel(BuildContext c, String text) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 2),
-      child: Row(
-        children: [
-          Text(text,
-              style: GoogleFonts.poppins(
-                fontSize: 11, fontWeight: FontWeight.w800,
-                letterSpacing: 0.3,
-                color: AppPalette.textSecondary(c),
-              )),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Divider(height: 1, color: AppPalette.border(c)),
-          ),
-        ],
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+        decoration: BoxDecoration(
+          color: AppPalette.card(c),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: AppPalette.border(c)),
+        ),
+        child: Text(text,
+            style: GoogleFonts.poppins(
+              fontSize: 9.5, fontWeight: FontWeight.w800,
+              letterSpacing: 0.3,
+              color: AppPalette.textSecondary(c),
+            )),
       ),
     );
   }
 
-  Widget _createTile(BuildContext c, String emoji, String title,
-      String subtitle, VoidCallback onTap) {
-    return ListTile(
-      leading: Text(emoji, style: const TextStyle(fontSize: 24)),
-      title: Text(title,
-          style: GoogleFonts.poppins(
-            fontSize: 14, fontWeight: FontWeight.w800,
-            color: AppPalette.textPrimary(c),
-          )),
-      subtitle: Text(subtitle,
-          style: GoogleFonts.poppins(
-            fontSize: 11.5, color: AppPalette.textSecondary(c),
-          )),
-      onTap: onTap,
+  // Kompakt oval kart — küçük ikon + başlık (kendi çerçevesi + gölgesi).
+  Widget _createChip(BuildContext c, String emoji, String title,
+      VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: AppPalette.bg(c),
+        elevation: 0,
+        borderRadius: BorderRadius.circular(22),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(22),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: _kBrand.withValues(alpha: 0.22)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 30, height: 30,
+                  decoration: BoxDecoration(
+                    color: _kBrand.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(emoji, style: const TextStyle(fontSize: 15)),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(title,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13, fontWeight: FontWeight.w800,
+                        color: AppPalette.textPrimary(c),
+                      )),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -242,37 +276,75 @@ class _TeacherShellScreenState extends State<TeacherShellScreen> {
     if (classes.length == 1) return classes.first;
     return showModalBottomSheet<TeacherClass>(
       context: context,
-      backgroundColor: AppPalette.card(context),
+      backgroundColor: const Color(0xFFF3F4F6), // solgun beyaz arka plan
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Text('Sınıf seç'.tr(),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 40, height: 4,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD1D5DB),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Text('Sınıf seç'.tr(),
+                  textAlign: TextAlign.center,
                   style: GoogleFonts.poppins(
-                    fontSize: 15, fontWeight: FontWeight.w800,
-                    color: AppPalette.textPrimary(ctx),
+                    fontSize: 16, fontWeight: FontWeight.w900,
+                    color: const Color(0xFF111827),
                   )),
-            ),
-            ...classes.map((c) => ListTile(
-                  leading: const Icon(Icons.class_rounded, color: _kBrand),
-                  title: Text(c.name,
-                      style: GoogleFonts.poppins(
-                        fontSize: 14, fontWeight: FontWeight.w700,
-                        color: AppPalette.textPrimary(ctx),
-                      )),
-                  subtitle: Text('${c.schoolName} · ${c.subject}',
-                      style: GoogleFonts.poppins(
-                        fontSize: 11.5, color: AppPalette.textSecondary(ctx),
-                      )),
-                  onTap: () => Navigator.pop(ctx, c),
-                )),
-            const SizedBox(height: 8),
-          ],
+              const SizedBox(height: 14),
+              // Her sınıf — tam beyaz çerçeve, ortalı, profil fotolu, ikonsuz.
+              ...classes.map((c) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Material(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      child: InkWell(
+                        onTap: () => Navigator.pop(ctx, c),
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFFE5E7EB)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              ClassAvatar(photoB64: c.photoB64, size: 38),
+                              const SizedBox(width: 12),
+                              Flexible(
+                                child: Text(c.name,
+                                    textAlign: TextAlign.center,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 14.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: const Color(0xFF111827),
+                                    )),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  )),
+            ],
+          ),
         ),
       ),
     );
@@ -327,8 +399,11 @@ class _TeacherClassesTab extends StatelessWidget {
               if (classes.isEmpty) return _empty(context, ink);
               return ListView.builder(
                 padding: const EdgeInsets.fromLTRB(16, 6, 16, 90),
-                itemCount: classes.length,
-                itemBuilder: (ctx, i) => TeacherClassCard(cls: classes[i]),
+                itemCount: classes.length + 1,
+                itemBuilder: (ctx, i) {
+                  if (i == 0) return _TeacherHomeHeader(classCount: classes.length);
+                  return TeacherClassCard(cls: classes[i - 1]);
+                },
               );
             },
           ),
@@ -419,10 +494,11 @@ class TeacherClassCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     Text(cls.schoolName,
                         style: GoogleFonts.poppins(
-                          fontSize: 11.5, color: muted,
+                          fontSize: 10.5,
+                          color: muted.withValues(alpha: 0.7),
                         ),
                         maxLines: 1, overflow: TextOverflow.ellipsis),
                     if (cls.statusMessage.trim().isNotEmpty)
@@ -449,13 +525,7 @@ class TeacherClassCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('Katılma Kodu'.tr(),
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.poppins(
-                          fontSize: 11, fontWeight: FontWeight.w700,
-                          color: muted, letterSpacing: 0.3,
-                        )),
-                    const SizedBox(height: 4),
+                    // Kompakt katılma kodu chip'i (dokun → kopyala).
                     GestureDetector(
                       onTap: () async {
                         final messenger = ScaffoldMessenger.of(context);
@@ -468,10 +538,11 @@ class TeacherClassCard extends StatelessWidget {
                         ));
                       },
                       child: Container(
-                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                         decoration: BoxDecoration(
-                          color: AppPalette.bg(context),
-                          borderRadius: BorderRadius.circular(10),
+                          color: _kBrand.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(999),
                           border: Border.all(
                             color: _kBrand.withValues(alpha: 0.30),
                           ),
@@ -480,23 +551,25 @@ class TeacherClassCard extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             const Icon(Icons.vpn_key_rounded,
-                                size: 15, color: _kBrand),
-                            const SizedBox(width: 8),
+                                size: 12, color: _kBrand),
+                            const SizedBox(width: 5),
                             Text(cls.shortCode,
                                 style: GoogleFonts.poppins(
-                                  fontSize: 15, fontWeight: FontWeight.w900,
-                                  color: ink, letterSpacing: 1.5,
+                                  fontSize: 12.5, fontWeight: FontWeight.w900,
+                                  color: ink, letterSpacing: 1.0,
                                 )),
-                            const SizedBox(width: 8),
-                            const Icon(Icons.copy_rounded,
-                                size: 16, color: _kBrand),
+                            const SizedBox(width: 5),
+                            Icon(Icons.copy_rounded,
+                                size: 12,
+                                color: _kBrand.withValues(alpha: 0.7)),
                           ],
                         ),
                       ),
                     ),
                     const SizedBox(height: 8),
-                    // Öğrenci sayısı — kod kutusuyla aynı genişlikte.
                     _StudentCountBadge(classId: cls.id),
+                    const SizedBox(height: 6),
+                    _ActiveHomeworkBadge(classId: cls.id),
                   ],
                 ),
               ),
@@ -768,6 +841,304 @@ class TeacherClassCard extends StatelessWidget {
 }
 
 /// Sınıftaki canlı öğrenci sayısı rozeti.
+/// Öğretmene her girişte değişen kısa, sıcak/etkileyici karşılama cümleleri.
+/// (Apostrof içerenler çift tırnakla yazıldı — kaçış gerekmesin.)
+const _teacherGreetings = <String>[
+  // İlham veren & duygusal
+  "Bugün bir öğrencinin geleceğine dokunacaksın ✨",
+  "İyi ki varsınız — emeğiniz çoğalıyor 🌱",
+  "Bir öğretmen, bin umut demektir 💫",
+  "Bugün de ilham olmaya hazır mısın? 🚀",
+  "Öğrettiğin her şey bir tohum 🌳",
+  "Sabrın ve emeğin meyvesini veriyor 🍎",
+  "Sınıfının yıldızı sensin ⭐",
+  "Küçük bir söz, büyük bir iz bırakır 🖋️",
+  "Bugün harika bir ders günü olacak ☀️",
+  "Geleceği yetiştiriyorsun, ne güzel 💚",
+  "Bilgiyi paylaştıkça çoğalan tek hazine 📚",
+  "Emeğin fark yaratıyor, görülüyorsun 👏",
+  "Bir gülümseme, bir öğrenciye yeter 😊",
+  "Sen anlattıkça dünya biraz daha aydınlanıyor 🌍",
+  "Bugün bir çocuğun kahramanı olmaya hazır mısın? 🦸‍♂️",
+  "Dünyayı değiştirecek o çocuk bugün senin sınıfında oturuyor olabilir 🚀",
+  "Tarih kitapları liderleri yazar, liderleri ise sen yetiştirirsin 📚",
+  "Bugün ekeceğin bir bilgi tohumu, yarın koca bir çınar olacak 🌱",
+  "Tebeşir tozu kokusu, geleceğin parfümüdür 🌬️",
+  "Bir çocuğun zihnini açmak, evrenin en güzel sanatıdır 🎨",
+  "Gelecek, senin sınıfının kapısından içeri giriyor 🚪",
+  "Bugün yine birilerinin hayatında 'unutulmaz öğretmen' olacaksın 💖",
+  "Sadece ders anlatmıyorsun; hayal kurmayı öğretiyorsun 🌌",
+  "Işığınla sadece sınıfı değil, dünyayı aydınlatıyorsun 💡",
+  "Bir çocuğun 'Anladım!' derken parlayan gözlerinden güzel manzara yoktur 👀✨",
+  "Senin sabrın, bir çocuğun en büyük şansıdır 🙏",
+  "Bugün sınıfına sadece bilgini değil, kalbini de götürüyorsun ❤️",
+  "Geleceğin mimarı bugün iş başında 🏗️",
+  "Bir kelimenle bir çocuğun tüm dünyasını değiştirebilirsin 🗣️",
+  // Esprili
+  "Bugün o arka sıradaki gizemli enerjiyi çözme günü! 🕵️‍♂️",
+  "Sakin ol ve derin bir nefes al... Bugün kimse kalemini unutmayacak (umarız!) ✏️",
+  "Yapay zeka bile senin kadar sabırlı olmayı beceremedi 🤖",
+  "Sınıfın enerjisi yüksek olabilir ama kahvenin enerjisi daha yüksek ☕",
+  "Bugün 'Hocam bu sınavda çıkacak mı?' sorusuna en cool cevapsın 😎",
+  "Zilin sesiyle canlanan o enerjiyi sadece bir öğretmen yönetebilir 🔔",
+  "Tüm sınıfın dikkatini aynı anda toplayan gerçek bir sihirbazsın 🪄",
+  "Bugün ödevini unutan sevimli yalancıları gülümseyerek karşılama günü 😺",
+  "Yapay zeka soru üretir ama o soruyu sevdirme sanatı sana ait 🧠",
+  "Sınıftaki tatlı uğultuyu sevgiye dönüştüren gizli güç sensin 🎶",
+  "Bugün tahtaya kalkmak istemeyenlerin bile kalbini kazanacaksın 🎯",
+  "Öğretmenler odasındaki ilk yudum çay kadar huzurlu bir gün dileriz 🫖",
+  "Bugün sınıfın 'en popüler' insanı olmaya hazır mısın? 📣",
+  // Kısa & güçlü
+  "Enerjini topla, sınıfın seni bekliyor 🔋",
+  "Fikirler seninle filizlenir 💭",
+  "Bugün yine harikalar yaratacaksın 🪄",
+  "Eğitim ordusunun en güçlü neferine selam olsun 🫡",
+  "Yürüdüğün yolda arkanda koca bir gelecek bırakıyorsun 👣",
+  "Bilginin en tatlı hali senin sesinde saklı 🗣️🎵",
+  "Bugün bir hayalin temelini atacaksın 🧱",
+  "Sınıfın ritmi senin elinde 🥁",
+  "Küçük adımları büyük başarılara dönüştüren sensin 🏃‍♂️",
+  "Bugün yine bir çocuğun 'başardım' deme sebebi olacaksın 🏆",
+  // Vizyon
+  "Sen ders anlatırken zaman durur, gelecek başlar ⏳",
+  "Bir sınıfı yönetmek, bir ülkenin geleceğini yönetmektir 🗺️",
+  "Kitapların ötesinde bir şeysin; sen canlı bir ilham kaynağısın 📖",
+  "Yarınların parlak olmasının sebebi bugün senin kürsüde olman 🌟",
+  "Her başarılı insanın arkasında senin gibi bir öğretmenin izi vardır 👣",
+  "Bugün sınıfa giren her çocuk, seninle biraz daha büyüyecek 🪴",
+  "Sorulara cevap olmaya, karanlığa ışık tutmaya geldin 🕯️",
+  "Bilgi denizinde öğrencilerine rehberlik eden güvenilir kaptansın 🧭",
+  "Seninle öğrenmek, her çocuk için bir ayrıcalıktır 💎",
+  "Dünya, senin gibi öğretmenlerin omuzlarında yükseliyor 🌐",
+  // İlham veren (2. parti)
+  "Bugün bir çocuğun kendine inanmasına sebep olabilirsin ✨",
+  "Her ders, geleceğe yazılmış yeni bir mektuptur 💌",
+  "Sınıfındaki sessiz çocuk bile büyük bir hikâye taşıyor 📖",
+  "Bir öğrencinin hayatında iz bırakmak, yıllar sonra süren bir mucizedir 🌈",
+  "Bugün anlattığın bir konu, bir ömrün yönünü değiştirebilir 🧭",
+  "En büyük yatırımlar bazen bir sınıfta yapılır 💰",
+  "Her soru, yeni bir keşfin kapısını aralar 🚪",
+  "Öğrenciler unutabilir ama hissettirdiklerini hatırlar ❤️",
+  "Bilgi verirken umut da veriyorsun 🌱",
+  "Bir çocuğun potansiyelini görmek gerçek süper güçtür ⚡",
+  // Duygusal (2. parti)
+  "Bir gün öğrencilerin seni anlatırken yüzleri gülümseyecek 😊",
+  "Bazı kahramanlar pelerin değil, öğretmen önlüğü giyer 🦸",
+  "Sınıfta kurulan güven, hayat boyu taşınan bir hazinedir 💎",
+  "Bugün söylediğin güzel bir söz yıllarca hatırlanabilir 🌹",
+  "Çocukların kalbine dokunmak dünyanın en değerli işlerindendir 🤲",
+  "Her öğrencinin içinde keşfedilmeyi bekleyen bir yıldız vardır ⭐",
+  "Sen sadece ders vermiyorsun, cesaret de veriyorsun 💪",
+  "Bir öğrencinin başarısında emeğinin izi vardır 👣",
+  "En güzel eserlerin insan yetiştirmektir 🎨",
+  "Bazı meslekler iş yapar, sen gelecek inşa ediyorsun 🏗️",
+  // Vizyoner (2. parti)
+  "Bir ülkenin yarını bugün senin sınıfında oturuyor 🇹🇷",
+  "Tek bir öğrenciye ilham vermek, nesillere etki etmektir 🌍",
+  "Geleceğin bilim insanları, sanatçıları ve liderleri sana emanet 🔬",
+  "Bir çocuğun hayaline ortak olmak dünyayı değiştirmektir 🌎",
+  "Bugün attığın adımlar yarının başarı hikâyelerini yazacak 📚",
+  "Her ders, insanlığın geleceğine yapılan bir katkıdır 🌐",
+  "Senin sınıfın küçük görünebilir ama etkisi sınırsızdır ♾️",
+  "Büyük değişimler çoğu zaman bir sınıfta başlar 🚀",
+  "Yarınların mimarları bugün seni dinliyor 🎯",
+  "Bir toplumun gücü, öğretmenlerinin gücü kadardır 🏛️",
+  // Esprili (2. parti)
+  "Bugün yine 'Hocam bu konu önemli mi?' sorusuna hazırlan 😅",
+  "Kahven hazırsa hiçbir şey imkânsız değil ☕",
+  "Bugün tahtaya yazdıklarının yarısını silsen bile efsanesin 😎",
+  "Öğrencilerin internetten hızlı olabilir ama tecrübenden değil 🚄",
+  "Bugün en az üç kez 'Sessiz olalım arkadaşlar' deme hakkın var 🔊",
+  "Sınıf yönetimi bazen ileri seviye strateji oyunudur 🎮",
+  "Bugün kalemini unutanlar yaratıcı bahanelerle geliyor olabilir ✏️",
+  "Bir öğretmenin bakışı bazen bin kelimeden güçlüdür 👀",
+  "Sınıfın enerjisi yükselirse sakin kal, sen kaptansın 🚢",
+  "Öğretmenlik: Aynı anda psikolog, rehber, lider ve dedektif olmak 🕵️",
+];
+// Sıralı gösterim: son gösterilen indeks (bellek) + prefs ilk yükleme bayrağı.
+// Her girişte sıradaki cümle gösterilir; uygulama kapansa da kaldığı yerden devam.
+int _greetSeq = -1;
+bool _greetLoaded = false;
+
+/// Öğretmen ana ekranı üst kartı: karşılama + günün özeti + istatistik
+/// rozetleri (Sınıf / Öğrenci / Bu hafta ödev). Bekleyen sayısı tıklanınca
+/// tüm sınıfların bekleyen ödevleri tek listede açılır.
+class _TeacherHomeHeader extends StatefulWidget {
+  final int classCount;
+  const _TeacherHomeHeader({required this.classCount});
+
+  @override
+  State<_TeacherHomeHeader> createState() => _TeacherHomeHeaderState();
+}
+
+class _TeacherHomeHeaderState extends State<_TeacherHomeHeader> {
+  ({String name, int classes, int students, int weekHomeworks, int pending})?
+      _sum;
+  String _greeting = '';
+
+  @override
+  void initState() {
+    super.initState();
+    // İlk kare boş kalmasın: bilinen son indeksi göster, sonra sıradakine geç.
+    _greeting = (_greetSeq >= 0 && _greetSeq < _teacherGreetings.length)
+        ? _teacherGreetings[_greetSeq]
+        : _teacherGreetings[0];
+    _advanceGreeting();
+    _load();
+  }
+
+  /// Karşılama cümlesini SIRAYLA ilerletir (kalıcı). Her girişte sıradaki;
+  /// uygulama kapanıp açılsa da prefs'teki indeksten devam eder.
+  Future<void> _advanceGreeting() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      if (!_greetLoaded) {
+        _greetSeq = p.getInt('teacher_greet_seq') ?? -1;
+        _greetLoaded = true;
+      }
+      _greetSeq = (_greetSeq + 1) % _teacherGreetings.length;
+      await p.setInt('teacher_greet_seq', _greetSeq);
+    } catch (_) {
+      _greetSeq = (_greetSeq + 1) % _teacherGreetings.length;
+    }
+    if (mounted) setState(() => _greeting = _teacherGreetings[_greetSeq]);
+  }
+
+  Future<void> _load() async {
+    final s = await HomeworkService.teacherHomeSummary();
+    if (mounted) setState(() => _sum = s);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = _sum;
+    final pending = s?.pending ?? 0;
+    return Column(
+      children: [
+        // ── ŞIK karşılama çerçevesi — "Sınıflarım"ın hemen altında ──
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.fromLTRB(14, 14, 16, 14),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF7C3AED), Color(0xFF6366F1), Color(0xFF06B6D4)],
+              begin: Alignment.topLeft, end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: _kBrand.withValues(alpha: 0.35),
+                blurRadius: 16, offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 38, height: 38,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.22),
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: const Icon(Icons.auto_awesome_rounded,
+                    color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(_greeting.tr(),
+                    style: GoogleFonts.poppins(
+                        fontSize: 14, fontWeight: FontWeight.w800,
+                        height: 1.3, color: Colors.white)),
+              ),
+            ],
+          ),
+        ),
+        // ── Günün özeti + istatistik rozetleri (ayrı sade kart) ──
+        Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+          decoration: BoxDecoration(
+            color: AppPalette.card(context),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppPalette.border(context)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              GestureDetector(
+                onTap: pending > 0
+                    ? () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => const TeacherAllPendingScreen()))
+                    : null,
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        pending > 0
+                            ? '${'Kontrol bekleyen'.tr()} $pending ${'ödev var'.tr()}'
+                            : 'Bugün her şey güncel 🎉'.tr(),
+                        style: GoogleFonts.poppins(
+                            fontSize: 12, fontWeight: FontWeight.w600,
+                            color: pending > 0
+                                ? const Color(0xFFDC2626)
+                                : AppPalette.textSecondary(context)),
+                      ),
+                    ),
+                    if (pending > 0) ...[
+                      const SizedBox(width: 4),
+                      const Icon(Icons.arrow_forward_rounded,
+                          size: 14, color: Color(0xFFDC2626)),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  _stat(context, '🏫', '${widget.classCount}', 'Sınıf'.tr()),
+                  const SizedBox(width: 8),
+                  _stat(context, '👥', s == null ? '–' : '${s.students}',
+                      'Öğrenci'.tr()),
+                  const SizedBox(width: 8),
+                  _stat(context, '📝', s == null ? '–' : '${s.weekHomeworks}',
+                      'Bu hafta'.tr()),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _stat(BuildContext c, String emoji, String value, String label) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: AppPalette.card(c).withValues(alpha: 0.7),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppPalette.border(c)),
+        ),
+        child: Column(
+          children: [
+            Text('$emoji $value',
+                style: GoogleFonts.poppins(
+                    fontSize: 14, fontWeight: FontWeight.w900,
+                    color: AppPalette.textPrimary(c))),
+            Text(label,
+                style: GoogleFonts.poppins(
+                    fontSize: 9.5, fontWeight: FontWeight.w600,
+                    color: AppPalette.textSecondary(c))),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Sınıf kartında "N onay bekliyor" rozeti. Taslak + zamanlanmış (yayını
 /// gelecek) ödevleri sayar; dokununca Bekleyen Ödevler ekranını açar.
 class _PendingHomeworkBadge extends StatelessWidget {
@@ -848,6 +1219,41 @@ class _StudentCountBadge extends StatelessWidget {
               Text('$n ${'öğrenci'.tr()}',
                   style: GoogleFonts.poppins(
                     fontSize: 12, fontWeight: FontWeight.w800, color: _kBrand,
+                  )),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Sınıftaki yayında (aktif) ödev sayısı rozeti — kart üzerinde canlı bilgi.
+class _ActiveHomeworkBadge extends StatelessWidget {
+  final String classId;
+  const _ActiveHomeworkBadge({required this.classId});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<int>(
+      stream: HomeworkService.activeHomeworkCountStream(classId),
+      builder: (context, snap) {
+        final n = snap.data ?? 0;
+        const c = Color(0xFF0EA5E9);
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: c.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.assignment_rounded, size: 13, color: c),
+              const SizedBox(width: 4),
+              Text('$n ${'aktif ödev'.tr()}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12, fontWeight: FontWeight.w800, color: c,
                   )),
             ],
           ),
