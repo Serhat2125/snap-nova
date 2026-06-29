@@ -49,6 +49,7 @@ import 'services/runtime_translator.dart';
 import 'services/subscription_service.dart';
 import 'widgets/smart_sidebar.dart';
 import 'widgets/qualsar_splash_screen.dart';
+import 'widgets/parental_control_gate.dart';
 
 /// Tüm uygulama için tek navigator (global sidebar buradan navigate eder)
 final GlobalKey<NavigatorState> globalNavigatorKey =
@@ -1020,6 +1021,9 @@ class QuAlsarApp extends StatelessWidget {
                     children: [
                       if (child != null) child,
                       const _GlobalSidebarOverlay(),
+                      // Ebeveyn kontrolü kilidi (yalnız öğrenci hesabı + ayar
+                      // varsa görünür). Her şeyin ÜSTÜNDE.
+                      const ParentalControlGate(),
                     ],
                   ),
                 );

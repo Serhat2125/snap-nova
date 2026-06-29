@@ -817,6 +817,109 @@ class _AiInsightsBoxState extends State<AiInsightsBox> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// 0) ÖĞRETMEN DUYURULARI — çocuğun sınıflarından gelen duyurular.
+// ─────────────────────────────────────────────────────────────────────────
+class TeacherAnnouncementsCard extends StatefulWidget {
+  final String childUid;
+  const TeacherAnnouncementsCard({super.key, required this.childUid});
+
+  @override
+  State<TeacherAnnouncementsCard> createState() =>
+      _TeacherAnnouncementsCardState();
+}
+
+class _TeacherAnnouncementsCardState extends State<TeacherAnnouncementsCard> {
+  List<ParentAnnouncement>? _items;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(TeacherAnnouncementsCard old) {
+    super.didUpdateWidget(old);
+    if (old.childUid != widget.childUid) {
+      setState(() => _items = null);
+      _load();
+    }
+  }
+
+  Future<void> _load() async {
+    final list =
+        await ParentLinkService.readChildAnnouncements(widget.childUid);
+    if (!mounted) return;
+    setState(() => _items = list);
+  }
+
+  String _rel(DateTime w) {
+    final d = DateTime.now().difference(w);
+    if (d.inMinutes < 60) return '${d.inMinutes} dk';
+    if (d.inHours < 24) return '${d.inHours} sa';
+    if (d.inDays < 7) return '${d.inDays} g';
+    return '${w.day}.${w.month}.${w.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = _items;
+    // Yükleniyor ya da hiç duyuru yoksa kartı gösterme (paneli şişirme).
+    if (items == null || items.isEmpty) return const SizedBox.shrink();
+    final show = items.take(4).toList();
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF59E0B).withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+            color: const Color(0xFFF59E0B).withValues(alpha: 0.30)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.campaign_rounded,
+                  size: 18, color: Color(0xFFD97706)),
+              const SizedBox(width: 8),
+              Text('Öğretmen duyuruları'.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 13, fontWeight: FontWeight.w800,
+                    color: const Color(0xFF92400E),
+                  )),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...show.map((a) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(a.message,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12.5, height: 1.35,
+                      fontWeight: FontWeight.w600,
+                      color: AppPalette.textPrimary(context),
+                    )),
+                const SizedBox(height: 2),
+                Text(
+                    '${a.className}'
+                    '${a.teacherName.isNotEmpty ? ' · ${a.teacherName}' : ''}'
+                    ' · ${_rel(a.when)}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 10.5, color: AppPalette.textSecondary(context),
+                    )),
+              ],
+            ),
+          )),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // 0a) YAKLAŞAN ÖDEVLER — son tarihe göre sıralı; teslim durumu rozetli.
 // ─────────────────────────────────────────────────────────────────────────
 class UpcomingHomeworksCard extends StatefulWidget {

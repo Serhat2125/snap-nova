@@ -36,12 +36,6 @@ class TeacherHomeworkViewScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final ink = AppPalette.textPrimary(context);
     final muted = AppPalette.textSecondary(context);
-    final questions = homework.questions;
-    // Öğrenci cevaplarını soru indeksine göre eşle.
-    final Map<int, SubmissionAnswer> byIndex = {
-      for (final a in submission?.answers ?? const <SubmissionAnswer>[])
-        a.index: a,
-    };
     final hasSub = submission?.isSubmitted ?? false;
 
     return Scaffold(
@@ -114,29 +108,67 @@ class TeacherHomeworkViewScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            // Teslim yoksa uyarı şeridi.
-            if (submission != null && !hasSub)
-              _infoBanner(context,
-                  'Bu öğrenci ödevi henüz teslim etmedi — yalnızca soruların '
-                          'doğru cevapları gösteriliyor.'
-                      .tr()),
-            const SizedBox(height: 8),
-            if (questions.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 30),
-                child: Text('Bu ödevin soruları görüntülenemiyor.'.tr(),
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.poppins(fontSize: 13, color: muted)),
-              )
-            else
-              ...List.generate(
-                  questions.length,
-                  (i) => _questionCard(
-                      context, i, questions[i],
-                      hasSub ? byIndex[i] : null, ink, muted)),
+            HomeworkAnswersList(homework: homework, submission: submission),
           ],
         ),
       ),
+    );
+  }
+
+  Color _scoreColor(double score) {
+    if (score >= 70) return _kGreen;
+    if (score >= 40) return _kAmber;
+    return _kRed;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  HomeworkAnswersList — soru-soru cevap kartları (öğrenci cevabı + doğru
+//  cevap). Hem tam ekran görüntülemede hem ödev detayında INLINE kullanılır.
+//  Column döner (kendi scroll'u yok) → dıştaki ListView içine gömülebilir.
+// ═══════════════════════════════════════════════════════════════════════════
+class HomeworkAnswersList extends StatelessWidget {
+  final HomeworkModel homework;
+  final HomeworkSubmissionModel? submission;
+  const HomeworkAnswersList({
+    super.key, required this.homework, this.submission,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = AppPalette.textPrimary(context);
+    final muted = AppPalette.textSecondary(context);
+    final questions = homework.questions;
+    final Map<int, SubmissionAnswer> byIndex = {
+      for (final a in submission?.answers ?? const <SubmissionAnswer>[])
+        a.index: a,
+    };
+    final hasSub = submission?.isSubmitted ?? false;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (submission != null && !hasSub) ...[
+          _infoBanner(context,
+              'Bu öğrenci ödevi henüz teslim etmedi — yalnızca soruların '
+                      'doğru cevapları gösteriliyor.'
+                  .tr()),
+          const SizedBox(height: 8),
+        ],
+        if (questions.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 30),
+            child: Text('Bu ödevin soruları görüntülenemiyor.'.tr(),
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(fontSize: 13, color: muted)),
+          )
+        else
+          ...List.generate(
+              questions.length,
+              (i) => _questionCard(
+                  context, i, questions[i],
+                  hasSub ? byIndex[i] : null, ink, muted)),
+      ],
     );
   }
 
@@ -378,11 +410,5 @@ class TeacherHomeworkViewScreen extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  Color _scoreColor(double score) {
-    if (score >= 70) return _kGreen;
-    if (score >= 40) return _kAmber;
-    return _kRed;
   }
 }

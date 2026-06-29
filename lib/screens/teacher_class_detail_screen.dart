@@ -324,50 +324,57 @@ class _StudentsViewState extends State<_StudentsView> {
                 ),
               ),
             ),
-          // Sola hizalı segment denetimi.
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Container(
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                color: AppPalette.card(context),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppPalette.border(context)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _demoSeg(context, 'Demo Açık'.tr(), true),
-                  _demoSeg(context, 'Demo Kapalı'.tr(), false),
-                ],
-              ),
-            ),
+          // Sola hizalı: "Demo" etiketi + tek aç/kapa butonu.
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Demo'.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 13, fontWeight: FontWeight.w800, color: ink)),
+              const SizedBox(width: 10),
+              _demoToggle(context),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _demoSeg(BuildContext context, String label, bool demoValue) {
+  /// Tek buton: demo KAPALIYKEN "Demo Açık Yap", AÇIKKEN "Demo Kapalı Yap".
+  /// Basınca durumu ters çevirir.
+  Widget _demoToggle(BuildContext context) {
     const brand = Color(0xFF7C3AED);
-    final selected = _demo == demoValue;
+    final label = _demo ? 'Demo Kapalı Yap'.tr() : 'Demo Açık Yap'.tr();
     return GestureDetector(
-      onTap: () {
-        if (_demo != demoValue) setState(() => _demo = demoValue);
-      },
+      onTap: () => setState(() => _demo = !_demo),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? brand : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
+          color: _demo ? brand : brand.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+              color: brand.withValues(alpha: _demo ? 1.0 : 0.40)),
         ),
-        child: Text(label,
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: selected ? Colors.white : AppPalette.textSecondary(context),
-            )),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _demo
+                  ? Icons.visibility_off_rounded
+                  : Icons.visibility_rounded,
+              size: 15,
+              color: _demo ? Colors.white : brand,
+            ),
+            const SizedBox(width: 6),
+            Text(label,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: _demo ? Colors.white : brand,
+                )),
+          ],
+        ),
       ),
     );
   }

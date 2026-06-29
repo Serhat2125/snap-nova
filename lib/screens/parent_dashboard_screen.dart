@@ -275,6 +275,8 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                           baseStats: _baseStats ?? const {},
                         ),
                         const SizedBox(height: 12),
+                        TeacherAnnouncementsCard(childUid: _selectedChild!.uid),
+                        const SizedBox(height: 12),
                         UpcomingHomeworksCard(childUid: _selectedChild!.uid),
                         const SizedBox(height: 12),
                         ParentGoalCard(

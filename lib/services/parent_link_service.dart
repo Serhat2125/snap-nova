@@ -112,6 +112,20 @@ class ParentInvite {
   }
 }
 
+/// Ebeveyn paneli "öğretmen duyuruları" kartı için hafif DTO.
+class ParentAnnouncement {
+  final String className;
+  final String message;
+  final String teacherName;
+  final DateTime when;
+  const ParentAnnouncement({
+    required this.className,
+    required this.message,
+    required this.teacherName,
+    required this.when,
+  });
+}
+
 /// Ebeveyn paneli "yaklaşan ödevler" kartı için hafif DTO.
 class ParentUpcomingHomework {
   final String classId;
@@ -677,6 +691,37 @@ class ParentLinkService {
       out.sort((a, b) => a.dueAt.compareTo(b.dueAt));
     } catch (e) {
       debugPrint('[ParentLink] readChildUpcomingHomeworks fail: $e');
+    }
+    return out;
+  }
+
+  /// Bağlı çocuğun katıldığı sınıflardaki ÖĞRETMEN DUYURULARINI döndürür.
+  /// Kaynak: classes/{classId}/content (type == 'announcement'). En yeni üstte.
+  static Future<List<ParentAnnouncement>> readChildAnnouncements(
+      String childUid) async {
+    final out = <ParentAnnouncement>[];
+    try {
+      final classes = await ClassService.joinedClassesFor(childUid);
+      for (final cls in classes) {
+        final content = await ClassService.classContentStream(cls.classId).first;
+        for (final m in content) {
+          if ((m['type'] ?? '').toString() != 'announcement') continue;
+          final payload =
+              (m['payload'] as Map?)?.cast<String, dynamic>() ?? const {};
+          DateTime when = DateTime.now();
+          final ts = m['sharedAt'];
+          if (ts is Timestamp) when = ts.toDate();
+          out.add(ParentAnnouncement(
+            className: cls.className,
+            message: (payload['message'] ?? '').toString(),
+            teacherName: (payload['teacherName'] ?? '').toString(),
+            when: when,
+          ));
+        }
+      }
+      out.sort((a, b) => b.when.compareTo(a.when));
+    } catch (e) {
+      debugPrint('[ParentLink] readChildAnnouncements fail: $e');
     }
     return out;
   }

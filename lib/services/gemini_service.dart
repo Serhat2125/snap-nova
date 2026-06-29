@@ -4039,6 +4039,69 @@ $lang
     return null;
   }
 
+  /// Öğretmen/ebeveyn için: bir öğrencinin ödev cevaplarını analiz edip
+  /// TEK CÜMLELİK Türkçe özet yorum döner (güçlü yön + eksik). Açık uçlu
+  /// sorularda Doğru/Yanlış sayısının ötesine geçer.
+  static Future<String> analyzeStudentHomework({
+    required String studentName,
+    required String subject,
+    required String topic,
+    required List<Map<String, dynamic>> answers, // {q, studentAnswer, status}
+    String langCode = 'tr',
+  }) async {
+    _log('analyzeStudentHomework() — $studentName / $subject');
+    final lang = _languageDirective(langCode);
+    final lines = answers.take(20).map((a) {
+      final q = (a['q'] ?? '').toString();
+      final sa = (a['studentAnswer'] ?? '').toString().trim();
+      final st = (a['status'] ?? '').toString();
+      return '- Soru: $q | Öğrenci: ${sa.isEmpty ? "(boş)" : sa} | $st';
+    }).join('\n');
+    final sys = '''
+[SYSTEM — ÖĞRENCİ ÖDEV ANALİZİ]
+Sen bir öğretmen asistanısın. Öğrencinin ödev cevaplarını analiz edip
+veliye/öğretmene TEK CÜMLELİK, somut bir değerlendirme yaz.
+
+Öğrenci: $studentName
+Ders/Konu: $subject / $topic
+Cevaplar:
+$lines
+
+[KURALLAR]
+- TEK cümle. Türkçe, sıcak ama profesyonel.
+- Bir GÜÇLÜ yönü + bir GELİŞİM alanını birlikte belirt.
+- Somut ol (hangi tür sorularda iyi/zayıf). Genel geçer laf etme.
+- Markdown, emoji, başlık YOK — düz tek cümle.
+
+$lang
+''';
+    if (AiProviderService.kEnabled) {
+      try {
+        final t = await AiProviderService.askTask(
+          AiTask.cheap,
+          isPremium: AiQuotaService.instance.isPremium,
+          prompt: 'Analizi yaz.',
+          system: sys,
+          maxTokens: 160,
+        );
+        if (t.trim().isNotEmpty) return t.trim();
+      } catch (_) {}
+    }
+    try {
+      return (await _callGemini(
+        systemPrompt: sys,
+        userMessage: 'Analizi yaz.',
+        maxTokens: 160,
+        temperature: 0.5,
+        timeout: const Duration(seconds: 20),
+      )).trim();
+    } catch (e) {
+      debugPrint('[analyzeHomework] fail: $e');
+      return '$studentName bu ödevde verdiği cevaplarla genel olarak konuyu '
+          'kavradığını gösteriyor; eksik kalan sorular tekrar gözden geçirilebilir.';
+    }
+  }
+
   // ── EBEVEYN AI İÇGÖRÜLERİ ─────────────────────────────────────────────
   /// Çocuğun haftalık verilerini analiz edip ebeveyne özet bir Türkçe
   /// içgörü cümlesi döner. 2-3 cümle.
