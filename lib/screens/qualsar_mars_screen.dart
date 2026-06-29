@@ -1799,8 +1799,9 @@ class _EarthState extends State<_Earth> {
             : ModelViewer(
                 src: _kEarthGlbUrl,
                 alt: 'Earth 3D',
-                autoRotate: true,
-                rotationPerSecond: '24deg',
+                // Isı/pil: otomatik dönüş kapalı → model_viewer statikken
+                // render'ı durdurur (render-on-demand).
+                autoRotate: false,
                 disableZoom: true,
                 disablePan: true,
                 disableTap: true,

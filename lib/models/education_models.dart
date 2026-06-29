@@ -184,6 +184,13 @@ class HomeworkModel {
   final List<Map<String, dynamic>> questions;
   /// Hatırlatıcı atıldı mı (auto-reminder idempotency için).
   final bool reminderSent;
+  /// Ödev durumu:
+  ///   'draft'     → öğretmen taslağı; öğrenciye ASLA görünmez, atanmamış.
+  ///   'published' → atanmış (öğrenciye publishAt'a göre görünür).
+  /// Eski kayıtlarda alan yoksa 'published' varsayılır (geriye uyumluluk).
+  final String status;
+  /// Zamanlanmış ödev yayın anında bildirim atıldı mı (idempotency).
+  final bool publishNotified;
 
   const HomeworkModel({
     required this.id,
@@ -200,14 +207,21 @@ class HomeworkModel {
     this.publishAt,
     this.questions = const [],
     this.reminderSent = false,
+    this.status = 'published',
+    this.publishNotified = false,
   });
 
   bool get isOverdue => DateTime.now().isAfter(dueAt);
   Duration get timeRemaining => dueAt.difference(DateTime.now());
 
-  /// Ödev öğrenciye görünür mü? (yayın zamanı yok veya geçmiş).
+  bool get isDraft => status == 'draft';
+  /// Yayın zamanı gelmiş ama henüz erişilebilir mi (taslak değil).
+  bool get isScheduledPending =>
+      !isDraft && publishAt != null && publishAt!.isAfter(DateTime.now());
+
+  /// Ödev öğrenciye görünür mü? (taslak değil + yayın zamanı yok veya geçmiş).
   bool get isPublished =>
-      publishAt == null || !publishAt!.isAfter(DateTime.now());
+      !isDraft && (publishAt == null || !publishAt!.isAfter(DateTime.now()));
 
   Map<String, dynamic> toJson() => {
         'classId': classId,
@@ -223,6 +237,8 @@ class HomeworkModel {
         if (publishAt != null) 'publishAt': Timestamp.fromDate(publishAt!),
         'questions': questions,
         'reminderSent': reminderSent,
+        'status': status,
+        'publishNotified': publishNotified,
       };
 
   factory HomeworkModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> d) {
@@ -253,6 +269,8 @@ class HomeworkModel {
           .map((q) => Map<String, dynamic>.from(q))
           .toList(),
       reminderSent: (m['reminderSent'] ?? false) == true,
+      status: (m['status'] ?? 'published').toString(),
+      publishNotified: (m['publishNotified'] ?? false) == true,
     );
   }
 }

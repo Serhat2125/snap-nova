@@ -16,9 +16,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/education_models.dart';
 import '../services/gemini_service.dart';
+import '../services/locale_service.dart';
+import '../services/parent_link_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
 
@@ -425,6 +428,150 @@ class QuestionAnalyticsPie extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// 3b) DERS BAZLI PERFORMANS TABLOSU
+//     Her ders: doğru/yanlış + başarı çubuğu; genel ortalama referans çizgisi.
+// ─────────────────────────────────────────────────────────────────────────
+class SubjectPerformanceTable extends StatelessWidget {
+  final List<StudentActivityModel> last7Days;
+  const SubjectPerformanceTable({super.key, required this.last7Days});
+
+  @override
+  Widget build(BuildContext context) {
+    final correct = <String, int>{};
+    final wrong = <String, int>{};
+    for (final a in last7Days) {
+      a.subjectCorrect.forEach((k, v) => correct[k] = (correct[k] ?? 0) + v);
+      a.subjectWrong.forEach((k, v) => wrong[k] = (wrong[k] ?? 0) + v);
+    }
+    final rows = <(String, int, int, double)>[]; // ders, doğru, yanlış, %
+    final keys = {...correct.keys, ...wrong.keys};
+    for (final k in keys) {
+      final c = correct[k] ?? 0;
+      final w = wrong[k] ?? 0;
+      if (c + w == 0) continue;
+      rows.add((k, c, w, c * 100.0 / (c + w)));
+    }
+    if (rows.isEmpty) {
+      return _emptyBox('Ders bazlı test verisi yok.'.tr());
+    }
+    rows.sort((a, b) => b.$4.compareTo(a.$4));
+    final totalC = correct.values.fold<int>(0, (s, v) => s + v);
+    final totalW = wrong.values.fold<int>(0, (s, v) => s + v);
+    final overall = (totalC + totalW) == 0 ? 0.0 : totalC * 100.0 / (totalC + totalW);
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      decoration: _cardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionHeader(context, '📋', 'Ders bazlı başarı'.tr()),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Icon(Icons.flag_rounded, size: 13,
+                  color: AppPalette.textSecondary(context)),
+              const SizedBox(width: 4),
+              Text('${'Genel ortalama'.tr()}: %${overall.round()}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 11, fontWeight: FontWeight.w700,
+                    color: AppPalette.textSecondary(context),
+                  )),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...rows.map((r) => _row(context, r.$1, r.$2, r.$3, r.$4, overall)),
+        ],
+      ),
+    );
+  }
+
+  Widget _row(BuildContext c, String subject, int correct, int wrong,
+      double pct, double overall) {
+    final aboveAvg = pct >= overall;
+    final barColor = pct >= 80
+        ? const Color(0xFF10B981)
+        : pct >= 60
+            ? const Color(0xFFF59E0B)
+            : const Color(0xFFEF4444);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(subject,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12.5, fontWeight: FontWeight.w700,
+                      color: AppPalette.textPrimary(c),
+                    ),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+              ),
+              Icon(
+                aboveAvg
+                    ? Icons.arrow_upward_rounded
+                    : Icons.arrow_downward_rounded,
+                size: 13,
+                color: aboveAvg
+                    ? const Color(0xFF10B981)
+                    : const Color(0xFFEF4444),
+              ),
+              const SizedBox(width: 2),
+              Text('%${pct.round()}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12.5, fontWeight: FontWeight.w900,
+                    color: barColor,
+                  )),
+              const SizedBox(width: 8),
+              Text('$correct✓ $wrong✗',
+                  style: GoogleFonts.poppins(
+                    fontSize: 10.5, fontWeight: FontWeight.w600,
+                    color: AppPalette.textSecondary(c),
+                  )),
+            ],
+          ),
+          const SizedBox(height: 5),
+          Stack(
+            children: [
+              Container(
+                height: 7,
+                decoration: BoxDecoration(
+                  color: AppPalette.border(c),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              FractionallySizedBox(
+                widthFactor: (pct / 100).clamp(0.02, 1.0),
+                child: Container(
+                  height: 7,
+                  decoration: BoxDecoration(
+                    color: barColor,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              // Genel ortalama referans işareti
+              FractionallySizedBox(
+                widthFactor: (overall / 100).clamp(0.0, 1.0),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Container(
+                    width: 2, height: 7,
+                    color: AppPalette.textSecondary(c).withValues(alpha: 0.6),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // 4) FOTO-SORU SAYACI
 // ─────────────────────────────────────────────────────────────────────────
 class PhotoQuestionCounter extends StatelessWidget {
@@ -664,6 +811,823 @@ class _AiInsightsBoxState extends State<AiInsightsBox> {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 0a) YAKLAŞAN ÖDEVLER — son tarihe göre sıralı; teslim durumu rozetli.
+// ─────────────────────────────────────────────────────────────────────────
+class UpcomingHomeworksCard extends StatefulWidget {
+  final String childUid;
+  const UpcomingHomeworksCard({super.key, required this.childUid});
+
+  @override
+  State<UpcomingHomeworksCard> createState() => _UpcomingHomeworksCardState();
+}
+
+class _UpcomingHomeworksCardState extends State<UpcomingHomeworksCard> {
+  List<ParentUpcomingHomework>? _items;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(UpcomingHomeworksCard old) {
+    super.didUpdateWidget(old);
+    if (old.childUid != widget.childUid) {
+      setState(() => _items = null);
+      _load();
+    }
+  }
+
+  Future<void> _load() async {
+    final list =
+        await ParentLinkService.readChildUpcomingHomeworks(widget.childUid);
+    if (!mounted) return;
+    setState(() => _items = list);
+  }
+
+  String _dueLabel(DateTime due) {
+    final now = DateTime.now();
+    final diff = due.difference(now);
+    if (diff.isNegative) {
+      final d = now.difference(due);
+      if (d.inDays >= 1) return '${d.inDays} ${'gün gecikti'.tr()}';
+      if (d.inHours >= 1) return '${d.inHours} ${'saat gecikti'.tr()}';
+      return 'Süresi doldu'.tr();
+    }
+    if (diff.inDays >= 1) return '${diff.inDays} ${'gün kaldı'.tr()}';
+    if (diff.inHours >= 1) return '${diff.inHours} ${'saat kaldı'.tr()}';
+    return '${diff.inMinutes} ${'dk kaldı'.tr()}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = _items;
+    // Yükleniyor: yer tutucu gösterme — sessizce gizli.
+    if (items == null) {
+      return Container(
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+        decoration: _cardDecoration(context),
+        child: Row(
+          children: [
+            _sectionHeader(context, '🗓️', 'Yaklaşan ödevler'.tr()),
+            const Spacer(),
+            const SizedBox(
+              width: 16, height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ],
+        ),
+      );
+    }
+    if (items.isEmpty) return const SizedBox.shrink();
+    final show = items.take(5).toList();
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+      decoration: _cardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionHeader(context, '🗓️', 'Yaklaşan ödevler'.tr()),
+          const SizedBox(height: 10),
+          ...show.map((h) => _row(context, h)),
+        ],
+      ),
+    );
+  }
+
+  Widget _row(BuildContext c, ParentUpcomingHomework h) {
+    final overdue = h.isOverdue && !h.submitted;
+    final statusColor = h.submitted
+        ? const Color(0xFF10B981)
+        : overdue
+            ? const Color(0xFFEF4444)
+            : const Color(0xFF0EA5E9);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 8, height: 8,
+            margin: const EdgeInsets.only(right: 10),
+            decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(h.title.isEmpty ? h.subject : h.title,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12.5, fontWeight: FontWeight.w700,
+                      color: AppPalette.textPrimary(c),
+                    ),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(
+                    '${h.subject.isEmpty ? h.className : h.subject} · ${_dueLabel(h.dueAt)}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 10.5, color: AppPalette.textSecondary(c),
+                    ),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: statusColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              h.submitted
+                  ? 'Teslim edildi'.tr()
+                  : overdue
+                      ? 'Gecikti'.tr()
+                      : 'Bekliyor'.tr(),
+              style: GoogleFonts.poppins(
+                fontSize: 9.5, fontWeight: FontWeight.w800, color: statusColor,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 0b) VELİ HEDEFİ — haftalık odak saati + başarı hedefi, ilerleme çubukları.
+//     Hedefler SharedPreferences'ta çocuk uid bazlı saklanır (veli-yerel).
+// ─────────────────────────────────────────────────────────────────────────
+class ParentGoalCard extends StatefulWidget {
+  final String childUid;
+  final List<StudentActivityModel> last7Days;
+  const ParentGoalCard({
+    super.key, required this.childUid, required this.last7Days,
+  });
+
+  @override
+  State<ParentGoalCard> createState() => _ParentGoalCardState();
+}
+
+class _ParentGoalCardState extends State<ParentGoalCard> {
+  double? _goalHours;   // haftalık hedef odak saati
+  int? _goalSuccess;    // hedef başarı yüzdesi
+  bool _loaded = false;
+
+  String get _kHours => 'parent_goal_hours_${widget.childUid}';
+  String get _kSuccess => 'parent_goal_success_${widget.childUid}';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      final h = p.getDouble(_kHours);
+      final s = p.getInt(_kSuccess);
+      if (mounted) {
+        setState(() { _goalHours = h; _goalSuccess = s; _loaded = true; });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loaded = true);
+    }
+  }
+
+  Future<void> _save(double hours, int success) async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setDouble(_kHours, hours);
+      await p.setInt(_kSuccess, success);
+    } catch (_) {}
+    if (mounted) setState(() { _goalHours = hours; _goalSuccess = success; });
+  }
+
+  double get _currentHours {
+    final mins = widget.last7Days.fold<int>(0, (s, a) => s + a.focusMinutes);
+    return mins / 60.0;
+  }
+
+  int get _currentSuccess {
+    int c = 0, w = 0;
+    for (final a in widget.last7Days) {
+      c += a.correctAnswers;
+      w += a.wrongAnswers;
+    }
+    if (c + w == 0) return 0;
+    return (c * 100 / (c + w)).round();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const SizedBox.shrink();
+    final hasGoal = _goalHours != null && _goalSuccess != null;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      decoration: _cardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(child: _sectionHeader(context, '🎯', 'Haftalık hedef'.tr())),
+              TextButton(
+                onPressed: _openEditor,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: const Size(0, 28),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(hasGoal ? 'Düzenle'.tr() : 'Hedef koy'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 12, fontWeight: FontWeight.w800,
+                      color: const Color(0xFF10B981),
+                    )),
+              ),
+            ],
+          ),
+          if (!hasGoal) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Çocuğun için haftalık çalışma süresi ve başarı hedefi belirle; ilerlemesini buradan takip et.'.tr(),
+              style: GoogleFonts.poppins(
+                fontSize: 12, height: 1.4,
+                color: AppPalette.textSecondary(context),
+              ),
+            ),
+          ] else ...[
+            const SizedBox(height: 10),
+            _goalBar(context, '⏱️', 'Odak süresi'.tr(),
+                _currentHours, _goalHours!,
+                '${_currentHours.toStringAsFixed(1)}/${_goalHours!.toStringAsFixed(0)} sa'),
+            const SizedBox(height: 12),
+            _goalBar(context, '📊', 'Başarı'.tr(),
+                _currentSuccess.toDouble(), _goalSuccess!.toDouble(),
+                '%$_currentSuccess/%$_goalSuccess'),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _goalBar(BuildContext c, String emoji, String label,
+      double current, double goal, String valueText) {
+    final ratio = goal <= 0 ? 0.0 : (current / goal).clamp(0.0, 1.0);
+    final reached = current >= goal;
+    final color = reached ? const Color(0xFF10B981) : const Color(0xFF0EA5E9);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 14)),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(label,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12, fontWeight: FontWeight.w700,
+                    color: AppPalette.textPrimary(c),
+                  )),
+            ),
+            if (reached)
+              const Padding(
+                padding: EdgeInsets.only(right: 4),
+                child: Icon(Icons.check_circle_rounded,
+                    size: 14, color: Color(0xFF10B981)),
+              ),
+            Text(valueText,
+                style: GoogleFonts.poppins(
+                  fontSize: 11.5, fontWeight: FontWeight.w800, color: color,
+                )),
+          ],
+        ),
+        const SizedBox(height: 5),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: ratio,
+            minHeight: 7,
+            backgroundColor: AppPalette.border(c),
+            valueColor: AlwaysStoppedAnimation(color),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _openEditor() async {
+    double hours = _goalHours ?? 5;
+    int success = _goalSuccess ?? 70;
+    final result = await showModalBottomSheet<(double, int)>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppPalette.card(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setM) => Padding(
+          padding: EdgeInsets.fromLTRB(
+              20, 16, 20, 16 + MediaQuery.of(ctx).viewInsets.bottom),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: AppPalette.border(ctx),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Text('Haftalık hedef belirle'.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 16, fontWeight: FontWeight.w900,
+                    color: AppPalette.textPrimary(ctx),
+                  )),
+              const SizedBox(height: 16),
+              Text('${'Odak süresi'.tr()}: ${hours.toStringAsFixed(0)} ${'saat/hafta'.tr()}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 13, fontWeight: FontWeight.w700,
+                    color: AppPalette.textPrimary(ctx),
+                  )),
+              Slider(
+                value: hours, min: 1, max: 40, divisions: 39,
+                activeColor: const Color(0xFF10B981),
+                label: hours.toStringAsFixed(0),
+                onChanged: (v) => setM(() => hours = v),
+              ),
+              const SizedBox(height: 4),
+              Text('${'Başarı hedefi'.tr()}: %${success.toString()}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 13, fontWeight: FontWeight.w700,
+                    color: AppPalette.textPrimary(ctx),
+                  )),
+              Slider(
+                value: success.toDouble(), min: 30, max: 100, divisions: 14,
+                activeColor: const Color(0xFF10B981),
+                label: '%$success',
+                onChanged: (v) => setM(() => success = v.round()),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF10B981),
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () => Navigator.pop(ctx, (hours, success)),
+                  child: Text('Kaydet'.tr(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 14, fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      )),
+                ),
+              ),
+              const SizedBox(height: 6),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (result != null) await _save(result.$1, result.$2);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 5b) ZAYIF/GÜÇLÜ DERS + AI HAFTALIK ÇALIŞMA PLANI
+//     subjectCorrect/subjectWrong'tan ders başarısı; Gemini ile plan.
+// ─────────────────────────────────────────────────────────────────────────
+class StudyPlanCard extends StatefulWidget {
+  final String childName;
+  final List<StudentActivityModel> last7Days;
+  const StudyPlanCard({
+    super.key, required this.childName, required this.last7Days,
+  });
+
+  @override
+  State<StudyPlanCard> createState() => _StudyPlanCardState();
+}
+
+class _StudyPlanCardState extends State<StudyPlanCard> {
+  List<String>? _plan;
+  bool _loading = false;
+
+  /// Ders → başarı yüzdesi (yeterli veri olan dersler).
+  Map<String, double> _subjectSuccess() {
+    final correct = <String, int>{};
+    final wrong = <String, int>{};
+    for (final a in widget.last7Days) {
+      a.subjectCorrect.forEach((k, v) => correct[k] = (correct[k] ?? 0) + v);
+      a.subjectWrong.forEach((k, v) => wrong[k] = (wrong[k] ?? 0) + v);
+    }
+    final out = <String, double>{};
+    final keys = {...correct.keys, ...wrong.keys};
+    for (final k in keys) {
+      final c = correct[k] ?? 0;
+      final w = wrong[k] ?? 0;
+      final tot = c + w;
+      if (tot < 3) continue; // istatistiksel olarak anlamsız
+      out[k] = c * 100.0 / tot;
+    }
+    return out;
+  }
+
+  Map<String, int> _subjectMinutes() {
+    final out = <String, int>{};
+    for (final a in widget.last7Days) {
+      a.subjectDurations.forEach((k, v) => out[k] = (out[k] ?? 0) + (v ~/ 60));
+    }
+    return out;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _generate();
+  }
+
+  @override
+  void didUpdateWidget(StudyPlanCard old) {
+    super.didUpdateWidget(old);
+    if (old.last7Days.length != widget.last7Days.length) _generate();
+  }
+
+  Future<void> _generate() async {
+    final success = _subjectSuccess();
+    if (success.isEmpty) {
+      setState(() => _plan = const []);
+      return;
+    }
+    final weak = success.entries.where((e) => e.value < 60).map((e) => e.key).toList()
+      ..sort((a, b) => (success[a] ?? 0).compareTo(success[b] ?? 0));
+    setState(() => _loading = true);
+    try {
+      final plan = await GeminiService.generateParentStudyPlan(
+        childName: widget.childName,
+        subjectMinutes: _subjectMinutes(),
+        subjectSuccess: success,
+        weakSubjects: weak,
+        langCode: LocaleService.global?.localeCode ?? 'tr',
+      );
+      if (!mounted) return;
+      setState(() { _plan = plan; _loading = false; });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final success = _subjectSuccess();
+    if (success.isEmpty) {
+      return _emptyBox('Plan için biraz test verisi gerekiyor.'.tr());
+    }
+    final weak = success.entries.where((e) => e.value < 60).toList()
+      ..sort((a, b) => a.value.compareTo(b.value));
+    final strong = success.entries.where((e) => e.value >= 80).toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      decoration: _cardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _sectionHeader(context, '🎯',
+                    'Haftalık çalışma planı'.tr()),
+              ),
+              IconButton(
+                icon: const Icon(Icons.refresh_rounded, size: 18,
+                    color: Color(0xFF10B981)),
+                onPressed: _loading ? null : _generate,
+                tooltip: 'Yenile'.tr(),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Zayıf / güçlü ders rozetleri
+          if (weak.isNotEmpty) ...[
+            _subjectChips(context, 'Geliştirilecek'.tr(),
+                const Color(0xFFEF4444), weak),
+            const SizedBox(height: 8),
+          ],
+          if (strong.isNotEmpty) ...[
+            _subjectChips(context, 'Güçlü'.tr(),
+                const Color(0xFF10B981), strong),
+            const SizedBox(height: 10),
+          ],
+          const Divider(height: 18),
+          // AI plan listesi
+          if (_loading)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: CircularProgressIndicator(strokeWidth: 2.2),
+              ),
+            )
+          else if (_plan != null && _plan!.isNotEmpty)
+            ...List.generate(_plan!.length, (i) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(top: 2),
+                    width: 20, height: 20,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text('${i + 1}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 10, fontWeight: FontWeight.w900,
+                          color: const Color(0xFF065F46),
+                        )),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(_plan![i],
+                        style: GoogleFonts.poppins(
+                          fontSize: 12.5, height: 1.45,
+                          color: AppPalette.textPrimary(context),
+                        )),
+                  ),
+                ],
+              ),
+            ))
+          else
+            Text('Plan üretilemedi — tekrar dene.'.tr(),
+                style: GoogleFonts.poppins(
+                  fontSize: 12, color: AppPalette.textSecondary(context),
+                )),
+        ],
+      ),
+    );
+  }
+
+  Widget _subjectChips(BuildContext c, String label, Color color,
+      List<MapEntry<String, double>> entries) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 86,
+          child: Text(label,
+              style: GoogleFonts.poppins(
+                fontSize: 11, fontWeight: FontWeight.w800, color: color,
+              )),
+        ),
+        Expanded(
+          child: Wrap(
+            spacing: 6, runSpacing: 4,
+            children: entries.take(4).map((e) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: color.withValues(alpha: 0.30)),
+              ),
+              child: Text('${e.key} · %${e.value.round()}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 10.5, fontWeight: FontWeight.w700, color: color,
+                  )),
+            )).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 7) EBEVEYN KONTROLÜ — günlük süre limiti + sessiz saatler.
+//    Parent-yerel (SharedPreferences) + Firestore'a yazılır. Çocuk app
+//    tarafında uygulanması (kullanımı engelleme) ayrı bir adımdır.
+// ─────────────────────────────────────────────────────────────────────────
+class ParentalControlsCard extends StatefulWidget {
+  final String childUid;
+  const ParentalControlsCard({super.key, required this.childUid});
+
+  @override
+  State<ParentalControlsCard> createState() => _ParentalControlsCardState();
+}
+
+class _ParentalControlsCardState extends State<ParentalControlsCard> {
+  bool _timeLimit = false;
+  int _dailyMins = 120;
+  bool _quiet = false;
+  int _quietStart = 21 * 60; // 21:00
+  int _quietEnd = 7 * 60;    // 07:00
+  bool _loaded = false;
+
+  String _k(String s) => 'pc_${s}_${widget.childUid}';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      _timeLimit = p.getBool(_k('time_enabled')) ?? false;
+      _dailyMins = p.getInt(_k('daily')) ?? 120;
+      _quiet = p.getBool(_k('quiet_enabled')) ?? false;
+      _quietStart = p.getInt(_k('quiet_start')) ?? 21 * 60;
+      _quietEnd = p.getInt(_k('quiet_end')) ?? 7 * 60;
+    } catch (_) {}
+    if (mounted) setState(() => _loaded = true);
+  }
+
+  Future<void> _save() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setBool(_k('time_enabled'), _timeLimit);
+      await p.setInt(_k('daily'), _dailyMins);
+      await p.setBool(_k('quiet_enabled'), _quiet);
+      await p.setInt(_k('quiet_start'), _quietStart);
+      await p.setInt(_k('quiet_end'), _quietEnd);
+    } catch (_) {}
+    // Çocuk app'in okuyabilmesi için Firestore'a da yaz (best-effort).
+    ParentLinkService.saveParentalControls(
+      widget.childUid,
+      timeLimitEnabled: _timeLimit,
+      dailyLimitMinutes: _dailyMins,
+      quietHoursEnabled: _quiet,
+      quietStartMinutes: _quietStart,
+      quietEndMinutes: _quietEnd,
+    );
+  }
+
+  String _fmt(int mins) {
+    final h = (mins ~/ 60).toString().padLeft(2, '0');
+    final m = (mins % 60).toString().padLeft(2, '0');
+    return '$h:$m';
+  }
+
+  Future<void> _pickTime(bool isStart) async {
+    final cur = isStart ? _quietStart : _quietEnd;
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: cur ~/ 60, minute: cur % 60),
+    );
+    if (picked == null) return;
+    setState(() {
+      final v = picked.hour * 60 + picked.minute;
+      if (isStart) { _quietStart = v; } else { _quietEnd = v; }
+    });
+    _save();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      decoration: _cardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionHeader(context, '🛡️', 'Ebeveyn kontrolü'.tr()),
+          const SizedBox(height: 8),
+          // Günlük süre limiti
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            activeThumbColor: const Color(0xFF10B981),
+            value: _timeLimit,
+            onChanged: (v) { setState(() => _timeLimit = v); _save(); },
+            title: Text('Günlük süre limiti'.tr(),
+                style: GoogleFonts.poppins(
+                  fontSize: 13, fontWeight: FontWeight.w700,
+                  color: AppPalette.textPrimary(context),
+                )),
+            subtitle: Text(
+                _timeLimit
+                    ? '${'Günlük'.tr()}: ${_dailyMins ~/ 60} sa ${_dailyMins % 60} dk'
+                    : 'Kapalı'.tr(),
+                style: GoogleFonts.poppins(
+                  fontSize: 11, color: AppPalette.textSecondary(context),
+                )),
+          ),
+          if (_timeLimit)
+            Slider(
+              value: _dailyMins.toDouble(), min: 30, max: 240, divisions: 14,
+              activeColor: const Color(0xFF10B981),
+              label: '${_dailyMins ~/ 60}sa ${_dailyMins % 60}dk',
+              onChanged: (v) => setState(() => _dailyMins = v.round()),
+              onChangeEnd: (_) => _save(),
+            ),
+          const Divider(height: 14),
+          // Sessiz saatler
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            activeThumbColor: const Color(0xFF10B981),
+            value: _quiet,
+            onChanged: (v) { setState(() => _quiet = v); _save(); },
+            title: Text('Sessiz saatler'.tr(),
+                style: GoogleFonts.poppins(
+                  fontSize: 13, fontWeight: FontWeight.w700,
+                  color: AppPalette.textPrimary(context),
+                )),
+            subtitle: Text(
+                _quiet
+                    ? '${_fmt(_quietStart)} – ${_fmt(_quietEnd)} ${'arası kapalı'.tr()}'
+                    : 'Kapalı'.tr(),
+                style: GoogleFonts.poppins(
+                  fontSize: 11, color: AppPalette.textSecondary(context),
+                )),
+          ),
+          if (_quiet)
+            Row(
+              children: [
+                Expanded(
+                  child: _timeBtn(context, 'Başlangıç'.tr(),
+                      _fmt(_quietStart), () => _pickTime(true)),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _timeBtn(context, 'Bitiş'.tr(),
+                      _fmt(_quietEnd), () => _pickTime(false)),
+                ),
+              ],
+            ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.info_outline_rounded, size: 13,
+                  color: AppPalette.textSecondary(context)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Limitler çocuğun cihazında uygulanır; etkin olması için çocuğun uygulamayı güncellemesi gerekir.'.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 10, height: 1.4,
+                    color: AppPalette.textSecondary(context),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _timeBtn(BuildContext c, String label, String value, VoidCallback onTap) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+          decoration: BoxDecoration(
+            color: AppPalette.bg(c),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppPalette.border(c)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label,
+                  style: GoogleFonts.poppins(
+                    fontSize: 10, color: AppPalette.textSecondary(c),
+                  )),
+              const SizedBox(height: 2),
+              Text(value,
+                  style: GoogleFonts.poppins(
+                    fontSize: 15, fontWeight: FontWeight.w800,
+                    color: AppPalette.textPrimary(c),
+                  )),
+            ],
+          ),
+        ),
       ),
     );
   }

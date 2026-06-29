@@ -45,13 +45,10 @@ class HomeworkService {
     required DateTime dueAt,
     required List<Map<String, dynamic>> questions,
     DateTime? publishAt,
+    bool draft = false, // true → taslak: atanmaz, öğrenciye görünmez
   }) async {
     final myUid = _myUid;
     if (myUid == null) return null;
-    // Yayın zamanı gelecekteyse ödev gizli atanır; öğrenciye o ana kadar
-    // bildirim de gitmez (öğrenci listesi publishAt'a göre filtreler).
-    final publishedNow =
-        publishAt == null || !publishAt.isAfter(DateTime.now());
     try {
       final hwRef = _fs.collection('classes').doc(classId)
           .collection('homeworks').doc();
@@ -69,53 +66,186 @@ class HomeworkService {
         dueAt: dueAt,
         publishAt: publishAt,
         questions: questions,
+        status: draft ? 'draft' : 'published',
       );
       // Ödev doc'u
       await hwRef.set(hw.toJson()..['assignedAt'] = FieldValue.serverTimestamp());
 
-      // Tüm sınıf öğrencileri için pending submission slot'ları aç.
-      // (Öğrenci ödeve tıklayınca status → in_progress)
-      final students = await _fs.collection('classes').doc(classId)
-          .collection('students').get();
-      final batch = _fs.batch();
-      for (final s in students.docs) {
-        final sd = s.data();
-        batch.set(
-          hwRef.collection('submissions').doc(s.id),
-          HomeworkSubmissionModel(
-            studentUid: s.id,
-            studentUsername: (sd['username'] ?? '').toString(),
-            studentDisplayName: (sd['displayName'] ?? '').toString(),
-            status: 'pending',
-          ).toJson(),
+      // Taslak: submission slot'ları ve bildirim YOK — öğretmen onayını bekler.
+      if (!draft) {
+        await _materializeAssignment(
+          classId: classId, hwId: hwRef.id, title: title, dueAt: dueAt,
+          publishAt: publishAt,
         );
-        // Yeni ödev bildirimi (push trigger) — yalnızca ödev YAYINDAYSA.
-        // Zamanlanmış (gelecek) ödevde bildirim atlanır; ödev yayın anına
-        // kadar öğrencide görünmez.
-        if (publishedNow) {
-          batch.set(
-            _fs.collection('notifications').doc(s.id)
-                .collection('items').doc(),
-            {
-              'type': 'homework_assigned',
-              'fromUsername': 'Öğretmen',
-              'fromDisplayName': title,
-              'when': FieldValue.serverTimestamp(),
-              'read': false,
-              'classId': classId,
-              'homeworkId': hwRef.id,
-              'dueAt': Timestamp.fromDate(dueAt),
-            },
-          );
-        }
       }
-      await batch.commit();
-      Analytics.logFeatureAction('teacher_panel', 'homework_assigned');
+      Analytics.logFeatureAction(
+          'teacher_panel', draft ? 'homework_draft_saved' : 'homework_assigned');
       return hwRef.id;
     } catch (e) {
       debugPrint('[HomeworkService] assign fail: $e');
       return null;
     }
+  }
+
+  /// Atanmış ödev için öğrenci submission slot'larını açar ve (yayındaysa)
+  /// bildirim gönderir. assignToClass ve publishDraft ortak kullanır.
+  static Future<void> _materializeAssignment({
+    required String classId,
+    required String hwId,
+    required String title,
+    required DateTime dueAt,
+    DateTime? publishAt,
+  }) async {
+    // Yayın zamanı gelecekteyse ödev gizli atanır; öğrenciye o ana kadar
+    // bildirim de gitmez (öğrenci listesi publishAt'a göre filtreler;
+    // yayın anı bildirimi scheduled function ile gönderilir).
+    final publishedNow =
+        publishAt == null || !publishAt.isAfter(DateTime.now());
+    final hwRef = _fs.collection('classes').doc(classId)
+        .collection('homeworks').doc(hwId);
+    final students = await _fs.collection('classes').doc(classId)
+        .collection('students').get();
+    final batch = _fs.batch();
+    for (final s in students.docs) {
+      final sd = s.data();
+      batch.set(
+        hwRef.collection('submissions').doc(s.id),
+        HomeworkSubmissionModel(
+          studentUid: s.id,
+          studentUsername: (sd['username'] ?? '').toString(),
+          studentDisplayName: (sd['displayName'] ?? '').toString(),
+          status: 'pending',
+        ).toJson(),
+        SetOptions(merge: true),
+      );
+      if (publishedNow) {
+        batch.set(
+          _fs.collection('notifications').doc(s.id)
+              .collection('items').doc(),
+          {
+            'type': 'homework_assigned',
+            'fromUsername': 'Öğretmen',
+            'fromDisplayName': title,
+            'when': FieldValue.serverTimestamp(),
+            'read': false,
+            'classId': classId,
+            'homeworkId': hwId,
+            'dueAt': Timestamp.fromDate(dueAt),
+          },
+        );
+      }
+    }
+    // Yayın zamanı geçmişse publishNotified=true işaretle (function atlamasın).
+    if (publishedNow) {
+      batch.set(hwRef, {'publishNotified': true}, SetOptions(merge: true));
+    }
+    await batch.commit();
+  }
+
+  /// Taslak ödevi günceller (öğretmen Bekleyenler'de düzenler).
+  static Future<bool> updateDraft({
+    required String classId,
+    required String hwId,
+    String? title,
+    DateTime? dueAt,
+    DateTime? publishAt,
+    bool clearPublishAt = false,
+    List<Map<String, dynamic>>? questions,
+  }) async {
+    try {
+      final data = <String, dynamic>{};
+      if (title != null) data['title'] = title;
+      if (dueAt != null) data['dueAt'] = Timestamp.fromDate(dueAt);
+      if (clearPublishAt) {
+        data['publishAt'] = FieldValue.delete();
+      } else if (publishAt != null) {
+        data['publishAt'] = Timestamp.fromDate(publishAt);
+      }
+      if (questions != null) {
+        data['questions'] = questions;
+        data['questionCount'] = questions.length;
+      }
+      if (data.isEmpty) return true;
+      await _fs.collection('classes').doc(classId)
+          .collection('homeworks').doc(hwId).set(data, SetOptions(merge: true));
+      return true;
+    } catch (e) {
+      debugPrint('[HomeworkService] updateDraft fail: $e');
+      return false;
+    }
+  }
+
+  /// Taslağı YAYINLA: status→published, slot'ları aç, (yayındaysa) bildir.
+  /// İsteğe bağlı dueAt/publishAt verilerek son anda zamanlama güncellenir.
+  static Future<bool> publishDraft({
+    required String classId,
+    required String hwId,
+    DateTime? dueAt,
+    DateTime? publishAt,
+    bool clearPublishAt = false,
+  }) async {
+    try {
+      final ref = _fs.collection('classes').doc(classId)
+          .collection('homeworks').doc(hwId);
+      final snap = await ref.get();
+      if (!snap.exists) return false;
+      final hw = HomeworkModel.fromDoc(snap);
+      final newDue = dueAt ?? hw.dueAt;
+      final newPublish = clearPublishAt ? null : (publishAt ?? hw.publishAt);
+      // status + zamanlama güncelle
+      final upd = <String, dynamic>{
+        'status': 'published',
+        'dueAt': Timestamp.fromDate(newDue),
+        'publishNotified': false,
+      };
+      if (clearPublishAt) {
+        upd['publishAt'] = FieldValue.delete();
+      } else if (newPublish != null) {
+        upd['publishAt'] = Timestamp.fromDate(newPublish);
+      }
+      await ref.set(upd, SetOptions(merge: true));
+      await _materializeAssignment(
+        classId: classId, hwId: hwId, title: hw.title, dueAt: newDue,
+        publishAt: newPublish,
+      );
+      Analytics.logFeatureAction('teacher_panel', 'homework_draft_published');
+      return true;
+    } catch (e) {
+      debugPrint('[HomeworkService] publishDraft fail: $e');
+      return false;
+    }
+  }
+
+  /// Bir ödevi/taslağı tamamen sil (alt submission'larıyla birlikte).
+  static Future<bool> deleteHomework(String classId, String hwId) async {
+    try {
+      final ref = _fs.collection('classes').doc(classId)
+          .collection('homeworks').doc(hwId);
+      final subs = await ref.collection('submissions').get();
+      final batch = _fs.batch();
+      for (final s in subs.docs) {
+        batch.delete(s.reference);
+      }
+      batch.delete(ref);
+      await batch.commit();
+      return true;
+    } catch (e) {
+      debugPrint('[HomeworkService] deleteHomework fail: $e');
+      return false;
+    }
+  }
+
+  /// Öğretmenin BEKLEYEN ödevleri (taslak + yayın zamanı gelecek olanlar).
+  static Stream<List<HomeworkModel>> pendingHomeworksStream(String classId) {
+    return _fs.collection('classes').doc(classId)
+        .collection('homeworks')
+        .orderBy('assignedAt', descending: true)
+        .limit(50)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map(HomeworkModel.fromDoc)
+            .where((hw) => hw.isDraft || hw.isScheduledPending)
+            .toList());
   }
 
   /// Sınıfın aktif ödevlerini stream — öğretmen dashboard için.

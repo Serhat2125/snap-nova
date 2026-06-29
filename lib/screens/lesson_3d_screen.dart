@@ -53,7 +53,8 @@ class Lesson3DScreen extends StatefulWidget {
   State<Lesson3DScreen> createState() => _Lesson3DScreenState();
 }
 
-class _Lesson3DScreenState extends State<Lesson3DScreen> {
+class _Lesson3DScreenState extends State<Lesson3DScreen>
+    with WidgetsBindingObserver {
   // Web'de WebViewController KULLANILMAZ (platform implementasyonu yok →
   // assertion hatası). Bu yüzden nullable ve sadece mobil/masaüstünde kurulur.
   WebViewController? _controller;
@@ -70,6 +71,7 @@ class _Lesson3DScreenState extends State<Lesson3DScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     Analytics.logFeatureOpen('3d_lesson');
     if (kIsWeb) {
       // iframe anında yüklenir; yükleme katmanı gösterme.
@@ -122,6 +124,21 @@ class _Lesson3DScreenState extends State<Lesson3DScreen> {
         ),
       )
       ..loadFlutterAsset(widget.assetHtml);
+  }
+
+  /// Uygulama arka plana alınınca 3D render döngüsünü TAMAMEN durdur
+  /// (ısı/pil); öne gelince devam ettir. Shim window.__appPaused'a bakar.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final ctrl = _controller;
+    if (ctrl == null) return;
+    final paused = state != AppLifecycleState.resumed;
+    try {
+      ctrl.runJavaScript(
+        'window.__appPaused=$paused;'
+        '${paused ? '' : 'if(window.__appResume)window.__appResume();'}',
+      );
+    } catch (_) {}
   }
 
   /// HTML'den gelen aksiyonlar: 'exam' → Sınav Oluştur sayfası,
@@ -485,8 +502,10 @@ class _Lesson3DScreenState extends State<Lesson3DScreen> {
 
   @override
   void dispose() {
-    // Dersten çıkınca sesli anlatımı durdur.
+    WidgetsBinding.instance.removeObserver(this);
+    // Çıkışta render döngüsünü durdur (WebView yok edilmeden önce güvence).
     if (!kIsWeb) {
+      try { _controller?.runJavaScript('window.__appPaused=true;'); } catch (_) {}
       try { TtsService.stop(); } catch (_) {}
     }
     // Gelişim Paneli — 3D ders süresini kaydet (type '3d').

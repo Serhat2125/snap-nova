@@ -25,6 +25,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
+import 'class_service.dart';
+import 'homework_service.dart';
+
 enum LinkRequestResult {
   success,        // İstek oluşturuldu
   alreadyLinked,  // Zaten bağlı
@@ -107,6 +110,26 @@ class ParentInvite {
       status: (m['status'] ?? 'pending').toString(),
     );
   }
+}
+
+/// Ebeveyn paneli "yaklaşan ödevler" kartı için hafif DTO.
+class ParentUpcomingHomework {
+  final String classId;
+  final String className;
+  final String title;
+  final String subject;
+  final DateTime dueAt;
+  final bool submitted;
+  const ParentUpcomingHomework({
+    required this.classId,
+    required this.className,
+    required this.title,
+    required this.subject,
+    required this.dueAt,
+    required this.submitted,
+  });
+
+  bool get isOverdue => DateTime.now().isAfter(dueAt);
 }
 
 class ParentLinkService {
@@ -612,6 +635,94 @@ class ParentLinkService {
       debugPrint('[ParentLink] readChildEntriesDays fail: $e');
     }
     return out;
+  }
+
+  /// Bağlı çocuğun katıldığı tüm sınıflardaki YAKLAŞAN ödevlerini döndürür.
+  /// Yayında olan (publishAt geçmiş) ve son tarihi geçmemiş VEYA son 3 günde
+  /// geçmiş ödevler dahil. Her ödev için çocuğun teslim durumu okunur.
+  /// Sonuç dueAt'a göre artan sıralı.
+  static Future<List<ParentUpcomingHomework>> readChildUpcomingHomeworks(
+      String childUid) async {
+    final out = <ParentUpcomingHomework>[];
+    try {
+      final classes = await ClassService.joinedClassesFor(childUid);
+      final now = DateTime.now();
+      final cutoffPast = now.subtract(const Duration(days: 3));
+      for (final cls in classes) {
+        final hws = await HomeworkService.classHomeworks(cls.classId);
+        for (final hw in hws) {
+          if (!hw.isPublished) continue;
+          if (hw.dueAt.isBefore(cutoffPast)) continue; // çok eski
+          // Teslim durumu
+          bool submitted = false;
+          try {
+            final subDoc = await _fs
+                .collection('classes').doc(cls.classId)
+                .collection('homeworks').doc(hw.id)
+                .collection('submissions').doc(childUid)
+                .get();
+            final st = (subDoc.data()?['status'] ?? '').toString();
+            submitted = st == 'submitted' || st == 'late';
+          } catch (_) {}
+          out.add(ParentUpcomingHomework(
+            classId: cls.classId,
+            className: cls.className,
+            title: hw.title.isEmpty ? hw.topic : hw.title,
+            subject: hw.subject,
+            dueAt: hw.dueAt,
+            submitted: submitted,
+          ));
+        }
+      }
+      out.sort((a, b) => a.dueAt.compareTo(b.dueAt));
+    } catch (e) {
+      debugPrint('[ParentLink] readChildUpcomingHomeworks fail: $e');
+    }
+    return out;
+  }
+
+  /// Ebeveyn kontrolü ayarlarını kaydeder. Çocuğun uygulamasının okuyup
+  /// uygulayabilmesi için `parental_controls/{childUid}` yoluna yazar.
+  /// NOT: Limitlerin gerçek uygulanması (kullanımı engelleme) çocuk
+  /// uygulamasında ayrıca ele alınmalı + Firestore kuralları eklenmeli.
+  static Future<bool> saveParentalControls(
+    String childUid, {
+    required bool timeLimitEnabled,
+    required int dailyLimitMinutes,
+    required bool quietHoursEnabled,
+    required int quietStartMinutes, // gün içi dakika (0-1439)
+    required int quietEndMinutes,
+  }) async {
+    final myUid = _myUid;
+    if (myUid == null) return false;
+    try {
+      await _fs.collection('parental_controls').doc(childUid).set({
+        'parentUid': myUid,
+        'timeLimitEnabled': timeLimitEnabled,
+        'dailyLimitMinutes': dailyLimitMinutes,
+        'quietHoursEnabled': quietHoursEnabled,
+        'quietStartMinutes': quietStartMinutes,
+        'quietEndMinutes': quietEndMinutes,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      return true;
+    } catch (e) {
+      debugPrint('[ParentLink] saveParentalControls fail: $e');
+      return false;
+    }
+  }
+
+  /// Ebeveyn kontrolü ayarlarını okur (panelde göstermek için).
+  static Future<Map<String, dynamic>?> readParentalControls(
+      String childUid) async {
+    try {
+      final doc =
+          await _fs.collection('parental_controls').doc(childUid).get();
+      return doc.exists ? doc.data() : null;
+    } catch (e) {
+      debugPrint('[ParentLink] readParentalControls fail: $e');
+      return null;
+    }
   }
 
   /// Ebeveyn bağlantıyı sonlandırır (çocuk verisi artık görünmez).

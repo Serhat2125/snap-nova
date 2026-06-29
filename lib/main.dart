@@ -590,7 +590,8 @@ class _StartupRouterState extends State<_StartupRouter> {
 /// uygulama doğrudan rol + kullanıcı adı seçimiyle başlar, öğrenci her
 /// açılışta "Fotoğraf Çek" (kamera) ekranına açılır. Test bitince/yayına
 /// çıkarken false yap → normal onboarding + giriş akışı geri gelir.
-const bool kTestBypassAuth = true;
+/// KAPALI TEST: false → "Başla" → giriş yöntemi seç (Google) → kullanıcı kurulumu.
+const bool kTestBypassAuth = false;
 
 enum _StartupState { onboarding, educationSetup, home }
 

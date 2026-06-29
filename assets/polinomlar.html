@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
+<script>/*RAF_THROTTLE_SHIM_V2*/(function(){if(window.__rafShim>=2)return;window.__rafShim=2;var ACTIVE_FPS=24,IDLE_FPS=5,ACTIVE_MS=1500;var raf=window.requestAnimationFrame.bind(window);var lastMap=new WeakMap();var lastInput=0;try{lastInput=performance.now();}catch(e){}function active(){return (performance.now()-lastInput)<ACTIVE_MS;}function bump(){lastInput=performance.now();}['pointerdown','pointermove','pointerup','touchstart','touchmove','wheel','keydown','mousedown','mousemove'].forEach(function(ev){try{window.addEventListener(ev,bump,{passive:true,capture:true});}catch(e){}});window.__appResume=function(){bump();};window.requestAnimationFrame=function(cb){return raf(function(ts){if(document.hidden||window.__appPaused){window.requestAnimationFrame(cb);return;}var fps=active()?ACTIVE_FPS:IDLE_FPS;var FT=1000/fps;var l=lastMap.get(cb)||0;if(ts-l<FT){window.requestAnimationFrame(cb);return;}lastMap.set(cb,ts);cb(ts);});};})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Polinomlar</title>
@@ -433,7 +434,7 @@ const SUBF=['Polinom = aₙxⁿ + … + a₁x + a₀','derece = en yüksek üs �
 
 const cv=document.getElementById('scene');
 const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true,preserveDrawingBuffer:true});
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
 const scene=new THREE.Scene();
 const cam=new THREE.PerspectiveCamera(50,1,.1,200);
 function resize(){const w=innerWidth,h=innerHeight;renderer.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();}

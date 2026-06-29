@@ -41,6 +41,10 @@ import '../services/ai_quota_service.dart';
 import 'bilgi_ligi_quiz_screen.dart';
 import 'premium_screen.dart';
 
+/// Gerçek kullanıcıya geçildi → sahte (mock) liderlik tablosu KAPALI.
+/// true yapılırsa yeterli gerçek oyuncu yokken örnek liste gösterilir.
+const bool _useMockLeague = false;
+
 enum _Scope { city, country, world }
 
 enum _Mode { subject, overall }
@@ -1779,7 +1783,9 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
       future: _leaderboardFuture,
       builder: (ctx, snap) {
         final cloudRows = snap.data ?? const [];
-        final hasEnoughCloudData = cloudRows.length >= 5;
+        // Gerçek kullanıcıya geçiş: sahte (mock) liderlik kaldırıldı —
+        // her zaman gerçek bulut verisi kullanılır (boşsa boş gösterilir).
+        final hasEnoughCloudData = !_useMockLeague || cloudRows.isNotEmpty;
         final entries = hasEnoughCloudData
             ? _toLbEntries(cloudRows)
             : _MockLeaderboard.generate(
@@ -1851,7 +1857,9 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
       future: _leaderboardFuture,
       builder: (ctx, snap) {
         final cloudRows = snap.data ?? const [];
-        final hasEnoughCloudData = cloudRows.length >= 5;
+        // Gerçek kullanıcıya geçiş: sahte (mock) liderlik kaldırıldı —
+        // her zaman gerçek bulut verisi kullanılır (boşsa boş gösterilir).
+        final hasEnoughCloudData = !_useMockLeague || cloudRows.isNotEmpty;
         final entries = hasEnoughCloudData
             ? _toLbEntries(cloudRows)
             : _MockLeaderboard.generate(
@@ -1891,7 +1899,9 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
       future: _leaderboardFuture,
       builder: (ctx, snap) {
         final cloudRows = snap.data ?? const [];
-        final hasEnoughCloudData = cloudRows.length >= 5;
+        // Gerçek kullanıcıya geçiş: sahte (mock) liderlik kaldırıldı —
+        // her zaman gerçek bulut verisi kullanılır (boşsa boş gösterilir).
+        final hasEnoughCloudData = !_useMockLeague || cloudRows.isNotEmpty;
         final entries = hasEnoughCloudData
             ? _toLbEntries(cloudRows)
             : _MockLeaderboard.generate(
@@ -3810,7 +3820,9 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
         // verisi sonradan yeterli sayıya ulaşırsa setState tetiklenince
         // gerçek tabloya geçilir.
         final cloudRows = snap.data ?? const [];
-        final hasEnoughCloudData = cloudRows.length >= 5;
+        // Gerçek kullanıcıya geçiş: sahte (mock) liderlik kaldırıldı —
+        // her zaman gerçek bulut verisi kullanılır (boşsa boş gösterilir).
+        final hasEnoughCloudData = !_useMockLeague || cloudRows.isNotEmpty;
         final entries = hasEnoughCloudData
             ? _toLbEntries(cloudRows)
             : _MockLeaderboard.generate(

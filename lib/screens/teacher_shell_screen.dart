@@ -15,17 +15,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../models/education_models.dart';
 import '../services/analytics.dart';
 import '../services/class_service.dart';
+import '../services/homework_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
 import '../widgets/class_profile_dialog.dart';
 import 'notifications_inbox_screen.dart';
 import 'profile_screen.dart';
+import 'teacher_announcement_screen.dart';
 import 'teacher_class_detail_screen.dart';
 import 'teacher_create_homework_screen.dart';
 import 'teacher_invite_student_screen.dart';
+import 'teacher_material_screen.dart';
 import 'teacher_onboarding_screen.dart';
+import 'teacher_pending_homeworks_screen.dart';
 
 const _kBrand = Color(0xFF7C3AED);
 
@@ -161,9 +166,47 @@ class _TeacherShellScreenState extends State<TeacherShellScreen> {
                 builder: (_) => TeacherInviteStudentScreen(cls: cls),
               ));
             }),
+            // ── İçerik ve İletişim Yönetimi ──────────────────────────────
+            _sectionLabel(ctx, 'İçerik ve İletişim Yönetimi'.tr()),
+            _createTile(ctx, '📢', 'Duyuru Yayınla'.tr(),
+                'Tüm sınıfa veya seçili sınıfa anlık bildirim gönder'.tr(), () {
+              Navigator.pop(ctx);
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const TeacherAnnouncementScreen(),
+              ));
+            }),
+            _createTile(ctx, '📎', 'Kaynak/Materyal Paylaş'.tr(),
+                'PDF, web linki veya ders notunu sınıfa yükle'.tr(), () async {
+              Navigator.pop(ctx);
+              final cls = await _pickClass(context);
+              if (cls == null || !context.mounted) return;
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => TeacherMaterialScreen(cls: cls),
+              ));
+            }),
             const SizedBox(height: 6),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _sectionLabel(BuildContext c, String text) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 2),
+      child: Row(
+        children: [
+          Text(text,
+              style: GoogleFonts.poppins(
+                fontSize: 11, fontWeight: FontWeight.w800,
+                letterSpacing: 0.3,
+                color: AppPalette.textSecondary(c),
+              )),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Divider(height: 1, color: AppPalette.border(c)),
+          ),
+        ],
       ),
     );
   }
@@ -393,6 +436,7 @@ class TeacherClassCard extends StatelessWidget {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis),
                       ),
+                    _PendingHomeworkBadge(cls: cls),
                   ],
                 ),
               ),
@@ -724,6 +768,62 @@ class TeacherClassCard extends StatelessWidget {
 }
 
 /// Sınıftaki canlı öğrenci sayısı rozeti.
+/// Sınıf kartında "N onay bekliyor" rozeti. Taslak + zamanlanmış (yayını
+/// gelecek) ödevleri sayar; dokununca Bekleyen Ödevler ekranını açar.
+class _PendingHomeworkBadge extends StatelessWidget {
+  final TeacherClass cls;
+  const _PendingHomeworkBadge({required this.cls});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<HomeworkModel>>(
+      stream: HomeworkService.pendingHomeworksStream(cls.id),
+      builder: (context, snap) {
+        final list = snap.data ?? const <HomeworkModel>[];
+        if (list.isEmpty) return const SizedBox.shrink();
+        final drafts = list.where((h) => h.isDraft).length;
+        final scheduled = list.length - drafts;
+        final label = drafts > 0 && scheduled > 0
+            ? '${list.length} ${'bekleyen'.tr()}'
+            : drafts > 0
+                ? '$drafts ${'onay bekliyor'.tr()}'
+                : '$scheduled ${'zamanlandı'.tr()}';
+        return Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: GestureDetector(
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => TeacherPendingHomeworksScreen(
+                classId: cls.id, className: cls.name),
+            )),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                    color: const Color(0xFFEF4444).withValues(alpha: 0.35)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.pending_actions_rounded,
+                      size: 13, color: Color(0xFFEF4444)),
+                  const SizedBox(width: 5),
+                  Text(label,
+                      style: GoogleFonts.poppins(
+                        fontSize: 10.5, fontWeight: FontWeight.w800,
+                        color: const Color(0xFFDC2626),
+                      )),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _StudentCountBadge extends StatelessWidget {
   final String classId;
   const _StudentCountBadge({required this.classId});

@@ -39,6 +39,7 @@ import 'test_page.dart';
 import 'green_colony_screen.dart';
 import 'ai_coach_screen.dart';
 import 'student_homeworks_screen.dart';
+import 'student_materials_screen.dart';
 import 'history_screen.dart';
 import 'qualsar_arena_screen.dart';
 import 'bilgi_ligi_screen.dart';
@@ -3454,6 +3455,30 @@ class _LibraryLandingState extends State<LibraryLanding> {
                     ),
                   ),
                 ),
+              ],
+            ),
+            SizedBox(height: 12),
+            // ── 6. satır: Sınıf Kaynaklarım (öğretmen paylaşımları) ──
+            Row(
+              children: [
+                Expanded(
+                  child: _LandingCard(
+                    icon: Icons.folder_shared_rounded,
+                    title: 'Sınıf Kaynaklarım'.tr(),
+                    color: Color(0xFF0EA5E9),
+                    customBg: _cardBgs['materials'],
+                    customTextColor: _cardInks['materials'],
+                    onColorAccept: (c) =>
+                        _applyLibraryColor('materials', c),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const StudentMaterialsScreen(),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 10),
+                Expanded(child: SizedBox()),
               ],
             ),
           ],

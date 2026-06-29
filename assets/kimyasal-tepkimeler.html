@@ -1,7 +1,7 @@
-﻿﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="tr">
 <head>
-<script>/*RAF_THROTTLE_SHIM*/(function(){if(window.__rafShim)return;window.__rafShim=1;var raf=window.requestAnimationFrame.bind(window);var FT=1000/30,lastMap=new WeakMap();window.requestAnimationFrame=function(cb){return raf(function(ts){if(document.hidden){window.requestAnimationFrame(cb);return;}var l=lastMap.get(cb)||0;if(ts-l<FT){window.requestAnimationFrame(cb);return;}lastMap.set(cb,ts);cb(ts);});};})();</script>
+<script>/*RAF_THROTTLE_SHIM_V2*/(function(){if(window.__rafShim>=2)return;window.__rafShim=2;var ACTIVE_FPS=24,IDLE_FPS=5,ACTIVE_MS=1500;var raf=window.requestAnimationFrame.bind(window);var lastMap=new WeakMap();var lastInput=0;try{lastInput=performance.now();}catch(e){}function active(){return (performance.now()-lastInput)<ACTIVE_MS;}function bump(){lastInput=performance.now();}['pointerdown','pointermove','pointerup','touchstart','touchmove','wheel','keydown','mousedown','mousemove'].forEach(function(ev){try{window.addEventListener(ev,bump,{passive:true,capture:true});}catch(e){}});window.__appResume=function(){bump();};window.requestAnimationFrame=function(cb){return raf(function(ts){if(document.hidden||window.__appPaused){window.requestAnimationFrame(cb);return;}var fps=active()?ACTIVE_FPS:IDLE_FPS;var FT=1000/fps;var l=lastMap.get(cb)||0;if(ts-l<FT){window.requestAnimationFrame(cb);return;}lastMap.set(cb,ts);cb(ts);});};})();</script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>⚗️ Kimyasal Tepkimeler ve Tepkime Hızı</title>
@@ -1820,7 +1820,7 @@ function init() {
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(W, H);
   window.scene = scene; window.camera = camera; window.renderer = renderer;
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -1852,8 +1852,8 @@ function init() {
   const keyLight = new THREE.DirectionalLight(0xfff4e6, 0.6);
   keyLight.position.set(8, 14, 10);
   keyLight.castShadow = true;
-  keyLight.shadow.mapSize.width = 2048;
-  keyLight.shadow.mapSize.height = 2048;
+  keyLight.shadow.mapSize.width = 512;
+  keyLight.shadow.mapSize.height = 512;
   keyLight.shadow.camera.near = 0.5;
   keyLight.shadow.camera.far = 60;
   keyLight.shadow.camera.left = -20;
@@ -2763,7 +2763,7 @@ function setupVectorLighting() {
   const key = new THREE.DirectionalLight(0xffffff, 1.15);
   key.position.set(7, 12, 8);
   key.castShadow = true;
-  key.shadow.mapSize.width = 2048; key.shadow.mapSize.height = 2048;
+  key.shadow.mapSize.width = 512; key.shadow.mapSize.height = 512;
   key.shadow.camera.near = 0.5; key.shadow.camera.far = 60;
   key.shadow.camera.left = -16; key.shadow.camera.right = 16;
   key.shadow.camera.top = 16; key.shadow.camera.bottom = -16;
@@ -4351,7 +4351,7 @@ function attachEvents() {
     try {
       return await html2canvas(document.body, {
         backgroundColor: document.body.classList.contains('light-mode') ? '#f0f4f9' : '#0a0e1a',
-        scale: Math.min(window.devicePixelRatio || 1, 2),
+        scale: Math.min(window.devicePixelRatio || 1, 1.5),
         logging: false, useCORS: true,
         ignoreElements: (el) => el.classList && el.classList.contains('share-overlay') || el.id === 'gestureToast' || el.id === 'loading',
         onclone: (doc) => {
@@ -4683,7 +4683,7 @@ function positionPaletteUnder(){
     if(!cardEl||typeof html2canvas!=='function') return;
     if(window._showGestureToast) window._showGestureToast('📸 Hazırlanıyor...');
     try{
-      _cardCanvas=await html2canvas(cardEl,{ backgroundColor:document.body.classList.contains('light-mode')?'#f3f6fb':'#0a0e1a', scale:Math.min(window.devicePixelRatio||1,2), logging:false, useCORS:true });
+      _cardCanvas=await html2canvas(cardEl,{ backgroundColor:document.body.classList.contains('light-mode')?'#f3f6fb':'#0a0e1a', scale:Math.min(window.devicePixelRatio||1,1.5), logging:false, useCORS:true });
       if(window.FlutterShare&&typeof window.FlutterShare.postMessage==='function'){ try{ window.FlutterShare.postMessage(JSON.stringify({ image:_cardCanvas.toDataURL('image/png'), text:_text(), file:_fname() })); return; }catch(e){} }
       _cardCanvas.toBlob(async(blob)=>{ if(!blob) return; let file=null; try{ file=new File([blob],_fname(),{type:'image/png'}); }catch(e){}
         if(file&&navigator.canShare&&navigator.canShare({files:[file]})){ try{ await navigator.share({files:[file],title:'Qualsar 3D',text:_text()}); return; }catch(e){ if(e.name==='AbortError') return; } }

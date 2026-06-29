@@ -185,8 +185,9 @@ class _StudyBuddyScreenState extends State<StudyBuddyScreen> {
                             key: ValueKey('buddy_${_current.id}'),
                             src: _modelSrcFor(_current),
                             alt: localeService.tr(_current.nameKey),
-                            autoRotate: true,
-                            rotationPerSecond: '30deg',
+                            // Isı/pil: otomatik dönüş kapalı → statikken render
+                            // durur (render-on-demand). Sürükleyerek döndürülür.
+                            autoRotate: false,
                             cameraControls: true,
                             disableZoom: false,
                             disablePan: true,

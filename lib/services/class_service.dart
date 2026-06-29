@@ -19,6 +19,7 @@ import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 
 import 'analytics.dart';
@@ -1068,5 +1069,147 @@ class ClassService {
               m['_id'] = d.id;
               return m;
             }).toList());
+  }
+
+  // ── DUYURU YAYINLA (öğretmen → sınıf) ────────────────────────────────
+  /// Öğretmen bir sınıfa duyuru gönderir:
+  ///   1) Her öğrenciye 'class_announcement' bildirimi (push function yakalar)
+  ///   2) Sınıf içerik akışına 'announcement' kaydı (kalıcı görünür)
+  ///   3) Sınıf statusMessage'ı güncellenir (ebeveyn "Öğretmenden duyuru" şeridi)
+  /// Dönüş: bildirim gönderilen öğrenci sayısı (hata → -1).
+  static Future<int> publishAnnouncement({
+    required String classId,
+    required String className,
+    required String subject,
+    required String message,
+  }) async {
+    final myUid = _myUid;
+    if (myUid == null) return -1;
+    final text = message.trim();
+    if (text.isEmpty) return -1;
+    try {
+      final me = await _fs.collection('users').doc(myUid).get();
+      final teacherName = (me.data()?['displayName'] ??
+          me.data()?['username'] ?? 'Öğretmen').toString();
+
+      // Öğrenci uid'leri
+      final studSnap = await _fs.collection('classes').doc(classId)
+          .collection('students').get();
+
+      // Bildirimleri batch ile yaz (500 limitine takılmamak için parça parça).
+      int sent = 0;
+      var batch = _fs.batch();
+      int ops = 0;
+      for (final d in studSnap.docs) {
+        final ref = _fs.collection('notifications').doc(d.id)
+            .collection('items').doc();
+        batch.set(ref, {
+          'type': 'class_announcement',
+          'classId': classId,
+          'className': className,
+          'message': text,
+          'fromDisplayName': teacherName,
+          'when': FieldValue.serverTimestamp(),
+          'read': false,
+        });
+        sent++;
+        if (++ops >= 400) {
+          await batch.commit();
+          batch = _fs.batch();
+          ops = 0;
+        }
+      }
+      if (ops > 0) await batch.commit();
+
+      // İçerik akışına kalıcı duyuru kaydı.
+      await _fs.collection('classes').doc(classId)
+          .collection('content').doc().set({
+        'teacherUid': myUid,
+        'type': 'announcement',
+        'title': 'Duyuru',
+        'topic': '',
+        'subject': subject,
+        'payload': {'message': text, 'teacherName': teacherName},
+        'sharedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Ebeveyn şeridi için son duyuruyu sınıf dokümanına yansıt.
+      try {
+        await _fs.collection('classes').doc(classId).set({
+          'statusMessage': text,
+          'statusUpdatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } catch (_) {}
+
+      return sent;
+    } catch (e) {
+      debugPrint('[ClassService] publishAnnouncement fail: $e');
+      return -1;
+    }
+  }
+
+  // ── KAYNAK/MATERYAL PAYLAŞ (öğretmen → sınıf) ────────────────────────
+  /// Yapay zeka dışı hazır kaynak paylaşımı: web linki, PDF (yüklü dosya ya
+  /// da link) veya ders notu. Sınıf içerik akışına 'material' tipinde yazılır.
+  ///   kind: 'link' | 'pdf' | 'note'
+  static Future<bool> shareMaterial({
+    required String classId,
+    required String subject,
+    required String kind,
+    required String title,
+    String url = '',
+    String note = '',
+    String fileName = '',
+  }) async {
+    final myUid = _myUid;
+    if (myUid == null) return false;
+    if (title.trim().isEmpty) return false;
+    try {
+      await _fs.collection('classes').doc(classId)
+          .collection('content').doc().set({
+        'teacherUid': myUid,
+        'type': 'material',
+        'title': title.trim(),
+        'topic': kind,
+        'subject': subject,
+        'payload': {
+          'kind': kind,
+          if (url.trim().isNotEmpty) 'url': url.trim(),
+          if (note.trim().isNotEmpty) 'note': note.trim(),
+          if (fileName.trim().isNotEmpty) 'fileName': fileName.trim(),
+        },
+        'sharedAt': FieldValue.serverTimestamp(),
+      });
+      return true;
+    } catch (e) {
+      debugPrint('[ClassService] shareMaterial fail: $e');
+      return false;
+    }
+  }
+
+  /// Öğretmenin seçtiği PDF dosyasını Firebase Storage'a yükler ve indirme
+  /// URL'ini döndürür. Yol: class_materials/{classId}/{ts}_{ad}.pdf
+  /// Yalnızca sınıfın öğretmeni yazabilir (storage.rules), max 25 MB.
+  static Future<String?> uploadClassPdf({
+    required String classId,
+    required String fileName,
+    required Uint8List bytes,
+  }) async {
+    final myUid = _myUid;
+    if (myUid == null) return null;
+    try {
+      final safe = fileName.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      final ref = FirebaseStorage.instance
+          .ref('class_materials/$classId/${ts}_$safe');
+      final task = await ref.putData(
+        bytes,
+        SettableMetadata(contentType: 'application/pdf'),
+      );
+      return await task.ref.getDownloadURL();
+    } catch (e) {
+      debugPrint('[ClassService] uploadClassPdf fail: $e');
+      return null;
+    }
   }
 }

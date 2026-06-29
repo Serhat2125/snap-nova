@@ -3956,6 +3956,89 @@ $lang
     return filtered.isNotEmpty ? filtered : mapped;
   }
 
+  /// Tek bir ödev sorusunu öğretmenin isteğine göre revize eder
+  /// (ör. "kolaylaştır", "zorlaştır", "çoktan seçmeliye çevir").
+  /// Aynı şemada tek JSON nesnesi döner; başarısızsa null.
+  static Future<Map<String, dynamic>?> reviseHomeworkQuestion({
+    required Map<String, dynamic> question,
+    required String instruction,
+    String subject = '',
+    String topic = '',
+    String level = '',
+    String langCode = 'tr',
+  }) async {
+    _log('reviseHomeworkQuestion() — $instruction');
+    final lang = _languageDirective(langCode);
+    final qJson = jsonEncode(question);
+    final ctx = [
+      if (subject.isNotEmpty) 'Ders: $subject.',
+      if (topic.isNotEmpty) 'Konu: $topic.',
+      if (level.isNotEmpty) 'Seviye: $level.',
+    ].join(' ');
+    final sys = '''
+[SYSTEM — TEK SORU REVİZYONU]
+Sen bir ödev sorusu editörüsün. Verilen soruyu öğretmenin isteğine göre revize et.
+
+[MEVCUT SORU (JSON)]
+$qJson
+
+[ÖĞRETMENİN İSTEĞİ]
+$instruction
+
+[KURALLAR]
+- Çıktı SADECE tek bir JSON nesnesi (aynı şema: q, type, varsa choices, answer).
+- "mc" → 4 şık ["A) ...","B) ...","C) ...","D) ..."], "answer": harf (ör. "A").
+- "tf" → "answer": "true" veya "false".
+- "fill" → q içinde ___ boşluk + "answer": doğru kelime/sayı.
+- "open" → "answer": kısa örnek cevap.
+- İstek tip değiştirmeyi içeriyorsa (ör. çoktan seçmeliye çevir) "type"ı ona uyarla.
+- Konunun doğruluğu korunur. LaTeX, markdown, # başlık YASAK.
+$ctx
+
+[ÇIKTI ŞEMASI]
+{"q": "...", "type": "mc", "choices": ["A) ...","B) ...","C) ...","D) ..."], "answer": "A"}
+
+$lang
+''';
+    String raw = '';
+    if (AiProviderService.kEnabled) {
+      try {
+        raw = await AiProviderService.askTask(
+          AiTask.examGen,
+          isPremium: AiQuotaService.instance.isPremium,
+          prompt: 'Soruyu revize et.',
+          system: sys,
+          maxTokens: 700,
+        );
+      } catch (_) {}
+    }
+    if (raw.trim().isEmpty) {
+      try {
+        raw = await _callGemini(
+          systemPrompt: sys,
+          userMessage: 'Soruyu revize et.',
+          maxTokens: 700,
+          temperature: 0.5,
+          timeout: const Duration(seconds: 30),
+        );
+      } catch (e) {
+        debugPrint('[reviseQuestion] fail: $e');
+      }
+    }
+    try {
+      final s = raw.indexOf('{');
+      final e = raw.lastIndexOf('}');
+      if (s >= 0 && e > s) {
+        final parsed = jsonDecode(raw.substring(s, e + 1));
+        if (parsed is Map) {
+          final m = Map<String, dynamic>.from(parsed);
+          if ((m['q'] ?? '').toString().trim().isNotEmpty) return m;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
   // ── EBEVEYN AI İÇGÖRÜLERİ ─────────────────────────────────────────────
   /// Çocuğun haftalık verilerini analiz edip ebeveyne özet bir Türkçe
   /// içgörü cümlesi döner. 2-3 cümle.
@@ -4022,6 +4105,90 @@ $lang
           '${(subjectMinutes.values.fold<int>(0, (a, b) => a + b) / 60).toStringAsFixed(1)} saat çalıştı. '
           'En çok zaman ayırdığı dersi pekiştirmeye devam etmesi önerilir.';
     }
+  }
+
+  /// Ebeveyn paneli için uygulanabilir HAFTALIK ÇALIŞMA PLANI üretir.
+  /// Çıktı: madde madde, her satır "Ders | aksiyon" biçiminde 3-5 öneri.
+  /// Zayıf dersleri (düşük başarı) önceliklendirir. Parse kolaylığı için
+  /// her satır `•` ile başlar; UI satırları liste olarak gösterir.
+  static Future<List<String>> generateParentStudyPlan({
+    required String childName,
+    required Map<String, int> subjectMinutes,
+    required Map<String, double> subjectSuccess,
+    List<String> weakSubjects = const [],
+    String langCode = 'tr',
+  }) async {
+    _log('generateParentStudyPlan() — $childName');
+    final lang = _languageDirective(langCode);
+    final subjLines = subjectMinutes.entries.map((e) {
+      final h = (e.value / 60).toStringAsFixed(1);
+      final s = subjectSuccess[e.key]?.toStringAsFixed(0) ?? '-';
+      return '- ${e.key}: $h sa, başarı %$s';
+    }).join('\n');
+    final weakLine = weakSubjects.isEmpty
+        ? 'Belirgin zayıf ders yok.'
+        : 'Zayıf dersler: ${weakSubjects.join(", ")}';
+    final sys = '''
+[SYSTEM — HAFTALIK ÇALIŞMA PLANI]
+Sen bir eğitim koçusun. Veliye, çocuğunun ÖNÜMÜZDEKİ HAFTA için
+uygulanabilir, somut bir çalışma planı çıkar.
+
+Çocuk: $childName
+Bu haftanın verisi:
+$subjLines
+$weakLine
+
+[KURALLAR]
+- 3-5 madde üret. Her madde TEK satır.
+- Her satır şu biçimde: • Ders: yapılacak somut aksiyon (kısa).
+  Örn: "• Matematik: Türev konusundan günde 10 soru çöz."
+- Zayıf dersleri öne al; güçlü dersi koru/ileri taşı.
+- Gerçekçi, ölçülebilir aksiyonlar (gün/soru/dakika içersin).
+- Markdown başlık YOK, sadece • ile başlayan satırlar.
+
+$lang
+''';
+    String raw = '';
+    if (AiProviderService.kEnabled) {
+      try {
+        raw = await AiProviderService.askTask(
+          AiTask.cheap,
+          isPremium: AiQuotaService.instance.isPremium,
+          prompt: 'Planı yaz.',
+          system: sys,
+          maxTokens: 360,
+        );
+      } catch (_) {}
+    }
+    if (raw.trim().isEmpty) {
+      try {
+        raw = await _callGemini(
+          systemPrompt: sys,
+          userMessage: 'Planı yaz.',
+          maxTokens: 360,
+          temperature: 0.5,
+          timeout: const Duration(seconds: 20),
+        );
+      } catch (e) {
+        debugPrint('[parentStudyPlan] fail: $e');
+      }
+    }
+    final items = raw
+        .split('\n')
+        .map((l) => l.replaceFirst(RegExp(r'^[\s•\-\*\d\.\)]+'), '').trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
+    if (items.isNotEmpty) return items.take(5).toList();
+    // Fallback: zayıf derslerden basit plan.
+    if (weakSubjects.isNotEmpty) {
+      return weakSubjects
+          .take(3)
+          .map((s) => '$s: Bu hafta günde 10 soruluk ek pratik yap.')
+          .toList();
+    }
+    return const [
+      'Mevcut çalışma temposunu koru; her gün en az bir konu özeti çıkar.',
+    ];
   }
 
   /// Verilen dil kodu için kısa LLM directive.

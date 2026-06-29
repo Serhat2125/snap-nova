@@ -121,6 +121,7 @@ class _NotificationCard extends StatelessWidget {
       case 'homework_reminder':   return Icons.alarm_rounded;
       case 'streak_milestone':    return Icons.emoji_events_rounded;
       case 'class_invite':        return Icons.group_add_rounded;
+      case 'class_announcement':  return Icons.campaign_rounded;
       default:                    return Icons.notifications_rounded;
     }
   }
@@ -132,6 +133,7 @@ class _NotificationCard extends StatelessWidget {
       case 'homework_reminder':   return const Color(0xFFEF4444);
       case 'streak_milestone':    return const Color(0xFFFBBF24);
       case 'class_invite':        return const Color(0xFF7C3AED);
+      case 'class_announcement':  return const Color(0xFFF59E0B);
       default:                    return const Color(0xFF06B6D4);
     }
   }
@@ -148,6 +150,8 @@ class _NotificationCard extends StatelessWidget {
         return 'Ödül kazandın 🎉'.tr();
       case 'class_invite':
         return '${'Sınıf daveti'.tr()}: ${data['className'] ?? ''}';
+      case 'class_announcement':
+        return '${'Duyuru'.tr()}: ${data['className'] ?? ''}';
       default:
         return data['fromDisplayName']?.toString() ?? 'Bildirim'.tr();
     }
@@ -167,6 +171,8 @@ class _NotificationCard extends StatelessWidget {
       case 'class_invite':
         return '${data['fromDisplayName'] ?? 'Öğretmen'} seni '
             '${data['subject'] ?? ''} dersine davet etti. Katılmak için dokun.';
+      case 'class_announcement':
+        return (data['message'] ?? '').toString();
       default:
         return '';
     }

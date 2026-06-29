@@ -3,7 +3,7 @@ description: "A new Flutter project."
 
 publish_to: 'none'
 
-version: 1.0.1+29
+version: 1.0.2+30
 
 environment:
   sdk: '>=3.2.3 <4.0.0'
@@ -62,11 +62,13 @@ dependencies:
   firebase_app_check: ^0.3.2
   cloud_firestore: ^5.4.0
   cloud_functions: ^5.1.4
+  firebase_storage: ^12.3.2
   google_sign_in: ^6.2.1
   sign_in_with_apple: ^6.1.4
 
   # Media & Links
   url_launcher: ^6.2.0
+  file_picker: ^8.1.4
   # App versiyonu (Bilgi/About ekranı için)
   package_info_plus: ^8.0.0
 

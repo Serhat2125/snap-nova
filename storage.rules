@@ -1,0 +1,27 @@
+rules_version = '2';
+
+// Firebase Storage güvenlik kuralları.
+//   class_materials/{classId}/...  → öğretmen yükler, giriş yapan herkes okur.
+//     • Okuma: kimliği doğrulanmış kullanıcı (öğrenci materyali açabilsin).
+//     • Yazma: yalnızca o sınıfın öğretmeni; sadece PDF; en fazla 25 MB.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Sınıf materyalleri (öğretmen → sınıf paylaşımı)
+    match /class_materials/{classId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && firestore.exists(/databases/(default)/documents/classes/$(classId))
+        && firestore.get(/databases/(default)/documents/classes/$(classId)).data.teacherUid == request.auth.uid
+        && request.resource.size < 25 * 1024 * 1024
+        && request.resource.contentType.matches('application/pdf');
+      allow delete: if request.auth != null
+        && firestore.get(/databases/(default)/documents/classes/$(classId)).data.teacherUid == request.auth.uid;
+    }
+
+    // Diğer her şey kapalı.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -29,6 +29,7 @@ import 'notifications_inbox_screen.dart';
 import 'onboarding_screen.dart';
 import 'parent_child_homeworks_screen.dart';
 import 'parent_onboarding_screen.dart';
+import 'parent_weekly_report_screen.dart';
 
 class ParentDashboardScreen extends StatefulWidget {
   const ParentDashboardScreen({super.key});
@@ -67,8 +68,14 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       _baseStats = null;
       _loadingChildData = true;
     });
+    await _loadChildData(c);
+  }
+
+  /// Seçili çocuğun verisini (yeniden) yükler. _selectChild ile pull-to-refresh
+  /// bunu paylaşır; refresh sırasında spinner'a sıfırlamadan sessiz tazeleme.
+  Future<void> _loadChildData(LinkedChild c) async {
     if (!c.isActive) {
-      setState(() => _loadingChildData = false);
+      if (mounted) setState(() => _loadingChildData = false);
       return;
     }
     try {
@@ -89,6 +96,13 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       if (!mounted) return;
       setState(() => _loadingChildData = false);
     }
+  }
+
+  /// Pull-to-refresh: seçili çocuğun verisini, içeriği boşaltmadan tazeler.
+  Future<void> _refresh() async {
+    final c = _selectedChild;
+    if (c == null || !c.isActive) return;
+    await _loadChildData(c);
   }
 
   @override
@@ -165,8 +179,12 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 _selectChild(children.first);
               });
             }
-            return CustomScrollView(
-              slivers: [
+            return RefreshIndicator(
+              color: const Color(0xFF10B981),
+              onRefresh: _refresh,
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
                 // Çocuk seçici şerit
                 SliverToBoxAdapter(
                   child: SizedBox(
@@ -257,6 +275,13 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                           baseStats: _baseStats ?? const {},
                         ),
                         const SizedBox(height: 12),
+                        UpcomingHomeworksCard(childUid: _selectedChild!.uid),
+                        const SizedBox(height: 12),
+                        ParentGoalCard(
+                          childUid: _selectedChild!.uid,
+                          last7Days: _activity,
+                        ),
+                        const SizedBox(height: 12),
                         WeeklyStudyChart(last7Days: _activity),
                         const SizedBox(height: 12),
                         SubjectSuccessChart(last7Days: _activity),
@@ -270,10 +295,19 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                               0, (s, a) => s + a.blankAnswers),
                         ),
                         const SizedBox(height: 12),
+                        SubjectPerformanceTable(last7Days: _activity),
+                        const SizedBox(height: 12),
                         PhotoQuestionCounter(
                           totalPhotoQuestions: _activity.fold<int>(
                               0, (s, a) => s + a.photoQuestionsSolved),
                           bySubject: _aggregatePhotoBySubject(_activity),
+                        ),
+                        const SizedBox(height: 12),
+                        StudyPlanCard(
+                          childName: _selectedChild!.displayName.isEmpty
+                              ? '@${_selectedChild!.username}'
+                              : _selectedChild!.displayName,
+                          last7Days: _activity,
                         ),
                         const SizedBox(height: 12),
                         HorizontalSummariesScroll(summaries: _summaries),
@@ -284,10 +318,13 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                               : _selectedChild!.displayName,
                           last7Days: _activity,
                         ),
+                        const SizedBox(height: 12),
+                        ParentalControlsCard(childUid: _selectedChild!.uid),
                       ]),
                     ),
                   ),
-              ],
+                ],
+              ),
             );
           },
         ),
@@ -392,6 +429,29 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             ),
             // Seçili çocuğa özel aksiyonlar (bağlı ve aktifse)
             if (_selectedChild != null && _selectedChild!.isActive) ...[
+              ListTile(
+                leading: const Icon(Icons.picture_as_pdf_rounded,
+                    color: Color(0xFF10B981)),
+                title: Text('Haftalık rapor (PDF)'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 14, fontWeight: FontWeight.w700, color: ink)),
+                subtitle: Text('Yazdır veya e-posta ile paylaş'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 11, color: AppPalette.textSecondary(context))),
+                onTap: () {
+                  final c = _selectedChild!;
+                  Navigator.pop(ctx);
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => ParentWeeklyReportScreen(
+                      childName: c.displayName.isEmpty
+                          ? '@${c.username}'
+                          : c.displayName,
+                      activity: _activity,
+                      baseStats: _baseStats ?? const {},
+                    ),
+                  ));
+                },
+              ),
               ListTile(
                 leading: const Icon(Icons.assignment_turned_in_rounded,
                     color: Color(0xFF0EA5E9)),

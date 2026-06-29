@@ -20,7 +20,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../models/education_models.dart';
+import '../services/gemini_service.dart';
 import '../services/homework_service.dart';
+import '../services/locale_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
 
@@ -59,7 +61,10 @@ class TeacherHomeworkPreviewScreen extends StatefulWidget {
 class _TeacherHomeworkPreviewScreenState
     extends State<TeacherHomeworkPreviewScreen> {
   late final List<Map<String, dynamic>> _questions;
+  late DateTime _dueAt;
+  DateTime? _publishAt;
   bool _sending = false;
+  final Set<int> _revising = {}; // AI ile revize edilen soru indeksleri
 
   @override
   void initState() {
@@ -68,9 +73,22 @@ class _TeacherHomeworkPreviewScreenState
     _questions = widget.questions
         .map((q) => Map<String, dynamic>.from(q))
         .toList();
+    _dueAt = widget.dueAt;
+    _publishAt = widget.publishAt;
   }
 
+  bool get _scheduled =>
+      _publishAt != null && _publishAt!.isAfter(DateTime.now());
+
   Future<void> _send() async {
+    await _submit(draft: false);
+  }
+
+  Future<void> _saveDraft() async {
+    await _submit(draft: true);
+  }
+
+  Future<void> _submit({required bool draft}) async {
     if (_sending) return;
     if (_questions.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -88,25 +106,153 @@ class _TeacherHomeworkPreviewScreenState
       level: widget.level,
       types: widget.types,
       questionCount: _questions.length,
-      dueAt: widget.dueAt,
-      publishAt: widget.publishAt,
+      dueAt: _dueAt,
+      publishAt: _publishAt,
       questions: _questions,
+      draft: draft,
     );
     if (!mounted) return;
     setState(() => _sending = false);
     if (hwId != null) {
-      Navigator.of(context).pop(true); // gönderildi
+      Navigator.of(context).pop(true);
+      final msg = draft
+          ? '📝 Taslağa kaydedildi — Bekleyenler\'den yayınlayabilirsin.'.tr()
+          : _scheduled
+              ? '🕒 Ödev zamanlandı; yayın anında öğrencilere bildirilecek.'.tr()
+              : '✅ Ödev sınıfa gönderildi (${_questions.length} soru).'.tr();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('✅ Ödev sınıfa gönderildi (${_questions.length} soru).'
-            .tr()),
+        content: Text(msg),
         behavior: SnackBarBehavior.floating,
       ));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Gönderilemedi. Tekrar dene.'.tr()),
+        content: Text('Kaydedilemedi. Tekrar dene.'.tr()),
         behavior: SnackBarBehavior.floating,
       ));
     }
+  }
+
+  // ── Tarih / saat seçiciler ──────────────────────────────────────────
+  Future<void> _pickDue() async {
+    final d = await showDatePicker(
+      context: context,
+      initialDate: _dueAt,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 90)),
+    );
+    if (d == null || !mounted) return;
+    final t = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: _dueAt.hour, minute: _dueAt.minute),
+    );
+    if (!mounted) return;
+    setState(() => _dueAt = DateTime(
+        d.year, d.month, d.day, t?.hour ?? _dueAt.hour, t?.minute ?? _dueAt.minute));
+  }
+
+  Future<void> _pickPublish() async {
+    final base = _publishAt ?? DateTime.now().add(const Duration(hours: 1));
+    final d = await showDatePicker(
+      context: context,
+      initialDate: base,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 90)),
+    );
+    if (d == null || !mounted) return;
+    final t = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: base.hour, minute: base.minute),
+    );
+    if (!mounted) return;
+    setState(() => _publishAt = DateTime(
+        d.year, d.month, d.day, t?.hour ?? base.hour, t?.minute ?? base.minute));
+  }
+
+  String _fmtDate(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')} '
+      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+
+  /// Soru başına AI revizyonu — menüden eylem seç, Gemini soruyu yeniden yazar.
+  Future<void> _reviseQuestion(int index) async {
+    if (_revising.contains(index)) return;
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppPalette.card(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40, height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                color: AppPalette.border(ctx),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.auto_awesome_rounded,
+                      size: 18, color: _kBrand),
+                  const SizedBox(width: 8),
+                  Text('AI ile revize et'.tr(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 14, fontWeight: FontWeight.w800,
+                        color: AppPalette.textPrimary(ctx))),
+                ],
+              ),
+            ),
+            _reviseTile(ctx, '😀', 'Kolaylaştır'.tr(),
+                'Bu soruyu daha kolay yap.'),
+            _reviseTile(ctx, '🔥', 'Zorlaştır'.tr(),
+                'Bu soruyu daha zor ve düşündürücü yap.'),
+            _reviseTile(ctx, '🔘', 'Çoktan seçmeliye çevir'.tr(),
+                'Bu soruyu 4 şıklı çoktan seçmeli (mc) soruya çevir.'),
+            _reviseTile(ctx, '🔄', 'Yeniden yaz'.tr(),
+                'Aynı konuda farklı bir soru olacak şekilde yeniden yaz.'),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (action == null || !mounted) return;
+    setState(() => _revising.add(index));
+    final q = Map<String, dynamic>.from(_questions[index]);
+    final revised = await GeminiService.reviseHomeworkQuestion(
+      question: q,
+      instruction: action,
+      subject: widget.subject,
+      topic: widget.topic,
+      level: widget.level,
+      langCode: LocaleService.global?.localeCode ?? 'tr',
+    );
+    if (!mounted) return;
+    setState(() {
+      _revising.remove(index);
+      if (revised != null) _questions[index] = revised;
+    });
+    if (revised == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Revize edilemedi, tekrar dene.'.tr()),
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+  }
+
+  Widget _reviseTile(BuildContext c, String emoji, String title, String instr) {
+    return ListTile(
+      leading: Text(emoji, style: const TextStyle(fontSize: 20)),
+      title: Text(title,
+          style: GoogleFonts.poppins(
+            fontSize: 13.5, fontWeight: FontWeight.w700,
+            color: AppPalette.textPrimary(c))),
+      onTap: () => Navigator.pop(c, instr),
+    );
   }
 
   Future<void> _editQuestion(int? index) async {
@@ -199,45 +345,152 @@ class _TeacherHomeworkPreviewScreenState
                 },
               ),
             ),
-            // Gönder
+            // Zamanlama + aksiyonlar
             SafeArea(
               top: false,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _kBrand,
-                      padding: const EdgeInsets.symmetric(vertical: 17),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Teslim + yayın zamanı satırı
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _scheduleChip(
+                            context,
+                            Icons.flag_rounded,
+                            'Teslim'.tr(),
+                            _fmtDate(_dueAt),
+                            _sending ? null : _pickDue,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _scheduleChip(
+                            context,
+                            Icons.schedule_rounded,
+                            'Yayın'.tr(),
+                            _publishAt == null
+                                ? 'Hemen'.tr()
+                                : _fmtDate(_publishAt!),
+                            _sending ? null : _pickPublish,
+                            onClear: _publishAt == null || _sending
+                                ? null
+                                : () => setState(() => _publishAt = null),
+                          ),
+                        ),
+                      ],
                     ),
-                    onPressed: _sending ? null : _send,
-                    icon: _sending
-                        ? const SizedBox(
-                            width: 18, height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.2, color: Colors.white),
-                          )
-                        : const Icon(Icons.send_rounded,
-                            size: 20, color: Colors.white),
-                    label: Text(
-                      _sending ? 'Gönderiliyor...'.tr() : 'Sınıfa Gönder'.tr(),
-                      maxLines: 1,
-                      overflow: TextOverflow.visible,
-                      softWrap: false,
-                      style: GoogleFonts.poppins(
-                        fontSize: 16.5, fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                      ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        // Taslağa kaydet
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: _kBrand,
+                              padding: const EdgeInsets.symmetric(vertical: 15),
+                              side: const BorderSide(color: _kBrand, width: 1.4),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            onPressed: _sending ? null : _saveDraft,
+                            icon: const Icon(Icons.bookmark_add_rounded, size: 19),
+                            label: Text('Taslağa Kaydet'.tr(),
+                                maxLines: 1, overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13.5, fontWeight: FontWeight.w800,
+                                )),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        // Gönder / Zamanla
+                        Expanded(
+                          child: FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: _kBrand,
+                              padding: const EdgeInsets.symmetric(vertical: 15),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            onPressed: _sending ? null : _send,
+                            icon: _sending
+                                ? const SizedBox(
+                                    width: 18, height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.2, color: Colors.white),
+                                  )
+                                : Icon(
+                                    _scheduled
+                                        ? Icons.schedule_send_rounded
+                                        : Icons.send_rounded,
+                                    size: 19, color: Colors.white),
+                            label: Text(
+                              _scheduled ? 'Zamanla'.tr() : 'Gönder'.tr(),
+                              maxLines: 1, overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.poppins(
+                                fontSize: 14, fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
+                  ],
                 ),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _scheduleChip(BuildContext c, IconData icon, String label,
+      String value, VoidCallback? onTap, {VoidCallback? onClear}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+          decoration: BoxDecoration(
+            color: AppPalette.card(c),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppPalette.border(c)),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 16, color: _kBrand),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label,
+                        style: GoogleFonts.poppins(
+                          fontSize: 9.5, color: AppPalette.textSecondary(c))),
+                    Text(value,
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12, fontWeight: FontWeight.w800,
+                          color: AppPalette.textPrimary(c))),
+                  ],
+                ),
+              ),
+              if (onClear != null)
+                GestureDetector(
+                  onTap: onClear,
+                  child: Icon(Icons.close_rounded,
+                      size: 15, color: AppPalette.textSecondary(c)),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -309,6 +562,23 @@ class _TeacherHomeworkPreviewScreenState
                     )),
               ),
               const Spacer(),
+              // AI ile revize — soruyu kolaylaştır/zorlaştır/tip değiştir.
+              if (_revising.contains(i))
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8),
+                  child: SizedBox(
+                    width: 16, height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              else
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.auto_awesome_rounded, size: 17),
+                  color: _kBrand,
+                  tooltip: 'AI ile revize et'.tr(),
+                  onPressed: () => _reviseQuestion(i),
+                ),
               // Kalem + "Düzenle" — öğretmen her AI sorusunu değiştirebilir.
               TextButton.icon(
                 onPressed: () => _editQuestion(i),

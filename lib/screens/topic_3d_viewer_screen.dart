@@ -346,8 +346,9 @@ class _Topic3DViewerScreenState extends State<Topic3DViewerScreen> {
       alt: m.name,
       ar: true,
       arModes: const ['scene-viewer', 'webxr', 'quick-look'],
-      autoRotate: !_quizMode && _selected == null,
-      rotationPerSecond: '16deg',
+      // Isı/pil: otomatik dönüş kapalı → model_viewer statikken render'ı
+      // durdurur (render-on-demand). Kullanıcı sürükleyerek döndürür.
+      autoRotate: false,
       cameraControls: true,
       autoPlay: _animate && m.animationName != null,
       cameraTarget: _selected?.hotspotPosition,
@@ -392,7 +393,7 @@ class _Topic3DViewerScreenState extends State<Topic3DViewerScreen> {
                       src: compare.glbUrl,
                       alt: compare.name,
                       ar: false,
-                      autoRotate: true,
+                      autoRotate: false,
                       cameraControls: true,
                       backgroundColor: const Color(0xFFEDF3EF),
                     ),
