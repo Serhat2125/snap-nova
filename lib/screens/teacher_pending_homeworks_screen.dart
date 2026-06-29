@@ -14,6 +14,7 @@ import '../models/education_models.dart';
 import '../services/homework_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
+import 'teacher_homework_preview_screen.dart';
 
 const _kBrand = Color(0xFF7C3AED);
 
@@ -129,6 +130,25 @@ class PendingHomeworkCardState extends State<PendingHomeworkCard> {
               : 'Yayınlanamadı, tekrar dene.'.tr());
   }
 
+  /// Tüm ödevi düzenle: başlık, sorular, şıklar, doğru cevap, zamanlama.
+  Future<void> _editFull() async {
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => TeacherHomeworkPreviewScreen(
+        classId: widget.classId,
+        title: hw.title,
+        subject: hw.subject,
+        topic: hw.topic,
+        level: hw.level,
+        types: hw.types,
+        dueAt: hw.dueAt,
+        publishAt: hw.publishAt,
+        questions: hw.questions,
+        editHwId: hw.id,
+        editIsDraft: hw.isDraft,
+      ),
+    ));
+  }
+
   Future<void> _editSchedule() async {
     // Yayın tarih-saatini seç → taslaksa zamanlanmış olarak yayınla.
     final base = hw.publishAt ?? DateTime.now().add(const Duration(hours: 1));
@@ -233,6 +253,20 @@ class PendingHomeworkCardState extends State<PendingHomeworkCard> {
               Text('${hw.questionCount} ${'soru'.tr()}',
                   style: GoogleFonts.poppins(
                     fontSize: 11, color: AppPalette.textSecondary(context))),
+              const SizedBox(width: 4),
+              // Sağ üst: kalem → tüm ödevi düzenle (başlık, sorular, şıklar…).
+              SizedBox(
+                width: 32, height: 32,
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: _busy ? null : _editFull,
+                  icon: const Icon(Icons.edit_rounded, size: 18, color: _kBrand),
+                  tooltip: 'Düzenle'.tr(),
+                  style: IconButton.styleFrom(
+                    backgroundColor: _kBrand.withValues(alpha: 0.10),
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 8),

@@ -20,10 +20,23 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../services/account_service.dart';
 import '../services/class_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
 import 'student_homeworks_screen.dart';
+
+/// Öğretmen hesabının gelen kutusunda görünmesi gereken bildirim tipleri.
+/// (Öğrenci-tipi davet/ödev bildirimleri öğretmene gösterilmez; öğretmen
+/// yalnızca sınıfından gelen GERİ BİLDİRİMLERİ görür.)
+const Set<String> _kTeacherNotifTypes = {
+  'student_joined',
+  'homework_submission',
+  'homework_published',
+  'homework_all_done',
+  'parent_message',
+  'class_activity',
+};
 
 class NotificationsInboxScreen extends StatelessWidget {
   const NotificationsInboxScreen({super.key});
@@ -75,7 +88,14 @@ class NotificationsInboxScreen extends StatelessWidget {
                   if (!snap.hasData) {
                     return const Center(child: CircularProgressIndicator());
                   }
-                  final docs = snap.data!.docs;
+                  // Hesap tipine göre süz: öğretmen sadece geri bildirimleri,
+                  // öğrenci ise öğrenci-tipi bildirimleri görür.
+                  final isTeacher = AccountService.instance.isTeacher;
+                  final docs = snap.data!.docs.where((d) {
+                    final t = (d.data()['type'] ?? '').toString();
+                    final teacherType = _kTeacherNotifTypes.contains(t);
+                    return isTeacher ? teacherType : !teacherType;
+                  }).toList();
                   if (docs.isEmpty) {
                     return Center(
                       child: Padding(
@@ -122,6 +142,11 @@ class _NotificationCard extends StatelessWidget {
       case 'streak_milestone':    return Icons.emoji_events_rounded;
       case 'class_invite':        return Icons.group_add_rounded;
       case 'class_announcement':  return Icons.campaign_rounded;
+      case 'homework_submission': return Icons.assignment_turned_in_rounded;
+      case 'student_joined':      return Icons.person_add_alt_1_rounded;
+      case 'homework_published':  return Icons.send_rounded;
+      case 'homework_all_done':   return Icons.task_alt_rounded;
+      case 'parent_message':      return Icons.mark_email_unread_rounded;
       default:                    return Icons.notifications_rounded;
     }
   }
@@ -134,6 +159,11 @@ class _NotificationCard extends StatelessWidget {
       case 'streak_milestone':    return const Color(0xFFFBBF24);
       case 'class_invite':        return const Color(0xFF7C3AED);
       case 'class_announcement':  return const Color(0xFFF59E0B);
+      case 'homework_submission': return const Color(0xFF10B981);
+      case 'student_joined':      return const Color(0xFF7C3AED);
+      case 'homework_published':  return const Color(0xFF7C3AED);
+      case 'homework_all_done':   return const Color(0xFF10B981);
+      case 'parent_message':      return const Color(0xFF0EA5E9);
       default:                    return const Color(0xFF06B6D4);
     }
   }
@@ -152,6 +182,16 @@ class _NotificationCard extends StatelessWidget {
         return '${'Sınıf daveti'.tr()}: ${data['className'] ?? ''}';
       case 'class_announcement':
         return '${'Duyuru'.tr()}: ${data['className'] ?? ''}';
+      case 'homework_submission':
+        return '${'Ödev teslim edildi'.tr()}: ${data['fromDisplayName'] ?? ''}';
+      case 'student_joined':
+        return '${'Yeni öğrenci'.tr()}: ${data['fromDisplayName'] ?? ''}';
+      case 'homework_published':
+        return 'Ödev yayınlandı'.tr();
+      case 'homework_all_done':
+        return 'Herkes ödevini bitirdi 🎉'.tr();
+      case 'parent_message':
+        return 'Ebeveyn mesajı'.tr();
       default:
         return data['fromDisplayName']?.toString() ?? 'Bildirim'.tr();
     }
@@ -173,6 +213,23 @@ class _NotificationCard extends StatelessWidget {
             '${data['subject'] ?? ''} dersine davet etti. Katılmak için dokun.';
       case 'class_announcement':
         return (data['message'] ?? '').toString();
+      case 'homework_submission':
+        return '${data['fromDisplayName'] ?? 'Bir öğrenci'} '
+            '"${data['homeworkTitle'] ?? ''}" ödevini teslim etti.';
+      case 'student_joined':
+        return '${data['className'] ?? ''} ${'sınıfından'.tr()} '
+            '${data['fromDisplayName'] ?? 'bir öğrenci'} ${'katıldı.'.tr()}';
+      case 'homework_published':
+        return '"${data['homeworkTitle'] ?? ''}" ${'ödevin'.tr()} '
+            '${data['className'] ?? ''} ${'sınıfında yayınlandı.'.tr()}';
+      case 'homework_all_done':
+        return '${data['className'] ?? ''} '
+            '${'sınıfındaki tüm öğrenciler'.tr()} '
+            '"${data['homeworkTitle'] ?? ''}" ${'ödevini tamamladı.'.tr()}';
+      case 'parent_message':
+        return '${data['className'] ?? ''} ${'sınıfından'.tr()} '
+            '${data['fromDisplayName'] ?? 'bir öğrenci'} '
+            '${'adlı öğrencinin ebeveyninden mesajın var.'.tr()}';
       default:
         return '';
     }

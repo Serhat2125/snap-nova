@@ -137,6 +137,9 @@ class StudentGrade {
   final int term;
   /// 0-100 arası not.
   final int score;
+  /// Bu notun dönem ortalamasına ETKİSİ (ağırlık, yüzde 1-100).
+  /// 0 = ağırlık belirtilmemiş (eski kayıt) → eşit ağırlık gibi davranılır.
+  final int weight;
   /// Sınav tarihi.
   final DateTime date;
 
@@ -146,6 +149,7 @@ class StudentGrade {
     required this.order,
     required this.term,
     required this.score,
+    this.weight = 0,
     required this.date,
   });
 
@@ -164,6 +168,7 @@ class StudentGrade {
       order: (m['order'] as num?)?.toInt() ?? 1,
       term: (m['term'] as num?)?.toInt() ?? 1,
       score: (m['score'] as num?)?.toInt() ?? 0,
+      weight: (m['weight'] as num?)?.toInt() ?? 0,
       date: when,
     );
   }
@@ -173,6 +178,7 @@ class StudentGrade {
         'order': order,
         'term': term,
         'score': score,
+        'weight': weight,
         'date': Timestamp.fromDate(date),
         'createdAt': FieldValue.serverTimestamp(),
       };
@@ -854,6 +860,22 @@ class ClassService {
           'joinedAt': now,
         },
       );
+      // Sınıf öğretmenine "yeni öğrenci katıldı" bildirimi.
+      if (teacherUid != null && teacherUid.isNotEmpty) {
+        batch.set(
+          _fs.collection('notifications').doc(teacherUid)
+              .collection('items').doc(),
+          {
+            'type': 'student_joined',
+            'fromDisplayName': myData['displayName'] ??
+                myData['username'] ?? 'Bir öğrenci',
+            'className': classData['name'] ?? '',
+            'classId': classId,
+            'when': now,
+            'read': false,
+          },
+        );
+      }
       await batch.commit();
       return JoinClassResult.success;
     } catch (e) {
@@ -1148,6 +1170,49 @@ class ClassService {
     }
   }
 
+  /// Duyuruyu ileri tarihe ZAMANLAR. Anında bildirim göndermez; yalnızca
+  /// classes/{id}/scheduled_announcements altına bekleyen kayıt düşer.
+  /// Yayın anı gelince publishScheduledAnnouncements function gerçek dağıtımı
+  /// (öğrenci bildirimi + içerik akışı + ebeveyn şeridi) yapar.
+  /// Dönen: hedef öğrenci sayısı (tahmini), hata durumunda -1.
+  static Future<int> scheduleAnnouncement({
+    required String classId,
+    required String className,
+    required String subject,
+    required String message,
+    required DateTime publishAt,
+  }) async {
+    final myUid = _myUid;
+    if (myUid == null) return -1;
+    final text = message.trim();
+    if (text.isEmpty) return -1;
+    try {
+      final me = await _fs.collection('users').doc(myUid).get();
+      final teacherName = (me.data()?['displayName'] ??
+          me.data()?['username'] ?? 'Öğretmen').toString();
+
+      final studSnap = await _fs.collection('classes').doc(classId)
+          .collection('students').get();
+
+      await _fs.collection('classes').doc(classId)
+          .collection('scheduled_announcements').doc().set({
+        'teacherUid': myUid,
+        'className': className,
+        'subject': subject,
+        'message': text,
+        'teacherName': teacherName,
+        'publishAt': Timestamp.fromDate(publishAt),
+        'announceNotified': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      return studSnap.docs.length;
+    } catch (e) {
+      debugPrint('[ClassService] scheduleAnnouncement fail: $e');
+      return -1;
+    }
+  }
+
   // ── KAYNAK/MATERYAL PAYLAŞ (öğretmen → sınıf) ────────────────────────
   /// Yapay zeka dışı hazır kaynak paylaşımı: web linki, PDF (yüklü dosya ya
   /// da link) veya ders notu. Sınıf içerik akışına 'material' tipinde yazılır.
@@ -1187,16 +1252,37 @@ class ClassService {
     }
   }
 
+  /// Sınıf içerik akışından bir kaydı (kaynak/duyuru) siler. Yalnızca sınıf
+  /// öğretmeni yazabilir (firestore.rules). Dönen: silindi mi.
+  static Future<bool> deleteContent({
+    required String classId,
+    required String contentId,
+  }) async {
+    if (_myUid == null) return false;
+    try {
+      await _fs.collection('classes').doc(classId)
+          .collection('content').doc(contentId).delete();
+      return true;
+    } catch (e) {
+      debugPrint('[ClassService] deleteContent fail: $e');
+      return false;
+    }
+  }
+
   /// Öğretmenin seçtiği PDF dosyasını Firebase Storage'a yükler ve indirme
   /// URL'ini döndürür. Yol: class_materials/{classId}/{ts}_{ad}.pdf
   /// Yalnızca sınıfın öğretmeni yazabilir (storage.rules), max 25 MB.
-  static Future<String?> uploadClassPdf({
+  ///
+  /// Dönüş: (url, error). Başarıda url dolu/error null; hatada url null ve
+  /// error kullanıcıya gösterilebilecek kısa bir neden (ör. 'unauthorized',
+  /// 'object-not-found' → Storage henüz kurulmamış/kural deploy edilmemiş).
+  static Future<({String? url, String? error})> uploadClassPdf({
     required String classId,
     required String fileName,
     required Uint8List bytes,
   }) async {
     final myUid = _myUid;
-    if (myUid == null) return null;
+    if (myUid == null) return (url: null, error: 'oturum-yok');
     try {
       final safe = fileName.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
       final ts = DateTime.now().millisecondsSinceEpoch;
@@ -1206,10 +1292,17 @@ class ClassService {
         bytes,
         SettableMetadata(contentType: 'application/pdf'),
       );
-      return await task.ref.getDownloadURL();
+      final url = await task.ref.getDownloadURL();
+      return (url: url, error: null);
+    } on FirebaseException catch (e) {
+      // En sık: 'unauthorized' (kural deploy değil) / 'object-not-found' veya
+      // 'unknown' (Storage konsolda hiç etkinleştirilmemiş → bucket yok).
+      debugPrint('[ClassService] uploadClassPdf FirebaseException: '
+          '${e.code} | ${e.message}');
+      return (url: null, error: e.code);
     } catch (e) {
       debugPrint('[ClassService] uploadClassPdf fail: $e');
-      return null;
+      return (url: null, error: e.toString());
     }
   }
 }

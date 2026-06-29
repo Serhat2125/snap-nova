@@ -14,6 +14,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../services/class_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
+import '../utils/safe_dismiss.dart';
 
 const _kBrand = Color(0xFF7C3AED);
 
@@ -126,21 +127,30 @@ class _TeacherMaterialScreenState extends State<TeacherMaterialScreen> {
     String fileName = '';
     if (_isPdf) {
       final f = _pickedPdf!;
-      final uploaded = await ClassService.uploadClassPdf(
+      final res = await ClassService.uploadClassPdf(
         classId: widget.cls.id,
         fileName: f.name,
         bytes: f.bytes!,
       );
-      if (uploaded == null) {
+      if (res.url == null) {
         if (!mounted) return;
         setState(() => _sending = false);
+        // Storage kurulmamış/kural deploy edilmemişse net mesaj ver.
+        final code = res.error ?? '';
+        final isSetup = code == 'unauthorized' ||
+            code == 'object-not-found' ||
+            code == 'unknown' ||
+            code.contains('No object exists') ||
+            code.contains('does not exist');
         messenger.showSnackBar(SnackBar(
-          content: Text('PDF yüklenemedi, tekrar dene.'.tr()),
+          content: Text(isSetup
+              ? 'PDF yüklenemedi: Depolama henüz etkin değil. PDF yerine "Web Linki" ile paylaşabilirsin.'.tr()
+              : '${'PDF yüklenemedi, tekrar dene.'.tr()} ($code)'),
           behavior: SnackBarBehavior.floating,
         ));
         return;
       }
-      url = uploaded;
+      url = res.url!;
       fileName = f.name;
     }
 
@@ -156,7 +166,7 @@ class _TeacherMaterialScreenState extends State<TeacherMaterialScreen> {
     if (!mounted) return;
     setState(() => _sending = false);
     if (ok) {
-      Navigator.of(context).pop();
+      await safeDismiss(context);
       messenger.showSnackBar(SnackBar(
         content: Text('Kaynak sınıfa paylaşıldı.'.tr()),
         behavior: SnackBarBehavior.floating,
@@ -201,15 +211,23 @@ class _TeacherMaterialScreenState extends State<TeacherMaterialScreen> {
                   Text('Kaynak türü'.tr(),
                       style: GoogleFonts.poppins(
                         fontSize: 13, fontWeight: FontWeight.w800, color: ink)),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      _kindTab('link', Icons.link_rounded, 'Web Linki'.tr()),
-                      const SizedBox(width: 8),
-                      _kindTab('pdf', Icons.picture_as_pdf_rounded, 'PDF Linki'.tr()),
-                      const SizedBox(width: 8),
-                      _kindTab('note', Icons.sticky_note_2_rounded, 'Ders Notu'.tr()),
-                    ],
+                  const SizedBox(height: 10),
+                  // Kademeli/çapraz diziliş: sol-üst → orta → sağ-alt.
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: _kindTab('link', Icons.link_rounded, 'Web Linki'.tr()),
+                  ),
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.center,
+                    child: _kindTab(
+                        'pdf', Icons.picture_as_pdf_rounded, 'PDF Linki'.tr()),
+                  ),
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: _kindTab(
+                        'note', Icons.sticky_note_2_rounded, 'Ders Notu'.tr()),
                   ),
                   const SizedBox(height: 20),
                   Text('Başlık'.tr(),
@@ -265,7 +283,7 @@ class _TeacherMaterialScreenState extends State<TeacherMaterialScreen> {
                         )
                       : const Icon(Icons.share_rounded, size: 20),
                   label: Text(
-                    _sending ? 'Paylaşılıyor…'.tr() : 'Sınıfa Paylaş'.tr(),
+                    _sending ? 'Paylaşılıyor…'.tr() : 'Sınıfla Paylaş'.tr(),
                     style: GoogleFonts.poppins(
                       fontSize: 14.5, fontWeight: FontWeight.w800,
                       color: Colors.white,
@@ -282,30 +300,36 @@ class _TeacherMaterialScreenState extends State<TeacherMaterialScreen> {
 
   Widget _kindTab(String kind, IconData icon, String label) {
     final sel = _kind == kind;
-    return Expanded(
+    // Eskizdeki gibi dikdörtgen çerçeve; kademeli dizilim için sabit genişlik.
+    return SizedBox(
+      width: 150,
       child: GestureDetector(
         onTap: () => setState(() => _kind = kind),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
           decoration: BoxDecoration(
             color: sel ? _kBrand.withValues(alpha: 0.12) : AppPalette.card(context),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: sel ? _kBrand : AppPalette.border(context),
-              width: sel ? 1.5 : 1,
+              width: sel ? 1.8 : 1.2,
             ),
           ),
-          child: Column(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 22,
+              Icon(icon, size: 19,
                   color: sel ? _kBrand : AppPalette.textSecondary(context)),
-              const SizedBox(height: 4),
-              Text(label,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.poppins(
-                    fontSize: 11, fontWeight: FontWeight.w700,
-                    color: sel ? _kBrand : AppPalette.textSecondary(context),
-                  )),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(label,
+                    textAlign: TextAlign.center,
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12.5, fontWeight: FontWeight.w700,
+                      color: sel ? _kBrand : AppPalette.textPrimary(context),
+                    )),
+              ),
             ],
           ),
         ),

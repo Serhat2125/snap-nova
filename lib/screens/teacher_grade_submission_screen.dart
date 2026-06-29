@@ -13,6 +13,7 @@ import '../models/education_models.dart';
 import '../services/homework_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
+import '../utils/safe_dismiss.dart';
 
 const _kBrand = Color(0xFF7C3AED);
 const _kGreen = Color(0xFF10B981);
@@ -105,9 +106,10 @@ class _TeacherGradeSubmissionScreenState
     );
     if (!mounted) return;
     setState(() => _saving = false);
+    final messenger = ScaffoldMessenger.of(context);
     if (ok) {
-      Navigator.of(context).pop(true);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      await safeDismiss(context, true);
+      messenger.showSnackBar(SnackBar(
         content: Text('Değerlendirme kaydedildi.'.tr()),
         behavior: SnackBarBehavior.floating,
       ));

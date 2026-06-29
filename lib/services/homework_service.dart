@@ -77,6 +77,25 @@ class HomeworkService {
           classId: classId, hwId: hwRef.id, title: title, dueAt: dueAt,
           publishAt: publishAt,
         );
+        // Öğretmene "ödev yayınlandı" geri bildirimi (hemen yayınlandıysa).
+        final publishedNow =
+            publishAt == null || !publishAt.isAfter(DateTime.now());
+        if (publishedNow) {
+          try {
+            final cls = await _fs.collection('classes').doc(classId).get();
+            final className = (cls.data()?['name'] ?? '').toString();
+            await _fs.collection('notifications').doc(myUid)
+                .collection('items').doc().set({
+              'type': 'homework_published',
+              'homeworkTitle': title,
+              'className': className,
+              'classId': classId,
+              'homeworkId': hwRef.id,
+              'when': FieldValue.serverTimestamp(),
+              'read': false,
+            });
+          } catch (_) {}
+        }
       }
       Analytics.logFeatureAction(
           'teacher_panel', draft ? 'homework_draft_saved' : 'homework_assigned');
@@ -208,6 +227,26 @@ class HomeworkService {
         classId: classId, hwId: hwId, title: hw.title, dueAt: newDue,
         publishAt: newPublish,
       );
+      // Öğretmene "ödev yayınlandı" geri bildirimi (hemen yayınlandıysa).
+      final publishedNow =
+          newPublish == null || !newPublish.isAfter(DateTime.now());
+      final myUid = _myUid;
+      if (publishedNow && myUid != null) {
+        try {
+          final cls = await _fs.collection('classes').doc(classId).get();
+          final className = (cls.data()?['name'] ?? '').toString();
+          await _fs.collection('notifications').doc(myUid)
+              .collection('items').doc().set({
+            'type': 'homework_published',
+            'homeworkTitle': hw.title,
+            'className': className,
+            'classId': classId,
+            'homeworkId': hwId,
+            'when': FieldValue.serverTimestamp(),
+            'read': false,
+          });
+        } catch (_) {}
+      }
       Analytics.logFeatureAction('teacher_panel', 'homework_draft_published');
       return true;
     } catch (e) {
@@ -391,6 +430,15 @@ class HomeworkService {
       final dueRaw = hwDoc.data()?['dueAt'];
       final due = dueRaw is Timestamp ? dueRaw.toDate() : DateTime.now();
       final status = now.isAfter(due) ? 'late' : 'submitted';
+      // "Herkes bitirdi" bildirimini yalnızca ilk tamamlamada tetiklemek için
+      // önceki durumu oku (yeniden teslimde tekrar bildirim gitmesin).
+      final prevSubSnap = await _fs.collection('classes').doc(classId)
+          .collection('homeworks').doc(homeworkId)
+          .collection('submissions').doc(myUid).get();
+      final prevStatus =
+          (prevSubSnap.data()?['status'] ?? 'pending').toString();
+      final firstCompletion =
+          prevStatus == 'pending' || prevStatus == 'in_progress';
       await _fs.collection('classes').doc(classId)
           .collection('homeworks').doc(homeworkId)
           .collection('submissions').doc(myUid)
@@ -405,6 +453,59 @@ class HomeworkService {
         if (passiveMs != null) 'passiveMs': passiveMs,
         if (answers.isNotEmpty) 'answers': answers,
       }, SetOptions(merge: true));
+      // Sınıf öğretmenine "ödev teslim edildi" bildirimi (best-effort).
+      try {
+        final teacherUid = (hwDoc.data()?['teacherUid'] ?? '').toString();
+        if (teacherUid.isNotEmpty && teacherUid != myUid) {
+          final hwTitle = (hwDoc.data()?['title'] ?? 'Ödev').toString();
+          final stu = await _fs.collection('classes').doc(classId)
+              .collection('students').doc(myUid).get();
+          final sd = stu.data() ?? const <String, dynamic>{};
+          final sName = (sd['teacherAlias'] ??
+              sd['displayName'] ?? sd['username'] ?? 'Bir öğrenci').toString();
+          await _fs.collection('notifications').doc(teacherUid)
+              .collection('items').doc().set({
+            'type': 'homework_submission',
+            'fromDisplayName': sName,
+            'homeworkTitle': hwTitle,
+            'classId': classId,
+            'homeworkId': homeworkId,
+            'when': FieldValue.serverTimestamp(),
+            'read': false,
+          });
+        }
+      } catch (_) {}
+      // Tüm öğrenciler tamamladıysa öğretmene tek seferlik "herkes bitirdi"
+      // bildirimi (yalnızca bu öğrencinin İLK tamamlamasında kontrol edilir).
+      if (firstCompletion) {
+        try {
+          final teacherUid = (hwDoc.data()?['teacherUid'] ?? '').toString();
+          if (teacherUid.isNotEmpty) {
+            final subs = await _fs.collection('classes').doc(classId)
+                .collection('homeworks').doc(homeworkId)
+                .collection('submissions').get();
+            final allDone = subs.docs.isNotEmpty && subs.docs.every((d) {
+              final st = (d.data()['status'] ?? 'pending').toString();
+              return st != 'pending' && st != 'in_progress';
+            });
+            if (allDone) {
+              final hwTitle = (hwDoc.data()?['title'] ?? 'Ödev').toString();
+              final cls = await _fs.collection('classes').doc(classId).get();
+              final className = (cls.data()?['name'] ?? '').toString();
+              await _fs.collection('notifications').doc(teacherUid)
+                  .collection('items').doc().set({
+                'type': 'homework_all_done',
+                'homeworkTitle': hwTitle,
+                'className': className,
+                'classId': classId,
+                'homeworkId': homeworkId,
+                'when': FieldValue.serverTimestamp(),
+                'read': false,
+              });
+            }
+          }
+        } catch (_) {}
+      }
       Analytics.logFeatureAction('homework', 'submitted',
           {'score': score.round()});
       return true;

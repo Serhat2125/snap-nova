@@ -6606,15 +6606,18 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
                         if (v) s.previewHaptic();
                       },
                     ),
-                    _toggleRow(
-                      icon: Icons.headset_off_rounded,
-                      title: 'Test sırasında sessiz'.tr(),
-                      subtitle:
-                          'Sınav simülasyonu için ses/titreşim kapanır.'.tr(),
-                      color: const Color(0xFF64748B),
-                      value: s.testSilent,
-                      onChanged: s.setTestSilent,
-                    ),
+                    // "Test sırasında sessiz" sınav simülasyonuna özgü —
+                    // yalnızca öğrenci hesabında anlamlı.
+                    if (AccountService.instance.isStudent)
+                      _toggleRow(
+                        icon: Icons.headset_off_rounded,
+                        title: 'Test sırasında sessiz'.tr(),
+                        subtitle:
+                            'Sınav simülasyonu için ses/titreşim kapanır.'.tr(),
+                        color: const Color(0xFF64748B),
+                        value: s.testSilent,
+                        onChanged: s.setTestSilent,
+                      ),
                     const SizedBox(height: 18),
 
                     // ═══ 🔐 Uygulama Kilidi ────────────────────────
@@ -6656,28 +6659,32 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
                     const SizedBox(height: 18),
 
                     // ═══ 🎯 Kişiselleştirme Verisi ─────────────────
-                    _sectionTitle('🎯', 'Kişiselleştirme'.tr(),
-                        const Color(0xFFA855F7)),
-                    _toggleRow(
-                      icon: Icons.auto_awesome_rounded,
-                      title: 'AI Koç önerileri'.tr(),
-                      subtitle:
-                          'Geçmişine göre günlük plan üret. Kapatırsan veri toplanmaz.'
-                              .tr(),
-                      color: const Color(0xFFA855F7),
-                      value: s.aiCoachData,
-                      onChanged: s.setAiCoachData,
-                    ),
-                    _toggleRow(
-                      icon: Icons.groups_rounded,
-                      title: 'Topluluk önerileri'.tr(),
-                      subtitle:
-                          'Diğer öğrencilerin özet/test havuzunu kullan.'.tr(),
-                      color: const Color(0xFF22D3EE),
-                      value: s.communityData,
-                      onChanged: s.setCommunityData,
-                    ),
-                    const SizedBox(height: 18),
+                    // AI Koç günlük planı + topluluk soru/özet havuzu öğrenciye
+                    // özgü — öğretmen hesabında gizlenir.
+                    if (AccountService.instance.isStudent) ...[
+                      _sectionTitle('🎯', 'Kişiselleştirme'.tr(),
+                          const Color(0xFFA855F7)),
+                      _toggleRow(
+                        icon: Icons.auto_awesome_rounded,
+                        title: 'AI Koç önerileri'.tr(),
+                        subtitle:
+                            'Geçmişine göre günlük plan üret. Kapatırsan veri toplanmaz.'
+                                .tr(),
+                        color: const Color(0xFFA855F7),
+                        value: s.aiCoachData,
+                        onChanged: s.setAiCoachData,
+                      ),
+                      _toggleRow(
+                        icon: Icons.groups_rounded,
+                        title: 'Topluluk önerileri'.tr(),
+                        subtitle:
+                            'Diğer öğrencilerin özet/test havuzunu kullan.'.tr(),
+                        color: const Color(0xFF22D3EE),
+                        value: s.communityData,
+                        onChanged: s.setCommunityData,
+                      ),
+                      const SizedBox(height: 18),
+                    ],
 
                     // ═══ 📱 Yönlendirme ─────────────────────────────
                     _sectionTitle('📱', 'Yönlendirme'.tr(),
@@ -7251,8 +7258,31 @@ class _NotificationsSettingsSheetState
   Map<String, bool> _prefs = {};
   bool _loading = true;
 
-  // Bölüm + kategori tanımları (renkli ikonlar).
-  static const List<_NotifGroup> _groups = [
+  // Hesap tipine göre kategori seti (öğretmen ≠ öğrenci).
+  List<_NotifGroup> get _groups =>
+      AccountService.instance.isTeacher ? _teacherGroups : _studentGroups;
+
+  // ── ÖĞRETMEN bildirim kategorileri ──────────────────────────────────
+  static const List<_NotifGroup> _teacherGroups = [
+    _NotifGroup('Sınıf', [
+      _NotifCat('homework_submission', Icons.assignment_turned_in_rounded,
+          Color(0xFF10B981), 'Ödev teslimleri',
+          'Öğrencilerin ödevi teslim ettiğinde haber ver.'),
+      _NotifCat('student_joined', Icons.group_add_rounded, Color(0xFF7C3AED),
+          'Yeni öğrenci', 'Bir öğrenci sınıfına katıldığında.'),
+      _NotifCat('class_activity', Icons.campaign_rounded, Color(0xFFF59E0B),
+          'Sınıf etkinliği', 'Sınıfınla ilgili önemli gelişmelerde.'),
+    ]),
+    _NotifGroup('Diğer', [
+      _NotifCat('premium_offer', Icons.local_offer_rounded, Color(0xFFEC4899),
+          'Premium teklifler', 'Sınırlı süreli indirim ve kampanyalar.'),
+      _NotifCat('newsletter', Icons.mail_outline_rounded, Color(0xFF64748B),
+          'Bülten & haberler', 'Yeni özellikler ve uygulama haberleri.'),
+    ]),
+  ];
+
+  // ── ÖĞRENCİ bildirim kategorileri (renkli ikonlar) ──────────────────
+  static const List<_NotifGroup> _studentGroups = [
     _NotifGroup('Sosyal', [
       _NotifCat('friend_request', Icons.group_rounded, Color(0xFF8B5CF6),
           'Arkadaşlık istekleri', 'Yeni arkadaşlık isteği ve kabulleri.'),

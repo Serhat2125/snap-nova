@@ -25,6 +25,7 @@ import '../services/homework_service.dart';
 import '../services/locale_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
+import '../utils/safe_dismiss.dart';
 
 const _kBrand = Color(0xFF7C3AED);
 
@@ -40,6 +41,12 @@ class TeacherHomeworkPreviewScreen extends StatefulWidget {
   final DateTime? publishAt;
   final List<Map<String, dynamic>> questions;
 
+  /// Var olan bir ödevi/taslağı DÜZENLEME modu. null → yeni ödev (assignToClass);
+  /// dolu → mevcut ödevi güncelle (updateDraft / publishDraft).
+  final String? editHwId;
+  /// Düzenlenen ödev taslak mı (status='draft')? Yayınla davranışını belirler.
+  final bool editIsDraft;
+
   const TeacherHomeworkPreviewScreen({
     super.key,
     required this.classId,
@@ -51,6 +58,8 @@ class TeacherHomeworkPreviewScreen extends StatefulWidget {
     required this.dueAt,
     this.publishAt,
     required this.questions,
+    this.editHwId,
+    this.editIsDraft = true,
   });
 
   @override
@@ -65,6 +74,9 @@ class _TeacherHomeworkPreviewScreenState
   DateTime? _publishAt;
   bool _sending = false;
   final Set<int> _revising = {}; // AI ile revize edilen soru indeksleri
+  late final TextEditingController _titleCtrl;
+
+  bool get _editing => widget.editHwId != null;
 
   @override
   void initState() {
@@ -75,6 +87,18 @@ class _TeacherHomeworkPreviewScreenState
         .toList();
     _dueAt = widget.dueAt;
     _publishAt = widget.publishAt;
+    _titleCtrl = TextEditingController(text: widget.title);
+  }
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    super.dispose();
+  }
+
+  String get _title {
+    final t = _titleCtrl.text.trim();
+    return t.isEmpty ? widget.title : t;
   }
 
   bool get _scheduled =>
@@ -98,34 +122,67 @@ class _TeacherHomeworkPreviewScreenState
       return;
     }
     setState(() => _sending = true);
-    final hwId = await HomeworkService.assignToClass(
-      classId: widget.classId,
-      title: widget.title,
-      subject: widget.subject,
-      topic: widget.topic,
-      level: widget.level,
-      types: widget.types,
-      questionCount: _questions.length,
-      dueAt: _dueAt,
-      publishAt: _publishAt,
-      questions: _questions,
-      draft: draft,
-    );
+    bool ok;
+    if (_editing) {
+      // Mevcut ödev/taslak: içerik (başlık + sorular + zamanlama) güncellenir.
+      final hwId = widget.editHwId!;
+      ok = await HomeworkService.updateDraft(
+        classId: widget.classId,
+        hwId: hwId,
+        title: _title,
+        dueAt: _dueAt,
+        questions: _questions,
+        publishAt: _publishAt,
+        clearPublishAt: _publishAt == null,
+      );
+      // "Gönder/Zamanla" + hâlâ taslaksa → yayına al (publishDraft).
+      if (ok && !draft && widget.editIsDraft) {
+        ok = await HomeworkService.publishDraft(
+          classId: widget.classId,
+          hwId: hwId,
+          publishAt: _publishAt,
+          clearPublishAt: _publishAt == null,
+        );
+      }
+    } else {
+      final hwId = await HomeworkService.assignToClass(
+        classId: widget.classId,
+        title: _title,
+        subject: widget.subject,
+        topic: widget.topic,
+        level: widget.level,
+        types: widget.types,
+        questionCount: _questions.length,
+        dueAt: _dueAt,
+        publishAt: _publishAt,
+        questions: _questions,
+        draft: draft,
+      );
+      ok = hwId != null;
+    }
     if (!mounted) return;
     setState(() => _sending = false);
-    if (hwId != null) {
-      Navigator.of(context).pop(true);
-      final msg = draft
-          ? '📝 Taslağa kaydedildi — Bekleyenler\'den yayınlayabilirsin.'.tr()
-          : _scheduled
-              ? '🕒 Ödev zamanlandı; yayın anında öğrencilere bildirilecek.'.tr()
-              : '✅ Ödev sınıfa gönderildi (${_questions.length} soru).'.tr();
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    final messenger = ScaffoldMessenger.of(context);
+    if (ok) {
+      // Klavye kapanmadan route pop edilirse _dependents.isEmpty çökmesi olur.
+      await safeDismiss(context, true);
+      final msg = _editing
+          ? (draft
+              ? '📝 Değişiklikler kaydedildi.'.tr()
+              : _scheduled
+                  ? '🕒 Ödev güncellendi ve zamanlandı.'.tr()
+                  : '✅ Ödev güncellendi ve yayınlandı.'.tr())
+          : draft
+              ? '📝 Taslağa kaydedildi — Bekleyenler\'den yayınlayabilirsin.'.tr()
+              : _scheduled
+                  ? '🕒 Ödev zamanlandı; yayın anında öğrencilere bildirilecek.'.tr()
+                  : '✅ Ödev sınıfa gönderildi (${_questions.length} soru).'.tr();
+      messenger.showSnackBar(SnackBar(
         content: Text(msg),
         behavior: SnackBarBehavior.floating,
       ));
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      messenger.showSnackBar(SnackBar(
         content: Text('Kaydedilemedi. Tekrar dene.'.tr()),
         behavior: SnackBarBehavior.floating,
       ));
@@ -282,7 +339,7 @@ class _TeacherHomeworkPreviewScreenState
       appBar: AppBar(
         backgroundColor: AppPalette.bg(context),
         elevation: 0,
-        title: Text('Önizle & Düzenle'.tr(),
+        title: Text(_editing ? 'Ödevi Düzenle'.tr() : 'Önizle & Düzenle'.tr(),
             style: GoogleFonts.poppins(
               fontSize: 16, fontWeight: FontWeight.w800, color: ink)),
       ),
@@ -304,12 +361,26 @@ class _TeacherHomeworkPreviewScreenState
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(widget.title,
-                            style: GoogleFonts.poppins(
-                              fontSize: 14, fontWeight: FontWeight.w800,
-                              color: ink,
-                            ),
-                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                        // Başlık her zaman düzenlenebilir (öğretmen istediğinde
+                        // ödev başlığını değiştirebilsin).
+                        TextField(
+                          controller: _titleCtrl,
+                          style: GoogleFonts.poppins(
+                            fontSize: 14, fontWeight: FontWeight.w800,
+                            color: ink,
+                          ),
+                          decoration: InputDecoration(
+                            isDense: true,
+                            contentPadding: EdgeInsets.zero,
+                            border: InputBorder.none,
+                            hintText: 'Ödev başlığı'.tr(),
+                            suffixIcon: Icon(Icons.edit_rounded,
+                                size: 15, color: muted),
+                            suffixIconConstraints: const BoxConstraints(
+                                minWidth: 22, minHeight: 22),
+                          ),
+                          maxLines: 1,
+                        ),
                         Text('${widget.subject} · ${widget.topic}',
                             style: GoogleFonts.poppins(
                               fontSize: 11.5, color: muted,
@@ -398,7 +469,7 @@ class _TeacherHomeworkPreviewScreenState
                             ),
                             onPressed: _sending ? null : _saveDraft,
                             icon: const Icon(Icons.bookmark_add_rounded, size: 19),
-                            label: Text('Taslağa Kaydet'.tr(),
+                            label: Text(_editing ? 'Kaydet'.tr() : 'Taslağa Kaydet'.tr(),
                                 maxLines: 1, overflow: TextOverflow.ellipsis,
                                 style: GoogleFonts.poppins(
                                   fontSize: 13.5, fontWeight: FontWeight.w800,
@@ -429,7 +500,15 @@ class _TeacherHomeworkPreviewScreenState
                                         : Icons.send_rounded,
                                     size: 19, color: Colors.white),
                             label: Text(
-                              _scheduled ? 'Zamanla'.tr() : 'Gönder'.tr(),
+                              _editing
+                                  ? (widget.editIsDraft
+                                      ? (_scheduled
+                                          ? 'Zamanla'.tr()
+                                          : 'Yayınla'.tr())
+                                      : 'Kaydet'.tr())
+                                  : _scheduled
+                                      ? 'Zamanla'.tr()
+                                      : 'Gönder'.tr(),
                               maxLines: 1, overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.poppins(
                                 fontSize: 14, fontWeight: FontWeight.w800,
@@ -762,7 +841,7 @@ class _QuestionEditorSheetState extends State<_QuestionEditorSheet> {
     super.dispose();
   }
 
-  void _save() {
+  Future<void> _save() async {
     final qText = _qCtrl.text.trim();
     if (qText.isEmpty) {
       _toast('Soru metni boş olamaz.'.tr());
@@ -792,7 +871,7 @@ class _QuestionEditorSheetState extends State<_QuestionEditorSheet> {
       }
       out['answer'] = a;
     }
-    Navigator.of(context).pop(out);
+    await safeDismiss(context, out);
   }
 
   void _toast(String m) {
@@ -838,7 +917,7 @@ class _QuestionEditorSheetState extends State<_QuestionEditorSheet> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.close_rounded),
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: () => safeDismiss(context),
                   ),
                 ],
               ),

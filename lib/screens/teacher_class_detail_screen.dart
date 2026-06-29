@@ -19,6 +19,9 @@ import '../services/class_service.dart';
 import '../services/homework_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
+import '../utils/safe_dismiss.dart';
+import '../widgets/class_profile_dialog.dart';
+import 'teacher_class_resources_screen.dart';
 import 'teacher_student_report_screen.dart';
 
 const _kBrand = Color(0xFF7C3AED);
@@ -147,7 +150,21 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
                     }),
                     _menuChip(ctx, Icons.edit_rounded,
                         const Color(0xFF0EA5E9), 'Sınıfı düzenle'.tr(),
-                        () { Navigator.pop(ctx); _renameDialog(); }),
+                        () async {
+                      Navigator.pop(ctx);
+                      final newName = await showEditClassSheet(context, cls);
+                      if (newName != null && mounted) {
+                        setState(() => _nameOverride = newName);
+                      }
+                    }),
+                    _menuChip(ctx, Icons.folder_shared_rounded,
+                        const Color(0xFF10B981), 'Paylaşılan Kaynaklar'.tr(),
+                        () {
+                      Navigator.pop(ctx);
+                      Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) =>
+                              TeacherClassResourcesScreen(cls: cls)));
+                    }),
                     _menuChip(ctx, Icons.help_outline_rounded,
                         const Color(0xFF7C3AED), 'Nasıl kullanılır?'.tr(),
                         () { Navigator.pop(ctx); _showHelp(context); }),
@@ -209,54 +226,6 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
     );
   }
 
-  Future<void> _renameDialog() async {
-    final ctrl = TextEditingController(text: _nameOverride ?? cls.name);
-    final messenger = ScaffoldMessenger.of(context);
-    final newName = await showDialog<String>(
-      context: context,
-      builder: (dctx) => AlertDialog(
-        backgroundColor: AppPalette.card(dctx),
-        title: Text('Sınıfı düzenle'.tr(),
-            style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w800,
-                color: AppPalette.textPrimary(dctx))),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          maxLength: 60,
-          style: GoogleFonts.poppins(
-              fontSize: 14, color: AppPalette.textPrimary(dctx)),
-          decoration: InputDecoration(
-            hintText: 'Sınıf adı'.tr(),
-            border: const OutlineInputBorder(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dctx),
-            child: Text('Vazgeç'.tr())),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: _kBrand),
-            onPressed: () => Navigator.pop(dctx, ctrl.text.trim()),
-            child: Text('Kaydet'.tr(),
-                style: const TextStyle(color: Colors.white))),
-        ],
-      ),
-    );
-    if (newName == null || newName.isEmpty || newName == cls.name) return;
-    final ok = await ClassService.renameClass(cls.id, newName);
-    if (!mounted) return;
-    if (ok) {
-      setState(() => _nameOverride = newName);
-      messenger.showSnackBar(SnackBar(
-        content: Text('Sınıf adı güncellendi'.tr()),
-        behavior: SnackBarBehavior.floating));
-    } else {
-      messenger.showSnackBar(SnackBar(
-        content: Text('Güncellenemedi, tekrar dene'.tr()),
-        behavior: SnackBarBehavior.floating));
-    }
-  }
 
   Future<void> _confirmDelete() async {
     final messenger = ScaffoldMessenger.of(context);
@@ -1216,7 +1185,10 @@ class _StudentsViewState extends State<_StudentsView> {
     final ctrl = TextEditingController(text: s.teacherAlias);
     final ink = AppPalette.textPrimary(context);
     final muted = AppPalette.textSecondary(context);
-    await showModalBottomSheet<void>(
+    // Sheet bir AKSİYON döndürür ('remove'); çıkar-onayı sheet TAMAMEN
+    // kapandıktan SONRA açılır. Böylece autofocus TextField unmount'u ile
+    // dialog açılışı çakışmaz (_dependents.isEmpty kırmızı ekranı).
+    final action = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       backgroundColor: AppPalette.card(context),
@@ -1231,10 +1203,8 @@ class _StudentsViewState extends State<_StudentsView> {
               if (saving) return;
               saving = true;
               final messenger = ScaffoldMessenger.of(context);
-              // Klavyeyi kapat + sheet'i ÖNCE kapat, sonra yaz
-              // (_dependents.isEmpty çökmesini önler).
-              FocusManager.instance.primaryFocus?.unfocus();
-              Navigator.pop(sheetCtx);
+              // Odağı bırak → IME teardown'u bitince sheet'i güvenle kapat.
+              await safeDismiss(sheetCtx);
               final ok = await ClassService.setStudentAlias(
                   widget.cls.id, s.uid, value);
               messenger.showSnackBar(SnackBar(
@@ -1387,18 +1357,11 @@ class _StudentsViewState extends State<_StudentsView> {
                     child: TextButton.icon(
                       onPressed: saving
                           ? null
-                          : () {
-                              // Klavyeyi kapat + sheet'i kapat, sonra kısa
-                              // gecikmeyle dialog aç. Aksi halde autofocus
-                              // klavye + sheet kapanışı + dialog açılışı
-                              // InheritedElement unmount çakışması yaratıyor
-                              // (_dependents.isEmpty → kırmızı ekran).
-                              FocusManager.instance.primaryFocus?.unfocus();
-                              Navigator.pop(sheetCtx);
-                              Future.delayed(
-                                  const Duration(milliseconds: 300), () {
-                                if (mounted) _confirmRemoveStudent(s);
-                              });
+                          : () async {
+                              // Sheet'i 'remove' aksiyonuyla GÜVENLE kapat;
+                              // çıkar-onayı await tamamlanınca (sheet tamamen
+                              // kapandıktan sonra) açılır.
+                              await safeDismiss(sheetCtx, 'remove');
                             },
                       style: TextButton.styleFrom(
                         foregroundColor: const Color(0xFFEF4444),
@@ -1418,6 +1381,10 @@ class _StudentsViewState extends State<_StudentsView> {
       },
     );
     ctrl.dispose();
+    // Sheet tamamen kapandı; "çıkar" istendiyse onay dialog'u ŞİMDİ açılır.
+    if (action == 'remove' && mounted) {
+      await _confirmRemoveStudent(s);
+    }
   }
 
   /// Öğrenciyi sınıftan çıkarma onayı — onaylanırsa tüm verisi silinir.

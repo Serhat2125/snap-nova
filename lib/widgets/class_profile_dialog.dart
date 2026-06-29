@@ -18,6 +18,7 @@ import 'package:image_picker/image_picker.dart';
 import '../services/class_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
+import '../utils/safe_dismiss.dart';
 
 const _kBrand = Color(0xFF7C3AED);
 
@@ -291,4 +292,147 @@ class _ClassProfileDialogState extends State<_ClassProfileDialog> {
       ),
     );
   }
+}
+
+/// Sınıf düzenleme bottom sheet'i (ad + okul/başlık + durum mesajı).
+/// Hem sınıf kartına uzun basınca hem sınıf detayındaki ⋮ menüden çağrılır —
+/// TEK panel. Kaydedilirse yeni sınıf adını döner (başlık güncellemesi için),
+/// vazgeçilir/başarısız olursa null.
+Future<String?> showEditClassSheet(BuildContext context, TeacherClass cls) async {
+  final nameCtrl = TextEditingController(text: cls.name);
+  final schoolCtrl = TextEditingController(text: cls.schoolName);
+  final statusCtrl = TextEditingController(text: cls.statusMessage);
+  final messenger = ScaffoldMessenger.of(context);
+  bool save = false;
+
+  Widget field(BuildContext c, TextEditingController ctrl, String label,
+      String hint, IconData icon, Color iconColor,
+      {TextCapitalization cap = TextCapitalization.sentences,
+      int maxLines = 1}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: GoogleFonts.poppins(
+                fontSize: 12, fontWeight: FontWeight.w700,
+                color: AppPalette.textSecondary(c))),
+        const SizedBox(height: 6),
+        Container(
+          decoration: BoxDecoration(
+            color: AppPalette.bg(c),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppPalette.border(c)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: TextField(
+            controller: ctrl,
+            textCapitalization: cap,
+            maxLines: maxLines,
+            style: GoogleFonts.poppins(
+                fontSize: 14, fontWeight: FontWeight.w600,
+                color: AppPalette.textPrimary(c)),
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: GoogleFonts.poppins(
+                  fontSize: 12.5,
+                  color: AppPalette.textSecondary(c).withValues(alpha: 0.5)),
+              icon: Icon(icon, size: 20, color: iconColor),
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(vertical: 13),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: AppPalette.card(context),
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (sheetCtx) => Padding(
+      padding: EdgeInsets.only(
+        left: 20, right: 20, top: 16,
+        bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 20,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: AppPalette.border(sheetCtx),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text('Sınıfı düzenle'.tr(),
+                style: GoogleFonts.poppins(
+                    fontSize: 17, fontWeight: FontWeight.w900,
+                    color: AppPalette.textPrimary(sheetCtx))),
+            const SizedBox(height: 16),
+            field(sheetCtx, nameCtrl, 'Sınıf adı'.tr(),
+                'örn: 10-A'.tr(), Icons.class_rounded, const Color(0xFFF59E0B),
+                cap: TextCapitalization.characters),
+            const SizedBox(height: 12),
+            field(sheetCtx, schoolCtrl, 'Okul / Başlık'.tr(),
+                'örn: Atatürk Lisesi'.tr(), Icons.apartment_rounded,
+                const Color(0xFF0EA5E9), cap: TextCapitalization.words),
+            const SizedBox(height: 12),
+            field(sheetCtx, statusCtrl, 'Durum mesajı'.tr(),
+                'örn: Bu hafta deneme sınavı var'.tr(), Icons.chat_rounded,
+                const Color(0xFF10B981), maxLines: 2),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: _kBrand,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () async {
+                  save = true;
+                  await safeDismiss(sheetCtx);
+                },
+                child: Text('Kaydet'.tr(),
+                    style: GoogleFonts.poppins(
+                        fontSize: 14, fontWeight: FontWeight.w800,
+                        color: Colors.white)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  String? newName;
+  if (save) {
+    final ok = await ClassService.updateClassInfo(
+      cls.id,
+      name: nameCtrl.text,
+      schoolName: schoolCtrl.text,
+      statusMessage: statusCtrl.text,
+    );
+    messenger.showSnackBar(SnackBar(
+      content: Text(ok ? 'Sınıf güncellendi'.tr()
+          : 'Güncellenemedi, tekrar dene'.tr()),
+      behavior: SnackBarBehavior.floating,
+    ));
+    if (ok) newName = nameCtrl.text.trim();
+  }
+  nameCtrl.dispose();
+  schoolCtrl.dispose();
+  statusCtrl.dispose();
+  return newName;
 }

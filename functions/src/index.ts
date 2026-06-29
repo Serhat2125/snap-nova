@@ -29,6 +29,7 @@ export {
 export { pushOnNotificationCreated } from "./push_on_notification";
 export { weeklyParentSummary } from "./weekly_parent_summary";
 export { publishScheduledHomeworks } from "./publish_scheduled_homeworks";
+export { publishScheduledAnnouncements } from "./publish_scheduled_announcements";
 export { pushOnRankPassed } from "./rank_passed";
 export { onDueloInviteAccepted } from "./duelo_invite_accepted";
 export { onReferralCompleted } from "./referral_reward";

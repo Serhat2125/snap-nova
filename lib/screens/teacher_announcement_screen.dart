@@ -12,6 +12,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../services/class_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
+import '../utils/safe_dismiss.dart';
 
 const _kBrand = Color(0xFF7C3AED);
 
@@ -29,6 +30,13 @@ class _TeacherAnnouncementScreenState extends State<TeacherAnnouncementScreen> {
   final Set<String> _selected = {};
   bool _loading = true;
   bool _sending = false;
+
+  // Zamanlama: false → şimdi yayınla, true → ileri tarihe zamanla.
+  bool _scheduleMode = false;
+  DateTime? _publishAt;
+
+  bool get _scheduled =>
+      _scheduleMode && _publishAt != null && _publishAt!.isAfter(DateTime.now());
 
   @override
   void initState() {
@@ -91,16 +99,34 @@ class _TeacherAnnouncementScreenState extends State<TeacherAnnouncementScreen> {
       ));
       return;
     }
+    // Zamanlama modu seçili ama saat belirlenmemişse uyar.
+    if (_scheduleMode && (_publishAt == null || !_publishAt!.isAfter(DateTime.now()))) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('Gelecek bir yayın zamanı seç.'.tr()),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    final scheduled = _scheduled;
+    final when = _publishAt;
     setState(() => _sending = true);
     int totalSent = 0;
     int okClasses = 0;
     for (final c in _classes.where((c) => _selected.contains(c.id))) {
-      final n = await ClassService.publishAnnouncement(
-        classId: c.id,
-        className: c.name,
-        subject: c.subject,
-        message: msg,
-      );
+      final n = scheduled
+          ? await ClassService.scheduleAnnouncement(
+              classId: c.id,
+              className: c.name,
+              subject: c.subject,
+              message: msg,
+              publishAt: when!,
+            )
+          : await ClassService.publishAnnouncement(
+              classId: c.id,
+              className: c.name,
+              subject: c.subject,
+              message: msg,
+            );
       if (n >= 0) {
         okClasses++;
         totalSent += n;
@@ -108,14 +134,38 @@ class _TeacherAnnouncementScreenState extends State<TeacherAnnouncementScreen> {
     }
     if (!mounted) return;
     setState(() => _sending = false);
-    Navigator.of(context).pop();
+    await safeDismiss(context);
     messenger.showSnackBar(SnackBar(
       content: Text(
-        '${'Duyuru gönderildi'.tr()} · $okClasses ${'sınıf'.tr()}, $totalSent ${'öğrenci'.tr()}',
+        scheduled
+            ? '${'Duyuru zamanlandı'.tr()} · ${_fmtDate(when!)} · $okClasses ${'sınıf'.tr()}'
+            : '${'Duyuru gönderildi'.tr()} · $okClasses ${'sınıf'.tr()}, $totalSent ${'öğrenci'.tr()}',
       ),
       behavior: SnackBarBehavior.floating,
     ));
   }
+
+  Future<void> _pickPublish() async {
+    final base = _publishAt ?? DateTime.now().add(const Duration(hours: 1));
+    final d = await showDatePicker(
+      context: context,
+      initialDate: base,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 90)),
+    );
+    if (d == null || !mounted) return;
+    final t = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: base.hour, minute: base.minute),
+    );
+    if (!mounted) return;
+    setState(() => _publishAt = DateTime(
+        d.year, d.month, d.day, t?.hour ?? base.hour, t?.minute ?? base.minute));
+  }
+
+  String _fmtDate(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')} '
+      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
   @override
   Widget build(BuildContext context) {
@@ -228,39 +278,164 @@ class _TeacherAnnouncementScreenState extends State<TeacherAnnouncementScreen> {
                           ],
                         ),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: FilledButton.icon(
-                            style: FilledButton.styleFrom(
-                              backgroundColor: _kBrand,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                            onPressed: _sending ? null : _send,
-                            icon: _sending
-                                ? const SizedBox(
-                                    width: 18, height: 18,
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 2, color: Colors.white),
-                                  )
-                                : const Icon(Icons.campaign_rounded, size: 20),
-                            label: Text(
-                              _sending ? 'Gönderiliyor…'.tr() : 'Duyuruyu Gönder'.tr(),
-                              style: GoogleFonts.poppins(
-                                fontSize: 14.5, fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
+                      _scheduleBar(context),
                     ],
                   ),
                 ),
+    );
+  }
+
+  // ── Zamanlama + gönder çubuğu ───────────────────────────────────────
+  Widget _scheduleBar(BuildContext context) {
+    final ink = AppPalette.textPrimary(context);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      decoration: BoxDecoration(
+        color: AppPalette.card(context),
+        border: Border(top: BorderSide(color: AppPalette.border(context))),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Duyuru ne zaman gönderilsin?'.tr(),
+              style: GoogleFonts.poppins(
+                fontSize: 13, fontWeight: FontWeight.w800, color: ink,
+              )),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _modeChip(
+                  context,
+                  Icons.flash_on_rounded,
+                  'Şimdi Yayınla'.tr(),
+                  !_scheduleMode,
+                  () => setState(() => _scheduleMode = false),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _modeChip(
+                  context,
+                  Icons.schedule_rounded,
+                  'Zamanı Ayarla'.tr(),
+                  _scheduleMode,
+                  () => setState(() => _scheduleMode = true),
+                ),
+              ),
+            ],
+          ),
+          // Zamanlama seçiliyse: tarih/saat seçici satırı.
+          if (_scheduleMode) ...[
+            const SizedBox(height: 10),
+            InkWell(
+              onTap: _sending ? null : _pickPublish,
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                decoration: BoxDecoration(
+                  color: AppPalette.bg(context),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: _publishAt == null
+                        ? AppPalette.border(context)
+                        : _kBrand.withValues(alpha: 0.6),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.event_rounded, size: 18, color: _kBrand),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _publishAt == null
+                            ? 'Yayın tarihi ve saati seç'.tr()
+                            : _fmtDate(_publishAt!),
+                        style: GoogleFonts.poppins(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                          color: _publishAt == null
+                              ? AppPalette.textSecondary(context)
+                              : ink,
+                        ),
+                      ),
+                    ),
+                    Icon(Icons.edit_calendar_rounded,
+                        size: 16, color: AppPalette.textSecondary(context)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: _kBrand,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              onPressed: _sending ? null : _send,
+              icon: _sending
+                  ? const SizedBox(
+                      width: 18, height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : Icon(_scheduleMode
+                      ? Icons.schedule_send_rounded
+                      : Icons.campaign_rounded, size: 20),
+              label: Text(
+                _sending
+                    ? 'Gönderiliyor…'.tr()
+                    : _scheduleMode
+                        ? 'Yayını Zamanla'.tr()
+                        : 'Duyuruyu Gönder'.tr(),
+                style: GoogleFonts.poppins(
+                  fontSize: 14.5, fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _modeChip(BuildContext c, IconData icon, String label, bool sel,
+      VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: sel ? _kBrand.withValues(alpha: 0.12) : AppPalette.bg(c),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: sel ? _kBrand : AppPalette.border(c),
+            width: sel ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon,
+                size: 17,
+                color: sel ? _kBrand : AppPalette.textSecondary(c)),
+            const SizedBox(width: 7),
+            Text(label,
+                style: GoogleFonts.poppins(
+                  fontSize: 13, fontWeight: FontWeight.w700,
+                  color: sel ? _kBrand : AppPalette.textPrimary(c),
+                )),
+          ],
+        ),
+      ),
     );
   }
 

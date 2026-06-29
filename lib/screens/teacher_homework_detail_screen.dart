@@ -180,17 +180,26 @@ class _TeacherHomeworkDetailScreenState
             style: GoogleFonts.poppins(
                 fontSize: 16, fontWeight: FontWeight.w800, color: ink)),
         actions: [
-          // Ekrandaki grafik+verileri ebeveyne mesaj olarak gönder (WhatsApp/
-          // Telegram vb.). WhatsApp tarzı yeşil, 45° yukarı-sağ ok.
-          IconButton(
-            tooltip: 'Ebeveyne gönder'.tr(),
-            onPressed: _shareScreenshot,
-            icon: Transform.rotate(
+          // Gönder (ebeveyne paylaş) — çerçeve içinde, WhatsApp yeşili.
+          _appBarBox(
+            context,
+            Transform.rotate(
               angle: -math.pi / 4,
               child: const Icon(Icons.send_rounded,
-                  color: Color(0xFF25D366), size: 24),
+                  color: Color(0xFF25D366), size: 20),
             ),
+            'Ebeveyne gönder'.tr(),
+            _shareScreenshot,
           ),
+          // Bu sayfa nasıl çalışır? — sadece "?" ikonu, küçük çerçeve.
+          _appBarBox(
+            context,
+            Icon(Icons.help_outline_rounded,
+                size: 20, color: AppPalette.textPrimary(context)),
+            'Bu sayfa nasıl çalışır?'.tr(),
+            _showHelp,
+          ),
+          const SizedBox(width: 8),
         ],
       ),
       body: RepaintBoundary(
@@ -198,13 +207,24 @@ class _TeacherHomeworkDetailScreenState
         child: ColoredBox(
           color: AppPalette.bg(context),
           child: SafeArea(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+            child: Column(
               children: [
-            _profileHeader(context),
-            const SizedBox(height: 12),
-            _homeworkMeta(context),
+            // SABİT başlık: profil + ödev (sayfa kaydırılsa da sabit kalır).
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Column(
+                children: [
+                  _profileHeader(context),
+                  const SizedBox(height: 12),
+                  _homeworkMeta(context),
+                ],
+              ),
+            ),
             const SizedBox(height: 16),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+                children: [
             Padding(
               padding: const EdgeInsets.only(left: 2, bottom: 8),
               child: Text(
@@ -228,6 +248,7 @@ class _TeacherHomeworkDetailScreenState
                 studentName: widget.studentName,
                 homework: hw,
                 submission: sub,
+                stats: _stats,
               ),
               const SizedBox(height: 12),
               _answersButton(context),
@@ -239,8 +260,98 @@ class _TeacherHomeworkDetailScreenState
               const SizedBox(height: 10),
               _sendNoteButton(context),
             ],
+                ],
+              ),
+            ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// AppBar'da çerçeveli küçük ikon-buton (gönder / "?" yardım).
+  Widget _appBarBox(BuildContext context, Widget icon, String tooltip,
+      VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 6),
+      child: Tooltip(
+        message: tooltip,
+        child: Material(
+          color: AppPalette.card(context),
+          borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppPalette.border(context)),
+              ),
+              child: icon,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// "?" → bu sayfa nasıl çalışır kısa rehberi.
+  Future<void> _showHelp() async {
+    final ink = AppPalette.textPrimary(context);
+    final muted = AppPalette.textSecondary(context);
+    const lines = [
+      '📊 “Grafik” sekmesi doğru/yanlış/boş dağılımını; “Tablo” sekmesi sayısal istatistikleri gösterir.',
+      '🔎 Tabloda “Soruları detaylı göster” ile her sorunun durumunu (doğru/yanlış/boş) açabilirsin.',
+      '🤖 “AI yorumu” öğrencinin cevaplarını analiz edip güçlü/zayıf yönleri özetler.',
+      '📨 Sağ üstteki gönder ikonuyla ekranı ebeveyne (WhatsApp vb.) iletebilirsin.',
+      '✍️ “Veliye/öğrenciye not gönder” ile kısa bir geri bildirim yazabilirsin.',
+      '📌 Üstteki öğrenci ve ödev bilgisi, sayfa kaydırılsa da sabit kalır.',
+    ];
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppPalette.card(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: AppPalette.border(ctx),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  const Icon(Icons.help_outline_rounded,
+                      size: 20, color: _kBrand),
+                  const SizedBox(width: 8),
+                  Text('Bu sayfa nasıl çalışır?'.tr(),
+                      style: GoogleFonts.poppins(
+                          fontSize: 16, fontWeight: FontWeight.w900,
+                          color: ink)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ...lines.map((l) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Text(l.tr(),
+                        style: GoogleFonts.poppins(
+                            fontSize: 13, height: 1.45, color: muted)),
+                  )),
+            ],
           ),
         ),
       ),
@@ -811,6 +922,31 @@ class _TeacherHomeworkDetailScreenState
               Text('Ödev İstatistikleri'.tr(),
                   style: GoogleFonts.poppins(
                       fontSize: 13, fontWeight: FontWeight.w800, color: ink)),
+              const Spacer(),
+              // Sağda: soruları detaylı göster (açılır/kapanır).
+              InkWell(
+                onTap: () => setState(() => _qExpanded = !_qExpanded),
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('Soruları detaylı göster'.tr(),
+                          style: GoogleFonts.poppins(
+                              fontSize: 12, fontWeight: FontWeight.w800,
+                              color: _kBrand)),
+                      const SizedBox(width: 2),
+                      Icon(
+                          _qExpanded
+                              ? Icons.keyboard_arrow_down_rounded
+                              : Icons.keyboard_arrow_right_rounded,
+                          size: 18, color: _kBrand),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -855,31 +991,9 @@ class _TeacherHomeworkDetailScreenState
               ],
             ),
           ],
-          const SizedBox(height: 16),
-          // Soru-soru durum tablosu — açılır/kapanır başlık
-          InkWell(
-            onTap: () => setState(() => _qExpanded = !_qExpanded),
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                children: [
-                  Icon(
-                      _qExpanded
-                          ? Icons.keyboard_arrow_down_rounded
-                          : Icons.keyboard_arrow_right_rounded,
-                      size: 20, color: _kBrand),
-                  const SizedBox(width: 4),
-                  Text('Soru bazında'.tr(),
-                      style: GoogleFonts.poppins(
-                          fontSize: 12.5, fontWeight: FontWeight.w800,
-                          color: AppPalette.textPrimary(context))),
-                ],
-              ),
-            ),
-          ),
+          // Soru-soru durum tablosu (üstteki "Soruları detaylı göster" ile aç).
           if (_qExpanded) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
             if ((sub?.answers ?? const []).isNotEmpty)
               Table(
                 border: TableBorder.all(
@@ -1058,10 +1172,13 @@ class _AiHomeworkInsight extends StatefulWidget {
   final String studentName;
   final HomeworkModel homework;
   final HomeworkSubmissionModel? submission;
+  final ({int total, int correct, int wrong, int empty, int pending, double pct})
+      stats;
   const _AiHomeworkInsight({
     required this.studentName,
     required this.homework,
     required this.submission,
+    required this.stats,
   });
 
   @override
@@ -1099,11 +1216,17 @@ class _AiHomeworkInsightState extends State<_AiHomeworkInsight> {
     if (answers.isEmpty) return;
     setState(() => _loading = true);
     try {
+      final s = widget.stats;
       final t = await GeminiService.analyzeStudentHomework(
         studentName: widget.studentName,
         subject: widget.homework.subject,
         topic: widget.homework.topic,
         answers: answers,
+        correct: s.correct,
+        wrong: s.wrong,
+        empty: s.empty,
+        total: s.total,
+        pct: s.pct,
         langCode: LocaleService.global?.localeCode ?? 'tr',
       );
       if (!mounted) return;

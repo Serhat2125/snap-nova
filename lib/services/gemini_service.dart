@@ -4047,9 +4047,15 @@ $lang
     required String subject,
     required String topic,
     required List<Map<String, dynamic>> answers, // {q, studentAnswer, status}
+    required int correct,
+    required int wrong,
+    required int empty,
+    required int total,
+    required double pct,
     String langCode = 'tr',
   }) async {
-    _log('analyzeStudentHomework() — $studentName / $subject');
+    _log('analyzeStudentHomework() — $studentName / $subject '
+        '($correct D / $wrong Y / $empty B, %${pct.round()})');
     final lang = _languageDirective(langCode);
     final lines = answers.take(20).map((a) {
       final q = (a['q'] ?? '').toString();
@@ -4057,21 +4063,61 @@ $lang
       final st = (a['status'] ?? '').toString();
       return '- Soru: $q | Öğrenci: ${sa.isEmpty ? "(boş)" : sa} | $st';
     }).join('\n');
+
+    // Başarı SEVİYESİNİ deterministik hesapla — model yüzdeyi yanlış
+    // yorumlayıp "düşük"e "iyi" diyemesin diye prompt'a hazır veriyoruz.
+    final p = pct.round();
+    final String band;
+    if (p >= 85) {
+      band = 'çok iyi';
+    } else if (p >= 70) {
+      band = 'iyi';
+    } else if (p >= 50) {
+      band = 'orta';
+    } else if (p >= 30) {
+      band = 'düşük (yetersiz)';
+    } else {
+      band = 'çok düşük (başarısız)';
+    }
+    // Baskın sorun: yanlış mı (konu eksikliği) yoksa boş mu (atlama/çekingenlik)?
+    final String issue;
+    if (wrong == 0 && empty == 0) {
+      issue = 'belirgin sorun yok — neredeyse tüm sorular doğru';
+    } else if (wrong > empty) {
+      issue = 'çok YANLIŞ ($wrong) — konu/kavram eksikliği baskın';
+    } else if (empty > wrong) {
+      issue = 'çok BOŞ ($empty) — soruları atlama/çekingenlik ya da bilmeme';
+    } else {
+      issue = 'yanlış ve boş dengeli — hem eksik öğrenme hem atlama var';
+    }
+
     final sys = '''
 [SYSTEM — ÖĞRENCİ ÖDEV ANALİZİ]
-Sen bir öğretmen asistanısın. Öğrencinin ödev cevaplarını analiz edip
-veliye/öğretmene TEK CÜMLELİK, somut bir değerlendirme yaz.
+Sen deneyimli bir öğretmen-rehbersin. Aşağıdaki SAYISAL sonuçları DOĞRU yorumla
+ve öğretmene 2-3 cümlelik, isabetli ve REHBER niteliğinde bir değerlendirme yaz.
 
 Öğrenci: $studentName
 Ders/Konu: $subject / $topic
-Cevaplar:
+Toplam soru: $total
+Doğru: $correct | Yanlış: $wrong | Boş: $empty
+Başarı: %$p  →  SEVİYE: $band
+Baskın sorun: $issue
+
+Soru örnekleri:
 $lines
 
-[KURALLAR]
-- TEK cümle. Türkçe, sıcak ama profesyonel.
-- Bir GÜÇLÜ yönü + bir GELİŞİM alanını birlikte belirt.
-- Somut ol (hangi tür sorularda iyi/zayıf). Genel geçer laf etme.
-- Markdown, emoji, başlık YOK — düz tek cümle.
+[YORUM KURALLARI — KESİN UYULACAK]
+- SAYILARA SADIK KAL. Verilen SEVİYE neyse onu kullan. Başarı %50'nin
+  ALTINDAYSA bunu ASLA "iyi/yeterli/güzel" deme; açıkça "düşük/yetersiz" de.
+- Doğru sayısı düşükken "doğru oranı iyi" gibi sayıyla ÇELİŞEN ifade KURMA.
+- "Baskın sorun" neyse ona odaklan: çok YANLIŞ ise konu eksikliğine; çok BOŞ
+  ise soruları atlama/çekingenliğe işaret et. İkisini KARIŞTIRMA, var olmayan
+  sorunu uydurma (boş 0 ise "boşlara dikkat" DEME).
+- SOMUT ve uygulanabilir bir öneri ver: hangi konu/soru tipinde ne yapmalı
+  (ör. "yanlışların çoğu X'te → X konusunu tekrar + ek soru").
+- Sıcak ama DÜRÜST ve net ol; gerçeği yumuşatıp yanlış mesaj verme. Başarı
+  düşükse bunu açıkça ama yapıcı söyle.
+- 2-3 cümle. Markdown, emoji, başlık YOK — düz metin.
 
 $lang
 ''';
@@ -4082,7 +4128,7 @@ $lang
           isPremium: AiQuotaService.instance.isPremium,
           prompt: 'Analizi yaz.',
           system: sys,
-          maxTokens: 160,
+          maxTokens: 240,
         );
         if (t.trim().isNotEmpty) return t.trim();
       } catch (_) {}
@@ -4091,15 +4137,37 @@ $lang
       return (await _callGemini(
         systemPrompt: sys,
         userMessage: 'Analizi yaz.',
-        maxTokens: 160,
-        temperature: 0.5,
+        maxTokens: 240,
+        temperature: 0.3,
         timeout: const Duration(seconds: 20),
       )).trim();
     } catch (e) {
       debugPrint('[analyzeHomework] fail: $e');
-      return '$studentName bu ödevde verdiği cevaplarla genel olarak konuyu '
-          'kavradığını gösteriyor; eksik kalan sorular tekrar gözden geçirilebilir.';
+      // AI erişilemezse bile sayılara SADIK, kurala uygun bir özet üret.
+      return _fallbackHomeworkAnalysis(
+          studentName, total, correct, wrong, empty, p, band);
     }
+  }
+
+  /// AI çağrısı başarısızsa: sayılara sadık, deterministik yedek analiz.
+  static String _fallbackHomeworkAnalysis(String name, int total, int correct,
+      int wrong, int empty, int pct, String band) {
+    final buf = StringBuffer(
+        '$name, $total soruluk ödevde $correct doğru, $wrong yanlış, $empty boş '
+        'ile %$pct başarı gösterdi (seviye: $band).');
+    if (pct < 50) {
+      buf.write(wrong >= empty
+          ? ' Yanlış sayısı yüksek; konunun temel kavramları tekrar edilip '
+              'bol soru çözdürülmeli.'
+          : ' Boş bırakılan soru çok; eksik öğrenilen başlıklar çalışılıp '
+              'öğrenci soru çözmeye teşvik edilmeli.');
+    } else if (pct < 70) {
+      buf.write(' Orta düzey; eksik kalan sorulardaki konular pekiştirilmeli.');
+    } else {
+      buf.write(' İyi bir sonuç; yalnızca yanlış/boş kalan birkaç başlık '
+          'gözden geçirilmeli.');
+    }
+    return buf.toString();
   }
 
   // ── EBEVEYN AI İÇGÖRÜLERİ ─────────────────────────────────────────────

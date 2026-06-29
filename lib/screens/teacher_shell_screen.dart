@@ -154,12 +154,12 @@ class _TeacherShellScreenState extends State<TeacherShellScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                  _createChip(ctx, '🏫', 'Yeni Sınıf'.tr(), () {
+                  _createChip(ctx, '🏫', 'Yeni Sınıf Oluştur'.tr(), () {
                     Navigator.pop(ctx);
                     Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => const TeacherOnboardingScreen()));
                   }),
-                  _createChip(ctx, '✨', 'AI ile Ödev'.tr(), () async {
+                  _createChip(ctx, '✨', 'AI ile Ödev Oluştur'.tr(), () async {
                     Navigator.pop(ctx);
                     final cls = await _pickClass(context);
                     if (cls == null || !context.mounted) return;
@@ -173,7 +173,6 @@ class _TeacherShellScreenState extends State<TeacherShellScreen> {
                     Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => TeacherInviteStudentScreen(cls: cls)));
                   }),
-                  _sectionLabel(ctx, 'İçerik ve İletişim'.tr()),
                   _createChip(ctx, '📢', 'Duyuru Yayınla'.tr(), () {
                     Navigator.pop(ctx);
                     Navigator.of(context).push(MaterialPageRoute(
@@ -192,27 +191,6 @@ class _TeacherShellScreenState extends State<TeacherShellScreen> {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  // Bölüm etiketi — kartların arasında küçük, okunur bir pill.
-  Widget _sectionLabel(BuildContext c, String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-        decoration: BoxDecoration(
-          color: AppPalette.card(c),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: AppPalette.border(c)),
-        ),
-        child: Text(text,
-            style: GoogleFonts.poppins(
-              fontSize: 9.5, fontWeight: FontWeight.w800,
-              letterSpacing: 0.3,
-              color: AppPalette.textSecondary(c),
-            )),
       ),
     );
   }
@@ -607,7 +585,7 @@ class TeacherClassCard extends StatelessWidget {
               // Menü kapanışı bitmeden dialog açmak unmount çakışması
               // (_dependents.isEmpty) yaratıyor — bir sonraki frame'e ertele.
               WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (context.mounted) _editClassDialog(context);
+                if (context.mounted) showEditClassSheet(context, cls);
               });
             }),
             Divider(height: 1, color: AppPalette.border(ctx)),
@@ -648,144 +626,6 @@ class TeacherClassCard extends StatelessWidget {
   }
 
   /// Sınıfı düzenle — ad, okul/başlık ve durum mesajı tek formda.
-  Future<void> _editClassDialog(BuildContext context) async {
-    final nameCtrl = TextEditingController(text: cls.name);
-    final schoolCtrl = TextEditingController(text: cls.schoolName);
-    final statusCtrl = TextEditingController(text: cls.statusMessage);
-    final messenger = ScaffoldMessenger.of(context);
-    bool save = false;
-
-    Widget field(BuildContext c, TextEditingController ctrl, String label,
-        String hint, IconData icon, Color iconColor,
-        {TextCapitalization cap = TextCapitalization.sentences,
-        int maxLines = 1}) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label,
-              style: GoogleFonts.poppins(
-                  fontSize: 12, fontWeight: FontWeight.w700,
-                  color: AppPalette.textSecondary(c))),
-          const SizedBox(height: 6),
-          Container(
-            decoration: BoxDecoration(
-              color: AppPalette.bg(c),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppPalette.border(c)),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: TextField(
-              controller: ctrl,
-              textCapitalization: cap,
-              maxLines: maxLines,
-              style: GoogleFonts.poppins(
-                  fontSize: 14, fontWeight: FontWeight.w600,
-                  color: AppPalette.textPrimary(c)),
-              decoration: InputDecoration(
-                hintText: hint,
-                hintStyle: GoogleFonts.poppins(
-                    fontSize: 12.5,
-                    color: AppPalette.textSecondary(c).withValues(alpha: 0.5)),
-                icon: Icon(icon, size: 20, color: iconColor),
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 13),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppPalette.card(context),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetCtx) => Padding(
-        padding: EdgeInsets.only(
-          left: 20, right: 20, top: 16,
-          bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 20,
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  decoration: BoxDecoration(
-                    color: AppPalette.border(sheetCtx),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text('Sınıfı düzenle'.tr(),
-                  style: GoogleFonts.poppins(
-                      fontSize: 17, fontWeight: FontWeight.w900,
-                      color: AppPalette.textPrimary(sheetCtx))),
-              const SizedBox(height: 16),
-              field(sheetCtx, nameCtrl, 'Sınıf adı'.tr(),
-                  'örn: 10-A'.tr(), Icons.class_rounded, const Color(0xFFF59E0B),
-                  cap: TextCapitalization.characters),
-              const SizedBox(height: 12),
-              field(sheetCtx, schoolCtrl, 'Okul / Başlık'.tr(),
-                  'örn: Atatürk Lisesi'.tr(), Icons.apartment_rounded,
-                  const Color(0xFF0EA5E9), cap: TextCapitalization.words),
-              const SizedBox(height: 12),
-              field(sheetCtx, statusCtrl, 'Durum mesajı'.tr(),
-                  'örn: Bu hafta deneme sınavı var'.tr(), Icons.chat_rounded,
-                  const Color(0xFF10B981), maxLines: 2),
-              const SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _kBrand,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                  onPressed: () {
-                    save = true;
-                    // Klavyeyi kapat + sheet'i ÖNCE kapat, sonra yaz.
-                    FocusManager.instance.primaryFocus?.unfocus();
-                    Navigator.pop(sheetCtx);
-                  },
-                  child: Text('Kaydet'.tr(),
-                      style: GoogleFonts.poppins(
-                          fontSize: 14, fontWeight: FontWeight.w800,
-                          color: Colors.white)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    if (save) {
-      final ok = await ClassService.updateClassInfo(
-        cls.id,
-        name: nameCtrl.text,
-        schoolName: schoolCtrl.text,
-        statusMessage: statusCtrl.text,
-      );
-      messenger.showSnackBar(SnackBar(
-        content: Text(ok ? 'Sınıf güncellendi'.tr()
-            : 'Güncellenemedi, tekrar dene'.tr()),
-        behavior: SnackBarBehavior.floating,
-      ));
-    }
-    nameCtrl.dispose();
-    schoolCtrl.dispose();
-    statusCtrl.dispose();
-  }
-
   Future<void> _confirmDelete(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     final ok = await showDialog<bool>(

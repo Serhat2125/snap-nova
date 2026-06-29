@@ -425,6 +425,16 @@ service cloud.firestore {
               .data.teacherUid == request.auth.uid;
       }
 
+      // scheduled_announcements — öğretmenin ileri tarihe zamanladığı duyurular.
+      //   Yalnızca sınıf öğretmeni yazar; yayın anında bir scheduled function
+      //   (publishScheduledAnnouncements) bunları gerçek bildirime çevirir.
+      match /scheduled_announcements/{annId} {
+        allow read: if isSignedIn();
+        allow create, update, delete: if isSignedIn()
+          && get(/databases/$(database)/documents/classes/$(classId))
+              .data.teacherUid == request.auth.uid;
+      }
+
       // homeworks alt koleksiyonu — sadece öğretmen oluşturur/yönetir,
       //   sınıftaki öğrenciler okur (ödevi çözmek için).
       match /homeworks/{homeworkId} {
