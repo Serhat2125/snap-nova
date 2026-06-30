@@ -499,6 +499,34 @@ service cloud.firestore {
         && request.resource.data.parentUid == request.auth.uid;
     }
 
+    // ── group_contests/{id}: arkadaş grubu yarışması (özel lig) ──────────
+    //   Read: oturum açmış herkes (davet linki/QR ile gelen katılabilsin,
+    //         soruları okuyabilsin, sıralamayı görebilsin).
+    //   Create: oturum açmış kullanıcı; ownerUid kendisi olmalı.
+    //   Update/Delete: sadece sahibi (yarışmayı kuran).
+    match /group_contests/{contestId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isSignedIn()
+        && resource.data.ownerUid == request.auth.uid;
+
+      // participants/{uid}: her katılımcı KENDİ doc'unu yazar (doc.id = uid).
+      //   Read: oturum açmış herkes (lobi + sıralama).
+      //   Create/Update: sadece kendi uid'i; score int ve >= 0.
+      //   Delete: kendisi veya yarışma sahibi.
+      match /participants/{uid} {
+        allow read: if isSignedIn();
+        allow create, update: if isOwner(uid)
+          && request.resource.data.score is int
+          && request.resource.data.score >= 0;
+        allow delete: if isOwner(uid)
+          || (isSignedIn()
+              && get(/databases/$(database)/documents/group_contests/$(contestId))
+                  .data.ownerUid == request.auth.uid);
+      }
+    }
+
     // ── Varsayılan: reddet ───────────────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;

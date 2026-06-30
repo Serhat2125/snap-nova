@@ -18,11 +18,18 @@ class AiQuotaService {
   static const _kCountKey = 'ai_free_daily_count';
   static const _kDateKey  = 'ai_free_daily_date';
 
+  /// YAPIM AŞAMASI BAYRAĞI — true iken trial/abonelik aranmaz; herkes premium
+  /// kabul edilir. Böylece "1 hafta sonra premium iste" paywall'u + günlük
+  /// ücretsiz limit tamamen DEVRE DIŞI olur (tüm AI özellikleri açık).
+  /// ⚠️ Yayına/satışa çıkarken bunu `false` yap → trial + abonelik mantığı
+  /// yeniden devreye girer.
+  static const bool kDevAllPremium = true;
+
   bool _isPremiumSubscriber = false;
   bool _isInTrial = false;
 
-  /// Premium mi? (trial veya aktif abonelik)
-  bool get isPremium => _isPremiumSubscriber || _isInTrial;
+  /// Premium mi? (yapım aşaması bayrağı, trial veya aktif abonelik)
+  bool get isPremium => kDevAllPremium || _isPremiumSubscriber || _isInTrial;
 
   /// Trial döneminde mi?
   bool get isInTrial => _isInTrial;

@@ -429,6 +429,11 @@ class DueloMatchmakingService {
       // Kendi profili (snapshot)
       final mySnap = await db.collection('users').doc(me).get();
       final myProfile = mySnap.data() ?? const <String, dynamic>{};
+      // Karşı tarafta DAİMA kullanıcı adı görünsün; boşsa displayName.
+      final myName = () {
+        final un = (myProfile['username'] ?? '').toString().trim();
+        return un.isNotEmpty ? un : (myProfile['displayName'] ?? '').toString();
+      }();
 
       // Davet doc'u — fromUid + profile snapshot ile (trigger function bunları okur)
       await db
@@ -439,7 +444,7 @@ class DueloMatchmakingService {
           .set({
         'fromUid': me,
         'fromUsername': myProfile['username'] ?? '',
-        'fromDisplayName': myProfile['displayName'] ?? '',
+        'fromDisplayName': myName,
         'fromAvatar': myProfile['avatar'] ?? '',
         'targetUid': targetUid,
         'targetUsername': targetUsername,
@@ -458,7 +463,7 @@ class DueloMatchmakingService {
         'type': 'duelo_invite',
         'fromUid': me,
         'fromUsername': myProfile['username'] ?? '',
-        'fromDisplayName': myProfile['displayName'] ?? '',
+        'fromDisplayName': myName,
         'fromAvatar': myProfile['avatar'] ?? '',
         'targetUsername': targetUsername,
         'subjectKey': subjectKey,

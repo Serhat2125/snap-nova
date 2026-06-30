@@ -618,7 +618,8 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
     _monthActivity = mAct;
     _monthEntries = mEnt;
     _baseStats = {
-      'displayName': nm.isNotEmpty ? nm : 'Ahmet',
+      // Ad girilmemişse sahte bir isim ("Ahmet") yerine nötr etiket.
+      'displayName': nm.isNotEmpty ? nm : 'Öğrenci'.tr(),
       'streakDays': 5,
     };
   }

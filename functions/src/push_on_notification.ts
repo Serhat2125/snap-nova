@@ -25,6 +25,8 @@ interface NotifData {
   fromDisplayName?: string;
   targetUsername?: string;
   subjectKey?: string;
+  subjectName?: string;
+  topic?: string;
   milestone?: string;
   rewardDays?: number;
   // Dinamik bildirimler (örn. haftalık ebeveyn özeti) title/body'yi doc'a
@@ -112,6 +114,15 @@ function buildContent(data: NotifData): { title: string; body: string } {
         title: "Tebrikler! 30 gün Premium kazandın",
         body: "3 arkadaşını davet ettin — Premium ödülün aktif!",
       };
+    case "group_contest_invite": {
+      const t = [data.subjectName, data.topic].filter(Boolean).join(" • ");
+      return {
+        title: "Grup yarışı daveti 🏆",
+        body: t
+          ? `${who} seni "${t}" yarışına davet etti`
+          : `${who} seni grup yarışına davet etti`,
+      };
+    }
     default:
       return {
         title: "QuAlsar",

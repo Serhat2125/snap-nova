@@ -28,6 +28,9 @@ import '../services/user_profile_service.dart';
 import '../services/education_profile.dart';
 import '../services/usage_quota.dart';
 import '../services/gemini_service.dart';
+import '../services/question_pool_service.dart';
+import '../services/group_contest_service.dart';
+import 'group_contest_screen.dart';
 import '../services/duelo_matchmaking_service.dart';
 import '../services/friend_service.dart';
 import '../services/notification_service.dart';
@@ -401,7 +404,10 @@ const List<_LeagueInfo> _leagues = [
 ];
 
 class QuAlsarArenaScreen extends StatefulWidget {
-  QuAlsarArenaScreen({super.key});
+  /// Bildirimden açılışta doğrudan ilgili sheet'i aç:
+  /// 'friendRequests' → gelen arkadaşlık istekleri, 'dueloInvites' → düello davetleri.
+  final String? openAction;
+  QuAlsarArenaScreen({super.key, this.openAction});
 
   @override
   State<QuAlsarArenaScreen> createState() => _QuAlsarArenaScreenState();
@@ -415,10 +421,33 @@ class _QuAlsarArenaScreenState extends State<QuAlsarArenaScreen> {
   void initState() {
     super.initState();
     _bootstrap();
+    // Bildirimden gelindiyse ilgili sheet'i ilk frame'de aç.
+    if (widget.openAction != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        switch (widget.openAction) {
+          case 'friendRequests':
+            _showRequestsSheet(context);
+            break;
+          case 'dueloInvites':
+            _showDueloInvitesSheet(context);
+            break;
+        }
+      });
+    }
   }
 
   Future<void> _bootstrap() async {
     final prefs = await SharedPreferences.getInstance();
+
+    // Davet linki / QR kodu / düello daveti DAİMA gerçek kullanıcı adını
+    // kullansın. _currentUsername global default'u 'ahmet' idi ve hiçbir
+    // yerde güncellenmiyordu → tüm QR/linkler 'davet/ahmet'e gidiyordu
+    // (yanlış/var olmayan kullanıcı, "link çalışmıyor"). UserProfileService
+    // canlı (Firestore + cache) username'i verir.
+    await UserProfileService.instance.init();
+    final uname = UserProfileService.instance.username.trim();
+    if (uname.isNotEmpty) _currentUsername = uname;
 
     // Ders kullanım istatistiklerini yükle — arena ders sıralaması bunu okur.
     _arenaUsageCache = await SubjectUsageStats.load();
@@ -4921,6 +4950,9 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
   String _scope = 'world'; // world | country
   String? _selectedSubject;
   String? _selectedTopic;
+  // Grup Yarışı modu — açıkken ders+konu seçimi 1v1 yerine arkadaş grubu
+  // yarışması oluşturur (aynı sorular, sadece grup içi sıralama).
+  bool _groupMode = false;
   bool _showOtherSheet = false;
   bool _draggingFromSheet = false;
   List<_DueloRecord> _records = const [];
@@ -5529,6 +5561,25 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
       }
     }
 
+    // ── HIZ: Gerçek rakip aramasını soru hazırlığıyla PARALEL başlat. ──────
+    // Eskiden matchmaking (12sn timeout) AI/havuz beklemesinin ÜSTÜNE seri
+    // biniyordu (toplam ~17sn). Artık future'ı şimdi başlatıp aşağıda
+    // (adım 3) await ediyoruz → soru hazırlığı ile aynı anda döner, ekran
+    // çok daha hızlı açılır.
+    Future<DueloMatchResult?> safeMatchmaking() async {
+      try {
+        return await _runRealMatchmaking(
+          subjectKey: subjectKey,
+          topic: topic,
+        );
+      } catch (e) {
+        debugPrint('[Duelo] real matchmaking fail: $e');
+        return null;
+      }
+    }
+
+    final matchFuture = safeMatchmaking();
+
     // 1) Bank'ten SEÇİLEN konu için topla.
     final bank = _questionBank[subjectKey];
     if (bank != null) {
@@ -5544,6 +5595,44 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
       }
     }
 
+    // 1.5) HIZ: Konu havuzundan çek (hızlı Firestore okuma) — AI'ye düşmeden
+    //      önce. Havuz hazırsa (≥50 soru) AI üretimi GEREKMEZ → ekran
+    //      saniyeler yerine anında açılır. Havuz yoksa null döner, AI'ye
+    //      düşülür (ve aşağıda AI sonucu havuza yazılarak havuz ısıtılır).
+    final eduProfile = EduProfile.current;
+    if (picks.length < targetCount && topic != null && eduProfile != null) {
+      try {
+        final pool = await QuestionPoolService.drawQuestions(
+          profile: eduProfile,
+          subject: subjectObj.name,
+          topic: topic,
+          count: targetCount - picks.length,
+        );
+        if (pool != null && pool.isNotEmpty) {
+          addUnique(pool
+              .where((p) =>
+                  p.options.length >= 3 &&
+                  p.correctIndex >= 0 &&
+                  p.correctIndex < p.options.length)
+              .map((p) => _QuizQuestion(
+                    subjectKey: subjectObj.key,
+                    subjectName: subjectObj.name,
+                    subjectEmoji: subjectObj.emoji,
+                    subjectColor: subjectObj.color,
+                    topic: topic,
+                    text: p.stem,
+                    options: p.options,
+                    correctIndex: p.correctIndex,
+                    hint: '',
+                    explanation: p.explanation ?? '',
+                    difficulty: p.difficulty,
+                  )));
+        }
+      } catch (e) {
+        debugPrint('[Duelo] havuz çekme başarısız: $e');
+      }
+    }
+
     // 2) Eksikse AI ile strict (aynı) konu üret.
     if (picks.length < targetCount) {
       final need = targetCount - picks.length;
@@ -5555,24 +5644,35 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
         );
         if (aiQs.isEmpty) aiFailed = true;
         addUnique(aiQs);
+        // HIZ: AI ürettiklerini havuza yaz (fire-and-forget) → bir sonraki
+        // öğrenci aynı konuda düello açtığında havuzdan anında çeksin, AI
+        // beklemesin. Havuz 50 soruya ulaşınca AI tamamen devreden çıkar.
+        if (aiQs.isNotEmpty && topic != null && eduProfile != null) {
+          unawaited(QuestionPoolService.insertQuestions(
+            profile: eduProfile,
+            subject: subjectObj.name,
+            topic: topic,
+            questions: aiQs
+                .map((q) => <String, dynamic>{
+                      'stem': q.text,
+                      'options': q.options,
+                      'correctIndex': q.correctIndex,
+                      'explanation': q.explanation,
+                      'difficulty': q.difficulty,
+                    })
+                .toList(),
+          ));
+        }
       } catch (e) {
         aiFailed = true;
         debugPrint('[Duelo] AI soru üretimi başarısız (1): $e');
       }
     }
 
-    // 3) Gerçek rakip arama — Firestore queue, 12sn timeout. Bulamazsa
-    //    bot havuzuna düşülür (kullanıcı yine de oynar).
-    DueloMatchResult? match;
-    try {
-      match = await _runRealMatchmaking(
-        subjectKey: subjectKey,
-        topic: topic,
-      );
-    } catch (e) {
-      debugPrint('[Duelo] real matchmaking fail: $e');
-      match = null;
-    }
+    // 3) Gerçek rakip arama sonucunu al — yukarıda PARALEL başlatıldı, bu
+    //    noktada büyük olasılıkla çoktan tamamlanmıştır (soru hazırlığıyla
+    //    aynı anda döndü). Bulamazsa null → bot havuzuna düşülür.
+    final DueloMatchResult? match = await matchFuture;
     if (!mounted) return;
 
     // 4) Hâlâ eksikse: AYNI DERSİN diğer konularından doldur (subject
@@ -5911,6 +6011,8 @@ KURALLAR:
                 builder: (context, cand, rej) => ListView(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
                   children: [
+                    _groupModeBanner(),
+                    const SizedBox(height: 10),
                     // ── Kapsam + ders seçim çerçevesi ───────────────
                     // Dünya/Ülke sekmeleri + açıklama + HANGİ DERSTE +
                     // 8 ders grid'i + "Diğer Dersler" butonu — hepsini
@@ -5978,6 +6080,8 @@ KURALLAR:
                       ],
                     ),
                     SizedBox(height: 12),
+                    // Aktif grup yarışlarım — linke ihtiyaç olmadan geri dön.
+                    _buildMyContestsSection(),
                     // Kayıtlı yarış kartları — diğer dersler / yeni ders ekle
                     // satırının hemen altında duruyor.
                     _buildRecordsSection(),
@@ -6462,9 +6566,14 @@ KURALLAR:
     );
     if (picked != null && mounted) {
       setState(() => _selectedTopic = picked);
-      // Konuya basılır basılmaz yarışa başla — ara "Yarış Tipi" dialog'u
-      // kaldırıldı. Default test (5 çoktan seçmeli).
-      _findMatch(raceType: 'test');
+      if (_groupMode) {
+        // Grup Yarışı modu: 1v1 yerine arkadaş grubu yarışması oluştur.
+        _createGroupContest(s, picked);
+      } else {
+        // Konuya basılır basılmaz yarışa başla — ara "Yarış Tipi" dialog'u
+        // kaldırıldı. Default test (5 çoktan seçmeli).
+        _findMatch(raceType: 'test');
+      }
     }
   }
 
@@ -6621,6 +6730,369 @@ KURALLAR:
         ),
       ),
     );
+  }
+
+  // ─── GRUP YARIŞI ───────────────────────────────────────────────────────────
+  // Açılır banner: 1v1/dünya yerine "arkadaş grubu" modu. Açıkken ders+konu
+  // seçimi bir grup yarışması oluşturur (aynı sorular, sadece grup içi sıralama).
+  Widget _groupModeBanner() {
+    final on = _groupMode;
+    const purple = Color(0xFF7C3AED);
+    return GestureDetector(
+      onTap: () => setState(() => _groupMode = !_groupMode),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          gradient: on
+              ? const LinearGradient(
+                  colors: [purple, Color(0xFFA855F7)])
+              : null,
+          color: on ? null : AppPalette.card(context),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: on ? purple : AppPalette.border(context),
+            width: on ? 1.6 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Text(on ? '👥' : '👥',
+                style: const TextStyle(fontSize: 22)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Grup Yarışı'.tr(),
+                      style: _sans(
+                          size: 14,
+                          weight: FontWeight.w800,
+                          color: on
+                              ? Colors.white
+                              : AppPalette.textPrimary(context))),
+                  Text(
+                      on
+                          ? 'Ders + konu seç → arkadaşlarını davet et'.tr()
+                          : 'Arkadaşlarınla aynı sorularda yarışın'.tr(),
+                      style: _sans(
+                          size: 11,
+                          color: on
+                              ? Colors.white.withValues(alpha: 0.9)
+                              : AppPalette.textSecondary(context))),
+                ],
+              ),
+            ),
+            // Aç/kapa anahtarı
+            Container(
+              width: 44,
+              height: 26,
+              decoration: BoxDecoration(
+                color: on
+                    ? Colors.white.withValues(alpha: 0.35)
+                    : AppPalette.border(context),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              alignment: on ? Alignment.centerRight : Alignment.centerLeft,
+              padding: const EdgeInsets.symmetric(horizontal: 3),
+              child: Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: on ? Colors.white : AppPalette.card(context),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Aktif grup yarışlarım — linke ihtiyaç olmadan tekrar girilebilsin.
+  /// Boşsa hiçbir şey çizmez.
+  Widget _buildMyContestsSection() {
+    return StreamBuilder<List<GroupContest>>(
+      stream: GroupContestService.myContestsStream(),
+      builder: (context, snap) {
+        final list = snap.data ?? const <GroupContest>[];
+        if (list.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 8),
+              child: Text('👥 ${"Grup Yarışlarım".tr()}',
+                  style: _sans(
+                      size: 12,
+                      weight: FontWeight.w800,
+                      color: AppPalette.textSecondary(context))),
+            ),
+            ...list.take(6).map(_myContestCard),
+            const SizedBox(height: 12),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _myContestCard(GroupContest c) {
+    const purple = Color(0xFF7C3AED);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GestureDetector(
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => GroupContestScreen(contestId: c.id),
+        )),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppPalette.card(context),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: purple.withValues(alpha: 0.30)),
+          ),
+          child: Row(
+            children: [
+              Text(c.subjectEmoji, style: const TextStyle(fontSize: 20)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('${c.subjectName} • ${c.topic}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: _sans(
+                            size: 13,
+                            weight: FontWeight.w700,
+                            color: AppPalette.textPrimary(context))),
+                    Text('${c.questionCount} ${"soru".tr()}',
+                        style: _sans(
+                            size: 11,
+                            color: AppPalette.textSecondary(context))),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: purple),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Soru sayısı seçici (grup yarışı oluştururken). İptal → null.
+  Future<int?> _askContestCount() {
+    const opts = [3, 5, 10, 15];
+    return showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: AppPalette.bg(ctx),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Kaç soru?'.tr(),
+                style: _serif(size: 18, weight: FontWeight.w800)),
+            const SizedBox(height: 4),
+            Text('Herkes aynı soruları çözecek'.tr(),
+                style: _sans(
+                    size: 12, color: AppPalette.textSecondary(ctx))),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                for (final n in opts)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: GestureDetector(
+                        onTap: () => Navigator.of(ctx).pop(n),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          decoration: BoxDecoration(
+                            color: AppPalette.card(ctx),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                                color: const Color(0xFF7C3AED)
+                                    .withValues(alpha: 0.45),
+                                width: 1.4),
+                          ),
+                          child: Text('$n',
+                              textAlign: TextAlign.center,
+                              style: _serif(
+                                  size: 22,
+                                  weight: FontWeight.w900,
+                                  color: AppPalette.textPrimary(ctx))),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Grup yarışması oluştur: ders+konu için SABİT soru seti üret (havuz→AI),
+  /// contest dokümanı yarat, GroupContestScreen'e geç.
+  Future<void> _createGroupContest(_Subject subject, String topic) async {
+    // Önce soru sayısını sor.
+    final count = await _askContestCount();
+    if (count == null || !mounted) return;
+
+    // Hazırlık göstergesi (kapatılamaz).
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    final questions =
+        await _collectContestQuestions(subject, topic, count);
+
+    if (mounted) Navigator.of(context, rootNavigator: true).pop();
+    if (!mounted) return;
+
+    if (questions.length < 3) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+            'Bu konu için şu an yeterli soru üretilemedi. Birazdan tekrar dene.'
+                .tr()),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+
+    final maps = questions
+        .map((q) => <String, dynamic>{
+              'text': q.text,
+              if (q.formula != null && q.formula!.isNotEmpty)
+                'formula': q.formula,
+              'options': q.options,
+              'correctIndex': q.correctIndex,
+              'hint': q.hint,
+              'explanation': q.explanation,
+              'difficulty': q.difficulty,
+            })
+        .toList();
+
+    final id = await GroupContestService.createContest(
+      subjectKey: subject.key,
+      subjectName: subject.name,
+      subjectEmoji: subject.emoji,
+      topic: topic,
+      questions: maps,
+    );
+    if (!mounted) return;
+    if (id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Yarışma oluşturulamadı. Tekrar dene.'.tr()),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => GroupContestScreen(contestId: id),
+    ));
+  }
+
+  /// Grup yarışı için soru topla — bank → havuz → AI (1v1 ile aynı kaynaklar,
+  /// matchmaking yok).
+  Future<List<_QuizQuestion>> _collectContestQuestions(
+      _Subject subject, String topic, int targetCount) async {
+    final rng = math.Random();
+    final seen = <String>{};
+    final picks = <_QuizQuestion>[];
+    void addUnique(Iterable<_QuizQuestion> qs) {
+      for (final q in qs) {
+        final k = '${q.subjectKey}|${q.topic}|${q.text}';
+        if (seen.add(k)) picks.add(q);
+      }
+    }
+
+    // 1) Bank
+    final bank = _questionBank[subject.key];
+    if (bank != null && bank[topic] != null) {
+      addUnique(List.of(bank[topic]!)..shuffle(rng));
+    }
+
+    // 2) Havuz (hızlı)
+    final eduProfile = EduProfile.current;
+    if (picks.length < targetCount && eduProfile != null) {
+      try {
+        final pool = await QuestionPoolService.drawQuestions(
+          profile: eduProfile,
+          subject: subject.name,
+          topic: topic,
+          count: targetCount - picks.length,
+        );
+        if (pool != null) {
+          addUnique(pool
+              .where((p) =>
+                  p.options.length >= 3 &&
+                  p.correctIndex >= 0 &&
+                  p.correctIndex < p.options.length)
+              .map((p) => _QuizQuestion(
+                    subjectKey: subject.key,
+                    subjectName: subject.name,
+                    subjectEmoji: subject.emoji,
+                    subjectColor: subject.color,
+                    topic: topic,
+                    text: p.stem,
+                    options: p.options,
+                    correctIndex: p.correctIndex,
+                    hint: '',
+                    explanation: p.explanation ?? '',
+                    difficulty: p.difficulty,
+                  )));
+        }
+      } catch (e) {
+        debugPrint('[GroupContest] havuz çekme başarısız: $e');
+      }
+    }
+
+    // 3) AI (eksik kalırsa)
+    if (picks.length < targetCount) {
+      try {
+        final aiQs = await _generateAiQuestions(
+          subject: subject,
+          topic: topic,
+          count: targetCount - picks.length,
+        );
+        addUnique(aiQs);
+        // Havuzu da ısıt.
+        if (aiQs.isNotEmpty && eduProfile != null) {
+          unawaited(QuestionPoolService.insertQuestions(
+            profile: eduProfile,
+            subject: subject.name,
+            topic: topic,
+            questions: aiQs
+                .map((q) => <String, dynamic>{
+                      'stem': q.text,
+                      'options': q.options,
+                      'correctIndex': q.correctIndex,
+                      'explanation': q.explanation,
+                      'difficulty': q.difficulty,
+                    })
+                .toList(),
+          ));
+        }
+      } catch (e) {
+        debugPrint('[GroupContest] AI soru üretimi başarısız: $e');
+      }
+    }
+
+    if (picks.length > targetCount) {
+      return picks.take(targetCount).toList();
+    }
+    return picks;
   }
 
   Future<String?> _showTopicsDialog({
@@ -12468,12 +12940,13 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                       label: 'Davet Linki'.tr(),
                       sub: 'Paylaş'.tr(),
                       onTap: () async {
+                        final uname = _inviteUsername();
                         final link =
-                            'https://qualsar.app/davet/$_currentUsername';
+                            'https://qualsar.app/davet/$uname';
                         try {
                           await Share.share(
                             'QuAlsar Arena\'da benimle yarış! 🏆\n'
-                            '@$_currentUsername davet ediyor · kabul edince ikimiz de +50 QP kazanırız.\n\n'
+                            '@$uname davet ediyor · kabul edince ikimiz de +50 QP kazanırız.\n\n'
                             '$link',
                             subject: 'QuAlsar Arena daveti',
                           );
@@ -12569,6 +13042,7 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                               ? u.displayName[0].toUpperCase()
                               : '?')
                           : u.avatar,
+                      avatarData: u.avatarData,
                       flag: _flagForCountry(u.country),
                       grade: u.grade ?? '',
                       reason: u.displayName,
@@ -12620,6 +13094,7 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
 
   void _showQRSheet(BuildContext context) {
     Navigator.pop(context);
+    final uname = _inviteUsername();
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -12657,7 +13132,7 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
               // Gerçek QR kodu — davet linki encode edilir.
               // mobile_scanner okuyucusu bu URL'i decode edip InviteAcceptScreen'e gider.
               child: QrImageView(
-                data: DeepLinkService.inviteLinkFor(_currentUsername),
+                data: DeepLinkService.inviteLinkFor(uname),
                 version: QrVersions.auto,
                 gapless: true,
                 backgroundColor: Colors.white,
@@ -12672,7 +13147,7 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
               ),
             ),
             SizedBox(height: 14),
-            Text('@$_currentUsername',
+            Text('@$uname',
                 style: _sans(size: 16, weight: FontWeight.w800)),
             SizedBox(height: 18),
             _PrimaryButton(
@@ -12692,9 +13167,9 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
               onTap: () async {
                 final nav = Navigator.of(context);
                 final messenger = ScaffoldMessenger.of(context);
-                final link = 'https://qualsar.app/davet/$_currentUsername';
+                final link = 'https://qualsar.app/davet/$uname';
                 final shareText = "QuAlsar Arena'da benimle yarış! 🏆\n"
-                    '@$_currentUsername davet ediyor · $link';
+                    '@$uname davet ediyor · $link';
                 try {
                   await Share.share(shareText);
                 } catch (_) {
@@ -12969,6 +13444,9 @@ class _QuickMethod extends StatelessWidget {
 class _SuggestionRow extends StatelessWidget {
   final String username;
   final String avatar;
+  /// Kullanıcının profil fotoğrafı (base64 / data URL). Varsa avatar yerine
+  /// gerçek fotoğraf gösterilir.
+  final String avatarData;
   final String flag;
   final String grade;
   final String reason;
@@ -12976,11 +13454,42 @@ class _SuggestionRow extends StatelessWidget {
   const _SuggestionRow({
     required this.username,
     required this.avatar,
+    this.avatarData = '',
     required this.flag,
     required this.grade,
     required this.reason,
     required this.onAdd,
   });
+
+  /// Daire içi avatar: önce profil fotoğrafı (base64), sonra URL foto, en son
+  /// emoji/harf. URL/foto Text olarak basılıp "http…" görünmesin diye.
+  Widget _avatarChild() {
+    Widget letter() => Text(
+          (avatar.startsWith('http') || avatar.isEmpty)
+              ? (username.isNotEmpty ? username[0].toUpperCase() : '?')
+              : avatar,
+          style: _sans(size: 14, weight: FontWeight.w800, color: Colors.white),
+        );
+    if (avatarData.isNotEmpty) {
+      try {
+        final raw =
+            avatarData.contains(',') ? avatarData.split(',').last : avatarData;
+        return ClipOval(
+          child: Image.memory(base64Decode(raw),
+              width: 40, height: 40, fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => letter()),
+        );
+      } catch (_) {}
+    }
+    if (avatar.startsWith('http')) {
+      return ClipOval(
+        child: Image.network(avatar,
+            width: 40, height: 40, fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => letter()),
+      );
+    }
+    return letter();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -12997,13 +13506,13 @@ class _SuggestionRow extends StatelessWidget {
           Container(
             width: 40,
             height: 40,
+            clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: color,
             ),
             alignment: Alignment.center,
-            child: Text(avatar,
-                style: _sans(size: 14, weight: FontWeight.w800, color: Colors.white)),
+            child: _avatarChild(),
           ),
           SizedBox(width: 10),
           Expanded(
@@ -14644,6 +15153,14 @@ String _currentGrade = 'Lise 10. Sınıf';
 String _currentCountry = 'Türkiye';
 String _currentCountryKey = 'tr';
 String _currentUsername = 'ahmet';
+
+/// Davet linki / QR kodu / paylaşım için kullanılacak kullanıcı adı.
+/// Önce canlı UserProfileService değerini dener (kullanıcı oturum içinde
+/// kullanıcı adını değiştirmiş olabilir), boşsa son yüklenen [_currentUsername].
+String _inviteUsername() {
+  final u = UserProfileService.instance.username.trim();
+  return u.isNotEmpty ? u : _currentUsername;
+}
 String? _currentLevel; // 'ilkokul' | 'ortaokul' | 'lise' | 'universite' | 'yuksek_lisans' | 'doktora' | 'sinav_hazirlik'
 String? _currentFaculty; // 'muhendislik', 'insaat_muh', 'tip' vb.
 

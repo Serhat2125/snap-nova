@@ -345,6 +345,13 @@ class FriendService {
 
   /// A → B'ye istek gönder. Aynı istek varsa idempotent (üzerine yazar).
   /// Kendine istek atılamaz, zaten arkadaşsa false döner.
+  /// Başkalarına görünen ad — DAİMA kullanıcı adı (username); boşsa displayName.
+  static String _publicName(Map<String, dynamic> u) {
+    final un = (u['username'] ?? '').toString().trim();
+    if (un.isNotEmpty) return un;
+    return (u['displayName'] ?? '').toString().trim();
+  }
+
   static Future<bool> sendRequest({required String toUid}) async {
     final fromUid = _myUid;
     if (fromUid == null || fromUid == toUid) return false;
@@ -357,6 +364,9 @@ class FriendService {
     // Kendi profilimi çek (snapshot olarak isteğe gömeceğim)
     final mySnap = await _fs.collection('users').doc(fromUid).get();
     final me = mySnap.data() ?? const <String, dynamic>{};
+    // Karşı tarafta DAİMA kullanıcı adı görünsün (kullanıcı ne belirlediyse o).
+    // Username boşsa displayName'e düşülür.
+    final myName = _publicName(me);
 
     final batch = _fs.batch();
     final reqRef = _fs
@@ -367,7 +377,7 @@ class FriendService {
     batch.set(reqRef, {
       'fromUid': fromUid,
       'fromUsername': me['username'] ?? '',
-      'fromDisplayName': me['displayName'] ?? '',
+      'fromDisplayName': myName,
       'fromAvatar': me['avatar'] ?? '',
       'sentAt': FieldValue.serverTimestamp(),
       'status': 'pending',
@@ -383,7 +393,7 @@ class FriendService {
       'type': 'friend_request',
       'fromUid': fromUid,
       'fromUsername': me['username'] ?? '',
-      'fromDisplayName': me['displayName'] ?? '',
+      'fromDisplayName': myName,
       'fromAvatar': me['avatar'] ?? '',
       'when': FieldValue.serverTimestamp(),
       'read': false,
@@ -416,7 +426,7 @@ class FriendService {
         {
           'uid': toUid,
           'username': b['username'] ?? '',
-          'displayName': b['displayName'] ?? '',
+          'displayName': _publicName(b),
           'avatar': b['avatar'] ?? '',
           'since': FieldValue.serverTimestamp(),
         },
@@ -427,7 +437,7 @@ class FriendService {
         {
           'uid': fromUid,
           'username': a['username'] ?? '',
-          'displayName': a['displayName'] ?? '',
+          'displayName': _publicName(a),
           'avatar': a['avatar'] ?? '',
           'since': FieldValue.serverTimestamp(),
         },
@@ -448,7 +458,7 @@ class FriendService {
           'type': 'friend_accepted',
           'fromUid': toUid,
           'fromUsername': b['username'] ?? '',
-          'fromDisplayName': b['displayName'] ?? '',
+          'fromDisplayName': _publicName(b),
           'fromAvatar': b['avatar'] ?? '',
           'when': FieldValue.serverTimestamp(),
           'read': false,

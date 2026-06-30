@@ -28,12 +28,14 @@ import { generateGeminiText } from "./gemini_util";
 
 const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 
-// Hedef pool boyutu — 1000 yeterli kapsama (50-100 farklı test × 10-20 soru).
-// Önceki 5000 değeri abartılı: aynı konuda gerçekten farklı 30-50 soru kalıbı
-// var, fazlası dedup ile elenir. 1000 + organic doluş yetiyor.
-const TARGET_POOL_SIZE = 1000;
-const BATCH_SIZE = 50;
-const MAX_BATCHES_PER_RUN = 1; // güvenlik — tek seferde 50 üret
+// Hedef pool boyutu — konu başına 450 soru. Kullanıcı tarafı eşiği 400 (en az
+// 400 soru birikmeden havuz devreye girmez), 450 tavanı küçük bir tampon
+// bırakır. Maliyet çok düşük (konu başına ~$0,002), bu yüzden kapsama için
+// yüksek tutuldu. Önceki 1000/5000 değerleri ülke×sınıf×konu çarpanında
+// gereksiz devasa toplam üretiyordu — 450 hem geniş kapsama hem ekonomik.
+const TARGET_POOL_SIZE = 450;
+const BATCH_SIZE = 100; // her batch 100 soru (Gemini Flash)
+const MAX_BATCHES_PER_RUN = 2; // her çalışmada 2 batch = 200 soru → ~3 turda dolar
 const DEDUP_SIM_THRESHOLD = 0.92; // basit Jaccard similarity üzerinde
 const POOL_REGENERATE_AFTER_DAYS = 365;
 
@@ -69,12 +71,12 @@ export const scheduledPoolFill = onSchedule(
   },
   async () => {
     const db = getFirestore();
-    // 5000'e ulaşmamış pool'ları çek (her seferinde max 20 pool)
+    // Tavana ulaşmamış pool'ları çek (her seferinde max 30 pool)
     const snap = await db
       .collection("question_pool")
       .where("status", "==", "generating")
       .where("acceptedCount", "<", TARGET_POOL_SIZE)
-      .limit(20)
+      .limit(30)
       .get();
 
     if (snap.empty) {

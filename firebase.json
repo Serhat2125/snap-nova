@@ -67,6 +67,10 @@
       {
         "source": "/i/**",
         "destination": "/davet.html"
+      },
+      {
+        "source": "/grup/**",
+        "destination": "/davet.html"
       }
     ]
   },

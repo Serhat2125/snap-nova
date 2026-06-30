@@ -106,6 +106,12 @@ class QuestionPoolService {
   /// Bir kullanıcı oturumunda max N soruluk paket.
   static const int kDefaultBatchSize = 20;
 
+  /// Havuz, bu eşiğin ALTINDA AI'ya düşer; eşiğe ulaşınca o konu için havuzdan
+  /// çekilir ve AI devreden çıkar. En az 400 soru birikmeden havuz devreye
+  /// girmez (kalite/çeşitlilik). Generator tavanı 450 → 400'den sonra küçük
+  /// bir tampon kalır. Tüm konular için geçerli.
+  static const int kPoolActivationThreshold = 400;
+
   // ─── Pool key oluştur ──────────────────────────────────────────────────────
 
   /// Aynı şema: country|level|grade|subject|topic.
@@ -154,10 +160,11 @@ class QuestionPoolService {
       final status = (data['status'] as String?) ?? 'generating';
       final accepted = (data['acceptedCount'] as int?) ?? 0;
 
-      // Havuz eşiği — kalite ve çeşitlilik için 50'nin altındayken AI'a düşer.
+      // Havuz eşiği — kalite ve çeşitlilik için 500'ün altındayken AI'a düşer.
       // İlk öğrenciler AI ile soru üretir → bu sorular pool'a yazılır
-      // (insertQuestions) → 50'ye ulaşınca pool aktifleşir.
-      if (accepted < 50) {
+      // (insertQuestions) → 500'e ulaşınca pool aktifleşir ve o konu için AI
+      // tamamen devreden çıkar. Tüm konular için geçerli.
+      if (accepted < kPoolActivationThreshold) {
         return null;
       }
 

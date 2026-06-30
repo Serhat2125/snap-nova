@@ -25,6 +25,8 @@ import '../services/class_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
 import 'student_homeworks_screen.dart';
+import 'qualsar_arena_screen.dart';
+import 'group_contest_screen.dart';
 
 /// Öğretmen hesabının gelen kutusunda görünmesi gereken bildirim tipleri.
 /// (Öğrenci-tipi davet/ödev bildirimleri öğretmene gösterilmez; öğretmen
@@ -147,6 +149,7 @@ class _NotificationCard extends StatelessWidget {
       case 'homework_published':  return Icons.send_rounded;
       case 'homework_all_done':   return Icons.task_alt_rounded;
       case 'parent_message':      return Icons.mark_email_unread_rounded;
+      case 'group_contest_invite': return Icons.groups_rounded;
       default:                    return Icons.notifications_rounded;
     }
   }
@@ -164,6 +167,7 @@ class _NotificationCard extends StatelessWidget {
       case 'homework_published':  return const Color(0xFF7C3AED);
       case 'homework_all_done':   return const Color(0xFF10B981);
       case 'parent_message':      return const Color(0xFF0EA5E9);
+      case 'group_contest_invite': return const Color(0xFF7C3AED);
       default:                    return const Color(0xFF06B6D4);
     }
   }
@@ -192,6 +196,8 @@ class _NotificationCard extends StatelessWidget {
         return 'Herkes ödevini bitirdi 🎉'.tr();
       case 'parent_message':
         return 'Ebeveyn mesajı'.tr();
+      case 'group_contest_invite':
+        return 'Grup yarışı daveti 🏆'.tr();
       default:
         return data['fromDisplayName']?.toString() ?? 'Bildirim'.tr();
     }
@@ -230,6 +236,10 @@ class _NotificationCard extends StatelessWidget {
         return '${data['className'] ?? ''} ${'sınıfından'.tr()} '
             '${data['fromDisplayName'] ?? 'bir öğrenci'} '
             '${'adlı öğrencinin ebeveyninden mesajın var.'.tr()}';
+      case 'group_contest_invite':
+        return '${data['fromDisplayName'] ?? data['fromUsername'] ?? 'Bir arkadaşın'} '
+            'seni "${data['subjectName'] ?? ''} • ${data['topic'] ?? ''}" '
+            'grup yarışına davet etti. Katılmak için dokun.';
       default:
         return '';
     }
@@ -250,6 +260,25 @@ class _NotificationCard extends StatelessWidget {
       // Profile'a yönlendirme: kullanıcı orada banner'ı görür ve onaylar
     } else if (type == 'class_invite') {
       await _handleClassInvite(context, data);
+    } else if (type == 'friend_request' || type == 'friend_accepted') {
+      // Arkadaşlık isteği → Arena'da gelen istekler sheet'i açılır.
+      await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => QuAlsarArenaScreen(openAction: 'friendRequests'),
+      ));
+    } else if (type == 'duelo_invite') {
+      // Düello daveti → Arena'da düello davetleri sheet'i açılır.
+      await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => QuAlsarArenaScreen(openAction: 'dueloInvites'),
+      ));
+    } else if (type == 'group_contest_invite') {
+      // Grup yarışı daveti → yarışmayı aç (autoJoin ile katıl).
+      final contestId = (data['contestId'] ?? '').toString();
+      if (contestId.isNotEmpty) {
+        await Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) =>
+              GroupContestScreen(contestId: contestId, autoJoin: true),
+        ));
+      }
     }
   }
 

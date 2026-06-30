@@ -17,6 +17,8 @@ import 'screens/onboarding_screen.dart';
 import 'screens/academic_planner.dart';
 import 'screens/premium_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/qualsar_arena_screen.dart';
+import 'screens/notifications_inbox_screen.dart';
 import 'theme/app_theme.dart';
 import 'firebase_options.dart';
 import 'services/analytics.dart';
@@ -35,6 +37,7 @@ import 'services/preferences_sync_service.dart';
 import 'services/user_profile_service.dart';
 import 'screens/app_lock_screen.dart';
 import 'screens/invite_accept_screen.dart';
+import 'screens/group_contest_screen.dart';
 import 'services/locale_service.dart';
 import 'services/theme_service.dart';
 import 'services/tts_service.dart';
@@ -277,9 +280,27 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
     // Bildirim izni dialog'u burada çıkar; arka planda çalışır, UI bloklamaz.
     if (AuthService.firebaseReady) {
       unawaited(PushService.init(onTap: (payload) {
-        // Bildirim tıklanma: payload'a göre yönlendirme yapılabilir.
-        // Şimdilik log — main navigator key kurulduktan sonra route bağlanır.
-        debugPrint('[Push] tap payload: $payload');
+        // Bildirime basınca türüne göre ilgili sayfaya yönlendir.
+        final type = payload['type']?.toString() ?? '';
+        final nav = globalNavigatorKey.currentState;
+        if (nav == null) return;
+        switch (type) {
+          case 'friend_request':
+          case 'friend_accepted':
+            nav.push(MaterialPageRoute(
+                builder: (_) =>
+                    QuAlsarArenaScreen(openAction: 'friendRequests')));
+            break;
+          case 'duelo_invite':
+            nav.push(MaterialPageRoute(
+                builder: (_) =>
+                    QuAlsarArenaScreen(openAction: 'dueloInvites')));
+            break;
+          default:
+            // Diğer türler: bildirim kutusunu aç.
+            nav.push(MaterialPageRoute(
+                builder: (_) => const NotificationsInboxScreen()));
+        }
       }).then((_) {
         // Öğrenci hatırlatıcılarını (çalışma/seri/sınav) planla + yeni rozet
         // bildirimlerini eşitle. Öğretmen/ebeveyn için bunları iptal et.
@@ -428,12 +449,30 @@ class _StartupRouterState extends State<_StartupRouter> {
     _future = _resolve();
     // Deep link davet listener — link gelince /davet/{username} → push.
     DeepLinkService.instance.pendingInvite.addListener(_handleInvite);
+    // Grup yarışı daveti — /grup/{contestId} → GroupContestScreen (autoJoin).
+    DeepLinkService.instance.pendingGroupContest
+        .addListener(_handleGroupContest);
   }
 
   @override
   void dispose() {
     DeepLinkService.instance.pendingInvite.removeListener(_handleInvite);
+    DeepLinkService.instance.pendingGroupContest
+        .removeListener(_handleGroupContest);
     super.dispose();
+  }
+
+  void _handleGroupContest() {
+    final id = DeepLinkService.instance.pendingGroupContest.value;
+    if (id == null || id.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final nav = globalNavigatorKey.currentState;
+      if (nav == null) return;
+      DeepLinkService.instance.clearGroupContest();
+      nav.push(MaterialPageRoute(
+        builder: (_) => GroupContestScreen(contestId: id, autoJoin: true),
+      ));
+    });
   }
 
   void _handleInvite() {

@@ -41,6 +41,10 @@ class DeepLinkService {
   /// dinlenir; kod varsa otomatik `ReferralService.redeemCode()` çağrılır.
   final ValueNotifier<String?> pendingReferralCode = ValueNotifier<String?>(null);
 
+  /// Bekleyen grup yarışı id'si — `/grup/{contestId}` linkinden. main.dart
+  /// dinler, GroupContestScreen'i autoJoin ile açar.
+  final ValueNotifier<String?> pendingGroupContest = ValueNotifier<String?>(null);
+
   Future<void> init() async {
     if (_initialized) return;
     _initialized = true;
@@ -69,7 +73,14 @@ class DeepLinkService {
         .toList();
     if (segs.isEmpty) return;
 
-    if (segs.length >= 2 && segs[0] == 'davet') {
+    if (segs.length >= 2 && segs[0] == 'grup') {
+      // /grup/{contestId} — contestId case-sensitive (Firestore doc id),
+      // orijinal path segmentinden al.
+      final id = uri.pathSegments.length >= 2
+          ? uri.pathSegments[1]
+          : segs[1];
+      pendingGroupContest.value = id;
+    } else if (segs.length >= 2 && segs[0] == 'davet') {
       // /davet/{username}
       pendingInvite.value = segs[1];
     } else if (segs.length >= 2 && segs[0] == 'u') {
@@ -88,6 +99,7 @@ class DeepLinkService {
   void clearInvite() => pendingInvite.value = null;
   void clearProfile() => pendingProfile.value = null;
   void clearReferralCode() => pendingReferralCode.value = null;
+  void clearGroupContest() => pendingGroupContest.value = null;
 
   Future<void> dispose() async {
     await _sub?.cancel();

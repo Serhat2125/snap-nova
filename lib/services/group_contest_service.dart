@@ -1,0 +1,377 @@
+// ═══════════════════════════════════════════════════════════════════════════════
+//  GroupContestService — Arkadaş grubu yarışması (özel lig).
+//
+//  FİKİR:
+//    Bir kullanıcı (sahip) bir ders+konu seçer, havuzdan/AI'dan SABİT bir soru
+//    seti üretilir ve bir "grup yarışması" dokümanına gömülür. Arkadaşlar
+//    davet linki/QR ile katılır, HERKES AYNI SORULARI çözer, sıralama SADECE
+//    bu grup içinde yapılır (dünya/ülke sıralamasından bağımsız).
+//
+//  1v1 düellodan farkı: eşzamanlı değil, ASENKRON. Herkes kendi vaktinde aynı
+//  seti çözer; skor (doğru sayısı) + süreye göre grup tablosunda sıralanır.
+//
+//  ŞEMA:
+//    group_contests/{contestId}
+//      ownerUid, ownerName, scope: 'friends'
+//      subjectKey, subjectName, subjectEmoji, topic
+//      questionCount
+//      questions: [ {text, formula?, options[], correctIndex, hint, explanation,
+//                    difficulty} ]   ← SABİT set, herkese aynı
+//      createdAt, expiresAt
+//      /participants/{uid}
+//        username, avatar
+//        status: 'joined' | 'done'
+//        score (doğru sayısı), correct, total, durationMs, finishedAt
+//        joinedAt
+// ═══════════════════════════════════════════════════════════════════════════════
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+
+import 'friend_service.dart';
+import 'user_profile_service.dart';
+
+/// Bir grup yarışmasının meta verisi + soruları.
+class GroupContest {
+  final String id;
+  final String ownerUid;
+  final String ownerName;
+  final String subjectKey;
+  final String subjectName;
+  final String subjectEmoji;
+  final String topic;
+  final int questionCount;
+  final List<Map<String, dynamic>> questions;
+  final DateTime? createdAt;
+  final DateTime? expiresAt;
+
+  const GroupContest({
+    required this.id,
+    required this.ownerUid,
+    required this.ownerName,
+    required this.subjectKey,
+    required this.subjectName,
+    required this.subjectEmoji,
+    required this.topic,
+    required this.questionCount,
+    required this.questions,
+    this.createdAt,
+    this.expiresAt,
+  });
+
+  bool get isExpired =>
+      expiresAt != null && DateTime.now().isAfter(expiresAt!);
+
+  factory GroupContest.fromDoc(
+      String id, Map<String, dynamic> d) {
+    final rawQs = (d['questions'] as List?) ?? const [];
+    return GroupContest(
+      id: id,
+      ownerUid: (d['ownerUid'] ?? '').toString(),
+      ownerName: (d['ownerName'] ?? '').toString(),
+      subjectKey: (d['subjectKey'] ?? '').toString(),
+      subjectName: (d['subjectName'] ?? '').toString(),
+      subjectEmoji: (d['subjectEmoji'] ?? '🎯').toString(),
+      topic: (d['topic'] ?? '').toString(),
+      questionCount: (d['questionCount'] as int?) ?? rawQs.length,
+      questions: rawQs
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList(),
+      createdAt: (d['createdAt'] as Timestamp?)?.toDate(),
+      expiresAt: (d['expiresAt'] as Timestamp?)?.toDate(),
+    );
+  }
+}
+
+/// Bir katılımcının lobi/sıralama satırı.
+class GroupParticipant {
+  final String uid;
+  final String username;
+  final String avatar;
+  final String status; // 'joined' | 'done'
+  final int score; // doğru sayısı
+  final int correct;
+  final int total;
+  final int durationMs;
+
+  const GroupParticipant({
+    required this.uid,
+    required this.username,
+    required this.avatar,
+    required this.status,
+    required this.score,
+    required this.correct,
+    required this.total,
+    required this.durationMs,
+  });
+
+  bool get isDone => status == 'done';
+
+  factory GroupParticipant.fromDoc(String uid, Map<String, dynamic> d) {
+    return GroupParticipant(
+      uid: uid,
+      username: (d['username'] ?? '').toString(),
+      avatar: (d['avatar'] ?? '👤').toString(),
+      status: (d['status'] ?? 'joined').toString(),
+      score: (d['score'] as int?) ?? 0,
+      correct: (d['correct'] as int?) ?? 0,
+      total: (d['total'] as int?) ?? 0,
+      durationMs: (d['durationMs'] as int?) ?? 0,
+    );
+  }
+}
+
+class GroupContestService {
+  GroupContestService._();
+
+  static final _fs = FirebaseFirestore.instance;
+  static const _collection = 'group_contests';
+
+  static String? get _uid => FirebaseAuth.instance.currentUser?.uid;
+
+  static String inviteLinkFor(String contestId) =>
+      'https://qualsar.app/grup/$contestId';
+
+  // ─── Oluştur ───────────────────────────────────────────────────────────────
+
+  /// Yeni grup yarışması oluşturur, sahibi ilk katılımcı olarak ekler.
+  /// [questions] taşınabilir map listesidir (text/options/correctIndex/…).
+  /// Yeni yarışmanın id'sini döner; hata olursa null.
+  static Future<String?> createContest({
+    required String subjectKey,
+    required String subjectName,
+    required String subjectEmoji,
+    required String topic,
+    required List<Map<String, dynamic>> questions,
+  }) async {
+    final uid = _uid;
+    if (uid == null || questions.isEmpty) return null;
+    try {
+      final p = UserProfileService.instance;
+      final ownerName =
+          p.username.trim().isNotEmpty ? p.username.trim() : 'Oyuncu';
+      final now = DateTime.now();
+      final docRef = _fs.collection(_collection).doc();
+      await docRef.set({
+        'ownerUid': uid,
+        'ownerName': ownerName,
+        'scope': 'friends',
+        'subjectKey': subjectKey,
+        'subjectName': subjectName,
+        'subjectEmoji': subjectEmoji,
+        'topic': topic,
+        'questionCount': questions.length,
+        'questions': questions,
+        'createdAt': FieldValue.serverTimestamp(),
+        // 7 gün geçerli — sonra eskimiş yarışmalar listelenmesin.
+        'expiresAt': Timestamp.fromDate(now.add(const Duration(days: 7))),
+      });
+      // Sahibi ilk katılımcı yap (lobide görünsün).
+      await _joinDoc(docRef.id, uid);
+      return docRef.id;
+    } catch (e) {
+      debugPrint('[GroupContest] createContest fail: $e');
+      return null;
+    }
+  }
+
+  // ─── Katıl ───────────────────────────────────────────────────────────────
+
+  /// Davet linki/QR ile gelen kullanıcıyı yarışmaya katılımcı yapar.
+  /// Zaten katıldıysa (veya bitirdiyse) durumunu BOZMAZ.
+  static Future<bool> joinContest(String contestId) async {
+    final uid = _uid;
+    if (uid == null) return false;
+    try {
+      await _joinDoc(contestId, uid);
+      return true;
+    } catch (e) {
+      debugPrint('[GroupContest] join fail: $e');
+      return false;
+    }
+  }
+
+  // ─── Kullanıcı adıyla davet ─────────────────────────────────────────────
+
+  /// Kullanıcı adına göre arkadaşı yarışmaya davet eder — hedefin
+  /// in-app bildirim kutusuna 'group_contest_invite' tipinde bildirim yazar
+  /// (bildirime basınca yarışma açılır). Sonuç: 'ok' | 'notfound' | 'self'
+  /// | 'error'.
+  static Future<String> inviteByUsername(
+    String contestId,
+    String username, {
+    required String subjectName,
+    required String topic,
+  }) async {
+    final uid = _uid;
+    if (uid == null) return 'error';
+    try {
+      final target = await FriendService.getUserByUsername(username);
+      if (target == null) return 'notfound';
+      if (target.uid == uid) return 'self';
+      final me = UserProfileService.instance;
+      final myName =
+          me.username.trim().isNotEmpty ? me.username.trim() : 'Oyuncu';
+      await _fs
+          .collection('notifications')
+          .doc(target.uid)
+          .collection('items')
+          .doc()
+          .set({
+        'type': 'group_contest_invite',
+        'contestId': contestId,
+        'fromUid': uid,
+        'fromUsername': me.username,
+        'fromDisplayName': myName,
+        'fromAvatar': me.avatar,
+        'subjectName': subjectName,
+        'topic': topic,
+        'when': FieldValue.serverTimestamp(),
+        'read': false,
+      });
+      return 'ok';
+    } catch (e) {
+      debugPrint('[GroupContest] inviteByUsername fail: $e');
+      return 'error';
+    }
+  }
+
+  static Future<void> _joinDoc(String contestId, String uid) async {
+    final pRef = _fs
+        .collection(_collection)
+        .doc(contestId)
+        .collection('participants')
+        .doc(uid);
+    final existing = await pRef.get();
+    if (existing.exists) return; // skoru/durumu koru
+    final p = UserProfileService.instance;
+    await pRef.set({
+      'uid': uid, // collectionGroup sorgusu için (myContestsStream)
+      'username':
+          p.username.trim().isNotEmpty ? p.username.trim() : 'Oyuncu',
+      'avatar': p.avatar.isNotEmpty ? p.avatar : '👤',
+      'status': 'joined',
+      'score': 0,
+      'correct': 0,
+      'total': 0,
+      'durationMs': 0,
+      'joinedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  // ─── Sonuç gönder ─────────────────────────────────────────────────────────
+
+  /// Yarışı bitiren kullanıcının skorunu yazar. Idempotent değil — yeniden
+  /// çözmeyi engellemek için caller [hasFinished] ile kontrol etmeli.
+  static Future<void> submitResult(
+    String contestId, {
+    required int correct,
+    required int total,
+    required int durationMs,
+  }) async {
+    final uid = _uid;
+    if (uid == null) return;
+    try {
+      await _fs
+          .collection(_collection)
+          .doc(contestId)
+          .collection('participants')
+          .doc(uid)
+          .set({
+        'status': 'done',
+        'score': correct,
+        'correct': correct,
+        'total': total,
+        'durationMs': durationMs,
+        'finishedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[GroupContest] submitResult fail: $e');
+    }
+  }
+
+  // ─── Okuma ─────────────────────────────────────────────────────────────────
+
+  static Future<GroupContest?> getContest(String contestId) async {
+    try {
+      final doc =
+          await _fs.collection(_collection).doc(contestId).get();
+      if (!doc.exists) return null;
+      return GroupContest.fromDoc(doc.id, doc.data() ?? const {});
+    } catch (e) {
+      debugPrint('[GroupContest] getContest fail: $e');
+      return null;
+    }
+  }
+
+  /// Mevcut kullanıcı bu yarışı bitirmiş mi?
+  static Future<bool> hasFinished(String contestId) async {
+    final uid = _uid;
+    if (uid == null) return false;
+    try {
+      final doc = await _fs
+          .collection(_collection)
+          .doc(contestId)
+          .collection('participants')
+          .doc(uid)
+          .get();
+      return (doc.data()?['status'] ?? '') == 'done';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Katılımcı/sıralama akışı — skor desc, süre asc.
+  static Stream<List<GroupParticipant>> participantsStream(
+      String contestId) {
+    return _fs
+        .collection(_collection)
+        .doc(contestId)
+        .collection('participants')
+        .snapshots()
+        .map((snap) {
+      final list = snap.docs
+          .map((d) => GroupParticipant.fromDoc(d.id, d.data()))
+          .toList();
+      // Bitirenler önce (skor desc, süre asc); bekleyenler sona.
+      list.sort((a, b) {
+        if (a.isDone != b.isDone) return a.isDone ? -1 : 1;
+        if (a.score != b.score) return b.score.compareTo(a.score);
+        return a.durationMs.compareTo(b.durationMs);
+      });
+      return list;
+    });
+  }
+
+  /// Mevcut kullanıcının katıldığı, süresi geçmemiş yarışmalar.
+  static Stream<List<GroupContest>> myContestsStream() {
+    final uid = _uid;
+    if (uid == null) {
+      return const Stream<List<GroupContest>>.empty();
+    }
+    // collectionGroup ile katıldıklarımı bul → parent contest'leri çek.
+    return _fs
+        .collectionGroup('participants')
+        .where('uid', isEqualTo: uid)
+        .snapshots()
+        .asyncMap((snap) async {
+      final out = <GroupContest>[];
+      for (final d in snap.docs) {
+        final parent = d.reference.parent.parent;
+        if (parent == null) continue;
+        try {
+          final c = await parent.get();
+          if (!c.exists) continue;
+          final contest =
+              GroupContest.fromDoc(c.id, c.data() ?? const {});
+          if (!contest.isExpired) out.add(contest);
+        } catch (_) {}
+      }
+      out.sort((a, b) => (b.createdAt ?? DateTime(0))
+          .compareTo(a.createdAt ?? DateTime(0)));
+      return out;
+    });
+  }
+}

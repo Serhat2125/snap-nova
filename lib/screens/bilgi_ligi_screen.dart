@@ -3947,8 +3947,8 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
           // Kullanıcının kendi satırı için profil ekranındaki ad+soyad
           // tercih edilir; eski submission'larda Auth displayName yazılmış
           // olabilir, lokal `profile_name` daha güncel ve tutarlı.
-          name: rows[i].isMe && _profileName.isNotEmpty && !_anonymousMode
-              ? _profileName
+          name: rows[i].isMe && !_anonymousMode
+              ? _myDisplayNameForMock() // kullanıcı adı öncelikli
               : (rows[i].displayName.isEmpty
                   ? (rows[i].isMe ? 'Sen'.tr() : 'Anonim'.tr())
                   : rows[i].displayName),
@@ -4170,9 +4170,12 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
                   ? 'Öğrenci #${u.substring(0, 5)}'
                   : 'Anonim';
             }()
-          : (_profileName.isNotEmpty
-              ? _profileName
-              : user?.displayName);
+          // DAİMA kullanıcı adı; boşsa profil adı, o da boşsa Auth adı.
+          : (UserProfileService.instance.username.isNotEmpty
+              ? UserProfileService.instance.username
+              : (_profileName.isNotEmpty
+                  ? _profileName
+                  : user?.displayName));
       await LeagueScores.add(
         LeagueAttempt(
           subjectKey: subject.key,
