@@ -59,12 +59,16 @@ class AccountService extends ChangeNotifier {
 
   static const _kPrefKey = 'account_type_v1';
   static const _kBranchKey = 'teacher_branch_v1';
+  static const _kLevelKey = 'teacher_level_v1';
   static const _kPhotoKey = 'teacher_photo_path_v1';
   static const _kStatusKey = 'teacher_status_v1';
+  static const _kGradingKey = 'teacher_grading_country_v1';
   AccountType _type = AccountType.student;
   String? _teacherBranch;
+  String? _teacherLevel;
   String? _teacherPhotoPath;
   String? _teacherStatus;
+  String? _gradingCountry;
   bool _loaded = false;
 
   AccountType get type => _type;
@@ -76,11 +80,18 @@ class AccountService extends ChangeNotifier {
   /// Öğretmenin branşı (hesap kurulumunda seçilir). null → henüz seçilmemiş.
   String? get teacherBranch => _teacherBranch;
 
+  /// Öğretmenin öğrettiği eğitim seviyesi (İlkokul/Ortaokul/Lise/Üniversite).
+  String? get teacherLevel => _teacherLevel;
+
   /// Öğretmenin profil fotoğrafı (yerel dosya yolu). null → emoji göster.
   String? get teacherPhotoPath => _teacherPhotoPath;
 
   /// Öğretmenin durum mesajı (örn: "10. sınıf fizik öğretmeni").
   String? get teacherStatus => _teacherStatus;
+
+  /// Öğretmenin not sistemi/müfredat ülke kodu (ör. 'TR','US','DE').
+  /// null → henüz seçilmemiş (TeacherShellScreen açılışında seçtirilir).
+  String? get gradingCountry => _gradingCountry;
 
   Future<void> init() async {
     if (_loaded) return;
@@ -89,8 +100,10 @@ class AccountService extends ChangeNotifier {
       final raw = prefs.getString(_kPrefKey);
       _type = AccountTypeX.fromKey(raw);
       _teacherBranch = prefs.getString(_kBranchKey);
+      _teacherLevel = prefs.getString(_kLevelKey);
       _teacherPhotoPath = prefs.getString(_kPhotoKey);
       _teacherStatus = prefs.getString(_kStatusKey);
+      _gradingCountry = prefs.getString(_kGradingKey);
     } catch (_) {}
     _loaded = true;
     notifyListeners();
@@ -134,6 +147,24 @@ class AccountService extends ChangeNotifier {
         try {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString(_kBranchKey, cloudBranch);
+        } catch (_) {}
+        changed = true;
+      }
+      final cloudLevel = snap.data()?['teacherLevel'] as String?;
+      if (cloudLevel != null && cloudLevel != _teacherLevel) {
+        _teacherLevel = cloudLevel;
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_kLevelKey, cloudLevel);
+        } catch (_) {}
+        changed = true;
+      }
+      final cloudGrading = snap.data()?['gradingCountry'] as String?;
+      if (cloudGrading != null && cloudGrading != _gradingCountry) {
+        _gradingCountry = cloudGrading;
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_kGradingKey, cloudGrading);
         } catch (_) {}
         changed = true;
       }
@@ -189,6 +220,50 @@ class AccountService extends ChangeNotifier {
       }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('[AccountService] teacher profile save fail: $e');
+    }
+  }
+
+  /// Öğretmenin branş ve/veya öğrettiği seviyesini profilden günceller.
+  /// Yalnızca verilen alanlar değişir (null → dokunulmaz). Hem yerel
+  /// (prefs) hem Firestore users/{uid} güncellenir; teacherUsername'e dokunmaz.
+  Future<void> updateTeacherProfile({String? branch, String? level}) async {
+    if (branch != null) _teacherBranch = branch;
+    if (level != null) _teacherLevel = level;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (branch != null) await prefs.setString(_kBranchKey, branch);
+      if (level != null) await prefs.setString(_kLevelKey, level);
+    } catch (_) {}
+    notifyListeners();
+    _reportSegment();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(uid).set({
+        if (branch != null) 'teacherBranch': branch,
+        if (level != null) 'teacherLevel': level,
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[AccountService] updateTeacherProfile fail: $e');
+    }
+  }
+
+  /// Öğretmenin not sistemi/müfredat ülke kodunu kalıcı yazar (prefs+Firestore).
+  Future<void> setGradingCountry(String countryCode) async {
+    _gradingCountry = countryCode;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kGradingKey, countryCode);
+    } catch (_) {}
+    notifyListeners();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(uid).set({
+        'gradingCountry': countryCode,
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[AccountService] setGradingCountry fail: $e');
     }
   }
 

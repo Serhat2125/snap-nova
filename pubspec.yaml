@@ -101,6 +101,9 @@ dependencies:
   # Sosyal altyapı — FCM push, deep link davet, QR scan, rehber sync.
   firebase_messaging: ^15.1.0
   flutter_local_notifications: ^17.2.3
+  # Zamanlanmış yerel bildirimler (sınav geri sayımı) için — zonedSchedule
+  # mutlak-an (tz.UTC) ile çalışır, cihaz IANA zonu gerektirmez.
+  timezone: ^0.9.4
   app_links: ^6.3.2
   mobile_scanner: ^5.2.3
 

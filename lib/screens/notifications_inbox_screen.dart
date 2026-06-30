@@ -283,14 +283,14 @@ class _NotificationCard extends StatelessWidget {
     if (!context.mounted) return;
     String msg;
     if (res == JoinClassResult.success) {
-      msg = 'Sınıfa katıldın 🎉';
+      msg = 'Sınıfa katıldın 🎉'.tr();
     } else if (res == JoinClassResult.alreadyJoined) {
-      msg = 'Zaten bu sınıftasın.';
+      msg = 'Zaten bu sınıftasın.'.tr();
     } else {
-      msg = 'Katılınamadı. Tekrar dene.';
+      msg = 'Katılınamadı. Tekrar dene.'.tr();
     }
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg.tr()),
+      content: Text(msg),
       behavior: SnackBarBehavior.floating,
     ));
   }

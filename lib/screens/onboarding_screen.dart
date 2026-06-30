@@ -65,6 +65,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   /// _GradePage'in `onCountryConfirmedChanged` callback'i bunu günceller;
   /// canContinue kontrolü bu flag'i kullanır.
   bool _countryConfirmed = false;
+  /// Öğretmen, kullanıcı seçiminden sonra da seviye/müfredat (grade) sayfasını
+  /// görür; bu sayfadan sonra feature sayfalarına değil TeacherIntroScreen'e
+  /// gider. Bu bayrak o ayrımı yönetir.
+  bool _isTeacherFlow = false;
 
   static const int _totalPages = 8;
   static const int _authPageIndex = 1;
@@ -207,6 +211,23 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => CameraScreen()),
+    );
+  }
+
+  /// Öğretmen, grade (seviye/müfredat) sayfasını tamamladığında: seçilen
+  /// müfredat ülkesini not sistemine yazar, onboarding'i bitmiş işaretler ve
+  /// TeacherIntroScreen'e geçer. Böylece müfredat durumu burada belirlenmiş olur.
+  Future<void> _finishTeacherSetup() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(OnboardingScreen.prefKey, true);
+    final country = prefs.getString('mini_test_country') ?? 'tr';
+    try {
+      await AccountService.instance.setGradingCountry(country.toUpperCase());
+    } catch (_) {}
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const TeacherIntroScreen()),
+      (r) => false,
     );
   }
 
@@ -438,14 +459,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       }
                     },
                     onContinueOther: (type) {
-                      // Ebeveyn/Öğretmen: kendi intro flow'una pushAndRemoveUntil.
-                      // Onboarding stack temizlenir, intro flow tek başına çalışır.
                       if (!mounted) return;
+                      // Öğretmen: seviye/müfredat (grade) sayfasını da görsün →
+                      // ileri git. Grade sayfasının CTA'sı TeacherIntroScreen'e
+                      // götürür (aşağıdaki CTA onTap teacher dalı).
+                      if (type == AccountType.teacher) {
+                        setState(() => _isTeacherFlow = true);
+                        if (_currentPage == _userSetupPageIndex) _goNext();
+                        return;
+                      }
+                      // Ebeveyn: doğrudan kendi intro flow'una.
                       Navigator.of(context).pushAndRemoveUntil(
                         MaterialPageRoute(
-                          builder: (_) => type == AccountType.parent
-                              ? const ParentIntroScreen()
-                              : const TeacherIntroScreen(),
+                          builder: (_) => const ParentIntroScreen(),
                         ),
                         (r) => false,
                       );
@@ -454,6 +480,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   _GradePage(
                     accent: _accentPerPage[2],
                     selected: _selectedGrade,
+                    forTeacher: _isTeacherFlow,
                     onSelect: (g) => setState(() => _selectedGrade = g),
                     onProfilesChanged: (list) =>
                         setState(() => _selectedProfiles = list),
@@ -522,6 +549,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   enabled: canContinue,
                   onTap: () async {
                     if (!canContinue) return;
+                    // Öğretmen + grade sayfası: seçilen müfredat ülkesini
+                    // not sistemine yaz, sonra TeacherIntroScreen'e geç.
+                    if (_isTeacherFlow && _currentPage == _gradePageIndex) {
+                      await _finishTeacherSetup();
+                      return;
+                    }
                     if (isLast) {
                       await _finish();
                     } else {
@@ -1480,12 +1513,16 @@ class _GradePage extends StatefulWidget {
   /// Ülke onay durumu değiştiğinde parent'a bildir — parent "İleri" butonunu
   /// disable/enable etmek için bu bilgiyi kullanır.
   final ValueChanged<bool>? onCountryConfirmedChanged;
+  /// Öğretmen akışı: başlık/altyazı "hangi seviyede eğitim vereceksiniz?"
+  /// olur (seviye+sınıf çoklu seçimi ve müfredat kartı aynı kalır).
+  final bool forTeacher;
   const _GradePage({
     required this.accent,
     required this.selected,
     required this.onSelect,
     this.onProfilesChanged,
     this.onCountryConfirmedChanged,
+    this.forTeacher = false,
   });
 
   @override
@@ -2728,7 +2765,9 @@ class _GradePageState extends State<_GradePage> {
           _SectionIconBadge(icon: Icons.tune_rounded, color: widget.accent),
           SizedBox(height: 16),
           Text(
-            localeService.tr('onb_grade_title'),
+            widget.forTeacher
+                ? 'Hangi seviyede eğitim vereceksiniz?'.tr()
+                : localeService.tr('onb_grade_title'),
             textAlign: TextAlign.center,
             style: TextStyle(
               color: AppPalette.textPrimary(context),
@@ -2739,7 +2778,10 @@ class _GradePageState extends State<_GradePage> {
           ),
           SizedBox(height: 8),
           Text(
-            localeService.tr('onb_grade_subtitle'),
+            widget.forTeacher
+                ? 'Birden fazla seviye ve sınıf ekleyebilirsin; müfredat seçimine göre içerik ayarlanır.'
+                    .tr()
+                : localeService.tr('onb_grade_subtitle'),
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13,
@@ -4803,10 +4845,8 @@ class _UserSetupPageState extends State<_UserSetupPage> {
   final _codeCtrl = TextEditingController();
   bool _saving = false;
 
-  // Öğretmen seçilince: branş (zorunlu) + eğitim seviyesi.
+  // Öğretmen seçilince: branş (zorunlu). Eğitim seviyesi sonraki sayfada.
   String? _branch;
-  String _teacherLevel = 'Lise';
-  static const _teacherLevels = ['İlkokul', 'Ortaokul', 'Lise', 'Üniversite'];
 
   // Auth sonrası Firebase user'dan türetilen değerler — placeholder için kullanılır
   String? _existingUsername;
@@ -4917,16 +4957,19 @@ class _UserSetupPageState extends State<_UserSetupPage> {
           : null;
 
       if (AuthService.firebaseReady && fb != null) {
-        // Benzersizlik kontrolü (mevcut kullanıcı kendi adını yazıyorsa skip)
-        if (username != _existingUsername) {
-          final taken = await FirebaseFirestore.instance
-              .collection('users')
-              .where('username', isEqualTo: username)
-              .limit(1).get();
-          if (taken.docs.isNotEmpty && taken.docs.first.id != fb.uid) {
-            _snack('Bu kullanıcı adı dolu, başka dene');
-            setState(() => _saving = false); return;
-          }
+        // Atomik benzersizlik: usernames/{ad} rezervasyonu. Kendi adımızsa OK.
+        final claimed = await FriendService.claimUsername(username);
+        if (!claimed) {
+          _snack('Bu kullanıcı adı daha önce alınmış. '
+              'Lütfen başka bir kullanıcı adı girin.'.tr());
+          setState(() => _saving = false);
+          return;
+        }
+        // Ad değiştiyse eski rezervasyonu serbest bırak.
+        if (_existingUsername != null &&
+            _existingUsername!.isNotEmpty &&
+            _existingUsername != username) {
+          await FriendService.releaseUsername(_existingUsername!);
         }
         await FirebaseFirestore.instance.collection('users').doc(fb.uid).set({
           'username': username,
@@ -4937,17 +4980,13 @@ class _UserSetupPageState extends State<_UserSetupPage> {
 
       await AccountService.instance.setType(type);
 
-      // Öğretmen: branş + eğitim seviyesini kaydet (branş AccountService
-      // cache'ine de yazılır → ödev üretiminde sabit branş olarak kullanılır).
+      // Öğretmen: branşı kaydet (AccountService cache'ine de yazılır → ödev
+      // üretiminde sabit branş olarak kullanılır). Eğitim seviyesi artık
+      // sonraki "Hangi seviyede eğitim vereceksiniz?" sayfasında (çok seçimli)
+      // belirlendiği için burada SORULMUYOR.
       if (type == AccountType.teacher) {
         await AccountService.instance
             .saveTeacherProfile(username: username, branch: _branch ?? '');
-        if (AuthService.firebaseReady && fb != null) {
-          try {
-            await FirebaseFirestore.instance.collection('users').doc(fb.uid)
-                .set({'teacherLevel': _teacherLevel}, SetOptions(merge: true));
-          } catch (_) {}
-        }
       }
 
       // Kod sadece öğrenci için UI'da var (7 gün premium)
@@ -5019,15 +5058,7 @@ class _UserSetupPageState extends State<_UserSetupPage> {
             _branchButton(ink, muted),
             const SizedBox(height: 22),
             _usernameBlock(ink, muted, placeholder),
-            const SizedBox(height: 22),
-            Text('Eğitim seviyesi'.tr(),
-                style: TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w800, color: ink,
-                  letterSpacing: 0.2,
-                )),
             const SizedBox(height: 8),
-            _levelChips(ink),
-            const SizedBox(height: 22),
           ] else if (_selectedType == AccountType.student) ...[
             // ── ÖĞRENCİ MODU — başlık altında sadece Öğrenci kartı +
             //    kullanıcı adı + davet kodu. Diğer her şey gizlenir.
@@ -5409,37 +5440,6 @@ class _UserSetupPageState extends State<_UserSetupPage> {
   }
 
   // Eğitim seviyesi çipleri: İlkokul / Ortaokul / Lise / Üniversite.
-  Widget _levelChips(Color ink) {
-    const purple = Color(0xFF7C3AED);
-    return Wrap(
-      spacing: 8, runSpacing: 8,
-      children: _teacherLevels.map((lvl) {
-        final sel = _teacherLevel == lvl;
-        return GestureDetector(
-          onTap: () => setState(() => _teacherLevel = lvl),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              color: sel ? purple.withValues(alpha: 0.10)
-                         : AppPalette.card(context),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: sel ? purple : AppPalette.border(context),
-                width: sel ? 1.5 : 1,
-              ),
-            ),
-            child: Text(lvl.tr(),
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
-                  color: sel ? purple : ink,
-                )),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
   Widget _stackedTypeCard({
     required AccountType type,
     required String title,
@@ -6811,9 +6811,9 @@ class _UsernameCreateSheetState extends State<_UsernameCreateSheet> {
     final clean = _ctrl.text.trim().toLowerCase();
     setState(() => _saving = true);
     try {
-      // Race condition'a karşı son bir check
-      final stillFree = await FriendService.isUsernameAvailable(clean);
-      if (!stillFree) {
+      // Atomik rezervasyon — eşzamanlı iki kişi aynı adı alamaz.
+      final claimed = await FriendService.claimUsername(clean);
+      if (!claimed) {
         setState(() {
           _saving = false;
           _isAvailable = false;
@@ -7000,7 +7000,7 @@ class _UsernameCreateSheetState extends State<_UsernameCreateSheet> {
               child: Text(
                 _formatError ??
                     (_isAvailable == false
-                        ? 'Bu kullanıcı adı alınmış'.tr()
+                        ? 'Bu kullanıcı adı daha önce alınmış'.tr()
                         : _isAvailable == true
                             ? 'Müsait ✓'.tr()
                             : ''),

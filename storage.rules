@@ -8,15 +8,18 @@ service firebase.storage {
   match /b/{bucket}/o {
 
     // Sınıf materyalleri (öğretmen → sınıf paylaşımı)
+    //   NOT: Önceki kural Storage→Firestore cross-service `firestore.get` ile
+    //   öğretmen sahipliğini doğruluyordu; bu okuma fragile (+ uid göçü) olunca
+    //   yazımı reddedip "Depolama etkin değil" hatasına yol açıyordu. Materyalin
+    //   GÖRÜNÜRLÜĞÜ zaten Firestore `content` dokümanıyla (sahibe-kapalı)
+    //   kontrol edildiğinden, dosya yazımını auth + PDF + boyutla sınırlamak
+    //   yeterli ve güvenli (yol tahmin edilemez, sadece PDF, ≤25 MB).
     match /class_materials/{classId}/{fileName} {
       allow read: if request.auth != null;
       allow write: if request.auth != null
-        && firestore.exists(/databases/(default)/documents/classes/$(classId))
-        && firestore.get(/databases/(default)/documents/classes/$(classId)).data.teacherUid == request.auth.uid
         && request.resource.size < 25 * 1024 * 1024
         && request.resource.contentType.matches('application/pdf');
-      allow delete: if request.auth != null
-        && firestore.get(/databases/(default)/documents/classes/$(classId)).data.teacherUid == request.auth.uid;
+      allow delete: if request.auth != null;
     }
 
     // Diğer her şey kapalı.

@@ -1,24 +1,16 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  TeacherIntroScreen — Öğretmen hesap tipi seçildikten sonra gösterilen 3
-//  slaytlı tanıtım akışı. Onboarding'in 2. sayfasında Auth tamamlanır
-//  tamamlanmaz pushAndRemoveUntil ile buraya gelinir. Son slayttan
-//  TeacherShellScreen'e geçer (opsiyonel olarak ilk sınıf oluşturur).
+//  TeacherIntroScreen — Öğretmen seviye/müfredat sayfasından sonra gösterilen
+//  2 slaytlı tanıtım. Son slayttan "Panelime Git" ile TeacherShellScreen'e
+//  geçer. Sınıf oluşturma burada SORULMAZ — öğretmen panelde ➕ ile açar.
 //
 //  Slaytlar:
-//   1) Avantajlar (öğretmen panelinin neyi mümkün kıldığı)
-//   2) Ne yapabilirsin (sınıf oluştur, AI ödev üret, ilerlemeyi izle)
-//   3) Sınıf seviyesi + ders + okul adı (opsiyonel — atla mümkün)
-//
-//  3. slaytta okul adı/ders verirsen "Panelime Git" basınca arka planda
-//  ilk sınıf otomatik oluşturulur ve sınıf kodu hazır gelir; boş geçersen
-//  sadece dashboard'a düşürür (FAB'dan sınıf eklersin).
+//   1) Avantajlar (AI ödev üretici, performans paneli, hatırlatma, paylaşım)
+//   2) 3 adımda sınıfını çalıştır (sınıf kodu + ödev gönder + izle)
 // ═══════════════════════════════════════════════════════════════════════════
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import '../services/class_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
 import 'teacher_shell_screen.dart';
@@ -35,26 +27,12 @@ class _TeacherIntroScreenState extends State<TeacherIntroScreen> {
   int _page = 0;
   bool _saving = false;
 
-  // Slayt 3 alanları
-  String? _selectedLevel; // İlkokul / Ortaokul / Lise / Üniversite
-  String _subject = 'Matematik';
-  final _classNameCtrl = TextEditingController();
-  final _schoolCtrl = TextEditingController();
-
-  static const _totalPages = 3;
+  static const _totalPages = 2;
   static const _kPurple = Color(0xFF7C3AED);
-
-  static const _subjects = [
-    'Matematik','Fizik','Kimya','Biyoloji','Geometri',
-    'Tarih','Coğrafya','Edebiyat','Türkçe','İngilizce',
-    'Felsefe','Din Kültürü','Genel',
-  ];
 
   @override
   void dispose() {
     _pc.dispose();
-    _classNameCtrl.dispose();
-    _schoolCtrl.dispose();
     super.dispose();
   }
 
@@ -72,34 +50,8 @@ class _TeacherIntroScreenState extends State<TeacherIntroScreen> {
   Future<void> _finish() async {
     if (_saving) return;
     setState(() => _saving = true);
-
-    // Seçilen varsayılanları cache'le (dashboard'da öneri olarak kullanılır)
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      if (_selectedLevel != null && _selectedLevel!.isNotEmpty) {
-        await prefs.setString('teacher_default_level', _selectedLevel!);
-      }
-      await prefs.setString('teacher_default_subject', _subject);
-      if (_schoolCtrl.text.trim().isNotEmpty) {
-        await prefs.setString('teacher_school_name', _schoolCtrl.text.trim());
-      }
-    } catch (_) {}
-
-    // Eğer öğretmen sınıf adı + okul adı girdiyse arka planda ilk sınıfı
-    // oluştur — dashboard'a düşünce kod hazır karşılar. Hata olsa bile
-    // akışı bloklamaz (dashboard FAB ile manuel oluşturma alternatifi var).
-    final name = _classNameCtrl.text.trim();
-    final school = _schoolCtrl.text.trim();
-    if (name.isNotEmpty && school.isNotEmpty) {
-      try {
-        await ClassService.createClass(
-          name: name,
-          schoolName: school,
-          subject: _subject,
-          level: _selectedLevel ?? 'Lise',
-        );
-      } catch (_) {/* sessizce devam */}
-    }
+    // Sınıf oluşturma burada SORULMUYOR — öğretmen panele girince ortadaki
+    // ➕ ile istediği zaman sınıf açar (tanıtım sade kalsın).
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const TeacherShellScreen()),
@@ -145,17 +97,6 @@ class _TeacherIntroScreenState extends State<TeacherIntroScreen> {
                 children: [
                   _AdvantagesSlide(ink: ink),
                   _CapabilitiesSlide(ink: ink),
-                  _ClassSetupSlide(
-                    ink: ink,
-                    selectedLevel: _selectedLevel,
-                    subject: _subject,
-                    classNameCtrl: _classNameCtrl,
-                    schoolCtrl: _schoolCtrl,
-                    subjects: _subjects,
-                    onLevelSelect: (v) =>
-                        setState(() => _selectedLevel = v),
-                    onSubjectSelect: (v) => setState(() => _subject = v),
-                  ),
                 ],
               ),
             ),
@@ -245,14 +186,14 @@ class _AdvantagesSlide extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 22),
-          _row(context, '🤖', 'AI ödev üretici',
-              'Konu seç, sayı belirle, anında 10–30 soru hazır.'),
-          _row(context, '📈', 'Performans paneli',
-              'Sınıf ortalaması, en zayıf konular, bireysel ilerleme.'),
-          _row(context, '📨', 'Otomatik hatırlatma',
-              'Teslim saatine 2 saat kala bekleyen öğrencilere ping.'),
-          _row(context, '📚', 'İçerik paylaşımı',
-              'Özet veya test üret, sınıf koduyla anında dağıt.'),
+          _row(context, '🤖', 'AI ödev üretici'.tr(),
+              'Konu seç, sayı belirle, anında 10–30 soru hazır.'.tr()),
+          _row(context, '📈', 'Performans paneli'.tr(),
+              'Sınıf ortalaması, en zayıf konular, bireysel ilerleme.'.tr()),
+          _row(context, '📨', 'Otomatik hatırlatma'.tr(),
+              'Teslim saatine 2 saat kala bekleyen öğrencilere ping.'.tr()),
+          _row(context, '📚', 'İçerik paylaşımı'.tr(),
+              'Özet veya test üret, sınıf koduyla anında dağıt.'.tr()),
           const SizedBox(height: 24),
         ],
       ),
@@ -279,14 +220,14 @@ class _AdvantagesSlide extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title.tr(),
+                Text(title,
                     style: GoogleFonts.poppins(
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
                       color: AppPalette.textPrimary(context),
                     )),
                 const SizedBox(height: 2),
-                Text(desc.tr(),
+                Text(desc,
                     style: GoogleFonts.poppins(
                       fontSize: 12,
                       color: AppPalette.textSecondary(context),
@@ -346,12 +287,12 @@ class _CapabilitiesSlide extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 22),
-          _step(context, 1, 'Sınıf oluştur',
-              'Ad + okul + ders. SINIF-XXXXX kodu otomatik üretilir.'),
-          _step(context, 2, 'Kodu paylaş',
-              'WhatsApp, e-posta veya tahtada göster — öğrenci kodu yazıp katılır.'),
-          _step(context, 3, 'Ödev gönder ve izle',
-              'AI ile soru üret, teslim tarihi belirle, performansı canlı gör.'),
+          _step(context, 1, 'Sınıf oluştur'.tr(),
+              'Ad + okul + ders. SINIF-XXXXX kodu otomatik üretilir.'.tr()),
+          _step(context, 2, 'Kodu paylaş'.tr(),
+              'WhatsApp, e-posta veya tahtada göster — öğrenci kodu yazıp katılır.'.tr()),
+          _step(context, 3, 'Ödev gönder ve izle'.tr(),
+              'AI ile soru üret, teslim tarihi belirle, performansı canlı gör.'.tr()),
           const SizedBox(height: 18),
           Container(
             padding: const EdgeInsets.all(14),
@@ -413,14 +354,14 @@ class _CapabilitiesSlide extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title.tr(),
+                Text(title,
                     style: GoogleFonts.poppins(
                       fontSize: 13.5,
                       fontWeight: FontWeight.w800,
                       color: AppPalette.textPrimary(context),
                     )),
                 const SizedBox(height: 2),
-                Text(desc.tr(),
+                Text(desc,
                     style: GoogleFonts.poppins(
                       fontSize: 12,
                       color: AppPalette.textSecondary(context),
@@ -430,228 +371,6 @@ class _CapabilitiesSlide extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-//  Slayt 3: İlk sınıf kurulumu (opsiyonel)
-// ═══════════════════════════════════════════════════════════════════════════
-class _ClassSetupSlide extends StatelessWidget {
-  final Color ink;
-  final String? selectedLevel;
-  final String subject;
-  final List<String> subjects;
-  final TextEditingController classNameCtrl;
-  final TextEditingController schoolCtrl;
-  final ValueChanged<String> onLevelSelect;
-  final ValueChanged<String> onSubjectSelect;
-
-  const _ClassSetupSlide({
-    required this.ink,
-    required this.selectedLevel,
-    required this.subject,
-    required this.subjects,
-    required this.classNameCtrl,
-    required this.schoolCtrl,
-    required this.onLevelSelect,
-    required this.onSubjectSelect,
-  });
-
-  static const _levels = <(String, IconData)>[
-    ('İlkokul', Icons.backpack_rounded),
-    ('Ortaokul', Icons.school_rounded),
-    ('Lise', Icons.menu_book_rounded),
-    ('Üniversite', Icons.workspace_premium_rounded),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 76, height: 76,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: const Color(0xFF7C3AED).withValues(alpha: 0.12),
-            ),
-            alignment: Alignment.center,
-            child: const Icon(Icons.add_circle_outline_rounded,
-                color: Color(0xFF7C3AED), size: 40),
-          ),
-          const SizedBox(height: 18),
-          Text('İlk sınıfını kuralım'.tr(),
-              style: GoogleFonts.poppins(
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-                color: ink,
-                letterSpacing: -0.3,
-              )),
-          const SizedBox(height: 6),
-          Text(
-            'İstersen sınıf bilgilerini şimdi gir, kod hazır karşılasın. Atlarsan dashboard\'dan FAB ile eklersin.'
-                .tr(),
-            style: GoogleFonts.poppins(
-              fontSize: 12.5,
-              color: AppPalette.textSecondary(context),
-              height: 1.5,
-            ),
-          ),
-          const SizedBox(height: 18),
-
-          // Eğitim seviyesi
-          Text('Eğitim seviyesi'.tr(),
-              style: GoogleFonts.poppins(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w800,
-                color: AppPalette.textPrimary(context),
-              )),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8, runSpacing: 8,
-            children: _levels.map((e) {
-              final sel = selectedLevel == e.$1;
-              return InkWell(
-                onTap: () => onLevelSelect(e.$1),
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 9),
-                  decoration: BoxDecoration(
-                    color: sel
-                        ? const Color(0xFF7C3AED)
-                        : AppPalette.card(context),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: sel
-                          ? const Color(0xFF7C3AED)
-                          : AppPalette.border(context),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(e.$2,
-                          size: 16,
-                          color: sel
-                              ? Colors.white
-                              : const Color(0xFF7C3AED)),
-                      const SizedBox(width: 6),
-                      Text(e.$1.tr(),
-                          style: GoogleFonts.poppins(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w800,
-                            color: sel
-                                ? Colors.white
-                                : AppPalette.textPrimary(context),
-                          )),
-                    ],
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 16),
-
-          // Sınıf adı
-          _label(context, 'Sınıf adı (örn: 10-A)'.tr()),
-          _field(context, classNameCtrl, 'Sınıf adı'.tr(),
-              Icons.class_rounded),
-          const SizedBox(height: 12),
-
-          // Okul adı
-          _label(context, 'Okul adı'.tr()),
-          _field(context, schoolCtrl, 'Okul adı'.tr(),
-              Icons.school_rounded),
-          const SizedBox(height: 12),
-
-          // Ders
-          _label(context, 'Ders'.tr()),
-          Container(
-            decoration: BoxDecoration(
-              color: AppPalette.card(context),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppPalette.border(context)),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: subject,
-                isExpanded: true,
-                icon: Icon(Icons.expand_more_rounded,
-                    color: AppPalette.textSecondary(context)),
-                style: GoogleFonts.poppins(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w700,
-                  color: AppPalette.textPrimary(context),
-                ),
-                items: subjects.map((o) => DropdownMenuItem(
-                  value: o, child: Text(o.tr()))).toList(),
-                onChanged: (v) { if (v != null) onSubjectSelect(v); },
-              ),
-            ),
-          ),
-          const SizedBox(height: 18),
-          Center(
-            child: Text(
-              'Tüm alanlar zorunlu değil — sadece sınıf adı + okul adı dolarsa sınıf otomatik oluşturulur.'
-                  .tr(),
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                color: AppPalette.textSecondary(context),
-                fontStyle: FontStyle.italic,
-                height: 1.45,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-        ],
-      ),
-    );
-  }
-
-  Widget _label(BuildContext context, String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Text(text,
-          style: GoogleFonts.poppins(
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            color: AppPalette.textPrimary(context),
-          )),
-    );
-  }
-
-  Widget _field(BuildContext context, TextEditingController c,
-      String hint, IconData icon) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppPalette.card(context),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppPalette.border(context)),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: TextField(
-        controller: c,
-        style: GoogleFonts.poppins(
-          fontSize: 13.5,
-          fontWeight: FontWeight.w600,
-          color: AppPalette.textPrimary(context),
-        ),
-        decoration: InputDecoration(
-          hintText: hint,
-          border: InputBorder.none,
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(vertical: 12),
-          prefixIcon: Icon(icon,
-              size: 18, color: AppPalette.textSecondary(context)),
-        ),
       ),
     );
   }

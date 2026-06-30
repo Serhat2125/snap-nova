@@ -212,23 +212,28 @@ class _TeacherMaterialScreenState extends State<TeacherMaterialScreen> {
                       style: GoogleFonts.poppins(
                         fontSize: 13, fontWeight: FontWeight.w800, color: ink)),
                   const SizedBox(height: 10),
-                  // Kademeli/çapraz diziliş: sol-üst → orta → sağ-alt.
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: _kindTab('link', Icons.link_rounded, 'Web Linki'.tr()),
-                  ),
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: Alignment.center,
-                    child: _kindTab(
-                        'pdf', Icons.picture_as_pdf_rounded, 'PDF Linki'.tr()),
-                  ),
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: _kindTab(
-                        'note', Icons.sticky_note_2_rounded, 'Ders Notu'.tr()),
-                  ),
+                  // Kademeli/merdiven diziliş: her sekme bir öncekinin bittiği
+                  // yerden başlar (sağa kayar). Sekmeler geniş; dikey akış.
+                  LayoutBuilder(builder: (context, c) {
+                    final a = c.maxWidth;
+                    // Geniş sekmeler: satırın ~%64'ü. İki kademe için sağa kayma
+                    // payı (a - tabW) ikiye bölünür → 3. sekme tam sağ kenarda.
+                    final tabW = (a * 0.64).clamp(190.0, 300.0);
+                    final step = ((a - tabW) / 2).clamp(0.0, a);
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _kindTab('link', Icons.link_rounded,
+                            'Web Linki'.tr(), tabW, 0),
+                        const SizedBox(height: 10),
+                        _kindTab('pdf', Icons.picture_as_pdf_rounded,
+                            'PDF Linki'.tr(), tabW, step),
+                        const SizedBox(height: 10),
+                        _kindTab('note', Icons.sticky_note_2_rounded,
+                            'Ders Notu'.tr(), tabW, step * 2),
+                      ],
+                    );
+                  }),
                   const SizedBox(height: 20),
                   Text('Başlık'.tr(),
                       style: GoogleFonts.poppins(
@@ -298,15 +303,18 @@ class _TeacherMaterialScreenState extends State<TeacherMaterialScreen> {
     );
   }
 
-  Widget _kindTab(String kind, IconData icon, String label) {
+  Widget _kindTab(String kind, IconData icon, String label,
+      double width, double leftOffset) {
     final sel = _kind == kind;
-    // Eskizdeki gibi dikdörtgen çerçeve; kademeli dizilim için sabit genişlik.
-    return SizedBox(
-      width: 150,
-      child: GestureDetector(
-        onTap: () => setState(() => _kind = kind),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+    // Geniş dikdörtgen çerçeve; merdiven dizilim için sol kaydırma + genişlik.
+    return Padding(
+      padding: EdgeInsets.only(left: leftOffset),
+      child: SizedBox(
+        width: width,
+        child: GestureDetector(
+          onTap: () => setState(() => _kind = kind),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
           decoration: BoxDecoration(
             color: sel ? _kBrand.withValues(alpha: 0.12) : AppPalette.card(context),
             borderRadius: BorderRadius.circular(8),
@@ -333,6 +341,7 @@ class _TeacherMaterialScreenState extends State<TeacherMaterialScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

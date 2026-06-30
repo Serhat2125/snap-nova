@@ -445,12 +445,11 @@ class _TeacherSubmissionDetailScreenState
   }
 
   String _fmtDate(DateTime d) {
-    const months = [
-      'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz',
-      'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara',
-    ];
+    // Dile-nötr sayısal tarih + saat (GG.AA HH:MM).
+    final dd = d.day.toString().padLeft(2, '0');
+    final mo = d.month.toString().padLeft(2, '0');
     final hh = d.hour.toString().padLeft(2, '0');
     final mm = d.minute.toString().padLeft(2, '0');
-    return '${d.day} ${months[d.month - 1]} $hh:$mm';
+    return '$dd.$mo $hh:$mm';
   }
 }

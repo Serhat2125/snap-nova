@@ -21,6 +21,7 @@ import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
 import '../utils/safe_dismiss.dart';
 import '../widgets/class_profile_dialog.dart';
+import '../widgets/teacher_help_dialog.dart';
 import 'teacher_class_resources_screen.dart';
 import 'teacher_student_report_screen.dart';
 
@@ -91,6 +92,7 @@ class TeacherClassDetailScreen extends StatefulWidget {
 class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
   TeacherClass get cls => widget.cls;
   String? _nameOverride; // yeniden adlandırma sonrası başlık güncellemesi
+  bool _demo = false; // demo önizleme (app bar'daki "Demo" menüsünden kontrol)
 
   @override
   void initState() {
@@ -276,111 +278,81 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
 
   /// "?" yardım paneli — bu sayfanın nasıl çalıştığını anlatır.
   void _showHelp(BuildContext context) {
-    final ink = AppPalette.textPrimary(context);
-    final muted = AppPalette.textSecondary(context);
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: AppPalette.card(context),
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: AppPalette.border(context),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              Row(
-                children: [
-                  const Icon(Icons.help_outline_rounded,
-                      color: Color(0xFF7C3AED), size: 24),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text('Bu sayfa nasıl çalışır?'.tr(),
-                        style: GoogleFonts.poppins(
-                          fontSize: 17, fontWeight: FontWeight.w900, color: ink,
-                        )),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              _helpRow(ctx, '👤', 'Öğrenci profilleri'.tr(),
-                  'Sınıf koduyla katılan öğrenciler burada listelenir. Avatarı, adı ve @kullanıcı adı görünür.'.tr(),
-                  ink, muted),
-              _helpRow(ctx, '📊', 'Öğrenciye dokun → karne'.tr(),
-                  'Bir öğrenciye dokununca o öğrencinin yaptığı ödevler, doğru/yanlış dağılımı ve gelişim grafikleri açılır.'.tr(),
-                  ink, muted),
-              _helpRow(ctx, '✏️', 'Uzun bas → ad değiştir'.tr(),
-                  'Bir öğrenciye uzun basınca sınıfta görünen adını (gerçek adı ya da bir lakap) sen belirleyebilirsin.'.tr(),
-                  ink, muted),
-              _helpRow(ctx, '➕', 'Öğrenci davet et'.tr(),
-                  '"Öğrenci Ara & Davet Et" ile kullanıcı adından arayıp sınıfa davet gönderebilirsin. Öğrenciler ayrıca sınıf koduyla da katılır.'.tr(),
-                  ink, muted),
-              _helpRow(ctx, '📝', 'Ödev vermek için'.tr(),
-                  'Ödev oluşturmak için ana paneldeki ortadaki ➕ butonuna bas → "AI ile Ödev Oluştur" → bu sınıfı seç.'.tr(),
-                  ink, muted),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF7C3AED),
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                  onPressed: () => Navigator.pop(ctx),
-                  child: Text('Anladım'.tr(),
-                      style: GoogleFonts.poppins(
-                          fontSize: 14, fontWeight: FontWeight.w800,
-                          color: Colors.white)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    showTeacherHelpDialog(
+      context,
+      title: 'Bu sayfa nasıl çalışır?',
+      items: const [
+        TeacherHelpItem('👤', 'Öğrenci profilleri',
+            'Sınıf koduyla katılan öğrenciler burada listelenir. Avatarı, adı ve @kullanıcı adı görünür.'),
+        TeacherHelpItem('📊', 'Öğrenciye dokun → karne',
+            'Bir öğrenciye dokununca o öğrencinin yaptığı ödevler, doğru/yanlış dağılımı ve gelişim grafikleri açılır.'),
+        TeacherHelpItem('✏️', 'Uzun bas → ad değiştir',
+            'Bir öğrenciye uzun basınca sınıfta görünen adını (gerçek adı ya da bir lakap) sen belirleyebilirsin.'),
+        TeacherHelpItem('➕', 'Öğrenci davet et',
+            '"Öğrenci Ara & Davet Et" ile kullanıcı adından arayıp sınıfa davet gönderebilirsin. Öğrenciler ayrıca sınıf koduyla da katılır.'),
+        TeacherHelpItem('📝', 'Ödev vermek için',
+            'Ödev oluşturmak için ana paneldeki ortadaki ➕ butonuna bas → "AI ile Ödev Oluştur" → bu sınıfı seç.'),
+      ],
     );
   }
 
-  Widget _helpRow(BuildContext context, String emoji, String title,
-      String desc, Color ink, Color muted) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(emoji, style: const TextStyle(fontSize: 20)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: GoogleFonts.poppins(
-                      fontSize: 13.5, fontWeight: FontWeight.w800, color: ink,
-                    )),
-                const SizedBox(height: 2),
-                Text(desc,
-                    style: GoogleFonts.poppins(
-                      fontSize: 12, color: muted, height: 1.45,
-                    )),
-              ],
-            ),
-          ),
-        ],
+  /// App bar'da 3 noktanın hemen solunda "Demo" düğmesi. Basınca hemen altında
+  /// alt alta iki küçük seçenek açılır: "Demoyu aç" / "Demoyu kapat".
+  Widget _demoMenuButton(BuildContext context) {
+    return PopupMenuButton<bool>(
+      tooltip: 'Demo'.tr(),
+      offset: const Offset(0, 46),
+      color: AppPalette.card(context),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      onSelected: (v) => setState(() => _demo = v),
+      itemBuilder: (ctx) => [
+        PopupMenuItem<bool>(
+          value: true,
+          height: 40,
+          child: Row(children: [
+            const Icon(Icons.visibility_rounded, size: 17, color: _kBrand),
+            const SizedBox(width: 8),
+            Text('Demoyu aç'.tr(),
+                style: GoogleFonts.poppins(
+                    fontSize: 13, fontWeight: FontWeight.w700,
+                    color: AppPalette.textPrimary(ctx))),
+          ]),
+        ),
+        PopupMenuItem<bool>(
+          value: false,
+          height: 40,
+          child: Row(children: [
+            Icon(Icons.visibility_off_rounded,
+                size: 17, color: AppPalette.textSecondary(ctx)),
+            const SizedBox(width: 8),
+            Text('Demoyu kapat'.tr(),
+                style: GoogleFonts.poppins(
+                    fontSize: 13, fontWeight: FontWeight.w700,
+                    color: AppPalette.textPrimary(ctx))),
+          ]),
+        ),
+      ],
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 9),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: _demo ? _kBrand : _kBrand.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(999),
+          border:
+              Border.all(color: _kBrand.withValues(alpha: _demo ? 1.0 : 0.40)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Demo'.tr(),
+                style: GoogleFonts.poppins(
+                    fontSize: 12.5, fontWeight: FontWeight.w800,
+                    color: _demo ? Colors.white : _kBrand)),
+            const SizedBox(width: 2),
+            Icon(Icons.arrow_drop_down_rounded,
+                size: 18, color: _demo ? Colors.white : _kBrand),
+          ],
+        ),
       ),
     );
   }
@@ -397,8 +369,9 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
             style: GoogleFonts.poppins(
               fontSize: 16, fontWeight: FontWeight.w800, color: ink)),
         actions: [
+          _demoMenuButton(context),
           IconButton(
-            icon: Icon(Icons.more_vert_rounded, color: ink),
+            icon: Icon(Icons.menu_rounded, color: ink),
             tooltip: 'Sınıf menüsü'.tr(),
             onPressed: () => _showClassMenu(context),
           ),
@@ -411,7 +384,7 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
             // Yalnızca öğrenci profilleri listelenir (kod kartı + Ödev/Analiz
             // sekmeleri kaldırıldı). Kod, sınıf listesindeki kartta ve üstteki
             // paylaş ikonunda mevcut. Bir öğrenciye basınca rapor açılır.
-            Expanded(child: _StudentsView(cls: cls)),
+            Expanded(child: _StudentsView(cls: cls, demo: _demo)),
           ],
         ),
       ),
@@ -421,14 +394,14 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
 
 class _StudentsView extends StatefulWidget {
   final TeacherClass cls;
-  const _StudentsView({required this.cls});
+  final bool demo; // app bar "Demo" menüsünden kontrol edilen önizleme durumu
+  const _StudentsView({required this.cls, required this.demo});
   @override
   State<_StudentsView> createState() => _StudentsViewState();
 }
 
 class _StudentsViewState extends State<_StudentsView> {
   int _view = 0; // 0 = Öğrenciler (grid), 1 = Özet (tablo)
-  bool _demo = false; // true = sahte demo öğrenciler önizlemesi
   Future<List<StudentGradeSummary>>? _summaryFuture;
   String? _selectedHwId; // null = tüm ödevler
   String? _sortKey; // null = varsayılan başarı sırası; 'name'/'correct'/...
@@ -446,7 +419,7 @@ class _StudentsViewState extends State<_StudentsView> {
     final muted = AppPalette.textSecondary(context);
     return Column(
       children: [
-        _demoHeader(context, ink, muted),
+        if (widget.demo) _demoBanner(context),
         Expanded(
           child: LayoutBuilder(builder: (context, c) {
             // Varsayılan konum: sağ alt köşe.
@@ -475,79 +448,19 @@ class _StudentsViewState extends State<_StudentsView> {
     );
   }
 
-  // ── Demo başlığı: sola hizalı [Demo Açık | Demo Kapalı] + üstte küçük not ──
-  Widget _demoHeader(BuildContext context, Color ink, Color muted) {
+  // ── Demo açıkken gösterilen ince bilgi banner'ı (aç/kapa app bar'da) ──
+  Widget _demoBanner(BuildContext context) {
     const brand = Color(0xFF7C3AED);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Küçük açıklama — yalnızca demo açıkken görünür.
-          if (_demo)
-            Padding(
-              padding: const EdgeInsets.only(left: 2, bottom: 6, right: 8),
-              child: Text(
-                '🎬 ${'Demo görünümü — gerçek öğrenciler sınıfa katıldığında paneliniz aynen böyle dolacak. Bu öğrenciler örnektir.'.tr()}',
-                style: GoogleFonts.poppins(
-                  fontSize: 10.5,
-                  height: 1.3,
-                  fontWeight: FontWeight.w600,
-                  color: brand,
-                ),
-              ),
-            ),
-          // Sola hizalı: "Demo" etiketi + tek aç/kapa butonu.
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Demo'.tr(),
-                  style: GoogleFonts.poppins(
-                    fontSize: 13, fontWeight: FontWeight.w800, color: ink)),
-              const SizedBox(width: 10),
-              _demoToggle(context),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Tek buton: demo KAPALIYKEN "Demo Açık Yap", AÇIKKEN "Demo Kapalı Yap".
-  /// Basınca durumu ters çevirir.
-  Widget _demoToggle(BuildContext context) {
-    const brand = Color(0xFF7C3AED);
-    final label = _demo ? 'Demo Kapalı Yap'.tr() : 'Demo Açık Yap'.tr();
-    return GestureDetector(
-      onTap: () => setState(() => _demo = !_demo),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: _demo ? brand : brand.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-              color: brand.withValues(alpha: _demo ? 1.0 : 0.40)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              _demo
-                  ? Icons.visibility_off_rounded
-                  : Icons.visibility_rounded,
-              size: 15,
-              color: _demo ? Colors.white : brand,
-            ),
-            const SizedBox(width: 6),
-            Text(label,
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: _demo ? Colors.white : brand,
-                )),
-          ],
+      child: Text(
+        '🎬 ${'Demo görünümü — gerçek öğrenciler sınıfa katıldığında paneliniz aynen böyle dolacak. Bu öğrenciler örnektir.'.tr()}',
+        style: GoogleFonts.poppins(
+          fontSize: 10.5,
+          height: 1.3,
+          fontWeight: FontWeight.w600,
+          color: brand,
         ),
       ),
     );
@@ -654,7 +567,7 @@ class _StudentsViewState extends State<_StudentsView> {
   // ── Özet sekmesi: tüm öğrencilerin Excel benzeri sonuç tablosu ─────────
   Widget _summaryTab(BuildContext context, Color ink, Color muted) {
     // Demo açıkken gerçek veriyi sorgulamadan sahte özetler gösterilir.
-    if (_demo) {
+    if (widget.demo) {
       return _summaryBody(context, ink, _demoSummaries, 'Sınıf Özeti'.tr());
     }
     _summaryFuture ??= HomeworkService.classGradeSummary(
@@ -961,9 +874,8 @@ class _StudentsViewState extends State<_StudentsView> {
   Future<void> _pickHomework() async {
     final hws = await HomeworkService.classHomeworks(widget.cls.id);
     if (!mounted) return;
-    const months = ['Oca','Şub','Mar','Nis','May','Haz',
-      'Tem','Ağu','Eyl','Eki','Kas','Ara'];
-    String fmt(DateTime d) => '${d.day} ${months[d.month - 1]}';
+    String fmt(DateTime d) =>
+        '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}';
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: AppPalette.card(context),
@@ -1053,7 +965,9 @@ class _StudentsViewState extends State<_StudentsView> {
 
   Widget _studentsTab(BuildContext context, Color ink, Color muted) {
     // Demo açıkken canlı stream yerine sahte öğrenci grid'i gösterilir.
-    if (_demo) return _studentsGrid(context, ink, muted, _demoStudents, true);
+    if (widget.demo) {
+      return _studentsGrid(context, ink, muted, _demoStudents, true);
+    }
     return Column(
       children: [
         Expanded(

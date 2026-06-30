@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'locale_service.dart';
+import 'remote_config_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  PricingService — Ülke bazlı 5 kademeli fiyatlandırma + Canlı döviz kuru
@@ -155,10 +156,26 @@ class PricingService {
   }
 
   static double _getRate(String currency) {
-    if (_cachedRates != null && _cachedRates!.containsKey(currency.toUpperCase())) {
-      return _cachedRates![currency.toUpperCase()]!;
+    final cur = currency.toUpperCase();
+    // 1) Admin override (Remote Config 'fx_rates') — TÜM para birimleri için
+    //    uygulama güncellemesi olmadan manuel düzeltme/buffer.
+    final ov = RemoteConfigService.instance.getMap('fx_rates')?[cur];
+    if (ov is num && ov > 0) return ov.toDouble();
+    // 2) Canlı API kuru (tüm para birimleri, otomatik).
+    if (_cachedRates != null && _cachedRates!.containsKey(cur)) {
+      return _cachedRates![cur]!;
     }
-    return _fallbackRates[currency.toUpperCase()] ?? 1.0;
+    // 3) Sabit fallback (son çare).
+    return _fallbackRates[cur] ?? 1.0;
+  }
+
+  /// Kademe aylık USD tabanı — Remote Config 'pricing_tier_usd' ile override
+  /// edilebilir; yoksa koddaki sabit kademe fiyatına düşer.
+  static double _tierUsd(int tier) {
+    final ov = RemoteConfigService.instance.getMap('pricing_tier_usd')?[
+        tier.toString()];
+    if (ov is num && ov > 0) return ov.toDouble();
+    return _tierMonthlyUsd[tier] ?? 3.99;
   }
 
   // ── Fallback kurlar (API çalışmazsa) ─────────────────────────────────────
@@ -524,7 +541,7 @@ class PricingService {
   static PricingPlan getPlan(String countryCode, {LocaleService? locale}) {
     final code = countryCode.toUpperCase();
     final tier = _countryTier[code] ?? 3;
-    final monthlyUsd = _tierMonthlyUsd[tier]!;
+    final monthlyUsd = _tierUsd(tier);
 
     // 3 Aylık = aylık x 3 x 0.90 (%10 indirim — Play Console fiyatlarıyla uyumlu)
     // Yıllık  = aylık x 12 x 0.67 (%33 indirim)
@@ -601,6 +618,12 @@ class PricingService {
   // ═══════════════════════════════════════════════════════════════════════════
   //  Fiyat formatlama yardımcıları
   // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Türetilen bir tutarı (mağaza toplamından hesaplanan /ay veya /gün gibi)
+  /// mağaza para birimi formatında biçimler — böylece toplam ile birim fiyat
+  /// aynı tabandan gelip tutarlı kalır.
+  static String formatAmount(double value, String currencyCode, String symbol) =>
+      _formatPrice(value, currencyCode.toUpperCase(), symbol);
 
   /// Yüksek değerli para birimlerinde ondalık gösterme, düşüklerde göster
   static String _formatPrice(double value, String currency, String symbol) {

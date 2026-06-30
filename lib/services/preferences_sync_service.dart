@@ -45,6 +45,7 @@ class PreferencesSyncService {
   static const _kNotifPrefix = 'notif_';
   static const _notifKeys = [
     'master',
+    // Öğrenci kategorileri
     'friend_request',
     'duello_invite',
     'league_update',
@@ -52,6 +53,11 @@ class PreferencesSyncService {
     'streak_alert',
     'exam_countdown',
     'achievement',
+    // Öğretmen kategorileri (bunlar eksikti → öğretmen toggle'ları kaydedilmiyordu)
+    'homework_submission',
+    'student_joined',
+    'class_activity',
+    // Ortak
     'premium_offer',
     'newsletter',
   ];

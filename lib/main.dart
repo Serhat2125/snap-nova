@@ -24,6 +24,7 @@ import 'services/ai_provider_service.dart';
 import 'services/ai_quota_service.dart';
 import 'services/auth_service.dart';
 import 'services/push_service.dart';
+import 'services/local_reminder_service.dart';
 import 'services/deep_link_service.dart';
 import 'services/usage_quota.dart';
 import 'services/pomodoro_stats.dart';
@@ -279,6 +280,15 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
         // Bildirim tıklanma: payload'a göre yönlendirme yapılabilir.
         // Şimdilik log — main navigator key kurulduktan sonra route bağlanır.
         debugPrint('[Push] tap payload: $payload');
+      }).then((_) {
+        // Öğrenci hatırlatıcılarını (çalışma/seri/sınav) planla + yeni rozet
+        // bildirimlerini eşitle. Öğretmen/ebeveyn için bunları iptal et.
+        if (AccountService.instance.isStudent) {
+          unawaited(LocalReminderService.rescheduleAll());
+          unawaited(LocalReminderService.syncAchievements());
+        } else {
+          unawaited(LocalReminderService.cancelAll());
+        }
       }));
     }
     // Deep link davet handler — uygulamayı linkten açana profil/davet sayfasını gösterir.

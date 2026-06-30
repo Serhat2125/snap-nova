@@ -12,8 +12,10 @@ import '../theme/app_theme.dart';
 import '../widgets/teacher_widgets.dart';
 
 class TeacherCreateHomeworkScreen extends StatelessWidget {
-  final TeacherClass cls;
-  const TeacherCreateHomeworkScreen({super.key, required this.cls});
+  /// Seçilen sınıf(lar). İlk sınıf form varsayılanlarını (seviye/branş)
+  /// belirler; ödev üretildiğinde tüm seçilen sınıflara gönderilir.
+  final List<TeacherClass> classes;
+  const TeacherCreateHomeworkScreen({super.key, required this.classes});
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +28,11 @@ class TeacherCreateHomeworkScreen extends StatelessWidget {
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-          child: AiHomeworkGeneratorWidget(cls: cls),
+          child: AiHomeworkGeneratorWidget(
+            cls: classes.first,
+            additionalClassIds:
+                classes.skip(1).map((c) => c.id).toList(),
+          ),
         ),
       ),
     );

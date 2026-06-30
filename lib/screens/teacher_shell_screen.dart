@@ -17,6 +17,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/education_models.dart';
+import '../services/account_service.dart';
 import '../services/analytics.dart';
 import '../services/class_service.dart';
 import '../services/homework_service.dart';
@@ -28,6 +29,7 @@ import 'profile_screen.dart';
 import 'teacher_announcement_screen.dart';
 import 'teacher_class_detail_screen.dart';
 import 'teacher_create_homework_screen.dart';
+import 'teacher_curriculum_select_screen.dart';
 import 'teacher_invite_student_screen.dart';
 import 'teacher_all_pending_screen.dart';
 import 'teacher_material_screen.dart';
@@ -50,6 +52,20 @@ class _TeacherShellScreenState extends State<TeacherShellScreen> {
   void initState() {
     super.initState();
     Analytics.logFeatureOpen('teacher_panel');
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _ensureCurriculumSelected());
+  }
+
+  /// Öğretmen henüz not sistemini (müfredatını) seçmediyse ilk açılışta seçtirir.
+  Future<void> _ensureCurriculumSelected() async {
+    if (!mounted) return;
+    final acc = AccountService.instance;
+    if (!acc.isTeacher || acc.gradingCountry != null) return;
+    await Navigator.of(context).push(MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (_) => const TeacherCurriculumSelectScreen(),
+    ));
+    if (mounted) setState(() {});
   }
 
   void _goToTab(int i) => setState(() => _index = i);
@@ -161,10 +177,15 @@ class _TeacherShellScreenState extends State<TeacherShellScreen> {
                   }),
                   _createChip(ctx, '✨', 'AI ile Ödev Oluştur'.tr(), () async {
                     Navigator.pop(ctx);
-                    final cls = await _pickClass(context);
-                    if (cls == null || !context.mounted) return;
+                    final picked = await _pickClassesForHomework(context);
+                    if (picked == null ||
+                        picked.isEmpty ||
+                        !context.mounted) {
+                      return;
+                    }
                     Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => TeacherCreateHomeworkScreen(cls: cls)));
+                      builder: (_) =>
+                          TeacherCreateHomeworkScreen(classes: picked)));
                   }),
                   _createChip(ctx, '👨‍🎓', 'Öğrenci Davet Et'.tr(), () async {
                     Navigator.pop(ctx);
@@ -323,6 +344,161 @@ class _TeacherShellScreenState extends State<TeacherShellScreen> {
                   )),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  /// AI Ödev için ÇOKLU sınıf seçtirir (ortada, dar, "Devam Et" onaylı).
+  /// Boş/iptal → null. Tek sınıf varsa onu döndürür (seçim ekranı gereksiz).
+  Future<List<TeacherClass>?> _pickClassesForHomework(
+      BuildContext context) async {
+    final classes = await ClassService.myClassesStream().first;
+    if (!context.mounted) return null;
+    if (classes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Önce bir sınıf oluştur.'.tr()),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return null;
+    }
+    if (classes.length == 1) return [classes.first];
+
+    final selected = <String>{};
+    const green = Color(0xFF16A34A);
+    return showDialog<List<TeacherClass>>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.35),
+      builder: (ctx) => Dialog(
+        backgroundColor: const Color(0xFFF3F4F6),
+        // Dar (yatay 34px boşluk) + merkezden %20 aşağıda konumlan.
+        alignment: const Alignment(0, 0.2),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 34, vertical: 24),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22)),
+        child: StatefulBuilder(
+          builder: (ctx, setLocal) {
+            final hasSel = selected.isNotEmpty;
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Sınıf seç'.tr(),
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 16, fontWeight: FontWeight.w900,
+                        color: const Color(0xFF111827),
+                      )),
+                  const SizedBox(height: 4),
+                  Text('Birden fazla sınıf seçebilirsin'.tr(),
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 11.5, fontWeight: FontWeight.w500,
+                        color: const Color(0xFF9CA3AF),
+                      )),
+                  const SizedBox(height: 14),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (final c in classes)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: Material(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(16),
+                                  onTap: () => setLocal(() {
+                                    if (!selected.add(c.id)) {
+                                      selected.remove(c.id);
+                                    }
+                                  }),
+                                  child: Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 14, vertical: 12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: selected.contains(c.id)
+                                            ? green
+                                            : const Color(0xFFE5E7EB),
+                                        width: selected.contains(c.id)
+                                            ? 1.6 : 1,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        ClassAvatar(
+                                            photoB64: c.photoB64, size: 38),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Text(c.name,
+                                              maxLines: 1,
+                                              overflow:
+                                                  TextOverflow.ellipsis,
+                                              style: GoogleFonts.poppins(
+                                                fontSize: 14.5,
+                                                fontWeight: FontWeight.w800,
+                                                color:
+                                                    const Color(0xFF111827),
+                                              )),
+                                        ),
+                                        Icon(
+                                          selected.contains(c.id)
+                                              ? Icons.check_circle_rounded
+                                              : Icons
+                                                  .radio_button_unchecked,
+                                          color: selected.contains(c.id)
+                                              ? green
+                                              : const Color(0xFFD1D5DB),
+                                          size: 22,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: green,
+                        disabledBackgroundColor: const Color(0xFFE5E7EB),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: hasSel
+                          ? () => Navigator.pop(
+                              ctx,
+                              classes
+                                  .where((c) => selected.contains(c.id))
+                                  .toList())
+                          : null,
+                      child: Text('Devam Et'.tr(),
+                          style: GoogleFonts.poppins(
+                            fontSize: 14, fontWeight: FontWeight.w800,
+                            color: hasSel
+                                ? Colors.white
+                                : const Color(0xFF9CA3AF),
+                          )),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
@@ -1020,11 +1196,15 @@ class _PendingHomeworkBadge extends StatelessWidget {
                   const Icon(Icons.pending_actions_rounded,
                       size: 13, color: Color(0xFFEF4444)),
                   const SizedBox(width: 5),
-                  Text(label,
-                      style: GoogleFonts.poppins(
-                        fontSize: 10.5, fontWeight: FontWeight.w800,
-                        color: const Color(0xFFDC2626),
-                      )),
+                  // Başka dilde uzayınca taşmasın → esnet + kısalt.
+                  Flexible(
+                    child: Text(label,
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: 10.5, fontWeight: FontWeight.w800,
+                          color: const Color(0xFFDC2626),
+                        )),
+                  ),
                 ],
               ),
             ),

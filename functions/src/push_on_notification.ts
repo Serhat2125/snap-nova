@@ -51,6 +51,18 @@ function categoryForType(type?: string): string | null {
       return "league_update";
     case "streak_milestone":
       return "streak_alert";
+    // ── Öğretmen kategorileri (panel ayarındaki toggle'ları gerçekten gate'le) ──
+    case "homework_submission": // öğrenci ödevi teslim etti → öğretmene
+      return "homework_submission";
+    case "student_joined": // yeni öğrenci sınıfa katıldı → öğretmene
+      return "student_joined";
+    case "class_activity":
+    case "class_announcement":
+    case "announcement":
+    case "homework_published":
+    case "homework_all_done":
+    case "material":
+      return "class_activity";
     default:
       return null;
   }

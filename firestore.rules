@@ -96,6 +96,19 @@ service cloud.firestore {
       }
     }
 
+    // ── usernames/{name}: kullanıcı adı benzersizlik rezervasyonu ──────────
+    //   doc.id = lowercase username, data.uid = sahip. Atomik claim için.
+    //   create: yalnızca kendi adına; Firestore create => doc YOKsa başarılı,
+    //           böylece eşzamanlı iki kişi aynı adı alamaz (gerçek benzersizlik).
+    //   delete: yalnızca sahibi — ad değiştirince eski rezervasyonu bırakmak için.
+    //   update: yasak (sahiplik devredilemez).
+    match /usernames/{name} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+
     // ── friends/{uid}/list/{friendUid}: iki yönlü arkadaşlık edge'i ────────
     //    Read: sadece sahibi (kendi listesini görür).
     //    Write: hem sahibi (uid) HEM de karşı taraf (friendUid) yazabilir —

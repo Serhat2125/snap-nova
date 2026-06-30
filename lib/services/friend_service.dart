@@ -220,6 +220,61 @@ class FriendService {
     }
   }
 
+  /// Username'i ATOMİK olarak rezerve eder → gerçek benzersizlik garantisi.
+  /// Sıradan `where('username')` sorgusu TOCTOU yarışına açıktır; bu metod
+  /// `usernames/{ad}` doc'unu transaction içinde oluşturarak eşzamanlı iki
+  /// kullanıcının aynı adı almasını engeller.
+  ///
+  /// Dönüş: true = ad artık bizim (yeni alındı ya da zaten bizimdi),
+  ///        false = başkası almış → çağıran "başka ad gir" demeli.
+  static Future<bool> claimUsername(String username) async {
+    final uid = _myUid;
+    if (uid == null) return false;
+    final clean = _normalizeUsername(username);
+    if (clean.length < 3) return false;
+    try {
+      // (1) Rezervasyon sistemi öncesi kayıtlı eski kullanıcılar adı yalnızca
+      //     users doc'unda tutuyor olabilir. Transaction koleksiyon
+      //     sorgulayamadığı için bunu ayrıca kontrol et.
+      final existing = await _fs
+          .collection('users')
+          .where('username', isEqualTo: clean)
+          .limit(1)
+          .get();
+      if (existing.docs.isNotEmpty && existing.docs.first.id != uid) {
+        return false;
+      }
+      // (2) Atomik rezervasyon — doc yoksa oluştur, varsa sahibi biz miyiz bak.
+      final ref = _fs.collection('usernames').doc(clean);
+      return await _fs.runTransaction<bool>((tx) async {
+        final snap = await tx.get(ref);
+        if (snap.exists) {
+          return (snap.data()?['uid'] ?? '').toString() == uid;
+        }
+        tx.set(ref, {
+          'uid': uid,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+        return true;
+      });
+    } catch (e) {
+      debugPrint('[FriendService] claimUsername fail: $e');
+      return false;
+    }
+  }
+
+  /// Eski username rezervasyonunu bırakır (kullanıcı adını değiştirince).
+  /// Sessiz başarısız — kritik değil.
+  static Future<void> releaseUsername(String username) async {
+    final uid = _myUid;
+    if (uid == null) return;
+    final clean = _normalizeUsername(username);
+    if (clean.length < 3) return;
+    try {
+      await _fs.collection('usernames').doc(clean).delete();
+    } catch (_) {}
+  }
+
   // ── ARAMA ─────────────────────────────────────────────────────────────────
 
   /// Username prefix araması — `searchTokens` arrayContains ile.

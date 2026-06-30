@@ -17,6 +17,10 @@
     </queries>
     <!-- FCM Push bildirimleri (Android 13+ runtime permission) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Zamanlanmış yerel hatırlatıcılar (çalışma/seri/sınav) cihaz yeniden
+         başlatılınca da korunsun diye flutter_local_notifications boot
+         receiver'ı için gerekli. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Google Play Billing — in_app_purchase için zorunlu izin -->
     <uses-permission android:name="com.android.vending.BILLING" />
     <!-- Gallery / Storage -->

@@ -24,6 +24,8 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:timezone/data/latest.dart' as tzdata;
+import 'package:timezone/timezone.dart' as tz;
 
 import '../firebase_options.dart';
 import 'app_settings_service.dart';
@@ -64,6 +66,10 @@ class PushService {
   }) async {
     if (_initialized) return;
     try {
+      // Zamanlanmış yerel bildirimler (sınav geri sayımı) için timezone DB.
+      try {
+        tzdata.initializeTimeZones();
+      } catch (_) {}
       // Background handler — uygulama kapalı/arka plandayken gelen
       // data-only push'lar için. notification: payload'lu mesajları
       // OS otomatik gösterir; bu handler ek mantık için.
@@ -111,22 +117,13 @@ class PushService {
         final body = notif?.body ?? data['body']?.toString() ?? '';
         if (body.isEmpty) return;
         final payload = data.entries.map((e) => '${e.key}=${e.value}').join('&');
-        _local.show(
-          msg.hashCode,
-          title,
-          body,
-          NotificationDetails(
-            android: AndroidNotificationDetails(
-              _channel.id,
-              _channel.name,
-              channelDescription: _channel.description,
-              importance: Importance.high,
-              priority: Priority.high,
-              icon: '@mipmap/ic_launcher',
-            ),
-            iOS: const DarwinNotificationDetails(),
-          ),
+        // showLocal üzerinden → master + kategori + sessiz saatler uygulanır.
+        showLocal(
+          title: title,
+          body: body,
           payload: payload,
+          id: msg.hashCode,
+          type: data['type']?.toString(),
         );
       });
 
@@ -177,19 +174,66 @@ class PushService {
   /// Anlık local notification göster — push trigger gerek olmadan
   /// kullanıcıya uyarı (örn. "Hâlâ burada mısın?" idle warning).
   /// Foreground'da da görünür; AppDelegate alert/badge/sound izinleri zaten
+  /// Bildirim türünü ayar kategorisine eşler (sunucudaki categoryForType ile
+  /// AYNI — foreground gating için). Eşi yoksa null → yalnız master gate'lenir.
+  static String? _categoryForType(String? type) {
+    switch (type) {
+      case 'friend_request':
+      case 'friend_accepted':
+      case 'referral_joined':
+      case 'referral_complete':
+        return 'friend_request';
+      case 'duelo_invite':
+        return 'duello_invite';
+      case 'rank_passed':
+        return 'league_update';
+      case 'streak_milestone':
+        return 'streak_alert';
+      // Cihaz-içi hatırlatıcılar — tip = kategori anahtarı (identity).
+      case 'study_reminder':
+        return 'study_reminder';
+      case 'streak_alert':
+        return 'streak_alert';
+      case 'exam_countdown':
+        return 'exam_countdown';
+      case 'achievement':
+        return 'achievement';
+      case 'homework_submission':
+        return 'homework_submission';
+      case 'student_joined':
+        return 'student_joined';
+      case 'class_activity':
+      case 'class_announcement':
+      case 'announcement':
+      case 'homework_published':
+      case 'homework_all_done':
+      case 'material':
+        return 'class_activity';
+      default:
+        return null;
+    }
+  }
+
   /// init() içinde alındı.
   static Future<void> showLocal({
     required String title,
     required String body,
     String? payload,
     int id = 0xFA001,
+    String? type,
   }) async {
-    // Ana anahtar kontrolü — "Tüm bildirimler" kapalıysa yerel hatırlatma
-    // da gösterilmez (kanonik anahtar: notif_master).
+    // Ana anahtar + kategori kontrolü — "Tüm bildirimler" kapalıysa ya da bu
+    // bildirim türünün kategorisi kapalıysa gösterme (kanonik: notif_master,
+    // notif_<kategori>). Foreground push da bu yoldan geçer → ayarlar uygulanır.
     try {
       final prefs = await SharedPreferences.getInstance();
       if (prefs.getBool('notif_master') == false) {
         debugPrint('[Push] tüm bildirimler kapalı — atlandı: $title');
+        return;
+      }
+      final cat = _categoryForType(type);
+      if (cat != null && prefs.getBool('notif_$cat') == false) {
+        debugPrint('[Push] kategori kapalı ($cat) — atlandı: $title');
         return;
       }
     } catch (_) {/* pref okunamadı → göster */}
@@ -224,6 +268,84 @@ class PushService {
     } catch (e) {
       debugPrint('[Push] showLocal fail: $e');
     }
+  }
+
+  // ── Zamanlanmış yerel bildirimler (hatırlatıcılar) ─────────────────────────
+  // Gating SCHEDULE anında yapılır (kapalıysa hiç planlanmaz); ayar değişince
+  // çağıran (LocalReminderService) yeniden planlar.
+
+  /// master + kategori açık mı?
+  static Future<bool> _allowed(String type) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool('notif_master') == false) return false;
+      final cat = _categoryForType(type);
+      if (cat != null && prefs.getBool('notif_$cat') == false) return false;
+    } catch (_) {}
+    return true;
+  }
+
+  static NotificationDetails _details() => NotificationDetails(
+        android: AndroidNotificationDetails(
+          _channel.id, _channel.name,
+          channelDescription: _channel.description,
+          importance: Importance.high, priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+        ),
+        iOS: const DarwinNotificationDetails(),
+      );
+
+  /// Günlük tekrar eden hatırlatma (çalışma/seri). Belirli saat değil, ilk
+  /// planlamadan itibaren ~24 saatte bir (timezone gerektirmez).
+  static Future<void> scheduleDaily({
+    required int id,
+    required String title,
+    required String body,
+    required String type,
+  }) async {
+    await cancelScheduled(id);
+    if (!await _allowed(type)) return;
+    try {
+      await _local.periodicallyShow(
+        id, title, body, RepeatInterval.daily, _details(),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        payload: 'type=$type',
+      );
+    } catch (e) {
+      debugPrint('[Push] scheduleDaily fail: $e');
+    }
+  }
+
+  /// Belirli bir ana zamanlanmış tek seferlik hatırlatma (sınav geri sayımı).
+  /// Mutlak-an (tz.UTC) kullanır → cihaz IANA zonu gerekmez, doğru anda atar.
+  static Future<void> scheduleAt({
+    required int id,
+    required String title,
+    required String body,
+    required String type,
+    required DateTime when,
+  }) async {
+    await cancelScheduled(id);
+    if (when.isBefore(DateTime.now())) return;
+    if (!await _allowed(type)) return;
+    try {
+      final scheduled = tz.TZDateTime.from(when.toUtc(), tz.UTC);
+      await _local.zonedSchedule(
+        id, title, body, scheduled, _details(),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        payload: 'type=$type',
+      );
+    } catch (e) {
+      debugPrint('[Push] scheduleAt fail: $e');
+    }
+  }
+
+  static Future<void> cancelScheduled(int id) async {
+    try {
+      await _local.cancel(id);
+    } catch (_) {}
   }
 
   /// Logout sırasında çağrılır — bu cihazın token'ı silinir.

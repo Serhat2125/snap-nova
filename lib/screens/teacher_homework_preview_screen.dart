@@ -31,6 +31,9 @@ const _kBrand = Color(0xFF7C3AED);
 
 class TeacherHomeworkPreviewScreen extends StatefulWidget {
   final String classId;
+  /// Çoklu seçimde [classId] dışındaki ek hedef sınıflar. Yeni ödev gönderilince
+  /// ödev hepsine ayrı ayrı atanır. Düzenleme modunda yok sayılır.
+  final List<String> additionalClassIds;
   final String title;
   final String subject;
   final String topic;
@@ -50,6 +53,7 @@ class TeacherHomeworkPreviewScreen extends StatefulWidget {
   const TeacherHomeworkPreviewScreen({
     super.key,
     required this.classId,
+    this.additionalClassIds = const [],
     required this.title,
     required this.subject,
     required this.topic,
@@ -145,20 +149,26 @@ class _TeacherHomeworkPreviewScreenState
         );
       }
     } else {
-      final hwId = await HomeworkService.assignToClass(
-        classId: widget.classId,
-        title: _title,
-        subject: widget.subject,
-        topic: widget.topic,
-        level: widget.level,
-        types: widget.types,
-        questionCount: _questions.length,
-        dueAt: _dueAt,
-        publishAt: _publishAt,
-        questions: _questions,
-        draft: draft,
-      );
-      ok = hwId != null;
+      // Tek veya çoklu hedef: seçilen tüm sınıflara ayrı ayrı ata.
+      final targets = <String>{widget.classId, ...widget.additionalClassIds};
+      int success = 0;
+      for (final cid in targets) {
+        final hwId = await HomeworkService.assignToClass(
+          classId: cid,
+          title: _title,
+          subject: widget.subject,
+          topic: widget.topic,
+          level: widget.level,
+          types: widget.types,
+          questionCount: _questions.length,
+          dueAt: _dueAt,
+          publishAt: _publishAt,
+          questions: _questions,
+          draft: draft,
+        );
+        if (hwId != null) success++;
+      }
+      ok = success > 0;
     }
     if (!mounted) return;
     setState(() => _sending = false);
@@ -176,7 +186,10 @@ class _TeacherHomeworkPreviewScreenState
               ? '📝 Taslağa kaydedildi — Bekleyenler\'den yayınlayabilirsin.'.tr()
               : _scheduled
                   ? '🕒 Ödev zamanlandı; yayın anında öğrencilere bildirilecek.'.tr()
-                  : '✅ Ödev sınıfa gönderildi (${_questions.length} soru).'.tr();
+                  : (widget.additionalClassIds.isEmpty
+                      ? '✅ Ödev sınıfa gönderildi (${_questions.length} soru).'.tr()
+                      : '✅ Ödev ${widget.additionalClassIds.length + 1} sınıfa gönderildi (${_questions.length} soru).'
+                          .tr());
       messenger.showSnackBar(SnackBar(
         content: Text(msg),
         behavior: SnackBarBehavior.floating,

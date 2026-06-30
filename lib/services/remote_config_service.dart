@@ -42,6 +42,12 @@ class RemoteConfigService {
     // Ekonomi
     'daily_free_solve_limit': 5,
     'premium_intro_discount_pct': 50,
+    // Fiyatlandırma override'ları (kur şoklarına uygulama güncellemesi
+    // OLMADAN müdahale için). Boş → kod içindeki canlı API/fallback kullanılır.
+    //   fx_rates: {"TRY":42.0,"ARS":1000.0,...}  (USD→yerel kur)
+    //   pricing_tier_usd: {"1":4.99,"3":3.99,"5":2.99}  (kademe aylık USD)
+    'fx_rates': <String, double>{},
+    'pricing_tier_usd': <String, double>{},
     // Quality of life
     'show_whatsnew_banner': false,
     'whatsnew_version': '',
@@ -137,6 +143,22 @@ class RemoteConfigService {
   String getString(String key) {
     final v = _values[key] ?? defaults[key];
     return v?.toString() ?? '';
+  }
+
+  /// Anahtar bir harita (Firestore nested map ya da JSON string) ise döndürür.
+  /// Yoksa/boşsa null. Fiyat override'ları gibi {anahtar: değer} ayarlar için.
+  Map<String, dynamic>? getMap(String key) {
+    final v = _values[key] ?? defaults[key];
+    if (v is Map) {
+      return v.isEmpty ? null : Map<String, dynamic>.from(v);
+    }
+    if (v is String && v.trim().isNotEmpty) {
+      try {
+        final d = jsonDecode(v);
+        if (d is Map && d.isNotEmpty) return Map<String, dynamic>.from(d);
+      } catch (_) {}
+    }
+    return null;
   }
 
   /// Cache hala taze mi?

@@ -322,7 +322,7 @@ class PendingHomeworkCardState extends State<PendingHomeworkCard> {
             Row(
               children: [
                 Expanded(
-                  child: FilledButton.icon(
+                  child: FilledButton(
                     style: FilledButton.styleFrom(
                       backgroundColor: _kBrand,
                       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -330,8 +330,7 @@ class PendingHomeworkCardState extends State<PendingHomeworkCard> {
                         borderRadius: BorderRadius.circular(10)),
                     ),
                     onPressed: _publishNow,
-                    icon: const Icon(Icons.send_rounded, size: 17),
-                    label: Text('Şimdi Yayınla'.tr(),
+                    child: Text('Şimdi Yayınla'.tr(),
                         maxLines: 1, overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.poppins(
                           fontSize: 12, fontWeight: FontWeight.w800,
@@ -339,12 +338,23 @@ class PendingHomeworkCardState extends State<PendingHomeworkCard> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                IconButton(
-                  onPressed: _editSchedule,
-                  icon: const Icon(Icons.schedule_rounded, color: _kBrand),
-                  tooltip: 'Zamanla'.tr(),
-                  style: IconButton.styleFrom(
-                    backgroundColor: _kBrand.withValues(alpha: 0.10),
+                // İleri bir tarihe zamanlama → _editSchedule gün+saat seçtirir.
+                Expanded(
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _kBrand.withValues(alpha: 0.12),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: _editSchedule,
+                    child: Text('Zamanlayıcı Ayarla'.tr(),
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12, fontWeight: FontWeight.w800,
+                          color: _kBrand)),
                   ),
                 ),
                 const SizedBox(width: 4),

@@ -3785,6 +3785,11 @@ $lang
     required int count,
     String langCode = 'tr',
     String? outcome,                  // Müfredat kazanımı (opsiyonel ipucu)
+    // Öğretmenin seçtiği AI model — zincirin EN BAŞINA eklenir; geç/başarısız
+    // olursa varsayılan examGen zinciri (Gemini→ChatGPT→Grok) devreye girer.
+    // null → QuAlsar (otomatik) = doğrudan varsayılan zincir.
+    AiProvider? firstProvider,
+    String? firstModel,
   }) async {
     _log('generateHomework() — $subject/$topic, $count soru, types=$typeKeys');
     final lang = _languageDirective(langCode);
@@ -3901,6 +3906,8 @@ $lang
           prompt: '$count soruluk ödev üret.',
           system: sys,
           maxTokens: 3000,
+          firstProvider: firstProvider,
+          firstModel: firstModel,
         );
         final s = aiText.indexOf('[');
         final e = aiText.lastIndexOf(']');

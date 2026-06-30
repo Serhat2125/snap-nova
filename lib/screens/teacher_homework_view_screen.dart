@@ -254,11 +254,11 @@ class HomeworkAnswersList extends StatelessWidget {
     late IconData icon;
     late String label;
     if (isCorrect == true) {
-      c = _kGreen; icon = Icons.check_rounded; label = 'Doğru';
+      c = _kGreen; icon = Icons.check_rounded; label = 'Doğru'.tr();
     } else if (isCorrect == false) {
-      c = _kRed; icon = Icons.close_rounded; label = 'Yanlış';
+      c = _kRed; icon = Icons.close_rounded; label = 'Yanlış'.tr();
     } else {
-      c = _kAmber; icon = Icons.hourglass_empty_rounded; label = 'Bekliyor';
+      c = _kAmber; icon = Icons.hourglass_empty_rounded; label = 'Bekliyor'.tr();
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -271,7 +271,7 @@ class HomeworkAnswersList extends StatelessWidget {
         children: [
           Icon(icon, size: 12, color: c),
           const SizedBox(width: 3),
-          Text(label.tr(),
+          Text(label,
               style: GoogleFonts.poppins(
                 fontSize: 9.5, fontWeight: FontWeight.w800, color: c)),
         ],

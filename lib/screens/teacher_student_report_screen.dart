@@ -15,16 +15,20 @@
 
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../services/account_service.dart';
 import '../services/class_service.dart';
+import '../services/grading_config.dart';
 import '../services/homework_service.dart';
 import '../services/runtime_translator.dart';
 import '../utils/safe_dismiss.dart';
 import '../theme/app_theme.dart';
+import '../widgets/teacher_help_dialog.dart';
 import 'teacher_homework_detail_screen.dart';
 
 const _kBrand = Color(0xFF7C3AED);
@@ -65,6 +69,25 @@ class _TeacherStudentReportScreenState
   // Dönem çerçevesinde notların kapatıldığı dönemler (varsayılan: açık).
   final Set<int> _collapsedTerms = {};
 
+  /// Öğretmenin seçtiği müfredata göre aktif not konfigürasyonu (skala,
+  /// kategoriler, hesaplama türü, geçme sınırı…).
+  /// Öncelik: SINIFIN müfredatı (öğretmenin seçtiği) → ebeveyn/öğrenci de aynı
+  /// skalada görür. Yoksa görüntüleyenin kendi seçimi → generic.
+  String? _classGradingCountry;
+  CurriculumConfig get _cfg => GradingConfigService.forCountry(
+      (_classGradingCountry != null && _classGradingCountry!.isNotEmpty)
+          ? _classGradingCountry
+          : AccountService.instance.gradingCountry);
+
+  List<GradeEntry> _entries(List<StudentGrade> gs) => gs
+      .map((g) => GradeEntry(
+            score: g.score,
+            weightPercent: g.weight,
+            categoryKey: g.type,
+            term: g.term,
+          ))
+      .toList();
+
   // Sürüklenebilir "Sınav notu ekle" butonunun konumu (null = varsayılan).
   Offset? _gradeFabPos;
 
@@ -72,6 +95,13 @@ class _TeacherStudentReportScreenState
   void initState() {
     super.initState();
     _future = HomeworkService.studentReport(widget.classId, widget.studentUid);
+    // Sınıfın müfredat ülkesini çek (gerekirse sahibi öğretmense geriye doldur)
+    // → notlar öğretmen/ebeveyn/öğrencide AYNI skalada gösterilir.
+    ClassService.gradingCountryForClass(widget.classId).then((cc) {
+      if (mounted && cc.isNotEmpty) {
+        setState(() => _classGradingCountry = cc);
+      }
+    });
   }
 
   @override
@@ -82,85 +112,47 @@ class _TeacherStudentReportScreenState
 
   /// Sağ üstteki "?" → aktif sekmeye göre kısa "nasıl kullanılır" rehberi.
   Future<void> _showHelp() async {
-    final ink = AppPalette.textPrimary(context);
-    final muted = AppPalette.textSecondary(context);
-    final (title, lines) = switch (_tab) {
+    final (title, items) = switch (_tab) {
       1 => (
-          'Notlar — nasıl kullanılır?'.tr(),
+          'Notlar — nasıl kullanılır?',
           [
-            '📝 “Yeni not ekle” ile öğrenci hakkında gözlem/öneri yaz.',
-            '👪 “Ebeveynle paylaş” açıksa not velinin panelinde görünür; kapalıysa sadece sana özeldir.',
-            '👏 “Takdir” ile hazır olumlu geri bildirim gönderebilirsin.',
-            '✏️ Bir nota dokunarak düzenleyebilir veya silebilirsin.',
+            TeacherHelpItem('📝',
+                '“Yeni not ekle” ile öğrenci hakkında gözlem/öneri yaz.'),
+            TeacherHelpItem('👪',
+                '“Ebeveynle paylaş” açıksa not velinin panelinde görünür; kapalıysa sadece sana özeldir.'),
+            TeacherHelpItem('👏',
+                '“Takdir” ile hazır olumlu geri bildirim gönderebilirsin.'),
+            TeacherHelpItem('✏️',
+                'Bir nota dokunarak düzenleyebilir veya silebilirsin.'),
           ],
         ),
       2 => (
-          'Yazılılar — nasıl kullanılır?'.tr(),
+          'Yazılılar — nasıl kullanılır?',
           [
-            '➕ Her dönem çerçevesindeki “Not ekle” ile yazılı/sözlü not girersin; çerçevenin dönemi hazır gelir.',
-            '🗂️ Her dönem kendi çerçevesindedir; “Notları göster/gizle” ile aç-kapat.',
-            '🎯 Not eklerken “Yüzdelik Katkısı”, o notun dönem ağırlığıdır.',
-            '🔢 “Verilen” girdiğin nottur; “Katkı” o notun ortalamaya gerçek payıdır — bir dönemdeki katkıların toplamı Ortalama’ya eşittir.',
-            '✋ Bir nota uzun basarak düzenle veya sil.',
+            TeacherHelpItem('➕',
+                'Her dönem çerçevesindeki “Not ekle” ile yazılı/sözlü not girersin; çerçevenin dönemi hazır gelir.'),
+            TeacherHelpItem('🗂️',
+                'Her dönem kendi çerçevesindedir; “Notları göster/gizle” ile aç-kapat.'),
+            TeacherHelpItem('🎯',
+                'Not eklerken “Yüzdelik Katkısı”, o notun dönem ağırlığıdır.'),
+            TeacherHelpItem('🔢',
+                '“Verilen” girdiğin nottur; “Katkı” o notun ortalamaya gerçek payıdır — bir dönemdeki katkıların toplamı Ortalama’ya eşittir.'),
+            TeacherHelpItem('✋', 'Bir nota uzun basarak düzenle veya sil.'),
           ],
         ),
       _ => (
-          'Ödevler — nasıl kullanılır?'.tr(),
+          'Ödevler — nasıl kullanılır?',
           [
-            '📊 Öğrencinin verdiğin ödevlerdeki performansı: skor, süre, durum.',
-            '📈 Başarı trendi ve konu bazlı güçlü/zayıf alanlar burada görünür.',
-            '👇 Bir ödeve dokunarak ayrıntılı sonucu açabilirsin.',
+            TeacherHelpItem('📊',
+                'Öğrencinin verdiğin ödevlerdeki performansı: skor, süre, durum.'),
+            TeacherHelpItem('📈',
+                'Başarı trendi ve konu bazlı güçlü/zayıf alanlar burada görünür.'),
+            TeacherHelpItem('👇',
+                'Bir ödeve dokunarak ayrıntılı sonucu açabilirsin.'),
           ],
         ),
     };
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: AppPalette.card(context),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  margin: const EdgeInsets.only(bottom: 14),
-                  decoration: BoxDecoration(
-                    color: AppPalette.border(ctx),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              Row(
-                children: [
-                  const Icon(Icons.help_outline_rounded,
-                      size: 20, color: _kBrand),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(title.tr(),
-                        style: GoogleFonts.poppins(
-                            fontSize: 16, fontWeight: FontWeight.w900,
-                            color: ink)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              ...lines.map((l) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Text(l.tr(),
-                        style: GoogleFonts.poppins(
-                            fontSize: 13, height: 1.45, color: muted)),
-                  )),
-            ],
-          ),
-        ),
-      ),
-    );
+    await showTeacherHelpDialog(context, title: title, items: items);
   }
 
   /// AppBar'daki "Ekle" → güncel notları çekip not ekleme sayfasını açar.
@@ -585,6 +577,10 @@ class _TeacherStudentReportScreenState
       BuildContext context, StudentNote? existing) async {
     final ctrl = TextEditingController(text: existing?.text ?? '');
     bool shared = existing?.sharedWithParent ?? false;
+    // Klavye açıkken (autofocus) sheet kapanırken _dependents.isEmpty kırmızı
+    // ekranını önlemek için TÜM kapatma yolları (kaydet/sil/geri/aşağı kaydır)
+    // tek bir klavye-güvenli close() üzerinden gider (PopScope ile yakalanır).
+    bool dismissing = false;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -596,7 +592,25 @@ class _TeacherStudentReportScreenState
         builder: (sheetCtx, setSheet) {
           final ink = AppPalette.textPrimary(sheetCtx);
           final muted = AppPalette.textSecondary(sheetCtx);
-          return Padding(
+          // Klavye-güvenli kapatma: önce odağı bırak, kapanış animasyonunu
+          // bekle, sonra (canPop=true ile) pop et. Mid-animation pop = çökme.
+          Future<void> close() async {
+            FocusManager.instance.primaryFocus?.unfocus();
+            await Future<void>.delayed(const Duration(milliseconds: 320));
+            if (!sheetCtx.mounted) return;
+            dismissing = true;
+            setSheet(() {});
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (sheetCtx.mounted) Navigator.of(sheetCtx).maybePop();
+            });
+          }
+
+          return PopScope(
+            canPop: dismissing,
+            onPopInvokedWithResult: (didPop, _) {
+              if (!didPop) close();
+            },
+            child: Padding(
             padding: EdgeInsets.only(
               left: 20, right: 20, top: 16,
               bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 20,
@@ -626,7 +640,7 @@ class _TeacherStudentReportScreenState
                     if (existing != null)
                       IconButton(
                         onPressed: () async {
-                          await safeDismiss(sheetCtx);
+                          await close();
                           await ClassService.deleteNote(
                               widget.classId, widget.studentUid, existing.id);
                         },
@@ -708,9 +722,8 @@ class _TeacherStudentReportScreenState
                   child: FilledButton.icon(
                     onPressed: () async {
                       final text = ctrl.text.trim();
-                      // Odağı bırak → IME teardown'u bitince sheet'i kapat
-                      // (_dependents.isEmpty kırmızı ekranını önler).
-                      await safeDismiss(sheetCtx);
+                      // Klavye-güvenli kapat (geri/aşağı/kaydet hepsi aynı yol).
+                      await close();
                       if (text.isEmpty) return;
                       if (existing == null) {
                         await ClassService.addNote(widget.classId,
@@ -738,6 +751,7 @@ class _TeacherStudentReportScreenState
               ],
             ),
             ),
+          ),
           );
         },
       ),
@@ -1072,50 +1086,70 @@ class _TeacherStudentReportScreenState
     );
   }
 
-  /// Ağırlıklı dönem ortalaması.
-  ///   • Her notun `weight`'i (döneme etkisi %) ile ağırlıklandırılır:
-  ///       ort = Σ(not × ağırlık) / Σ(ağırlık)
-  ///   • Ağırlık girilmemiş (eski) notlara, girilenlerin ortalaması kadar
-  ///     ağırlık verilir → karışık durumda da adil olur.
-  ///   • Hiçbirinde ağırlık yoksa basit ortalamaya düşer.
-  static double _weightedAvg(List<StudentGrade> gs) {
-    if (gs.isEmpty) return 0;
-    final nonZero = gs.where((g) => g.weight > 0).toList();
-    if (nonZero.isEmpty) {
-      return gs.map((g) => g.score).reduce((a, b) => a + b) / gs.length;
+  /// Dönem sonu sonucu — aktif müfredatın hesaplama modeline göre
+  /// (aritmetik / kategori-ağırlıklı / not-ağırlıklı / puan toplamı).
+  double _termResult(List<StudentGrade> gs) =>
+      GradeCalculator.termResult(_cfg, _entries(gs));
+
+  /// Bir notun döneme yaklaşık katkısı (toplamları = dönem sonucu).
+  /// Modele göre: aritmetik → eşit pay; not-ağırlıklı → ağırlık payı;
+  /// kategori-ağırlıklı → kategori ağırlığı ÷ kategori not adedi.
+  double _contribution(StudentGrade g, List<StudentGrade> all) {
+    final term = all.where((x) => x.term == g.term).toList();
+    if (term.isEmpty) return 0;
+
+    if (_cfg.calc == CalcModel.weighted &&
+        _cfg.weightMode == WeightMode.perCategory) {
+      double wTotal = 0;
+      for (final cat in _cfg.categories) {
+        if (term.any((x) => x.type == cat.key) && cat.defaultWeight > 0) {
+          wTotal += cat.defaultWeight;
+        }
+      }
+      final cat = _cfg.categoryByKey(g.type);
+      final inCat = term.where((x) => x.type == g.type).length;
+      if (wTotal <= 0 || inCat == 0 || cat.defaultWeight <= 0) {
+        return g.score / term.length;
+      }
+      return g.score * (cat.defaultWeight / wTotal) / inCat;
     }
-    final avgW =
-        nonZero.fold<int>(0, (s, g) => s + g.weight) / nonZero.length;
-    double sum = 0, totalW = 0;
-    for (final g in gs) {
-      final w = g.weight > 0 ? g.weight.toDouble() : avgW;
-      sum += g.score * w;
-      totalW += w;
+
+    if (_cfg.calc == CalcModel.weighted &&
+        _cfg.weightMode == WeightMode.perNote) {
+      final nonZero = term.where((x) => x.weight > 0).toList();
+      if (nonZero.isEmpty) return g.score / term.length;
+      final avgW =
+          nonZero.fold<int>(0, (s, x) => s + x.weight) / nonZero.length;
+      double totalW = 0;
+      for (final x in term) {
+        totalW += x.weight > 0 ? x.weight.toDouble() : avgW;
+      }
+      final effW = g.weight > 0 ? g.weight.toDouble() : avgW;
+      return totalW > 0 ? g.score * effW / totalW : 0;
     }
-    return totalW > 0 ? sum / totalW : 0;
+
+    // Aritmetik / puan toplamı → eşit pay.
+    return g.score / term.length;
   }
 
-  /// Bir notun döneme NORMALİZE katkısı: not × etkinAğırlık ÷ Σ(etkinAğırlık).
-  /// Dönem içindeki tüm katkıların toplamı = o dönemin ağırlıklı ortalaması
-  /// (yüzdeler 100'ü aşsa/altında kalsa da tutarlı). _weightedAvg ile aynı
-  /// etkin-ağırlık mantığını kullanır.
-  static double _contribution(StudentGrade g, List<StudentGrade> all) {
-    final termGrades = all.where((x) => x.term == g.term).toList();
-    if (termGrades.isEmpty) return 0;
-    final nonZero = termGrades.where((x) => x.weight > 0).toList();
-    if (nonZero.isEmpty) {
-      // Ağırlık girilmemiş → eşit pay (not ÷ adet).
-      return g.score / termGrades.length;
-    }
-    final avgW =
-        nonZero.fold<int>(0, (s, x) => s + x.weight) / nonZero.length;
-    double totalW = 0;
-    for (final x in termGrades) {
-      totalW += x.weight > 0 ? x.weight.toDouble() : avgW;
-    }
-    final effW = g.weight > 0 ? g.weight.toDouble() : avgW;
-    return totalW > 0 ? g.score * effW / totalW : 0;
+  /// Not değerine göre renk (skala yönünü dikkate alır).
+  Color _gradeColor(double score) {
+    final r = GradeCalculator.successRatio(_cfg, score);
+    if (r >= 0.80) return const Color(0xFF10B981);
+    if (r >= 0.50) return const Color(0xFFF59E0B);
+    return const Color(0xFFEF4444);
   }
+
+  /// Notun okunur etiketi (kategori adı + sıra), müfredata göre.
+  String _gradeLabel(StudentGrade g) {
+    final cat = _cfg.categoryByKey(g.type);
+    final name = cat.label.tr();
+    return cat.orderable ? '${g.order}. $name' : name;
+  }
+
+  /// Skoru giriş alanında gösterilecek metne çevirir (tam sayıda .0 olmaz).
+  String _scoreInputText(double v) =>
+      v == v.roundToDouble() ? v.toInt().toString() : v.toString();
 
   /// Her DÖNEM için ayrı çerçeve (özet + altında açılır not listesi). 2. dönem
   /// notu girilince ikinci çerçeve otomatik eklenir.
@@ -1136,8 +1170,9 @@ class _TeacherStudentReportScreenState
   // aç/kapa düğmesi ve içeride o dönemin yazılı/sözlü not detayları.
   Widget _gradeSummary(BuildContext context, int term,
       List<StudentGrade> grades, List<StudentGrade> allGrades) {
-    final avg = _weightedAvg(grades);
-    final passed = grades.where((g) => g.score >= 50).length;
+    final avg = _termResult(grades);
+    final passed =
+        grades.where((g) => GradeCalculator.isPass(_cfg, g.score)).length;
     final open = !_collapsedTerms.contains(term); // varsayılan: açık
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
@@ -1170,7 +1205,7 @@ class _TeacherStudentReportScreenState
           Row(
             children: [
               _miniStat(context, '📊', 'Ortalama'.tr(),
-                  avg.toStringAsFixed(0), _scoreColor(avg)),
+                  GradeCalculator.displayResult(_cfg, avg), _gradeColor(avg)),
               _miniDivider(context),
               _miniStat(context, '📝', 'Sınav'.tr(),
                   '${grades.length}', const Color(0xFF6366F1)),
@@ -1276,8 +1311,8 @@ class _TeacherStudentReportScreenState
       BuildContext context, StudentGrade g, List<StudentGrade> allGrades) {
     final ink = AppPalette.textPrimary(context);
     final muted = AppPalette.textSecondary(context);
-    final color = _scoreColor(g.score.toDouble());
-    final passed = g.score >= 50;
+    final color = _gradeColor(g.score);
+    final passed = GradeCalculator.isPass(_cfg, g.score);
     // Döneme GERÇEK katkı: not × etkinAğırlık ÷ Σ(etkinAğırlık). Bir dönemdeki
     // katkıların toplamı tam olarak ağırlıklı ortalamayı verir.
     final contribution = _contribution(g, allGrades);
@@ -1304,7 +1339,7 @@ class _TeacherStudentReportScreenState
                   Row(
                     children: [
                       Flexible(
-                        child: Text(g.label.tr(),
+                        child: Text(_gradeLabel(g),
                             style: GoogleFonts.poppins(
                               fontSize: 14, fontWeight: FontWeight.w800,
                               color: ink,
@@ -1345,7 +1380,7 @@ class _TeacherStudentReportScreenState
                           style: GoogleFonts.poppins(
                             fontSize: 11, color: muted,
                           )),
-                      if (g.weight > 0) ...[
+                      if (_cfg.showPercentageSelector && g.weight > 0) ...[
                         const SizedBox(width: 8),
                         Icon(Icons.percent_rounded, size: 11, color: _kBrand),
                         const SizedBox(width: 2),
@@ -1361,40 +1396,46 @@ class _TeacherStudentReportScreenState
               ),
             ),
             const SizedBox(width: 8),
-            // Sağ: "Verilen" not + "Katkı" (ağırlıkla çarpılmış), üstte başlık.
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(width: 52,
-                        child: Text('Verilen'.tr(),
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.poppins(
-                                fontSize: 8.5, fontWeight: FontWeight.w700,
-                                color: muted))),
-                    const SizedBox(width: 6),
-                    SizedBox(width: 52,
-                        child: Text('Katkı'.tr(),
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.poppins(
-                                fontSize: 8.5, fontWeight: FontWeight.w700,
-                                color: muted))),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _scoreMiniBox(fmtNum(g.score.toDouble()), color),
-                    const SizedBox(width: 6),
-                    _scoreMiniBox(fmtNum(contribution), _kBrand),
-                  ],
-                ),
-              ],
-            ),
+            // Sağ: yüzde kullanılıyorsa "Verilen" + "Katkı"; kullanılmıyorsa
+            // (TR gibi) yalnızca verilen not (tek kutu).
+            if (_cfg.showPercentageSelector)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(width: 52,
+                          child: Text('Verilen'.tr(),
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.poppins(
+                                  fontSize: 8.5, fontWeight: FontWeight.w700,
+                                  color: muted))),
+                      const SizedBox(width: 6),
+                      SizedBox(width: 52,
+                          child: Text('Katkı'.tr(),
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.poppins(
+                                  fontSize: 8.5, fontWeight: FontWeight.w700,
+                                  color: muted))),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _scoreMiniBox(
+                          GradeCalculator.displayScore(_cfg, g.score), color),
+                      const SizedBox(width: 6),
+                      _scoreMiniBox(fmtNum(contribution), _kBrand),
+                    ],
+                  ),
+                ],
+              )
+            else
+              _scoreMiniBox(
+                  GradeCalculator.displayScore(_cfg, g.score), color),
           ],
         ),
       ),
@@ -1512,7 +1553,8 @@ class _TeacherStudentReportScreenState
                           ? const Color(0xFFF59E0B)
                           : const Color(0xFF6366F1)),
                   const SizedBox(width: 10),
-                  Text('${g.label.tr()} · ${g.score}',
+                  Text('${_gradeLabel(g)} · '
+                      '${GradeCalculator.displayScore(_cfg, g.score)}',
                       style: GoogleFonts.poppins(
                           fontSize: 14, fontWeight: FontWeight.w800,
                           color: AppPalette.textPrimary(ctx))),
@@ -1565,7 +1607,8 @@ class _TeacherStudentReportScreenState
             style: GoogleFonts.poppins(
                 fontWeight: FontWeight.w800,
                 color: AppPalette.textPrimary(ctx))),
-        content: Text('${g.label.tr()} (${g.score}) silinsin mi?'.tr(),
+        content: Text('${_gradeLabel(g)} '
+            '(${GradeCalculator.displayScore(_cfg, g.score)}) silinsin mi?'.tr(),
             style: GoogleFonts.poppins(
                 color: AppPalette.textSecondary(ctx))),
         actions: [
@@ -1593,19 +1636,29 @@ class _TeacherStudentReportScreenState
   Future<void> _addGradeDialog(
       BuildContext context, List<StudentGrade> existing,
       {StudentGrade? edit, int? initialTerm}) async {
-    bool isOral = edit?.isOral ?? false;
+    final cfg = _cfg;
+    // Seçili kategori anahtarı (müfredat kategorilerinden). Düzenlemede mevcut
+    // tür config'de yoksa ilk kategoriye düşülür.
+    String categoryKey = (edit != null &&
+            cfg.categories.any((c) => c.key == edit.type))
+        ? edit.type
+        : cfg.categories.first.key;
     int term = edit?.term ?? initialTerm ?? 1;
-    // Aynı tür+dönem için bir sonraki sıra numarasını öner.
-    int nextOrder(bool oral, int t) {
+    // Aynı kategori+dönem için bir sonraki sıra numarasını öner.
+    int nextOrder(String catKey, int t) {
       final same = existing
-          .where((g) => g.isOral == oral && g.term == t && g.id != edit?.id);
+          .where((g) => g.type == catKey && g.term == t && g.id != edit?.id);
       if (same.isEmpty) return 1;
       return same.map((g) => g.order).reduce((a, b) => a > b ? a : b) + 1;
     }
 
-    int order = edit?.order ?? nextOrder(false, term);
-    final scoreCtrl =
-        TextEditingController(text: edit != null ? '${edit.score}' : '');
+    int order = edit?.order ?? nextOrder(categoryKey, term);
+    // Harf/GPA müfredatında not, harf seçimiyle girilir (sayısal yerine).
+    final letterInput = cfg.letterMap != null &&
+        (cfg.display == DisplayType.letter || cfg.display == DisplayType.gpa);
+    double? letterScore = (letterInput && edit != null) ? edit.score : null;
+    final scoreCtrl = TextEditingController(
+        text: (edit != null && !letterInput) ? _scoreInputText(edit.score) : '');
     // Döneme etkisi (ağırlık %). Yeni notta varsayılan 30; düzenlemede mevcut.
     int weight = (edit != null && edit.weight > 0) ? edit.weight : 30;
     DateTime date = edit?.date ?? DateTime.now();
@@ -1615,7 +1668,8 @@ class _TeacherStudentReportScreenState
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppPalette.card(context),
+      // Panel arka planı soluk beyaz; içindeki alanlar/sekmeler beyaz.
+      backgroundColor: const Color(0xFFF3F4F6),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -1636,11 +1690,11 @@ class _TeacherStudentReportScreenState
                 width: double.infinity,
                 margin: const EdgeInsets.only(bottom: 6),
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 12),
+                    horizontal: 9, vertical: 11),
                 decoration: BoxDecoration(
                   color: selected
                       ? _kBrand.withValues(alpha: 0.12)
-                      : AppPalette.bg(sheetCtx),
+                      : Colors.white,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                       color:
@@ -1651,16 +1705,21 @@ class _TeacherStudentReportScreenState
                   children: [
                     if (selected)
                       const Padding(
-                        padding: EdgeInsets.only(right: 6),
+                        padding: EdgeInsets.only(right: 4),
                         child: Icon(Icons.check_rounded,
-                            size: 16, color: _kBrand),
+                            size: 15, color: _kBrand),
                       ),
-                    Text(label,
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: selected ? _kBrand : ink,
-                        )),
+                    // Uzun kategori adları dar sütuna sığsın → sarmalı + ellipsis.
+                    Expanded(
+                      child: Text(label,
+                          maxLines: 2, overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            height: 1.1,
+                            color: selected ? _kBrand : ink,
+                          )),
+                    ),
                   ],
                 ),
               ),
@@ -1673,21 +1732,21 @@ class _TeacherStudentReportScreenState
               case 'term':
                 return [
                   optionTile('1. ${'Dönem'.tr()}', term == 1,
-                      () { term = 1; order = nextOrder(isOral, 1); }),
+                      () { term = 1; order = nextOrder(categoryKey, 1); }),
                   optionTile('2. ${'Dönem'.tr()}', term == 2,
-                      () { term = 2; order = nextOrder(isOral, 2); }),
+                      () { term = 2; order = nextOrder(categoryKey, 2); }),
                 ];
               case 'type':
                 return [
-                  optionTile('📝 ${'Yazılı'.tr()}', !isOral,
-                      () { isOral = false; order = nextOrder(false, term); }),
-                  optionTile('🗣️ ${'Sözlü'.tr()}', isOral,
-                      () { isOral = true; order = nextOrder(true, term); }),
+                  for (final c in cfg.categories)
+                    optionTile('${c.emoji} ${c.label.tr()}',
+                        categoryKey == c.key,
+                        () { categoryKey = c.key; order = nextOrder(c.key, term); }),
                 ];
               case 'order':
-                final tw = isOral ? 'Sözlü'.tr() : 'Yazılı'.tr();
+                final tw = cfg.categoryByKey(categoryKey).label.tr();
                 return [
-                  for (int n = 1; n <= 8; n++)
+                  for (int n = 1; n <= 4; n++)
                     optionTile('$n. $tw', order == n, () => order = n),
                 ];
               default:
@@ -1695,12 +1754,53 @@ class _TeacherStudentReportScreenState
             }
           }
 
-          final typeWord = isOral ? 'Sözlü'.tr() : 'Yazılı'.tr();
+          final selCat = cfg.categoryByKey(categoryKey);
+          final typeWord = selCat.label.tr();
+
+          // Listede olmayan bir yüzdeyi (ör. %15) elle girer.
+          Future<void> pickCustomWeight() async {
+            final ctrl = TextEditingController(
+                text: const [30, 40, 50, 60].contains(weight) ? '' : '$weight');
+            final v = await showDialog<int>(
+              context: sheetCtx,
+              builder: (dCtx) => AlertDialog(
+                backgroundColor: AppPalette.card(dCtx),
+                title: Text('Özel yüzde'.tr(),
+                    style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w800,
+                        color: AppPalette.textPrimary(dCtx))),
+                content: TextField(
+                  controller: ctrl,
+                  autofocus: true,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                      hintText: '1–100', suffixText: '%'),
+                ),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(dCtx),
+                      child: Text('Vazgeç'.tr())),
+                  FilledButton(
+                    style: FilledButton.styleFrom(backgroundColor: _kBrand),
+                    onPressed: () {
+                      final n = int.tryParse(ctrl.text.trim());
+                      if (n != null && n >= 1 && n <= 100) {
+                        Navigator.pop(dCtx, n);
+                      }
+                    },
+                    child: Text('Tamam'.tr(),
+                        style: const TextStyle(color: Colors.white)),
+                  ),
+                ],
+              ),
+            );
+            if (v != null) setSheet(() => weight = v);
+          }
 
           return Padding(
             padding: EdgeInsets.only(
-              left: 20, right: 20, top: 16,
-              bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 20,
+              left: 20, right: 20, top: 30,
+              bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 24,
             ),
             child: SingleChildScrollView(
               child: Column(
@@ -1716,7 +1816,7 @@ class _TeacherStudentReportScreenState
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
                 // Başlık + sağ üstte küçük tarih kutusu.
                 Row(
                   children: [
@@ -1744,7 +1844,7 @@ class _TeacherStudentReportScreenState
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 8),
                         decoration: BoxDecoration(
-                          color: AppPalette.bg(sheetCtx),
+                          color: Colors.white,
                           borderRadius: BorderRadius.circular(10),
                           border:
                               Border.all(color: AppPalette.border(sheetCtx)),
@@ -1770,34 +1870,10 @@ class _TeacherStudentReportScreenState
                   ],
                 ),
                 const SizedBox(height: 16),
-                // Başlıklar: Dönem | Not Türü | Kaçıncı (yazılı/sözlü).
-                Row(
-                  children: [
-                    Expanded(
-                        child: Text('Dönem'.tr(),
-                            maxLines: 1, overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.poppins(
-                                fontSize: 12, fontWeight: FontWeight.w700,
-                                color: muted))),
-                    Expanded(
-                        child: Text('Not Türü'.tr(),
-                            maxLines: 1, overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.poppins(
-                                fontSize: 12, fontWeight: FontWeight.w700,
-                                color: muted))),
-                    Expanded(
-                        child: Text('${'Kaçıncı'.tr()} $typeWord',
-                            maxLines: 1, overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.poppins(
-                                fontSize: 12, fontWeight: FontWeight.w700,
-                                color: muted))),
-                  ],
-                ),
-                const SizedBox(height: 8),
                 // Üç alan TEK çerçeve içinde (beyaz zemin), aralarında ayraç.
                 Container(
                   decoration: BoxDecoration(
-                    color: AppPalette.bg(sheetCtx),
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: AppPalette.border(sheetCtx)),
                   ),
@@ -1809,7 +1885,7 @@ class _TeacherStudentReportScreenState
                               openMenu = openMenu == 'term' ? 'none' : 'term')),
                       _vsep(sheetCtx),
                       _menuValue(sheetCtx, ink, openMenu == 'type',
-                          isOral ? '🗣️ ${'Sözlü'.tr()}' : '📝 ${'Yazılı'.tr()}',
+                          '${selCat.emoji} ${selCat.label.tr()}',
                           () => setSheet(() =>
                               openMenu = openMenu == 'type' ? 'none' : 'type')),
                       _vsep(sheetCtx),
@@ -1820,141 +1896,214 @@ class _TeacherStudentReportScreenState
                     ],
                   ),
                 ),
-                // Açılan seçenekler yalnızca KENDİ alanının hizasında ve
-                // genişliğinde aşağı açılır (boydan boya değil).
-                AnimatedSize(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeOut,
-                  alignment: Alignment.topCenter,
-                  child: openMenu == 'none'
-                      ? const SizedBox(width: double.infinity)
-                      : Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                  child: openMenu == 'term'
-                                      ? Column(children: openOptions())
-                                      : const SizedBox()),
-                              const SizedBox(width: 1),
-                              Expanded(
-                                  child: openMenu == 'type'
-                                      ? Column(children: openOptions())
-                                      : const SizedBox()),
-                              const SizedBox(width: 1),
-                              Expanded(
-                                  child: openMenu == 'order'
-                                      ? Column(children: openOptions())
-                                      : const SizedBox()),
-                            ],
-                          ),
-                        ),
-                ),
                 const SizedBox(height: 16),
-                // Not (küçük) + Yüzdelik Katkısı (yan yana)
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                // Alt form. Açılan menü bunun ÜZERİNDE (overlay) açılır:
+                // başlık satırı yukarı kaymaz, içerik aşağı itilmez, arka
+                // plan flulanır. (Stack'in son çocuğu = overlay.)
+                Stack(
+                  clipBehavior: Clip.none,
                   children: [
-                    // Not — sıranın olduğu yere alındı, daha küçük.
-                    SizedBox(
-                      width: 96,
+                    // Menü açıkken alt form alanına min yükseklik ver → açılan
+                    // seçenekler sayfaya sığar, panel yukarı doğru büyür.
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                          minHeight: openMenu == 'none' ? 0 : 260),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Not (0-100)'.tr(),
-                              style: GoogleFonts.poppins(
-                                  fontSize: 12, fontWeight: FontWeight.w700,
-                                  color: muted)),
-                          const SizedBox(height: 8),
-                          Container(
-                            decoration: BoxDecoration(
-                              color: AppPalette.bg(sheetCtx),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                  color: AppPalette.border(sheetCtx)),
-                            ),
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 10),
-                            child: TextField(
-                              controller: scoreCtrl,
-                              keyboardType: TextInputType.number,
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.poppins(
-                                  fontSize: 16, fontWeight: FontWeight.w800,
-                                  color: ink),
-                              decoration: InputDecoration(
-                                hintText: '—',
-                                hintStyle:
-                                    GoogleFonts.poppins(color: muted),
-                                border: InputBorder.none,
-                                isDense: true,
-                                contentPadding:
-                                    const EdgeInsets.symmetric(vertical: 13),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    // Yüzdelik Katkısı — 30/40/50/60 seçenekleri.
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Yüzdelik Katkısı'.tr(),
-                              style: GoogleFonts.poppins(
-                                  fontSize: 12, fontWeight: FontWeight.w700,
-                                  color: muted)),
-                          const SizedBox(height: 8),
-                          // Tek çerçeve; kutusuz, beyaz zemin üstünde yüzdeler.
-                          Container(
-                            height: 46,
-                            decoration: BoxDecoration(
-                              color: AppPalette.bg(sheetCtx),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                  color: AppPalette.border(sheetCtx)),
-                            ),
-                            child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                // Not alanı (+ müfredat izin veriyorsa yüzdelik katkı).
+                Builder(builder: (_) {
+                  // Harf/GPA: sayısal alan yerine harf seçim ızgarası.
+                  final Widget scoreField = letterInput
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('${'Not'.tr()} (${'Harf'.tr()})',
+                                style: GoogleFonts.poppins(
+                                    fontSize: 12, fontWeight: FontWeight.w700,
+                                    color: muted)),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 6, runSpacing: 6,
                               children: [
-                                for (final w in const [30, 40, 50, 60])
-                                  Expanded(
-                                    child: GestureDetector(
-                                      behavior: HitTestBehavior.opaque,
-                                      onTap: () =>
-                                          setSheet(() => weight = w),
-                                      child: Center(
-                                        child: Text('%$w',
-                                            style: GoogleFonts.poppins(
-                                              fontSize: 13.5,
-                                              fontWeight: weight == w
-                                                  ? FontWeight.w900
-                                                  : FontWeight.w600,
-                                              color: weight == w
-                                                  ? _kBrand
-                                                  : muted,
-                                            )),
+                                for (final e in cfg.letterMap!.entries)
+                                  GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: () =>
+                                        setSheet(() => letterScore = e.value),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 14, vertical: 10),
+                                      decoration: BoxDecoration(
+                                        color: letterScore == e.value
+                                            ? _kBrand.withValues(alpha: 0.12)
+                                            : Colors.white,
+                                        borderRadius:
+                                            BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: letterScore == e.value
+                                              ? _kBrand
+                                              : AppPalette.border(sheetCtx),
+                                          width:
+                                              letterScore == e.value ? 1.5 : 1,
+                                        ),
                                       ),
+                                      child: Text(e.key,
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w800,
+                                            color: letterScore == e.value
+                                                ? _kBrand
+                                                : ink,
+                                          )),
                                     ),
                                   ),
                               ],
                             ),
+                          ],
+                        )
+                      : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${'Not'.tr()} (${GradeCalculator.scaleLabel(cfg)})',
+                          style: GoogleFonts.poppins(
+                              fontSize: 12, fontWeight: FontWeight.w700,
+                              color: muted)),
+                      const SizedBox(height: 8),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border:
+                              Border.all(color: AppPalette.border(sheetCtx)),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: TextField(
+                          controller: scoreCtrl,
+                          keyboardType: TextInputType.numberWithOptions(
+                              decimal: cfg.decimals > 0),
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.poppins(
+                              fontSize: 16, fontWeight: FontWeight.w800,
+                              color: ink),
+                          decoration: InputDecoration(
+                            hintText: '—',
+                            hintStyle: GoogleFonts.poppins(color: muted),
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding:
+                                const EdgeInsets.symmetric(vertical: 13),
                           ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                // Açıklama — not + yüzdelik satırının altında.
-                Text(
-                  'Yüzdelik katkı, bu notun dönem ortalamasındaki ağırlığıdır. Notlar ağırlıklarına göre hesaplanır; toplam 100 olmasa da oranlanır.'.tr(),
-                  style: GoogleFonts.poppins(
-                      fontSize: 10.5, height: 1.4,
-                      color: muted.withValues(alpha: 0.85)),
-                ),
+                    ],
+                  );
+                  if (!cfg.showPercentageSelector) return scoreField;
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(width: 96, child: scoreField),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Yüzdelik Katkısı'.tr(),
+                                style: GoogleFonts.poppins(
+                                    fontSize: 12, fontWeight: FontWeight.w700,
+                                    color: muted)),
+                            const SizedBox(height: 8),
+                            Container(
+                              height: 46,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                    color: AppPalette.border(sheetCtx)),
+                              ),
+                              child: Row(
+                                children: [
+                                  for (final w in const [30, 40, 50, 60])
+                                    Expanded(
+                                      child: GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        onTap: () =>
+                                            setSheet(() => weight = w),
+                                        child: Center(
+                                          child: Text('%$w',
+                                              style: GoogleFonts.poppins(
+                                                fontSize: 13.5,
+                                                fontWeight: weight == w
+                                                    ? FontWeight.w900
+                                                    : FontWeight.w600,
+                                                color: weight == w
+                                                    ? _kBrand
+                                                    : muted,
+                                              )),
+                                        ),
+                                      ),
+                                    ),
+                                  Container(
+                                      width: 1, height: 24,
+                                      color: AppPalette.border(sheetCtx)),
+                                  // "Özel" — listede olmayan yüzde girişi.
+                                  Builder(builder: (_) {
+                                    final isCustom = !const [30, 40, 50, 60]
+                                        .contains(weight);
+                                    return Expanded(
+                                      child: GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        onTap: pickCustomWeight,
+                                        child: Center(
+                                          child: isCustom
+                                              ? Text('%$weight',
+                                                  style: GoogleFonts.poppins(
+                                                    fontSize: 13.5,
+                                                    fontWeight:
+                                                        FontWeight.w900,
+                                                    color: _kBrand,
+                                                  ))
+                                              : Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Icon(Icons.tune_rounded,
+                                                        size: 13,
+                                                        color: muted),
+                                                    const SizedBox(width: 3),
+                                                    Text('Özel'.tr(),
+                                                        style: GoogleFonts
+                                                            .poppins(
+                                                          fontSize: 12,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                          color: muted,
+                                                        )),
+                                                  ],
+                                                ),
+                                        ),
+                                      ),
+                                    );
+                                  }),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+                if (cfg.showPercentageSelector) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Yüzdelik katkı, bu notun dönem ortalamasındaki ağırlığıdır. Notlar ağırlıklarına göre hesaplanır; toplam 100 olmasa da oranlanır.'.tr(),
+                    style: GoogleFonts.poppins(
+                        fontSize: 10.5, height: 1.4,
+                        color: muted.withValues(alpha: 0.85)),
+                  ),
+                ],
                 const SizedBox(height: 20),
                 SizedBox(
                   width: double.infinity,
@@ -1966,20 +2115,27 @@ class _TeacherStudentReportScreenState
                           borderRadius: BorderRadius.circular(12)),
                     ),
                     onPressed: () async {
-                      final score = int.tryParse(scoreCtrl.text.trim());
-                      if (score == null || score < 0 || score > 100) {
+                      // Harf modunda seçilen harfin puanı; sayısal modda alan.
+                      final score = letterInput
+                          ? letterScore
+                          : double.tryParse(
+                              scoreCtrl.text.trim().replaceAll(',', '.'));
+                      if (score == null ||
+                          !GradeCalculator.isScoreValid(cfg, score)) {
                         ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(
-                            content:
-                                Text('0-100 arası geçerli bir not gir.'.tr())));
+                            content: Text(letterInput
+                                ? 'Bir harf seç.'.tr()
+                                : '${'Geçerli bir not gir.'.tr()} '
+                                    '(${GradeCalculator.scaleLabel(cfg)})')));
                         return;
                       }
                       final g = StudentGrade(
                         id: edit?.id ?? '',
-                        type: isOral ? 'sozlu' : 'yazili',
+                        type: categoryKey,
                         order: order,
                         term: term,
                         score: score,
-                        weight: weight,
+                        weight: cfg.showPercentageSelector ? weight : 0,
                         date: date,
                       );
                       // Odağı bırak → IME teardown'u bitince sheet'i kapat;
@@ -1999,6 +2155,54 @@ class _TeacherStudentReportScreenState
                             color: Colors.white)),
                   ),
                 ),
+                      ],
+                    ),
+                    ),
+                    // ── Açılan menü overlay'i ──────────────────────────────
+                    // Arka planı (alt formu) flulayan dokunma-ile-kapanan
+                    // perde + basılan sütunun hizasında üstte açılan seçenekler.
+                    if (openMenu != 'none') ...[
+                      Positioned.fill(
+                        child: ClipRect(
+                          child: BackdropFilter(
+                            filter:
+                                ImageFilter.blur(sigmaX: 7, sigmaY: 7),
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () =>
+                                  setSheet(() => openMenu = 'none'),
+                              child: Container(
+                                color: Colors.white.withValues(alpha: 0.45),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 6, left: 0, right: 0,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                                child: openMenu == 'term'
+                                    ? Column(children: openOptions())
+                                    : const SizedBox()),
+                            const SizedBox(width: 1),
+                            Expanded(
+                                child: openMenu == 'type'
+                                    ? Column(children: openOptions())
+                                    : const SizedBox()),
+                            const SizedBox(width: 1),
+                            Expanded(
+                                child: openMenu == 'order'
+                                    ? Column(children: openOptions())
+                                    : const SizedBox()),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ],
             ),
             ),
@@ -2010,11 +2214,9 @@ class _TeacherStudentReportScreenState
   }
 
   String _fmtDate(DateTime d) {
-    const months = [
-      'Oca','Şub','Mar','Nis','May','Haz',
-      'Tem','Ağu','Eyl','Eki','Kas','Ara',
-    ];
-    return '${d.day} ${months[d.month - 1]} ${d.year}';
+    final dd = d.day.toString().padLeft(2, '0');
+    final mm = d.month.toString().padLeft(2, '0');
+    return '$dd.$mm.${d.year}';
   }
 
   Widget _buildBody(BuildContext context, List<StudentReportEntry> entries) {
@@ -2232,11 +2434,9 @@ class _TeacherStudentReportScreenState
   }
 
   String _fmtDateShort(DateTime d) {
-    const months = [
-      'Oca','Şub','Mar','Nis','May','Haz',
-      'Tem','Ağu','Eyl','Eki','Kas','Ara',
-    ];
-    return '${d.day} ${months[d.month - 1]}';
+    final dd = d.day.toString().padLeft(2, '0');
+    final mm = d.month.toString().padLeft(2, '0');
+    return '$dd.$mm';
   }
 
   // ── Yardımcılar ───────────────────────────────────────────────────────

@@ -1,6 +1,8 @@
 ﻿// ignore_for_file: unused_element
 
+import '../data/teacher_branches.dart';
 import '../services/account_service.dart';
+import '../services/local_reminder_service.dart';
 import '../services/error_logger.dart';
 import '../services/parent_link_service.dart';
 import '../services/runtime_translator.dart';
@@ -208,6 +210,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final isStudent = AccountService.instance.isStudent;
     final isTeacher = AccountService.instance.isTeacher;
     final teacherBranch = AccountService.instance.teacherBranch;
+    final teacherLevel = AccountService.instance.teacherLevel;
 
     return Scaffold(
       backgroundColor: AppPalette.bg(context),
@@ -662,20 +665,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 title: 'Uygulama Ayarları'.tr(),
                 onTap: () => _showAppSettingsBottomSheet(context),
               ),
-              // Öğretmen: branşı salt-okunur göster.
-              if (isTeacher && teacherBranch != null &&
-                  teacherBranch.trim().isNotEmpty) ...[
+              // Öğretmen: branş + öğrettiği seviye — dokununca düzenlenebilir.
+              if (isTeacher) ...[
                 SizedBox(height: 10),
                 _buildOvalMenuItem(
                   emoji: '🎓',
-                  title: 'Branşım'.tr(),
-                  trailing: Text(
-                    teacherBranch,
-                    style: GoogleFonts.poppins(
-                      fontSize: 12.5, fontWeight: FontWeight.w700,
-                      color: AppPalette.textSecondary(context),
-                    ),
-                  ),
+                  title: 'Branş & Seviye'.tr(),
+                  trailing: Builder(builder: (_) {
+                    final parts = <String>[
+                      if (teacherBranch != null &&
+                          teacherBranch.trim().isNotEmpty)
+                        teacherBranch.tr(),
+                      if (teacherLevel != null &&
+                          teacherLevel.trim().isNotEmpty)
+                        teacherLevel.tr(),
+                    ];
+                    return Text(
+                      parts.isEmpty ? 'Seç'.tr() : parts.join(' · '),
+                      style: GoogleFonts.poppins(
+                        fontSize: 12.5, fontWeight: FontWeight.w700,
+                        color: AppPalette.textSecondary(context),
+                      ),
+                    );
+                  }),
+                  onTap: () => _showTeacherBranchLevelSheet(),
                 ),
               ],
               // Sınıfa Katıl — sadece ÖĞRENCİ.
@@ -945,6 +958,159 @@ class _ProfileScreenState extends State<ProfileScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => const _AppSettingsSheet(),
+    );
+  }
+
+  /// Öğretmen branş + öğrettiği seviye düzenleme sayfası. Onboarding'de seçilir;
+  /// yanlış seçildiyse ya da değiştirmek istenirse buradan güncellenir.
+  void _showTeacherBranchLevelSheet() {
+    const brand = Color(0xFF7C3AED);
+    const levels = ['İlkokul', 'Ortaokul', 'Lise', 'Üniversite'];
+    String? branch = AccountService.instance.teacherBranch;
+    String? level = AccountService.instance.teacherLevel;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppPalette.card(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => SafeArea(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+                20, 12, 20, 16 + MediaQuery.of(ctx).viewInsets.bottom),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 42, height: 4,
+                    decoration: BoxDecoration(
+                      color: AppPalette.border(ctx),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text('Branş & Seviye'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 18, fontWeight: FontWeight.w900,
+                      color: AppPalette.textPrimary(ctx),
+                    )),
+                const SizedBox(height: 16),
+                // ── Branş seçici (mevcut branş modalını açar) ──
+                Text('Branş'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 13, fontWeight: FontWeight.w800,
+                      color: AppPalette.textSecondary(ctx),
+                    )),
+                const SizedBox(height: 8),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: () async {
+                      final picked = await showTeacherBranchPicker(ctx,
+                          selected: branch);
+                      if (picked != null) setSheet(() => branch = picked);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: AppPalette.bg(ctx),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppPalette.border(ctx)),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              (branch != null && branch!.trim().isNotEmpty)
+                                  ? branch!.tr()
+                                  : 'Branş seç'.tr(),
+                              style: GoogleFonts.poppins(
+                                fontSize: 14, fontWeight: FontWeight.w700,
+                                color: (branch != null &&
+                                        branch!.trim().isNotEmpty)
+                                    ? AppPalette.textPrimary(ctx)
+                                    : AppPalette.textSecondary(ctx),
+                              ),
+                            ),
+                          ),
+                          Icon(Icons.chevron_right_rounded,
+                              color: AppPalette.textSecondary(ctx), size: 22),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                // ── Öğrettiği seviye (4 çip) ──
+                Text('Öğrettiğim seviye'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 13, fontWeight: FontWeight.w800,
+                      color: AppPalette.textSecondary(ctx),
+                    )),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8, runSpacing: 8,
+                  children: levels.map((lvl) {
+                    final sel = level == lvl;
+                    return GestureDetector(
+                      onTap: () => setSheet(() => level = lvl),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: sel
+                              ? brand
+                              : brand.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                              color: brand.withValues(
+                                  alpha: sel ? 1.0 : 0.30)),
+                        ),
+                        child: Text(lvl.tr(),
+                            style: GoogleFonts.poppins(
+                              fontSize: 13, fontWeight: FontWeight.w800,
+                              color: sel ? Colors.white : brand,
+                            )),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: brand,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                    ),
+                    onPressed: () async {
+                      await AccountService.instance.updateTeacherProfile(
+                          branch: branch, level: level);
+                      if (!ctx.mounted) return;
+                      Navigator.pop(ctx);
+                      if (mounted) setState(() {});
+                    },
+                    child: Text('Kaydet'.tr(),
+                        style: GoogleFonts.poppins(
+                          fontSize: 14.5, fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        )),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -4349,9 +4515,10 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 ],
               ),
             ),
+            // Sekme 3 — Öğrenci Bilgileri (eğitim seviyesi) — öğretmende
+            // anlamsız (onun yerine branş + öğrettiği seviye var), gizlenir.
+            if (AccountService.instance.isStudent) ...[
             SizedBox(height: 18),
-
-            // Sekme 3 — Öğrenci Bilgileri
             _LabeledCard(
               label: localeService.tr('student_info'),
               onTap: () async {
@@ -4382,6 +4549,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 ],
               ),
             ),
+            ],
             SizedBox(height: 28),
 
             // Kaydet butonu — turuncu, basınca önceki sayfaya dön
@@ -6739,8 +6907,11 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      'Geçici dosyalar — çözümlerin ve özetlerin korunur.'
-                                          .tr(),
+                                      AccountService.instance.isStudent
+                                          ? 'Geçici dosyalar — çözümlerin ve özetlerin korunur.'
+                                              .tr()
+                                          : 'Geçici dosyalar temizlenir — verilerin korunur.'
+                                              .tr(),
                                       style: GoogleFonts.poppins(
                                         fontSize: 11,
                                         color: AppPalette.textSecondary(
@@ -7333,6 +7504,15 @@ class _NotificationsSettingsSheetState
     setState(() => _prefs[key] = v);
     // PreferencesSyncService canonical yol — notif_<key> + cloud sync.
     await PreferencesSyncService.setNotificationPref(key, v);
+    // Öğrenci yerel hatırlatıcı kategorileri (çalışma/seri/sınav) ya da master
+    // değişince planları hemen güncelle (açılan kurulur, kapanan iptal olur).
+    if (AccountService.instance.isStudent &&
+        (key == 'master' ||
+            key == 'study_reminder' ||
+            key == 'streak_alert' ||
+            key == 'exam_countdown')) {
+      unawaited(LocalReminderService.rescheduleAll());
+    }
   }
 
   /// Test bildirim — kullanıcı ayarlarını değiştirdikten sonra çalıştığını

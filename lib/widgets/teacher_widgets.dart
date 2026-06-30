@@ -7,16 +7,18 @@
 //  • ReminderStatusBadge      — Auto-reminder timer aktif mi
 // ═══════════════════════════════════════════════════════════════════════════
 
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../models/education_models.dart';
 import '../services/account_service.dart';
+import '../services/ai_provider_service.dart';
 import '../services/class_service.dart';
 import '../services/curriculum_service.dart';
 import '../services/gemini_service.dart';
 import '../services/homework_service.dart';
-import '../services/locale_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
 import 'qualsar_logo_mark.dart';
@@ -335,9 +337,32 @@ class _FilterWizardBottomSheetState extends State<FilterWizardBottomSheet> {
 // ─────────────────────────────────────────────────────────────────────────
 // 2) AI HOMEWORK GENERATOR
 // ─────────────────────────────────────────────────────────────────────────
+/// Model seçicinin döndürdüğü seçim. provider null → QuAlsar (otomatik zincir).
+class _AiPick {
+  final AiProvider? provider;
+  final String? model;
+  const _AiPick(this.provider, this.model);
+}
+
+/// Model seçici kartı için görsel + yönlendirme verisi.
+class _HwAiModel {
+  final String name;
+  final String subtitle;
+  final String badge;
+  final Color color;
+  final Widget logo;
+  final AiProvider? provider; // null → QuAlsar otomatik
+  final String? model;
+  const _HwAiModel(this.name, this.subtitle, this.badge, this.color, this.logo,
+      this.provider, this.model);
+}
+
 class AiHomeworkGeneratorWidget extends StatefulWidget {
   final TeacherClass cls;
-  const AiHomeworkGeneratorWidget({super.key, required this.cls});
+  /// Ek hedef sınıf id'leri (çoklu seçim). Ödev [cls] + bunların hepsine gider.
+  final List<String> additionalClassIds;
+  const AiHomeworkGeneratorWidget(
+      {super.key, required this.cls, this.additionalClassIds = const []});
 
   @override
   State<AiHomeworkGeneratorWidget> createState() => _AiHomeworkGeneratorWidgetState();
@@ -348,17 +373,21 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
   final _topicCtrl = TextEditingController();
   late String _level;
   late String _subject;
-  // Müfredat varsayılanı kullanıcının diline/ülkesine göre (öğrenci tarafıyla
-  // aynı mantık) — initState'te locale'den belirlenir.
-  String _curriculum = 'tr-MEB';
   CurriculumTopic? _selectedTopic;
   final Set<HomeworkQuestionType> _selectedTypes = {HomeworkQuestionType.multipleChoice};
   int _count = 10;
+  /// Ödevin başlama (öğrencide görünme) anı. Şimdi/geçmiş → hemen yayınla.
+  DateTime _startAt = DateTime.now();
   DateTime _due = DateTime.now().add(const Duration(days: 7));
-  /// Ödevin öğrencide görüneceği an. null = hemen yayınla.
-  DateTime? _publishAt;
   bool _generating = false;
   String? _statusMsg;
+
+  /// Gönderimde kullanılacak yayın anı: başlama ileri tarihliyse zamanla,
+  /// değilse hemen yayınla (null).
+  DateTime? get _publishAtToSend =>
+      _startAt.isAfter(DateTime.now().add(const Duration(minutes: 1)))
+          ? _startAt
+          : null;
 
   @override
   void initState() {
@@ -367,9 +396,6 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
     _subject = widget.cls.subject.isEmpty
         ? (AccountService.instance.teacherBranch ?? 'Genel')
         : widget.cls.subject;
-    // Müfredatı kullanıcının diline/ülkesine göre seç (öğrenci tarafı gibi).
-    _curriculum = CurriculumService.defaultCurriculumKey(
-        LocaleService.global?.localeCode ?? 'tr');
     _topicCtrl.text = '';
   }
 
@@ -378,28 +404,6 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
     _titleCtrl.dispose();
     _topicCtrl.dispose();
     super.dispose();
-  }
-
-  Future<void> _openFilterWizard() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => FilterWizardBottomSheet(
-        initialLevel: _level,
-        initialSubject: _subject,
-        initialCurriculum: _curriculum,
-        onSelected: (lvl, sub, cur, topic) {
-          setState(() {
-            _level = lvl;
-            _subject = sub;
-            _curriculum = cur;
-            _selectedTopic = topic;
-            if (topic != null) _topicCtrl.text = topic.topic;
-          });
-        },
-      ),
-    );
   }
 
   /// Bitiş tarihi — yalnızca gün (saat korunur).
@@ -426,27 +430,294 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
         _due = DateTime(_due.year, _due.month, _due.day, t.hour, t.minute));
   }
 
-  /// "Zamanla" — gün + saat seç. Seçilen ana kadar ödev öğrencide görünmez.
-  Future<void> _pickPublishDate() async {
-    final base = _publishAt ?? DateTime.now().add(const Duration(hours: 1));
+  /// Başlama tarihi — yalnızca gün (saat korunur).
+  Future<void> _pickStartDate() async {
     final d = await showDatePicker(
       context: context,
-      initialDate: base,
+      initialDate: _startAt,
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 60)),
     );
     if (d == null || !mounted) return;
-    final t = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay(hour: base.hour, minute: base.minute),
-    );
-    if (t == null || !mounted) return;
-    setState(() {
-      _publishAt = DateTime(d.year, d.month, d.day, t.hour, t.minute);
-    });
+    setState(() => _startAt =
+        DateTime(d.year, d.month, d.day, _startAt.hour, _startAt.minute));
   }
 
-  Future<void> _generateAndPreview() async {
+  /// Başlama saati — yalnızca saat (gün korunur).
+  Future<void> _pickStartTime() async {
+    final t = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: _startAt.hour, minute: _startAt.minute),
+    );
+    if (t == null || !mounted) return;
+    setState(() => _startAt =
+        DateTime(_startAt.year, _startAt.month, _startAt.day, t.hour, t.minute));
+  }
+
+  /// Öğretmenin branşına göre örnek konu (konu alanı ipucu). Branş Tarih ise
+  /// tarihten, Matematik ise matematikten bir örnek gösterir.
+  String _topicExampleForBranch() {
+    final b = _subject.toLowerCase();
+    bool has(String k) => b.contains(k);
+    if (has('matematik')) return 'Üslü Sayılar';
+    if (has('fizik')) return 'Newton Hareket Yasaları';
+    if (has('kimya')) return 'Periyodik Sistem';
+    if (has('biyoloji')) return 'Hücre ve Organeller';
+    if (has('fen')) return 'Maddenin Halleri';
+    if (has('tarih')) return 'Kurtuluş Savaşı';
+    if (has('coğrafya') || has('cografya')) return 'İklim Tipleri';
+    if (has('edebiyat')) return 'Edebi Akımlar';
+    if (has('türkçe') || has('turkce')) return 'Cümlede Anlam';
+    if (has('sosyal')) return 'Coğrafi Bölgeler';
+    if (has('ingiliz')) return 'Present Perfect Tense';
+    if (has('alman')) return 'Perfekt (Geçmiş Zaman)';
+    if (has('fransız') || has('fransiz')) return 'Passé Composé';
+    if (has('ispanyol')) return 'Pretérito Indefinido';
+    if (has('arap')) return 'Fiil Çekimleri';
+    if (has('rus')) return 'Hâl Ekleri (Падежи)';
+    if (has('felsefe') || has('mantık') || has('psikoloji') || has('sosyoloji')) {
+      return 'Bilgi Felsefesi';
+    }
+    if (has('din')) return 'İbadetler';
+    if (has('bilişim') || has('yazılım') || has('kodlama') || has('robotik')) {
+      return 'Döngüler ve Değişkenler';
+    }
+    if (has('tasarım')) return 'Tasarım Süreci';
+    if (has('görsel') || has('resim')) return 'Renk Bilgisi';
+    if (has('müzik')) return 'Nota ve Ritim';
+    if (has('beden')) return 'Voleybol Kuralları';
+    if (has('rehber') || has('pdr')) return 'Verimli Ders Çalışma';
+    if (has('özel eğitim')) return 'Temel Yaşam Becerileri';
+    if (has('okul öncesi')) return 'Renkleri Tanıma';
+    if (has('sınıf öğretmen')) return 'Toplama ve Çıkarma';
+    return 'Konu adı';
+  }
+
+  /// Girilen metin anlamlı bir ders konusu/başlığı mı? Kaba sezgisel kontrol:
+  /// klavye ezmesi / sembol yığını / sesli harfsiz dizileri yakalar.
+  bool _looksMeaningless(String raw) {
+    final s = raw.trim();
+    if (s.length < 2) return true;
+    final compact = s.replaceAll(RegExp(r'\s+'), '');
+    // Harf oranı düşükse (çoğunlukla sembol/rakam) → anlamsız.
+    final letters =
+        RegExp(r'[a-zçğıöşüâîû]', caseSensitive: false).allMatches(compact).length;
+    if (letters < compact.length * 0.5) return true;
+    // Hiç sesli harf yoksa (asdf, bcdfg, qwrt) → klavye ezmesi.
+    if (!RegExp(r'[aeıioöuüâîû]', caseSensitive: false).hasMatch(compact)) {
+      return true;
+    }
+    // Aynı karakterin 4+ tekrarı (aaaa, !!!!).
+    if (RegExp(r'(.)\1{3,}').hasMatch(compact)) return true;
+    // Bilinen klavye dizileri.
+    const mash = ['qwerty', 'qwertz', 'asdfgh', 'zxcvbn', 'qazwsx'];
+    final low = compact.toLowerCase();
+    for (final m in mash) {
+      if (low.contains(m)) return true;
+    }
+    return false;
+  }
+
+  // "AI Üret & Önizle"ye basınca: doğrudan üretmek yerine arka planı flulayan
+  // küçük bir panel açar — öğrenci foto-çözüm ekranındaki 6 model kartının
+  // aynısı. Seçilen model zincirin başına geçer; geç/başarısızsa otomatik
+  // olarak sıradaki modele düşülür.
+  Future<void> _openModelPicker() async {
+    // Önce zorunlu alanları doğrula — boşsa paneli açma, uyarı göster.
+    if (_topicCtrl.text.trim().isEmpty || _titleCtrl.text.trim().isEmpty) {
+      setState(() => _statusMsg = 'Başlık ve konu zorunludur.'.tr());
+      return;
+    }
+    // Anlamsız / eğitim-dışı giriş → uyar, üretme.
+    if (_looksMeaningless(_topicCtrl.text) ||
+        _looksMeaningless(_titleCtrl.text)) {
+      setState(() => _statusMsg =
+          'Lütfen geçerli bir ders konusu ve başlığı yaz. Bu uygulama yalnızca eğitim amaçlı hizmet verir.'
+              .tr());
+      return;
+    }
+    if (_selectedTypes.isEmpty) {
+      setState(() => _statusMsg = 'En az bir soru tipi seç.'.tr());
+      return;
+    }
+
+    final pick = await showGeneralDialog<_AiPick>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'ai-model',
+      barrierColor: Colors.black.withValues(alpha: 0.20),
+      transitionDuration: const Duration(milliseconds: 200),
+      pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+      transitionBuilder: (ctx, anim, _, __) {
+        final t = Curves.easeOutCubic.transform(anim.value);
+        return BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 9 * t, sigmaY: 9 * t),
+          child: Opacity(
+            opacity: anim.value,
+            child: Transform.scale(
+              scale: 0.94 + 0.06 * t,
+              child: Center(child: _modelPickerPanel(ctx)),
+            ),
+          ),
+        );
+      },
+    );
+    if (pick == null || !mounted) return;
+    await _generateAndPreview(
+        firstProvider: pick.provider, firstModel: pick.model);
+  }
+
+  /// "Hangi yapay zekâ ile üretelim?" panel içeriği (ortada, kompakt).
+  Widget _modelPickerPanel(BuildContext ctx) {
+    // Öğrenci foto-çözüm ekranıyla aynı 6 model + aynı tasarım dili.
+    // provider null → QuAlsar (otomatik varsayılan zincir).
+    final models = <_HwAiModel>[
+      _HwAiModel(
+        'QuAlsar', 'Hızlı ve genel'.tr(), 'Önerilen'.tr(),
+        const Color(0xFF06B6D4),
+        ShaderMask(
+          shaderCallback: (b) => const LinearGradient(
+            colors: [Color(0xFF00E5FF), Color(0xFF6B21F2)],
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+          ).createShader(b),
+          child: const Icon(Icons.auto_awesome_rounded,
+              color: Colors.white, size: 22),
+        ),
+        null, null,
+      ),
+      _HwAiModel('ChatGPT', 'Detaylı çözüm'.tr(), 'Aktif'.tr(),
+          const Color(0xFF10A37F),
+          const Icon(Icons.forum_rounded, color: Color(0xFF10A37F), size: 22),
+          AiProvider.openai, 'gpt-4o-mini'),
+      _HwAiModel('Gemini', 'Hızlı analiz'.tr(), 'Aktif'.tr(),
+          const Color(0xFF4796E3),
+          const Icon(Icons.bubble_chart_rounded,
+              color: Color(0xFF4796E3), size: 22),
+          AiProvider.gemini, 'gemini-2.5-flash'),
+      _HwAiModel('Grok', 'Yaratıcı çözüm'.tr(), 'Aktif'.tr(),
+          const Color(0xFF1D1D1D),
+          const Icon(Icons.bolt_rounded, color: Color(0xFF1D1D1D), size: 22),
+          AiProvider.grok, 'grok-3-mini'),
+      _HwAiModel('Deepseek', 'Derin analiz'.tr(), 'Aktif'.tr(),
+          const Color(0xFF4B8BF5),
+          const Icon(Icons.psychology_rounded,
+              color: Color(0xFF4B8BF5), size: 22),
+          AiProvider.deepseek, 'deepseek-chat'),
+      _HwAiModel('Claude', 'Mantık yürütme'.tr(), 'Aktif'.tr(),
+          const Color(0xFFD97706),
+          const Icon(Icons.lightbulb_rounded,
+              color: Color(0xFFD97706), size: 22),
+          AiProvider.claude, 'claude-sonnet-4-6'),
+    ];
+
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 26),
+        constraints: const BoxConstraints(maxWidth: 420),
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
+        decoration: BoxDecoration(
+          color: AppPalette.card(ctx),
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.18),
+              blurRadius: 30, offset: const Offset(0, 12)),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Hangi yapay zekâ ile üretelim?'.tr(),
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 16, fontWeight: FontWeight.w900,
+                color: AppPalette.textPrimary(ctx),
+              ),
+            ),
+            const SizedBox(height: 16),
+            GridView.count(
+              crossAxisCount: 3,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              // Daha uzun kart → 2 satırlık alt yazı + rozet dikeyde taşmaz.
+              childAspectRatio: 0.78,
+              children: [
+                for (final m in models) _modelCard(ctx, m),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Tek AI model kartı (öğrenci ekranındaki kartla aynı düzen).
+  Widget _modelCard(BuildContext ctx, _HwAiModel m) {
+    return GestureDetector(
+      onTap: () => Navigator.of(ctx).pop(_AiPick(m.provider, m.model)),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: AppPalette.bg(ctx),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: m.color.withValues(alpha: 0.30)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 4, offset: const Offset(0, 1)),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(width: 22, height: 22, child: m.logo),
+            const SizedBox(height: 4),
+            Text(m.name,
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 11, fontWeight: FontWeight.w800, height: 1.05,
+                  color: AppPalette.textPrimary(ctx),
+                )),
+            const SizedBox(height: 2),
+            Text(m.subtitle,
+                maxLines: 2, overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 7.5, fontWeight: FontWeight.w500, height: 1.1,
+                  color: AppPalette.textSecondary(ctx),
+                )),
+            const SizedBox(height: 4),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+              decoration: BoxDecoration(
+                color: m.color.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(5),
+                border: Border.all(color: m.color.withValues(alpha: 0.40),
+                    width: 0.6),
+              ),
+              child: Text(m.badge,
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 7, fontWeight: FontWeight.w700, height: 1.0,
+                    color: AppPalette.textPrimary(ctx),
+                  )),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _generateAndPreview(
+      {AiProvider? firstProvider, String? firstModel}) async {
     final topic = _topicCtrl.text.trim();
     final title = _titleCtrl.text.trim();
     if (topic.isEmpty || title.isEmpty) {
@@ -470,6 +741,8 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
         typeKeys: _selectedTypes.map((t) => t.key).toList(),
         count: _count,
         outcome: outcome.isEmpty ? null : outcome,
+        firstProvider: firstProvider,
+        firstModel: firstModel,
       );
       if (!mounted) return;
       setState(() {
@@ -486,13 +759,14 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
         MaterialPageRoute(
           builder: (_) => TeacherHomeworkPreviewScreen(
             classId: widget.cls.id,
+            additionalClassIds: widget.additionalClassIds,
             title: title,
             subject: _subject,
             topic: topic,
             level: _level,
             types: _selectedTypes.toList(),
             dueAt: _due,
-            publishAt: _publishAt,
+            publishAt: _publishAtToSend,
             questions: questions,
           ),
         ),
@@ -514,6 +788,65 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
     }
   }
 
+  /// Tek soru-tipi sekmesi (Expanded içinde kullanılır → eşit genişlik).
+  Widget _typeChip(BuildContext context, HomeworkQuestionType t) {
+    final ink = AppPalette.textPrimary(context);
+    final sel = _selectedTypes.contains(t);
+    return GestureDetector(
+      onTap: () => setState(() {
+        if (sel) {
+          if (_selectedTypes.length > 1) _selectedTypes.remove(t);
+        } else {
+          _selectedTypes.add(t);
+        }
+      }),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        decoration: BoxDecoration(
+          color: sel
+              ? const Color(0xFF7C3AED).withValues(alpha: 0.12)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: sel ? const Color(0xFF7C3AED) : AppPalette.border(context),
+            width: sel ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(t.emoji, style: const TextStyle(fontSize: 14)),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(t.tr.tr(),
+                  maxLines: 2, overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(
+                    fontSize: 11.5, fontWeight: FontWeight.w700, height: 1.05,
+                    color: sel ? const Color(0xFF7C3AED) : ink,
+                  )),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Soru sayısı sayacının − / + düğmesi.
+  Widget _countBtn(IconData icon, VoidCallback? onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Icon(icon, size: 20,
+            color: onTap != null
+                ? const Color(0xFF7C3AED)
+                : const Color(0xFFCBD5E1)),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ink = AppPalette.textPrimary(context);
@@ -521,7 +854,8 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
       decoration: BoxDecoration(
-        color: AppPalette.card(context),
+        // Panel arka planı soluk beyaz; içindeki alanlar/sekmeler beyaz.
+        color: const Color(0xFFF3F4F6),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppPalette.border(context)),
         boxShadow: [
@@ -550,67 +884,36 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
                     )),
               ),
               const SizedBox(width: 8),
-              // Sınıf adı en sağda
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF7C3AED).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
+              // Sınıf adı en sağda (uzun adda taşmasın → Flexible + ellipsis).
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF7C3AED).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(widget.cls.name,
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12, fontWeight: FontWeight.w800,
+                        color: const Color(0xFF7C3AED),
+                      )),
                 ),
-                child: Text(widget.cls.name,
-                    maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(
-                      fontSize: 12, fontWeight: FontWeight.w800,
-                      color: const Color(0xFF7C3AED),
-                    )),
               ),
             ],
           ),
           const SizedBox(height: 12),
           // Önce konu, altında başlık
-          _input(context, _topicCtrl, 'Konu (örn: Üslü Sayılar)'.tr()),
+          _input(context, _topicCtrl,
+              '${'Konu'.tr()} (${'örn'.tr()}: ${_topicExampleForBranch().tr()})'),
           const SizedBox(height: 8),
           _input(context, _titleCtrl, 'Ödev başlığı'.tr()),
-          const SizedBox(height: 8),
-          // Müfredat / seviye / branş seçim butonu
-          GestureDetector(
-            onTap: _openFilterWizard,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-              decoration: BoxDecoration(
-                color: AppPalette.bg(context),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                    color: const Color(0xFF7C3AED).withValues(alpha: 0.25)),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('$_level · $_subject',
-                            style: GoogleFonts.poppins(
-                              fontSize: 13, fontWeight: FontWeight.w700,
-                              color: ink,
-                            )),
-                        if (_selectedTopic != null)
-                          Text(_selectedTopic!.topic,
-                              style: GoogleFonts.poppins(
-                                fontSize: 11, color: muted,
-                              )),
-                      ],
-                    ),
-                  ),
-                  Icon(Icons.expand_more_rounded, color: muted),
-                ],
-              ),
-            ),
-          ),
           const SizedBox(height: 12),
-          // Soru tipleri
-          Text('Soru tipleri'.tr(),
+          // NOT: Seviye/branş seçici kaldırıldı — öğretmen kayıt olurken branşı
+          // belirliyor; seviye/branş sınıftan otomatik geliyor.
+          // Soru tipi & soru sayısı (ikisi de aşağıdaki çerçevede)
+          Text('${'Soru tipi'.tr()} & ${'Soru sayısı'.tr()}',
               style: GoogleFonts.poppins(
                 fontSize: 11, fontWeight: FontWeight.w800,
                 color: muted, letterSpacing: 0.6,
@@ -622,151 +925,104 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
             width: double.infinity,
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: AppPalette.cardMuted(context),
+              color: Colors.white,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: AppPalette.border(context)),
             ),
-            child: Wrap(
-              spacing: 8, runSpacing: 8,
-              children: HomeworkQuestionType.values.map((t) {
-                final sel = _selectedTypes.contains(t);
-                return GestureDetector(
-                  onTap: () => setState(() {
-                    if (sel) {
-                      if (_selectedTypes.length > 1) _selectedTypes.remove(t);
-                    } else {
-                      _selectedTypes.add(t);
-                    }
-                  }),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: sel
-                          ? const Color(0xFF7C3AED).withValues(alpha: 0.12)
-                          : AppPalette.card(context),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: sel
-                            ? const Color(0xFF7C3AED)
-                            : AppPalette.border(context),
-                        width: sel ? 1.5 : 1,
+            // 4 tip 2×2 eşit boyutlu; altında soru sayısı sayacı.
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                        child: _typeChip(
+                            context, HomeworkQuestionType.values[0])),
+                    const SizedBox(width: 8),
+                    Expanded(
+                        child: _typeChip(
+                            context, HomeworkQuestionType.values[1])),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                        child: _typeChip(
+                            context, HomeworkQuestionType.values[2])),
+                    const SizedBox(width: 8),
+                    Expanded(
+                        child: _typeChip(
+                            context, HomeworkQuestionType.values[3])),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // Soru sayısı — solda etiket, sağda  −  N  +  sayacı.
+                Row(
+                  children: [
+                    Text('Soru sayısı'.tr(),
+                        style: GoogleFonts.poppins(
+                          fontSize: 12, fontWeight: FontWeight.w800,
+                          color: muted,
+                        )),
+                    const Spacer(),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        border:
+                            Border.all(color: AppPalette.border(context)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _countBtn(Icons.remove_rounded,
+                              _count > 3
+                                  ? () => setState(() => _count--)
+                                  : null),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16),
+                            child: Text('$_count',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 16, fontWeight: FontWeight.w900,
+                                  color: ink,
+                                )),
+                          ),
+                          _countBtn(Icons.add_rounded,
+                              _count < 30
+                                  ? () => setState(() => _count++)
+                                  : null),
+                        ],
                       ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(t.emoji, style: const TextStyle(fontSize: 14)),
-                        const SizedBox(width: 5),
-                        Text(t.tr,
-                            style: GoogleFonts.poppins(
-                              fontSize: 11.5, fontWeight: FontWeight.w700,
-                              color: sel
-                                  ? const Color(0xFF7C3AED)
-                                  : ink,
-                            )),
-                      ],
-                    ),
-                  ),
-                );
-              }).toList(),
+                  ],
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 12),
-          // Soru sayısı
-          Text('Soru sayısı'.tr(),
-              style: GoogleFonts.poppins(
-                fontSize: 11, fontWeight: FontWeight.w800,
-                color: muted, letterSpacing: 0.6,
-              )),
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.remove_circle_outline_rounded),
-                color: const Color(0xFF7C3AED),
-                onPressed: _count > 3 ? () => setState(() => _count--) : null,
-              ),
-              Text('$_count',
-                  style: GoogleFonts.poppins(
-                    fontSize: 17, fontWeight: FontWeight.w900, color: ink,
-                  )),
-              IconButton(
-                icon: const Icon(Icons.add_circle_outline_rounded),
-                color: const Color(0xFF7C3AED),
-                onPressed: _count < 30 ? () => setState(() => _count++) : null,
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          // ── Bitiş tarihi: tarih ve saat ayrı kutular, aralarında mesafe,
-          //    farklı tonda gri arka planlar ────────────────────────────
-          Text('Bitiş tarihi'.tr(),
-              style: GoogleFonts.poppins(
-                fontSize: 11, fontWeight: FontWeight.w800,
-                color: muted, letterSpacing: 0.6,
-              )),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Expanded(
-                flex: 3,
-                child: _dtBox(
-                  context,
-                  AppPalette.cardMuted(context),
-                  Icons.calendar_today_rounded,
-                  'Tarih'.tr(),
-                  '${_due.day}.${_due.month}.${_due.year}',
-                  _pickDueDate,
-                ),
-              ),
-              const SizedBox(width: 12), // tarih ↔ saat mesafesi
-              Expanded(
-                flex: 2,
-                child: _dtBox(
-                  context,
-                  AppPalette.border(context),
-                  Icons.access_time_rounded,
-                  'Saat'.tr(),
-                  '${_due.hour.toString().padLeft(2, '0')}:'
-                      '${_due.minute.toString().padLeft(2, '0')}',
-                  _pickDueTime,
-                ),
-              ),
-            ],
-          ),
           const SizedBox(height: 10),
-          // ── Yayın zamanı: solda Hemen, sağda Zamanla ─────────────────
-          Text('Bu ödev ne zaman yayınlansın?'.tr(),
-              style: GoogleFonts.poppins(
-                fontSize: 11, fontWeight: FontWeight.w800,
-                color: muted, letterSpacing: 0.6,
-              )),
-          const SizedBox(height: 6),
+          // ── Solda başlama, sağda bitiş tarihi — her biri ayrı sekme;
+          //    içinde tarih + (azıcık boşluk) saat. ──────────────────────
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: _publishOption(
+                child: _dateTimeTab(
                   context,
-                  icon: Icons.bolt_rounded,
-                  label: 'Hemen yayınla'.tr(),
-                  sub: null,
-                  selected: _publishAt == null,
-                  onTap: () => setState(() => _publishAt = null),
+                  label: 'Başlama tarihi'.tr(),
+                  dt: _startAt,
+                  onPickDate: _pickStartDate,
+                  onPickTime: _pickStartTime,
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Expanded(
-                child: _publishOption(
+                child: _dateTimeTab(
                   context,
-                  icon: Icons.event_rounded,
-                  label: 'Zamanla'.tr(),
-                  sub: _publishAt == null
-                      ? null
-                      : '${_publishAt!.day}.${_publishAt!.month} '
-                          '${_publishAt!.hour.toString().padLeft(2, '0')}:'
-                          '${_publishAt!.minute.toString().padLeft(2, '0')}',
-                  selected: _publishAt != null,
-                  onTap: _pickPublishDate,
+                  label: 'Bitiş tarihi'.tr(),
+                  dt: _due,
+                  onPickDate: _pickDueDate,
+                  onPickTime: _pickDueTime,
                 ),
               ),
             ],
@@ -798,7 +1054,7 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onPressed: _generating ? null : _generateAndPreview,
+              onPressed: _generating ? null : _openModelPicker,
               child: _generating
                   ? const SizedBox(
                       width: 18, height: 18,
@@ -821,7 +1077,7 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
       [IconData? icon]) {
     return Container(
       decoration: BoxDecoration(
-        color: AppPalette.bg(c),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppPalette.border(c)),
       ),
@@ -834,6 +1090,11 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
         ),
         decoration: InputDecoration(
           hintText: hint,
+          // Soluk ipucu — kullanıcı alanın ne işe yaradığını anlasın.
+          hintStyle: GoogleFonts.poppins(
+            fontSize: 13, fontWeight: FontWeight.w500,
+            color: AppPalette.textSecondary(c).withValues(alpha: 0.6),
+          ),
           prefixIcon: icon == null
               ? null
               : Icon(icon, size: 18, color: AppPalette.textSecondary(c)),
@@ -845,92 +1106,65 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
     );
   }
 
-  /// Bitiş tarihi/saat kutusu — verilen gri arka planla.
-  Widget _dtBox(BuildContext c, Color bg, IconData icon, String label,
-      String value, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppPalette.border(c)),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 16, color: const Color(0xFF7C3AED)),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label,
-                      style: GoogleFonts.poppins(
-                          fontSize: 9.5, fontWeight: FontWeight.w600,
-                          color: AppPalette.textSecondary(c))),
-                  Text(value,
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                          fontSize: 13, fontWeight: FontWeight.w800,
-                          color: AppPalette.textPrimary(c))),
-                ],
+  /// Başlama/Bitiş sekmesi — başlıklı dış çerçeve; içinde tarih + saat kutusu.
+  Widget _dateTimeTab(BuildContext c,
+      {required String label,
+      required DateTime dt,
+      required VoidCallback onPickDate,
+      required VoidCallback onPickTime}) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppPalette.border(c)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                  fontSize: 11, fontWeight: FontWeight.w800,
+                  color: AppPalette.textSecondary(c))),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _miniBox(
+                    c, '${dt.day}.${dt.month}.${dt.year % 100}', onPickDate),
               ),
-            ),
-          ],
-        ),
+              const SizedBox(width: 6), // tarih ↔ saat azıcık mesafe
+              _miniBox(
+                  c,
+                  '${dt.hour.toString().padLeft(2, '0')}:'
+                      '${dt.minute.toString().padLeft(2, '0')}',
+                  onPickTime),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  /// Yayın seçeneği kutusu (Hemen / Zamanla).
-  Widget _publishOption(BuildContext c,
-      {required IconData icon,
-      required String label,
-      String? sub,
-      required bool selected,
-      required VoidCallback onTap}) {
-    const brand = Color(0xFF7C3AED);
+  /// Sekme içindeki tek tarih/saat hücresi — ikonsuz, ortalı rakam.
+  Widget _miniBox(BuildContext c, String value, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected ? brand.withValues(alpha: 0.12) : AppPalette.bg(c),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-              color: selected ? brand : AppPalette.border(c),
-              width: selected ? 1.5 : 1),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppPalette.border(c)),
         ),
-        child: Row(
-          children: [
-            Icon(icon, size: 18,
-                color: selected ? brand : AppPalette.textSecondary(c)),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label,
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                          fontSize: 12.5, fontWeight: FontWeight.w800,
-                          color: selected
-                              ? brand
-                              : AppPalette.textPrimary(c))),
-                  if (sub != null)
-                    Text(sub,
-                        maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(
-                            fontSize: 10, fontWeight: FontWeight.w600,
-                            color: AppPalette.textSecondary(c))),
-                ],
-              ),
-            ),
-            if (selected)
-              const Icon(Icons.check_circle_rounded, size: 16, color: brand),
-          ],
-        ),
+        child: Text(value,
+            maxLines: 1, overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+                fontSize: 12.5, fontWeight: FontWeight.w800,
+                color: AppPalette.textPrimary(c))),
       ),
     );
   }

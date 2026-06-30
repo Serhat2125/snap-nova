@@ -26,6 +26,7 @@ import '../services/homework_service.dart';
 import '../services/locale_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
+import '../widgets/teacher_help_dialog.dart';
 import 'teacher_homework_view_screen.dart';
 
 const _kBrand = Color(0xFF7C3AED);
@@ -300,61 +301,23 @@ class _TeacherHomeworkDetailScreenState
 
   /// "?" → bu sayfa nasıl çalışır kısa rehberi.
   Future<void> _showHelp() async {
-    final ink = AppPalette.textPrimary(context);
-    final muted = AppPalette.textSecondary(context);
-    const lines = [
-      '📊 “Grafik” sekmesi doğru/yanlış/boş dağılımını; “Tablo” sekmesi sayısal istatistikleri gösterir.',
-      '🔎 Tabloda “Soruları detaylı göster” ile her sorunun durumunu (doğru/yanlış/boş) açabilirsin.',
-      '🤖 “AI yorumu” öğrencinin cevaplarını analiz edip güçlü/zayıf yönleri özetler.',
-      '📨 Sağ üstteki gönder ikonuyla ekranı ebeveyne (WhatsApp vb.) iletebilirsin.',
-      '✍️ “Veliye/öğrenciye not gönder” ile kısa bir geri bildirim yazabilirsin.',
-      '📌 Üstteki öğrenci ve ödev bilgisi, sayfa kaydırılsa da sabit kalır.',
-    ];
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: AppPalette.card(context),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  margin: const EdgeInsets.only(bottom: 14),
-                  decoration: BoxDecoration(
-                    color: AppPalette.border(ctx),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              Row(
-                children: [
-                  const Icon(Icons.help_outline_rounded,
-                      size: 20, color: _kBrand),
-                  const SizedBox(width: 8),
-                  Text('Bu sayfa nasıl çalışır?'.tr(),
-                      style: GoogleFonts.poppins(
-                          fontSize: 16, fontWeight: FontWeight.w900,
-                          color: ink)),
-                ],
-              ),
-              const SizedBox(height: 12),
-              ...lines.map((l) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Text(l.tr(),
-                        style: GoogleFonts.poppins(
-                            fontSize: 13, height: 1.45, color: muted)),
-                  )),
-            ],
-          ),
-        ),
-      ),
+    await showTeacherHelpDialog(
+      context,
+      title: 'Bu sayfa nasıl çalışır?',
+      items: const [
+        TeacherHelpItem('📊',
+            '“Grafik” sekmesi doğru/yanlış/boş dağılımını; “Tablo” sekmesi sayısal istatistikleri gösterir.'),
+        TeacherHelpItem('🔎',
+            'Tabloda “Soruları detaylı göster” ile her sorunun durumunu (doğru/yanlış/boş) açabilirsin.'),
+        TeacherHelpItem('🤖',
+            '“AI yorumu” öğrencinin cevaplarını analiz edip güçlü/zayıf yönleri özetler.'),
+        TeacherHelpItem('📨',
+            'Sağ üstteki gönder ikonuyla ekranı ebeveyne (WhatsApp vb.) iletebilirsin.'),
+        TeacherHelpItem('✍️',
+            '“Veliye/öğrenciye not gönder” ile kısa bir geri bildirim yazabilirsin.'),
+        TeacherHelpItem('📌',
+            'Üstteki öğrenci ve ödev bilgisi, sayfa kaydırılsa da sabit kalır.'),
+      ],
     );
   }
 
@@ -1156,11 +1119,11 @@ class _TeacherHomeworkDetailScreenState
   }
 
   String _fmtDate(DateTime d) {
-    const months = [
-      'Oca','Şub','Mar','Nis','May','Haz',
-      'Tem','Ağu','Eyl','Eki','Kas','Ara',
-    ];
-    return '${d.day} ${months[d.month - 1]} ${d.year}';
+    // Dile-nötr sayısal tarih (GG.AA.YYYY) → her müfredat dilinde doğru,
+    // çeviri gerektirmez, taşmaz.
+    final dd = d.day.toString().padLeft(2, '0');
+    final mm = d.month.toString().padLeft(2, '0');
+    return '$dd.$mm.${d.year}';
   }
 }
 

@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../services/account_service.dart';
 import '../services/pricing_service.dart';
 import '../services/runtime_translator.dart';
 import '../main.dart' show localeService;
@@ -77,6 +78,51 @@ class _PremiumScreenState extends State<PremiumScreen> {
     return fallback;
   }
 
+  /// Yüzdeyi dile göre biçimler: Türkçe "%11", diğer diller "11%".
+  String _pct(int n) =>
+      localeService.localeCode == 'tr' ? '%$n' : '$n%';
+
+  /// Plan index (0/1/2) → SubscriptionPlan.
+  SubscriptionPlan _subPlanFor(int index) => index == 0
+      ? SubscriptionPlan.monthly
+      : index == 1
+          ? SubscriptionPlan.quarterly
+          : SubscriptionPlan.yearly;
+
+  /// Bir plan kartının TUTARLI sayıları: toplam + /ay eşdeğeri + indirim %.
+  /// Mağaza fiyatı varsa hepsi aynı rawPrice'tan TÜRETİLİR → toplam ile /ay ve
+  /// indirim her zaman birbirini tutar (eski hata: /ay FX'ten, toplam mağazadan
+  /// gelip çelişiyordu). Mağaza yoksa FX fallback (kendi içinde tutarlı).
+  ({String total, String? perMonth, int? discount}) _planNums(
+    SubscriptionPlan plan, {
+    required String fbTotal,
+    String? fbPerMonth,
+    int? fbDiscount,
+  }) {
+    final pd = SubscriptionService.instance.productFor(plan);
+    final mpd = SubscriptionService.instance.productFor(SubscriptionPlan.monthly);
+    if (pd != null && pd.rawPrice > 0) {
+      final months = plan == SubscriptionPlan.monthly
+          ? 1
+          : plan == SubscriptionPlan.quarterly
+              ? 3
+              : 12;
+      String? perMonth;
+      int? discount;
+      if (months > 1) {
+        final pm = pd.rawPrice / months;
+        perMonth = PricingService.formatAmount(
+            pm, pd.currencyCode, pd.currencySymbol);
+        if (mpd != null && mpd.rawPrice > 0) {
+          final d = ((1 - pm / mpd.rawPrice) * 100).round();
+          if (d > 0) discount = d;
+        }
+      }
+      return (total: pd.price, perMonth: perMonth, discount: discount);
+    }
+    return (total: fbTotal, perMonth: fbPerMonth, discount: fbDiscount);
+  }
+
   @override
   void dispose() {
     localeService.removeListener(_onLocaleChanged);
@@ -136,39 +182,49 @@ class _PremiumScreenState extends State<PremiumScreen> {
                               ),
                               SizedBox(width: 10),
                               Expanded(
-                                child: _buildPlanCard(
-                                  index: 1,
-                                  title:
-                                      '3 ${localeService.tr("month_unit")}',
-                                  price: _plan.quarterlyPerMonth,
-                                  priceSuffix:
-                                      '/${localeService.tr("month_unit")}',
-                                  // 3 aylık SKU = toplam tutar → mağaza fiyatı
-                                  // (FX fallback). /ay eşdeğeri FX kalır.
-                                  total: _storeTotalPrice(
+                                child: Builder(builder: (_) {
+                                  // /ay, toplam ve indirim AYNI tabandan türer.
+                                  final n = _planNums(
                                       SubscriptionPlan.quarterly,
-                                      _plan.quarterly),
-                                  oldPrice: null,
-                                  discount: '%10',
-                                ),
+                                      fbTotal: _plan.quarterly,
+                                      fbPerMonth: _plan.quarterlyPerMonth,
+                                      fbDiscount: 10);
+                                  return _buildPlanCard(
+                                    index: 1,
+                                    title:
+                                        '3 ${localeService.tr("month_unit")}',
+                                    price: n.perMonth ?? n.total,
+                                    priceSuffix:
+                                        '/${localeService.tr("month_unit")}',
+                                    total: n.total,
+                                    oldPrice: null,
+                                    discount:
+                                        n.discount != null ? _pct(n.discount!) : null,
+                                  );
+                                }),
                               ),
                               SizedBox(width: 10),
                               Expanded(
-                                child: _buildPlanCard(
-                                  index: 2,
-                                  title:
-                                      '12 ${localeService.tr("month_unit")}',
-                                  price: _plan.yearlyPerMonth,
-                                  priceSuffix:
-                                      '/${localeService.tr("month_unit")}',
-                                  // Yıllık SKU = toplam tutar → mağaza fiyatı
-                                  // (FX fallback). /ay eşdeğeri FX kalır.
-                                  total: _storeTotalPrice(
-                                      SubscriptionPlan.yearly, _plan.yearly),
-                                  oldPrice: null,
-                                  discount: '%33',
-                                  tickKey: _tickKey12Ay,
-                                ),
+                                child: Builder(builder: (_) {
+                                  final n = _planNums(
+                                      SubscriptionPlan.yearly,
+                                      fbTotal: _plan.yearly,
+                                      fbPerMonth: _plan.yearlyPerMonth,
+                                      fbDiscount: 33);
+                                  return _buildPlanCard(
+                                    index: 2,
+                                    title:
+                                        '12 ${localeService.tr("month_unit")}',
+                                    price: n.perMonth ?? n.total,
+                                    priceSuffix:
+                                        '/${localeService.tr("month_unit")}',
+                                    total: n.total,
+                                    oldPrice: null,
+                                    discount:
+                                        n.discount != null ? _pct(n.discount!) : null,
+                                    tickKey: _tickKey12Ay,
+                                  );
+                                }),
                               ),
                             ],
                           ),
@@ -331,22 +387,49 @@ class _PremiumScreenState extends State<PremiumScreen> {
                                 color: AppPalette.border(context),
                               ),
                               SizedBox(height: 6),
-                              _featureRow(
-                                  localeService.tr('unlimited_models')),
-                              _featureRow(localeService.tr('max_accuracy')),
-                              _featureRow(localeService.tr('ad_free')),
-                              _featureRow('Dünyada ve ülkende yarış'.tr()),
-                              _featureRow('Konu özetleri'.tr()),
-                              _featureRow('Test soruları oluşturma'.tr()),
-                              _featureRowSub(
-                                  localeService.tr('similar_q'),
-                                  localeService.tr('similar_q_desc')),
-                              _featureRowSub(
-                                  localeService.tr('match_cards'),
-                                  localeService.tr('match_cards_desc')),
-                              _featureRowSub(
-                                  localeService.tr('info_cards'),
-                                  localeService.tr('info_cards_desc')),
+                              // Hesap tipine göre avantaj listesi (öğretmen
+                              // panelinde öğretmen özellikleri gösterilir).
+                              if (AccountService.instance.isTeacher) ...[
+                                _featureRow(
+                                    'Tüm AI modelleriyle üretim'.tr()),
+                                _featureRow(localeService.tr('ad_free')),
+                                _featureRow(
+                                    'Sınırsız sınıf ve öğrenci'.tr()),
+                                _featureRowSub(
+                                    'AI ile ödev oluşturma'.tr(),
+                                    'Konuya göre 10–30 soru üret, düzenle, yayınla.'
+                                        .tr()),
+                                _featureRowSub(
+                                    'Sınıf & öğrenci analizi'.tr(),
+                                    'Sınıf ortalaması, zayıf konular ve karne.'
+                                        .tr()),
+                                _featureRowSub(
+                                    'Otomatik ödev hatırlatma'.tr(),
+                                    'Teslim etmeyen öğrencilere bildirim.'.tr()),
+                                _featureRowSub(
+                                    'Kaynak & duyuru paylaşımı'.tr(),
+                                    'PDF/link dağıt, duyuruyu zamanla.'.tr()),
+                                _featureRowSub(
+                                    'AI ödev analizi'.tr(),
+                                    'Dürüst rehber yorum + eksik tespiti.'.tr()),
+                              ] else ...[
+                                _featureRow(
+                                    localeService.tr('unlimited_models')),
+                                _featureRow(localeService.tr('max_accuracy')),
+                                _featureRow(localeService.tr('ad_free')),
+                                _featureRow('Dünyada ve ülkende yarış'.tr()),
+                                _featureRow('Konu özetleri'.tr()),
+                                _featureRow('Test soruları oluşturma'.tr()),
+                                _featureRowSub(
+                                    localeService.tr('similar_q'),
+                                    localeService.tr('similar_q_desc')),
+                                _featureRowSub(
+                                    localeService.tr('match_cards'),
+                                    localeService.tr('match_cards_desc')),
+                                _featureRowSub(
+                                    localeService.tr('info_cards'),
+                                    localeService.tr('info_cards_desc')),
+                              ],
                               SizedBox(height: 12),
                             ],
                           ),
@@ -1038,28 +1121,50 @@ Veri Aktarımı: Sunucu altyapısı bulutta (örn. Google Cloud) çalıştığı
   }
 
   String _dailyText() {
+    // Günlük tutar SEÇİLİ planın gerçek toplamından türetilir (toplam/gün) →
+    // ekrandaki fiyatlarla tutarlı. Mağaza yoksa FX fallback.
+    final plan = _subPlanFor(_selectedPlan);
+    final pd = SubscriptionService.instance.productFor(plan);
+    if (pd != null && pd.rawPrice > 0) {
+      final perDay = pd.rawPrice / plan.durationDays;
+      final amount = PricingService.formatAmount(
+          perDay, pd.currencyCode, pd.currencySymbol);
+      return '${localeService.tr('daily_only')} $amount '
+          '${localeService.tr('daily_suffix')}';
+    }
     switch (_selectedPlan) {
       case 0:
         return _plan.dailyMonthly;
       case 1:
         return _plan.dailyQuarterly;
-      case 2:
-        return _plan.dailyYearly;
       default:
-        return '';
+        return _plan.dailyYearly;
     }
   }
 
   String _footerText() {
+    // Yenileme tutarı = seçili planın toplamı (intro offer yok → aynı fiyatla
+    // yenilenir). Mağaza varsa o toplam; yoksa FX fallback.
+    final plan = _subPlanFor(_selectedPlan);
+    final pd = SubscriptionService.instance.productFor(plan);
+    if (pd != null && pd.price.isNotEmpty) {
+      final unit = _selectedPlan == 0
+          ? localeService.tr('month_unit')
+          : _selectedPlan == 1
+              ? localeService.tr('three_months_unit')
+              : localeService.tr('year_unit');
+      final suffix = _selectedPlan == 2
+          ? localeService.tr('renewal_suffix_yearly')
+          : localeService.tr('renewal_suffix');
+      return '${localeService.tr('renewal_notice')} ${pd.price}/$unit $suffix';
+    }
     switch (_selectedPlan) {
       case 0:
         return _plan.footerMonthly;
       case 1:
         return _plan.footerQuarterly;
-      case 2:
-        return _plan.footerYearly;
       default:
-        return '';
+        return _plan.footerYearly;
     }
   }
 
@@ -1601,8 +1706,76 @@ class _PremiumFeaturesSlider extends StatelessWidget {
     ),
   ];
 
+  // ── ÖĞRETMEN sürümü — aynı tasarım/renk/sıralama, içerik öğretmen paneline
+  //    göre. Hesap tipi öğretmense build() bu listeyi gösterir. ──────────────
+  static const _teacherItems = <_FeatureItem>[
+    _FeatureItem(
+      n: '01',
+      title: 'Dünyanın en güçlü AI modelleri tek panelde',
+      body:
+          'ChatGPT-5.5, Gemini 3.1, Claude 4.7 Opus, DeepSeek-V4 Pro ve Grok 4.3 — ödev ve içerik üretiminde hangisini istersen onu kullan.',
+    ),
+    _FeatureItem(
+      n: '02',
+      title: 'Saniyeler içinde AI ile ödev oluştur',
+      body:
+          'İstediğin dersten, konudan ve zorlukta 10–30 soru üret; düzenle, taslak kaydet ya da anında sınıfına yayınla.',
+    ),
+    _FeatureItem(
+      n: '03',
+      title: 'Sınıf performansını canlı izle',
+      body:
+          'Sınıf ortalaması, en zayıf konular ve her öğrencinin doğru/yanlış/boş dağılımı tek panelde.',
+    ),
+    _FeatureItem(
+      n: '04',
+      title: 'Her öğrenci için detaylı karne',
+      body:
+          'Öğrenci bazında ödev geçmişi, gelişim grafikleri ve yazılı/sözlü not defteri — ağırlıklı ortalamayı otomatik hesaplar.',
+    ),
+    _FeatureItem(
+      n: '05',
+      title: 'Açık uçlu soruları kolayca değerlendir',
+      body:
+          'Öğrencinin yazdığı cevapları doğru/yanlış işaretle; puan ve geri bildirim anında öğrenciye ulaşsın.',
+    ),
+    _FeatureItem(
+      n: '06',
+      title: 'Otomatik hatırlatma',
+      body:
+          'Teslim saatine yaklaşınca ödevi bitirmemiş öğrencilere otomatik bildirim gitsin — sen uğraşma.',
+    ),
+    _FeatureItem(
+      n: '07',
+      title: 'Kaynak ve duyuru paylaş',
+      body:
+          'PDF, web linki veya ders notunu sınıfına dağıt; duyuruyu şimdi yayınla ya da ileri bir tarihe zamanla.',
+    ),
+    _FeatureItem(
+      n: '08',
+      title: 'Sınırsız sınıf ve öğrenci',
+      body:
+          'İstediğin kadar sınıf aç, kod veya davetle dilediğin kadar öğrenci ekle — limit yok.',
+    ),
+    _FeatureItem(
+      n: '09',
+      title: '55 dil, 131 ülke',
+      body:
+          'Kendi dilini ve ülkeni seç — müfredat ve içerik öğretim sistemine göre özelleşsin.',
+    ),
+    _FeatureItem(
+      n: '10',
+      title: 'AI ödev analizi & dürüst rehber yorum',
+      body:
+          'Her ödevde doğru/yanlış/boş sayılarına sadık; öğrencinin seviyesini ve eksiklerini gösteren yapay zeka rehber yorumu.',
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) {
+    // Hesap tipine göre içerik — tasarım/renk/sıralama aynı kalır.
+    final items =
+        AccountService.instance.isTeacher ? _teacherItems : _items;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
       child: Container(
@@ -1719,7 +1892,7 @@ class _PremiumFeaturesSlider extends StatelessWidget {
                 child: ListView.separated(
                   padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
                   physics: BouncingScrollPhysics(),
-                  itemCount: _items.length,
+                  itemCount: items.length,
                   separatorBuilder: (_, __) => Divider(
                     height: 18,
                     thickness: 1,
@@ -1728,7 +1901,7 @@ class _PremiumFeaturesSlider extends StatelessWidget {
                         ? Color(0xFF2E2E2E)
                         : const Color(0xFFE8850C).withValues(alpha: 0.18),
                   ),
-                  itemBuilder: (_, i) => _PremiumRow(item: _items[i]),
+                  itemBuilder: (_, i) => _PremiumRow(item: items[i]),
                 ),
               ),
             ],

@@ -22,6 +22,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 
+import 'account_service.dart';
 import 'analytics.dart';
 
 enum JoinClassResult {
@@ -43,6 +44,10 @@ class TeacherClass {
   final String photoB64;
   /// Öğretmenin sınıf için yazdığı durum mesajı.
   final String statusMessage;
+  /// Sınıfın not sistemi/müfredat ülke kodu (öğretmenden gelir). Ebeveyn/öğrenci
+  /// de notları AYNI müfredat skalasında görsün diye sınıf belgesine yazılır.
+  /// Boş → görüntüleyenin kendi seçimi / generic'e düşülür.
+  final String gradingCountry;
 
   const TeacherClass({
     required this.id,
@@ -56,6 +61,7 @@ class TeacherClass {
     this.studentCount = 0,
     this.photoB64 = '',
     this.statusMessage = '',
+    this.gradingCountry = '',
   });
 
   /// Gösterim/paylaşım için 5 haneli kod (eski "SINIF-XXXXX" önekini atar).
@@ -79,6 +85,7 @@ class TeacherClass {
       studentCount: students,
       photoB64: (m['photoB64'] ?? '').toString(),
       statusMessage: (m['statusMessage'] ?? '').toString(),
+      gradingCountry: (m['gradingCountry'] ?? '').toString(),
     );
   }
 }
@@ -129,14 +136,15 @@ class ClassStudent {
 /// Firestore: classes/{classId}/students/{uid}/grades/{gradeId}
 class StudentGrade {
   final String id;
-  /// 'yazili' | 'sozlu'
+  /// Kategori anahtarı (müfredata göre: 'yazili'|'sozlu'|'exam'|'quiz'…).
   final String type;
   /// Kaçıncı sınav (1, 2, 3…). Sözlü için de sıra numarası.
   final int order;
   /// Dönem (1 veya 2).
   final int term;
-  /// 0-100 arası not.
-  final int score;
+  /// Skala üzerindeki ham not (müfredata göre 0-100 / 1-5 / 0-20 / GPA…).
+  /// Ondalık desteklenir (Fransa 14,5 · Almanya 2,3 · GPA 3,7).
+  final double score;
   /// Bu notun dönem ortalamasına ETKİSİ (ağırlık, yüzde 1-100).
   /// 0 = ağırlık belirtilmemiş (eski kayıt) → eşit ağırlık gibi davranılır.
   final int weight;
@@ -167,7 +175,7 @@ class StudentGrade {
       type: (m['type'] ?? 'yazili').toString(),
       order: (m['order'] as num?)?.toInt() ?? 1,
       term: (m['term'] as num?)?.toInt() ?? 1,
-      score: (m['score'] as num?)?.toInt() ?? 0,
+      score: (m['score'] as num?)?.toDouble() ?? 0,
       weight: (m['weight'] as num?)?.toInt() ?? 0,
       date: when,
     );
@@ -319,6 +327,9 @@ class ClassService {
       if (code == null) return null;
       final newDoc = _fs.collection('classes').doc();
       final classId = newDoc.id;
+      // Öğretmenin not sistemi/müfredat ülkesi → sınıfa gömülür ki ebeveyn ve
+      // öğrenci de notları aynı skalada görsün.
+      final gradingCountry = AccountService.instance.gradingCountry ?? '';
       final batch = _fs.batch();
       batch.set(newDoc, {
         'teacherUid': myUid,
@@ -328,6 +339,7 @@ class ClassService {
         'subject': subject.trim(),
         'level': level.trim(),
         'createdAt': FieldValue.serverTimestamp(),
+        if (gradingCountry.isNotEmpty) 'gradingCountry': gradingCountry,
       });
       // Reverse index: code → classId
       batch.set(_fs.collection('class_codes').doc(code), {
@@ -346,10 +358,37 @@ class ClassService {
         subject: subject,
         level: level,
         createdAt: DateTime.now(),
+        gradingCountry: gradingCountry,
       );
     } catch (e) {
       debugPrint('[ClassService] createClass fail: $e');
       return null;
+    }
+  }
+
+  /// Sınıfın not sistemi (müfredat) ülke kodunu döndürür — ebeveyn/öğrenci de
+  /// notları AYNI skalada görsün diye. Boşsa ve çağıran sınıfın SAHİBİ öğretmense
+  /// (kendi seçimi varsa) sınıfa geriye doldurur → eski sınıflar da düzelir.
+  static Future<String> gradingCountryForClass(String classId) async {
+    try {
+      final doc = await _fs.collection('classes').doc(classId).get();
+      final data = doc.data();
+      final stored = (data?['gradingCountry'] ?? '').toString();
+      if (stored.isNotEmpty) return stored;
+      final myUid = _myUid;
+      final ownerUid = (data?['teacherUid'] ?? '').toString();
+      final mine = AccountService.instance.gradingCountry ?? '';
+      if (myUid != null && myUid == ownerUid && mine.isNotEmpty) {
+        await _fs
+            .collection('classes')
+            .doc(classId)
+            .set({'gradingCountry': mine}, SetOptions(merge: true));
+        return mine;
+      }
+      return '';
+    } catch (e) {
+      debugPrint('[ClassService] gradingCountryForClass fail: $e');
+      return '';
     }
   }
 
