@@ -3245,7 +3245,11 @@ class _LibraryLandingState extends State<LibraryLanding> {
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        // Alt nav bar (_NavShell) sayfanın üstüne overlay olarak çizildiği için
+        // en alttaki kart/sekme onun arkasında kalıyordu; nav bar yüksekliği +
+        // sistem çubuğu kadar boşluk bırakarak tam görünmesini sağla.
+        padding: EdgeInsets.fromLTRB(
+            16, 12, 16, 16 + 112 + MediaQuery.of(context).padding.bottom),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

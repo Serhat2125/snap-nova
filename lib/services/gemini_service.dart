@@ -1879,19 +1879,22 @@ Karmaşık terimi açıkla, örnekle pekiştir, samimi ama saygılı ton.''';
       _               => (16384, 512),
     };
 
-    // Çoklu sağlayıcı: OCR metni hazır → DeepSeek reasoner ile çöz (asıl amaç).
+    // Çoklu sağlayıcı: OCR metni hazır → DeepSeek ile çöz.
+    // NOT: 'deepseek-reasoner' (R1) foto-çözümde 20-60sn sürüp kullanıcıyı
+    // bekletiyordu (bkz. ai_provider_service failover notu). Etkileşimli
+    // foto akışında gecikmeyi kesmek için hızlı 'deepseek-chat' kullanılır.
     if (AiProviderService.kEnabled) {
       try {
         final t = await AiProviderService.chat(
           provider: AiProvider.deepseek,
-          model: 'deepseek-reasoner',
+          model: 'deepseek-chat',
           messages: [
             AiChatMessage('user',
                 'Aşağıdaki soruyu yukarıdaki kurallara göre çöz:\n\n$extracted'),
           ],
           system: prompt,
           maxTokens: solverMax,
-          timeout: const Duration(seconds: 120),
+          timeout: const Duration(seconds: 60),
         );
         if (t.trim().isNotEmpty) {
           _log('[DS 2/2] OK (DeepSeek): ${t.length} karakter');

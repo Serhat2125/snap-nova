@@ -30,6 +30,7 @@ import '../services/usage_quota.dart';
 import '../services/gemini_service.dart';
 import '../services/question_pool_service.dart';
 import '../services/group_contest_service.dart';
+import '../services/contest_group_service.dart';
 import 'group_contest_screen.dart';
 import '../services/duelo_matchmaking_service.dart';
 import '../services/friend_service.dart';
@@ -2417,8 +2418,8 @@ class _MiniSubjectTile extends StatelessWidget {
           color: tileBg,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: selected ? AppPalette.textPrimary(context) : AppPalette.border(context),
-            width: selected ? 2 : 1,
+            color: selected ? const Color(0xFF16A34A) : const Color(0xFF22C55E),
+            width: selected ? 2 : 1.5,
           ),
         ),
         child: Stack(
@@ -4953,6 +4954,16 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
   // Grup Yarışı modu — açıkken ders+konu seçimi 1v1 yerine arkadaş grubu
   // yarışması oluşturur (aynı sorular, sadece grup içi sıralama).
   bool _groupMode = false;
+  // Kayıtlı bir grupla yarış başlatılıyorsa hedef grup — yarışma oluşunca
+  // grubun tüm üyelerine bildirim gider.
+  ContestGroup? _activeGroup;
+  // Arkadaşla 1v1 akışında ders/konu seçimi bekleyen hedef arkadaş.
+  Friend? _pendingFriend;
+  // "Yarışlarım" bölümü açık mı (4 sekme görünür mü).
+  bool _racesExpanded = true;
+  // Üst sekme çubuğunda basılı tutulan aksiyon sekmesi (1v1/grup) — basılıyken
+  // beyaz gösterilir.
+  String? _pressedTab;
   bool _showOtherSheet = false;
   bool _draggingFromSheet = false;
   List<_DueloRecord> _records = const [];
@@ -5400,6 +5411,43 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
     );
   }
 
+  // ─── "Görülen soru" defteri (tekrarsız test) ────────────────────────────
+  // Solo (dünya/ülke) yarışlarında aynı konuda AYNI test iki kez çıkmasın.
+  // Konu havuzu 400'e ulaşıp aktifleşene kadar her testte yeni sorular gelir.
+
+  /// Bir sorunun kalıcı parmak izi (subjectKey|topic|text tabanlı kısa hash).
+  static String _qFingerprint(_QuizQuestion q) =>
+      '${q.subjectKey}|${q.topic}|${q.text}'.hashCode.toRadixString(36);
+
+  String _seenQKey(String subjectKey, String? topic) =>
+      'arena_seenq_v1::$subjectKey::${topic ?? ''}';
+
+  Future<Set<String>> _loadSeenQ(String subjectKey, String? topic) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getStringList(_seenQKey(subjectKey, topic))?.toSet() ??
+          <String>{};
+    } catch (_) {
+      return <String>{};
+    }
+  }
+
+  Future<void> _saveSeenQ(
+      String subjectKey, String? topic, Iterable<String> fps) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = _seenQKey(subjectKey, topic);
+      final list = prefs.getStringList(key) ?? <String>[];
+      list.addAll(fps);
+      // Son 1500 parmak izini tut (konu başına makul tavan).
+      final trimmed =
+          list.length > 1500 ? list.sublist(list.length - 1500) : list;
+      await prefs.setStringList(key, trimmed);
+    } catch (_) {
+      // sessizce geç — tekrarsızlık best-effort'tur.
+    }
+  }
+
   Future<void> _findMatch({String raceType = 'test'}) async {
     if (!_canStart) return;
 
@@ -5554,10 +5602,24 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
     // AI fallback chain'inde herhangi bir AI üretimi patladıysa true → final
     // hatada kullanıcıya daha net mesaj göstermek için.
     bool aiFailed = false;
+    // Kalıcı "görülen soru" defteri — aynı kullanıcı, aynı konuda AYNI testi
+    // bir daha çözmesin. Konu havuzu 400'e ulaşana kadar her test farklı
+    // sorulardan oluşur (havuz hazırsa QuestionPoolService zaten görülenleri
+    // dışlıyor; burada statik bank + AI sorularını da defterliyoruz).
+    // Karşılıklı yarışlarda (1v1/grup) sameness BOZULMAZ: oralarda sorular
+    // paylaşılan Firestore dokümanından okunur, bu yerel filtre etkilemez.
+    final seenHistory = await _loadSeenQ(subjectKey, topic);
+    // Defterde olduğu için elenen ama son çare gerekirse geri alınacak sorular.
+    final historyStash = <_QuizQuestion>[];
     void addUnique(Iterable<_QuizQuestion> qs) {
       for (final q in qs) {
         final k = '${q.subjectKey}|${q.topic}|${q.text}';
-        if (seen.add(k)) picks.add(q);
+        if (!seen.add(k)) continue; // bu çağrıda zaten eklendi
+        if (seenHistory.contains(_qFingerprint(q))) {
+          historyStash.add(q); // daha önce görülmüş → son çareye sakla
+          continue;
+        }
+        picks.add(q);
       }
     }
 
@@ -5705,6 +5767,17 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
     }
     if (!mounted) return;
 
+    // 5.5) Yeni soru yetmediyse (ör. konu havuzu küçük, AI yeni üretemedi)
+    //      defterdeki eski sorulardan tamamla — kullanıcı test yapamamaktansa
+    //      bazı soruları tekrar görsün.
+    if (picks.length < targetCount && historyStash.isNotEmpty) {
+      for (final q in historyStash) {
+        if (picks.length >= targetCount) break;
+        final k = '${q.subjectKey}|${q.topic}|${q.text}';
+        if (seen.add(k)) picks.add(q);
+      }
+    }
+
     // 6) En az minProceedCount varsa oyunu başlat, yetiyorsa targetCount'a
     //    kırp. Aksi halde net hata ver + kotayı iade et.
     if (picks.length < minProceedCount) {
@@ -5730,6 +5803,10 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen> {
       picks = picks.take(targetCount).toList();
     }
     // picks.length artık [3, 5] aralığında — oyun başlayacak.
+
+    // Bu testin sorularını "görüldü" defterine yaz (fire-and-forget) →
+    // aynı konuda bir dahaki test farklı sorulardan oluşsun.
+    unawaited(_saveSeenQ(subjectKey, topic, picks.map(_qFingerprint)));
 
     // 5) Rakip seç: gerçek varsa gerçek, yoksa mock.
     final cfg = _WizardConfig()
@@ -6011,8 +6088,6 @@ KURALLAR:
                 builder: (context, cand, rej) => ListView(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
                   children: [
-                    _groupModeBanner(),
-                    const SizedBox(height: 10),
                     // ── Kapsam + ders seçim çerçevesi ───────────────
                     // Dünya/Ülke sekmeleri + açıklama + HANGİ DERSTE +
                     // 8 ders grid'i + "Diğer Dersler" butonu — hepsini
@@ -6047,10 +6122,14 @@ KURALLAR:
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              // Kapsam seçici (Dünya / Ülkem) — çerçevenin
-                              // üst kenarına bitişik.
-                              _buildScopeTabs(),
-                              SizedBox(height: 6),
+                              // Dünya/Ülke + Arkadaşınla Yarış/Grup — hepsi TEK
+                              // çerçeve içinde; basılı olan beyaz, diğerleri
+                              // "Ülke Çapında basılı değilken" gibi şeffaf.
+                              _buildTopTabs(),
+                              SizedBox(height: 8),
+                              // Gelen davetler (1v1 + grup) buraya düşer.
+                              _buildInvitesTab(),
+                              SizedBox(height: 8),
                               Text(
                                 _scope == 'world'
                                     ? '🌍 Dünyadan aynı seviyede bir rakiple karşılaşırsın. Her iki taraf aynı evrensel dersi/konuyu seçer.'.tr()
@@ -6061,14 +6140,8 @@ KURALLAR:
                                     height: 1.4),
                               ),
                               SizedBox(height: 16),
-                              // Ders seçimi
-                              Text('HANGİ DERSTE YARIŞACAKSIN?'.tr(),
-                                  style: _sans(
-                                      size: 10,
-                                      weight: FontWeight.w700,
-                                      color: AppPalette.textSecondary(context),
-                                      letterSpacing: 0.08)),
-                              SizedBox(height: 10),
+                              // "Hangi derste?" başlığı + "Kaydır" ipucu tek
+                              // satırda — _buildSubjectGrid içinde çizilir.
                               _buildSubjectGrid(subjects),
                             ],
                           ),
@@ -6079,12 +6152,10 @@ KURALLAR:
                     // kullanıcı isteği: sayfa üst köşesinde seviye gözükmesin.
                       ],
                     ),
-                    SizedBox(height: 12),
-                    // Aktif grup yarışlarım — linke ihtiyaç olmadan geri dön.
-                    _buildMyContestsSection(),
-                    // Kayıtlı yarış kartları — diğer dersler / yeni ders ekle
-                    // satırının hemen altında duruyor.
-                    _buildRecordsSection(),
+                    SizedBox(height: 16),
+                    // Ders çerçevesi kapandı → altında "Yarışlarım" bölümü
+                    // (başlık + soluk beyaz çerçeve + 4 beyaz sekme).
+                    _buildMyRacesSections(),
                   // Seçili konu varsa alt önizleme rozeti (rahat bakılsın).
                   if (_selectedTopic != null) ...[
                     SizedBox(height: 14),
@@ -6129,6 +6200,13 @@ KURALLAR:
                   // O görsel hizayı korumak için negatif margin kullanmıyoruz
                   // — küçük 16 px sap kalır, sorun teşkil etmez.
                   SizedBox(height: 18),
+                  // Grup Yarışı sekmesi — Arkadaşların sekmesinin hemen üstünde.
+                  _groupModeBanner(),
+                  const SizedBox(height: 10),
+                  // Kayıtlı gruplar — Grup Yarışı bannerının hemen altında,
+                  // yatayda 4 slot (dolu gruplar + "Grup Ekle").
+                  _buildSavedGroupsRow(),
+                  const SizedBox(height: 18),
                   _FriendsSection(
                     onRankingsTap: () => _showRankingsSheet(context),
                   ),
@@ -6184,59 +6262,121 @@ KURALLAR:
     );
   }
 
-  Widget _buildScopeTabs() {
-    final tabs = [
-      ('world', '🌍', 'Dünya Çapında'.tr()),
-      ('country', '🇹🇷', 'Ülke Çapında'.tr()),
-    ];
+  // Tek pill (üst sekme çubuğu için). [active] → beyaz (basılı), değilse şeffaf.
+  Widget _topTabPill({
+    required String emoji,
+    required String label,
+    required bool active,
+    required VoidCallback onTap,
+    ValueChanged<bool>? onPress,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        onTapDown: onPress == null ? null : (_) => onPress(true),
+        onTapUp: onPress == null ? null : (_) => onPress(false),
+        onTapCancel: onPress == null ? null : () => onPress(false),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: active ? AppPalette.card(context) : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: active
+                ? [
+                    BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2))
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 15)),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _sans(
+                    size: 12,
+                    weight: FontWeight.w800,
+                    color: active
+                        ? AppPalette.textPrimary(context)
+                        : AppPalette.textSecondary(context),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Dünya/Ülke + Arkadaşınla Yarış/Grup — hepsi TEK segment çerçevesinde,
+  // 2 satır. Basılı olan beyaz, diğerleri şeffaf.
+  Widget _buildTopTabs() {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: AppPalette.border(context).withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(14),
       ),
-      child: Row(
+      child: Column(
         children: [
-          for (final t in tabs)
-            Expanded(
-              child: GestureDetector(
+          Row(
+            children: [
+              _topTabPill(
+                emoji: '🌍',
+                label: 'Dünya Çapında'.tr(),
+                active: _scope == 'world',
                 onTap: () => setState(() {
-                  _scope = t.$1;
+                  _scope = 'world';
                   _selectedSubject = null;
                   _selectedTopic = null;
                 }),
-                child: AnimatedContainer(
-                  duration: Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  decoration: BoxDecoration(
-                    color: _scope == t.$1 ? AppPalette.card(context) : Colors.transparent,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: _scope == t.$1
-                        ? [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 6, offset: Offset(0, 2))]
-                        : null,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(t.$2, style: TextStyle(fontSize: 15)),
-                      SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          t.$3,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: _sans(
-                            size: 12,
-                            weight: FontWeight.w800,
-                            color: _scope == t.$1 ? AppPalette.textPrimary(context) : AppPalette.textSecondary(context),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
               ),
-            ),
+              _topTabPill(
+                emoji: '🇹🇷',
+                label: 'Ülke Çapında'.tr(),
+                active: _scope == 'country',
+                onTap: () => setState(() {
+                  _scope = 'country';
+                  _selectedSubject = null;
+                  _selectedTopic = null;
+                }),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              _topTabPill(
+                emoji: '👤',
+                label: 'Arkadaşınla Yarış'.tr(),
+                active: _pressedTab == '1v1',
+                onTap: () async {
+                  setState(() => _pressedTab = '1v1');
+                  await _open1v1Hub();
+                  if (mounted) setState(() => _pressedTab = null);
+                },
+              ),
+              _topTabPill(
+                emoji: '👥',
+                label: 'Grup Yarışı'.tr(),
+                active: _pressedTab == 'group',
+                onTap: () async {
+                  setState(() => _pressedTab = 'group');
+                  await _openGroupHub();
+                  if (mounted) setState(() => _pressedTab = null);
+                },
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -6263,49 +6403,406 @@ KURALLAR:
         ),
       );
     }
-    // İlk 8 ders görünür (2x4); kalan dersler "Diğer Dersler" sheet'inde
-    // listelenir. Yatayda 2 satır halinde 4'er ders.
-    final visible = subjects.take(8).toList();
-    final hasMore = subjects.length > 8;
+    // TÜM dersler yatay kaydırmalı şeritte görünür — "Diğer Dersler" kaldırıldı.
+    // Eklenen özel dersler de bu listede (subjects) yer alır.
+    final visible = subjects;
 
+    const green = Color(0xFF22C55E);
+    final showHint = _selectedSubject == null && visible.length > 3;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        GridView.count(
-          crossAxisCount: 4,
-          mainAxisSpacing: 8,
-          crossAxisSpacing: 8,
-          childAspectRatio: 1.0,
-          shrinkWrap: true,
-          physics: NeverScrollableScrollPhysics(),
-          children: [
-            for (final s in visible) _subjectTile(s),
-          ],
+        // "Hangi derste?" başlığı ile "Kaydır" ipucu AYNI HİZADA (tek satır,
+        // çerçevenin üstünde). Kaydır ikonu: el hareketi + sağa-sola ok.
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text('HANGİ DERSTE YARIŞACAKSIN?'.tr(),
+                    style: _sans(
+                        size: 10.5,
+                        weight: FontWeight.w800,
+                        color: AppPalette.textPrimary(context),
+                        letterSpacing: 0.04)),
+              ),
+              if (showHint)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: green,
+                    borderRadius: BorderRadius.circular(100),
+                    boxShadow: [
+                      BoxShadow(
+                        color: green.withValues(alpha: 0.35),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('Kaydır'.tr(),
+                          style: _sans(
+                              size: 10,
+                              weight: FontWeight.w800,
+                              color: Colors.white,
+                              letterSpacing: 0.04)),
+                      const SizedBox(width: 4),
+                      // İkon aynı; sadece 180° döndürüldü.
+                      Transform.rotate(
+                        angle: math.pi,
+                        child: const Icon(Icons.swipe_rounded,
+                            size: 14, color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+        // Yeşil çerçeve — büyük ders karoları yatayda kayar. Diğer çerçeveler
+        // (Dünya/Ülke, sekmeler) ile aynı genişlikte hizalanır.
+        Container(
+          padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
+          decoration: BoxDecoration(
+            color: AppPalette.card(context),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: green, width: 1.6),
+          ),
+          child: LayoutBuilder(
+            builder: (ctx, cons) {
+              const spacing = 10.0;
+              // Büyük karolar: ~3 ders tam + 4.'nün bir kısmı görünür.
+              final tileW = (cons.maxWidth - spacing * 3) / 3.4;
+              return SizedBox(
+                height: 108,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: EdgeInsets.zero,
+                  itemCount: visible.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: spacing),
+                  itemBuilder: (_, i) => SizedBox(
+                    width: tileW,
+                    child: _subjectTile(visible[i]),
+                  ),
+                ),
+              );
+            },
+          ),
         ),
         SizedBox(height: 10),
-        // Altta yan yana: Diğer Dersler (varsa) + Yeni Bir Ders Ekle
-        Row(
-          children: [
-            Expanded(
-              child: hasMore
-                  ? _wideActionButton(
-                      icon: Icons.keyboard_arrow_down_rounded,
-                      label: 'Diğer Dersler'.tr(),
-                      onTap: _openOtherSubjectsSheet,
-                      filled: false,
-                    )
-                  : const SizedBox.shrink(),
+        // "Diğer Dersler" kaldırıldı (tüm dersler şeritte). Yeni Ders Ekle tam
+        // genişlik.
+        _wideActionButton(
+          icon: Icons.add_rounded,
+          label: 'Yeni Bir Ders Ekle'.tr(),
+          onTap: _addCustomSubject,
+          filled: true,
+        ),
+      ],
+    );
+  }
+
+  // ─── YARIŞLARIM ──────────────────────────────────────────────────────────────
+  // Her bölüm bir SEKME; basınca o kategorinin tüm sonuçları açılır. Dünya/Ülke
+  // düello kayıtlarından, grup ise kayıtlı grup yarışlarından gelir.
+  Widget _raceEmptyNote(BuildContext ctx) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      decoration: BoxDecoration(
+        color: AppPalette.card(ctx),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppPalette.border(ctx)),
+      ),
+      child: Text('Henüz yarış yok.'.tr(),
+          style: _sans(size: 12, color: AppPalette.textSecondary(ctx))),
+    );
+  }
+
+  // Tek yarış sekmesi — çerçeve içinde, zemini BEYAZ.
+  Widget _raceTab(String emoji, String title, int count, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE2E4E8), width: 0.8),
+          ),
+          child: Row(
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 17)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(title.tr(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _sans(
+                        size: 13,
+                        weight: FontWeight.w800,
+                        color: const Color(0xFF1A1A1A))),
+              ),
+              if (count > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: _Palette.brand.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                  child: Text('$count',
+                      style: _sans(
+                          size: 10.5,
+                          weight: FontWeight.w800,
+                          color: _Palette.brand)),
+                ),
+              const SizedBox(width: 6),
+              const Icon(Icons.chevron_right_rounded,
+                  size: 18, color: Color(0xFF9AA0A6)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// "Yarışlarım" — ders çerçevesi kapandıktan sonra, kendi (soluk beyaz)
+  /// çerçevesi içinde 4 beyaz sekme.
+  Widget _buildMyRacesSections() {
+    final worldN = _records.where((r) => r.scope == 'world').length;
+    final countryN = _records.where((r) => r.scope == 'country').length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 2, bottom: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text('Yarışlarım'.tr(),
+                    style: _serif(size: 18, weight: FontWeight.w800)),
+              ),
+              // Başlık hizasında en sağda aç/kapa: açıkken Gizle, kapalıyken Göster.
+              GestureDetector(
+                onTap: () =>
+                    setState(() => _racesExpanded = !_racesExpanded),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: AppPalette.card(context),
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(color: AppPalette.border(context)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                          _racesExpanded
+                              ? Icons.keyboard_arrow_up_rounded
+                              : Icons.keyboard_arrow_down_rounded,
+                          size: 15,
+                          color: AppPalette.textSecondary(context)),
+                      const SizedBox(width: 3),
+                      Text(_racesExpanded ? 'Gizle'.tr() : 'Göster'.tr(),
+                          style: _sans(
+                              size: 11,
+                              weight: FontWeight.w800,
+                              color: AppPalette.textSecondary(context))),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (_racesExpanded)
+          Container(
+            padding: const EdgeInsets.fromLTRB(10, 10, 10, 2),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF2F3F5),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2E4E8)),
             ),
-            if (hasMore) SizedBox(width: 8),
-            Expanded(
-              child: _wideActionButton(
-                icon: Icons.add_rounded,
-                label: 'Yeni Bir Ders Ekle'.tr(),
-                onTap: _addCustomSubject,
-                filled: true,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _raceTab('🌍', 'Dünya Çapında Yarışlarım', worldN,
+                    () => _openRecordsPage(scope: 'world')),
+                _raceTab('🇹🇷', 'Ülke Çapında Yarışlarım', countryN,
+                    () => _openRecordsPage(scope: 'country')),
+                _raceTab('👤', 'Arkadaşımla Yarışlarım', _records.length,
+                    () => _openRecordsPage(scope: '')),
+                StreamBuilder<List<GroupContest>>(
+                  stream: GroupContestService.myContestsStream(),
+                  builder: (c, snap) {
+                    final n = (snap.data ?? const <GroupContest>[]).length;
+                    return _raceTab('👥', 'Grup Arkadaşımla Yarışlarım', n,
+                        _openGroupRacesPage);
+                  },
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Grup yarışlarım — bir yarışa dokununca o yarışın SIRALAMA TABLOSU
+  /// (GroupContestScreen sonuç ekranı) açılır.
+  void _openGroupRacesPage() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.8),
+        decoration: BoxDecoration(
+          color: AppPalette.bg(ctx),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppPalette.border(ctx),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text('Grup Arkadaşımla Yarışlarım'.tr(),
+                style: _serif(size: 19, weight: FontWeight.w800)),
+            const SizedBox(height: 4),
+            Text('Bir yarışa dokun → sonuç tablosu ve sıralama.'.tr(),
+                style: _sans(
+                    size: 12.5, color: AppPalette.textSecondary(ctx))),
+            const SizedBox(height: 12),
+            Flexible(
+              child: StreamBuilder<List<GroupContest>>(
+                stream: GroupContestService.myContestsStream(),
+                builder: (c, snap) {
+                  final list = snap.data ?? const <GroupContest>[];
+                  if (list.isEmpty) return _raceEmptyNote(ctx);
+                  return ListView(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    children: [for (final g in list) _myContestCard(g)],
+                  );
+                },
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// Seçili dersin konuları — AYNI yeşil çerçeve içinde inline gösterilir.
+  /// Geri okuyla ders şeridine dönülür; konuya basınca yarış/grup akışı başlar.
+  Widget _inlineTopicsView(Color green) {
+    final key = _selectedSubject;
+    if (key == null) return const SizedBox.shrink();
+    final subj = _findSubjectByKey(key);
+    var topics = subj.topics;
+    if (topics.isEmpty) topics = _availableTopics();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            GestureDetector(
+              onTap: () => setState(() {
+                _selectedSubject = null;
+                _selectedTopic = null;
+              }),
+              child: Container(
+                width: 30,
+                height: 30,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: green.withValues(alpha: 0.12),
+                  border:
+                      Border.all(color: green.withValues(alpha: 0.45)),
+                ),
+                child: const Icon(Icons.arrow_back_rounded,
+                    size: 16, color: Color(0xFF15803D)),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(subj.emoji, style: const TextStyle(fontSize: 18)),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(subj.name.tr(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _sans(
+                      size: 14,
+                      weight: FontWeight.w800,
+                      color: AppPalette.textPrimary(context))),
+            ),
+            Text('Konu seç'.tr(),
+                style: _sans(
+                    size: 11,
+                    weight: FontWeight.w700,
+                    color: AppPalette.textSecondary(context))),
+          ],
+        ),
+        const SizedBox(height: 10),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 220),
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                for (int i = 0; i < topics.length; i++)
+                  Padding(
+                    padding: EdgeInsets.only(
+                        bottom: i == topics.length - 1 ? 0 : 8),
+                    child: GestureDetector(
+                      onTap: () => _handleTopicPicked(subj, topics[i]),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 13),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: green.withValues(alpha: 0.35),
+                              width: 0.8),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(topics[i],
+                                  style: _sans(
+                                      size: 13.5,
+                                      weight: FontWeight.w600,
+                                      color: const Color(0xFF1A1A1A))),
+                            ),
+                            const Icon(Icons.chevron_right_rounded,
+                                size: 18, color: Color(0xFF22C55E)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
       ],
     );
@@ -6539,15 +7036,7 @@ KURALLAR:
       });
       return;
     }
-    setState(() {
-      _selectedSubject = s.key;
-      _selectedTopic = null;
-    });
-    // Ortaya küçük bir pencere (dialog) aç — konuları burada göster.
-    // ÖNCELİK: subject objesinin kendi .topics listesi (EduProfile / curriculum
-    // tarafından doldurulmuş). _availableTopics() statik _findSubjectByKey
-    // üzerinden gittiği için müfredat-bazlı derslerde boş dönebiliyordu →
-    // dialog açılmadan sessiz return = "tıklamaya yanıt vermiyor" bug'ı.
+    // Konu listesi boşsa uyarı ver, dersi seçme.
     var topics = s.topics;
     if (topics.isEmpty) topics = _availableTopics();
     if (topics.isEmpty) {
@@ -6560,21 +7049,40 @@ KURALLAR:
       }
       return;
     }
-    final picked = await _showTopicsDialog(
-      subjectName: s.name,
-      topics: topics,
-    );
-    if (picked != null && mounted) {
-      setState(() => _selectedTopic = picked);
-      if (_groupMode) {
-        // Grup Yarışı modu: 1v1 yerine arkadaş grubu yarışması oluştur.
-        _createGroupContest(s, picked);
-      } else {
-        // Konuya basılır basılmaz yarışa başla — ara "Yarış Tipi" dialog'u
-        // kaldırıldı. Default test (5 çoktan seçmeli).
-        _findMatch(raceType: 'test');
-      }
+    setState(() {
+      _selectedSubject = s.key;
+      _selectedTopic = null;
+    });
+    // Konular ORTADA, arka planı flu, uzun (çok konu sığan) bir pencerede açılır.
+    final picked = await _showTopicsDialog(subjectName: s.name, topics: topics);
+    if (picked != null && mounted) _handleTopicPicked(s, picked);
+  }
+
+  /// Konu seçilince yarışa/gruba/arkadaşa geç.
+  void _handleTopicPicked(_Subject s, String topic) {
+    setState(() => _selectedTopic = topic);
+    if (_pendingFriend != null) {
+      final f = _pendingFriend!;
+      _pendingFriend = null;
+      _startFriendDuelWithSettings(f, s);
+    } else if (_groupMode) {
+      _createGroupContest(s, topic);
+    } else {
+      // Dünya/Ülke: konuya basılır basılmaz eşleşme (bu tasarım yok).
+      _findMatch(raceType: 'test');
     }
+  }
+
+  /// Arkadaş 1v1: konu seçildikten sonra soru tipi + sayısı sor, sonra davet
+  /// gönder. (Bu tasarım sadece arkadaş/grup için; Dünya/Ülke'de yok.)
+  Future<void> _startFriendDuelWithSettings(Friend f, _Subject s) async {
+    final res = await _askContestCount();
+    if (res == null || !mounted) return;
+    final (count, qType) = res;
+    // Seçilen ders + soru sayısı + tipi (mc/tf) davetle birlikte taşınır;
+    // kabul edilince owner bu ayarlarla soru üretir, guest aynı seti okur.
+    await _sendDuelInvite(context, f,
+        subject: s.name, count: count, qType: qType);
   }
 
   // Konu seçildikten sonra: Test Soruları / Eşleştirme Kartları seçici.
@@ -6742,14 +7250,14 @@ KURALLAR:
       onTap: () => setState(() => _groupMode = !_groupMode),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         decoration: BoxDecoration(
           gradient: on
               ? const LinearGradient(
                   colors: [purple, Color(0xFFA855F7)])
               : null,
           color: on ? null : AppPalette.card(context),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: on ? purple : AppPalette.border(context),
             width: on ? 1.6 : 1,
@@ -6758,31 +7266,34 @@ KURALLAR:
         child: Row(
           children: [
             Text(on ? '👥' : '👥',
-                style: const TextStyle(fontSize: 22)),
-            const SizedBox(width: 12),
+                style: const TextStyle(fontSize: 26)),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Grup Yarışı'.tr(),
                       style: _sans(
-                          size: 14,
+                          size: 15,
                           weight: FontWeight.w800,
                           color: on
                               ? Colors.white
                               : AppPalette.textPrimary(context))),
+                  const SizedBox(height: 3),
                   Text(
                       on
-                          ? 'Ders + konu seç → arkadaşlarını davet et'.tr()
-                          : 'Arkadaşlarınla aynı sorularda yarışın'.tr(),
+                          ? 'Bir ders ve konu seç, arkadaşlarını davet et. Herkes aynı soruları çözer, en yüksek puanı yapan kazanır ve grup sıralaması oluşur.'.tr()
+                          : 'Arkadaşlarını bir teste davet et — herkes aynı soruları çözer, puanlar karşılaştırılır ve grup içi sıralama çıkar. Sınıfça yarışmak için birebir.'.tr(),
                       style: _sans(
-                          size: 11,
+                          size: 11.5,
+                          height: 1.35,
                           color: on
-                              ? Colors.white.withValues(alpha: 0.9)
+                              ? Colors.white.withValues(alpha: 0.92)
                               : AppPalette.textSecondary(context))),
                 ],
               ),
             ),
+            const SizedBox(width: 10),
             // Aç/kapa anahtarı
             Container(
               width: 44,
@@ -6882,57 +7393,662 @@ KURALLAR:
     );
   }
 
-  /// Soru sayısı seçici (grup yarışı oluştururken). İptal → null.
-  Future<int?> _askContestCount() {
-    const opts = [3, 5, 10, 15];
-    return showModalBottomSheet<int>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        decoration: BoxDecoration(
-          color: AppPalette.bg(ctx),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Kaç soru?'.tr(),
-                style: _serif(size: 18, weight: FontWeight.w800)),
-            const SizedBox(height: 4),
-            Text('Herkes aynı soruları çözecek'.tr(),
-                style: _sans(
-                    size: 12, color: AppPalette.textSecondary(ctx))),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                for (final n in opts)
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: GestureDetector(
-                        onTap: () => Navigator.of(ctx).pop(n),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 18),
-                          decoration: BoxDecoration(
-                            color: AppPalette.card(ctx),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                                color: const Color(0xFF7C3AED)
-                                    .withValues(alpha: 0.45),
-                                width: 1.4),
-                          ),
-                          child: Text('$n',
-                              textAlign: TextAlign.center,
-                              style: _serif(
-                                  size: 22,
-                                  weight: FontWeight.w900,
-                                  color: AppPalette.textPrimary(ctx))),
-                        ),
-                      ),
+  // ─── DAVETLER ────────────────────────────────────────────────────────────────
+  // Gelen 1v1 + grup davetleri buraya düşer. Sayaç rozetiyle tam-genişlik pill.
+  Widget _buildInvitesTab() {
+    const orange = Color(0xFFFF6A00);
+    return StreamBuilder<List<DueloInvite>>(
+      stream: DueloMatchmakingService.watchInvites(),
+      builder: (c1, s1) {
+        final duel = s1.data ?? const <DueloInvite>[];
+        return StreamBuilder<List<GroupInvite>>(
+          stream: ContestGroupService.watchGroupInvites(),
+          builder: (c2, s2) {
+            final grp = s2.data ?? const <GroupInvite>[];
+            final total = duel.length + grp.length;
+            final has = total > 0;
+            return GestureDetector(
+              onTap: _openInvitesHub,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                decoration: BoxDecoration(
+                  color: has
+                      ? orange.withValues(alpha: 0.10)
+                      : AppPalette.card(context),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                      color: has
+                          ? orange.withValues(alpha: 0.45)
+                          : AppPalette.border(context)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.notifications_rounded,
+                        size: 18,
+                        color:
+                            has ? orange : AppPalette.textSecondary(context)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text('Davetler'.tr(),
+                          style: _sans(
+                              size: 12.5,
+                              weight: FontWeight.w800,
+                              color: AppPalette.textPrimary(context))),
                     ),
+                    if (has)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: orange,
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                        child: Text('$total ${"yeni".tr()}',
+                            style: _sans(
+                                size: 10,
+                                weight: FontWeight.w800,
+                                color: Colors.white)),
+                      ),
+                    const SizedBox(width: 4),
+                    Icon(Icons.chevron_right_rounded,
+                        size: 18, color: AppPalette.textSecondary(context)),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Davetler merkezi — ORTADA açılan pencere. En üstte DEMO davetler (cevap
+  /// verilebilir), altında gerçek grup + 1v1 davetleri.
+  void _openInvitesHub() {
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.35),
+      builder: (hctx) => Dialog(
+        backgroundColor: AppPalette.bg(hctx),
+        insetPadding:
+            const EdgeInsets.symmetric(horizontal: 20, vertical: 36),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(hctx).size.height * 0.8),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text('Davetler'.tr(),
+                          style:
+                              _serif(size: 19, weight: FontWeight.w800)),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.of(hctx).pop(),
+                      child: Icon(Icons.close_rounded,
+                          size: 20, color: AppPalette.textSecondary(hctx)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text('Sana gelen 1v1 ve grup yarışı davetleri.'.tr(),
+                    style: _sans(
+                        size: 12.5, color: AppPalette.textSecondary(hctx))),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: StreamBuilder<List<GroupInvite>>(
+                    stream: ContestGroupService.watchGroupInvites(),
+                    builder: (gc, gs) {
+                      final groups = gs.data ?? const <GroupInvite>[];
+                      return StreamBuilder<List<DueloInvite>>(
+                        stream: DueloMatchmakingService.watchInvites(),
+                        builder: (dc, ds) {
+                          final duels = ds.data ?? const <DueloInvite>[];
+                          return ListView(
+                            padding: EdgeInsets.zero,
+                            children: [
+                              _demoSectionLabel(
+                                  hctx, 'demo davet — cevap verip dene'),
+                              _demoDuelInviteCard(hctx),
+                              _demoGroupInviteCard(hctx),
+                              for (final g in groups)
+                                _groupInviteCard(hctx, g),
+                              for (final d in duels)
+                                _duelInviteCard(hctx, d),
+                            ],
+                          );
+                        },
+                      );
+                    },
                   ),
+                ),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _demoDuelInviteCard(BuildContext hctx) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppPalette.card(hctx),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: const Color(0xFF22C55E).withValues(alpha: 0.40)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('⚔️', style: TextStyle(fontSize: 20)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('@Ali_Demo seni birebir yarışa davet etti',
+                    style: _sans(
+                        size: 13.5,
+                        weight: FontWeight.w800,
+                        color: AppPalette.textPrimary(hctx))),
+              ),
+              Text('şimdi'.tr(),
+                  style: _sans(
+                      size: 10.5, color: AppPalette.textSecondary(hctx))),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text('Genel Kültür • Demo',
+              style: _sans(size: 12, color: AppPalette.textSecondary(hctx))),
+          const SizedBox(height: 10),
+          _PrimaryButton(
+            label: 'Kabul Et (Demo)',
+            brand: true,
+            onTap: () {
+              Navigator.of(hctx).pop();
+              _startDemoDuel('Ali_Demo', '🦊');
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _demoGroupInviteCard(BuildContext hctx) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppPalette.card(hctx),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _kGroupPurple.withValues(alpha: 0.40)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('👥', style: TextStyle(fontSize: 20)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('@Ayşe_Demo grup yarışı açtı ve seni davet etti',
+                    style: _sans(
+                        size: 13.5,
+                        weight: FontWeight.w800,
+                        color: AppPalette.textPrimary(hctx))),
+              ),
+              Text('şimdi'.tr(),
+                  style: _sans(
+                      size: 10.5, color: AppPalette.textSecondary(hctx))),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text('“Fizikçiler” · Genel Kültür • Demo',
+              style: _sans(size: 12, color: AppPalette.textSecondary(hctx))),
+          const SizedBox(height: 6),
+          Text('3 kişi: @Ayşe_Demo, @Mehmet_Demo, @Sen',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: _sans(
+                  size: 11.5,
+                  weight: FontWeight.w600,
+                  color: AppPalette.textSecondary(hctx))),
+          const SizedBox(height: 10),
+          _PrimaryButton(
+            label: '🏆 Katıl (Demo)',
+            brand: true,
+            onTap: () {
+              Navigator.of(hctx).pop();
+              _startDemoDuel('Fizikçiler', '⚡');
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _duelInviteCard(BuildContext hctx, DueloInvite inv) {
+    final who = inv.fromDisplayName.trim().isNotEmpty
+        ? inv.fromDisplayName
+        : inv.fromUsername;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppPalette.card(hctx),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: const Color(0xFFFF6A00).withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('⚔️', style: TextStyle(fontSize: 20)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('@$who seni birebir yarışa davet etti',
+                    style: _sans(
+                        size: 13.5,
+                        weight: FontWeight.w800,
+                        color: AppPalette.textPrimary(hctx))),
+              ),
+              Text(_inviteTimeAgo(inv.sentAt),
+                  style: _sans(
+                      size: 10.5, color: AppPalette.textSecondary(hctx))),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+              '${inv.subjectKey ?? "Genel"}${(inv.topic ?? "").isNotEmpty ? " • ${inv.topic}" : ""}',
+              style:
+                  _sans(size: 12, color: AppPalette.textSecondary(hctx))),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _PrimaryButton(
+                  label: 'Kabul Et',
+                  brand: true,
+                  onTap: () {
+                    Navigator.of(hctx).pop();
+                    _acceptDuelInvite(inv);
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () =>
+                    DueloMatchmakingService.rejectInvite(inviteId: inv.id),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 15),
+                  decoration: BoxDecoration(
+                    color: AppPalette.card(hctx),
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(color: AppPalette.border(hctx)),
+                  ),
+                  child: Text('Reddet'.tr(),
+                      style: _sans(
+                          size: 13,
+                          weight: FontWeight.w700,
+                          color: AppPalette.textSecondary(hctx))),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _groupInviteCard(BuildContext hctx, GroupInvite g) {
+    final who = g.fromDisplayName.trim().isNotEmpty
+        ? g.fromDisplayName
+        : g.fromUsername;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppPalette.card(hctx),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _kGroupPurple.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('👥', style: TextStyle(fontSize: 20)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                    '@$who grup yarışı açtı ve seni davet etti',
+                    style: _sans(
+                        size: 13.5,
+                        weight: FontWeight.w800,
+                        color: AppPalette.textPrimary(hctx))),
+              ),
+              Text(_inviteTimeAgo(g.when),
+                  style: _sans(
+                      size: 10.5, color: AppPalette.textSecondary(hctx))),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+              '${g.groupName.isNotEmpty ? "“${g.groupName}” · " : ""}${g.subjectName}${g.topic.isNotEmpty ? " • ${g.topic}" : ""}',
+              style:
+                  _sans(size: 12, color: AppPalette.textSecondary(hctx))),
+          // Grubun üyeleri (kaç kişi + kimler).
+          if (g.groupId.isNotEmpty)
+            FutureBuilder<ContestGroup?>(
+              future: ContestGroupService.getGroup(g.groupId),
+              builder: (fc, fs) {
+                final grp = fs.data;
+                if (grp == null) return const SizedBox(height: 6);
+                final names = grp.members
+                    .map((m) => '@${m['username'] ?? 'oyuncu'}')
+                    .join(', ');
+                return Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                      '${grp.memberCount} kişi: $names',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: _sans(
+                          size: 11.5,
+                          weight: FontWeight.w600,
+                          color: AppPalette.textSecondary(hctx))),
+                );
+              },
+            ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _PrimaryButton(
+                  label: '🏆 Katıl',
+                  brand: true,
+                  onTap: () {
+                    Navigator.of(hctx).pop();
+                    _joinGroupInvite(g);
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => ContestGroupService.dismissInvite(g.id),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 15),
+                  decoration: BoxDecoration(
+                    color: AppPalette.card(hctx),
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(color: AppPalette.border(hctx)),
+                  ),
+                  child: Text('Sil'.tr(),
+                      style: _sans(
+                          size: 13,
+                          weight: FontWeight.w700,
+                          color: AppPalette.textSecondary(hctx))),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _joinGroupInvite(GroupInvite g) {
+    // Daveti kabul edince grup SANA DA kaydedilsin (kuran kişideki gibi, aynı
+    // yerde: Gruplarım). memberUids'e eklenince myGroupsStream'de görünür.
+    if (g.groupId.isNotEmpty) {
+      ContestGroupService.joinGroup(g.groupId);
+    }
+    ContestGroupService.dismissInvite(g.id);
+    if (g.contestId.isEmpty) return;
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) =>
+          GroupContestScreen(contestId: g.contestId, autoJoin: true),
+    ));
+  }
+
+  Future<void> _acceptDuelInvite(DueloInvite inv) async {
+    final me = fb_auth.FirebaseAuth.instance.currentUser?.uid;
+    if (me == null) return;
+    final ok = await DueloMatchmakingService.acceptInvite(inviteId: inv.id);
+    if (!mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Düello açılamadı'.tr()),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => _DueloConnectScreen(
+        title: 'Düelloya bağlanılıyor…'.tr(),
+        resolveSessionId: () => _waitInviteSessionId(me, inv.id),
+        isOwner: false,
+        myUid: me,
+        opponentUid: inv.fromUid,
+        subjectName: inv.subjectKey ?? 'Genel Kültür',
+        topic: inv.topic,
+        opponentName: inv.fromUsername,
+      ),
+    ));
+  }
+
+  String _inviteTimeAgo(DateTime t) {
+    final d = DateTime.now().difference(t);
+    if (d.inMinutes < 1) return 'şimdi'.tr();
+    if (d.inMinutes < 60) return '${d.inMinutes} dk';
+    if (d.inHours < 24) return '${d.inHours} sa';
+    return '${d.inDays} gün';
+  }
+
+  // ─── DEMO VERİ + DEMO YARIŞ ─────────────────────────────────────────────────
+  static const List<(String, String)> _demoFriends = [
+    ('Ali_Demo', '🦊'),
+    ('Ayşe_Demo', '🐰'),
+    ('Mehmet_Demo', '🐼'),
+  ];
+
+  List<_QuizQuestion> _demoQuestions() {
+    const col = Color(0xFF22C55E);
+    _QuizQuestion q(String t, List<String> o, int c, String e) => _QuizQuestion(
+          subjectKey: 'demo',
+          subjectName: 'Genel Kültür',
+          subjectEmoji: '🎯',
+          subjectColor: col,
+          topic: 'Demo',
+          text: t,
+          options: o,
+          correctIndex: c,
+          hint: 'Bu bir demo sorusudur.',
+          explanation: e,
+          difficulty: 'easy',
+        );
+    return [
+      q("Türkiye'nin başkenti neresidir?",
+          ['İstanbul', 'Ankara', 'İzmir', 'Bursa'], 1,
+          "Ankara 1923'ten beri başkenttir."),
+      q('Bir üçgenin iç açıları toplamı kaç derecedir?',
+          ['90°', '180°', '270°', '360°'], 1,
+          'Her üçgende iç açılar toplamı 180°.'),
+      q('Suyun kimyasal formülü nedir?',
+          ['CO₂', 'O₂', 'H₂O', 'NaCl'], 2,
+          'Su iki hidrojen bir oksijenden oluşur → H₂O.'),
+      q('Güneş sisteminin en büyük gezegeni hangisidir?',
+          ['Dünya', 'Mars', 'Jüpiter', 'Venüs'], 2,
+          'Jüpiter en büyük gezegendir.'),
+      q('5 × 8 işleminin sonucu kaçtır?',
+          ['30', '35', '40', '45'], 2, '5 × 8 = 40.'),
+    ];
+  }
+
+  /// Demo yarış — botla (sessionId null) oynanır, gerçek rakip gerekmez.
+  void _startDemoDuel(String name, String avatar) {
+    final cfg = _WizardConfig()
+      ..count = 5
+      ..timeMode = 'race'
+      ..selectedSubjects = {'demo'};
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => _DueloQuizScreen(
+        cfg: cfg,
+        questions: _demoQuestions(),
+        opponentName: name,
+        opponentAvatar: avatar,
+        opponentFlag: '🎓',
+        opponentCountry: 'Demo',
+        opponentElo: 1200,
+        subjectName: 'Genel Kültür',
+        topicName: 'Demo',
+        scope: 'country',
+      ),
+    ));
+  }
+
+  Widget _demoSectionLabel(BuildContext ctx, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6, left: 2, top: 2),
+      child: Row(
+        children: [
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: const Color(0xFF22C55E).withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(100),
+            ),
+            child: Text('DEMO'.tr(),
+                style: _sans(
+                    size: 9,
+                    weight: FontWeight.w900,
+                    color: const Color(0xFF15803D),
+                    letterSpacing: 0.05)),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(text.tr(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: _sans(
+                    size: 10.5, color: AppPalette.textSecondary(ctx))),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _hubDemoFriendRow(BuildContext dctx, String name, String avatar) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.of(dctx).pop();
+          _startDemoDuel(name, avatar);
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          decoration: BoxDecoration(
+            color: const Color(0xFF22C55E).withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+                color: const Color(0xFF22C55E).withValues(alpha: 0.35)),
+          ),
+          child: Row(
+            children: [
+              Text(avatar, style: const TextStyle(fontSize: 20)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text('@$name',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _sans(
+                        size: 13.5,
+                        weight: FontWeight.w700,
+                        color: AppPalette.textPrimary(dctx))),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF22C55E).withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: Text('Demo Yarış'.tr(),
+                    style: _sans(
+                        size: 11,
+                        weight: FontWeight.w800,
+                        color: const Color(0xFF15803D))),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _searchResultRow(BuildContext dctx, FriendUser u) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        decoration: BoxDecoration(
+          color: AppPalette.bg(dctx),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppPalette.border(dctx)),
+        ),
+        child: Row(
+          children: [
+            Text(u.avatar.isNotEmpty ? u.avatar : '👤',
+                style: const TextStyle(fontSize: 20)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text('@${u.username}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _sans(
+                      size: 13,
+                      weight: FontWeight.w700,
+                      color: AppPalette.textPrimary(dctx))),
+            ),
+            GestureDetector(
+              onTap: () async {
+                final ok = await FriendService.sendRequest(toUid: u.uid);
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(ok
+                      ? '@${u.username} kullanıcısına istek gönderildi'
+                      : '@${u.username} zaten arkadaşın veya istek gönderilemedi'),
+                  behavior: SnackBarBehavior.floating,
+                ));
+              },
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF6A00),
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: Text('Ekle'.tr(),
+                    style: _sans(
+                        size: 12,
+                        weight: FontWeight.w800,
+                        color: Colors.white)),
+              ),
             ),
           ],
         ),
@@ -6940,12 +8056,1535 @@ KURALLAR:
     );
   }
 
+  /// Arkadaşınla Yarış merkezi — ORTADA açılan pencere. Demo öğrenciler +
+  /// kayıtlı arkadaşlar; en altta QR / Link / Kullanıcı adı. Kullanıcı adı
+  /// INLINE arama açar (yeni sayfa YOK).
+  Future<void> _open1v1Hub() async {
+    final searchCtl = TextEditingController();
+    Timer? debounce;
+    bool showSearch = false;
+    bool searching = false;
+    List<FriendUser> results = const [];
+
+    await showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.35),
+      builder: (dctx) => StatefulBuilder(
+        builder: (dctx, setD) {
+          void runSearch(String q) {
+            debounce?.cancel();
+            final t = q.trim();
+            if (t.length < 2) {
+              setD(() {
+                results = const [];
+                searching = false;
+              });
+              return;
+            }
+            setD(() => searching = true);
+            debounce = Timer(const Duration(milliseconds: 350), () async {
+              final users = await FriendService.searchUsers(t);
+              if (!dctx.mounted) return;
+              setD(() {
+                results = users;
+                searching = false;
+              });
+            });
+          }
+
+          return Dialog(
+            backgroundColor: AppPalette.bg(dctx),
+            insetPadding:
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 36),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+            child: Padding(
+              padding:
+                  EdgeInsets.only(bottom: MediaQuery.of(dctx).viewInsets.bottom),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(dctx).size.height * 0.8),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text('Arkadaşlarım'.tr(),
+                                style: _serif(
+                                    size: 19, weight: FontWeight.w800)),
+                          ),
+                          GestureDetector(
+                            onTap: () => Navigator.of(dctx).pop(),
+                            child: Icon(Icons.close_rounded,
+                                size: 20,
+                                color: AppPalette.textSecondary(dctx)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppPalette.card(dctx),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppPalette.border(dctx)),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // ~6 arkadaş sığar; fazlası çerçeve içinde kayar.
+                              Flexible(
+                                child: ConstrainedBox(
+                                  constraints:
+                                      const BoxConstraints(maxHeight: 330),
+                                  child: SingleChildScrollView(
+                                    child: Column(
+                                      children: [
+                                        _demoSectionLabel(dctx,
+                                            'dokunup demo yarışı dene'),
+                                        for (final d in _demoFriends)
+                                          _hubDemoFriendRow(
+                                              dctx, d.$1, d.$2),
+                                        StreamBuilder<List<Friend>>(
+                                          stream:
+                                              FriendService.watchFriends(),
+                                          builder: (c, snap) {
+                                            final friends = snap.data ??
+                                                const <Friend>[];
+                                            return Column(
+                                              children: [
+                                                for (final f in friends)
+                                                  _hubFriendRow(dctx, f),
+                                              ],
+                                            );
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Divider(
+                                  height: 18,
+                                  color: AppPalette.border(dctx)),
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                    left: 2, bottom: 8),
+                                child: Text('Yeni bir arkadaş ekle'.tr(),
+                                    style: _sans(
+                                        size: 11,
+                                        weight: FontWeight.w800,
+                                        color:
+                                            AppPalette.textSecondary(dctx),
+                                        letterSpacing: 0.04)),
+                              ),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _addMethodBtn('📲',
+                                        'QR ile ekle'.tr(),
+                                        () => _showFriendQrSheet(context)),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: _addMethodBtn('🔗',
+                                        'Link ile ekle'.tr(),
+                                        _shareFriendInviteLink),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: _addMethodBtn(
+                                      '👤',
+                                      'Kullanıcı adı'.tr(),
+                                      () => setD(
+                                          () => showSearch = !showSearch),
+                                      active: showSearch,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (showSearch) ...[
+                                const SizedBox(height: 10),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12),
+                                  decoration: BoxDecoration(
+                                    color: AppPalette.bg(dctx),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                        color: AppPalette.border(dctx)),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.search_rounded,
+                                          size: 18,
+                                          color:
+                                              AppPalette.textSecondary(dctx)),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: TextField(
+                                          controller: searchCtl,
+                                          autofocus: true,
+                                          onChanged: runSearch,
+                                          style: _sans(
+                                              size: 14,
+                                              weight: FontWeight.w600,
+                                              color:
+                                                  AppPalette.textPrimary(dctx)),
+                                          decoration: InputDecoration(
+                                            border: InputBorder.none,
+                                            hintText: 'Kullanıcı adı yaz…'.tr(),
+                                            hintStyle: _sans(
+                                                size: 13.5,
+                                                color: AppPalette
+                                                    .textSecondary(dctx)),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                if (searching)
+                                  const Padding(
+                                    padding:
+                                        EdgeInsets.symmetric(vertical: 12),
+                                    child: Center(
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2)),
+                                  )
+                                else if (searchCtl.text.trim().length >= 2 &&
+                                    results.isEmpty)
+                                  Padding(
+                                    padding:
+                                        const EdgeInsets.only(bottom: 6),
+                                    child: Text('Kullanıcı bulunamadı.'.tr(),
+                                        style: _sans(
+                                            size: 12,
+                                            color: AppPalette.textSecondary(
+                                                dctx))),
+                                  )
+                                else
+                                  for (final u in results)
+                                    _searchResultRow(dctx, u),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    debounce?.cancel();
+    searchCtl.dispose();
+  }
+
+  /// 1v1 merkezindeki arkadaş satırı — dokununca birebir yarış daveti.
+  Widget _hubFriendRow(BuildContext ctx, Friend f) {
+    final name = f.username.trim().isNotEmpty ? f.username : f.displayName;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.of(ctx).pop();
+          _startFriendContest(f);
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          decoration: BoxDecoration(
+            color: AppPalette.bg(ctx),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppPalette.border(ctx)),
+          ),
+          child: Row(
+            children: [
+              Text(f.avatar.isNotEmpty ? f.avatar : '👤',
+                  style: const TextStyle(fontSize: 20)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text('@$name',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _sans(
+                        size: 13.5,
+                        weight: FontWeight.w700,
+                        color: AppPalette.textPrimary(ctx))),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF6A00).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: Text('Yarış'.tr(),
+                    style: _sans(
+                        size: 11,
+                        weight: FontWeight.w800,
+                        color: const Color(0xFFFF6A00))),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Ekleme yöntemi butonu (emoji + etiket) — yatayda yan yana kullanılır.
+  /// [active] true → seçili görünüm (inline arama açıkken).
+  Widget _addMethodBtn(String emoji, String label, VoidCallback onTap,
+      {bool active = false}) {
+    const orange = Color(0xFFFF6A00);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+        decoration: BoxDecoration(
+          color: active ? orange.withValues(alpha: 0.10) : AppPalette.bg(context),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+              color: active
+                  ? orange.withValues(alpha: 0.55)
+                  : AppPalette.border(context)),
+        ),
+        child: Column(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 20)),
+            const SizedBox(height: 4),
+            Text(label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: _sans(
+                    size: 10.5,
+                    weight: FontWeight.w700,
+                    color: active
+                        ? orange
+                        : AppPalette.textPrimary(context))),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Davet linkini paylaş (link ile ekle).
+  Future<void> _shareFriendInviteLink() async {
+    final uname = _inviteUsername();
+    final link = 'https://qualsar.app/davet/$uname';
+    try {
+      await Share.share("QuAlsar Arena'da benimle yarış! 🏆\n"
+          '@$uname davet ediyor · kabul edince ikiniz de +50 QP kazanırsınız.\n\n'
+          '$link');
+    } catch (_) {
+      await Clipboard.setData(ClipboardData(text: link));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Davet linki kopyalandı'.tr()),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    }
+  }
+
+  // Demo gruplar — dokununca demo grup profili açılır.
+  static const List<(String, String, List<String>)> _demoGroups = [
+    ('Sınıf Kankalar', '🏆', ['Ali_Demo', 'Ayşe_Demo', 'Sen']),
+    ('Fizikçiler', '⚡', ['Mehmet_Demo', 'Ayşe_Demo', 'Sen']),
+  ];
+
+  /// Grup merkezi — ORTADA açılan pencere. Demo gruplar + kayıtlı gruplar;
+  /// altta "Yeni Grup Oluştur".
+  Future<void> _openGroupHub() {
+    return showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.35),
+      builder: (dctx) => Dialog(
+        backgroundColor: AppPalette.bg(dctx),
+        insetPadding:
+            const EdgeInsets.symmetric(horizontal: 20, vertical: 36),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(dctx).size.height * 0.8),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text('Gruplarım'.tr(),
+                          style:
+                              _serif(size: 19, weight: FontWeight.w800)),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.of(dctx).pop(),
+                      child: Icon(Icons.close_rounded,
+                          size: 20,
+                          color: AppPalette.textSecondary(dctx)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppPalette.card(dctx),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppPalette.border(dctx)),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: SingleChildScrollView(
+                            child: Column(
+                              children: [
+                                _demoSectionLabel(
+                                    dctx, 'dokunup demo grubu gör'),
+                                for (final dg in _demoGroups)
+                                  _hubDemoGroupRow(
+                                      dctx, dg.$1, dg.$2, dg.$3),
+                                StreamBuilder<List<ContestGroup>>(
+                                  stream:
+                                      ContestGroupService.myGroupsStream(),
+                                  builder: (c, snap) {
+                                    final groups =
+                                        snap.data ?? const <ContestGroup>[];
+                                    return Column(
+                                      children: [
+                                        for (final g in groups)
+                                          _hubGroupRow(dctx, g),
+                                      ],
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Divider(height: 18, color: AppPalette.border(dctx)),
+                        SizedBox(
+                          width: double.infinity,
+                          child: _addMethodBtn(
+                              '➕', 'Yeni Grup Oluştur'.tr(), () {
+                            Navigator.of(dctx).pop();
+                            _openCreateGroupSheet();
+                          }),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _hubDemoGroupRow(
+      BuildContext dctx, String name, String emoji, List<String> members) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.of(dctx).pop();
+          _showDemoGroupProfile(name, emoji, members);
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          decoration: BoxDecoration(
+            color: const Color(0xFF22C55E).withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+                color: const Color(0xFF22C55E).withValues(alpha: 0.35)),
+          ),
+          child: Row(
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 22)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('$name (Demo)',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: _sans(
+                            size: 13.5,
+                            weight: FontWeight.w800,
+                            color: AppPalette.textPrimary(dctx))),
+                    Text('${members.length} kişi',
+                        style: _sans(
+                            size: 11,
+                            color: AppPalette.textSecondary(dctx))),
+                  ],
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF22C55E).withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: Text('Aç'.tr(),
+                    style: _sans(
+                        size: 11,
+                        weight: FontWeight.w800,
+                        color: const Color(0xFF15803D))),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Demo grup profili — üyeler + "Demo Yarış Başlat".
+  void _showDemoGroupProfile(
+      String name, String emoji, List<String> members) {
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.35),
+      builder: (dctx) => Dialog(
+        backgroundColor: AppPalette.bg(dctx),
+        insetPadding:
+            const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 50,
+                    height: 50,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: _kGroupPurple.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(emoji, style: const TextStyle(fontSize: 28)),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('$name (Demo)',
+                            style: _serif(
+                                size: 18, weight: FontWeight.w800)),
+                        Text('${members.length} kişi · demo grup',
+                            style: _sans(
+                                size: 12,
+                                color: AppPalette.textSecondary(dctx))),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text('ÜYELER'.tr(),
+                  style: _sans(
+                      size: 10.5,
+                      weight: FontWeight.w800,
+                      color: AppPalette.textSecondary(dctx),
+                      letterSpacing: 0.08)),
+              const SizedBox(height: 8),
+              for (final m in members)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      const Text('🎓', style: TextStyle(fontSize: 18)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text('@$m',
+                            style: _sans(
+                                size: 13.5,
+                                weight: FontWeight.w700,
+                                color: AppPalette.textPrimary(dctx))),
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 12),
+              _PrimaryButton(
+                label: '🏆 Demo Yarış Başlat',
+                brand: true,
+                onTap: () {
+                  Navigator.of(dctx).pop();
+                  _startDemoDuel(name, emoji);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Grup merkezindeki grup satırı — dokununca profil (düzenle/çık/yarış).
+  Widget _hubGroupRow(BuildContext ctx, ContestGroup g) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.of(ctx).pop();
+          _openGroupProfile(g);
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          decoration: BoxDecoration(
+            color: AppPalette.bg(ctx),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppPalette.border(ctx)),
+          ),
+          child: Row(
+            children: [
+              Text(g.avatar, style: const TextStyle(fontSize: 22)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(g.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: _sans(
+                            size: 13.5,
+                            weight: FontWeight.w800,
+                            color: AppPalette.textPrimary(ctx))),
+                    Text(
+                        g.status.isEmpty
+                            ? '${g.memberCount} üye'
+                            : g.status,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: _sans(
+                            size: 11,
+                            color: AppPalette.textSecondary(ctx))),
+                  ],
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: _kGroupPurple.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: Text('Aç'.tr(),
+                    style: _sans(
+                        size: 11,
+                        weight: FontWeight.w800,
+                        color: _kGroupPurple)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─── KAYITLI GRUPLAR ────────────────────────────────────────────────────────
+  // Grup Yarışı bannerının hemen altında, yatayda 4 slot: dolu gruplar +
+  // "Grup Ekle". Gruba basınca profili açılır; oradan "Yeni Yarış Başlat"
+  // ile tüm üyelere bildirim gider.
+  static const Color _kGroupPurple = Color(0xFF7C3AED);
+
+  Widget _buildSavedGroupsRow() {
+    return StreamBuilder<List<ContestGroup>>(
+      stream: ContestGroupService.myGroupsStream(),
+      builder: (context, snap) {
+        final groups = snap.data ?? const <ContestGroup>[];
+        final slots = <Widget>[];
+        for (int i = 0; i < 4; i++) {
+          if (i < groups.length) {
+            slots.add(Expanded(child: _savedGroupTile(groups[i])));
+          } else {
+            slots.add(Expanded(child: _addGroupTile()));
+          }
+          if (i < 3) slots.add(const SizedBox(width: 8));
+        }
+        // NOT: ListView içindeki Row'da CrossAxisAlignment.stretch KULLANMA —
+        // dikey ListView Row'a sınırsız yükseklik verir; stretch bunu sonsuza
+        // zorlayıp tüm sayfayı boş bırakır. Karolar zaten sabit yükseklikte.
+        return Row(children: slots);
+      },
+    );
+  }
+
+  Widget _savedGroupTile(ContestGroup g) {
+    return GestureDetector(
+      onTap: () => _openGroupProfile(g),
+      child: Container(
+        height: 86,
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        decoration: BoxDecoration(
+          color: _kGroupPurple.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _kGroupPurple.withValues(alpha: 0.40)),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(g.avatar, style: const TextStyle(fontSize: 26)),
+            const SizedBox(height: 4),
+            Text(
+              g.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: _sans(
+                  size: 11,
+                  weight: FontWeight.w800,
+                  color: AppPalette.textPrimary(context)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _addGroupTile() {
+    return GestureDetector(
+      onTap: () => _openCreateGroupSheet(),
+      child: Container(
+        height: 86,
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppPalette.card(context),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+              color: AppPalette.border(context),
+              width: 1,
+              style: BorderStyle.solid),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add_rounded,
+                size: 24, color: AppPalette.textSecondary(context)),
+            const SizedBox(height: 2),
+            Text('Grup Ekle'.tr(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: _sans(
+                    size: 10.5,
+                    weight: FontWeight.w700,
+                    color: AppPalette.textSecondary(context))),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static const List<String> _kGroupEmojis = [
+    '👥', '🏆', '🔥', '⚡', '🎯', '🚀', '🧠', '⭐', '🎓', '💪', '🦁', '🐺'
+  ];
+
+  /// Grup oluştur / düzenle sayfası. [existing] verilirse düzenleme modu.
+  Future<void> _openCreateGroupSheet({ContestGroup? existing}) async {
+    final nameCtl = TextEditingController(text: existing?.name ?? '');
+    final statusCtl = TextEditingController(text: existing?.status ?? '');
+    String emoji = existing?.avatar ?? '👥';
+    // Yeni grup oluştururken doğrudan seçilen arkadaşlar (uid → Friend).
+    final selectedFriends = <String, Friend>{};
+
+    // Sheet SENKRON kapanır (ad, emoji, durum) döner; Firestore yazımı sheet
+    // kapandıktan SONRA yapılır → keyboard/inherited unmount sırası bozulmaz
+    // (_dependents.isEmpty assertion kırmızı ekranını önler).
+    final result = await showModalBottomSheet<(String, String, String)>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: StatefulBuilder(
+          builder: (ctx, setSheet) => Container(
+            decoration: BoxDecoration(
+              color: AppPalette.bg(ctx),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppPalette.border(ctx),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(existing == null ? 'Yeni Grup'.tr() : 'Grubu Düzenle'.tr(),
+                    style: _serif(size: 19, weight: FontWeight.w800)),
+                const SizedBox(height: 4),
+                Text(
+                    'Grubuna bir ad, profil ve durum mesajı ver. Sonra istediğin zaman aynı grupla tekrar yarışabilirsin.'
+                        .tr(),
+                    style: _sans(
+                        size: 12.5,
+                        height: 1.35,
+                        color: AppPalette.textSecondary(ctx))),
+                const SizedBox(height: 16),
+                Text('Profil'.tr(),
+                    style: _sans(
+                        size: 11,
+                        weight: FontWeight.w700,
+                        color: AppPalette.textSecondary(ctx),
+                        letterSpacing: 0.06)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final e in _kGroupEmojis)
+                      GestureDetector(
+                        onTap: () => setSheet(() => emoji = e),
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: emoji == e
+                                ? _kGroupPurple.withValues(alpha: 0.14)
+                                : AppPalette.card(ctx),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: emoji == e
+                                  ? _kGroupPurple
+                                  : AppPalette.border(ctx),
+                              width: emoji == e ? 2 : 1,
+                            ),
+                          ),
+                          child: Text(e, style: const TextStyle(fontSize: 22)),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _groupField(ctx, nameCtl, 'Grup adı'.tr(), 'Örn: Sınıf Kankalar'),
+                const SizedBox(height: 12),
+                _groupField(ctx, statusCtl, 'Durum mesajı'.tr(),
+                    'Örn: Bu hafta fizik!'),
+                // Sadece yeni grup: arkadaş seç → grup baştan üyelerle dolu.
+                if (existing == null) ...[
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Text('ARKADAŞ EKLE'.tr(),
+                          style: _sans(
+                              size: 11,
+                              weight: FontWeight.w700,
+                              color: AppPalette.textSecondary(ctx),
+                              letterSpacing: 0.06)),
+                      const Spacer(),
+                      if (selectedFriends.isNotEmpty)
+                        Text('${selectedFriends.length} seçili'.tr(),
+                            style: _sans(
+                                size: 11,
+                                weight: FontWeight.w800,
+                                color: _kGroupPurple)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 220),
+                    child: StreamBuilder<List<Friend>>(
+                      stream: FriendService.watchFriends(),
+                      builder: (fctx, snap) {
+                        final friends = snap.data ?? const <Friend>[];
+                        if (friends.isEmpty) {
+                          return Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: AppPalette.card(ctx),
+                              borderRadius: BorderRadius.circular(12),
+                              border:
+                                  Border.all(color: AppPalette.border(ctx)),
+                            ),
+                            child: Text(
+                                'Henüz arkadaşın yok. Grubu oluşturduktan sonra kullanıcı adı / QR / link ile davet edebilirsin.'
+                                    .tr(),
+                                style: _sans(
+                                    size: 12,
+                                    height: 1.35,
+                                    color: AppPalette.textSecondary(ctx))),
+                          );
+                        }
+                        return SingleChildScrollView(
+                          child: Column(
+                            children: [
+                              for (final f in friends)
+                                _friendCheckRow(
+                                  ctx,
+                                  f,
+                                  selectedFriends.containsKey(f.uid),
+                                  () => setSheet(() {
+                                    if (selectedFriends.containsKey(f.uid)) {
+                                      selectedFriends.remove(f.uid);
+                                    } else {
+                                      selectedFriends[f.uid] = f;
+                                    }
+                                  }),
+                                ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: _PrimaryButton(
+                    label: existing == null
+                        ? 'Grubu Oluştur'
+                        : 'Kaydet',
+                    brand: true,
+                    onTap: () {
+                      final name = nameCtl.text.trim();
+                      if (name.isEmpty) {
+                        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                          content: Text('Grup adı gir'.tr()),
+                          behavior: SnackBarBehavior.floating,
+                        ));
+                        return;
+                      }
+                      // Klavyeyi kapat + SENKRON pop (sonuç döner).
+                      FocusScope.of(ctx).unfocus();
+                      Navigator.of(ctx).pop((name, emoji, statusCtl.text));
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    nameCtl.dispose();
+    statusCtl.dispose();
+
+    // Sheet kapandıktan SONRA Firestore yazımı — güvenli.
+    if (result == null) return;
+    final (name, avatar, status) = result;
+    if (existing == null) {
+      final seed = selectedFriends.values
+          .map((f) => <String, dynamic>{
+                'uid': f.uid,
+                'username':
+                    f.username.trim().isNotEmpty ? f.username : f.displayName,
+                'avatar': f.avatar,
+              })
+          .toList();
+      await ContestGroupService.createGroup(
+          name: name, avatar: avatar, status: status, seedMembers: seed);
+    } else {
+      await ContestGroupService.updateProfile(existing.id,
+          name: name, avatar: avatar, status: status);
+    }
+  }
+
+  /// Grup oluştururken arkadaş seçim satırı (checkbox'lı).
+  Widget _friendCheckRow(
+      BuildContext ctx, Friend f, bool selected, VoidCallback onTap) {
+    final name = f.username.trim().isNotEmpty ? f.username : f.displayName;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: selected
+                ? _kGroupPurple.withValues(alpha: 0.08)
+                : AppPalette.card(ctx),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+                color: selected
+                    ? _kGroupPurple.withValues(alpha: 0.45)
+                    : AppPalette.border(ctx)),
+          ),
+          child: Row(
+            children: [
+              Text(f.avatar.isNotEmpty ? f.avatar : '👤',
+                  style: const TextStyle(fontSize: 20)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text('@$name',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _sans(
+                        size: 13.5,
+                        weight: FontWeight.w700,
+                        color: AppPalette.textPrimary(ctx))),
+              ),
+              Container(
+                width: 22,
+                height: 22,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: selected ? _kGroupPurple : Colors.transparent,
+                  border: Border.all(
+                      color: selected
+                          ? _kGroupPurple
+                          : AppPalette.border(ctx),
+                      width: 1.5),
+                ),
+                child: selected
+                    ? const Icon(Icons.check_rounded,
+                        size: 14, color: Colors.white)
+                    : null,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _groupField(BuildContext ctx, TextEditingController ctl, String label,
+      String hint) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: _sans(
+                size: 11,
+                weight: FontWeight.w700,
+                color: AppPalette.textSecondary(ctx),
+                letterSpacing: 0.06)),
+        const SizedBox(height: 6),
+        Container(
+          decoration: BoxDecoration(
+            color: AppPalette.card(ctx),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppPalette.border(ctx)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: TextField(
+            controller: ctl,
+            maxLength: 40,
+            style: _sans(
+                size: 14,
+                weight: FontWeight.w600,
+                color: AppPalette.textPrimary(ctx)),
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              counterText: '',
+              hintText: hint,
+              hintStyle: _sans(
+                  size: 13.5, color: AppPalette.textSecondary(ctx)),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Grup profili — bilgi + üyeler + "Yeni Yarış Başlat" / düzenle / çık.
+  Future<void> _openGroupProfile(ContestGroup g) async {
+    final myUid = fb_auth.FirebaseAuth.instance.currentUser?.uid;
+    final isOwner = g.ownerUid == myUid;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.8),
+        decoration: BoxDecoration(
+          color: AppPalette.bg(ctx),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppPalette.border(ctx),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Container(
+                  width: 54,
+                  height: 54,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: _kGroupPurple.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(g.avatar, style: const TextStyle(fontSize: 30)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(g.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: _serif(size: 19, weight: FontWeight.w800)),
+                      const SizedBox(height: 2),
+                      Text(
+                          g.status.isEmpty
+                              ? '${g.memberCount} üye'
+                              : g.status,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: _sans(
+                              size: 12.5,
+                              color: AppPalette.textSecondary(ctx))),
+                    ],
+                  ),
+                ),
+                if (isOwner)
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.of(ctx).pop();
+                      _openCreateGroupSheet(existing: g);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppPalette.card(ctx),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: AppPalette.border(ctx)),
+                      ),
+                      child: Icon(Icons.edit_rounded,
+                          size: 16, color: AppPalette.textPrimary(ctx)),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text('ÜYELER'.tr(),
+                style: _sans(
+                    size: 10.5,
+                    weight: FontWeight.w800,
+                    color: AppPalette.textSecondary(ctx),
+                    letterSpacing: 0.08)),
+            const SizedBox(height: 8),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    for (final m in g.members)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          children: [
+                            Text((m['avatar'] ?? '👤').toString(),
+                                style: const TextStyle(fontSize: 20)),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text('@${m['username'] ?? 'oyuncu'}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: _sans(
+                                      size: 13.5,
+                                      weight: FontWeight.w700,
+                                      color: AppPalette.textPrimary(ctx))),
+                            ),
+                            if ((m['uid'] ?? '') == g.ownerUid)
+                              Text('sahip'.tr(),
+                                  style: _sans(
+                                      size: 11,
+                                      weight: FontWeight.w700,
+                                      color: _kGroupPurple)),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: _PrimaryButton(
+                label: '🏆 Yeni Yarış Başlat',
+                brand: true,
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _startGroupContest(g);
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: TextButton(
+                onPressed: () async {
+                  Navigator.of(ctx).pop();
+                  await ContestGroupService.leaveOrDelete(g);
+                },
+                child: Text(
+                    isOwner ? 'Grubu Sil'.tr() : 'Gruptan Çık'.tr(),
+                    style: _sans(
+                        size: 13,
+                        weight: FontWeight.w700,
+                        color: const Color(0xFFDC2626))),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Kayıtlı grupla yeni yarış — grup modunu aç ve ORTADA, arka planı FLU bir
+  /// ders seçim penceresi aç. Ders seçilince konu → ayar → yarış akışı devam
+  /// eder (üyelere bildirim gider).
+  void _startGroupContest(ContestGroup g) {
+    setState(() {
+      _groupMode = true;
+      _activeGroup = g;
+      _pendingFriend = null;
+      _selectedSubject = null;
+      _selectedTopic = null;
+    });
+    _showSubjectPickerBlurred('“${g.name}” için ders seç',
+        'Ders → konu → soru tipi & sayısı; yarış üyelere gider.');
+  }
+
+  /// Arkadaşla 1v1 — grup akışıyla AYNI: flu ders seçimi → konu → soru tipi &
+  /// sayısı → arkadaşa davet.
+  void _startFriendContest(Friend f) {
+    setState(() {
+      _groupMode = false;
+      _activeGroup = null;
+      _pendingFriend = f;
+      _selectedSubject = null;
+      _selectedTopic = null;
+    });
+    final name = f.username.trim().isNotEmpty ? f.username : f.displayName;
+    _showSubjectPickerBlurred(
+        '@$name ile yarış — ders seç', 'Ders → konu → soru tipi & sayısı seç.');
+  }
+
+  /// Ortada açılan, arka planı FLU ders seçim penceresi (arkadaş + grup akışı).
+  void _showSubjectPickerBlurred(String title, String subtitle) {
+    final subjects = _orderedSubjects(_availableSubjects());
+    const green = Color(0xFF22C55E);
+    showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'dismiss',
+      barrierColor: Colors.black.withValues(alpha: 0.28),
+      transitionDuration: const Duration(milliseconds: 200),
+      pageBuilder: (ctx, _, __) => BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 9, sigmaY: 9),
+        child: Dialog(
+          backgroundColor: AppPalette.card(context),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+          child: Container(
+            constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(ctx).size.height * 0.8),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(title.tr(),
+                          style:
+                              _serif(size: 17, weight: FontWeight.w800)),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.of(ctx).pop(),
+                      child: Icon(Icons.close_rounded,
+                          size: 20, color: AppPalette.textSecondary(ctx)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(subtitle.tr(),
+                    style: _sans(
+                        size: 11.5, color: AppPalette.textSecondary(ctx))),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppPalette.bg(ctx),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: green, width: 1.6),
+                    ),
+                    child: GridView.count(
+                      crossAxisCount: 2,
+                      childAspectRatio: 2.7,
+                      mainAxisSpacing: 8,
+                      crossAxisSpacing: 8,
+                      padding: EdgeInsets.zero,
+                      children: [
+                        for (final s in subjects)
+                          _groupSubjectPickTile(ctx, s, green),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _groupSubjectPickTile(
+      BuildContext ctx, _Subject s, Color green) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.of(ctx).pop();
+        _onSubjectTap(s);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: green.withValues(alpha: 0.40), width: 1.2),
+        ),
+        child: Row(
+          children: [
+            Text(
+                _isLanguagePickerSubject(s.key) &&
+                        _chosenLanguage[s.key] != null
+                    ? _chosenLanguage[s.key]!.emoji
+                    : s.emoji,
+                style: const TextStyle(fontSize: 20)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                  _isLanguagePickerSubject(s.key) &&
+                          _chosenLanguage[s.key] != null
+                      ? _chosenLanguage[s.key]!.label
+                      : s.name.tr(),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: _sans(
+                      size: 11.5,
+                      weight: FontWeight.w700,
+                      color: const Color(0xFF1A1A1A))),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Yarış ayarları — soru tipi (çoktan seçmeli / doğru-yanlış) + soru sayısı
+  /// (5/10/15/20) + Başla. İptal → null; Başla → (sayı, tip) döner.
+  Future<(int, String)?> _askContestCount() {
+    const opts = [5, 10, 15, 20];
+    const purple = Color(0xFF7C3AED);
+    int selected = 10;
+    String qType = 'mc';
+    return showDialog<(int, String)>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.35),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) {
+          Widget typeBtn(String label, String key) {
+            final active = qType == key;
+            return Expanded(
+              child: GestureDetector(
+                onTap: () => setD(() => qType = key),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: active
+                        ? purple.withValues(alpha: 0.12)
+                        : AppPalette.bg(ctx),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color:
+                            active ? purple : AppPalette.border(ctx),
+                        width: active ? 1.6 : 1),
+                  ),
+                  child: Text(label.tr(),
+                      style: _sans(
+                          size: 12.5,
+                          weight: FontWeight.w800,
+                          color: active
+                              ? purple
+                              : AppPalette.textPrimary(ctx))),
+                ),
+              ),
+            );
+          }
+
+          Widget countPill(int n) {
+            final active = selected == n;
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: GestureDetector(
+                  onTap: () => setD(() => selected = n),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    decoration: BoxDecoration(
+                      color: active ? purple : AppPalette.bg(ctx),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                          color: active
+                              ? purple
+                              : purple.withValues(alpha: 0.35),
+                          width: 1.4),
+                    ),
+                    child: Text('$n',
+                        textAlign: TextAlign.center,
+                        style: _serif(
+                            size: 20,
+                            weight: FontWeight.w900,
+                            color: active
+                                ? Colors.white
+                                : AppPalette.textPrimary(ctx))),
+                  ),
+                ),
+              ),
+            );
+          }
+
+          return Dialog(
+            backgroundColor: AppPalette.card(ctx),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20)),
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('Yarış Ayarları'.tr(),
+                      textAlign: TextAlign.center,
+                      style: _serif(size: 18, weight: FontWeight.w800)),
+                  const SizedBox(height: 4),
+                  Text('Herkes aynı soruları çözecek'.tr(),
+                      textAlign: TextAlign.center,
+                      style: _sans(
+                          size: 12, color: AppPalette.textSecondary(ctx))),
+                  const SizedBox(height: 16),
+                  Text('SORU TİPİ'.tr(),
+                      style: _sans(
+                          size: 10,
+                          weight: FontWeight.w800,
+                          color: AppPalette.textSecondary(ctx),
+                          letterSpacing: 0.06)),
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    typeBtn('Çoktan Seçmeli', 'mc'),
+                    const SizedBox(width: 8),
+                    typeBtn('Doğru / Yanlış', 'tf'),
+                  ]),
+                  const SizedBox(height: 16),
+                  Text('SORU SAYISI'.tr(),
+                      style: _sans(
+                          size: 10,
+                          weight: FontWeight.w800,
+                          color: AppPalette.textSecondary(ctx),
+                          letterSpacing: 0.06)),
+                  const SizedBox(height: 8),
+                  Row(children: [for (final n in opts) countPill(n)]),
+                  const SizedBox(height: 20),
+                  _PrimaryButton(
+                    label: '🏆 Başla',
+                    brand: true,
+                    onTap: () => Navigator.of(ctx).pop((selected, qType)),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Çoktan seçmeli soruları Doğru/Yanlış ifadesine çevirir (yerel, arka uç
+  /// gerekmez): her soru için rastgele bir şık "iddia" olarak gösterilir;
+  /// doğru mu yanlış mı sorulur.
+  List<Map<String, dynamic>> _toTrueFalse(List<Map<String, dynamic>> mc) {
+    final rng = math.Random();
+    final out = <Map<String, dynamic>>[];
+    for (final q in mc) {
+      final opts = ((q['options'] as List?) ?? const [])
+          .map((e) => e.toString())
+          .toList();
+      if (opts.isEmpty) continue;
+      final correct = (q['correctIndex'] as int?) ?? 0;
+      final shown = rng.nextInt(opts.length);
+      final isTrue = shown == correct;
+      out.add({
+        'text': '${q['text']}\n\n📌 İddia: Doğru cevap “${opts[shown]}”.',
+        if (q['formula'] != null && (q['formula'] as String).isNotEmpty)
+          'formula': q['formula'],
+        'options': ['Doğru', 'Yanlış'],
+        'correctIndex': isTrue ? 0 : 1,
+        'hint': (q['hint'] ?? '').toString(),
+        'explanation':
+            'Doğru cevap: “${opts[correct]}”. ${(q['explanation'] ?? '').toString()}',
+        'difficulty': (q['difficulty'] ?? 'medium').toString(),
+      });
+    }
+    return out;
+  }
+
   /// Grup yarışması oluştur: ders+konu için SABİT soru seti üret (havuz→AI),
   /// contest dokümanı yarat, GroupContestScreen'e geç.
   Future<void> _createGroupContest(_Subject subject, String topic) async {
-    // Önce soru sayısını sor.
-    final count = await _askContestCount();
-    if (count == null || !mounted) return;
+    // Önce soru tipi + sayısını sor.
+    final res = await _askContestCount();
+    if (res == null || !mounted) return;
+    final (count, qType) = res;
 
     // Hazırlık göstergesi (kapatılamaz).
     showDialog(
@@ -6970,7 +9609,7 @@ KURALLAR:
       return;
     }
 
-    final maps = questions
+    var maps = questions
         .map((q) => <String, dynamic>{
               'text': q.text,
               if (q.formula != null && q.formula!.isNotEmpty)
@@ -6983,12 +9622,19 @@ KURALLAR:
             })
         .toList();
 
+    // Doğru/Yanlış seçildiyse çoktan seçmeli soruları D/Y ifadesine çevir.
+    if (qType == 'tf') maps = _toTrueFalse(maps);
+
+    final group = _activeGroup;
+    _activeGroup = null;
+
     final id = await GroupContestService.createContest(
       subjectKey: subject.key,
       subjectName: subject.name,
       subjectEmoji: subject.emoji,
       topic: topic,
       questions: maps,
+      groupId: group?.id,
     );
     if (!mounted) return;
     if (id == null) {
@@ -6998,6 +9644,23 @@ KURALLAR:
       ));
       return;
     }
+    // Kayıtlı grupla başlatıldıysa tüm üyelere anında davet bildirimi gönder.
+    if (group != null) {
+      await ContestGroupService.notifyMembers(
+        group,
+        contestId: id,
+        subjectName: subject.name,
+        topic: topic,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              '“${group.name}” grubuna yarış daveti gönderildi 🔔'.tr()),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    }
+    if (!mounted) return;
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => GroupContestScreen(contestId: id),
     ));
@@ -7105,10 +9768,10 @@ KURALLAR:
       context: context,
       barrierDismissible: true,
       barrierLabel: 'dismiss',
-      barrierColor: Colors.black.withValues(alpha: 0.2),
+      barrierColor: Colors.black.withValues(alpha: 0.28),
       transitionDuration: Duration(milliseconds: 200),
       pageBuilder: (ctx, a1, a2) => BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+        filter: ui.ImageFilter.blur(sigmaX: 9, sigmaY: 9),
         child: Dialog(
           backgroundColor: AppPalette.card(context),
           shape: RoundedRectangleBorder(
@@ -7116,8 +9779,8 @@ KURALLAR:
           ),
           child: Container(
             constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(ctx).size.height * 0.7,
-              maxWidth: 360,
+              maxHeight: MediaQuery.of(ctx).size.height * 0.85,
+              maxWidth: 380,
             ),
             padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
           child: Column(
@@ -7169,35 +9832,60 @@ KURALLAR:
                 ],
               ),
               SizedBox(height: 12),
+              // Büyük çerçeve — soluk beyaz arka plan; konular alt alta,
+              // her biri tam beyaz sekme olarak listelenir.
               Flexible(
-                child: SingleChildScrollView(
-                  child: Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      for (final t in topics)
-                        GestureDetector(
-                          onTap: () => Navigator.of(ctx).pop(t),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: AppPalette.cardMuted(context),
-                              borderRadius: BorderRadius.circular(100),
-                              border: Border.all(
-                                  color: AppPalette.border(context),
-                                  width: 0.6),
-                            ),
-                            child: Text(
-                              t,
-                              style: _sans(
-                                  size: 12.5,
-                                  weight: FontWeight.w600,
-                                  color: AppPalette.textPrimary(context)),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF2F3F5),
+                    borderRadius: BorderRadius.circular(16),
+                    // Yeşil çerçeve çizgisi; konular içinde kayar.
+                    border: Border.all(
+                        color: const Color(0xFF22C55E), width: 1.6),
+                  ),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (int i = 0; i < topics.length; i++)
+                          Padding(
+                            padding: EdgeInsets.only(
+                                bottom: i == topics.length - 1 ? 0 : 8),
+                            child: GestureDetector(
+                              onTap: () => Navigator.of(ctx).pop(topics[i]),
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 14),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                      color: const Color(0xFFE2E4E8),
+                                      width: 0.8),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        topics[i],
+                                        style: _sans(
+                                            size: 13.5,
+                                            weight: FontWeight.w600,
+                                            color: const Color(0xFF1A1A1A)),
+                                      ),
+                                    ),
+                                    const Icon(Icons.chevron_right_rounded,
+                                        size: 18, color: Color(0xFF9AA0A6)),
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -7225,15 +9913,18 @@ KURALLAR:
     Widget tile(bool hovering) {
       return AnimatedContainer(
         duration: Duration(milliseconds: 150),
-        padding: const EdgeInsets.all(6),
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
+            // Yeşil çerçeveyle uyumlu: normalde yeşil tonlu kenarlık.
             color: hovering
-                ? Color(0xFFFF6A00)
-                : (selected ? AppPalette.textPrimary(context) : AppPalette.border(context)),
-            width: hovering ? 2.4 : (selected ? 2 : 1),
+                ? const Color(0xFFFF6A00)
+                : (selected
+                    ? AppPalette.textPrimary(context)
+                    : const Color(0xFF22C55E).withValues(alpha: 0.45)),
+            width: hovering ? 2.4 : (selected ? 2 : 1.2),
           ),
         ),
         child: Padding(
@@ -7246,9 +9937,9 @@ KURALLAR:
                         _chosenLanguage[s.key] != null
                     ? _chosenLanguage[s.key]!.emoji
                     : s.emoji,
-                style: TextStyle(fontSize: 24),
+                style: TextStyle(fontSize: 32),
               ),
-              SizedBox(height: 4),
+              SizedBox(height: 6),
               Text(
                 _isLanguagePickerSubject(s.key) &&
                         _chosenLanguage[s.key] != null
@@ -7258,8 +9949,8 @@ KURALLAR:
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: _sans(
-                    size: 11,
-                    weight: FontWeight.w600,
+                    size: 10.5,
+                    weight: FontWeight.w700,
                     height: 1.15,
                     color: fg),
               ),
@@ -12334,6 +15025,34 @@ KURALLAR: TAM $count soru; opts 4 şık (A,B,C,D); ans A|B|C|D; kullanıcının 
   }
 }
 
+/// Çoktan seçmeli düello sorularını Doğru-Yanlış'a çevirir — grup akışındaki
+/// `_toTrueFalse` ile aynı mantık, ama `_QuizQuestion` listesi üstünde çalışır.
+/// Herkes aynı iddiayı görür (owner üretir, session'a yazar, guest okur).
+List<_QuizQuestion> _dueloToTrueFalse(List<_QuizQuestion> mc) {
+  final rng = math.Random();
+  final out = <_QuizQuestion>[];
+  for (final q in mc) {
+    if (q.options.isEmpty) continue;
+    final shown = rng.nextInt(q.options.length);
+    final isTrue = shown == q.correctIndex;
+    out.add(_QuizQuestion(
+      subjectKey: q.subjectKey,
+      subjectName: q.subjectName,
+      subjectEmoji: q.subjectEmoji,
+      subjectColor: q.subjectColor,
+      topic: q.topic,
+      text: '${q.text}\n\n📌 İddia: Doğru cevap “${q.options[shown]}”.',
+      options: const ['Doğru', 'Yanlış'],
+      correctIndex: isTrue ? 0 : 1,
+      hint: q.hint,
+      explanation:
+          'Doğru cevap: “${q.options[q.correctIndex]}”. ${q.explanation}',
+      difficulty: q.difficulty,
+    ));
+  }
+  return out;
+}
+
 /// Davet için hızlı ders seçici. Seçilen ders adını döndürür (iptal → null).
 Future<String?> _pickDueloSubject(BuildContext context) {
   const subjects = [
@@ -12468,6 +15187,8 @@ class _DueloConnectScreen extends StatefulWidget {
   final String subjectName;
   final String? topic;
   final String opponentName;
+  final int questionCount;
+  final String questionType; // 'mc' | 'tf'
   const _DueloConnectScreen({
     required this.title,
     required this.resolveSessionId,
@@ -12477,6 +15198,8 @@ class _DueloConnectScreen extends StatefulWidget {
     required this.subjectName,
     required this.topic,
     required this.opponentName,
+    this.questionCount = 5,
+    this.questionType = 'mc',
   });
   @override
   State<_DueloConnectScreen> createState() => _DueloConnectScreenState();
@@ -12510,6 +15233,8 @@ class _DueloConnectScreenState extends State<_DueloConnectScreen> {
         subjectName: widget.subjectName,
         topic: widget.topic,
         opponentName: widget.opponentName,
+        questionCount: widget.questionCount,
+        questionType: widget.questionType,
       ),
     ));
   }
@@ -12565,6 +15290,8 @@ class _DueloSessionEntryScreen extends StatefulWidget {
   final String subjectName;
   final String? topic;
   final String opponentName;
+  final int questionCount;
+  final String questionType; // 'mc' | 'tf'
   const _DueloSessionEntryScreen({
     required this.sessionId,
     required this.isOwner,
@@ -12573,6 +15300,8 @@ class _DueloSessionEntryScreen extends StatefulWidget {
     required this.subjectName,
     required this.topic,
     required this.opponentName,
+    this.questionCount = 5,
+    this.questionType = 'mc',
   });
   @override
   State<_DueloSessionEntryScreen> createState() =>
@@ -12592,7 +15321,13 @@ class _DueloSessionEntryScreenState extends State<_DueloSessionEntryScreen> {
     if (widget.isOwner) {
       if (mounted) setState(() => _status = 'Sorular üretiliyor…');
       questions = await _genDueloQuestions(
-          subjectName: widget.subjectName, topic: widget.topic, count: 5);
+          subjectName: widget.subjectName,
+          topic: widget.topic,
+          count: widget.questionCount);
+      // Doğru-Yanlış seçildiyse çoktan seçmeli seti T/F'e çevir (herkese aynı).
+      if (widget.questionType == 'tf' && questions.isNotEmpty) {
+        questions = _dueloToTrueFalse(questions);
+      }
       if (questions.length < 3) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -12658,7 +15393,8 @@ class _DueloSessionEntryScreenState extends State<_DueloSessionEntryScreen> {
   }
 }
 
-Future<void> _sendDuelInvite(BuildContext context, Friend friend) async {
+Future<void> _sendDuelInvite(BuildContext context, Friend friend,
+    {String? subject, int count = 5, String qType = 'mc'}) async {
   final me = fb_auth.FirebaseAuth.instance.currentUser?.uid;
   if (me == null) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -12667,14 +15403,16 @@ Future<void> _sendDuelInvite(BuildContext context, Friend friend) async {
     ));
     return;
   }
-  // 1) Ders seç.
-  final subject = await _pickDueloSubject(context);
-  if (subject == null || !context.mounted) return;
+  // 1) Ders — dışarıdan verildiyse kullan, yoksa seçtir.
+  final chosen = subject ?? await _pickDueloSubject(context);
+  if (chosen == null || !context.mounted) return;
   // 2) Daveti gönder (subjectKey = ders adı; CF kabul edilince session açar).
   final ok = await DueloMatchmakingService.invite(
     targetUid: friend.uid,
     targetUsername: friend.username,
-    subjectKey: subject,
+    subjectKey: chosen,
+    questionCount: count,
+    questionType: qType,
   );
   if (!context.mounted) return;
   if (!ok) {
@@ -12692,9 +15430,11 @@ Future<void> _sendDuelInvite(BuildContext context, Friend friend) async {
       isOwner: true,
       myUid: me,
       opponentUid: friend.uid,
-      subjectName: subject,
+      subjectName: chosen,
       topic: null,
       opponentName: friend.username,
+      questionCount: count,
+      questionType: qType,
     ),
   ));
 }
@@ -12807,6 +15547,98 @@ void _showAddFriendSheet(BuildContext context) {
   );
 }
 
+/// Kendi QR kodunu göster + arkadaşın QR'ını tara (1v1 merkezinden çağrılır).
+void _showFriendQrSheet(BuildContext context) {
+  final uname = _inviteUsername();
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (_) => Container(
+      decoration: BoxDecoration(
+        color: AppPalette.bg(context),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+                color: AppPalette.textSecondary(context),
+                borderRadius: BorderRadius.circular(10)),
+          ),
+          const SizedBox(height: 18),
+          Text('Senin QR Kodun'.tr(),
+              style:
+                  _serif(size: 20, weight: FontWeight.w600, letterSpacing: -0.02)),
+          const SizedBox(height: 4),
+          Text('Arkadaşın okutsun, ekleme isteği gelsin'.tr(),
+              style: _sans(size: 11, color: AppPalette.textSecondary(context))),
+          const SizedBox(height: 18),
+          Container(
+            width: 200,
+            height: 200,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppPalette.card(context),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppPalette.border(context)),
+            ),
+            child: QrImageView(
+              data: DeepLinkService.inviteLinkFor(uname),
+              version: QrVersions.auto,
+              gapless: true,
+              backgroundColor: Colors.white,
+              eyeStyle: const QrEyeStyle(
+                  eyeShape: QrEyeShape.square, color: Color(0xFF111111)),
+              dataModuleStyle: const QrDataModuleStyle(
+                  dataModuleShape: QrDataModuleShape.square,
+                  color: Color(0xFF111111)),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text('@$uname', style: _sans(size: 16, weight: FontWeight.w800)),
+          const SizedBox(height: 18),
+          _PrimaryButton(
+            label: '📷 Arkadaşının QR Kodunu Tara'.tr(),
+            brand: true,
+            onTap: () {
+              Navigator.pop(context);
+              showDialog(
+                context: context,
+                builder: (_) => const _QrScanDialog(),
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          _SecondaryButton(
+            label: '🔗 QR Yerine Linki Paylaş'.tr(),
+            onTap: () async {
+              final nav = Navigator.of(context);
+              final messenger = ScaffoldMessenger.of(context);
+              final link = 'https://qualsar.app/davet/$uname';
+              try {
+                await Share.share("QuAlsar Arena'da benimle yarış! 🏆\n"
+                    '@$uname davet ediyor · $link');
+              } catch (_) {
+                await Clipboard.setData(ClipboardData(text: link));
+                messenger.showSnackBar(SnackBar(
+                  content: Text('Davet linki kopyalandı'.tr()),
+                  behavior: SnackBarBehavior.floating,
+                ));
+              }
+              if (nav.mounted) nav.pop();
+            },
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 class _AddFriendSheet extends StatefulWidget {
   const _AddFriendSheet();
   @override
@@ -12916,8 +15748,20 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                 style: _sans(size: 12, color: AppPalette.textSecondary(context), height: 1.4),
               ),
               SizedBox(height: 16),
-              // Arama
-              _buildSearchField(),
+              ..._addBody(context),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Arama + hızlı yöntemler (QR/link) + sonuçlar — hem modal hem gömülü modda
+  /// ortak gövde.
+  List<Widget> _addBody(BuildContext context) {
+    return [
+      // Arama
+      _buildSearchField(),
               SizedBox(height: 18),
               // Hızlı yöntemler
               Text('HIZLI YÖNTEMLER'.tr(),
@@ -13049,11 +15893,7 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                       onAdd: () => _sendRequest(context, u),
                     ),
                   ),
-            ],
-          ),
-        ),
-      ),
-    );
+    ];
   }
 
   Widget _buildSearchField() {
@@ -17013,6 +19853,35 @@ class _QuizScreenState extends State<_QuizScreen> {
     }
   }
 
+  // Önceki soruya dön — boş bıraktığın soruları sonradan çözebilmen için.
+  void _prev() {
+    if (_index == 0) return;
+    setState(() {
+      _index -= 1;
+      _selected = _answers[_index];
+      _qSecondsLeft = _perQuestionLimit();
+      _hiddenOptions.clear();
+      _usedInThisQ.clear();
+    });
+  }
+
+  // Boş bırak → soruyu cevapsız geç (kilitleme yok, sonra dönüp çözülebilir).
+  void _skip() {
+    _selected = null;
+    widget.onProgress?.call(_index + 1);
+    if (_index >= _total - 1) {
+      _finishToResults();
+    } else {
+      setState(() {
+        _index += 1;
+        _selected = _answers[_index];
+        _qSecondsLeft = _perQuestionLimit();
+        _hiddenOptions.clear();
+        _usedInThisQ.clear();
+      });
+    }
+  }
+
   Future<void> _confirmExit() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -17027,7 +19896,7 @@ class _QuizScreenState extends State<_QuizScreen> {
     );
     if (ok == true && mounted) {
       _timer?.cancel();
-      Navigator.of(context).popUntil((r) => r.isFirst);
+      Navigator.of(context).pop();
     }
   }
 
@@ -17349,49 +20218,88 @@ class _QuizScreenState extends State<_QuizScreen> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
-              child: Row(
-                children: [
-                  GestureDetector(
-                    onTap: _hintUsed > 0 ? null : _openHint,
-                    child: Opacity(
-                      opacity: _hintUsed > 0 ? 0.45 : 1.0,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
-                        decoration: BoxDecoration(
-                          color: Color(0xFFFFF4E5),
-                          borderRadius: BorderRadius.circular(100),
-                          border: Border.all(
-                              color: Color(0xFFFFE0B8), width: 1.5),
-                        ),
-                        child: Row(
-                          children: [
-                            Text(_hintUsed > 0 ? '✅' : '💡',
-                                style: TextStyle(fontSize: 14)),
-                            SizedBox(width: 6),
-                            Text(
-                              _hintUsed > 0
-                                  ? 'Kullanıldı'.tr()
-                                  : 'İpucu'.tr(),
-                              style: _sans(
-                                  size: 13,
-                                  weight: FontWeight.w600,
-                                  color: Color(0xFFB45309)),
+              child: Builder(
+                builder: (context) {
+                  // Düello/harici akışta (onFinish != null) boş bırakma serbest.
+                  final bool canSkip = widget.onFinish != null;
+                  final bool blank = _selected == null;
+                  final bool last = _index >= _total - 1;
+                  return Row(
+                    children: [
+                      // Geri tuşu — ilk sorudan sonra görünür.
+                      if (_index > 0) ...[
+                        GestureDetector(
+                          onTap: _prev,
+                          child: Container(
+                            width: 50,
+                            height: 50,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: AppPalette.card(context),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                  color: AppPalette.border(context), width: 1.5),
                             ),
-                          ],
+                            child: Icon(Icons.arrow_back_rounded,
+                                size: 20,
+                                color: AppPalette.textPrimary(context)),
+                          ),
+                        ),
+                        SizedBox(width: 10),
+                      ],
+                      GestureDetector(
+                        onTap: _hintUsed > 0 ? null : _openHint,
+                        child: Opacity(
+                          opacity: _hintUsed > 0 ? 0.45 : 1.0,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 14),
+                            decoration: BoxDecoration(
+                              color: Color(0xFFFFF4E5),
+                              borderRadius: BorderRadius.circular(100),
+                              border: Border.all(
+                                  color: Color(0xFFFFE0B8), width: 1.5),
+                            ),
+                            child: Row(
+                              children: [
+                                Text(_hintUsed > 0 ? '✅' : '💡',
+                                    style: TextStyle(fontSize: 14)),
+                                SizedBox(width: 6),
+                                Text(
+                                  _hintUsed > 0
+                                      ? 'Kullanıldı'.tr()
+                                      : 'İpucu'.tr(),
+                                  style: _sans(
+                                      size: 13,
+                                      weight: FontWeight.w600,
+                                      color: Color(0xFFB45309)),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: _PrimaryButton(
-                      label: _index >= _total - 1 ? 'Testi Bitir' : 'Sonraki Soru',
-                      trailingIcon: _index >= _total - 1 ? Icons.check_rounded : Icons.arrow_forward_rounded,
-                      onTap: _selected == null ? null : _next,
-                    ),
-                  ),
-                ],
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: _PrimaryButton(
+                          label: last
+                              ? 'Testi Bitir'
+                              : (blank && canSkip
+                                  ? 'Boş Bırak'.tr()
+                                  : 'Sonraki Soru'),
+                          trailingIcon: last
+                              ? Icons.check_rounded
+                              : (blank && canSkip
+                                  ? Icons.skip_next_rounded
+                                  : Icons.arrow_forward_rounded),
+                          onTap: blank
+                              ? (canSkip ? _skip : null)
+                              : _next,
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           ],
@@ -17832,7 +20740,7 @@ class _ResultsScreenState extends State<_ResultsScreen> with TickerProviderState
                     Expanded(
                       child: _SecondaryButton(
                         label: '🔄 Tekrar Çöz'.tr(),
-                        onTap: () => Navigator.of(context).popUntil((r) => r.isFirst),
+                        onTap: () => Navigator.of(context).pop(),
                       ),
                     ),
                   ],
@@ -18247,7 +21155,7 @@ class _EmptyQuizPlaceholder extends StatelessWidget {
                 SizedBox(height: 20),
                 _PrimaryButton(
                   label: 'Geri dön'.tr(),
-                  onTap: () => Navigator.of(context).popUntil((r) => r.isFirst),
+                  onTap: () => Navigator.of(context).pop(),
                 ),
               ],
             ),
@@ -19758,7 +22666,7 @@ class _DueloMatchingScreenState extends State<_DueloMatchingScreen> {
     final completed = _myFinishedAtMs != null;
     // Oyun bittiyse direkt çık.
     if (completed) {
-      if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
+      if (mounted) Navigator.of(context).pop();
       return;
     }
     final ok = await showDialog<bool>(
@@ -19782,7 +22690,7 @@ class _DueloMatchingScreenState extends State<_DueloMatchingScreen> {
     if (ok == true && mounted) {
       _ticker?.cancel();
       _watch.stop();
-      Navigator.of(context).popUntil((r) => r.isFirst);
+      Navigator.of(context).pop();
     }
   }
 

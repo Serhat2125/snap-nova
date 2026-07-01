@@ -31,6 +31,7 @@ import 'package:flutter/foundation.dart';
 
 import 'friend_service.dart';
 import 'user_profile_service.dart';
+import 'contest_group_service.dart';
 
 /// Bir grup yarışmasının meta verisi + soruları.
 class GroupContest {
@@ -43,6 +44,7 @@ class GroupContest {
   final String topic;
   final int questionCount;
   final List<Map<String, dynamic>> questions;
+  final String groupId; // kayıtlı gruba bağlıysa dolu, değilse ''
   final DateTime? createdAt;
   final DateTime? expiresAt;
 
@@ -56,6 +58,7 @@ class GroupContest {
     required this.topic,
     required this.questionCount,
     required this.questions,
+    this.groupId = '',
     this.createdAt,
     this.expiresAt,
   });
@@ -79,6 +82,7 @@ class GroupContest {
           .whereType<Map>()
           .map((e) => Map<String, dynamic>.from(e))
           .toList(),
+      groupId: (d['groupId'] ?? '').toString(),
       createdAt: (d['createdAt'] as Timestamp?)?.toDate(),
       expiresAt: (d['expiresAt'] as Timestamp?)?.toDate(),
     );
@@ -145,6 +149,8 @@ class GroupContestService {
     required String subjectEmoji,
     required String topic,
     required List<Map<String, dynamic>> questions,
+    // Kayıtlı bir gruba bağlıysa: katılanlar otomatik gruba eklenir.
+    String? groupId,
   }) async {
     final uid = _uid;
     if (uid == null || questions.isEmpty) return null;
@@ -158,6 +164,7 @@ class GroupContestService {
         'ownerUid': uid,
         'ownerName': ownerName,
         'scope': 'friends',
+        if (groupId != null) 'groupId': groupId,
         'subjectKey': subjectKey,
         'subjectName': subjectName,
         'subjectEmoji': subjectEmoji,
@@ -165,8 +172,9 @@ class GroupContestService {
         'questionCount': questions.length,
         'questions': questions,
         'createdAt': FieldValue.serverTimestamp(),
-        // 7 gün geçerli — sonra eskimiş yarışmalar listelenmesin.
-        'expiresAt': Timestamp.fromDate(now.add(const Duration(days: 7))),
+        // Uzun geçerlilik: davet çok sonra kabul edilse bile katılan kişi
+        // yarışmayı çözebilsin ve sonucu diğerlerinde görünsün (1 yıl).
+        'expiresAt': Timestamp.fromDate(now.add(const Duration(days: 365))),
       });
       // Sahibi ilk katılımcı yap (lobide görünsün).
       await _joinDoc(docRef.id, uid);
@@ -174,6 +182,18 @@ class GroupContestService {
     } catch (e) {
       debugPrint('[GroupContest] createContest fail: $e');
       return null;
+    }
+  }
+
+  /// Mevcut bir yarışmayı kayıtlı bir gruba bağla (sonradan "grubu kaydet").
+  static Future<void> linkToGroup(String contestId, String groupId) async {
+    try {
+      await _fs.collection(_collection).doc(contestId).set(
+        {'groupId': groupId},
+        SetOptions(merge: true),
+      );
+    } catch (e) {
+      debugPrint('[GroupContest] linkToGroup fail: $e');
     }
   }
 
@@ -186,6 +206,14 @@ class GroupContestService {
     if (uid == null) return false;
     try {
       await _joinDoc(contestId, uid);
+      // Yarışma kayıtlı bir gruba bağlıysa kullanıcıyı gruba da ekle —
+      // böylece grup üyeleri kendiliğinden dolar.
+      try {
+        final doc =
+            await _fs.collection(_collection).doc(contestId).get();
+        final gid = (doc.data()?['groupId'] ?? '').toString();
+        if (gid.isNotEmpty) await ContestGroupService.joinGroup(gid);
+      } catch (_) {}
       return true;
     } catch (e) {
       debugPrint('[GroupContest] join fail: $e');

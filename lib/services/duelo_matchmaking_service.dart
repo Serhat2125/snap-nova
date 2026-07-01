@@ -102,6 +102,8 @@ class DueloInvite {
   final String fromAvatar;
   final String? subjectKey;
   final String? topic;
+  final int questionCount; // yarışma soru sayısı (davet ayarı)
+  final String questionType; // 'mc' (çoktan seçmeli) | 'tf' (doğru-yanlış)
   final DateTime sentAt;
   final String status; // pending | accepted | rejected
   final String? sessionId; // accept'ten sonra dolar
@@ -115,6 +117,8 @@ class DueloInvite {
     required this.status,
     this.subjectKey,
     this.topic,
+    this.questionCount = 5,
+    this.questionType = 'mc',
     this.sessionId,
   });
 
@@ -132,6 +136,8 @@ class DueloInvite {
       status: (m['status'] ?? 'pending').toString(),
       subjectKey: m['subjectKey']?.toString(),
       topic: m['topic']?.toString(),
+      questionCount: (m['questionCount'] as int?) ?? 5,
+      questionType: (m['questionType'] ?? 'mc').toString(),
       sessionId: m['sessionId']?.toString(),
     );
   }
@@ -421,6 +427,10 @@ class DueloMatchmakingService {
     required String targetUsername,
     String? subjectKey,
     String? topic,
+    // Yarışma ayarları: soru sayısı ve tipi ('mc' | 'tf'). Kabul edilince
+    // owner tarafı bu ayarlarla soru üretir; guest session'dan aynı seti okur.
+    int questionCount = 5,
+    String questionType = 'mc',
   }) async {
     final me = FirebaseAuth.instance.currentUser?.uid;
     if (me == null || me == targetUid) return false;
@@ -450,6 +460,8 @@ class DueloMatchmakingService {
         'targetUsername': targetUsername,
         'subjectKey': subjectKey,
         'topic': topic,
+        'questionCount': questionCount,
+        'questionType': questionType,
         'sentAt': FieldValue.serverTimestamp(),
         'status': 'pending',
       });
@@ -468,6 +480,8 @@ class DueloMatchmakingService {
         'targetUsername': targetUsername,
         'subjectKey': subjectKey,
         'topic': topic,
+        'questionCount': questionCount,
+        'questionType': questionType,
         'when': FieldValue.serverTimestamp(),
         'read': false,
       });

@@ -237,9 +237,16 @@ class _NotificationCard extends StatelessWidget {
             '${data['fromDisplayName'] ?? 'bir öğrenci'} '
             '${'adlı öğrencinin ebeveyninden mesajın var.'.tr()}';
       case 'group_contest_invite':
-        return '${data['fromDisplayName'] ?? data['fromUsername'] ?? 'Bir arkadaşın'} '
+        final who =
+            (data['fromDisplayName'] ?? data['fromUsername'] ?? 'Bir arkadaşın')
+                .toString();
+        final grp = (data['groupName'] ?? '').toString();
+        final where = grp.isNotEmpty
+            ? '"$grp" grubunda '
+            : '';
+        return '$who grup yarışı açtı ve $where'
             'seni "${data['subjectName'] ?? ''} • ${data['topic'] ?? ''}" '
-            'grup yarışına davet etti. Katılmak için dokun.';
+            'yarışmasına davet etti. Katılmak için dokun.';
       default:
         return '';
     }

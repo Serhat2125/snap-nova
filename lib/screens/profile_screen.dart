@@ -868,7 +868,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
 
-              SizedBox(height: 32),
+              // Alt nav bar (_NavShell) overlay olduğundan "Hesabımı Sil"
+              // butonu onun arkasında kalıyordu; nav bar yüksekliği kadar
+              // boşluk bırakarak tam görünmesini sağla.
+              const SizedBox(height: 132),
             ],
           ),
         ),
