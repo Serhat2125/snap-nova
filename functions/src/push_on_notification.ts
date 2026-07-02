@@ -29,6 +29,11 @@ interface NotifData {
   topic?: string;
   milestone?: string;
   rewardDays?: number;
+  // Öğretmen paneli bildirimleri (homework_service.dart / class_service.dart)
+  homeworkTitle?: string;
+  className?: string;
+  message?: string;
+  subject?: string;
   // Dinamik bildirimler (örn. haftalık ebeveyn özeti) title/body'yi doc'a
   // doğrudan yazar; buildContent bunları olduğu gibi kullanır.
   title?: string;
@@ -53,6 +58,12 @@ function categoryForType(type?: string): string | null {
       return "league_update";
     case "streak_milestone":
       return "streak_alert";
+    // ── Pazarlama kategorileri — ileride kampanya push'u eklenirse toggle'lar
+    //    gate'lesin diye eşleme hazır (şu an aktif gönderen yok). ──
+    case "premium_offer":
+      return "premium_offer";
+    case "newsletter":
+      return "newsletter";
     // ── Öğretmen kategorileri (panel ayarındaki toggle'ları gerçekten gate'le) ──
     case "homework_submission": // öğrenci ödevi teslim etti → öğretmene
       return "homework_submission";
@@ -63,7 +74,12 @@ function categoryForType(type?: string): string | null {
     case "announcement":
     case "homework_published":
     case "homework_all_done":
+    case "homework_graded":
     case "material":
+      return "class_activity";
+    case "homework_assigned":
+    case "homework_reminder":
+    case "class_invite":
       return "class_activity";
     default:
       return null;
@@ -123,6 +139,56 @@ function buildContent(data: NotifData): { title: string; body: string } {
           : `${who} seni grup yarışına davet etti`,
       };
     }
+    // ── Öğretmen paneli — client-side notifications_inbox_screen.dart
+    //    _titleFor/_subtitleFor ile aynı metinler. ──
+    // NOT: homework_assigned/homework_reminder yazımında hw başlığı
+    // 'fromDisplayName' alanına konuyor (homeworkTitle DEĞİL) — bkz.
+    // homework_service.dart assignHomework/checkPendingReminders.
+    case "homework_assigned":
+      return {
+        title: "Yeni ödev",
+        body: `Sınıfa yeni ödev geldi: ${who}`,
+      };
+    case "homework_reminder":
+      return {
+        title: "Ödev hatırlatma",
+        body: `${who} — bitişine 2 saatten az kaldı`,
+      };
+    case "class_invite":
+      return {
+        title: `Sınıf daveti: ${data.className || ""}`,
+        body: `${who} seni ${data.subject || data.className || ""} dersine davet etti`,
+      };
+    case "class_announcement":
+      return {
+        title: `Duyuru: ${data.className || ""}`,
+        body: data.message || `${who} yeni bir duyuru paylaştı`,
+      };
+    case "homework_submission":
+      return {
+        title: "Ödev teslim edildi",
+        body: `${who} "${data.homeworkTitle || ""}" ödevini teslim etti`,
+      };
+    case "student_joined":
+      return {
+        title: "Yeni öğrenci",
+        body: `${data.className || ""} sınıfından ${who} katıldı`,
+      };
+    case "homework_published":
+      return {
+        title: "Ödev yayınlandı",
+        body: `"${data.homeworkTitle || ""}" ödevin ${data.className || ""} sınıfında yayınlandı`,
+      };
+    case "homework_all_done":
+      return {
+        title: "Herkes ödevini bitirdi 🎉",
+        body: `${data.className || ""} sınıfındaki tüm öğrenciler "${data.homeworkTitle || ""}" ödevini tamamladı`,
+      };
+    case "homework_graded":
+      return {
+        title: "Ödevin değerlendirildi",
+        body: `"${data.homeworkTitle || ""}" ödevin notlandırıldı — sonucunu görmek için dokun`,
+      };
     default:
       return {
         title: "QuAlsar",

@@ -49,6 +49,10 @@ class SmartSidebar extends StatefulWidget {
 class _SmartSidebarState extends State<SmartSidebar>
     with TickerProviderStateMixin {
   bool _drawerOpen = false;
+  // Drawer kapanış animasyonu bitene kadar widget'ı ağaçta tutar — yalnızca
+  // _drawerOpen'a bakılırsa reverse() başlar başlamaz build() drawer'ı
+  // ağaçtan atıyor ve kapanma anında (animasyonsuz) gerçekleşiyordu.
+  bool _drawerVisible = false;
   SidebarItem? _previewItem;
   double _edgeY = 250;
 
@@ -81,10 +85,18 @@ class _SmartSidebarState extends State<SmartSidebar>
   }
 
   void _toggleDrawer() {
+    final opening = !_drawerOpen;
     setState(() {
-      _drawerOpen = !_drawerOpen;
+      _drawerOpen = opening;
+      if (opening) _drawerVisible = true;
     });
-    _drawerOpen ? _drawerCtrl.forward(from: 0) : _drawerCtrl.reverse();
+    if (opening) {
+      _drawerCtrl.forward(from: 0);
+    } else {
+      _drawerCtrl.reverse().then((_) {
+        if (mounted) setState(() => _drawerVisible = false);
+      });
+    }
   }
 
   void _openPreview(SidebarItem item, Size screen) {
@@ -96,13 +108,18 @@ class _SmartSidebarState extends State<SmartSidebar>
       _previewItem = item;
       _drawerOpen = false;
     });
-    _drawerCtrl.reverse();
+    _drawerCtrl.reverse().then((_) {
+      if (mounted) setState(() => _drawerVisible = false);
+    });
     _previewCtrl.forward(from: 0);
   }
 
   void _closePreview() {
-    _previewCtrl.reverse();
-    setState(() => _previewItem = null);
+    // Kapanış animasyonu bitmeden _previewItem'ı null'lama — yoksa build()
+    // preview'i hemen ağaçtan atar ve reverse() hiç görünmeden kapanır.
+    _previewCtrl.reverse().then((_) {
+      if (mounted) setState(() => _previewItem = null);
+    });
   }
 
   @override
@@ -118,7 +135,7 @@ class _SmartSidebarState extends State<SmartSidebar>
         if (_previewItem != null) _buildPreview(screen),
 
         // 2. Drawer — kenara yapışık
-        if (_drawerOpen) _buildDrawer(screen, clampedY),
+        if (_drawerVisible) _buildDrawer(screen, clampedY),
 
         // 3. Edge bar — her zaman en üstte
         _buildEdgeBar(screen, padTop, clampedY),

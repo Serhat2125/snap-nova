@@ -74,10 +74,14 @@ class _TeacherStudentReportScreenState
   /// Öncelik: SINIFIN müfredatı (öğretmenin seçtiği) → ebeveyn/öğrenci de aynı
   /// skalada görür. Yoksa görüntüleyenin kendi seçimi → generic.
   String? _classGradingCountry;
+  String? _classGradingProfile;
   CurriculumConfig get _cfg => GradingConfigService.forCountry(
       (_classGradingCountry != null && _classGradingCountry!.isNotEmpty)
           ? _classGradingCountry
-          : AccountService.instance.gradingCountry);
+          : AccountService.instance.gradingCountry,
+      profileId: (_classGradingProfile != null && _classGradingProfile!.isNotEmpty)
+          ? _classGradingProfile
+          : AccountService.instance.gradingProfile);
 
   List<GradeEntry> _entries(List<StudentGrade> gs) => gs
       .map((g) => GradeEntry(
@@ -100,6 +104,11 @@ class _TeacherStudentReportScreenState
     ClassService.gradingCountryForClass(widget.classId).then((cc) {
       if (mounted && cc.isNotEmpty) {
         setState(() => _classGradingCountry = cc);
+      }
+    });
+    ClassService.gradingProfileForClass(widget.classId).then((pid) {
+      if (mounted && pid.isNotEmpty) {
+        setState(() => _classGradingProfile = pid);
       }
     });
   }

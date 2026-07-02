@@ -43,6 +43,8 @@ import 'student_materials_screen.dart';
 import 'history_screen.dart';
 import 'qualsar_arena_screen.dart';
 import 'bilgi_ligi_screen.dart';
+import '../services/exam_catalog.dart';
+import '../widgets/exam_mode_widgets.dart';
 import '../widgets/study_toolbar.dart';
 import 'qualsar_mars_screen.dart';
 import 'edu_3d_screen.dart';
@@ -9485,6 +9487,23 @@ ${isVerbal ? '• Tarihte yıl, edebiyatta yazar/eser/dönem, felsefede filozof/
     }).join(' ');
   }
 
+  // Sınav Modu → seçilen (sınav × ders × konu) ile bu ekranın KENDİ test
+  // üretim akışını (_runGenerateWithSetup: zorluk seçimi + kota + AI üretimi)
+  // tetikler — Bilgi Ligi/Arena'dan farklı olarak burada üretilen test bu
+  // ekranda kalır (yeni sayfaya gitmez), ekranın mevcut davranışıyla tutarlı.
+  Future<void> _openExamModeFlow() async {
+    final picked = await pickExamModeSelection(
+      context,
+      countryCode: EduProfile.current?.country,
+    );
+    if (picked == null || !mounted) return;
+    final synthetic = examSyntheticSubject(picked.exam, picked.subject);
+    await _runGenerateWithSetup(
+      subjectName: synthetic.displayName,
+      topic: picked.topic ?? 'Genel Tekrar'.tr(),
+    );
+  }
+
   Widget _buildInlineAddPanel() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -9515,6 +9534,17 @@ ${isVerbal ? '• Tarihte yıl, edebiyatta yazar/eser/dönem, felsefede filozof/
             ),
           ),
         ),
+        // "Sınav modu açmak ister misin?" — Bilgi Ligi/Bilgi Yarışı'ndaki
+        // AYNI kart (lib/widgets/exam_mode_widgets.dart, aynı exam_catalog.dart
+        // verisi). Sadece "Sınav Soruları Oluştur" (questions) modunda; özet
+        // modunda gösterilmez.
+        if (widget.mode == LibraryMode.questions &&
+            examGroupsFor(EduProfile.current?.country) != null) ...[
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: ExamModeCard(onTap: _openExamModeFlow),
+          ),
+        ],
         // ═══ Çerçeve — yalnız ders kareleri (iç başlık kaldırıldı) ═══
         DragTarget<Color>(
           onWillAcceptWithDetails: (_) =>

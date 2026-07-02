@@ -10,17 +10,22 @@
 //  soru/ders makinesinden BAĞIMSIZDIR — sadece contestId ile çalışır.
 // ═══════════════════════════════════════════════════════════════════════════════
 
+import 'dart:io';
+import 'dart:ui' as ui;
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
 
 import '../services/group_contest_service.dart';
-import '../services/contest_group_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
+import '../utils/math_text_cleaner.dart';
 
 class GroupContestScreen extends StatefulWidget {
   final String contestId;
@@ -28,10 +33,24 @@ class GroupContestScreen extends StatefulWidget {
   /// Davet linki/QR ile gelindiyse açılışta otomatik katıl.
   final bool autoJoin;
 
+  /// Yarışı BAŞLATAN kişi için lobiyi atla, doğrudan quiz'e (sorulara) geç.
+  final bool autoStart;
+
+  /// Demo yarışta yerel (Firestore'a yazılmayan) bot katılımcılar — sonuç
+  /// tablosunda gerçek katılımcılarla birlikte gösterilir. Güvenlik kuralları
+  /// başka uid'li participant yazımına izin vermediğinden bot'lar yereldir.
+  final List<GroupParticipant> demoParticipants;
+
+  /// Grup ismi — paylaşılan sonuç görselinin başlığında gösterilir.
+  final String? groupName;
+
   const GroupContestScreen({
     super.key,
     required this.contestId,
     this.autoJoin = false,
+    this.autoStart = false,
+    this.demoParticipants = const [],
+    this.groupName,
   });
 
   @override
@@ -46,8 +65,8 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
   _Phase _phase = _Phase.loading;
   GroupContest? _contest;
   bool _alreadyFinished = false;
-  // "Bu grubu kaydet" tek seferliktir; kaydedince kart gizlenir.
-  bool _groupSaved = false;
+  // Sonuç tablosunu PNG olarak yakalamak için (görsel paylaş).
+  final GlobalKey _tableShareKey = GlobalKey();
 
   // Quiz durumu
   int _qIndex = 0;
@@ -81,6 +100,10 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
       _alreadyFinished = finished;
       _phase = finished ? _Phase.result : _Phase.lobby;
     });
+    // Başlatan kişi (autoStart) → lobiyi atla, doğrudan sorulara geç.
+    if (widget.autoStart && !finished && mounted) {
+      _startQuiz();
+    }
   }
 
   // ─── Quiz akışı ──────────────────────────────────────────────────────────
@@ -98,7 +121,7 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
 
   List<String> _optsOf(Map<String, dynamic> q) =>
       ((q['options'] as List?) ?? const [])
-          .map((e) => e.toString())
+          .map((e) => cleanMathText(e.toString()))
           .toList();
 
   void _choose(int i) {
@@ -204,6 +227,53 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
   }
 
   // ─── Davet ───────────────────────────────────────────────────────────────
+
+  /// Paylaşılan görselin başlığı — grup ismi (varsa) + ders · konu.
+  String _shareTitle() {
+    final c = _contest;
+    final subj = c == null
+        ? ''
+        : '${c.subjectEmoji} ${c.subjectName}'
+            '${c.topic.trim().isNotEmpty ? ' · ${c.topic}' : ''}';
+    final gn = widget.groupName?.trim() ?? '';
+    if (gn.isNotEmpty) {
+      return subj.isEmpty ? gn : '$gn — $subj';
+    }
+    return subj.isEmpty ? 'Grup Sıralaması'.tr() : subj;
+  }
+
+  /// "Ders: Kimya · Konu: Atom" satırı (tablonun üstünde gösterilir).
+  String _dersKonuLine() {
+    final c = _contest;
+    if (c == null) return '';
+    final konu = c.topic.trim().isNotEmpty ? ' · Konu: ${c.topic}' : '';
+    return 'Ders: ${c.subjectName}$konu';
+  }
+
+  /// Sonuç tablosunu (grup ismi + Excel tablo) PNG olarak yakalayıp paylaşır.
+  Future<void> _shareResultImage() async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final boundary = _tableShareKey.currentContext?.findRenderObject()
+          as RenderRepaintBoundary?;
+      if (boundary == null) return;
+      final image = await boundary.toImage(pixelRatio: 3.0);
+      final byteData =
+          await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+      final bytes = byteData.buffer.asUint8List();
+      final dir = await getTemporaryDirectory();
+      final file =
+          File('${dir.path}/grup_siralamasi_${widget.contestId}.png');
+      await file.writeAsBytes(bytes);
+      await Share.shareXFiles([XFile(file.path)], text: '🏆 ${_shareTitle()}');
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('Görsel paylaşılamadı: $e'),
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+  }
 
   void _shareInvite() async {
     final link = GroupContestService.inviteLinkFor(widget.contestId);
@@ -455,7 +525,7 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
             children: [
-              Text((q['text'] ?? '').toString(),
+              Text(cleanMathText((q['text'] ?? '').toString()),
                   style: GoogleFonts.inter(
                       fontSize: 17,
                       fontWeight: FontWeight.w700,
@@ -613,234 +683,34 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
                   ],
                 ),
               ),
-              IconButton(
-                onPressed: _shareInvite,
-                icon: const Icon(Icons.person_add_alt_1_rounded,
-                    color: _orange),
-                tooltip: 'Davet et'.tr(),
+              // Sonuç tablosunu GÖRSEL paylaş — küçük yeşil çerçeveli, yeşil
+              // gönderme oku (ok ucu +x/+y yönünde 45°).
+              GestureDetector(
+                onTap: _shareResultImage,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF22C55E).withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: const Color(0xFF22C55E).withValues(alpha: 0.6),
+                        width: 1.4),
+                  ),
+                  child: Transform.rotate(
+                    angle: -0.785398, // -45° → ok ucu sağ-yukarı
+                    child: const Icon(Icons.send_rounded,
+                        color: Color(0xFF16A34A), size: 20),
+                  ),
+                ),
               ),
             ],
           ),
         ),
-        _buildSaveGroupCard(),
         Expanded(child: _resultTable()),
       ],
     );
-  }
-
-  // ── "Bu grubu kaydet" kartı ─────────────────────────────────────────────────
-  // Yarışma henüz bir gruba bağlı değilse: tek dokunuşla isimlendirip kaydet;
-  // bu yarıştaki katılımcılar gruba tohum üye olarak eklenir. Böylece aynı
-  // arkadaşlarla tekrar yarışırken herkese otomatik bildirim gider.
-  Widget _buildSaveGroupCard() {
-    final c = _contest;
-    if (c == null || _groupSaved || c.groupId.isNotEmpty) {
-      return const SizedBox.shrink();
-    }
-    const purple = Color(0xFF7C3AED);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      child: GestureDetector(
-        onTap: _saveGroupFlow,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: purple.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: purple.withValues(alpha: 0.40)),
-          ),
-          child: Row(
-            children: [
-              const Text('👥', style: TextStyle(fontSize: 22)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Bu grubu kaydet'.tr(),
-                        style: GoogleFonts.fraunces(
-                            fontSize: 15, fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 2),
-                    Text(
-                        'İsim ver — aynı arkadaşlarla tek dokunuşla tekrar yarış.'
-                            .tr(),
-                        style: GoogleFonts.inter(
-                            fontSize: 12,
-                            height: 1.3,
-                            color: AppPalette.textSecondary(context))),
-                  ],
-                ),
-              ),
-              const Icon(Icons.bookmark_add_rounded, color: purple),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _saveGroupFlow() async {
-    final c = _contest;
-    if (c == null) return;
-    final res = await _askGroupNameEmoji();
-    if (res == null || !mounted) return;
-
-    // Bu yarıştaki katılımcıları tohum üye olarak çek.
-    List<GroupParticipant> parts = const [];
-    try {
-      parts =
-          await GroupContestService.participantsStream(widget.contestId).first;
-    } catch (_) {}
-    final seed = parts
-        .map((p) => <String, dynamic>{
-              'uid': p.uid,
-              'username': p.username,
-              'avatar': p.avatar,
-            })
-        .toList();
-
-    final gid = await ContestGroupService.createGroup(
-      name: res.$1,
-      avatar: res.$2,
-      seedMembers: seed,
-    );
-    if (gid != null) {
-      await GroupContestService.linkToGroup(widget.contestId, gid);
-    }
-    if (!mounted) return;
-    setState(() => _groupSaved = true);
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(gid != null
-          ? '“${res.$1}” grubu kaydedildi 👥'
-          : 'Grup kaydedilemedi, tekrar dene'.tr()),
-      behavior: SnackBarBehavior.floating,
-    ));
-  }
-
-  /// Ad + emoji seçici — (ad, emoji) döner, iptal → null.
-  Future<(String, String)?> _askGroupNameEmoji() {
-    final nameCtl = TextEditingController(
-        text: _contest != null ? '${_contest!.subjectName} grubu' : '');
-    String emoji = '👥';
-    const emojis = [
-      '👥', '🏆', '🔥', '⚡', '🎯', '🚀', '🧠', '⭐', '🎓', '💪'
-    ];
-    const purple = Color(0xFF7C3AED);
-    return showModalBottomSheet<(String, String)>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-        child: StatefulBuilder(
-          builder: (ctx, setSheet) => Container(
-            decoration: BoxDecoration(
-              color: AppPalette.bg(ctx),
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppPalette.border(ctx),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text('Grubu Kaydet'.tr(),
-                    style: GoogleFonts.fraunces(
-                        fontSize: 19, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 4),
-                Text('Bu yarıştaki arkadaşlar gruba eklenir.'.tr(),
-                    style: GoogleFonts.inter(
-                        fontSize: 12.5,
-                        color: AppPalette.textSecondary(ctx))),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final e in emojis)
-                      GestureDetector(
-                        onTap: () => setSheet(() => emoji = e),
-                        child: Container(
-                          width: 44,
-                          height: 44,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: emoji == e
-                                ? purple.withValues(alpha: 0.14)
-                                : AppPalette.card(ctx),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color:
-                                  emoji == e ? purple : AppPalette.border(ctx),
-                              width: emoji == e ? 2 : 1,
-                            ),
-                          ),
-                          child: Text(e, style: const TextStyle(fontSize: 22)),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  decoration: BoxDecoration(
-                    color: AppPalette.card(ctx),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppPalette.border(ctx)),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: TextField(
-                    controller: nameCtl,
-                    maxLength: 40,
-                    style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppPalette.textPrimary(ctx)),
-                    decoration: InputDecoration(
-                      border: InputBorder.none,
-                      counterText: '',
-                      hintText: 'Grup adı'.tr(),
-                      hintStyle: GoogleFonts.inter(
-                          fontSize: 13.5,
-                          color: AppPalette.textSecondary(ctx)),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                SizedBox(
-                  width: double.infinity,
-                  child: _primaryBtn(
-                    label: 'Kaydet'.tr(),
-                    icon: Icons.check_rounded,
-                    onTap: () {
-                      final name = nameCtl.text.trim();
-                      if (name.isEmpty) {
-                        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                          content: Text('Grup adı gir'.tr()),
-                          behavior: SnackBarBehavior.floating,
-                        ));
-                        return;
-                      }
-                      Navigator.of(ctx).pop((name, emoji));
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    ).whenComplete(nameCtl.dispose);
   }
 
   // ── Excel görünümlü sonuç tablosu ───────────────────────────────────────────
@@ -851,7 +721,16 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
     return StreamBuilder<List<GroupParticipant>>(
       stream: GroupContestService.participantsStream(widget.contestId),
       builder: (context, snap) {
-        final list = snap.data ?? const <GroupParticipant>[];
+        // Gerçek katılımcılar (Firestore) + yerel demo botları birleştir,
+        // başarıya göre yeniden sırala (bitiren önce, skor↓, süre↑).
+        final list = <GroupParticipant>[
+          ...(snap.data ?? const <GroupParticipant>[]),
+          ...widget.demoParticipants,
+        ]..sort((a, b) {
+            if (a.isDone != b.isDone) return a.isDone ? -1 : 1;
+            if (a.score != b.score) return b.score.compareTo(a.score);
+            return a.durationMs.compareTo(b.durationMs);
+          });
         if (list.isEmpty) {
           return Center(
             child: Text('Henüz katılımcı yok'.tr(),
@@ -860,7 +739,6 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
           );
         }
         final doneCount = list.where((p) => p.isDone).length;
-        final border = AppPalette.border(context);
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
           children: [
@@ -876,31 +754,73 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
                     color: AppPalette.textSecondary(context)),
               ),
             ),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Table(
-                border: TableBorder.all(color: border, width: 1),
-                columnWidths: const {
-                  0: FixedColumnWidth(42),
-                  1: FlexColumnWidth(),
-                  2: FixedColumnWidth(62),
-                  3: FixedColumnWidth(68),
-                },
-                defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-                children: [
-                  // Başlık satırı — yeşil, Excel his.
-                  TableRow(
-                    decoration: const BoxDecoration(color: Color(0xFF16A34A)),
-                    children: [
-                      _th('#'),
-                      _th('Katılımcı'.tr(), align: TextAlign.left),
-                      _th('Doğru'.tr()),
-                      _th('Süre'.tr()),
-                    ],
-                  ),
-                  for (int i = 0; i < list.length; i++)
-                    _resultRow(list[i], i, i < doneCount, myUid),
-                ],
+            // Paylaşılan görselin içeriği: ÜSTTE grup ismi + SADECE tablo.
+            RepaintBoundary(
+              key: _tableShareKey,
+              child: Container(
+                color: Colors.white,
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Solda grup ismi, altında "Ders: X · Konu: Y".
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if ((widget.groupName ?? '').trim().isNotEmpty) ...[
+                          Text('👥 ${widget.groupName!.trim()}',
+                              style: GoogleFonts.fraunces(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w900,
+                                  color: const Color(0xFF111111))),
+                          const SizedBox(height: 3),
+                        ],
+                        Text(_dersKonuLine(),
+                            style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF374151))),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Table(
+                        border: TableBorder.all(
+                            color: const Color(0xFFD5D8DC), width: 1),
+                        columnWidths: const {
+                          0: FixedColumnWidth(24),
+                          1: FlexColumnWidth(),
+                          2: FixedColumnWidth(38),
+                          3: FixedColumnWidth(40),
+                          4: FixedColumnWidth(40),
+                          5: FixedColumnWidth(46),
+                        },
+                        defaultVerticalAlignment:
+                            TableCellVerticalAlignment.middle,
+                        children: [
+                          // Başlık satırı — yeşil, Excel his.
+                          TableRow(
+                            decoration: const BoxDecoration(
+                                color: Color(0xFF16A34A)),
+                            children: [
+                              _th('#'),
+                              _th('İsim Soyisim'.tr()),
+                              _th('Soru'.tr()),
+                              _th('Doğru'.tr()),
+                              _th('Yanlış'.tr()),
+                              _th('Başarı'.tr()),
+                            ],
+                          ),
+                          for (int i = 0; i < list.length; i++)
+                            _resultRow(list[i], i, i < doneCount, myUid),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             _myAnswersBreakdown(),
@@ -1025,7 +945,7 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          Text((q['text'] ?? '').toString(),
+          Text(cleanMathText((q['text'] ?? '').toString()),
               style: GoogleFonts.inter(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
@@ -1115,18 +1035,20 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
           weight: FontWeight.w900,
           color: ranked ? medal : AppPalette.textSecondary(context),
         ),
+        // İsim Soyisim — hücrede ORTALI (avatar + kullanıcı adı).
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 9),
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _avatarWidget(p.avatar, 18),
-              const SizedBox(width: 8),
-              Expanded(
+              _avatarWidget(p.avatar, 15),
+              const SizedBox(width: 6),
+              Flexible(
                 child: Text('@${p.username}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.inter(
-                        fontSize: 13,
+                        fontSize: 10.5,
                         fontWeight:
                             isMe ? FontWeight.w900 : FontWeight.w700,
                         color: AppPalette.textPrimary(context))),
@@ -1134,20 +1056,45 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
             ],
           ),
         ),
+        // Soru sayısı (toplam soru).
         _td(
-          p.isDone ? '${p.correct}/${p.total}' : '—',
+          '${p.total}',
           align: TextAlign.center,
           weight: FontWeight.w800,
+          size: 11.5,
+          color: AppPalette.textPrimary(context),
+        ),
+        // Doğru.
+        _td(
+          p.isDone ? '${p.correct}' : '—',
+          align: TextAlign.center,
+          weight: FontWeight.w800,
+          size: 11.5,
           color: p.isDone
               ? const Color(0xFF16A34A)
               : AppPalette.textSecondary(context),
         ),
+        // Yanlış (toplam − doğru; boşlar da yanlışa dahil).
         _td(
-          p.isDone ? _fmtDuration(p.durationMs) : 'bekliyor'.tr(),
+          p.isDone ? '${p.total - p.correct}' : '—',
           align: TextAlign.center,
-          weight: FontWeight.w600,
-          size: p.isDone ? 12.5 : 10.5,
-          color: AppPalette.textSecondary(context),
+          weight: FontWeight.w800,
+          size: 11.5,
+          color: p.isDone
+              ? const Color(0xFFDC2626)
+              : AppPalette.textSecondary(context),
+        ),
+        // Başarı oranı (% doğru) — EN SAĞDA, Yanlış'tan sonra.
+        _td(
+          p.isDone && p.total > 0
+              ? '%${(p.correct * 100 / p.total).round()}'
+              : '—',
+          align: TextAlign.center,
+          weight: FontWeight.w900,
+          size: 11.5,
+          color: p.isDone
+              ? const Color(0xFF16A34A)
+              : AppPalette.textSecondary(context),
         ),
       ],
     );
@@ -1156,11 +1103,13 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
   // Tablo başlık hücresi (beyaz, kalın).
   Widget _th(String text, {TextAlign align = TextAlign.center}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 10),
       child: Text(text,
           textAlign: align,
+          maxLines: 1,
+          overflow: TextOverflow.visible,
           style: GoogleFonts.inter(
-              fontSize: 12,
+              fontSize: 10,
               fontWeight: FontWeight.w900,
               color: Colors.white)),
     );
@@ -1173,7 +1122,7 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
       Color? color,
       double size = 13}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 12),
       child: Text(text,
           textAlign: align,
           maxLines: 1,
@@ -1191,7 +1140,16 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
     return StreamBuilder<List<GroupParticipant>>(
       stream: GroupContestService.participantsStream(widget.contestId),
       builder: (context, snap) {
-        final list = snap.data ?? const <GroupParticipant>[];
+        // Gerçek katılımcılar (Firestore) + yerel demo botları birleştir,
+        // başarıya göre yeniden sırala (bitiren önce, skor↓, süre↑).
+        final list = <GroupParticipant>[
+          ...(snap.data ?? const <GroupParticipant>[]),
+          ...widget.demoParticipants,
+        ]..sort((a, b) {
+            if (a.isDone != b.isDone) return a.isDone ? -1 : 1;
+            if (a.score != b.score) return b.score.compareTo(a.score);
+            return a.durationMs.compareTo(b.durationMs);
+          });
         if (list.isEmpty) {
           return Center(
             child: Text('Henüz katılımcı yok'.tr(),

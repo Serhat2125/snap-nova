@@ -199,6 +199,13 @@
       "indexes": [
         { "queryScope": "COLLECTION", "arrayConfig": "CONTAINS" }
       ]
+    },
+    {
+      "collectionGroup": "participants",
+      "fieldPath": "uid",
+      "indexes": [
+        { "queryScope": "COLLECTION_GROUP", "order": "ASCENDING" }
+      ]
     }
   ]
 }

@@ -148,6 +148,7 @@ class _NotificationCard extends StatelessWidget {
       case 'student_joined':      return Icons.person_add_alt_1_rounded;
       case 'homework_published':  return Icons.send_rounded;
       case 'homework_all_done':   return Icons.task_alt_rounded;
+      case 'homework_graded':     return Icons.grading_rounded;
       case 'parent_message':      return Icons.mark_email_unread_rounded;
       case 'group_contest_invite': return Icons.groups_rounded;
       default:                    return Icons.notifications_rounded;
@@ -166,6 +167,7 @@ class _NotificationCard extends StatelessWidget {
       case 'student_joined':      return const Color(0xFF7C3AED);
       case 'homework_published':  return const Color(0xFF7C3AED);
       case 'homework_all_done':   return const Color(0xFF10B981);
+      case 'homework_graded':     return const Color(0xFF10B981);
       case 'parent_message':      return const Color(0xFF0EA5E9);
       case 'group_contest_invite': return const Color(0xFF7C3AED);
       default:                    return const Color(0xFF06B6D4);
@@ -194,6 +196,8 @@ class _NotificationCard extends StatelessWidget {
         return 'Ödev yayınlandı'.tr();
       case 'homework_all_done':
         return 'Herkes ödevini bitirdi 🎉'.tr();
+      case 'homework_graded':
+        return 'Ödevin değerlendirildi'.tr();
       case 'parent_message':
         return 'Ebeveyn mesajı'.tr();
       case 'group_contest_invite':
@@ -232,6 +236,9 @@ class _NotificationCard extends StatelessWidget {
         return '${data['className'] ?? ''} '
             '${'sınıfındaki tüm öğrenciler'.tr()} '
             '"${data['homeworkTitle'] ?? ''}" ${'ödevini tamamladı.'.tr()}';
+      case 'homework_graded':
+        return '"${data['homeworkTitle'] ?? ''}" '
+            '${'ödevin notlandırıldı — sonucunu görmek için dokun.'.tr()}';
       case 'parent_message':
         return '${data['className'] ?? ''} ${'sınıfından'.tr()} '
             '${data['fromDisplayName'] ?? 'bir öğrenci'} '
@@ -258,7 +265,9 @@ class _NotificationCard extends StatelessWidget {
     if (!context.mounted) return;
     final data = doc.data();
     final type = (data['type'] ?? '').toString();
-    if (type == 'homework_assigned' || type == 'homework_reminder') {
+    if (type == 'homework_assigned' ||
+        type == 'homework_reminder' ||
+        type == 'homework_graded') {
       await Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => const StudentHomeworksScreen(),
       ));

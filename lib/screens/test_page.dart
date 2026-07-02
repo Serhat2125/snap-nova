@@ -268,7 +268,7 @@ class _TestPageState extends State<TestPage> {
         // 10 saniye uyarısı — soru başına bir kez titrer + haptic.
         if (cur - 1 == 10 && !_lowTimeWarnedFor.contains(_idx)) {
           _lowTimeWarnedFor.add(_idx);
-          HapticFeedback.mediumImpact();
+          AppSettingsService.instance.hapticMedium(inTest: true);
         }
         // Her 5sn'de bir direct save (debounce yok — sürekli tick olduğu için
         // debounce hiçbir zaman fire etmez). Crash/exit'te en fazla 5sn kayıp.
@@ -312,6 +312,8 @@ class _TestPageState extends State<TestPage> {
         _answers[_idx] = letter;
         if (letter == _questions[_idx].ans) {
           AppSettingsService.instance.notifySuccess();
+        } else {
+          AppSettingsService.instance.notifyError();
         }
       }
     });
@@ -456,7 +458,7 @@ class _TestPageState extends State<TestPage> {
         }
       }
     });
-    HapticFeedback.lightImpact();
+    AppSettingsService.instance.hapticLight(inTest: true);
     _scheduleAutoSave();
   }
 

@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
 import '../services/app_settings_service.dart';
@@ -1131,7 +1130,7 @@ class _MatchCardsPanelState extends State<_MatchCardsPanel> {
     final card = _cards[idx];
     if (card.matched || card.selected) return;
 
-    HapticFeedback.selectionClick();
+    AppSettingsService.instance.hapticSelection();
     setState(() => _cards[idx] = card.copyWith(selected: true));
 
     if (_firstIdx == null) {
@@ -1145,7 +1144,7 @@ class _MatchCardsPanelState extends State<_MatchCardsPanel> {
     setState(() => _moves++);
 
     if (isMatch) {
-      HapticFeedback.mediumImpact();
+      AppSettingsService.instance.hapticMedium();
       setState(() {
         _matched++;
         _cards[_firstIdx!] = first.copyWith(
@@ -1429,7 +1428,7 @@ class _MatchCardTile extends StatelessWidget {
         }
       },
       onLongPress: () {
-        HapticFeedback.mediumImpact();
+        AppSettingsService.instance.hapticMedium();
         _openExpandedDialog(context);
       },
       child: Stack(

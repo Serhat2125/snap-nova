@@ -55,12 +55,17 @@ class _ParentIntroScreenState extends State<ParentIntroScreen> {
   }
 
   Future<void> _finish() async {
-    if (_selectedLevel != null) {
-      try {
-        final prefs = await SharedPreferences.getInstance();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (_selectedLevel != null) {
         await prefs.setString('parent_child_default_level', _selectedLevel!);
-      } catch (_) {}
-    }
+      }
+      // Intro'yu tamamladığını işaretle — yoksa kullanıcı slayt 1/2'de
+      // uygulamayı kapatırsa _HomeRouter bir daha bu ekranı hiç göstermez
+      // (AccountType.parent zaten kalıcı yazılmıştı) ve "çocuk nasıl
+      // eklenir" anlatan tek yer bir daha asla görünmezdi.
+      await prefs.setBool('parent_intro_completed', true);
+    } catch (_) {}
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const ParentDashboardScreen()),

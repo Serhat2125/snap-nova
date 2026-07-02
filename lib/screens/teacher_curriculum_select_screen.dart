@@ -35,9 +35,13 @@ class _TeacherCurriculumSelectScreenState
   @override
   void initState() {
     super.initState();
-    // Mevcut seçim varsa onu işaretle.
+    // Mevcut seçim varsa onu işaretle — profileId varsa (aynı ülkede birden
+    // fazla profil olabildiği için, ör. US → us/gpa4) o önceliklidir.
+    final pid = AccountService.instance.gradingProfile;
     final cc = AccountService.instance.gradingCountry;
-    if (cc != null) {
+    if (pid != null && pid.isNotEmpty) {
+      _selectedProfile = pid;
+    } else if (cc != null) {
       _selectedProfile = GradingConfigService.forCountry(cc).profileId;
     }
   }
@@ -61,6 +65,7 @@ class _TeacherCurriculumSelectScreenState
     setState(() => _saving = true);
     final cfg = GradingConfigService.byProfile(id);
     await AccountService.instance.setGradingCountry(cfg.countryCode);
+    await AccountService.instance.setGradingProfile(cfg.profileId);
     if (!mounted) return;
     Navigator.of(context).pop(true);
   }

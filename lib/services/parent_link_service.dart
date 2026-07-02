@@ -146,6 +146,40 @@ class ParentUpcomingHomework {
   bool get isOverdue => DateTime.now().isAfter(dueAt);
 }
 
+/// Ebeveyn paneli "öğretmen notları/tebrikleri" kartı için hafif DTO.
+class ParentTeacherNote {
+  final String className;
+  final String text;
+  final String kind; // 'note' | 'praise'
+  final DateTime when;
+  const ParentTeacherNote({
+    required this.className,
+    required this.text,
+    required this.kind,
+    required this.when,
+  });
+
+  bool get isPraise => kind == 'praise';
+}
+
+/// Ebeveyn paneli "Bilgi Ligi başarıları" kartı için hafif DTO.
+class ParentLeagueStats {
+  final int attempts;
+  final double averageScore;
+  final double bestScore;
+  final int streakDays;
+  final DateTime? lastAttemptAt;
+  const ParentLeagueStats({
+    required this.attempts,
+    required this.averageScore,
+    required this.bestScore,
+    required this.streakDays,
+    required this.lastAttemptAt,
+  });
+
+  bool get hasData => attempts > 0;
+}
+
 class ParentLinkService {
   ParentLinkService._();
   static final _fs = FirebaseFirestore.instance;
@@ -726,10 +760,114 @@ class ParentLinkService {
     return out;
   }
 
+  /// Bağlı çocuğun katıldığı sınıflardaki öğretmen NOTLARI/TEBRİKLERİNİ
+  /// (paylaşılanları) döndürür. Kaynak: ClassService.notesStream(onlyShared:
+  /// true) — öğretmen tarafı "veli panelinde de görünür" diyerek bu notu
+  /// paylaşır (bkz. teacher_homework_detail_screen.dart), ama daha önce
+  /// HİÇBİR ebeveyn ekranı bu stream'i okumuyordu — sessizce kayboluyordu.
+  static Future<List<ParentTeacherNote>> readChildNotes(
+      String childUid) async {
+    final out = <ParentTeacherNote>[];
+    try {
+      final classes = await ClassService.joinedClassesFor(childUid);
+      for (final cls in classes) {
+        final notes = await ClassService.notesStream(
+                cls.classId, childUid, onlyShared: true)
+            .first;
+        for (final n in notes) {
+          out.add(ParentTeacherNote(
+            className: cls.className,
+            text: n.text,
+            kind: n.kind,
+            when: n.createdAt,
+          ));
+        }
+      }
+      out.sort((a, b) => b.when.compareTo(a.when));
+    } catch (e) {
+      debugPrint('[ParentLink] readChildNotes fail: $e');
+    }
+    return out;
+  }
+
+  /// Bağlı çocuğun Bilgi Ligi (quiz/yarışma) performansını okur —
+  /// league_attempts koleksiyonundan (cloud; LeagueScores yerelde
+  /// SharedPreferences kullandığı için ebeveyn cihazından erişilemez).
+  /// NOT: Öğrenci hiç Şehir/Ülke konumu seçmediyse cloud'a hiç attempt
+  /// yazılmamış olabilir (LeagueScores.add — konum zorunlu) → attempts=0
+  /// dönebilir, bu bilinen bir sınırdır.
+  static Future<ParentLeagueStats> readChildLeagueStats(
+      String childUid) async {
+    try {
+      final snap = await _fs
+          .collection('league_attempts')
+          .where('uid', isEqualTo: childUid)
+          .orderBy('when', descending: true)
+          .limit(200)
+          .get();
+      if (snap.docs.isEmpty) {
+        return const ParentLeagueStats(
+          attempts: 0, averageScore: 0, bestScore: 0,
+          streakDays: 0, lastAttemptAt: null,
+        );
+      }
+      double total = 0;
+      double best = 0;
+      final days = <DateTime>{};
+      DateTime? lastAt;
+      for (final d in snap.docs) {
+        final m = d.data();
+        final score = (m['score'] as num?)?.toDouble() ?? 0;
+        total += score;
+        if (score > best) best = score;
+        final ts = m['when'];
+        if (ts is Timestamp) {
+          final when = ts.toDate();
+          lastAt ??= when;
+          days.add(DateTime(when.year, when.month, when.day));
+        }
+      }
+      // currentStreak() (league_scores.dart) ile AYNI algoritma: bugünden
+      // (yoksa dünden, 1 gün tolerans) geriye ardışık gün sayımı.
+      int streak = 0;
+      final today = DateTime.now();
+      DateTime cursor = DateTime(today.year, today.month, today.day);
+      if (!days.contains(cursor)) {
+        cursor = cursor.subtract(const Duration(days: 1));
+      }
+      if (days.contains(cursor)) {
+        while (days.contains(cursor)) {
+          streak++;
+          cursor = cursor.subtract(const Duration(days: 1));
+        }
+      }
+      return ParentLeagueStats(
+        attempts: snap.docs.length,
+        averageScore: total / snap.docs.length,
+        bestScore: best,
+        streakDays: streak,
+        lastAttemptAt: lastAt,
+      );
+    } catch (e) {
+      debugPrint('[ParentLink] readChildLeagueStats fail: $e');
+      return const ParentLeagueStats(
+        attempts: 0, averageScore: 0, bestScore: 0,
+        streakDays: 0, lastAttemptAt: null,
+      );
+    }
+  }
+
   /// Ebeveyn kontrolü ayarlarını kaydeder. Çocuğun uygulamasının okuyup
   /// uygulayabilmesi için `parental_controls/{childUid}` yoluna yazar.
   /// NOT: Limitlerin gerçek uygulanması (kullanımı engelleme) çocuk
   /// uygulamasında ayrıca ele alınmalı + Firestore kuralları eklenmeli.
+  /// Ebeveyn-bazlı alt-koleksiyon: her ebeveyn KENDİ kısıtlarını yazar,
+  /// birden fazla bağlı ebeveyn (anne+baba) varken birbirini ezmez.
+  static DocumentReference<Map<String, dynamic>> _controlsDocFor(
+          String childUid, String parentUid) =>
+      _fs.collection('parental_controls').doc(childUid)
+          .collection('byParent').doc(parentUid);
+
   static Future<bool> saveParentalControls(
     String childUid, {
     required bool timeLimitEnabled,
@@ -741,7 +879,7 @@ class ParentLinkService {
     final myUid = _myUid;
     if (myUid == null) return false;
     try {
-      await _fs.collection('parental_controls').doc(childUid).set({
+      await _controlsDocFor(childUid, myUid).set({
         'parentUid': myUid,
         'timeLimitEnabled': timeLimitEnabled,
         'dailyLimitMinutes': dailyLimitMinutes,
@@ -757,16 +895,32 @@ class ParentLinkService {
     }
   }
 
-  /// Ebeveyn kontrolü ayarlarını okur (panelde göstermek için).
+  /// Giriş yapan ebeveynin KENDİ kısıtlarını okur (ayar ekranını doldurmak
+  /// için — başka bağlı ebeveynin ayarını değil, kendisininkini görmeli).
   static Future<Map<String, dynamic>?> readParentalControls(
       String childUid) async {
+    final myUid = _myUid;
+    if (myUid == null) return null;
     try {
-      final doc =
-          await _fs.collection('parental_controls').doc(childUid).get();
+      final doc = await _controlsDocFor(childUid, myUid).get();
       return doc.exists ? doc.data() : null;
     } catch (e) {
       debugPrint('[ParentLink] readParentalControls fail: $e');
       return null;
+    }
+  }
+
+  /// TÜM bağlı ebeveynlerin kısıtlarını okur — çocuk cihazında enforcement
+  /// için (ParentalControlsService), en kısıtlayıcısı uygulanır.
+  static Future<List<Map<String, dynamic>>> readAllParentalControls(
+      String childUid) async {
+    try {
+      final snap = await _fs.collection('parental_controls').doc(childUid)
+          .collection('byParent').get();
+      return snap.docs.map((d) => d.data()).toList();
+    } catch (e) {
+      debugPrint('[ParentLink] readAllParentalControls fail: $e');
+      return const [];
     }
   }
 
@@ -784,6 +938,9 @@ class ParentLinkService {
         _fs.collection('child_invites').doc(childUid)
             .collection('from').doc(myUid),
       );
+      // Kendi ebeveyn-kontrolü dokümanını da sil — yoksa bağlantı kesilse
+      // bile çocuk cihazında eski kısıt kalıcı olarak asılı kalıyordu.
+      batch.delete(_controlsDocFor(childUid, myUid));
       await batch.commit();
       return true;
     } catch (e) {

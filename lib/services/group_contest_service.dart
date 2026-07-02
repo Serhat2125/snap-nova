@@ -289,6 +289,48 @@ class GroupContestService {
     });
   }
 
+  /// Demo grup yarışına sahte (bot) katılımcılar ekler — kullanıcının
+  /// arkadaşı/gerçek grubu olmadan da sonuç tablosu dolu görünsün. Botlar
+  /// 'done' durumundadır; skorları [total] üzerinden deterministik türetilir
+  /// (Math.random kullanılmaz). Yalnızca demo akışından çağrılır.
+  static Future<void> seedDemoParticipants(
+    String contestId,
+    List<(String name, String avatar)> bots, {
+    required int total,
+  }) async {
+    if (bots.isEmpty || total <= 0) return;
+    try {
+      final col = _fs
+          .collection(_collection)
+          .doc(contestId)
+          .collection('participants');
+      final batch = _fs.batch();
+      var i = 0;
+      for (final b in bots) {
+        // Deterministik yalancı skor: %45–%92 arası doğru + değişken süre.
+        final pct = 0.45 + ((b.$1.length + i * 7) % 48) / 100.0;
+        final correct = (total * pct).round().clamp(0, total);
+        final durationMs = 25000 + ((b.$1.length * 3 + i * 11) % 70) * 1000;
+        batch.set(col.doc('demo_bot_$i'), {
+          'uid': 'demo_bot_$i',
+          'username': b.$1,
+          'avatar': b.$2,
+          'status': 'done',
+          'score': correct,
+          'correct': correct,
+          'total': total,
+          'durationMs': durationMs,
+          'joinedAt': FieldValue.serverTimestamp(),
+          'finishedAt': FieldValue.serverTimestamp(),
+        });
+        i++;
+      }
+      await batch.commit();
+    } catch (e) {
+      debugPrint('[GroupContest] seedDemoParticipants fail: $e');
+    }
+  }
+
   // ─── Sonuç gönder ─────────────────────────────────────────────────────────
 
   /// Yarışı bitiren kullanıcının skorunu yazar. Idempotent değil — yeniden

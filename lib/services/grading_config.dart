@@ -266,10 +266,15 @@ class GradingConfigService {
   GradingConfigService._();
 
   /// Bir ülke koduna karşılık gelen config (yoksa generic100).
-  static CurriculumConfig forCountry(String? countryCode) {
+  /// [profileId] verilirse (ve geçerliyse) ÖNCELİKLİDİR — aynı ülke kodunun
+  /// birden fazla profili olabilir (ör. US → 'us'/'gpa4'); yalnızca
+  /// countryCode'a bakmak öğretmenin seçtiği spesifik profili kaybeder.
+  static CurriculumConfig forCountry(String? countryCode, {String? profileId}) {
     final cc = (countryCode ?? '').toUpperCase();
-    final profileId = kCountryToProfile[cc] ?? 'generic100';
-    final base = kGradingProfiles[profileId]!;
+    final resolvedProfileId = (profileId != null && kGradingProfiles.containsKey(profileId))
+        ? profileId
+        : (kCountryToProfile[cc] ?? 'generic100');
+    final base = kGradingProfiles[resolvedProfileId]!;
     // Ülke kodu profilden farklıysa (ör. CA→us) gerçek ülke kodunu koru.
     if (cc.isNotEmpty && cc != base.countryCode) {
       return CurriculumConfig(

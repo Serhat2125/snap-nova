@@ -198,6 +198,12 @@ class PushService {
         return 'exam_countdown';
       case 'achievement':
         return 'achievement';
+      // Pazarlama kategorileri — henüz aktif gönderen yok (ileride sunucu
+      // kampanyası eklenirse toggle'lar gate etsin diye eşleme burada hazır).
+      case 'premium_offer':
+        return 'premium_offer';
+      case 'newsletter':
+        return 'newsletter';
       case 'homework_submission':
         return 'homework_submission';
       case 'student_joined':

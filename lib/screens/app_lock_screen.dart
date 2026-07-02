@@ -13,7 +13,6 @@
 
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:local_auth/local_auth.dart';
 
@@ -74,7 +73,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
   void _onDigit(String d) {
     if (_lockoutSec > 0) return;
     if (_pin.length >= 6) return;
-    HapticFeedback.selectionClick();
+    AppSettingsService.instance.hapticSelection();
     setState(() {
       _pin += d;
       _error = null;
@@ -84,7 +83,7 @@ class _AppLockScreenState extends State<AppLockScreen> {
 
   void _onBackspace() {
     if (_pin.isEmpty) return;
-    HapticFeedback.selectionClick();
+    AppSettingsService.instance.hapticSelection();
     setState(() {
       _pin = _pin.substring(0, _pin.length - 1);
       _error = null;
@@ -93,13 +92,13 @@ class _AppLockScreenState extends State<AppLockScreen> {
 
   void _checkPin() {
     if (_settings.verifyPin(_pin)) {
-      HapticFeedback.lightImpact();
+      AppSettingsService.instance.hapticLight();
       widget.onUnlocked();
       return;
     }
     // Doğrulamadı — yanlış, hata sayısını artır
     _wrongCount++;
-    HapticFeedback.heavyImpact();
+    AppSettingsService.instance.hapticHeavy();
     if (_wrongCount >= 5) {
       _startLockout();
     } else {

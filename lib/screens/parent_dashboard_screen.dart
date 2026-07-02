@@ -14,6 +14,8 @@
 //    3. + Çocuk ekle butonu (FAB)
 // ═══════════════════════════════════════════════════════════════════════════
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -45,11 +47,30 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   Map<String, dynamic>? _baseStats;
   bool _loadingChildData = false;
   String? _defaultLevel; // ParentIntro'da seçilen çocuk eğitim seviyesi
+  // TeacherAnnouncementsCard/UpcomingHomeworksCard kendi verisini sadece
+  // childUid değişince yeniliyordu — pull-to-refresh bu iki kartı hiç
+  // tazelemiyordu. _refresh() bu sayacı artırır, kartlar didUpdateWidget'ta
+  // değişimi görüp _load() çağırır.
+  int _refreshTick = 0;
 
   @override
   void initState() {
     super.initState();
     _loadDefaultLevel();
+    // Geriye dönük uyumluluk: ParentIntroScreen artık kendi bayrağını
+    // (parent_intro_completed) tamamlanınca yazıyor — ama bu güncellemeden
+    // ÖNCE zaten dashboard'a ulaşmış (intro'yu geçmişte bitirmiş) ebeveynler
+    // için bu bayrak hiç yazılmamış olacak. Dashboard'ı bir kez GERÇEKTEN
+    // açabildiyse intro'yu fiilen tamamlamış demektir — burada da işaretle,
+    // yoksa bir sonraki açılışta gereksiz yere intro'ya geri düşerler.
+    unawaited(_markIntroCompleted());
+  }
+
+  Future<void> _markIntroCompleted() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setBool('parent_intro_completed', true);
+    } catch (_) {}
   }
 
   Future<void> _loadDefaultLevel() async {
@@ -102,6 +123,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   Future<void> _refresh() async {
     final c = _selectedChild;
     if (c == null || !c.isActive) return;
+    if (mounted) setState(() => _refreshTick++);
     await _loadChildData(c);
   }
 
@@ -275,11 +297,28 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                           baseStats: _baseStats ?? const {},
                         ),
                         const SizedBox(height: 12),
-                        TeacherAnnouncementsCard(childUid: _selectedChild!.uid),
+                        TeacherAnnouncementsCard(
+                          childUid: _selectedChild!.uid,
+                          refreshTick: _refreshTick,
+                        ),
                         const SizedBox(height: 12),
-                        UpcomingHomeworksCard(childUid: _selectedChild!.uid),
+                        TeacherNotesCard(
+                          childUid: _selectedChild!.uid,
+                          refreshTick: _refreshTick,
+                        ),
+                        const SizedBox(height: 12),
+                        LeagueStatsCard(
+                          childUid: _selectedChild!.uid,
+                          refreshTick: _refreshTick,
+                        ),
+                        const SizedBox(height: 12),
+                        UpcomingHomeworksCard(
+                          childUid: _selectedChild!.uid,
+                          refreshTick: _refreshTick,
+                        ),
                         const SizedBox(height: 12),
                         ParentGoalCard(
+                          key: ValueKey('goal_${_selectedChild!.uid}'),
                           childUid: _selectedChild!.uid,
                           last7Days: _activity,
                         ),
@@ -306,6 +345,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                         ),
                         const SizedBox(height: 12),
                         StudyPlanCard(
+                          key: ValueKey('study_plan_${_selectedChild!.uid}'),
                           childName: _selectedChild!.displayName.isEmpty
                               ? '@${_selectedChild!.username}'
                               : _selectedChild!.displayName,
@@ -315,13 +355,17 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                         HorizontalSummariesScroll(summaries: _summaries),
                         const SizedBox(height: 12),
                         AiInsightsBox(
+                          key: ValueKey('ai_insights_${_selectedChild!.uid}'),
                           childName: _selectedChild!.displayName.isEmpty
                               ? '@${_selectedChild!.username}'
                               : _selectedChild!.displayName,
                           last7Days: _activity,
                         ),
                         const SizedBox(height: 12),
-                        ParentalControlsCard(childUid: _selectedChild!.uid),
+                        ParentalControlsCard(
+                          key: ValueKey('parental_controls_${_selectedChild!.uid}'),
+                          childUid: _selectedChild!.uid,
+                        ),
                       ]),
                     ),
                   ),

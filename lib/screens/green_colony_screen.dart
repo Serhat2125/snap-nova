@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../services/app_settings_service.dart';
 import '../services/pomodoro_stats.dart';
 import '../services/push_service.dart';
 import '../services/runtime_translator.dart';
@@ -160,7 +161,7 @@ class _GreenColonyScreenState extends State<GreenColonyScreen>
     _phaseEndsAt = DateTime.now().add(Duration(seconds: _timeLeft));
     setState(() => _running = true);
     WakelockPlus.enable();
-    HapticFeedback.lightImpact();
+    AppSettingsService.instance.hapticLight();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       _tick();
@@ -189,7 +190,7 @@ class _GreenColonyScreenState extends State<GreenColonyScreen>
   Future<void> _completePhase() async {
     _ticker?.cancel();
     WakelockPlus.disable();
-    HapticFeedback.heavyImpact();
+    AppSettingsService.instance.hapticHeavy();
     SystemSound.play(SystemSoundType.alert);
     final wasFocus = _mode == 'focus';
     final focusDur = _focus; // tam süre

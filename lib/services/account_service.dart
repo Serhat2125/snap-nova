@@ -63,12 +63,14 @@ class AccountService extends ChangeNotifier {
   static const _kPhotoKey = 'teacher_photo_path_v1';
   static const _kStatusKey = 'teacher_status_v1';
   static const _kGradingKey = 'teacher_grading_country_v1';
+  static const _kGradingProfileKey = 'teacher_grading_profile_v1';
   AccountType _type = AccountType.student;
   String? _teacherBranch;
   String? _teacherLevel;
   String? _teacherPhotoPath;
   String? _teacherStatus;
   String? _gradingCountry;
+  String? _gradingProfile;
   bool _loaded = false;
 
   AccountType get type => _type;
@@ -93,6 +95,12 @@ class AccountService extends ChangeNotifier {
   /// null → henüz seçilmemiş (TeacherShellScreen açılışında seçtirilir).
   String? get gradingCountry => _gradingCountry;
 
+  /// Öğretmenin seçtiği TAM profil kimliği (ör. 'us' veya 'gpa4' — ikisi de
+  /// countryCode='US'). countryCode tek başına aynı ülkede birden fazla
+  /// profili ayırt edemiyor (bkz. grading_config.dart kCountryToProfile);
+  /// bu alan olmadan "GPA 4.0" seçimi sessizce "USA (Weighted)"e dönüşürdü.
+  String? get gradingProfile => _gradingProfile;
+
   Future<void> init() async {
     if (_loaded) return;
     try {
@@ -104,6 +112,7 @@ class AccountService extends ChangeNotifier {
       _teacherPhotoPath = prefs.getString(_kPhotoKey);
       _teacherStatus = prefs.getString(_kStatusKey);
       _gradingCountry = prefs.getString(_kGradingKey);
+      _gradingProfile = prefs.getString(_kGradingProfileKey);
     } catch (_) {}
     _loaded = true;
     notifyListeners();
@@ -165,6 +174,16 @@ class AccountService extends ChangeNotifier {
         try {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString(_kGradingKey, cloudGrading);
+        } catch (_) {}
+        changed = true;
+      }
+      final cloudGradingProfile = snap.data()?['gradingProfile'] as String?;
+      if (cloudGradingProfile != null &&
+          cloudGradingProfile != _gradingProfile) {
+        _gradingProfile = cloudGradingProfile;
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_kGradingProfileKey, cloudGradingProfile);
         } catch (_) {}
         changed = true;
       }
@@ -264,6 +283,27 @@ class AccountService extends ChangeNotifier {
       }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('[AccountService] setGradingCountry fail: $e');
+    }
+  }
+
+  /// Öğretmenin seçtiği TAM profil kimliğini kalıcı yazar (prefs+Firestore).
+  /// setGradingCountry ile BİRLİKTE çağrılmalı — aynı ülkede birden fazla
+  /// profil olabildiği için (US → us/gpa4) countryCode tek başına yetmez.
+  Future<void> setGradingProfile(String profileId) async {
+    _gradingProfile = profileId;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kGradingProfileKey, profileId);
+    } catch (_) {}
+    notifyListeners();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(uid).set({
+        'gradingProfile': profileId,
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[AccountService] setGradingProfile fail: $e');
     }
   }
 

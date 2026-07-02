@@ -490,13 +490,19 @@ service cloud.firestore {
 
     // NOT: notifications kuralı yukarıda (satır ~106) tek noktada tanımlı.
 
-    // ── parental_controls/{childUid}: ebeveyn kontrolü (süre/sessiz saat) ──
-    //   Bağlı ebeveyn yazar+okur; çocuk okur (cihazında uygulamak için).
-    //   Yalnızca AKTİF bağlı ebeveyn yazabilir; parentUid kendi uid'i olmalı.
+    // ── parental_controls/{childUid}/byParent/{parentUid}: ebeveyn kontrolü
+    //   (süre/sessiz saat), EBEVEYN BAZLI alt-koleksiyon. Önceden tek paylaşılan
+    //   doküman (parental_controls/{childUid}) idi — birden fazla ebeveyn (anne+
+    //   baba) bağlıyken biri diğerinin ayarını sessizce eziyordu. Artık her
+    //   ebeveyn KENDİ dokümanına yazar; çocuk cihazı TÜM ebeveynlerin
+    //   dokümanlarını okuyup en kısıtlayıcısını uygular (ParentalControlsService).
     match /parental_controls/{childUid} {
-      allow read: if isOwner(childUid) || isLinkedParent(childUid);
-      allow write: if isLinkedParent(childUid)
-        && request.resource.data.parentUid == request.auth.uid;
+      match /byParent/{parentUid} {
+        allow read: if isOwner(childUid) || isLinkedParent(childUid);
+        allow write: if isLinkedParent(childUid) && parentUid == request.auth.uid
+          && request.resource.data.parentUid == request.auth.uid;
+        allow delete: if isLinkedParent(childUid) && parentUid == request.auth.uid;
+      }
     }
 
     // ── group_contests/{id}: arkadaş grubu yarışması (özel lig) ──────────

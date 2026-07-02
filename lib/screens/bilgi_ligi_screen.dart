@@ -33,6 +33,7 @@ import '../features/league/league_scores.dart';
 import '../services/analytics.dart';
 import '../services/curriculum_catalog.dart';
 import '../services/education_profile.dart';
+import '../services/exam_catalog.dart';
 import '../services/error_logger.dart';
 import '../services/runtime_translator.dart';
 import '../services/user_profile_service.dart';
@@ -283,9 +284,9 @@ class _BilgiLigiHowItWorksPage extends StatelessWidget {
             _HowStepCard(
               step: 5,
               icon: Icons.local_fire_department_rounded,
-              title: 'Streak\'i koru',
+              title: 'Streak\'i koru'.tr(),
               desc:
-                  'Her gün en az 1 test çöz, 🔥 streak göstergesin büyür. 7 gün üst üste = +rozet, ek motivasyon.',
+                  'Her gün en az 1 test çöz, 🔥 streak göstergesin büyür. 7 gün üst üste = +rozet, ek motivasyon.'.tr(),
               accent: orange,
             ),
             _HowStepCard(
@@ -293,7 +294,7 @@ class _BilgiLigiHowItWorksPage extends StatelessWidget {
               icon: Icons.emoji_events_rounded,
               title: 'Podyuma çık'.tr(),
               desc:
-                  'İlk 3 sıraya girersen 🥇🥈🥉 podyumda görünürsün. Yakın rakipler kartı kaç puan farkla yükseleceğini söyler.',
+                  'İlk 3 sıraya girersen 🥇🥈🥉 podyumda görünürsün. Yakın rakipler kartı kaç puan farkla yükseleceğini söyler.'.tr(),
               accent: purple,
             ),
             const SizedBox(height: 18),
@@ -1531,7 +1532,10 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
         _Scope.world => LeagueScope.world,
       };
   LeagueMode get _serviceMode => switch (_mode) {
-        _Mode.subject => LeagueMode.subject,
+        // Ders modunda konu seçiliyse (Hero CTA'dan "Konu Seç") sıralama da
+        // o konuya daralt — daha önce _topic görmezden gelinip her zaman
+        // tüm ders için sıralama gösteriliyordu.
+        _Mode.subject => _topic == null ? LeagueMode.subject : LeagueMode.topic,
         _Mode.overall => LeagueMode.overall,
       };
 
@@ -1567,7 +1571,7 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
       mode: _serviceMode,
       period: _period,
       subjectKey: _mode == _Mode.overall ? null : _subject?.key,
-      topic: null,
+      topic: _mode == _Mode.overall ? null : _topic,
       limit: 50,
     );
     if (!mounted) return;
@@ -1580,7 +1584,7 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
         mode: _serviceMode,
         period: _period,
         subjectKey: _mode == _Mode.overall ? null : _subject?.key,
-        topic: null,
+        topic: _mode == _Mode.overall ? null : _topic,
       );
     });
     _leaderboardSub = stream.listen((rows) {
@@ -1602,6 +1606,14 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
       case _Mode.subject:
         if (_subject == null) {
           s = const LeagueScoreSummary(average: null, best: null, total: 0, attempts: 0);
+        } else if (_topic != null) {
+          // Konu seçiliyse özet de o konuya daralt — aksi halde "Senin
+          // Sıran" kartı hep tüm dersin ortalamasını gösteriyordu.
+          s = await LeagueScores.forTopic(
+            subjectKey: _subject!.key,
+            topic: _topic!,
+            period: _period,
+          );
         } else {
           s = await LeagueScores.forSubject(
             subjectKey: _subject!.key,
@@ -1710,6 +1722,11 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
       slivers: [
         // ── Hero CTA (scroll'da kaybolur) ─────────────────────────────
         SliverToBoxAdapter(child: _buildHeroCta(context)),
+        // ── Sınav Modu girişi — sadece ülkesi için sınav kataloğu tanımlıysa ──
+        if (examGroupsFor(_profile?.country) != null) ...[
+          const SliverToBoxAdapter(child: SizedBox(height: 10)),
+          SliverToBoxAdapter(child: _buildExamModeCta(context)),
+        ],
         const SliverToBoxAdapter(child: SizedBox(height: 10)),
         // ── Pinned filtre çerçevesi ───────────────────────────────────
         SliverPersistentHeader(
@@ -2159,7 +2176,9 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
     }
     final modeLabel = _mode == _Mode.overall
         ? 'Tüm Dersler'.tr()
-        : (_subject?.displayName ?? 'Ders Seç'.tr());
+        : _topic != null
+            ? '${_subject?.displayName ?? ''} ➔ $_topic'
+            : (_subject?.displayName ?? 'Ders Seç'.tr());
     final modeEmoji = _mode == _Mode.overall ? '🌟' : (_subject?.emoji ?? '📖');
 
     return Padding(
@@ -3275,6 +3294,129 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
     );
   }
 
+  // ── Sınav Modu — LGS/YKS(TYT-AYT)/DGS/KPSS gibi resmi sınavlara göre
+  //    ders + konu seçip AI'a o sınavın formatına uygun soru ürettirir.
+  //    Ülkesi için tanımlı sınav kataloğu yoksa bu kart hiç gösterilmez.
+  Widget _buildExamModeCta(BuildContext context) {
+    const accent = Color(0xFF0F766E);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 0, 14, 0),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: _openExamModeFlow,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: accent.withValues(alpha: 0.30), width: 1.2),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 38, height: 38,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.14),
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: const Text('🎯', style: TextStyle(fontSize: 18)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    '${'Sınav modu açmak ister misin?'.tr()} (LGS, YKS, KPSS…)',
+                    style: GoogleFonts.inter(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppPalette.textPrimary(context),
+                      height: 1.3,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Icon(Icons.chevron_right_rounded, color: accent, size: 22),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Sınav Modu akışı: Sınav grubu (LGS/TYT/AYT/DGS/KPSS, varyantlıysa
+  /// açılır alt liste) → Ders (o sınavdan çıkan dersler) → Konu → Quiz.
+  Future<void> _openExamModeFlow() async {
+    final groups = examGroupsFor(_profile?.country);
+    if (groups == null || groups.isEmpty) return;
+    final exam = await showDialog<ExamDefinition>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => _ExamGroupPickerDialog(groups: groups),
+    );
+    if (exam == null || !mounted) return;
+
+    final subject = await showDialog<CurriculumSubject>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => _QuizPickerDialog(
+        title: '${exam.displayName} ${'sınavından hangi dersten test çözmek istersin?'.tr()}',
+        items: [
+          for (final s in exam.subjects)
+            _QuizPickerItem(
+              emoji: s.emoji,
+              label: s.displayName,
+              attemptCount: 0,
+              value: s,
+            ),
+        ],
+      ),
+    );
+    if (subject == null || !mounted) return;
+
+    // Bu (sınav × ders) ikilisine özgü senkron anahtar/etiket — normal
+    // müfredat derslerinden AYRI bir "ders" olarak sıralamaya girer, böylece
+    // "LGS Türkçe" başarın "TYT Türkçe"den veya genel "Türkçe"den ayrı takip
+    // edilir ama AYNI Bilgi Ligi liderlik tablosu mekanizmasını kullanır.
+    final synthetic = CurriculumSubject(
+      key: '${exam.key}_${subject.key}',
+      displayName: '${exam.displayName} · ${subject.displayName}',
+      emoji: subject.emoji,
+      topics: subject.topics,
+    );
+
+    final topicEntries = <_TopicEntry>[
+      _TopicEntry(
+        label: 'Tüm Konular'.tr(),
+        value: '__ALL__',
+        attemptCount: 0,
+        highlighted: true,
+      ),
+      for (final t in _expandTopics(subject.topics))
+        _TopicEntry(label: t, value: t, attemptCount: 0),
+    ];
+    final pickedTopic = await showDialog<String>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => _TopicPickerSheet(
+        subjectEmoji: subject.emoji,
+        subjectName: '${exam.displayName} · ${subject.displayName}',
+        topics: topicEntries,
+      ),
+    );
+    if (pickedTopic == null || !mounted) return;
+    final topic = pickedTopic == '__ALL__' ? null : pickedTopic;
+
+    setState(() {
+      _subject = synthetic;
+      _topic = topic;
+      _mode = _Mode.subject;
+    });
+    await _startQuizFor(synthetic, topic: topic, examLabel: exam.displayName);
+  }
+
   /// Hızlı Test — tek tıkla quiz başlatır.
   ///   1) En çok çözülmüş ders → öyle bir ders varsa onu kullan
   ///   2) Yoksa müfredattaki ilk dersi (genelde Matematik)
@@ -4077,7 +4219,8 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
   }
 
   // ── Quiz başlat (hero CTA → ders + opsiyonel konu seçimi sonrası) ─────────
-  Future<void> _startQuizFor(CurriculumSubject subject, {String? topic}) async {
+  Future<void> _startQuizFor(CurriculumSubject subject,
+      {String? topic, String? examLabel}) async {
     final profile = _profile;
     if (profile == null) return;
 
@@ -4102,6 +4245,7 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
           subjectEmoji: subject.emoji,
           topic: topic,
           period: _period,
+          examLabel: examLabel,
         ),
       ),
     );
@@ -4246,7 +4390,7 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
                     color: AppPalette.textPrimary(context))),
             const SizedBox(height: 8),
             Text(
-              'Dünya sıralamasında günde 1 ücretsiz quiz hakkın var.\nYarın tekrar katılabilir veya Premium\'a geçerek sınırsız oynayabilirsin.',
+              'Dünya sıralamasında günde 1 ücretsiz quiz hakkın var.\nYarın tekrar katılabilir veya Premium\'a geçerek sınırsız oynayabilirsin.'.tr(),
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(fontSize: 13, color: AppPalette.textSecondary(context), height: 1.5),
             ),
@@ -4264,14 +4408,14 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
                   Navigator.of(ctx).pop();
                   Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PremiumScreen()));
                 },
-                child: Text('Premium\'a Geç',
+                child: Text('Premium\'a Geç'.tr(),
                     style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
               ),
             ),
             const SizedBox(height: 8),
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: Text('Tamam',
+              child: Text('Tamam'.tr(),
                   style: GoogleFonts.poppins(fontSize: 13, color: AppPalette.textSecondary(context))),
             ),
           ],
@@ -4803,6 +4947,120 @@ class _HeroButton extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Sınav Modu: sınav grubu seçim dialog'u ──────────────────────────────────
+// Üstten alta LGS → TYT → AYT → DGS → KPSS sırasıyla listelenir. Tek
+// varyantlı gruplara (LGS/TYT/DGS) dokununca direkt o ExamDefinition ile
+// kapanır. Çok varyantlı gruplara (AYT/KPSS) dokununca aynı çerçevede,
+// o satırın hemen altında varyant listesi AÇILIR (ExpansionTile) — "KPSS'ye
+// basınca aşağı yeni bir çerçeve açılsın" isteğine karşılık gelir.
+class _ExamGroupPickerDialog extends StatefulWidget {
+  final List<ExamGroup> groups;
+  const _ExamGroupPickerDialog({required this.groups});
+
+  @override
+  State<_ExamGroupPickerDialog> createState() => _ExamGroupPickerDialogState();
+}
+
+class _ExamGroupPickerDialogState extends State<_ExamGroupPickerDialog> {
+  static const _accent = Color(0xFF0F766E);
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: AppPalette.card(context),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 60),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(4, 18, 4, 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: Text(
+                'Hangi sınava hazırlanıyorsun?'.tr(),
+                style: GoogleFonts.fraunces(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: AppPalette.textPrimary(context),
+                  letterSpacing: -0.3,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final g in widget.groups)
+                      g.hasSingleVariant
+                          ? ListTile(
+                              leading: Text(g.emoji, style: const TextStyle(fontSize: 22)),
+                              title: Text(g.displayName,
+                                  style: GoogleFonts.inter(
+                                      fontSize: 15, fontWeight: FontWeight.w800,
+                                      color: AppPalette.textPrimary(context))),
+                              subtitle: Text(g.description.tr(),
+                                  style: GoogleFonts.inter(
+                                      fontSize: 11.5,
+                                      color: AppPalette.textSecondary(context))),
+                              trailing: const Icon(Icons.chevron_right_rounded, color: _accent),
+                              onTap: () => Navigator.of(context).pop(g.variants.first),
+                            )
+                          : ExpansionTile(
+                              leading: Text(g.emoji, style: const TextStyle(fontSize: 22)),
+                              title: Text(g.displayName,
+                                  style: GoogleFonts.inter(
+                                      fontSize: 15, fontWeight: FontWeight.w800,
+                                      color: AppPalette.textPrimary(context))),
+                              subtitle: Text(g.description.tr(),
+                                  style: GoogleFonts.inter(
+                                      fontSize: 11.5,
+                                      color: AppPalette.textSecondary(context))),
+                              iconColor: _accent,
+                              collapsedIconColor: _accent,
+                              childrenPadding: const EdgeInsets.only(bottom: 6),
+                              children: [
+                                for (final v in g.variants)
+                                  ListTile(
+                                    contentPadding: const EdgeInsets.only(left: 46, right: 18),
+                                    title: Text(v.displayName,
+                                        style: GoogleFonts.inter(
+                                            fontSize: 13.5, fontWeight: FontWeight.w700,
+                                            color: AppPalette.textPrimary(context))),
+                                    trailing: const Icon(Icons.chevron_right_rounded,
+                                        color: _accent, size: 18),
+                                    onTap: () => Navigator.of(context).pop(v),
+                                  ),
+                              ],
+                            ),
+                  ],
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(
+                  'İptal'.tr(),
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppPalette.textSecondary(context),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -14,6 +14,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/ai_quota_service.dart';
+import '../services/app_settings_service.dart';
 import '../services/error_logger.dart';
 import '../services/pomodoro_stats.dart';
 import '../services/push_service.dart';
@@ -245,7 +246,7 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
     _phaseEndsAt = DateTime.now().add(Duration(seconds: _timeLeft));
     setState(() => _running = true);
     WakelockPlus.enable();
-    HapticFeedback.mediumImpact();
+    AppSettingsService.instance.hapticMedium();
     _persistMarsSession();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
@@ -493,7 +494,7 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
 
   void _advance() {
     _ticker?.cancel();
-    HapticFeedback.heavyImpact();
+    AppSettingsService.instance.hapticHeavy();
     SystemSound.play(SystemSoundType.alert);
     // Local notification — sessiz mod / arka plan / ekran kapalıyken
     // kullanıcı faz tamamlandığını görsün. iOS+Android destekli.
@@ -666,10 +667,10 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
     // Alarm — sistem sesi + haptic her saniyede bir.
     _alarmTimer?.cancel();
     _alarmTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      HapticFeedback.heavyImpact();
+      AppSettingsService.instance.hapticHeavy();
       SystemSound.play(SystemSoundType.alert);
     });
-    HapticFeedback.heavyImpact();
+    AppSettingsService.instance.hapticHeavy();
     SystemSound.play(SystemSoundType.alert);
     _signalTimer?.cancel();
     _signalTimer = Timer.periodic(const Duration(seconds: 1), (_) {

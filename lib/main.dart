@@ -32,6 +32,7 @@ import 'services/usage_quota.dart';
 import 'services/pomodoro_stats.dart';
 import 'services/account_service.dart';
 import 'services/app_settings_service.dart';
+import 'screens/parent_intro_screen.dart';
 import 'screens/teacher_shell_screen.dart';
 import 'services/preferences_sync_service.dart';
 import 'services/user_profile_service.dart';
@@ -304,12 +305,28 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
       }).then((_) {
         // Öğrenci hatırlatıcılarını (çalışma/seri/sınav) planla + yeni rozet
         // bildirimlerini eşitle. Öğretmen/ebeveyn için bunları iptal et.
-        if (AccountService.instance.isStudent) {
-          unawaited(LocalReminderService.rescheduleAll());
-          unawaited(LocalReminderService.syncAchievements());
-        } else {
-          unawaited(LocalReminderService.cancelAll());
+        //
+        // ÖNEMLİ: Sadece boot anında değil, hesap tipi SONRADAN değişince de
+        // (taze giriş / onboarding'de "öğrenci" seçimi / Firestore senkronu)
+        // tekrar çalışmalı. Boot'ta henüz öğrenci olmayan (çıkışta açılan) bir
+        // kullanıcı oturum içinde giriş yapınca restart beklemeden hatırlatıcı
+        // kurulsun. AccountService ChangeNotifier olduğundan tipi dinliyoruz;
+        // [lastStudent] guard'ı gereksiz tekrar planlamayı (her notify'da) önler.
+        bool? lastStudent;
+        void syncStudentReminders() {
+          final isStu = AccountService.instance.isStudent;
+          if (isStu == lastStudent) return;
+          lastStudent = isStu;
+          if (isStu) {
+            unawaited(LocalReminderService.rescheduleAll());
+            unawaited(LocalReminderService.syncAchievements());
+          } else {
+            unawaited(LocalReminderService.cancelAll());
+          }
         }
+
+        AccountService.instance.addListener(syncStudentReminders);
+        syncStudentReminders(); // mevcut durumu hemen uygula
       }));
     }
     // Deep link davet handler — uygulamayı linkten açana profil/davet sayfasını gösterir.
@@ -437,7 +454,8 @@ class _StartupRouter extends StatefulWidget {
   State<_StartupRouter> createState() => _StartupRouterState();
 }
 
-class _StartupRouterState extends State<_StartupRouter> {
+class _StartupRouterState extends State<_StartupRouter>
+    with WidgetsBindingObserver {
   Future<_StartupState>? _future;
   // Uygulama kilidi (AppSettings.appLockEnabled) açıksa onboarding/setup
   // sonrası home'a geçmeden bu PIN doğrulanmalı.
@@ -447,6 +465,9 @@ class _StartupRouterState extends State<_StartupRouter> {
   void initState() {
     super.initState();
     _future = _resolve();
+    // Uygulama kilidini arka plandan dönünce yeniden kurmak için yaşam
+    // döngüsünü dinle (aksi halde kilit yalnızca soğuk açılışta korurdu).
+    WidgetsBinding.instance.addObserver(this);
     // Deep link davet listener — link gelince /davet/{username} → push.
     DeepLinkService.instance.pendingInvite.addListener(_handleInvite);
     // Grup yarışı daveti — /grup/{contestId} → GroupContestScreen (autoJoin).
@@ -456,10 +477,24 @@ class _StartupRouterState extends State<_StartupRouter> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     DeepLinkService.instance.pendingInvite.removeListener(_handleInvite);
     DeepLinkService.instance.pendingGroupContest
         .removeListener(_handleGroupContest);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Uygulama tamamen arka plana geçtiğinde (paused) kilidi yeniden kur —
+    // böylece geri dönünce PIN/biyometrik yeniden istenir. Sadece kilit
+    // aktif + PIN kuruluysa anlamlı; aksi halde no-op.
+    if (state == AppLifecycleState.paused &&
+        _unlocked &&
+        AppSettingsService.instance.appLockEnabled &&
+        AppSettingsService.instance.hasAppLockPin) {
+      setState(() => _unlocked = false);
+    }
   }
 
   void _handleGroupContest() {
@@ -676,11 +711,12 @@ class _HomeRouter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<String>(
-      future: SharedPreferences.getInstance()
-          .then((p) => p.getString('startup_screen') ?? 'library'),
+    return FutureBuilder<SharedPreferences>(
+      future: SharedPreferences.getInstance(),
       builder: (_, snap) {
         if (!snap.hasData) return const QuAlsarSplashScreen();
+        final prefs = snap.data!;
+        final startupScreen = prefs.getString('startup_screen') ?? 'library';
         // Hesap tipine göre yönlendir.
         // AccountService.init() main.dart açılışta çağrıldığı için type hazır.
         final type = AccountService.instance.type;
@@ -688,12 +724,18 @@ class _HomeRouter extends StatelessWidget {
           return const TeacherShellScreen();
         }
         // Ebeveyn de Kütüphanem'e açılır — üstteki büyük "Ebeveyn Paneli"
-        //   banner'ından gözetim ekranına geçer.
+        //   banner'ından gözetim ekranına geçer. AMA 3 slaytlık intro'yu
+        //   (çocuk nasıl eklenir anlatan TEK yer) hiç tamamlamadıysa önce
+        //   onu göster — yoksa uygulamayı yarıda kapatan ebeveyn bu bilgiyi
+        //   bir daha asla görmezdi.
         if (type == AccountType.parent) {
+          if (prefs.getBool('parent_intro_completed') != true) {
+            return const ParentIntroScreen();
+          }
           return const _LibraryEntryShell();
         }
         // Öğrenci: varsayılan Kütüphanem; kullanıcı kamera seçtiyse kamera.
-        if (snap.data == 'camera') return CameraScreen();
+        if (startupScreen == 'camera') return CameraScreen();
         return const _LibraryEntryShell();
       },
     );
@@ -1038,6 +1080,9 @@ class QuAlsarApp extends StatelessWidget {
               darkTheme: AppTheme.dark,
               themeMode: theme.themeMode,
               navigatorKey: globalNavigatorKey,
+              // Bilgi Yarışı "Yarışlarım" kayıtlarını yarış sonrası tazelemek
+              // için (RouteAware didPopNext).
+              navigatorObservers: [arenaRouteObserver],
               locale: Locale(locale.localeCode),
               supportedLocales: LocaleService.supportedLocales
                   .map((c) => Locale(c))

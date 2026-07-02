@@ -38,6 +38,10 @@ class BilgiLigiQuizScreen extends StatefulWidget {
   /// periyot etiketi ile yapılır ve quiz header'ında rozet olarak gösterilir
   /// → kullanıcı seçimin etkisini görür.
   final LeaguePeriod period;
+  /// Sınav Modu — kullanıcı "LGS"/"AYT (Sayısal)"/"KPSS Lisans" gibi resmi
+  /// bir sınav seçtiyse burada gelir. Verilirse AI üretimine o sınavın
+  /// format/zorluk/üslubuna uyması için ek talimat geçilir.
+  final String? examLabel;
 
   const BilgiLigiQuizScreen({
     super.key,
@@ -47,6 +51,7 @@ class BilgiLigiQuizScreen extends StatefulWidget {
     required this.subjectEmoji,
     this.topic,
     this.period = LeaguePeriod.weekly,
+    this.examLabel,
   });
 
   @override
@@ -219,6 +224,7 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
           // çift geçiş süreyi ~ikiye katlıyor ve "test hazırlanamadı" timeout'a
           // yol açıyordu. Üretim zinciri Gemini → ChatGPT → Grok ile failover'lı.
           validate: false,
+          examLabel: widget.examLabel,
         );
         // Üretilen soruları havuza ekle (cap altındaysa). Hata yutulur.
         unawaited(QuizPoolService.addToPool(
@@ -339,13 +345,21 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
   Widget build(BuildContext context) {
     final bg = AppPalette.bg(context);
     // Mid-quiz hardware back / iOS swipe-back → confirm dialog.
-    // Loading veya finished durumunda direkt pop (cevap riski yok).
-    final canPopFreely = _loading || _finished || _error != null;
+    // Loading/hata durumunda direkt pop (cevap riski yok). Finished
+    // durumunda DA doğrudan pop VERMİYORUZ: sistem-geri ile çıkışta bile
+    // skor sonucu döndürülmeli — yoksa Bilgi Ligi'ne puan hiç yazılmaz.
+    final canPopFreely = _loading || _error != null;
     return PopScope(
       canPop: canPopFreely,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
         final navigator = Navigator.of(context);
+        if (_finished) {
+          // Sonuç ekranındayken sistem-geri = "Sıralamayı Gör" butonuyla
+          // aynı davranış: skoru döndürerek çık.
+          navigator.pop(<String, num>{'score': _finalScore, 'durationSec': _totalSec});
+          return;
+        }
         final exit = await _confirmExit();
         if (!exit || !mounted) return;
         // Kullanıcı oyunu yarıda bıraktı → kotayı iade et.

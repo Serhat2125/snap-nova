@@ -48,6 +48,9 @@ class TeacherClass {
   /// de notları AYNI müfredat skalasında görsün diye sınıf belgesine yazılır.
   /// Boş → görüntüleyenin kendi seçimi / generic'e düşülür.
   final String gradingCountry;
+  /// Sınıfın TAM profil kimliği (ör. 'us' veya 'gpa4') — gradingCountry tek
+  /// başına aynı ülkedeki birden fazla profili ayırt edemez.
+  final String gradingProfile;
 
   const TeacherClass({
     required this.id,
@@ -62,6 +65,7 @@ class TeacherClass {
     this.photoB64 = '',
     this.statusMessage = '',
     this.gradingCountry = '',
+    this.gradingProfile = '',
   });
 
   /// Gösterim/paylaşım için 5 haneli kod (eski "SINIF-XXXXX" önekini atar).
@@ -86,6 +90,7 @@ class TeacherClass {
       photoB64: (m['photoB64'] ?? '').toString(),
       statusMessage: (m['statusMessage'] ?? '').toString(),
       gradingCountry: (m['gradingCountry'] ?? '').toString(),
+      gradingProfile: (m['gradingProfile'] ?? '').toString(),
     );
   }
 }
@@ -330,6 +335,7 @@ class ClassService {
       // Öğretmenin not sistemi/müfredat ülkesi → sınıfa gömülür ki ebeveyn ve
       // öğrenci de notları aynı skalada görsün.
       final gradingCountry = AccountService.instance.gradingCountry ?? '';
+      final gradingProfile = AccountService.instance.gradingProfile ?? '';
       final batch = _fs.batch();
       batch.set(newDoc, {
         'teacherUid': myUid,
@@ -340,6 +346,7 @@ class ClassService {
         'level': level.trim(),
         'createdAt': FieldValue.serverTimestamp(),
         if (gradingCountry.isNotEmpty) 'gradingCountry': gradingCountry,
+        if (gradingProfile.isNotEmpty) 'gradingProfile': gradingProfile,
       });
       // Reverse index: code → classId
       batch.set(_fs.collection('class_codes').doc(code), {
@@ -359,6 +366,7 @@ class ClassService {
         level: level,
         createdAt: DateTime.now(),
         gradingCountry: gradingCountry,
+        gradingProfile: gradingProfile,
       );
     } catch (e) {
       debugPrint('[ClassService] createClass fail: $e');
@@ -388,6 +396,32 @@ class ClassService {
       return '';
     } catch (e) {
       debugPrint('[ClassService] gradingCountryForClass fail: $e');
+      return '';
+    }
+  }
+
+  /// Sınıfın TAM not profili kimliğini döndürür (bkz. gradingCountryForClass) —
+  /// gradingCountry tek başına aynı ülkedeki birden fazla profili (ör. US →
+  /// 'us'/'gpa4') ayırt edemediği için ayrı saklanır.
+  static Future<String> gradingProfileForClass(String classId) async {
+    try {
+      final doc = await _fs.collection('classes').doc(classId).get();
+      final data = doc.data();
+      final stored = (data?['gradingProfile'] ?? '').toString();
+      if (stored.isNotEmpty) return stored;
+      final myUid = _myUid;
+      final ownerUid = (data?['teacherUid'] ?? '').toString();
+      final mine = AccountService.instance.gradingProfile ?? '';
+      if (myUid != null && myUid == ownerUid && mine.isNotEmpty) {
+        await _fs
+            .collection('classes')
+            .doc(classId)
+            .set({'gradingProfile': mine}, SetOptions(merge: true));
+        return mine;
+      }
+      return '';
+    } catch (e) {
+      debugPrint('[ClassService] gradingProfileForClass fail: $e');
       return '';
     }
   }

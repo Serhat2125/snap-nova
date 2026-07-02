@@ -216,6 +216,10 @@ class HomeworkService {
         'status': 'published',
         'dueAt': Timestamp.fromDate(newDue),
         'publishNotified': false,
+        // Taslakken dueAt yakın bir saate denk gelip checkPendingReminders
+        // tarafından erkenden true'lanmış olabilir — yayınlanınca sıfırla,
+        // yoksa bu ödev için 2-saat-kaldı hatırlatması hiç gitmez.
+        'reminderSent': false,
       };
       if (clearPublishAt) {
         upd['publishAt'] = FieldValue.delete();
@@ -559,6 +563,23 @@ class HomeworkService {
         'wrong': wrong,
         'scorePercent': score,
       }, SetOptions(merge: true));
+      // Öğrenciye "ödevin değerlendirildi" bildirimi — daha önce bu yön hiç
+      // yoktu, öğrenci notunun güncellendiğini fark etmenin tek yolu ödevi
+      // elle tekrar açmaktı.
+      try {
+        final hwDoc = await _fs.collection('classes').doc(classId)
+            .collection('homeworks').doc(homeworkId).get();
+        final hwTitle = (hwDoc.data()?['title'] ?? 'Ödev').toString();
+        await _fs.collection('notifications').doc(studentUid)
+            .collection('items').doc().set({
+          'type': 'homework_graded',
+          'homeworkTitle': hwTitle,
+          'classId': classId,
+          'homeworkId': homeworkId,
+          'when': FieldValue.serverTimestamp(),
+          'read': false,
+        });
+      } catch (_) {}
       return true;
     } catch (e) {
       debugPrint('[HomeworkService] gradeOpenAnswers fail: $e');
@@ -592,6 +613,7 @@ class HomeworkService {
             .get();
         for (final hwDoc in hwQuery.docs) {
           final hw = HomeworkModel.fromDoc(hwDoc);
+          if (hw.isDraft) continue; // yayınlanmamış ödev — reminderSent'i tüketme
           if (hw.dueAt.isBefore(now)) continue; // geçmiş ödev
           if (hw.dueAt.isAfter(twoHoursFromNow)) continue; // henüz vakit var
 

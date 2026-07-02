@@ -11,14 +11,20 @@
 //  Kullanım dakikası gün-bazlı SharedPreferences'ta tutulur (pc_usage_<gün>).
 // ═══════════════════════════════════════════════════════════════════════════
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'account_service.dart';
+import 'parent_link_service.dart';
 
 enum LockReason { none, quietHours, limitReached }
+
+class _QuietRange {
+  final int start;
+  final int end;
+  const _QuietRange(this.start, this.end);
+}
 
 class ParentalControlsService extends ChangeNotifier {
   ParentalControlsService._();
@@ -29,6 +35,11 @@ class ParentalControlsService extends ChangeNotifier {
   bool _quietEnabled = false;
   int _quietStart = 21 * 60;
   int _quietEnd = 7 * 60;
+  // Birden fazla bağlı ebeveyn (anne+baba) farklı sessiz saat aralıkları
+  // belirleyebilir — hepsi ayrı ayrı kontrol edilir (en kısıtlayıcı: HERHANGİ
+  // biri aktifse kilitli). _quietStart/_quietEnd tekil ebeveyn/offline cache
+  // fallback'i için hâlâ tutuluyor.
+  List<_QuietRange> _quietRanges = const [];
   bool _loaded = false;
 
   bool get hasAnyControl => _timeLimitEnabled || _quietEnabled;
@@ -59,22 +70,45 @@ class ParentalControlsService extends ChangeNotifier {
     _readFromPrefs(prefs);
     if (uid != null) {
       try {
-        final doc = await FirebaseFirestore.instance
-            .collection('parental_controls').doc(uid).get();
-        if (doc.exists) {
-          final m = doc.data() ?? const {};
-          _timeLimitEnabled = (m['timeLimitEnabled'] ?? false) == true;
-          _dailyLimitMinutes = (m['dailyLimitMinutes'] ?? 120) as int;
-          _quietEnabled = (m['quietHoursEnabled'] ?? false) == true;
-          _quietStart = (m['quietStartMinutes'] ?? 21 * 60) as int;
-          _quietEnd = (m['quietEndMinutes'] ?? 7 * 60) as int;
-          await _writeToPrefs(prefs);
-        } else {
-          // Doc yok → kontrol yok.
+        // TÜM bağlı ebeveynlerin kısıtlarını oku — birden fazla ebeveyn
+        // varsa (anne+baba) en kısıtlayıcısı uygulanır: HERHANGİ biri süre
+        // limiti/sessiz saat açtıysa etkindir; süre limiti varsa EN KÜÇÜK
+        // (en kısıtlayıcı) dakika kullanılır; tüm aktif sessiz aralıklar
+        // ayrı ayrı kontrol edilir.
+        final docs = await ParentLinkService.readAllParentalControls(uid);
+        if (docs.isEmpty) {
           _timeLimitEnabled = false;
           _quietEnabled = false;
-          await _writeToPrefs(prefs);
+          _quietRanges = const [];
+        } else {
+          bool timeOn = false;
+          int? minDaily;
+          bool quietOn = false;
+          final ranges = <_QuietRange>[];
+          for (final m in docs) {
+            if ((m['timeLimitEnabled'] ?? false) == true) {
+              timeOn = true;
+              final v = (m['dailyLimitMinutes'] ?? 120) as int;
+              if (minDaily == null || v < minDaily) minDaily = v;
+            }
+            if ((m['quietHoursEnabled'] ?? false) == true) {
+              quietOn = true;
+              ranges.add(_QuietRange(
+                (m['quietStartMinutes'] ?? 21 * 60) as int,
+                (m['quietEndMinutes'] ?? 7 * 60) as int,
+              ));
+            }
+          }
+          _timeLimitEnabled = timeOn;
+          _dailyLimitMinutes = minDaily ?? 120;
+          _quietEnabled = quietOn;
+          _quietRanges = ranges;
+          if (ranges.isNotEmpty) {
+            _quietStart = ranges.first.start;
+            _quietEnd = ranges.first.end;
+          }
         }
+        await _writeToPrefs(prefs);
       } catch (e) {
         debugPrint('[ParentalControls] refresh fail (cache kullanılıyor): $e');
       }
@@ -119,17 +153,23 @@ class ParentalControlsService extends ChangeNotifier {
     }
   }
 
-  /// Sessiz saat aralığı şu an aktif mi (gece yarısını sarmayı destekler).
+  /// Bir aralık şu an aktif mi (gece yarısını sarmayı destekler).
+  bool _rangeActive(int start, int end, int now) {
+    if (start == end) return false;
+    if (start < end) return now >= start && now < end;
+    // Gece sarması: 21:00 → 07:00
+    return now >= start || now < end;
+  }
+
+  /// Sessiz saat aralığı şu an aktif mi — birden fazla bağlı ebeveynin
+  /// aralıkları varsa HERHANGİ biri aktifse kilitli (en kısıtlayıcı).
   bool _inQuietHours() {
     if (!_quietEnabled) return false;
-    final n = DateTime.now();
-    final now = n.hour * 60 + n.minute;
-    if (_quietStart == _quietEnd) return false;
-    if (_quietStart < _quietEnd) {
-      return now >= _quietStart && now < _quietEnd;
+    final now = DateTime.now().hour * 60 + DateTime.now().minute;
+    if (_quietRanges.isEmpty) {
+      return _rangeActive(_quietStart, _quietEnd, now);
     }
-    // Gece sarması: 21:00 → 07:00
-    return now >= _quietStart || now < _quietEnd;
+    return _quietRanges.any((r) => _rangeActive(r.start, r.end, now));
   }
 
   /// Şu an kilit gerekiyor mu? Senkron (kullanım dakikası önceden hesaplanır).

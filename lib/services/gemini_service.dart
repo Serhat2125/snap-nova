@@ -5718,8 +5718,12 @@ Format:
     String? topic,
     int count = 10,
     bool validate = true,
+    /// Sınav modu (Bilgi Ligi) — ör. "LGS", "AYT (Sayısal)", "KPSS Lisans".
+    /// Verilirse üretim prompt'u o sınavın gerçek format/zorluk/üslubuna
+    /// uygun soru üretmesi için ek talimat alır.
+    String? examLabel,
   }) async {
-    _log('generateLeagueQuiz() — ${profile.displayLabel()} · $subjectName${topic != null ? " > $topic" : ""} · validate=$validate');
+    _log('generateLeagueQuiz() — ${profile.displayLabel()} · $subjectName${topic != null ? " > $topic" : ""} · validate=$validate${examLabel != null ? " · exam=$examLabel" : ""}');
 
     final overproduce = validate ? (count * 1.6).ceil() : count;
 
@@ -5729,6 +5733,7 @@ Format:
       subjectName: subjectName,
       topic: topic,
       count: overproduce,
+      examLabel: examLabel,
     );
     if (!validate) {
       // Doğrulama atlanırsa ilk count soruyu döner.
@@ -5764,11 +5769,28 @@ Format:
     required String subjectName,
     String? topic,
     required int count,
+    String? examLabel,
   }) async {
     final ctx = educationContext(profile);
     final scope = topic != null && topic.isNotEmpty
         ? 'Ders: $subjectName · Konu: $topic'
         : 'Ders: $subjectName (genel)';
+    final examRule = (examLabel != null && examLabel.isNotEmpty)
+        ? '\n- ÖNEMLİ: Bu sorular "$examLabel" sınavına hazırlanan bir öğrenci içindir. '
+            'Gerçek $examLabel sorularının formatına, üslubuna ve zorluk seviyesine '
+            'sadık kal — soru kökü ve şıkların uzunluğu/tarzı o sınavın resmi '
+            'sorularına benzemeli.'
+        : '';
+    // ÇIKTI DİLİ: kullanıcının aktif uygulama dili — "öğrencinin yerel dili"
+    // gibi belirsiz bir talimat AI'ın Türkçe/İngilizce'ye kaçmasına yol
+    // açıyordu (KonuÖzeti/TestSorulari'nde aynı sorun daha önce LocaleService
+    // ile düzeltilmişti, Bilgi Ligi bu düzeltmeyi hiç almamıştı).
+    final outLangCode = LocaleService.global?.localeCode ?? 'tr';
+    final outLangInstr = outLangCode == 'tr'
+        ? 'Soruları, şıkları ve açıklamaları Türkçe yaz.'
+        : 'Soruları, şıkları ve açıklamaları — HER ŞEYİ — '
+            '${_languageNameFor(outLangCode)} dilinde yaz (kod: "$outLangCode"). '
+            'Bu dil dışında Türkçe veya İngilizce KULLANMA.';
 
     final systemPrompt =
         '''Sen bir sınav sorusu hazırlama uzmanısın. Aşağıdaki öğrenci profili ve konu için $count adet ÇOKTAN SEÇMELİ soru üret.
@@ -5783,9 +5805,9 @@ KURALLAR:
 - Müfredata + sınıfa uygun zorluk; yorum ve hesap dengesi olsun.
 - Gereksiz uzun cümle yok, sınav diliyle net.
 - Aynı konunun farklı alt başlıklarına dağıt; tek bir alt konuya yığma.
-- Öğrencinin dilinde (öğrencinin yerel dilinde) yaz.
+- $outLangInstr
 - "explanation" alanı 1-2 cümle, doğru şıkkın neden doğru olduğunu kısaca anlat.
-- Sadece geçerli JSON döndür, başka metin yok.
+- Sadece geçerli JSON döndür, başka metin yok.$examRule
 
 Format:
 {

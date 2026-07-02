@@ -366,6 +366,31 @@ class AppSettingsService extends ChangeNotifier {
   /// click sesi veya titreşim çalmaz. Caller bu flag'i kontrol eder.
   bool get inTestSilentMode => _testSilent;
 
+  // ── Genel haptic yardımcıları — "Titreşim (haptic)" ayarına saygılı ──────
+  // Uygulama genelinde doğrudan HapticFeedback.* çağırmak yerine bunlar
+  // kullanılır ki kullanıcı titreşimi kapatınca HER YERDE sussun (PIN tuş
+  // takımı, klavye, pomodoro, mini oyunlar…). Ayar kapalıysa no-op.
+  // [inTest] true verilirse "Test sırasında sessiz" ayarı da dikkate alınır.
+  void hapticSelection({bool inTest = false}) {
+    if (!_haptic || (inTest && _testSilent)) return;
+    HapticFeedback.selectionClick();
+  }
+
+  void hapticLight({bool inTest = false}) {
+    if (!_haptic || (inTest && _testSilent)) return;
+    HapticFeedback.lightImpact();
+  }
+
+  void hapticMedium({bool inTest = false}) {
+    if (!_haptic || (inTest && _testSilent)) return;
+    HapticFeedback.mediumImpact();
+  }
+
+  void hapticHeavy({bool inTest = false}) {
+    if (!_haptic || (inTest && _testSilent)) return;
+    HapticFeedback.heavyImpact();
+  }
+
   // ── Önizleme (preview) — ayar ekranında kullanıcı efekti test edebilsin ───
   // Bunlar flag'lerden BAĞIMSIZ çalışır: kullanıcı kapalıyken bile "nasıl bir
   // ses/titreşim" olduğunu duyabilsin diye. Ayarın kendisi yine flag ile gate'li.

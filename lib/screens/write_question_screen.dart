@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../main.dart' show localeService;
+import '../services/app_settings_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
 
@@ -455,7 +455,7 @@ class _MiuiKeyboardState extends State<_MiuiKeyboard> {
   bool get _effectiveShift => _shifted || _capsLock;
 
   void _tapLetter(String c) {
-    HapticFeedback.selectionClick();
+    AppSettingsService.instance.hapticSelection();
     final out = _effectiveShift ? c.toUpperCase() : c;
     _insert(out);
     if (_shifted && !_capsLock) setState(() => _shifted = false);
@@ -476,7 +476,7 @@ class _MiuiKeyboardState extends State<_MiuiKeyboard> {
   }
 
   void _backspace() {
-    HapticFeedback.selectionClick();
+    AppSettingsService.instance.hapticSelection();
     final ctrl = widget.controller;
     final text = ctrl.text;
     final sel = ctrl.selection;
@@ -492,7 +492,7 @@ class _MiuiKeyboardState extends State<_MiuiKeyboard> {
   }
 
   void _shiftTap() {
-    HapticFeedback.selectionClick();
+    AppSettingsService.instance.hapticSelection();
     if (_capsLock) {
       setState(() { _capsLock = false; _shifted = false; });
     } else if (_shifted) {

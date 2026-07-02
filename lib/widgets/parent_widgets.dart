@@ -821,7 +821,15 @@ class _AiInsightsBoxState extends State<AiInsightsBox> {
 // ─────────────────────────────────────────────────────────────────────────
 class TeacherAnnouncementsCard extends StatefulWidget {
   final String childUid;
-  const TeacherAnnouncementsCard({super.key, required this.childUid});
+  /// Dashboard'daki pull-to-refresh her tetiklendiğinde artan sayaç —
+  /// bu widget kendi verisini sadece childUid değişince yeniliyordu, bu
+  /// yüzden aşağı çekip yenilemek duyuruları hiç tazelemiyordu.
+  final int refreshTick;
+  const TeacherAnnouncementsCard({
+    super.key,
+    required this.childUid,
+    this.refreshTick = 0,
+  });
 
   @override
   State<TeacherAnnouncementsCard> createState() =>
@@ -842,6 +850,8 @@ class _TeacherAnnouncementsCardState extends State<TeacherAnnouncementsCard> {
     super.didUpdateWidget(old);
     if (old.childUid != widget.childUid) {
       setState(() => _items = null);
+      _load();
+    } else if (old.refreshTick != widget.refreshTick) {
       _load();
     }
   }
@@ -920,11 +930,234 @@ class _TeacherAnnouncementsCardState extends State<TeacherAnnouncementsCard> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// 0z) ÖĞRETMEN NOTLARI / TEBRİKLERİ — öğretmenin "veliyle paylaş" diyerek
+//     yazdığı notlar + hızlı tebrik/takdirler (👏). Daha önce hiçbir ebeveyn
+//     ekranı bunu okumuyordu — öğretmen tarafı "veli panelinde görünür"
+//     diyordu ama gösterilmiyordu.
+// ─────────────────────────────────────────────────────────────────────────
+class TeacherNotesCard extends StatefulWidget {
+  final String childUid;
+  final int refreshTick;
+  const TeacherNotesCard({
+    super.key,
+    required this.childUid,
+    this.refreshTick = 0,
+  });
+
+  @override
+  State<TeacherNotesCard> createState() => _TeacherNotesCardState();
+}
+
+class _TeacherNotesCardState extends State<TeacherNotesCard> {
+  List<ParentTeacherNote>? _items;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(TeacherNotesCard old) {
+    super.didUpdateWidget(old);
+    if (old.childUid != widget.childUid) {
+      setState(() => _items = null);
+      _load();
+    } else if (old.refreshTick != widget.refreshTick) {
+      _load();
+    }
+  }
+
+  Future<void> _load() async {
+    final list = await ParentLinkService.readChildNotes(widget.childUid);
+    if (!mounted) return;
+    setState(() => _items = list);
+  }
+
+  String _rel(DateTime w) {
+    final d = DateTime.now().difference(w);
+    if (d.inMinutes < 60) return '${d.inMinutes} dk';
+    if (d.inHours < 24) return '${d.inHours} sa';
+    if (d.inDays < 7) return '${d.inDays} g';
+    return '${w.day}.${w.month}.${w.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = _items;
+    if (items == null || items.isEmpty) return const SizedBox.shrink();
+    final show = items.take(4).toList();
+    const brand = Color(0xFF10B981);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+      decoration: BoxDecoration(
+        color: brand.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: brand.withValues(alpha: 0.30)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.emoji_events_rounded, size: 18, color: brand),
+              const SizedBox(width: 8),
+              Text('Öğretmen notları ve tebrikleri'.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 13, fontWeight: FontWeight.w800,
+                    color: const Color(0xFF065F46),
+                  )),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...show.map((n) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (n.isPraise)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 6, top: 1),
+                    child: Text('👏', style: TextStyle(fontSize: 13)),
+                  ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(n.text,
+                          style: GoogleFonts.poppins(
+                            fontSize: 12.5, height: 1.35,
+                            fontWeight: FontWeight.w600,
+                            color: AppPalette.textPrimary(context),
+                          )),
+                      const SizedBox(height: 2),
+                      Text('${n.className} · ${_rel(n.when)}',
+                          style: GoogleFonts.poppins(
+                            fontSize: 10.5,
+                            color: AppPalette.textSecondary(context),
+                          )),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          )),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 0y) BİLGİ LİGİ BAŞARILARI — çocuğun quiz/yarışma sıralaması ve streak'i.
+//     Daha önce ebeveyn panelinde Bilgi Ligi'ye dair HİÇBİR gösterim yoktu.
+// ─────────────────────────────────────────────────────────────────────────
+class LeagueStatsCard extends StatefulWidget {
+  final String childUid;
+  final int refreshTick;
+  const LeagueStatsCard({
+    super.key,
+    required this.childUid,
+    this.refreshTick = 0,
+  });
+
+  @override
+  State<LeagueStatsCard> createState() => _LeagueStatsCardState();
+}
+
+class _LeagueStatsCardState extends State<LeagueStatsCard> {
+  ParentLeagueStats? _stats;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(LeagueStatsCard old) {
+    super.didUpdateWidget(old);
+    if (old.childUid != widget.childUid || old.refreshTick != widget.refreshTick) {
+      _load();
+    }
+  }
+
+  Future<void> _load() async {
+    final s = await ParentLinkService.readChildLeagueStats(widget.childUid);
+    if (!mounted) return;
+    setState(() => _stats = s);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = _stats;
+    if (s == null || !s.hasData) return const SizedBox.shrink();
+    const brand = Color(0xFF7C3AED);
+    Widget stat(String value, String label) => Expanded(
+          child: Column(
+            children: [
+              Text(value,
+                  style: GoogleFonts.poppins(
+                    fontSize: 18, fontWeight: FontWeight.w800, color: brand,
+                  )),
+              const SizedBox(height: 2),
+              Text(label,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(
+                    fontSize: 10, color: AppPalette.textSecondary(context),
+                  )),
+            ],
+          ),
+        );
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      decoration: BoxDecoration(
+        color: brand.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: brand.withValues(alpha: 0.30)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.emoji_events_rounded, size: 18, color: brand),
+              const SizedBox(width: 8),
+              Text('Bilgi Ligi başarıları'.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 13, fontWeight: FontWeight.w800, color: brand,
+                  )),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              stat('${s.attempts}', 'Test'.tr()),
+              stat(s.averageScore.toStringAsFixed(1), 'Ort. Puan'.tr()),
+              stat(s.bestScore.toStringAsFixed(1), 'En İyi'.tr()),
+              stat('${s.streakDays} 🔥', 'Gün Streak'.tr()),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // 0a) YAKLAŞAN ÖDEVLER — son tarihe göre sıralı; teslim durumu rozetli.
 // ─────────────────────────────────────────────────────────────────────────
 class UpcomingHomeworksCard extends StatefulWidget {
   final String childUid;
-  const UpcomingHomeworksCard({super.key, required this.childUid});
+  /// Dashboard'daki pull-to-refresh her tetiklendiğinde artan sayaç —
+  /// bu widget kendi verisini sadece childUid değişince yeniliyordu, bu
+  /// yüzden aşağı çekip yenilemek yaklaşan ödevleri hiç tazelemiyordu.
+  final int refreshTick;
+  const UpcomingHomeworksCard({
+    super.key,
+    required this.childUid,
+    this.refreshTick = 0,
+  });
 
   @override
   State<UpcomingHomeworksCard> createState() => _UpcomingHomeworksCardState();
@@ -944,6 +1177,8 @@ class _UpcomingHomeworksCardState extends State<UpcomingHomeworksCard> {
     super.didUpdateWidget(old);
     if (old.childUid != widget.childUid) {
       setState(() => _items = null);
+      _load();
+    } else if (old.refreshTick != widget.refreshTick) {
       _load();
     }
   }
@@ -1562,6 +1797,19 @@ class _ParentalControlsCardState extends State<ParentalControlsCard> {
       _quiet = p.getBool(_k('quiet_enabled')) ?? false;
       _quietStart = p.getInt(_k('quiet_start')) ?? 21 * 60;
       _quietEnd = p.getInt(_k('quiet_end')) ?? 7 * 60;
+    } catch (_) {}
+    // Yerel cache SADECE bu cihazda daha önce kaydedilmişse doğru — başka
+    // bir cihazdan (veya başka ebeveyn olarak) girildiyse Firestore'daki
+    // KENDİ kayıtlı ayarım asıl kaynak. Onu çekip cache'in üzerine yaz.
+    try {
+      final cloud = await ParentLinkService.readParentalControls(widget.childUid);
+      if (cloud != null) {
+        _timeLimit = (cloud['timeLimitEnabled'] ?? _timeLimit) == true;
+        _dailyMins = (cloud['dailyLimitMinutes'] ?? _dailyMins) as int;
+        _quiet = (cloud['quietHoursEnabled'] ?? _quiet) == true;
+        _quietStart = (cloud['quietStartMinutes'] ?? _quietStart) as int;
+        _quietEnd = (cloud['quietEndMinutes'] ?? _quietEnd) as int;
+      }
     } catch (_) {}
     if (mounted) setState(() => _loaded = true);
   }

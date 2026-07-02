@@ -28,6 +28,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../services/education_profile.dart';
+import '../../services/locale_service.dart';
 
 /// Firestore fetch timeout — offline / yavaş ağda UI sonsuza kadar dönmesin.
 const Duration _poolTimeout = Duration(seconds: 8);
@@ -39,8 +40,14 @@ const int kQuizPoolCap = 100;
 class QuizPoolService {
   static final _col = FirebaseFirestore.instance.collection('quiz_pool');
 
-  /// Havuz anahtarı: country × level × grade × subject × topic kombinasyonu.
-  /// `topic` boş ya da null ise "*" kullanılır (ders bazlı havuz).
+  /// Havuz anahtarı: country × level × grade × subject × topic × DİL
+  /// kombinasyonu. `topic` boş ya da null ise "*" kullanılır (ders bazlı havuz).
+  ///
+  /// Dil anahtara dahil değildi → aynı (ülke/seviye/sınıf/ders/konu) için
+  /// havuz TÜM kullanıcılar arasında paylaşılıyordu, uygulama dilinden
+  /// bağımsız olarak. Örn. İngilizce arayüzdeki bir kullanıcı, havuzu ilk
+  /// dolduran Türkçe arayüzlü kullanıcının Türkçe sorularını görüyordu.
+  /// Artık her uygulama dili kendi ayrı havuzuna yazar/okur.
   static String poolKey({
     required String country,
     required String level,
@@ -49,7 +56,8 @@ class QuizPoolService {
     String? topic,
   }) {
     final t = (topic ?? '').isEmpty ? '*' : topic!;
-    return '$country|$level|$grade|$subjectKey|$t';
+    final lang = LocaleService.global?.localeCode ?? 'tr';
+    return '$country|$level|$grade|$subjectKey|$t|$lang';
   }
 
   /// Havuzdaki test sayısı. Cap kontrolü için kullanılır.
