@@ -531,10 +531,15 @@ class FriendService {
         .orderBy('since', descending: true)
         .snapshots()
         .map((snap) => snap.docs.map(Friend.fromDoc).toList())
-        .handleError((e) {
-      debugPrint('[FriendService] watchFriends error: $e');
-      return const <Friend>[];
-    });
+        // NOT: handleError içinde `return` DEĞER YAYMAZ (Dart'ta atılır) —
+        // hata anında stream sessiz kalır ve StreamBuilder spinner'da takılı
+        // kalırdı. Transformer sink'e boş liste BASARAK düzeltildi.
+        .transform(StreamTransformer<List<Friend>, List<Friend>>.fromHandlers(
+      handleError: (e, st, sink) {
+        debugPrint('[FriendService] watchFriends error: $e');
+        sink.add(const <Friend>[]);
+      },
+    ));
   }
 
   /// Bekleyen gelen istekleri dinle.
@@ -550,10 +555,15 @@ class FriendService {
         .orderBy('sentAt', descending: true)
         .snapshots()
         .map((snap) => snap.docs.map(FriendRequest.fromDoc).toList())
-        .handleError((e) {
-      debugPrint('[FriendService] watchRequests error: $e');
-      return const <FriendRequest>[];
-    });
+        // handleError'da return değer yaymaz — sink'e boş liste bas (üstteki
+        // watchFriends ile aynı düzeltme).
+        .transform(
+            StreamTransformer<List<FriendRequest>, List<FriendRequest>>.fromHandlers(
+      handleError: (e, st, sink) {
+        debugPrint('[FriendService] watchRequests error: $e');
+        sink.add(const <FriendRequest>[]);
+      },
+    ));
   }
 
   /// Arkadaşların son aktiviteleri — `league_attempts` koleksiyonundan

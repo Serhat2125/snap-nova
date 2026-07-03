@@ -30,6 +30,7 @@ import '../features/offline/domain/offline_subject_pack.dart';
 import '../features/offline/providers/offline_pack_provider.dart';
 import '../services/curriculum_catalog.dart';
 import '../services/education_profile.dart';
+import '../services/exam_catalog.dart' show examGroupsFor;
 import '../services/gemini_service.dart';
 import '../services/tts_service.dart';
 import '../services/rag_service.dart';
@@ -43,7 +44,6 @@ import 'student_materials_screen.dart';
 import 'history_screen.dart';
 import 'qualsar_arena_screen.dart';
 import 'bilgi_ligi_screen.dart';
-import '../services/exam_catalog.dart';
 import '../widgets/exam_mode_widgets.dart';
 import '../widgets/study_toolbar.dart';
 import 'qualsar_mars_screen.dart';
@@ -3044,7 +3044,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
     'history': 'Çözümlerim',
     'edu3d': '3D Eğitim Modelleri',
     'league': 'Dünya Sıralaması',
-    'contest': 'Bilgi Yarışı',
+    'contest': 'Düello Arenası',
     'calendar': 'Çalışma Takvimi',
     'ai_coach': 'AI Koç',
     'pomodoro': 'Pomodoro Tekniği',
@@ -3164,10 +3164,21 @@ class _LibraryLandingState extends State<LibraryLanding> {
       backgroundColor: AppPalette.resolvePageBg(context, _pageBgOverride),
       appBar: AppBar(
         backgroundColor: AppPalette.card(context),
-        elevation: 0,
+        // Sayfa zeminine yumuşak geçiş — altta küçük radius ile "sarkan"
+        // header + hafif gölge.
+        elevation: 1.5,
+        shadowColor: Colors.black.withValues(alpha: 0.18),
+        surfaceTintColor: Colors.transparent,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(18)),
+        ),
         centerTitle: false,
         titleSpacing: 8,
-        automaticallyImplyLeading: false,
+        // Kütüphanem uygulama açılış ekranı olarak (root, geri gidilecek
+        // sayfa yok) VEYA başka bir sayfadan push edilerek açılabiliyor.
+        // automaticallyImplyLeading (varsayılan true) bunu Navigator.canPop
+        // ile otomatik ayırt eder: root'ta ok gizli kalır, push edildiğinde
+        // solda geri oku belirir.
         foregroundColor: AppPalette.textPrimary(context),
         title: Row(
           mainAxisSize: MainAxisSize.min,
@@ -3267,54 +3278,49 @@ class _LibraryLandingState extends State<LibraryLanding> {
               ),
               SizedBox(height: 12),
             ],
-            // ── 1. satır: Konu Özeti (sol) | Sınav Soruları (sağ) ────
-            Row(
-              children: [
-                Expanded(
-                  child: _LandingCard(
-                    icon: Icons.auto_stories_rounded,
-                    title: localeService.tr('create_topic_summary'),
-                    color: _blue,
-                    customBg: _cardBgs['summary'],
-                    customTextColor: _cardInks['summary'],
-                    onColorAccept: (c) =>
-                        _applyLibraryColor('summary', c),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => AcademicPlanner(
-                            mode: LibraryMode.summary),
-                      ),
-                    ),
-                  ),
+            // ── ÜRET: Konu Özeti + Sınav Soruları — hero kartlar ─────
+            _sectionLabel('Üret'),
+            _HeroCard(
+              icon: Icons.summarize_rounded,
+              title: localeService.tr('create_topic_summary'),
+              subtitle: 'Fotoğraftan akıllı konu özeti çıkar'.tr(),
+              gradient: const [Color(0xFF2563EB), Color(0xFF7C3AED)],
+              customBg: _cardBgs['summary'],
+              customTextColor: _cardInks['summary'],
+              onColorAccept: (c) => _applyLibraryColor('summary', c),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => AcademicPlanner(
+                      mode: LibraryMode.summary),
                 ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: _LandingCard(
-                    icon: Icons.quiz_rounded,
-                    title: localeService.tr('create_exam_questions'),
-                    color: _orange,
-                    customBg: _cardBgs['questions'],
-                    customTextColor: _cardInks['questions'],
-                    onColorAccept: (c) =>
-                        _applyLibraryColor('questions', c),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => AcademicPlanner(
-                            mode: LibraryMode.questions),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
-            SizedBox(height: 12),
-            // ── 2. satır: Çözümlerim (sol) | 3D Eğitim Modelleri (sağ) ─
+            SizedBox(height: 10),
+            _HeroCard(
+              icon: Icons.fact_check_rounded,
+              title: localeService.tr('create_exam_questions'),
+              subtitle: 'AI ile deneme soruları üret ve çöz'.tr(),
+              gradient: const [Color(0xFFFF6A00), Color(0xFFDB2777)],
+              customBg: _cardBgs['questions'],
+              customTextColor: _cardInks['questions'],
+              onColorAccept: (c) => _applyLibraryColor('questions', c),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => AcademicPlanner(
+                      mode: LibraryMode.questions),
+                ),
+              ),
+            ),
+            SizedBox(height: 16),
+            // ── KİTAPLIĞIM: Çözümlerim | 3D Eğitim Modelleri ─────────
+            _sectionLabel('Kitaplığım'),
             Row(
               children: [
                 Expanded(
                   child: _LandingCard(
-                    icon: Icons.check_circle_rounded,
+                    icon: Icons.history_rounded,
                     title: 'Çözümlerim'.tr(),
+                    subtitle: 'Geçmiş çözümlerini incele'.tr(),
                     color: Color(0xFF3B82F6),
                     customBg: _cardBgs['history'],
                     customTextColor: _cardInks['history'],
@@ -3332,6 +3338,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
                   child: _LandingCard(
                     icon: Icons.view_in_ar_rounded,
                     title: '3D Eğitim Modelleri'.tr(),
+                    subtitle: 'Konuları 3D sahnede keşfet'.tr(),
                     color: Color(0xFF06B6D4),
                     customBg: _cardBgs['edu3d'],
                     customTextColor: _cardInks['edu3d'],
@@ -3346,14 +3353,16 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 ),
               ],
             ),
-            SizedBox(height: 12),
-            // ── 3. satır: Dünya Sıralaması (sol) | Bilgi Yarışı (sağ) ─
+            SizedBox(height: 16),
+            // ── YARIŞ: Dünya Sıralaması | Bilgi Yarışı ───────────────
+            _sectionLabel('Yarış'),
             Row(
               children: [
                 Expanded(
                   child: _LandingCard(
-                    icon: Icons.leaderboard_rounded,
+                    icon: Icons.public_rounded,
                     title: 'Dünya Sıralaması'.tr(),
+                    subtitle: 'Dünyadaki yerini gör'.tr(),
                     color: Color(0xFF7C3AED),
                     customBg: _cardBgs['league'],
                     customTextColor: _cardInks['league'],
@@ -3369,8 +3378,9 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 SizedBox(width: 10),
                 Expanded(
                   child: _LandingCard(
-                    icon: Icons.emoji_events_rounded,
-                    title: 'Bilgi Yarışı'.tr(),
+                    icon: Icons.sports_esports_rounded,
+                    title: 'Düello Arenası'.tr(),
+                    subtitle: 'Arkadaşlarınla düello yap'.tr(),
                     color: Color(0xFFFFB800),
                     customBg: _cardBgs['contest'],
                     customTextColor: _cardInks['contest'],
@@ -3385,14 +3395,16 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 ),
               ],
             ),
-            SizedBox(height: 12),
-            // ── 4. satır: Çalışma Takvimim (sol) | AI Koç (sağ) ──────
+            SizedBox(height: 16),
+            // ── ÇALIŞ: Takvim | Pomodoro + AI Koç ────────────────────
+            _sectionLabel('Çalış'),
             Row(
               children: [
                 Expanded(
                   child: _LandingCard(
-                    icon: Icons.calendar_month_rounded,
+                    icon: Icons.edit_calendar_rounded,
                     title: localeService.tr('my_study_calendar'),
+                    subtitle: 'Programını planla, takip et'.tr(),
                     color: _indigo,
                     customBg: _cardBgs['calendar'],
                     customTextColor: _cardInks['calendar'],
@@ -3408,30 +3420,9 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 SizedBox(width: 10),
                 Expanded(
                   child: _LandingCard(
-                    icon: Icons.support_agent_rounded,
-                    title: 'AI Koç'.tr(),
-                    color: Color(0xFF7C3AED),
-                    customBg: _cardBgs['ai_coach'],
-                    customTextColor: _cardInks['ai_coach'],
-                    onColorAccept: (c) =>
-                        _applyLibraryColor('ai_coach', c),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const AICoachScreen(),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 12),
-            // ── 5. satır: Pomodoro (sol) | Sınıf Ödevlerim (sağ) ─────
-            Row(
-              children: [
-                Expanded(
-                  child: _LandingCard(
-                    icon: Icons.rocket_launch_rounded,
+                    icon: Icons.timer_rounded,
                     title: 'Pomodoro Tekniği'.tr(),
+                    subtitle: 'Odaklan, mola ver, tekrarla'.tr(),
                     color: Color(0xFFFF6A3C),
                     customBg: _cardBgs['pomodoro'],
                     customTextColor: _cardInks['pomodoro'],
@@ -3444,11 +3435,42 @@ class _LibraryLandingState extends State<LibraryLanding> {
                     ),
                   ),
                 ),
-                SizedBox(width: 10),
+              ],
+            ),
+            SizedBox(height: 12),
+            Row(
+              children: [
                 Expanded(
                   child: _LandingCard(
-                    icon: Icons.assignment_rounded,
+                    icon: Icons.psychology_rounded,
+                    title: 'AI Koç'.tr(),
+                    subtitle: 'Kişisel çalışma tavsiyeleri'.tr(),
+                    color: Color(0xFF7C3AED),
+                    customBg: _cardBgs['ai_coach'],
+                    customTextColor: _cardInks['ai_coach'],
+                    onColorAccept: (c) =>
+                        _applyLibraryColor('ai_coach', c),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const AICoachScreen(),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 10),
+                Expanded(child: SizedBox()),
+              ],
+            ),
+            SizedBox(height: 16),
+            // ── SINIFIM: Ödevler | Kaynaklar ─────────────────────────
+            _sectionLabel('Sınıfım'),
+            Row(
+              children: [
+                Expanded(
+                  child: _LandingCard(
+                    icon: Icons.assignment_turned_in_rounded,
                     title: 'Sınıf Ödevlerim'.tr(),
+                    subtitle: 'Öğretmeninin verdiği ödevler'.tr(),
                     color: Color(0xFF7C3AED),
                     customBg: _cardBgs['homeworks'],
                     customTextColor: _cardInks['homeworks'],
@@ -3461,16 +3483,12 @@ class _LibraryLandingState extends State<LibraryLanding> {
                     ),
                   ),
                 ),
-              ],
-            ),
-            SizedBox(height: 12),
-            // ── 6. satır: Sınıf Kaynaklarım (öğretmen paylaşımları) ──
-            Row(
-              children: [
+                SizedBox(width: 10),
                 Expanded(
                   child: _LandingCard(
                     icon: Icons.folder_shared_rounded,
                     title: 'Sınıf Kaynaklarım'.tr(),
+                    subtitle: 'Öğretmenin paylaştığı dosyalar'.tr(),
                     color: Color(0xFF0EA5E9),
                     customBg: _cardBgs['materials'],
                     customTextColor: _cardInks['materials'],
@@ -3483,11 +3501,25 @@ class _LibraryLandingState extends State<LibraryLanding> {
                     ),
                   ),
                 ),
-                SizedBox(width: 10),
-                Expanded(child: SizedBox()),
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// Küçük gri kategori başlığı — kart grupları arasını ayırır.
+  Widget _sectionLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 0, 0, 8),
+      child: Text(
+        text.tr().toUpperCase(),
+        style: GoogleFonts.poppins(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: AppPalette.textSecondary(context),
+          letterSpacing: 1.1,
         ),
       ),
     );
@@ -3791,7 +3823,7 @@ class _ParentPanelBanner extends StatelessWidget {
   }
 }
 
-class _LandingCard extends StatelessWidget {
+class _LandingCard extends StatefulWidget {
   final IconData icon;
   final String title;
   final String? subtitle;
@@ -3815,6 +3847,24 @@ class _LandingCard extends StatelessWidget {
   });
 
   @override
+  State<_LandingCard> createState() => _LandingCardState();
+}
+
+class _LandingCardState extends State<_LandingCard> {
+  // Basılıyken hafif küçülme (0.97) — dokunma hissi.
+  bool _pressed = false;
+
+  IconData get icon => widget.icon;
+  String get title => widget.title;
+  String? get subtitle => widget.subtitle;
+  Color get color => widget.color;
+  VoidCallback get onTap => widget.onTap;
+  Color? get customBg => widget.customBg;
+  Color? get customTextColor => widget.customTextColor;
+  ValueChanged<Color>? get onColorAccept => widget.onColorAccept;
+  bool get compact => widget.compact;
+
+  @override
   Widget build(BuildContext context) {
     final hasSub = subtitle != null && subtitle!.isNotEmpty;
     // Library landing kartları (Konu Özeti / Sınav Soruları / vb.) — koyu
@@ -3828,54 +3878,79 @@ class _LandingCard extends StatelessWidget {
     final subtitleColor = customTextColor ??
         (isDark ? Colors.white70 : Colors.black54);
 
-    final cardHeight = compact ? 102.0 : 128.0;
-    final iconBox = compact ? 38.0 : (hasSub ? 40.0 : 48.0);
-    final iconSize = compact ? 20.0 : (hasSub ? 22.0 : 26.0);
-    final titleFs = compact ? 11.0 : (hasSub ? 12.5 : 13.0);
+    final cardHeight = compact ? 102.0 : 122.0;
+    final iconBox = compact ? 34.0 : 40.0;
+    final titleFs = compact ? 11.0 : 12.5;
 
     return DragTarget<Color>(
       onAcceptWithDetails: (d) => onColorAccept?.call(d.data),
       builder: (ctx, cand, _) => GestureDetector(
         onTap: onTap,
-        child: AnimatedContainer(
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTapCancel: () => setState(() => _pressed = false),
+        child: AnimatedScale(
+          scale: _pressed ? 0.97 : 1.0,
+          duration: const Duration(milliseconds: 100),
+          curve: Curves.easeOut,
+          child: AnimatedContainer(
           duration: Duration(milliseconds: 160),
           height: cardHeight,
-          padding: EdgeInsets.symmetric(
-              horizontal: 8, vertical: hasSub ? 10 : (compact ? 10 : 14)),
+          padding: const EdgeInsets.fromLTRB(12, 12, 10, 11),
           decoration: BoxDecoration(
             color: bgColor,
             borderRadius: BorderRadius.circular(16),
+            // İnce çerçeve çizgisi — solution_screen kartlarıyla aynı dil.
+            // Koyu kart zemininde beyaz tonlu, açıkta %8 siyah.
             border: cand.isNotEmpty
                 ? Border.all(color: Color(0xFFFF6A00), width: 2)
-                : null,
+                : Border.all(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.14)
+                        : Colors.black.withValues(alpha: 0.08),
+                    width: 1.0,
+                  ),
             boxShadow: [
+              // Çerçeve çizgisinin hemen bittiği yerde ince, sıkı gölge —
+              // kart kenarını zeminden ayırır.
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 8,
-                offset: Offset(0, 2),
+                color: Colors.black.withValues(alpha: 0.09),
+                blurRadius: 3,
+                spreadRadius: 0.6,
+                offset: Offset(0, 1),
+              ),
+              // Yumuşak derinlik gölgesi.
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 10,
+                offset: Offset(0, 5),
               ),
             ],
           ),
+          // Sol hizalı kompakt düzen: rozet sol üstte, sağ üstte ok,
+          // başlık + alt metin altta sola yaslı.
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: iconBox,
-                height: iconBox,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius:
-                      BorderRadius.circular(compact ? 11 : (hasSub ? 12 : 14)),
-                ),
-                alignment: Alignment.center,
-                child: Icon(icon, color: color, size: iconSize),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Fütüristik altıgen HUD rozeti — koyu uzay zemin + neon
+                  // çerçeve + degrade ikon (başlığın rengini neon taşır).
+                  _HexBadge(icon: icon, color: color, size: iconBox + 2),
+                  Spacer(),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: titleColor.withValues(alpha: 0.30),
+                    size: 20,
+                  ),
+                ],
               ),
-              SizedBox(height: compact ? 8 : (hasSub ? 6 : 10)),
+              Spacer(),
               Text(
                 title,
-                maxLines: compact ? 2 : 1,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
                   fontSize: titleFs,
                   fontWeight: FontWeight.w800,
@@ -3883,15 +3958,14 @@ class _LandingCard extends StatelessWidget {
                   height: 1.15,
                 ),
               ),
-              if (hasSub && !compact) ...[
-                SizedBox(height: 3),
+              if (hasSub) ...[
+                SizedBox(height: 2),
                 Text(
                   subtitle!,
-                  maxLines: 3,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
                   style: GoogleFonts.poppins(
-                    fontSize: 9.5,
+                    fontSize: 9,
                     fontWeight: FontWeight.w500,
                     color: subtitleColor,
                     height: 1.25,
@@ -3899,6 +3973,279 @@ class _LandingCard extends StatelessWidget {
                 ),
               ],
             ],
+          ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Fütüristik altıgen rozet — Kütüphanem kart logoları ─────────────────────
+// Koyu "derin uzay" zeminli altıgen + neon degrade çerçeve + dış parıltı +
+// degrade ikon. Sci-fi/HUD dili: başlığın rengini neon olarak taşır.
+class _HexBadge extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final double size;
+  /// Hero kartlarda (renkli degrade zemin) çerçeve/ikon beyaz neon olur.
+  final bool onGradient;
+  const _HexBadge({
+    required this.icon,
+    required this.color,
+    this.size = 42,
+    this.onGradient = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = onGradient ? Colors.white : color;
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          CustomPaint(
+            size: Size.square(size),
+            painter: _HexBadgePainter(accent, onGradient: onGradient),
+          ),
+          // Neon degrade ikon — düz beyaz yerine renkten beyaza akan ışık.
+          ShaderMask(
+            shaderCallback: (b) => LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white,
+                Color.lerp(accent, Colors.white, 0.25)!,
+              ],
+            ).createShader(b),
+            child: Icon(icon, color: Colors.white, size: size * 0.46),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HexBadgePainter extends CustomPainter {
+  final Color accent;
+  final bool onGradient;
+  const _HexBadgePainter(this.accent, {this.onGradient = false});
+
+  Path _hex(Size s, double inset) {
+    // Düz-tepe (flat-top) altıgen — teknolojik/HUD görünüm.
+    final w = s.width - inset * 2;
+    final h = s.height - inset * 2;
+    final cx = s.width / 2, cy = s.height / 2;
+    final rx = w / 2, ry = h / 2;
+    final p = Path();
+    for (int i = 0; i < 6; i++) {
+      final a = (60.0 * i - 30.0) * math.pi / 180.0;
+      final x = cx + rx * math.cos(a);
+      final y = cy + ry * math.sin(a);
+      i == 0 ? p.moveTo(x, y) : p.lineTo(x, y);
+    }
+    p.close();
+    return p;
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final hex = _hex(size, 2.5);
+    // 1) Dış neon parıltı — rozet zeminden "yüzüyor" hissi.
+    canvas.drawPath(
+      hex,
+      Paint()
+        ..color = accent.withValues(alpha: 0.45)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+    );
+    // 2) Derin uzay zemini (hero'da yarı saydam siyah — degradeyi ezmesin).
+    canvas.drawPath(
+      hex,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          Offset(0, 0),
+          Offset(size.width, size.height),
+          onGradient
+              ? [const Color(0x59000000), const Color(0x40000000)]
+              : [const Color(0xFF0B1220), const Color(0xFF1E2A44)],
+        ),
+    );
+    // 3) Neon degrade çerçeve.
+    canvas.drawPath(
+      hex,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6
+        ..shader = ui.Gradient.linear(
+          Offset(0, 0),
+          Offset(size.width, size.height),
+          [
+            Color.lerp(accent, Colors.white, 0.35)!,
+            accent,
+          ],
+        ),
+    );
+    // 4) Sağ üst köşede minik HUD kıvılcımı.
+    final spark = Offset(size.width * 0.80, size.height * 0.16);
+    canvas.drawCircle(
+        spark,
+        1.8,
+        Paint()
+          ..color = Color.lerp(accent, Colors.white, 0.4)!
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5));
+  }
+
+  @override
+  bool shouldRepaint(covariant _HexBadgePainter old) =>
+      old.accent != accent || old.onGradient != onGradient;
+}
+
+// ── Hero kart — en çok kullanılan özellikler için boydan boya degrade kart ──
+// Kütüphanem "Üret" bölümünde kullanılır: soldan sağa marka degradesi,
+// beyaz başlık + alt metin, sağda yarı saydam büyük ikon rozeti + ok.
+// Renk sürükle-bırak (DragTarget) ve basma animasyonu _LandingCard ile aynı.
+class _HeroCard extends StatefulWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final List<Color> gradient;
+  final VoidCallback onTap;
+  final Color? customBg;
+  final Color? customTextColor;
+  final ValueChanged<Color>? onColorAccept;
+  const _HeroCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.gradient,
+    required this.onTap,
+    this.customBg,
+    this.customTextColor,
+    this.onColorAccept,
+  });
+
+  @override
+  State<_HeroCard> createState() => _HeroCardState();
+}
+
+class _HeroCardState extends State<_HeroCard> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    // Kullanıcı Renk Seç ile kart rengi atadıysa düz renk; yoksa degrade.
+    final custom = widget.customBg;
+    Color inkBase;
+    if (custom != null) {
+      final lum =
+          0.299 * custom.r + 0.587 * custom.g + 0.114 * custom.b;
+      inkBase = lum < 0.55 ? Colors.white : Colors.black;
+    } else {
+      inkBase = Colors.white;
+    }
+    final ink = widget.customTextColor ?? inkBase;
+    final glow = widget.gradient.first;
+
+    return DragTarget<Color>(
+      onAcceptWithDetails: (d) => widget.onColorAccept?.call(d.data),
+      builder: (ctx, cand, _) => GestureDetector(
+        onTap: widget.onTap,
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTapCancel: () => setState(() => _pressed = false),
+        child: AnimatedScale(
+          scale: _pressed ? 0.97 : 1.0,
+          duration: const Duration(milliseconds: 100),
+          curve: Curves.easeOut,
+          child: AnimatedContainer(
+            duration: Duration(milliseconds: 160),
+            height: 88,
+            padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+            decoration: BoxDecoration(
+              color: custom,
+              gradient: custom == null
+                  ? LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: widget.gradient,
+                    )
+                  : null,
+              borderRadius: BorderRadius.circular(18),
+              border: cand.isNotEmpty
+                  ? Border.all(color: Color(0xFFFF6A00), width: 2)
+                  : Border.all(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      width: 1.0,
+                    ),
+              boxShadow: [
+                // Kenarda sıkı gölge + markanın renkli derinlik gölgesi.
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.09),
+                  blurRadius: 3,
+                  spreadRadius: 0.6,
+                  offset: Offset(0, 1),
+                ),
+                BoxShadow(
+                  color: glow.withValues(alpha: 0.30),
+                  blurRadius: 14,
+                  offset: Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        widget.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: ink,
+                          height: 1.15,
+                        ),
+                      ),
+                      SizedBox(height: 3),
+                      Text(
+                        widget.subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          color: ink.withValues(alpha: 0.75),
+                          height: 1.25,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(width: 10),
+                // Fütüristik altıgen HUD rozeti — hero degradesi üstünde
+                // yarı saydam koyu zemin + beyaz neon çerçeve.
+                _HexBadge(
+                  icon: widget.icon,
+                  color: widget.gradient.first,
+                  size: 50,
+                  onGradient: true,
+                ),
+                SizedBox(width: 2),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: ink.withValues(alpha: 0.55),
+                  size: 22,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -4224,8 +4571,23 @@ String _examShort(String grade) {
     case 'AYT Hazırlık': return 'AYT';
     case 'KPSS Hazırlık': return 'KPSS';
     case 'Lise 9-10':    return 'TYT';
-    default:             return 'Sınav';
   }
+  // Diğer ülkeler: EduProfile ülkesinin sınav kataloğundan YEREL sınav adı
+  // (SAT, Abitur, Gaokao, JEE, A-Level, ENEM…). Böylece özet/soru üretimi
+  // "jenerik sınav" değil, o ülkenin gerçek sınav stiline hizalanır.
+  final p = EduProfile.current;
+  final country = p?.country ?? '';
+  if (country.isNotEmpty && country != 'tr') {
+    try {
+      final groups = examGroupsFor(country);
+      if (groups != null && groups.isNotEmpty) {
+        // İlk grup ülkenin ana (üniversiteye giriş / bitirme) sınavıdır.
+        final name = groups.first.displayName.trim();
+        if (name.isNotEmpty) return name;
+      }
+    } catch (_) {/* katalog hatası → jenerik */}
+  }
+  return 'Sınav';
 }
 
 // ── Sınıf seviyesine göre içerik stratejisi ──────────────────────────────
@@ -6908,6 +7270,46 @@ Format (array, $count eleman):
   ...
 ]
 
+[SORU YAZIM STANDARDI — ÖSYM/ULUSLARARASI SINAV KALİTESİ]
+Gerçek sınav sorusu yazan bir SORU YAZARI gibi çalış; her madde zorunlu:
+• KÖK TEK ANLAMLI: Soru kökü tek yorumla okunur; gereksiz bilgi, süs,
+  hikâye YOK. Olumsuz kökte olumsuzluk vurgulu yazılır
+  ("hangisi YANLIŞTIR?", "hangisi DEĞİLDİR?").
+• ŞIK PARALELLİĞİ: Tüm şıklar aynı dilbilgisi yapısında ve BENZER
+  uzunlukta. Doğru cevap sistematik olarak en uzun/en detaylı şık OLMASIN
+  (öğrenci uzun şıkkı işaretleyerek bilmeden doğru yapmasın).
+• YASAK ŞIKLAR: "Hepsi", "Hiçbiri", "A ve B", "Yukarıdakilerin tümü" YOK.
+• CEVAP DAĞILIMI: $count soruda doğru cevap harfleri DENGELİ dağılsın —
+  aynı harf art arda en fazla 2 kez; tek harf toplamın %40'ını geçmesin
+  (doğru/yanlış tipinde: iki harf yaklaşık yarı yarıya).
+• KAZANIM ÇEŞİTLİLİĞİ: Her soru konunun FARKLI bir alt kavramını/kazanımını
+  ölçer — aynı bilgiyi iki kez sorma. Bir sorunun kökü, başka bir sorunun
+  cevabını ele vermesin (bilgi sızıntısı yasak).
+• BİLİŞSEL DAĞILIM: Yalnız ezber sorma — yaklaşık %30 tanım/hatırlama,
+  %40 uygulama/hesap, %30 analiz/yorum sorusu (zorluk seviyesi içinde).
+• ÇIKMIŞ SORU HİZASI: $exam sınavının GERÇEK çıkmış soru kalıplarını taklit
+  et — soru uzunluğu, şık kurgusu ve çeldirici mantığı o sınavın
+  istatistiklerine benzesin; ders kitabı sonu alıştırması gibi durmasın.
+
+[ÜRETİM ÖNCESİ DOĞRULAMA — HER SORUYU YAZDIKTAN SONRA KENDİN ÇÖZ]
+JSON'a koymadan önce her soru için içinden şu 4 kontrolü yap (çıktıya
+YAZMA, sadece uygula); geçemeyen soruyu düzelt ya da yenisiyle değiştir:
+1. Soruyu bağımsız çöz → bulduğun sonuç "ans" harfindeki şıkla BİREBİR
+   aynı mı? Sayısalda hesabı yap; "sol"daki adımlar ve sonuç tutarlı mı?
+2. Diğer 4 şıktan HİÇBİRİ hiçbir yorumla doğru olamaz mı? Çift doğru
+   ihtimali olan soru GEÇERSİZ — şıkkı değiştir.
+3. Sorudaki her bilgi (tarih, isim, formül, sabit, birim) ders kitabı
+   değeriyle uyumlu mu? Emin olmadığın bilgiyi soruya SOKMA.
+4. Doğru/yanlış tipinde önerme KESİN doğru ya da KESİN yanlış mı?
+   Tartışmalı, göreceli, "genelde" gerektiren önerme yasak.
+
+[KOMPAKTLIK — HIZ KURALI]
+Çıktı ne kadar öz, üretim o kadar hızlı; şu sınırların ÜSTÜNE ÇIKMA:
+• Şık metni ≤ 8 kelime; sayısal şıklarda sadece değer + birim ("3 m/s²").
+• "hint" ≤ 15 kelime. "sol" ≤ 45 kelime (2-3 cümle, → oklu zincir).
+• İçsel akıl yürütmeni ve doğrulama notlarını çıktıya DÖKME — çıktı
+  yalnızca istenen JSON array.
+
 ZORUNLU KURALLAR:
 • TAM $count soru, ne eksik ne fazla.
 • "opts" her zaman 5 şık: A, B, C, D, E.
@@ -7252,6 +7654,30 @@ Ders: $subject
 Konu: $topic
 Bağlam: $ctx
 
+[REFERANS DERS KİTABI HİZASI — İÇERİK OTORİTESİ]
+Bu özeti yazarken zihninde o ülkenin RESMÎ DERS KİTABI + alanının dünyaca
+kabul görmüş referans kitapları açık dursun; içerik onlarla HİZALI olsun:
+• Türkiye müfredatı → MEB onaylı ders kitabı ünite işlenişi ve kazanım
+  listesi; diğer ülkeler → kendi resmî müfredat kitabı.
+• Disiplin referansları (doğruluk ve anlatım sırası çıpası):
+  Biyoloji → Campbell Biology · Fizik → Halliday-Resnick-Walker ·
+  Kimya → Zumdahl/Atkins · Matematik → Stewart Calculus / ulusal kaynak ·
+  Tarih-Coğrafya-Edebiyat → ulusal akademik ders kitapları ·
+  Açık kaynak yapı örneği → OpenStax bölüm mimarisi.
+• KONU SIRASI: Kitaplardaki pedagojik sırayı izle — önce ön koşul kavram,
+  sonra ana kavram, sonra uygulama. Kitapta önce gelen kavramı sona atma.
+• TERMİNOLOJİ: Öğrencinin ülkesindeki ders kitabında hangi terim
+  kullanılıyorsa AYNEN onu kullan (sınavda o terim sorulur).
+• SAYISAL DOĞRULUK: Sabitler, tarihler, formüller ders kitabı konsensüs
+  değerleriyle birebir (örn. Avogadro 6,022×10²³; g = 9,81 m/s²).
+  Emin olmadığın spesifik değeri YAZMA — yanlış bilgi en büyük hatadır.
+• KAZANIM KAPSAMI: Bu konunun müfredat kazanımlarında geçen HER alt
+  kavram özette karşılık bulmalı; kitapta işlenen alt başlığı atlama.
+• KAVRAM YANILGISI: Ders kitaplarının "sık yapılan yanlış" kutuları gibi,
+  bu konuda öğrencilerin bilimsel olarak YANLIŞ kurduğu ezberleri
+  ("ağır cisim hızlı düşer", "mitoz sadece vücut hücresinde olur" tarzı)
+  tespit et ve 🔴 rozetli başlık veya 💡 satırıyla düzelt.
+
 [EVRENSEL UZMAN EĞİTMEN KİMLİĞİ]
 Sen 55 dilde akıcı, 130 ülkenin müfredatına hâkim, dünya çapında seçkin bir
 ÇOK DİSİPLİNLİ UZMAN EĞİTMENSİN. Bu konu için **rolün otomatik adapte olur**:
@@ -7318,6 +7744,12 @@ Bu yaş aralığında öğrenci SOMUT düşünür. Her ana kavram için MUTLAKA 
 🟧 ALTIN KURAL: "Bir öğrenci bu konuyu okuyup KAFASINDA RESIM OLUŞTURABİLİYOR MU?"
 • EVET (sebep-sonuç metni, tarih listesi, kural-istisna) → TABLO/METİN
 • HAYIR (anatomik yapı, devre, dalga, hücre, model, harita) → ŞEMA ZORUNLU
+
+🟧 KİTAP KURALI (ŞEMA YERLEŞİMİ TESTİ): Her ana başlığı yazmadan önce
+kendine sor: "Basılı bir ders kitabında bu paragrafın YANINDA şekil olur
+muydu?" Cevap EVET ise o paragrafın hemen altına [ŞEMA] koy — kitapta
+şekilli anlatılan konuyu şemasız anlatmak eksik anlatımdır. Görsel-zorunlu
+bir konuda tek şema bile yoksa çıktı GEÇERSİZDİR.
 
 DİL: Tüm şema etiketleri, lejant, başlık, parça isimleri öğrencinin
 DİLİNDE yazılır. Sistem dili Türkçe ise Türkçe; İngilizce ise İngilizce.
@@ -7844,6 +8276,29 @@ KATI KURALLAR (bozarsan cevap geçersiz):
 • YouTube/Web/kaynak önerisi EKLEME. [VIDEO:] ve [WEB:] yok.
 ${isNumeric ? '• Her sayısal tanımda sembol + BİRİM birlikte verilsin (boyut analizi).' : ''}
 ${isVerbal ? '• Tarihte yıl, edebiyatta yazar/eser/dönem, felsefede filozof/akım adı eksiksiz.' : ''}
+
+═══════════════════════════════════════════════════════
+[YAYIN ÖNCESİ SON KONTROL — YAZDIKTAN SONRA, GÖNDERMEDEN ÖNCE UYGULA]
+Çıktıyı bitirdikten sonra aşağıdaki 8 maddeyi ZİHNİNDE tek tek işaretle;
+EKSİK çıkan maddeyi düzeltmeden cevabı sonlandırma:
+1. GÖRSEL: Konu görsel-zorunlu sınıfta mı (hücre/anatomi/atom/dalga/devre/
+   optik/harita/geometri/kesir veya ilkokul-ortaokul)? → Ders bazlı minimum
+   [ŞEMA] sayısına ulaşıldı mı? Şemalar ilgili paragrafın ALTINDA mı?
+2. FORMÜL: Her formülün altında "Burada:" sembol+birim listesi var mı?
+   Sayısal konuda en az 1 "🧪 Uygulama Örneği" çözüldü mü?
+3. TABLO: Karşılaştırma/sınıflandırma/kronoloji içeren her bilgi bloğu
+   tabloya döküldü mü?
+4. KAPSAM: Ders kitabında bu ünitede işlenen alt başlıklardan atlanan
+   var mı? Varsa ekle.
+5. YANILGI: En az 1 yaygın kavram yanılgısı/tuzak düzeltildi mi
+   (🔴 başlık veya 💡 satır)?
+6. YAPI: 📖 Tanım → ▸ ana başlıklar → ⭐ Özet — 5 Bilgi → 📝 Pekiştirme
+   Soruları sırası tam mı? Selamlama/kapanış paragrafı sızmadı mı?
+7. DİL: Tüm metin, tablo hücreleri ve şema lejantları TEK dilde mi?
+   Dolar işareti (\$), çıplak "#", tek yıldız italik kalmadı mı?
+8. DOĞRULUK: Verdiğin her sayı/tarih/formül ders kitabı değerleriyle
+   uyumlu mu? Şüpheli olanı sil veya genelle.
+Bu listeyi çıktıya YAZMA — sadece uygula.
 ''';
   }
 
@@ -9487,16 +9942,11 @@ ${isVerbal ? '• Tarihte yıl, edebiyatta yazar/eser/dönem, felsefede filozof/
     }).join(' ');
   }
 
-  // Sınav Modu → seçilen (sınav × ders × konu) ile bu ekranın KENDİ test
-  // üretim akışını (_runGenerateWithSetup: zorluk seçimi + kota + AI üretimi)
-  // tetikler — Bilgi Ligi/Arena'dan farklı olarak burada üretilen test bu
-  // ekranda kalır (yeni sayfaya gitmez), ekranın mevcut davranışıyla tutarlı.
-  Future<void> _openExamModeFlow() async {
-    final picked = await pickExamModeSelection(
-      context,
-      countryCode: EduProfile.current?.country,
-    );
-    if (picked == null || !mounted) return;
+  // Sınav Modu → seçilen (sınav × ders × konu, kaydedilmiş sınav kısayolu
+  // dahil) ile bu ekranın KENDİ test üretim akışını (_runGenerateWithSetup:
+  // zorluk seçimi + kota + AI üretimi) tetikler — Bilgi Ligi/Arena'dan farklı
+  // olarak burada üretilen test bu ekranda kalır (yeni sayfaya gitmez).
+  Future<void> _startExamModeQuiz(ExamModeSelection picked) async {
     final synthetic = examSyntheticSubject(picked.exam, picked.subject);
     await _runGenerateWithSetup(
       subjectName: synthetic.displayName,
@@ -9535,14 +9985,16 @@ ${isVerbal ? '• Tarihte yıl, edebiyatta yazar/eser/dönem, felsefede filozof/
           ),
         ),
         // "Sınav modu açmak ister misin?" — Bilgi Ligi/Bilgi Yarışı'ndaki
-        // AYNI kart (lib/widgets/exam_mode_widgets.dart, aynı exam_catalog.dart
-        // verisi). Sadece "Sınav Soruları Oluştur" (questions) modunda; özet
-        // modunda gösterilmez.
-        if (widget.mode == LibraryMode.questions &&
-            examGroupsFor(EduProfile.current?.country) != null) ...[
+        // AYNI bölüm (lib/widgets/exam_mode_widgets.dart, kaydedilmiş sınav
+        // kısayolu dahil). Sadece "Sınav Soruları Oluştur" (questions)
+        // modunda; özet modunda gösterilmez.
+        if (widget.mode == LibraryMode.questions) ...[
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
-            child: ExamModeCard(onTap: _openExamModeFlow),
+            child: ExamModeSection(
+              countryCode: EduProfile.current?.country,
+              onSelected: _startExamModeQuiz,
+            ),
           ),
         ],
         // ═══ Çerçeve — yalnız ders kareleri (iç başlık kaldırıldı) ═══

@@ -277,18 +277,32 @@ class LeagueScores {
         debugPrint('[LeagueScores] local write fail: $e');
       }
 
-      // 2) Cloud (auth + profile + location varsa) — idempotent doc id.
+      // 2) Cloud (auth + profile varsa) — idempotent doc id.
+      // GLOBAL-FIRST GÜVENLİK AĞI: Kullanıcı konum SEÇMEMİŞSE bile skor
+      // buluta gitmeli — ülke kodu EduProfile.country'den türetilir, şehir
+      // boş kalır (şehir sıralamasına girmez ama ülke+dünya sıralamasında
+      // görünür). Eskiden konum yoksa skor hiç yazılmıyordu → konum
+      // seçmeyen/katalog dışı ülkedeki kullanıcılar sıralamada YOKTU.
       try {
         final uid = FirebaseAuth.instance.currentUser?.uid;
         if (uid == null || uid.isEmpty) return;
-        if (profile == null || location == null) return;
-        if (location.countryCode.isEmpty || location.cityCode.isEmpty) return;
+        if (profile == null) return;
+        final countryCode = (location?.countryCode ?? '').isNotEmpty
+            ? location!.countryCode
+            : profile.country.toUpperCase();
+        final cityCode = location?.cityCode ?? '';
+        if (countryCode.isEmpty) return;
 
         final scopeWorld = '${profile.level}|${profile.grade}';
         final scopeCountry =
-            '${location.countryCode}|${profile.level}|${profile.grade}';
-        final scopeCity =
-            '${location.countryCode}|${location.cityCode}|${profile.level}|${profile.grade}';
+            '$countryCode|${profile.level}|${profile.grade}';
+        final scopeCity = cityCode.isEmpty
+            ? ''
+            : '$countryCode|$cityCode|${profile.level}|${profile.grade}';
+
+        final resolvedName = (displayName ?? '').trim().isEmpty
+            ? (FirebaseAuth.instance.currentUser?.displayName ?? '')
+            : displayName!.trim();
 
         // Doc id = "<uid>_<clientSubmitId>" → retry'da aynı doc, duplicate yok.
         final docId = '${uid}_$clientSubmitId';
@@ -298,12 +312,10 @@ class LeagueScores {
         await ref.set({
           'uid': uid,
           'clientSubmitId': clientSubmitId,
-          'displayName': (displayName ?? '').trim().isEmpty
-              ? (FirebaseAuth.instance.currentUser?.displayName ?? '')
-              : displayName!.trim(),
+          'displayName': resolvedName,
           'avatar': avatar ?? '',
-          'countryCode': location.countryCode,
-          'cityCode': location.cityCode,
+          'countryCode': countryCode,
+          'cityCode': cityCode,
           'level': profile.level,
           'grade': profile.grade,
           'scopeWorld': scopeWorld,
@@ -320,11 +332,124 @@ class LeagueScores {
           // güvenmeden weekly/monthly pencerelerini doğrulamak için.
           'serverWhen': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true)).timeout(const Duration(seconds: 12));
+
+        // 3) TOPLAM (aggregate) dokümanları — league_totals.
+        // NEDEN: Sıralama metriği "periyottaki TOPLAM puan"dır; attempts
+        // üzerinden top-N tekil skor çekip istemcide toplamak 10 bin
+        // kullanıcıda yanlış sonuç verir (çok denemeli oyuncu top-N'e hiç
+        // giremez, günlük pencerede eski yüksek skorlar listeyi işgal eder).
+        // Çözüm: kullanıcı × takvim kovası × mod başına increment'li tek
+        // doküman → sıralama sorgusu doğrudan doğru toplamı sıralar.
+        await _upsertTotals(
+          uid: uid,
+          displayName: resolvedName,
+          avatar: avatar ?? '',
+          countryCode: countryCode,
+          cityCode: cityCode,
+          profile: profile,
+          attempt: withSnapshot,
+          scopeWorld: scopeWorld,
+          scopeCountry: scopeCountry,
+          scopeCity: scopeCity,
+        );
       } catch (e) {
         // Cloud hatası yutulur — yerel kayıt zaten var, kullanıcıyı bloklamayız.
         debugPrint('[LeagueScores] cloud submit fail: $e');
       }
     });
+  }
+
+  // ── Takvim kovası yardımcıları (UTC — tüm dünyada aynı lig günü) ──────────
+  static String dayBucket(DateTime t) {
+    final u = t.toUtc();
+    return 'd:${u.year}-${u.month.toString().padLeft(2, '0')}-${u.day.toString().padLeft(2, '0')}';
+  }
+
+  static String weekBucket(DateTime t) {
+    final u = t.toUtc();
+    // ISO-8601 hafta numarası.
+    final thursday = u.add(Duration(days: 4 - (u.weekday == 7 ? 7 : u.weekday)));
+    final firstDay = DateTime.utc(thursday.year, 1, 1);
+    final week = ((thursday.difference(firstDay).inDays) / 7).floor() + 1;
+    return 'w:${thursday.year}-W${week.toString().padLeft(2, '0')}';
+  }
+
+  static String monthBucket(DateTime t) {
+    final u = t.toUtc();
+    return 'm:${u.year}-${u.month.toString().padLeft(2, '0')}';
+  }
+
+  /// Periyot → güncel kova anahtarı (leaderboard sorgusu bunu kullanır).
+  static String bucketFor(LeaguePeriod period, [DateTime? now]) {
+    final t = now ?? DateTime.now();
+    switch (period) {
+      case LeaguePeriod.daily:
+        return dayBucket(t);
+      case LeaguePeriod.weekly:
+        return weekBucket(t);
+      case LeaguePeriod.monthly:
+        return monthBucket(t);
+      case LeaguePeriod.allTime:
+        return 'all';
+    }
+  }
+
+  /// Doc id'de kullanılamayan '/' karakterini değiştir.
+  static String _san(String s) => s.replaceAll('/', '⁄');
+
+  static Future<void> _upsertTotals({
+    required String uid,
+    required String displayName,
+    required String avatar,
+    required String countryCode,
+    required String cityCode,
+    required EduProfile profile,
+    required LeagueAttempt attempt,
+    required String scopeWorld,
+    required String scopeCountry,
+    required String scopeCity,
+  }) async {
+    final fs = FirebaseFirestore.instance;
+    final buckets = <String>[
+      'all',
+      dayBucket(attempt.when),
+      weekBucket(attempt.when),
+      monthBucket(attempt.when),
+    ];
+    final modes = <String>[
+      'all',
+      's:${attempt.subjectKey}',
+      if (attempt.topic != null && attempt.topic!.isNotEmpty)
+        't:${attempt.subjectKey}|${attempt.topic}',
+    ];
+    final batch = fs.batch();
+    for (final bucket in buckets) {
+      for (final mode in modes) {
+        final id = _san('${uid}_${bucket}_$mode');
+        batch.set(fs.collection('league_totals').doc(id), {
+          'uid': uid,
+          'displayName': displayName,
+          'avatar': avatar,
+          'bucket': bucket,
+          'modeKey': mode,
+          'countryCode': countryCode,
+          'cityCode': cityCode,
+          'level': profile.level,
+          'grade': profile.grade,
+          'scopeWorld': scopeWorld,
+          'scopeCountry': scopeCountry,
+          'scopeCity': scopeCity,
+          'subjectKey': attempt.subjectKey,
+          'topic': attempt.topic ?? '',
+          'score': FieldValue.increment(attempt.score),
+          'durationSec': FieldValue.increment(attempt.durationSec),
+          'attempts': FieldValue.increment(1),
+          'lastWhen': Timestamp.fromDate(attempt.when),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+    }
+    await batch.commit().timeout(const Duration(seconds: 12));
   }
 
   /// Yeni clientSubmitId üret — timestamp + 8-haneli rastgele.

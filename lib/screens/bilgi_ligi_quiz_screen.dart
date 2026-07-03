@@ -19,7 +19,6 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../features/league/league_scores.dart';
 import '../features/league/quiz_pool_service.dart';
-import '../services/app_settings_service.dart';
 import '../services/education_profile.dart';
 import '../services/gemini_service.dart';
 import '../services/runtime_translator.dart';
@@ -42,6 +41,9 @@ class BilgiLigiQuizScreen extends StatefulWidget {
   /// bir sınav seçtiyse burada gelir. Verilirse AI üretimine o sınavın
   /// format/zorluk/üslubuna uyması için ek talimat geçilir.
   final String? examLabel;
+  /// Şık sayısı — gerçek sınav formatına göre (ör. LGS 4, TYT/AYT/DGS/KPSS
+  /// 5). Sınav modu dışında (normal müfredat testi) varsayılan 4.
+  final int optionCount;
 
   const BilgiLigiQuizScreen({
     super.key,
@@ -52,6 +54,7 @@ class BilgiLigiQuizScreen extends StatefulWidget {
     this.topic,
     this.period = LeaguePeriod.weekly,
     this.examLabel,
+    this.optionCount = 4,
   });
 
   @override
@@ -73,12 +76,16 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
   int _wrongCount = 0;
   int _skippedCount = 0;
   int _totalSec = 0;
-  DateTime? _questionStartedAt;
+  DateTime? _quizStartedAt;
   Timer? _ticker;
 
   /// Her sorunun kullanıcı cevabı: int (0-3) seçilen şık veya null (boş).
   /// Quiz bittikten sonra "Yanlış Yaptığın Sorular" ekranı için kullanılır.
   late List<int?> _userAnswers;
+
+  /// Şüpheli (sonra dönmek istenen) işaretli sorular — soru pilleri +
+  /// bayrak ikonuyla gösterilir/toggle edilir.
+  final Set<int> _flagged = {};
 
   /// Periyot için deterministik seed — aynı gün/hafta/ay = aynı 10 soru.
   /// allTime → null (rastgele her seferinde).
@@ -225,6 +232,7 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
           // yol açıyordu. Üretim zinciri Gemini → ChatGPT → Grok ile failover'lı.
           validate: false,
           examLabel: widget.examLabel,
+          optionCount: widget.optionCount,
         );
         // Üretilen soruları havuza ekle (cap altındaysa). Hata yutulur.
         unawaited(QuizPoolService.addToPool(
@@ -262,7 +270,8 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
         _wrongCount = 0;
         _skippedCount = 0;
         _totalSec = 0;
-        _questionStartedAt = DateTime.now();
+        _flagged.clear();
+        _quizStartedAt = DateTime.now();
         _userAnswers = List<int?>.filled(qs.length, null);
       });
       _startTicker();
@@ -290,53 +299,77 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
     });
   }
 
+  /// Şık seçimi ANINDA `_userAnswers`e yazılır — serbest gezinme (pil
+  /// navigatörüyle başka soruya atlayıp geri dönme) cevabı korur.
   void _selectOption(int i) {
     setState(() {
       _selected = i;
+      _userAnswers[_index] = i;
     });
   }
 
-  /// Cevabı gönder — doğru/yanlış göstermez, direkt sonraki soruya geçer.
-  /// Sonuç ve detay sonda gösterilir.
-  void _confirm() {
-    if (_selected == null) return;
-    final q = _questions[_index];
-    final correct = _selected == q.correct;
-    _userAnswers[_index] = _selected;
-    if (correct) {
-      _correctCount++;
-      AppSettingsService.instance.notifySuccess();
-    } else {
-      _wrongCount++;
-      AppSettingsService.instance.notifyError();
-    }
-    _advance();
-  }
-
-  /// Soruyu boş bırak — net hesabında ceza yok, cevap görünmez.
-  void _skip() {
-    _userAnswers[_index] = null;
-    _skippedCount++;
-    _advance();
-  }
-
-  /// Bir sonraki soruya geç (veya test bittiyse sonuç ekranına).
-  void _advance() {
-    final start = _questionStartedAt ?? DateTime.now();
-    final elapsed = DateTime.now().difference(start).inSeconds;
-    if (_index >= _questions.length - 1) {
-      _ticker?.cancel();
-      setState(() {
-        _totalSec += elapsed;
-        _finished = true;
-      });
-      return;
-    }
+  void _toggleFlag() {
     setState(() {
-      _totalSec += elapsed;
-      _index++;
+      if (_flagged.contains(_index)) {
+        _flagged.remove(_index);
+      } else {
+        _flagged.add(_index);
+      }
+    });
+  }
+
+  /// Pil navigatöründen veya Geri/Sonraki'den herhangi bir soruya atla —
+  /// önceki cevap varsa geri yüklenir.
+  void _goTo(int i) {
+    if (i < 0 || i >= _questions.length) return;
+    setState(() {
+      _index = i;
+      _selected = _userAnswers[i];
+    });
+  }
+
+  /// Soruyu boş bırak (varsa mevcut cevabı sil) ve ilerle.
+  void _skip() {
+    setState(() {
+      _userAnswers[_index] = null;
       _selected = null;
-      _questionStartedAt = DateTime.now();
+    });
+    _goNextOrFinish();
+  }
+
+  void _goNextOrFinish() {
+    if (_index >= _questions.length - 1) {
+      _finishQuiz();
+    } else {
+      _goTo(_index + 1);
+    }
+  }
+
+  /// Doğru/yanlış/boş sayaçları serbest gezinme bitince `_userAnswers`
+  /// üzerinden TEK SEFERDE hesaplanır (artık soru-soru biriktirilmiyor —
+  /// kullanıcı cevabını değiştirip geri dönebildiği için).
+  void _finishQuiz() {
+    _ticker?.cancel();
+    int correct = 0, wrong = 0, skipped = 0;
+    for (var i = 0; i < _questions.length; i++) {
+      final a = _userAnswers[i];
+      if (a == null) {
+        skipped++;
+      } else if (a == _questions[i].correct) {
+        correct++;
+      } else {
+        wrong++;
+      }
+    }
+    final started = _quizStartedAt;
+    final elapsed =
+        started == null ? 0 : DateTime.now().difference(started).inSeconds;
+    setState(() {
+      _correctCount = correct;
+      _wrongCount = wrong;
+      _skippedCount = skipped;
+      _totalSec = elapsed;
+      _finished = true;
     });
   }
 
@@ -481,26 +514,54 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
   // ── Soru ekranı ────────────────────────────────────────────────────────────
   Widget _buildPlaying(BuildContext context) {
     final q = _questions[_index];
-    final progress = _index / _questions.length;
+    final answered = _userAnswers.where((a) => a != null).length;
+    final flagged = _flagged.length;
+    final blank = _questions.length - answered;
     return Column(
       children: [
-        _buildQuizHeader(context, progress),
+        _buildQuizHeader(context),
+        _buildPillNav(context),
+        _buildCounterRow(context, answered, flagged, blank),
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '${'Soru'.tr()} ${_index + 1}/${_questions.length}',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: AppPalette.textSecondary(context),
-                    letterSpacing: 0.4,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppPalette.textPrimary(context),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '${'Soru'.tr()} ${_index + 1} / ${_questions.length}',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: AppPalette.bg(context),
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: _toggleFlag,
+                      child: Icon(
+                        _flagged.contains(_index)
+                            ? Icons.flag_rounded
+                            : Icons.flag_outlined,
+                        size: 22,
+                        color: _flagged.contains(_index)
+                            ? const Color(0xFFF59E0B)
+                            : AppPalette.textSecondary(context),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 14),
                 Text(
                   q.q,
                   style: GoogleFonts.fraunces(
@@ -537,7 +598,7 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
     return _selected == i ? _OptionState.selected : _OptionState.idle;
   }
 
-  Widget _buildQuizHeader(BuildContext context, double progress) {
+  Widget _buildQuizHeader(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 8, 20, 4),
       child: Row(
@@ -550,24 +611,22 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
                 navigator.pop();
               }
             },
-            icon: Icon(Icons.close_rounded,
+            icon: Icon(Icons.arrow_back_rounded,
                 color: AppPalette.textPrimary(context)),
             tooltip: 'Çık'.tr(),
           ),
-          const SizedBox(width: 4),
           Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: LinearProgressIndicator(
-                value: progress,
-                minHeight: 6,
-                backgroundColor: AppPalette.cardMuted(context),
-                valueColor: const AlwaysStoppedAnimation<Color>(
-                    Color(0xFF7C3AED)),
+            child: Text(
+              widget.subjectName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppPalette.textSecondary(context),
               ),
             ),
           ),
-          const SizedBox(width: 8),
           // Periyot rozeti — seçilen filtrenin quiz'i hangi periyot için
           // çözdüğünü kullanıcıya gösterir. Daily/Weekly/Monthly → aynı
           // dilimdeki tüm kullanıcılar AYNI 10 soruyu çözer (deterministik seed).
@@ -591,23 +650,102 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          Text(
-            '$_correctCount/${_questions.length}',
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: AppPalette.textPrimary(context),
-              letterSpacing: -0.1,
+        ],
+      ),
+    );
+  }
+
+  /// Numaralı soru navigatörü — dokununca doğrudan o soruya atlar.
+  /// Siyah = cevaplanmış, turuncu = aktif soru, boş çerçeve = boş,
+  /// sarı çerçeve = şüpheli işaretli.
+  Widget _buildPillNav(BuildContext context) {
+    return SizedBox(
+      height: 46,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        itemCount: _questions.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          final isAnswered = _userAnswers[i] != null;
+          final isCurrent = i == _index;
+          final isFlagged = _flagged.contains(i);
+          final Color bg;
+          final Color fg;
+          if (isCurrent) {
+            bg = const Color(0xFFFF6A00);
+            fg = Colors.white;
+          } else if (isAnswered) {
+            bg = AppPalette.textPrimary(context);
+            fg = AppPalette.bg(context);
+          } else {
+            bg = Colors.transparent;
+            fg = AppPalette.textPrimary(context);
+          }
+          return GestureDetector(
+            onTap: () => _goTo(i),
+            child: Container(
+              width: 34,
+              height: 34,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: bg,
+                border: Border.all(
+                  color: isFlagged
+                      ? const Color(0xFFF59E0B)
+                      : (isCurrent || isAnswered
+                          ? Colors.transparent
+                          : AppPalette.border(context)),
+                  width: isFlagged ? 2 : 1.2,
+                ),
+              ),
+              child: Text(
+                '${i + 1}',
+                style: GoogleFonts.inter(
+                    fontSize: 13, fontWeight: FontWeight.w800, color: fg),
+              ),
             ),
-          ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildCounterRow(
+      BuildContext context, int answered, int flagged, int blank) {
+    Widget item(IconData icon, Color color, String label, int n) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: color),
+            const SizedBox(width: 4),
+            Text(
+              '$n ${label.tr()}',
+              style: GoogleFonts.inter(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                color: AppPalette.textPrimary(context),
+              ),
+            ),
+          ],
+        );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          item(Icons.check_circle_rounded, const Color(0xFF22C55E),
+              'Cevaplanan', answered),
+          item(Icons.flag_rounded, const Color(0xFFF59E0B), 'Şüpheli',
+              flagged),
+          item(Icons.radio_button_unchecked,
+              AppPalette.textSecondary(context), 'Boş', blank),
         ],
       ),
     );
   }
 
   Widget _buildBottomBar(BuildContext context, _Question q) {
-    final canConfirm = _selected != null;
     final isLast = _index >= _questions.length - 1;
 
     return Container(
@@ -618,52 +756,66 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
           top: BorderSide(color: AppPalette.border(context), width: 1),
         ),
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Boş Bırak — daima aktif (cezalanmadan geçer)
-          Expanded(
-            flex: 2,
-            child: OutlinedButton(
-              onPressed: _skip,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppPalette.textPrimary(context),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                side: BorderSide(
-                  color: AppPalette.border(context),
-                  width: 1.2,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: Text(
-                'Boş Bırak'.tr(),
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.1,
+          Row(
+            children: [
+              // Geri — önceki soruya döner (ilk soruda pasif).
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _index > 0 ? () => _goTo(_index - 1) : null,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppPalette.textPrimary(context),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    side: BorderSide(
+                        color: AppPalette.border(context), width: 1.2),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: const Icon(Icons.arrow_back_rounded, size: 16),
+                  label: Text('Geri'.tr(),
+                      style: GoogleFonts.inter(
+                          fontSize: 13, fontWeight: FontWeight.w700)),
                 ),
               ),
-            ),
+              const SizedBox(width: 10),
+              // Atla — cevabı (varsa) siler, boş bırakır ve ilerler.
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _skip,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppPalette.textPrimary(context),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    side: BorderSide(
+                        color: AppPalette.border(context), width: 1.2),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: const Icon(Icons.fast_forward_rounded, size: 16),
+                  label: Text('Atla'.tr(),
+                      style: GoogleFonts.inter(
+                          fontSize: 13, fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 10),
-          // Cevabı Gönder — şık seçildiyse aktif. Doğru/yanlış GÖSTERİLMEZ,
-          // direkt sonraki soruya geçilir. Son soruda "Sonucu Gör".
-          Expanded(
-            flex: 3,
+          const SizedBox(height: 10),
+          // Sonraki Soru / Sonucu Gör — cevaplanmasa da ilerlemeye izin
+          // verir (Atla ile aynı sonucu verir; ekstra sürtünme yok).
+          SizedBox(
+            width: double.infinity,
             child: FilledButton(
-              onPressed: canConfirm ? _confirm : null,
+              onPressed: _goNextOrFinish,
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF7C3AED),
-                disabledBackgroundColor:
-                    AppPalette.textSecondary(context).withValues(alpha: 0.25),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
               child: Text(
-                isLast ? 'Sonucu Gör'.tr() : 'Cevabı Gönder'.tr(),
+                isLast ? 'Sonucu Gör'.tr() : 'Sonraki Soru'.tr(),
                 style: GoogleFonts.inter(
                   fontSize: 15,
                   fontWeight: FontWeight.w800,

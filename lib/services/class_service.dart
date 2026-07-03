@@ -104,6 +104,17 @@ class ClassStudent {
   /// Öğretmenin bu sınıf için belirlediği görünen ad (gerçek ad veya lakap).
   /// Boşsa öğrencinin kendi adı/kullanıcı adı kullanılır.
   final String teacherAlias;
+  // ── Öğrenci profili alanları — öğretmen paneli öğrenciyi PROFİLİNDEKİ
+  //    haliyle görsün diye (foto, seviye, ülke, durum mesajı). Katılımda
+  //    kopyalanır + studentsWithProfilesStream canlı profille tazeler.
+  /// Profil fotoğrafı (base64 data URL) — boşsa emoji avatar kullanılır.
+  final String avatarData;
+  /// Öğrencinin profilindeki sınıf seviyesi (ör. "9. Sınıf").
+  final String grade;
+  /// Ülke kodu (ör. 'TR').
+  final String country;
+  /// Öğrencinin kendi yazdığı durum mesajı / kısa biyografi.
+  final String statusMessage;
 
   const ClassStudent({
     required this.uid,
@@ -112,6 +123,10 @@ class ClassStudent {
     required this.avatar,
     required this.joinedAt,
     this.teacherAlias = '',
+    this.avatarData = '',
+    this.grade = '',
+    this.country = '',
+    this.statusMessage = '',
   });
 
   /// Sınıf listesinde gösterilecek ad — öncelik: öğretmen lakabı > öğrencinin
@@ -133,6 +148,10 @@ class ClassStudent {
       avatar: (m['avatar'] ?? '👤').toString(),
       joinedAt: when,
       teacherAlias: (m['teacherAlias'] ?? '').toString(),
+      avatarData: (m['avatarData'] ?? '').toString(),
+      grade: (m['grade'] ?? '').toString(),
+      country: (m['country'] ?? '').toString(),
+      statusMessage: (m['statusMessage'] ?? '').toString(),
     );
   }
 }
@@ -459,6 +478,57 @@ class ClassService {
           list.sort((a, b) => b.joinedAt.compareTo(a.joinedAt));
           return list;
         });
+  }
+
+  /// users/{uid} public profil önbelleği (uid → data) — aynı oturumda her
+  /// öğrenci için profil bir kez okunur; sınıf listesi her snapshot'ta
+  /// Firestore'u yeniden taramaz.
+  static final _profileCache = <String, Map<String, dynamic>>{};
+
+  /// [studentsStream] + her öğrencinin GÜNCEL public profili (users/{uid}).
+  /// Sınıf dokümanındaki kopya katılım ANININ fotoğrafıdır; öğrenci daha
+  /// sonra adını/fotoğrafını/seviyesini değiştirirse öğretmen yine profildeki
+  /// güncel halini görsün diye canlı profille birleştirilir. Profil
+  /// okunamazsa (offline vb.) katılım kopyası kullanılır.
+  static Stream<List<ClassStudent>> studentsWithProfilesStream(
+      String classId) {
+    String pick(dynamic v, String fallback) {
+      final s = (v ?? '').toString().trim();
+      return s.isEmpty ? fallback : s;
+    }
+
+    return studentsStream(classId).asyncMap((list) async {
+      final out = <ClassStudent>[];
+      for (final s in list) {
+        Map<String, dynamic>? p = _profileCache[s.uid];
+        if (p == null) {
+          try {
+            final doc = await _fs.collection('users').doc(s.uid).get();
+            p = doc.data();
+            if (p != null) _profileCache[s.uid] = p;
+          } catch (_) {/* offline → kopyayla devam */}
+        }
+        if (p == null) {
+          out.add(s);
+          continue;
+        }
+        out.add(ClassStudent(
+          uid: s.uid,
+          username: pick(p['username'], s.username),
+          displayName: pick(p['displayName'], s.displayName),
+          avatar: pick(p['avatar'], s.avatar),
+          joinedAt: s.joinedAt,
+          teacherAlias: s.teacherAlias,
+          // Foto/durum profilden gelir — profilde silinmişse boş görünür
+          // (bayat kopya gösterilmez).
+          avatarData: (p['avatarData'] ?? '').toString(),
+          grade: pick(p['grade'], s.grade),
+          country: pick(p['country'], s.country),
+          statusMessage: (p['statusMessage'] ?? '').toString(),
+        ));
+      }
+      return out;
+    });
   }
 
   /// Bir sınıftaki öğrenci sayısı (canlı) — demo öğrenciler dahil tüm
@@ -918,6 +988,12 @@ class ClassService {
           'username': myData['username'] ?? '',
           'displayName': myData['displayName'] ?? '',
           'avatar': myData['avatar'] ?? '👤',
+          // Profilin geri kalanı — öğretmen paneli öğrenciyi profilindeki
+          // haliyle (foto, seviye, ülke, durum mesajı) görsün.
+          'avatarData': myData['avatarData'] ?? '',
+          'grade': myData['grade'] ?? '',
+          'country': myData['country'] ?? '',
+          'statusMessage': myData['statusMessage'] ?? '',
           'joinedAt': now,
           'status': 'active',
         },

@@ -34,6 +34,7 @@ import '../services/analytics.dart';
 import '../services/curriculum_catalog.dart';
 import '../services/education_profile.dart';
 import '../services/exam_catalog.dart';
+import '../widgets/exam_mode_widgets.dart';
 import '../services/error_logger.dart';
 import '../services/runtime_translator.dart';
 import '../services/user_profile_service.dart';
@@ -2003,14 +2004,26 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
         alignment: Alignment.center,
         children: [
           Center(
-            child: Text(
-              'Dünya Sıralaması'.tr().toUpperCase(),
-              style: GoogleFonts.fraunces(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: AppPalette.textPrimary(context),
-                letterSpacing: 0.5,
-              ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Gerçek dünya görseli — stilize ikon yerine kıtalı dünya.
+                const Text('🌍', style: TextStyle(fontSize: 24)),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    'Dünya Sıralaması'.tr().toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.fraunces(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: AppPalette.textPrimary(context),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           Row(
@@ -3297,124 +3310,36 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
   // ── Sınav Modu — LGS/YKS(TYT-AYT)/DGS/KPSS gibi resmi sınavlara göre
   //    ders + konu seçip AI'a o sınavın formatına uygun soru ürettirir.
   //    Ülkesi için tanımlı sınav kataloğu yoksa bu kart hiç gösterilmez.
+  //    Kaydedilmiş (kalıcı) bir sınav varsa doğrudan onun kısayolu gösterilir
+  //    (lib/widgets/exam_mode_widgets.dart — Arena/Sınav Soruları Oluştur ile
+  //    ortak, tekilleştirilmiş bileşen).
   Widget _buildExamModeCta(BuildContext context) {
-    const accent = Color(0xFF0F766E);
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 0, 14, 0),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: _openExamModeFlow,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: accent.withValues(alpha: 0.30), width: 1.2),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 38, height: 38,
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.14),
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: const Text('🎯', style: TextStyle(fontSize: 18)),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    '${'Sınav modu açmak ister misin?'.tr()} (LGS, YKS, KPSS…)',
-                    style: GoogleFonts.inter(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w800,
-                      color: AppPalette.textPrimary(context),
-                      height: 1.3,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Icon(Icons.chevron_right_rounded, color: accent, size: 22),
-              ],
-            ),
-          ),
-        ),
+      child: ExamModeSection(
+        countryCode: _profile?.country,
+        onSelected: _startExamModeQuiz,
       ),
     );
   }
 
-  /// Sınav Modu akışı: Sınav grubu (LGS/TYT/AYT/DGS/KPSS, varyantlıysa
-  /// açılır alt liste) → Ders (o sınavdan çıkan dersler) → Konu → Quiz.
-  Future<void> _openExamModeFlow() async {
-    final groups = examGroupsFor(_profile?.country);
-    if (groups == null || groups.isEmpty) return;
-    final exam = await showDialog<ExamDefinition>(
-      context: context,
-      barrierDismissible: true,
-      builder: (ctx) => _ExamGroupPickerDialog(groups: groups),
-    );
-    if (exam == null || !mounted) return;
-
-    final subject = await showDialog<CurriculumSubject>(
-      context: context,
-      barrierDismissible: true,
-      builder: (ctx) => _QuizPickerDialog(
-        title: '${exam.displayName} ${'sınavından hangi dersten test çözmek istersin?'.tr()}',
-        items: [
-          for (final s in exam.subjects)
-            _QuizPickerItem(
-              emoji: s.emoji,
-              label: s.displayName,
-              attemptCount: 0,
-              value: s,
-            ),
-        ],
-      ),
-    );
-    if (subject == null || !mounted) return;
-
+  /// Sınav Modu seçimi (sınav → ders → konu, kaydedilmiş sınav kısayolu
+  /// dahil) tamamlanınca Bilgi Ligi'nin AYNI quiz akışını başlatır.
+  Future<void> _startExamModeQuiz(ExamModeSelection picked) async {
     // Bu (sınav × ders) ikilisine özgü senkron anahtar/etiket — normal
     // müfredat derslerinden AYRI bir "ders" olarak sıralamaya girer, böylece
     // "LGS Türkçe" başarın "TYT Türkçe"den veya genel "Türkçe"den ayrı takip
     // edilir ama AYNI Bilgi Ligi liderlik tablosu mekanizmasını kullanır.
-    final synthetic = CurriculumSubject(
-      key: '${exam.key}_${subject.key}',
-      displayName: '${exam.displayName} · ${subject.displayName}',
-      emoji: subject.emoji,
-      topics: subject.topics,
-    );
-
-    final topicEntries = <_TopicEntry>[
-      _TopicEntry(
-        label: 'Tüm Konular'.tr(),
-        value: '__ALL__',
-        attemptCount: 0,
-        highlighted: true,
-      ),
-      for (final t in _expandTopics(subject.topics))
-        _TopicEntry(label: t, value: t, attemptCount: 0),
-    ];
-    final pickedTopic = await showDialog<String>(
-      context: context,
-      barrierDismissible: true,
-      builder: (ctx) => _TopicPickerSheet(
-        subjectEmoji: subject.emoji,
-        subjectName: '${exam.displayName} · ${subject.displayName}',
-        topics: topicEntries,
-      ),
-    );
-    if (pickedTopic == null || !mounted) return;
-    final topic = pickedTopic == '__ALL__' ? null : pickedTopic;
-
+    final synthetic = examSyntheticSubject(picked.exam, picked.subject);
     setState(() {
       _subject = synthetic;
-      _topic = topic;
+      _topic = picked.topic;
       _mode = _Mode.subject;
     });
-    await _startQuizFor(synthetic, topic: topic, examLabel: exam.displayName);
+    await _startQuizFor(synthetic,
+        topic: picked.topic,
+        examLabel: picked.exam.displayName,
+        optionCount: picked.exam.optionCount);
   }
 
   /// Hızlı Test — tek tıkla quiz başlatır.
@@ -4220,7 +4145,7 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
 
   // ── Quiz başlat (hero CTA → ders + opsiyonel konu seçimi sonrası) ─────────
   Future<void> _startQuizFor(CurriculumSubject subject,
-      {String? topic, String? examLabel}) async {
+      {String? topic, String? examLabel, int optionCount = 4}) async {
     final profile = _profile;
     if (profile == null) return;
 
@@ -4246,6 +4171,7 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
           topic: topic,
           period: _period,
           examLabel: examLabel,
+          optionCount: optionCount,
         ),
       ),
     );
@@ -4953,119 +4879,6 @@ class _HeroButton extends StatelessWidget {
   }
 }
 
-// ── Sınav Modu: sınav grubu seçim dialog'u ──────────────────────────────────
-// Üstten alta LGS → TYT → AYT → DGS → KPSS sırasıyla listelenir. Tek
-// varyantlı gruplara (LGS/TYT/DGS) dokununca direkt o ExamDefinition ile
-// kapanır. Çok varyantlı gruplara (AYT/KPSS) dokununca aynı çerçevede,
-// o satırın hemen altında varyant listesi AÇILIR (ExpansionTile) — "KPSS'ye
-// basınca aşağı yeni bir çerçeve açılsın" isteğine karşılık gelir.
-class _ExamGroupPickerDialog extends StatefulWidget {
-  final List<ExamGroup> groups;
-  const _ExamGroupPickerDialog({required this.groups});
-
-  @override
-  State<_ExamGroupPickerDialog> createState() => _ExamGroupPickerDialogState();
-}
-
-class _ExamGroupPickerDialogState extends State<_ExamGroupPickerDialog> {
-  static const _accent = Color(0xFF0F766E);
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: AppPalette.card(context),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 60),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(4, 18, 4, 6),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              child: Text(
-                'Hangi sınava hazırlanıyorsun?'.tr(),
-                style: GoogleFonts.fraunces(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: AppPalette.textPrimary(context),
-                  letterSpacing: -0.3,
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Flexible(
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (final g in widget.groups)
-                      g.hasSingleVariant
-                          ? ListTile(
-                              leading: Text(g.emoji, style: const TextStyle(fontSize: 22)),
-                              title: Text(g.displayName,
-                                  style: GoogleFonts.inter(
-                                      fontSize: 15, fontWeight: FontWeight.w800,
-                                      color: AppPalette.textPrimary(context))),
-                              subtitle: Text(g.description.tr(),
-                                  style: GoogleFonts.inter(
-                                      fontSize: 11.5,
-                                      color: AppPalette.textSecondary(context))),
-                              trailing: const Icon(Icons.chevron_right_rounded, color: _accent),
-                              onTap: () => Navigator.of(context).pop(g.variants.first),
-                            )
-                          : ExpansionTile(
-                              leading: Text(g.emoji, style: const TextStyle(fontSize: 22)),
-                              title: Text(g.displayName,
-                                  style: GoogleFonts.inter(
-                                      fontSize: 15, fontWeight: FontWeight.w800,
-                                      color: AppPalette.textPrimary(context))),
-                              subtitle: Text(g.description.tr(),
-                                  style: GoogleFonts.inter(
-                                      fontSize: 11.5,
-                                      color: AppPalette.textSecondary(context))),
-                              iconColor: _accent,
-                              collapsedIconColor: _accent,
-                              childrenPadding: const EdgeInsets.only(bottom: 6),
-                              children: [
-                                for (final v in g.variants)
-                                  ListTile(
-                                    contentPadding: const EdgeInsets.only(left: 46, right: 18),
-                                    title: Text(v.displayName,
-                                        style: GoogleFonts.inter(
-                                            fontSize: 13.5, fontWeight: FontWeight.w700,
-                                            color: AppPalette.textPrimary(context))),
-                                    trailing: const Icon(Icons.chevron_right_rounded,
-                                        color: _accent, size: 18),
-                                    onTap: () => Navigator.of(context).pop(v),
-                                  ),
-                              ],
-                            ),
-                  ],
-                ),
-              ),
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text(
-                  'İptal'.tr(),
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppPalette.textSecondary(context),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 // ── Quiz seçim dialog'u — başlık + grid kartlar + iptal ─────────────────────
 // ─── Topic picker — ders seçimi sonrası "Hangi konudan yarışmak istersin?" ──

@@ -9,12 +9,14 @@
 //  İçerik dağıtımı için ileride "Konu Özeti / Test gönder" butonu eklenir.
 // ═══════════════════════════════════════════════════════════════════════════
 
+import 'dart:convert' show base64Decode;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../config/feature_flags.dart';
 import '../services/class_service.dart';
 import '../services/homework_service.dart';
 import '../services/runtime_translator.dart';
@@ -369,7 +371,7 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
             style: GoogleFonts.poppins(
               fontSize: 16, fontWeight: FontWeight.w800, color: ink)),
         actions: [
-          _demoMenuButton(context),
+          if (kShowDemoMode) _demoMenuButton(context),
           IconButton(
             icon: Icon(Icons.menu_rounded, color: ink),
             tooltip: 'Sınıf menüsü'.tr(),
@@ -972,7 +974,9 @@ class _StudentsViewState extends State<_StudentsView> {
       children: [
         Expanded(
           child: StreamBuilder<List<ClassStudent>>(
-            stream: ClassService.studentsStream(widget.cls.id),
+            // Canlı profil birleştirme: öğrenci profilinde ne varsa (foto,
+            // ad, seviye, ülke, durum mesajı) öğretmen de aynısını görür.
+            stream: ClassService.studentsWithProfilesStream(widget.cls.id),
             builder: (context, snap) {
               if (snap.hasError) {
                 return Center(
@@ -1024,7 +1028,8 @@ class _StudentsViewState extends State<_StudentsView> {
         crossAxisCount: 4,
         mainAxisSpacing: 10,
         crossAxisSpacing: 4,
-        childAspectRatio: 0.82,
+        // Profil satırı (seviye) için hafif uzatıldı.
+        childAspectRatio: 0.72,
       ),
       itemCount: students.length,
       itemBuilder: (ctx, i) {
@@ -1045,6 +1050,7 @@ class _StudentsViewState extends State<_StudentsView> {
                         studentUid: s.uid,
                         studentName: s.displayLabel,
                         studentAvatar: s.avatar,
+                        studentAvatarData: s.avatarData,
                       ),
                     ),
                   ),
@@ -1065,8 +1071,8 @@ class _StudentsViewState extends State<_StudentsView> {
                     color: const Color(0xFF7C3AED).withValues(alpha: 0.10),
                   ),
                   alignment: Alignment.center,
-                  child:
-                      Text(s.avatar, style: const TextStyle(fontSize: 21)),
+                  clipBehavior: Clip.antiAlias,
+                  child: _studentAvatar(s),
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -1076,7 +1082,7 @@ class _StudentsViewState extends State<_StudentsView> {
                     fontSize: 11.5, fontWeight: FontWeight.w700,
                     color: ink, height: 1.1,
                   ),
-                  maxLines: 2, overflow: TextOverflow.ellipsis,
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
                 ),
                 Text('@${s.username}',
                     textAlign: TextAlign.center,
@@ -1084,12 +1090,51 @@ class _StudentsViewState extends State<_StudentsView> {
                       fontSize: 9.5, color: muted,
                     ),
                     maxLines: 1, overflow: TextOverflow.ellipsis),
+                // Profildeki sınıf seviyesi + ülke — varsa göster.
+                if (s.grade.trim().isNotEmpty ||
+                    s.country.trim().isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    [
+                      if (s.grade.trim().isNotEmpty) s.grade.trim(),
+                      if (s.country.trim().isNotEmpty)
+                        s.country.trim().toUpperCase(),
+                    ].join(' · '),
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.w600,
+                      color: _kBrand.withValues(alpha: 0.85),
+                    ),
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ],
             ),
           ),
         );
       },
     );
+  }
+
+  /// Öğrenci avatarı: profil FOTOĞRAFI (base64) varsa onu, yoksa emojiyi
+  /// gösterir — öğretmen öğrenciyi profilindeki haliyle görsün.
+  Widget _studentAvatar(ClassStudent s) {
+    final data = s.avatarData.trim();
+    if (data.isNotEmpty) {
+      try {
+        final raw = data.contains(',') ? data.split(',').last : data;
+        return Image.memory(
+          base64Decode(raw),
+          width: 40,
+          height: 40,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) =>
+              Text(s.avatar, style: const TextStyle(fontSize: 21)),
+        );
+      } catch (_) {/* bozuk base64 → emojiye düş */}
+    }
+    return Text(s.avatar, style: const TextStyle(fontSize: 21));
   }
 
   /// Öğretmen bir öğrenciye uzun basınca: sınıftaki görünen adını (gerçek ad

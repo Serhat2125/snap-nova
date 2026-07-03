@@ -1,9 +1,9 @@
-/// Sıralama segmentasyonu için ülke + şehir kataloğu.
-///
-/// Şu an statik tutuluyor (ihtiyaç duyulan top 30 ülke + büyük şehirleri);
-/// production sürümünde backend'den (`/locations/countries`) Firestore
-/// dokümanı veya REST endpoint olarak gelecek. Static katalog offline-first
-/// fallback olarak da kalır.
+// Sıralama segmentasyonu için ülke + şehir kataloğu.
+//
+// Statik kısım: top 30 ülke + büyük şehirleri (offline-first). Ülke listesi
+// kAllCountries ile birleştirilerek TÜM ülkelere genişletilir; statik
+// listede olmayan ülkelerin şehirleri LeagueCityResolver'dan gelir.
+import '../../../services/education_profile.dart' show kAllCountries;
 class CountryEntry {
   final String code; // ISO-3166 alpha-2 (TR, DE, ...)
   final String name; // Türkçe görünen ad
@@ -34,8 +34,30 @@ class CityEntry {
 class LocationCatalog {
   LocationCatalog._();
 
+  /// TÜM ülkeler — önce zengin şehir listeli statik 30 ülke, ardından
+  /// eğitim profili kataloğundaki (kAllCountries, 150+) kalan tüm ülkeler.
+  /// Statik listede olmayan ülkelerin şehirleri LeagueCityResolver
+  /// (Gemini + cache) üzerinden dinamik çekilir — boş cities sorun değil.
+  /// GLOBAL-FIRST: konum seçici hiçbir ülkeyi dışarıda bırakmaz; aksi halde
+  /// o ülkenin kullanıcıları skor gönderemiyordu.
+  static List<CountryEntry>? _mergedCache;
+  static List<CountryEntry> get countries {
+    final cached = _mergedCache;
+    if (cached != null) return cached;
+    final out = List<CountryEntry>.from(_staticCountries);
+    final seen = out.map((c) => c.code).toSet();
+    for (final c in kAllCountries) {
+      // EduProfile 'uk' kodu kullanır; katalogda ISO 'GB' zaten var.
+      final code = c.key.toLowerCase() == 'uk' ? 'GB' : c.key.toUpperCase();
+      if (code.length != 2 || !seen.add(code)) continue;
+      out.add(CountryEntry(code: code, name: c.name, cities: const []));
+    }
+    _mergedCache = out;
+    return out;
+  }
+
   /// Türkiye ilk sırada — ana hedef pazar.
-  static const List<CountryEntry> countries = [
+  static const List<CountryEntry> _staticCountries = [
     CountryEntry(code: 'TR', name: 'Türkiye', cities: [
       // Türkiye Cumhuriyeti'nin 81 ili (alfabetik).
       CityEntry(code: 'adana', name: 'Adana'),

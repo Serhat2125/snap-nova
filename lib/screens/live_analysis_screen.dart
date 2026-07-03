@@ -150,6 +150,12 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
   // ─── Kamera ─────────────────────────────────────────────────────────────
   Future<void> _toggleCamera() async {
     if (_camOpening) return;
+    // Mod değişimi: in-flight Gemini stream'i kes + TTS'i sustur. Aksi
+    // halde mesaj listesi temizlense de eski moddan kalan cevap arka
+    // planda konuşmaya devam ediyordu.
+    _cancelStream = true;
+    _slowConnTimer?.cancel();
+    TtsService.stop();
     if (_camActive) {
       final old = _cam;
       setState(() {
@@ -159,6 +165,8 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
         // Mod değişimi: önceki moddan kalan mesajlar yeni moda taşmasın.
         _messages.clear();
         _liveTranscript.value = '';
+        _thinking = false;
+        _slowConnection = false;
       });
       // dispose'u arka planda yap → UI bloklanmasın.
       unawaited(Future(() async => await old?.dispose()));
@@ -169,6 +177,8 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
       _camOpening = true;
       _messages.clear();
       _liveTranscript.value = '';
+      _thinking = false;
+      _slowConnection = false;
     });
     try {
       List<CameraDescription> cams = globalCameras;
@@ -272,13 +282,16 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
     setState(() => _listening = true);
     _voiceLevel.value = 0;
     _liveTranscript.value = '';
-    // VAD — Live mode için kısa pauseFor (2.5sn) → kullanıcı araya
-    // girince hızla algılar, gereksiz bekleme yapmaz.
+    // VAD — Live mode için kısa pauseFor → kullanıcı sözünü bitirir
+    // bitirmez asistan cevap vermeye başlasın (gecikme hissi olmasın).
     final started = await VoiceInputService.start(
       localeId: localeId,
-      // pauseFor 3500 ms — kullanıcı düşünüp konuşmaya başlama süresi.
-      // Çok kısa olursa konuşmaya başlamadan kapanır, "algılanmadı" hatası.
-      pauseFor: Duration(milliseconds: 3500),
+      // pauseFor 1800 ms — konuşma bitince asistanın "geç cevap veriyor"
+      // hissi vermemesi için kısaltıldı (önceden 3500ms — kullanıcı
+      // konuşmayı bitirdikten sonra 3.5 saniye boşa bekleniyordu).
+      // Çok kısa olursa cümle arası doğal duraklamalarda erken kapanır;
+      // 1800ms bu riski düşük tutarken gecikmeyi belirgin azaltır.
+      pauseFor: Duration(milliseconds: 1800),
       listenFor: Duration(seconds: 90),
       onResult: (text, isFinal) {
         if (!mounted) return;
@@ -455,11 +468,19 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
       // Final flush
       if (!mounted) return;
       _slowConnTimer?.cancel();
+      // Kullanıcı stream sırasında mod değiştirdi / sohbeti kapattı →
+      // aşağıdaki flush'ı ATLA. Aksi halde: (1) boş cevap hatası yeni modun
+      // temiz mesaj listesine eklenir, (2) TTS tail'i kuyruğa basılıp
+      // susturulmuş asistan yeniden konuşur, (3) auto-relisten mikrofonu
+      // kullanıcı istemeden açar.
+      if (_cancelStream) return;
       final raw = buffer.toString().trim();
       // Stream hiç chunk vermeden kapandı → Gemini "boş response" döndü.
       // Sessiz kalmak yerine kullanıcıya açık bir mesaj göster ki AI'nın
       // yanıt vermediğini anlasın (ağ/quota/key sorunu vb.).
       if (raw.isEmpty) {
+        // AI hiç cevap üretmedi — kullanıcının günlük hakkını boşa harcama.
+        unawaited(UsageQuota.decrement(QuotaKind.solution));
         setState(() {
           _thinking = false;
           _slowConnection = false;
@@ -496,7 +517,9 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
         // tam bu noktadan tetiklenir.
         await TtsService.waitUntilDone();
       }
-      if (!mounted) return;
+      // waitUntilDone sırasında da mod değişmiş olabilir — auto-relisten'ı
+      // ve thinking reset'ini iptal et (mod geçişi zaten resetledi).
+      if (!mounted || _cancelStream) return;
       setState(() => _thinking = false);
 
       // KAMERA + SES SÜREKLİ DİYALOG MODU:
@@ -517,11 +540,14 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
     } on GeminiException catch (e) {
       if (!mounted) return;
       _slowConnTimer?.cancel();
+      if (_cancelStream) return; // mod değişti → eski modun hatasını gösterme
       // Kullanıcıya sade, lokalize hata mesajı göster; ham HTTP detayı
       // yalnızca debug log'a yazılır (Play sürümünde kullanıcıya sızmaz).
       if (kDebugMode && e.rawError.isNotEmpty) {
         debugPrint('[LiveAnalysis] GeminiException detail: ${e.rawError}');
       }
+      // AI hiç cevap üretmedi — kullanıcının günlük hakkını boşa harcama.
+      unawaited(UsageQuota.decrement(QuotaKind.solution));
       setState(() {
         _thinking = false;
         _slowConnection = false;
@@ -534,9 +560,12 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
     } catch (e, stack) {
       if (!mounted) return;
       _slowConnTimer?.cancel();
+      if (_cancelStream) return; // mod değişti → eski modun hatasını gösterme
       // Yakalanmamış istisna — ham hata/stack sadece debug log'a; kullanıcıya
       // genel, lokalize bir mesaj gösterilir.
       if (kDebugMode) debugPrint('[LiveAnalysis] unexpected error: $e\n$stack');
+      // AI hiç cevap üretmedi — kullanıcının günlük hakkını boşa harcama.
+      unawaited(UsageQuota.decrement(QuotaKind.solution));
       setState(() {
         _thinking = false;
         _slowConnection = false;

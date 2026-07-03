@@ -31,6 +31,9 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
   Map<String, List<HomeworkModel>> _byClass = {};
   Map<String, HomeworkSubmissionModel?> _mySubmissions = {};
   bool _loading = true;
+  // Yükleme hatası (ağ/izin) — sessizce "ödev yok" göstermek yanıltıcıydı;
+  // kullanıcıya hata + tekrar dene sunulur.
+  bool _error = false;
 
   @override
   void initState() {
@@ -39,7 +42,10 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _error = false;
+    });
     try {
       // Tüm sınıfları al
       final myUid = FirebaseAuth.instance.currentUser?.uid;
@@ -54,10 +60,12 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
       final classes = joinedSnap.docs
           .map((d) => JoinedClass.fromMap(d.id, d.data())).toList();
       _classes = classes;
-      // Her sınıfın aktif ödevlerini ve benim submission'umı çek
+      // Her sınıfın aktif ödevleri + benim teslimlerim — sınıflar arası ve
+      // teslim okumaları PARALEL (eski seri N+1 akış 3 sınıf × 20 ödevde
+      // 60+ ardışık istek yapıp sayfayı saniyelerce bekletiyordu).
       final byClass = <String, List<HomeworkModel>>{};
       final subs = <String, HomeworkSubmissionModel?>{};
-      for (final c in classes) {
+      await Future.wait(classes.map((c) async {
         final hwSnap = await FirebaseFirestore.instance
             .collection('classes').doc(c.classId)
             .collection('homeworks')
@@ -69,7 +77,7 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
             .where((hw) => hw.isPublished)
             .toList();
         byClass[c.classId] = hws;
-        for (final hw in hws) {
+        await Future.wait(hws.map((hw) async {
           final subSnap = await FirebaseFirestore.instance
               .collection('classes').doc(c.classId)
               .collection('homeworks').doc(hw.id)
@@ -77,11 +85,13 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
           if (subSnap.exists) {
             subs[hw.id] = HomeworkSubmissionModel.fromMap(subSnap.data()!);
           }
-        }
-      }
+        }));
+      }));
       _byClass = byClass;
       _mySubmissions = subs;
-    } catch (_) {}
+    } catch (_) {
+      _error = true;
+    }
     if (mounted) setState(() => _loading = false);
   }
 
@@ -116,17 +126,34 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
       body: SafeArea(
         child: _loading
             ? const Center(child: CircularProgressIndicator())
-            : allHws.isEmpty
-                ? _buildEmpty(context)
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                    itemCount: allHws.length,
-                    itemBuilder: (ctx, i) {
-                      final (cls, hw) = allHws[i];
-                      final sub = _mySubmissions[hw.id];
-                      return _buildHwCard(context, cls, hw, sub, ink, muted);
-                    },
-                  ),
+            : RefreshIndicator(
+                onRefresh: _load,
+                child: allHws.isEmpty
+                    // Boş/hata durumunda da aşağı çekilebilsin diye
+                    // kaydırılabilir sarmalayıcı.
+                    ? LayoutBuilder(
+                        builder: (ctx, cons) => SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          child: SizedBox(
+                            height: cons.maxHeight,
+                            child: _error
+                                ? _buildError(context)
+                                : _buildEmpty(context),
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                        itemCount: allHws.length,
+                        itemBuilder: (ctx, i) {
+                          final (cls, hw) = allHws[i];
+                          final sub = _mySubmissions[hw.id];
+                          return _buildHwCard(
+                              context, cls, hw, sub, ink, muted);
+                        },
+                      ),
+              ),
       ),
     );
   }
@@ -241,6 +268,45 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  /// Yükleme hatası — "ödev yok" ile karışmasın; tekrar dene butonlu.
+  Widget _buildError(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('📡', style: TextStyle(fontSize: 48)),
+            const SizedBox(height: 12),
+            Text('Ödevler yüklenemedi'.tr(),
+                style: GoogleFonts.poppins(
+                  fontSize: 16, fontWeight: FontWeight.w900,
+                  color: AppPalette.textPrimary(context),
+                )),
+            const SizedBox(height: 6),
+            Text(
+              'İnternet bağlantını kontrol edip tekrar dene.'.tr(),
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 12.5,
+                color: AppPalette.textSecondary(context),
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 14),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF7C3AED)),
+              onPressed: _load,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: Text('Tekrar Dene'.tr()),
+            ),
+          ],
         ),
       ),
     );

@@ -11,6 +11,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/curriculum_catalog.dart' show CurriculumSubject;
 import '../services/exam_catalog.dart';
@@ -18,11 +19,14 @@ import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
 
 const kExamModeAccent = Color(0xFF0F766E);
+const kExamModeConfirmGreen = Color(0xFF10B981);
 
-/// "Sınav modu açmak ister misin? (LGS, YKS, KPSS…)" kartı.
+/// "Sınav modu açmak ister misin? (LGS, YKS, KPSS…)" kartı — [titleOverride]
+/// verilirse (kaydedilmiş/kalıcı sınav varken) onun yerine gösterilir.
 class ExamModeCard extends StatelessWidget {
   final VoidCallback onTap;
-  const ExamModeCard({super.key, required this.onTap});
+  final String? titleOverride;
+  const ExamModeCard({super.key, required this.onTap, this.titleOverride});
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +57,8 @@ class ExamModeCard extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  '${'Sınav modu açmak ister misin?'.tr()} (LGS, YKS, KPSS…)',
+                  titleOverride ??
+                      '${'Sınav modu açmak ister misin?'.tr()} (LGS, YKS, KPSS…)',
                   style: GoogleFonts.inter(
                     fontSize: 13.5,
                     fontWeight: FontWeight.w800,
@@ -72,6 +77,196 @@ class ExamModeCard extends StatelessWidget {
   }
 }
 
+// ── Kalıcı (kaydedilmiş) sınav — SharedPreferences ──────────────────────────
+// Kullanıcı bir sınavı "Kaydet" derse, o sınav ülke koduyla birlikte
+// saklanır; bir sonraki gelişte doğrudan o sınavın kısayolu gösterilir,
+// tüm sınavları yeniden taramak zorunda kalmaz.
+class PinnedExamService {
+  PinnedExamService._();
+  static const _kCountryKey = 'exam_mode_pinned_country';
+  static const _kExamKey = 'exam_mode_pinned_exam_key';
+
+  static Future<ExamDefinition?> load(String? countryCode) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedCountry = prefs.getString(_kCountryKey);
+      final savedExamKey = prefs.getString(_kExamKey);
+      if (savedCountry == null || savedExamKey == null) return null;
+      if (savedCountry != (countryCode ?? '').toUpperCase()) return null;
+      final groups = examGroupsFor(countryCode);
+      if (groups == null) return null;
+      for (final g in groups) {
+        for (final v in g.variants) {
+          if (v.key == savedExamKey) return v;
+        }
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> save(String? countryCode, ExamDefinition exam) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kCountryKey, (countryCode ?? '').toUpperCase());
+      await prefs.setString(_kExamKey, exam.key);
+    } catch (_) {}
+  }
+
+  static Future<void> clear() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_kCountryKey);
+      await prefs.remove(_kExamKey);
+    } catch (_) {}
+  }
+}
+
+/// Sınav seçildikten sonra "bunu kaydedeyim mi?" onayı — kaydedilirse bir
+/// sonraki gelişte bu sınav doğrudan kısayol olarak gösterilir.
+Future<void> _maybeOfferPin(
+    BuildContext context, String? countryCode, ExamDefinition exam) async {
+  final current = await PinnedExamService.load(countryCode);
+  if (current?.key == exam.key) return; // zaten kayıtlı, tekrar sorma
+  if (!context.mounted) return;
+  final save = await showDialog<bool>(
+    context: context,
+    barrierDismissible: true,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: AppPalette.card(ctx),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text(exam.displayName,
+          style: GoogleFonts.fraunces(
+              fontSize: 17, fontWeight: FontWeight.w800,
+              color: AppPalette.textPrimary(ctx))),
+      content: Text(
+        '${'Bundan sonra'.tr()} ${exam.displayName} ${'sınavıyla yarışmaya katılacaksınız. Bu sınavı kaydedebilirsiniz. Bunu kaydettiğinde artık bu sınav otomatik her seferinde gösterilecek.'.tr()}',
+        style: GoogleFonts.inter(
+            fontSize: 13, height: 1.4, color: AppPalette.textSecondary(ctx)),
+      ),
+      actionsAlignment: MainAxisAlignment.spaceBetween,
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: Text('Kaydetme'.tr(),
+              style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w700,
+                  color: AppPalette.textSecondary(ctx))),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: kExamModeConfirmGreen,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+          ),
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: Text('Kaydet'.tr(),
+              style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w800, color: Colors.white)),
+        ),
+      ],
+    ),
+  );
+  if (save == true) {
+    await PinnedExamService.save(countryCode, exam);
+  }
+}
+
+/// "Sınav Modu" bölümü — TAM widget: kaydedilmiş sınav yoksa genel kart +
+/// "İstersen bu seçeneklerle de yarışabilirsin" başlığı; kaydedilmiş sınav
+/// varsa doğrudan o sınavın kısayolu + "Aşağıdaki sınav moduyla devam
+/// edebilirsin" başlığı. Tüm entegrasyon noktalarında (Bilgi Ligi, Bilgi
+/// Yarışı/Arena, Sınav Soruları Oluştur) AYNI davranış için kullanılır.
+class ExamModeSection extends StatefulWidget {
+  final String? countryCode;
+  final void Function(ExamModeSelection selection) onSelected;
+  const ExamModeSection({
+    super.key,
+    required this.countryCode,
+    required this.onSelected,
+  });
+
+  @override
+  State<ExamModeSection> createState() => _ExamModeSectionState();
+}
+
+class _ExamModeSectionState extends State<ExamModeSection> {
+  ExamDefinition? _pinned;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(ExamModeSection old) {
+    super.didUpdateWidget(old);
+    if (old.countryCode != widget.countryCode) _load();
+  }
+
+  Future<void> _load() async {
+    final p = await PinnedExamService.load(widget.countryCode);
+    if (mounted) {
+      setState(() {
+        _pinned = p;
+        _loaded = true;
+      });
+    }
+  }
+
+  Future<void> _handleGeneric() async {
+    final selection =
+        await pickExamModeSelection(context, countryCode: widget.countryCode);
+    if (selection == null) return;
+    if (mounted) await _load(); // pin durumu değişmiş olabilir
+    widget.onSelected(selection);
+  }
+
+  Future<void> _handlePinned(ExamDefinition exam) async {
+    final selection =
+        await pickExamModeSelectionForPinned(context, exam: exam);
+    if (selection == null) return;
+    widget.onSelected(selection);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const SizedBox.shrink();
+    final groups = examGroupsFor(widget.countryCode);
+    if (groups == null || groups.isEmpty) return const SizedBox.shrink();
+    final pinned = _pinned;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 2, bottom: 8, top: 2),
+          child: Text(
+            (pinned == null
+                    ? 'İstersen bu seçeneklerle de yarışabilirsin'
+                    : 'Aşağıdaki sınav moduyla devam edebilirsin')
+                .tr(),
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              color: AppPalette.textPrimary(context),
+              letterSpacing: 0.4,
+            ),
+          ),
+        ),
+        pinned == null
+            ? ExamModeCard(onTap: _handleGeneric)
+            : ExamModeCard(
+                titleOverride: pinned.displayName,
+                onTap: () => _handlePinned(pinned),
+              ),
+      ],
+    );
+  }
+}
+
 /// Sınav Modu seçimi sonucu — hangi sınav/varyant + ders + (varsa) konu.
 class ExamModeSelection {
   final ExamDefinition exam;
@@ -81,9 +276,10 @@ class ExamModeSelection {
 }
 
 /// Tek CTA → Sınav grubu (LGS/TYT/AYT/DGS/KPSS, varyantlıysa açılır alt
-/// liste) → Ders → Konu, hepsini zincirleme sorar. Herhangi bir adımda
-/// vazgeçilirse null döner. [countryCode] EduProfile.country (küçük harf
-/// ISO-2, örn. 'tr') — kExamCatalog bu koda göre filtrelenir.
+/// liste) → ("bunu kaydet?" onayı) → Ders → Konu, hepsini zincirleme sorar.
+/// Herhangi bir adımda vazgeçilirse null döner. [countryCode]
+/// EduProfile.country (küçük harf ISO-2, örn. 'tr') — kExamCatalog bu koda
+/// göre filtrelenir.
 Future<ExamModeSelection?> pickExamModeSelection(
   BuildContext context, {
   required String? countryCode,
@@ -98,6 +294,23 @@ Future<ExamModeSelection?> pickExamModeSelection(
   );
   if (exam == null || !context.mounted) return null;
 
+  await _maybeOfferPin(context, countryCode, exam);
+  if (!context.mounted) return null;
+
+  return _pickSubjectAndTopic(context, exam);
+}
+
+/// Kaydedilmiş (kalıcı) sınav için — Sınav Grubu adımı ve "kaydet?" onayı
+/// ATLANIR, doğrudan Ders → Konu seçimine geçilir.
+Future<ExamModeSelection?> pickExamModeSelectionForPinned(
+  BuildContext context, {
+  required ExamDefinition exam,
+}) {
+  return _pickSubjectAndTopic(context, exam);
+}
+
+Future<ExamModeSelection?> _pickSubjectAndTopic(
+    BuildContext context, ExamDefinition exam) async {
   final subject = await showDialog<CurriculumSubject>(
     context: context,
     barrierDismissible: true,

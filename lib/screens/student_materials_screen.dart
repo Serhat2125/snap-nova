@@ -49,6 +49,8 @@ class _Item {
 class _StudentMaterialsScreenState extends State<StudentMaterialsScreen> {
   List<_Item> _items = [];
   bool _loading = true;
+  // Yükleme hatası — sessizce "kaynak yok" göstermek yanıltıcıydı.
+  bool _error = false;
 
   @override
   void initState() {
@@ -57,7 +59,10 @@ class _StudentMaterialsScreenState extends State<StudentMaterialsScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _error = false;
+    });
     final out = <_Item>[];
     try {
       final myUid = FirebaseAuth.instance.currentUser?.uid;
@@ -81,7 +86,9 @@ class _StudentMaterialsScreenState extends State<StudentMaterialsScreen> {
         }
         out.sort((a, b) => b.when.compareTo(a.when));
       }
-    } catch (_) {}
+    } catch (_) {
+      _error = true;
+    }
     if (mounted) {
       setState(() {
         _items = out;
@@ -92,9 +99,20 @@ class _StudentMaterialsScreenState extends State<StudentMaterialsScreen> {
 
   Future<void> _openUrl(String url) async {
     final messenger = ScaffoldMessenger.of(context);
-    final uri = Uri.tryParse(url);
-    if (uri == null) return;
-    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    // Öğretmen "www.site.com" gibi şemasız link yapıştırabilir —
+    // şema yoksa https ekle, yoksa launchUrl hiç açamıyordu.
+    var normalized = url.trim();
+    if (!normalized.contains('://')) normalized = 'https://$normalized';
+    final uri = Uri.tryParse(normalized);
+    bool ok = false;
+    if (uri != null) {
+      try {
+        ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } catch (_) {
+        // Bazı cihazlarda launchUrl false dönmek yerine istisna atar.
+        ok = false;
+      }
+    }
     if (!ok && mounted) {
       messenger.showSnackBar(SnackBar(
         content: Text('Bağlantı açılamadı.'.tr()),
@@ -103,7 +121,10 @@ class _StudentMaterialsScreenState extends State<StudentMaterialsScreen> {
     }
   }
 
-  void _showNote(_Item it) {
+  /// Not VE duyuru tam metni aynı sheet ile okunur. [text] verilirse o
+  /// gösterilir (duyuru mesajı), yoksa it.note.
+  void _showNote(_Item it, {String? text}) {
+    final body = text ?? it.note;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -143,7 +164,7 @@ class _StudentMaterialsScreenState extends State<StudentMaterialsScreen> {
               Expanded(
                 child: SingleChildScrollView(
                   controller: scroll,
-                  child: Text(it.note,
+                  child: Text(body,
                       style: GoogleFonts.poppins(
                         fontSize: 13.5, height: 1.55,
                         color: AppPalette.textPrimary(ctx),
@@ -158,12 +179,24 @@ class _StudentMaterialsScreenState extends State<StudentMaterialsScreen> {
   }
 
   void _onTap(_Item it) {
-    if (it.type == 'announcement') return; // salt-okuma
+    if (it.type == 'announcement') {
+      // Kartta 6 satırda kesilen uzun duyurunun TAMAMI okunabilsin.
+      _showNote(it, text: it.message);
+      return;
+    }
     if (it.kind == 'note') {
       _showNote(it);
     } else if (it.url.isNotEmpty) {
       _openUrl(it.url);
     }
+  }
+
+  /// Kart dokunulabilir mi? URL'si boş PDF/link kartı dokunulabilir görünüp
+  /// hiçbir şey yapmıyordu — o durumda tamamen pasif bırakılır.
+  bool _isTappable(_Item it) {
+    if (it.type == 'announcement') return it.message.trim().isNotEmpty;
+    if (it.kind == 'note') return it.note.trim().isNotEmpty;
+    return it.url.trim().isNotEmpty;
   }
 
   @override
@@ -187,16 +220,28 @@ class _StudentMaterialsScreenState extends State<StudentMaterialsScreen> {
       body: SafeArea(
         child: _loading
             ? const Center(child: CircularProgressIndicator())
-            : _items.isEmpty
-                ? _empty(context)
-                : RefreshIndicator(
-                    onRefresh: _load,
-                    child: ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                      itemCount: _items.length,
-                      itemBuilder: (ctx, i) => _card(context, _items[i]),
-                    ),
-                  ),
+            : RefreshIndicator(
+                onRefresh: _load,
+                child: _items.isEmpty
+                    // Boş/hata durumu da aşağı çekilerek yenilenebilsin.
+                    ? LayoutBuilder(
+                        builder: (ctx, cons) => SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          child: SizedBox(
+                            height: cons.maxHeight,
+                            child: _error
+                                ? _errorView(context)
+                                : _empty(context),
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                        itemCount: _items.length,
+                        itemBuilder: (ctx, i) => _card(context, _items[i]),
+                      ),
+              ),
       ),
     );
   }
@@ -227,7 +272,7 @@ class _StudentMaterialsScreenState extends State<StudentMaterialsScreen> {
     }
 
     final body = isAnnouncement ? it.message : it.title;
-    final tappable = !isAnnouncement;
+    final tappable = _isTappable(it);
 
     return Material(
       color: Colors.transparent,
@@ -312,6 +357,45 @@ class _StudentMaterialsScreenState extends State<StudentMaterialsScreen> {
     if (diff.inHours < 24) return '${diff.inHours} sa';
     if (diff.inDays < 7) return '${diff.inDays} g';
     return '${when.day}.${when.month}.${when.year}';
+  }
+
+  /// Yükleme hatası görünümü — "kaynak yok" ile karışmasın.
+  Widget _errorView(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('📡', style: TextStyle(fontSize: 48)),
+            const SizedBox(height: 12),
+            Text('Kaynaklar yüklenemedi'.tr(),
+                style: GoogleFonts.poppins(
+                  fontSize: 16, fontWeight: FontWeight.w900,
+                  color: AppPalette.textPrimary(context),
+                )),
+            const SizedBox(height: 6),
+            Text(
+              'İnternet bağlantını kontrol edip tekrar dene.'.tr(),
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 12.5,
+                color: AppPalette.textSecondary(context),
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 14),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF0EA5E9)),
+              onPressed: _load,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: Text('Tekrar Dene'.tr()),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _empty(BuildContext context) {

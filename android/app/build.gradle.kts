@@ -66,6 +66,25 @@ android {
     }
 
     buildTypes {
+        debug {
+            // ── flutter run hızlandırma ──────────────────────────────────
+            // NOT: ndk.abiFilters buildType'ta defaultConfig ile BİRLEŞTİĞİ
+            // için işe yaramıyor (Flutter plugin tüm ABI'ları ekliyor);
+            // bu yüzden packaging dışlaması kullanılıyor.
+            packaging {
+                jniLibs {
+                    // Vulkan validation layer (15 MB, sıkıştırmasız) —
+                    // yalnızca Vulkan grafik hatası debug'ında gerekir.
+                    excludes += "**/libVkLayer_khronos_validation.so"
+                    // Fiziksel telefonlar arm64-v8a; x86_64/armeabi-v7a
+                    // plugin .so'ları (ML Kit barhopper vb.) debug APK'yı
+                    // şişiriyordu. x86_64 EMÜLATÖRDE debug çalıştıracaksan
+                    // bu iki satırı geçici olarak yorum yap.
+                    excludes += "lib/x86_64/**"
+                    excludes += "lib/armeabi-v7a/**"
+                }
+            }
+        }
         release {
             // key.properties varsa release imzayla, yoksa debug ile (ki
             // `flutter run --release` lokal test için çalışsın). Production

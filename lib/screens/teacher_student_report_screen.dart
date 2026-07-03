@@ -14,6 +14,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import 'dart:async';
+import 'dart:convert' show base64Decode;
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
@@ -38,6 +39,9 @@ class TeacherStudentReportScreen extends StatefulWidget {
   final String studentUid;
   final String studentName;
   final String studentAvatar;
+  /// Öğrencinin profil FOTOĞRAFI (base64 data URL) — varsa emoji yerine
+  /// gösterilir; öğretmen öğrenciyi profilindeki haliyle görür.
+  final String studentAvatarData;
   // Ebeveyn görünümü: salt-okuma (AI yorumu üretimi/yazımı devre dışı).
   final bool readOnly;
   const TeacherStudentReportScreen({
@@ -46,6 +50,7 @@ class TeacherStudentReportScreen extends StatefulWidget {
     required this.studentUid,
     required this.studentName,
     this.studentAvatar = '👤',
+    this.studentAvatarData = '',
     this.readOnly = false,
   });
 
@@ -57,6 +62,28 @@ class TeacherStudentReportScreen extends StatefulWidget {
 class _TeacherStudentReportScreenState
     extends State<TeacherStudentReportScreen> {
   late Future<List<StudentReportEntry>> _future;
+
+  /// Profil fotoğrafı (base64) varsa yuvarlak resim, yoksa emoji avatar.
+  Widget _avatarChild(double emojiSize, double box) {
+    final data = widget.studentAvatarData.trim();
+    if (data.isNotEmpty) {
+      try {
+        final raw = data.contains(',') ? data.split(',').last : data;
+        return ClipOval(
+          child: Image.memory(
+            base64Decode(raw),
+            width: box,
+            height: box,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Text(widget.studentAvatar,
+                style: TextStyle(fontSize: emojiSize)),
+          ),
+        );
+      } catch (_) {/* bozuk base64 → emojiye düş */}
+    }
+    return Text(widget.studentAvatar,
+        style: TextStyle(fontSize: emojiSize));
+  }
   int _tab = 0; // 0 = Ödevler, 1 = Notlar, 2 = Yazılılar
 
   // Yazılılar sayfasında "basılı tut" ipucu balonu (ilk 5 ziyaret, 2 sn).
@@ -335,8 +362,8 @@ class _TeacherStudentReportScreenState
                       color: _kBrand.withValues(alpha: 0.12),
                     ),
                     alignment: Alignment.center,
-                    child: Text(widget.studentAvatar,
-                        style: const TextStyle(fontSize: 22)),
+                    clipBehavior: Clip.antiAlias,
+                    child: _avatarChild(22, 44),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -951,8 +978,8 @@ class _TeacherStudentReportScreenState
                       color: _kBrand.withValues(alpha: 0.12),
                     ),
                     alignment: Alignment.center,
-                    child: Text(widget.studentAvatar,
-                        style: const TextStyle(fontSize: 22)),
+                    clipBehavior: Clip.antiAlias,
+                    child: _avatarChild(22, 44),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -2245,8 +2272,8 @@ class _TeacherStudentReportScreenState
                 color: _kBrand.withValues(alpha: 0.12),
               ),
               alignment: Alignment.center,
-              child: Text(widget.studentAvatar,
-                  style: const TextStyle(fontSize: 26)),
+              clipBehavior: Clip.antiAlias,
+              child: _avatarChild(26, 52),
             ),
             const SizedBox(width: 12),
             Expanded(

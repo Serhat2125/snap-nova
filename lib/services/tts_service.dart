@@ -106,7 +106,8 @@ class TtsService {
       await _tts.setVolume(1.0);
 
       // tr-TR KADIN + en doğal (network/enhanced) sesi seç.
-      await _applyPreferredVoice();
+      await _applyPreferredVoice('tr');
+      _voiceOptimizedForLang = 'tr';
 
       // KRİTİK: `await speak(...)` cümle bitene kadar bloklasın → worker
       // döngüsü doğrudan kuyruk gibi davranır, manuel completer şart değil.
@@ -153,17 +154,28 @@ class TtsService {
   static String _sanitize(String t) =>
       t.replaceAll(_symRe, ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
 
-  /// tr-TR için KADIN + en doğal (network/enhanced) sesi seçer.
-  /// Cihazda kadın ses yoksa pitch 1.08 zaten kadınsı tona yaklaştırır.
-  static Future<void> _applyPreferredVoice() async {
+  // Son voice-seçimi hangi dil için yapıldığını tutar — her cümlede
+  // getVoices() çağırmamak için (perf), sadece dil değişince yeniden seçilir.
+  static String? _voiceOptimizedForLang;
+
+  /// Verilen dil (`langPrefix`: "tr", "en", "de"...) için KADIN + en doğal
+  /// (network/enhanced/neural) sesi seçer. Cihazda kadın ses yoksa pitch
+  /// 1.08 zaten kadınsı tona yaklaştırır.
+  ///
+  /// ÖNEMLİ: eskiden bu fonksiyon sadece init() sırasında ve sabit "tr" ile
+  /// çağrılıyordu — Türkçe dışındaki dillerde (uygulama 55+ dili destekliyor)
+  /// hiçbir kalite/cinsiyet skorlaması uygulanmıyor, cihazın ham varsayılan
+  /// sesi (genelde robotik) kullanılıyordu. Artık `_runQueue`/`speak` her dil
+  /// değişiminde bunu o dile göre yeniden çalıştırır.
+  static Future<void> _applyPreferredVoice(String langPrefix) async {
     try {
       final voices = await _tts.getVoices;
       if (voices is! List) return;
-      final tr = voices.whereType<Map>().where((v) {
+      final matching = voices.whereType<Map>().where((v) {
         final loc = (v['locale'] ?? v['language'] ?? '').toString().toLowerCase();
-        return loc.startsWith('tr');
+        return loc.startsWith(langPrefix.toLowerCase());
       }).toList();
-      if (tr.isEmpty) return;
+      if (matching.isEmpty) return;
       final femaleRe = RegExp(
         r'female|kad[ıi]n|yelda|filiz|seda|elif|aylin|meltem|nazli',
         caseSensitive: false,
@@ -172,7 +184,7 @@ class TtsService {
           RegExp(r'network|enhanced|premium|neural', caseSensitive: false);
       Map? best;
       int bestScore = -1;
-      for (final v in tr) {
+      for (final v in matching) {
         final name = (v['name'] ?? '').toString();
         final gender = (v['gender'] ?? '').toString().toLowerCase();
         int score = 0;
@@ -187,10 +199,20 @@ class TtsService {
         await _tts.setVoice({
           'name': (best['name'] ?? '').toString(),
           'locale':
-              (best['locale'] ?? best['language'] ?? 'tr-TR').toString(),
+              (best['locale'] ?? best['language'] ?? '$langPrefix-$langPrefix')
+                  .toString(),
         });
       }
     } catch (_) {}
+  }
+
+  /// `_currentLang` (BCP-47, örn "en-US") için voice seçimi henüz
+  /// yapılmadıysa yapar. Dil değişmediyse no-op (getVoices maliyetinden kaçın).
+  static Future<void> _ensureVoiceForCurrentLang() async {
+    final prefix = _currentLang.split(RegExp('[-_]')).first;
+    if (_voiceOptimizedForLang == prefix) return;
+    await _applyPreferredVoice(prefix);
+    _voiceOptimizedForLang = prefix;
   }
 
   /// `langCode` ('tr', 'en', 'ja') → BCP-47 ('tr-TR', 'en-US', 'ja-JP')
@@ -213,7 +235,9 @@ class TtsService {
     _wantStop = false;
     try {
       await _tts.setVolume(1.0); // warmup koruması
-      await _tts.setLanguage(_toBcp47(langCode));
+      _currentLang = _toBcp47(langCode);
+      await _tts.setLanguage(_currentLang);
+      await _ensureVoiceForCurrentLang();
       speakingNotifier.value = true;
       await _tts.speak(clean);
     } catch (e) {
@@ -250,6 +274,7 @@ class TtsService {
       // önce volume'u 1.0'a sabitle.
       await _tts.setVolume(1.0);
       await _tts.setLanguage(_currentLang);
+      await _ensureVoiceForCurrentLang();
     } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'tts_service'); }
     while (_sentenceQueue.isNotEmpty) {
       if (_wantStop) break;

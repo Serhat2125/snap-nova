@@ -36,10 +36,15 @@ class ExamDefinition {
   /// Kısa görünen ad (örn. "AYT (Sayısal)").
   final String displayName;
   final List<CurriculumSubject> subjects;
+  /// Bu sınavın çoktan seçmeli soru şık sayısı — gerçek sınav formatına göre
+  /// (ör. Türkiye'de LGS 4 şıklı; TYT/AYT/DGS/KPSS 5 şıklıdır). Belirtilmeyen
+  /// sınavlarda varsayılan 4 kalır (normal müfredat testleriyle aynı format).
+  final int optionCount;
   const ExamDefinition({
     required this.key,
     required this.displayName,
     required this.subjects,
+    this.optionCount = 4,
   });
 }
 
@@ -242,25 +247,25 @@ const kExamCatalog = <String, List<ExamGroup>>{
     ExamGroup(
       key: 'tyt', displayName: 'TYT', emoji: '📘',
       description: 'Temel Yeterlilik Testi',
-      variants: [ExamDefinition(key: 'tyt', displayName: 'TYT', subjects: _tytSubjects)],
+      variants: [ExamDefinition(key: 'tyt', displayName: 'TYT', subjects: _tytSubjects, optionCount: 5)],
     ),
     ExamGroup(
       key: 'ayt', displayName: 'AYT', emoji: '📗',
       description: 'Alan Yeterlilik Testi — alanına göre seç',
       variants: [
         ExamDefinition(key: 'ayt_sayisal', displayName: 'AYT (Sayısal)',
-            subjects: [_aytMatematik, _aytFizik, _aytKimya, _aytBiyoloji]),
+            subjects: [_aytMatematik, _aytFizik, _aytKimya, _aytBiyoloji], optionCount: 5),
         ExamDefinition(key: 'ayt_ea', displayName: 'AYT (Eşit Ağırlık)',
-            subjects: [_aytMatematik, _aytEdebiyat, _aytTarih, _aytCografya]),
+            subjects: [_aytMatematik, _aytEdebiyat, _aytTarih, _aytCografya], optionCount: 5),
         ExamDefinition(key: 'ayt_sozel', displayName: 'AYT (Sözel)',
-            subjects: [_aytEdebiyat, _aytTarih, _aytCografya, _aytFelsefeGrubu]),
+            subjects: [_aytEdebiyat, _aytTarih, _aytCografya, _aytFelsefeGrubu], optionCount: 5),
       ],
     ),
     ExamGroup(
       key: 'dgs', displayName: 'DGS', emoji: '🎓',
       description: 'Dikey Geçiş Sınavı (Önlisans → Lisans)',
       variants: [
-        ExamDefinition(key: 'dgs', displayName: 'DGS', subjects: [_dgsSozel, _dgsSayisal]),
+        ExamDefinition(key: 'dgs', displayName: 'DGS', subjects: [_dgsSozel, _dgsSayisal], optionCount: 5),
       ],
     ),
     ExamGroup(
@@ -268,13 +273,13 @@ const kExamCatalog = <String, List<ExamGroup>>{
       description: 'Kamu Personeli Seçme Sınavı — türünü seç',
       variants: [
         ExamDefinition(key: 'kpss_ortaogretim', displayName: 'KPSS Ortaöğretim (Lise)',
-            subjects: [_kpssGenelYetenek, _kpssGenelKultur]),
+            subjects: [_kpssGenelYetenek, _kpssGenelKultur], optionCount: 5),
         ExamDefinition(key: 'kpss_onlisans', displayName: 'KPSS Önlisans',
-            subjects: [_kpssGenelYetenek, _kpssGenelKultur]),
+            subjects: [_kpssGenelYetenek, _kpssGenelKultur], optionCount: 5),
         ExamDefinition(key: 'kpss_lisans', displayName: 'KPSS Lisans',
-            subjects: [_kpssGenelYetenek, _kpssGenelKultur]),
+            subjects: [_kpssGenelYetenek, _kpssGenelKultur], optionCount: 5),
         ExamDefinition(key: 'kpss_ogretmenlik', displayName: 'KPSS Öğretmenlik (Eğitim Bilimleri)',
-            subjects: [_kpssGenelYetenek, _kpssGenelKultur, _kpssEgitimBilimleri]),
+            subjects: [_kpssGenelYetenek, _kpssGenelKultur, _kpssEgitimBilimleri], optionCount: 5),
       ],
     ),
   ],

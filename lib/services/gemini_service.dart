@@ -1474,12 +1474,14 @@ KURALLAR:
     }
 
     // Live mod (sesli/kamera diyalog) için Flash öncelikli:
-    //   • Flash first-token ~0.3-0.6s, Pro ~1-2s — diyalog hissi için kritik.
+    //   • Flash first-token ~0.3-0.6s — diyalog hissi için kritik.
     //   • Flash görsel + kısa konuşma cevabı için kalite olarak yeterli.
-    //   • Sadece transient hata (overload/timeout) durumunda Pro'ya düş —
-    //     ironik ama Pro'nun rate-limit'i daha rahat olabiliyor.
-    // Gemini Flash → (hata olursa) Pro. İçerik geldiyse biter. Hiç içerik
-    // gelmezse aşağıda çoklu sağlayıcı zincirine düşer (Gemini→ChatGPT→DeepSeek).
+    // NOT: eskiden burada başarısız Flash denemesinden sonra ikinci bir
+    // "Pro" denemesi vardı; model artık tek (flash) olduğundan aynı isteği
+    // aynı modelle tekrar denemek sadece 25sn'lik ikinci bir timeout'u
+    // beklemek anlamına geliyordu (kullanıcı için "geç cevap" hissi).
+    // Tek deneme sonrası doğrudan çoklu sağlayıcı zincirine (ChatGPT/
+    // DeepSeek) düşülür — bu gerçek bir redundancy sağlıyor.
     var yielded = false;
     try {
       await for (final c in tryStream('gemini-2.5-flash')) {
@@ -1487,19 +1489,9 @@ KURALLAR:
         yield c;
       }
     } catch (e) {
-      _log('chatWithImageStream Flash fail → Pro denenecek: $e');
+      _log('chatWithImageStream Flash fail → zincir fallback: $e');
     }
-    if (!yielded) {
-      try {
-        await for (final c in tryStream('gemini-2.5-flash')) {
-          if (c.isNotEmpty) yielded = true;
-          yield c;
-        }
-      } catch (e) {
-        _log('chatWithImageStream Pro da fail → zincir fallback: $e');
-      }
-    }
-    // Gemini (Flash+Pro) hiç içerik vermedi → ChatGPT/DeepSeek... zinciri
+    // Gemini Flash hiç içerik vermedi → ChatGPT/DeepSeek... zinciri
     // (non-stream tek parça). "Gemini cevap vermezse ChatGPT devreye girsin".
     if (!yielded) {
       try {
@@ -2738,14 +2730,36 @@ $_sysLanguage
 
 $ctx
 
-[KONU ÖZETİ — TEK KONU]
-Aşağıdaki ders + konu için öğrenciye yönelik kısa, anlaşılır bir özet hazırla.
-Maksimum 250-350 kelime. Bölüm başlıklarını KULLANICININ DİLİNDE yaz.
+[KONU ÖZETİ — TEK KONU · DERS KİTABI KALİTESİ]
+Aşağıdaki ders + konu için, o ülkenin RESMÎ DERS KİTABI işlenişiyle hizalı,
+kompakt ama eksiksiz bir özet hazırla. 350-600 kelime. Bölüm başlıklarını
+KULLANICININ DİLİNDE yaz. Selamlama/giriş cümlesi YASAK — doğrudan başla.
 
-📚 KONU: [konunun adı]
-🔑 TEMEL KAVRAMLAR: [3-5 madde]
-📐 ANAHTAR FORMÜLLER: [varsa LaTeX ile]
-💡 HATIRLATICI: [1-2 cümle]
+YAPI (sırayla):
+📚 KONU: [konunun adı + tek cümle tanım]
+🔑 TEMEL KAVRAMLAR: [4-6 madde; her madde **anahtar terim** — somut
+   açıklama (yıl/sayı/isim/birim içeren dolu cümle)]
+📐 ANAHTAR FORMÜLLER: [varsa; her formül \\( ... \\) LaTeX ile, hemen
+   altında "Burada:" satırıyla her sembolün anlamı + birimi. Sayısal
+   konuda 1 mini çözümlü örnek (2-3 adım) ekle.]
+💡 HATIRLATICI: [1-2 cümle — en kritik ezber noktası]
+🔴 TUZAK: [öğrencilerin bu konuda en sık yaptığı 1 hata/kavram yanılgısı
+   ve doğrusu — ders kitaplarının "sık yapılan yanlış" kutusu gibi]
+
+GÖRSEL KURALI: Konu görsel-zorunlu ise (hücre, anatomi, atom modeli,
+dalga, devre, optik, harita, geometri, kesir — veya ilkokul/ortaokul
+konusu) TEMEL KAVRAMLAR bölümünden sonra TAM 1 şema çiz:
+   [ŞEMA: <Ad>]
+   <Unicode kutu/ok karakterleriyle kompakt çizim, 4-8 satır,
+    genişlik ≤ 45 karakter>
+   ─────────
+   <lejant: sembol = anlam satırları>
+   [/ŞEMA]
+Görsel-zorunlu olmayan konuda şema YOK.
+
+DOĞRULUK: Sabit/tarih/formül değerleri ders kitabı konsensüsüyle birebir;
+emin olmadığın spesifik değeri yazma. Terminoloji, öğrencinin ülkesindeki
+ders kitabında geçen terimin aynısı olsun.
 
 Ders: $subjectName
 Konu: $topicName''';
@@ -2759,7 +2773,8 @@ Konu: $topicName''';
           isPremium: AiQuotaService.instance.isPremium,
           prompt: 'Bu konunun özetini çıkar.',
           system: systemPrompt,
-          maxTokens: 1200,
+          // Şema + formül kartı + tuzak bölümü eklendi → tavan yükseltildi.
+          maxTokens: 2000,
         );
         if (t.trim().isNotEmpty) {
           _log('fetchSingleTopicSummary OK (multi-provider): ${t.length} kar');
@@ -3115,11 +3130,14 @@ $existingSolution''';
       // dayatıyor; bu modda da "Sonuç:" ve "Püf Nokta:" etiketleri
       // kullanılmayacak.
       'TestSorulari' =>
-          '[MOD: TEST SORULARI]\n'
-          'Kullanıcının verdiği 10 soruluk şablonu birebir uygula. '
-          'Sorular sırayla zorluk artışı, her soruda 5 şık (A-E), her '
-          'çözümde "Doğru cevap:" satırı. "Sonuç:" veya "Püf Nokta:" '
-          'satırı YAZMA. TAM 10 soru.',
+          '[MOD: TEST SORULARI — GERÇEK SINAV KALİTESİ]\n'
+          'Kullanıcının verdiği şablonu (soru sayısı, şık sayısı, soru tipi, '
+          'zorluk, JSON formatı) BİREBİR uygula — şablonla çelişen hiçbir '
+          'varsayım ekleme. Sen deneyimli bir SINAV SORU YAZARISIN: her '
+          'soruyu JSON\'a koymadan önce içinden kendin çöz, doğru şıkkın '
+          'gerçekten doğru ve diğer şıkların kesin yanlış olduğunu doğrula; '
+          'tutarsız soruyu yenisiyle değiştir. "Sonuç:" veya "Püf Nokta:" '
+          'satırı YAZMA. Çıktı yalnızca geçerli JSON array.',
 
       _ =>
           'Soruyu kısa ve net çöz. Formülleri LaTeX ile yaz. Son satırda "Sonuç:" ile bitir.',
@@ -5722,6 +5740,9 @@ Format:
     /// Verilirse üretim prompt'u o sınavın gerçek format/zorluk/üslubuna
     /// uygun soru üretmesi için ek talimat alır.
     String? examLabel,
+    /// Şık sayısı — gerçek sınav formatına göre (LGS 4, TYT/AYT/DGS/KPSS 5).
+    /// Sınav modu dışında (normal müfredat testi) varsayılan 4.
+    int optionCount = 4,
   }) async {
     _log('generateLeagueQuiz() — ${profile.displayLabel()} · $subjectName${topic != null ? " > $topic" : ""} · validate=$validate${examLabel != null ? " · exam=$examLabel" : ""}');
 
@@ -5734,6 +5755,7 @@ Format:
       topic: topic,
       count: overproduce,
       examLabel: examLabel,
+      optionCount: optionCount,
     );
     if (!validate) {
       // Doğrulama atlanırsa ilk count soruyu döner.
@@ -5770,11 +5792,14 @@ Format:
     String? topic,
     required int count,
     String? examLabel,
+    int optionCount = 4,
   }) async {
     final ctx = educationContext(profile);
     final scope = topic != null && topic.isNotEmpty
         ? 'Ders: $subjectName · Konu: $topic'
         : 'Ders: $subjectName (genel)';
+    final optCount = optionCount.clamp(3, 5);
+    final optLetters = List.generate(optCount, (i) => String.fromCharCode(65 + i));
     final examRule = (examLabel != null && examLabel.isNotEmpty)
         ? '\n- ÖNEMLİ: Bu sorular "$examLabel" sınavına hazırlanan bir öğrenci içindir. '
             'Gerçek $examLabel sorularının formatına, üslubuna ve zorluk seviyesine '
@@ -5800,8 +5825,18 @@ $ctx
 $scope
 
 KURALLAR:
-- Her soru tam olarak 4 şıklı (A/B/C/D, ama sen sadece options dizisi ver — index 0..3).
+- Her soru tam olarak $optCount şıklı (${optLetters.join('/')}, ama sen sadece options dizisi ver — index 0..${optCount - 1}).
 - Şıklardan SADECE BİRİ doğru olacak; diğerleri makul ama açıkça yanlış.
+- ÇELDİRİCİ KALİTESİ: Yanlış şıklar rastgele değer DEĞİL, öğrencinin
+  gerçekten yapabileceği hatalar olsun (işaret hatası, birim/ondalık
+  karışıklığı, formülün ters uygulanması, kavram karıştırma). "Hepsi" /
+  "Hiçbiri" şıkkı YASAK.
+- ŞIK DENGESİ: Şıklar benzer uzunlukta; doğru şık sistematik olarak en
+  uzun/detaylı olmasın. "correct" indexleri sorular arasında DENGELİ
+  dağılsın (hepsi 0 olmasın, art arda 3+ aynı index olmasın).
+- DOĞRULAMA: Her soruyu JSON'a koymadan önce içinden kendin çöz — doğru
+  index gerçekten doğru mu, diğer şıklardan hiçbiri doğru olamaz mı?
+  Tutarsız soruyu düzelt veya değiştir. (Bu kontrolü çıktıya yazma.)
 - Müfredata + sınıfa uygun zorluk; yorum ve hesap dengesi olsun.
 - Gereksiz uzun cümle yok, sınav diliyle net.
 - Aynı konunun farklı alt başlıklarına dağıt; tek bir alt konuya yığma.
@@ -5814,7 +5849,7 @@ Format:
   "questions": [
     {
       "q": "Soru metni…",
-      "options": ["şık 1", "şık 2", "şık 3", "şık 4"],
+      "options": [${optLetters.map((l) => '"şık $l"').join(', ')}],
       "correct": 0,
       "explanation": "Kısa açıklama."
     }
@@ -5872,8 +5907,8 @@ Format:
         final q = (e['q'] ?? '').toString().trim();
         final opts = e['options'];
         final correct = e['correct'];
-        if (q.isEmpty || opts is! List || opts.length != 4) continue;
-        if (correct is! num || correct < 0 || correct > 3) continue;
+        if (q.isEmpty || opts is! List || opts.length != optCount) continue;
+        if (correct is! num || correct < 0 || correct >= optCount) continue;
         out.add({
           'q': q,
           'options': opts.map((o) => o.toString()).toList(),
@@ -5917,12 +5952,12 @@ Format:
     final payload = jsonEncode({'questions': maskedList});
 
     final ctx = educationContext(profile);
-    final systemPrompt = '''Sen titiz bir akademik denetçi/sınav cevap anahtarı uzmanısın. Sana çoktan seçmeli sorular geleceksiz. Senden DOĞRU ŞIKKIN İNDEKSİNİ (0..3) bağımsızca BULMANI istiyoruz. Daha önceki herhangi bir cevaba bakma — sıfırdan çöz.
+    final systemPrompt = '''Sen titiz bir akademik denetçi/sınav cevap anahtarı uzmanısın. Sana çoktan seçmeli sorular geleceksiz (her sorunun kaç şıkkı olduğu "options" dizisinin uzunluğundan bellidir — 4 veya 5 olabilir). Senden DOĞRU ŞIKKIN İNDEKSİNİ (options dizisindeki 0-tabanlı konumu) bağımsızca BULMANI istiyoruz. Daha önceki herhangi bir cevaba bakma — sıfırdan çöz.
 
 $ctx
 
 KURALLAR:
-- Her soru için en doğru şıkkı düşün ve sadece indeks ver (0,1,2,3).
+- Her soru için en doğru şıkkı düşün ve sadece indeks ver (options dizisinin uzunluğuna göre 0'dan başlayan geçerli bir indeks).
 - Belirsiz sorularda en olası doğru şıkkı yine de seç (rastgele değil; gerekçen olsun).
 - Çıktı: sadece geçerli JSON, açıklama yok.
 

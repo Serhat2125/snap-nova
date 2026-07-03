@@ -7,8 +7,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:image/image.dart' as img;
-import 'package:path_provider/path_provider.dart';
+import 'package:jovial_svg/jovial_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme.dart';
 import '../main.dart' show localeService;
@@ -23,6 +22,58 @@ import '../services/gemini_service.dart';
 // `show` ile sınırlı import.
 import '../services/ai_provider_service.dart' show AiProvider;
 import 'ai_result_screen.dart';
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  Marka logoları — orijinal vektör çizimleri (24×24 viewBox, Simple Icons
+//  path verisi). jovial_svg ile bir kez parse edilir, cache'ten servis edilir.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const String _openAiSvg =
+    '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    '<path fill="#FFFFFF" d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.8956zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/></svg>';
+
+// Gemini yıldızı — orijinal mavi→mor degrade.
+const String _geminiSvg =
+    '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    '<defs><linearGradient id="gg" x1="0" y1="24" x2="24" y2="0" gradientUnits="userSpaceOnUse">'
+    '<stop offset="0" stop-color="#4285F4"/><stop offset="0.55" stop-color="#9B72CB"/><stop offset="1" stop-color="#D96570"/>'
+    '</linearGradient></defs>'
+    '<path fill="url(#gg)" d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81"/></svg>';
+
+const String _grokSvg =
+    '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    '<path fill="#FFFFFF" d="m3.005 8.858 8.783 12.544h3.904L6.908 8.858zM6.905 15.825 3 21.402h3.907l1.951-2.788zM16.585 2l-6.75 9.64 1.953 2.79L20.492 2zM17.292 7.965v13.437h3.2V3.395z"/></svg>';
+
+const String _deepseekSvg =
+    '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    '<path fill="#4D6BFE" d="M23.748 4.651c-.254-.124-.364.113-.512.233-.051.04-.094.09-.137.137-.372.397-.806.657-1.373.626-.829-.046-1.537.214-2.163.848-.133-.782-.575-1.248-1.247-1.548-.352-.155-.708-.311-.955-.65-.172-.24-.219-.509-.305-.774-.055-.16-.11-.323-.293-.35-.2-.031-.278.136-.356.276-.313.572-.434 1.202-.422 1.84.027 1.436.633 2.58 1.838 3.393.137.094.172.187.129.323-.082.28-.18.553-.266.833-.055.179-.137.218-.328.14a5.5 5.5 0 0 1-1.737-1.179c-.857-.828-1.631-1.743-2.597-2.46a12 12 0 0 0-.689-.47c-.985-.957.13-1.743.387-1.836.27-.098.094-.433-.778-.428-.872.003-1.67.295-2.687.685a3 3 0 0 1-.465.136 9.6 9.6 0 0 0-2.883-.101c-1.885.21-3.39 1.1-4.497 2.622C.082 8.776-.231 10.854.152 13.02c.403 2.284 1.568 4.175 3.36 5.653 1.857 1.533 3.997 2.284 6.438 2.14 1.482-.085 3.132-.284 4.994-1.86.47.234.962.328 1.78.398.629.058 1.235-.031 1.705-.129.735-.155.684-.836.418-.961-2.155-1.004-1.682-.595-2.112-.926 1.095-1.295 2.768-3.598 3.284-6.733.05-.346.115-.834.108-1.114-.004-.171.035-.238.23-.257a4.2 4.2 0 0 0 1.545-.475c1.397-.763 1.96-2.016 2.093-3.517.02-.23-.004-.467-.247-.588M11.58 18.168c-2.088-1.642-3.101-2.183-3.52-2.16-.39.024-.32.472-.234.763.09.288.207.487.371.74.114.167.192.416-.113.603-.673.416-1.842-.14-1.897-.168-1.361-.801-2.5-1.86-3.301-3.306-.775-1.393-1.225-2.888-1.299-4.482-.02-.385.094-.522.477-.592a4.7 4.7 0 0 1 1.53-.038c2.131.311 3.946 1.264 5.467 2.774.868.86 1.525 1.887 2.202 2.89.72 1.066 1.494 2.082 2.48 2.915.348.291.626.513.892.677-.802.09-2.14.109-3.055-.615zm1.001-6.44a.306.306 0 0 1 .415-.287.3.3 0 0 1 .113.074.3.3 0 0 1 .086.214c0 .17-.136.307-.308.307a.303.303 0 0 1-.306-.307m3.11 1.596c-.2.081-.4.151-.591.16a1.25 1.25 0 0 1-.798-.254c-.274-.23-.47-.358-.551-.758a1.7 1.7 0 0 1 .015-.588c.07-.327-.007-.537-.238-.727-.188-.156-.426-.199-.689-.199a.6.6 0 0 1-.254-.078.253.253 0 0 1-.114-.358 1 1 0 0 1 .192-.21c.356-.202.767-.136 1.146.016.352.144.618.408 1.001.782.392.451.462.576.685.915.176.264.336.536.446.848.066.194-.02.353-.25.45"/></svg>';
+
+const String _claudeSvg =
+    '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    '<path fill="#D97757" d="m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z"/></svg>';
+
+// Parse edilen ScalableImage cache'i — her SVG bir kez derlenir.
+final Map<String, ScalableImage> _brandSiCache = {};
+
+/// Marka glifini gerçek uygulama ikonu görünümünde render eder:
+/// kendi marka zemini üzerinde yuvarlatılmış kare rozet.
+/// Açık zeminli rozetlere (beyaz/krem) ince gri kenarlık eklenir.
+Widget _brandLogo(String key, String svg,
+    {required Color bg, bool lightBg = false, double pad = 4}) {
+  final si = _brandSiCache.putIfAbsent(
+      key, () => ScalableImage.fromSvgString(svg));
+  return Container(
+    decoration: BoxDecoration(
+      color: bg,
+      borderRadius: BorderRadius.circular(7),
+      border: lightBg
+          ? Border.all(color: const Color(0xFFE5E7EB), width: 0.8)
+          : null,
+    ),
+    padding: EdgeInsets.all(pad),
+    child: ScalableImageWidget(si: si),
+  );
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  SolutionScreen
@@ -121,13 +172,10 @@ class _SolutionScreenState extends State<SolutionScreen> {
       subtitle: 'Hızlı ve genel çözüm'.tr(),
       badge: localeService.tr('recommended'),
       accentColor: AppColors.cyan,
-      logo: ShaderMask(
-        shaderCallback: (b) => LinearGradient(
-          colors: [Color(0xFF00E5FF), Color(0xFF6B21F2)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ).createShader(b),
-        child: Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 22),
+      // Uygulamanın kendi orijinal logosu — diğer rozetlerle aynı köşe.
+      logo: ClipRRect(
+        borderRadius: BorderRadius.circular(7),
+        child: Image.asset('assets/app_icon.png', fit: BoxFit.cover),
       ),
     ),
     AiModel(
@@ -135,36 +183,43 @@ class _SolutionScreenState extends State<SolutionScreen> {
       subtitle: 'Detaylı ve mantıklı çözüm'.tr(),
       badge: 'Aktif',
       accentColor: Color(0xFF10A37F),
-      // Marka logosu yerine jenerik ikon (marka/inceleme riskini azaltmak için).
-      logo: Icon(Icons.forum_rounded, color: Color(0xFF10A37F), size: 22),
+      // Güncel ChatGPT uygulama ikonu: siyah zemin üzerinde beyaz düğüm.
+      logo: _brandLogo('openai', _openAiSvg, bg: Color(0xFF000000)),
     ),
     AiModel(
       name: 'Gemini',
       subtitle: 'Hızlı analiz ve alternatif çözüm'.tr(),
       badge: 'Aktif',
       accentColor: Color(0xFF4796E3),
-      logo: Icon(Icons.bubble_chart_rounded, color: Color(0xFF4796E3), size: 22),
+      // Gemini ikonu: beyaz zeminde mavi→mor degrade yıldız.
+      logo: _brandLogo('gemini', _geminiSvg,
+          bg: Colors.white, lightBg: true),
     ),
     AiModel(
       name: 'Grok',
       subtitle: 'Anlık ve yaratıcı çözüm'.tr(),
       badge: 'Aktif',
       accentColor: Color(0xFF1D1D1D),
-      logo: Icon(Icons.bolt_rounded, color: Color(0xFF1D1D1D), size: 22),
+      // Grok (xAI) uygulama ikonu: siyah zeminde beyaz işaret.
+      logo: _brandLogo('grok', _grokSvg, bg: Color(0xFF000000)),
     ),
     AiModel(
       name: 'Deepseek',
       subtitle: 'Derin analiz ve akıl yürütme'.tr(),
       badge: 'Aktif',
-      accentColor: Color(0xFF4B8BF5),
-      logo: Icon(Icons.psychology_rounded, color: Color(0xFF4B8BF5), size: 22),
+      accentColor: Color(0xFF4D6BFE),
+      // DeepSeek ikonu: beyaz zeminde mavi balina.
+      logo: _brandLogo('deepseek', _deepseekSvg,
+          bg: Colors.white, lightBg: true),
     ),
     AiModel(
       name: 'Claude',
       subtitle: 'Derin açıklama ve mantık yürütme'.tr(),
       badge: 'Aktif',
-      accentColor: Color(0xFFD97706),
-      logo: Icon(Icons.lightbulb_rounded, color: Color(0xFFD97706), size: 22),
+      accentColor: Color(0xFFD97757),
+      // Claude uygulama ikonu: krem (ivory) zeminde turuncu yıldız işareti.
+      logo: _brandLogo('claude', _claudeSvg,
+          bg: Color(0xFFF0EEE5), lightBg: true),
     ),
   ];
 
@@ -202,12 +257,6 @@ class _SolutionScreenState extends State<SolutionScreen> {
   final ValueNotifier<Color?> _cardsBgN   = ValueNotifier(null);
   final ValueNotifier<Color?> _cardsTextN = ValueNotifier(null);
 
-  // ── Yeniden kırpma (re-crop) ──────────────────────────────────────────────
-  // Normalize edilmiş 0..1 koordinatlarda kullanıcının seçtiği alan.
-  // Başlangıç: tüm görsel — kullanıcı dokunmazsa orijinal yollanır.
-  final ValueNotifier<Rect> _cropRectN =
-      ValueNotifier(const Rect.fromLTRB(0, 0, 1, 1));
-
   // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
   @override
@@ -242,7 +291,6 @@ class _SolutionScreenState extends State<SolutionScreen> {
     _photoBgN.dispose();
     _cardsBgN.dispose();
     _cardsTextN.dispose();
-    _cropRectN.dispose();
     super.dispose();
   }
 
@@ -250,70 +298,6 @@ class _SolutionScreenState extends State<SolutionScreen> {
   bool _cancelled = false;
   Timer? _slowConnTimer;
   bool _slowConnection = false;
-
-  /// Kullanıcı kırpma çerçevesini daralttıysa yeni bir temp JPG yarat ve
-  /// onun yolunu döndür; daraltılmamışsa orijinal yolu döndür.
-  /// Hata durumunda (decode/IO) sessizce orijinal yola düş — analiz akışı
-  /// kesilmesin.
-  /// Eski recrop_*.jpg temp dosyalarını sil — birikim disk doluşturmasın.
-  /// Sadece 1 günden eski olanları sil (aktif çözümler korunur).
-  static Future<void> _cleanOldRecropTemps() async {
-    try {
-      final dir = await getTemporaryDirectory();
-      if (!await dir.exists()) return;
-      final cutoff =
-          DateTime.now().subtract(const Duration(hours: 24));
-      await for (final ent in dir.list()) {
-        if (ent is File &&
-            ent.path.contains('recrop_') &&
-            ent.path.endsWith('.jpg')) {
-          try {
-            final stat = await ent.stat();
-            if (stat.modified.isBefore(cutoff)) {
-              await ent.delete();
-            }
-          } catch (_) {}
-        }
-      }
-    } catch (e) {
-      debugPrint('[Solution] recrop cleanup fail: $e');
-    }
-  }
-
-  Future<String> _applyCropIfNeeded() async {
-    // Her _solve çağrısında arka planda eski temp dosyaları temizle.
-    unawaited(_cleanOldRecropTemps());
-    final r = _cropRectN.value;
-    // Tam alan ya da neredeyse tam (1 px tolerans) → kırpma yok.
-    const eps = 0.005;
-    final isFull = r.left <= eps &&
-        r.top <= eps &&
-        r.right >= 1 - eps &&
-        r.bottom >= 1 - eps;
-    if (isFull) return widget.imagePath;
-    try {
-      final bytes = await File(widget.imagePath).readAsBytes();
-      var im = img.decodeImage(bytes);
-      if (im == null) return widget.imagePath;
-      im = img.bakeOrientation(im);
-      final sx = (r.left * im.width).round().clamp(0, im.width - 1);
-      final sy = (r.top * im.height).round().clamp(0, im.height - 1);
-      final sw =
-          (r.width * im.width).round().clamp(1, im.width - sx);
-      final sh =
-          (r.height * im.height).round().clamp(1, im.height - sy);
-      final cropped =
-          img.copyCrop(im, x: sx, y: sy, width: sw, height: sh);
-      final encoded = img.encodeJpg(cropped, quality: 92);
-      final dir = await getTemporaryDirectory();
-      final out = File(
-          '${dir.path}/recrop_${DateTime.now().millisecondsSinceEpoch}.jpg');
-      await out.writeAsBytes(encoded);
-      return out.path;
-    } catch (_) {
-      return widget.imagePath;
-    }
-  }
 
   Future<void> _loadResultColors() async {
     try {
@@ -465,9 +449,8 @@ class _SolutionScreenState extends State<SolutionScreen> {
     String? result;
     GeminiException? geminiError;
 
-    // Kullanıcı kırpma çerçevesini daraltmışsa görseli o alana göre yeniden
-    // kırpıp temp dosya yarat; AI'a yalnızca seçilmiş bölge gider.
-    final pathForAI = await _applyCropIfNeeded();
+    // Kırpma özelliği kaldırıldı — görsel her zaman olduğu gibi gönderilir.
+    final pathForAI = widget.imagePath;
 
     try {
       if (model.name == 'Deepseek') {
@@ -814,40 +797,8 @@ class _SolutionScreenState extends State<SolutionScreen> {
     // Çerçeve artık sabit 4:3 DEĞİL — fotoğrafın gerçek en-boy oranına göre
     // uzar/kısalır, böylece dikey/yatay her görsel TAM gözükür (BoxFit.contain).
     // En fazla ekranın %55'i kadar yer kaplar.
-    // Üzerinde ayarlanabilir bir kırpma çerçevesi var; "Alanı Belirle" altyazısı
-    // kullanıcıya kenarlardan tutup daraltıp/genişletebileceğini hatırlatır.
     return Column(
       children: [
-        // Talimat şeridi: "Alanı Belirle"
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.crop_free_rounded,
-                  size: 14, color: AppColors.cyan),
-              SizedBox(width: 6),
-              Text(
-                'Alanı Belirle'.tr(),
-                style: GoogleFonts.poppins(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
-                  color: AppPalette.textPrimary(context),
-                  letterSpacing: 0.2,
-                ),
-              ),
-              SizedBox(width: 6),
-              Text(
-                'Kenarlardan tutarak daralt'.tr(),
-                style: GoogleFonts.poppins(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w500,
-                  color: AppPalette.textSecondary(context),
-                ),
-              ),
-            ],
-          ),
-        ),
         Stack(
           children: [
             ValueListenableBuilder<Color?>(
@@ -858,7 +809,6 @@ class _SolutionScreenState extends State<SolutionScreen> {
                 borderRadius: 14,
                 border: Border.all(color: AppPalette.textPrimary(context), width: 3),
                 background: photoBg ?? AppPalette.bg(context),
-                overlay: _PhotoCropOverlay(rectN: _cropRectN),
               ),
             ),
             // Sağ üst: kapat (X) — fotoğrafın içinde
@@ -925,28 +875,40 @@ class _SolutionScreenState extends State<SolutionScreen> {
                       curve: Curves.easeOutCubic,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        // Saf beyaz zemin
-                        color: AppPalette.card(context),
-                        border: Border.all(
-                          color: sel ? c : Color(0xFFD0D0D0),
-                          width: sel ? 2.4 : 1.0,
+                        // Üstten hafif renk tonu → alta beyaz degrade; seçimde
+                        // ton belirginleşir — düz beyazdan daha derin görünüm.
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            c.withValues(alpha: sel ? 0.14 : 0.05),
+                            AppPalette.card(context),
+                          ],
                         ),
-                        boxShadow: sel
-                            ? [
-                                BoxShadow(
-                                  color: c.withValues(alpha: 0.35),
-                                  blurRadius: 14,
-                                  spreadRadius: 2,
-                                ),
-                              ]
-                            : [
-                                BoxShadow(
-                                  color: Colors.black
-                                      .withValues(alpha: 0.04),
-                                  blurRadius: 4,
-                                  offset: Offset(0, 2),
-                                ),
-                              ],
+                        border: Border.all(
+                          color: sel
+                              ? c
+                              : Colors.black.withValues(alpha: 0.10),
+                          width: sel ? 2.2 : 1.0,
+                        ),
+                        boxShadow: [
+                          // Çerçeve çizgisinin hemen bittiği yerde ince,
+                          // sıkı gölge — kartı zeminden ayırır.
+                          BoxShadow(
+                            color: (sel ? c : Colors.black)
+                                .withValues(alpha: sel ? 0.22 : 0.10),
+                            blurRadius: 3,
+                            spreadRadius: 0.6,
+                            offset: Offset(0, 1),
+                          ),
+                          // Yumuşak derinlik gölgesi.
+                          BoxShadow(
+                            color: (sel ? c : Colors.black)
+                                .withValues(alpha: sel ? 0.30 : 0.07),
+                            blurRadius: sel ? 16 : 10,
+                            offset: Offset(0, 5),
+                          ),
+                        ],
                       ),
                       alignment: Alignment.center,
                       child: Padding(
@@ -1237,10 +1199,10 @@ class _SolutionScreenState extends State<SolutionScreen> {
             crossAxisCount: 3,
             shrinkWrap: true,
             physics: NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
-            // Daha da daraltıldı — yatay-dominant, dikey kompakt.
-            childAspectRatio: 1.35,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            // Logo rozetine yer açmak için hafif uzatıldı.
+            childAspectRatio: 1.18,
             children: _models.asMap().entries.map((e) {
               final idx      = e.key;
               final model    = e.value;
@@ -1260,31 +1222,48 @@ class _SolutionScreenState extends State<SolutionScreen> {
                   duration: Duration(milliseconds: 200),
                   curve: Curves.easeOutCubic,
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 6, vertical: 2),
+                      horizontal: 6, vertical: 4),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: fillColor,
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: sel
-                        ? [BoxShadow(
-                            color: c.withValues(alpha: 0.25),
-                            blurRadius: 10,
-                            spreadRadius: 0.5)]
-                        : [BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.04),
-                            blurRadius: 4,
-                            offset: Offset(0, 1))],
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: sel
+                          ? c.withValues(alpha: 0.70)
+                          : Colors.black.withValues(alpha: 0.08),
+                      width: sel ? 1.6 : 1.0,
+                    ),
+                    boxShadow: [
+                      // Çerçeve çizgisinin hemen bittiği yerde ince, sıkı
+                      // gölge — kart kenarını zeminden ayırır.
+                      BoxShadow(
+                        color: (sel ? c : Colors.black)
+                            .withValues(alpha: sel ? 0.20 : 0.09),
+                        blurRadius: 3,
+                        spreadRadius: 0.6,
+                        offset: Offset(0, 1),
+                      ),
+                      // Yumuşak derinlik gölgesi.
+                      BoxShadow(
+                        color: (sel ? c : Colors.black)
+                            .withValues(alpha: sel ? 0.26 : 0.06),
+                        blurRadius: sel ? 14 : 9,
+                        offset: Offset(0, 5),
+                      ),
+                    ],
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // Logo rozeti — her logo kendi marka zeminiyle gelir
+                      // (gerçek uygulama ikonu görünümü).
                       SizedBox(
-                        width: 20,
-                        height: 20,
+                        width: 30,
+                        height: 30,
                         child: model.logo,
                       ),
-                      SizedBox(height: 2),
+                      SizedBox(height: 3),
                       Text(
                         model.name,
                         maxLines: 1,
@@ -1862,261 +1841,3 @@ class _RobotPainter extends CustomPainter {
   bool shouldRepaint(covariant _RobotPainter old) => old.color != color;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  _PhotoCropOverlay — Fotoğraf üzerinde ayarlanabilir kırpma çerçevesi.
-//  • Çerçevenin DIŞI hafif karartılır (donut clipper); içi tam görünür.
-//  • 4 kenarda dokunma kolu — yatay/dikey ok ikonu ile.
-//  • Çerçeve değiştikçe parent'a normalize edilmiş Rect (0..1) yollar.
-//  • Başlangıç: tam alan; kullanıcı daraltıp/genişletebilir.
-// ═══════════════════════════════════════════════════════════════════════════════
-class _PhotoCropOverlay extends StatefulWidget {
-  final ValueNotifier<Rect> rectN;
-  const _PhotoCropOverlay({required this.rectN});
-
-  @override
-  State<_PhotoCropOverlay> createState() => _PhotoCropOverlayState();
-}
-
-class _PhotoCropOverlayState extends State<_PhotoCropOverlay> {
-  // Çerçeve pixel-cinsinden — LayoutBuilder size'ı baz alır.
-  Rect? _frame;
-  Size? _lastSize;
-
-  // Min boyut (piksel cinsinden) — çok küçülmesin.
-  static const double _minW = 60;
-  static const double _minH = 60;
-
-  Rect _initial(Size s) =>
-      Rect.fromLTRB(0, 0, s.width, s.height);
-
-  Rect _currentFrame(Size s) {
-    if (_frame == null || _lastSize != s) {
-      // Notifier'da kayıtlı normalize rect → pixel'e çevir.
-      final n = widget.rectN.value;
-      _frame = Rect.fromLTRB(
-        n.left * s.width,
-        n.top * s.height,
-        n.right * s.width,
-        n.bottom * s.height,
-      );
-      _lastSize = s;
-    }
-    return _frame!;
-  }
-
-  void _commit(Rect f, Size s) {
-    setState(() {
-      _frame = f;
-      _lastSize = s;
-    });
-    widget.rectN.value = Rect.fromLTRB(
-      (f.left / s.width).clamp(0.0, 1.0),
-      (f.top / s.height).clamp(0.0, 1.0),
-      (f.right / s.width).clamp(0.0, 1.0),
-      (f.bottom / s.height).clamp(0.0, 1.0),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (ctx, c) {
-        final size = Size(c.maxWidth, c.maxHeight);
-        // İlk çağrıda full alan
-        if (_frame == null) {
-          _frame = _initial(size);
-          _lastSize = size;
-        }
-        final frame = _currentFrame(size);
-        return Stack(
-          clipBehavior: Clip.hardEdge,
-          children: [
-            // Dış karartma — çerçeve içi şeffaf
-            IgnorePointer(
-              child: ClipPath(
-                clipper: _CropDonutClipper(frame: frame, radius: 6),
-                child: Container(
-                  color: Colors.black.withValues(alpha: 0.32),
-                ),
-              ),
-            ),
-            // Cyan çerçeve kenarlığı
-            Positioned(
-              left: frame.left,
-              top: frame.top,
-              width: frame.width,
-              height: frame.height,
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: AppColors.cyan.withValues(alpha: 0.85),
-                      width: 1.6,
-                    ),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                ),
-              ),
-            ),
-            // Köşe parantezleri (CustomPaint)
-            Positioned(
-              left: frame.left,
-              top: frame.top,
-              width: frame.width,
-              height: frame.height,
-              child: IgnorePointer(
-                child: CustomPaint(
-                  painter: _CropBracketPainter(),
-                ),
-              ),
-            ),
-            // 4 kenar kolu
-            _edge(
-              frame,
-              size,
-              Axis.horizontal,
-              isStart: true,
-            ),
-            _edge(
-              frame,
-              size,
-              Axis.horizontal,
-              isStart: false,
-            ),
-            _edge(
-              frame,
-              size,
-              Axis.vertical,
-              isStart: true,
-            ),
-            _edge(
-              frame,
-              size,
-              Axis.vertical,
-              isStart: false,
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // axis = horizontal → sol/sağ; vertical → üst/alt.
-  Widget _edge(Rect f, Size s, Axis axis,
-      {required bool isStart}) {
-    const tw = 44.0;
-    const th = 36.0;
-    final isHorizontal = axis == Axis.horizontal;
-    final left = isHorizontal
-        ? (isStart ? f.left - tw / 2 : f.right - tw / 2)
-        : f.center.dx - th / 2;
-    final top = isHorizontal
-        ? f.center.dy - th / 2
-        : (isStart ? f.top - tw / 2 : f.bottom - tw / 2);
-    final w = isHorizontal ? tw : th;
-    final h = isHorizontal ? th : tw;
-    return Positioned(
-      left: left,
-      top: top,
-      width: w,
-      height: h,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onPanUpdate: (d) {
-          var nf = f;
-          if (axis == Axis.horizontal) {
-            if (isStart) {
-              final newLeft = (f.left + d.delta.dx)
-                  .clamp(0.0, f.right - _minW);
-              nf = Rect.fromLTRB(newLeft, f.top, f.right, f.bottom);
-            } else {
-              final newRight = (f.right + d.delta.dx)
-                  .clamp(f.left + _minW, s.width);
-              nf = Rect.fromLTRB(f.left, f.top, newRight, f.bottom);
-            }
-          } else {
-            if (isStart) {
-              final newTop = (f.top + d.delta.dy)
-                  .clamp(0.0, f.bottom - _minH);
-              nf = Rect.fromLTRB(f.left, newTop, f.right, f.bottom);
-            } else {
-              final newBottom = (f.bottom + d.delta.dy)
-                  .clamp(f.top + _minH, s.height);
-              nf = Rect.fromLTRB(f.left, f.top, f.right, newBottom);
-            }
-          }
-          _commit(nf, s);
-        },
-        child: Center(
-          child: Container(
-            padding: isHorizontal
-                ? const EdgeInsets.symmetric(horizontal: 4, vertical: 3)
-                : const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.55),
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(
-                color: AppColors.cyan.withValues(alpha: 0.7),
-                width: 1.1,
-              ),
-            ),
-            child: Icon(
-              isHorizontal
-                  ? Icons.swap_horiz_rounded
-                  : Icons.swap_vert_rounded,
-              color: AppColors.cyan,
-              size: 13,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CropDonutClipper extends CustomClipper<Path> {
-  final Rect frame;
-  final double radius;
-  const _CropDonutClipper({required this.frame, required this.radius});
-
-  @override
-  Path getClip(Size size) => Path()
-    ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
-    ..addRRect(RRect.fromRectAndRadius(frame, Radius.circular(radius)))
-    ..fillType = PathFillType.evenOdd;
-
-  @override
-  bool shouldReclip(covariant _CropDonutClipper old) =>
-      old.frame != frame || old.radius != radius;
-}
-
-class _CropBracketPainter extends CustomPainter {
-  const _CropBracketPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final p = Paint()
-      ..color = AppColors.cyan
-      ..strokeWidth = 2.4
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
-    const l = 14.0;
-    final w = size.width;
-    final h = size.height;
-    // Sol üst
-    canvas.drawLine(Offset(0, 0), Offset(l, 0), p);
-    canvas.drawLine(Offset(0, 0), Offset(0, l), p);
-    // Sağ üst
-    canvas.drawLine(Offset(w - l, 0), Offset(w, 0), p);
-    canvas.drawLine(Offset(w, 0), Offset(w, l), p);
-    // Sol alt
-    canvas.drawLine(Offset(0, h - l), Offset(0, h), p);
-    canvas.drawLine(Offset(0, h), Offset(l, h), p);
-    // Sağ alt
-    canvas.drawLine(Offset(w - l, h), Offset(w, h), p);
-    canvas.drawLine(Offset(w, h - l), Offset(w, h), p);
-  }
-
-  @override
-  bool shouldRepaint(covariant _CropBracketPainter old) => false;
-}

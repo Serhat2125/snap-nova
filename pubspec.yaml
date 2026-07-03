@@ -3,7 +3,7 @@ description: "A new Flutter project."
 
 publish_to: 'none'
 
-version: 1.0.2+30
+version: 1.0.2+31
 
 environment:
   sdk: '>=3.2.3 <4.0.0'
@@ -84,6 +84,8 @@ dependencies:
 
   # QR code (paylaşım kartında qualsar.app linki)
   qr_flutter: ^4.1.0
+  # AI model marka logoları (SVG render — solution_screen)
+  jovial_svg: ^1.1.29
   country_flags: ^4.1.2
 
   # State management — yeni feature katmanları için (eski setState'lere

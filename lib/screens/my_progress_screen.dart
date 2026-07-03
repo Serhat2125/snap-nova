@@ -30,6 +30,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../config/feature_flags.dart';
 import '../models/education_models.dart';
 import '../services/analytics.dart';
 import '../services/parent_link_service.dart';
@@ -291,7 +292,7 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
       if (mounted) {
         _injectDemo();
         setState(() {
-          _demo = true;
+          _demo = kShowDemoMode;
           _pending = false;
           _loading = false;
         });
@@ -428,7 +429,7 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
         } else {
           _injectDemo();
           setState(() {
-            _demo = true;
+            _demo = kShowDemoMode;
             _pending = false;
             _loading = false;
           });
@@ -440,7 +441,7 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
       _injectDemo();
       if (!mounted) return;
       setState(() {
-        _demo = true;
+        _demo = kShowDemoMode;
         _pending = false;
         _loading = false;
       });
@@ -448,7 +449,7 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
       if (!mounted) return;
       _injectDemo();
       setState(() {
-        _demo = true;
+        _demo = kShowDemoMode;
         _pending = false;
         _loading = false;
       });
@@ -497,6 +498,9 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
   // Demo veri — gerçek veri yokken panel "çalışan bir çocuk" gibi dolu görünür.
   // Bu haftanın günlerine (Pzt→Paz) hizalı sabit örnek dağılım.
   void _injectDemo() {
+    // Demo modu geçici olarak kapalı — panel boş/gerçek durumda kalır,
+    // sahte çocuk verisiyle doldurulmaz.
+    if (!kShowDemoMode) return;
     final keys = _weekDateKeys;
     // [type, ders, konu, dakika]
     final plan = <List<List<Object>>>[
@@ -506,12 +510,12 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
       [['3d', 'Fen Bilimleri', 'Hücre', 12],
        ['soru', 'Fen Bilimleri', 'Hücre', 18]],
       [['özet', 'Türkçe', 'Paragraf', 16],
-       ['yarisma', 'Bilgi Yarışı', 'Genel', 10]],
+       ['yarisma', 'Düello Arenası', 'Genel', 10]],
       [['soru', 'Matematik', 'Problemler', 22],
        ['pomodoro', 'Pomodoro', 'Odak Seansı', 25]],
       [['özet', 'Fen Bilimleri', 'Kuvvet ve Hareket', 14],
        ['3d', 'Fen Bilimleri', 'Kuvvet ve Hareket', 10]],
-      [['yarisma', 'Bilgi Yarışı', 'Genel', 12],
+      [['yarisma', 'Düello Arenası', 'Genel', 12],
        ['soru', 'Türkçe', 'Sözcükte Anlam', 8]],
       [['özet', 'Matematik', 'Oran Orantı', 10]],
     ];

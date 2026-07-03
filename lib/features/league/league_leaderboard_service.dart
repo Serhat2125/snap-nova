@@ -75,6 +75,51 @@ class LeagueLeaderboardService {
   }) async {
     if (location.countryCode.isEmpty) return const [];
 
+    // ── 0) ÖNCE league_totals (ölçeklenebilir, kesin toplam) ────────────────
+    // Attempts üzerinden top-N tekil skor çekip istemcide toplamak 10 bin
+    // kullanıcıda yanlış sıralama üretir; totals koleksiyonu kullanıcı ×
+    // periyot kovası başına hazır toplam tutar → sorgu doğrudan doğru.
+    // Boş dönerse (eski veri / index henüz yok) legacy attempts yoluna düşer.
+    try {
+      final totalRows = await _fetchFromTotals(
+        profile: profile,
+        location: location,
+        scope: scope,
+        mode: mode,
+        period: period,
+        subjectKey: subjectKey,
+        topic: topic,
+        limit: limit,
+      );
+      if (totalRows.isNotEmpty) return totalRows;
+    } catch (e) {
+      debugPrint('[LeagueLeaderboard] totals fetch fail → legacy: $e');
+    }
+
+    return _fetchLegacy(
+      profile: profile,
+      location: location,
+      scope: scope,
+      mode: mode,
+      period: period,
+      subjectKey: subjectKey,
+      topic: topic,
+      limit: limit,
+    );
+  }
+
+  /// ESKİ yol — attempts üzerinden istemci tarafı toplama. Totals koleksiyonu
+  /// dolana kadar (geçiş dönemi) fallback olarak kullanılır.
+  static Future<List<LeagueLeaderRow>> _fetchLegacy({
+    required EduProfile profile,
+    required UserLocation location,
+    required LeagueScope scope,
+    required LeagueMode mode,
+    required LeaguePeriod period,
+    String? subjectKey,
+    String? topic,
+    required int limit,
+  }) async {
     final col = FirebaseFirestore.instance.collection('league_attempts');
 
     Query<Map<String, dynamic>> q = col;
@@ -161,7 +206,9 @@ class LeagueLeaderboardService {
     if (Firebase.apps.isEmpty || location.countryCode.isEmpty) {
       return Stream.value(const <LeagueLeaderRow>[]);
     }
-    final col = FirebaseFirestore.instance.collection('league_attempts');
+
+    // ── league_totals canlı akışı (ölçeklenebilir, kesin toplam) ────────────
+    final col = FirebaseFirestore.instance.collection('league_totals');
     Query<Map<String, dynamic>> q = col;
 
     switch (scope) {
@@ -189,14 +236,16 @@ class LeagueLeaderboardService {
         break;
     }
 
+    final String modeKey;
     switch (mode) {
       case LeagueMode.overall:
+        modeKey = 'all';
         break;
       case LeagueMode.subject:
         if (subjectKey == null || subjectKey.isEmpty) {
           return Stream.value(const <LeagueLeaderRow>[]);
         }
-        q = q.where('subjectKey', isEqualTo: subjectKey);
+        modeKey = 's:$subjectKey';
         break;
       case LeagueMode.topic:
         if (subjectKey == null || subjectKey.isEmpty) {
@@ -205,25 +254,131 @@ class LeagueLeaderboardService {
         if (topic == null || topic.isEmpty) {
           return Stream.value(const <LeagueLeaderRow>[]);
         }
-        q = q
-            .where('subjectKey', isEqualTo: subjectKey)
-            .where('topic', isEqualTo: topic);
+        modeKey = 't:$subjectKey|$topic';
         break;
     }
 
-    q = q.orderBy('score', descending: true).limit(limit * 4);
+    q = q
+        .where('bucket', isEqualTo: LeagueScores.bucketFor(period))
+        .where('modeKey', isEqualTo: modeKey)
+        .orderBy('score', descending: true)
+        .limit(limit);
 
-    return q.snapshots().map((snap) {
-      return _aggregateRows(
-        docs: snap.docs.map((d) => d.data()).toList(),
+    final myUid = FirebaseAuth.instance.currentUser?.uid;
+    return q.snapshots().asyncMap((snap) async {
+      if (snap.docs.isNotEmpty) {
+        return snap.docs.map((d) {
+          final m = d.data();
+          return LeagueLeaderRow(
+            uid: (m['uid'] ?? '').toString(),
+            displayName: (m['displayName'] ?? '').toString(),
+            avatar: (m['avatar'] ?? '').toString(),
+            location: _formatLocation(scope, m),
+            score: (m['score'] as num?)?.toDouble() ?? 0.0,
+            durationSec: (m['durationSec'] as num?)?.toInt() ?? 0,
+            isMe: (m['uid'] ?? '').toString() == myUid,
+          );
+        }).toList();
+      }
+      // Totals boş (eski veri / index bekliyor) → legacy attempts'ten tek
+      // seferlik doldur; totals dolmaya başlayınca akış otomatik oraya döner.
+      return _fetchLegacy(
+        profile: profile,
+        location: location,
         scope: scope,
+        mode: mode,
         period: period,
+        subjectKey: subjectKey,
+        topic: topic,
         limit: limit,
       );
-    }).handleError((e) {
-      debugPrint('[LeagueLeaderboard] watch fail: $e');
-      return const <LeagueLeaderRow>[];
-    });
+      // handleError'da `return` DEĞER YAYMAZ — hata anında UI spinner'da
+      // takılırdı; transformer sink'e boş liste basar.
+    }).transform(
+        StreamTransformer<List<LeagueLeaderRow>, List<LeagueLeaderRow>>.fromHandlers(
+      handleError: (e, st, sink) {
+        debugPrint('[LeagueLeaderboard] watch fail: $e');
+        sink.add(const <LeagueLeaderRow>[]);
+      },
+    ));
+  }
+
+  /// league_totals koleksiyonundan sıralama — kullanıcı × kova × mod başına
+  /// hazır toplamlar. Sorgu: scope eşitliği + bucket + modeKey + score DESC.
+  /// Kesin ve ölçeklenebilir (10 bin+ kullanıcıda da doğru).
+  static Future<List<LeagueLeaderRow>> _fetchFromTotals({
+    required EduProfile profile,
+    required UserLocation location,
+    required LeagueScope scope,
+    required LeagueMode mode,
+    required LeaguePeriod period,
+    String? subjectKey,
+    String? topic,
+    required int limit,
+  }) async {
+    final col = FirebaseFirestore.instance.collection('league_totals');
+    Query<Map<String, dynamic>> q = col;
+
+    switch (scope) {
+      case LeagueScope.city:
+        if (location.cityCode.isEmpty) return const [];
+        q = q.where(
+          'scopeCity',
+          isEqualTo:
+              '${location.countryCode}|${location.cityCode}|${profile.level}|${profile.grade}',
+        );
+        break;
+      case LeagueScope.country:
+        q = q.where(
+          'scopeCountry',
+          isEqualTo:
+              '${location.countryCode}|${profile.level}|${profile.grade}',
+        );
+        break;
+      case LeagueScope.world:
+        q = q.where(
+          'scopeWorld',
+          isEqualTo: '${profile.level}|${profile.grade}',
+        );
+        break;
+    }
+
+    final String modeKey;
+    switch (mode) {
+      case LeagueMode.overall:
+        modeKey = 'all';
+        break;
+      case LeagueMode.subject:
+        if (subjectKey == null || subjectKey.isEmpty) return const [];
+        modeKey = 's:$subjectKey';
+        break;
+      case LeagueMode.topic:
+        if (subjectKey == null || subjectKey.isEmpty) return const [];
+        if (topic == null || topic.isEmpty) return const [];
+        modeKey = 't:$subjectKey|$topic';
+        break;
+    }
+
+    q = q
+        .where('bucket', isEqualTo: LeagueScores.bucketFor(period))
+        .where('modeKey', isEqualTo: modeKey)
+        .orderBy('score', descending: true)
+        .limit(limit);
+
+    final snap = await q.get().timeout(_leagueFetchTimeout);
+    final myUid = FirebaseAuth.instance.currentUser?.uid;
+    return snap.docs.map((d) {
+      final m = d.data();
+      return LeagueLeaderRow(
+        uid: (m['uid'] ?? '').toString(),
+        displayName: (m['displayName'] ?? '').toString(),
+        avatar: (m['avatar'] ?? '').toString(),
+        location: _formatLocation(scope, m),
+        score: (m['score'] as num?)?.toDouble() ?? 0.0,
+        durationSec: (m['durationSec'] as num?)?.toInt() ?? 0,
+        isMe: (m['uid'] ?? '').toString() == myUid,
+      );
+    }).toList();
   }
 
   /// Doc map listesini periyot penceresi + uid başına dedupe + sıralama
@@ -347,9 +502,18 @@ class LeagueLeaderboardService {
         return _humanCity((doc['cityCode'] ?? '').toString());
       case LeagueScope.world:
         final cc = (doc['countryCode'] ?? '').toString().toUpperCase();
-        final name = _countryNameTr[cc] ?? cc;
-        return '${_flag(cc)} $name';
+        return '${_flag(cc)} ${_countryName(cc)}';
     }
+  }
+
+  /// GLOBAL-FIRST ülke adı: önce kAllCountries'teki YEREL (native) ad —
+  /// her dildeki kullanıcı için nötr; yoksa TR harita, o da yoksa ham kod.
+  static String _countryName(String cc) {
+    final lc = cc.toLowerCase() == 'gb' ? 'uk' : cc.toLowerCase();
+    for (final c in kAllCountries) {
+      if (c.key == lc) return c.name;
+    }
+    return _countryNameTr[cc] ?? cc;
   }
 
   /// ISO ülke kodu → Türkçe ülke adı (Bilgi Ligi UI Türkçe odaklı).
