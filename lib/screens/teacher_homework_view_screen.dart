@@ -107,6 +107,46 @@ class TeacherHomeworkViewScreen extends StatelessWidget {
                 ],
               ),
             ),
+            // Öğretmenin ödev mesajı — öğrencide ödevin başında görünen not.
+            if (homework.teacherNote.trim().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0EA5E9).withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                      color: const Color(0xFF0EA5E9).withValues(alpha: 0.35)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.campaign_rounded,
+                        size: 18, color: Color(0xFF0EA5E9)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Öğrencilere mesajın'.tr(),
+                              style: GoogleFonts.poppins(
+                                fontSize: 10.5, fontWeight: FontWeight.w800,
+                                color: const Color(0xFF0EA5E9),
+                                letterSpacing: 0.3,
+                              )),
+                          const SizedBox(height: 2),
+                          Text(homework.teacherNote.trim(),
+                              style: GoogleFonts.poppins(
+                                fontSize: 12.5, fontWeight: FontWeight.w600,
+                                color: ink, height: 1.45,
+                              )),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
             HomeworkAnswersList(homework: homework, submission: submission),
           ],
@@ -126,13 +166,25 @@ class TeacherHomeworkViewScreen extends StatelessWidget {
 //  HomeworkAnswersList — soru-soru cevap kartları (öğrenci cevabı + doğru
 //  cevap). Hem tam ekran görüntülemede hem ödev detayında INLINE kullanılır.
 //  Column döner (kendi scroll'u yok) → dıştaki ListView içine gömülebilir.
+//  Her kartın sağ altında "Çözümü Göster" — kısa çözüm açılır/kapanır.
 // ═══════════════════════════════════════════════════════════════════════════
-class HomeworkAnswersList extends StatelessWidget {
+class HomeworkAnswersList extends StatefulWidget {
   final HomeworkModel homework;
   final HomeworkSubmissionModel? submission;
   const HomeworkAnswersList({
     super.key, required this.homework, this.submission,
   });
+
+  @override
+  State<HomeworkAnswersList> createState() => _HomeworkAnswersListState();
+}
+
+class _HomeworkAnswersListState extends State<HomeworkAnswersList> {
+  /// Çözümü açık olan soru indexleri.
+  final Set<int> _solExpanded = {};
+
+  HomeworkModel get homework => widget.homework;
+  HomeworkSubmissionModel? get submission => widget.submission;
 
   @override
   Widget build(BuildContext context) {
@@ -201,9 +253,10 @@ class HomeworkAnswersList extends StatelessWidget {
     final choices = ((q['choices'] as List?) ?? const [])
         .map((c) => c.toString())
         .toList();
+    final solExpanded = _solExpanded.contains(i);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
       decoration: BoxDecoration(
         color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(14),
@@ -243,6 +296,81 @@ class HomeworkAnswersList extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           ..._answerArea(context, type, choices, answer, ans, ink, muted),
+          // Sağ altta: Çözümü Göster / Gizle — kısa çözüm açıklaması.
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () => setState(() => solExpanded
+                  ? _solExpanded.remove(i)
+                  : _solExpanded.add(i)),
+              style: TextButton.styleFrom(
+                foregroundColor: _kBrand,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              ),
+              icon: Icon(
+                  solExpanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.lightbulb_outline_rounded,
+                  size: 17),
+              label: Text(
+                  solExpanded ? 'Çözümü Gizle'.tr() : 'Çözümü Göster'.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 12, fontWeight: FontWeight.w800,
+                  )),
+            ),
+          ),
+          if (solExpanded) _solutionPanel(context, q, type, answer, ink),
+        ],
+      ),
+    );
+  }
+
+  /// Kısa çözüm paneli — ödevle birlikte üretilmiş kayıtlı çözüm ('sol' /
+  /// 'explanation') gösterilir; eski ödevlerde çözüm yoksa doğru cevabı
+  /// söyleyen kısa bir metinle asla boş kalmaz.
+  Widget _solutionPanel(BuildContext context, Map<String, dynamic> q,
+      String type, String answer, Color ink) {
+    final stored = (q['sol'] ?? q['explanation'] ?? '').toString().trim();
+    String fmtAnswer() {
+      if (type == 'tf') {
+        return answer.toLowerCase() == 'true' ? 'Doğru'.tr() : 'Yanlış'.tr();
+      }
+      return answer.isEmpty ? '—' : answer;
+    }
+    final text = stored.isNotEmpty
+        ? stored
+        : '${'Bu soru için kayıtlı çözüm yok.'.tr()} '
+            '${'Doğru cevap'.tr()}: ${fmtAnswer()}';
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: _kBrand.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _kBrand.withValues(alpha: 0.30)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.lightbulb_rounded, size: 15, color: _kBrand),
+              const SizedBox(width: 6),
+              Text('Çözüm'.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 11, fontWeight: FontWeight.w900,
+                    color: _kBrand, letterSpacing: 0.3,
+                  )),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(text,
+              style: GoogleFonts.poppins(
+                fontSize: 12.5, fontWeight: FontWeight.w600,
+                color: ink, height: 1.5,
+              )),
         ],
       ),
     );

@@ -180,10 +180,18 @@ class HomeworkModel {
   /// Gelecekteyse öğrenci bu ana kadar ödevi görmez (öğretmen görür).
   final DateTime? publishAt;
   /// AI tarafından üretilen ödev içeriği — soruları tutar.
-  /// Şema: [{q: '...', type: 'mc', choices: [...], answer: '...'}, ...]
+  /// Şema: [{q: '...', type: 'mc', choices: [...], answer: '...',
+  ///         sol: 'adım adım çözüm'}, ...] (sol eski ödevlerde olmayabilir).
   final List<Map<String, dynamic>> questions;
   /// Hatırlatıcı atıldı mı (auto-reminder idempotency için).
   final bool reminderSent;
+  /// Öğretmenin cevap anahtarını öğrencilere AÇTIĞI an. null → kapalı.
+  /// Açıkken teslim etmiş öğrenci kendi cevabı + doğru cevap + çözümü görür.
+  final DateTime? answersSharedAt;
+  /// Öğretmenin ödevin başında görünen mesajı — öğrenciye ödevle ilgili
+  /// yönlendirme/bilgi ("Bu ödev 2. üniteyi kapsıyor, 15. soruya dikkat" vb.).
+  /// Boş → mesaj kartı gösterilmez.
+  final String teacherNote;
   /// Ödev durumu:
   ///   'draft'     → öğretmen taslağı; öğrenciye ASLA görünmez, atanmamış.
   ///   'published' → atanmış (öğrenciye publishAt'a göre görünür).
@@ -207,9 +215,14 @@ class HomeworkModel {
     this.publishAt,
     this.questions = const [],
     this.reminderSent = false,
+    this.answersSharedAt,
+    this.teacherNote = '',
     this.status = 'published',
     this.publishNotified = false,
   });
+
+  /// Öğretmen cevap anahtarını öğrencilere açtı mı?
+  bool get answersShared => answersSharedAt != null;
 
   bool get isOverdue => DateTime.now().isAfter(dueAt);
   Duration get timeRemaining => dueAt.difference(DateTime.now());
@@ -237,6 +250,9 @@ class HomeworkModel {
         if (publishAt != null) 'publishAt': Timestamp.fromDate(publishAt!),
         'questions': questions,
         'reminderSent': reminderSent,
+        if (answersSharedAt != null)
+          'answersSharedAt': Timestamp.fromDate(answersSharedAt!),
+        if (teacherNote.isNotEmpty) 'teacherNote': teacherNote,
         'status': status,
         'publishNotified': publishNotified,
       };
@@ -249,6 +265,10 @@ class HomeworkModel {
     if (m['dueAt'] is Timestamp) due = (m['dueAt'] as Timestamp).toDate();
     DateTime? publish;
     if (m['publishAt'] is Timestamp) publish = (m['publishAt'] as Timestamp).toDate();
+    DateTime? answersShared;
+    if (m['answersSharedAt'] is Timestamp) {
+      answersShared = (m['answersSharedAt'] as Timestamp).toDate();
+    }
     return HomeworkModel(
       id: d.id,
       classId: (m['classId'] ?? '').toString(),
@@ -269,6 +289,8 @@ class HomeworkModel {
           .map((q) => Map<String, dynamic>.from(q))
           .toList(),
       reminderSent: (m['reminderSent'] ?? false) == true,
+      answersSharedAt: answersShared,
+      teacherNote: (m['teacherNote'] ?? '').toString(),
       status: (m['status'] ?? 'published').toString(),
       publishNotified: (m['publishNotified'] ?? false) == true,
     );
@@ -336,6 +358,10 @@ class HomeworkSubmissionModel {
   final int? passiveMs;
   /// AI'nin bu teslim için ürettiği kısa performans yorumu (cache).
   final String? aiComment;
+  /// Öğretmenin cevap anahtarını SADECE BU ÖĞRENCİYE açtığı an. null →
+  /// kapalı. (Ödev genelindeki answersSharedAt sınıfın tamamına açar; bu
+  /// alan öğrenci-bazlı paylaşımdır — ikisinden biri yeterlidir.)
+  final DateTime? answersSharedAt;
 
   const HomeworkSubmissionModel({
     required this.studentUid,
@@ -351,10 +377,12 @@ class HomeworkSubmissionModel {
     this.activeMs,
     this.passiveMs,
     this.aiComment,
+    this.answersSharedAt,
   });
 
   bool get isSubmitted => status == 'submitted' || status == 'late';
   bool get isPending => status == 'pending';
+  bool get answersShared => answersSharedAt != null;
 
   /// Ekran önünde geçen aktif süre (yoksa null).
   Duration? get activeTime =>
@@ -396,6 +424,8 @@ class HomeworkSubmissionModel {
         if (activeMs != null) 'activeMs': activeMs,
         if (passiveMs != null) 'passiveMs': passiveMs,
         if (aiComment != null) 'aiComment': aiComment,
+        if (answersSharedAt != null)
+          'answersSharedAt': Timestamp.fromDate(answersSharedAt!),
       };
 
   factory HomeworkSubmissionModel.fromMap(Map<String, dynamic> m) {
@@ -406,6 +436,10 @@ class HomeworkSubmissionModel {
     DateTime? when;
     if (m['submittedAt'] is Timestamp) {
       when = (m['submittedAt'] as Timestamp).toDate();
+    }
+    DateTime? answersShared;
+    if (m['answersSharedAt'] is Timestamp) {
+      answersShared = (m['answersSharedAt'] as Timestamp).toDate();
     }
     return HomeworkSubmissionModel(
       studentUid: (m['studentUid'] ?? '').toString(),
@@ -424,6 +458,7 @@ class HomeworkSubmissionModel {
       activeMs: (m['activeMs'] as num?)?.toInt(),
       passiveMs: (m['passiveMs'] as num?)?.toInt(),
       aiComment: (m['aiComment'] as String?),
+      answersSharedAt: answersShared,
     );
   }
 }

@@ -20,7 +20,7 @@ import '../services/account_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
 import 'onboarding_screen.dart';
-import 'parent_dashboard_screen.dart';
+import 'parent_shell_screen.dart';
 import 'teacher_shell_screen.dart';
 
 class AccountTypeScreen extends StatefulWidget {
@@ -112,7 +112,7 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
       case AccountType.parent:
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
-            builder: (_) => const ParentDashboardScreen(),
+            builder: (_) => const ParentShellScreen(),
           ),
           (route) => false, // tüm stack temizlensin
         );

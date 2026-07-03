@@ -28,6 +28,8 @@ class StudentHomeworksScreen extends StatefulWidget {
 
 class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
   List<JoinedClass> _classes = [];
+  // Öğretmen onayı bekleyen sınıflar — ödevleri gizli, üstte bilgi şeridi.
+  List<JoinedClass> _pendingClasses = [];
   Map<String, List<HomeworkModel>> _byClass = {};
   Map<String, HomeworkSubmissionModel?> _mySubmissions = {};
   bool _loading = true;
@@ -57,9 +59,31 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
       final joinedSnap = await FirebaseFirestore.instance
           .collection('users').doc(myUid)
           .collection('joined_classes').get();
-      final classes = joinedSnap.docs
+      final rawClasses = joinedSnap.docs
           .map((d) => JoinedClass.fromMap(d.id, d.data())).toList();
+      // Üyelik durumunu CANLI üyelik dökümanından doğrula: öğretmen onayı
+      // bekleyen (pending) sınıfların ödevleri gizlenir; üyeliği silinmiş
+      // (reddedilmiş/çıkarılmış) sınıflar hiç listelenmez.
+      final classes = <JoinedClass>[];
+      final pending = <JoinedClass>[];
+      await Future.wait(rawClasses.map((c) async {
+        try {
+          final member = await FirebaseFirestore.instance
+              .collection('classes').doc(c.classId)
+              .collection('students').doc(myUid).get();
+          if (!member.exists) return;
+          final st = (member.data()?['status'] ?? 'active').toString();
+          if (st == 'pending') {
+            pending.add(c.withStatus('pending'));
+          } else {
+            classes.add(c.withStatus(st));
+          }
+        } catch (_) {
+          classes.add(c); // okuma hatasında sınıfı KORU
+        }
+      }));
       _classes = classes;
+      _pendingClasses = pending;
       // Her sınıfın aktif ödevleri + benim teslimlerim — sınıflar arası ve
       // teslim okumaları PARALEL (eski seri N+1 akış 3 sınıf × 20 ödevde
       // 60+ ardışık istek yapıp sayfayı saniyelerce bekletiyordu).
@@ -126,7 +150,12 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
       body: SafeArea(
         child: _loading
             ? const Center(child: CircularProgressIndicator())
-            : RefreshIndicator(
+            : Column(
+                children: [
+                  // Onay bekleyen sınıflar — ödevler öğretmen onayına kadar gizli.
+                  for (final c in _pendingClasses)
+                    _buildPendingBanner(context, c),
+                  Expanded(child: RefreshIndicator(
                 onRefresh: _load,
                 child: allHws.isEmpty
                     // Boş/hata durumunda da aşağı çekilebilsin diye
@@ -153,7 +182,41 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
                               context, cls, hw, sub, ink, muted);
                         },
                       ),
+              )),
+                ],
               ),
+      ),
+    );
+  }
+
+  /// Öğretmen onayı bekleyen sınıf için bilgi şeridi.
+  Widget _buildPendingBanner(BuildContext context, JoinedClass c) {
+    const amber = Color(0xFFF59E0B);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: amber.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: amber.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.hourglass_top_rounded, color: amber, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '"${c.className}" ${'sınıfı için öğretmen onayı bekleniyor. '
+                  'Onaylanınca ödevleri burada göreceksin.'.tr()}',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppPalette.textPrimary(context),
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -261,6 +324,21 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
                     Text('%${sub!.scorePercent!.toStringAsFixed(0)}',
                         style: GoogleFonts.poppins(
                           fontSize: 11, fontWeight: FontWeight.w800,
+                          color: const Color(0xFFB45309),
+                        )),
+                  ],
+                  // Öğretmen cevap anahtarını paylaştıysa — sınıf geneli
+                  // ya da yalnız bu öğrenciye — (ve teslim edilmişse)
+                  // karta rozet; dokununca çözümler görülür.
+                  if ((hw.answersShared || (sub?.answersShared ?? false)) &&
+                      (sub?.isSubmitted ?? false)) ...[
+                    const SizedBox(width: 12),
+                    const Icon(Icons.key_rounded,
+                        size: 14, color: Color(0xFFF59E0B)),
+                    const SizedBox(width: 3),
+                    Text('Cevaplar paylaşıldı'.tr(),
+                        style: GoogleFonts.poppins(
+                          fontSize: 10.5, fontWeight: FontWeight.w800,
                           color: const Color(0xFFB45309),
                         )),
                   ],

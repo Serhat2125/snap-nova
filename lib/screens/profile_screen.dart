@@ -1,4 +1,4 @@
-﻿// ignore_for_file: unused_element
+// ignore_for_file: unused_element
 
 import '../data/teacher_branches.dart';
 import '../services/account_service.dart';
@@ -1295,6 +1295,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   /// "QuAlsar'dan Ayrıl" butonu bastıktan sonra ikinci güvenlik kapısı
   /// (yazılı "SİL" onayı) DeleteAccountScreen içinde sorulur — onaylanırsa
   /// onConfirmDelete callback'i (_performAccountDeletion) çağrılır.
+  /// Yasal sayfa dil eki — TR dışı uygulama dillerinde İngilizce sürüm
+  /// (/privacy-en, /terms-en deploy'da mevcut ama hiç kullanılmıyordu).
+  String get _legalLangSuffix =>
+      (LocaleService.global?.localeCode ?? 'tr') == 'tr' ? '' : '-en';
+
   void _openDeleteAccountScreen() {
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => DeleteAccountScreen(
@@ -1340,7 +1345,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
     );
-    // 1) Cloud Function — server-side cascade delete
+    // 1) Cloud Function — server-side cascade delete.
+    //    BAŞARISIZSA DUR: önceden hata yutulup yine "Hesabın ve tüm verilerin
+    //    silindi" gösteriliyordu — hesap/veri dururken kullanıcıya silindi
+    //    demek yanıltıcı (ve GDPR açısından tehlikeli).
     try {
       final callable = FirebaseFunctions.instanceFor(region: 'us-central1')
           .httpsCallable('deleteAccount',
@@ -1351,8 +1359,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       debugPrint('[Profile] deleteAccount result: ${result.data}');
     } catch (e) {
       debugPrint('[Profile] deleteAccount Cloud Function fail: $e');
-      // Devam et — local cleanup yine de yapılsın. Auth tarafında zaten
-      // delete denemesi yapıldı; başarısız olursa user oturum açık kalır.
+      if (!mounted) return;
+      Navigator.of(context).pop(); // loading dialog
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Hesap silinemedi — internet bağlantını kontrol edip '
+            'tekrar dene.'.tr()),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
     }
     // 2) FCM token bu cihazdan kaldır — push gönderilmesin
     try {
@@ -1452,510 +1466,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  //  1) Profil Bottom Sheet — Düzenlenebilir Alanlar + Şifre + Kaydet
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  void _showProfileBottomSheet(BuildContext context) {
-    final locale = LocaleInherited.of(context);
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withValues(alpha: 0.15),
-      builder: (ctx) {
-        return BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
-          child: Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(ctx).viewInsets.bottom,
-            ),
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 28),
-              decoration: BoxDecoration(
-            color: AppPalette.card(context),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
-                ),
-              ),
-              child: SingleChildScrollView(
-                physics: BouncingScrollPhysics(),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      margin: const EdgeInsets.only(top: 12),
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: AppPalette.border(context),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    SizedBox(height: 20),
-
-                    // Mini avatar (tıklanabilir — profil düzenleme sayfasını aç).
-                    // Doğrudan galeri seçici yerine ProfileEditPage'e gider:
-                    // oradaki foto değişimi BULUTA da senkronlanır (avatar
-                    // arkadaş kartları/leaderboard'da güncellenir). Eski
-                    // doğrudan yol cloud-sync yapmıyordu.
-                    GestureDetector(
-                      onTap: () async {
-                        Navigator.pop(ctx);
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => ProfileEditPage()),
-                        );
-                        await _loadProfile();
-                        if (mounted) setState(() {});
-                      },
-                      child: Stack(
-                        children: [
-                          Container(
-                            width: 72,
-                            height: 72,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: LinearGradient(
-                                colors: [Color(0xFF00E5FF), Color(0xFF6B21F2)],
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Color(0xFF00E5FF).withValues(alpha: 0.25),
-                                  blurRadius: 16,
-                                ),
-                              ],
-                            ),
-                            padding: const EdgeInsets.all(2.5),
-                            child: _profileImagePath != null
-                                ? CircleAvatar(
-                                    radius: 34,
-                                    backgroundImage:
-                                        FileImage(File(_profileImagePath!)),
-                                  )
-                                : Container(
-                                    decoration: BoxDecoration(
-            color: AppPalette.card(context),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Icon(Icons.person_rounded,
-                                        size: 36, color: Color(0xFF00C2D4)),
-                                  ),
-                          ),
-                          Positioned(
-                            right: 0,
-                            bottom: 0,
-                            child: Container(
-                              width: 24,
-                              height: 24,
-                              decoration: BoxDecoration(
-                                color: Color(0xFF00E5FF),
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 2),
-                              ),
-                              child: Icon(Icons.camera_alt_rounded,
-                                  size: 12, color: Colors.white),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: 20),
-
-                    // Ad Soyad
-                    _editableField(
-                      controller: _nameCtrl,
-                      icon: Icons.person_outline_rounded,
-                      label: locale.tr('full_name'),
-                    ),
-                    SizedBox(height: 10),
-
-                    // E-posta
-                    _editableField(
-                      controller: _emailCtrl,
-                      icon: Icons.email_outlined,
-                      label: locale.tr('email'),
-                      keyboardType: TextInputType.emailAddress,
-                    ),
-                    SizedBox(height: 10),
-
-                    // Üyeliğim
-                    _editableField(
-                      controller: _membershipCtrl,
-                      icon: Icons.workspace_premium_rounded,
-                      label: locale.tr('membership'),
-                      readOnly: true,
-                    ),
-
-                    SizedBox(height: 18),
-
-                    // Şifre Değiştir
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        _showPasswordBottomSheet(context);
-                      },
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        decoration: BoxDecoration(
-                          color: Color(0xFF3B82F6).withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(50),
-                          border: Border.all(
-                            color: Color(0xFF3B82F6).withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.lock_outline_rounded,
-                                color: Color(0xFF3B82F6), size: 18),
-                            SizedBox(width: 8),
-                            Text(
-                              locale.tr('change_password'),
-                              style: GoogleFonts.poppins(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF3B82F6),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    SizedBox(height: 10),
-
-                    // Kaydet butonu
-                    GestureDetector(
-                      onTap: () async {
-                        await _saveProfile();
-                        if (ctx.mounted) Navigator.pop(ctx);
-                        if (mounted) {
-                          setState(() {});
-                          _showSnack(locale.tr('profile_saved'));
-                        }
-                      },
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [Color(0xFF00E5FF), Color(0xFF6B21F2)],
-                          ),
-                          borderRadius: BorderRadius.circular(50),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Color(0xFF00E5FF).withValues(alpha: 0.25),
-                              blurRadius: 12,
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.save_rounded,
-                                color: Colors.white, size: 18),
-                            SizedBox(width: 8),
-                            Text(
-                              locale.tr('save'),
-                              style: GoogleFonts.poppins(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _editableField({
-    required TextEditingController controller,
-    required IconData icon,
-    required String label,
-    TextInputType? keyboardType,
-    bool readOnly = false,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        color: Color(0xFFF7F8FA),
-        borderRadius: BorderRadius.circular(50),
-        border: Border.all(color: AppPalette.border(context)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: AppPalette.textSecondary(context)),
-          SizedBox(width: 12),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              readOnly: readOnly,
-              keyboardType: keyboardType,
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: readOnly
-                    ? Color(0xFFF59E0B)
-                    : Color(0xFF333333),
-              ),
-              decoration: InputDecoration(
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                hintText: label,
-                hintStyle: GoogleFonts.poppins(
-                  fontSize: 13,
-                  color: Color(0xFFBBBBCC),
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  //  Şifre Değiştirme Bottom Sheet (Validasyonlu)
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  void _showPasswordBottomSheet(BuildContext context) {
-    final locale = LocaleInherited.of(context);
-    final formKey = GlobalKey<FormState>();
-    final oldPwCtrl = TextEditingController();
-    final newPwCtrl = TextEditingController();
-    final confirmPwCtrl = TextEditingController();
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withValues(alpha: 0.15),
-      builder: (ctx) {
-        return BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
-          child: Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(ctx).viewInsets.bottom,
-            ),
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 28),
-              decoration: BoxDecoration(
-            color: AppPalette.card(context),
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
-                ),
-              ),
-              child: Form(
-                key: formKey,
-                child: SingleChildScrollView(
-                  physics: BouncingScrollPhysics(),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        margin: const EdgeInsets.only(top: 12),
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: AppPalette.border(context),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(0, 18, 0, 12),
-                        child: Row(
-                          children: [
-                            Text('🔒'.tr(), style: TextStyle(fontSize: 22)),
-                            SizedBox(width: 10),
-                            Text(
-                              locale.tr('change_password'),
-                              style: GoogleFonts.poppins(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                                color: AppPalette.textPrimary(context),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Divider(height: 1, color: AppPalette.border(context)),
-                      SizedBox(height: 16),
-
-                      // Eski Şifre
-                      _passwordField(
-                        controller: oldPwCtrl,
-                        label: locale.tr('old_password'),
-                        validator: (v) {
-                          if (v == null || v.isEmpty) {
-                            return locale.tr('password_required');
-                          }
-                          return null;
-                        },
-                      ),
-                      SizedBox(height: 12),
-
-                      // Yeni Şifre
-                      _passwordField(
-                        controller: newPwCtrl,
-                        label: locale.tr('new_password'),
-                        validator: (v) {
-                          if (v == null || v.isEmpty) {
-                            return locale.tr('password_required');
-                          }
-                          if (v.length < 8) return locale.tr('password_min');
-                          if (!v.contains(RegExp(r'[A-Z]'))) {
-                            return locale.tr('password_upper');
-                          }
-                          return null;
-                        },
-                      ),
-                      SizedBox(height: 12),
-
-                      // Yeni Şifre Tekrar
-                      _passwordField(
-                        controller: confirmPwCtrl,
-                        label: locale.tr('confirm_password'),
-                        validator: (v) {
-                          if (v == null || v.isEmpty) {
-                            return locale.tr('password_required');
-                          }
-                          if (v != newPwCtrl.text) {
-                            return locale.tr('password_mismatch');
-                          }
-                          return null;
-                        },
-                      ),
-                      SizedBox(height: 20),
-
-                      // Şifreyi Güncelle butonu
-                      GestureDetector(
-                        onTap: () {
-                          if (formKey.currentState!.validate()) {
-                            Navigator.pop(ctx);
-                            _showSnack(locale.tr('profile_saved'));
-                          }
-                        },
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [Color(0xFF3B82F6), Color(0xFF6B21F2)],
-                            ),
-                            borderRadius: BorderRadius.circular(50),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Color(0xFF3B82F6).withValues(alpha: 0.25),
-                                blurRadius: 12,
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.lock_rounded,
-                                  color: Colors.white, size: 18),
-                              SizedBox(width: 8),
-                              Text(
-                                locale.tr('update_password'),
-                                style: GoogleFonts.poppins(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    ).then((_) {
-      oldPwCtrl.dispose();
-      newPwCtrl.dispose();
-      confirmPwCtrl.dispose();
-    });
-  }
-
-  Widget _passwordField({
-    required TextEditingController controller,
-    required String label,
-    required String? Function(String?) validator,
-  }) {
-    return TextFormField(
-      controller: controller,
-      obscureText: true,
-      validator: validator,
-      style: GoogleFonts.poppins(
-        fontSize: 14,
-        color: AppPalette.textPrimary(context),
-      ),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: GoogleFonts.poppins(
-          fontSize: 13,
-          color: AppPalette.textSecondary(context),
-        ),
-        filled: true,
-        fillColor: Color(0xFFF7F8FA),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(50),
-          borderSide: BorderSide(color: AppPalette.border(context)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(50),
-          borderSide: BorderSide(color: AppPalette.border(context)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(50),
-          borderSide: BorderSide(color: Color(0xFF3B82F6), width: 1.5),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(50),
-          borderSide: BorderSide(color: Color(0xFFEF4444)),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(50),
-          borderSide: BorderSide(color: Color(0xFFEF4444), width: 1.5),
-        ),
-        errorStyle: GoogleFonts.poppins(
-          fontSize: 11,
-          color: Color(0xFFEF4444),
-        ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        prefixIcon: Padding(
-          padding: const EdgeInsets.only(left: 16, right: 8),
-          child: Icon(Icons.lock_outline_rounded,
-              size: 20, color: AppPalette.textSecondary(context)),
-        ),
-        prefixIconConstraints:
-            BoxConstraints(minWidth: 0, minHeight: 0),
-      ),
-    );
-  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   //  Dil Seçim Penceresi
@@ -3158,14 +2668,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           icon: Icons.privacy_tip_rounded,
                           label: 'Gizlilik Politikası'.tr(),
                           color: const Color(0xFF10B981),
-                          url: 'https://qualsar.app/privacy',
+                          // TR dışı dillerde İngilizce sürüm (deploy'da mevcut).
+                          url: 'https://qualsar.app/privacy$_legalLangSuffix',
                         ),
                         const SizedBox(height: 8),
                         _socialLink(
                           icon: Icons.description_rounded,
                           label: 'Kullanım Koşulları'.tr(),
                           color: const Color(0xFF8B5CF6),
-                          url: 'https://qualsar.app/terms',
+                          url: 'https://qualsar.app/terms$_legalLangSuffix',
                         ),
                         const SizedBox(height: 16),
                         Center(
@@ -3429,12 +2940,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         //    özettir; bağlayıcı/güncel sürüm bu linktedir.
                         GestureDetector(
                           onTap: () async {
+                            final messenger = ScaffoldMessenger.of(context);
+                            final url =
+                                'https://qualsar.app/privacy$_legalLangSuffix';
                             try {
-                              await launchUrl(
-                                Uri.parse('https://qualsar.app/privacy'),
+                              final ok = await launchUrl(
+                                Uri.parse(url),
                                 mode: LaunchMode.externalApplication,
                               );
-                            } catch (_) {}
+                              if (!ok) throw Exception('launch false');
+                            } catch (_) {
+                              // Sessizce yutma — link panoya kopyalanır.
+                              await Clipboard.setData(ClipboardData(text: url));
+                              messenger.showSnackBar(SnackBar(
+                                behavior: SnackBarBehavior.floating,
+                                content: Text(
+                                    'Tarayıcı açılamadı — bağlantı panoya '
+                                    'kopyalandı.'.tr()),
+                              ));
+                            }
                           },
                           child: Container(
                             width: double.infinity,
@@ -7549,15 +7073,28 @@ class _NotificationsSettingsSheetState
         ));
         return;
       }
-      await PushService.showLocal(
+      final shown = await PushService.showLocal(
         title: '🔔 Test bildirimi'.tr(),
         body:
             'Tebrikler! Bildirimler düzgün çalışıyor. Bu mesajı sistem tepsisinde görmen lazım.'.tr(),
         id: 0xFA999,
       );
       if (!mounted) return;
+      // DÜRÜST geri bildirim: gate'lenirse (ana anahtar kapalı / sessiz
+      // saatler) "gönderildi" DEME — nedenini söyle. Önceden hiçbir şey
+      // gösterilmese bile "Test bildirimi gönderildi" yazıyordu.
+      String msg;
+      if (shown) {
+        msg = 'Test bildirimi gönderildi'.tr();
+      } else if (AppSettingsService.instance.inQuietHours) {
+        msg = 'Şu an Sessiz Saatler aralığındasın — bu aralıkta bildirim '
+            'gösterilmez.'.tr();
+      } else {
+        msg = 'Bildirim gösterilemedi — "Tüm bildirimler" anahtarının açık '
+            'olduğundan emin ol.'.tr();
+      }
       messenger.showSnackBar(SnackBar(
-        content: Text('Test bildirimi gönderildi'.tr()),
+        content: Text(msg),
         behavior: SnackBarBehavior.floating,
       ));
     } catch (e) {

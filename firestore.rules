@@ -594,6 +594,17 @@ service cloud.firestore {
         && resource.data.ownerUid == request.auth.uid;
     }
 
+    // ── Collection-group: users/*/referral (anti-fraud cihaz kontrolü) ───
+    //   ReferralService.redeemCode collectionGroup('referral') ile TÜM
+    //   kullanıcıların referral/state dokümanlarında deviceHash arar.
+    //   CG sorguları üstteki users/{uid}/{sub=**} kuralından İZİN ALMAZ —
+    //   bu kural olmadan sorgu permission-denied yiyor ve davet kodu
+    //   kullanımı tamamen başarısız oluyordu. İçerik hassas değil
+    //   (usedCode + cihaz hash'i); yazma yine sadece sahibinde.
+    match /{path=**}/referral/{doc} {
+      allow read: if isSignedIn();
+    }
+
     // ── Varsayılan: reddet ───────────────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;

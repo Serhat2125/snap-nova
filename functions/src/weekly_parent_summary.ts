@@ -138,6 +138,10 @@ export const weeklyParentSummary = onSchedule(
             title,
             body,
             childUid,
+            // Inbox sorgusu orderBy('when') kullanıyor — 'when' alanı olmayan
+            // doküman sorgudan tamamen düşer (özet uygulama içinde hiç
+            // görünmüyordu). createdAt geriye uyumluluk için kalıyor.
+            when: FieldValue.serverTimestamp(),
             createdAt: FieldValue.serverTimestamp(),
             read: false,
           });

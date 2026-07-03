@@ -66,6 +66,8 @@ export const publishScheduledAnnouncements = onSchedule(
         let batch = db.batch();
         let ops = 0;
         for (const s of students.docs) {
+          // Onay bekleyen (pending) öğrenci henüz sınıfta değil — duyuru gitmez.
+          if ((s.data().status || "active") === "pending") continue;
           const notifRef = db
             .collection("notifications")
             .doc(s.id)

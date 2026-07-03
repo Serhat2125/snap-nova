@@ -27,6 +27,11 @@ export {
   rejudgeUnchecked,
 } from "./question_judge";
 export { pushOnNotificationCreated } from "./push_on_notification";
+export { pushOnTeacherNote } from "./push_on_teacher_note";
+export {
+  fanoutChildNotifToParents,
+  notifyParentsOnSubmission,
+} from "./parent_fanout";
 export { weeklyParentSummary } from "./weekly_parent_summary";
 export { publishScheduledHomeworks } from "./publish_scheduled_homeworks";
 export { publishScheduledAnnouncements } from "./publish_scheduled_announcements";

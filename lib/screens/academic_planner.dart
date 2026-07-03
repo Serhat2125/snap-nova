@@ -1,6 +1,5 @@
 ﻿// ignore_for_file: unused_element, unused_element_parameter
 
-import '../services/account_service.dart';
 import '../services/app_settings_service.dart';
 import '../services/push_service.dart';
 import '../services/runtime_translator.dart';
@@ -21,6 +20,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../main.dart' show localeService;
 import '../services/analytics.dart';
+import '../services/parent_preview.dart';
 import '../services/error_logger.dart';
 import '../services/summary_cache_service.dart';
 import '../services/question_pool_service.dart';
@@ -48,7 +48,6 @@ import '../widgets/exam_mode_widgets.dart';
 import '../widgets/study_toolbar.dart';
 import 'qualsar_mars_screen.dart';
 import 'edu_3d_screen.dart';
-import 'my_progress_screen.dart';
 import '../services/pomodoro_stats.dart';
 import '../services/activity_writer_service.dart';
 import '../services/ai_quota_service.dart';
@@ -3268,20 +3267,14 @@ class _LibraryLandingState extends State<LibraryLanding> {
           children: [
             if (_showColorPicker) _buildLibraryColorPanel(),
             if (_showColorPicker) SizedBox(height: 10),
-            // ── En üstte boydan boya: Ebeveyn Paneli / Gelişimim ─────
-            //    Sadece EBEVEYN hesabında görünür; öğrencide gizli.
-            if (AccountService.instance.isParent) ...[
-              _ParentPanelBanner(
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const MyProgressScreen()),
-                ),
-              ),
-              SizedBox(height: 12),
-            ],
+            // (Ebeveyn Paneli banner'ı kaldırıldı — ebeveyn önizlemesi
+            //  artık öğrencinin gerçek ana sayfasını açıyor ve dönüş
+            //  alttaki "Ebeveyn Paneli" çipiyle yapılıyor.)
             // ── ÜRET: Konu Özeti + Sınav Soruları — hero kartlar ─────
             _sectionLabel('Üret'),
             _HeroCard(
               icon: Icons.summarize_rounded,
+              imageAsset: 'assets/library_icons/summary.png',
               title: localeService.tr('create_topic_summary'),
               subtitle: 'Fotoğraftan akıllı konu özeti çıkar'.tr(),
               gradient: const [Color(0xFF2563EB), Color(0xFF7C3AED)],
@@ -3298,6 +3291,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
             SizedBox(height: 10),
             _HeroCard(
               icon: Icons.fact_check_rounded,
+              imageAsset: 'assets/library_icons/questions.png',
               title: localeService.tr('create_exam_questions'),
               subtitle: 'AI ile deneme soruları üret ve çöz'.tr(),
               gradient: const [Color(0xFFFF6A00), Color(0xFFDB2777)],
@@ -3319,6 +3313,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 Expanded(
                   child: _LandingCard(
                     icon: Icons.history_rounded,
+                    imageAsset: 'assets/library_icons/history.png',
                     title: 'Çözümlerim'.tr(),
                     subtitle: 'Geçmiş çözümlerini incele'.tr(),
                     color: Color(0xFF3B82F6),
@@ -3337,6 +3332,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 Expanded(
                   child: _LandingCard(
                     icon: Icons.view_in_ar_rounded,
+                    imageAsset: 'assets/library_icons/edu3d.png',
                     title: '3D Eğitim Modelleri'.tr(),
                     subtitle: 'Konuları 3D sahnede keşfet'.tr(),
                     color: Color(0xFF06B6D4),
@@ -3361,6 +3357,9 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 Expanded(
                   child: _LandingCard(
                     icon: Icons.public_rounded,
+                    // Gerçek Dünya fotoğrafı (NASA Apollo 17 "Blue Marble") —
+                    // kıtalar, konumlar ve renkler orijinal.
+                    imageAsset: 'assets/library_icons/earth.png',
                     title: 'Dünya Sıralaması'.tr(),
                     subtitle: 'Dünyadaki yerini gör'.tr(),
                     color: Color(0xFF7C3AED),
@@ -3379,6 +3378,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 Expanded(
                   child: _LandingCard(
                     icon: Icons.sports_esports_rounded,
+                    imageAsset: 'assets/library_icons/contest.png',
                     title: 'Düello Arenası'.tr(),
                     subtitle: 'Arkadaşlarınla düello yap'.tr(),
                     color: Color(0xFFFFB800),
@@ -3403,6 +3403,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 Expanded(
                   child: _LandingCard(
                     icon: Icons.edit_calendar_rounded,
+                    imageAsset: 'assets/library_icons/calendar.png',
                     title: localeService.tr('my_study_calendar'),
                     subtitle: 'Programını planla, takip et'.tr(),
                     color: _indigo,
@@ -3421,6 +3422,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 Expanded(
                   child: _LandingCard(
                     icon: Icons.timer_rounded,
+                    imageAsset: 'assets/library_icons/pomodoro.png',
                     title: 'Pomodoro Tekniği'.tr(),
                     subtitle: 'Odaklan, mola ver, tekrarla'.tr(),
                     color: Color(0xFFFF6A3C),
@@ -3757,72 +3759,6 @@ class _LibraryLandingState extends State<LibraryLanding> {
   }
 }
 
-// ── Kütüphanem üstündeki boydan boya Ebeveyn Paneli / Gelişimim banner'ı ──
-class _ParentPanelBanner extends StatelessWidget {
-  final VoidCallback onTap;
-  const _ParentPanelBanner({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF10B981), Color(0xFF059669)],
-          ),
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF10B981).withValues(alpha: 0.32),
-              blurRadius: 18,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 80, height: 80,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.20),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              alignment: Alignment.center,
-              child: const Text('👨‍👩‍👧', style: TextStyle(fontSize: 42)),
-            ),
-            const SizedBox(width: 18),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Ebeveyn Paneli'.tr(),
-                      style: GoogleFonts.poppins(
-                        fontSize: 24, fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                      )),
-                  const SizedBox(height: 6),
-                  Text('Çalışma istatistikleri ve gelişim raporu'.tr(),
-                      style: GoogleFonts.poppins(
-                        fontSize: 15, fontWeight: FontWeight.w600,
-                        color: Colors.white.withValues(alpha: 0.90),
-                        height: 1.35,
-                      )),
-                ],
-              ),
-            ),
-            const Icon(Icons.arrow_forward_ios_rounded,
-                color: Colors.white, size: 26),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _LandingCard extends StatefulWidget {
   final IconData icon;
   final String title;
@@ -3834,6 +3770,9 @@ class _LandingCard extends StatefulWidget {
   final ValueChanged<Color>? onColorAccept;
   /// 3'lü yatay sıralama için kompakt mod — kart yüksekliği + içerik küçülür.
   final bool compact;
+  /// 3D görsel ikon (assets/library_icons/*). Verilirse altıgen rozet yerine
+  /// bu görsel gösterilir; null → eski _HexBadge davranışı.
+  final String? imageAsset;
   const _LandingCard({
     required this.icon,
     required this.title,
@@ -3844,6 +3783,7 @@ class _LandingCard extends StatefulWidget {
     this.customTextColor,
     this.onColorAccept,
     this.compact = false,
+    this.imageAsset,
   });
 
   @override
@@ -3935,9 +3875,22 @@ class _LandingCardState extends State<_LandingCard> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Fütüristik altıgen HUD rozeti — koyu uzay zemin + neon
-                  // çerçeve + degrade ikon (başlığın rengini neon taşır).
-                  _HexBadge(icon: icon, color: color, size: iconBox + 2),
+                  // 3D görsel ikon varsa onu göster (referans tasarım seti);
+                  // yoksa fütüristik altıgen HUD rozetine düş.
+                  if (widget.imageAsset != null)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: Image.asset(
+                        widget.imageAsset!,
+                        width: iconBox + 16,
+                        height: iconBox + 16,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _HexBadge(
+                            icon: icon, color: color, size: iconBox + 2),
+                      ),
+                    )
+                  else
+                    _HexBadge(icon: icon, color: color, size: iconBox + 2),
                   Spacer(),
                   Icon(
                     Icons.chevron_right_rounded,
@@ -4117,6 +4070,9 @@ class _HeroCard extends StatefulWidget {
   final Color? customBg;
   final Color? customTextColor;
   final ValueChanged<Color>? onColorAccept;
+  /// 3D görsel ikon (assets/library_icons/*). Verilirse altıgen rozet yerine
+  /// bu görsel gösterilir.
+  final String? imageAsset;
   const _HeroCard({
     required this.icon,
     required this.title,
@@ -4126,6 +4082,7 @@ class _HeroCard extends StatefulWidget {
     this.customBg,
     this.customTextColor,
     this.onColorAccept,
+    this.imageAsset,
   });
 
   @override
@@ -4230,14 +4187,31 @@ class _HeroCardState extends State<_HeroCard> {
                   ),
                 ),
                 SizedBox(width: 10),
-                // Fütüristik altıgen HUD rozeti — hero degradesi üstünde
-                // yarı saydam koyu zemin + beyaz neon çerçeve.
-                _HexBadge(
-                  icon: widget.icon,
-                  color: widget.gradient.first,
-                  size: 50,
-                  onGradient: true,
-                ),
+                // 3D görsel ikon varsa onu göster; yoksa altıgen HUD rozeti
+                // (hero degradesi üstünde yarı saydam koyu zemin).
+                if (widget.imageAsset != null)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.asset(
+                      widget.imageAsset!,
+                      width: 60,
+                      height: 60,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _HexBadge(
+                        icon: widget.icon,
+                        color: widget.gradient.first,
+                        size: 50,
+                        onGradient: true,
+                      ),
+                    ),
+                  )
+                else
+                  _HexBadge(
+                    icon: widget.icon,
+                    color: widget.gradient.first,
+                    size: 50,
+                    onGradient: true,
+                  ),
                 SizedBox(width: 2),
                 Icon(
                   Icons.chevron_right_rounded,
@@ -6164,6 +6138,8 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
       _Subject subject, _Summary summary,
       {_TestConfig? config}) async {
     if (widget.mode != LibraryMode.questions) return;
+    // Ebeveyn önizlemesi: test üretimi kapalı (salt-izleme).
+    if (ParentPreview.guard(context)) return;
     final cfg = config ?? _TestConfig();
     if (summary.tests.length >= 6) {
       _showSnack(
@@ -6622,6 +6598,8 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
     _Subject? existingSubject,
     _TestConfig? config,
   }) async {
+    // Ebeveyn önizlemesi: özet/soru ÜRETİMİ kapalı (salt-izleme).
+    if (ParentPreview.guard(context)) return;
     final isQuestions = widget.mode == LibraryMode.questions;
     final cfg = config ?? _TestConfig();
 

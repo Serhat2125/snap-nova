@@ -28,6 +28,8 @@
 
 import 'dart:async';
 import 'dart:convert';
+
+import 'preferences_sync_service.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -127,16 +129,24 @@ class AppSettingsService extends ChangeNotifier {
     return _withinRange(_quietStart, _quietEnd);
   }
 
+  /// Verilen an Sessiz Saatler aralığına düşüyor mu? Zamanlanmış yerel
+  /// bildirimler (hatırlatıcılar) plan anında bunu kontrol eder — aksi halde
+  /// OS bildirimi sessiz saat penceresinin ortasında patlıyordu.
+  bool isQuietAt(DateTime t) {
+    if (!_quietEnabled) return false;
+    return _withinRange(_quietStart, _quietEnd, at: t);
+  }
+
   /// Şu an Otomatik Karanlık aktif olmalı mı?
   bool get shouldBeDarkNow {
     if (!_autoDarkEnabled) return false;
     return _withinRange(_autoDarkStart, _autoDarkEnd);
   }
 
-  /// `start..end` (dakika) aralığında bir andayız mı? Gece yarısını aşan
-  /// aralıkları (23:00–07:00) doğru handle eder.
-  bool _withinRange(int start, int end) {
-    final now = DateTime.now();
+  /// `start..end` (dakika) aralığında [at] (varsayılan: şimdi) var mı?
+  /// Gece yarısını aşan aralıkları (23:00–07:00) doğru handle eder.
+  bool _withinRange(int start, int end, {DateTime? at}) {
+    final now = at ?? DateTime.now();
     final nowMin = now.hour * 60 + now.minute;
     if (start == end) return false;
     if (start < end) return nowMin >= start && nowMin < end;
@@ -188,6 +198,9 @@ class AppSettingsService extends ChangeNotifier {
     await prefs.setInt(_kQuietStart, _quietStart);
     await prefs.setInt(_kQuietEnd, _quietEnd);
     notifyListeners();
+    // Sunucu push'u (push_on_notification) da sessiz saatlere uysun diye
+    // pencere cloud tercihine yazılır (best-effort).
+    unawaited(PreferencesSyncService.syncFromLocal());
   }
 
   Future<void> setAutoDark(bool enabled, {int? startMin, int? endMin}) async {
@@ -360,6 +373,17 @@ class AppSettingsService extends ChangeNotifier {
     if (_haptic) {
       HapticFeedback.mediumImpact();
     }
+  }
+
+  /// Oyun/zamanlayıcı alarm sesi — ses ayarlarına saygılı. Kullanıcı üç ses
+  /// anahtarını da kapattıysa ("tamamen sessiz") hiç çalmaz. Mini oyunlar
+  /// doğrudan SystemSound.play çağırmak yerine bunu kullanır; aksi halde
+  /// tüm sesler kapalıyken bile alarm sesi geliyordu.
+  Future<void> playAlert() async {
+    if (!_clickSound && !_successSound && !_errorSound) return;
+    try {
+      await SystemSound.play(SystemSoundType.alert);
+    } catch (_) {}
   }
 
   /// Test sayfasında çağrılır — eğer "Test Sessiz Mod" açıksa hiçbir

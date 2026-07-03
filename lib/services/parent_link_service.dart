@@ -697,6 +697,9 @@ class ParentLinkService {
       final now = DateTime.now();
       final cutoffPast = now.subtract(const Duration(days: 3));
       for (final cls in classes) {
+        // Öğretmen onayı bekleyen (pending) üyelik: çocuk henüz sınıfta
+        // sayılmaz — ebeveyn de o sınıfın ödevlerini görmez.
+        if (cls.isPending) continue;
         final hws = await HomeworkService.classHomeworks(cls.classId);
         for (final hw in hws) {
           if (!hw.isPublished) continue;
@@ -737,6 +740,7 @@ class ParentLinkService {
     try {
       final classes = await ClassService.joinedClassesFor(childUid);
       for (final cls in classes) {
+        if (cls.isPending) continue; // onay bekleyen sınıf — duyuru gösterme
         final content = await ClassService.classContentStream(cls.classId).first;
         for (final m in content) {
           if ((m['type'] ?? '').toString() != 'announcement') continue;
@@ -929,6 +933,14 @@ class ParentLinkService {
     final myUid = _myUid;
     if (myUid == null) return false;
     try {
+      // Ebeveyn-kontrolü dokümanı ÖNCE ve AYRI silinir: kuralı
+      // (isLinkedParent) yalnızca AKTİF bağlantıda izin verir. Batch'in
+      // içindeyken PENDING (henüz onaylanmamış) bir bağlantıyı iptal etmek
+      // bu tek delete yüzünden TÜM batch'i düşürüyordu — link kayıtları da
+      // silinemiyor, çocukta davet sonsuza dek asılı kalıyordu.
+      try {
+        await _controlsDocFor(childUid, myUid).delete();
+      } catch (_) {/* pending bağlantıda izin yok / doküman yok — sorun değil */}
       final batch = _fs.batch();
       batch.delete(
         _fs.collection('parent_links').doc(myUid)
@@ -938,13 +950,43 @@ class ParentLinkService {
         _fs.collection('child_invites').doc(childUid)
             .collection('from').doc(myUid),
       );
-      // Kendi ebeveyn-kontrolü dokümanını da sil — yoksa bağlantı kesilse
-      // bile çocuk cihazında eski kısıt kalıcı olarak asılı kalıyordu.
-      batch.delete(_controlsDocFor(childUid, myUid));
       await batch.commit();
       return true;
     } catch (e) {
       debugPrint('[ParentLink] unlink fail: $e');
+      return false;
+    }
+  }
+
+  /// EBEVEYN → ÖĞRETMEN mesajı: çocuğun sınıfının öğretmenine 'parent_message'
+  /// bildirimi yazar. (Bildirim create kuralı: oturum açmış herkes.)
+  static Future<bool> sendMessageToTeacher({
+    required String classId,
+    required String className,
+    required String childName,
+    required String message,
+  }) async {
+    final myUid = _myUid;
+    if (myUid == null) return false;
+    final text = message.trim();
+    if (text.isEmpty) return false;
+    try {
+      final cls = await _fs.collection('classes').doc(classId).get();
+      final teacherUid = (cls.data()?['teacherUid'] ?? '').toString();
+      if (teacherUid.isEmpty) return false;
+      await _fs.collection('notifications').doc(teacherUid)
+          .collection('items').doc().set({
+        'type': 'parent_message',
+        'fromDisplayName': childName,
+        'className': className,
+        'classId': classId,
+        'message': text,
+        'when': FieldValue.serverTimestamp(),
+        'read': false,
+      });
+      return true;
+    } catch (e) {
+      debugPrint('[ParentLink] sendMessageToTeacher fail: $e');
       return false;
     }
   }

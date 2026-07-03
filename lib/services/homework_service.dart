@@ -46,6 +46,8 @@ class HomeworkService {
     required List<Map<String, dynamic>> questions,
     DateTime? publishAt,
     bool draft = false, // true → taslak: atanmaz, öğrenciye görünmez
+    // Ödevin başında öğrenciye görünen öğretmen mesajı (isteğe bağlı).
+    String teacherNote = '',
   }) async {
     final myUid = _myUid;
     if (myUid == null) return null;
@@ -66,6 +68,7 @@ class HomeworkService {
         dueAt: dueAt,
         publishAt: publishAt,
         questions: questions,
+        teacherNote: teacherNote.trim(),
         status: draft ? 'draft' : 'published',
       );
       // Ödev doc'u
@@ -127,6 +130,9 @@ class HomeworkService {
     final batch = _fs.batch();
     for (final s in students.docs) {
       final sd = s.data();
+      // Onay bekleyen (pending) öğrenci ödev almaz — öğretmen onaylayınca
+      // ClassService.approveStudent mevcut ödevlerin slotlarını açar.
+      if ((sd['status'] ?? 'active').toString() == 'pending') continue;
       batch.set(
         hwRef.collection('submissions').doc(s.id),
         HomeworkSubmissionModel(
@@ -170,10 +176,17 @@ class HomeworkService {
     DateTime? publishAt,
     bool clearPublishAt = false,
     List<Map<String, dynamic>>? questions,
+    // null → dokunma; '' → mesajı sil; dolu → güncelle.
+    String? teacherNote,
   }) async {
     try {
       final data = <String, dynamic>{};
       if (title != null) data['title'] = title;
+      if (teacherNote != null) {
+        data['teacherNote'] = teacherNote.trim().isEmpty
+            ? FieldValue.delete()
+            : teacherNote.trim();
+      }
       if (dueAt != null) data['dueAt'] = Timestamp.fromDate(dueAt);
       if (clearPublishAt) {
         data['publishAt'] = FieldValue.delete();
@@ -255,6 +268,114 @@ class HomeworkService {
       return true;
     } catch (e) {
       debugPrint('[HomeworkService] publishDraft fail: $e');
+      return false;
+    }
+  }
+
+  /// ÖĞRETMEN: Ödevin cevap anahtarını öğrencilere AÇAR/KAPATIR.
+  /// Açılınca teslim etmiş her öğrenciye "cevaplar paylaşıldı" bildirimi
+  /// gider; öğrenci kendi cevabını + doğru cevabı + soru çözümünü görür.
+  /// (Teslim etmemiş öğrenciye bildirim gitmez ve cevaplar görünmez —
+  /// kopya riskine karşı öğrenci tarafı yalnız teslimden sonra gösterir.)
+  static Future<bool> setAnswersShared({
+    required String classId,
+    required String homeworkId,
+    required bool share,
+  }) async {
+    if (_myUid == null) return false;
+    try {
+      final ref = _fs.collection('classes').doc(classId)
+          .collection('homeworks').doc(homeworkId);
+      await ref.set({
+        'answersSharedAt':
+            share ? FieldValue.serverTimestamp() : FieldValue.delete(),
+      }, SetOptions(merge: true));
+      if (share) {
+        // Teslim etmiş öğrencilere bildirim (best-effort).
+        try {
+          final hwDoc = await ref.get();
+          final hwTitle = (hwDoc.data()?['title'] ?? 'Ödev').toString();
+          final cls = await _fs.collection('classes').doc(classId).get();
+          final className = (cls.data()?['name'] ?? '').toString();
+          final subs = await ref.collection('submissions').get();
+          var batch = _fs.batch();
+          int ops = 0;
+          for (final s in subs.docs) {
+            final st = (s.data()['status'] ?? 'pending').toString();
+            if (st != 'submitted' && st != 'late') continue;
+            batch.set(
+              _fs.collection('notifications').doc(s.id)
+                  .collection('items').doc(),
+              {
+                'type': 'homework_answers_shared',
+                'homeworkTitle': hwTitle,
+                'className': className,
+                'classId': classId,
+                'homeworkId': homeworkId,
+                'when': FieldValue.serverTimestamp(),
+                'read': false,
+              },
+            );
+            if (++ops >= 400) {
+              await batch.commit();
+              batch = _fs.batch();
+              ops = 0;
+            }
+          }
+          if (ops > 0) await batch.commit();
+        } catch (_) {}
+      }
+      Analytics.logFeatureAction('teacher_panel',
+          share ? 'answers_shared' : 'answers_unshared');
+      return true;
+    } catch (e) {
+      debugPrint('[HomeworkService] setAnswersShared fail: $e');
+      return false;
+    }
+  }
+
+  /// ÖĞRETMEN: Cevap anahtarını TEK BİR ÖĞRENCİYE açar/kapatır (submission
+  /// dokümanına answersSharedAt yazar). Sınıf geneli setAnswersShared'dan
+  /// bağımsızdır — öğrenci tarafı ikisinden biri açıksa cevapları gösterir.
+  /// Açılınca öğrenciye "cevaplar paylaşıldı" bildirimi gider.
+  static Future<bool> shareAnswersWithStudent({
+    required String classId,
+    required String homeworkId,
+    required String studentUid,
+    required bool share,
+  }) async {
+    if (_myUid == null || studentUid.isEmpty) return false;
+    try {
+      final hwRef = _fs.collection('classes').doc(classId)
+          .collection('homeworks').doc(homeworkId);
+      await hwRef.collection('submissions').doc(studentUid).set({
+        'answersSharedAt':
+            share ? FieldValue.serverTimestamp() : FieldValue.delete(),
+      }, SetOptions(merge: true));
+      if (share) {
+        // Öğrenciye bildirim (best-effort).
+        try {
+          final hwDoc = await hwRef.get();
+          final hwTitle = (hwDoc.data()?['title'] ?? 'Ödev').toString();
+          final cls = await _fs.collection('classes').doc(classId).get();
+          final className = (cls.data()?['name'] ?? '').toString();
+          await _fs.collection('notifications').doc(studentUid)
+              .collection('items').add({
+            'type': 'homework_answers_shared',
+            'homeworkTitle': hwTitle,
+            'className': className,
+            'classId': classId,
+            'homeworkId': homeworkId,
+            'when': FieldValue.serverTimestamp(),
+            'read': false,
+          });
+        } catch (_) {}
+      }
+      Analytics.logFeatureAction('teacher_panel',
+          share ? 'answers_shared_student' : 'answers_unshared_student');
+      return true;
+    } catch (e) {
+      debugPrint('[HomeworkService] shareAnswersWithStudent fail: $e');
       return false;
     }
   }
@@ -875,6 +996,8 @@ class HomeworkService {
           .collection('students').get();
       for (final d in studSnap.docs) {
         final m = d.data();
+        // Onay bekleyen öğrenci henüz sınıfta sayılmaz — özet tabloya girmez.
+        if ((m['status'] ?? 'active').toString() == 'pending') continue;
         final alias = (m['teacherAlias'] ?? '').toString().trim();
         final dispName = (m['displayName'] ?? '').toString().trim();
         final uname = (m['username'] ?? '').toString().trim();

@@ -20,7 +20,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
-import 'parent_dashboard_screen.dart';
+import 'parent_shell_screen.dart';
 
 class ParentIntroScreen extends StatefulWidget {
   const ParentIntroScreen({super.key});
@@ -68,7 +68,7 @@ class _ParentIntroScreenState extends State<ParentIntroScreen> {
     } catch (_) {}
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const ParentDashboardScreen()),
+      MaterialPageRoute(builder: (_) => const ParentShellScreen()),
       (route) => false,
     );
   }

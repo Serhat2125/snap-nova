@@ -41,6 +41,10 @@ class TeacherHomeworkDetailScreen extends StatefulWidget {
   final String studentName;
   final String studentAvatar;
   final int orderNo; // kaçıncı ödev (1, 2, 3…)
+  /// EBEVEYN görünümü: true → "not gönder" gizlenir (kural izin vermez) ve
+  /// sınıf ortalaması sorgusu atlanır (diğer öğrencilerin teslimlerini okumak
+  /// ebeveyne yasak — sorgu her açılışta permission-denied yiyordu).
+  final bool readOnly;
   const TeacherHomeworkDetailScreen({
     super.key,
     required this.homework,
@@ -48,6 +52,7 @@ class TeacherHomeworkDetailScreen extends StatefulWidget {
     required this.studentName,
     required this.orderNo,
     this.studentAvatar = '👤',
+    this.readOnly = false,
   });
 
   @override
@@ -59,14 +64,19 @@ class _TeacherHomeworkDetailScreenState
     extends State<TeacherHomeworkDetailScreen> {
   int _tab = 0; // 0 = Grafik, 1 = Tablo
   bool _qExpanded = true; // "Soru bazında" tablosu açık/kapalı
-  bool _answersExpanded = false; // "Öğrencinin cevapları" inline panel açık/kapalı
+  // "Öğrencinin cevapları" inline paneli — EBEVEYN görünümünde baştan açık
+  // (veli, soruları/cevapları/açıklamaları ekstra dokunuş olmadan görsün).
+  late bool _answersExpanded = widget.readOnly;
   final GlobalKey _shotKey = GlobalKey(); // ekran görüntüsü (ebeveyne gönder)
   double? _classAvg; // #4 bu ödev için sınıf ortalaması (%)
+  // #5b öğrenci-bazlı cevap paylaşımı — null: submission'daki değer geçerli.
+  bool? _studentShared;
+  bool _sharingBusy = false;
 
   @override
   void initState() {
     super.initState();
-    _loadClassAverage();
+    if (!widget.readOnly) _loadClassAverage();
   }
 
   /// #4 — Bu ödev için sınıf ortalamasını (teslim eden öğrenciler) hesaplar.
@@ -244,7 +254,8 @@ class _TeacherHomeworkDetailScreenState
             else ...[
               _tab == 0 ? _graphSection(context) : _tableSection(context),
               const SizedBox(height: 12),
-              // #1 AI özet yorum (öğrenci cevaplarının analizi).
+              // #1 AI özet yorum — GRAFİĞİN HEMEN ALTINDA: bu ödevi yapan
+              // çocuk hakkında kısa analiz (tüm derslerde aynı ekran).
               _AiHomeworkInsight(
                 studentName: widget.studentName,
                 homework: hw,
@@ -257,9 +268,17 @@ class _TeacherHomeworkDetailScreenState
                 const SizedBox(height: 12),
                 HomeworkAnswersList(homework: hw, submission: sub),
               ],
-              // #5a Veliye/öğrenciye not gönder.
-              const SizedBox(height: 10),
-              _sendNoteButton(context),
+              // #5a Veliye/öğrenciye not gönder — yalnız ÖĞRETMEN görür
+              // (rules: notes yazma sadece sınıf öğretmenine açık).
+              if (!widget.readOnly) ...[
+                const SizedBox(height: 10),
+                _sendNoteButton(context),
+                // #5b Cevapları öğrenciyle paylaş — bu öğrenci, öğretmenin
+                // gördüğü gibi tüm soruları + kendi cevaplarını + doğru
+                // cevapları görebilir (öğrenci-bazlı anahtar paylaşımı).
+                const SizedBox(height: 10),
+                _shareAnswersButton(context),
+              ],
             ],
                 ],
               ),
@@ -340,6 +359,85 @@ class _TeacherHomeworkDetailScreenState
                 fontSize: 13, fontWeight: FontWeight.w800)),
       ),
     );
+  }
+
+  // ── #5b Cevapları öğrenciyle paylaş / paylaşımı kaldır ─────────────────
+  Widget _shareAnswersButton(BuildContext context) {
+    // Sınıf geneli zaten açıksa öğrenci-bazlı düğmeye gerek yok — bilgi ver.
+    if (hw.answersShared) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: _kAmber.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _kAmber.withValues(alpha: 0.40)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.key_rounded, size: 18, color: _kAmber),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                  'Cevaplar tüm sınıfla paylaşıldı — bu öğrenci de görebiliyor.'
+                      .tr(),
+                  style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFFB45309))),
+            ),
+          ],
+        ),
+      );
+    }
+    final shared = _studentShared ?? (sub?.answersShared ?? false);
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: _sharingBusy ? null : () => _toggleShareAnswers(!shared),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: _kAmber,
+          padding: const EdgeInsets.symmetric(vertical: 13),
+          side: const BorderSide(color: _kAmber, width: 1.3),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12)),
+        ),
+        icon: Icon(shared ? Icons.key_off_rounded : Icons.key_rounded,
+            size: 18),
+        label: Text(
+            shared
+                ? 'Cevap paylaşımını kaldır'.tr()
+                : 'Cevapları öğrenciyle paylaş'.tr(),
+            style: GoogleFonts.poppins(
+                fontSize: 13, fontWeight: FontWeight.w800)),
+      ),
+    );
+  }
+
+  Future<void> _toggleShareAnswers(bool share) async {
+    final studentUid = sub?.studentUid ?? '';
+    if (studentUid.isEmpty) {
+      _snack('Öğrenci bilgisi bulunamadı.'.tr());
+      return;
+    }
+    setState(() => _sharingBusy = true);
+    final ok = await HomeworkService.shareAnswersWithStudent(
+      classId: hw.classId,
+      homeworkId: hw.id,
+      studentUid: studentUid,
+      share: share,
+    );
+    if (!mounted) return;
+    setState(() {
+      _sharingBusy = false;
+      if (ok) _studentShared = share;
+    });
+    _snack(ok
+        ? (share
+            ? 'Cevaplar öğrenciyle paylaşıldı — sorular, verdiği cevaplar ve doğru cevaplar artık görünür.'
+                .tr()
+            : 'Cevap paylaşımı kaldırıldı.'.tr())
+        : 'İşlem başarısız, tekrar dene.'.tr());
   }
 
   Future<void> _openNoteDialog() async {

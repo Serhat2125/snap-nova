@@ -33,6 +33,7 @@ import 'services/pomodoro_stats.dart';
 import 'services/account_service.dart';
 import 'services/app_settings_service.dart';
 import 'screens/parent_intro_screen.dart';
+import 'screens/parent_shell_screen.dart';
 import 'screens/teacher_shell_screen.dart';
 import 'services/preferences_sync_service.dart';
 import 'services/user_profile_service.dart';
@@ -723,16 +724,15 @@ class _HomeRouter extends StatelessWidget {
         if (type == AccountType.teacher) {
           return const TeacherShellScreen();
         }
-        // Ebeveyn de Kütüphanem'e açılır — üstteki büyük "Ebeveyn Paneli"
-        //   banner'ından gözetim ekranına geçer. AMA 3 slaytlık intro'yu
-        //   (çocuk nasıl eklenir anlatan TEK yer) hiç tamamlamadıysa önce
-        //   onu göster — yoksa uygulamayı yarıda kapatan ebeveyn bu bilgiyi
-        //   bir daha asla görmezdi.
+        // Ebeveyn kökü: öğretmen kalıbındaki ParentShellScreen (Çocuklarım
+        //   + orta ➕ FAB + "Öğrenci Paneli" önizleme sekmesi). 3 slaytlık
+        //   intro'yu (çocuk nasıl eklenir anlatan TEK yer) hiç
+        //   tamamlamadıysa önce onu göster.
         if (type == AccountType.parent) {
           if (prefs.getBool('parent_intro_completed') != true) {
             return const ParentIntroScreen();
           }
-          return const _LibraryEntryShell();
+          return const ParentShellScreen();
         }
         // Öğrenci: varsayılan Kütüphanem; kullanıcı kamera seçtiyse kamera.
         if (startupScreen == 'camera') return CameraScreen();

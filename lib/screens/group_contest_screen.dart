@@ -23,6 +23,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
 
 import '../services/group_contest_service.dart';
+import '../services/parent_preview.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
 import '../utils/math_text_cleaner.dart';
@@ -84,7 +85,8 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
   }
 
   Future<void> _load() async {
-    if (widget.autoJoin) {
+    if (widget.autoJoin && !ParentPreview.active) {
+      // Ebeveyn önizlemesinde yarışmaya katılım YAZILMAZ (salt-izleme).
       await GroupContestService.joinContest(widget.contestId);
     }
     final c = await GroupContestService.getContest(widget.contestId);
@@ -175,6 +177,9 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
     final durationMs = _quizStart == null
         ? 0
         : DateTime.now().difference(_quizStart!).inMilliseconds;
+    if (!mounted || ParentPreview.guard(context)) {
+      return; // önizlemede skor yazılmaz
+    }
     await GroupContestService.submitResult(
       widget.contestId,
       correct: correct,

@@ -73,6 +73,18 @@ class _StudentMaterialsScreenState extends State<StudentMaterialsScreen> {
         final classes = joinedSnap.docs
             .map((d) => JoinedClass.fromMap(d.id, d.data())).toList();
         for (final c in classes) {
+          // Öğretmen onayı bekleyen (pending) üyelik: sınıf içerikleri
+          // onaylanana kadar gizli kalır.
+          try {
+            final member = await FirebaseFirestore.instance
+                .collection('classes').doc(c.classId)
+                .collection('students').doc(myUid).get();
+            if (!member.exists ||
+                (member.data()?['status'] ?? 'active').toString() ==
+                    'pending') {
+              continue;
+            }
+          } catch (_) {/* okuma hatasında içerik gösterilmeye devam eder */}
           final content =
               await ClassService.classContentStream(c.classId).first;
           for (final m in content) {

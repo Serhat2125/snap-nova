@@ -49,6 +49,8 @@ class TeacherHomeworkPreviewScreen extends StatefulWidget {
   final String? editHwId;
   /// Düzenlenen ödev taslak mı (status='draft')? Yayınla davranışını belirler.
   final bool editIsDraft;
+  /// Ödevin başında öğrenciye görünen öğretmen mesajı (düzenlemede mevcut değer).
+  final String teacherNote;
 
   const TeacherHomeworkPreviewScreen({
     super.key,
@@ -64,6 +66,7 @@ class TeacherHomeworkPreviewScreen extends StatefulWidget {
     required this.questions,
     this.editHwId,
     this.editIsDraft = true,
+    this.teacherNote = '',
   });
 
   @override
@@ -79,6 +82,8 @@ class _TeacherHomeworkPreviewScreenState
   bool _sending = false;
   final Set<int> _revising = {}; // AI ile revize edilen soru indeksleri
   late final TextEditingController _titleCtrl;
+  // Öğrencilere ödevin başında gösterilecek öğretmen mesajı.
+  late final TextEditingController _noteCtrl;
 
   bool get _editing => widget.editHwId != null;
 
@@ -92,11 +97,13 @@ class _TeacherHomeworkPreviewScreenState
     _dueAt = widget.dueAt;
     _publishAt = widget.publishAt;
     _titleCtrl = TextEditingController(text: widget.title);
+    _noteCtrl = TextEditingController(text: widget.teacherNote);
   }
 
   @override
   void dispose() {
     _titleCtrl.dispose();
+    _noteCtrl.dispose();
     super.dispose();
   }
 
@@ -138,6 +145,7 @@ class _TeacherHomeworkPreviewScreenState
         questions: _questions,
         publishAt: _publishAt,
         clearPublishAt: _publishAt == null,
+        teacherNote: _noteCtrl.text,
       );
       // "Gönder/Zamanla" + hâlâ taslaksa → yayına al (publishDraft).
       if (ok && !draft && widget.editIsDraft) {
@@ -165,6 +173,7 @@ class _TeacherHomeworkPreviewScreenState
           publishAt: _publishAt,
           questions: _questions,
           draft: draft,
+          teacherNote: _noteCtrl.text,
         );
         if (hwId != null) success++;
       }
@@ -413,6 +422,49 @@ class _TeacherHomeworkPreviewScreenState
                           fontSize: 12, fontWeight: FontWeight.w800,
                           color: _kBrand,
                         )),
+                  ),
+                ],
+              ),
+            ),
+            // Öğrencilere mesaj — ödevin başında görünür (isteğe bağlı).
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0EA5E9).withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                    color: const Color(0xFF0EA5E9).withValues(alpha: 0.30)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Icon(Icons.campaign_rounded,
+                        size: 18, color: Color(0xFF0EA5E9)),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _noteCtrl,
+                      maxLines: 2,
+                      minLines: 1,
+                      maxLength: 300,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12.5, fontWeight: FontWeight.w600,
+                        color: ink,
+                      ),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        counterText: '',
+                        border: InputBorder.none,
+                        hintText:
+                            'Öğrencilere mesaj (ödevin başında görünür)…'.tr(),
+                        hintStyle: GoogleFonts.poppins(
+                            fontSize: 12, color: muted),
+                      ),
+                    ),
                   ),
                 ],
               ),

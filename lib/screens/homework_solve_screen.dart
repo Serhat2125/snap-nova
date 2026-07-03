@@ -21,8 +21,11 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../models/education_models.dart';
 import '../services/activity_writer_service.dart';
+import '../services/ai_provider_service.dart';
 import '../services/app_settings_service.dart';
+import '../services/parent_preview.dart';
 import '../services/homework_service.dart';
+import '../services/locale_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
 
@@ -140,6 +143,8 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen>
 
   Future<void> _submit() async {
     if (_submitting) return;
+    // Ebeveyn önizlemesi: çocuğun adına ödev teslim edilemez.
+    if (ParentPreview.guard(context)) return;
     final qs = widget.homework.questions;
     if (qs.isEmpty) return;
     int correct = 0;
@@ -239,6 +244,9 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen>
             ? _buildResult(context)
             : Column(
                 children: [
+                  // Öğretmenin ödev mesajı — ödevin en başında görünür.
+                  if (widget.homework.teacherNote.trim().isNotEmpty)
+                    _teacherNoteCard(context),
                   // Üst başlık kartı
                   Container(
                     margin: const EdgeInsets.fromLTRB(14, 8, 14, 8),
@@ -315,6 +323,55 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen>
                     )),
           ),
         ),
+      ),
+    );
+  }
+
+  /// Öğretmenin ödevle ilgili mesajı — ödevin başında (ve sonuç görünümünün
+  /// üstünde) gösterilen bilgi kartı.
+  Widget _teacherNoteCard(BuildContext context, {EdgeInsetsGeometry? margin}) {
+    const blue = Color(0xFF0EA5E9);
+    return Container(
+      width: double.infinity,
+      margin: margin ?? const EdgeInsets.fromLTRB(14, 8, 14, 0),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: blue.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: blue.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 30, height: 30,
+            decoration: BoxDecoration(
+              color: blue.withValues(alpha: 0.14),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: const Icon(Icons.campaign_rounded, size: 17, color: blue),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Öğretmenin mesajı'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 10.5, fontWeight: FontWeight.w800,
+                      color: blue, letterSpacing: 0.3,
+                    )),
+                const SizedBox(height: 2),
+                Text(widget.homework.teacherNote.trim(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 12.5, fontWeight: FontWeight.w600,
+                      color: AppPalette.textPrimary(context), height: 1.45,
+                    )),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -502,12 +559,20 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen>
   Widget _buildResult(BuildContext context) {
     final total = _correctCount + _wrongCount;
     final pct = total > 0 ? (_correctCount * 100 / total).round() : 0;
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
+    // Sınıf geneli paylaşım VEYA öğretmenin yalnız bu öğrenciye açtığı
+    // öğrenci-bazlı paylaşım — ikisinden biri yeterli.
+    final answersOpen = widget.homework.answersShared ||
+        (widget.submission?.answersShared ?? false);
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+      children: [
+        // Öğretmenin ödev mesajı — sonuç görünümünde de en üstte kalır.
+        if (widget.homework.teacherNote.trim().isNotEmpty) ...[
+          _teacherNoteCard(context, margin: EdgeInsets.zero),
+          const SizedBox(height: 14),
+        ],
+        Center(
+          child: Container(
             width: 120, height: 120,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
@@ -526,41 +591,75 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen>
                   color: Colors.white,
                 )),
           ),
-          const SizedBox(height: 18),
-          Text('Ödev Teslim Edildi'.tr(),
-              style: GoogleFonts.poppins(
-                fontSize: 18, fontWeight: FontWeight.w900,
-                color: AppPalette.textPrimary(context),
-              )),
-          const SizedBox(height: 8),
-          Text('✓ $_correctCount doğru · ✗ $_wrongCount yanlış',
-              style: GoogleFonts.poppins(
-                fontSize: 13.5, color: AppPalette.textSecondary(context),
-              )),
-          if (_pendingOpen > 0) ...[
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: const Color(0xFF7C3AED).withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: const Color(0xFF7C3AED).withValues(alpha: 0.25),
-                ),
-              ),
-              child: Text(
-                '📝 $_pendingOpen ${'açık uçlu soru öğretmenin değerlendirmesini '
-                    'bekliyor. Notun güncellenecek.'.tr()}',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(
-                  fontSize: 12, fontWeight: FontWeight.w600,
-                  color: const Color(0xFF7C3AED), height: 1.4,
-                ),
+        ),
+        const SizedBox(height: 18),
+        Text('Ödev Teslim Edildi'.tr(),
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              fontSize: 18, fontWeight: FontWeight.w900,
+              color: AppPalette.textPrimary(context),
+            )),
+        const SizedBox(height: 8),
+        Text('✓ $_correctCount doğru · ✗ $_wrongCount yanlış',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              fontSize: 13.5, color: AppPalette.textSecondary(context),
+            )),
+        if (_pendingOpen > 0) ...[
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF7C3AED).withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: const Color(0xFF7C3AED).withValues(alpha: 0.25),
               ),
             ),
-          ],
-          const SizedBox(height: 28),
-          SizedBox(
+            child: Text(
+              '📝 $_pendingOpen ${'açık uçlu soru öğretmenin değerlendirmesini '
+                  'bekliyor. Notun güncellenecek.'.tr()}',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 12, fontWeight: FontWeight.w600,
+                color: const Color(0xFF7C3AED), height: 1.4,
+              ),
+            ),
+          ),
+        ],
+        const SizedBox(height: 20),
+        // ── Cevap anahtarı: öğretmen paylaştıysa soru-soru inceleme ──────
+        if (answersOpen)
+          _buildReviewSection(context)
+        else
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppPalette.card(context),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppPalette.border(context)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.lock_clock_rounded,
+                    size: 18, color: AppPalette.textSecondary(context)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Cevaplar ve çözümler, öğretmenin cevap anahtarını '
+                    'paylaşmasından sonra burada görünür.'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: AppPalette.textSecondary(context), height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        const SizedBox(height: 24),
+        Center(
+          child: SizedBox(
             width: 200,
             child: OutlinedButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -570,9 +669,456 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen>
                   )),
             ),
           ),
+        ),
+      ],
+    );
+  }
+
+  // ═══ CEVAP ANAHTARI İNCELEME (öğretmen paylaşınca) ═══════════════════════
+  // Her soru: öğrencinin cevabı + doğru cevap; sağ altta "Çözümü Göster" —
+  // dokununca sorunun çözümlü hali açılır (kayıtlı çözüm yoksa AI üretir,
+  // o da olmazsa en azından doğru cevap gösterilir → düğme asla boş kalmaz).
+
+  /// Soru index → açılmış çözüm metni (kayıtlı 'sol' ya da AI üretimi).
+  final Map<int, String> _solutions = {};
+  final Set<int> _solutionLoading = {};
+  final Set<int> _solutionExpanded = {};
+
+  static const _kGreen = Color(0xFF10B981);
+  static const _kRed = Color(0xFFEF4444);
+  static const _kAmber = Color(0xFFF59E0B);
+  static const _kBrand = Color(0xFF7C3AED);
+
+  /// Öğrencinin i. soruya verdiği cevap — kalıcı teslimden, yoksa bu
+  /// oturumda az önce verilen cevaplardan.
+  String _studentAnswerFor(int i) {
+    final subAns = widget.submission?.answers;
+    if (subAns != null && subAns.isNotEmpty) {
+      for (final a in subAns) {
+        if (a.index == i) return a.studentAnswer;
+      }
+      return '';
+    }
+    return _answers[i] ?? '';
+  }
+
+  /// i. sorunun doğruluk durumu (true/false/null=değerlendirilmedi).
+  bool? _isCorrectFor(int i, Map<String, dynamic> q) {
+    final subAns = widget.submission?.answers;
+    if (subAns != null && subAns.isNotEmpty) {
+      for (final a in subAns) {
+        if (a.index == i) return a.isCorrect;
+      }
+    }
+    final ans = _studentAnswerFor(i);
+    final type = (q['type'] ?? 'mc').toString();
+    if (type == 'open') return ans.trim().isEmpty ? false : null;
+    if (ans.trim().isEmpty) return false;
+    return _isCorrect(q, ans);
+  }
+
+  Widget _buildReviewSection(BuildContext context) {
+    final ink = AppPalette.textPrimary(context);
+    final qs = widget.homework.questions;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.key_rounded, size: 18, color: _kAmber),
+            const SizedBox(width: 6),
+            Text('Cevaplar ve Çözümler'.tr(),
+                style: GoogleFonts.poppins(
+                  fontSize: 14.5, fontWeight: FontWeight.w900, color: ink,
+                )),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text('Öğretmenin cevap anahtarını paylaştı — kendi cevabını ve '
+                'doğru cevapları incele.'.tr(),
+            style: GoogleFonts.poppins(
+              fontSize: 11.5,
+              color: AppPalette.textSecondary(context), height: 1.4,
+            )),
+        const SizedBox(height: 12),
+        ...List.generate(qs.length, (i) => _reviewCard(context, i, qs[i])),
+      ],
+    );
+  }
+
+  Widget _reviewCard(BuildContext context, int i, Map<String, dynamic> q) {
+    final ink = AppPalette.textPrimary(context);
+    final muted = AppPalette.textSecondary(context);
+    final type = (q['type'] ?? 'mc').toString();
+    final qText = (q['q'] ?? '').toString();
+    final isCorrect = _isCorrectFor(i, q);
+    final expanded = _solutionExpanded.contains(i);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+      decoration: BoxDecoration(
+        color: AppPalette.card(context),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isCorrect == true
+              ? _kGreen.withValues(alpha: 0.35)
+              : isCorrect == false
+                  ? _kRed.withValues(alpha: 0.30)
+                  : AppPalette.border(context),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 26, height: 26,
+                decoration: BoxDecoration(
+                  color: _kBrand.withValues(alpha: 0.14),
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Text('${i + 1}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12, fontWeight: FontWeight.w900,
+                      color: _kBrand,
+                    )),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(qText,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13.5, fontWeight: FontWeight.w700,
+                      color: ink, height: 1.4,
+                    )),
+              ),
+              const SizedBox(width: 8),
+              _reviewStatusBadge(isCorrect),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ..._reviewAnswerArea(context, i, q, type, ink),
+          // Sağ altta: Çözümü Göster / Gizle.
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () => _toggleSolution(i, q),
+              style: TextButton.styleFrom(
+                foregroundColor: _kBrand,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              ),
+              icon: Icon(
+                  expanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.lightbulb_outline_rounded,
+                  size: 17),
+              label: Text(
+                  expanded ? 'Çözümü Gizle'.tr() : 'Çözümü Göster'.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 12, fontWeight: FontWeight.w800,
+                  )),
+            ),
+          ),
+          if (expanded) _solutionPanel(context, i, q, ink, muted),
         ],
       ),
     );
+  }
+
+  Widget _reviewStatusBadge(bool? isCorrect) {
+    final Color c;
+    final IconData icon;
+    final String label;
+    if (isCorrect == true) {
+      c = _kGreen; icon = Icons.check_rounded; label = 'Doğru'.tr();
+    } else if (isCorrect == false) {
+      c = _kRed; icon = Icons.close_rounded; label = 'Yanlış'.tr();
+    } else {
+      c = _kAmber; icon = Icons.hourglass_empty_rounded;
+      label = 'Bekliyor'.tr();
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: c),
+          const SizedBox(width: 3),
+          Text(label,
+              style: GoogleFonts.poppins(
+                fontSize: 9.5, fontWeight: FontWeight.w800, color: c,
+              )),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _reviewAnswerArea(BuildContext context, int i,
+      Map<String, dynamic> q, String type, Color ink) {
+    final answer = (q['answer'] ?? '').toString();
+    final sa = _studentAnswerFor(i).trim();
+
+    if (type == 'mc') {
+      final choices = ((q['choices'] as List?) ?? const [])
+          .map((c) => c.toString())
+          .toList();
+      return choices.map((c) {
+        final letter = c.isNotEmpty ? c.trim()[0].toUpperCase() : '';
+        final correct = letter == answer.trim().toUpperCase();
+        final chosen =
+            sa.isNotEmpty && (sa.toUpperCase() == letter || sa == c);
+        final Color borderC = correct
+            ? _kGreen
+            : (chosen ? _kRed : AppPalette.border(context));
+        final Color fillC = correct
+            ? _kGreen.withValues(alpha: 0.10)
+            : (chosen
+                ? _kRed.withValues(alpha: 0.08)
+                : AppPalette.bg(context));
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: fillC,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: borderC,
+                width: (correct || chosen) ? 1.4 : 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(c,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12.5,
+                        fontWeight: (correct || chosen)
+                            ? FontWeight.w800
+                            : FontWeight.w600,
+                        color:
+                            correct ? _kGreen : (chosen ? _kRed : ink),
+                      )),
+                ),
+                if (chosen && !correct)
+                  Text('senin cevabın'.tr(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 9, fontWeight: FontWeight.w700,
+                        color: _kRed,
+                      ))
+                else if (correct) ...[
+                  if (chosen)
+                    Text('senin cevabın'.tr(),
+                        style: GoogleFonts.poppins(
+                          fontSize: 9, fontWeight: FontWeight.w700,
+                          color: _kGreen,
+                        )),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.check_circle_rounded,
+                      size: 16, color: _kGreen),
+                ],
+              ],
+            ),
+          ),
+        );
+      }).toList();
+    }
+
+    // tf / fill / open — kutu olarak: senin cevabın + doğru cevap.
+    String fmt(String v) {
+      if (type != 'tf' || v.isEmpty) return v;
+      return v.toLowerCase() == 'true' ? 'Doğru'.tr() : 'Yanlış'.tr();
+    }
+
+    final isCorrect = _isCorrectFor(i, q);
+    final Color mineC = isCorrect == true
+        ? _kGreen
+        : isCorrect == false
+            ? _kRed
+            : _kAmber;
+    return [
+      _reviewAnswerBox(context, 'Senin cevabın'.tr(),
+          sa.isEmpty ? 'Boş bırakıldı'.tr() : fmt(sa), mineC, ink),
+      const SizedBox(height: 6),
+      _reviewAnswerBox(
+          context,
+          type == 'open' ? 'Örnek cevap'.tr() : 'Doğru cevap'.tr(),
+          answer.isEmpty ? '—' : fmt(answer),
+          _kGreen,
+          ink),
+    ];
+  }
+
+  Widget _reviewAnswerBox(BuildContext context, String label, String value,
+      Color color, Color ink) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color, width: 1.2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: GoogleFonts.poppins(
+                fontSize: 10, fontWeight: FontWeight.w800,
+                color: color, letterSpacing: 0.3,
+              )),
+          const SizedBox(height: 2),
+          Text(value,
+              style: GoogleFonts.poppins(
+                fontSize: 13, fontWeight: FontWeight.w700, color: ink,
+              )),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _toggleSolution(int i, Map<String, dynamic> q) async {
+    if (_solutionExpanded.contains(i)) {
+      setState(() => _solutionExpanded.remove(i));
+      return;
+    }
+    setState(() => _solutionExpanded.add(i));
+    if (_solutions.containsKey(i) || _solutionLoading.contains(i)) return;
+    // 1) Ödevle birlikte üretilmiş kayıtlı çözüm varsa direkt kullan.
+    final stored = (q['sol'] ?? q['explanation'] ?? '').toString().trim();
+    if (stored.isNotEmpty) {
+      setState(() => _solutions[i] = stored);
+      return;
+    }
+    // 2) Yoksa AI ile üret; o da olmazsa fallback (doğru cevap) — düğme
+    //    her durumda MUTLAKA bir çözüm/cevap gösterir.
+    setState(() => _solutionLoading.add(i));
+    final text = await _generateSolution(q);
+    if (!mounted) return;
+    setState(() {
+      _solutionLoading.remove(i);
+      _solutions[i] = text;
+    });
+  }
+
+  /// Sorunun çözümünü AI ile üretir; hata/boş durumda doğru cevabı içeren
+  /// garanti bir metin döner (asla boş dönmez).
+  Future<String> _generateSolution(Map<String, dynamic> q) async {
+    final type = (q['type'] ?? 'mc').toString();
+    final answer = (q['answer'] ?? '').toString();
+    final choices = ((q['choices'] as List?) ?? const [])
+        .map((c) => c.toString())
+        .toList();
+    final fallback = _fallbackSolution(type, answer, choices);
+    try {
+      final langCode = LocaleService.global?.localeCode ?? 'tr';
+      final langLine = langCode == 'tr'
+          ? 'Cevabı Türkçe yaz.'
+          : 'Cevabı "$langCode" dil kodundaki dilde yaz.';
+      final prompt = 'Soru (${widget.homework.subject} · '
+          '${widget.homework.topic}, ${widget.homework.level}):\n'
+          '${(q['q'] ?? '').toString()}\n'
+          '${choices.isNotEmpty ? 'Şıklar:\n${choices.join('\n')}\n' : ''}'
+          'Doğru cevap: $answer\n\n'
+          'Bu sorunun ÇÖZÜMÜNÜ adım adım, kısa ve net yaz (en fazla 5-6 '
+          'cümle). Doğru cevabın neden doğru olduğunu açıkla; işlem '
+          'gerekiyorsa adımları göster. Son satıra "Sonuç: $answer" yaz. '
+          'Markdown/LaTeX kullanma, düz metin yaz. $langLine';
+      final text = await AiProviderService.ask(
+        prompt: prompt,
+        system: 'Sen sabırlı ve net anlatan deneyimli bir öğretmensin. '
+            'Öğrencinin seviyesine uygun, adım adım çözüm yazarsın.',
+        maxTokens: 400,
+      );
+      final t = text.trim();
+      return t.isEmpty ? fallback : t;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  /// AI'sız garanti çözüm metni — en azından doğru cevap her zaman görünür.
+  String _fallbackSolution(
+      String type, String answer, List<String> choices) {
+    String shown = answer;
+    if (type == 'tf') {
+      shown = answer.toLowerCase() == 'true' ? 'Doğru'.tr() : 'Yanlış'.tr();
+    } else if (type == 'mc') {
+      // "A" → tam şık metni
+      for (final c in choices) {
+        if (c.trim().toUpperCase().startsWith(answer.trim().toUpperCase())) {
+          shown = c;
+          break;
+        }
+      }
+    }
+    return '${'Doğru cevap'.tr()}: $shown';
+  }
+
+  Widget _solutionPanel(BuildContext context, int i, Map<String, dynamic> q,
+      Color ink, Color muted) {
+    final loading = _solutionLoading.contains(i);
+    final text = _solutions[i];
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      decoration: BoxDecoration(
+        color: _kBrand.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _kBrand.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.lightbulb_rounded, size: 15, color: _kBrand),
+              const SizedBox(width: 5),
+              Text('Çözüm'.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 11, fontWeight: FontWeight.w800,
+                    color: _kBrand,
+                  )),
+            ],
+          ),
+          const SizedBox(height: 6),
+          if (loading)
+            Row(
+              children: [
+                const SizedBox(
+                    width: 14, height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2)),
+                const SizedBox(width: 8),
+                Text('Çözüm hazırlanıyor…'.tr(),
+                    style: GoogleFonts.poppins(fontSize: 12, color: muted)),
+              ],
+            )
+          else
+            Text(text ?? _fallbackSolutionFor(i, q),
+                style: GoogleFonts.poppins(
+                  fontSize: 12.5, color: ink, height: 1.5,
+                )),
+        ],
+      ),
+    );
+  }
+
+  String _fallbackSolutionFor(int i, Map<String, dynamic> q) {
+    final type = (q['type'] ?? 'mc').toString();
+    final answer = (q['answer'] ?? '').toString();
+    final choices = ((q['choices'] as List?) ?? const [])
+        .map((c) => c.toString())
+        .toList();
+    return _fallbackSolution(type, answer, choices);
   }
 }
 

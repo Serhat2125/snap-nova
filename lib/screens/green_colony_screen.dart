@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
@@ -191,7 +190,7 @@ class _GreenColonyScreenState extends State<GreenColonyScreen>
     _ticker?.cancel();
     WakelockPlus.disable();
     AppSettingsService.instance.hapticHeavy();
-    SystemSound.play(SystemSoundType.alert);
+    AppSettingsService.instance.playAlert();
     final wasFocus = _mode == 'focus';
     final focusDur = _focus; // tam süre
     // Local notification — sessiz mod / arka plan / ekran kapalıyken

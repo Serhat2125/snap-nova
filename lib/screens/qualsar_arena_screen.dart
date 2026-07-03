@@ -48,6 +48,7 @@ import '../features/leaderboard/widgets/location_selection_sheet.dart';
 import '../widgets/qualsar_numeric_loader.dart';
 import '../widgets/qualsar_loading_widget.dart';
 import '../services/ai_quota_service.dart';
+import '../services/parent_preview.dart';
 import 'premium_screen.dart';
 
 import '../theme/app_theme.dart';
@@ -5526,6 +5527,8 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
 
   Future<void> _findMatch({String raceType = 'test'}) async {
     if (!_canStart) return;
+    // Ebeveyn önizlemesi: yarışma başlatılamaz.
+    if (ParentPreview.guard(context)) return;
 
     // Ücretsiz kullanıcı (deneme bitti): günde 1 yarışma hakkı.
     if (!AiQuotaService.instance.isPremium) {
@@ -7104,6 +7107,7 @@ KURALLAR:
   /// gönder. (Bu tasarım sadece arkadaş/grup için; Dünya/Ülke'de yok.)
   Future<void> _startFriendDuelWithSettings(Friend f, _Subject s,
       {int? count, String? qType}) async {
+    if (ParentPreview.guard(context)) return;
     int c;
     String t;
     if (count != null && qType != null) {
@@ -10693,6 +10697,7 @@ KURALLAR:
   /// contest dokümanı yarat, GroupContestScreen'e geç.
   Future<void> _createGroupContest(_Subject subject, String topic,
       {int? presetCount, String? presetType}) async {
+    if (ParentPreview.guard(context)) return;
     // Soru tipi + sayısı inline sihirbazdan gelmediyse popup ile sor.
     int count;
     String qType;

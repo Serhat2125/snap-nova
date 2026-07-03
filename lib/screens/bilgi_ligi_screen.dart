@@ -40,6 +40,7 @@ import '../services/runtime_translator.dart';
 import '../services/user_profile_service.dart';
 import '../theme/app_theme.dart';
 import '../services/ai_quota_service.dart';
+import '../services/parent_preview.dart';
 import 'bilgi_ligi_quiz_screen.dart';
 import 'premium_screen.dart';
 
@@ -4146,6 +4147,8 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
   // ── Quiz başlat (hero CTA → ders + opsiyonel konu seçimi sonrası) ─────────
   Future<void> _startQuizFor(CurriculumSubject subject,
       {String? topic, String? examLabel, int optionCount = 4}) async {
+    // Ebeveyn önizlemesi: quiz/yarışma başlatılamaz.
+    if (ParentPreview.guard(context)) return;
     final profile = _profile;
     if (profile == null) return;
 

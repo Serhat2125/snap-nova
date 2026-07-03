@@ -12,7 +12,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../services/parent_link_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
-import 'parent_dashboard_screen.dart';
+import 'parent_shell_screen.dart';
 
 class ParentOnboardingScreen extends StatefulWidget {
   const ParentOnboardingScreen({super.key});
@@ -87,7 +87,7 @@ class _ParentOnboardingScreenState extends State<ParentOnboardingScreen> {
   void _skipToDashboard() {
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(
-        builder: (_) => const ParentDashboardScreen(),
+        builder: (_) => const ParentShellScreen(),
       ),
       (route) => false,
     );

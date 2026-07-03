@@ -299,15 +299,23 @@ class ReferralService {
         return RedeemResult.alreadyUsed;
       }
 
-      // Cihaz daha önce redeem ettiyse blok (anti-fraud)
+      // Cihaz daha önce redeem ettiyse blok (anti-fraud).
+      // KENDİ try/catch'inde: bu collection-group sorgusu kurallarca
+      // reddedilirse (eski rules'ta CG izni yoktu) TÜM redeem'i
+      // networkError'a düşürüyordu — davet kodu hiç kullanılamıyordu.
+      // Kontrol başarısızsa anti-fraud atlanır, redeem devam eder.
       final deviceHash = await _deviceHash();
-      final deviceQuery = await _col
-          .collectionGroup('referral')
-          .where('deviceHash', isEqualTo: deviceHash)
-          .limit(1)
-          .get();
-      if (deviceQuery.docs.isNotEmpty) {
-        return RedeemResult.deviceAlreadyUsed;
+      try {
+        final deviceQuery = await _col
+            .collectionGroup('referral')
+            .where('deviceHash', isEqualTo: deviceHash)
+            .limit(1)
+            .get();
+        if (deviceQuery.docs.isNotEmpty) {
+          return RedeemResult.deviceAlreadyUsed;
+        }
+      } catch (e) {
+        debugPrint('[Referral] device-hash sorgusu atlandı: $e');
       }
 
       // Transaction: kullanıcının state'i + owner'ın invitedUsers'ı

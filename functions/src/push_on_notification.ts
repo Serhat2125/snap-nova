@@ -68,6 +68,7 @@ function categoryForType(type?: string): string | null {
     case "homework_submission": // öğrenci ödevi teslim etti → öğretmene
       return "homework_submission";
     case "student_joined": // yeni öğrenci sınıfa katıldı → öğretmene
+    case "student_join_request": // kodla katılma isteği (onay bekliyor) → öğretmene
       return "student_joined";
     case "class_activity":
     case "class_announcement":
@@ -80,6 +81,9 @@ function categoryForType(type?: string): string | null {
     case "homework_assigned":
     case "homework_reminder":
     case "class_invite":
+    case "class_join_approved":
+    case "class_join_rejected":
+    case "homework_answers_shared":
       return "class_activity";
     default:
       return null;
@@ -174,6 +178,33 @@ function buildContent(data: NotifData): { title: string; body: string } {
         title: "Yeni öğrenci",
         body: `${data.className || ""} sınıfından ${who} katıldı`,
       };
+    case "student_join_request":
+      return {
+        title: "Katılma isteği",
+        body: `${who} "${data.className || ""}" sınıfına katılmak istiyor — onayla`,
+      };
+    case "class_join_approved":
+      return {
+        title: "Sınıfa kabul edildin 🎉",
+        body: `"${data.className || ""}" sınıfına katılımın onaylandı — ödevlerini gör`,
+      };
+    case "class_join_rejected":
+      return {
+        title: "Katılma isteğin onaylanmadı",
+        body: `"${data.className || ""}" sınıfına katılma isteğin reddedildi`,
+      };
+    case "parent_link_request":
+      return {
+        title: "Ebeveyn bağlantı isteği",
+        body: `${who} senin için izin istedi — Profil sekmesinden onaylayabilirsin`,
+      };
+    case "parent_message":
+      return {
+        title: `Ebeveyn mesajı: ${data.className || ""}`,
+        body: data.message
+          ? `${who} adlı öğrencinin ebeveyni: "${data.message}"`
+          : `${who} adlı öğrencinin ebeveyninden mesajın var`,
+      };
     case "homework_published":
       return {
         title: "Ödev yayınlandı",
@@ -188,6 +219,11 @@ function buildContent(data: NotifData): { title: string; body: string } {
       return {
         title: "Ödevin değerlendirildi",
         body: `"${data.homeworkTitle || ""}" ödevin notlandırıldı — sonucunu görmek için dokun`,
+      };
+    case "homework_answers_shared":
+      return {
+        title: "Cevaplar paylaşıldı 🔑",
+        body: `"${data.homeworkTitle || ""}" ödevinin cevapları ve çözümleri açıldı — incele`,
       };
     default:
       return {
@@ -222,16 +258,46 @@ export const pushOnNotificationCreated = onDocumentCreated(
         .collection("preferences")
         .doc("main")
         .get();
+      const prefData = prefSnap.data();
       const notif =
-        (prefSnap.data()?.notifications as Record<string, boolean>) || {};
+        (prefData?.notifications as Record<string, boolean>) || {};
       if (notif.master === false) {
         logger.info(`[push] master kapalı uid=${uid} — atlandı`);
         return;
       }
       const cat = categoryForType(data.type);
-      if (cat && notif[cat] === false) {
-        logger.info(`[push] '${cat}' kategorisi kapalı uid=${uid} — atlandı`);
-        return;
+      if (cat) {
+        // Pref hiç yazılmamışsa kategori varsayılanına düş — pazarlama
+        // kategorileri (premium_offer/newsletter) varsayılan KAPALI.
+        const defaultOn = cat !== "premium_offer" && cat !== "newsletter";
+        const allowed = notif[cat] ?? defaultOn;
+        if (!allowed) {
+          logger.info(`[push] '${cat}' kategorisi kapalı uid=${uid} — atlandı`);
+          return;
+        }
+      }
+      // Sessiz Saatler — client PreferencesSyncService 'quiet' alanını yazar.
+      // Kullanıcının YEREL saati tzOffsetMin ile hesaplanır; pencere içindeyse
+      // push gönderilmez ("bu aralıkta hiç bildirim gelmez" sözü).
+      const quiet = prefData?.quiet as
+        | { enabled?: boolean; startMin?: number; endMin?: number;
+            tzOffsetMin?: number }
+        | undefined;
+      if (quiet?.enabled === true) {
+        const start = Number(quiet.startMin ?? 23 * 60);
+        const end = Number(quiet.endMin ?? 7 * 60);
+        const off = Number(quiet.tzOffsetMin ?? 0);
+        const localMin =
+          ((Math.floor(Date.now() / 60000) + off) % 1440 + 1440) % 1440;
+        const inQuiet = start === end
+          ? false
+          : start < end
+            ? localMin >= start && localMin < end
+            : localMin >= start || localMin < end;
+        if (inQuiet) {
+          logger.info(`[push] sessiz saatler uid=${uid} — atlandı`);
+          return;
+        }
       }
     } catch (e) {
       logger.warn("[push] tercih okunamadı, yine de gönderiliyor", e);

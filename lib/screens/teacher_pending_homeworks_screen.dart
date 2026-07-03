@@ -145,6 +145,7 @@ class PendingHomeworkCardState extends State<PendingHomeworkCard> {
         questions: hw.questions,
         editHwId: hw.id,
         editIsDraft: hw.isDraft,
+        teacherNote: hw.teacherNote,
       ),
     ));
   }

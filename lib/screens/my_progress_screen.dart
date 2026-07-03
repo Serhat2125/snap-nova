@@ -70,6 +70,14 @@ const _cats = <_ProgressCat>[
       Icons.emoji_events_rounded, Color(0xFF7C3AED)),
   _ProgressCat('pomodoro', 'pomodoro', 'Pomodoro',
       Icons.rocket_launch_rounded, Color(0xFFFF6A3C)),
+  // Uygulamadaki DİĞER çalışma alanları — öğrenci nerede vakit geçiriyorsa
+  // ebeveyn hepsini görsün (aktivite tipleri: lig / match / test).
+  _ProgressCat('lig', 'lig', 'Bilgi Ligi',
+      Icons.public_rounded, Color(0xFF10B981)),
+  _ProgressCat('duello', 'match', 'Düello Arenası',
+      Icons.sports_esports_rounded, Color(0xFFFFB800)),
+  _ProgressCat('quiz', 'test', 'Bilgi Yarışı',
+      Icons.flash_on_rounded, Color(0xFFEC4899)),
 ];
 
 const _weekdayLabels = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];

@@ -94,6 +94,15 @@ class PreferencesSyncService {
         'themeIndex': prefs.getInt(_kThemeIdx) ?? 1,
         'startupScreen': prefs.getString(_kStartup) ?? 'camera',
         'notifications': notif,
+        // Sessiz Saatler — sunucu push'u (push_on_notification) da bu
+        // pencereye saygı göstersin diye cloud'a yazılır. tzOffsetMin ile
+        // sunucu, kullanıcının YEREL saatini hesaplar.
+        'quiet': {
+          'enabled': prefs.getBool('settings_quiet_enabled_v1') ?? false,
+          'startMin': prefs.getInt('settings_quiet_start_v1') ?? 23 * 60,
+          'endMin': prefs.getInt('settings_quiet_end_v1') ?? 7 * 60,
+          'tzOffsetMin': DateTime.now().timeZoneOffset.inMinutes,
+        },
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (e) {

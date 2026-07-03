@@ -27,6 +27,9 @@ import 'analytics.dart';
 
 enum JoinClassResult {
   success, invalidCode, classNotFound, alreadyJoined, selfJoin, notAuthed, error,
+  /// Kodla katılım isteği öğretmene iletildi — öğretmen onaylayana kadar
+  /// öğrenci sınıfta 'pending' durumundadır (ödevleri göremez).
+  pendingApproval,
 }
 
 class TeacherClass {
@@ -115,6 +118,9 @@ class ClassStudent {
   final String country;
   /// Öğrencinin kendi yazdığı durum mesajı / kısa biyografi.
   final String statusMessage;
+  /// Üyelik durumu: 'active' = onaylı | 'pending' = öğretmen onayı bekliyor
+  /// (kodla katılan öğrenci, öğretmen onaylayana kadar ödevleri göremez).
+  final String status;
 
   const ClassStudent({
     required this.uid,
@@ -127,7 +133,10 @@ class ClassStudent {
     this.grade = '',
     this.country = '',
     this.statusMessage = '',
+    this.status = 'active',
   });
+
+  bool get isPending => status == 'pending';
 
   /// Sınıf listesinde gösterilecek ad — öncelik: öğretmen lakabı > öğrencinin
   /// kendi adı > @kullanıcı adı.
@@ -152,6 +161,7 @@ class ClassStudent {
       grade: (m['grade'] ?? '').toString(),
       country: (m['country'] ?? '').toString(),
       statusMessage: (m['statusMessage'] ?? '').toString(),
+      status: (m['status'] ?? 'active').toString(),
     );
   }
 }
@@ -256,13 +266,23 @@ class JoinedClass {
   final String className;
   final String teacherDisplayName;
   final DateTime joinedAt;
+  /// Sınıfın dersi (katılım anında classes/{id}.subject'ten kopyalanır).
+  final String subject;
+  /// Üyelik durumu: 'active' | 'pending' (öğretmen onayı bekleniyor).
+  /// Kaynak: classes/{classId}/students/{uid}.status — stream'de tazelenir;
+  /// joined_classes'taki kopya yalnızca ilk gösterim içindir.
+  final String status;
 
   const JoinedClass({
     required this.classId,
     required this.className,
     required this.teacherDisplayName,
     required this.joinedAt,
+    this.subject = '',
+    this.status = 'active',
   });
+
+  bool get isPending => status == 'pending';
 
   factory JoinedClass.fromMap(String classId, Map<String, dynamic> m) {
     DateTime when = DateTime.now();
@@ -273,8 +293,19 @@ class JoinedClass {
       className: (m['className'] ?? '').toString(),
       teacherDisplayName: (m['teacherDisplayName'] ?? '').toString(),
       joinedAt: when,
+      subject: (m['subject'] ?? '').toString(),
+      status: (m['status'] ?? 'active').toString(),
     );
   }
+
+  JoinedClass withStatus(String s) => JoinedClass(
+        classId: classId,
+        className: className,
+        teacherDisplayName: teacherDisplayName,
+        joinedAt: joinedAt,
+        subject: subject,
+        status: s,
+      );
 }
 
 /// Öğretmenin "öğrenci ara & davet" akışında bir arama sonucu.
@@ -525,6 +556,7 @@ class ClassService {
           grade: pick(p['grade'], s.grade),
           country: pick(p['country'], s.country),
           statusMessage: (p['statusMessage'] ?? '').toString(),
+          status: s.status,
         ));
       }
       return out;
@@ -593,6 +625,8 @@ class ClassService {
       {bool sharedWithParent = false, String kind = 'note'}) async {
     if (_myUid == null) return false;
     try {
+      final shared = sharedWithParent || kind == 'praise';
+      final msg = text.trim();
       await _fs
           .collection('classes')
           .doc(classId)
@@ -600,11 +634,37 @@ class ClassService {
           .doc(studentUid)
           .collection('notes')
           .add({
-        'text': text.trim(),
-        'sharedWithParent': sharedWithParent || kind == 'praise',
+        'text': msg,
+        'sharedWithParent': shared,
         'kind': kind,
         'createdAt': FieldValue.serverTimestamp(),
       });
+      // Paylaşılan not → ÖĞRENCİYE bildirim kaydı (pushOnNotificationCreated
+      // doc'taki title/body'yi olduğu gibi push'lar; inbox'ta da görünür).
+      // Özel gözlem notları (shared=false) öğrenciye SIZMAZ. Velilere
+      // bildirim pushOnTeacherNote Cloud Function'ından gider — öğretmen
+      // istemcisi veli uid'lerini okuyamaz (rules).
+      if (shared) {
+        try {
+          final cls = await _fs.collection('classes').doc(classId).get();
+          final className = (cls.data()?['name'] ?? '').toString();
+          await _fs
+              .collection('notifications')
+              .doc(studentUid)
+              .collection('items')
+              .add({
+            'type': 'teacher_note',
+            'className': className,
+            'message': msg,
+            'title': kind == 'praise'
+                ? 'Öğretmeninden takdir 🌟'
+                : 'Öğretmeninden not 📝',
+            'body': className.isEmpty ? '“$msg”' : '$className: “$msg”',
+            'when': FieldValue.serverTimestamp(),
+            'read': false,
+          });
+        } catch (_) {/* bildirim best-effort — not zaten kaydedildi */}
+      }
       return true;
     } catch (e) {
       debugPrint('[ClassService] addNote fail: $e');
@@ -936,7 +996,9 @@ class ClassService {
       final classId = codeDoc.data()?['classId'] as String?;
       final teacherUid = codeDoc.data()?['teacherUid'] as String?;
       if (classId == null) return JoinClassResult.error;
-      return _completeJoin(classId, teacherUid);
+      // Kodla katılan öğrenci öğretmen ONAYINA düşer: status 'pending',
+      // öğretmene onay isteği bildirimi gider; onaylanana kadar ödev göremez.
+      return _completeJoin(classId, teacherUid, requiresApproval: true);
     } catch (e) {
       debugPrint('[ClassService] join fail: $e');
       return JoinClassResult.error;
@@ -958,8 +1020,12 @@ class ClassService {
   }
 
   /// Ortak katılım mantığı — öğrenci KENDİNİ sınıfa ekler (rules: isOwner).
+  /// [requiresApproval] true (kodla katılım) → öğrenci 'pending' yazılır ve
+  /// öğretmene ONAY isteği bildirimi gider; öğretmen davetinde (invite) ise
+  /// öğretmen zaten öğrenciyi seçtiği için doğrudan 'active' olur.
   static Future<JoinClassResult> _completeJoin(
-      String classId, String? teacherUid) async {
+      String classId, String? teacherUid,
+      {bool requiresApproval = false}) async {
     final myUid = _myUid;
     if (myUid == null) return JoinClassResult.notAuthed;
     if (teacherUid == myUid) return JoinClassResult.selfJoin;
@@ -995,7 +1061,7 @@ class ClassService {
           'country': myData['country'] ?? '',
           'statusMessage': myData['statusMessage'] ?? '',
           'joinedAt': now,
-          'status': 'active',
+          'status': requiresApproval ? 'pending' : 'active',
         },
       );
       batch.set(
@@ -1007,26 +1073,33 @@ class ClassService {
           'teacherDisplayName': teacherData['displayName'] ??
                                 teacherData['username'] ?? '',
           'joinedAt': now,
+          'status': requiresApproval ? 'pending' : 'active',
         },
       );
-      // Sınıf öğretmenine "yeni öğrenci katıldı" bildirimi.
+      // Öğretmene bildirim: onay gerekiyorsa "katılma isteği" (Onayla/Reddet),
+      // değilse "yeni öğrenci katıldı".
       if (teacherUid != null && teacherUid.isNotEmpty) {
         batch.set(
           _fs.collection('notifications').doc(teacherUid)
               .collection('items').doc(),
           {
-            'type': 'student_joined',
+            'type': requiresApproval
+                ? 'student_join_request'
+                : 'student_joined',
             'fromDisplayName': myData['displayName'] ??
                 myData['username'] ?? 'Bir öğrenci',
             'className': classData['name'] ?? '',
             'classId': classId,
+            'studentUid': myUid,
             'when': now,
             'read': false,
           },
         );
       }
       await batch.commit();
-      return JoinClassResult.success;
+      return requiresApproval
+          ? JoinClassResult.pendingApproval
+          : JoinClassResult.success;
     } catch (e) {
       debugPrint('[ClassService] completeJoin fail: $e');
       return JoinClassResult.error;
@@ -1104,6 +1177,93 @@ class ClassService {
     }
   }
 
+  // ── ÖĞRETMEN: Katılma isteğini ONAYLA / REDDET ───────────────────────
+  /// Kodla katılan (pending) öğrenciyi onaylar: status → 'active', mevcut
+  /// YAYINDAKİ ödevler için submission slotları açılır ve öğrenciye
+  /// "onaylandın" bildirimi gider. Sadece sınıf öğretmeni çağırabilir.
+  static Future<bool> approveStudent(String classId, String studentUid) async {
+    if (_myUid == null) return false;
+    try {
+      final classRef = _fs.collection('classes').doc(classId);
+      final studRef = classRef.collection('students').doc(studentUid);
+      final studDoc = await studRef.get();
+      if (!studDoc.exists) return false;
+      final sd = studDoc.data() ?? const <String, dynamic>{};
+
+      await studRef.set({
+        'status': 'active',
+        'approvedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // Onaydan ÖNCE yayınlanmış ödevlerin slotları bu öğrenci için açılmamıştı
+      // (_materializeAssignment yalnız aktif öğrencilere slot açar) → şimdi aç.
+      final hwSnap = await classRef.collection('homeworks').get();
+      final batch = _fs.batch();
+      for (final hw in hwSnap.docs) {
+        if ((hw.data()['status'] ?? 'published').toString() == 'draft') {
+          continue;
+        }
+        batch.set(
+          hw.reference.collection('submissions').doc(studentUid),
+          {
+            'studentUid': studentUid,
+            'studentUsername': (sd['username'] ?? '').toString(),
+            'studentDisplayName': (sd['displayName'] ?? '').toString(),
+            'status': 'pending',
+          },
+          SetOptions(merge: true),
+        );
+      }
+      final cls = await classRef.get();
+      batch.set(
+        _fs.collection('notifications').doc(studentUid)
+            .collection('items').doc(),
+        {
+          'type': 'class_join_approved',
+          'className': (cls.data()?['name'] ?? '').toString(),
+          'classId': classId,
+          'when': FieldValue.serverTimestamp(),
+          'read': false,
+        },
+      );
+      await batch.commit();
+      Analytics.logFeatureAction('teacher_panel', 'student_approved');
+      return true;
+    } catch (e) {
+      debugPrint('[ClassService] approveStudent fail: $e');
+      return false;
+    }
+  }
+
+  /// Katılma isteğini REDDEDER: öğrenci dökümanı silinir ve öğrenciye
+  /// bildirim gider. Öğrencinin joined_classes kaydı, üyelik bulunamayınca
+  /// kendi tarafında otomatik temizlenir (bkz. [_filterAliveClasses]).
+  static Future<bool> rejectStudent(String classId, String studentUid) async {
+    if (_myUid == null) return false;
+    try {
+      final cls = await _fs.collection('classes').doc(classId).get();
+      final batch = _fs.batch();
+      batch.delete(_fs.collection('classes').doc(classId)
+          .collection('students').doc(studentUid));
+      batch.set(
+        _fs.collection('notifications').doc(studentUid)
+            .collection('items').doc(),
+        {
+          'type': 'class_join_rejected',
+          'className': (cls.data()?['name'] ?? '').toString(),
+          'classId': classId,
+          'when': FieldValue.serverTimestamp(),
+          'read': false,
+        },
+      );
+      await batch.commit();
+      return true;
+    } catch (e) {
+      debugPrint('[ClassService] rejectStudent fail: $e');
+      return false;
+    }
+  }
+
   /// Öğrencinin katıldığı sınıflar stream.
   /// Tek alanlı orderBy — composite index gerekmiyor; client-side sıralama
   /// boş veri durumunda da spinner takılmasın diye Stream.value fallback'i.
@@ -1127,9 +1287,12 @@ class ClassService {
   }
 
   /// joined_classes listesinden, `classes/{classId}` dökümanı artık VAR OLMAYAN
-  /// (öğretmenin sildiği) kayıtları çıkarır. [heal] true ise — yalnız kendi
-  /// kayıtlarımız için geçerli — stale kaydı sessizce siler (öğrenci kendi
-  /// joined_classes'ının sahibi olduğu için bu silme kurallarca serbesttir).
+  /// (öğretmenin sildiği) VEYA sınıf üyeliği kalmayan (öğretmenin çıkardığı /
+  /// katılma isteğini reddettiği) kayıtları çıkarır. Üyelik dökümanındaki
+  /// GÜNCEL status ('pending'/'active') da buradan JoinedClass'a taşınır —
+  /// öğretmen onaylayınca öğrenci tarafı otomatik 'active' görür.
+  /// [heal] true ise — yalnız kendi kayıtlarımız için geçerli — stale kayıt
+  /// sessizce silinir (öğrenci kendi joined_classes'ının sahibidir).
   static Future<List<JoinedClass>> _filterAliveClasses(
       String uid, List<JoinedClass> items, {bool heal = false}) async {
     if (items.isEmpty) return items;
@@ -1137,15 +1300,32 @@ class ClassService {
     for (final c in items) {
       try {
         final doc = await _fs.collection('classes').doc(c.classId).get();
-        if (doc.exists) {
-          alive.add(c);
-        } else if (heal) {
-          _fs
-              .collection('users').doc(uid)
-              .collection('joined_classes').doc(c.classId)
-              .delete()
-              .catchError((_) {});
+        if (!doc.exists) {
+          if (heal) {
+            _fs
+                .collection('users').doc(uid)
+                .collection('joined_classes').doc(c.classId)
+                .delete()
+                .catchError((_) {});
+          }
+          continue;
         }
+        // Üyelik dökümanı — status kaynağı; yoksa öğrenci çıkarılmış/reddedilmiş.
+        final member = await _fs
+            .collection('classes').doc(c.classId)
+            .collection('students').doc(uid).get();
+        if (!member.exists) {
+          if (heal) {
+            _fs
+                .collection('users').doc(uid)
+                .collection('joined_classes').doc(c.classId)
+                .delete()
+                .catchError((_) {});
+          }
+          continue;
+        }
+        alive.add(c.withStatus(
+            (member.data()?['status'] ?? 'active').toString()));
       } catch (_) {
         alive.add(c); // okuma hatasında kaydı KORU (yanlışlıkla gizleme yok)
       }
@@ -1272,6 +1452,8 @@ class ClassService {
       var batch = _fs.batch();
       int ops = 0;
       for (final d in studSnap.docs) {
+        // Onay bekleyen öğrenci henüz sınıfın parçası değil — duyuru gitmez.
+        if ((d.data()['status'] ?? 'active').toString() == 'pending') continue;
         final ref = _fs.collection('notifications').doc(d.id)
             .collection('items').doc();
         batch.set(ref, {

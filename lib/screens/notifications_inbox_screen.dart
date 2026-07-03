@@ -33,11 +33,35 @@ import 'group_contest_screen.dart';
 /// yalnızca sınıfından gelen GERİ BİLDİRİMLERİ görür.)
 const Set<String> _kTeacherNotifTypes = {
   'student_joined',
+  'student_join_request',
   'homework_submission',
   'homework_published',
   'homework_all_done',
   'parent_message',
   'class_activity',
+};
+
+/// EBEVEYN hesabının gelen kutusunda görünecek tipler — bildirimler ya
+/// ÇOCUKTAN (ödev verildi/teslim etti/derse davet) ya ÖĞRETMENDEN (not,
+/// duyuru) ya da haftalık çalışma özetinden gelir. Öğrenci-tipi sosyal
+/// bildirimler (arkadaşlık, düello, seri, lig...) ebeveyne GÖSTERİLMEZ.
+const Set<String> _kParentNotifTypes = {
+  'teacher_note', // öğretmenden not/takdir
+  'weekly_summary', // haftalık çalışma özeti (şu derse bu kadar çalıştı)
+  'child_homework', // çocuğa ödev verildi (fan-out)
+  'child_submission', // çocuk ödevini teslim etti (fan-out)
+  'child_class_invite', // öğretmen çocuğu derse davet etti (fan-out)
+  'child_announcement', // öğretmen sınıfa mesaj/duyuru attı (fan-out)
+};
+
+/// Yalnızca ebeveyne özgü fan-out tipleri — öğrenci kutusundan gizlenir
+/// (teacher_note hem öğrenciye hem veliye gider, o yüzden burada YOK).
+const Set<String> _kParentOnlyTypes = {
+  'weekly_summary',
+  'child_homework',
+  'child_submission',
+  'child_class_invite',
+  'child_announcement',
 };
 
 class NotificationsInboxScreen extends StatelessWidget {
@@ -91,12 +115,16 @@ class NotificationsInboxScreen extends StatelessWidget {
                     return const Center(child: CircularProgressIndicator());
                   }
                   // Hesap tipine göre süz: öğretmen sadece geri bildirimleri,
-                  // öğrenci ise öğrenci-tipi bildirimleri görür.
+                  // EBEVEYN yalnız çocuk/öğretmen kaynaklı tipleri, öğrenci
+                  // ise öğrenci-tipi bildirimleri görür.
                   final isTeacher = AccountService.instance.isTeacher;
+                  final isParent = AccountService.instance.isParent;
                   final docs = snap.data!.docs.where((d) {
                     final t = (d.data()['type'] ?? '').toString();
-                    final teacherType = _kTeacherNotifTypes.contains(t);
-                    return isTeacher ? teacherType : !teacherType;
+                    if (isTeacher) return _kTeacherNotifTypes.contains(t);
+                    if (isParent) return _kParentNotifTypes.contains(t);
+                    return !_kTeacherNotifTypes.contains(t) &&
+                        !_kParentOnlyTypes.contains(t);
                   }).toList();
                   if (docs.isEmpty) {
                     return Center(
@@ -146,11 +174,24 @@ class _NotificationCard extends StatelessWidget {
       case 'class_announcement':  return Icons.campaign_rounded;
       case 'homework_submission': return Icons.assignment_turned_in_rounded;
       case 'student_joined':      return Icons.person_add_alt_1_rounded;
+      case 'student_join_request': return Icons.how_to_reg_rounded;
+      case 'class_join_approved': return Icons.verified_rounded;
+      case 'class_join_rejected': return Icons.person_off_rounded;
       case 'homework_published':  return Icons.send_rounded;
       case 'homework_all_done':   return Icons.task_alt_rounded;
       case 'homework_graded':     return Icons.grading_rounded;
+      case 'homework_answers_shared': return Icons.key_rounded;
       case 'parent_message':      return Icons.mark_email_unread_rounded;
+      case 'teacher_note':        return Icons.rate_review_rounded;
+      case 'child_homework':      return Icons.assignment_rounded;
+      case 'child_submission':    return Icons.task_alt_rounded;
+      case 'child_class_invite':  return Icons.group_add_rounded;
+      case 'child_announcement':  return Icons.campaign_rounded;
       case 'group_contest_invite': return Icons.groups_rounded;
+      case 'weekly_summary':      return Icons.insights_rounded;
+      case 'friend_request':      return Icons.person_add_rounded;
+      case 'friend_accepted':     return Icons.handshake_rounded;
+      case 'duelo_invite':        return Icons.sports_kabaddi_rounded;
       default:                    return Icons.notifications_rounded;
     }
   }
@@ -165,11 +206,24 @@ class _NotificationCard extends StatelessWidget {
       case 'class_announcement':  return const Color(0xFFF59E0B);
       case 'homework_submission': return const Color(0xFF10B981);
       case 'student_joined':      return const Color(0xFF7C3AED);
+      case 'student_join_request': return const Color(0xFFF59E0B);
+      case 'class_join_approved': return const Color(0xFF10B981);
+      case 'class_join_rejected': return const Color(0xFFEF4444);
       case 'homework_published':  return const Color(0xFF7C3AED);
       case 'homework_all_done':   return const Color(0xFF10B981);
       case 'homework_graded':     return const Color(0xFF10B981);
+      case 'homework_answers_shared': return const Color(0xFFF59E0B);
       case 'parent_message':      return const Color(0xFF0EA5E9);
+      case 'teacher_note':        return const Color(0xFF10B981);
+      case 'child_homework':      return const Color(0xFF7C3AED);
+      case 'child_submission':    return const Color(0xFF10B981);
+      case 'child_class_invite':  return const Color(0xFF7C3AED);
+      case 'child_announcement':  return const Color(0xFFF59E0B);
       case 'group_contest_invite': return const Color(0xFF7C3AED);
+      case 'weekly_summary':      return const Color(0xFF10B981);
+      case 'friend_request':      return const Color(0xFF10B981);
+      case 'friend_accepted':     return const Color(0xFF10B981);
+      case 'duelo_invite':        return const Color(0xFFF59E0B);
       default:                    return const Color(0xFF06B6D4);
     }
   }
@@ -192,16 +246,43 @@ class _NotificationCard extends StatelessWidget {
         return '${'Ödev teslim edildi'.tr()}: ${data['fromDisplayName'] ?? ''}';
       case 'student_joined':
         return '${'Yeni öğrenci'.tr()}: ${data['fromDisplayName'] ?? ''}';
+      case 'student_join_request':
+        return '${'Katılma isteği'.tr()}: ${data['fromDisplayName'] ?? ''}';
+      case 'class_join_approved':
+        return 'Sınıfa kabul edildin 🎉'.tr();
+      case 'class_join_rejected':
+        return 'Katılma isteğin onaylanmadı'.tr();
       case 'homework_published':
         return 'Ödev yayınlandı'.tr();
       case 'homework_all_done':
         return 'Herkes ödevini bitirdi 🎉'.tr();
       case 'homework_graded':
         return 'Ödevin değerlendirildi'.tr();
+      case 'homework_answers_shared':
+        return 'Cevaplar paylaşıldı 🔑'.tr();
       case 'parent_message':
         return 'Ebeveyn mesajı'.tr();
       case 'group_contest_invite':
         return 'Grup yarışı daveti 🏆'.tr();
+      case 'teacher_note':
+        // addNote / pushOnTeacherNote title alanını doğrudan yazar.
+        return (data['title'] ?? 'Öğretmeninden not 📝').toString();
+      case 'child_homework':
+      case 'child_submission':
+      case 'child_class_invite':
+      case 'child_announcement':
+        // Ebeveyn fan-out bildirimleri — title/body doc'ta hazır gelir.
+        return (data['title'] ?? 'Bildirim'.tr()).toString();
+      case 'weekly_summary':
+        // Function title/body alanlarını yazar — doğrudan onları göster.
+        return (data['title'] ?? 'Haftalık Özet 📊').toString();
+      case 'friend_request':
+        return '${'Arkadaşlık isteği'.tr()}: '
+            '${data['fromDisplayName'] ?? data['fromUsername'] ?? ''}';
+      case 'friend_accepted':
+        return 'İsteğin kabul edildi 🤝'.tr();
+      case 'duelo_invite':
+        return 'Düello daveti ⚔️'.tr();
       default:
         return data['fromDisplayName']?.toString() ?? 'Bildirim'.tr();
     }
@@ -229,6 +310,17 @@ class _NotificationCard extends StatelessWidget {
       case 'student_joined':
         return '${data['className'] ?? ''} ${'sınıfından'.tr()} '
             '${data['fromDisplayName'] ?? 'bir öğrenci'} ${'katıldı.'.tr()}';
+      case 'student_join_request':
+        return '${data['fromDisplayName'] ?? 'Bir öğrenci'} '
+            '"${data['className'] ?? ''}" '
+            '${'sınıfına kodla katılmak istiyor. Onaylamak için dokun.'.tr()}';
+      case 'class_join_approved':
+        return '"${data['className'] ?? ''}" '
+            '${'sınıfına katılımın öğretmenin tarafından onaylandı. '
+                'Ödevlerini görmek için dokun.'.tr()}';
+      case 'class_join_rejected':
+        return '"${data['className'] ?? ''}" '
+            '${'sınıfına katılma isteğin öğretmen tarafından onaylanmadı.'.tr()}';
       case 'homework_published':
         return '"${data['homeworkTitle'] ?? ''}" ${'ödevin'.tr()} '
             '${data['className'] ?? ''} ${'sınıfında yayınlandı.'.tr()}';
@@ -239,10 +331,34 @@ class _NotificationCard extends StatelessWidget {
       case 'homework_graded':
         return '"${data['homeworkTitle'] ?? ''}" '
             '${'ödevin notlandırıldı — sonucunu görmek için dokun.'.tr()}';
+      case 'homework_answers_shared':
+        return '"${data['homeworkTitle'] ?? ''}" '
+            '${'ödevinin cevapları ve çözümleri açıldı — kendi cevaplarını '
+                'incelemek için dokun.'.tr()}';
       case 'parent_message':
-        return '${data['className'] ?? ''} ${'sınıfından'.tr()} '
+        final pmMsg = (data['message'] ?? '').toString();
+        final pmHead = '${data['className'] ?? ''} ${'sınıfından'.tr()} '
             '${data['fromDisplayName'] ?? 'bir öğrenci'} '
             '${'adlı öğrencinin ebeveyninden mesajın var.'.tr()}';
+        return pmMsg.isEmpty ? pmHead : '$pmHead\n“$pmMsg”';
+      case 'teacher_note':
+        return (data['body'] ?? data['message'] ?? '').toString();
+      case 'child_homework':
+      case 'child_submission':
+      case 'child_class_invite':
+      case 'child_announcement':
+        return (data['body'] ?? data['message'] ?? '').toString();
+      case 'weekly_summary':
+        return (data['body'] ?? '').toString();
+      case 'friend_request':
+        return '${data['fromDisplayName'] ?? data['fromUsername'] ?? 'Biri'} '
+            '${'seninle arkadaş olmak istiyor. Görmek için dokun.'.tr()}';
+      case 'friend_accepted':
+        return '${data['fromDisplayName'] ?? data['fromUsername'] ?? ''} '
+            '${'arkadaşlık isteğini kabul etti.'.tr()}';
+      case 'duelo_invite':
+        return '${data['fromDisplayName'] ?? data['fromUsername'] ?? 'Bir arkadaşın'} '
+            '${'seninle yarışmak istiyor. Kabul etmek için dokun.'.tr()}';
       case 'group_contest_invite':
         final who =
             (data['fromDisplayName'] ?? data['fromUsername'] ?? 'Bir arkadaşın')
@@ -267,13 +383,24 @@ class _NotificationCard extends StatelessWidget {
     final type = (data['type'] ?? '').toString();
     if (type == 'homework_assigned' ||
         type == 'homework_reminder' ||
-        type == 'homework_graded') {
+        type == 'homework_graded' ||
+        type == 'homework_answers_shared' ||
+        type == 'class_join_approved') {
       await Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => const StudentHomeworksScreen(),
       ));
+    } else if (type == 'student_join_request') {
+      await _handleJoinRequest(context, data);
     } else if (type == 'parent_link_request') {
+      // Onay banner'ı yalnızca Profil sekmesinde — kullanıcıyı oraya yönelt
+      // (önceden sessizce kapanıyordu, çocuk ne yapacağını bilemiyordu).
       Navigator.of(context).pop();
-      // Profile'a yönlendirme: kullanıcı orada banner'ı görür ve onaylar
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        behavior: SnackBarBehavior.floating,
+        content: Text(
+            'Profil sekmesini aç — ebeveyn isteğini oradaki karttan '
+            'onaylayabilirsin.'.tr()),
+      ));
     } else if (type == 'class_invite') {
       await _handleClassInvite(context, data);
     } else if (type == 'friend_request' || type == 'friend_accepted') {
@@ -296,6 +423,68 @@ class _NotificationCard extends StatelessWidget {
         ));
       }
     }
+  }
+
+  /// Öğretmen, kodla katılmak isteyen öğrencinin isteğini Onaylar/Reddeder.
+  /// Onay → öğrenci 'active' olur ve mevcut ödevlerin slotları açılır;
+  /// Red → öğrenci sınıftan çıkarılır. Her iki durumda öğrenciye bildirim gider.
+  Future<void> _handleJoinRequest(
+      BuildContext context, Map<String, dynamic> data) async {
+    final classId = (data['classId'] ?? '').toString();
+    final studentUid = (data['studentUid'] ?? '').toString();
+    final studentName =
+        (data['fromDisplayName'] ?? 'Bir öğrenci').toString();
+    final className = (data['className'] ?? '').toString();
+    if (classId.isEmpty || studentUid.isEmpty) return;
+    // Öğrenci hâlâ onay bekliyor mu? (Başka cihazdan işlenmiş olabilir.)
+    final memberSnap = await FirebaseFirestore.instance
+        .collection('classes').doc(classId)
+        .collection('students').doc(studentUid).get();
+    if (!context.mounted) return;
+    final status =
+        (memberSnap.data()?['status'] ?? '').toString();
+    if (!memberSnap.exists || status != 'pending') {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(memberSnap.exists
+            ? 'Bu istek zaten onaylanmış.'.tr()
+            : 'Bu istek artık geçerli değil.'.tr()),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    final decision = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppPalette.card(ctx),
+        title: Text('Katılma isteği'.tr()),
+        content: Text('$studentName, "$className" '
+            '${'sınıfına katılmak istiyor. Onaylıyor musun?'.tr()}'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Reddet'.tr(),
+                style: const TextStyle(color: Color(0xFFEF4444))),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Onayla'.tr()),
+          ),
+        ],
+      ),
+    );
+    if (decision == null || !context.mounted) return;
+    final ok = decision
+        ? await ClassService.approveStudent(classId, studentUid)
+        : await ClassService.rejectStudent(classId, studentUid);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(!ok
+          ? 'İşlem başarısız. Tekrar dene.'.tr()
+          : decision
+              ? '$studentName ${'sınıfa kabul edildi.'.tr()}'
+              : 'İstek reddedildi.'.tr()),
+      behavior: SnackBarBehavior.floating,
+    ));
   }
 
   /// Öğretmen davetini kabul → öğrenci kendini sınıfa ekler (joinByClassId).

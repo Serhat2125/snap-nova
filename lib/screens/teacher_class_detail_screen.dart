@@ -17,6 +17,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../config/feature_flags.dart';
+import '../models/education_models.dart';
 import '../services/class_service.dart';
 import '../services/homework_service.dart';
 import '../services/runtime_translator.dart';
@@ -25,6 +26,7 @@ import '../utils/safe_dismiss.dart';
 import '../widgets/class_profile_dialog.dart';
 import '../widgets/teacher_help_dialog.dart';
 import 'teacher_class_resources_screen.dart';
+import 'teacher_homework_view_screen.dart';
 import 'teacher_student_report_screen.dart';
 
 const _kBrand = Color(0xFF7C3AED);
@@ -169,6 +171,19 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
                           builder: (_) =>
                               TeacherClassResourcesScreen(cls: cls)));
                     }),
+                    _menuChip(ctx, Icons.history_rounded,
+                        const Color(0xFF6366F1), 'Ödev Geçmişim'.tr(), () {
+                      Navigator.pop(ctx);
+                      Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) =>
+                              _HomeworkHistoryScreen(cls: cls)));
+                    }),
+                    _menuChip(ctx, Icons.key_rounded,
+                        const Color(0xFFF59E0B), 'Cevapları Paylaş'.tr(),
+                        () {
+                      Navigator.pop(ctx);
+                      _showShareAnswersSheet(context);
+                    }),
                     _menuChip(ctx, Icons.help_outline_rounded,
                         const Color(0xFF7C3AED), 'Nasıl kullanılır?'.tr(),
                         () { Navigator.pop(ctx); _showHelp(context); }),
@@ -230,6 +245,168 @@ class _TeacherClassDetailScreenState extends State<TeacherClassDetailScreen> {
     );
   }
 
+
+  /// "Cevapları Paylaş" — yayındaki ödevlerin cevap anahtarını öğrencilere
+  /// açma/kapatma anahtarları. Açılınca teslim etmiş öğrenciler kendi
+  /// cevaplarını + doğru cevapları + soru çözümlerini görebilir.
+  Future<void> _showShareAnswersSheet(BuildContext context) async {
+    final all = await HomeworkService.classHomeworks(cls.id);
+    final hws = all.where((h) => !h.isDraft).toList();
+    if (!context.mounted) return;
+    // Anahtar durumu sheet içinde yerelde tutulur (toggle sonrası anında UI).
+    final shared = {for (final h in hws) h.id: h.answersShared};
+    final busy = <String>{};
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppPalette.card(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setM) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: AppPalette.border(ctx),
+                    borderRadius: BorderRadius.circular(2)),
+                ),
+              ),
+              Row(
+                children: [
+                  const Icon(Icons.key_rounded,
+                      color: Color(0xFFF59E0B), size: 20),
+                  const SizedBox(width: 8),
+                  Text('Cevapları Paylaş'.tr(),
+                      style: GoogleFonts.poppins(
+                          fontSize: 16, fontWeight: FontWeight.w900,
+                          color: AppPalette.textPrimary(ctx))),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Açtığında, ödevi teslim eden öğrenciler kendi cevaplarını, '
+                'doğru cevapları ve soru çözümlerini görebilir.'.tr(),
+                style: GoogleFonts.poppins(
+                    fontSize: 11.5,
+                    color: AppPalette.textSecondary(ctx), height: 1.4),
+              ),
+              const SizedBox(height: 10),
+              if (hws.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Center(
+                    child: Text('Bu sınıfta yayınlanmış ödev yok.'.tr(),
+                        style: GoogleFonts.poppins(
+                            fontSize: 12.5,
+                            color: AppPalette.textSecondary(ctx))),
+                  ),
+                )
+              else
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: hws.length,
+                    itemBuilder: (c, i) {
+                      final hw = hws[i];
+                      final isOn = shared[hw.id] ?? false;
+                      final isBusy = busy.contains(hw.id);
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
+                        decoration: BoxDecoration(
+                          color: AppPalette.bg(ctx),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: isOn
+                                  ? const Color(0xFF10B981)
+                                      .withValues(alpha: 0.45)
+                                  : AppPalette.border(ctx)),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(hw.title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.poppins(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                          color:
+                                              AppPalette.textPrimary(ctx))),
+                                  Text(
+                                    isOn
+                                        ? 'Cevaplar öğrencilere açık'.tr()
+                                        : 'Cevaplar kapalı'.tr(),
+                                    style: GoogleFonts.poppins(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: isOn
+                                            ? const Color(0xFF10B981)
+                                            : AppPalette
+                                                .textSecondary(ctx)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (isBusy)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 14),
+                                child: SizedBox(
+                                    width: 18, height: 18,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2)),
+                              )
+                            else
+                              Switch(
+                                value: isOn,
+                                activeThumbColor: const Color(0xFF10B981),
+                                onChanged: (v) async {
+                                  setM(() => busy.add(hw.id));
+                                  final ok =
+                                      await HomeworkService.setAnswersShared(
+                                    classId: cls.id,
+                                    homeworkId: hw.id,
+                                    share: v,
+                                  );
+                                  if (!ctx.mounted) return;
+                                  setM(() {
+                                    busy.remove(hw.id);
+                                    if (ok) shared[hw.id] = v;
+                                  });
+                                  if (!ok) {
+                                    ScaffoldMessenger.of(ctx).showSnackBar(
+                                        SnackBar(
+                                            behavior:
+                                                SnackBarBehavior.floating,
+                                            content: Text(
+                                                'İşlem başarısız. Tekrar dene.'
+                                                    .tr())));
+                                  }
+                                },
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   Future<void> _confirmDelete() async {
     final messenger = ScaffoldMessenger.of(context);
@@ -994,8 +1171,12 @@ class _StudentsViewState extends State<_StudentsView> {
                 return const Center(
                     child: CircularProgressIndicator(strokeWidth: 2));
               }
-              final students = snap.data!;
-              if (students.isEmpty) {
+              final all = snap.data!;
+              // Kodla katılıp ONAY bekleyenler üstte ayrı bölümde listelenir;
+              // onaylanana kadar sınıf grid'inde görünmezler.
+              final pending = all.where((s) => s.isPending).toList();
+              final students = all.where((s) => !s.isPending).toList();
+              if (all.isEmpty) {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(32),
@@ -1008,12 +1189,132 @@ class _StudentsViewState extends State<_StudentsView> {
             ),
           );
         }
-                return _studentsGrid(context, ink, muted, students, false);
+                return Column(
+                  children: [
+                    if (pending.isNotEmpty)
+                      _pendingApprovalSection(context, ink, muted, pending),
+                    Expanded(
+                      child: students.isEmpty
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(32),
+                                child: Text(
+                                  'Onaylanmış öğrenci yok — yukarıdaki istekleri onayladıkça burada görünecek.'.tr(),
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 13, color: muted, height: 1.45),
+                                ),
+                              ),
+                            )
+                          : _studentsGrid(
+                              context, ink, muted, students, false),
+                    ),
+                  ],
+                );
               },
             ),
           ),
         ],
       );
+  }
+
+  /// Kodla katılıp öğretmen onayı bekleyen öğrenciler — Onayla/Reddet kartları.
+  Widget _pendingApprovalSection(BuildContext context, Color ink, Color muted,
+      List<ClassStudent> pending) {
+    const amber = Color(0xFFF59E0B);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(10, 12, 10, 0),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      decoration: BoxDecoration(
+        color: amber.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: amber.withValues(alpha: 0.30)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.how_to_reg_rounded, color: amber, size: 18),
+              const SizedBox(width: 6),
+              Text(
+                '${'ONAY BEKLEYENLER'.tr()} (${pending.length})',
+                style: GoogleFonts.poppins(
+                  fontSize: 11, fontWeight: FontWeight.w800,
+                  color: const Color(0xFFB45309), letterSpacing: 0.8,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          for (final s in pending)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  Container(
+                    width: 34, height: 34,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF7C3AED).withValues(alpha: 0.10),
+                    ),
+                    alignment: Alignment.center,
+                    clipBehavior: Clip.antiAlias,
+                    child: _studentAvatar(s),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(s.displayLabel,
+                            style: GoogleFonts.poppins(
+                              fontSize: 12.5, fontWeight: FontWeight.w700,
+                              color: ink,
+                            ),
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text('@${s.username}',
+                            style: GoogleFonts.poppins(
+                              fontSize: 10, color: muted,
+                            ),
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded,
+                        color: Color(0xFFEF4444), size: 22),
+                    tooltip: 'Reddet'.tr(),
+                    onPressed: () => _decideJoinRequest(context, s, false),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.check_circle_rounded,
+                        color: Color(0xFF10B981), size: 24),
+                    tooltip: 'Onayla'.tr(),
+                    onPressed: () => _decideJoinRequest(context, s, true),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _decideJoinRequest(
+      BuildContext context, ClassStudent s, bool approve) async {
+    final ok = approve
+        ? await ClassService.approveStudent(widget.cls.id, s.uid)
+        : await ClassService.rejectStudent(widget.cls.id, s.uid);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      behavior: SnackBarBehavior.floating,
+      content: Text(!ok
+          ? 'İşlem başarısız. Tekrar dene.'.tr()
+          : approve
+              ? '${s.displayLabel} ${'sınıfa kabul edildi.'.tr()}'
+              : '${s.displayLabel} ${'isteği reddedildi.'.tr()}'),
+    ));
   }
 
   /// Öğrenci grid'i — gerçek (canlı) ve demo öğrenciler için ortak.
@@ -1552,6 +1853,195 @@ class _FullscreenSummaryScreenState extends State<_FullscreenSummaryScreen> {
             children: tableRows,
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  ÖDEV GEÇMİŞİM — Öğretmenin bu sınıfa o ana kadar verdiği TÜM ödevler,
+//  yeniden eskiye sıralı. Bir ödeve basınca içeriği (sorular + cevap
+//  anahtarı) TeacherHomeworkViewScreen'de açılır. Sınıf menüsünden (☰ →
+//  "Ödev Geçmişim") ulaşılır.
+// ═══════════════════════════════════════════════════════════════════════════
+class _HomeworkHistoryScreen extends StatelessWidget {
+  final TeacherClass cls;
+  const _HomeworkHistoryScreen({required this.cls});
+
+  String _fmtDate(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}.'
+      '${d.month.toString().padLeft(2, '0')}.${d.year}';
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = AppPalette.textPrimary(context);
+    final muted = AppPalette.textSecondary(context);
+    return Scaffold(
+      backgroundColor: AppPalette.bg(context),
+      appBar: AppBar(
+        backgroundColor: AppPalette.bg(context),
+        elevation: 0,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Ödev Geçmişim'.tr(),
+                style: GoogleFonts.poppins(
+                    fontSize: 16, fontWeight: FontWeight.w800, color: ink)),
+            Text(cls.name,
+                style: GoogleFonts.poppins(fontSize: 11, color: muted)),
+          ],
+        ),
+      ),
+      body: StreamBuilder<List<HomeworkModel>>(
+        stream: HomeworkService.classHomeworksStream(cls.id),
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting &&
+              !snap.hasData) {
+            return const Center(
+                child: CircularProgressIndicator(color: _kBrand));
+          }
+          // Taslaklar hariç — verilmiş (yayınlanmış/zamanlanmış) ödevler.
+          // Stream assignedAt'e göre zaten YENİDEN → ESKİYE sıralı gelir.
+          final hws = (snap.data ?? const <HomeworkModel>[])
+              .where((h) => h.isPublished)
+              .toList();
+          if (hws.isEmpty) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('📝', style: TextStyle(fontSize: 40)),
+                    const SizedBox(height: 10),
+                    Text('Bu sınıfa henüz ödev vermedin.'.tr(),
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: ink)),
+                    const SizedBox(height: 4),
+                    Text(
+                        'Ana paneldeki ➕ → "AI ile Ödev Oluştur" ile ilk '
+                        'ödevini verebilirsin.'.tr(),
+                        textAlign: TextAlign.center,
+                        style:
+                            GoogleFonts.poppins(fontSize: 12, color: muted)),
+                  ],
+                ),
+              ),
+            );
+          }
+          final now = DateTime.now();
+          return ListView.separated(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            itemCount: hws.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (context, i) {
+              final hw = hws[i];
+              final scheduled =
+                  hw.publishAt != null && hw.publishAt!.isAfter(now);
+              final expired = hw.dueAt.isBefore(now);
+              return Material(
+                color: AppPalette.card(context),
+                borderRadius: BorderRadius.circular(16),
+                child: InkWell(
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) =>
+                          TeacherHomeworkViewScreen(homework: hw))),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppPalette.border(context)),
+                    ),
+                    child: Row(
+                      children: [
+                        // Sıra rozeti — en yeni ödev en büyük numara.
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: _kBrand.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text('${hws.length - i}',
+                              style: GoogleFonts.poppins(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w900,
+                                  color: _kBrand)),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(hw.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: ink)),
+                              const SizedBox(height: 2),
+                              Text(
+                                  '${hw.subject} • ${hw.topic} • '
+                                  '${hw.questionCount} ${'soru'.tr()}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 11, color: muted)),
+                              const SizedBox(height: 2),
+                              Text(
+                                  '${'Verildi'.tr()}: ${_fmtDate(hw.assignedAt)}'
+                                  ' • ${'Son teslim'.tr()}: ${_fmtDate(hw.dueAt)}',
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 10.5, color: muted)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // Durum rozeti: zamanlandı / süresi doldu / aktif.
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: (scheduled
+                                    ? const Color(0xFFF59E0B)
+                                    : expired
+                                        ? const Color(0xFF64748B)
+                                        : const Color(0xFF10B981))
+                                .withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                              scheduled
+                                  ? '🕒 ${'Zamanlandı'.tr()}'
+                                  : expired
+                                      ? 'Bitti'.tr()
+                                      : 'Aktif'.tr(),
+                              style: GoogleFonts.poppins(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: scheduled
+                                    ? const Color(0xFFB45309)
+                                    : expired
+                                        ? const Color(0xFF64748B)
+                                        : const Color(0xFF059669),
+                              )),
+                        ),
+                        Icon(Icons.chevron_right_rounded,
+                            color: muted, size: 20),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }

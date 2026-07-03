@@ -4,7 +4,6 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:model_viewer_plus/model_viewer_plus.dart';
 import 'package:path_provider/path_provider.dart';
@@ -495,7 +494,7 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
   void _advance() {
     _ticker?.cancel();
     AppSettingsService.instance.hapticHeavy();
-    SystemSound.play(SystemSoundType.alert);
+    AppSettingsService.instance.playAlert();
     // Local notification — sessiz mod / arka plan / ekran kapalıyken
     // kullanıcı faz tamamlandığını görsün. iOS+Android destekli.
     final isFocus = _phase == _PhaseKind.phase1 ||
@@ -668,10 +667,10 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
     _alarmTimer?.cancel();
     _alarmTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       AppSettingsService.instance.hapticHeavy();
-      SystemSound.play(SystemSoundType.alert);
+      AppSettingsService.instance.playAlert();
     });
     AppSettingsService.instance.hapticHeavy();
-    SystemSound.play(SystemSoundType.alert);
+    AppSettingsService.instance.playAlert();
     _signalTimer?.cancel();
     _signalTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;

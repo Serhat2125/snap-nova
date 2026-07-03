@@ -3797,7 +3797,7 @@ $lang
   /// Sınıf seviyesi + ders + konu + soru tipleri için AI soru paketi üretir.
   /// Dönen JSON şeması:
   ///   [{ "q": "...", "type": "mc|tf|fill|open",
-  ///      "choices": [...], "answer": "..." }, ...]
+  ///      "choices": [...], "answer": "...", "sol": "adım adım çözüm" }, ...]
   static Future<List<Map<String, dynamic>>> generateHomeworkBatch({
     required String subject,
     required String topic,
@@ -3847,20 +3847,29 @@ $lang
     if (allowedSet.contains('open')) {
       ruleLines.add('- "open" için "answer": kısa örnek cevap (anahtar fikirler).');
     }
+    // Cevap anahtarı paylaşımı: öğrenci "Çözümü Göster" deyince bu alan
+    // gösterilir — her soruda ZORUNLU.
+    ruleLines.add(
+        '- HER soruya "sol" alanı ekle: 2-4 cümlelik adım adım çözüm — doğru '
+        'cevabın NEDEN doğru olduğunu (gerekiyorsa işlem adımlarıyla) açıkla. '
+        'Seviyeye uygun sade dil; LaTeX/markdown YOK.');
 
     final schemaLines = <String>[];
     if (allowedSet.contains('mc')) {
       schemaLines.add(
-          '  {"q": "...", "type": "mc",   "choices": ["A) ...","B) ...","C) ...","D) ..."], "answer": "A"}');
+          '  {"q": "...", "type": "mc",   "choices": ["A) ...","B) ...","C) ...","D) ..."], "answer": "A", "sol": "adım adım çözüm"}');
     }
     if (allowedSet.contains('tf')) {
-      schemaLines.add('  {"q": "...", "type": "tf",   "answer": "true"}');
+      schemaLines.add(
+          '  {"q": "...", "type": "tf",   "answer": "true", "sol": "adım adım çözüm"}');
     }
     if (allowedSet.contains('fill')) {
-      schemaLines.add('  {"q": "____ kelimesini doldur.", "type": "fill", "answer": "..."}');
+      schemaLines.add(
+          '  {"q": "____ kelimesini doldur.", "type": "fill", "answer": "...", "sol": "adım adım çözüm"}');
     }
     if (allowedSet.contains('open')) {
-      schemaLines.add('  {"q": "Açıkla: ...", "type": "open", "answer": "..."}');
+      schemaLines.add(
+          '  {"q": "Açıkla: ...", "type": "open", "answer": "...", "sol": "adım adım çözüm"}');
     }
 
     // Tek tip seçildiyse KESİN kısıt; çoklu seçimde dengeli dağılım.

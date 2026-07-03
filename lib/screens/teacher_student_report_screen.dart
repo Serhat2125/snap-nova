@@ -2372,6 +2372,7 @@ class _TeacherStudentReportScreenState
           studentName: widget.studentName,
           studentAvatar: widget.studentAvatar,
           orderNo: orderNo,
+          readOnly: widget.readOnly,
         ),
       )),
       child: Container(

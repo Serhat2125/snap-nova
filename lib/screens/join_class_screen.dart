@@ -52,6 +52,14 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
         });
         _ctrl.clear();
         break;
+      case JoinClassResult.pendingApproval:
+        setState(() {
+          _success = true;
+          _msg = 'Katılma isteğin öğretmenine iletildi. Öğretmenin '
+              'onaylayınca sınıf içeriklerini ve ödevleri görebileceksin.'.tr();
+        });
+        _ctrl.clear();
+        break;
       case JoinClassResult.invalidCode:
         setState(() => _msg =
             'Kod geçersiz. Öğretmeninin paylaştığı 5 haneli kodu gir.'.tr());
@@ -286,14 +294,40 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
                                 crossAxisAlignment:
                                     CrossAxisAlignment.start,
                                 children: [
-                                  Text(c.className,
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w700,
-                                        color: ink,
+                                  Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(c.className,
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w700,
+                                              color: ink,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis),
                                       ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis),
+                                      if (c.isPending) ...[
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 7, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFF59E0B)
+                                                .withValues(alpha: 0.14),
+                                            borderRadius:
+                                                BorderRadius.circular(999),
+                                          ),
+                                          child: Text('Onay bekliyor'.tr(),
+                                              style: GoogleFonts.poppins(
+                                                fontSize: 9.5,
+                                                fontWeight: FontWeight.w800,
+                                                color:
+                                                    const Color(0xFFB45309),
+                                              )),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
                                   if (c.teacherDisplayName.isNotEmpty)
                                     Text(c.teacherDisplayName,
                                         style: GoogleFonts.poppins(

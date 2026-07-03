@@ -207,10 +207,14 @@ class PushService {
       case 'homework_submission':
         return 'homework_submission';
       case 'student_joined':
+      case 'student_join_request':
         return 'student_joined';
       case 'class_activity':
       case 'class_announcement':
       case 'announcement':
+      case 'class_join_approved':
+      case 'class_join_rejected':
+      case 'homework_answers_shared':
       case 'homework_published':
       case 'homework_all_done':
       case 'material':
@@ -220,8 +224,21 @@ class PushService {
     }
   }
 
-  /// init() içinde alındı.
-  static Future<void> showLocal({
+  /// Varsayılan-KAPALI kategoriler (pazarlama) — pref hiç yazılmamışsa bile
+  /// gösterilmez. PreferencesSyncService._notifDefaultOff ile aynı küme.
+  static const _defaultOffCats = {'premium_offer', 'newsletter'};
+
+  static bool _catAllowed(SharedPreferences prefs, String? type) {
+    final cat = _categoryForType(type);
+    if (cat == null) return true;
+    // Pref yoksa kategori varsayılanına düş (pazarlama = kapalı, kalanı açık).
+    return prefs.getBool('notif_$cat') ?? !_defaultOffCats.contains(cat);
+  }
+
+  /// init() içinde alındı. Dönüş: bildirim gerçekten gösterildi mi —
+  /// ayar/sessiz-saat nedeniyle gate'lendiyse false (test butonu bunu
+  /// kullanarak dürüst geri bildirim verir).
+  static Future<bool> showLocal({
     required String title,
     required String body,
     String? payload,
@@ -235,19 +252,18 @@ class PushService {
       final prefs = await SharedPreferences.getInstance();
       if (prefs.getBool('notif_master') == false) {
         debugPrint('[Push] tüm bildirimler kapalı — atlandı: $title');
-        return;
+        return false;
       }
-      final cat = _categoryForType(type);
-      if (cat != null && prefs.getBool('notif_$cat') == false) {
-        debugPrint('[Push] kategori kapalı ($cat) — atlandı: $title');
-        return;
+      if (!_catAllowed(prefs, type)) {
+        debugPrint('[Push] kategori kapalı — atlandı: $title');
+        return false;
       }
     } catch (_) {/* pref okunamadı → göster */}
     // Sessiz Saatler kontrolü — kullanıcı belirli aralık tanımlamışsa
     // o aralıkta hiçbir bildirim göstermeyiz.
     if (AppSettingsService.instance.inQuietHours) {
       debugPrint('[Push] sessiz saatlerde — bildirim atlandı: $title');
-      return;
+      return false;
     }
     try {
       await _local.show(
@@ -271,8 +287,10 @@ class PushService {
         ),
         payload: payload,
       );
+      return true;
     } catch (e) {
       debugPrint('[Push] showLocal fail: $e');
+      return false;
     }
   }
 
@@ -285,8 +303,7 @@ class PushService {
     try {
       final prefs = await SharedPreferences.getInstance();
       if (prefs.getBool('notif_master') == false) return false;
-      final cat = _categoryForType(type);
-      if (cat != null && prefs.getBool('notif_$cat') == false) return false;
+      if (!_catAllowed(prefs, type)) return false;
     } catch (_) {}
     return true;
   }
@@ -311,6 +328,12 @@ class PushService {
   }) async {
     await cancelScheduled(id);
     if (!await _allowed(type)) return;
+    // periodicallyShow ~schedule anındaki saatte tekrar eder — o saat Sessiz
+    // Saatler penceresine düşüyorsa hiç planlama ("hiç bildirim gelmez" sözü).
+    if (AppSettingsService.instance.inQuietHours) {
+      debugPrint('[Push] scheduleDaily sessiz saat penceresinde — atlandı');
+      return;
+    }
     try {
       await _local.periodicallyShow(
         id, title, body, RepeatInterval.daily, _details(),
@@ -334,6 +357,11 @@ class PushService {
     await cancelScheduled(id);
     if (when.isBefore(DateTime.now())) return;
     if (!await _allowed(type)) return;
+    // Hedef an Sessiz Saatler penceresine düşüyorsa planlama.
+    if (AppSettingsService.instance.isQuietAt(when)) {
+      debugPrint('[Push] scheduleAt sessiz saat penceresine denk — atlandı');
+      return;
+    }
     try {
       final scheduled = tz.TZDateTime.from(when.toUtc(), tz.UTC);
       await _local.zonedSchedule(

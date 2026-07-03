@@ -58,6 +58,9 @@ export const publishScheduledHomeworks = onSchedule(
         const students = await classRef.collection("students").get();
         const batch = db.batch();
         for (const s of students.docs) {
+          // Onay bekleyen (pending) öğrenci ödev bildirimi almaz — onaylanınca
+          // approveStudent mevcut ödev slotlarını zaten açar.
+          if ((s.data().status || "active") === "pending") continue;
           const notifRef = db
             .collection("notifications")
             .doc(s.id)
