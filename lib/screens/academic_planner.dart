@@ -7210,6 +7210,48 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
             '• KARIŞIK KONU MODU: Sorular toplam $count tane ve şu konular '
             'arasında dağıtılmış: $topic + ${extraTopics.join(", ")}. '
             'Her konudan dengeli pay (yaklaşık eşit sayıda soru).\n';
+
+    // ── GÖRSEL SORU PROTOKOLÜ — bazı sorular diyagram/şekil üzerinden ──────
+    // Gerçek sınavlarda (ÖSYM/LGS) soruların bir kısmı şekil/grafik/devre
+    // okumaya dayanır. UI, "q" içindeki [ŞEMA: ...] ... [/ŞEMA] bloğunu
+    // monospace diyagram kartı olarak render eder → soru görsel olur.
+    const visualBlock = r'''
+[GÖRSEL SORU PROTOKOLÜ — DİYAGRAM ÜZERİNDEN SORMA]
+Bu konu ŞEKİLLE anlatılabiliyorsa, soruların YAKLAŞIK %25'ini (her 4 sorudan
+~1'i) bir DİYAGRAM üzerine kur. Diyagramı "q" alanının İÇİNE, aşağıdaki blokla
+göm (UI bunu şekil kartı olarak çizer):
+
+  [ŞEMA: <kısa şekil adı>]
+  <Unicode/ASCII çizim — 4-9 satır, 28-46 karakter genişlik>
+  ─────────
+  <1: ... , 2: ... gibi kısa lejant satırları>
+  [/ŞEMA]
+
+ve şekilden SONRA tek cümlelik soruyu yaz. Örnek "q" değeri (JSON'da \n ile):
+  "[ŞEMA: Basit Devre]\n ┌── R₁ ──┬── R₂ ──┐\n │        │        │\n ⎓ V      ⊗ L1     ⊗ L2\n └────────┴────────┘\n─────────\nV=Pil, R=Direnç, L=Lamba\n[/ŞEMA]\nŞekildeki devrede L1 lambasının parlaklığı L2'ye göre nasıldır?"
+
+GÖRSEL-UYGUN KONULAR (bunlarda ~%25 şekilli soru ZORUNLU):
+• Geometri (şekil + ölçü), fonksiyon/parabol grafiği, koordinat düzlemi
+• Fizik: devre (seri/paralel), kuvvet/vektör diyagramı, optik ışın yolu,
+  dalga formu, hareket grafiği (konum-zaman, hız-zaman)
+• Kimya: atom/Bohr modeli, molekül yapısı, deney düzeneği, periyodik kesit
+• Biyoloji: hücre/organel, sistem (dolaşım/sindirim), besin zinciri, genetik
+  çaprazlama (Punnett karesi tablo da olabilir)
+• Coğrafya: yer şekli kesiti, izohips/harita okuma, iklim grafiği, levha
+• Matematik (ilk/ortaokul): kesir pastası, geometrik cisim, saat, sayı doğrusu
+
+KURALLAR:
+• Şekil çizimi MONOSPACE hizalı olsun; kutu/ok/geometri sembolleri serbest:
+  ┌─┐│└┘╭╮╰╯ → ← ↑ ↓ ○●◇◆□■△▲ ⊕⊖⊗ ⎓ ∡ ° · x y.
+• Şekil olmadan cevaplanabilen soruyu ŞEMA'ya SOKMA — diyagram soruya GERÇEKTEN
+  gerekli olsun (şekilden veri/ilişki okunmalı). Süs diyagram YASAK.
+• Görsel soruda da "opts/ans/hint/sol" kuralları aynen geçerli; çözüm şekle atıf
+  yapsın ("R₁ ile R₂ seri → ...").
+• KONU görsel-uygun DEĞİLSE (ör. tarih tarihleri, kelime bilgisi, felsefe
+  kavramı) şekil ZORLAMA — o testte 0 diyagram normaldir.
+• Şekilli soru "q" çok satırlıdır; "en fazla 15 kelime" kuralı yalnız ŞEKİL
+  DIŞINDAKİ soru cümlesi için geçerli (diyagram satırları sayılmaz).
+''';
     return '''
 ${_strategyBlock(strategy, exam)}
 $ragSection
@@ -7293,7 +7335,9 @@ ZORUNLU KURALLAR:
 • "opts" her zaman 5 şık: A, B, C, D, E.
 • "ans" şık harfi: "A" | "B" | "C" | "D" | "E".
 • Soru metni (q) ÇOK KISA — ideal 1 kısa cümle, maksimum 15 kelime.
-  Uzun anlatım, hikâye, gereksiz detay EKLEME.
+  Uzun anlatım, hikâye, gereksiz detay EKLEME. (İSTİSNA: görsel soruda "q"
+  bir [ŞEMA: ...] diyagram bloğu + kısa soru cümlesi içerir; 15 kelime sınırı
+  yalnız soru cümlesine uygulanır — bkz. GÖRSEL SORU PROTOKOLÜ.)
 • "hint" tek cümle — kullanıcıya "nereden başlamalı" diye yol göster.
   Cevabı açıkça söyleme; sadece yöntem veya anahtar kavram ver.
 • "sol" 2-3 cümle — sorunun çözüm mantığını kısa ver.
@@ -7308,6 +7352,7 @@ $strategyStyleLine
    – eksik koşul (ör. \\( x \\neq 0 \\)) görmemek
    – sık yapılan kavramsal karıştırma
   En az 2 çeldirici bu tipte olmalı; yalnız bir doğru cevap.
+$visualBlock
 • Dolar işareti (\$) kullanma — LaTeX için \\\\( ... \\\\) ve \\\\[ ... \\\\].
 • Markdown yıldız (**) veya başlık (#) YAZMA.
 • Emoji başlık (📝 📖 🔑) EKLEME.
@@ -7474,6 +7519,42 @@ ZENGİN FORMAT (gerektiğinde KULLAN):
     + tipik değer aralığı + ne durumda kullanılır mutlaka belirtilsin.
 ''';
 
+    // ── PEDAGOJİK ÖĞE PROTOKOLÜ — özeti "okunan" değil "öğreten" yapan öğeler
+    // Referans: Cornell (ipucu+özet), aktif hatırlama (test etkisi), charting.
+    // UI bu 3 bloğu ÖZEL kart olarak render eder → işaretleri BİREBİR kullan.
+    const pedagogyBlock = '''
+[PEDAGOJİK ÖĞELER — ÖĞRENMEYİ MÜHÜRLEYEN KAPANIŞ (İŞARETLER BİREBİR)]
+Konu anlatımı bittikten SONRA, özetin SONUNA aşağıdaki öğeleri EKLE. UI
+bunları özel renkli kart olarak gösterir; başlık işaretlerini AYNEN yaz.
+
+1) ⭐ Aklında Kalsın   ← ZORUNLU (her özette, en sonda)
+   Konunun EN KRİTİK 3-6 maddesi — sınavdan önce son bakışta okunacak öz.
+   Her madde tek satır, "•" ile başlar, kısa ve keskin (ezberlenecek çekirdek).
+   Biçim:
+     ⭐ Aklında Kalsın
+     • <en kritik nokta 1>
+     • <en kritik nokta 2>
+     • …
+
+2) 🎯 Kendini Sına   ← KAPSAMLI özette ZORUNLU, KISA özette 1-2 soruyla opsiyonel
+   Aktif hatırlama: konuyu ölçen 3-5 kısa soru + hemen altında cevabı.
+   Öğrenci önce cevabı kapatıp kendini test eder. Sayısalsa 1-2 mini hesap
+   sorusu da olsun. Biçim:
+     🎯 Kendini Sına
+     • S1: <soru> → C: <kısa cevap>
+     • S2: <soru> → C: <kısa cevap>
+     • …
+
+3) 🧠 Hafıza Tekniği   ← Ezberlenmesi gereken bir SIRA/LİSTE varsa EKLE (opsiyonel)
+   Akronim, baş harf cümlesi veya çağrışım ver. Tek satır:
+     🧠 Hafıza Tekniği: <akronim/çağrışım ve neyi hatırlattığı>
+
+KURALLAR:
+• Bu 3 blok özetin ANLATIM gövdesinin İÇİNE serpiştirilmez — hepsi en SONA gelir.
+• "⭐ Aklında Kalsın" HER özette bulunur (kısa modda bile). Diğer ikisi konuya göre.
+• Cevaplar/maddeler öğrencinin dilinde; gereksiz LaTeX/kod artığı olmadan düz metin.
+''';
+
     final formulasBlock = isNumeric
         ? '''
 📐 FORMÜL KARTI GALERİSİ + 🧪 UYGULAMA ÖRNEĞİ
@@ -7575,6 +7656,10 @@ KESİNLİKLE YAPMA:
   Diğer konularda kısa modda şema YOK.
 ✗ "Bonus", "ileri seviye not", "ek bilgi" gibi opsiyonel kısımlar
 
+ZORUNLU KAPANIŞ (kelime hedefine EK, kısa tut):
+✓ "⭐ Aklında Kalsın" — 3-5 kritik madde (her biri tek satır).
+✓ "🎯 Kendini Sına" — 1-2 kısa soru + cevap (öğrenci kendini yoklasın).
+
 TON: YOĞUN, KESKİN, FİLTRELİ. Bir öğrenci sınav öncesi son 5 dakikada
 okusa, konuyu kafasında tazelemeli. Genişletme YOK; özünü ver, geç.
 '''
@@ -7603,6 +7688,9 @@ ZORUNLU İÇERİK (HEPSİ EKSİKSİZ):
   (hücre, anatomi, atom modeli, dalga, devre, harita, eser kapağı,
   ilkokul/ortaokul müfredatı) MUTLAKA görsel ekle — eksik kalmasın.
 • İLERİ SEVİYE NOTLAR / BONUS — meraklı öğrenci için ekstra derinlik.
+• ZORUNLU KAPANIŞ ÜÇLÜSÜ (en sonda): "⭐ Aklında Kalsın" (5-6 çekirdek madde),
+  "🎯 Kendini Sına" (3-5 soru + cevap; sayısalda 1-2 mini hesap dahil) ve
+  ezberlenecek liste varsa "🧠 Hafıza Tekniği" (akronim/çağrışım).
 
 TON: BİR DERSHANE KİTABININ EN AYRINTILI BÖLÜMÜ + akademik makale arası.
 Konuyu hiç bilmeyen biri okuyup sıfırdan uzmanlaşabilmeli. Tekrar etmekten
@@ -8011,6 +8099,7 @@ herhangi biri ihlal edilirse çıktı GEÇERSİZDİR.
 
 $protocolBlock
 $richFormatBlock
+$pedagogyBlock
 GÖREVİN: Konuyu standart bir DERSHANE KİTABINDAKİ gibi işle. Önce kısa
 tanım, ardından konuyu mantıksal ana başlıklara böl ve her ana başlığın
 altında alt başlıkları/maddeleri ver — tıpkı bir ders kitabının
@@ -8021,8 +8110,11 @@ altında alt başlıkları/maddeleri ver — tıpkı bir ders kitabının
    2) ANA BAŞLIKLAR (▸ 1. 📍 Başlık Adı formatında, doğrudan, "Konu
       İşlenişi" wrapper başlığı YOK) — ana başlıklar + alt maddeler
    3) ${isNumeric ? '📐 Formül Galerisi + 🧪 Uygulama Örneği' : isVerbal ? '(Ana başlıklar içine yedirilen detaylı sebep-sonuç akışı yeterli)' : '📐 Formül / Akış (varsa)'}
-   4) ⭐ Özet — 5 Bilgi
+   4) ⭐ Aklında Kalsın (3-6 kritik madde — konunun çekirdeği)
+   5) 🎯 Kendini Sına (aktif hatırlama — kapsamlıda 3-5 soru+cevap; kısada 1-2)
 HERHANGİ BİR BÖLÜM EKSİK OLURSA cevap GEÇERSİZDİR.
+NOT: "⭐ Aklında Kalsın" ve "🎯 Kendini Sına" başlıklarını AYNEN bu işaretle
+yaz — UI bunları özel renkli kart olarak gösterir.
 
 KRİTİK — "📚 Konu İşlenişi" WRAPPER BAŞLIĞI ARTIK YOK:
 Tanım'dan sonra DOĞRUDAN ilk ana başlık (▸ 1. {emoji} Başlık Adı) ile
@@ -12705,6 +12797,12 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
   bool _isExamplesHeader(String h) {
     final t = h.toLowerCase();
     return t.contains('📝') ||
+        // 🎯 "Kendini Sına" (aktif hatırlama öz-testi) — pekiştirme
+        // kartına düşer; _ExamplesToggleList soru+cevabı çöz-göster toggle'ıyla
+        // gösterir (öğrenci cevabı kapatıp kendini yoklar).
+        t.contains('🎯') ||
+        t.contains('kendini sına') ||
+        t.contains('kendini sina') ||
         t.contains('örnek soru') ||
         t.contains('ornek soru') ||
         t.contains('konuyu pekiştir') ||
@@ -12714,7 +12812,9 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
         t.contains('uygulama soru') ||
         t.contains('example question') ||
         t.contains('sample question') ||
-        t.contains('practice question');
+        t.contains('practice question') ||
+        t.contains('self-test') ||
+        t.contains('quiz yourself');
   }
 
   @override
@@ -16749,15 +16849,22 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
       final line = raw.trimRight();
       final trim = line.trimLeft();
       String? foundMarker;
-      if (!inKeyFactsBlock) {
-        for (final m in markers.keys) {
-          if (trim.startsWith(m)) {
-            foundMarker = m;
-            break;
-          }
+      for (final m in markers.keys) {
+        if (trim.startsWith(m)) {
+          foundMarker = m;
+          break;
         }
       }
+      // ⭐ "Aklında Kalsın" bloğu artık en son bölüm DEĞİL — ardından
+      // 🎯 Kendini Sına / 📝 Örnek Sorular / 📌 Özetle gelebiliyor. Bu bloktayken
+      // yalnız bu "kapanış" markerları yeni bölüm açar; diğerleri (🔑, 1️⃣ vb.)
+      // ⭐ kartının gövdesinde kalır (eski davranış korunur).
+      if (foundMarker != null && inKeyFactsBlock) {
+        const closers = {'🎯', '📝', '📌', '⭐'};
+        if (!closers.contains(foundMarker)) foundMarker = null;
+      }
       if (foundMarker != null) {
+        if (foundMarker != '⭐') inKeyFactsBlock = false;
         if (current != null) {
           current.body = current.body.trim();
           if (current.body.isNotEmpty || current.header.isNotEmpty) {

@@ -275,8 +275,53 @@ class LatexText extends StatelessWidget {
     caseSensitive: false,
   );
 
+  // Pedagojik özet kutuları — çok satırlı bloklar (başlık + sonraki maddeler):
+  //   "⭐ Aklında Kalsın"  → konunun özü / en kritik maddeler (yeşil kart)
+  //   "🎯 Kendini Sına"    → aktif hatırlama / mini öz-test (mor kart)
+  // Başlık satırından sonra gelen madde/metin satırları boş satıra veya bir
+  // sonraki bloğa/başlığa kadar kart içinde toplanır.
+  // "⭐ Aklında Kalsın" (yeni) + legacy "⭐ Özet" / "⭐ Özet — 5 Bilgi"
+  // (eski cache'ler) — hepsi aynı yeşil "özün özü" kartına düşer. Başlıktan
+  // sonraki "— N Bilgi" gibi alt açıklama tüketilir.
+  static final _reKeyTakeStart = RegExp(
+    // "Özet" sonrası harf gelirse (Özetle, Özetlersek) EŞLEŞME — yalnız
+    // gerçek "⭐ Özet"/"⭐ Aklında Kalsın" başlığı kutuya düşsün.
+    r'^⭐\s*(?:AKLINDA\s*KALSIN|Aklında\s*Kalsın|(?:ÖZET|Özet)(?![a-zçğıöşü]))'
+    r'(?:\s*[—\-][^\n:]*)?\s*:?\s*(.*)$',
+    caseSensitive: false,
+  );
+  static final _reSelfTestStart = RegExp(
+    r'^🎯\s*(?:KENDİNİ\s*SINA|Kendini\s*Sına)\s*:?\s*(.*)$',
+    caseSensitive: false,
+  );
+
   static bool _isSchemaStart(String line) =>
       _reSchemaStart.hasMatch(line.trim());
+
+  /// Pedagojik blok (⭐/🎯) başlangıcı mı? Tip döner: 'key' | 'test' | null.
+  static String? _pedagogyKind(String line) {
+    final t = line.trim();
+    if (_reKeyTakeStart.hasMatch(t)) return 'key';
+    if (_reSelfTestStart.hasMatch(t)) return 'test';
+    return null;
+  }
+
+  /// Pedagojik bloğun gövde sonunu bul: boş satır, yeni blok/başlık veya
+  /// dosya sonu. (Kutu içeriği yalnızca ardışık madde/metin satırlarıdır.)
+  static int _findPedagogyEnd(List<String> lines, int start) {
+    int i = start + 1;
+    while (i < lines.length) {
+      final t = lines[i].trim();
+      if (t.isEmpty) break;
+      // Yeni bir blok/başlık başlıyorsa dur.
+      if (_pedagogyKind(t) != null) break;
+      if (_isSchemaStart(t) || _reSchemaEnd.hasMatch(t)) break;
+      if (t.startsWith('#') || _reSubHead.hasMatch(t)) break;
+      if (t.startsWith('|') && t.endsWith('|')) break;
+      i++;
+    }
+    return i; // [start, i) blok gövdesi (exclusive)
+  }
 
   static int _findSchemaEnd(List<String> lines, int start) {
     for (int i = start + 1; i < lines.length; i++) {
@@ -342,6 +387,33 @@ class LatexText extends StatelessWidget {
         if (end < lines.length) children.add(SizedBox(height: gap * 2));
         i = end;
         continue;
+      }
+      // Pedagojik kutu: "⭐ Aklında Kalsın" / "🎯 Kendini Sına" — başlık +
+      // sonraki madde satırlarını renkli kart içinde topla.
+      final pedKind = _pedagogyKind(lines[i]);
+      if (pedKind != null) {
+        final headMatch = (pedKind == 'key'
+                ? _reKeyTakeStart
+                : _reSelfTestStart)
+            .firstMatch(lines[i].trim());
+        final inlineRest = headMatch?.group(1)?.trim() ?? '';
+        final end = _findPedagogyEnd(lines, i);
+        final bodyLines = <String>[];
+        if (inlineRest.isNotEmpty) bodyLines.add(inlineRest);
+        if (end > i + 1) bodyLines.addAll(lines.sublist(i + 1, end));
+        final body = bodyLines.join('\n').trim();
+        if (body.isNotEmpty) {
+          if (children.isNotEmpty) children.add(SizedBox(height: gap * 2));
+          children.add(_PedagogyBox(
+            kind: pedKind,
+            body: body,
+            fontSize: fontSize,
+            lineHeight: lineHeight,
+          ));
+          if (end < lines.length) children.add(SizedBox(height: gap * 2));
+          i = end;
+          continue;
+        }
       }
       if (i > 0 && children.isNotEmpty) children.add(SizedBox(height: gap));
       final w = _buildLine(lines[i], context);
@@ -862,6 +934,81 @@ class _BoxedCallout extends StatelessWidget {
                   TextSpan(text: body),
                 ],
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  Pedagojik kutu — çok satırlı: "⭐ Aklında Kalsın" (özün özü, yeşil) ve
+//  "🎯 Kendini Sına" (aktif hatırlama/öz-test, mor). Başlık şeridi + gövde
+//  (gövde iç içe LatexText ile → madde/LaTeX/tablo render'ı korunur).
+// ═══════════════════════════════════════════════════════════════════════════════
+class _PedagogyBox extends StatelessWidget {
+  final String kind; // 'key' | 'test'
+  final String body;
+  final double fontSize;
+  final double lineHeight;
+  const _PedagogyBox({
+    required this.kind,
+    required this.body,
+    required this.fontSize,
+    required this.lineHeight,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isKey = kind == 'key';
+    final accent = isKey ? const Color(0xFF059669) : const Color(0xFF7C3AED);
+    final icon = isKey ? '⭐' : '🎯';
+    final title = isKey ? 'Aklında Kalsın'.tr() : 'Kendini Sına'.tr();
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accent.withValues(alpha: 0.40), width: 1.2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Başlık şeridi
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.12),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(11),
+                topRight: Radius.circular(11),
+              ),
+            ),
+            child: Row(
+              children: [
+                Text(icon, style: TextStyle(fontSize: fontSize + 1)),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: accent,
+                    fontSize: fontSize + 0.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Gövde — iç içe LatexText ile madde/LaTeX/tablo render'ı korunur.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+            child: LatexText(
+              body,
+              fontSize: fontSize - 0.5,
+              lineHeight: lineHeight,
             ),
           ),
         ],

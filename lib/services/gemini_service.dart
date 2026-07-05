@@ -50,8 +50,12 @@ class GeminiService {
   static int _testSorulariMaxTok(String prompt) {
     final m = RegExp(r'\[TEST\s*[—\-]\s*(\d+)').firstMatch(prompt);
     final count = m != null ? (int.tryParse(m.group(1)!) ?? 10) : 10;
-    final budget = count * 280 + 800;
-    return budget.clamp(3000, 8192);
+    // Görsel sorularda "q" içine [ŞEMA:] diyagram (4-9 satır + lejant) gömülür
+    // → soru başına ~280 token varsayımı yetersizdi, JSON ortada kesilip TÜM
+    // test boşa düşüyordu. Soru başı payı 360'a çıkarıldı + tavan 16000
+    // (2.5-flash uzun çıktıyı destekliyor; özet zaten 32000 kullanıyor).
+    final budget = count * 360 + 1500;
+    return budget.clamp(3500, 16000);
   }
 
   // ── PROXY MODU ─────────────────────────────────────────────────────────────

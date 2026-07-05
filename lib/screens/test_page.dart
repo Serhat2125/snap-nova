@@ -66,6 +66,55 @@ class TestQuestion {
   }
 }
 
+/// JSON string DEĞERLERİ içindeki ham kontrol karakterlerini (satır sonu,
+/// tab) geçerli escape dizilerine çevirir. Yalnız string içindeyken dönüştürür
+/// (yapısal boşluklara dokunmaz) → [ŞEMA:] diyagramlı görsel soruların ham
+/// newline'ları jsonDecode'u patlatmasın. Basit durum makinesi: tırnak toggle,
+/// ters-eğik-çizgi kaçış takibi.
+String _escapeRawControlCharsInStrings(String s) {
+  final sb = StringBuffer();
+  bool inStr = false;
+  bool esc = false;
+  for (int i = 0; i < s.length; i++) {
+    final c = s[i];
+    if (inStr) {
+      if (esc) {
+        sb.write(c);
+        esc = false;
+      } else if (c == '\\') {
+        // Geçerli JSON escape'i: \" \\ \/ \b \f \n \r \t \uXXXX. Sonraki
+        // karakter bu sette ise aynen geçir (esc). DEĞİLSE (LaTeX \( \) \[
+        // \sqrt \alpha \pi \cdot ... — model tek backslash yazınca JSON
+        // geçersiz olur, TÜM test boşa düşerdi) backslash'ı ÇİFTLE → JSON
+        // geçerli kalır, LaTeX komutu korunur. ŞEMA satır sonu \n zaten
+        // sette olduğundan bozulmaz.
+        final next = (i + 1 < s.length) ? s[i + 1] : '';
+        if (next.isNotEmpty && '"\\/bfnrtu'.contains(next)) {
+          sb.write(c);
+          esc = true;
+        } else {
+          sb.write(r'\\');
+        }
+      } else if (c == '"') {
+        sb.write(c);
+        inStr = false;
+      } else if (c == '\n') {
+        sb.write(r'\n');
+      } else if (c == '\r') {
+        sb.write(r'\r');
+      } else if (c == '\t') {
+        sb.write(r'\t');
+      } else {
+        sb.write(c);
+      }
+    } else {
+      sb.write(c);
+      if (c == '"') inStr = true;
+    }
+  }
+  return sb.toString();
+}
+
 /// AI çıktısını temizleyip JSON array olarak parse eder.
 /// Aynı soruyu (q metni normalleştirildi) iki kez içeren cevaplarda dedupe
 /// yapar — AI bazen "10 soru" istediğimizde aynı soruyu tekrar üretebiliyor.
@@ -85,8 +134,22 @@ List<TestQuestion> parseTestQuestions(String raw) {
   if (start >= 0 && end > start) {
     s = s.substring(start, end + 1);
   }
+  // GÖRSEL SORU DAYANIKLILIĞI: [ŞEMA:] diyagramlı sorularda model, string
+  // değeri içindeki satır sonlarını bazen "\n" ile escape etmeden ham bırakır
+  // → jsonDecode patlar, TÜM test boşa düşer. Önce doğrudan dene; başarısızsa
+  // string-içi ham kontrol karakterlerini escape edip yeniden dene.
+  dynamic decoded;
   try {
-    final decoded = jsonDecode(s);
+    decoded = jsonDecode(s);
+  } catch (_) {
+    try {
+      decoded = jsonDecode(_escapeRawControlCharsInStrings(s));
+    } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'test_page');
+      return const [];
+    }
+  }
+  try {
     if (decoded is List) {
       final all = decoded
           .whereType<Map>()
@@ -1449,7 +1512,14 @@ class _TestPageState extends State<TestPage> {
     final hasLatex = text.contains(r'\(') ||
         text.contains(r'\[') ||
         text.contains(r'$');
-    if (hasLatex) {
+    // GÖRSEL SORU: kök içinde [ŞEMA: ...] diyagram bloğu varsa LatexText'e
+    // yönlendir — aksi halde kelime-token'lı RichText ham "[ŞEMA:" metnini
+    // gösterir, diyagram render EDİLMEZ. (Çok satırlı blok da desteklenir.)
+    final hasSchema = text.contains('[ŞEMA:') ||
+        text.contains('[SEMA:') ||
+        text.contains('[ŞEMA ') ||
+        text.contains('[DIAGRAM:');
+    if (hasLatex || hasSchema) {
       return LatexText(text, fontSize: 15, lineHeight: 1.45);
     }
     // Kelime + ayraç olarak böl. RegExp ile boşluk + noktalama korunur.
