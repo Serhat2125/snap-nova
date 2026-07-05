@@ -356,5 +356,10 @@ function animate(){ requestAnimationFrame(animate);
   controls.update(); if(composer && effBloom()) composer.render(); else renderer.render(scene,camera); }
 doTransition(chooseEnter(), chooseExit()); animate();
 </script>
+
+<style id="mathSceneWhiteBg">
+/* 3D sahne zemini soluk beyaz — UI panelleri kendi renklerinde kalır. */
+canvas{ background:#F2F4F7 !important; }
+</style>
 </body>
 </html>

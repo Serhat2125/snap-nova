@@ -38,6 +38,7 @@ const Set<String> _kTeacherNotifTypes = {
   'homework_published',
   'homework_all_done',
   'parent_message',
+  'parent_ack', // velinin sessiz geri bildirimi (👍 gördü / 🎯 evde çalışacağız)
   'class_activity',
 };
 
@@ -45,7 +46,7 @@ const Set<String> _kTeacherNotifTypes = {
 /// ÇOCUKTAN (ödev verildi/teslim etti/derse davet) ya ÖĞRETMENDEN (not,
 /// duyuru) ya da haftalık çalışma özetinden gelir. Öğrenci-tipi sosyal
 /// bildirimler (arkadaşlık, düello, seri, lig...) ebeveyne GÖSTERİLMEZ.
-const Set<String> _kParentNotifTypes = {
+const Set<String> kParentNotifTypes = {
   'teacher_note', // öğretmenden not/takdir
   'weekly_summary', // haftalık çalışma özeti (şu derse bu kadar çalıştı)
   'child_homework', // çocuğa ödev verildi (fan-out)
@@ -122,7 +123,7 @@ class NotificationsInboxScreen extends StatelessWidget {
                   final docs = snap.data!.docs.where((d) {
                     final t = (d.data()['type'] ?? '').toString();
                     if (isTeacher) return _kTeacherNotifTypes.contains(t);
-                    if (isParent) return _kParentNotifTypes.contains(t);
+                    if (isParent) return kParentNotifTypes.contains(t);
                     return !_kTeacherNotifTypes.contains(t) &&
                         !_kParentOnlyTypes.contains(t);
                   }).toList();
@@ -182,6 +183,8 @@ class _NotificationCard extends StatelessWidget {
       case 'homework_graded':     return Icons.grading_rounded;
       case 'homework_answers_shared': return Icons.key_rounded;
       case 'parent_message':      return Icons.mark_email_unread_rounded;
+      case 'parent_ack':          return Icons.mark_email_read_rounded;
+      case 'parent_gift':         return Icons.card_giftcard_rounded;
       case 'teacher_note':        return Icons.rate_review_rounded;
       case 'child_homework':      return Icons.assignment_rounded;
       case 'child_submission':    return Icons.task_alt_rounded;
@@ -214,6 +217,8 @@ class _NotificationCard extends StatelessWidget {
       case 'homework_graded':     return const Color(0xFF10B981);
       case 'homework_answers_shared': return const Color(0xFFF59E0B);
       case 'parent_message':      return const Color(0xFF0EA5E9);
+      case 'parent_ack':          return const Color(0xFF10B981);
+      case 'parent_gift':         return const Color(0xFFEC4899);
       case 'teacher_note':        return const Color(0xFF10B981);
       case 'child_homework':      return const Color(0xFF7C3AED);
       case 'child_submission':    return const Color(0xFF10B981);
@@ -262,6 +267,12 @@ class _NotificationCard extends StatelessWidget {
         return 'Cevaplar paylaşıldı 🔑'.tr();
       case 'parent_message':
         return 'Ebeveyn mesajı'.tr();
+      case 'parent_ack':
+        // Veli ack'i title/body'yi hazır yazar (parent_child_courses_screen).
+        return (data['title'] ?? 'Veli geri bildirimi 👍').toString();
+      case 'parent_gift':
+        // Veli sürprizi title/body'yi hazır yazar (parent_quick_actions).
+        return (data['title'] ?? 'Ailenden sürpriz! 🎁').toString();
       case 'group_contest_invite':
         return 'Grup yarışı daveti 🏆'.tr();
       case 'teacher_note':
@@ -342,6 +353,8 @@ class _NotificationCard extends StatelessWidget {
             '${'adlı öğrencinin ebeveyninden mesajın var.'.tr()}';
         return pmMsg.isEmpty ? pmHead : '$pmHead\n“$pmMsg”';
       case 'teacher_note':
+      case 'parent_ack':
+      case 'parent_gift':
         return (data['body'] ?? data['message'] ?? '').toString();
       case 'child_homework':
       case 'child_submission':

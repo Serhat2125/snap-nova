@@ -82,14 +82,74 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
     );
   }
 
+  /// ROL KİLİDİ: cloud'da kayıtlı tip varsa ve istenenden farklıysa kullanıcı
+  /// bilgilendirilir, mevcut rolünün akışına yönlendirilir. true → devam.
+  Future<bool> _guardExistingRole(AccountType want) async {
+    final existing = await AccountService.instance.fetchCloudType();
+    if (existing == null || existing == want) return true;
+    if (!mounted) return false;
+    setState(() => _saving = false);
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text('Bu hesap zaten kayıtlı'.tr()),
+        content: Text(
+          '${'Bu e-posta şu hesap tipiyle kayıtlı:'.tr()} '
+          '${existing.emoji} ${existing.tr}.\n\n'
+          '${'Rol değiştirmek verilerinin karışmasına yol açacağı için kayıt sırasında engellenir. Farklı bir rol için başka bir e-posta kullanabilirsin.'.tr()}',
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('${existing.tr} ${'olarak devam et'.tr()}'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return false;
+    await _routeToExisting(existing);
+    return false;
+  }
+
+  Future<void> _routeToExisting(AccountType t) async {
+    if (t == AccountType.parent || t == AccountType.teacher) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool(OnboardingScreen.prefKey, true);
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    switch (t) {
+      case AccountType.student:
+        widget.onStudentSelected();
+        break;
+      case AccountType.parent:
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const ParentShellScreen()),
+          (route) => false,
+        );
+        break;
+      case AccountType.teacher:
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const TeacherShellScreen()),
+          (route) => false,
+        );
+        break;
+    }
+  }
+
   Future<void> _pick(AccountType t) async {
     if (_saving) return;
     // Öğretmen: hemen yönlendirme — inline formu aç.
     if (t == AccountType.teacher) {
+      if (!await _guardExistingRole(AccountType.teacher)) return;
+      if (!mounted) return;
       setState(() => _teacherMode = true);
       return;
     }
     setState(() => _saving = true);
+    if (!await _guardExistingRole(t)) return;
     await AccountService.instance.setType(t);
     if (!mounted) return;
 

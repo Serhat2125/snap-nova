@@ -553,6 +553,34 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                     fontSize: 11, color: AppPalette.textSecondary(context))),
               onTap: () async {
                 Navigator.pop(ctx);
+                // ROL KİLİDİ gereği rol değişimi yalnızca bu onaylı akıştan
+                // yapılır — kayıt/onboarding sırasında engellenir.
+                final ok = await showDialog<bool>(
+                  context: context,
+                  builder: (dCtx) => AlertDialog(
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18)),
+                    title: Text('Hesap tipini değiştir?'.tr(),
+                        style: GoogleFonts.poppins(
+                            fontSize: 16, fontWeight: FontWeight.w800)),
+                    content: Text(
+                      'Hesabın Öğrenci moduna geçecek ve ebeveyn paneline erişimin kapanacak. Çocuk bağlantıların silinmez; tekrar ebeveyn moduna dönebilirsin.'
+                          .tr(),
+                      style: GoogleFonts.poppins(fontSize: 13, height: 1.45),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(dCtx, false),
+                        child: Text('Vazgeç'.tr()),
+                      ),
+                      FilledButton(
+                        onPressed: () => Navigator.pop(dCtx, true),
+                        child: Text('Değiştir'.tr()),
+                      ),
+                    ],
+                  ),
+                );
+                if (ok != true || !context.mounted) return;
                 await AccountService.instance.setType(AccountType.student);
                 if (!context.mounted) return;
                 Navigator.of(context).pushAndRemoveUntil(

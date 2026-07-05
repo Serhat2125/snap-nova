@@ -1794,5 +1794,56 @@ function boot(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 </script>
+
+<style id="mathSceneWhiteBg">
+/* 3D sahne zemini soluk beyaz — UI panelleri kendi renklerinde kalır. */
+canvas{ background:#F2F4F7 !important; }
+</style>
+
+<style id="gxScrollHintCss">
+/* Bilgi paneli kaydırma göstergesi — içerik sığmadığında sağda turuncu dikey çubuk */
+.gx-sbar{position:absolute;width:7px;background:rgba(128,128,128,.18);border-radius:5px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:60}
+.gx-sbar.visible{opacity:1}
+.gx-sthumb{position:absolute;left:0;right:0;top:0;min-height:26px;background:var(--accent,#f6a23b);border-radius:5px;border:1px solid rgba(0,0,0,.25)}
+</style>
+<script id="gxScrollHintJs">(function(){
+  var SEL=['#bd-scroll','.bd-body','#sheet-body','.pbody','.g-info-body'];
+  var items=[];
+  function attach(el){
+    if(!el||el._gxSb)return; var par=el.parentElement; if(!par)return;
+    if(getComputedStyle(par).position==='static')par.style.position='relative';
+    var bar=document.createElement('div');bar.className='gx-sbar';
+    var th=document.createElement('div');th.className='gx-sthumb';bar.appendChild(th);
+    par.appendChild(bar); el._gxSb={bar:bar,th:th};
+    el.addEventListener('scroll',schedule,{passive:true});
+    items.push(el);
+  }
+  function upd(el){
+    var s=el._gxSb; if(!s)return;
+    var sh=el.scrollHeight,ch=el.clientHeight;
+    if(ch<5||sh<=ch+3){s.bar.classList.remove('visible');return;}
+    var par=el.parentElement;
+    s.bar.style.top=(el.offsetTop+2)+'px';
+    s.bar.style.height=(ch-4)+'px';
+    s.bar.style.right=Math.max(0,par.clientWidth-el.offsetLeft-el.offsetWidth+2)+'px';
+    s.bar.classList.add('visible');
+    var trackH=ch-4, thH=Math.max(26,trackH*ch/sh), maxS=sh-ch, maxT=trackH-thH;
+    s.th.style.height=thH+'px';
+    s.th.style.top=(maxS>0?(el.scrollTop/maxS)*maxT:0)+'px';
+  }
+  var raf=0;
+  function schedule(){ if(raf)return; raf=requestAnimationFrame(function(){raf=0;scan();for(var i=0;i<items.length;i++)upd(items[i]);}); }
+  function scan(){ for(var i=0;i<SEL.length;i++){ var ls=document.querySelectorAll(SEL[i]); for(var j=0;j<ls.length;j++)attach(ls[j]); } }
+  addEventListener('resize',schedule);
+  /* Kendi çubuk güncellemelerimizi yok say → sonsuz döngü olmaz */
+  var mo=new MutationObserver(function(muts){
+    for(var i=0;i<muts.length;i++){
+      var t=muts[i].target, e=(t.nodeType===1)?t:t.parentElement;
+      if(!e||!e.closest||!e.closest('.gx-sbar')){schedule();return;}
+    }
+  });
+  function boot(){ scan(); for(var i=0;i<items.length;i++)upd(items[i]); mo.observe(document.body,{childList:true,subtree:true,attributes:true,characterData:true}); }
+  if(document.readyState==='loading')addEventListener('DOMContentLoaded',boot);else boot();
+})();</script>
 </body>
 </html>

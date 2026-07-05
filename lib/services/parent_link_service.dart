@@ -118,11 +118,15 @@ class ParentAnnouncement {
   final String message;
   final String teacherName;
   final DateTime when;
+  /// Sessiz geri bildirim (👍/🎯) öğretmen uid'sini classes/{classId}'den
+  /// çözebilsin diye taşınır.
+  final String classId;
   const ParentAnnouncement({
     required this.className,
     required this.message,
     required this.teacherName,
     required this.when,
+    this.classId = '',
   });
 }
 
@@ -144,6 +148,29 @@ class ParentUpcomingHomework {
   });
 
   bool get isOverdue => DateTime.now().isAfter(dueAt);
+}
+
+/// Ebeveyn PDF gelişim raporu "öğretmen ödevi sonuçları" bölümü için DTO.
+class ParentHomeworkResult {
+  final String className;
+  final String title;
+  final String subject;
+  /// Teslim anı (yoksa ödevin son teslim tarihi).
+  final DateTime when;
+  final int correct;
+  final int wrong;
+  final int questionCount;
+  final double scorePercent;
+  const ParentHomeworkResult({
+    required this.className,
+    required this.title,
+    required this.subject,
+    required this.when,
+    required this.correct,
+    required this.wrong,
+    required this.questionCount,
+    required this.scorePercent,
+  });
 }
 
 /// Ebeveyn paneli "öğretmen notları/tebrikleri" kartı için hafif DTO.
@@ -732,6 +759,55 @@ class ParentLinkService {
     return out;
   }
 
+  /// Bağlı çocuğun TESLİM ETTİĞİ ödev sonuçları (PDF gelişim raporu için).
+  /// Onaylı tüm sınıflar taranır; submitted/late teslimler skorlarıyla döner.
+  /// En yeni teslim üstte, en fazla [limit] kayıt. Kurallar: submissions
+  /// okuma izni bağlı ebeveyne zaten açık (firestore.rules isLinkedParent).
+  static Future<List<ParentHomeworkResult>> readChildHomeworkResults(
+      String childUid, {int limit = 8}) async {
+    final out = <ParentHomeworkResult>[];
+    try {
+      final classes = await ClassService.joinedClassesFor(childUid);
+      for (final cls in classes) {
+        if (cls.isPending) continue;
+        final hws = await HomeworkService.classHomeworks(cls.classId);
+        for (final hw in hws) {
+          if (!hw.isPublished) continue;
+          try {
+            final subDoc = await _fs
+                .collection('classes').doc(cls.classId)
+                .collection('homeworks').doc(hw.id)
+                .collection('submissions').doc(childUid)
+                .get();
+            final m = subDoc.data();
+            if (m == null) continue;
+            final st = (m['status'] ?? '').toString();
+            if (st != 'submitted' && st != 'late') continue;
+            DateTime when = hw.dueAt;
+            if (m['submittedAt'] is Timestamp) {
+              when = (m['submittedAt'] as Timestamp).toDate();
+            }
+            out.add(ParentHomeworkResult(
+              className: cls.className,
+              title: hw.title.isEmpty ? hw.topic : hw.title,
+              subject: hw.subject,
+              when: when,
+              correct: (m['correct'] as num?)?.toInt() ?? 0,
+              wrong: (m['wrong'] as num?)?.toInt() ?? 0,
+              questionCount: hw.questionCount,
+              scorePercent: (m['scorePercent'] as num?)?.toDouble() ?? 0,
+            ));
+          } catch (_) {}
+        }
+      }
+      out.sort((a, b) => b.when.compareTo(a.when));
+      if (out.length > limit) out.removeRange(limit, out.length);
+    } catch (e) {
+      debugPrint('[ParentLink] readChildHomeworkResults fail: $e');
+    }
+    return out;
+  }
+
   /// Bağlı çocuğun katıldığı sınıflardaki ÖĞRETMEN DUYURULARINI döndürür.
   /// Kaynak: classes/{classId}/content (type == 'announcement'). En yeni üstte.
   static Future<List<ParentAnnouncement>> readChildAnnouncements(
@@ -754,6 +830,7 @@ class ParentLinkService {
             message: (payload['message'] ?? '').toString(),
             teacherName: (payload['teacherName'] ?? '').toString(),
             when: when,
+            classId: cls.classId,
           ));
         }
       }

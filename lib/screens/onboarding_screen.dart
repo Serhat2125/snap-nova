@@ -4841,6 +4841,12 @@ class _UserSetupPage extends StatefulWidget {
 
 class _UserSetupPageState extends State<_UserSetupPage> {
   AccountType? _selectedType;
+
+  // ROL KİLİDİ: cloud'da (users/{uid}.accountType) zaten kayıtlı tip.
+  // null → yeni hesap, serbest seçim. Dolu → farklı rol seçilemez; aynı
+  // e-posta ile "ebeveyn olarak yeniden kayıt" mevcut öğrenci rolünü
+  // sessizce ezip veriyi erişilmez kılıyordu.
+  AccountType? _lockedType;
   final _usernameCtrl = TextEditingController();
   final _codeCtrl = TextEditingController();
   bool _saving = false;
@@ -4891,8 +4897,57 @@ class _UserSetupPageState extends State<_UserSetupPage> {
           .collection('users').doc(fb.uid).get();
       final cur = (snap.data()?['username'] ?? '').toString().trim();
       if (cur.length >= 3) _existingUsername = cur;
+      final rawType = (snap.data()?['accountType'] as String?)?.trim();
+      if (rawType != null && rawType.isNotEmpty) {
+        _lockedType = AccountTypeX.fromKey(rawType);
+        _selectedType ??= _lockedType;
+      }
     } catch (_) {}
     if (mounted) setState(() {});
+  }
+
+  /// Tip kartına dokunma — rol kilidi varsa farklı tip seçilemez.
+  void _selectType(AccountType t) {
+    final locked = _lockedType;
+    if (locked != null && t != locked) {
+      _snack('${'Bu e-posta zaten şu hesap tipiyle kayıtlı:'.tr()} '
+          '${locked.tr}. '
+          '${'Farklı bir rol için başka bir e-posta ile giriş yap.'.tr()}');
+      return;
+    }
+    setState(() => _selectedType = t);
+  }
+
+  /// "Bu e-posta zaten farklı bir rolle kayıtlı" diyaloğu. Onaylarsa seçim
+  /// mevcut role çevrilir; kullanıcı Devam Et ile o rol olarak girer.
+  Future<void> _showExistingRoleDialog(AccountType existing) async {
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text('Bu hesap zaten kayıtlı'.tr(),
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+        content: Text(
+          '${'Bu e-posta şu hesap tipiyle kayıtlı:'.tr()} '
+          '${existing.emoji} ${existing.tr}.\n\n'
+          '${'Rol değiştirmek verilerinin karışmasına yol açacağı için kayıt sırasında engellenir. Farklı bir rol için başka bir e-posta kullanabilirsin.'.tr()}',
+          style: const TextStyle(fontSize: 13.5, height: 1.45),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Vazgeç'.tr()),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('${existing.tr} ${'olarak devam et'.tr()}'),
+          ),
+        ],
+      ),
+    );
+    if (go == true && mounted) {
+      setState(() => _selectedType = existing);
+    }
   }
 
   @override
@@ -4955,6 +5010,20 @@ class _UserSetupPageState extends State<_UserSetupPage> {
       final fb = AuthService.firebaseReady
           ? FirebaseAuth.instance.currentUser
           : null;
+
+      // ── ROL KİLİDİ (canlı kontrol) ────────────────────────────────────
+      // _loadProfile yarışını da yakalamak için burada cloud'dan bir kez
+      // daha okunur. Kayıtlı tip farklıysa kullanıcı bilgilendirilir;
+      // isterse mevcut rolüyle devam eder (rol asla sessizce ezilmez).
+      if (fb != null) {
+        final cloudType = await AccountService.instance.fetchCloudType();
+        if (cloudType != null && cloudType != type) {
+          if (!mounted) return;
+          _lockedType = cloudType;
+          await _showExistingRoleDialog(cloudType);
+          return;
+        }
+      }
 
       if (AuthService.firebaseReady && fb != null) {
         // Atomik benzersizlik: usernames/{ad} rezervasyonu. Kendi adımızsa OK.
@@ -5451,7 +5520,7 @@ class _UserSetupPageState extends State<_UserSetupPage> {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => setState(() => _selectedType = type),
+        onTap: () => _selectType(type),
         borderRadius: BorderRadius.circular(20),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),

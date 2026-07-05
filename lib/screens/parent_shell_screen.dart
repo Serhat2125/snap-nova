@@ -8,8 +8,8 @@
 //  • Çocuklarım     → öğretmen ana sayfası düzeninde özet + bağlı çocuk
 //                     kartları (öğretmen→ebeveyn ve öğrenci→ebeveyn akan
 //                     veriler: ödev/karne, duyurular, notlar, kontroller).
-//  • ➕             → Çocuk Bağla / Karne & Ödevler / Öğretmene Mesaj /
-//                     Ebeveyn Kontrolleri hızlı menüsü (merkez FAB).
+//  • ➕             → Hızlı aksiyonlar (merkez FAB): AI Danışman /
+//                     Sürpriz Gönder / PDF Karne.
 //  • Öğrenci Paneli → HAREKETLİ sekme: çocuğun gördüğü öğrenci deneyimini
 //                     salt-izleme modunda açar (ParentPreview) — ebeveyn her
 //                     yere son ekrana kadar gider ama özet/soru üretemez,
@@ -17,7 +17,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import 'dart:io';
+import 'dart:ui' show ImageFilter;
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -35,9 +38,8 @@ import '../theme/app_theme.dart';
 import 'camera_screen.dart' show CameraScreen;
 import 'my_progress_screen.dart';
 import 'notifications_inbox_screen.dart';
+import 'parent_quick_actions.dart';
 import 'parent_child_courses_screen.dart';
-import 'parent_child_homeworks_screen.dart';
-import 'parent_dashboard_screen.dart';
 import 'profile_screen.dart';
 
 const _kBrand = Color(0xFF7C3AED);
@@ -148,14 +150,21 @@ class _ParentShellScreenState extends State<ParentShellScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       elevation: 0,
-      builder: (ctx) => SafeArea(
+      // Sheet'in şeffaf (menü dışı) alanına TEK dokunuş menüyü kapatır —
+      // dıştaki GestureDetector pop yapar, menünün kendisi dokunuşu yutar.
+      builder: (ctx) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => Navigator.pop(ctx),
+        child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.only(bottom: 78, left: 16, right: 16),
           child: Align(
             alignment: Alignment.bottomCenter,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 280),
-              child: Container(
+              child: GestureDetector(
+                onTap: () {}, // menü içine dokunuş kapanmayı tetiklemesin
+                child: Container(
                 padding: const EdgeInsets.fromLTRB(10, 10, 10, 2),
                 decoration: BoxDecoration(
                   color: AppPalette.card(ctx),
@@ -172,39 +181,43 @@ class _ParentShellScreenState extends State<ParentShellScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _createChip(ctx, '📊', 'Karne & Ödevler'.tr(), () async {
+                    // Hızlı aksiyonlar — ana sayfadaki 3'lü satırın aynısı
+                    // (çocuk bağlı değilse demo/generic davranış).
+                    _createChip(ctx, '🤖', 'AI Danışman'.tr(), () async {
                       Navigator.pop(ctx);
-                      final child = await _pickChild(context);
-                      if (child == null || !context.mounted) return;
+                      final child =
+                          await _pickChild(context, warnIfEmpty: false);
+                      if (!context.mounted) return;
                       Navigator.of(context).push(MaterialPageRoute(
-                          builder: (_) => ParentChildHomeworksScreen(
-                              childUid: child.uid,
-                              childName: child.displayName.isEmpty
-                                  ? '@${child.username}'
-                                  : child.displayName)));
+                          builder: (_) => ParentAdvisorChatScreen(
+                              childName: _childLabel(child))));
                     }),
-                    _createChip(ctx, '✉️', 'Öğretmene Mesaj'.tr(), () async {
+                    _createChip(ctx, '🎁', 'Sürpriz Gönder'.tr(), () async {
                       Navigator.pop(ctx);
-                      final child = await _pickChild(context);
-                      if (child == null || !context.mounted) return;
-                      // Mesaj, sınıf satırındaki ✉️ ile gönderilir.
-                      Navigator.of(context).push(MaterialPageRoute(
-                          builder: (_) => ParentChildHomeworksScreen(
-                              childUid: child.uid,
-                              childName: child.displayName.isEmpty
-                                  ? '@${child.username}'
-                                  : child.displayName)));
+                      final child =
+                          await _pickChild(context, warnIfEmpty: false);
+                      if (!context.mounted) return;
+                      showParentSurpriseSheet(context,
+                          realChildUid: child?.uid ?? '',
+                          childName: _childLabel(child));
                     }),
-                    _createChip(ctx, '🛡️', 'Ebeveyn Kontrolleri'.tr(), () {
+                    _createChip(ctx, '📄', 'PDF Karne'.tr(), () async {
                       Navigator.pop(ctx);
-                      Navigator.of(context).push(MaterialPageRoute(
-                          builder: (_) => const ParentDashboardScreen()));
+                      final child =
+                          await _pickChild(context, warnIfEmpty: false);
+                      if (!context.mounted) return;
+                      shareWeeklyPdfReport(context,
+                          childUid: child?.uid ?? '',
+                          childName: _childLabel(child),
+                          demo: child == null);
                     }),
                   ],
+                ),
                 ),
               ),
             ),
           ),
+        ),
         ),
       ),
     );
@@ -256,16 +269,26 @@ class _ParentShellScreenState extends State<ParentShellScreen> {
     );
   }
 
-  /// Bağlı (aktif) bir çocuk seçtirir. Çocuk yoksa uyarır, tekse onu döndürür.
-  Future<LinkedChild?> _pickChild(BuildContext context) async {
+  /// Çocuğun görünen adı — bağlı çocuk yoksa genel etiket.
+  String _childLabel(LinkedChild? c) => c == null
+      ? 'Çocuğun'.tr()
+      : (c.displayName.isEmpty ? '@${c.username}' : c.displayName);
+
+  /// Bağlı (aktif) bir çocuk seçtirir; tekse onu döndürür. Çocuk yoksa
+  /// [warnIfEmpty] true iken uyarır, değilse sessizce null döner (aksiyon
+  /// demo/generic modda devam eder).
+  Future<LinkedChild?> _pickChild(BuildContext context,
+      {bool warnIfEmpty = true}) async {
     final all = await ParentLinkService.linkedChildrenStream().first;
     final children = all.where((c) => c.isActive).toList();
     if (!context.mounted) return null;
     if (children.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Önce bir çocuk bağla (➕ → Çocuk Bağla).'.tr()),
-        behavior: SnackBarBehavior.floating,
-      ));
+      if (warnIfEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Önce bir çocuk bağla (➕ → Çocuk Bağla).'.tr()),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
       return null;
     }
     if (children.length == 1) return children.first;
@@ -453,6 +476,10 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
   int _todaySolved = 0;
   int _todayPct = 0;
   int _streak = 0;
+  /// Aktif ödev durumu (yeşil karttaki ince ilerleme çubuğu):
+  /// bekleyen = teslim edilmemiş + süresi geçmemiş; biten = teslim edilmiş.
+  int _hwPending = 0;
+  int _hwDone = 0;
   /// Yeşil kartın istatistik bölümü gizli mi (sağ üst göz düğmesi — kalıcı).
   bool _quickHidden = false;
 
@@ -509,8 +536,9 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
     });
   }
   // Sürüklenebilir "Öğrenci Paneli" düğmesi konumu (kalıcı). null → varsayılan
-  // (sağ-alt köşe). Kullanıcı istediği yere taşıyıp bırakabilir.
-  Offset? _studentBtnPos;
+  // (sağ-alt köşe). ValueNotifier: sürüklerken tüm sayfa yerine yalnız
+  // düğme yeniden çizilsin (aksi halde kare düşüp sürükleme geride kalıyor).
+  final ValueNotifier<Offset?> _studentBtnPos = ValueNotifier(null);
 
   @override
   void initState() {
@@ -524,8 +552,8 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
       final hidden = p.getBool('parent_quick_hidden') ?? false;
       final locals = p.getStringList('parent_local_children') ?? const [];
       if (!mounted) return;
+      if (dx != null && dy != null) _studentBtnPos.value = Offset(dx, dy);
       setState(() {
-        if (dx != null && dy != null) _studentBtnPos = Offset(dx, dy);
         _quickHidden = hidden;
         _localIds = locals;
         // Kalıcı renk override'ları ('bg' hariç — o PageBgPrefs'te).
@@ -537,8 +565,14 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
     });
   }
 
+  @override
+  void dispose() {
+    _studentBtnPos.dispose();
+    super.dispose();
+  }
+
   void _saveStudentBtnPos() {
-    final pos = _studentBtnPos;
+    final pos = _studentBtnPos.value;
     if (pos == null) return;
     SharedPreferences.getInstance().then((p) {
       p.setDouble('parent_student_btn_dx', pos.dx);
@@ -938,12 +972,22 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
       _statsUid = uid;
     });
     int todayMin = 0, todaySolved = 0, todayPct = 0, streak = 0;
+    int hwPending = 0, hwDone = 0;
     try {
       const t = Duration(seconds: 8);
       final acts = await ParentLinkService.readChild7DayActivity(uid)
           .timeout(t, onTimeout: () => const []);
       final stats = await ParentLinkService.readChildStats(uid)
           .timeout(t, onTimeout: () => const {});
+      // Ödev tamamlanma çubuğu: aktif ödevlerden teslim edilen/bekleyen.
+      try {
+        final hws = await ParentLinkService.readChildUpcomingHomeworks(uid)
+            .timeout(t, onTimeout: () => const []);
+        final now = DateTime.now();
+        hwDone = hws.where((h) => h.submitted).length;
+        hwPending =
+            hws.where((h) => !h.submitted && h.dueAt.isAfter(now)).length;
+      } catch (_) {}
       if (acts.isNotEmpty) {
         final today = StudentActivityModel.fromJson(acts.last);
         todayMin = today.focusMinutes;
@@ -964,6 +1008,8 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
       _todaySolved = todaySolved;
       _todayPct = todayPct;
       _streak = streak;
+      _hwPending = hwPending;
+      _hwDone = hwDone;
     });
   }
 
@@ -1012,9 +1058,6 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
         final dispStreak = demoMode ? 2 : (sel == null ? 0 : _streak);
         final bg = _bg ?? AppPalette.bg(context);
         return LayoutBuilder(builder: (context, cons) {
-          // Sürüklenebilir düğmenin varsayılan yeri: sağ-alt köşe.
-          final pos = _studentBtnPos ??
-              Offset(cons.maxWidth - 178, cons.maxHeight - 64);
           return Stack(
             children: [
               RepaintBoundary(
@@ -1044,12 +1087,10 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        _headerIcon(context, Icons.notifications_rounded,
-                            () {
-                          Navigator.of(context).push(MaterialPageRoute(
-                              builder: (_) =>
-                                  const NotificationsInboxScreen()));
-                        }),
+                        // Zil: ebeveyne gelen bildirimler buraya düşer —
+                        // okunmamış ebeveyn bildirimi varsa kırmızı sayaç
+                        // rozeti; basınca Bildirimler gelen kutusu açılır.
+                        _notifBell(context),
                         const SizedBox(width: 8),
                         _hamburgerMenu(context),
                       ],
@@ -1205,14 +1246,72 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
                           ? const SizedBox(width: double.infinity)
                           : Padding(
                               padding: const EdgeInsets.only(top: 12),
-                              child: Row(
+                              child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
                                 children: [
-                                  _greenStat('$dispMin dk', 'Çalışma'.tr()),
-                                  _greenStat(
-                                      '$dispSolved', 'Çözülen soru'.tr()),
-                                  _greenStat('%$dispPct', 'Başarı'.tr()),
-                                  _greenStat(
-                                      '🔥 $dispStreak', 'Seri gün'.tr()),
+                                  Row(
+                                    children: [
+                                      _greenStat(
+                                          '$dispMin dk', 'Çalışma'.tr()),
+                                      _greenStat('$dispSolved',
+                                          'Çözülen soru'.tr()),
+                                      _greenStat('%$dispPct', 'Başarı'.tr()),
+                                      _greenStat(
+                                          '🔥 $dispStreak', 'Seri gün'.tr()),
+                                    ],
+                                  ),
+                                  // Ödev tamamlanma durumu — ince çubuk +
+                                  // tek satır aksiyon metni.
+                                  Builder(builder: (_) {
+                                    final done =
+                                        demoMode ? 2 : _hwDone;
+                                    final pending =
+                                        demoMode ? 1 : _hwPending;
+                                    final total = done + pending;
+                                    if (sel == null && !demoMode ||
+                                        total == 0) {
+                                      return const SizedBox.shrink();
+                                    }
+                                    final ratio = done / total;
+                                    return Padding(
+                                      padding:
+                                          const EdgeInsets.only(top: 10),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          ClipRRect(
+                                            borderRadius:
+                                                BorderRadius.circular(999),
+                                            child: LinearProgressIndicator(
+                                              value: ratio,
+                                              minHeight: 5,
+                                              backgroundColor: Colors.white
+                                                  .withValues(alpha: 0.25),
+                                              valueColor:
+                                                  const AlwaysStoppedAnimation(
+                                                      Colors.white),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 5),
+                                          Text(
+                                              pending == 0
+                                                  ? '✅ ${'Bugünkü ödevlerin hepsi tamamlandı'.tr()}'
+                                                  : '📌 $pending ${'bekleyen ödev var'.tr()}',
+                                              maxLines: 1,
+                                              overflow:
+                                                  TextOverflow.ellipsis,
+                                              style: GoogleFonts.poppins(
+                                                fontSize: 10.5,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.white
+                                                    .withValues(alpha: 0.95),
+                                              )),
+                                        ],
+                                      ),
+                                    );
+                                  }),
                                 ],
                               ),
                             ),
@@ -1221,6 +1320,8 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
                 ),
               ),
               const SizedBox(height: 10),
+              // (Hızlı aksiyonlar — AI Danışman/Sürpriz/PDF — ➕ FAB
+              //  menüsüne taşındı.)
               // ── Uygulama İçi Çalışmalar — tam genişlik yatay sekme ──
               //    Basınca "Çalıştığı Alanlar" + günlük/haftalık/aylık
               //    özet çerçeveleri (Gelişim Paneli) açılır.
@@ -1309,21 +1410,10 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
                         demo: demoMode))),
               ),
               const SizedBox(height: 10),
-              // ── Öğretmen Mesajları — duyurular + paylaşılan notlar ──
-              _widePanel(
-                context,
-                icon: Icons.mark_email_unread_rounded,
-                color: const Color(0xFF0EA5E9),
-                title: 'Öğretmen Mesajları'.tr(),
-                subtitle:
-                    'Tüm öğretmenlerin duyuru ve notları — kim gönderdi '
-                    'belli'.tr(),
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => ParentTeacherMessagesScreen(
-                        childUid: sel?.uid ?? '',
-                        childName: selName,
-                        demo: demoMode))),
-              ),
+              // ── Öğretmen Mesajları — duyurular + paylaşılan notlar.
+              //    Yeni öğretmen mesajı/duyurusu geldiğinde ok yanında
+              //    kırmızı okunmamış sayacı belirir (canlı rozet).
+              _teacherMessagesPanel(context, sel, selName, demoMode),
             ],
             // (Hızlı Erişim kaldırıldı — Ebeveyn Kontrolleri ➕ menüsünde.)
           ],
@@ -1350,15 +1440,27 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
               // ── SÜRÜKLENEBİLİR "Öğrenci Paneli" düğmesi ─────────────
               //    Eski işleviyle (salt-izleme önizleme); basılı tutup
               //    sürükleyerek istediğin yere bırakılabilir, yeri kalıcı.
-              Positioned(
-                left: pos.dx.clamp(4.0, cons.maxWidth - 160),
-                top: pos.dy.clamp(4.0, cons.maxHeight - 44),
-                child: GestureDetector(
-                  onTap: _openStudentPreview,
-                  onPanUpdate: (d) =>
-                      setState(() => _studentBtnPos = pos + d.delta),
-                  onPanEnd: (_) => _saveStudentBtnPos(),
-                  child: Material(
+              //    ValueListenableBuilder: sürüklerken yalnız bu düğme
+              //    yeniden çizilir; delta notifier üzerinde biriktirilir
+              //    (kare atlansa bile hareket kaybolmaz).
+              ValueListenableBuilder<Offset?>(
+                valueListenable: _studentBtnPos,
+                builder: (context, p, child) {
+                  final pos = p ??
+                      Offset(cons.maxWidth - 178, cons.maxHeight - 64);
+                  return Positioned(
+                    left: pos.dx.clamp(4.0, cons.maxWidth - 160),
+                    top: pos.dy.clamp(4.0, cons.maxHeight - 44),
+                    child: GestureDetector(
+                      onTap: _openStudentPreview,
+                      onPanUpdate: (d) => _studentBtnPos.value =
+                          (_studentBtnPos.value ?? pos) + d.delta,
+                      onPanEnd: (_) => _saveStudentBtnPos(),
+                      child: child!,
+                    ),
+                  );
+                },
+                child: Material(
                     color: _kBrand,
                     elevation: 6,
                     borderRadius: BorderRadius.circular(999),
@@ -1381,7 +1483,6 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
                       ),
                     ),
                   ),
-                ),
               ),
             ],
           );
@@ -1561,73 +1662,175 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
   /// Sağ üst hamburger menü (☰) — basınca hemen altında açılır:
   /// Renk Paletini Değiştir / Gönder / Yeni Çocuk Ekle / Nasıl Çalışır?
   Widget _hamburgerMenu(BuildContext context) {
-    PopupMenuItem<int> item(int v, String emoji, String title) =>
-        PopupMenuItem<int>(
-          value: v,
-          child: Row(
-            children: [
-              Text(emoji, style: const TextStyle(fontSize: 16)),
-              const SizedBox(width: 10),
-              Text(title,
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppPalette.textPrimary(context),
-                  )),
-            ],
+    return Material(
+      color: AppPalette.card(context),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: () => _openHamburgerMenu(context),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(9),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppPalette.border(context)),
+          ),
+          child: Icon(Icons.menu_rounded,
+              size: 20, color: AppPalette.textPrimary(context)),
+        ),
+      ),
+    );
+  }
+
+  /// ☰ menü — showGeneralDialog ile açılır: menü çerçevesi DIŞINDA kalan
+  /// her şey flu (BackdropFilter blur); boş alana dokununca kapanır.
+  Future<void> _openHamburgerMenu(BuildContext context) async {
+    Widget item(BuildContext ctx, int v, String emoji, String title) =>
+        InkWell(
+          onTap: () => Navigator.pop(ctx, v),
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(emoji, style: const TextStyle(fontSize: 16)),
+                const SizedBox(width: 10),
+                Text(title,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppPalette.textPrimary(ctx),
+                    )),
+              ],
+            ),
           ),
         );
-    return PopupMenuButton<int>(
-      tooltip: 'Menü'.tr(),
-      position: PopupMenuPosition.under,
-      offset: const Offset(0, 8),
-      color: AppPalette.card(context),
-      elevation: 8,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: AppPalette.border(context)),
-      ),
-      onSelected: (v) {
-        switch (v) {
-          case 0:
-            setState(() => _showPalette = !_showPalette);
-          case 1:
-            sharePageShot(context, _shotKey, '${'Ebeveyn Paneli'.tr()} 📊');
-          case 2:
-            _showAddChildDialog();
-          case 3:
-            showTeacherHelpDialog(context,
-                title: 'Bu sayfa nasıl çalışır?',
-                items: const [
-                  TeacherHelpItem('👶',
-                      '☰ menüden "Yeni Çocuk Ekle" ile çocuğunu bağla; çipe basınca profil kartı açılır.'),
-                  TeacherHelpItem('📊',
-                      '"Uygulama İçi Çalışmalar" → çalıştığı alanlar + günlük/haftalık/aylık özetler.'),
-                  TeacherHelpItem('📚',
-                      '"Öğretmenin Verdiği Ödevler" → dersler, ödevler ve teslim durumları.'),
-                  TeacherHelpItem('📬',
-                      '"Öğretmen Mesajları" → tüm öğretmenlerin duyuru, takdir ve notları.'),
-                  TeacherHelpItem('✈️',
-                      '☰ menüden "Gönder" ile ekranı paylaşabilir, "Renk Paletini Değiştir" ile sayfa rengini seçebilirsin.'),
-                ]);
-        }
+    final v = await showGeneralDialog<int>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Menü'.tr(),
+      barrierColor: Colors.black.withValues(alpha: 0.10),
+      transitionDuration: const Duration(milliseconds: 180),
+      pageBuilder: (ctx, _, __) => const SizedBox.shrink(),
+      transitionBuilder: (ctx, anim, _, __) {
+        final t = Curves.easeOutCubic.transform(anim.value);
+        return BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 6 * t, sigmaY: 6 * t),
+          child: Opacity(
+            opacity: t,
+            child: Align(
+              alignment: Alignment.topRight,
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 58, right: 16),
+                  child: Material(
+                    color: AppPalette.card(ctx),
+                    elevation: 8,
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppPalette.border(ctx)),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          item(ctx, 0, '🎨', 'Renk Paletini Değiştir'.tr()),
+                          item(ctx, 1, '✈️', 'Gönder'.tr()),
+                          item(ctx, 2, '👶', 'Yeni Çocuk Ekle'.tr()),
+                          item(ctx, 3, '❓', 'Nasıl Çalışır?'.tr()),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
       },
-      itemBuilder: (ctx) => [
-        item(0, '🎨', 'Renk Paletini Değiştir'.tr()),
-        item(1, '✈️', 'Gönder'.tr()),
-        item(2, '👶', 'Yeni Çocuk Ekle'.tr()),
-        item(3, '❓', 'Nasıl Çalışır?'.tr()),
-      ],
-      child: Container(
-        padding: const EdgeInsets.all(9),
-        decoration: BoxDecoration(
-          color: AppPalette.card(context),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppPalette.border(context)),
-        ),
-        child: Icon(Icons.menu_rounded,
-            size: 20, color: AppPalette.textPrimary(context)),
-      ),
+    );
+    if (v == null || !context.mounted) return;
+    switch (v) {
+      case 0:
+        setState(() => _showPalette = !_showPalette);
+      case 1:
+        sharePageShot(context, _shotKey, '${'Ebeveyn Paneli'.tr()} 📊');
+      case 2:
+        _showAddChildDialog();
+      case 3:
+        showTeacherHelpDialog(context,
+            title: 'Bu sayfa nasıl çalışır?',
+            items: const [
+              TeacherHelpItem('👶',
+                  '☰ menüden "Yeni Çocuk Ekle" ile çocuğunu bağla; çipe basınca profil kartı açılır.'),
+              TeacherHelpItem('📊',
+                  '"Uygulama İçi Çalışmalar" → çalıştığı alanlar + günlük/haftalık/aylık özetler.'),
+              TeacherHelpItem('📚',
+                  '"Öğretmenin Verdiği Ödevler" → dersler, ödevler ve teslim durumları.'),
+              TeacherHelpItem('📬',
+                  '"Öğretmen Mesajları" → tüm öğretmenlerin duyuru, takdir ve notları.'),
+              TeacherHelpItem('✈️',
+                  '☰ menüden "Gönder" ile ekranı paylaşabilir, "Renk Paletini Değiştir" ile sayfa rengini seçebilirsin.'),
+            ]);
+    }
+  }
+
+  /// Başlık sağındaki zil — ebeveyn bildirim hattının girişi. Okunmamış
+  /// ebeveyn-tipi bildirim sayısını Firestore'dan canlı dinler; varsa
+  /// zilin köşesinde kırmızı sayaç rozeti gösterir.
+  Widget _notifBell(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final bell = _headerIcon(context, Icons.notifications_rounded, () {
+      Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => const NotificationsInboxScreen()));
+    });
+    if (uid == null) return bell;
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('notifications').doc(uid)
+          .collection('items')
+          .where('read', isEqualTo: false)
+          .limit(30)
+          .snapshots(),
+      builder: (context, snap) {
+        final unread = snap.data?.docs.where((d) {
+          final t = (d.data()['type'] ?? '').toString();
+          return kParentNotifTypes.contains(t);
+        }).length ?? 0;
+        if (unread == 0) return bell;
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            bell,
+            Positioned(
+              right: -4,
+              top: -4,
+              child: IgnorePointer(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                        color: AppPalette.card(context), width: 1.5),
+                  ),
+                  child: Text(unread > 9 ? '9+' : '$unread',
+                      style: GoogleFonts.poppins(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        height: 1.1,
+                      )),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -1656,7 +1859,8 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
       required Color color,
       required String title,
       required String subtitle,
-      required VoidCallback onTap}) {
+      required VoidCallback onTap,
+      int badge = 0}) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -1669,53 +1873,120 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: color.withValues(alpha: 0.40)),
           ),
-          child: Row(
+          child: Stack(
+            clipBehavior: Clip.none,
             children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      color.withValues(alpha: 0.28),
-                      color.withValues(alpha: 0.12),
-                    ],
+              Row(
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          color.withValues(alpha: 0.28),
+                          color.withValues(alpha: 0.12),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(15),
+                      border:
+                          Border.all(color: color.withValues(alpha: 0.35)),
+                    ),
+                    alignment: Alignment.center,
+                    child: Icon(icon, color: color, size: 28),
                   ),
-                  borderRadius: BorderRadius.circular(15),
-                  border: Border.all(color: color.withValues(alpha: 0.35)),
-                ),
-                alignment: Alignment.center,
-                child: Icon(icon, color: color, size: 28),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title,
+                            style: GoogleFonts.poppins(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: AppPalette.textPrimary(context),
+                            )),
+                        const SizedBox(height: 2),
+                        Text(subtitle,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                              fontSize: 11.5,
+                              color: AppPalette.textSecondary(context),
+                            )),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right_rounded, color: color, size: 26),
+                ],
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title,
+              // Okunmamış sayaç rozeti — çerçevenin SAĞ ÜST köşesinde,
+              // çerçevenin İÇİNDE (padding'i kısmen telafi eden ofset).
+              if (badge > 0)
+                Positioned(
+                  top: -12,
+                  right: -8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(badge > 9 ? '9+' : '$badge',
                         style: GoogleFonts.poppins(
-                          fontSize: 15,
+                          fontSize: 10.5,
                           fontWeight: FontWeight.w800,
-                          color: AppPalette.textPrimary(context),
+                          color: Colors.white,
                         )),
-                    const SizedBox(height: 2),
-                    Text(subtitle,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(
-                          fontSize: 11.5,
-                          color: AppPalette.textSecondary(context),
-                        )),
-                  ],
+                  ),
                 ),
-              ),
-              Icon(Icons.chevron_right_rounded, color: color, size: 26),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  /// "Öğretmen Mesajları" paneli + canlı okunmamış rozeti: öğretmen
+  /// kaynaklı bildirimler (not/takdir + duyuru) okunmadıkça sayaç görünür.
+  /// Demo modda tanıtım amaçlı 1 gösterilir.
+  Widget _teacherMessagesPanel(
+      BuildContext context, LinkedChild? sel, String selName, bool demoMode) {
+    Widget panel(int badge) => _widePanel(
+          context,
+          icon: Icons.mark_email_unread_rounded,
+          color: const Color(0xFF0EA5E9),
+          title: 'Öğretmen Mesajları'.tr(),
+          subtitle: 'Tüm öğretmenlerin duyuru ve notları — kim gönderdi '
+              'belli'.tr(),
+          badge: badge,
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => ParentTeacherMessagesScreen(
+                  childUid: sel?.uid ?? '',
+                  childName: selName,
+                  demo: demoMode))),
+        );
+    if (demoMode) return panel(1);
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return panel(0);
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('notifications').doc(uid)
+          .collection('items')
+          .where('read', isEqualTo: false)
+          .limit(30)
+          .snapshots(),
+      builder: (context, snap) {
+        const teacherMsgTypes = {'teacher_note', 'child_announcement'};
+        final n = snap.data?.docs.where((d) {
+          final t = (d.data()['type'] ?? '').toString();
+          return teacherMsgTypes.contains(t);
+        }).length ?? 0;
+        return panel(n);
+      },
     );
   }
 
@@ -1970,13 +2241,13 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
     );
     if (onEdit == null) return chip;
     // Sağ üstte kalem rozeti — profil foto/ad/durum düzenleme.
+    // Rozet çip çerçevesinin İÇİNDE kalır (taşma yok).
     return Stack(
-      clipBehavior: Clip.none,
       children: [
         chip,
         Positioned(
-          right: -4,
-          top: -4,
+          right: 3,
+          top: 3,
           child: GestureDetector(
             onTap: onEdit,
             child: Container(
@@ -1996,6 +2267,8 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
   }
 
   /// Yeşil kart içi istatistik (sola hizalı, beyaz — Gelişim Paneli deseni).
+  /// Rakam ve etiket AYNI sol hizada: uzun etiket ("Çözülen soru") kolona
+  /// sığmazsa sarmak/kaymak yerine tek satırda küçülür.
   Widget _greenStat(String value, String label) {
     return Expanded(
       child: Column(
@@ -2003,6 +2276,7 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
         children: [
           FittedBox(
             fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
             child: Text(value,
                 style: GoogleFonts.poppins(
                   fontSize: 17,
@@ -2011,13 +2285,17 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
                 )),
           ),
           const SizedBox(height: 2),
-          Text(label,
-              maxLines: 2,
-              style: GoogleFonts.poppins(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w600,
-                color: Colors.white.withValues(alpha: 0.85),
-              )),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(label,
+                maxLines: 1,
+                style: GoogleFonts.poppins(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white.withValues(alpha: 0.85),
+                )),
+          ),
         ],
       ),
     );

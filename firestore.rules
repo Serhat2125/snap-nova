@@ -71,7 +71,14 @@ service cloud.firestore {
     //    İSTİSNA: `premium/*` doc'ları sadece Cloud Function (admin SDK) yazar.
     match /users/{uid} {
       allow read: if isSignedIn();
-      allow write: if isOwner(uid);
+      // accountType yalnızca bilinen üç rolden biri olabilir (değer doğrulama).
+      // Sert immutability YOK: uygulama içi onaylı "hesap tipini değiştir"
+      // akışı (parent_dashboard) client'tan yazar; yetkiler zaten accountType
+      // alanından değil sahiplik/teacherUid kurallarından türer.
+      allow delete: if isOwner(uid);
+      allow create, update: if isOwner(uid)
+        && (!request.resource.data.keys().hasAny(['accountType'])
+            || request.resource.data.accountType in ['student', 'parent', 'teacher']);
 
       // ⚠️ Premium subscription state — yalnızca server (admin SDK) yazabilir.
       //    Client sadece okur. Bu kural recursive /{sub=**} kuralından
@@ -363,9 +370,11 @@ service cloud.firestore {
     //   Çocuk istek geldiğinde durumu 'active'e çevirebilir (özel update).
     match /parent_links/{parentUid}/children/{childUid} {
       allow read: if isOwner(parentUid) || isOwner(childUid);
-      // Ebeveyn pending istek oluşturabilir
+      // Ebeveyn pending istek oluşturabilir — kendini çocuk olarak EKLEYEMEZ
+      // (rol değiştiren bir hesap kendi verisine "veli" olarak bağlanamasın).
       allow create: if isOwner(parentUid)
-        && request.resource.data.status == 'pending';
+        && request.resource.data.status == 'pending'
+        && parentUid != childUid;
       // Çocuk kabul/red — sadece status değişikliği
       allow update: if (isOwner(childUid) || isOwner(parentUid))
         && request.resource.data.diff(resource.data).affectedKeys()
@@ -380,7 +389,8 @@ service cloud.firestore {
     match /child_invites/{childUid}/from/{parentUid} {
       allow read: if isOwner(childUid) || isOwner(parentUid);
       allow create: if isOwner(parentUid)
-        && request.resource.data.status == 'pending';
+        && request.resource.data.status == 'pending'
+        && parentUid != childUid;
       allow update: if isOwner(childUid)
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['status', 'acceptedAt']);

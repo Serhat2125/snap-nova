@@ -127,13 +127,13 @@ class Edu3DSubjectsScreen extends StatelessWidget {
       body: _ReorderList(
         storageKey: 'subjects',
         children: [
-          _SubjectCard(
+          // DENEME (tasarım kararı): Coğrafya yeni sayfaya gitmez — konular
+          // kartın altında akordeon olarak açılır/kapanır. Beğenilirse
+          // diğer derslere de uygulanacak.
+          const _ExpandableSubjectCard(
             icon: Icons.public_rounded,
             title: 'Coğrafya',
-            color: const Color(0xFF0EA5E9),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const Edu3DCografyaScreen()),
-            ),
+            color: Color(0xFF0EA5E9),
           ),
           _SubjectCard(
             icon: Icons.calculate_rounded,
@@ -177,6 +177,130 @@ class Edu3DSubjectsScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Ders kartı + altında akordeon konu listesi (yeni sayfaya gitmeden).
+/// İlk dokunuş konuları kartın altında açar, ikinci dokunuş kapatır.
+/// Şimdilik yalnız Coğrafya'da kullanılıyor (tasarım denemesi).
+class _ExpandableSubjectCard extends StatefulWidget {
+  final IconData icon;
+  final String title;
+  final Color color;
+  const _ExpandableSubjectCard({
+    required this.icon,
+    required this.title,
+    required this.color,
+  });
+
+  @override
+  State<_ExpandableSubjectCard> createState() => _ExpandableSubjectCardState();
+}
+
+class _ExpandableSubjectCardState extends State<_ExpandableSubjectCard> {
+  bool _open = false;
+
+  void _push(BuildContext context, String asset, String title) {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => Lesson3DScreen(assetHtml: asset, title: title),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Stack(
+          children: [
+            _SubjectCard(
+              icon: widget.icon,
+              title: widget.title,
+              color: widget.color,
+              onTap: () => setState(() => _open = !_open),
+            ),
+            // Açık/kapalı göstergesi — kartın sağında dönen ok.
+            Positioned(
+              right: 14,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: AnimatedRotation(
+                  turns: _open ? 0.25 : 0,
+                  duration: const Duration(milliseconds: 180),
+                  child: Icon(Icons.chevron_right_rounded,
+                      color: widget.color, size: 22),
+                ),
+              ),
+            ),
+          ],
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
+          alignment: Alignment.topCenter,
+          child: !_open
+              ? const SizedBox(width: double.infinity)
+              : Padding(
+                  padding: const EdgeInsets.only(left: 14, top: 4, bottom: 4),
+                  child: Column(
+                    children: [
+                      _TopicCard(
+                        emoji: '🌍',
+                        title: 'Dünyanın Şekli ve Hareketi',
+                        subtitle: 'Gece-gündüz, mevsimler, Güneş sistemi',
+                        tint: const Color(0xFF0EA5E9),
+                        onTap: () => _push(context,
+                            'assets/dunyanin-hareketleri.html',
+                            'Dünyanın Şekli ve Hareketi'),
+                      ),
+                      const SizedBox(height: 8),
+                      _TopicCard(
+                        emoji: '🗺️',
+                        title: 'Yer Şekilleri ve İzohipsler',
+                        subtitle:
+                            'İzohips kuralları, eğim, profil, vadi/sırt, delta, plato/ova',
+                        tint: const Color(0xFF0EA5E9),
+                        onTap: () => _push(context,
+                            'assets/yer-sekilleri-izohipsler.html',
+                            'Yer Şekilleri ve İzohipsler'),
+                      ),
+                      const SizedBox(height: 8),
+                      _TopicCard(
+                        emoji: '🌋',
+                        title: 'Yerin İç Yapısı ve Levha Tektoniği',
+                        subtitle:
+                            'Katmanlar, kıvrım/kırık dağlar, volkanizma, levha sınırları, depremler',
+                        tint: const Color(0xFF0EA5E9),
+                        onTap: () => _push(context,
+                            'assets/yerin-ic-yapisi-levha-tektonigi.html',
+                            'Yerin İç Yapısı ve Levha Tektoniği'),
+                      ),
+                      const SizedBox(height: 8),
+                      _TopicCard(
+                        emoji: '🌦️',
+                        title: 'Atmosfer ve İklim',
+                        subtitle:
+                            'Atmosfer katmanları, basınç merkezleri, Coriolis, küresel rüzgarlar',
+                        tint: const Color(0xFF38BDF8),
+                        onTap: () => _push(context, 'assets/atmosfer-iklim.html',
+                            'Atmosfer ve İklim'),
+                      ),
+                      const SizedBox(height: 8),
+                      _TopicCard(
+                        emoji: '🌍',
+                        title: 'Dünya Coğrafyası',
+                        subtitle:
+                            'İklim bölgeleri, kıtalar, dağlar, nehirler, boğazlar, kanallar, nüfus',
+                        tint: const Color(0xFF22C55E),
+                        onTap: () => _push(context,
+                            'assets/dunya-cografyasi.html', 'Dünya Coğrafyası'),
+                      ),
+                    ],
+                  ),
+                ),
+        ),
+      ],
     );
   }
 }

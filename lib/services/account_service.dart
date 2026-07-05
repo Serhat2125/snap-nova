@@ -196,6 +196,30 @@ class AccountService extends ChangeNotifier {
     }
   }
 
+  /// Cloud'daki (users/{uid}.accountType) kayıtlı hesap tipini okur.
+  /// null → alan hiç yazılmamış, oturum yok veya okuma başarısız (fail-open:
+  /// offline'da seçim engellenmez; cloud-wins sync sonradan düzeltir).
+  ///
+  /// ROL KİLİDİ için kullanılır: aynı e-posta ile tekrar giriş yapan kullanıcı
+  /// onboarding'de farklı bir rol seçerse setType() mevcut rolü sessizce
+  /// ezmesin diye çağıran taraf önce bunu kontrol eder.
+  Future<AccountType?> fetchCloudType() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return null;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      final raw = (snap.data()?['accountType'] as String?)?.trim();
+      if (raw == null || raw.isEmpty) return null;
+      return AccountTypeX.fromKey(raw);
+    } catch (e) {
+      debugPrint('[AccountService] fetchCloudType fail: $e');
+      return null;
+    }
+  }
+
   /// Onboarding'de seçilen tipi kalıcı yaz — hem prefs hem Firestore.
   Future<void> setType(AccountType t) async {
     _type = t;

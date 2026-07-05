@@ -26,7 +26,7 @@ import '../utils/safe_dismiss.dart';
 import '../widgets/class_profile_dialog.dart';
 import '../widgets/teacher_help_dialog.dart';
 import 'teacher_class_resources_screen.dart';
-import 'teacher_homework_view_screen.dart';
+import 'teacher_homework_results_screen.dart';
 import 'teacher_student_report_screen.dart';
 
 const _kBrand = Color(0xFF7C3AED);
@@ -1946,9 +1946,13 @@ class _HomeworkHistoryScreen extends StatelessWidget {
                 color: AppPalette.card(context),
                 borderRadius: BorderRadius.circular(16),
                 child: InkWell(
+                  // Ödev-merkezli sonuç sayfası: öğrenci listesi + soru
+                  // analizi; testin aslına oradaki 📖 ikonu ile ulaşılır.
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) =>
-                          TeacherHomeworkViewScreen(homework: hw))),
+                      builder: (_) => TeacherHomeworkResultsScreen(
+                          homework: hw,
+                          className: cls.name,
+                          orderNo: hws.length - i))),
                   borderRadius: BorderRadius.circular(16),
                   child: Container(
                     padding: const EdgeInsets.all(14),

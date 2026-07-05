@@ -209,6 +209,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // Hesap tipine göre öğrenciye özgü bölümleri gizle / öğretmene branş ekle.
     final isStudent = AccountService.instance.isStudent;
     final isTeacher = AccountService.instance.isTeacher;
+    final isParent = AccountService.instance.isParent;
     final teacherBranch = AccountService.instance.teacherBranch;
     final teacherLevel = AccountService.instance.teacherLevel;
 
@@ -508,7 +509,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    localeService.tr('invite_friends_title'),
+                                    // Ebeveynde "arkadaşını davet et" yerine
+                                    // veliye hitap eden metin.
+                                    isParent
+                                        ? 'Diğer velileri davet et'.tr()
+                                        : localeService
+                                            .tr('invite_friends_title'),
                                     style: GoogleFonts.poppins(
                                       fontSize: 15,
                                       fontWeight: FontWeight.w800,
@@ -518,7 +524,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   ),
                                   SizedBox(height: 4),
                                   Text(
-                                    localeService.tr('invite_card_subtitle'),
+                                    isParent
+                                        ? 'Davet ettiğin her kişi sana Premium günler kazandırır.'
+                                            .tr()
+                                        : localeService
+                                            .tr('invite_card_subtitle'),
                                     style: GoogleFonts.poppins(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w600,
@@ -1194,6 +1204,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 'denemek için "Demo veri ekle"yi kullanabilirsin.'
                             .tr(),
                       ),
+                    ] else if (AccountService.instance.isParent) ...[
+                      // ── Ebeveyne özgü SSS ──
+                      _faqTile(
+                        'Çocuğumu nasıl bağlarım?'.tr(),
+                        'Çocuğun kendi telefonunda Profil → "Ebeveyni Bağla" '
+                                'ile 15 dakika geçerli bir kod üretir. Sen bu '
+                                'kodu Çocuklarım sekmesindeki ➕ menüsünden '
+                                'girersin; çocuk gelen isteği onaylayınca '
+                                'bağlantı kurulur.'
+                            .tr(),
+                      ),
+                      _faqTile(
+                        'Çocuğumun verilerini kimler görebilir?'.tr(),
+                        'Yalnızca çocuğun onayladığı bağlı veliler — onay '
+                                'olmadan hiçbir veri paylaşılmaz. Bağlantıyı '
+                                'istediğin an "Bağlantıyı kaldır" ile '
+                                'kesebilirsin.'
+                            .tr(),
+                      ),
+                      _faqTile(
+                        'Ekran süresi sınırı koyabilir miyim?'.tr(),
+                        'Çocuklarım sekmesinde çocuğuna dokun → Ebeveyn '
+                                'Kontrolleri. Günlük süre sınırı ve sessiz '
+                                'saatler belirleyebilirsin; birden fazla veli '
+                                'bağlıysa en kısıtlayıcı ayar uygulanır.'
+                            .tr(),
+                      ),
+                      _faqTile(
+                        'Haftalık gelişim raporunu nasıl alırım?'.tr(),
+                        'Ana sayfadaki hızlı aksiyonlardan PDF karneyi üret — '
+                                'ödev sonuçları, günlük çalışma grafikleri ve '
+                                'AI değerlendirmesiyle birlikte paylaşıma '
+                                'hazır bir rapor oluşturulur.'
+                            .tr(),
+                      ),
                     ] else ...[
                       _faqTile(
                         'Davet kodum çalışmıyor, ne yapmalıyım?'.tr(),
@@ -1203,11 +1248,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             .tr(),
                       ),
                       _faqTile(
-                        'Çocuk hesabımı koruyabilir miyim?'.tr(),
-                        'Aile bölümündeki "Ebeveyn Paneli"ne bas. PIN veya '
-                                'matematik doğrulamasından sonra çocuğunun '
-                                'çalışma raporunu görebilir, sınırlar '
-                                'koyabilirsin.'
+                        'Ebeveynimi nasıl bağlarım?'.tr(),
+                        'Aile bölümündeki "Ebeveyni Bağla" ile kod üret ve '
+                                'ebeveynine ver. Ebeveynin kendi uygulamasında '
+                                'kodu girince sana onay isteği gelir; '
+                                'onaylarsan gelişimini takip edebilir.'
                             .tr(),
                       ),
                     ],
@@ -6956,9 +7001,40 @@ class _NotificationsSettingsSheetState
   Map<String, bool> _prefs = {};
   bool _loading = true;
 
-  // Hesap tipine göre kategori seti (öğretmen ≠ öğrenci).
-  List<_NotifGroup> get _groups =>
-      AccountService.instance.isTeacher ? _teacherGroups : _studentGroups;
+  // Hesap tipine göre kategori seti (öğretmen ≠ ebeveyn ≠ öğrenci).
+  List<_NotifGroup> get _groups {
+    final acc = AccountService.instance;
+    if (acc.isTeacher) return _teacherGroups;
+    if (acc.isParent) return _parentGroups;
+    return _studentGroups;
+  }
+
+  // ── EBEVEYN bildirim kategorileri ───────────────────────────────────
+  // Sunucu fanout tipleriyle hizalı: child_* kopya bildirimleri
+  // (fanoutChildNotifToParents), teslimler (notifyParentsOnSubmission),
+  // öğretmen notları (pushOnTeacherNote) ve haftalık veli özeti
+  // (weeklyParentSummary).
+  static const List<_NotifGroup> _parentGroups = [
+    _NotifGroup('Çocuğum', [
+      _NotifCat('child_submission', Icons.assignment_turned_in_rounded,
+          Color(0xFF10B981), 'Ödev teslimleri',
+          'Çocuğun bir ödevi teslim ettiğinde haber ver.'),
+      _NotifCat('child_activity', Icons.notifications_active_rounded,
+          Color(0xFF7C3AED), 'Sınıf gelişmeleri',
+          'Çocuğuna gelen yeni ödev, duyuru ve sınıf davetleri sana da iletilir.'),
+      _NotifCat('teacher_note', Icons.rate_review_rounded, Color(0xFF3B82F6),
+          'Öğretmen notları',
+          'Öğretmen çocuğun için not veya takdir paylaştığında.'),
+      _NotifCat('weekly_summary', Icons.insights_rounded, Color(0xFFF59E0B),
+          'Haftalık özet', 'Çocuğunun haftalık gelişim özeti.'),
+    ]),
+    _NotifGroup('Diğer', [
+      _NotifCat('premium_offer', Icons.local_offer_rounded, Color(0xFFEC4899),
+          'Premium teklifler', 'Sınırlı süreli indirim ve kampanyalar.'),
+      _NotifCat('newsletter', Icons.mail_outline_rounded, Color(0xFF64748B),
+          'Bülten & haberler', 'Yeni özellikler ve uygulama haberleri.'),
+    ]),
+  ];
 
   // ── ÖĞRETMEN bildirim kategorileri ──────────────────────────────────
   static const List<_NotifGroup> _teacherGroups = [

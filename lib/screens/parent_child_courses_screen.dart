@@ -9,8 +9,10 @@
 //    takdirler tek akışta, GÖNDEREN öğretmen belli.
 // ═══════════════════════════════════════════════════════════════════════════
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/class_service.dart';
 import '../services/homework_service.dart';
@@ -52,29 +54,66 @@ const _kDemoCourses = <(String, String, String)>[
   ('Biyoloji', '9-A Biyoloji', 'Can Öztürk'),
 ];
 
+/// Ders kartı mini istatistikleri: aktif ödev, 24 saat alarmı, genel başarı
+/// ortalaması ve tamamlanan/toplam oranı.
+typedef _CourseStats = ({
+  int active,
+  bool urgent,
+  int? avg,
+  int done,
+  int total,
+});
+
 class _ParentChildCoursesScreenState extends State<ParentChildCoursesScreen> {
   late Future<List<JoinedClass>> _future;
   final _shotKey = GlobalKey();
   bool _showPalette = false;
   Color? _bg;
 
-  /// classId → AKTİF ödev sayısı (yayınlanmış + son teslimi geçmemiş).
-  final Map<String, int> _activeCounts = {};
-  final Set<String> _countsRequested = {};
+  /// classId → kart istatistikleri (arka planda bir kez yüklenir).
+  final Map<String, _CourseStats> _stats = {};
+  final Set<String> _statsRequested = {};
 
-  /// Her sınıfın aktif ödev sayısını (bir kez) arka planda yükler.
-  void _loadActiveCounts(List<JoinedClass> classes) {
+  /// Her sınıfın ödev+teslim verisinden kart istatistiklerini çıkarır:
+  /// aktif ödev sayısı, 24 saatten az kalan teslim (alarm), skor ortalaması
+  /// ve tamamlanan/toplam ödev oranı.
+  void _loadStats(List<JoinedClass> classes) {
     for (final c in classes) {
-      if (!_countsRequested.add(c.classId)) continue;
-      HomeworkService.classHomeworksStream(c.classId).first.then((hws) {
+      if (!_statsRequested.add(c.classId)) continue;
+      HomeworkService.studentReport(c.classId, widget.childUid)
+          .then((entries) {
         final now = DateTime.now();
-        final n = hws
-            .where((h) =>
-                h.isPublished &&
-                h.dueAt.isAfter(now) &&
-                !(h.publishAt != null && h.publishAt!.isAfter(now)))
-            .length;
-        if (mounted) setState(() => _activeCounts[c.classId] = n);
+        // Öğrenciye görünür (yayınlanmış) ödevler.
+        final pub = entries
+            .where((e) =>
+                e.homework.isPublished &&
+                !(e.homework.publishAt != null &&
+                    e.homework.publishAt!.isAfter(now)))
+            .toList();
+        final active =
+            pub.where((e) => e.homework.dueAt.isAfter(now)).length;
+        final urgent = pub.any((e) =>
+            e.homework.dueAt.isAfter(now) &&
+            e.homework.dueAt.difference(now) < const Duration(hours: 24) &&
+            !(e.submission?.isSubmitted ?? false));
+        final scores = <num>[
+          for (final e in pub)
+            if (e.submission?.scorePercent != null)
+              e.submission!.scorePercent!
+        ];
+        final done =
+            pub.where((e) => e.submission?.isSubmitted ?? false).length;
+        if (!mounted) return;
+        setState(() => _stats[c.classId] = (
+              active: active,
+              urgent: urgent,
+              avg: scores.isEmpty
+                  ? null
+                  : (scores.reduce((a, b) => a + b) / scores.length)
+                      .round(),
+              done: done,
+              total: pub.length,
+            ));
       }).catchError((_) {});
     }
   }
@@ -94,6 +133,36 @@ class _ParentChildCoursesScreenState extends State<ParentChildCoursesScreen> {
   void _pickBg(Color? c) {
     setState(() => _bg = c);
     PageBgPrefs.save('parent_courses', c);
+  }
+
+  /// Ders kartındaki soldan hizalı bilgi satırı: "Etiket: değer".
+  Widget _infoLine(BuildContext ctx, String label, String value,
+      {Color? color}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Text.rich(
+        TextSpan(
+          text: '$label: ',
+          style: GoogleFonts.poppins(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: AppPalette.textSecondary(ctx),
+          ),
+          children: [
+            TextSpan(
+              text: value,
+              style: GoogleFonts.poppins(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                color: color ?? AppPalette.textPrimary(ctx),
+              ),
+            ),
+          ],
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
   }
 
   /// Ders adına göre kart emojisi.
@@ -173,7 +242,7 @@ class _ParentChildCoursesScreenState extends State<ParentChildCoursesScreen> {
               return const Center(child: CircularProgressIndicator());
             }
             final classes = snap.data ?? const <JoinedClass>[];
-            if (!widget.demo) _loadActiveCounts(classes);
+            if (!widget.demo) _loadStats(classes);
             // Demo: örnek dersler; gerçek modda boşsa bilgilendir.
             final courses = widget.demo
                 ? _kDemoCourses
@@ -184,8 +253,14 @@ class _ParentChildCoursesScreenState extends State<ParentChildCoursesScreen> {
                           c.teacherDisplayName,
                         ))
                     .toList();
-            // Demo aktif ödev sayıları (çeşitlilik görünsün diye).
-            const demoCounts = [2, 1, 3, 0];
+            // Demo kart istatistikleri (çeşitlilik görünsün diye):
+            // Fizik'te 24 saat alarmı, Biyoloji'de "temiz" kart.
+            const demoStats = <_CourseStats>[
+              (active: 2, urgent: false, avg: 82, done: 12, total: 15),
+              (active: 1, urgent: true, avg: 74, done: 8, total: 9),
+              (active: 3, urgent: false, avg: 61, done: 5, total: 9),
+              (active: 0, urgent: false, avg: 88, done: 9, total: 9),
+            ];
             if (courses.isEmpty) {
               return Center(
                 child: Padding(
@@ -213,18 +288,27 @@ class _ParentChildCoursesScreenState extends State<ParentChildCoursesScreen> {
                       crossAxisCount: 2,
                       mainAxisSpacing: 12,
                       crossAxisSpacing: 12,
-                      childAspectRatio: 1.02,
+                      // Kartta yeni satırlar var (yüzde + tamamlanan) —
+                      // taşmasın diye biraz daha uzun.
+                      childAspectRatio: 0.90,
                     ),
                     itemCount: courses.length,
                     itemBuilder: (ctx, i) {
                       final (subject, className, teacher) = courses[i];
-                      // Aktif ödev sayısı: verilmiş + süresi geçmemiş.
-                      // null → henüz yükleniyor.
-                      final int? active = widget.demo
-                          ? demoCounts[i % demoCounts.length]
-                          : _activeCounts[classes[i].classId];
+                      // Kart istatistikleri — null: henüz yükleniyor.
+                      final _CourseStats? st = widget.demo
+                          ? demoStats[i % demoStats.length]
+                          : _stats[classes[i].classId];
+                      final int? active = st?.active;
+                      // 4) Aktif ödevi olmayan ders → "kafamız rahat"
+                      //    hissi: hafif yeşilimsi zemin + yıldız.
+                      final relaxed = active == 0;
                       return Material(
-                        color: AppPalette.card(ctx),
+                        color: relaxed
+                            ? Color.alphaBlend(
+                                _kGreen.withValues(alpha: 0.07),
+                                AppPalette.card(ctx))
+                            : AppPalette.card(ctx),
                         borderRadius: BorderRadius.circular(16),
                         child: InkWell(
                           onTap: () {
@@ -254,92 +338,74 @@ class _ParentChildCoursesScreenState extends State<ParentChildCoursesScreen> {
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(16),
-                              border:
-                                  Border.all(color: AppPalette.border(ctx)),
+                              border: Border.all(
+                                  color: relaxed
+                                      ? _kGreen.withValues(alpha: 0.35)
+                                      : AppPalette.border(ctx)),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // İkon + SAĞINDA ders adı.
-                                Row(
-                                  children: [
-                                    Container(
-                                      width: 40,
-                                      height: 40,
-                                      decoration: BoxDecoration(
-                                        color:
-                                            _kBrand.withValues(alpha: 0.10),
-                                        borderRadius:
-                                            BorderRadius.circular(12),
-                                      ),
-                                      alignment: Alignment.center,
-                                      child: Text(_subjectEmoji(subject),
-                                          style: const TextStyle(
-                                              fontSize: 20)),
+                                // Üstte ORTALI: küçük ikon + altında ders
+                                // adı. (Başarı yüzdesi kartta gösterilmez.)
+                                Center(
+                                  child: Container(
+                                    width: 32,
+                                    height: 32,
+                                    decoration: BoxDecoration(
+                                      color:
+                                          _kBrand.withValues(alpha: 0.10),
+                                      borderRadius:
+                                          BorderRadius.circular(10),
                                     ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(subject,
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: GoogleFonts.poppins(
-                                            fontSize: 13.5,
-                                            fontWeight: FontWeight.w800,
-                                            color:
-                                                AppPalette.textPrimary(ctx),
-                                          )),
-                                    ),
-                                  ],
+                                    alignment: Alignment.center,
+                                    child: Text(_subjectEmoji(subject),
+                                        style:
+                                            const TextStyle(fontSize: 16)),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Center(
+                                  child: Text(subject,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppPalette.textPrimary(ctx),
+                                      )),
                                 ),
                                 const Spacer(),
-                                // Aktif ödev sayısı — verilmiş + süresi
-                                // geçmemiş ödevler.
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: (active != null && active > 0
-                                            ? const Color(0xFF10B981)
-                                            : AppPalette
-                                                .textSecondary(ctx))
-                                        .withValues(alpha: 0.12),
-                                    borderRadius:
-                                        BorderRadius.circular(999),
-                                  ),
-                                  child: Text(
-                                      active == null
-                                          ? '…'
-                                          : active > 0
-                                              ? '📝 $active ${'aktif ödev'.tr()}'
-                                              : 'Aktif ödev yok'.tr(),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 10.5,
-                                        fontWeight: FontWeight.w800,
-                                        color: active != null && active > 0
-                                            ? const Color(0xFF059669)
-                                            : AppPalette
-                                                .textSecondary(ctx),
-                                      )),
-                                ),
-                                const SizedBox(height: 6),
+                                // Soldan hizalı detay bloğu: öğretmen,
+                                // sınıf, toplam ödev, aktif ödev.
                                 if (teacher.trim().isNotEmpty)
-                                  Text('👨‍🏫 $teacher',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 10.5,
-                                        fontWeight: FontWeight.w600,
-                                        color: _kBrand,
-                                      )),
-                                Text(className,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 10.5,
-                                      color: AppPalette.textSecondary(ctx),
-                                    )),
+                                  _infoLine(
+                                      ctx, 'Öğretmen'.tr(), teacher,
+                                      color: _kBrand),
+                                _infoLine(ctx, 'Sınıf'.tr(), className),
+                                _infoLine(ctx, 'Verilen ödevler'.tr(),
+                                    st == null ? '…' : '${st.total}'),
+                                // Aktif ödev: 24 saatten az kaldıysa ⏰
+                                // turuncu; hiç yoksa ⭐ yeşil.
+                                Builder(builder: (_) {
+                                  final urgent = st?.urgent ?? false;
+                                  final valColor = active == null
+                                      ? null
+                                      : urgent
+                                          ? _kAmber
+                                          : active > 0
+                                              ? const Color(0xFF059669)
+                                              : _kGreen;
+                                  final v = active == null
+                                      ? '…'
+                                      : active > 0
+                                          ? '${urgent ? '⏰ ' : ''}$active'
+                                          : '⭐ ${'Yok'.tr()}';
+                                  return _infoLine(
+                                      ctx, 'Aktif ödev'.tr(), v,
+                                      color: valColor);
+                                }),
                               ],
                             ),
                           ),
@@ -440,19 +506,333 @@ class _DemoCourseHomeworksScreenState
   String get className => widget.className;
   String get teacher => widget.teacher;
 
+  /// "Çocuğuma Hatırlat" basılan ödevler (bu açılışta bir kez).
+  final Set<String> _reminded = {};
+
+  /// Sayfa başı özet: skorlu ödevlerin ortalaması + tamamlanan sayısı.
+  Widget _summaryCard(
+      BuildContext ctx, List<(String, String, DateTime, String, int?)> items) {
+    final scores = [
+      for (final it in items)
+        if (it.$5 != null) it.$5!
+    ];
+    final avg = scores.isEmpty
+        ? 0
+        : (scores.reduce((a, b) => a + b) / scores.length).round();
+    final done = items.where((it) => it.$4 != 'pending').length;
+    final avgColor = avg >= 70 ? _kGreen : _kAmber;
+    Widget stat(String label, String value, Color color) => Expanded(
+          child: Column(
+            children: [
+              Text(value,
+                  style: GoogleFonts.poppins(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: color,
+                  )),
+              const SizedBox(height: 2),
+              Text(label,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppPalette.textSecondary(ctx),
+                  )),
+            ],
+          ),
+        );
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      decoration: BoxDecoration(
+        color: AppPalette.card(ctx),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppPalette.border(ctx)),
+      ),
+      child: Row(
+        children: [
+          stat('Genel Başarı'.tr(), '%$avg', avgColor),
+          Container(
+              width: 1, height: 30, color: AppPalette.border(ctx)),
+          stat('Tamamlanan Ödevler'.tr(), '$done/${items.length}', _kBrand),
+        ],
+      ),
+    );
+  }
+
+  /// Kart içi küçük hap buton (AI Tavsiyesi / Çocuğuma Hatırlat).
+  Widget _miniButton(BuildContext ctx,
+      {required String emoji,
+      required String label,
+      required Color color,
+      bool filled = false,
+      VoidCallback? onTap}) {
+    return Material(
+      color: filled ? color : color.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 7),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+                color: color.withValues(alpha: filled ? 0 : 0.35)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(emoji,
+                  style: TextStyle(
+                      fontSize: 12, color: filled ? Colors.white : null)),
+              const SizedBox(width: 6),
+              Text(label,
+                  style: GoogleFonts.poppins(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    color: filled ? Colors.white : color,
+                  )),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Ortak alt-sayfa iskeleti (analiz + AI tavsiyesi sheet'leri).
+  Future<void> _openSheet(BuildContext context, Widget child) {
+    return showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppPalette.card(context),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
+          child: child,
+        ),
+      ),
+    );
+  }
+
+  /// 1) "Ödev Analizi" — soru bazlı D/Y ızgarası + kısa AI analizi.
+  ///    Demo: 20 soru, yanlışlar skora göre deterministik dağıtılır.
+  void _openAnalysis(
+      BuildContext context, String title, int score, String status) {
+    const total = 20;
+    final correct = (total * score / 100).round();
+    final wrong = total - correct;
+    // Yanlış soruları eşit aralıklarla dağıt (deterministik — demo).
+    final wrongIdx = <int>{
+      for (var k = 0; k < wrong; k++) ((k + 0.5) * total / wrong).floor()
+    };
+    final child = widget.childName;
+    final analysis = score >= 80
+        ? '$child ${'bu ödevde harika iş çıkardı; kavram sorularının tamamına doğru yanıt verdi. Yanlışları dikkatsizlik kaynaklı görünüyor — sınav öncesi kısa bir kontrol alışkanlığı yeterli.'.tr()}'
+        : score >= 65
+            ? '$child ${'genel olarak iyi durumda; temel kavramlar oturmuş. Yanlışlar ağırlıkla işlem/uygulama sorularında — benzer tipte 5-10 soruluk kısa tekrarlar farkı kapatır.'.tr()}'
+            : '$child ${'bu konuda temel kavramlarda eksikler görünüyor; özellikle yorum gerektiren sorularda zorlanmış. Konu özetini birlikte gözden geçirip kolay sorulardan başlaması özgüvenini toparlar.'.tr()}';
+    _openSheet(
+      context,
+      Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppPalette.textPrimary(context),
+                    )),
+              ),
+              Text('%$score',
+                  style: GoogleFonts.poppins(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: score >= 70 ? _kGreen : _kAmber,
+                  )),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+              '✅ $correct ${'doğru'.tr()} · ❌ $wrong ${'yanlış'.tr()}'
+              '${status == 'late' ? ' · 🕒 ${'Geç teslim'.tr()}' : ''}',
+              style: GoogleFonts.poppins(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: AppPalette.textSecondary(context),
+              )),
+          const SizedBox(height: 12),
+          // Soru ızgarası — hangi soru doğru/yanlış tek bakışta.
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (var i = 0; i < total; i++)
+                Container(
+                  width: 30,
+                  height: 30,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: (wrongIdx.contains(i)
+                            ? const Color(0xFFEF4444)
+                            : _kGreen)
+                        .withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                        color: wrongIdx.contains(i)
+                            ? const Color(0xFFEF4444)
+                            : _kGreen,
+                        width: 1.2),
+                  ),
+                  child: Text('${i + 1}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: wrongIdx.contains(i)
+                            ? const Color(0xFFEF4444)
+                            : _kGreen,
+                      )),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: _kBrand.withValues(alpha: 0.07),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _kBrand.withValues(alpha: 0.25)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('🤖 ${'Yapay Zekâ Analizi'.tr()}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                      color: _kBrand,
+                    )),
+                const SizedBox(height: 5),
+                Text(analysis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      height: 1.5,
+                      color: AppPalette.textPrimary(context),
+                    )),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 2) "AI Tavsiyesi" — geç teslim / düşük skor için veliye destek reçetesi.
+  void _openAdvice(
+      BuildContext context, String title, int? score, String status) {
+    final child = widget.childName;
+    final late_ = status == 'late';
+    final advice = late_ && (score ?? 100) < 70
+        ? '$child ${'bu ödevi geç teslim etti ve başarı oranı biraz düşük kaldı. Bu konudaki eksiklerini kapatması için onu motive edebilir, ödüllerini bu konuyu tekrar etmesi şartına bağlayabilirsiniz. Kızmak yerine "birlikte bakalım" yaklaşımı bu yaşta çok daha iyi çalışır.'.tr()}'
+        : late_
+            ? '$child ${'ödevi geç teslim etti ama başarısı iyi. Sorun bilgide değil zaman yönetiminde görünüyor — akşamları 20 dakikalık sabit bir "ödev saati" belirlemek geç teslimleri azaltır.'.tr()}'
+            : '$child ${'için bu ödevin başarı oranı düşük kaldı. Konuyu anlamadığı yerleri öğretmenine sormaya teşvik edebilir, uygulamadaki konu özetini birlikte 10 dakika gözden geçirebilirsiniz. Küçük bir ilerlemeyi bile övmek motivasyonunu belirgin artırır.'.tr()}';
+    _openSheet(
+      context,
+      Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('🤖 ${'AI Destek Reçetesi'.tr()}',
+              style: GoogleFonts.poppins(
+                fontSize: 14.5,
+                fontWeight: FontWeight.w800,
+                color: AppPalette.textPrimary(context),
+              )),
+          const SizedBox(height: 3),
+          Text(title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                color: AppPalette.textSecondary(context),
+              )),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(13),
+            decoration: BoxDecoration(
+              color: _kBrand.withValues(alpha: 0.07),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _kBrand.withValues(alpha: 0.25)),
+            ),
+            child: Text(advice,
+                style: GoogleFonts.poppins(
+                  fontSize: 12.5,
+                  height: 1.55,
+                  color: AppPalette.textPrimary(context),
+                )),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 3) "Çocuğuma Hatırlat" — yazışmasız teşvik; çocuğun uygulamasına tatlı
+  ///    bir bildirim gider (demo: yalnız görsel onay).
+  void _remind(String title) {
+    if (_reminded.contains(title)) return;
+    setState(() => _reminded.add(title));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      behavior: SnackBarBehavior.floating,
+      content: Text(
+          '🔔 ${'Hatırlatma gönderildi — çocuğuna "Ailen, yaklaşan ödevini sana hatırlatıyor, başarılar!" bildirimi gidecek.'.tr()}'),
+    ));
+  }
+
+  /// Derse göre örnek konu adları — kart başında ders adı tekrar etmez
+  /// (ders zaten sayfa başlığında), bunun yerine KONU gösterilir.
+  static List<String> _topicsFor(String subject) {
+    final k = subject.toLowerCase();
+    if (k.contains('matematik') || k.contains('geometri')) {
+      return ['Denklemler', 'Oran-Orantı', 'Üslü Sayılar', 'Problemler'];
+    }
+    if (k.contains('fizik')) {
+      return ['Kuvvet ve Hareket', 'Enerji', 'Basınç', 'Optik'];
+    }
+    if (k.contains('kimya')) {
+      return ['Maddenin Yapısı', 'Mol Kavramı', 'Karışımlar', 'Asit-Baz'];
+    }
+    if (k.contains('biyoloji')) {
+      return ['Hücre', 'Hücre Bölünmeleri', 'Kalıtım', 'Ekosistem'];
+    }
+    return ['Ünite 1', 'Ünite 2', 'Ünite 3', 'Ünite 4'];
+  }
+
   @override
   Widget build(BuildContext context) {
     final ink = AppPalette.textPrimary(context);
     final now = DateTime.now();
-    // (başlık, bitiş, durum, skor%) — durum: done | late | pending
-    final items = <(String, DateTime, String, int?)>[
-      ('$subject — Ünite Tekrarı', now.subtract(const Duration(days: 6)),
+    final topics = _topicsFor(subject);
+    // (başlık, konu, bitiş, durum, skor%) — durum: done | late | pending
+    final items = <(String, String, DateTime, String, int?)>[
+      ('Ünite Tekrarı', topics[0], now.subtract(const Duration(days: 6)),
           'done', 85),
-      ('$subject — Konu Testi (20 soru)',
+      ('Konu Testi (20 soru)', topics[1],
           now.subtract(const Duration(days: 3)), 'done', 70),
-      ('$subject — Alıştırma Ödevi', now.subtract(const Duration(days: 1)),
+      ('Alıştırma Ödevi', topics[2], now.subtract(const Duration(days: 1)),
           'late', 55),
-      ('$subject — Haftalık Ödev', now.add(const Duration(days: 2)),
+      ('Haftalık Ödev', topics[3], now.add(const Duration(days: 2)),
           'pending', null),
     ];
     String fmt(DateTime d) =>
@@ -502,22 +882,38 @@ class _DemoCourseHomeworksScreenState
           children: [
             if (_showPalette) PageBgPaletteStrip(onPick: _pickBg),
             const _DemoBanner(),
+            // 4) Dersin genel gidişatı tek bakışta.
+            _summaryCard(context, items),
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
                 itemCount: items.length,
                 itemBuilder: (ctx, i) {
-                  final (title, due, status, score) = items[i];
+                  final (title, topic, due, status, score) = items[i];
                   final (label, color) = switch (status) {
                     'done' => ('✅ ${'Teslim edildi'.tr()}', _kGreen),
                     'late' => ('🕒 ${'Geç teslim'.tr()}', _kAmber),
                     _ => ('⏳ ${'Bekliyor'.tr()}', const Color(0xFF94A3B8)),
                   };
+                  // AI tavsiyesi: geç teslim veya düşük başarı kartlarında.
+                  final needsAdvice =
+                      status == 'late' || (score != null && score < 70);
+                  final reminded = _reminded.contains(title);
                   return Container(
                     margin: const EdgeInsets.only(bottom: 10),
+                    child: Material(
+                    color: AppPalette.card(ctx),
+                    borderRadius: BorderRadius.circular(14),
+                    child: InkWell(
+                      // 1) Skorlu kart → soru bazlı ödev analizi sheet'i.
+                      onTap: score == null
+                          ? null
+                          : () => _openAnalysis(
+                              ctx, '$title · $topic', score, status),
+                      borderRadius: BorderRadius.circular(14),
+                      child: Container(
                     padding: const EdgeInsets.all(13),
                     decoration: BoxDecoration(
-                      color: AppPalette.card(ctx),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(color: AppPalette.border(ctx)),
                     ),
@@ -527,16 +923,33 @@ class _DemoCourseHomeworksScreenState
                         Row(
                           children: [
                             Expanded(
-                              child: Text(title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 13.5,
-                                    fontWeight: FontWeight.w800,
-                                    color: ink,
-                                  )),
+                              child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                children: [
+                                  Text(title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: ink,
+                                      )),
+                                  // Konu adı — ders adı sayfa başlığında
+                                  // zaten var, kartta tekrar edilmez.
+                                  Text('📌 $topic',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w600,
+                                        color:
+                                            AppPalette.textSecondary(ctx),
+                                      )),
+                                ],
+                              ),
                             ),
-                            if (score != null)
+                            if (score != null) ...[
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 9, vertical: 3),
@@ -553,6 +966,11 @@ class _DemoCourseHomeworksScreenState
                                           score >= 70 ? _kGreen : _kAmber,
                                     )),
                               ),
+                              // Analize açılabilir olduğunun işareti.
+                              Icon(Icons.chevron_right_rounded,
+                                  size: 18,
+                                  color: AppPalette.textSecondary(ctx)),
+                            ],
                           ],
                         ),
                         const SizedBox(height: 6),
@@ -580,7 +998,36 @@ class _DemoCourseHomeworksScreenState
                                 )),
                           ],
                         ),
+                        // 2) AI destek reçetesi — düşük skor / geç teslim.
+                        if (needsAdvice) ...[
+                          const SizedBox(height: 9),
+                          _miniButton(
+                            ctx,
+                            emoji: '🤖',
+                            label: 'AI Tavsiyesi'.tr(),
+                            color: _kBrand,
+                            onTap: () => _openAdvice(
+                                ctx, '$title · $topic', score, status),
+                          ),
+                        ],
+                        // 3) Bekleyen ödev → yazışmasız hatırlatma sinyali.
+                        if (status == 'pending') ...[
+                          const SizedBox(height: 9),
+                          _miniButton(
+                            ctx,
+                            emoji: reminded ? '✓' : '🔔',
+                            label: reminded
+                                ? 'Hatırlatıldı'.tr()
+                                : 'Çocuğuma Hatırlat'.tr(),
+                            color: _kGreen,
+                            filled: reminded,
+                            onTap: reminded ? null : () => _remind(title),
+                          ),
+                        ],
                       ],
+                    ),
+                      ),
+                    ),
                     ),
                   );
                 },
@@ -604,8 +1051,15 @@ class _TeacherMsg {
   final String text;
   final DateTime when;
   final String kind; // 'announcement' | 'praise' | 'note'
+  /// Sessiz geri bildirimde öğretmen uid'si classes/{classId}'den çözülür.
+  final String classId;
   const _TeacherMsg(
-      this.teacher, this.className, this.text, this.when, this.kind);
+      this.teacher, this.className, this.text, this.when, this.kind,
+      {this.classId = ''});
+
+  /// Mesaj başına kalıcı geri bildirim anahtarı (cihazda saklanır).
+  String get ackKey =>
+      '$classId|$kind|${when.millisecondsSinceEpoch}|${text.hashCode}';
 }
 
 class ParentTeacherMessagesScreen extends StatefulWidget {
@@ -631,6 +1085,13 @@ class _ParentTeacherMessagesScreenState
   bool _showPalette = false;
   Color? _bg;
 
+  /// Üst filtre çipi: 'all' | 'announcement' | 'praise' | 'note'.
+  String _filter = 'all';
+
+  /// Mesaj başına gönderilmiş sessiz geri bildirim: ackKey → 'seen'|'study'.
+  /// Cihazda kalıcı (SharedPreferences) — veli aynı mesaja iki kez basamaz.
+  final Map<String, String> _acks = {};
+
   @override
   void initState() {
     super.initState();
@@ -638,6 +1099,23 @@ class _ParentTeacherMessagesScreenState
     PageBgPrefs.load('parent_messages').then((c) {
       if (mounted && c != null) setState(() => _bg = c);
     });
+    SharedPreferences.getInstance().then((p) {
+      final list =
+          p.getStringList('parent_msg_acks_${widget.childUid}') ?? const [];
+      if (!mounted || list.isEmpty) return;
+      setState(() {
+        for (final e in list) {
+          final i = e.lastIndexOf('=');
+          if (i > 0) _acks[e.substring(0, i)] = e.substring(i + 1);
+        }
+      });
+    });
+  }
+
+  void _saveAcks() {
+    SharedPreferences.getInstance().then((p) => p.setStringList(
+        'parent_msg_acks_${widget.childUid}',
+        _acks.entries.map((e) => '${e.key}=${e.value}').toList()));
   }
 
   void _pickBg(Color? c) {
@@ -690,7 +1168,8 @@ class _ParentTeacherMessagesScreenState
             a.className,
             a.message,
             a.when,
-            'announcement'));
+            'announcement',
+            classId: a.classId));
       }
     } catch (_) {}
     // 2) Ebeveynle paylaşılan öğretmen notları/takdirleri (sınıf sınıf).
@@ -711,13 +1190,169 @@ class _ParentTeacherMessagesScreenState
                 c.className,
                 n.text,
                 n.createdAt,
-                n.isPraise ? 'praise' : 'note'));
+                n.isPraise ? 'praise' : 'note',
+                classId: c.classId));
           }
         } catch (_) {}
       }
     } catch (_) {}
     out.sort((a, b) => b.when.compareTo(a.when));
     return out;
+  }
+
+  /// Sessiz geri bildirim: veli yazışamaz ama "gördüm" sinyali gönderebilir.
+  /// Öğretmenin bildirim kutusuna parent_ack doc'u yazılır (rules: create
+  /// serbest); veli tarafında seçim cihazda kalıcıdır — mesaj başına 1 kez.
+  Future<void> _sendAck(_TeacherMsg m, String kind) async {
+    if (_acks.containsKey(m.ackKey)) return;
+    setState(() => _acks[m.ackKey] = kind);
+    _saveAcks();
+    var delivered = widget.demo;
+    if (!widget.demo && m.classId.isNotEmpty) {
+      try {
+        final cls = await FirebaseFirestore.instance
+            .collection('classes')
+            .doc(m.classId)
+            .get();
+        final teacherUid = (cls.data()?['teacherUid'] ?? '').toString();
+        if (teacherUid.isNotEmpty) {
+          final short =
+              m.text.length > 80 ? '${m.text.substring(0, 80)}…' : m.text;
+          await FirebaseFirestore.instance
+              .collection('notifications')
+              .doc(teacherUid)
+              .collection('items')
+              .add({
+            'type': 'parent_ack',
+            'ackKind': kind,
+            'className': m.className,
+            'childName': widget.childName,
+            'title': kind == 'study'
+                ? '${widget.childName} velisi: Evde çalışacağız 🎯'
+                : '${widget.childName} velisi mesajını gördü 👍',
+            'body': kind == 'study'
+                ? '"$short" mesajın için evde çalışacaklarını belirtti.'
+                : '"$short" mesajını gördü ve onayladı.',
+            'when': FieldValue.serverTimestamp(),
+            'read': false,
+          });
+          delivered = true;
+        }
+      } catch (_) {/* best-effort — veli tarafındaki işaret yine kalır */}
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      behavior: SnackBarBehavior.floating,
+      content: Text(delivered
+          ? 'Öğretmene iletildi ✅'.tr()
+          : 'Kaydedildi — öğretmene şu an ulaşılamadı.'.tr()),
+    ));
+  }
+
+  /// Kart altı sessiz geri bildirim butonları. Seçim yapılınca seçilen
+  /// dolgulu kalır, diğeri soluklaşır; ikisi de kilitlenir.
+  Widget _ackButtons(BuildContext ctx, _TeacherMsg m) {
+    final chosen = _acks[m.ackKey];
+    Widget btn(String kind, String emoji, String label, Color color) {
+      final isChosen = chosen == kind;
+      final locked = chosen != null;
+      return Expanded(
+        child: Opacity(
+          opacity: locked && !isChosen ? 0.35 : 1,
+          child: Material(
+            color: isChosen ? color : color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(999),
+            child: InkWell(
+              onTap: locked ? null : () => _sendAck(m, kind),
+              borderRadius: BorderRadius.circular(999),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 7),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                      color: color.withValues(alpha: isChosen ? 0 : 0.35)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(isChosen ? '✓' : emoji,
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: isChosen ? Colors.white : null)),
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: Text(label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            color: isChosen ? Colors.white : color,
+                          )),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        btn('seen', '👍', 'Okundu / Anlaşıldı'.tr(), _kGreen),
+        const SizedBox(width: 8),
+        btn('study', '🎯', 'Evde Çalışacağız'.tr(), _kBrand),
+      ],
+    );
+  }
+
+  /// Üstteki kaydırılabilir filtre çipleri (Hepsi/Duyuru/Takdir/Not).
+  Widget _filterBar(BuildContext ctx) {
+    const items = [
+      ('all', 'Hepsi'),
+      ('announcement', '📢 Duyurular'),
+      ('praise', '🌟 Takdirler'),
+      ('note', '⚠️ Uyarılar/Notlar'),
+    ];
+    return SizedBox(
+      height: 36,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          final (key, rawLabel) = items[i];
+          final sel = _filter == key;
+          return Material(
+            color: sel ? _kBrand : AppPalette.card(ctx),
+            borderRadius: BorderRadius.circular(999),
+            child: InkWell(
+              onTap: () => setState(() => _filter = key),
+              borderRadius: BorderRadius.circular(999),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 13),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                      color: sel ? _kBrand : AppPalette.border(ctx)),
+                ),
+                child: Text(rawLabel.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                      color: sel ? Colors.white : AppPalette.textPrimary(ctx),
+                    )),
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   (String, Color) _kindChip(String kind) {
@@ -810,15 +1445,28 @@ class _ParentTeacherMessagesScreenState
                 ),
               );
             }
+            final shown = _filter == 'all'
+                ? msgs
+                : msgs.where((m) => m.kind == _filter).toList();
             return Column(
               children: [
                 if (widget.demo) const _DemoBanner(),
+                const SizedBox(height: 8),
+                _filterBar(context),
                 Expanded(
-                  child: ListView.builder(
+                  child: shown.isEmpty
+                      ? Center(
+                          child: Text('Bu filtrede mesaj yok.'.tr(),
+                              style: GoogleFonts.poppins(
+                                fontSize: 12.5,
+                                color: AppPalette.textSecondary(context),
+                              )),
+                        )
+                      : ListView.builder(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-              itemCount: msgs.length,
+              itemCount: shown.length,
               itemBuilder: (ctx, i) {
-                final m = msgs[i];
+                final m = shown[i];
                 final (chipLabel, chipColor) = _kindChip(m.kind);
                 return Container(
                   margin: const EdgeInsets.only(bottom: 10),
@@ -896,6 +1544,10 @@ class _ParentTeacherMessagesScreenState
                             fontSize: 10,
                             color: AppPalette.textSecondary(ctx),
                           )),
+                      const SizedBox(height: 10),
+                      // Sessiz geri bildirim — veli yazamaz ama öğretmene
+                      // "gördüm/ilgileniyorum" sinyali gönderebilir.
+                      _ackButtons(ctx, m),
                     ],
                   ),
                 );
