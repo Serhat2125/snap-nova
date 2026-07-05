@@ -167,20 +167,22 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
       // ── App Check — Phone Auth + Firestore abuse koruması ─────────────
       // Play Integrity (Android prod), Debug provider (dev/debug build),
       // DeviceCheck (iOS). Phone Auth'un error 39 vermesini önler.
-      // Token verification: Firebase Auth otomatik gönderir, App Check
-      // backend doğrular. Enforce: Firebase Console → App Check'te ayarlanır.
-      try {
-        await FirebaseAppCheck.instance.activate(
-          androidProvider: kDebugMode
-              ? AndroidProvider.debug
-              : AndroidProvider.playIntegrity,
-          appleProvider: kDebugMode
-              ? AppleProvider.debug
-              : AppleProvider.deviceCheck,
-        ).timeout(const Duration(seconds: 4));
-      } catch (e, st) {
-        ErrorLogger.instance.capture(e, st, context: 'app_check_activate');
-      }
+      // ARKA PLANDA: ağ çağrısıdır; splash'ı bekletmesin (eskiden 4sn'e
+      // kadar açılışı uzatıyordu — "bazen donuyor" şikayetinin parçası).
+      unawaited(() async {
+        try {
+          await FirebaseAppCheck.instance.activate(
+            androidProvider: kDebugMode
+                ? AndroidProvider.debug
+                : AndroidProvider.playIntegrity,
+            appleProvider: kDebugMode
+                ? AppleProvider.debug
+                : AppleProvider.deviceCheck,
+          ).timeout(const Duration(seconds: 8));
+        } catch (e, st) {
+          ErrorLogger.instance.capture(e, st, context: 'app_check_activate');
+        }
+      }());
 
       // Firestore offline cache — ağ kesikken son veriye erişim + yazma kuyruğu.
       FirebaseFirestore.instance.settings = Settings(
@@ -189,21 +191,24 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
       );
       // Anonim Firebase Auth — Bilgi Ligi gibi yazmaları olan modüller
       // her kullanıcının uid'ye sahip olmasını gerektirir. currentUser
-      // null ise tek seferlik anonim oturum aç. (Firebase Console →
-      // Authentication → Sign-in method → "Anonymous" etkinleştirilmiş
-      // olmalı.) Hata/timeout yutulur; ağ yoksa offline akış sürer.
-      // KRİTİK: timeout yoksa yavaş ağda sonsuz takılıp splash donar.
-      try {
-        if (fb_auth.FirebaseAuth.instance.currentUser == null) {
-          await fb_auth.FirebaseAuth.instance
-              .signInAnonymously()
-              .timeout(const Duration(seconds: 5));
-        }
-      } catch (_) {/* anonim auth başarısız → cloud yazımları atlanır */}
+      // null ise tek seferlik anonim oturum aç. ARKA PLANDA: ağ çağrısı,
+      // yavaş ağda 5sn'e kadar splash'ı bekletiyordu; cloud yazan modüller
+      // uid'yi kullanım anında zaten kontrol ediyor.
+      unawaited(() async {
+        try {
+          if (fb_auth.FirebaseAuth.instance.currentUser == null) {
+            await fb_auth.FirebaseAuth.instance
+                .signInAnonymously()
+                .timeout(const Duration(seconds: 10));
+          }
+        } catch (_) {/* anonim auth başarısız → cloud yazımları atlanır */}
+      }());
       // Analytics + Crashlytics — Firebase init başarılı olduktan SONRA.
-      // Hata atmaz; init başarısızsa no-op'a düşer.
-      await Analytics.init();
-      Analytics.registerFlutterErrorHandler();
+      // Hata atmaz; init başarısızsa no-op'a düşer. Arka planda: açılışı
+      // bekletmez, handler kaydı init biter bitmez yapılır.
+      unawaited(Analytics.init().then((_) {
+        Analytics.registerFlutterErrorHandler();
+      }).catchError((_) {}));
     } catch (e, st) {
       AuthService.firebaseReady = false;
       debugPrint('[Firebase] init başarısız: $e\n'
@@ -226,35 +231,39 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
     }
 
     // ── Kamera, dil, tema, ağ, ülke, uzaktan ayar ─────────────────────
-    try {
-      globalCameras = await availableCameras();
-    } catch (e, st) {
-      globalCameras = [];
-      ErrorLogger.instance.capture(e, st, context: 'camera_enumeration');
+    // PARALEL: bu init'lerin hepsi birbirinden bağımsız (çoğu SharedPreferences
+    // okuması). Eskiden sıralı await zinciriydi → toplam süre = hepsinin
+    // TOPLAMI; şimdi en yavaş olanı kadar. Her görev kendi try/catch'inde:
+    // biri patlarsa diğerleri ve boot devam eder.
+    Future<void> guarded(String ctx, Future<void> Function() task) async {
+      try {
+        await task();
+      } catch (e, st) {
+        ErrorLogger.instance.capture(e, st, context: ctx);
+      }
     }
 
-    try { await localeService.init(); } catch (e, st) {
-      ErrorLogger.instance.capture(e, st, context: 'locale_init');
-    }
-    try { await themeService.init(); } catch (e, st) {
-      ErrorLogger.instance.capture(e, st, context: 'theme_init');
-    }
-    try { await connectivityService.init(); } catch (e, st) {
-      ErrorLogger.instance.capture(e, st, context: 'connectivity_init');
-    }
-    try { await AiProviderService.loadSelection(); } catch (e, st) {
-      ErrorLogger.instance.capture(e, st, context: 'ai_provider_load');
-    }
-    try { await AiQuotaService.instance.init(); } catch (e, st) {
-      ErrorLogger.instance.capture(e, st, context: 'ai_quota_init');
-    }
     // Voice & TTS — Sesli Komut için. Hata atmaz; başarısızsa no-op.
     unawaited(VoiceInputService.init());
     unawaited(TtsService.init());
-    // Saklı oturumu yükle — auth_user_v1 prefs key'inden.
-    try { await AuthService.init(); } catch (e, st) {
-      ErrorLogger.instance.capture(e, st, context: 'auth_init');
-    }
+
+    await Future.wait<void>([
+      guarded('camera_enumeration', () async {
+        globalCameras = await availableCameras();
+      }),
+      guarded('locale_init', localeService.init),
+      guarded('theme_init', themeService.init),
+      guarded('connectivity_init', connectivityService.init),
+      guarded('ai_provider_load', AiProviderService.loadSelection),
+      guarded('ai_quota_init', () => AiQuotaService.instance.init()),
+      // Saklı oturumu yükle — auth_user_v1 prefs key'inden.
+      guarded('auth_init', AuthService.init),
+      // AppSettings (sessiz saatler, otomatik karanlık, ses, kilit, vb.)
+      guarded('app_settings_init', () => AppSettingsService.instance.init()),
+      // Hesap tipi (öğrenci/ebeveyn/öğretmen) — _HomeRouter yönlendirme için
+      // okur. init() prefs'ten yükler + Firestore'dan async senkronize.
+      guarded('account_init', () => AccountService.instance.init()),
+    ]);
     // Premium-aware kota — UsageQuota.limits PremiumStatus revision değişince
     // otomatik FREE ↔ PREMIUM arasında swap edilir. Ödemeden sonra anında
     // yeni kotaya geçer; init'te de mevcut durum okunur.
@@ -269,12 +278,9 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
     // — yerel eksikse cloud'daki kullanıcı tercihlerini yere yaz, yeni
     // telefonda kullanıcı ayarlarını tekrar yapmasın.
     unawaited(PreferencesSyncService.restoreFromCloudIfEmpty());
-    // AppSettings (sessiz saatler, otomatik karanlık, ses, kilit, vb.)
-    // Yönlendirme uygulaması SystemChrome'a hemen yansır.
-    await AppSettingsService.instance.init();
-    // Hesap tipi (öğrenci/ebeveyn/öğretmen) — _HomeRouter yönlendirme için
-    // okur. init() prefs'ten yükler + Firestore'dan async senkronize.
-    await AccountService.instance.init();
+    // AppSettings + AccountService yukarıdaki PARALEL Future.wait bloğunda
+    // init edildi (tekrar await etmeye gerek yok; her ikisi idempotent olsa
+    // da çift init = çift prefs okuması demek).
     // Username + display name + avatar — Firestore stream ile canlı.
     // Cache hızlı; offline'da bile username görünür.
     unawaited(UserProfileService.instance.init());
@@ -384,15 +390,19 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
       ErrorLogger.instance.capture(e, st, context: 'country_resolver_init');
     }
 
-    // Uzaktan ayar — cache anında, tazeleme arka planda. 4sn timeout:
-    // ilk açılışta Remote Config fetch yavaş ağda sonsuz takılıyordu.
-    try {
-      await RemoteConfigService.instance
-          .init()
-          .timeout(const Duration(seconds: 4));
-    } catch (e, st) {
-      ErrorLogger.instance.capture(e, st, context: 'remote_config_init');
-    }
+    // Uzaktan ayar — cache anında, tazeleme arka planda. ARKA PLANDA:
+    // tasarımı zaten cache-first; ilk açılışta fetch yavaş ağda 4sn'e kadar
+    // splash'ı bekletiyordu. Değerleri okuyan modüller kullanım anında
+    // cache/varsayılan görür, fetch bitince güncellenir.
+    unawaited(() async {
+      try {
+        await RemoteConfigService.instance
+            .init()
+            .timeout(const Duration(seconds: 10));
+      } catch (e, st) {
+        ErrorLogger.instance.capture(e, st, context: 'remote_config_init');
+      }
+    }());
 
     // Müfredat kataloğu → education_profile'a bağla
     try { initCurriculumCatalog(); } catch (e, st) {
@@ -526,11 +536,12 @@ class _StartupRouterState extends State<_StartupRouter>
   }
 
   Future<_StartupState> _resolve() async {
-    // Splash en az süresi. Üretimde QuAlsar logo + harf intro + disk
-    // animasyonu tam görünsün diye 5sn; ama TEST modunda hızlı açılış için
-    // 0.5sn (her denemede 5sn beklemek test'i yavaşlatıyordu).
+    // Splash en az süresi. Eskiden 5sn'di — "uygulama yavaş açılıyor"
+    // şikayetinin en büyük parçası YAPAY bekleme çıktı. 2.2sn: başlık anında,
+    // dönen disk ~0.8sn'de belirir (qualsar_splash_screen._logoRevealAfter),
+    // marka anı korunur ama açılış 2.8sn kısalır. TEST modunda 0.5sn.
     final minSplash = Future<void>.delayed(
-        Duration(milliseconds: kTestBypassAuth ? 500 : 5000));
+        Duration(milliseconds: kTestBypassAuth ? 500 : 2200));
     final prefs = await SharedPreferences.getInstance();
 
     // ── GELİŞTİRME BYPASS (yapım aşaması) ──────────────────────────────

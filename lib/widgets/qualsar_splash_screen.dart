@@ -23,8 +23,9 @@ import 'qualsar_numeric_loader.dart';
 /// reset olmaz — splash logo'sunun "2sn sonra göründüm" durumunu korur.
 final DateTime _appStartTime = DateTime.now();
 
-/// Logo'nun ortaya çıkacağı eşik.
-const Duration _logoRevealAfter = Duration(seconds: 2);
+/// Logo'nun ortaya çıkacağı eşik. (Eski 2sn; minSplash 5sn→2.2sn'e inince
+/// logo hiç görünmeden geçilecekti — 0.8sn'de beliriyor.)
+const Duration _logoRevealAfter = Duration(milliseconds: 800);
 
 class QuAlsarSplashScreen extends StatefulWidget {
   const QuAlsarSplashScreen({super.key});

@@ -132,8 +132,11 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
         vsync: this, duration: Duration(seconds: 2))
       ..repeat();
 
-    // Sembol doğum (80 ms aralık)
-    _spawnTimer = Timer.periodic(Duration(milliseconds: 80), (_) {
+    // Sembol doğum — 110 ms aralık (eski 80). Aynı 2.1sn yaşamla ekranda
+    // eşzamanlı ~19 sembol olur (eski ~26): her frame'de %25 daha az text
+    // layout + gölge çizimi. Görsel yoğunluk farkı algılanmaz, düşük donanım
+    // ve startup sırasındaki kasma belirgin azalır.
+    _spawnTimer = Timer.periodic(Duration(milliseconds: 110), (_) {
       if (!mounted) return;
       _spawnSymbol();
     });
@@ -377,7 +380,11 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
     // ClipOval ile DAİRESEL clip — orbit ring'i ve uçuşan semboller diskin
     // dışına asla taşmaz. Şekil BoxShape.circle olsa da içerideki Stack
     // rectangular bound'a göre clip yapıyordu; ClipOval gerçek daire clip.
-    return ClipOval(
+    // RepaintBoundary: 60fps dönen disk her frame'de SADECE kendi katmanını
+    // boyasın; splash/loader'ın dışındaki ağaç raster cache'te kalır
+    // (startup init ile yarışırken kasma azalır).
+    return RepaintBoundary(
+        child: ClipOval(
       child: Container(
       width: disc,
       height: disc,
@@ -422,15 +429,7 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
                           child: Text(
                             s.text,
                             textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: s.color,
-                              fontSize: s.size,
-                              fontWeight: FontWeight.bold,
-                              fontFamily: 'Cambria Math',
-                              shadows: [
-                                Shadow(color: s.color, blurRadius: 8),
-                              ],
-                            ),
+                            style: s.style,
                           ),
                         ),
                       ),
@@ -475,7 +474,7 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
         ],
       ),
     ),
-    );
+    ));
   }
 
   Widget _buildCenterSymbol() {
@@ -780,6 +779,9 @@ class _StreamSymbol {
   final Color color;
   final double fromX, fromY, size;
   final int birthMs;
+  // Stil doğumda BİR KEZ kurulur — her ticker frame'inde (60fps × ~20 sembol)
+  // yeni TextStyle+Shadow alloc etmek startup jank'ine katkı veriyordu.
+  final TextStyle style;
   _StreamSymbol({
     required this.text,
     required this.color,
@@ -787,7 +789,13 @@ class _StreamSymbol {
     required this.fromY,
     required this.size,
     required this.birthMs,
-  });
+  }) : style = TextStyle(
+          color: color,
+          fontSize: size,
+          fontWeight: FontWeight.bold,
+          fontFamily: 'Cambria Math',
+          shadows: [Shadow(color: color, blurRadius: 8)],
+        );
 }
 
 class _SymbolState {
