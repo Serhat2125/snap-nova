@@ -27,6 +27,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../config/feature_flags.dart';
 import '../widgets/parent_actions_bar.dart';
 import '../widgets/teacher_help_dialog.dart';
 import '../models/education_models.dart';
@@ -1024,8 +1025,14 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
         // Çocuk bağlı değilken alan Gelişim Paneli'ndeki gibi DEMO
         // önizlemeyle dolar ("1. Çocuk"/"2. Çocuk") — ebeveyn neye
         // benzeyeceğini görür; gerçek çocuk bağlanınca gerçek veri gelir.
-        // Demo yalnızca NE bağlı NE yerel çocuk varken gösterilir.
-        final demoMode = active.isEmpty && _localIds.isEmpty;
+        // Demo yalnızca NE bağlı NE yerel çocuk varken VE demo modu açıkken
+        // gösterilir. kShowDemoMode=false (prod) → sahte çocuk/istatistik
+        // gizlenir; yerine "çocuğunu bağla" boş-durum ekranı gösterilir.
+        final demoMode = kShowDemoMode && active.isEmpty && _localIds.isEmpty;
+        // Demo kapalı + hiç çocuk yok → sahte veri yerine boş-durum.
+        if (!demoMode && active.isEmpty && _localIds.isEmpty) {
+          return _noChildView(context);
+        }
         // Override anahtarı: bağlı çocukta uid, yerel çocukta 'local_N',
         // demo çocukta 'demo_N' — hepsi ad/foto/durum düzenlenebilir.
         // Sıra: önce kodla bağlı çocuklar, sonra yerel eklenenler.
@@ -1776,6 +1783,88 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
                   '☰ menüden "Gönder" ile ekranı paylaşabilir, "Renk Paletini Değiştir" ile sayfa rengini seçebilirsin.'),
             ]);
     }
+  }
+
+  /// Hiç bağlı/yerel çocuk yokken (demo kapalı) gösterilen boş-durum:
+  /// sahte veri YERİNE "çocuğunu bağla" yönlendirmesi. Başlık + ☰ menü
+  /// (Yeni Çocuk Ekle burada) korunur.
+  Widget _noChildView(BuildContext context) {
+    final bg = _bg ?? AppPalette.bg(context);
+    final ink = _ov['titleText'] ?? AppPalette.textPrimary(context);
+    return ColoredBox(
+      color: bg,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 96),
+        children: [
+          SizedBox(
+            height: 44,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Center(
+                  child: Text('Ebeveyn Paneli'.tr(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: ink,
+                      )),
+                ),
+                Positioned(
+                  right: 0,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _notifBell(context),
+                      const SizedBox(width: 8),
+                      _hamburgerMenu(context),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 64),
+          Icon(Icons.family_restroom_rounded,
+              size: 68, color: ink.withValues(alpha: 0.28)),
+          const SizedBox(height: 18),
+          Text('Henüz bağlı çocuk yok'.tr(),
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: ink,
+              )),
+          const SizedBox(height: 8),
+          Text(
+            'Çocuğunun eğitim yolculuğunu takip etmek için hesabını bağla.'.tr(),
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              color: AppPalette.textSecondary(context),
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 24),
+          Center(
+            child: TextButton.icon(
+              onPressed: _showAddChildDialog,
+              style: TextButton.styleFrom(
+                backgroundColor: const Color(0xFF7C3AED),
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 13),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+              icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+              label: Text('Çocuk Ekle'.tr(),
+                  style: GoogleFonts.poppins(
+                      fontSize: 14, fontWeight: FontWeight.w800)),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Başlık sağındaki zil — ebeveyn bildirim hattının girişi. Okunmamış
