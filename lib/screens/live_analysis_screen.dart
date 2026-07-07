@@ -24,7 +24,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart' as ph;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../main.dart' show globalCameras, localeService;
+import '../widgets/live_bg_picker.dart';
+import '../services/live_chat_history.dart';
 import '../services/analytics.dart';
 import '../services/gemini_service.dart';
 import '../services/runtime_translator.dart';
@@ -103,6 +106,156 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
 
   bool _showTranscript = false;
 
+  // ── Özelleştirilebilir arka planlar (WhatsApp tarzı) ──────────────────────
+  // 3 bağımsız hedef: [0]=ekran arka planı, [1]=benim balonum, [2]=Qualsar
+  // çerçevesi. null → varsayılan (mevcut tasarım). prefs'te id ile saklanır.
+  LiveBgOption? _bgScreen;
+  LiveBgOption? _bgMine;
+  LiveBgOption? _bgFrame;
+  LiveBgOption? _bgQualsar; // Qualsar (AI) balonu
+  static const _kBgScreenKey = 'live_bg_screen';
+  static const _kBgMineKey = 'live_bg_mine';
+  static const _kBgFrameKey = 'live_bg_frame';
+  static const _kBgQualsarKey = 'live_bg_qualsar';
+
+  Future<void> _loadBgPrefs() async {
+    final p = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _bgScreen = LiveBgOption.byId(p.getString(_kBgScreenKey));
+      _bgMine = LiveBgOption.byId(p.getString(_kBgMineKey));
+      _bgFrame = LiveBgOption.byId(p.getString(_kBgFrameKey));
+      _bgQualsar = LiveBgOption.byId(p.getString(_kBgQualsarKey));
+    });
+  }
+
+  Future<void> _onBgChanged(int target, LiveBgOption? o) async {
+    setState(() {
+      switch (target) {
+        case 0:
+          _bgScreen = o;
+          break;
+        case 1:
+          _bgMine = o;
+          break;
+        case 2:
+          _bgFrame = o;
+          break;
+        case 3:
+          _bgQualsar = o;
+          break;
+      }
+    });
+    final p = await SharedPreferences.getInstance();
+    final key = switch (target) {
+      0 => _kBgScreenKey,
+      1 => _kBgMineKey,
+      2 => _kBgFrameKey,
+      _ => _kBgQualsarKey,
+    };
+    if (o == null) {
+      await p.remove(key);
+    } else {
+      await p.setString(key, o.id);
+    }
+  }
+
+  void _openBgPicker() {
+    showLiveBgPicker(
+      context,
+      current: [_bgScreen, _bgMine, _bgFrame, _bgQualsar],
+      onChanged: _onBgChanged,
+    );
+  }
+
+  // ── Konuşma geçmişi (kaybolmasın) ─────────────────────────────────────────
+  // Aktif oturum id'si — ilk mesajda üretilir; her cevap sonrası kalıcı yazılır.
+  String? _sessionId;
+
+  /// Mevcut konuşmayı kalıcı olarak kaydeder (upsert). Snapshot ilk await'ten
+  /// ÖNCE alınır → çağrıdan sonra _messages temizlense bile kayıp olmaz.
+  Future<void> _persistSession() async {
+    final msgs = _messages
+        .where((m) => !m.pending && m.text.trim().isNotEmpty)
+        .map((m) => LiveChatHistoryMsg(
+            role: m.role,
+            text: m.text,
+            ts: m.time.millisecondsSinceEpoch))
+        .toList();
+    if (msgs.isEmpty) return;
+    _sessionId ??= 'ls_${DateTime.now().millisecondsSinceEpoch}';
+    var title = msgs
+        .firstWhere((m) => m.role == 'user', orElse: () => msgs.first)
+        .text
+        .trim();
+    if (title.length > 60) title = '${title.substring(0, 60)}…';
+    await LiveChatHistory.upsert(LiveChatSession(
+      id: _sessionId!,
+      ts: DateTime.now().millisecondsSinceEpoch,
+      title: title,
+      messages: msgs,
+    ));
+  }
+
+  /// Yeni boş konuşma — mevcut zaten kaydedildi, sadece görünümü sıfırla.
+  void _newConversation() {
+    _cancelStream = true;
+    _slowConnTimer?.cancel();
+    TtsService.stop();
+    if (_listening) _stopListening();
+    setState(() {
+      _messages.clear();
+      _sessionId = null;
+      _liveTranscript.value = '';
+      _thinking = false;
+      _slowConnection = false;
+    });
+  }
+
+  /// Geçmiş oturumu görünüme geri yükler.
+  void _loadSession(LiveChatSession s) {
+    _cancelStream = true;
+    _slowConnTimer?.cancel();
+    TtsService.stop();
+    if (_listening) _stopListening();
+    setState(() {
+      _messages
+        ..clear()
+        ..addAll(s.messages
+            .map((m) => _ChatMsg(role: m.role, text: m.text)));
+      _sessionId = s.id;
+      _showTranscript = true;
+      _thinking = false;
+      _slowConnection = false;
+      _liveTranscript.value = '';
+    });
+    _scrollToBottom();
+  }
+
+  Future<void> _openHistory() async {
+    // Açmadan önce mevcut konuşmayı kaydet (listede görünsün).
+    await _persistSession();
+    final sessions = await LiveChatHistory.load();
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _HistorySheet(
+        sessions: sessions,
+        currentId: _sessionId,
+        onOpen: (s) {
+          Navigator.of(context).maybePop();
+          _loadSession(s);
+        },
+        onNew: () {
+          Navigator.of(context).maybePop();
+          _newConversation();
+        },
+      ),
+    );
+  }
+
   // ── Free tier: 60sn ücretsiz süre ─────────────────────────────────────────
   Timer? _freeSessionTimer;
   bool _freeExpired = false;
@@ -132,6 +285,8 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
       _wave.repeat();
       _pulse.repeat(reverse: true);
       _logoRot.repeat();
+      // Kaydedilmiş arka plan tercihlerini yükle (setState içinde).
+      unawaited(_loadBgPrefs());
       // VoiceInputService callback API kaldırıldı; init yeterli.
       await VoiceInputService.init();
       await TtsService.init();
@@ -158,12 +313,14 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
     TtsService.stop();
     if (_camActive) {
       final old = _cam;
+      unawaited(_persistSession());
       setState(() {
         _cam = null;
         _camReady = false;
         _camActive = false;
         // Mod değişimi: önceki moddan kalan mesajlar yeni moda taşmasın.
         _messages.clear();
+        _sessionId = null;
         _liveTranscript.value = '';
         _thinking = false;
         _slowConnection = false;
@@ -173,9 +330,11 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
       return;
     }
     // Kamera açılıyor → varsa eski sesli mod mesajlarını da temizle.
+    unawaited(_persistSession());
     setState(() {
       _camOpening = true;
       _messages.clear();
+      _sessionId = null;
       _liveTranscript.value = '';
       _thinking = false;
       _slowConnection = false;
@@ -318,7 +477,8 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
     }
   }
 
-  Future<void> _stopListening({bool sendIfText = false}) async {
+  Future<void> _stopListening(
+      {bool sendIfText = false, bool warnIfEmpty = true}) async {
     await VoiceInputService.stop();
     if (!mounted) return;
     final liveText = _liveTranscript.value;
@@ -328,9 +488,11 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
     if (sendIfText) {
       if (liveText.trim().isNotEmpty) {
         _onSpeechFinished(liveText);
-      } else {
+      } else if (warnIfEmpty) {
         // Kullanıcıya sade, lokalize mesaj göster — ham STT status/error
         // kodları (debug detayları) yalnızca debug log'a yazılır.
+        // NOT: Kullanıcı mic'e bilerek basıp durdurduğunda (barge-in / otomatik
+        // dinlemeyi kapatma) bu uyarı SPAM olur → warnIfEmpty:false ile bastırılır.
         if (kDebugMode) {
           debugPrint(
               '[LiveAnalysis] no-speech: status=${VoiceInputService.lastStatus} '
@@ -394,7 +556,14 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
     });
 
     File? frame;
-    if (_camActive) frame = await _captureFrame();
+    if (_camActive) {
+      // Kare yakalama takılırsa (bazı cihazlarda takePicture asılı kalabiliyor)
+      // tüm akış "Bağlantı kontrol ediliyor…"de sonsuza kadar donuyordu.
+      // 6sn içinde kare gelmezse görselsiz (sadece metin) devam et → asistan
+      // yine cevap verir, kilitlenmez.
+      frame = await _captureFrame()
+          .timeout(const Duration(seconds: 6), onTimeout: () => null);
+    }
 
     // Bağlam: son 6 mesajı (pending hariç) Gemini'a gönder → asistan
     // önceki konuşmayı hatırlar, "kafa karışıklığı" azalır.
@@ -508,6 +677,8 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
         }
       });
       _scrollToBottom();
+      // Konuşma tamamlandı → geçmişe kalıcı yaz (kaybolmasın).
+      unawaited(_persistSession());
 
       if (isVoiceMode) {
         // Stream bitti — tail (terminator yoksa) cümlesini de kuyruğa at.
@@ -818,6 +989,8 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
 
   @override
   void dispose() {
+    // Çıkarken mevcut konuşmayı kaydet (kaybolmasın). Snapshot senkron alınır.
+    unawaited(_persistSession());
     // SIRA ÖNEMLİ: önce in-flight stream'i durdur, sonra resource'ları kapat
     _cancelStream = true;
     _freeSessionTimer?.cancel();
@@ -851,16 +1024,24 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
       resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
+          // 0. Kullanıcı özel arka planı (WhatsApp tarzı) — set edilmişse
+          //    galaxy/wave yerine tüm ekranı kaplar (kamera modunda kart
+          //    kenarlarında görünür).
+          if (_bgScreen != null)
+            Positioned.fill(
+              child: RepaintBoundary(child: LiveBgSurface(option: _bgScreen!)),
+            ),
+
           // 1. Arka plan — kamera modunda saf siyah (kamera artık centerArea
           // içinde yuvarlak kart olarak render ediliyor, full-bleed değil).
-          if (!chatMode && !_camActive)
+          if (!chatMode && !_camActive && _bgScreen == null)
             const Positioned.fill(
               child: RepaintBoundary(child: _GalaxyBackground()),
             ),
 
           // 2. Dalga — kamera modunda gizli (üst+alt siyah kalsın).
           //    Sohbet veya kamera kapalı modda render edilir.
-          if (!chatMode && !_camActive)
+          if (!chatMode && !_camActive && _bgScreen == null)
             Positioned(
               left: 0,
               right: 0,
@@ -922,45 +1103,70 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
         child: Stack(
           alignment: Alignment.center,
           children: [
-            // Sol üstte geri tuşu — basınca sohbet panelini kapatır,
-            // kullanıcıyı kamera/ses/mesaj butonlarının olduğu sesli moda
-            // döndürür.
+            // Sol üstte geri tuşu + geçmiş (☰) — konuşma geçmişi kaybolmasın.
             Align(
               alignment: Alignment.centerLeft,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () {
-                  FocusScope.of(context).unfocus();
-                  // Aktif Gemini stream'i sonlandır + TTS'i sustur +
-                  // yavaş bağlantı timer'ını temizle. Aksi halde sohbet
-                  // panelinden çıkıldıktan sonra TTS arka planda konuşmaya
-                  // devam edebiliyordu.
-                  _cancelStream = true;
-                  _slowConnTimer?.cancel();
-                  TtsService.stop();
-                  if (_listening) _stopListening();
-                  setState(() {
-                    _chatPanelOpen = false;
-                    _messages.clear();
-                    _liveTranscript.value = '';
-                    _thinking = false;
-                    _slowConnection = false;
-                  });
-                },
-                child: Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppPalette.card(context),
-                    border: Border.all(
-                        color: AppPalette.border(context), width: 0.6),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      FocusScope.of(context).unfocus();
+                      // Aktif Gemini stream'i sonlandır + TTS'i sustur +
+                      // yavaş bağlantı timer'ını temizle. Aksi halde sohbet
+                      // panelinden çıkıldıktan sonra TTS arka planda konuşmaya
+                      // devam edebiliyordu.
+                      _cancelStream = true;
+                      _slowConnTimer?.cancel();
+                      TtsService.stop();
+                      if (_listening) _stopListening();
+                      // Görünümden çıkmadan önce mevcut konuşmayı kaydet.
+                      unawaited(_persistSession());
+                      setState(() {
+                        _chatPanelOpen = false;
+                        _messages.clear();
+                        _sessionId = null;
+                        _liveTranscript.value = '';
+                        _thinking = false;
+                        _slowConnection = false;
+                      });
+                    },
+                    child: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppPalette.card(context),
+                        border: Border.all(
+                            color: AppPalette.border(context), width: 0.6),
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(Icons.arrow_back_rounded,
+                          size: 20,
+                          color: AppPalette.textPrimary(context)),
+                    ),
                   ),
-                  alignment: Alignment.center,
-                  child: Icon(Icons.arrow_back_rounded,
-                      size: 20,
-                      color: AppPalette.textPrimary(context)),
-                ),
+                  const SizedBox(width: 6),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _openHistory,
+                    child: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppPalette.card(context),
+                        border: Border.all(
+                            color: AppPalette.border(context), width: 0.6),
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(Icons.menu_rounded,
+                          size: 20,
+                          color: AppPalette.textPrimary(context)),
+                    ),
+                  ),
+                ],
               ),
             ),
             RichText(
@@ -981,6 +1187,28 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
                 ],
               ),
             ),
+            // Sağ üstte renk paleti — sohbet modunda da arka plan/renk
+            // değiştirme erişilebilir olsun.
+            Align(
+              alignment: Alignment.centerRight,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _openBgPicker,
+                child: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppPalette.card(context),
+                    border: Border.all(
+                        color: AppPalette.border(context), width: 0.6),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(Icons.palette_rounded,
+                      size: 20, color: AppPalette.textPrimary(context)),
+                ),
+              ),
+            ),
           ],
         ),
       );
@@ -993,6 +1221,13 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
       child: Row(
         children: [
+          // Geçmiş sohbetler (☰) — konuşma geçmişi kaybolmasın.
+          _topIconButton(
+            icon: Icons.menu_rounded,
+            onTap: _openHistory,
+            active: false,
+          ),
+          SizedBox(width: 6),
           _topIconButton(
             icon: _paused ? Icons.play_arrow_rounded : Icons.pause_rounded,
             onTap: _togglePause,
@@ -1020,6 +1255,15 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
             ),
           ),
           Spacer(),
+          _topIconButton(
+            icon: Icons.palette_rounded,
+            onTap: _openBgPicker,
+            active: _bgScreen != null ||
+                _bgMine != null ||
+                _bgFrame != null ||
+                _bgQualsar != null,
+          ),
+          SizedBox(width: 6),
           _topIconButton(
             icon: _showTranscript
                 ? Icons.subtitles_rounded
@@ -1129,14 +1373,32 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
                       ui.ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.45),
+                      color: _bgFrame == null
+                          ? Colors.black.withValues(alpha: 0.45)
+                          : null,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         color: Colors.white.withValues(alpha: 0.15),
                         width: 0.6,
                       ),
                     ),
-                    child: _camTranscriptPanel(transparent: true),
+                    // Duvar kağıdı seçiliyse desen/gradyanı panelin arkasına
+                    // ser; metni okunur tona çevir (açık zeminde koyu).
+                    child: _bgFrame == null
+                        ? _camTranscriptPanel(transparent: true)
+                        : Stack(
+                            children: [
+                              Positioned.fill(
+                                child: LiveBgSurface(
+                                  option: _bgFrame!,
+                                  radius: BorderRadius.circular(20),
+                                ),
+                              ),
+                              _camTranscriptPanel(
+                                transparent: _bgFrame!.fg == Colors.white,
+                              ),
+                            ],
+                          ),
                   ),
                 ),
               ),
@@ -1168,10 +1430,10 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
     //   • Kamera modu → frosted dark over camera, beyaz yazı
     //   • Chat panel → ayrı yola gidiyor (yukarıda return), beyaz card.
     final voiceMode = !cameraOn && !_chatPanelOpen;
-    final Color cardBg;
-    final Color textColor;
-    final Color labelColor;
-    final Color dimColor;
+    Color cardBg;
+    Color textColor;
+    Color labelColor;
+    Color dimColor;
     if (cameraOn) {
       cardBg = Colors.black.withValues(alpha: 0.30);
       textColor = Colors.white;
@@ -1188,6 +1450,14 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
       textColor = Colors.white;
       labelColor = Colors.white;
       dimColor = Colors.white.withValues(alpha: 0.65);
+    }
+    // Kullanıcı "Qualsar çerçevesi" için özel arka plan seçtiyse → kartın
+    // zemin rengini + okunur metin tonunu ona göre değiştir.
+    if (_bgFrame != null) {
+      cardBg = _bgFrame!.bg;
+      textColor = _bgFrame!.fg;
+      labelColor = _bgFrame!.fg;
+      dimColor = _bgFrame!.fg.withValues(alpha: 0.60);
     }
 
     final screenH = MediaQuery.of(context).size.height;
@@ -1250,6 +1520,20 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
       body = list;
     }
 
+    // Duvar kağıdı (desen/gradyan) → yazışma ÇERÇEVESİNİN İÇİNE render edilir.
+    // Stack, boyutu `body`'den alır; duvar kağıdı Positioned.fill ile arkaya
+    // serilir (unbounded hatası olmadan). _bgFrame null ise değişmez.
+    final Widget framedBody = _bgFrame == null
+        ? body
+        : Stack(
+            children: [
+              Positioned.fill(
+                child: LiveBgSurface(option: _bgFrame!),
+              ),
+              body,
+            ],
+          );
+
     // Sohbet AÇIK ise: aydınlık modda soluk beyaz (#F5F5F5) çerçeve;
     // koyu modda TAM SİYAH çerçeve. Balonlar da koyu modda siyah, yazılar
     // tam beyaz.
@@ -1276,7 +1560,7 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
             ],
           ),
           clipBehavior: Clip.hardEdge,
-          child: body,
+          child: framedBody,
         ),
       );
     }
@@ -1300,7 +1584,7 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
               border: cardBorder,
             ),
             clipBehavior: Clip.hardEdge,
-            child: body,
+            child: framedBody,
           )
         : ClipRRect(
             borderRadius: BorderRadius.circular(20),
@@ -1317,7 +1601,7 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
                   border: cardBorder,
                 ),
                 clipBehavior: Clip.hardEdge,
-                child: body,
+                child: framedBody,
               ),
             ),
           );
@@ -1389,7 +1673,7 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        '${'AI'.tr()}: ',
+                        'Qualsar: ',
                         style: GoogleFonts.poppins(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w800,
@@ -1422,7 +1706,7 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
                         TextSpan(
                           text: m.role == 'user'
                               ? '${'Sen'.tr()}: '
-                              : '${'AI'.tr()}: ',
+                              : 'Qualsar: ',
                           style: TextStyle(
                             fontWeight: FontWeight.w800,
                             color: m.role == 'user'
@@ -1482,7 +1766,7 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
     //  • Sesli mod (beyaz kart): WhatsApp tarzı açık mavi/gri palet
     //  • Kamera açık (frosted card): yarı saydam balonlar → beyaz yazı
     final dark = AppPalette.isDark(context);
-    final Color bubbleBg;
+    Color bubbleBg;
     if (chatMode) {
       bubbleBg = dark ? Colors.black : Colors.white;
     } else if (voiceMode) {
@@ -1497,12 +1781,24 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
     }
     // Sohbet panel → tam siyah/beyaz (mod'a göre); sesli mod → black87;
     // kamera → white.
-    final effectiveTextColor = chatMode
+    Color effectiveTextColor = chatMode
         ? (dark ? Colors.white : Colors.black)
         : (voiceMode ? Colors.black87 : textColor);
-    final effectiveLabelColor = chatMode
+    Color effectiveLabelColor = chatMode
         ? (dark ? Colors.white : Colors.black)
         : (voiceMode ? Colors.black87 : labelColor);
+    // Kullanıcı balonu için özel renk seçtiyse uygula.
+    if (isUser && _bgMine != null) {
+      bubbleBg = _bgMine!.bg;
+      effectiveTextColor = _bgMine!.fg;
+      effectiveLabelColor = _bgMine!.fg;
+    }
+    // Qualsar (AI) balonu için özel renk seçtiyse uygula.
+    if (!isUser && _bgQualsar != null) {
+      bubbleBg = _bgQualsar!.bg;
+      effectiveTextColor = _bgQualsar!.fg;
+      effectiveLabelColor = _bgQualsar!.fg;
+    }
     final screenW = MediaQuery.of(context).size.width;
 
     final bubble = Container(
@@ -1793,6 +2089,7 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
                   unawaited(Future(() async => await old?.dispose()));
                 }
               }
+              unawaited(_persistSession());
               setState(() {
                 _chatPanelOpen = !_chatPanelOpen;
                 _thinking = false;
@@ -1801,6 +2098,7 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
                 // (sesli/kamera) kalan mesajlar yeni moda taşmasın —
                 // kullanıcı her modda sıfırdan başlamış hissetsin.
                 _messages.clear();
+                _sessionId = null;
                 _liveTranscript.value = '';
                 if (_chatPanelOpen) {
                   _showTranscript = true;
@@ -1821,7 +2119,9 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
             lightMode: !cameraOn,
             onTap: () {
               if (_listening) {
-                _stopListening(sendIfText: true);
+                // Manuel durdurma: metin varsa gönder, yoksa SESSİZCE dur
+                // (spam "algılanamadı" uyarısı gösterme).
+                _stopListening(sendIfText: true, warnIfEmpty: false);
               } else {
                 _startListening();
               }
@@ -1833,6 +2133,179 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
             danger: true,
             frosted: cameraOn,
           ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+//  Geçmiş sohbetler paneli (☰) — kayıtlı oturumları listeler.
+// ═════════════════════════════════════════════════════════════════════════
+class _HistorySheet extends StatefulWidget {
+  final List<LiveChatSession> sessions;
+  final String? currentId;
+  final ValueChanged<LiveChatSession> onOpen;
+  final VoidCallback onNew;
+  const _HistorySheet({
+    required this.sessions,
+    required this.currentId,
+    required this.onOpen,
+    required this.onNew,
+  });
+
+  @override
+  State<_HistorySheet> createState() => _HistorySheetState();
+}
+
+class _HistorySheetState extends State<_HistorySheet> {
+  late List<LiveChatSession> _sessions;
+
+  @override
+  void initState() {
+    super.initState();
+    _sessions = List.of(widget.sessions);
+  }
+
+  String _fmtDate(int ms) {
+    final d = DateTime.fromMillisecondsSinceEpoch(ms);
+    final now = DateTime.now();
+    String two(int n) => n.toString().padLeft(2, '0');
+    final hm = '${two(d.hour)}:${two(d.minute)}';
+    if (d.year == now.year && d.month == now.month && d.day == now.day) {
+      return '${'Bugün'.tr()} $hm';
+    }
+    return '${two(d.day)}.${two(d.month)}.${d.year} $hm';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 8, 16),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.78,
+      ),
+      decoration: const BoxDecoration(
+        color: Color(0xF0111122),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 12, right: 8),
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Row(
+              children: [
+                const Icon(Icons.history_rounded,
+                    color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Text('Geçmiş sohbetler'.tr(),
+                    style: GoogleFonts.poppins(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white)),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: widget.onNew,
+                  icon: const Icon(Icons.add_rounded,
+                      size: 18, color: Color(0xFFA78BFA)),
+                  label: Text('Yeni'.tr(),
+                      style: GoogleFonts.poppins(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFFA78BFA))),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 6),
+          if (_sessions.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 28, 4, 28),
+              child: Center(
+                child: Text('Henüz kayıtlı konuşma yok.'.tr(),
+                    style: GoogleFonts.poppins(
+                        fontSize: 13, color: Colors.white38)),
+              ),
+            )
+          else
+            Flexible(
+              child: ListView.separated(
+                padding: const EdgeInsets.only(right: 8),
+                shrinkWrap: true,
+                itemCount: _sessions.length,
+                separatorBuilder: (_, __) =>
+                    Divider(color: Colors.white.withValues(alpha: 0.06), height: 1),
+                itemBuilder: (_, i) {
+                  final s = _sessions[i];
+                  final active = s.id == widget.currentId;
+                  return Dismissible(
+                    key: ValueKey(s.id),
+                    direction: DismissDirection.endToStart,
+                    background: Container(
+                      alignment: Alignment.centerRight,
+                      padding: const EdgeInsets.only(right: 20),
+                      color: const Color(0xFFE83D3D),
+                      child: const Icon(Icons.delete_rounded,
+                          color: Colors.white, size: 20),
+                    ),
+                    onDismissed: (_) async {
+                      await LiveChatHistory.delete(s.id);
+                      setState(() => _sessions.removeAt(i));
+                    },
+                    child: ListTile(
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 4),
+                      onTap: () => widget.onOpen(s),
+                      leading: Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: active
+                              ? const Color(0xFF7C3AED)
+                              : Colors.white.withValues(alpha: 0.08),
+                        ),
+                        alignment: Alignment.center,
+                        child: Icon(Icons.chat_bubble_outline_rounded,
+                            size: 18,
+                            color: active
+                                ? Colors.white
+                                : Colors.white60),
+                      ),
+                      title: Text(
+                        s.title.isEmpty ? 'Konuşma'.tr() : s.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white),
+                      ),
+                      subtitle: Text(
+                        '${_fmtDate(s.ts)} · ${s.messages.length} ${'mesaj'.tr()}',
+                        style: GoogleFonts.poppins(
+                            fontSize: 11, color: Colors.white38),
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded,
+                          color: Colors.white24),
+                    ),
+                  );
+                },
+              ),
+            ),
         ],
       ),
     );

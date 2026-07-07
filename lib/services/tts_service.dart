@@ -279,6 +279,13 @@ class TtsService {
     while (_sentenceQueue.isNotEmpty) {
       if (_wantStop) break;
       final s = _sentenceQueue.removeAt(0);
+      // KRİTİK YARIŞ DÜZELTMESİ: `_speaking`'i speak() ÇAĞRISINDAN ÖNCE
+      // senkron olarak true yap. Native startHandler `_speaking=true`'yu
+      // 100-400ms gecikmeyle set ediyor; bu boşlukta kuyruk zaten boşalmış
+      // olduğundan waitUntilDone() erken dönüp otomatik yeniden dinlemeyi
+      // tetikliyor → stop() son cümleyi ORTADAN KESİYORDU ("...duyabiliyorum"
+      // [kes]). Bunu senkron set ederek boşluğu kapatıyoruz.
+      _speaking = true;
       try {
         // awaitSpeakCompletion(true) sayesinde speak() cümle bitene kadar
         // bekler. Doğal cümle akışı için bu yeterli.
