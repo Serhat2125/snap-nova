@@ -92,7 +92,9 @@ class _SummaryRatingTableState extends State<SummaryRatingTable> {
     setState(() {
       _busy = false;
       _submitted = ok;
-      _error = ok ? null : 'Puan kaydedilemedi. İnternet bağlantını kontrol et.';
+      _error = ok
+          ? null
+          : 'Puan kaydedilemedi. İnternet bağlantını kontrol et.'.tr();
     });
   }
 

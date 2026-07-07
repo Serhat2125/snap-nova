@@ -92,8 +92,8 @@ class _Topic3DViewerScreenState extends State<Topic3DViewerScreen> {
     final correct = picked.id == _quizTarget?.id;
     if (correct) _quizScore++;
     _quizResult = correct
-        ? '✅ Doğru! ${picked.name} bu.'
-        : '❌ Yanlış. Doğru cevap: ${_quizTarget?.name ?? '-'}';
+        ? '✅ Doğru! ${picked.name} bu.'.tr()
+        : '❌ Yanlış. Doğru cevap: ${_quizTarget?.name ?? '-'}'.tr();
     Future.delayed(const Duration(milliseconds: 1500), () {
       if (!mounted || !_quizMode) return;
       setState(_nextQuizQuestion);
@@ -132,14 +132,13 @@ class _Topic3DViewerScreenState extends State<Topic3DViewerScreen> {
   }
 
   void _openAR() async {
-    if (!await _requirePremium('AR (Artırılmış Gerçeklik)')) return;
+    if (!await _requirePremium('AR (Artırılmış Gerçeklik)'.tr())) return;
     // ModelViewer'da `ar: true` zaten verili; kullanıcı AR butonunu modelin
     // sağ alt köşesinden açabilir. Burada bilgi mesajı gösteriyoruz.
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Modelin sağ alt köşesindeki AR ikonuna dokun ve '
-            'telefonu yere/masaya doğru tut.'),
+      SnackBar(
+        content: Text('Modelin sağ alt köşesindeki AR ikonuna dokun ve telefonu yere/masaya doğru tut.'.tr()),
       ),
     );
   }
@@ -147,13 +146,13 @@ class _Topic3DViewerScreenState extends State<Topic3DViewerScreen> {
   void _toggleCompare() async {
     if (widget.model.compareWithId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Bu model için karşılaştırma modeli henüz tanımlı değil.'),
+        SnackBar(
+          content: Text('Bu model için karşılaştırma modeli henüz tanımlı değil.'.tr()),
         ),
       );
       return;
     }
-    if (!await _requirePremium('Karşılaştırma Modu')) return;
+    if (!await _requirePremium('Karşılaştırma Modu'.tr())) return;
     setState(() => _compareMode = !_compareMode);
   }
 
@@ -165,13 +164,13 @@ class _Topic3DViewerScreenState extends State<Topic3DViewerScreen> {
   }
 
   void _generateQuestions() async {
-    if (!await _requirePremium('AI ile Soru Üretme')) return;
+    if (!await _requirePremium('AI ile Soru Üretme'.tr())) return;
     if (!mounted) return;
     // AICoachChatScreen'e yönlendir — kullanıcı orada konu adıyla soru üretme
     // isteği gönderebilir. Auto-prompt ileride eklenebilir.
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('"${widget.model.name}" konusundan AI ile soru '
-          'üretmek için sohbet ekranını aç ve sor.')),
+      SnackBar(content: Text(
+          '"${widget.model.name}" konusundan AI ile soru üretmek için sohbet ekranını aç ve sor.'.tr())),
     );
     Navigator.push(
       context,
@@ -235,7 +234,7 @@ class _Topic3DViewerScreenState extends State<Topic3DViewerScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.view_in_ar),
-            tooltip: 'AR\'da Görüntüle (Premium)',
+            tooltip: 'AR\'da Görüntüle (Premium)'.tr(),
             onPressed: _openAR,
           ),
         ],
@@ -413,38 +412,38 @@ class _Topic3DViewerScreenState extends State<Topic3DViewerScreen> {
         padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
         child: Column(
           children: [
-            _tbarBtn(Icons.refresh, 'Sıfırla', () {
+            _tbarBtn(Icons.refresh, 'Sıfırla'.tr(), () {
               setState(() => _selected = null);
             }),
             if (widget.model.hasCrossSection)
               _tbarBtn(
                 _crossSection ? Icons.layers_clear : Icons.layers,
-                'Kesit',
+                'Kesit'.tr(),
                 () => setState(() => _crossSection = !_crossSection),
                 active: _crossSection,
               ),
             if (widget.model.animationName != null)
               _tbarBtn(
                 _animate ? Icons.pause : Icons.play_arrow,
-                'Animasyon',
+                'Animasyon'.tr(),
                 () => setState(() => _animate = !_animate),
                 active: _animate,
               ),
             _tbarBtn(
               _quizMode ? Icons.school : Icons.quiz_outlined,
-              'Quiz',
+              'Quiz'.tr(),
               _toggleQuizMode,
               active: _quizMode,
             ),
             if (widget.model.compareWithId != null)
               _tbarBtn(
                 Icons.compare_arrows,
-                'Karşılaştır',
+                'Karşılaştır'.tr(),
                 _toggleCompare,
                 active: _compareMode,
               ),
-            _tbarBtn(Icons.chat_bubble_outline, 'AI Sor', _openAIChat),
-            _tbarBtn(Icons.auto_awesome, 'Soru Üret', _generateQuestions),
+            _tbarBtn(Icons.chat_bubble_outline, 'AI Sor'.tr(), _openAIChat),
+            _tbarBtn(Icons.auto_awesome, 'Soru Üret'.tr(), _generateQuestions),
           ],
         ),
       ),
@@ -494,9 +493,8 @@ class _Topic3DViewerScreenState extends State<Topic3DViewerScreen> {
                   Expanded(
                     child: Text(
                       _quizTarget == null
-                          ? 'Quiz hazırlanıyor…'
-                          : '${_quizTarget!.name}'
-                              ' nerede? Modelden seç.',
+                          ? 'Quiz hazırlanıyor…'.tr()
+                          : '${_quizTarget!.name.tr()} ${'nerede? Modelden seç.'.tr()}',
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w600,
@@ -505,7 +503,7 @@ class _Topic3DViewerScreenState extends State<Topic3DViewerScreen> {
                     ),
                   ),
                   Text(
-                    'Skor: $_quizScore / $_quizTotal',
+                    '${'Skor'.tr()}: $_quizScore / $_quizTotal',
                     style: const TextStyle(color: Colors.white70, fontSize: 11),
                   ),
                 ],
@@ -542,8 +540,7 @@ class _Topic3DViewerScreenState extends State<Topic3DViewerScreen> {
       child: p == null
           ? Center(
               child: Text(
-                'Yukarıdaki etiketlerden veya 3D model üstündeki '
-                'noktalardan bir parça seç.',
+                'Yukarıdaki etiketlerden veya 3D model üstündeki noktalardan bir parça seç.'.tr(),
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 12.5,

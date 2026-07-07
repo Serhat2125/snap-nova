@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/education_profile.dart';
 import '../services/country_resolver.dart';
 import '../services/gemini_service.dart';
+import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
 import '../main.dart' show localeService;
 
@@ -1963,7 +1964,7 @@ class _EducationSetupScreenState extends State<EducationSetupScreen> {
                       label: tui(_country, 'level_label'),
                       placeholder: tui(_country, 'level_placeholder'),
                       emoji: level.emoji.isEmpty ? null : level.emoji,
-                      value: level.label.isEmpty ? null : level.label,
+                      value: level.label.isEmpty ? null : level.label.tr(),
                       onTap: _pickLevel,
                     ),
                   if (_level != null && _needsFaculty)
@@ -1971,7 +1972,7 @@ class _EducationSetupScreenState extends State<EducationSetupScreen> {
                       label: tui(_country, 'faculty_label'),
                       placeholder: tui(_country, 'faculty_placeholder'),
                       emoji: faculty.emoji.isEmpty ? null : faculty.emoji,
-                      value: faculty.label.isEmpty ? null : faculty.label,
+                      value: faculty.label.isEmpty ? null : faculty.label.tr(),
                       onTap: _pickFaculty,
                     ),
                   if (_level != null && (!_needsFaculty || _faculty != null))
@@ -1979,7 +1980,7 @@ class _EducationSetupScreenState extends State<EducationSetupScreen> {
                       label: tui(_country, 'grade_label'),
                       placeholder: tui(_country, 'grade_placeholder'),
                       emoji: grade.emoji.isEmpty ? null : grade.emoji,
-                      value: grade.label.isEmpty ? null : grade.label,
+                      value: grade.label.isEmpty ? null : grade.label.tr(),
                       onTap: _pickGrade,
                     ),
                   if (_grade != null && _needsTrack)
@@ -1987,7 +1988,7 @@ class _EducationSetupScreenState extends State<EducationSetupScreen> {
                       label: tui(_country, 'track_label'),
                       placeholder: tui(_country, 'track_placeholder'),
                       emoji: track.emoji.isEmpty ? null : track.emoji,
-                      value: track.label.isEmpty ? null : track.label,
+                      value: track.label.isEmpty ? null : track.label.tr(),
                       onTap: _pickTrack,
                     ),
                   SizedBox(height: 16),
@@ -3383,7 +3384,7 @@ class _OptionPickerSheetState extends State<_OptionPickerSheet> {
                             Text(o.emoji, style: TextStyle(fontSize: 20)),
                             SizedBox(width: 12),
                             Expanded(
-                              child: Text(o.label,
+                              child: Text(o.label.tr(),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: GoogleFonts.inter(

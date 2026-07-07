@@ -584,7 +584,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
     } catch (e) {
       if (context.mounted) {
         messenger.showSnackBar(SnackBar(
-          content: Text('Hata: $e'),
+          content: Text('${'Hata:'.tr()} $e'),
         ));
       }
     }

@@ -512,20 +512,20 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
     final keys = _weekDateKeys;
     // [type, ders, konu, dakika]
     final plan = <List<List<Object>>>[
-      [['özet', 'Matematik', 'Üslü Sayılar', 20],
-       ['soru', 'Matematik', 'Üslü Sayılar', 15],
-       ['pomodoro', 'Pomodoro', 'Odak Seansı', 25]],
-      [['3d', 'Fen Bilimleri', 'Hücre', 12],
-       ['soru', 'Fen Bilimleri', 'Hücre', 18]],
-      [['özet', 'Türkçe', 'Paragraf', 16],
-       ['yarisma', 'Düello Arenası', 'Genel', 10]],
-      [['soru', 'Matematik', 'Problemler', 22],
-       ['pomodoro', 'Pomodoro', 'Odak Seansı', 25]],
-      [['özet', 'Fen Bilimleri', 'Kuvvet ve Hareket', 14],
-       ['3d', 'Fen Bilimleri', 'Kuvvet ve Hareket', 10]],
-      [['yarisma', 'Düello Arenası', 'Genel', 12],
-       ['soru', 'Türkçe', 'Sözcükte Anlam', 8]],
-      [['özet', 'Matematik', 'Oran Orantı', 10]],
+      [['özet', 'Matematik'.tr(), 'Üslü Sayılar'.tr(), 20],
+       ['soru', 'Matematik'.tr(), 'Üslü Sayılar'.tr(), 15],
+       ['pomodoro', 'Pomodoro', 'Odak Seansı'.tr(), 25]],
+      [['3d', 'Fen Bilimleri'.tr(), 'Hücre'.tr(), 12],
+       ['soru', 'Fen Bilimleri'.tr(), 'Hücre'.tr(), 18]],
+      [['özet', 'Türkçe'.tr(), 'Paragraf'.tr(), 16],
+       ['yarisma', 'Düello Arenası'.tr(), 'Genel'.tr(), 10]],
+      [['soru', 'Matematik'.tr(), 'Problemler'.tr(), 22],
+       ['pomodoro', 'Pomodoro', 'Odak Seansı'.tr(), 25]],
+      [['özet', 'Fen Bilimleri'.tr(), 'Kuvvet ve Hareket'.tr(), 14],
+       ['3d', 'Fen Bilimleri'.tr(), 'Kuvvet ve Hareket'.tr(), 10]],
+      [['yarisma', 'Düello Arenası'.tr(), 'Genel'.tr(), 12],
+       ['soru', 'Türkçe'.tr(), 'Sözcükte Anlam'.tr(), 8]],
+      [['özet', 'Matematik'.tr(), 'Oran Orantı'.tr(), 10]],
     ];
     final correct = [8, 6, 7, 9, 5, 7, 4];
     final wrong = [2, 3, 2, 1, 2, 2, 1];
@@ -3416,7 +3416,7 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
   String _categoryBlurb(_ProgressCat c, int total, bool hasAny) {
     final name = _studentName;
     if (!hasAny) return '$name ${"bu hafta bu alanda henüz çalışmadı.".tr()}';
-    const tip = ' Grafiklerin üstüne basarak o günün detaylarını görebilirsiniz.';
+    final tip = ' ${"Grafiklerin üstüne basarak o günün detaylarını görebilirsiniz.".tr()}';
     if (c.key == 'test') {
       final corr = _weekCorrect, wr = _weekWrong;
       final ans = corr + wr;

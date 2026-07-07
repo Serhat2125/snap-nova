@@ -4,6 +4,7 @@ import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../main.dart' show localeService;
 import '../services/gemini_service.dart';
+import '../services/runtime_translator.dart';
 import 'ai_result_screen.dart';
 
 import '../theme/app_theme.dart';
@@ -141,7 +142,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Hata: $e')),
+          SnackBar(content: Text('${'Hata'.tr()}: $e')),
         );
       }
     } finally {
@@ -179,7 +180,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                   Row(
                     children: [
                       Text(
-                        'Geçmiş',
+                        'Geçmiş'.tr(),
                         style: GoogleFonts.poppins(
                           fontSize: 17,
                           fontWeight: FontWeight.w800,
@@ -192,7 +193,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                             setState(_history.clear);
                             Navigator.pop(ctx);
                           },
-                          child: Text('Temizle'),
+                          child: Text('Temizle'.tr()),
                         ),
                     ],
                   ),
@@ -201,7 +202,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                     child: _history.isEmpty
                         ? Center(
                             child: Text(
-                              'Geçmiş boş',
+                              'Geçmiş boş'.tr(),
                               style: GoogleFonts.poppins(
                                   color: Colors.grey.shade500),
                             ),
@@ -464,7 +465,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
         ),
         centerTitle: true,
         title: Text(
-          'Hesap makinesi',
+          'Hesap makinesi'.tr(),
           style: GoogleFonts.poppins(
             fontSize: 17,
             fontWeight: FontWeight.w700,
@@ -550,7 +551,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
               if (isEmpty) ...[
                 SizedBox(width: 6),
                 Text(
-                  'Bir sayısal soru girin...',
+                  'Bir sayısal soru girin...'.tr(),
                   style: GoogleFonts.poppins(
                     fontSize: 22,
                     fontWeight: FontWeight.w400,
@@ -588,7 +589,12 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
   Widget _buildResultPill() {
     // Denklem sonucu ("x < 6" gibi) ise "=" öneki yok; sayı ise "=" ekle
     final isTextResult = RegExp(r'^(x |Her |Çözüm)').hasMatch(_result);
-    final display = isTextResult ? _result : '= $_result';
+    // Sabit metin sonuçları ("Her x için doğru" / "Çözüm yok") çevrilir;
+    // dinamik "x < 6" gibi denklem sonuçları matematik notasyonu olduğu
+    // için .tr() kaydına (gereksiz benzersiz string) sokulmaz.
+    final isFixedPhrase = RegExp(r'^(Her |Çözüm)').hasMatch(_result);
+    final display =
+        isTextResult ? (isFixedPhrase ? _result.tr() : _result) : '= $_result';
     return Padding(
       padding: const EdgeInsets.fromLTRB(22, 28, 22, 0),
       child: GestureDetector(

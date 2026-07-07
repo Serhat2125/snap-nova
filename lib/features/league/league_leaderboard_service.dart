@@ -390,9 +390,10 @@ class LeagueLeaderboardService {
     required LeaguePeriod period,
     required int limit,
   }) {
-    final cutoff = period.window == null
+    // Periyot filtresi totals ile AYNI takvim kovası — kayan pencere değil.
+    final bucket = period == LeaguePeriod.allTime
         ? null
-        : DateTime.now().subtract(period.window!);
+        : LeagueScores.bucketFor(period);
     final myUid = FirebaseAuth.instance.currentUser?.uid;
 
     final totalsScore = <String, double>{};
@@ -408,7 +409,16 @@ class LeagueLeaderboardService {
       final whenTs = m['when'];
       DateTime? when;
       if (whenTs is Timestamp) when = whenTs.toDate();
-      if (cutoff != null && (when == null || when.isBefore(cutoff))) continue;
+      if (bucket != null) {
+        if (when == null) continue;
+        final b = switch (period) {
+          LeaguePeriod.daily => LeagueScores.dayBucket(when),
+          LeaguePeriod.weekly => LeagueScores.weekBucket(when),
+          LeaguePeriod.monthly => LeagueScores.monthBucket(when),
+          LeaguePeriod.allTime => 'all',
+        };
+        if (b != bucket) continue;
+      }
 
       totalsScore[uid] = (totalsScore[uid] ?? 0) + score;
       totalsDuration[uid] = (totalsDuration[uid] ?? 0) + dur;
@@ -466,7 +476,18 @@ class LeagueLeaderboardService {
     return rows.length > limit ? rows.sublist(0, limit) : rows;
   }
 
-  /// Sadece kendi skor pozisyonunu çek (ayrı query, hızlı tekil bilgi için).
+  /// Kullanıcının KESİN sırası — listede kaçıncı olursa olsun (200. de
+  /// 20.000. de) doğru döner.
+  ///
+  /// Yöntem: kendi totals dokümanı deterministik id'den okunur
+  /// (uid_bucket_mode), sonra aynı scope+bucket+mode filtresiyle
+  /// `score > benimki` olan doküman sayısı Firestore aggregate count() ile
+  /// sayılır → sıra = üstümdeki kişi sayısı + 1. Mevcut composite
+  /// indexler (scope + bucket + modeKey + score) bu sorguyu karşılar.
+  ///
+  /// Not: Eşit puanlılar arasında liste, süre verimliliği tiebreaker'ı ile
+  /// ayrışır; count() bu inceliği bilemez — eşit puanlı herkes aynı sırayı
+  /// görür (ör. iki kişi de "3."). Kabul edilebilir ve tutarlı.
   static Future<int?> myRank({
     required EduProfile profile,
     required UserLocation location,
@@ -476,22 +497,83 @@ class LeagueLeaderboardService {
     String? subjectKey,
     String? topic,
   }) async {
-    final all = await fetch(
-      profile: profile,
-      location: location,
-      scope: scope,
-      mode: mode,
-      period: period,
-      subjectKey: subjectKey,
-      topic: topic,
-      limit: 200,
-    );
     final myUid = FirebaseAuth.instance.currentUser?.uid;
-    if (myUid == null) return null;
-    for (int i = 0; i < all.length; i++) {
-      if (all[i].uid == myUid) return i + 1;
+    if (myUid == null || myUid.isEmpty) return null;
+    if (location.countryCode.isEmpty) return null;
+
+    // Scope alanı + değeri
+    final String scopeField;
+    final String scopeValue;
+    switch (scope) {
+      case LeagueScope.city:
+        if (location.cityCode.isEmpty) return null;
+        scopeField = 'scopeCity';
+        scopeValue =
+            '${location.countryCode}|${location.cityCode}|${profile.level}|${profile.grade}';
+        break;
+      case LeagueScope.country:
+        scopeField = 'scopeCountry';
+        scopeValue =
+            '${location.countryCode}|${profile.level}|${profile.grade}';
+        break;
+      case LeagueScope.world:
+        scopeField = 'scopeWorld';
+        scopeValue = '${profile.level}|${profile.grade}';
+        break;
     }
-    return null;
+
+    // Mode anahtarı
+    final String modeKey;
+    switch (mode) {
+      case LeagueMode.overall:
+        modeKey = 'all';
+        break;
+      case LeagueMode.subject:
+        if (subjectKey == null || subjectKey.isEmpty) return null;
+        modeKey = 's:$subjectKey';
+        break;
+      case LeagueMode.topic:
+        if (subjectKey == null || subjectKey.isEmpty) return null;
+        if (topic == null || topic.isEmpty) return null;
+        modeKey = 't:$subjectKey|$topic';
+        break;
+    }
+
+    try {
+      final my = await LeagueScores.myCloudTotal(
+        modeKey: modeKey,
+        period: period,
+      );
+      if (my == null || my.score <= 0) return null;
+
+      final agg = await FirebaseFirestore.instance
+          .collection('league_totals')
+          .where(scopeField, isEqualTo: scopeValue)
+          .where('bucket', isEqualTo: LeagueScores.bucketFor(period))
+          .where('modeKey', isEqualTo: modeKey)
+          .where('score', isGreaterThan: my.score)
+          .count()
+          .get()
+          .timeout(_leagueFetchTimeout);
+      return (agg.count ?? 0) + 1;
+    } catch (e) {
+      debugPrint('[LeagueLeaderboard] myRank count fail: $e');
+      // Fallback — eski yöntem: top-200 içinde ara (geçiş dönemi verisi).
+      final all = await fetch(
+        profile: profile,
+        location: location,
+        scope: scope,
+        mode: mode,
+        period: period,
+        subjectKey: subjectKey,
+        topic: topic,
+        limit: 200,
+      );
+      for (int i = 0; i < all.length; i++) {
+        if (all[i].uid == myUid) return i + 1;
+      }
+      return null;
+    }
   }
 
   static String _formatLocation(LeagueScope scope, Map<String, dynamic> doc) {

@@ -159,41 +159,41 @@ class _AICoachScreenState extends State<AICoachScreen> {
     final w = _coach.weakTopics;
     final acc = (_coach.overallAccuracy * 100).round();
     final uname = UserProfileService.instance.username;
-    final hello = uname.isNotEmpty ? 'Merhaba $uname, ' : '';
+    final hello = uname.isNotEmpty ? 'Merhaba $uname, '.tr() : '';
     _greeting = _stats.streakDays > 0
-        ? '$hello${_stats.streakDays} gün streak — başarın %$acc, devam! 🔥'
+        ? '$hello${_stats.streakDays} gün streak — başarın %$acc, devam! 🔥'.tr()
         : (_coach.totalTestAnswers > 0
-            ? '${hello}test başarın %$acc. Hadi zayıf konuları kapatalım. 💪'
-            : '${hello}bugün küçük bir başlangıç yap. 💪');
+            ? '${hello}test başarın %$acc. Hadi zayıf konuları kapatalım. 💪'.tr()
+            : '${hello}bugün küçük bir başlangıç yap. 💪'.tr());
     _tip =
-        'Bilim: Yanlış yaptığın soruları 24 saat içinde tekrar et — bellek %60 daha sağlam tutar.';
+        'Bilim: Yanlış yaptığın soruları 24 saat içinde tekrar et — bellek %60 daha sağlam tutar.'.tr();
     if (w.isEmpty) {
       _today = [
         _TodayRec(
           emoji: '📚',
           title: 'Konu özeti üret'.tr(),
-          subject: 'Genel',
-          topic: 'Özet',
+          subject: 'Genel'.tr(),
+          topic: 'Özet'.tr(),
           durationMin: 15,
-          why: 'Önce konuyu özetleyelim — temeli kuralım.',
+          why: 'Önce konuyu özetleyelim — temeli kuralım.'.tr(),
           kind: 'summary',
         ),
         _TodayRec(
           emoji: '🎯',
           title: 'Test çöz'.tr(),
-          subject: 'Sınav',
-          topic: 'Genel deneme',
+          subject: 'Sınav'.tr(),
+          topic: 'Genel deneme'.tr(),
           durationMin: 15,
-          why: 'Doğru/yanlış oranını gör, zayıf konuları çıkar.',
+          why: 'Doğru/yanlış oranını gör, zayıf konuları çıkar.'.tr(),
           kind: 'test',
         ),
-        const _TodayRec(
+        _TodayRec(
           emoji: '📷',
-          title: 'Bir soru tara',
-          subject: 'Genel',
-          topic: 'Soru çöz',
+          title: 'Bir soru tara'.tr(),
+          subject: 'Genel'.tr(),
+          topic: 'Soru çöz'.tr(),
           durationMin: 10,
-          why: 'Veri biriksin diye ilk çözümünü yapalım.',
+          why: 'Veri biriksin diye ilk çözümünü yapalım.'.tr(),
           kind: 'summary',
         ),
       ];
@@ -205,8 +205,8 @@ class _AICoachScreenState extends State<AICoachScreen> {
           _TodayRec(
             emoji: _emojiForSubject(t.subject),
             title: (t.correctCount + t.wrongCount) >= 3
-                ? '${t.topic} testini tekrar et'
-                : '${t.topic} özetini çalış',
+                ? '${t.topic} ${'testini tekrar et'.tr()}'
+                : '${t.topic} ${'özetini çalış'.tr()}',
             subject: t.subject,
             topic: t.topic,
             durationMin: 10 + (t.errorRate * 10).round(),
@@ -215,13 +215,16 @@ class _AICoachScreenState extends State<AICoachScreen> {
           ),
       ];
     }
-    const days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+    final days = [
+      'Pzt'.tr(), 'Sal'.tr(), 'Çar'.tr(), 'Per'.tr(),
+      'Cum'.tr(), 'Cmt'.tr(), 'Paz'.tr(),
+    ];
     _week = List.generate(7, (i) {
       if (w.isEmpty) {
         return _WeekDay(
           day: days[i],
-          subject: 'Genel',
-          topic: 'Çalışma',
+          subject: 'Genel'.tr(),
+          topic: 'Çalışma'.tr(),
           durationMin: 25,
         );
       }
@@ -240,15 +243,15 @@ class _AICoachScreenState extends State<AICoachScreen> {
     final total = t.correctCount + t.wrongCount;
     if (total >= 3) {
       final pct = (t.errorRate * 100).round();
-      return 'Testte $total sorudan ${t.wrongCount} yanlış — başarı %${100 - pct}. Tekrar zamanı.';
+      return 'Testte $total sorudan ${t.wrongCount} yanlış — başarı %${100 - pct}. Tekrar zamanı.'.tr();
     }
     if (t.photoCount > 0 && total == 0) {
-      return 'Bu konuda ${t.photoCount} fotoğraf çözümün var, henüz test yok. Hadi test yap.';
+      return 'Bu konuda ${t.photoCount} fotoğraf çözümün var, henüz test yok. Hadi test yap.'.tr();
     }
     if (t.summaryCount > 0 && t.photoCount == 0 && total == 0) {
-      return '${t.summaryCount} özet çalışmışsın, henüz pekiştirmedin. Şimdi test çöz.';
+      return '${t.summaryCount} özet çalışmışsın, henüz pekiştirmedin. Şimdi test çöz.'.tr();
     }
-    return 'Bu konu sana zorluk çıkarmış — birkaç dakika tekrar yapalım.';
+    return 'Bu konu sana zorluk çıkarmış — birkaç dakika tekrar yapalım.'.tr();
   }
 
   String _emojiForSubject(String s) {
@@ -293,11 +296,11 @@ class _AICoachScreenState extends State<AICoachScreen> {
               child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 32),
             ),
             const SizedBox(height: 16),
-            Text('Premium\'a Geç',
+            Text('Premium\'a Geç'.tr(),
                 style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.black)),
             const SizedBox(height: 8),
             Text(
-              '5 dakikalık ücretsiz AI Koç süren doldu.\nSınırsız analiz ve plan için Premium\'a geç.',
+              '5 dakikalık ücretsiz AI Koç süren doldu.\nSınırsız analiz ve plan için Premium\'a geç.'.tr(),
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(fontSize: 13, color: Colors.black54, height: 1.5),
             ),
@@ -315,7 +318,7 @@ class _AICoachScreenState extends State<AICoachScreen> {
                   Navigator.of(ctx).pop();
                   Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PremiumScreen()));
                 },
-                child: Text('Premium\'a Geç',
+                child: Text('Premium\'a Geç'.tr(),
                     style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
               ),
             ),
@@ -376,7 +379,7 @@ class _AICoachScreenState extends State<AICoachScreen> {
         ),
         actions: [
           IconButton(
-            tooltip: 'Yenile',
+            tooltip: 'Yenile'.tr(),
             icon: AnimatedRotation(
               turns: _refreshing ? 1 : 0,
               duration: const Duration(milliseconds: 600),
@@ -422,18 +425,18 @@ class _AICoachScreenState extends State<AICoachScreen> {
                 children: [
                   _buildGreetingCard(),
                   const SizedBox(height: 16),
-                  _sectionTitle('🎯 Bugün ne çalış?'),
+                  _sectionTitle('🎯 Bugün ne çalış?'.tr()),
                   const SizedBox(height: 10),
                   ..._today.map((r) => Padding(
                         padding: const EdgeInsets.only(bottom: 10),
                         child: _todayCard(r),
                       )),
                   const SizedBox(height: 16),
-                  _sectionTitle('📊 Zayıf konularım'),
+                  _sectionTitle('📊 Zayıf konularım'.tr()),
                   const SizedBox(height: 10),
                   _buildWeakTopicsCard(),
                   const SizedBox(height: 16),
-                  _sectionTitle('🗓️ Haftanın planı'),
+                  _sectionTitle('🗓️ Haftanın planı'.tr()),
                   const SizedBox(height: 10),
                   _buildWeekCard(),
                   const SizedBox(height: 16),
@@ -541,7 +544,7 @@ class _AICoachScreenState extends State<AICoachScreen> {
                       const Text('🔥', style: TextStyle(fontSize: 14)),
                       const SizedBox(width: 4),
                       Text(
-                        '${_stats.streakDays} gün',
+                        '${_stats.streakDays} ${'gün'.tr()}',
                         style: GoogleFonts.poppins(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
@@ -556,7 +559,7 @@ class _AICoachScreenState extends State<AICoachScreen> {
           const SizedBox(height: 10),
           Text(
             _greeting.isEmpty
-                ? 'Bugünün planını birlikte yapalım.'
+                ? 'Bugünün planını birlikte yapalım.'.tr()
                 : _greeting,
             style: GoogleFonts.poppins(
               fontSize: 15,
@@ -573,11 +576,11 @@ class _AICoachScreenState extends State<AICoachScreen> {
                   _coach.totalTestAnswers > 0
                       ? '%${(_coach.overallAccuracy * 100).round()}'
                       : '—',
-                  'Test Başarı'),
+                  'Test Başarı'.tr()),
               const SizedBox(width: 8),
-              _statChip('📚', '${_coach.totalSummaries}', 'Özet'),
+              _statChip('📚', '${_coach.totalSummaries}', 'Özet'.tr()),
               const SizedBox(width: 8),
-              _statChip('📷', '${_coach.totalPhotos}', 'Foto Çöz.'),
+              _statChip('📷', '${_coach.totalPhotos}', 'Foto Çöz.'.tr()),
             ],
           ),
         ],
@@ -666,7 +669,7 @@ class _AICoachScreenState extends State<AICoachScreen> {
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
-                            '${r.durationMin} dk',
+                            '${r.durationMin} ${'dk'.tr()}',
                             style: GoogleFonts.poppins(
                               fontSize: 11,
                               fontWeight: FontWeight.w800,
@@ -793,11 +796,11 @@ class _AICoachScreenState extends State<AICoachScreen> {
             ),
             const SizedBox(height: 8),
             _emptyHint('🎯',
-                'Sınav Soruları — testleri çöz, doğru/yanlış oranın çıkar'),
+                'Sınav Soruları — testleri çöz, doğru/yanlış oranın çıkar'.tr()),
             _emptyHint('📚',
-                'Konu Özetleri — özet ürettiğin konular ilgi alanını gösterir'),
+                'Konu Özetleri — özet ürettiğin konular ilgi alanını gösterir'.tr()),
             _emptyHint('📷',
-                'Fotoğraf çözümleri — kameradan attığın sorular dahil edilir'),
+                'Fotoğraf çözümleri — kameradan attığın sorular dahil edilir'.tr()),
           ],
         ),
       );
@@ -958,7 +961,7 @@ class _AICoachScreenState extends State<AICoachScreen> {
                     ),
                   ),
                   Text(
-                    '${d.durationMin} dk',
+                    '${d.durationMin} ${'dk'.tr()}',
                     style: GoogleFonts.poppins(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,

@@ -2140,7 +2140,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             // fallback'i aç; kullanıcı oradan gönderebilsin.
                             // "Gönderildi" DEME — gerçekte iletilmedi.
                             _launchEmail(
-                              subject: 'QuAlsar - Geri Bildirim',
+                              subject: 'QuAlsar - Geri Bildirim'.tr(),
                               body: text,
                             );
                             if (ctx.mounted) {
@@ -2271,7 +2271,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 GestureDetector(
                   onTap: () {
                     Navigator.pop(ctx);
-                    _launchEmail(subject: 'QuAlsar - İletişim');
+                    _launchEmail(subject: 'QuAlsar - İletişim'.tr());
                   },
                   child: Container(
                     padding: const EdgeInsets.symmetric(
@@ -2329,7 +2329,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'profile_screen'); }
 
     await Clipboard.setData(ClipboardData(text: email));
-    if (mounted) _showSnack('$email kopyalandı');
+    if (mounted) _showSnack('$email ${'kopyalandı'.tr()}');
   }
 
   void _showSnack(String msg) {
@@ -3879,7 +3879,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Profil',
+          'Profil'.tr(),
           style: GoogleFonts.poppins(
             fontSize: 17,
             fontWeight: FontWeight.w700,
@@ -4344,7 +4344,7 @@ class _StudentInfoPageState extends State<StudentInfoPage> {
                 ),
                 alignment: Alignment.center,
                 child: Text(
-                  'Tamam',
+                  'Tamam'.tr(),
                   style: GoogleFonts.poppins(
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
@@ -5411,7 +5411,7 @@ class _ShareChannelSheet extends StatelessWidget {
     try {
       await Share.share(
         message,
-        subject: 'QuAlsar davet kodum',
+        subject: 'QuAlsar davet kodum'.tr(),
         sharePositionOrigin: origin,
       );
       if (!context.mounted) return;
@@ -5493,7 +5493,7 @@ class _ShareChannelSheet extends StatelessWidget {
                     onTap: () => _openUri(
                         context,
                         Uri.parse(
-                            'mailto:?subject=QuAlsar%20davet%20kodum&body=$encoded'),
+                            'mailto:?subject=${Uri.encodeComponent('QuAlsar davet kodum'.tr())}&body=$encoded'),
                         'E-posta'.tr())),
                 _channelTile(context,
                     icon: FontAwesomeIcons.instagram,
@@ -6066,7 +6066,7 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
     if (!mounted) return;
     messenger.showSnackBar(SnackBar(
       content: Text(sizeMb > 0
-          ? '$sizeMb MB önbellek temizlendi'
+          ? '$sizeMb MB ${'önbellek temizlendi'.tr()}'
           : 'Önbellek temizlendi'.tr()),
       behavior: SnackBarBehavior.floating,
     ));
@@ -7176,7 +7176,7 @@ class _NotificationsSettingsSheetState
     } catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(
-        content: Text('Test başarısız: $e'),
+        content: Text('${'Test başarısız:'.tr()} $e'),
         behavior: SnackBarBehavior.floating,
       ));
     }

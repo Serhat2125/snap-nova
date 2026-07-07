@@ -195,56 +195,25 @@ service cloud.firestore {
 
     // ── league_attempts: Bilgi Ligi quiz sonuçları ────────────────────────
     //    Read: oturum açmış herkes (liderlik tablosu için).
-    //    Create: sadece doküman içindeki uid eşleşiyorsa (kendi attempt'ı).
-    //    Update/Delete: kendi dokümanı + admin.
-    //
-    //    Cheat koruması:
-    //      • score number (int OR double — ondalık net hesabı için)
-    //      • 0 ≤ score ≤ 10 (tek quiz max 10 net)
-    //      • durationSec 5..3600 (10 saniyeden hızlı = bot; 1 saat üstü =
-    //        idle/manipülasyon)
-    //      • subjectKey ve when ZORUNLU (eksiksiz kayıt)
+    //    Write: İSTEMCİYE TAMAMEN KAPALI — tek yazım yolu
+    //    `submitLeagueAttempt` Cloud Function'ıdır (admin SDK, rules'a tabi
+    //    değil). Fonksiyon rate limit + sunucu saati kovası + idempotens +
+    //    attempt↔totals atomikliği uygular; istemci yazımı açık kalsaydı
+    //    bunların hepsi API ile aşılabilirdi.
+    //    (Hesap silme de deleteAccount function'ı ile — admin SDK.)
     match /league_attempts/{doc} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn()
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.score is number
-        && request.resource.data.score >= 0
-        && request.resource.data.score <= 10
-        && request.resource.data.durationSec is number
-        && request.resource.data.durationSec >= 5
-        && request.resource.data.durationSec <= 3600
-        && request.resource.data.subjectKey is string
-        && request.resource.data.subjectKey.size() > 0;
-      // Update YASAK (score sonradan değiştirilemez) — sadece silme veya admin.
-      allow update: if isAdmin();
-      allow delete: if isOwner(resource.data.uid) || isAdmin();
+      allow create, update, delete: if isAdmin();
     }
 
     // ── league_totals: Bilgi Ligi toplam puan dokümanları ─────────────────
     //    Kullanıcı × takvim kovası × mod başına increment'li toplam; sıralama
     //    sorguları doğrudan bunu okur (10 bin+ kullanıcıda kesin sonuç).
-    //    Create/Update: sadece kendi uid'li doküman; her yazımda skor artışı
-    //    tek quiz tavanını (10 net) aşamaz, süre artışı 1 saati aşamaz.
+    //    Write: İSTEMCİYE KAPALI — yalnızca submitLeagueAttempt /
+    //    updateLeagueDisplayName Cloud Function'ları yazar (admin SDK).
     match /league_totals/{doc} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn()
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.score is number
-        && request.resource.data.score >= 0
-        && request.resource.data.score <= 10.01
-        && request.resource.data.durationSec is number
-        && request.resource.data.durationSec >= 0
-        && request.resource.data.durationSec <= 3600;
-      allow update: if isSignedIn()
-        && resource.data.uid == request.auth.uid
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.score is number
-        && (request.resource.data.score - resource.data.score) >= 0
-        && (request.resource.data.score - resource.data.score) <= 10.01
-        && (request.resource.data.durationSec - resource.data.durationSec) >= 0
-        && (request.resource.data.durationSec - resource.data.durationSec) <= 3600;
-      allow delete: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
 
     // ── quiz_pool: AI'la üretilen test havuzu ─────────────────────────────

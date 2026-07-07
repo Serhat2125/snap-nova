@@ -19,10 +19,11 @@ class _WriteQuestionScreenState extends State<WriteQuestionScreen> {
   final ScrollController _scrollCtrl = ScrollController();
 
   final List<_Msg> _messages = [
-    const _Msg(
-      text: 'Merhaba! 👋 Nasıl yardımcı olabilirim?\n\n'
-          'Matematik, fizik, kimya, biyoloji, tarih, edebiyat veya herhangi bir konu hakkında soru sorabilirsin. '
-          'Sana adım adım çözüm veya açıklama sunacağım.',
+    _Msg(
+      text: ('Merhaba! 👋 Nasıl yardımcı olabilirim?\n\n'
+              'Matematik, fizik, kimya, biyoloji, tarih, edebiyat veya herhangi bir konu hakkında soru sorabilirsin. '
+              'Sana adım adım çözüm veya açıklama sunacağım.')
+          .tr(),
       isAI: true,
     ),
   ];
@@ -31,17 +32,18 @@ class _WriteQuestionScreenState extends State<WriteQuestionScreen> {
 
   // ── Sözlü soru → AI yanıtı ───────────────────────────────────────────────────
 
-  static const _responses = {
-    'türev': '📐 **Türev Nedir?**\n\n'
+  static Map<String, String> get _responses => {
+    'türev': ('📐 **Türev Nedir?**\n\n'
         'Türev, bir fonksiyonun anlık değişim hızını ifade eder.\n\n'
         '**Temel Formül:**\n f\'(x) = lim(h→0) [f(x+h) - f(x)] / h\n\n'
         '**Kurallar:**\n'
         '• Üs kuralı: d/dx(xⁿ) = n·xⁿ⁻¹\n'
         '• Çarpım: (fg)\' = f\'g + fg\'\n'
         '• Zincir: (f∘g)\' = f\'(g(x))·g\'(x)\n\n'
-        '**Örnek:** f(x) = 3x² → f\'(x) = 6x',
+        '**Örnek:** f(x) = 3x² → f\'(x) = 6x')
+        .tr(),
 
-    'integral': '∫ **İntegral Nedir?**\n\n'
+    'integral': ('∫ **İntegral Nedir?**\n\n'
         'İntegral, türevin tersi işlemidir — eğrinin altındaki alanı hesaplar.\n\n'
         '**Temel Formül:**\n ∫xⁿ dx = xⁿ⁺¹/(n+1) + C\n\n'
         '**Kurallar:**\n'
@@ -49,9 +51,10 @@ class _WriteQuestionScreenState extends State<WriteQuestionScreen> {
         '• ∫cos(x)dx = sin(x) + C\n'
         '• ∫eˣdx = eˣ + C\n'
         '• ∫(1/x)dx = ln|x| + C\n\n'
-        '**Örnek:** ∫(2x + 3)dx = x² + 3x + C',
+        '**Örnek:** ∫(2x + 3)dx = x² + 3x + C')
+        .tr(),
 
-    'newton': '⚡ **Newton\'un Hareket Yasaları**\n\n'
+    'newton': ('⚡ **Newton\'un Hareket Yasaları**\n\n'
         '**1. Yasa (Eylemsizlik):** Üzerine net kuvvet etki etmeyen cisim durumunu korur.\n\n'
         '**2. Yasa (Kuvvet):** F = m × a\n'
         '→ Kuvvet = Kütle × İvme\n\n'
@@ -59,27 +62,30 @@ class _WriteQuestionScreenState extends State<WriteQuestionScreen> {
         '**Birimler:**\n'
         '• Kuvvet: Newton (N) = kg·m/s²\n'
         '• Kütle: kg\n'
-        '• İvme: m/s²',
+        '• İvme: m/s²')
+        .tr(),
 
-    'enerji': '⚡ **Enerji Türleri ve Dönüşümü**\n\n'
+    'enerji': ('⚡ **Enerji Türleri ve Dönüşümü**\n\n'
         '**Kinetik Enerji:** Ek = ½mv²\n'
         '**Potansiyel Enerji:** Ep = mgh\n'
         '**Mekanik Enerji:** Em = Ek + Ep = sabit\n\n'
         '**Enerji Korunumu:**\n'
         'Kapalı sistemde toplam enerji sabittir.\n\n'
         '**İş-Enerji Teoremi:**\n'
-        'W = ΔEk = Ek₂ - Ek₁',
+        'W = ΔEk = Ek₂ - Ek₁')
+        .tr(),
 
-    'mol': '🧪 **Mol Kavramı**\n\n'
+    'mol': ('🧪 **Mol Kavramı**\n\n'
         '1 mol = 6,022 × 10²³ tanecik (Avogadro sayısı)\n\n'
         '**Formüller:**\n'
         '• n = m / M (mol = kütle / molar kütle)\n'
         '• N = n × Nₐ (tanecik sayısı)\n'
         '• V = n × 22,4 L (STP\'de)\n\n'
         '**Örnek:** 36 g su (M=18)\n'
-        '→ n = 36/18 = 2 mol su',
+        '→ n = 36/18 = 2 mol su')
+        .tr(),
 
-    'hücre': '🔬 **Hücre Bölünmesi**\n\n'
+    'hücre': ('🔬 **Hücre Bölünmesi**\n\n'
         '**Mitoz:**\n'
         '• Amaç: Büyüme, onarım\n'
         '• Sonuç: 2 diploid hücre (2n)\n'
@@ -87,18 +93,20 @@ class _WriteQuestionScreenState extends State<WriteQuestionScreen> {
         '**Mayoz:**\n'
         '• Amaç: Üreme hücresi üretimi\n'
         '• Sonuç: 4 haploid hücre (n)\n'
-        '• Mayoz I + Mayoz II olmak üzere 2 aşama',
+        '• Mayoz I + Mayoz II olmak üzere 2 aşama')
+        .tr(),
 
-    'denklem': '📐 **İkinci Dereceden Denklem**\n\n'
+    'denklem': ('📐 **İkinci Dereceden Denklem**\n\n'
         'ax² + bx + c = 0 formunda denklem.\n\n'
         '**Diskriminant:** Δ = b² - 4ac\n'
         '• Δ > 0 → İki gerçel kök\n'
         '• Δ = 0 → Bir çifte kök\n'
         '• Δ < 0 → Gerçel kök yok\n\n'
         '**Çözüm Formülü:**\n'
-        'x = (-b ± √Δ) / 2a',
+        'x = (-b ± √Δ) / 2a')
+        .tr(),
 
-    'asit': '🧪 **Asit-Baz Kavramı**\n\n'
+    'asit': ('🧪 **Asit-Baz Kavramı**\n\n'
         '**Arrhenius Tanımı:**\n'
         '• Asit: H⁺ veren madde\n'
         '• Baz: OH⁻ veren madde\n\n'
@@ -107,23 +115,26 @@ class _WriteQuestionScreenState extends State<WriteQuestionScreen> {
         '• pH = 7 → Nötr\n'
         '• pH > 7 → Bazik\n\n'
         '**Nötrleşme:** Asit + Baz → Tuz + Su\n'
-        'H₂SO₄ + 2NaOH → Na₂SO₄ + 2H₂O',
+        'H₂SO₄ + 2NaOH → Na₂SO₄ + 2H₂O')
+        .tr(),
 
-    'osmanlı': '📚 **Osmanlı Devleti**\n\n'
+    'osmanlı': ('📚 **Osmanlı Devleti**\n\n'
         '**Kuruluş:** 1299 – Osman Bey\n'
         '**Yıkılış:** 1922 – Türkiye Cumhuriyeti\'nin ilanıyla\n\n'
         '**Önemli Padişahlar:**\n'
         '• Fatih Sultan Mehmet (İstanbul\'un Fethi, 1453)\n'
         '• Yavuz Sultan Selim (Mısır\'ın alınması)\n'
         '• Kanuni Sultan Süleyman (En geniş sınırlar)\n\n'
-        '**En Uzun Süren Hanedan:** 623 yıl',
+        '**En Uzun Süren Hanedan:** 623 yıl')
+        .tr(),
 
-    'edebiyat': '📖 **Türk Edebiyatı Dönemleri**\n\n'
+    'edebiyat': ('📖 **Türk Edebiyatı Dönemleri**\n\n'
         '**İslam Öncesi:** Sözlü gelenek, koşuk ve sagular\n'
         '**Divan Edebiyatı:** Arap-Fars etkisi, gazel-kaside\n'
         '**Tanzimat (1860):** Şinasi, Namık Kemal, Ziya Paşa\n'
         '**Servet-i Fünun:** Tevfik Fikret, Halit Ziya\n'
-        '**Cumhuriyet:** Nazım Hikmet, Orhan Veli, Yaşar Kemal',
+        '**Cumhuriyet:** Nazım Hikmet, Orhan Veli, Yaşar Kemal')
+        .tr(),
   };
 
   void _send() {
@@ -153,17 +164,20 @@ class _WriteQuestionScreenState extends State<WriteQuestionScreen> {
       if (lower.contains(entry.key)) return entry.value;
     }
     if (lower.contains('merhaba') || lower.contains('selam')) {
-      return 'Merhaba! 😊 Hangi konuda yardımcı olmamı istersin? Matematiğin herhangi bir konusunu, fen bilimlerini veya sosyal bilimleri sorabilirsin.';
+      return 'Merhaba! 😊 Hangi konuda yardımcı olmamı istersin? Matematiğin herhangi bir konusunu, fen bilimlerini veya sosyal bilimleri sorabilirsin.'
+          .tr();
     }
     if (lower.contains('nasıl') && lower.contains('çal')) {
-      return 'Sana şu şekilde yardımcı olabilirim:\n\n• Konu açıklaması\n• Adım adım çözüm\n• Formüller ve kurallar\n• Örnek sorular\n\nHerhangi bir konu veya soru türünü yazabilirsin!';
+      return 'Sana şu şekilde yardımcı olabilirim:\n\n• Konu açıklaması\n• Adım adım çözüm\n• Formüller ve kurallar\n• Örnek sorular\n\nHerhangi bir konu veya soru türünü yazabilirsin!'
+          .tr();
     }
-    return '🤔 Sorunuzu anlamaya çalışıyorum...\n\n'
-        'Daha spesifik bir konu veya soru yazarsan daha iyi yardımcı olabilirim. Örneğin:\n'
-        '• "Türev nasıl alınır?"\n'
-        '• "Newton\'un yasaları nelerdir?"\n'
-        '• "Mol hesabı nasıl yapılır?"\n\n'
-        'Hangi konuyu öğrenmek istiyorsun?';
+    return ('🤔 Sorunuzu anlamaya çalışıyorum...\n\n'
+            'Daha spesifik bir konu veya soru yazarsan daha iyi yardımcı olabilirim. Örneğin:\n'
+            '• "Türev nasıl alınır?"\n'
+            '• "Newton\'un yasaları nelerdir?"\n'
+            '• "Mol hesabı nasıl yapılır?"\n\n'
+            'Hangi konuyu öğrenmek istiyorsun?')
+        .tr();
   }
 
   void _scrollDown() {

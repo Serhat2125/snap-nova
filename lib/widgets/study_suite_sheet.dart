@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
 import '../services/app_settings_service.dart';
+import '../services/runtime_translator.dart';
 import '../services/gemini_service.dart';
 import 'latex_text.dart';
 import 'qualsar_numeric_loader.dart';
@@ -166,7 +167,7 @@ class _StudySuiteContentState extends State<_StudySuiteContent> {
     } on GeminiException catch (e) {
       if (mounted) setState(() { _error = e.userMessage.replaceAll('\n', ' '); _loading = false; });
     } catch (_) {
-      if (mounted) setState(() { _error = 'Veriler yüklenemedi.'; _loading = false; });
+      if (mounted) setState(() { _error = 'Veriler yüklenemedi.'.tr(); _loading = false; });
     }
   }
 
@@ -241,7 +242,7 @@ class _StudySuiteContentState extends State<_StudySuiteContent> {
             QuAlsarStaticBadge(size: 54, variant: _variant),
             SizedBox(height: 8),
             Text(
-              'Konuyu Pekiştir',
+              'Konuyu Pekiştir'.tr(),
               style: TextStyle(
                 color: AppPalette.textPrimary(context),
                 fontSize: 18,
@@ -278,7 +279,7 @@ class _StudySuiteContentState extends State<_StudySuiteContent> {
   Widget _buildSkeleton() {
     return QuAlsarNumericLoader(
       variant: _variant,
-      primaryText: 'Konu Pekiştirme Hazırlanıyor',
+      primaryText: 'Konu Pekiştirme Hazırlanıyor'.tr(),
       staticLabel: true,
     );
   }
@@ -294,7 +295,7 @@ class _StudySuiteContentState extends State<_StudySuiteContent> {
               color: Colors.black.withValues(alpha: 0.40), size: 42),
           SizedBox(height: 16),
           Text(
-            _error ?? 'Bir hata oluştu.',
+            _error ?? 'Bir hata oluştu.'.tr(),
             textAlign: TextAlign.center,
             style: TextStyle(
                 color: Colors.black.withValues(alpha: 0.65),
@@ -312,7 +313,7 @@ class _StudySuiteContentState extends State<_StudySuiteContent> {
                 border: Border.all(color: AppColors.cyan.withValues(alpha: 0.40)),
               ),
               child: Text(
-                'Tekrar Dene',
+                'Tekrar Dene'.tr(),
                 style: TextStyle(color: AppColors.cyan, fontSize: 13, fontWeight: FontWeight.w600),
               ),
             ),
@@ -335,15 +336,15 @@ class _StudySuiteContentState extends State<_StudySuiteContent> {
         _SectionTab(
           icon:     Icons.quiz_rounded,
           color:    Color(0xFF60A5FA),
-          label:    'Benzer Soruları Çöz',
-          count:    '${d.questions.length} soru',
+          label:    'Benzer Soruları Çöz'.tr(),
+          count:    '${d.questions.length} ${'soru'.tr()}',
           active:   _activeSection == 'questions',
           onTap:    () => _toggleSection('questions'),
         ),
         _SectionPanel(
           active:   _activeSection == 'questions',
           color:    Color(0xFF60A5FA),
-          title:    'Benzer Soruları Çöz',
+          title:    'Benzer Soruları Çöz'.tr(),
           onClose:  _closeSection,
           child:    _buildQuestionsContent(d.questions),
         ),
@@ -354,15 +355,15 @@ class _StudySuiteContentState extends State<_StudySuiteContent> {
         _SectionTab(
           icon:   Icons.lightbulb_outline_rounded,
           color:  Color(0xFFF59E0B),
-          label:  'Bilgi Kartları',
-          count:  '${d.infoCards.length} kart',
+          label:  'Bilgi Kartları'.tr(),
+          count:  '${d.infoCards.length} ${'kart'.tr()}',
           active: _activeSection == 'info',
           onTap:  () => _toggleSection('info'),
         ),
         _SectionPanel(
           active:  _activeSection == 'info',
           color:   Color(0xFFF59E0B),
-          title:   'Bilgi Kartları',
+          title:   'Bilgi Kartları'.tr(),
           onClose: _closeSection,
           child:   _buildInfoCardsContent(d.infoCards),
         ),
@@ -373,15 +374,15 @@ class _StudySuiteContentState extends State<_StudySuiteContent> {
         _SectionTab(
           icon:   Icons.style_rounded,
           color:  Color(0xFF8B5CF6),
-          label:  'Eşleştirme Kartları',
-          count:  '${d.matchPairs.length} çift',
+          label:  'Eşleştirme Kartları'.tr(),
+          count:  '${d.matchPairs.length} ${'çift'.tr()}',
           active: _activeSection == 'match',
           onTap:  () => _toggleSection('match'),
         ),
         _SectionPanel(
           active:  _activeSection == 'match',
           color:   Color(0xFF8B5CF6),
-          title:   'Eşleştirme Kartları',
+          title:   'Eşleştirme Kartları'.tr(),
           onClose: _closeSection,
           child:   _MatchCardsPanel(
             key:   ValueKey(d.matchPairs.length),
@@ -639,14 +640,12 @@ class _SimilarQuestionCardState extends State<_SimilarQuestionCard>
   String? _picked;
   late final AnimationController _ctrl;
   late final Animation<double>   _fade;
-  late final Animation<double>   _rotate;
 
   @override
   void initState() {
     super.initState();
     _ctrl   = AnimationController(vsync: this, duration: Duration(milliseconds: 260));
     _fade   = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
-    _rotate = Tween<double>(begin: 0.0, end: 0.5).animate(_fade);
   }
 
   @override
@@ -812,36 +811,50 @@ class _SimilarQuestionCardState extends State<_SimilarQuestionCard>
                         ],
                       ),
                     ),
-                    SizedBox(width: 6),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        RotationTransition(
-                          turns: _rotate,
-                          child: Icon(
-                            Icons.expand_more_rounded,
-                            color: _expanded
-                                ? accent
-                                : Colors.black.withValues(alpha: 0.40),
-                            size: 18,
-                          ),
+                  ],
+                ),
+
+                // Çözümü Göster / Gizle — sağ alt buton
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: GestureDetector(
+                      onTap: _toggle,
+                      child: AnimatedContainer(
+                        duration: Duration(milliseconds: 200),
+                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _expanded
+                              ? accent.withValues(alpha: 0.12)
+                              : accent,
+                          borderRadius: BorderRadius.circular(20),
+                          border: _expanded
+                              ? Border.all(color: accent.withValues(alpha: 0.45))
+                              : null,
                         ),
-                        if (!_expanded)
-                          Padding(
-                            padding: EdgeInsets.only(top: 3),
-                            child: Text(
-                              'Çözümü Göster',
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.lightbulb_outline_rounded,
+                              size: 13,
+                              color: _expanded ? accent : Colors.white,
+                            ),
+                            SizedBox(width: 5),
+                            Text(
+                              _expanded ? 'Çözümü Gizle'.tr() : 'Çözümü Göster'.tr(),
                               style: TextStyle(
-                                color: AppPalette.textPrimary(context),
-                                fontSize: 9,
+                                color: _expanded ? accent : Colors.white,
+                                fontSize: 11,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
-                          ),
-                      ],
+                          ],
+                        ),
+                      ),
                     ),
-                  ],
+                  ),
                 ),
 
                 // Çözüm — animasyonlu genişle
@@ -862,7 +875,7 @@ class _SimilarQuestionCardState extends State<_SimilarQuestionCard>
                                 color: accent, size: 12),
                             SizedBox(width: 4),
                             Text(
-                              'Çözüm',
+                              'Çözüm'.tr(),
                               style: TextStyle(
                                 color: accent.withValues(alpha: 0.80),
                                 fontSize: 10,
@@ -1189,7 +1202,7 @@ class _MatchCardsPanelState extends State<_MatchCardsPanel> {
         padding: const EdgeInsets.symmetric(vertical: 20),
         child: Center(
           child: Text(
-            'Bu soru için eşleştirme çifti bulunamadı.',
+            'Bu soru için eşleştirme çifti bulunamadı.'.tr(),
             style: GoogleFonts.inter(
               color: Colors.black.withValues(alpha: 0.55),
               fontSize: 12,
@@ -1208,14 +1221,14 @@ class _MatchCardsPanelState extends State<_MatchCardsPanel> {
           children: [
             _StatChip(
               icon:  Icons.swap_horiz_rounded,
-              label: 'Hamle',
+              label: 'Hamle'.tr(),
               value: '$_moves',
               color: Color(0xFF3B82F6),
             ),
             SizedBox(width: 8),
             _StatChip(
               icon:  Icons.check_circle_rounded,
-              label: 'Eşleşme',
+              label: 'Eşleşme'.tr(),
               value: '$_matched / $total',
               color: Color(0xFF22C55E),
             ),
@@ -1240,7 +1253,7 @@ class _MatchCardsPanelState extends State<_MatchCardsPanel> {
                           color: Color(0xFF8B5CF6), size: 13),
                       SizedBox(width: 4),
                       Text(
-                        'Sıfırla',
+                        'Sıfırla'.tr(),
                         style: GoogleFonts.inter(
                           color: Color(0xFF8B5CF6),
                           fontSize: 10,
@@ -1276,7 +1289,7 @@ class _MatchCardsPanelState extends State<_MatchCardsPanel> {
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Tebrikler! Tüm çiftleri $_moves hamlede eşleştirdin 🎉',
+                    'Tebrikler! Tüm çiftleri $_moves hamlede eşleştirdin 🎉'.tr(),
                     style: GoogleFonts.inter(
                       color: AppPalette.textPrimary(context),
                       fontSize: 12,
@@ -1418,8 +1431,29 @@ class _MatchCardTile extends StatelessWidget {
     }
     final labelCol = isTerm ? Color(0xFF8B5CF6) : Color(0xFF3B82F6);
 
-    // Metin kart yüzüne sığmıyorsa tek tıkla da büyüt — kabaca uzunluk eşiği.
-    final textOverflows = card.text.length > 28;
+    final textStyle = GoogleFonts.inter(
+      color: AppPalette.textPrimary(context),
+      fontSize: isTerm ? 11.5 : 10,
+      fontWeight: isTerm ? FontWeight.w800 : FontWeight.w500,
+      height: 1.2,
+    );
+
+    return LayoutBuilder(builder: (context, constraints) {
+    // Metin kart yüzüne gerçekten sığmıyorsa tek tıkla da büyüt.
+    // Kullanılabilir alan: yatayda 7px padding ×2, dikeyde padding +
+    // TERİM/TANIM rozeti (~17px) + 5px boşluk.
+    final availW = (constraints.maxWidth - 14).clamp(0.0, double.infinity);
+    final availH = constraints.hasBoundedHeight
+        ? constraints.maxHeight - 14 - 22
+        : double.infinity;
+    final tp = TextPainter(
+      text: TextSpan(text: card.text, style: textStyle),
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+      maxLines: 5,
+    )..layout(maxWidth: availW);
+    final textOverflows =
+        tp.didExceedMaxLines || (availH.isFinite && tp.height > availH);
     return GestureDetector(
       onTap: () {
         onTap();
@@ -1458,7 +1492,7 @@ class _MatchCardTile extends StatelessWidget {
                     borderRadius: BorderRadius.circular(50),
                   ),
                   child: Text(
-                    isTerm ? 'TERİM' : 'TANIM',
+                    isTerm ? 'TERİM'.tr() : 'TANIM'.tr(),
                     style: GoogleFonts.inter(
                       color: labelCol,
                       fontSize: 8.5,
@@ -1475,13 +1509,7 @@ class _MatchCardTile extends StatelessWidget {
                       textAlign: TextAlign.center,
                       maxLines: 5,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(
-                        color: AppPalette.textPrimary(context),
-                        fontSize: isTerm ? 11.5 : 10,
-                        fontWeight:
-                            isTerm ? FontWeight.w800 : FontWeight.w500,
-                        height: 1.2,
-                      ),
+                      style: textStyle,
                     ),
                   ),
                 ),
@@ -1523,6 +1551,7 @@ class _MatchCardTile extends StatelessWidget {
         ],
       ),
     );
+    });
   }
 }
 
@@ -1630,7 +1659,7 @@ class _ExpandedCardDialogState extends State<_ExpandedCardDialog>
                               borderRadius: BorderRadius.circular(50),
                             ),
                             child: Text(
-                              isTerm ? 'TERİM' : 'TANIM',
+                              isTerm ? 'TERİM'.tr() : 'TANIM'.tr(),
                               style: GoogleFonts.inter(
                                 color: labelCol,
                                 fontSize: 11,

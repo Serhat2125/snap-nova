@@ -245,7 +245,10 @@ class _ParentChildCoursesScreenState extends State<ParentChildCoursesScreen> {
             if (!widget.demo) _loadStats(classes);
             // Demo: örnek dersler; gerçek modda boşsa bilgilendir.
             final courses = widget.demo
-                ? _kDemoCourses
+                ? [
+                    for (final (s, c, t) in _kDemoCourses)
+                      (s.tr(), c.tr(), t)
+                  ]
                 : classes
                     .map((c) => (
                           c.subject.trim().isEmpty ? c.className : c.subject,
@@ -805,18 +808,38 @@ class _DemoCourseHomeworksScreenState
   static List<String> _topicsFor(String subject) {
     final k = subject.toLowerCase();
     if (k.contains('matematik') || k.contains('geometri')) {
-      return ['Denklemler', 'Oran-Orantı', 'Üslü Sayılar', 'Problemler'];
+      return [
+        'Denklemler'.tr(),
+        'Oran-Orantı'.tr(),
+        'Üslü Sayılar'.tr(),
+        'Problemler'.tr()
+      ];
     }
     if (k.contains('fizik')) {
-      return ['Kuvvet ve Hareket', 'Enerji', 'Basınç', 'Optik'];
+      return [
+        'Kuvvet ve Hareket'.tr(),
+        'Enerji'.tr(),
+        'Basınç'.tr(),
+        'Optik'.tr()
+      ];
     }
     if (k.contains('kimya')) {
-      return ['Maddenin Yapısı', 'Mol Kavramı', 'Karışımlar', 'Asit-Baz'];
+      return [
+        'Maddenin Yapısı'.tr(),
+        'Mol Kavramı'.tr(),
+        'Karışımlar'.tr(),
+        'Asit-Baz'.tr()
+      ];
     }
     if (k.contains('biyoloji')) {
-      return ['Hücre', 'Hücre Bölünmeleri', 'Kalıtım', 'Ekosistem'];
+      return [
+        'Hücre'.tr(),
+        'Hücre Bölünmeleri'.tr(),
+        'Kalıtım'.tr(),
+        'Ekosistem'.tr()
+      ];
     }
-    return ['Ünite 1', 'Ünite 2', 'Ünite 3', 'Ünite 4'];
+    return ['Ünite 1'.tr(), 'Ünite 2'.tr(), 'Ünite 3'.tr(), 'Ünite 4'.tr()];
   }
 
   @override
@@ -826,13 +849,13 @@ class _DemoCourseHomeworksScreenState
     final topics = _topicsFor(subject);
     // (başlık, konu, bitiş, durum, skor%) — durum: done | late | pending
     final items = <(String, String, DateTime, String, int?)>[
-      ('Ünite Tekrarı', topics[0], now.subtract(const Duration(days: 6)),
+      ('Ünite Tekrarı'.tr(), topics[0], now.subtract(const Duration(days: 6)),
           'done', 85),
-      ('Konu Testi (20 soru)', topics[1],
+      ('Konu Testi (20 soru)'.tr(), topics[1],
           now.subtract(const Duration(days: 3)), 'done', 70),
-      ('Alıştırma Ödevi', topics[2], now.subtract(const Duration(days: 1)),
-          'late', 55),
-      ('Haftalık Ödev', topics[3], now.add(const Duration(days: 2)),
+      ('Alıştırma Ödevi'.tr(), topics[2],
+          now.subtract(const Duration(days: 1)), 'late', 55),
+      ('Haftalık Ödev'.tr(), topics[3], now.add(const Duration(days: 2)),
           'pending', null),
     ];
     String fmt(DateTime d) =>
@@ -1130,30 +1153,34 @@ class _ParentTeacherMessagesScreenState
       return [
         _TeacherMsg(
             'Ayşe Yılmaz',
-            '9-A Matematik',
+            '9-A Matematik'.tr(),
             'Yarınki derste 2. ünite tekrarı yapacağız — ödev sorularını '
-                'çözerek gelin lütfen.',
+                    'çözerek gelin lütfen.'
+                .tr(),
             now.subtract(const Duration(hours: 3)),
             'announcement'),
         _TeacherMsg(
             'Mehmet Demir',
-            '9-A Fizik',
+            '9-A Fizik'.tr(),
             'Bu haftaki ödevini eksiksiz ve zamanında teslim etti, '
-            'tebrikler! 🌟',
+                    'tebrikler! 🌟'
+                .tr(),
             now.subtract(const Duration(days: 1)),
             'praise'),
         _TeacherMsg(
             'Elif Kaya',
-            '9-A Kimya',
+            '9-A Kimya'.tr(),
             'Mol kavramında biraz zorlanıyor; evde kısa tekrarlar iyi '
-            'gelecektir.',
+                    'gelecektir.'
+                .tr(),
             now.subtract(const Duration(days: 2)),
             'note'),
         _TeacherMsg(
             'Ayşe Yılmaz',
-            '9-A Matematik',
+            '9-A Matematik'.tr(),
             'Deneme sınavı Cuma günü — konu eksiklerini bu hafta '
-            'kapatmaya çalışıyoruz.',
+                    'kapatmaya çalışıyoruz.'
+                .tr(),
             now.subtract(const Duration(days: 4)),
             'announcement'),
       ];
@@ -1164,7 +1191,7 @@ class _ParentTeacherMessagesScreenState
           await ParentLinkService.readChildAnnouncements(widget.childUid);
       for (final a in anns) {
         out.add(_TeacherMsg(
-            a.teacherName.trim().isEmpty ? 'Öğretmen' : a.teacherName,
+            a.teacherName.trim().isEmpty ? 'Öğretmen'.tr() : a.teacherName,
             a.className,
             a.message,
             a.when,
@@ -1185,7 +1212,7 @@ class _ParentTeacherMessagesScreenState
           for (final n in notes) {
             out.add(_TeacherMsg(
                 c.teacherDisplayName.trim().isEmpty
-                    ? 'Öğretmen'
+                    ? 'Öğretmen'.tr()
                     : c.teacherDisplayName,
                 c.className,
                 n.text,
@@ -1228,11 +1255,11 @@ class _ParentTeacherMessagesScreenState
             'className': m.className,
             'childName': widget.childName,
             'title': kind == 'study'
-                ? '${widget.childName} velisi: Evde çalışacağız 🎯'
-                : '${widget.childName} velisi mesajını gördü 👍',
+                ? '${widget.childName} ${'velisi: Evde çalışacağız 🎯'.tr()}'
+                : '${widget.childName} ${'velisi mesajını gördü 👍'.tr()}',
             'body': kind == 'study'
-                ? '"$short" mesajın için evde çalışacaklarını belirtti.'
-                : '"$short" mesajını gördü ve onayladı.',
+                ? '"$short" ${'mesajın için evde çalışacaklarını belirtti.'.tr()}'
+                : '"$short" ${'mesajını gördü ve onayladı.'.tr()}',
             'when': FieldValue.serverTimestamp(),
             'read': false,
           });

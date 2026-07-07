@@ -99,7 +99,7 @@ class Edu3DSubjectsScreen extends StatelessWidget {
                 color: Color(0xFF06B6D4), size: 22),
             const SizedBox(width: 8),
             Text(
-              '3D Eğitim Modelleri',
+              '3D Eğitim Modelleri'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
@@ -112,7 +112,7 @@ class Edu3DSubjectsScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.settings_rounded),
             color: AppPalette.textPrimary(context),
-            tooltip: 'Ayarlar',
+            tooltip: 'Ayarlar'.tr(),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (_) => const Lesson3DScreen(
@@ -324,7 +324,7 @@ class Edu3DCografyaScreen extends StatelessWidget {
                 color: Color(0xFF0EA5E9), size: 22),
             const SizedBox(width: 8),
             Text(
-              'Coğrafya',
+              'Coğrafya'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
@@ -432,7 +432,7 @@ class Edu3DMatematikScreen extends StatelessWidget {
                 color: Color(0xFFF97316), size: 22),
             const SizedBox(width: 8),
             Text(
-              'Matematik',
+              'Matematik'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
@@ -749,7 +749,7 @@ class Edu3DGeometriScreen extends StatelessWidget {
                 color: Color(0xFFEAB308), size: 22),
             const SizedBox(width: 8),
             Text(
-              'Geometrik Cisimler',
+              'Geometrik Cisimler'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
@@ -801,7 +801,7 @@ class Edu3DFizikScreen extends StatelessWidget {
                 color: Color(0xFF7C3AED), size: 22),
             const SizedBox(width: 8),
             Text(
-              'Fizik',
+              'Fizik'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
@@ -958,7 +958,7 @@ class Edu3DKimyaScreen extends StatelessWidget {
                 color: Color(0xFFE11D48), size: 22),
             const SizedBox(width: 8),
             Text(
-              'Kimya',
+              'Kimya'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
@@ -1116,7 +1116,7 @@ class Edu3DBiyolojiScreen extends StatelessWidget {
                 color: Color(0xFF16A34A), size: 22),
             const SizedBox(width: 8),
             Text(
-              'Biyoloji',
+              'Biyoloji'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
@@ -1433,7 +1433,7 @@ class _SubjectCard extends StatelessWidget {
               const SizedBox(width: 14),
               Expanded(
                 child: Text(
-                  title,
+                  title.tr(),
                   style: GoogleFonts.poppins(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,

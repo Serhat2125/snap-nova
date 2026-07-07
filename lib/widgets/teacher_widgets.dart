@@ -1209,7 +1209,7 @@ class StudentPerformanceList extends StatelessWidget {
                         ),
                         maxLines: 1, overflow: TextOverflow.ellipsis),
                     Text(
-                      'Bitiş: ${homework.dueAt.day}.${homework.dueAt.month}.${homework.dueAt.year} '
+                      '${'Bitiş'.tr()}: ${homework.dueAt.day}.${homework.dueAt.month}.${homework.dueAt.year} '
                       '${homework.dueAt.hour.toString().padLeft(2, '0')}:'
                       '${homework.dueAt.minute.toString().padLeft(2, '0')}',
                       style: GoogleFonts.poppins(

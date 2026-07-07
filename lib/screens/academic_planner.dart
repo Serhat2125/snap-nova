@@ -753,8 +753,8 @@ class StudySessionTracker extends ChangeNotifier
       // bu uyarı sistem tepsisinde görünür. PushService.init() main'de zaten
       // bağlı; izin verilmediyse sessiz no-op.
       unawaited(PushService.showLocal(
-        title: 'Hâlâ burada mısın?',
-        body: 'Çalışma süresi 2 dakikadır dondu. Devam etmek için uygulamaya dön.',
+        title: 'Hâlâ burada mısın?'.tr(),
+        body: 'Çalışma süresi 2 dakikadır dondu. Devam etmek için uygulamaya dön.'.tr(),
         id: 0xFA002,
       ));
     }
@@ -3655,9 +3655,9 @@ class _LibraryLandingState extends State<LibraryLanding> {
 
     return Row(
       children: [
-        box('text', Icons.text_fields_rounded, 'Yazı'),
+        box('text', Icons.text_fields_rounded, 'Yazı'.tr()),
         SizedBox(width: 8),
-        box('frame', Icons.crop_square_rounded, 'Çerçeve'),
+        box('frame', Icons.crop_square_rounded, 'Çerçeve'.tr()),
       ],
     );
   }
@@ -3703,7 +3703,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
-          chip('bg', 'Arka plan'),
+          chip('bg', 'Arka plan'.tr()),
           SizedBox(width: 6),
           for (final entry in _cardSlugs.entries) ...[
             // Her kart için kendi chip'i — slug → görünen ad eşlemesi.
@@ -5830,17 +5830,17 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
               child: const Icon(Icons.lock_rounded, color: Colors.white, size: 32),
             ),
             const SizedBox(height: 16),
-            const Text(
-              'Premium Özellik',
-              style: TextStyle(
+            Text(
+              'Premium Özellik'.tr(),
+              style: const TextStyle(
                 color: Color(0xFFFFD166), fontSize: 20, fontWeight: FontWeight.w800,
               ),
             ),
             const SizedBox(height: 10),
-            const Text(
-              '7 günlük ücretsiz deneme süren sona erdi. Konu özetleri oluşturmaya devam etmek için Premium\'a geç.',
+            Text(
+              '7 günlük ücretsiz deneme süren sona erdi. Konu özetleri oluşturmaya devam etmek için Premium\'a geç.'.tr(),
               textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFFB9C2EE), fontSize: 14, height: 1.5),
+              style: const TextStyle(color: Color(0xFFB9C2EE), fontSize: 14, height: 1.5),
             ),
             const SizedBox(height: 24),
             SizedBox(
@@ -5858,16 +5858,16 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
                     MaterialPageRoute(builder: (_) => const PremiumScreen()),
                   );
                 },
-                child: const Text(
-                  'Premium\'a Geç',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                child: Text(
+                  'Premium\'a Geç'.tr(),
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                 ),
               ),
             ),
             const SizedBox(height: 10),
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Geri Dön', style: TextStyle(color: Color(0xFF8A93B0))),
+              child: Text('Geri Dön'.tr(), style: const TextStyle(color: Color(0xFF8A93B0))),
             ),
           ],
         ),
@@ -5905,17 +5905,17 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
               child: const Icon(Icons.lock_rounded, color: Colors.white, size: 32),
             ),
             const SizedBox(height: 16),
-            const Text(
-              'Premium Özellik',
-              style: TextStyle(
+            Text(
+              'Premium Özellik'.tr(),
+              style: const TextStyle(
                 color: Color(0xFFFFD166), fontSize: 20, fontWeight: FontWeight.w800,
               ),
             ),
             const SizedBox(height: 10),
-            const Text(
-              'Her konudan 1 test ücretsiz oluşturabilirsin. Sınırsız test için Premium\'a geç.',
+            Text(
+              'Her konudan 1 test ücretsiz oluşturabilirsin. Sınırsız test için Premium\'a geç.'.tr(),
               textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFFB9C2EE), fontSize: 14, height: 1.5),
+              style: const TextStyle(color: Color(0xFFB9C2EE), fontSize: 14, height: 1.5),
             ),
             const SizedBox(height: 24),
             SizedBox(
@@ -5933,16 +5933,16 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
                     MaterialPageRoute(builder: (_) => const PremiumScreen()),
                   );
                 },
-                child: const Text(
-                  'Premium\'a Geç',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                child: Text(
+                  'Premium\'a Geç'.tr(),
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                 ),
               ),
             ),
             const SizedBox(height: 10),
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Geri Dön', style: TextStyle(color: Color(0xFF8A93B0))),
+              child: Text('Geri Dön'.tr(), style: const TextStyle(color: Color(0xFF8A93B0))),
             ),
           ],
         ),
@@ -6008,10 +6008,12 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
     if (quota.isExhausted) {
       Analytics.logQuotaExhausted(kind.name);
       _showSnack(quota.isDailyExhausted
-          ? 'Günlük AI sınırına ulaştın (${quota.dailyLimit}). '
-              'Yarın tekrar dene veya Premium\'a geç.'
-          : 'Aylık AI sınırına ulaştın (${quota.monthlyLimit}). '
-              'Ay başında sıfırlanır.');
+          ? ('Günlük AI sınırına ulaştın (${quota.dailyLimit}). '
+                  'Yarın tekrar dene veya Premium\'a geç.')
+              .tr()
+          : ('Aylık AI sınırına ulaştın (${quota.monthlyLimit}). '
+                  'Ay başında sıfırlanır.')
+              .tr());
       return false;
     }
 
@@ -6270,10 +6272,12 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
     if (quota.isExhausted) {
       Analytics.logQuotaExhausted(QuotaKind.testQuestions.name);
       _showSnack(quota.isDailyExhausted
-          ? 'Günlük AI sınırına ulaştın (${quota.dailyLimit}). '
-              'Yarın tekrar dene veya Premium\'a geç.'
-          : 'Aylık AI sınırına ulaştın (${quota.monthlyLimit}). '
-              'Ay başında sıfırlanır.');
+          ? ('Günlük AI sınırına ulaştın (${quota.dailyLimit}). '
+                  'Yarın tekrar dene veya Premium\'a geç.')
+              .tr()
+          : ('Aylık AI sınırına ulaştın (${quota.monthlyLimit}). '
+                  'Ay başında sıfırlanır.')
+              .tr());
       return;
     }
     await UsageQuota.increment(QuotaKind.testQuestions);
@@ -6458,7 +6462,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
     return showGeneralDialog<_SummaryLength>(
       context: ctx,
       barrierDismissible: true,
-      barrierLabel: 'Özet türü',
+      barrierLabel: 'Özet türü'.tr(),
       barrierColor: Colors.black.withValues(alpha: 0.45),
       transitionDuration: const Duration(milliseconds: 200),
       pageBuilder: (dialogCtx, a1, a2) => Center(
@@ -6670,10 +6674,12 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
     if (quota.isExhausted) {
       Analytics.logQuotaExhausted(kind.name);
       _showSnack(quota.isDailyExhausted
-          ? 'Günlük AI sınırına ulaştın (${quota.dailyLimit}). '
-              'Yarın tekrar dene veya Premium\'a geç.'
-          : 'Aylık AI sınırına ulaştın (${quota.monthlyLimit}). '
-              'Ay başında sıfırlanır.');
+          ? ('Günlük AI sınırına ulaştın (${quota.dailyLimit}). '
+                  'Yarın tekrar dene veya Premium\'a geç.')
+              .tr()
+          : ('Aylık AI sınırına ulaştın (${quota.monthlyLimit}). '
+                  'Ay başında sıfırlanır.')
+              .tr());
       return;
     }
     // ── /LIMIT ───────────────────────────────────────────────────────────
@@ -6935,7 +6941,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
         if (!mounted) return;
         setState(() => _generating = false);
         _showRetrySnack(
-          'AI yanıt veremedi. Tekrar denemek ister misin?',
+          'AI yanıt veremedi. Tekrar denemek ister misin?'.tr(),
           () => _generate(
             subjectName: subjectName,
             topic: topic,
@@ -6956,7 +6962,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
         if (!mounted) return;
         setState(() => _generating = false);
         _showRetrySnack(
-          'AI testi bozuk biçimde döndü. Tekrar denemek ister misin?',
+          'AI testi bozuk biçimde döndü. Tekrar denemek ister misin?'.tr(),
           () => _generate(
             subjectName: subjectName,
             topic: topic,
@@ -9153,11 +9159,11 @@ Bu listeyi çıktıya YAZMA — sadece uygula.
   }
 
   String _humanAgo(Duration d) {
-    if (d.inMinutes < 1) return 'az önce';
-    if (d.inMinutes < 60) return '${d.inMinutes} dk önce';
-    if (d.inHours < 24) return '${d.inHours} sa önce';
-    if (d.inDays < 7) return '${d.inDays} gün önce';
-    return '${(d.inDays / 7).floor()} hafta önce';
+    if (d.inMinutes < 1) return 'az önce'.tr();
+    if (d.inMinutes < 60) return '${d.inMinutes} ${'dk önce'.tr()}';
+    if (d.inHours < 24) return '${d.inHours} ${'sa önce'.tr()}';
+    if (d.inDays < 7) return '${d.inDays} ${'gün önce'.tr()}';
+    return '${(d.inDays / 7).floor()} ${'hafta önce'.tr()}';
   }
 
   // ─── "Bugün Tekrar Et" yatay kuşağı ──────────────────────────────────
@@ -11450,7 +11456,7 @@ class _NewSubjectSheetState extends State<_NewSubjectSheet> {
         content: Text(
           _customMode
               ? localeService.tr('subject_topic_required')
-              : 'Lütfen bir ders seç ve konu adı yaz',
+              : 'Lütfen bir ders seç ve konu adı yaz'.tr(),
         ),
         behavior: SnackBarBehavior.floating,
       ));
@@ -12929,7 +12935,7 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
     });
     await _saveSrs();
     if (!silent && mounted) {
-      _toast('📚 Tekrar planı başladı — 1 gün sonra hatırlatacağım.');
+      _toast('📚 Tekrar planı başladı — 1 gün sonra hatırlatacağım.'.tr());
     }
   }
 
@@ -12946,8 +12952,8 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
     await _saveSrs();
     if (mounted) {
       _toast(_srsCompleted
-          ? '🎉 Tekrar planı tamamlandı — konu uzun süreli belleğe geçti.'
-          : '✓ Sonraki tekrar ${_kSrsIntervalsDays[_srsStep]} gün sonra.');
+          ? '🎉 Tekrar planı tamamlandı — konu uzun süreli belleğe geçti.'.tr()
+          : '${'✓ Sonraki tekrar'.tr()} ${_kSrsIntervalsDays[_srsStep]} ${'gün sonra.'.tr()}');
     }
   }
 
@@ -13137,7 +13143,7 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
     // Boş satır fazlalığını sadeleştir — TTS doğal nefes verir.
     spoken = spoken.replaceAll(RegExp(r'\n{2,}'), '\n').trim();
     if (spoken.isEmpty) {
-      _toast('Okunacak içerik yok.');
+      _toast('Okunacak içerik yok.'.tr());
       return;
     }
     setState(() => _ttsPlaying = true);
@@ -13252,7 +13258,7 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
       );
     } catch (e, st) {
       ErrorLogger.instance.capture(e, st, context: 'rewrite_section');
-      if (mounted) _toast('AI cevap veremedi.');
+      if (mounted) _toast('AI cevap veremedi.'.tr());
     }
   }
 
@@ -13274,14 +13280,14 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
       'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
     ];
     final createdStr =
-        '${created.day} ${trMonths[created.month - 1]} ${created.year}';
+        '${created.day} ${trMonths[created.month - 1].tr()} ${created.year}';
 
     // Tekrar planı durumu
     String srsValue;
     String srsLabel;
     if (_srsCompleted) {
-      srsValue = 'Tamamlandı 🎉';
-      srsLabel = '5/5 tekrar — uzun süreli bellek';
+      srsValue = 'Tamamlandı 🎉'.tr();
+      srsLabel = '5/5 tekrar — uzun süreli bellek'.tr();
     } else if (_srsScheduled) {
       final due = _srsNextDue;
       final daysToDue = due?.difference(DateTime.now()).inDays;
@@ -13289,15 +13295,15 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
       final nextText = daysToDue == null
           ? ''
           : (daysToDue <= 0
-              ? 'bugün'
-              : '$daysToDue gün sonra');
-      srsValue = nextText.isEmpty ? 'Plan aktif · $stepText' : 'Sonraki: $nextText';
+              ? 'bugün'.tr()
+              : '$daysToDue ${'gün sonra'.tr()}');
+      srsValue = nextText.isEmpty ? '${'Plan aktif'.tr()} · $stepText' : '${'Sonraki:'.tr()} $nextText';
       srsLabel = nextText.isEmpty
-          ? 'Tekrar planı'
-          : 'Tekrar planı · $stepText';
+          ? 'Tekrar planı'.tr()
+          : '${'Tekrar planı'.tr()} · $stepText';
     } else {
-      srsValue = 'Henüz başlamadı';
-      srsLabel = 'Tüm bölümleri tamamla → plan başlasın';
+      srsValue = 'Henüz başlamadı'.tr();
+      srsLabel = 'Tüm bölümleri tamamla → plan başlasın'.tr();
     }
 
     // Test denemeleri — varsa say + tamamlanan deneme % ortalamasını hesapla.
@@ -13365,7 +13371,7 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
               const SizedBox(height: 14),
               _statRow(
                 Icons.timer_rounded,
-                totalMinutes > 0 ? '$totalMinutes dk' : 'Henüz çalışmadın',
+                totalMinutes > 0 ? '$totalMinutes ${'dk'.tr()}' : 'Henüz çalışmadın'.tr(),
                 'Toplam çalışma süresi'.tr(),
                 const Color(0xFF2563EB),
               ),
@@ -13373,7 +13379,7 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
                 Icons.check_circle_rounded,
                 totalSections > 0
                     ? '$completedCount / $totalSections'
-                    : 'Henüz bölüm yok',
+                    : 'Henüz bölüm yok'.tr(),
                 'Tamamlanan bölüm'.tr(),
                 const Color(0xFF10B981),
               ),
@@ -13544,7 +13550,7 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
           msg = e.userMessage;
         } else {
           // Retry butonu yan tarafta görünüyorsa kullanıcı zaten görüyor.
-          msg = 'AI yanıt veremedi.';
+          msg = 'AI yanıt veremedi.'.tr();
         }
         // Debounce'u iptal et + son parse'i ZORLA çalıştır.
         _parseDebounce?.cancel();
@@ -13586,7 +13592,7 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
             // Boş ama "başarılı" biten stream → hata gibi davran. Aksi halde
             // ekran boş fallback kartında kalır, banner/"Tekrar Dene" çıkmaz.
             _streamFailed = true;
-            _streamFailMessage = 'AI yanıt veremedi.';
+            _streamFailMessage = 'AI yanıt veremedi.'.tr();
           }
           widget.summary.content = finalContent;
         });
@@ -13706,7 +13712,7 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
 
   Future<void> _openSectionTOC() async {
     if (_cachedNormalSections.isEmpty) {
-      _toast('Bu özette atlanacak başlık bulunamadı.');
+      _toast('Bu özette atlanacak başlık bulunamadı.'.tr());
       return;
     }
     // Düz liste: her section için bir başlık satırı + altında çıkarılan
@@ -13908,20 +13914,20 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
       await prefs.remove(_bookmarkPrefKey);
       if (!mounted) return;
       setState(() => _bookmarkOffset = null);
-      _toast('Yer imi silindi.');
+      _toast('Yer imi silindi.'.tr());
     } else {
       final pos = _scrollController.offset;
       await prefs.setDouble(_bookmarkPrefKey, pos);
       if (!mounted) return;
       setState(() => _bookmarkOffset = pos);
-      _toast('📍 Yer imi konuldu.');
+      _toast('📍 Yer imi konuldu.'.tr());
     }
   }
 
   void _toggleHideStrokes() {
     setState(() => _hideStrokes = !_hideStrokes);
     _saveHideStrokes();
-    _toast(_hideStrokes ? 'Çizimler gizlendi.' : 'Çizimler gösteriliyor.');
+    _toast(_hideStrokes ? 'Çizimler gizlendi.'.tr() : 'Çizimler gösteriliyor.'.tr());
   }
 
   /// Diğer versiyona geç (Kısa↔Kapsamlı).
@@ -13959,10 +13965,10 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
     // hattı ana sayfada olduğundan buradan tetiklenemez; kullanıcıyı net
     // şekilde yönlendir (etiket "geç" dese de oluşturma orada yapılır).
     final otherLabel = widget.summary.length == _SummaryLength.short
-        ? 'kapsamlı'
-        : 'kısa';
-    _toast('Bu konunun $otherLabel özeti henüz yok. '
-        'Ana sayfadan aynı konuyu seçip "$otherLabel" üretebilirsin.');
+        ? 'kapsamlı'.tr()
+        : 'kısa'.tr();
+    _toast('${'Bu konunun'.tr()} $otherLabel ${'özeti henüz yok.'.tr()} '
+        '${'Ana sayfadan aynı konuyu seçip'.tr()} "$otherLabel" ${'üretebilirsin.'.tr()}');
   }
 
   Future<void> _shareSummary() async {
@@ -15131,8 +15137,8 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
             child: Text(
               isFail
                   ? (_streamFailMessage ??
-                      'AI yanıt veremedi. Tekrar dene.')
-                  : 'AI özeti yazıyor… içerik geldikçe ekrana akacak.',
+                      'AI yanıt veremedi. Tekrar dene.'.tr())
+                  : 'AI özeti yazıyor… içerik geldikçe ekrana akacak.'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
@@ -16490,16 +16496,16 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
     switch (action) {
       case 'copy':
         await Clipboard.setData(ClipboardData(text: '$header\n\n$body'));
-        if (mounted) _toast('📋 Bölüm kopyalandı.');
+        if (mounted) _toast('📋 Bölüm kopyalandı.'.tr());
         break;
       case 'rewrite':
         _rewriteSectionWithAi(header, body);
         break;
       case 'like':
-        _toast('👍 Geri bildirimin alındı.');
+        _toast('👍 Geri bildirimin alındı.'.tr());
         break;
       case 'dislike':
-        _toast('👎 Geri bildirimin alındı.');
+        _toast('👎 Geri bildirimin alındı.'.tr());
         break;
     }
   }
@@ -18514,7 +18520,7 @@ class _TestSetupPageState extends State<_TestSetupPage> {
                 Text(emoji, style: const TextStyle(fontSize: 18)),
                 const SizedBox(height: 3),
                 Text(
-                  label,
+                  label.tr(),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.poppins(
@@ -18525,7 +18531,7 @@ class _TestSetupPageState extends State<_TestSetupPage> {
                 ),
                 const SizedBox(height: 1),
                 Text(
-                  hint,
+                  hint.tr(),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.poppins(
@@ -18890,7 +18896,7 @@ class _TestPillGroup extends StatelessWidget {
                             const SizedBox(height: 6),
                           ],
                           Text(
-                            options[i].title,
+                            options[i].title.tr(),
                             // 2 kelimelik başlıklarda \n ile alt satıra düşer.
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -18907,7 +18913,7 @@ class _TestPillGroup extends StatelessWidget {
                           if (options[i].hint.isNotEmpty) ...[
                             const SizedBox(height: 2),
                             Text(
-                              options[i].hint,
+                              options[i].hint.tr(),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               textAlign: TextAlign.center,
@@ -19596,8 +19602,8 @@ class _TestTopicPicker extends StatelessWidget {
                     Expanded(
                       child: Text(
                         isTestlerim
-                            ? '${subject.name} — Testlerim'
-                            : '${subject.name} — Test Konuları',
+                            ? '${subject.name} — ${'Testlerim'.tr()}'
+                            : '${subject.name} — ${'Test Konuları'.tr()}',
                         style: GoogleFonts.poppins(
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
@@ -19858,8 +19864,8 @@ class _PickRow extends StatelessWidget {
                     SizedBox(height: 2),
                     Text(
                       isActive
-                          ? 'Şu anki konu — test oluştur'
-                          : 'Test oluştur',
+                          ? 'Şu anki konu — test oluştur'.tr()
+                          : 'Test oluştur'.tr(),
                       style: GoogleFonts.poppins(
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
@@ -19931,7 +19937,7 @@ class _SmallActionBtn extends StatelessWidget {
               SizedBox(width: 5),
               Flexible(
                 child: Text(
-                  label,
+                  label.tr(),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.poppins(
@@ -20251,12 +20257,12 @@ class ParentReportPageState extends State<ParentReportPage> {
   /// kilidi nedeniyle takılmaz. Pre-share snack YOK (Scaffold rebuild
   /// paylaşım sheet'ini dismiss ediyordu).
   Future<void> _shareInvite() async {
-    final msg = 'QuAlsar Ebeveyn Paneli daveti\n\n'
-        'Çocuğunun çalışma istatistiklerini izlemek için QuAlsar '
-        'uygulamasını yükle ve aşağıdaki kodla bağlan:\n\n'
-        'Eşleşme kodu: $_pairCode\n'
-        'Öğrenci ID: $_studentId\n\n'
-        'Uygulamayı indir: https://qualsar.app';
+    final msg = '${'QuAlsar Ebeveyn Paneli daveti'.tr()}\n\n'
+        '${'Çocuğunun çalışma istatistiklerini izlemek için QuAlsar '
+            'uygulamasını yükle ve aşağıdaki kodla bağlan:'.tr()}\n\n'
+        '${'Eşleşme kodu:'.tr()} $_pairCode\n'
+        '${'Öğrenci ID:'.tr()} $_studentId\n\n'
+        '${'Uygulamayı indir:'.tr()} https://qualsar.app';
 
     unawaited(_doShareInvite(msg));
   }
@@ -20303,8 +20309,8 @@ class ParentReportPageState extends State<ParentReportPage> {
   }) {
     final total = totalActive + totalPassive;
     if (total < 60) {
-      return 'Bu hafta henüz yeterli veri yok. Birkaç çalışma oturumundan sonra '
-          'ayrıntılı bir gelişim yorumu hazırlanabilir.';
+      return ('Bu hafta henüz yeterli veri yok. Birkaç çalışma oturumundan sonra '
+          'ayrıntılı bir gelişim yorumu hazırlanabilir.').tr();
     }
     final activePct = total == 0 ? 0 : ((totalActive / total) * 100).round();
     // En çok çalışılan ders (aktif süre).
@@ -20331,24 +20337,24 @@ class ParentReportPageState extends State<ParentReportPage> {
     });
     final buf = StringBuffer();
     if (activePct >= 80) {
-      buf.write('Bu hafta odaklanma yüksek — toplam sürenin %$activePct\'i '
-          'gerçek etkileşimle geçti. ');
+      buf.write(('Bu hafta odaklanma yüksek — toplam sürenin %$activePct\'i '
+          'gerçek etkileşimle geçti. ').tr());
     } else if (activePct >= 60) {
-      buf.write('Bu hafta dengeli bir tablo var; sürenin %$activePct\'i '
-          'aktif çalışma. ');
+      buf.write(('Bu hafta dengeli bir tablo var; sürenin %$activePct\'i '
+          'aktif çalışma. ').tr());
     } else {
-      buf.write('Bu hafta ekran süresi aktif çalışmadan fazla görünüyor '
-          '(%$activePct aktif). ');
+      buf.write(('Bu hafta ekran süresi aktif çalışmadan fazla görünüyor '
+          '(%$activePct aktif). ').tr());
     }
     if (topSubject != null) {
-      buf.write('En çok çalışılan ders: $topSubject. ');
+      buf.write('${'En çok çalışılan ders:'.tr()} $topSubject. ');
     }
     if (laggingSubject != null && worstRatio > 0.35) {
       final pct = (worstRatio * 100).round();
-      buf.write('$laggingSubject\'da pasif zaman %$pct civarında — '
-          'bu derste ekran açık kalmış olabilir.');
+      buf.write(('$laggingSubject\'da pasif zaman %$pct civarında — '
+          'bu derste ekran açık kalmış olabilir.').tr());
     } else if (activePct >= 75) {
-      buf.write('Genel ritim sağlıklı görünüyor.');
+      buf.write('Genel ritim sağlıklı görünüyor.'.tr());
     }
     return buf.toString();
   }
@@ -21446,7 +21452,7 @@ class _SummaryHelpPage extends StatelessWidget {
           const SizedBox(height: 12),
           Center(
             child: Text(
-              'İyi çalışmalar! 📚',
+              'İyi çalışmalar! 📚'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: FontWeight.w800,
@@ -21464,7 +21470,7 @@ class _SummaryHelpPage extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(2, 8, 2, 10),
       child: Text(
-        label,
+        label.tr(),
         style: GoogleFonts.poppins(
           fontSize: 11,
           fontWeight: FontWeight.w900,

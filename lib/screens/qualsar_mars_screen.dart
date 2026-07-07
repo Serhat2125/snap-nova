@@ -294,11 +294,11 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
               child: const Text('🚀', style: TextStyle(fontSize: 30)),
             ),
             const SizedBox(height: 16),
-            Text('Premium\'a Geç',
+            Text('Premium\'a Geç'.tr(),
                 style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.black)),
             const SizedBox(height: 8),
             Text(
-              'QuAlsar Mars Pomodoro tek seferlik ücretsiz.\nSınırsız Mars seferleri için Premium\'a geç.',
+              'QuAlsar Mars Pomodoro tek seferlik ücretsiz.\nSınırsız Mars seferleri için Premium\'a geç.'.tr(),
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(fontSize: 13, color: Colors.black54, height: 1.5),
             ),
@@ -316,7 +316,7 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
                   Navigator.of(ctx).pop();
                   Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PremiumScreen()));
                 },
-                child: Text('Premium\'a Geç',
+                child: Text('Premium\'a Geç'.tr(),
                     style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
               ),
             ),
@@ -326,7 +326,7 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
                 Navigator.of(ctx).pop();
                 Navigator.of(context).maybePop();
               },
-              child: Text('Geri Dön',
+              child: Text('Geri Dön'.tr(),
                   style: GoogleFonts.poppins(fontSize: 13, color: Colors.black38)),
             ),
           ],
@@ -504,13 +504,13 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
     final wasLast = _phase == _PhaseKind.phase4;
     unawaited(PushService.showLocal(
       title: wasLast
-          ? '🚀 Mars Protokolü tamamlandı!'
-          : (isFocus ? '✅ Odak fazı bitti' : '⏰ Mola bitti'),
+          ? '🚀 Mars Protokolü tamamlandı!'.tr()
+          : (isFocus ? '✅ Odak fazı bitti'.tr() : '⏰ Mola bitti'.tr()),
       body: wasLast
-          ? '4 faz başarıyla bitti. Rozetlerin Mars Protokolü\'nde.'
+          ? '4 faz başarıyla bitti. Rozetlerin Mars Protokolü\'nde.'.tr()
           : (isFocus
-              ? 'Şimdi kısa bir mola — ${_breakSec ~/ 60} dakika dinlen.'
-              : 'Yeni faz başlıyor — odaklan.'),
+              ? 'Şimdi kısa bir mola — ${_breakSec ~/ 60} dakika dinlen.'.tr()
+              : 'Yeni faz başlıyor — odaklan.'.tr()),
       id: 0xFA101,
     ));
     // Bir focus fazı bittiyse: takvime yaz + istatistiğe kaydet + rozet.
@@ -1396,7 +1396,7 @@ class _QuAlsarMarsScreenState extends State<QuAlsarMarsScreen>
       builder: (_) => _ShareSheet(
         card: _StormShareCard(phaseLabel: phaseLabel),
         fileName: 'qualsar_storm',
-        shareText: 'Mars\'taki kolonim çöktü 😭 #QuAlsar $_kQualsarShareUrl',
+        shareText: '${'Mars\'taki kolonim çöktü 😭'.tr()} #QuAlsar $_kQualsarShareUrl',
       ),
     );
   }
@@ -3340,7 +3340,7 @@ class _VictoryDialog extends StatelessWidget {
                         card: _VictoryShareCard(newBadges: newBadges),
                         fileName: 'qualsar_victory',
                         shareText:
-                            "Mars'a kolonimi kurdum 🚀 #QuAlsar $_kQualsarShareUrl",
+                            "${"Mars'a kolonimi kurdum 🚀".tr()} #QuAlsar $_kQualsarShareUrl",
                       ),
                     );
                   },
@@ -3567,7 +3567,7 @@ class _StormShareCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'QUALSAR · MARS PROTOKOLÜ',
+                    'QUALSAR · MARS PROTOKOLÜ'.tr(),
                     style: GoogleFonts.orbitron(
                       color: Colors.orange.shade100.withValues(alpha: 0.70),
                       fontSize: 11,
@@ -3580,7 +3580,7 @@ class _StormShareCard extends StatelessWidget {
                       size: 96, color: Colors.orange.shade200),
                   const SizedBox(height: 18),
                   Text(
-                    'KOLONİ\nÇÖKTÜ',
+                    'KOLONİ\nÇÖKTÜ'.tr(),
                     style: GoogleFonts.orbitron(
                       color: Colors.white,
                       fontSize: 44,
@@ -3612,7 +3612,7 @@ class _StormShareCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 18),
                   Text(
-                    'Telefonuma baktım,\nkum fırtınası başladı.\nKolonim çöktü 😭',
+                    'Telefonuma baktım,\nkum fırtınası başladı.\nKolonim çöktü 😭'.tr(),
                     style: GoogleFonts.poppins(
                       color: Colors.white.withValues(alpha: 0.92),
                       fontSize: 17,
@@ -3711,7 +3711,7 @@ class _VictoryShareCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'QUALSAR · MARS PROTOKOLÜ',
+                    'QUALSAR · MARS PROTOKOLÜ'.tr(),
                     style: GoogleFonts.orbitron(
                       color: Colors.orange.shade100.withValues(alpha: 0.70),
                       fontSize: 11,
@@ -3724,7 +3724,7 @@ class _VictoryShareCard extends StatelessWidget {
                       size: 96, color: Colors.orange.shade200),
                   const SizedBox(height: 18),
                   Text(
-                    'KOLONİ\nKURULDU',
+                    'KOLONİ\nKURULDU'.tr(),
                     style: GoogleFonts.orbitron(
                       color: Colors.white,
                       fontSize: 44,
@@ -3745,7 +3745,7 @@ class _VictoryShareCard extends StatelessWidget {
                       ),
                     ),
                     child: Text(
-                      '4 AŞAMA TAMAMLANDI',
+                      '4 AŞAMA TAMAMLANDI'.tr(),
                       style: GoogleFonts.orbitron(
                         color: Colors.orange.shade50,
                         fontSize: 11,
@@ -3756,7 +3756,7 @@ class _VictoryShareCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 14),
                   Text(
-                    "Dünya'yla bağlantı kuruldu.\nQuAlsar Koloni Kurucusu 🚀",
+                    "Dünya'yla bağlantı kuruldu.\nQuAlsar Koloni Kurucusu 🚀".tr(),
                     style: GoogleFonts.poppins(
                       color: Colors.white.withValues(alpha: 0.92),
                       fontSize: 17,
@@ -3826,7 +3826,7 @@ class _VictoryShareCard extends StatelessWidget {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              'Sen de koloninin kur:\nqualsar.app',
+                              '${'Sen de koloninin kur:'.tr()}\nqualsar.app',
                               style: GoogleFonts.poppins(
                                 color: Colors.white.withValues(alpha: 0.85),
                                 fontSize: 11,

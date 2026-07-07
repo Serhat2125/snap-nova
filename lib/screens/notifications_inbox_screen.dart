@@ -269,15 +269,15 @@ class _NotificationCard extends StatelessWidget {
         return 'Ebeveyn mesajı'.tr();
       case 'parent_ack':
         // Veli ack'i title/body'yi hazır yazar (parent_child_courses_screen).
-        return (data['title'] ?? 'Veli geri bildirimi 👍').toString();
+        return (data['title'] ?? 'Veli geri bildirimi 👍'.tr()).toString();
       case 'parent_gift':
         // Veli sürprizi title/body'yi hazır yazar (parent_quick_actions).
-        return (data['title'] ?? 'Ailenden sürpriz! 🎁').toString();
+        return (data['title'] ?? 'Ailenden sürpriz! 🎁'.tr()).toString();
       case 'group_contest_invite':
         return 'Grup yarışı daveti 🏆'.tr();
       case 'teacher_note':
         // addNote / pushOnTeacherNote title alanını doğrudan yazar.
-        return (data['title'] ?? 'Öğretmeninden not 📝').toString();
+        return (data['title'] ?? 'Öğretmeninden not 📝'.tr()).toString();
       case 'child_homework':
       case 'child_submission':
       case 'child_class_invite':
@@ -286,7 +286,7 @@ class _NotificationCard extends StatelessWidget {
         return (data['title'] ?? 'Bildirim'.tr()).toString();
       case 'weekly_summary':
         // Function title/body alanlarını yazar — doğrudan onları göster.
-        return (data['title'] ?? 'Haftalık Özet 📊').toString();
+        return (data['title'] ?? 'Haftalık Özet 📊'.tr()).toString();
       case 'friend_request':
         return '${'Arkadaşlık isteği'.tr()}: '
             '${data['fromDisplayName'] ?? data['fromUsername'] ?? ''}';
@@ -302,27 +302,27 @@ class _NotificationCard extends StatelessWidget {
   String _subtitleFor(String type, Map<String, dynamic> data) {
     switch (type) {
       case 'parent_link_request':
-        return '${data['fromDisplayName'] ?? data['fromUsername'] ?? ''} senin için izin istedi.';
+        return '${data['fromDisplayName'] ?? data['fromUsername'] ?? ''} ${'senin için izin istedi.'.tr()}';
       case 'homework_assigned':
-        return 'Sınıfa yeni ödev geldi — bitişe kadar tamamla.';
+        return 'Sınıfa yeni ödev geldi — bitişe kadar tamamla.'.tr();
       case 'homework_reminder':
-        return 'Bu ödevin bitişine 2 saatten az kaldı.';
+        return 'Bu ödevin bitişine 2 saatten az kaldı.'.tr();
       case 'streak_milestone':
         final days = data['rewardDays'];
-        return days != null ? '$days gün Premium ödülün hesabına eklendi.' : '';
+        return days != null ? '$days ${'gün Premium ödülün hesabına eklendi.'.tr()}' : '';
       case 'class_invite':
-        return '${data['fromDisplayName'] ?? 'Öğretmen'} seni '
-            '${data['subject'] ?? ''} dersine davet etti. Katılmak için dokun.';
+        return '${data['fromDisplayName'] ?? 'Öğretmen'.tr()} ${'seni'.tr()} '
+            '${data['subject'] ?? ''} ${'dersine davet etti. Katılmak için dokun.'.tr()}';
       case 'class_announcement':
         return (data['message'] ?? '').toString();
       case 'homework_submission':
-        return '${data['fromDisplayName'] ?? 'Bir öğrenci'} '
-            '"${data['homeworkTitle'] ?? ''}" ödevini teslim etti.';
+        return '${data['fromDisplayName'] ?? 'Bir öğrenci'.tr()} '
+            '"${data['homeworkTitle'] ?? ''}" ${'ödevini teslim etti.'.tr()}';
       case 'student_joined':
         return '${data['className'] ?? ''} ${'sınıfından'.tr()} '
-            '${data['fromDisplayName'] ?? 'bir öğrenci'} ${'katıldı.'.tr()}';
+            '${data['fromDisplayName'] ?? 'bir öğrenci'.tr()} ${'katıldı.'.tr()}';
       case 'student_join_request':
-        return '${data['fromDisplayName'] ?? 'Bir öğrenci'} '
+        return '${data['fromDisplayName'] ?? 'Bir öğrenci'.tr()} '
             '"${data['className'] ?? ''}" '
             '${'sınıfına kodla katılmak istiyor. Onaylamak için dokun.'.tr()}';
       case 'class_join_approved':
@@ -349,7 +349,7 @@ class _NotificationCard extends StatelessWidget {
       case 'parent_message':
         final pmMsg = (data['message'] ?? '').toString();
         final pmHead = '${data['className'] ?? ''} ${'sınıfından'.tr()} '
-            '${data['fromDisplayName'] ?? 'bir öğrenci'} '
+            '${data['fromDisplayName'] ?? 'bir öğrenci'.tr()} '
             '${'adlı öğrencinin ebeveyninden mesajın var.'.tr()}';
         return pmMsg.isEmpty ? pmHead : '$pmHead\n“$pmMsg”';
       case 'teacher_note':
@@ -364,25 +364,25 @@ class _NotificationCard extends StatelessWidget {
       case 'weekly_summary':
         return (data['body'] ?? '').toString();
       case 'friend_request':
-        return '${data['fromDisplayName'] ?? data['fromUsername'] ?? 'Biri'} '
+        return '${data['fromDisplayName'] ?? data['fromUsername'] ?? 'Biri'.tr()} '
             '${'seninle arkadaş olmak istiyor. Görmek için dokun.'.tr()}';
       case 'friend_accepted':
         return '${data['fromDisplayName'] ?? data['fromUsername'] ?? ''} '
             '${'arkadaşlık isteğini kabul etti.'.tr()}';
       case 'duelo_invite':
-        return '${data['fromDisplayName'] ?? data['fromUsername'] ?? 'Bir arkadaşın'} '
+        return '${data['fromDisplayName'] ?? data['fromUsername'] ?? 'Bir arkadaşın'.tr()} '
             '${'seninle yarışmak istiyor. Kabul etmek için dokun.'.tr()}';
       case 'group_contest_invite':
         final who =
-            (data['fromDisplayName'] ?? data['fromUsername'] ?? 'Bir arkadaşın')
+            (data['fromDisplayName'] ?? data['fromUsername'] ?? 'Bir arkadaşın'.tr())
                 .toString();
         final grp = (data['groupName'] ?? '').toString();
         final where = grp.isNotEmpty
-            ? '"$grp" grubunda '
+            ? '"$grp" ${'grubunda'.tr()} '
             : '';
-        return '$who grup yarışı açtı ve $where'
-            'seni "${data['subjectName'] ?? ''} • ${data['topic'] ?? ''}" '
-            'yarışmasına davet etti. Katılmak için dokun.';
+        return '$who ${'grup yarışı açtı ve'.tr()} $where'
+            '${'seni'.tr()} "${data['subjectName'] ?? ''} • ${data['topic'] ?? ''}" '
+            '${'yarışmasına davet etti. Katılmak için dokun.'.tr()}';
       default:
         return '';
     }
@@ -446,7 +446,7 @@ class _NotificationCard extends StatelessWidget {
     final classId = (data['classId'] ?? '').toString();
     final studentUid = (data['studentUid'] ?? '').toString();
     final studentName =
-        (data['fromDisplayName'] ?? 'Bir öğrenci').toString();
+        (data['fromDisplayName'] ?? 'Bir öğrenci'.tr()).toString();
     final className = (data['className'] ?? '').toString();
     if (classId.isEmpty || studentUid.isEmpty) return;
     // Öğrenci hâlâ onay bekliyor mu? (Başka cihazdan işlenmiş olabilir.)
@@ -636,7 +636,7 @@ class _NotificationCard extends StatelessWidget {
 
   String _relativeTime(DateTime t) {
     final diff = DateTime.now().difference(t);
-    if (diff.inMinutes < 1) return 'şimdi';
+    if (diff.inMinutes < 1) return 'şimdi'.tr();
     if (diff.inMinutes < 60) return '${diff.inMinutes}dk';
     if (diff.inHours < 24) return '${diff.inHours}s';
     return '${diff.inDays}g';

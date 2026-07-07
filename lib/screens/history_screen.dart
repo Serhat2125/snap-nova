@@ -889,7 +889,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 Text(
                                   _showColorPicker
                                       ? localeService.tr('close')
-                                      : 'Renk Seç',
+                                      : 'Renk Seç'.tr(),
                                   style: GoogleFonts.poppins(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w900,
@@ -1663,9 +1663,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
     return Row(
       children: [
-        box('text', null, 'Yazı'),
+        box('text', null, 'Yazı'.tr()),
         SizedBox(width: 8),
-        box('frame', Icons.crop_square_rounded, 'Çerçeve'),
+        box('frame', Icons.crop_square_rounded, 'Çerçeve'.tr()),
       ],
     );
   }
@@ -1719,15 +1719,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
       }
       return Row(
         children: [
-          chip('cards', 'Kart yazısı'),
+          chip('cards', 'Kart yazısı'.tr()),
         ],
       );
     }
     return Row(
       children: [
-        chip('bg', 'Arka plan'),
+        chip('bg', 'Arka plan'.tr()),
         SizedBox(width: 6),
-        chip('cards', 'Kartlar'),
+        chip('cards', 'Kartlar'.tr()),
       ],
     );
   }

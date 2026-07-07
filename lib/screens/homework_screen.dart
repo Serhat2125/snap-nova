@@ -278,7 +278,7 @@ class _HomeworkScreenState extends State<HomeworkScreen>
                 unselectedLabelColor: AppColors.textMuted,
                 labelStyle: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700),
                 unselectedLabelStyle: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w500),
-                tabs: const [Tab(text: 'Bekleyen'), Tab(text: 'AI Çözümlü'), Tab(text: 'Tamam')],
+                tabs: [Tab(text: 'Bekleyen'.tr()), Tab(text: 'AI Çözümlü'.tr()), Tab(text: 'Tamam'.tr())],
               ),
             ),
           ),
@@ -344,7 +344,7 @@ class _HomeworkScreenState extends State<HomeworkScreen>
           Icon(Icons.menu_book_rounded, size: 52,
               color: Color(0xFF34D399).withValues(alpha: 0.30)),
           SizedBox(height: 16),
-          Text(msgs[_tab.index],
+          Text(msgs[_tab.index].tr(),
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 13, height: 1.6)),
         ]),
@@ -438,7 +438,7 @@ class _HWCard extends StatelessWidget {
             side: BorderSide(color: Color(0xFFEF4444).withValues(alpha: 0.35)),
           ),
           title: Text('Ödevi Sil'.tr(), style: TextStyle(color: Colors.white, fontSize: 15)),
-          content: Text('"${record.title}" silinsin mi?',
+          content: Text('"${record.title}" ${'silinsin mi?'.tr()}',
               style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false),
@@ -519,7 +519,7 @@ class _HWCard extends StatelessWidget {
                   )),
                 SizedBox(height: 3),
                 Row(children: [
-                  Text(record.subject, style: GoogleFonts.inter(
+                  Text(record.subject.tr(), style: GoogleFonts.inter(
                     color: sc.withValues(alpha: 0.80), fontSize: 10, fontWeight: FontWeight.w600)),
                   SizedBox(width: 8),
                   // Aciliyet rozeti
@@ -725,7 +725,7 @@ class _AddSheetState extends State<_AddSheet> {
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     Icon(_iconFor(s), color: sel ? c : Colors.white.withValues(alpha: 0.35), size: 11),
                     SizedBox(width: 4),
-                    Text(s, style: GoogleFonts.inter(
+                    Text(s.tr(), style: GoogleFonts.inter(
                       color: sel ? c : Colors.white.withValues(alpha: 0.45),
                       fontSize: 10, fontWeight: sel ? FontWeight.w700 : FontWeight.w500)),
                   ]),
@@ -794,7 +794,7 @@ class _AddSheetState extends State<_AddSheet> {
               child: _actionBtn(
                 icon: Icons.auto_awesome_rounded,
                 label: 'Yaz & Çöz'.tr(),
-                sub: 'AI ile anında çöz',
+                sub: 'AI ile anında çöz'.tr(),
                 color: AppColors.cyan,
                 active: valid,
                 gradient: true,
@@ -856,7 +856,6 @@ class _SolveSheet extends StatefulWidget {
 class _SolveSheetState extends State<_SolveSheet> {
   late final TextEditingController _ctrl =
       TextEditingController(text: widget.record.title);
-  String  _mode    = 'Hızlı Çözüm';
   String? _result;
   bool    _loading = false;
   String? _error;
@@ -869,6 +868,10 @@ class _SolveSheetState extends State<_SolveSheet> {
   // Çeviri uygulandığı için getter; `.tr()` runtime çalışır.
   List<({String label, IconData icon, Color color})> get _modes =>
       _modesRaw.map((m) => (label: m.label.tr(), icon: m.icon, color: m.color)).toList();
+  // Başlangıç değeri de çevrili gelsin (aksi halde ilk açılışta ham Türkçe
+  // görünür ve kullanıcı bir moda dokununca oluşan .tr() çıktısıyla
+  // karşılaştırma/çift çeviri riski doğar).
+  late String _mode = _modes.first.label;
 
   Future<void> _solve() async {
     final q = _ctrl.text.trim();
@@ -932,7 +935,7 @@ class _SolveSheetState extends State<_SolveSheet> {
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(localeService.tr('solve_with_ai'), style: GoogleFonts.inter(
                     color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
-                  Text(widget.record.subject, style: GoogleFonts.inter(
+                  Text(widget.record.subject.tr(), style: GoogleFonts.inter(
                     color: sc.withValues(alpha: 0.80), fontSize: 10, fontWeight: FontWeight.w600)),
                 ])),
                 GestureDetector(
@@ -1147,7 +1150,7 @@ class _SolutionView extends StatelessWidget {
                   Text(record.title, maxLines: 1, overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
                   Row(children: [
-                    Text(record.subject, style: GoogleFonts.inter(
+                    Text(record.subject.tr(), style: GoogleFonts.inter(
                       color: sc.withValues(alpha: 0.75), fontSize: 10, fontWeight: FontWeight.w600)),
                     SizedBox(width: 6),
                     Container(

@@ -616,18 +616,18 @@ String _formatGradeLabel({required String level, required String grade, String? 
           : '$levelLabel · $gradeLabel · $trackLabel';
     case 'exam_prep':
     case 'sinav_hazirlik':
-      return gradeLabel.isNotEmpty ? '$gradeLabel Hazırlığı' : 'Sınav Hazırlığı';
+      return gradeLabel.isNotEmpty ? '$gradeLabel ${'Hazırlığı'.tr()}' : 'Sınav Hazırlığı'.tr();
     case 'university':
     case 'universite':
       final f = _facultyLabels[faculty] ?? levelLabel;
       return '$f · $gradeLabel';
     case 'masters':
     case 'yuksek_lisans':
-      final f = _facultyLabels[faculty] ?? 'Lisansüstü';
+      final f = _facultyLabels[faculty] ?? 'Lisansüstü'.tr();
       return '$f · $levelLabel · $gradeLabel';
     case 'doctorate':
     case 'doktora':
-      final f = _facultyLabels[faculty] ?? 'Doktora';
+      final f = _facultyLabels[faculty] ?? 'Doktora'.tr();
       return '$f · $levelLabel · $gradeLabel';
     case 'other':
     case 'diger':
@@ -814,7 +814,7 @@ const _examsIn = [
 final List<_EduCountry> _worldCountries = [
   _EduCountry(
     key: 'tr',
-    name: 'Türkiye',
+    name: 'Türkiye'.tr(),
     flag: '🇹🇷',
     levels: [
       _EduLevel(
@@ -826,7 +826,7 @@ final List<_EduCountry> _worldCountries = [
       _EduLevel(
         universalKey: 'middle',
         emoji: '🎒',
-        label: 'Ortaokul',
+        label: 'Ortaokul'.tr(),
         grades: [
           _GradeOpt('5', '5️⃣', '5. Sınıf'),
           _GradeOpt('6', '6️⃣', '6. Sınıf'),
@@ -837,7 +837,7 @@ final List<_EduCountry> _worldCountries = [
       _EduLevel(
         universalKey: 'high',
         emoji: '🎓',
-        label: 'Lise',
+        label: 'Lise'.tr(),
         grades: [
           _GradeOpt('9', '9️⃣', '9. Sınıf'),
           _GradeOpt('10', '🔟', '10. Sınıf'),
@@ -869,7 +869,7 @@ final List<_EduCountry> _worldCountries = [
       _EduLevel(
         universalKey: 'doctorate',
         emoji: '🔬',
-        label: 'Doktora',
+        label: 'Doktora'.tr(),
         grades: _gradesDoct,
         needsFaculty: true,
       ),
@@ -940,7 +940,7 @@ final List<_EduCountry> _worldCountries = [
   ),
   _EduCountry(
     key: 'uk',
-    name: 'Birleşik Krallık',
+    name: 'Birleşik Krallık'.tr(),
     flag: '🇬🇧',
     levels: [
       _EduLevel(
@@ -1232,7 +1232,7 @@ final List<_EduCountry> _worldCountries = [
   ),
   _EduCountry(
     key: 'international',
-    name: 'Diğer / Uluslararası',
+    name: 'Diğer / Uluslararası'.tr(),
     flag: '🌐',
     levels: [
       _EduLevel(universalKey: 'primary', emoji: '📚', label: 'Primary / İlkokul'.tr(), grades: _gradesK5),
@@ -1334,11 +1334,11 @@ _EduLevel? _findLevel(String countryKey, String universalKey) {
   return null;
 }
 
-const Map<String, String> _trackLabels = {
-  'sayisal': 'Sayısal',
-  'sozel': 'Sözel',
-  'esit_agirlik': 'Eşit Ağırlık',
-  'dil': 'Dil',
+final Map<String, String> _trackLabels = {
+  'sayisal': 'Sayısal'.tr(),
+  'sozel': 'Sözel'.tr(),
+  'esit_agirlik': 'Eşit Ağırlık'.tr(),
+  'dil': 'Dil'.tr(),
 };
 
 // Türkiye YÖK bölümleri — popülerliğe göre sıralı (üstte en çok tercih edilenler)
@@ -1627,7 +1627,7 @@ class _EducationSetupDialogState extends State<_EducationSetupDialog> {
               // Ülke seçici (en üstte, eğitim sistemini belirler)
               _ExpandablePicker(
                 label: 'ÜLKEN'.tr(),
-                placeholder: 'Ülkeni seç',
+                placeholder: 'Ülkeni seç'.tr(),
                 options: _countries(),
                 selectedValue: _country,
                 expanded: _openPicker == 'country',
@@ -1651,7 +1651,7 @@ class _EducationSetupDialogState extends State<_EducationSetupDialog> {
               // Seviye seçici — ülkeye göre (İlkokul/Elementary/Grundschule vb.)
               _ExpandablePicker(
                 label: 'EĞİTİM SEVİYESİ'.tr(),
-                placeholder: 'Seviyeni seç',
+                placeholder: 'Seviyeni seç'.tr(),
                 options: _levels(),
                 selectedValue: _level,
                 expanded: _openPicker == 'level',
@@ -1672,14 +1672,14 @@ class _EducationSetupDialogState extends State<_EducationSetupDialog> {
               if (_needsFaculty) ...[
                 SizedBox(height: 10),
                 _ExpandablePicker(
-                  label: _level == 'university' ? 'FAKÜLTEN / BÖLÜMÜN' : 'PROGRAM ALANI',
-                  placeholder: _level == 'university' ? 'Bölümünü seç' : 'Program alanını seç',
+                  label: _level == 'university' ? 'FAKÜLTEN / BÖLÜMÜN'.tr() : 'PROGRAM ALANI'.tr(),
+                  placeholder: _level == 'university' ? 'Bölümünü seç'.tr() : 'Program alanını seç'.tr(),
                   options: _faculties,
                   selectedValue: _faculty,
                   expanded: _openPicker == 'faculty',
                   listMaxHeight: 360,
                   searchable: true,
-                  searchPlaceholder: 'Bölüm ara…',
+                  searchPlaceholder: 'Bölüm ara…'.tr(),
                   onExpand: () => setState(() => _openPicker = _openPicker == 'faculty' ? null : 'faculty'),
                   onSelect: (v) => setState(() {
                     _faculty = v;
@@ -1691,8 +1691,8 @@ class _EducationSetupDialogState extends State<_EducationSetupDialog> {
               if (_level != null && (!_needsFaculty || _faculty != null)) ...[
                 SizedBox(height: 10),
                 _ExpandablePicker(
-                  label: 'SINIFIN',
-                  placeholder: 'Sınıfını seç',
+                  label: 'SINIFIN'.tr(),
+                  placeholder: 'Sınıfını seç'.tr(),
                   options: _gradeOptions(),
                   selectedValue: _grade,
                   expanded: _openPicker == 'grade',
@@ -1707,8 +1707,8 @@ class _EducationSetupDialogState extends State<_EducationSetupDialog> {
               if (_needsTrack && _grade != null) ...[
                 SizedBox(height: 10),
                 _ExpandablePicker(
-                  label: 'ALANIN',
-                  placeholder: 'Alanını seç',
+                  label: 'ALANIN'.tr(),
+                  placeholder: 'Alanını seç'.tr(),
                   options: _tracks(),
                   selectedValue: _track,
                   expanded: _openPicker == 'track',
@@ -7618,7 +7618,7 @@ KURALLAR:
               const Text('⚔️', style: TextStyle(fontSize: 20)),
               const SizedBox(width: 8),
               Expanded(
-                child: Text('@Ali_Demo seni birebir yarışa davet etti',
+                child: Text('@Ali_Demo ${'seni birebir yarışa davet etti'.tr()}',
                     style: _sans(
                         size: 13.5,
                         weight: FontWeight.w800,
@@ -7630,11 +7630,11 @@ KURALLAR:
             ],
           ),
           const SizedBox(height: 4),
-          Text('Genel Kültür • Demo',
+          Text('${'Genel Kültür'.tr()} • Demo',
               style: _sans(size: 12, color: AppPalette.textSecondary(hctx))),
           const SizedBox(height: 10),
           _PrimaryButton(
-            label: 'Kabul Et (Demo)',
+            label: '${'Kabul Et'.tr()} (Demo)',
             brand: true,
             onTap: () {
               Navigator.of(hctx).pop();
@@ -7663,7 +7663,7 @@ KURALLAR:
               const Text('👥', style: TextStyle(fontSize: 20)),
               const SizedBox(width: 8),
               Expanded(
-                child: Text('@Ayşe_Demo grup yarışı açtı ve seni davet etti',
+                child: Text('@Ayşe_Demo ${'grup yarışı açtı ve seni davet etti'.tr()}',
                     style: _sans(
                         size: 13.5,
                         weight: FontWeight.w800,
@@ -7675,10 +7675,10 @@ KURALLAR:
             ],
           ),
           const SizedBox(height: 4),
-          Text('“Fizikçiler” · Genel Kültür • Demo',
+          Text('“Fizikçiler” · ${'Genel Kültür'.tr()} • Demo',
               style: _sans(size: 12, color: AppPalette.textSecondary(hctx))),
           const SizedBox(height: 6),
-          Text('3 kişi: @Ayşe_Demo, @Mehmet_Demo, @Sen',
+          Text('3 ${'kişi'.tr()}: @Ayşe_Demo, @Mehmet_Demo, @Sen',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: _sans(
@@ -7687,7 +7687,7 @@ KURALLAR:
                   color: AppPalette.textSecondary(hctx))),
           const SizedBox(height: 10),
           _PrimaryButton(
-            label: '🏆 Katıl (Demo)',
+            label: '🏆 ${'Katıl'.tr()} (Demo)',
             brand: true,
             onTap: () {
               Navigator.of(hctx).pop();
@@ -7720,7 +7720,7 @@ KURALLAR:
               const Text('⚔️', style: TextStyle(fontSize: 20)),
               const SizedBox(width: 8),
               Expanded(
-                child: Text('@$who seni birebir yarışa davet etti',
+                child: Text('@$who ${'seni birebir yarışa davet etti'.tr()}',
                     style: _sans(
                         size: 13.5,
                         weight: FontWeight.w800,
@@ -7840,7 +7840,7 @@ KURALLAR:
             children: [
               Expanded(
                 child: _PrimaryButton(
-                  label: '🏆 Katıl',
+                  label: '🏆 ${'Katıl'.tr()}',
                   brand: true,
                   onTap: () {
                     Navigator.of(hctx).pop();
@@ -8895,7 +8895,7 @@ KURALLAR:
                             size: 13.5,
                             weight: FontWeight.w800,
                             color: AppPalette.textPrimary(dctx))),
-                    Text('${members.length} kişi',
+                    Text('${members.length} ${'kişi'.tr()}',
                         style: _sans(
                             size: 11,
                             color: AppPalette.textSecondary(dctx))),
@@ -8959,7 +8959,7 @@ KURALLAR:
                         Text('$name (Demo)',
                             style: _serif(
                                 size: 18, weight: FontWeight.w800)),
-                        Text('${members.length} kişi · demo grup',
+                        Text('${members.length} ${'kişi'.tr()} · ${'demo grup'.tr()}',
                             style: _sans(
                                 size: 12,
                                 color: AppPalette.textSecondary(dctx))),
@@ -8995,7 +8995,7 @@ KURALLAR:
                 ),
               const SizedBox(height: 12),
               _PrimaryButton(
-                label: '🏆 Demo Yarış Başlat',
+                label: '🏆 ${'Demo Yarış Başlat'.tr()}',
                 brand: true,
                 onTap: () {
                   Navigator.of(dctx).pop();
@@ -9402,7 +9402,7 @@ KURALLAR:
                             color: AppPalette.textSecondary(ctx))),
                   ] else if (addTab == 1) ...[
                     _PrimaryButton(
-                      label: '🔗 Davet Linkini Paylaş',
+                      label: '🔗 ${'Davet Linkini Paylaş'.tr()}',
                       brand: true,
                       onTap: () async {
                         final uname = _inviteUsername();
@@ -9939,7 +9939,7 @@ KURALLAR:
             SizedBox(
               width: double.infinity,
               child: _PrimaryButton(
-                label: '🏆 Yeni Yarış Başlat',
+                label: '🏆 ${'Yeni Yarış Başlat'.tr()}',
                 brand: true,
                 onTap: () {
                   Navigator.of(ctx).pop();
@@ -10651,7 +10651,7 @@ KURALLAR:
                   Row(children: [for (final n in opts) countPill(n)]),
                   const SizedBox(height: 20),
                   _PrimaryButton(
-                    label: '🏆 Başla',
+                    label: '🏆 ${'Başla'.tr()}',
                     brand: true,
                     onTap: () => Navigator.of(ctx).pop((selected, qType)),
                   ),
@@ -11509,8 +11509,7 @@ KURALLAR:
       MaterialPageRoute(
         builder: (_) => _DueloShareModePage(
           caption:
-              'QuAlsar uygulamasını indir — sen de istediğin derste, '
-              'istediğin konuda, dünyada veya ülkende yarış!\nqualsar.app',
+              '${'QuAlsar uygulamasını indir — sen de istediğin derste, istediğin konuda, dünyada veya ülkende yarış!'.tr()}\nqualsar.app',
           subjectName: r.subjectName,
           topicName: r.topicName,
           totalQuestions: r.totalQuestions,
@@ -14093,13 +14092,13 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
             ? '💪'
             : '🤝';
     final outcomeWord = widget.winner == 1
-        ? 'kazandım'
+        ? 'kazandım'.tr()
         : widget.winner == -1
-            ? 'iyi savaştım'
-            : 'berabere kaldık';
+            ? 'iyi savaştım'.tr()
+            : 'berabere kaldık'.tr();
     return '$outcomeEmoji ${widget.subjectName} · ${widget.topicName} '
-        'yarışmasında $outcomeWord! Skorum: $score.\n'
-        'Sıra sende — beni geçebilir misin?\n'
+        '${'yarışmasında'.tr()} $outcomeWord! ${'Skorum:'.tr()} $score.\n'
+        '${'Sıra sende — beni geçebilir misin?'.tr()}\n'
         'qualsar.app';
   }
 
@@ -16115,7 +16114,7 @@ List<_QuizQuestion> _dueloToTrueFalse(List<_QuizQuestion> mc) {
       correctIndex: isTrue ? 0 : 1,
       hint: q.hint,
       explanation:
-          'Doğru cevap: “${q.options[q.correctIndex]}”. ${q.explanation}',
+          '${'Doğru cevap:'.tr()} “${q.options[q.correctIndex]}”. ${q.explanation}',
       difficulty: q.difficulty,
     ));
   }
@@ -16561,7 +16560,7 @@ void _showFriendsInfoSheet(BuildContext context) {
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Sadece eklediğin kişiler seni görür. Kullanıcı adın profilinde gizli de olabilir.',
+                    'Sadece eklediğin kişiler seni görür. Kullanıcı adın profilinde gizli de olabilir.'.tr(),
                     style: _sans(size: 11, color: AppPalette.textSecondary(context), height: 1.4),
                   ),
                 ),
@@ -17211,7 +17210,7 @@ class _QrScanDialogState extends State<_QrScanDialog> {
                           alignment: Alignment.center,
                           padding: const EdgeInsets.all(24),
                           child: Text(
-                            'Kamera açılamadı: ${err.errorCode.name}\nİzin verdiğinden emin ol.',
+                            '${'Kamera açılamadı:'.tr()} ${err.errorCode.name}\n${'İzin verdiğinden emin ol.'.tr()}',
                             textAlign: TextAlign.center,
                             style: _sans(size: 12, color: Colors.white),
                           ),
@@ -17238,7 +17237,7 @@ class _QrScanDialogState extends State<_QrScanDialog> {
             const SizedBox(height: 12),
             Text(
               _error ??
-                  'Arkadaşının QR kodunu çerçeveye hizala — otomatik okunur',
+                  'Arkadaşının QR kodunu çerçeveye hizala — otomatik okunur'.tr(),
               textAlign: TextAlign.center,
               style: _sans(
                   size: 12,
@@ -17729,7 +17728,7 @@ class _MasterySection extends StatelessWidget {
             ),
             SizedBox(height: 4),
             Text(
-              'Her doğru cevap ustalığını artırır, uzun süre çözmezsen azalır.',
+              'Her doğru cevap ustalığını artırır, uzun süre çözmezsen azalır.'.tr(),
               style: _sans(size: 11, color: AppPalette.textSecondary(context)),
             ),
             SizedBox(height: 12),
@@ -17986,7 +17985,7 @@ void _showBadgesInfoSheet(BuildContext context) {
                 style: _serif(size: 22, weight: FontWeight.w600, letterSpacing: -0.02)),
             SizedBox(height: 6),
             Text(
-              'Rozetler çalışma alışkanlıklarını ödüllendirir. Her rozet farklı bir hedefi temsil eder; tamamlayınca otomatik kilitlenir açılır.',
+              'Rozetler çalışma alışkanlıklarını ödüllendirir. Her rozet farklı bir hedefi temsil eder; tamamlayınca otomatik kilitlenir açılır.'.tr(),
               style: _sans(size: 13, color: AppPalette.textSecondary(context), height: 1.5),
             ),
             SizedBox(height: 18),
@@ -22053,7 +22052,7 @@ class _ResultsScreenState extends State<_ResultsScreen> with TickerProviderState
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Kazandığın QP',
+                  'Kazandığın QP'.tr(),
                   style: _sans(size: 12, weight: FontWeight.w800, color: Color(0xFFB45309), letterSpacing: 0.06),
                 ),
               ),
@@ -22126,7 +22125,7 @@ class _ResultsScreenState extends State<_ResultsScreen> with TickerProviderState
                 style: _sans(size: 12, weight: FontWeight.w700, color: Color(0xFF047857), letterSpacing: 0.06)),
             SizedBox(height: 6),
             Text(
-              'Tüm soruları doğru yanıtladın! ${sample.subjectName} alanında kendini geliştirmeye devam etmek ister misin?',
+              '${'Tüm soruları doğru yanıtladın!'.tr()} ${sample.subjectName} ${'alanında kendini geliştirmeye devam etmek ister misin?'.tr()}',
               style: _sans(size: 14, color: AppPalette.textPrimary(context), height: 1.4),
             ),
             SizedBox(height: 14),
@@ -22226,13 +22225,13 @@ class _EmptyQuizPlaceholder extends StatelessWidget {
                 Text('🔍'.tr(), style: TextStyle(fontSize: 60)),
                 SizedBox(height: 16),
                 Text(
-                  'Seçilen konu için soru bulunamadı',
+                  'Seçilen konu için soru bulunamadı'.tr(),
                   textAlign: TextAlign.center,
                   style: _serif(size: 20, weight: FontWeight.w600),
                 ),
                 SizedBox(height: 8),
                 Text(
-                  'Lütfen geri dönüp farklı bir ders veya konu seç.',
+                  'Lütfen geri dönüp farklı bir ders veya konu seç.'.tr(),
                   textAlign: TextAlign.center,
                   style: _sans(size: 13, color: AppPalette.textSecondary(context)),
                 ),
@@ -22318,7 +22317,7 @@ class _ShareCTA extends StatelessWidget {
             SizedBox(width: 10),
             Flexible(
               child: Text(
-                'Sosyal Medya Hesaplarında Paylaş',
+                'Sosyal Medya Hesaplarında Paylaş'.tr(),
                 style: _sans(size: 15, weight: FontWeight.w700, color: Colors.white),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

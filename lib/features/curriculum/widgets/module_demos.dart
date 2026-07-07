@@ -19,6 +19,7 @@ import '../domain/curriculum_node.dart';
 import '../providers/curriculum_controller.dart';
 import '../providers/matchmaking_provider.dart';
 
+import '../../../services/runtime_translator.dart';
 import '../../../theme/app_theme.dart';
 // ────────────────────────────────────────────────────────────────────────────
 // 1) SUMMARY PANEL — sol ders, sağ alt konular, "Özet Oluştur"
@@ -50,7 +51,7 @@ class _CurriculumSummaryPanelState
     });
 
     if (state.subjects.isEmpty) {
-      return _emptyMsg('Profil seç → konu özeti modülü hazırlansın.');
+      return _emptyMsg('Profil seç → konu özeti modülü hazırlansın.'.tr());
     }
     final activeSubject = _activeSubjectKey == null
         ? null
@@ -120,13 +121,13 @@ class _CurriculumSummaryPanelState
         // Sağ: alt konular + Özet butonu
         Expanded(
           child: activeSubject == null
-              ? _emptyMsg('Sol panelden bir ders seç.')
+              ? _emptyMsg('Sol panelden bir ders seç.'.tr())
               : Column(
                   children: [
                     Padding(
                       padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
                       child: Text(
-                        '${activeSubject.emoji}  ${activeSubject.name} · alt konular',
+                        '${activeSubject.emoji}  ${activeSubject.name} · ${'alt konular'.tr()}',
                         style: GoogleFonts.inter(
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
@@ -190,15 +191,15 @@ class _CurriculumSummaryPanelState
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(
-                                        '"${_activeSubtopic!.name}" özeti AI tarafından üretiliyor (demo).',
+                                        '"${_activeSubtopic!.name}" ${'özeti AI tarafından üretiliyor (demo).'.tr()}',
                                       ),
                                     ),
                                   );
                                 },
                           child: Text(
                             _activeSubtopic == null
-                                ? 'Önce alt konu seç'
-                                : 'Özet Oluştur',
+                                ? 'Önce alt konu seç'.tr()
+                                : 'Özet Oluştur'.tr(),
                             style: GoogleFonts.inter(
                               fontWeight: FontWeight.w800,
                               fontSize: 12,
@@ -244,7 +245,7 @@ class _CurriculumExamCreatorState
     });
 
     if (state.subjects.isEmpty) {
-      return _emptyMsg('Profil seç → sınav oluşturucu hazırlansın.');
+      return _emptyMsg('Profil seç → sınav oluşturucu hazırlansın.'.tr());
     }
 
     final activeSubject = _subjectKey == null
@@ -269,7 +270,7 @@ class _CurriculumExamCreatorState
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
-              hintText: 'Ders seç',
+              hintText: 'Ders seç'.tr(),
             ),
             items: state.subjects
                 .map((s) => DropdownMenuItem(
@@ -285,7 +286,7 @@ class _CurriculumExamCreatorState
           SizedBox(height: 10),
           if (activeSubject != null) ...[
             Text(
-              'Konuları işaretle:',
+              'Konuları işaretle:'.tr(),
               style: GoogleFonts.inter(
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
@@ -331,15 +332,15 @@ class _CurriculumExamCreatorState
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(
-                            'Sınav: ${_checkedIds.length} alt konu üzerinden AI ile üretiliyor (demo).',
+                            '${'Sınav'.tr()}: ${_checkedIds.length} ${'alt konu üzerinden AI ile üretiliyor (demo).'.tr()}',
                           ),
                         ),
                       );
                     },
               child: Text(
                 _checkedIds.isEmpty
-                    ? 'En az 1 konu seç'
-                    : '${_checkedIds.length} konuluk Sınav Oluştur',
+                    ? 'En az 1 konu seç'.tr()
+                    : '${_checkedIds.length} ${'konuluk Sınav Oluştur'.tr()}',
                 style: GoogleFonts.inter(
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
@@ -364,7 +365,7 @@ class CurriculumQuizModule extends ConsumerWidget {
     final pref = ref.watch(activePreferenceProvider);
     final subjects = ref.watch(activeSubjectsProvider);
     if (pref == null || subjects.isEmpty) {
-      return _emptyMsg('Profil seç → quiz havuzu yüklensin.');
+      return _emptyMsg('Profil seç → quiz havuzu yüklensin.'.tr());
     }
 
     final allTopics = <String>[];
@@ -392,7 +393,7 @@ class CurriculumQuizModule extends ConsumerWidget {
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Bilgi Yarışı seviye-kilitli — sadece "${pref.levelKey} ${pref.gradeKey}" düzeyindeki sorular gelir.',
+                    '${'Bilgi Yarışı seviye-kilitli — sadece'.tr()} "${pref.levelKey} ${pref.gradeKey}" ${'düzeyindeki sorular gelir.'.tr()}',
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
@@ -405,7 +406,7 @@ class CurriculumQuizModule extends ConsumerWidget {
           ),
           SizedBox(height: 10),
           Text(
-            'Quiz havuzu (${allTopics.length} konu)',
+            '${'Quiz havuzu'.tr()} (${allTopics.length} ${'konu'.tr()})',
             style: GoogleFonts.inter(
               fontSize: 11,
               fontWeight: FontWeight.w800,
@@ -453,7 +454,7 @@ class CurriculumArenaPrep extends ConsumerWidget {
     final countryKey = ref.watch(countryMatchKeyProvider);
     final worldKey = ref.watch(worldMatchKeyProvider);
     if (pref == null) {
-      return _emptyMsg('Profil seç → arena eşleşme havuzu hazırlansın.');
+      return _emptyMsg('Profil seç → arena eşleşme havuzu hazırlansın.'.tr());
     }
     return Padding(
       padding: const EdgeInsets.all(12),
@@ -462,24 +463,27 @@ class CurriculumArenaPrep extends ConsumerWidget {
         children: [
           _matchCard(
             context: context,
-            title: 'Ülke İçi Eşleşme',
+            title: 'Ülke İçi Eşleşme'.tr(),
             subtitle:
-                'Sadece aynı ülke + sınıf + bölüm. Firestore: where("countryMatchKey", isEqualTo: ...)',
+                'Sadece aynı ülke + sınıf + bölüm. Firestore: where("countryMatchKey", isEqualTo: ...)'
+                    .tr(),
             keyValue: countryKey ?? '—',
             color: Color(0xFF22C55E),
           ),
           SizedBox(height: 10),
           _matchCard(
             context: context,
-            title: 'Dünya Eşdeğer',
+            title: 'Dünya Eşdeğer'.tr(),
             subtitle:
-                'Aynı seviye + sınıf, farklı ülkeler. Sınava hazırlık modunda devre dışı.',
-            keyValue: worldKey ?? '— (sınav modu)',
+                'Aynı seviye + sınıf, farklı ülkeler. Sınava hazırlık modunda devre dışı.'
+                    .tr(),
+            keyValue: worldKey ?? '— ${'(sınav modu)'.tr()}',
             color: Color(0xFF3B82F6),
           ),
           SizedBox(height: 14),
           Text(
-            'Bu anahtarlar Firebase Firestore matchmaking koleksiyonunda where() filter olarak kullanılır.',
+            'Bu anahtarlar Firebase Firestore matchmaking koleksiyonunda where() filter olarak kullanılır.'
+                .tr(),
             style: GoogleFonts.inter(
               fontSize: 11,
               color: AppPalette.textSecondary(context),

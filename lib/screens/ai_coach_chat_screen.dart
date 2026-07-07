@@ -79,7 +79,7 @@ class _ChatMeta {
       };
   factory _ChatMeta.fromJson(Map<String, dynamic> m) => _ChatMeta(
         id: (m['id'] ?? '').toString(),
-        title: (m['t'] ?? 'Yeni Sohbet').toString(),
+        title: (m['t'] ?? 'Yeni Sohbet'.tr()).toString(),
         pinned: (m['p'] ?? false) == true,
         updatedMs: (m['u'] ?? 0) as int,
         createdMs: (m['c'] ?? 0) as int,
@@ -215,7 +215,7 @@ class _ChatStore {
 
 String _autoTitle(String text) {
   final clean = text.trim().replaceAll(RegExp(r'\s+'), ' ');
-  if (clean.length <= 38) return clean.isEmpty ? 'Yeni Sohbet' : clean;
+  if (clean.length <= 38) return clean.isEmpty ? 'Yeni Sohbet'.tr() : clean;
   return '${clean.substring(0, 38)}…';
 }
 
@@ -920,7 +920,7 @@ class _AICoachChatScreenState extends State<AICoachChatScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('AI Koç',
+                  Text('AI Koç'.tr(),
                       style: GoogleFonts.poppins(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,

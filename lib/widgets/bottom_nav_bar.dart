@@ -28,8 +28,8 @@ class CameraBottomNav extends StatelessWidget {
       color: Color(0xFFEF4444),
     ),
     _NavItem(
-      icon: Icons.center_focus_weak_rounded,
-      activeIcon: Icons.center_focus_strong_rounded,
+      icon: Icons.qr_code_scanner_rounded,
+      activeIcon: Icons.qr_code_scanner_rounded,
       labelKey: 'scan',
       color: Color(0xFFAA44FF),
     ),

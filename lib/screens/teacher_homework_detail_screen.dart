@@ -498,7 +498,7 @@ class _TeacherHomeworkDetailScreenState
                       border: Border.all(
                           color: _kGreen.withValues(alpha: 0.30)),
                     ),
-                    child: Text(q,
+                    child: Text(q.tr(),
                         style: GoogleFonts.poppins(
                             fontSize: 11, fontWeight: FontWeight.w700,
                             color: const Color(0xFF065F46))),

@@ -91,7 +91,9 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
   /// allTime → null (rastgele her seferinde).
   /// Hafta hesabı ISO 8601 standardına göre yapılır → her ülkede aynı sonuç.
   int? _periodSeed(LeaguePeriod p) {
-    final now = DateTime.now();
+    // Sunucu-düzeltmeli saat — cihaz saati yanlışsa bile seed, liderlik
+    // kovasıyla aynı güne denk gelir.
+    final now = LeagueScores.correctedNow();
     switch (p) {
       case LeaguePeriod.daily:
         // UTC'ye normalize edilmiş "gün" — kullanıcı timezone'larından
@@ -212,7 +214,22 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
       //   • weekly  → yıl+haftaNo → her hafta farklı set
       //   • monthly → yıl+ay → her ay farklı set
       //   • allTime → null → her açılışta rastgele
-      final seed = _periodSeed(widget.period);
+      //
+      // TEKRAR-ÇÖZME KORUMASI: deterministik seed yalnızca bu kovadaki İLK
+      // denemede kullanılır. Aynı gün aynı derse ikinci kez girildiğinde
+      // sorular RASTGELE gelir — aksi halde cevapları ezberleyip aynı 10
+      // soruyu tekrar tekrar çözerek puan şişirmek mümkündü.
+      int? seed = _periodSeed(widget.period);
+      if (seed != null) {
+        try {
+          final replays = await LeagueScores.attemptsInBucket(
+            subjectKey: widget.subjectKey,
+            topic: widget.topic,
+            period: widget.period,
+          );
+          if (replays > 0) seed = null;
+        } catch (_) {/* yerel okuma hatası → seed'li devam, kritik değil */}
+      }
       List<Map<String, dynamic>> raw = await QuizPoolService.fetchPoolQuestions(
         key: key,
         count: 10,

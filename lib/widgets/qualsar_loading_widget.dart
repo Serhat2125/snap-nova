@@ -22,6 +22,8 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import 'package:flutter/material.dart';
+
+import '../services/runtime_translator.dart';
 import 'qualsar_numeric_loader.dart';
 
 /// İşlem türü — hangi sürecin yükleniyor olduğunu belirtir.
@@ -73,27 +75,35 @@ class QuAlsarLoadingWidget extends StatelessWidget {
     switch (type) {
       case QuAlsarLoadingType.summary:
         return [
-          t.isEmpty ? 'Konunuz analiz ediliyor' : '$t konusu analiz ediliyor',
-          'Konunuzun özeti oluşturuluyor',
-          'Özetiniz neredeyse hazır',
+          t.isEmpty
+              ? 'Konunuz analiz ediliyor'.tr()
+              : '$t ${'konusu analiz ediliyor'.tr()}',
+          'Konunuzun özeti oluşturuluyor'.tr(),
+          'Özetiniz neredeyse hazır'.tr(),
         ];
       case QuAlsarLoadingType.solution:
         return [
-          t.isEmpty ? 'Sorunuz analiz ediliyor' : '$t sorusu analiz ediliyor',
-          'Çözüm adımları yapılandırılıyor',
-          'Çözümün neredeyse hazır',
+          t.isEmpty
+              ? 'Sorunuz analiz ediliyor'.tr()
+              : '$t ${'sorusu analiz ediliyor'.tr()}',
+          'Çözüm adımları yapılandırılıyor'.tr(),
+          'Çözümün neredeyse hazır'.tr(),
         ];
       case QuAlsarLoadingType.test:
         return [
-          t.isEmpty ? 'Konu içeriği taranıyor' : '$t içeriği taranıyor',
-          'Kaliteli sorular ve şıklar üretiliyor',
-          'Testiniz neredeyse hazır',
+          t.isEmpty
+              ? 'Konu içeriği taranıyor'.tr()
+              : '$t ${'içeriği taranıyor'.tr()}',
+          'Kaliteli sorular ve şıklar üretiliyor'.tr(),
+          'Testiniz neredeyse hazır'.tr(),
         ];
       case QuAlsarLoadingType.contest:
         return [
-          t.isEmpty ? 'Yarışma alanı hazırlanıyor' : '$t arenası hazırlanıyor',
-          'Sorular ve rakipler eşleştiriliyor',
-          'Yarışma başlamak üzere',
+          t.isEmpty
+              ? 'Yarışma alanı hazırlanıyor'.tr()
+              : '$t ${'arenası hazırlanıyor'.tr()}',
+          'Sorular ve rakipler eşleştiriliyor'.tr(),
+          'Yarışma başlamak üzere'.tr(),
         ];
     }
   }

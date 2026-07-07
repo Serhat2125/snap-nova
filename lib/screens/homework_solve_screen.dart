@@ -439,11 +439,11 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen>
 
   String _typeLabel(String t) {
     switch (t) {
-      case 'tf': return 'D/Y';
-      case 'fill': return 'BOŞLUK DOLDURMA';
-      case 'open': return 'AÇIK UÇLU';
+      case 'tf': return 'D/Y'.tr();
+      case 'fill': return 'BOŞLUK DOLDURMA'.tr();
+      case 'open': return 'AÇIK UÇLU'.tr();
       case 'mc':
-      default: return 'ÇOKTAN SEÇMELİ';
+      default: return 'ÇOKTAN SEÇMELİ'.tr();
     }
   }
 
@@ -600,7 +600,7 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen>
               color: AppPalette.textPrimary(context),
             )),
         const SizedBox(height: 8),
-        Text('✓ $_correctCount doğru · ✗ $_wrongCount yanlış',
+        Text('✓ $_correctCount ${'doğru'.tr()} · ✗ $_wrongCount ${'yanlış'.tr()}',
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(
               fontSize: 13.5, color: AppPalette.textSecondary(context),

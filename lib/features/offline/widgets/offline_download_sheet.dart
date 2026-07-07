@@ -16,6 +16,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../services/education_profile.dart';
 import '../providers/offline_pack_provider.dart';
 
+import '../../../services/runtime_translator.dart';
 import '../../../theme/app_theme.dart';
 class OfflineDownloadSheet extends ConsumerWidget {
   final List<EduSubject> subjects;
@@ -77,7 +78,7 @@ class OfflineDownloadSheet extends ConsumerWidget {
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Konu Özeti Oluştur',
+                      'Konu Özeti Oluştur'.tr(),
                       style: GoogleFonts.inter(
                         fontSize: 17,
                         fontWeight: FontWeight.w800,
@@ -105,7 +106,7 @@ class OfflineDownloadSheet extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Text(
-                '${profile.displayLabel()} müfredatındaki bir derse tıkla → konu başlıkları gelir. Her ders için ayda en fazla $kMonthlyTopicLimit konunun özetini AI ile oluşturabilirsin.',
+                '${profile.displayLabel()} ${'müfredatındaki bir derse tıkla → konu başlıkları gelir. Her ders için ayda en fazla'.tr()} $kMonthlyTopicLimit ${'konunun özetini AI ile oluşturabilirsin.'.tr()}',
                 style: GoogleFonts.inter(
                   fontSize: 12,
                   color: Colors.black.withValues(alpha: 0.62),
@@ -201,7 +202,7 @@ class _SubjectExpandableState extends ConsumerState<_SubjectExpandable> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _loadError = 'Konular yüklenemedi: $e';
+        _loadError = '${'Konular yüklenemedi:'.tr()} $e';
         _loadingTopics = false;
       });
     }
@@ -238,7 +239,7 @@ class _SubjectExpandableState extends ConsumerState<_SubjectExpandable> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           backgroundColor: Color(0xFF166534),
-          content: Text('"$topicName" özeti oluşturuldu ✓'),
+          content: Text('"$topicName" ${'özeti oluşturuldu'.tr()} ✓'),
           duration: Duration(seconds: 2),
         ),
       );
@@ -350,7 +351,7 @@ class _SubjectExpandableState extends ConsumerState<_SubjectExpandable> {
               Padding(
                 padding: const EdgeInsets.all(14),
                 child: Text(
-                  'Bu ders için konu bulunamadı.',
+                  'Bu ders için konu bulunamadı.'.tr(),
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     color: AppPalette.textSecondary(context),
@@ -432,7 +433,7 @@ class _TopicRow extends StatelessWidget {
                       size: 13, color: Color(0xFF166534)),
                   SizedBox(width: 3),
                   Text(
-                    'Hazır',
+                    'Hazır'.tr(),
                     style: GoogleFonts.inter(
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
@@ -468,7 +469,7 @@ class _TopicRow extends StatelessWidget {
                 ),
               ),
               onPressed: canGenerate ? onGenerate : null,
-              child: Text('Oluştur'),
+              child: Text('Oluştur'.tr()),
             ),
         ],
       ),

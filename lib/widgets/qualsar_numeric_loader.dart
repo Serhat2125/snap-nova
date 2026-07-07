@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
+import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
 // ═══════════════════════════════════════════════════════════════════════════════
 //  QuAlsarNumericLoader — Sayısal (Matematik / Fizik / Kimya) soru yükleme
@@ -515,8 +516,8 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
     if (widget.stages != null && widget.stages!.isNotEmpty) {
       return _buildStagesColumn();
     }
-    final primary = widget.primaryText ?? 'Sorunuz Analiz Ediliyor';
-    final secondary = widget.secondaryText ?? 'Sorunuz Çözülüyor';
+    final primary = widget.primaryText ?? 'Sorunuz Analiz Ediliyor'.tr();
+    final secondary = widget.secondaryText ?? 'Sorunuz Çözülüyor'.tr();
     final label = (widget.staticLabel || !_solving) ? primary : secondary;
     // Arka plan saf beyaz olduğu için yazılar koyu olmalı (dark mode bile).
     final textStyle = TextStyle(
@@ -676,7 +677,8 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
                   SizedBox(width: 6),
                   Flexible(
                     child: Text(
-                      'İşlem normalden uzun sürüyor, lütfen ayrılmayın.',
+                      'İşlem normalden uzun sürüyor, lütfen ayrılmayın.'
+                          .tr(),
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -724,7 +726,7 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
                     SizedBox(width: 8),
                     Flexible(
                       child: Text(
-                        _tips[idx],
+                        _tips[idx].tr(),
                         textAlign: TextAlign.start,
                         style: TextStyle(
                           fontSize: 11.5,

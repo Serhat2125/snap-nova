@@ -2510,7 +2510,7 @@ class _GradePageState extends State<_GradePage> {
   ///   • Ara sınıflar (Lise 9-11, Ortaokul 5-7, İlkokul tüm sınıflar) ek
   ///     seçim yapamaz.
   String? _incompatibilityReason(String existing, String candidate) {
-    if (existing == candidate) return 'Bu seçim zaten ekli.';
+    if (existing == candidate) return 'Bu seçim zaten ekli.'.tr();
     final ea = _parseProfile(existing);
     final eb = _parseProfile(candidate);
     bool isExamLevel(String l) =>
@@ -2519,11 +2519,11 @@ class _GradePageState extends State<_GradePage> {
     final isExamB = isExamLevel(eb.level);
     // İki sınav
     if (isExamA && isExamB) {
-      return 'Aynı anda iki sınav birden seçilemez.';
+      return 'Aynı anda iki sınav birden seçilemez.'.tr();
     }
     // İki çalışma seviyesi
     if (!isExamA && !isExamB) {
-      return 'İki farklı eğitim seviyesi birlikte seçilemez.';
+      return 'İki farklı eğitim seviyesi birlikte seçilemez.'.tr();
     }
     // Birisi çalışma seviyesi, biri sınav — uyumluluk kontrolü
     final study = isExamA ? eb : ea;
@@ -2539,28 +2539,28 @@ class _GradePageState extends State<_GradePage> {
     }
     // İlkokul → hiçbir sınav uyumlu değil
     if (study.level == 'primary') {
-      return 'İlkokul seviyesi için sınav hazırlığı seçilemez.';
+      return 'İlkokul seviyesi için sınav hazırlığı seçilemez.'.tr();
     }
     // Ortaokul: sadece SON sınıf + Liseye Geçiş (lgs_prep)
     if (study.level == 'middle') {
       if (!isFinalGrade('middle', study.grade)) {
-        return '${study.grade} öğrencisi henüz sınav seçemez. Son sınıfta Liseye Geçiş hazırlığı açılır.';
+        return '${study.grade} öğrencisi henüz sınav seçemez. Son sınıfta Liseye Geçiş hazırlığı açılır.'.tr();
       }
       // Sadece lgs_prep veya LGS adıyla başlayan sınav (TR LGS, diğer
       // ülkelerin "transition" sınavı isimleri farklı olabilir → label'a
       // göre değil level'a göre kontrol)
       if (exam.level != 'lgs_prep' && !examShort.startsWith('LGS')) {
-        return 'Son sınıf ortaokul öğrencisi sadece Liseye Geçiş hazırlığı seçebilir.';
+        return 'Son sınıf ortaokul öğrencisi sadece Liseye Geçiş hazırlığı seçebilir.'.tr();
       }
       return null;
     }
     // Lise: sadece SON sınıf + uni_prep (üniversite hazırlık sınavları)
     if (study.level == 'high') {
       if (!isFinalGrade('high', study.grade)) {
-        return '${study.grade} öğrencisi henüz sınav seçemez. Son sınıfta üniversite sınavı hazırlığı açılır.';
+        return '${study.grade} öğrencisi henüz sınav seçemez. Son sınıfta üniversite sınavı hazırlığı açılır.'.tr();
       }
       if (exam.level != 'uni_prep') {
-        return 'Lise son sınıf öğrencisi sadece üniversite hazırlık sınavları seçebilir (ALES/KPSS Lisans/TUS değil).';
+        return 'Lise son sınıf öğrencisi sadece üniversite hazırlık sınavları seçebilir (ALES/KPSS Lisans/TUS değil).'.tr();
       }
       return null;
     }
@@ -2569,19 +2569,19 @@ class _GradePageState extends State<_GradePage> {
     if (study.level == 'uni_prep' ||
         study.level == 'post_uni_exam' ||
         study.level == 'lgs_prep') {
-      return 'Bu kombinasyon desteklenmiyor.';
+      return 'Bu kombinasyon desteklenmiyor.'.tr();
     }
     // Üniversite (her sınıf) + post_uni_exam (1 tane)
     if (study.level == 'university') {
       if (exam.level != 'post_uni_exam') {
-        return 'Üniversite öğrencisi sadece üniversite sonrası sınavları seçebilir.';
+        return 'Üniversite öğrencisi sadece üniversite sonrası sınavları seçebilir.'.tr();
       }
       return null;
     }
     // Y. Lisans / Doktora — yine sadece post_uni_exam
     if (study.level == 'masters' || study.level == 'doctorate') {
       if (exam.level != 'post_uni_exam') {
-        return 'Bu seviyede sadece üniversite sonrası sınavlar uygundur.';
+        return 'Bu seviyede sadece üniversite sonrası sınavlar uygundur.'.tr();
       }
       return null;
     }
@@ -2674,7 +2674,7 @@ class _GradePageState extends State<_GradePage> {
     // Limit kontrolü: yeni eklenecekse ve liste doluysa engelle.
     if (!alreadyPicked && _picked.length >= _maxProfiles) {
       _showIncompatibilityError(
-        'En fazla $_maxProfiles seviye seçebilirsin. Birini kaldırıp yeniden dene.',
+        'En fazla $_maxProfiles seviye seçebilirsin. Birini kaldırıp yeniden dene.'.tr(),
       );
       setState(() {
         _classKey = c;
@@ -2738,9 +2738,9 @@ class _GradePageState extends State<_GradePage> {
       return key;
     }
     if (parts.length == 2) {
-      return '${levelLabel(parts[0])} · ${parts[1]}';
+      return '${levelLabel(parts[0])} · ${parts[1].tr()}';
     } else if (parts.length >= 3) {
-      return '${levelLabel(parts[0])} · ${parts[1]} · ${parts.sublist(2).join(":")}';
+      return '${levelLabel(parts[0])} · ${parts[1].tr()} · ${parts.sublist(2).join(":").tr()}';
     }
     return raw;
   }
@@ -2909,7 +2909,7 @@ class _GradePageState extends State<_GradePage> {
                         : (_level == 'post_uni_exam'
                             ? localeService.tr('onb_post_uni_exam_section')
                             : localeService.tr('onb_class_section')),
-                    selectedLabel: _classKey ??
+                    selectedLabel: _classKey?.tr() ??
                         (classEnabled
                             ? ((_level == 'uni_prep' ||
                                     _level == 'post_uni_exam' ||
@@ -2941,7 +2941,7 @@ class _GradePageState extends State<_GradePage> {
                         _SelectRow(
                           icon: Icons.class_outlined,
                           color: widget.accent,
-                          label: c,
+                          label: c.tr(),
                           selected: _classKey == c,
                           // Mevcut profillerle uyumsuz sınıf/sınav → kilitli.
                           // Örn. Lise 12 + YKS seçili → "9/10/11. Sınıf" pasif.
@@ -3177,7 +3177,7 @@ class _DeptExpandableState extends State<_DeptExpandable> {
                       ],
                       Expanded(
                         child: Text(
-                          widget.selectedDept ?? widget.placeholder,
+                          widget.selectedDept?.tr() ?? widget.placeholder,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -3295,7 +3295,7 @@ class _DeptExpandableState extends State<_DeptExpandable> {
                                   itemBuilder: (_, i) => _SelectRow(
                                     icon: Icons.school_outlined,
                                     color: widget.accent,
-                                    label: filtered[i],
+                                    label: filtered[i].tr(),
                                     selected:
                                         widget.selectedDept == filtered[i],
                                     onTap: () =>
@@ -4370,7 +4370,7 @@ class _RivalPill extends StatelessWidget {
           SizedBox(height: 5),
           // Ders adı (iki kullanıcı için AYNI — yarışılan ortak konu)
           Text(
-            match.subject,
+            match.subject.tr(),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
@@ -4384,7 +4384,7 @@ class _RivalPill extends StatelessWidget {
           SizedBox(height: 2),
           // Yarışılan konu (iki kullanıcı için AYNI)
           Text(
-            match.topic,
+            match.topic.tr(),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
@@ -4479,7 +4479,7 @@ class _AuthPageState extends State<_AuthPage> {
       // Yapılandırma hatası → AlertDialog ile net mesaj.
       if (e.code == 'firebase-not-configured' || e.code == 'no-app') {
         await _showFriendlyError(
-          title: 'Yapılandırma eksik',
+          title: 'Yapılandırma eksik'.tr(),
           body: e.message,
         );
         return;
@@ -4490,11 +4490,11 @@ class _AuthPageState extends State<_AuthPage> {
       final raw = e.toString();
       if (raw.contains('[core/no-app]') || raw.contains('No Firebase App')) {
         await _showFriendlyError(
-          title: 'Firebase yapılandırılmamış',
+          title: 'Firebase yapılandırılmamış'.tr(),
           body:
               'Bu giriş yöntemi için Firebase başlatılamıyor. '
               'Terminalde "flutterfire configure" çalıştırıp uygulamayı '
-              'yeniden başlat.',
+              'yeniden başlat.'.tr(),
         );
         return;
       }
@@ -4560,7 +4560,7 @@ class _AuthPageState extends State<_AuthPage> {
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
             child: Text(
-              'Tamam',
+              'Tamam'.tr(),
               style: TextStyle(
                 fontWeight: FontWeight.w800,
                 color: AppPalette.textPrimary(context),
@@ -4989,18 +4989,18 @@ class _UserSetupPageState extends State<_UserSetupPage> {
     if (_saving) return;
     final type = _selectedType;
     if (type == null) {
-      _snack('Önce hesap tipini seç'); return;
+      _snack('Önce hesap tipini seç'.tr()); return;
     }
     var username = _usernameCtrl.text.trim().toLowerCase();
     if (username.isEmpty) username = _existingUsername ?? '';
     if (username.isEmpty) {
-      _snack('Kullanıcı adı gerekli'); return;
+      _snack('Kullanıcı adı gerekli'.tr()); return;
     }
     if (username.length < 3 || username.length > 20) {
-      _snack('Kullanıcı adı 3-20 karakter olmalı'); return;
+      _snack('Kullanıcı adı 3-20 karakter olmalı'.tr()); return;
     }
     if (!RegExp(r'^[a-z0-9_]+$').hasMatch(username)) {
-      _snack('Sadece harf, rakam ve _ kullan'); return;
+      _snack('Sadece harf, rakam ve _ kullan'.tr()); return;
     }
     setState(() => _saving = true);
     try {
@@ -5072,7 +5072,7 @@ class _UserSetupPageState extends State<_UserSetupPage> {
       }
     } catch (e) {
       debugPrint('[UserSetup] continue fail: $e');
-      _snack('Bir şeyler ters gitti, tekrar dene');
+      _snack('Bir şeyler ters gitti, tekrar dene'.tr());
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -5460,7 +5460,7 @@ class _UserSetupPageState extends State<_UserSetupPage> {
         if (_existingUsername != null) Padding(
           padding: const EdgeInsets.only(top: 4, left: 4),
           child: Text(
-            'Mevcut: $_existingUsername (boş bırakırsan korunur)',
+            'Mevcut: $_existingUsername (boş bırakırsan korunur)'.tr(),
             style: TextStyle(fontSize: 10.5, color: muted),
           ),
         ),
@@ -6129,13 +6129,13 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
       // Yapılandırma hatası → ham kod yerine kullanıcıya net dialog.
       if (e.code == 'firebase-not-configured' || e.code == 'no-app') {
         await _showFriendlyError(
-          title: 'Telefon doğrulama hazır değil',
+          title: 'Telefon doğrulama hazır değil'.tr(),
           body:
               'Firebase yapılandırması tamamlanmadığı için şu an SMS '
               'gönderilemiyor. Geliştirici terminalde '
               '"flutterfire configure" komutunu çalıştırıp uygulamayı '
               'yeniden başlatmalı.\n\nDilersen e-posta veya misafir '
-              'olarak devam edebilirsin.',
+              'olarak devam edebilirsin.'.tr(),
         );
         return;
       }
@@ -6148,11 +6148,11 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
       if (raw.contains('[core/no-app]') ||
           raw.contains('No Firebase App')) {
         await _showFriendlyError(
-          title: 'Telefon doğrulama hazır değil',
+          title: 'Telefon doğrulama hazır değil'.tr(),
           body:
               'Firebase başlatılamadığı için SMS gönderilemiyor. '
               'Geliştirici "flutterfire configure" komutunu çalıştırıp '
-              'uygulamayı yeniden başlatmalı.',
+              'uygulamayı yeniden başlatmalı.'.tr(),
         );
         return;
       }
@@ -6205,7 +6205,7 @@ class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
             child: Text(
-              'Tamam',
+              'Tamam'.tr(),
               style: TextStyle(
                 fontWeight: FontWeight.w800,
                 color: AppPalette.textPrimary(context),
@@ -6822,16 +6822,16 @@ class _UsernameCreateSheetState extends State<_UsernameCreateSheet> {
     });
     if (raw.isEmpty) return;
     if (raw.length < 3) {
-      setState(() => _formatError = 'En az 3 karakter');
+      setState(() => _formatError = 'En az 3 karakter'.tr());
       return;
     }
     if (raw.length > 20) {
-      setState(() => _formatError = 'En fazla 20 karakter');
+      setState(() => _formatError = 'En fazla 20 karakter'.tr());
       return;
     }
     if (!RegExp(r'^[a-z0-9_]+$').hasMatch(raw)) {
       setState(() =>
-          _formatError = 'Sadece harf, rakam ve alt çizgi (_) kullan');
+          _formatError = 'Sadece harf, rakam ve alt çizgi (_) kullan'.tr());
       return;
     }
     // Debounced uniqueness check (400ms)

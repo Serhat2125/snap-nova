@@ -768,7 +768,7 @@ class _StepRow extends StatelessWidget {
           style: base,
           children: [
             TextSpan(
-              text: '$num. Adım: ',
+              text: '$num. ${'Adım'.tr()}: ',
               style: base.copyWith(
                 color: green,
                 fontWeight: FontWeight.w800,
@@ -1449,7 +1449,7 @@ class _VisualImageCardState extends State<_VisualImageCard> {
               ),
               SizedBox(height: 2),
               Text(
-                'Diyagram Çerçevesi',
+                'Diyagram Çerçevesi'.tr(),
                 style: TextStyle(
                   fontSize: widget.fontSize - 4,
                   fontStyle: FontStyle.italic,
@@ -1560,7 +1560,7 @@ class _VisualImageCardState extends State<_VisualImageCard> {
                       if (_url != null) ...[
                         SizedBox(height: 4),
                         Text(
-                          'Görsel: Wikipedia',
+                          '${'Görsel'.tr()}: Wikipedia',
                           style: TextStyle(
                             fontSize: widget.fontSize - 4,
                             color: AppPalette.textSecondary(context),
@@ -1664,7 +1664,7 @@ class _SchemaBlock extends StatelessWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        title.isEmpty ? 'Şema' : title,
+                        title.isEmpty ? 'Şema'.tr() : title,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -1815,7 +1815,7 @@ class _SchemaFullscreenPageState extends State<_SchemaFullscreenPage> {
               left: 8,
               right: 56,
               child: Text(
-                widget.title.isEmpty ? 'Şema' : widget.title,
+                widget.title.isEmpty ? 'Şema'.tr() : widget.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(

@@ -429,8 +429,8 @@ Future<void> showParentSurpriseSheet(BuildContext context,
                                 .collection('items')
                                 .add({
                               'type': 'parent_gift',
-                              'title': 'Ailenden sürpriz! $emoji',
-                              'body': msg,
+                              'title': '${'Ailenden sürpriz!'.tr()} $emoji',
+                              'body': msg.tr(),
                               'when': FieldValue.serverTimestamp(),
                               'read': false,
                             });
@@ -550,18 +550,18 @@ Future<void> shareWeeklyPdfReport(BuildContext context,
       final now = DateTime.now();
       hwResults = [
         ParentHomeworkResult(
-            className: '8-A', title: 'Üslü Sayılar Testi',
-            subject: 'Matematik',
+            className: '8-A', title: 'Üslü Sayılar Testi'.tr(),
+            subject: 'Matematik'.tr(),
             when: now.subtract(const Duration(days: 1)),
             correct: 12, wrong: 3, questionCount: 15, scorePercent: 80),
         ParentHomeworkResult(
-            className: '8-A', title: 'Hücre Bölünmesi',
-            subject: 'Fen Bilimleri',
+            className: '8-A', title: 'Hücre Bölünmesi'.tr(),
+            subject: 'Fen Bilimleri'.tr(),
             when: now.subtract(const Duration(days: 3)),
             correct: 7, wrong: 3, questionCount: 10, scorePercent: 70),
         ParentHomeworkResult(
             className: '8-A', title: 'Simple Past Quiz',
-            subject: 'İngilizce',
+            subject: 'İngilizce'.tr(),
             when: now.subtract(const Duration(days: 6)),
             correct: 17, wrong: 3, questionCount: 20, scorePercent: 85),
       ];

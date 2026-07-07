@@ -19,6 +19,7 @@ import '../providers/curriculum_controller.dart';
 import '../providers/curriculum_manager.dart';
 import 'module_demos.dart';
 
+import '../../../services/runtime_translator.dart';
 import '../../../theme/app_theme.dart';
 class CurriculumDashboard extends ConsumerWidget {
   const CurriculumDashboard({super.key});
@@ -124,20 +125,20 @@ class CurriculumDashboard extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _kvRow('Bağlam Kilidi',
+                    _kvRow('Bağlam Kilidi'.tr(),
                         state.preference!.signature, Color(0xFF7C3AED)),
                     SizedBox(height: 3),
-                    _kvRow('Dil', state.preference!.languageCode,
+                    _kvRow('Dil'.tr(), state.preference!.languageCode,
                         Color(0xFF22C55E)),
                     SizedBox(height: 3),
-                    _kvRow('Ülke İçi Eşleşme',
+                    _kvRow('Ülke İçi Eşleşme'.tr(),
                         state.preference!.countryMatchKey, Colors.black54),
                     SizedBox(height: 3),
                     _kvRow(
-                      'Dünya Eşdeğer',
+                      'Dünya Eşdeğer'.tr(),
                       (state.preference!.levelKey == 'exam_prep' ||
                               state.preference!.levelKey == 'lgs_prep')
-                          ? '— (sınava hazırlık ülke spesifik)'
+                          ? '— (sınava hazırlık ülke spesifik)'.tr()
                           : state.preference!.worldMatchKey,
                       Colors.black54,
                     ),
@@ -163,12 +164,12 @@ class CurriculumDashboard extends ConsumerWidget {
                         fontSize: 11.5,
                         fontWeight: FontWeight.w800,
                       ),
-                      tabs: const [
-                        Tab(text: '📚 Ders Ağacı'),
-                        Tab(text: '📝 Konu Özeti'),
-                        Tab(text: '✅ Sınav'),
-                        Tab(text: '🎮 Quiz'),
-                        Tab(text: '⚔️ Arena'),
+                      tabs: [
+                        Tab(text: '📚 ${'Ders Ağacı'.tr()}'),
+                        Tab(text: '📝 ${'Konu Özeti'.tr()}'),
+                        Tab(text: '✅ ${'Sınav'.tr()}'),
+                        Tab(text: '🎮 ${'Quiz'.tr()}'),
+                        Tab(text: '⚔️ ${'Arena'.tr()}'),
                       ],
                     ),
                   ),
@@ -179,7 +180,7 @@ class CurriculumDashboard extends ConsumerWidget {
                         state.subjects.isEmpty
                             ? Center(
                                 child: Text(
-                                  'Profil seç → ders ağacı yüklensin',
+                                  'Profil seç → ders ağacı yüklensin'.tr(),
                                   style: GoogleFonts.inter(
                                     fontSize: 13,
                                     color: AppPalette.textSecondary(context),

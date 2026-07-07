@@ -3,17 +3,19 @@
 //
 //  Çift katmanlı:
 //    1) Yerel cache  → SharedPreferences (offline kullanım, hızlı ortalama)
-//    2) Cloud kayıt  → Firestore `league_attempts` flat collection
-//                       (denormalize: location, level, grade, scope key'leri)
+//    2) Cloud kayıt  → `submitLeagueAttempt` Cloud Function'ı üzerinden.
+//       İstemci Firestore'a DOĞRUDAN YAZMAZ (rules kapalı) — fonksiyon
+//       rate limit, sunucu saati kovası, idempotens ve attempt↔totals
+//       atomikliğini garanti eder. Başarısız gönderimler yerel OUTBOX'a
+//       girer, sonraki açılışta flushOutbox() ile tekrar denenir.
 //
-//  Auth varsa cloud'a da yazılır; yoksa sadece yerel kalır.
-//  Periyot tanımları:
-//    daily   → son 24 saat
-//    weekly  → son 7 gün
-//    monthly → son 30 gün
-//    allTime → hepsi
+//  Periyot tanımları — liderlik tablosuyla AYNI takvim kovaları (UTC):
+//    daily   → bugünün UTC günü        (d:YYYY-MM-DD)
+//    weekly  → bu ISO haftası          (w:YYYY-Wnn)
+//    monthly → bu takvim ayı           (m:YYYY-MM)
+//    allTime → hepsi                   (all)
 //
-//  Skor: BilgiLigiQuizScreen sonunda hesaplanan 0-1200 arası tam sayı.
+//  Skor: 1 net = 1 puan (test başına max 10).
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import 'dart:async';
@@ -21,6 +23,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -201,6 +204,8 @@ class LeagueScores {
   }
 
   static Future<List<LeagueAttempt>> loadAll() async {
+    // Sunucu saat farkını da ilk erişimde yükle (kova hesapları için).
+    await _loadServerOffset();
     if (_cache != null) return _cache!;
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_key);
@@ -277,87 +282,204 @@ class LeagueScores {
         debugPrint('[LeagueScores] local write fail: $e');
       }
 
-      // 2) Cloud (auth + profile varsa) — idempotent doc id.
+      // 2) Cloud — submitLeagueAttempt Cloud Function'ı (tek yazım yolu).
       // GLOBAL-FIRST GÜVENLİK AĞI: Kullanıcı konum SEÇMEMİŞSE bile skor
       // buluta gitmeli — ülke kodu EduProfile.country'den türetilir, şehir
       // boş kalır (şehir sıralamasına girmez ama ülke+dünya sıralamasında
-      // görünür). Eskiden konum yoksa skor hiç yazılmıyordu → konum
-      // seçmeyen/katalog dışı ülkedeki kullanıcılar sıralamada YOKTU.
-      try {
-        final uid = FirebaseAuth.instance.currentUser?.uid;
-        if (uid == null || uid.isEmpty) return;
-        if (profile == null) return;
-        final countryCode = (location?.countryCode ?? '').isNotEmpty
-            ? location!.countryCode
-            : profile.country.toUpperCase();
-        final cityCode = location?.cityCode ?? '';
-        if (countryCode.isEmpty) return;
+      // görünür).
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null || uid.isEmpty) return;
+      if (profile == null) return;
+      final countryCode = (location?.countryCode ?? '').isNotEmpty
+          ? location!.countryCode
+          : profile.country.toUpperCase();
+      if (countryCode.isEmpty) return;
 
-        final scopeWorld = '${profile.level}|${profile.grade}';
-        final scopeCountry =
-            '$countryCode|${profile.level}|${profile.grade}';
-        final scopeCity = cityCode.isEmpty
-            ? ''
-            : '$countryCode|$cityCode|${profile.level}|${profile.grade}';
+      final resolvedName = (displayName ?? '').trim().isEmpty
+          ? (FirebaseAuth.instance.currentUser?.displayName ?? '')
+          : displayName!.trim();
 
-        final resolvedName = (displayName ?? '').trim().isEmpty
-            ? (FirebaseAuth.instance.currentUser?.displayName ?? '')
-            : displayName!.trim();
-
-        // Doc id = "<uid>_<clientSubmitId>" → retry'da aynı doc, duplicate yok.
-        final docId = '${uid}_$clientSubmitId';
-        final ref = FirebaseFirestore.instance
-            .collection('league_attempts')
-            .doc(docId);
-        await ref.set({
-          'uid': uid,
-          'clientSubmitId': clientSubmitId,
-          'displayName': resolvedName,
-          'avatar': avatar ?? '',
-          'countryCode': countryCode,
-          'cityCode': cityCode,
-          'level': profile.level,
-          'grade': profile.grade,
-          'scopeWorld': scopeWorld,
-          'scopeCountry': scopeCountry,
-          'scopeCity': scopeCity,
-          'subjectKey': attempt.subjectKey,
-          'topic': attempt.topic ?? '',
-          'hasTopic': attempt.topic != null && attempt.topic!.isNotEmpty,
-          'score': attempt.score,
-          'durationSec': attempt.durationSec,
-          // Tiebreaker: aynı (score, duration) olanlar için kronolojik sıra.
-          'when': Timestamp.fromDate(attempt.when),
-          // Server-side enforcement için ek timestamp — istemci saatine
-          // güvenmeden weekly/monthly pencerelerini doğrulamak için.
-          'serverWhen': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true)).timeout(const Duration(seconds: 12));
-
-        // 3) TOPLAM (aggregate) dokümanları — league_totals.
-        // NEDEN: Sıralama metriği "periyottaki TOPLAM puan"dır; attempts
-        // üzerinden top-N tekil skor çekip istemcide toplamak 10 bin
-        // kullanıcıda yanlış sonuç verir (çok denemeli oyuncu top-N'e hiç
-        // giremez, günlük pencerede eski yüksek skorlar listeyi işgal eder).
-        // Çözüm: kullanıcı × takvim kovası × mod başına increment'li tek
-        // doküman → sıralama sorgusu doğrudan doğru toplamı sıralar.
-        await _upsertTotals(
-          uid: uid,
-          displayName: resolvedName,
-          avatar: avatar ?? '',
-          countryCode: countryCode,
-          cityCode: cityCode,
-          profile: profile,
-          attempt: withSnapshot,
-          scopeWorld: scopeWorld,
-          scopeCountry: scopeCountry,
-          scopeCity: scopeCity,
-        );
-      } catch (e) {
-        // Cloud hatası yutulur — yerel kayıt zaten var, kullanıcıyı bloklamayız.
-        debugPrint('[LeagueScores] cloud submit fail: $e');
+      final payload = <String, dynamic>{
+        'clientSubmitId': clientSubmitId,
+        'subjectKey': withSnapshot.subjectKey,
+        'topic': withSnapshot.topic ?? '',
+        'score': withSnapshot.score,
+        'durationSec': withSnapshot.durationSec,
+        'whenMs': withSnapshot.when.toUtc().millisecondsSinceEpoch,
+        'countryCode': countryCode,
+        'cityCode': location?.cityCode ?? '',
+        'level': profile.level,
+        'grade': profile.grade,
+        'displayName': resolvedName,
+        'avatar': avatar ?? '',
+      };
+      final sent = await _submitToCloud(payload);
+      if (!sent) {
+        // Retry edilebilir hata → outbox'a al; sonraki açılışta
+        // flushOutbox() clientSubmitId sayesinde güvenle tekrar dener.
+        await _enqueueOutbox(payload);
       }
     });
   }
+
+  // ── Cloud gönderim + outbox ────────────────────────────────────────────────
+
+  static HttpsCallable get _submitCallable =>
+      FirebaseFunctions.instanceFor(region: 'us-central1').httpsCallable(
+        'submitLeagueAttempt',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 20)),
+      );
+
+  /// Tek bir gönderimi Cloud Function'a iletir.
+  /// true  → işlendi (veya kalıcı olarak reddedildi — retry ANLAMSIZ).
+  /// false → geçici hata (ağ/timeout/rate) — outbox'ta bekletilmeli.
+  static Future<bool> _submitToCloud(Map<String, dynamic> payload) async {
+    try {
+      final res = await _submitCallable.call<Map<dynamic, dynamic>>(payload);
+      final data = res.data;
+      final serverNowMs = (data['serverNowMs'] as num?)?.toInt();
+      if (serverNowMs != null) {
+        await _storeServerOffset(serverNowMs);
+      }
+      return true;
+    } on FirebaseFunctionsException catch (e) {
+      debugPrint('[LeagueScores] cloud submit fail (${e.code}): ${e.message}');
+      // Kalıcı retler: aynı payload asla geçmez → outbox'ı doldurma.
+      const permanent = {
+        'invalid-argument',
+        'permission-denied',
+        'failed-precondition',
+      };
+      return permanent.contains(e.code);
+    } catch (e) {
+      debugPrint('[LeagueScores] cloud submit fail: $e');
+      return false; // ağ / timeout → retry
+    }
+  }
+
+  static const _outboxKey = 'bilgi_ligi_outbox_v1';
+  static const _outboxMaxTries = 20;
+
+  static Future<void> _enqueueOutbox(Map<String, dynamic> payload) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_outboxKey);
+      final list = <Map<String, dynamic>>[];
+      if (raw != null && raw.isNotEmpty) {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          for (final e in decoded) {
+            if (e is Map) list.add(e.cast<String, dynamic>());
+          }
+        }
+      }
+      list.add({'payload': payload, 'tries': 0});
+      await prefs.setString(_outboxKey, jsonEncode(list));
+      debugPrint('[LeagueScores] outbox +1 (bekleyen: ${list.length})');
+    } catch (e) {
+      debugPrint('[LeagueScores] outbox yazılamadı: $e');
+    }
+  }
+
+  /// Bekleyen cloud gönderimlerini tekrar dener. Bilgi Ligi ekranı açılışında
+  /// çağrılır; idempotent (clientSubmitId) olduğu için çift sayım riski yok.
+  static Future<void> flushOutbox() {
+    return _serialize(() async {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_outboxKey);
+      if (raw == null || raw.isEmpty) return;
+      List<dynamic> decoded;
+      try {
+        decoded = jsonDecode(raw) as List<dynamic>;
+      } catch (_) {
+        await prefs.remove(_outboxKey);
+        return;
+      }
+      if (decoded.isEmpty) {
+        await prefs.remove(_outboxKey);
+        return;
+      }
+      if (FirebaseAuth.instance.currentUser == null) return;
+
+      final remaining = <Map<String, dynamic>>[];
+      for (final item in decoded) {
+        if (item is! Map) continue;
+        final m = item.cast<String, dynamic>();
+        final payload = (m['payload'] as Map?)?.cast<String, dynamic>();
+        final tries = (m['tries'] as num?)?.toInt() ?? 0;
+        if (payload == null || tries >= _outboxMaxTries) continue;
+        final ok = await _submitToCloud(payload);
+        if (!ok) {
+          remaining.add({'payload': payload, 'tries': tries + 1});
+        }
+      }
+      if (remaining.isEmpty) {
+        await prefs.remove(_outboxKey);
+      } else {
+        await prefs.setString(_outboxKey, jsonEncode(remaining));
+      }
+    });
+  }
+
+  /// Liderlik adı/avatarını geriye dönük senkronize eder (anonim mod
+  /// açıldı/kapandı veya profil adı değişti). Fire-and-forget kullanım için
+  /// güvenli — hata yutulur, bir sonraki gönderimde zaten güncellenir.
+  static Future<void> syncDisplayName(String displayName,
+      {String avatar = ''}) async {
+    final name = displayName.trim();
+    if (name.isEmpty) return;
+    if (FirebaseAuth.instance.currentUser == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      const key = 'bilgi_ligi_synced_name_v1';
+      if (prefs.getString(key) == name) return; // değişmemiş → çağrı yok
+      await FirebaseFunctions.instanceFor(region: 'us-central1')
+          .httpsCallable(
+            'updateLeagueDisplayName',
+            options:
+                HttpsCallableOptions(timeout: const Duration(seconds: 30)),
+          )
+          .call<Map<dynamic, dynamic>>(
+              {'displayName': name, 'avatar': avatar});
+      await prefs.setString(key, name);
+    } catch (e) {
+      debugPrint('[LeagueScores] name sync fail: $e');
+    }
+  }
+
+  // ── Sunucu saati düzeltmesi ────────────────────────────────────────────────
+  // Takvim kovaları sunucu saatine göre işler; cihaz saati yanlışsa
+  // kullanıcı yanlış (çoğu zaman boş) kovaya bakar. Her başarılı cloud
+  // gönderiminde sunucu zamanı alınır ve fark saklanır; bucketFor() bu
+  // düzeltilmiş zamanı kullanır.
+  static Duration _serverOffset = Duration.zero;
+  static bool _offsetLoaded = false;
+  static const _offsetPrefKey = 'bilgi_ligi_server_offset_ms_v1';
+
+  static Future<void> _storeServerOffset(int serverNowMs) async {
+    final offset = Duration(
+        milliseconds:
+            serverNowMs - DateTime.now().toUtc().millisecondsSinceEpoch);
+    _serverOffset = offset;
+    _offsetLoaded = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_offsetPrefKey, offset.inMilliseconds);
+    } catch (_) {/* kalıcı yazım başarısız → bellek içi değer yeter */}
+  }
+
+  static Future<void> _loadServerOffset() async {
+    if (_offsetLoaded) return;
+    _offsetLoaded = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final ms = prefs.getInt(_offsetPrefKey);
+      if (ms != null) _serverOffset = Duration(milliseconds: ms);
+    } catch (_) {/* offset yok → cihaz saati */}
+  }
+
+  /// Sunucu-düzeltmeli "şimdi" — kova hesapları bunu kullanır.
+  static DateTime correctedNow() => DateTime.now().add(_serverOffset);
 
   // ── Takvim kovası yardımcıları (UTC — tüm dünyada aynı lig günü) ──────────
   static String dayBucket(DateTime t) {
@@ -380,8 +502,10 @@ class LeagueScores {
   }
 
   /// Periyot → güncel kova anahtarı (leaderboard sorgusu bunu kullanır).
+  /// `now` verilmezse SUNUCU-düzeltmeli saat kullanılır — cihaz saati
+  /// yanlış olsa bile kullanıcı doğru (aktif) kovaya bakar.
   static String bucketFor(LeaguePeriod period, [DateTime? now]) {
-    final t = now ?? DateTime.now();
+    final t = now ?? correctedNow();
     switch (period) {
       case LeaguePeriod.daily:
         return dayBucket(t);
@@ -395,61 +519,38 @@ class LeagueScores {
   }
 
   /// Doc id'de kullanılamayan '/' karakterini değiştir.
+  /// (Cloud Function tarafındaki `san()` ile birebir aynı olmalı.)
   static String _san(String s) => s.replaceAll('/', '⁄');
 
-  static Future<void> _upsertTotals({
-    required String uid,
-    required String displayName,
-    required String avatar,
-    required String countryCode,
-    required String cityCode,
-    required EduProfile profile,
-    required LeagueAttempt attempt,
-    required String scopeWorld,
-    required String scopeCountry,
-    required String scopeCity,
+  /// Kullanıcının KENDİ toplamını buluttan okur — "Senin Sıran" kartının
+  /// liderlik tablosuyla aynı kaynağı göstermesi için. Doc id deterministik
+  /// (uid_bucket_mode) olduğundan tek doküman okuması, sorgu yok.
+  /// null → bulutta kayıt yok (offline veya bu kovada hiç oynamadı).
+  static Future<({double score, int attempts, int durationSec})?>
+      myCloudTotal({
+    required String modeKey,
+    required LeaguePeriod period,
   }) async {
-    final fs = FirebaseFirestore.instance;
-    final buckets = <String>[
-      'all',
-      dayBucket(attempt.when),
-      weekBucket(attempt.when),
-      monthBucket(attempt.when),
-    ];
-    final modes = <String>[
-      'all',
-      's:${attempt.subjectKey}',
-      if (attempt.topic != null && attempt.topic!.isNotEmpty)
-        't:${attempt.subjectKey}|${attempt.topic}',
-    ];
-    final batch = fs.batch();
-    for (final bucket in buckets) {
-      for (final mode in modes) {
-        final id = _san('${uid}_${bucket}_$mode');
-        batch.set(fs.collection('league_totals').doc(id), {
-          'uid': uid,
-          'displayName': displayName,
-          'avatar': avatar,
-          'bucket': bucket,
-          'modeKey': mode,
-          'countryCode': countryCode,
-          'cityCode': cityCode,
-          'level': profile.level,
-          'grade': profile.grade,
-          'scopeWorld': scopeWorld,
-          'scopeCountry': scopeCountry,
-          'scopeCity': scopeCity,
-          'subjectKey': attempt.subjectKey,
-          'topic': attempt.topic ?? '',
-          'score': FieldValue.increment(attempt.score),
-          'durationSec': FieldValue.increment(attempt.durationSec),
-          'attempts': FieldValue.increment(1),
-          'lastWhen': Timestamp.fromDate(attempt.when),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      }
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null || uid.isEmpty) return null;
+      final id = _san('${uid}_${bucketFor(period)}_$modeKey');
+      final doc = await FirebaseFirestore.instance
+          .collection('league_totals')
+          .doc(id)
+          .get()
+          .timeout(const Duration(seconds: 8));
+      final m = doc.data();
+      if (m == null) return null;
+      return (
+        score: (m['score'] as num?)?.toDouble() ?? 0.0,
+        attempts: (m['attempts'] as num?)?.toInt() ?? 0,
+        durationSec: (m['durationSec'] as num?)?.toInt() ?? 0,
+      );
+    } catch (e) {
+      debugPrint('[LeagueScores] myCloudTotal fail: $e');
+      return null;
     }
-    await batch.commit().timeout(const Duration(seconds: 12));
   }
 
   /// Yeni clientSubmitId üret — timestamp + 8-haneli rastgele.
@@ -502,6 +603,10 @@ class LeagueScores {
 
   // ── Filtreleme yardımcıları ─────────────────────────────────────────────────
 
+  /// Periyot filtresi liderlik tablosuyla AYNI takvim kovasını kullanır
+  /// (UTC gün / ISO hafta / takvim ayı). Eskiden "son 24 saat" gibi kayan
+  /// pencereydi — "Senin Sıran" kartındaki puan tablodakinden farklı
+  /// çıkabiliyordu.
   static List<LeagueAttempt> _filtered(
     List<LeagueAttempt> source, {
     String? subjectKey,
@@ -509,8 +614,8 @@ class LeagueScores {
     bool topicNullMeansAny = true,
     required LeaguePeriod period,
   }) {
-    final win = period.window;
-    final cutoff = win == null ? null : DateTime.now().subtract(win);
+    final bucket =
+        period == LeaguePeriod.allTime ? null : bucketFor(period);
     return source.where((a) {
       if (subjectKey != null && a.subjectKey != subjectKey) return false;
       if (topic != null) {
@@ -518,9 +623,40 @@ class LeagueScores {
       } else if (!topicNullMeansAny) {
         if (a.topic != null && a.topic!.isNotEmpty) return false;
       }
-      if (cutoff != null && a.when.isBefore(cutoff)) return false;
+      if (bucket != null && _bucketOf(period, a.when) != bucket) return false;
       return true;
     }).toList();
+  }
+
+  /// Bir attempt'in verilen periyot türündeki kova anahtarı.
+  static String _bucketOf(LeaguePeriod period, DateTime when) {
+    switch (period) {
+      case LeaguePeriod.daily:
+        return dayBucket(when);
+      case LeaguePeriod.weekly:
+        return weekBucket(when);
+      case LeaguePeriod.monthly:
+        return monthBucket(when);
+      case LeaguePeriod.allTime:
+        return 'all';
+    }
+  }
+
+  /// Aktif kovada (bugün/bu hafta/bu ay) kaç deneme var?
+  /// `subjectKey`/`topic` verilirse o derse/konuya daraltılır.
+  /// Kullanım: günlük ücretsiz hak kontrolü + tekrar-çözme tespiti.
+  static Future<int> attemptsInBucket({
+    String? subjectKey,
+    String? topic,
+    required LeaguePeriod period,
+  }) async {
+    final list = await loadAll();
+    return _filtered(
+      list,
+      subjectKey: subjectKey,
+      topic: topic,
+      period: period,
+    ).length;
   }
 
   static LeagueScoreSummary _summarize(List<LeagueAttempt> attempts) {

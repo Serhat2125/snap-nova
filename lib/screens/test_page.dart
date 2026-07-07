@@ -716,7 +716,7 @@ class _TestPageState extends State<TestPage> {
       final result = _simpleEval(expr);
       _calcResult = result;
     } catch (_) {
-      _calcResult = 'Hata';
+      _calcResult = 'Hata'.tr();
     }
   }
 
@@ -784,7 +784,7 @@ class _TestPageState extends State<TestPage> {
     }
     if (out.isEmpty) return '';
     final v = out.last;
-    if (v.isNaN || v.isInfinite) return 'Hata';
+    if (v.isNaN || v.isInfinite) return 'Hata'.tr();
     if (v == v.toInt()) return v.toInt().toString();
     return v.toStringAsFixed(4).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
   }
@@ -2231,7 +2231,7 @@ class _TestPageHelpPage extends StatelessWidget {
           const SizedBox(height: 12),
           Center(
             child: Text(
-              'Başarılar! 🎯',
+              'Başarılar! 🎯'.tr(),
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: FontWeight.w800,
@@ -2248,7 +2248,7 @@ class _TestPageHelpPage extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(2, 8, 2, 10),
       child: Text(
-        label,
+        label.tr(),
         style: GoogleFonts.poppins(
           fontSize: 11,
           fontWeight: FontWeight.w900,
@@ -2503,17 +2503,17 @@ class _TestResultPageState extends State<TestResultPage> {
     String levelText;
     switch (level) {
       case 'primary':
-        levelText = 'İlkokul';
+        levelText = 'İlkokul'.tr();
         break;
       case 'middle':
-        levelText = 'Ortaokul';
+        levelText = 'Ortaokul'.tr();
         break;
       case 'high':
-        levelText = 'Lise';
+        levelText = 'Lise'.tr();
         break;
       case 'exam_prep':
         // Sınava hazırlık — grade sınav anahtarıdır (yks_tyt, msu, kpss_ortaogretim...).
-        if (grade.isEmpty) return 'Sınava Hazırlık';
+        if (grade.isEmpty) return 'Sınava Hazırlık'.tr();
         // Bilinen TR sınav anahtarları için temiz etiketler. Bilinmiyorsa
         // ilk kelimeyi büyütüp "Hazırlık" ekleriz (eski davranış).
         const examLabels = {
@@ -2532,18 +2532,18 @@ class _TestResultPageState extends State<TestResultPage> {
           'toefl': 'TOEFL',
         };
         final label = examLabels[grade.toLowerCase()];
-        if (label != null) return '$label Hazırlık';
+        if (label != null) return '$label ${'Hazırlık'.tr()}';
         // Uzun değerlerden ("YKS (Yükseköğretim...)") ilk kelime + Hazırlık.
         final short = grade.split(RegExp(r'[\s(]')).first.toUpperCase();
-        return '$short Hazırlık';
+        return '$short ${'Hazırlık'.tr()}';
       case 'university':
-        levelText = 'Üniversite';
+        levelText = 'Üniversite'.tr();
         break;
       case 'masters':
-        levelText = 'Yüksek Lisans';
+        levelText = 'Yüksek Lisans'.tr();
         break;
       case 'doctorate':
-        levelText = 'Doktora';
+        levelText = 'Doktora'.tr();
         break;
       default:
         return grade.isEmpty ? '' : grade;
@@ -2552,7 +2552,7 @@ class _TestResultPageState extends State<TestResultPage> {
     // Grade içinde rakam varsa "N. Sınıf" formatına getir.
     final m = RegExp(r'(\d{1,2})').firstMatch(grade);
     if (m != null) {
-      return '$levelText ${m.group(1)}. Sınıf';
+      return '$levelText ${m.group(1)}. ${'Sınıf'.tr()}';
     }
     return '$levelText $grade';
   }
@@ -3007,7 +3007,7 @@ class _TestResultPageState extends State<TestResultPage> {
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
-                    "Soru ${i + 1} · $badgeLabel",
+                    "${'Soru'.tr()} ${i + 1} · $badgeLabel",
                     style: GoogleFonts.poppins(
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
@@ -3423,7 +3423,7 @@ class _ResultCard extends StatelessWidget {
   static const Color _alKirmizi = Color(0xFFC8102E);
 
   String get _firstName {
-    if (userName.isEmpty) return 'Siz';
+    if (userName.isEmpty) return 'Siz'.tr();
     return userName.split(' ').first;
   }
 
@@ -3676,7 +3676,7 @@ class _ResultCard extends StatelessWidget {
         ),
         SizedBox(height: 2),
         Text(
-          _userHandle.isEmpty ? '@sen' : '@$_userHandle',
+          _userHandle.isEmpty ? '@${'sen'.tr()}' : '@$_userHandle',
           style: GoogleFonts.poppins(
             fontSize: 11,
             fontWeight: FontWeight.w600,
@@ -4231,8 +4231,8 @@ class _ShareModePageState extends State<_ShareModePage> {
     } catch (_) {}
     setState(() => _sharing = true);
     final msg = widget.friendMode
-        ? '${widget.subjectName} · ${widget.topic}\n${widget.correct}/${widget.total} · %${((widget.correct * 100) / (widget.total == 0 ? 1 : widget.total)).round()}\n\nQuAlsar\'da sen de dene: https://qualsar.app'
-        : 'QuAlsar ile çözdüğüm test — sen de dene: https://qualsar.app';
+        ? '${widget.subjectName} · ${widget.topic}\n${widget.correct}/${widget.total} · %${((widget.correct * 100) / (widget.total == 0 ? 1 : widget.total)).round()}\n\n${'QuAlsar\'da sen de dene:'.tr()} https://qualsar.app'
+        : '${'QuAlsar ile çözdüğüm test — sen de dene:'.tr()} https://qualsar.app';
     // Tüm yollar başarısız olursa kullanıcı en azından metni panodan
     // alabilsin — son çare clipboard fallback.
     bool sheetOpened = false;
@@ -4279,7 +4279,7 @@ class _ShareModePageState extends State<_ShareModePage> {
                   mimeType: 'image/png', name: 'qualsar_test.png')
             ],
             text: msg,
-            subject: 'QuAlsar Test Sonucu',
+            subject: 'QuAlsar Test Sonucu'.tr(),
             sharePositionOrigin: origin,
           );
           sheetOpened = true;

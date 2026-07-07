@@ -435,7 +435,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
       unawaited(ActivityWriterService.recordPhotoQuestion(subject));
       // "Çalışma Takvimim"e de yaz — ana özellik foto-soru takvimde görünsün.
       unawaited(logActivityEvent(
-        subject: subject.isEmpty ? 'Soru Çözümü' : subject,
+        subject: subject.isEmpty ? 'Soru Çözümü'.tr() : subject,
         topic: _aiTitle.isEmpty ? widget.solutionType : _aiTitle,
         type: 'foto',
       ));
@@ -996,7 +996,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
                         ),
                         icon: Icon(Icons.close_rounded),
                         label: Text(
-                          'İptal',
+                          'İptal'.tr(),
                           style: GoogleFonts.poppins(
                               fontWeight: FontWeight.w700),
                         ),
@@ -1157,7 +1157,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
               SizedBox(width: 6),
               Flexible(
                 child: Text(
-                  'QuAlsar ile saniyeler içinde çözüldü',
+                  'QuAlsar ile saniyeler içinde çözüldü'.tr(),
                   style: GoogleFonts.poppins(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
@@ -1562,7 +1562,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
     } catch (e, st) {
       debugPrint('[AiResultScreen] image share error: $e\n$st');
       if (mounted) {
-        _showSnack('Görsel paylaşılamadı: ${e.toString().replaceAll('\n', ' ')}');
+        _showSnack('${'Görsel paylaşılamadı'.tr()}: ${e.toString().replaceAll('\n', ' ')}');
       }
     } finally {
       if (mounted) setState(() => _sharing = false);
@@ -1723,7 +1723,7 @@ class _AiResultScreenState extends State<AiResultScreen> {
               SizedBox(height: 5),
               Center(
                 child: Text(
-                  'Geri bildirimin sistemi daha iyi hale getirecek.',
+                  'Geri bildirimin sistemi daha iyi hale getirecek.'.tr(),
                   style: TextStyle(
                     color: Colors.black.withValues(alpha: 0.55),
                     fontSize: 12,
