@@ -829,7 +829,19 @@ class _StudentsViewState extends State<_StudentsView> {
           ),
           const SizedBox(height: 12),
           // Donuk sütunlu tablo: # + isim sabit, kalan sütunlar kayar.
-          _excelTable(context, rows),
+          // Öğrenci hücresinde profil FOTOĞRAFI + kullanıcı adı gösterebilmek
+          // için canlı öğrenci profillerini dinleyip uid→öğrenci haritası
+          // olarak tabloya geçiriyoruz (özet satırında avatar alanı yok).
+          StreamBuilder<List<ClassStudent>>(
+            stream: ClassService.studentsWithProfilesStream(widget.cls.id),
+            builder: (context, snap) {
+              final byUid = <String, ClassStudent>{
+                for (final s in (snap.data ?? const <ClassStudent>[]))
+                  s.uid: s,
+              };
+              return _excelTable(context, rows, byUid);
+            },
+          ),
         ],
       ),
     );
@@ -838,10 +850,75 @@ class _StudentsViewState extends State<_StudentsView> {
   static const double _rowH = 46;
   static const double _headH = 42;
 
+  /// Özet tablosundaki öğrenci hücresi — profil fotoğrafı + ad +
+  /// (varsa) @kullanıcıadı. [s] canlı profil haritasından gelir; öğrenci
+  /// artık sınıfta yoksa null olur, o zaman yalnız ad metni basılır.
+  Widget _studentNameCell(
+      BuildContext context, StudentGradeSummary row, ClassStudent? s) {
+    final ink = AppPalette.textPrimary(context);
+    final muted = AppPalette.textSecondary(context);
+    final name = row.name.trim().isEmpty ? 'Öğrenci'.tr() : row.name;
+    final username = s?.username.trim() ?? '';
+    return InkWell(
+      onTap: () => _openStudentReport(row),
+      child: SizedBox(
+        height: _rowH,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: Row(
+            children: [
+              if (s != null) ...[
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFF7C3AED).withValues(alpha: 0.10),
+                  ),
+                  alignment: Alignment.center,
+                  clipBehavior: Clip.antiAlias,
+                  child: _studentAvatar(s, size: 28),
+                ),
+                const SizedBox(width: 6),
+              ],
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: ink,
+                          height: 1.15,
+                        )),
+                    if (username.isNotEmpty)
+                      Text('@$username',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                            fontSize: 8.5,
+                            color: muted,
+                            height: 1.1,
+                          )),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   /// Donuk-sütunlu özet tablosu: SOL (# + Öğrenci) sabit; SAĞ (Soru/Doğru/
   /// Yanlış/Boş/Başarı) yatay kaydırılabilir. Dikey kaydırma ikisini birlikte
   /// taşır (ortak satır yükseklikleri sayesinde hizalı kalır).
-  Widget _excelTable(BuildContext context, List<StudentGradeSummary> rows) {
+  Widget _excelTable(BuildContext context, List<StudentGradeSummary> rows,
+      [Map<String, ClassStudent> byUid = const {}]) {
     const green = Color(0xFF10B981);
     const red = Color(0xFFEF4444);
     const gray = Color(0xFF94A3B8);
@@ -886,8 +963,7 @@ class _StudentsViewState extends State<_StudentsView> {
             _tcell(context, showMedals ? (medals[i] ?? '${i + 1}') : '${i + 1}',
                 AppPalette.textPrimary(context),
                 onTap: () => _openStudentReport(sorted[i])),
-            _tcell(context, sorted[i].name, AppPalette.textPrimary(context),
-                left: true, onTap: () => _openStudentReport(sorted[i])),
+            _studentNameCell(context, sorted[i], byUid[sorted[i].uid]),
           ]),
       ],
     );
@@ -1267,17 +1343,21 @@ class _StudentsViewState extends State<_StudentsView> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(s.displayLabel,
+                        Text(
+                            s.displayLabel.trim().isEmpty
+                                ? 'Öğrenci'.tr()
+                                : s.displayLabel,
                             style: GoogleFonts.poppins(
                               fontSize: 12.5, fontWeight: FontWeight.w700,
                               color: ink,
                             ),
                             maxLines: 1, overflow: TextOverflow.ellipsis),
-                        Text('@${s.username}',
-                            style: GoogleFonts.poppins(
-                              fontSize: 10, color: muted,
-                            ),
-                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                        if (s.username.trim().isNotEmpty)
+                          Text('@${s.username}',
+                              style: GoogleFonts.poppins(
+                                fontSize: 10, color: muted,
+                              ),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
                       ],
                     ),
                   ),
@@ -1376,8 +1456,12 @@ class _StudentsViewState extends State<_StudentsView> {
                   child: _studentAvatar(s),
                 ),
                 const SizedBox(height: 6),
+                // Ad/kullanıcı adı boş kalan kayıt (profilini doldurmamış
+                // öğrenci) "@" olarak görünmesin — anlamlı fallback.
                 Text(
-                  s.displayLabel,
+                  s.displayLabel.trim().isEmpty
+                      ? 'Öğrenci'.tr()
+                      : s.displayLabel,
                   textAlign: TextAlign.center,
                   style: GoogleFonts.poppins(
                     fontSize: 11.5, fontWeight: FontWeight.w700,
@@ -1385,12 +1469,13 @@ class _StudentsViewState extends State<_StudentsView> {
                   ),
                   maxLines: 1, overflow: TextOverflow.ellipsis,
                 ),
-                Text('@${s.username}',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.poppins(
-                      fontSize: 9.5, color: muted,
-                    ),
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                if (s.username.trim().isNotEmpty)
+                  Text('@${s.username}',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 9.5, color: muted,
+                      ),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
                 // Profildeki sınıf seviyesi + ülke — varsa göster.
                 if (s.grade.trim().isNotEmpty ||
                     s.country.trim().isNotEmpty) ...[
@@ -1418,24 +1503,54 @@ class _StudentsViewState extends State<_StudentsView> {
     );
   }
 
-  /// Öğrenci avatarı: profil FOTOĞRAFI (base64) varsa onu, yoksa emojiyi
-  /// gösterir — öğretmen öğrenciyi profilindeki haliyle görsün.
-  Widget _studentAvatar(ClassStudent s) {
+  /// Öğrenci avatarı — öncelik: profil FOTOĞRAFI (base64) → http foto →
+  /// emoji → isim baş harfi. URL asla düz metin basılmaz (eskiden Google
+  /// fotoğraflı öğrencinin dairesinde "htt…" yazısı görünüyordu).
+  Widget _studentAvatar(ClassStudent s, {double size = 40}) {
+    Widget fallback() {
+      final a = s.avatar.trim();
+      final isEmoji = a.isNotEmpty && !a.startsWith('http') && a.length <= 4;
+      if (isEmoji) return Text(a, style: TextStyle(fontSize: size * 0.52));
+      final src = s.displayLabel.trim().isNotEmpty
+          ? s.displayLabel.trim()
+          : s.username.trim();
+      if (src.isEmpty) {
+        return Icon(Icons.person_rounded,
+            size: size * 0.55, color: const Color(0xFF7C3AED));
+      }
+      return Text(
+        src[0].toUpperCase(),
+        style: GoogleFonts.poppins(
+          fontSize: size * 0.42,
+          fontWeight: FontWeight.w800,
+          color: const Color(0xFF7C3AED),
+        ),
+      );
+    }
+
     final data = s.avatarData.trim();
     if (data.isNotEmpty) {
       try {
         final raw = data.contains(',') ? data.split(',').last : data;
         return Image.memory(
           base64Decode(raw),
-          width: 40,
-          height: 40,
+          width: size,
+          height: size,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) =>
-              Text(s.avatar, style: const TextStyle(fontSize: 21)),
+          errorBuilder: (_, __, ___) => fallback(),
         );
-      } catch (_) {/* bozuk base64 → emojiye düş */}
+      } catch (_) {/* bozuk base64 → fallback */}
     }
-    return Text(s.avatar, style: const TextStyle(fontSize: 21));
+    if (s.avatar.trim().startsWith('http')) {
+      return Image.network(
+        s.avatar.trim(),
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => fallback(),
+      );
+    }
+    return fallback();
   }
 
   /// Öğretmen bir öğrenciye uzun basınca: sınıftaki görünen adını (gerçek ad
@@ -1500,8 +1615,8 @@ class _StudentsViewState extends State<_StudentsView> {
                           color: const Color(0xFF7C3AED).withValues(alpha: 0.10),
                         ),
                         alignment: Alignment.center,
-                        child: Text(s.avatar,
-                            style: const TextStyle(fontSize: 22)),
+                        clipBehavior: Clip.antiAlias,
+                        child: _studentAvatar(s),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -1513,10 +1628,11 @@ class _StudentsViewState extends State<_StudentsView> {
                                   fontSize: 16, fontWeight: FontWeight.w800,
                                   color: ink,
                                 )),
-                            Text('@${s.username}',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 12, color: muted,
-                                )),
+                            if (s.username.trim().isNotEmpty)
+                              Text('@${s.username}',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12, color: muted,
+                                  )),
                           ],
                         ),
                       ),

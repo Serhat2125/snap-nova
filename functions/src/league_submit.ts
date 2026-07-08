@@ -138,7 +138,13 @@ export const submitLeagueAttempt = onCall(
         ? whenMs
         : serverNowMs;
 
-    const scopeWorld = `${level}|${grade}`;
+    // Dünya sıralaması artık TEK küresel havuz — level/grade'e bölünmez.
+    // Aynı testi (aynı modeKey + takvim kovası) çözen herkes, onboarding
+    // profili ne olursa olsun aynı Dünya tablosunda görünür. Sınav modunda
+    // seçilen içerik (LGS/TYT vb.) profil grade'inden bağımsız olduğundan,
+    // grade'e bölmek aynı testi çözenleri bile ayırıyordu. Sınıf-bazlı adil
+    // sıralama Şehir/Ülke sekmelerinde korunur (scopeCity/scopeCountry).
+    const scopeWorld = "world";
     const scopeCountry = `${countryCode}|${level}|${grade}`;
     const scopeCity =
       cityCode.length === 0 ? "" : `${countryCode}|${cityCode}|${level}|${grade}`;

@@ -1123,3 +1123,46 @@ List<ExamGroup>? examGroupsFor(String? countryCode) {
   final cc = (countryCode ?? '').toUpperCase();
   return kExamCatalog[cc];
 }
+
+// ── Sınav Modu ↔ eğitim profili puan birleştirme ────────────────────────────
+// Kullanıcının eğitim profili "sınava hazırlık" (level=exam_prep) ve grade'i
+// bu katalog sınavına denk geliyorsa, Sınav Modu puanları üst sekmedeki
+// derslerle AYNI havuzda toplanır (bilgi_ligi_screen._startExamModeQuiz).
+
+/// exam_prep profil grade'i (örn. 'yks_tyt', 'lgs', 'kpss') bu katalog
+/// sınavıyla aynı sınav mı? Grade token'ları ile sınav anahtarının kök
+/// parçası karşılaştırılır: 'yks_tyt' ↔ 'tyt', 'kpss' ↔ 'kpss_lisans'.
+/// 'yks' şemsiyesi TYT+AYT+MSÜ'yü kapsar.
+bool examMatchesEduGrade(String eduGrade, ExamDefinition exam) {
+  final tokens = eduGrade
+      .toLowerCase()
+      .split(RegExp(r'[^a-z0-9]+'))
+      .where((t) => t.isNotEmpty)
+      .toSet();
+  if (tokens.isEmpty) return false;
+  final base = exam.key.split('_').first; // 'ayt_sayisal' → 'ayt'
+  if (tokens.contains(base)) return true;
+  if (tokens.contains('yks') && (base == 'tyt' || base == 'ayt' || base == 'msu')) {
+    return true;
+  }
+  return false;
+}
+
+/// Sınav dersi anahtarı → müfredat (education_profile._allSubjects) ders
+/// anahtarı — YALNIZCA birebir karşılığı olanlar. 'fen'/'sosyal'/
+/// 'genel_yetenek' gibi BİRLEŞİK sınav dersleri bilerek yok: tek müfredat
+/// dersine indirgenemezler, kendi sentetik kategorilerinde kalırlar.
+const Map<String, String> kExamSubjectToCurriculumKey = {
+  'turkce': 'turkish',
+  'matematik': 'math',
+  'fizik': 'physics',
+  'kimya': 'chem',
+  'biyoloji': 'bio',
+  'edebiyat': 'lit',
+  'tarih': 'history',
+  'cografya': 'geo',
+  'felsefe_grubu': 'felsefe',
+  'ingilizce': 'ingilizce',
+  'din': 'din_kultur',
+  'inkilap': 'history',
+};

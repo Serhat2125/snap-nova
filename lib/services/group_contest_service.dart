@@ -393,6 +393,24 @@ class GroupContestService {
     }
   }
 
+  /// Yarışı kullanıcının KENDİ listesinden kaldırır — yalnız kendi
+  /// participant kaydı silinir. Yarışma dokümanı ve diğer üyelerin
+  /// katılımları AYNEN kalır (grup silme değildir).
+  static Future<void> leaveContest(String contestId) async {
+    final uid = _uid;
+    if (uid == null) return;
+    try {
+      await _fs
+          .collection(_collection)
+          .doc(contestId)
+          .collection('participants')
+          .doc(uid)
+          .delete();
+    } catch (e) {
+      debugPrint('[GroupContest] leaveContest fail: $e');
+    }
+  }
+
   /// Katılımcı/sıralama akışı — skor desc, süre asc.
   static Stream<List<GroupParticipant>> participantsStream(
       String contestId) {
@@ -415,29 +433,45 @@ class GroupContestService {
     });
   }
 
-  /// Mevcut kullanıcının katıldığı, süresi geçmemiş yarışmalar.
+  /// Mevcut kullanıcının katıldığı, süresi geçmemiş GRUP yarışmaları.
+  ///
+  /// • Yarışma dokümanları PARALEL çekilir — eskiden sıralı `await` zinciri
+  ///   N yarışta N tur ağ beklemesi yapıyordu; sekme uzun süre boş kalıyordu.
+  /// • Yalnız groupId'si DOLU yarışmalar döner: 1v1 / grupsuz yarışlar
+  ///   "Arkadaşımla Yarışlarım" tarafında kalır, bu sekmeye karışmaz.
   static Stream<List<GroupContest>> myContestsStream() {
     final uid = _uid;
     if (uid == null) {
       return const Stream<List<GroupContest>>.empty();
     }
+    Future<DocumentSnapshot<Map<String, dynamic>>?> safeGet(
+        DocumentReference<Map<String, dynamic>> ref) async {
+      try {
+        return await ref.get();
+      } catch (_) {
+        return null;
+      }
+    }
+
     // collectionGroup ile katıldıklarımı bul → parent contest'leri çek.
     return _fs
         .collectionGroup('participants')
         .where('uid', isEqualTo: uid)
         .snapshots()
         .asyncMap((snap) async {
-      final out = <GroupContest>[];
+      final parents = <DocumentReference<Map<String, dynamic>>>{};
       for (final d in snap.docs) {
-        final parent = d.reference.parent.parent;
-        if (parent == null) continue;
-        try {
-          final c = await parent.get();
-          if (!c.exists) continue;
-          final contest =
-              GroupContest.fromDoc(c.id, c.data() ?? const {});
-          if (!contest.isExpired) out.add(contest);
-        } catch (_) {}
+        final p = d.reference.parent.parent;
+        if (p != null) parents.add(p);
+      }
+      final docs = await Future.wait(parents.map(safeGet));
+      final out = <GroupContest>[];
+      for (final c in docs) {
+        if (c == null || !c.exists) continue;
+        final contest = GroupContest.fromDoc(c.id, c.data() ?? const {});
+        if (contest.groupId.isEmpty) continue; // 1v1/grupsuz → bu sekmede yok
+        if (contest.isExpired) continue;
+        out.add(contest);
       }
       out.sort((a, b) => (b.createdAt ?? DateTime(0))
           .compareTo(a.createdAt ?? DateTime(0)));

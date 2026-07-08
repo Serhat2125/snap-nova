@@ -44,6 +44,13 @@ class BilgiLigiQuizScreen extends StatefulWidget {
   /// Şık sayısı — gerçek sınav formatına göre (ör. LGS 4, TYT/AYT/DGS/KPSS
   /// 5). Sınav modu dışında (normal müfredat testi) varsayılan 4.
   final int optionCount;
+  /// PUANIN yazılacağı ders anahtarı [subjectKey]'den farklıysa (profil
+  /// sınavı = Sınav Modu sınavı → müfredat dersiyle tek havuz) burada gelir.
+  /// Tekrar-çözme (replay) kontrolü de bu anahtara bakar — yerel deneme
+  /// kayıtları bu anahtar altında tutulur.
+  final String? scoreSubjectKey;
+  /// Testteki soru sayısı — yarış öncesi panelden seçilir (5/10/15/20).
+  final int questionCount;
 
   const BilgiLigiQuizScreen({
     super.key,
@@ -55,6 +62,8 @@ class BilgiLigiQuizScreen extends StatefulWidget {
     this.period = LeaguePeriod.weekly,
     this.examLabel,
     this.optionCount = 4,
+    this.scoreSubjectKey,
+    this.questionCount = 10,
   });
 
   @override
@@ -223,27 +232,41 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
       if (seed != null) {
         try {
           final replays = await LeagueScores.attemptsInBucket(
-            subjectKey: widget.subjectKey,
+            // Puan havuzu birleştirilmişse yerel kayıtlar scoreSubjectKey
+            // altında — replay kontrolü de aynı anahtara bakmalı, yoksa
+            // deterministik seed tekrar kullanılıp aynı sorular gelirdi.
+            subjectKey: widget.scoreSubjectKey ?? widget.subjectKey,
             topic: widget.topic,
             period: widget.period,
           );
           if (replays > 0) seed = null;
         } catch (_) {/* yerel okuma hatası → seed'li devam, kritik değil */}
       }
+      // Kullanıcının bu havuzda daha önce GÖRDÜĞÜ sorular hariç tutulur —
+      // replay'de (seed=null) aynı soruların tekrar gelmemesi için. Kova
+      // ilk denemesi (deterministik seed) herkes için ortak set olduğundan
+      // orada eleme yapılmaz.
+      Set<String> served = const {};
+      if (seed == null) {
+        try {
+          served = await QuizPoolService.servedHashes(key);
+        } catch (_) {/* okunamazsa elemesiz devam */}
+      }
       List<Map<String, dynamic>> raw = await QuizPoolService.fetchPoolQuestions(
         key: key,
-        count: 10,
+        count: widget.questionCount,
         seed: seed,
+        exclude: served.isEmpty ? null : served,
       );
 
-      // 2) Havuz boş veya yetersiz → Gemini'den üret + (cap altındaysa) havuza
-      //    ekle. Çift AI doğrulama default açık.
-      if (raw.length < 10) {
+      // 2) Havuz boş veya yetersiz (görülmemiş soru kalmadıysa da buraya
+      //    düşer) → Gemini'den TAZE üret + (cap altındaysa) havuza ekle.
+      if (raw.length < widget.questionCount) {
         final fresh = await GeminiService.generateLeagueQuiz(
           profile: widget.profile,
           subjectName: widget.subjectName,
           topic: widget.topic,
-          count: 10,
+          count: widget.questionCount,
           // Doğrulama (ikinci AI geçişi) kapalı: tek üretim çağrısı yeterli;
           // çift geçiş süreyi ~ikiye katlıyor ve "test hazırlanamadı" timeout'a
           // yol açıyordu. Üretim zinciri Gemini → ChatGPT → Grok ile failover'lı.
@@ -275,6 +298,10 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
         return;
       }
       if (!mounted) return;
+      // Sorular kullanıcıya GERÇEKTEN gösterilecek — sunulmuş olarak işaretle
+      // ki aynı konudan bir sonraki testte tekrar gelmesinler. (Parse-fail /
+      // erken çıkış yollarında işaretlenmez; görülmemiş soru yakılmaz.)
+      unawaited(QuizPoolService.markServed(key, raw));
       setState(() {
         _questions = qs;
         _loading = false;

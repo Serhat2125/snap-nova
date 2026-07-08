@@ -452,6 +452,9 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen>
       final choices = ((q['choices'] as List?) ?? const [])
           .map((c) => c.toString()).toList();
       return Column(
+        // Şıklar TAM genişlik ve sola hizalı — stretch olmadan her şık
+        // içeriği kadar genişleyip ortalanıyor, merdiven gibi görünüyordu.
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: choices.map((c) {
           final letter = c.isNotEmpty ? c[0].toUpperCase() : '?';
           final sel = _answers[index] == letter;

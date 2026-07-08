@@ -1,4 +1,4 @@
-// ═══════════════════════════════════════════════════════════════════════════════
+﻿// ═══════════════════════════════════════════════════════════════════════════════
 //  BİLGİ LİGİ
 //
 //  3 katmanlı sıralama deneyimi:
@@ -18,6 +18,7 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -26,6 +27,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../features/leaderboard/domain/user_location.dart';
+import '../features/league/league_demo_students.dart';
 import '../features/league/league_leaderboard_service.dart';
 import '../features/league/league_location_picker.dart';
 import '../features/league/league_scores.dart';
@@ -145,6 +147,7 @@ extension _PeriodLabel on LeaguePeriod {
 // ── Mock liderlik üretici ───────────────────────────────────────────────────
 class _LbEntry {
   final int rank;
+  final String uid;
   final String name;
   final String avatar;
   final String location;
@@ -152,6 +155,7 @@ class _LbEntry {
   final bool isMe;
   const _LbEntry({
     required this.rank,
+    this.uid = '',
     required this.name,
     required this.avatar,
     required this.location,
@@ -486,328 +490,7 @@ class _HowStepCard extends StatelessWidget {
   }
 }
 
-// ─── Yakın rakip satırı (1 üst / 1 alt motivasyon kartı içinde) ──────────────
-enum _RivalDir { above, below }
 
-class _RivalRow extends StatelessWidget {
-  final _RivalDir direction;
-  final _LbEntry entry;
-  final double diff;
-  const _RivalRow({
-    required this.direction,
-    required this.entry,
-    required this.diff,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isAbove = direction == _RivalDir.above;
-    final color = isAbove ? const Color(0xFFEF4444) : const Color(0xFF10B981);
-    final arrow = isAbove
-        ? Icons.arrow_upward_rounded
-        : Icons.arrow_downward_rounded;
-    final absDiff = diff.abs();
-    final diffStr = absDiff == absDiff.truncateToDouble()
-        ? absDiff.toInt().toString()
-        : absDiff.toStringAsFixed(1);
-    final message = isAbove
-        ? '$diffStr ${"puan geride · geçmek için bir test daha".tr()}'
-        : '$diffStr ${"puan önde · arayı koruyabilirsin".tr()}';
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.30)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 26,
-            height: 26,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color.withValues(alpha: 0.15),
-            ),
-            child: Icon(arrow, size: 14, color: color),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            entry.avatar.isEmpty ? '👤' : entry.avatar,
-            style: const TextStyle(fontSize: 16),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  entry.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: AppPalette.textPrimary(context),
-                  ),
-                ),
-                Text(
-                  message,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: color,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Text(
-            entry.score.toStringAsFixed(0),
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-              color: AppPalette.textPrimary(context),
-              letterSpacing: -0.2,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Top 3 podyum widget'ı ───────────────────────────────────────────────────
-// Liderlik tablosunun üst kısmında — altın/gümüş/bronz görsel kart.
-// İlk 3 kullanıcı için podium şeklinde dizilir (1. ortada en yüksek, 2. solda,
-// 3. sağda). Kullanıcı kendisi top 3'teyse altın çerçeve highlight'ı alır.
-class _LeaderboardPodium extends StatelessWidget {
-  final List<_LbEntry> top3;
-  const _LeaderboardPodium({required this.top3});
-
-  @override
-  Widget build(BuildContext context) {
-    if (top3.isEmpty) return const SizedBox.shrink();
-    // Sıralama: 2 (sol kısa) — 1 (orta uzun) — 3 (sağ orta)
-    final p1 = top3.isNotEmpty ? top3[0] : null;
-    final p2 = top3.length > 1 ? top3[1] : null;
-    final p3 = top3.length > 2 ? top3[2] : null;
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 14, 12, 16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            const Color(0xFFFFF7E6),
-            const Color(0xFFFFE4D2),
-          ],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
-        border: Border(
-          bottom: BorderSide(color: AppPalette.border(context), width: 1),
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Expanded(child: _PodiumColumn(entry: p2, place: 2)),
-          Expanded(child: _PodiumColumn(entry: p1, place: 1)),
-          Expanded(child: _PodiumColumn(entry: p3, place: 3)),
-        ],
-      ),
-    );
-  }
-}
-
-class _PodiumColumn extends StatelessWidget {
-  final _LbEntry? entry;
-  final int place; // 1, 2, 3
-  const _PodiumColumn({required this.entry, required this.place});
-
-  @override
-  Widget build(BuildContext context) {
-    final e = entry;
-    final isFirst = place == 1;
-    final medalColor = switch (place) {
-      1 => const Color(0xFFFFB300), // altın
-      2 => const Color(0xFFB0B7BF), // gümüş
-      _ => const Color(0xFFCD7F32), // bronz
-    };
-    final medalIcon = switch (place) {
-      1 => '🥇',
-      2 => '🥈',
-      _ => '🥉',
-    };
-    final pedestalHeight = switch (place) {
-      1 => 56.0,
-      2 => 38.0,
-      _ => 28.0,
-    };
-    final avatarSize = isFirst ? 48.0 : 40.0;
-    final isMe = e?.isMe ?? false;
-
-    if (e == null) {
-      // Boş slot — siluet
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: avatarSize,
-            height: avatarSize,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppPalette.cardMuted(context),
-            ),
-            alignment: Alignment.center,
-            child: Text(medalIcon, style: const TextStyle(fontSize: 20)),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '—',
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: AppPalette.textSecondary(context),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Container(
-            height: pedestalHeight,
-            margin: const EdgeInsets.only(top: 4),
-            decoration: BoxDecoration(
-              color: medalColor.withValues(alpha: 0.18),
-              borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(8)),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              '$place',
-              style: GoogleFonts.fraunces(
-                fontSize: isFirst ? 22 : 18,
-                fontWeight: FontWeight.w900,
-                color: medalColor,
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.center,
-          children: [
-            Container(
-              width: avatarSize,
-              height: avatarSize,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white,
-                border: Border.all(
-                  color: isMe ? const Color(0xFFFF6A00) : medalColor,
-                  width: isFirst ? 3 : 2.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: medalColor.withValues(alpha: 0.35),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                e.avatar.isEmpty ? '👤' : e.avatar,
-                style: TextStyle(fontSize: isFirst ? 22 : 18),
-              ),
-            ),
-            Positioned(
-              top: -8,
-              child: Text(medalIcon,
-                  style: TextStyle(fontSize: isFirst ? 22 : 18)),
-            ),
-            if (isMe)
-              Positioned(
-                bottom: -4,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 5, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFF6A00),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    'SEN'.tr(),
-                    style: GoogleFonts.inter(
-                      fontSize: 8,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          e.name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-          style: GoogleFonts.inter(
-            fontSize: isFirst ? 12 : 11,
-            fontWeight: FontWeight.w800,
-            color: const Color(0xFF111111),
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          e.score.toStringAsFixed(0),
-          style: GoogleFonts.fraunces(
-            fontSize: isFirst ? 14 : 12,
-            fontWeight: FontWeight.w800,
-            color: medalColor,
-          ),
-        ),
-        Container(
-          height: pedestalHeight,
-          margin: const EdgeInsets.only(top: 4),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                medalColor.withValues(alpha: 0.85),
-                medalColor.withValues(alpha: 0.55),
-              ],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-            ),
-            borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(8)),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            '$place',
-            style: GoogleFonts.fraunces(
-              fontSize: isFirst ? 24 : 18,
-              fontWeight: FontWeight.w900,
-              color: Colors.white,
-              letterSpacing: -0.5,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
 
 /// Pinned sliver delegate — `CustomScrollView` içinde sticky filter bar ve
 /// sticky kolon başlığı için. Background renk page bg ile aynı tutulur ki
@@ -853,9 +536,9 @@ class _PinnedDelegate extends SliverPersistentHeaderDelegate {
       old.child != child;
 }
 
-/// "Senin Sıran" kartı — her zaman üstte görünür. Listede (top 50) varsa
-/// `rank` değerini, yoksa `cloudRankFuture`'dan gelen değeri kullanır
-/// (cloud query top 200'e kadar arar). Hiçbiri yoksa "—".
+/// "Senin Sıran" kartı — her zaman üstte görünür. Görünür listede (top 20)
+/// varsa pozisyonel `rank` değerini, yoksa `cloudRankFuture`'dan gelen
+/// kesin (aggregate count, demo-düzeltmeli) değeri kullanır. Hiçbiri yoksa "—".
 class _MyRankCard extends StatelessWidget {
   final int? rank;
   final Future<int?>? cloudRankFuture;
@@ -865,6 +548,9 @@ class _MyRankCard extends StatelessWidget {
   final bool hideLocation;
   /// Üst üste quiz çözülen gün sayısı. 0 ise rozet hiç gösterilmez.
   final int streakDays;
+  /// Profil ekranında seçilen fotoğraf (prefs `profile_image`). Varsa solda
+  /// yeşil çerçeveli daire içinde gösterilir; yoksa kişi ikonu fallback.
+  final String? profileImagePath;
   const _MyRankCard({
     required this.rank,
     required this.cloudRankFuture,
@@ -873,6 +559,7 @@ class _MyRankCard extends StatelessWidget {
     required this.location,
     this.hideLocation = false,
     this.streakDays = 0,
+    this.profileImagePath,
   });
 
   String _fmtScore(double n) {
@@ -892,13 +579,19 @@ class _MyRankCard extends StatelessWidget {
   Widget build(BuildContext context) {
     // "Senin Sıran" kartı yeşil tema (kullanıcı talebi).
     const green = Color(0xFF16A34A);
-    Widget rankBadge(int? r) {
-      final label = r == null ? '—' : '#$r';
+
+    // Solda profil FOTOĞRAFI (yeşil halkalı daire); fotoğraf seçilmemişse
+    // kişi ikonu fallback. Eski yeşil "—" dairesinin yerini aldı.
+    Widget avatarCircle() {
+      final path = (profileImagePath ?? '').trim();
+      final file = path.isEmpty ? null : File(path);
+      final hasPhoto = file != null && file.existsSync();
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        width: 52,
+        height: 52,
         decoration: BoxDecoration(
-          color: green,
-          borderRadius: BorderRadius.circular(999),
+          shape: BoxShape.circle,
+          border: Border.all(color: green, width: 2.2),
           boxShadow: [
             BoxShadow(
               color: green.withValues(alpha: 0.30),
@@ -906,14 +599,33 @@ class _MyRankCard extends StatelessWidget {
               offset: const Offset(0, 3),
             ),
           ],
+          image: hasPhoto
+              ? DecorationImage(image: FileImage(file), fit: BoxFit.cover)
+              : null,
+          color: hasPhoto ? null : green.withValues(alpha: 0.12),
+        ),
+        child: hasPhoto
+            ? null
+            : const Icon(Icons.person_rounded, color: green, size: 28),
+      );
+    }
+
+    // Sıra rozeti — "SENİN SIRAN" satırının yanında her zaman görünür.
+    Widget rankPill(int? r) {
+      final label = r == null ? '#—' : '#$r';
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: green,
+          borderRadius: BorderRadius.circular(999),
         ),
         child: Text(
           label,
           style: GoogleFonts.inter(
-            fontSize: 18,
+            fontSize: 11,
             fontWeight: FontWeight.w900,
             color: Colors.white,
-            letterSpacing: -0.3,
+            letterSpacing: -0.2,
           ),
         ),
       );
@@ -936,7 +648,7 @@ class _MyRankCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
           children: [
-            rankBadge(resolvedRank),
+            avatarCircle(),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -954,6 +666,8 @@ class _MyRankCard extends StatelessWidget {
                           letterSpacing: 0.6,
                         ),
                       ),
+                      const SizedBox(width: 6),
+                      rankPill(resolvedRank),
                       if (streakDays > 0) ...[
                         const SizedBox(width: 6),
                         Container(
@@ -1083,9 +797,19 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
   Future<List<LeagueLeaderRow>>? _leaderboardFuture;
   StreamSubscription<List<LeagueLeaderRow>>? _leaderboardSub;
 
-  // Kullanıcının kendi sıra pozisyonu — top-50 dışına düşerse sticky bar'da
-  // gösterilir. Leaderboard refresh ile birlikte tazelenir.
+  // Kullanıcının kendi sıra pozisyonu — top-20 dışına düşerse listenin
+  // altındaki "⋮ + komşular" bölümünde gösterilir. Leaderboard refresh ile
+  // birlikte tazelenir.
   Future<int?>? _myRankFuture;
+
+  // Kullanıcının 2 üstü + kendisi + 2 altı — top-20'de değilse listenin
+  // sonuna "⋮" ayracıyla eklenir. Filtre değişince yeniden çekilir.
+  Future<
+      ({
+        List<LeagueLeaderRow> above,
+        LeagueLeaderRow me,
+        List<LeagueLeaderRow> below,
+      })?>? _neighborsFuture;
 
   // Anonim mod toggle — leaderboard'da gerçek isim yerine "Öğrenci #abc12"
   // maskesi gösterilir. SharedPreferences'tan yüklenir, profilden değişir.
@@ -1096,6 +820,10 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
   /// ör. "Ali Yılmaz"). Leaderboard'da kullanıcı kendi satırında bu adı
   /// görür; cloud'a yazılan submission da öncelikle bu değeri kullanır.
   String _profileName = '';
+
+  /// Profil fotoğrafı dosya yolu (prefs `profile_image`) — "Senin Sıran"
+  /// kartının solundaki dairede gösterilir.
+  String? _profileImagePath;
 
   /// Filtre çerçevesinin (gri container) global pozisyonu — tüm anchored
   /// popup'lar bu çerçevenin tam altına yerleştirilir.
@@ -1136,6 +864,8 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
       final prefs = await SharedPreferences.getInstance();
       _anonymousMode = prefs.getBool(_kAnonModeKey) ?? false;
       _profileName = (prefs.getString('profile_name') ?? '').trim();
+      // Profil fotoğrafı — "Senin Sıran" kartında gösterilir.
+      _profileImagePath = prefs.getString('profile_image');
     } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'bilgi_ligi_screen'); }
     try {
       prof = await EduProfile.load();
@@ -1261,17 +991,50 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
     _refreshDebounce = Timer(const Duration(milliseconds: 250), _doRefresh);
   }
 
+  /// Sorgularda kullanılan ETKİN konum. Kullanıcı konum seçmemişse skor
+  /// gönderimindeki GLOBAL-FIRST güvenlik ağıyla (LeagueScores.add) birebir
+  /// AYNI fallback uygulanır: ülke kodu EduProfile.country'den türetilir,
+  /// şehir boş kalır. Böylece konum seçmemiş kullanıcının buluta yazılmış
+  /// puanları ülke/dünya görünümünde SIRASI ve SATIRIYLA görünür — eskiden
+  /// UI hiç sorgu atmıyordu: kart puanı gösterirken sıra "—" kalıyor,
+  /// kullanıcı listede hiç çıkmıyordu.
+  UserLocation? get _effectiveLocation {
+    if (_location != null) return _location;
+    // Gönderim tarafıyla AYNI formül — LeagueScores.effectiveCountryCode.
+    final cc = LeagueScores.effectiveCountryCode(_profile, null);
+    if (cc.isEmpty) return null;
+    // Görünen ad: kAllCountries'teki yerel (native) ad — etikette ham "TR"
+    // kodu değil "Türkiye" görünsün. Bulunamazsa kod gösterilir.
+    String display = cc;
+    final lc = cc.toLowerCase() == 'gb' ? 'uk' : cc.toLowerCase();
+    for (final c in kAllCountries) {
+      if (c.key == lc) {
+        display = c.name;
+        break;
+      }
+    }
+    return UserLocation(
+      country: display,
+      countryCode: cc,
+      city: '',
+      cityCode: '',
+    );
+  }
+
   void _doRefresh() {
     // Önceki stream subscription'ı iptal et — filtre değişince eski abonelik
     // gereksiz yere setState tetiklemesin.
     _leaderboardSub?.cancel();
     _leaderboardSub = null;
 
-    if (_profile == null || _location == null) {
+    if (_profile == null || _effectiveLocation == null) {
       if (!mounted) return;
       setState(() {
-        _leaderboardFuture = Future.value(const []);
+        // Profil/konum yokken bile demo öğrenciler görünsün (Dünya kapsamı
+        // ikisine de ihtiyaç duymaz) — kapalı testte liste asla boş kalmasın.
+        _leaderboardFuture = Future.value(_mergeWithDemo(const []));
         _myRankFuture = Future.value(null);
+        _neighborsFuture = Future.value(null);
       });
       return;
     }
@@ -1279,20 +1042,23 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
     // listeyle yenile → tüm FutureBuilder'lar otomatik rebuild olur.
     final stream = LeagueLeaderboardService.watch(
       profile: _profile!,
-      location: _location!,
+      location: _effectiveLocation!,
       scope: _serviceScope,
       mode: _serviceMode,
       period: _period,
       subjectKey: _mode == _Mode.overall ? null : _subject?.key,
       topic: _mode == _Mode.overall ? null : _topic,
-      limit: 50,
+      limit: 20,
     );
     if (!mounted) return;
     setState(() {
-      _leaderboardFuture = Future.value(const []);
-      _myRankFuture = LeagueLeaderboardService.myRank(
+      // Gerçek satırlar gelene kadar demo öğrenciler görünsün — kapalı
+      // testte liste hiçbir an boş kalmaz.
+      _leaderboardFuture = Future.value(_mergeWithDemo(const []));
+      _myRankFuture = _demoAdjustedRank();
+      _neighborsFuture = LeagueLeaderboardService.fetchNeighbors(
         profile: _profile!,
-        location: _location!,
+        location: _effectiveLocation!,
         scope: _serviceScope,
         mode: _serviceMode,
         period: _period,
@@ -1303,11 +1069,91 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
     _leaderboardSub = stream.listen((rows) {
       if (!mounted) return;
       setState(() {
-        _leaderboardFuture = Future.value(rows);
+        _leaderboardFuture = Future.value(_mergeWithDemo(rows));
       });
     }, onError: (e) {
       debugPrint('[bilgi_ligi_screen] leaderboard stream error: $e');
     });
+  }
+
+  /// Aktif filtre görünümünün servis mode anahtarı — demo üretici ve
+  /// myCloudTotal ile aynı biçim. Ders modunda ders seçilmemişse null.
+  String? _currentModeKey() {
+    switch (_serviceMode) {
+      case LeagueMode.overall:
+        return 'all';
+      case LeagueMode.subject:
+        final k = _subject?.key;
+        return (k == null || k.isEmpty) ? null : 's:$k';
+      case LeagueMode.topic:
+        final k = _subject?.key;
+        final t = _topic;
+        if (k == null || k.isEmpty || t == null || t.isEmpty) return null;
+        return 't:$k|$t';
+    }
+  }
+
+  /// Bu görünümün demo öğrencileri (kapalı test dolgusu). Kapalıysa boş.
+  /// Profil/konum yüklenmemiş olsa bile Dünya kapsamı demo üretir —
+  /// null guard'lar forView içinde kapsam bazında yapılır.
+  List<LeagueLeaderRow> _demoRowsForView() {
+    if (!LeagueDemoStudents.enabled) return const [];
+    final modeKey = _currentModeKey();
+    if (modeKey == null) return const [];
+    return LeagueDemoStudents.forView(
+      scope: _serviceScope,
+      profile: _profile,
+      location: _effectiveLocation,
+      period: _period,
+      modeKey: modeKey,
+    );
+  }
+
+  /// Gerçek Firestore satırları + demo öğrenciler → puan DESC (eşitlikte
+  /// puan başı süre ASC) birleşik top-20. Test eden gerçek kullanıcılar
+  /// demo öğrencilerin arasında hak ettikleri sırada görünür.
+  List<LeagueLeaderRow> _mergeWithDemo(List<LeagueLeaderRow> real) {
+    final demo = _demoRowsForView();
+    if (demo.isEmpty) return real;
+    final all = [...real, ...demo]..sort((a, b) {
+        final cmp = b.score.compareTo(a.score);
+        if (cmp != 0) return cmp;
+        final aEff =
+            a.score == 0 ? double.infinity : a.durationSec / a.score;
+        final bEff =
+            b.score == 0 ? double.infinity : b.durationSec / b.score;
+        return aEff.compareTo(bEff);
+      });
+    return all.length > 20 ? all.sublist(0, 20) : all;
+  }
+
+  /// Kesin sıra + üstümdeki demo öğrenci sayısı — kullanıcıya gösterilen
+  /// sıra birleşik listeyle tutarlı olsun.
+  Future<int?> _demoAdjustedRank() async {
+    final real = await LeagueLeaderboardService.myRank(
+      profile: _profile!,
+      location: _effectiveLocation!,
+      scope: _serviceScope,
+      mode: _serviceMode,
+      period: _period,
+      subjectKey: _mode == _Mode.overall ? null : _subject?.key,
+      topic: _mode == _Mode.overall ? null : _topic,
+    );
+    if (real == null) return null;
+    final demo = _demoRowsForView();
+    if (demo.isEmpty) return real;
+    final modeKey = _currentModeKey();
+    if (modeKey == null) return real;
+    double myScore = 0;
+    try {
+      final my = await LeagueScores.myCloudTotal(
+        modeKey: modeKey,
+        period: _period,
+      );
+      myScore = my?.score ?? 0;
+    } catch (_) {/* offline → demo düzeltmesi yapılmaz */}
+    if (myScore <= 0) return real;
+    return real + demo.where((d) => d.score > myScore).length;
   }
 
   Future<void> _refreshMySummary() async {
@@ -1432,11 +1278,25 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
               // Kullanıcı satırları aralarında özgürce kayar.
               child: _buildScrollableContent(context, bg, isDark),
             ),
+            // ── EN ALTA SABİT alan — sayfa kaysa bile hep görünür:
+            //    üstte kompakt "Yakın Rakipler" şeridi, altında "Senin
+            //    Sıran" kartı (kullanıcı talebi).
+            _buildBottomPinnedArea(context),
           ],
         ),
       ),
     );
   }
+
+  /// En alta sabitlenen bölge: Senin Sıran kartı (yakın rakip şeridi
+  /// kullanıcı talebiyle kaldırıldı).
+  Widget _buildBottomPinnedArea(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 6, 14, 10),
+      child: _buildMyRankCard(context),
+    );
+  }
+
 
   Widget _buildScrollableContent(
       BuildContext context, Color bg, bool isDark) {
@@ -1449,12 +1309,9 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
       slivers: [
         // ── Hero CTA (scroll'da kaybolur) ─────────────────────────────
         SliverToBoxAdapter(child: _buildHeroCta(context)),
-        // ── Sınav Modu girişi — sadece ülkesi için sınav kataloğu tanımlıysa ──
-        if (examGroupsFor(_profile?.country) != null) ...[
-          const SliverToBoxAdapter(child: SizedBox(height: 10)),
-          SliverToBoxAdapter(child: _buildExamModeCta(context)),
-        ],
-        const SliverToBoxAdapter(child: SizedBox(height: 10)),
+        // ── Sınav Modu girişi hero çerçevesinin İÇİNE taşındı (en altta) —
+        //    bkz. _buildHeroCta. Çerçeveler arası boşluk 6px.
+        const SliverToBoxAdapter(child: SizedBox(height: 6)),
         // ── Pinned filtre çerçevesi ───────────────────────────────────
         SliverPersistentHeader(
           pinned: true,
@@ -1471,15 +1328,8 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
         //     şehrini zaten seçiyor; banner gereksiz yer kaplıyordu.
         // ── "Bu hafta X öğrenci katıldı" sosyal kanıt bar kaldırıldı —
         //     mock veri olmadan boş kalıyordu, kafa karıştırıyordu.
-        // ── MyRank kartı (scroll'da kaybolur) ─────────────────────────
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
-            child: _buildMyRankCard(context),
-          ),
-        ),
-        // ── Yakın rakipler kartı (1 üst + 1 alt + fark mesajı) ────────
-        SliverToBoxAdapter(child: _buildNearbyRivalsCard(context)),
+        // ── MyRank + Yakın Rakipler buradan EN ALTA SABİT alana taşındı
+        //    (sayfa kaysa bile hep görünür) — bkz. _buildBottomPinnedArea.
         // ── Pinned NO/KULLANICI/PUAN sütun başlığı ────────────────────
         SliverPersistentHeader(
           pinned: true,
@@ -1552,25 +1402,139 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
                   height: 1,
                   color: AppPalette.border(context),
                 ),
-                // "İlk sıralamayı sen başlat / Teste Başla" CTA kaldırıldı —
-                // kullanıcı Kütüphanem'den teste girebiliyor; bu sekmede
-                // tekrar gösterilmesine gerek yok.
-                // Podyum (Top 3) — liste boş değilse en üste yerleşir.
-                if (visibleEntries.isNotEmpty)
-                  _LeaderboardPodium(
-                    top3: visibleEntries.take(3).toList(),
-                  ),
-                for (int i = 3; i < visibleEntries.length; i++)
+                // Podyum kaldırıldı — ilk 3 de normal satır; madalya
+                // (🥇🥈🥉) satırın SAĞINDA gösterilir (kullanıcı talebi).
+                for (int i = 0; i < visibleEntries.length; i++)
                   _LeaderboardRow(
                     entry: visibleEntries[i],
                     isLast: i == visibleEntries.length - 1,
                     hideLocation: _scope == _Scope.city,
                   ),
+                // Kullanıcı top-20'de değilse: "⋮" + 2 üst / ben / 2 alt.
+                _buildMyNeighborhood(context, visibleEntries),
               ],
             ),
           ),
         );
       },
+    );
+  }
+
+  /// Top listenin altına eklenen komşu bölümü — kullanıcı görünür listede
+  /// yoksa dikey üç nokta ayracı + kendi sırasının 2 üstü ve 2 altı.
+  /// Kesin sıra `_myRankFuture`'dan (aggregate count), satırlar
+  /// `_neighborsFuture`'dan gelir; ikisi de yoksa hiçbir şey çizilmez.
+  Widget _buildMyNeighborhood(
+      BuildContext context, List<_LbEntry> topEntries) {
+    if (topEntries.any((e) => e.isMe)) return const SizedBox.shrink();
+    return FutureBuilder<int?>(
+      future: _myRankFuture,
+      builder: (ctx, rankSnap) {
+        final myRank = rankSnap.data;
+        if (myRank == null) return const SizedBox.shrink();
+        return FutureBuilder<
+            ({
+              List<LeagueLeaderRow> above,
+              LeagueLeaderRow me,
+              List<LeagueLeaderRow> below,
+            })?>(
+          future: _neighborsFuture,
+          builder: (ctx, nSnap) {
+            final n = nSnap.data;
+            if (n == null) return const SizedBox.shrink();
+
+            // Demo öğrenciler de komşu adayı. Top listede ZATEN görünenler
+            // (demo VEYA gerçek — demo dolgu sıramı aşağı itmişken gerçek
+            // üst komşu top-20 içinde olabilir) aday havuzundan çıkarılır;
+            // yoksa aynı kişi hem listede hem komşu bölümünde yanlış sıra
+            // numarasıyla iki kez görünür. Kalanlardan puanca en yakın
+            // 2 üst + 2 alt seçilir.
+            final visibleUids = topEntries.map((e) => e.uid).toSet();
+            final demo = _demoRowsForView()
+                .where((d) => !visibleUids.contains(d.uid))
+                .toList();
+            final myScore = n.me.score;
+            final above = [
+              ...n.above.where((r) => !visibleUids.contains(r.uid)),
+              ...demo.where((d) => d.score > myScore),
+            ]..sort((a, b) => a.score.compareTo(b.score)); // en yakın önce
+            final nearestAbove =
+                above.take(2).toList().reversed.toList(); // görüntü: DESC
+            final below = [
+              ...n.below.where((r) => !visibleUids.contains(r.uid)),
+              ...demo.where((d) => d.score < myScore),
+            ]..sort((a, b) => b.score.compareTo(a.score)); // en yakın önce
+            final nearestBelow = below.take(2).toList();
+
+            // Sıra numaraları myRank'e göre türetilir; top listeyle çakışan
+            // (zaten görünen) üst komşular atlanır.
+            final rows = <_LbEntry>[];
+            for (int i = 0; i < nearestAbove.length; i++) {
+              final rank = myRank - (nearestAbove.length - i);
+              if (rank <= topEntries.length) continue;
+              rows.add(_toLbEntry(nearestAbove[i], rank));
+            }
+            rows.add(_toLbEntry(n.me, myRank));
+            for (int i = 0; i < nearestBelow.length; i++) {
+              rows.add(_toLbEntry(nearestBelow[i], myRank + i + 1));
+            }
+
+            // İlk komşu satırı top listenin hemen devamıysa ayraca gerek yok.
+            final hasGap = rows.first.rank > topEntries.length + 1;
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (hasGap) _buildDotsSeparator(context),
+                for (int i = 0; i < rows.length; i++)
+                  _LeaderboardRow(
+                    entry: rows[i],
+                    isLast: i == rows.length - 1,
+                    hideLocation: _scope == _Scope.city,
+                  ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Dikey üç nokta — sıra numarası sütunuyla hizalı, "liste aşağı devam
+  /// ediyor" hissi verir.
+  Widget _buildDotsSeparator(BuildContext context) {
+    final dot = Container(
+      width: 4,
+      height: 4,
+      decoration: BoxDecoration(
+        color: AppPalette.textSecondary(context).withValues(alpha: 0.55),
+        shape: BoxShape.circle,
+      ),
+    );
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: AppPalette.border(context), width: 0.6),
+        ),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 32,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                dot,
+                const SizedBox(height: 3),
+                dot,
+                const SizedBox(height: 3),
+                dot,
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1594,84 +1558,13 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
           cloudRankFuture: _myRankFuture,
           totalScore: _mySummary.total,
           name: _myDisplayName(),
+          profileImagePath: _profileImagePath,
+          // Etkin konumdan — konum seçilmemişken de ülke adı görünsün.
           location: _scope == _Scope.world
-              ? (_location?.country ?? '')
-              : (_location?.city ?? ''),
+              ? (_effectiveLocation?.country ?? '')
+              : (_effectiveLocation?.city ?? ''),
           hideLocation: _scope == _Scope.city,
           streakDays: _streakDays,
-        );
-      },
-    );
-  }
-
-  /// Kullanıcının 1 üstündeki ve 1 altındaki rakipler — motivasyon kartı.
-  /// Liste boşsa veya kullanıcı listede yoksa hiç gösterilmez.
-  Widget _buildNearbyRivalsCard(BuildContext context) {
-    return FutureBuilder<List<LeagueLeaderRow>>(
-      future: _leaderboardFuture,
-      builder: (ctx, snap) {
-        final entries = _toLbEntries(snap.data ?? const []);
-        int? myIdx;
-        for (int i = 0; i < entries.length; i++) {
-          if (entries[i].isMe) {
-            myIdx = i;
-            break;
-          }
-        }
-        if (myIdx == null) return const SizedBox.shrink();
-        if (entries.length < 2) return const SizedBox.shrink();
-
-        final myScore = entries[myIdx].score;
-        final above = myIdx > 0 ? entries[myIdx - 1] : null;
-        final below = myIdx < entries.length - 1 ? entries[myIdx + 1] : null;
-        if (above == null && below == null) return const SizedBox.shrink();
-
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-          child: Container(
-            decoration: BoxDecoration(
-              color: AppPalette.card(context),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppPalette.border(context)),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.flash_on_rounded,
-                        size: 14, color: Color(0xFF7C3AED)),
-                    const SizedBox(width: 4),
-                    Text(
-                      'YAKIN RAKİPLER'.tr(),
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        color: const Color(0xFF7C3AED),
-                        letterSpacing: 0.6,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                if (above != null)
-                  _RivalRow(
-                    direction: _RivalDir.above,
-                    entry: above,
-                    diff: above.score - myScore,
-                  ),
-                if (above != null && below != null)
-                  const SizedBox(height: 6),
-                if (below != null)
-                  _RivalRow(
-                    direction: _RivalDir.below,
-                    entry: below,
-                    diff: myScore - below.score,
-                  ),
-              ],
-            ),
-          ),
         );
       },
     );
@@ -1697,7 +1590,7 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.fraunces(
-                      fontSize: 22,
+                      fontSize: 18,
                       fontWeight: FontWeight.w800,
                       color: AppPalette.textPrimary(context),
                       letterSpacing: 0.5,
@@ -1843,13 +1736,16 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
   // altta beyaz pill içinde emoji + mevcut seçim + chevron. Tap → bottom
   // sheet. Görseldeki "DERS & KONU · BÖLGE · ZAMAN" düzenini yansıtır.
   Widget _buildFilterFrame(BuildContext context) {
-    final cityName = (_location?.city.isNotEmpty ?? false)
-        ? _location!.city
+    // Etkin konumdan — konum seçilmemişse bile profil ülkesi/bayrağı
+    // görünür; şehir seçilene kadar şehir jenerik "Şehir" kalır.
+    final eff = _effectiveLocation;
+    final cityName = (eff?.city.isNotEmpty ?? false)
+        ? eff!.city
         : _Scope.city.label;
-    final countryName = (_location?.country.isNotEmpty ?? false)
-        ? _location!.country
+    final countryName = (eff?.country.isNotEmpty ?? false)
+        ? eff!.country
         : _Scope.country.label;
-    final countryE = _location?.countryFlag ?? '🏳️';
+    final countryE = eff?.countryFlag ?? '🏳️';
     String scopeLabel;
     String scopeEmoji = '';
     IconData? scopeIcon;
@@ -2294,14 +2190,18 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
   }
 
   /// Bölge popup'ı — frame'in altında, ortalı başlık + 3 satırlı seçim.
+  /// Etiketler ETKİN konumdan gelir: konum seçilmemişse bile profil
+  /// ülkesinden türeyen ülke adı/bayrağı görünür (jenerik "Ülke" değil);
+  /// şehir seçilene kadar şehir satırı jenerik kalır — seçim çağrısıdır.
   Future<void> _openScopeFilterSheet() async {
-    final cityName = (_location?.city.isNotEmpty ?? false)
-        ? _location!.city
+    final eff = _effectiveLocation;
+    final cityName = (eff?.city.isNotEmpty ?? false)
+        ? eff!.city
         : _Scope.city.label;
-    final countryName = (_location?.country.isNotEmpty ?? false)
-        ? _location!.country
+    final countryName = (eff?.country.isNotEmpty ?? false)
+        ? eff!.country
         : _Scope.country.label;
-    final countryE = _location?.countryFlag ?? '🏳️';
+    final countryE = eff?.countryFlag ?? '🏳️';
     await _showAnchoredPopup(
       chipIndex: 1,
       headerText: 'BÖLGE'.tr(),
@@ -2349,6 +2249,19 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
                 });
                 await _refreshMySummary();
                 _refreshLeaderboard();
+              },
+            ),
+            // Şehir/ülke yanlış tespit edilmişse iki dokunuşla düzeltme —
+            // IP tabanlı tahmin (özellikle TR operatör IP'leri) yanılabilir;
+            // İzmir'deki kullanıcı İstanbul görüyorsa buradan değiştirir.
+            _filterRow(
+              emoji: '',
+              icon: Icons.edit_location_alt_rounded,
+              label: 'Konumu değiştir'.tr(),
+              selected: false,
+              onTap: () async {
+                Navigator.of(ctx).pop();
+                await _openLocationSheet();
               },
             ),
           ],
@@ -2888,15 +2801,16 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 0, 14, 0),
       child: Container(
+        // Beyaz zemin + yeşil çerçeve (kullanıcı talebi).
         decoration: BoxDecoration(
-          color: AppPalette.card(context),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: AppPalette.border(context),
-            width: 1,
+            color: const Color(0xFF16A34A),
+            width: 1.4,
           ),
         ),
-        padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
@@ -2904,13 +2818,13 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
               'Test Çöz Sıralamanı Yükselt'.tr(),
               textAlign: TextAlign.center,
               style: GoogleFonts.fraunces(
-                fontSize: 22,
+                fontSize: 17,
                 fontWeight: FontWeight.w900,
                 color: AppPalette.textPrimary(context),
                 letterSpacing: -0.3,
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
             Text(
               'Dersini seç, soruları çöz ve aynı seviyedeki öğrenciler arasında nerede olduğunu keşfet. Şehrinde, ülkende ve dünyada yükselmeye başla.'
                   .tr(),
@@ -2931,9 +2845,8 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
                 Expanded(
                   child: _HeroButton(
                     icon: Icons.menu_book_rounded,
-                    label: _subject == null
-                        ? 'Ders Seç'.tr()
-                        : _subject!.displayName,
+                    // Sabit etiket — seçili dersin adı yazılmaz (talep).
+                    label: 'Ders Seç'.tr(),
                     onTap: _openSubjectPickForQuiz,
                   ),
                 ),
@@ -2941,54 +2854,72 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
                 Expanded(
                   child: _HeroButton(
                     icon: Icons.topic_rounded,
-                    label: _topic == null || _topic!.isEmpty
-                        ? 'Konu Seç'.tr()
-                        : _topic!,
+                    label: 'Konu Seç'.tr(),
                     onTap: _subject == null ? null : _openTopicPickForQuiz,
                     disabled: _subject == null,
                   ),
                 ),
               ],
             ),
+            // Sınav Modu — hero ÇERÇEVESİNİN İÇİNDE, en altta (kullanıcı
+            // talebi). Ülke için sınav kataloğu yoksa hiç görünmez.
+            if (examGroupsFor(_profile?.country) != null) ...[
+              const SizedBox(height: 8),
+              ExamModeSection(
+                countryCode: _profile?.country,
+                onSelected: _startExamModeQuiz,
+                showHeader: false,
+                compact: true,
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 
-  // ── Sınav Modu — LGS/YKS(TYT-AYT)/DGS/KPSS gibi resmi sınavlara göre
-  //    ders + konu seçip AI'a o sınavın formatına uygun soru ürettirir.
-  //    Ülkesi için tanımlı sınav kataloğu yoksa bu kart hiç gösterilmez.
-  //    Kaydedilmiş (kalıcı) bir sınav varsa doğrudan onun kısayolu gösterilir
-  //    (lib/widgets/exam_mode_widgets.dart — Arena/Sınav Soruları Oluştur ile
-  //    ortak, tekilleştirilmiş bileşen).
-  Widget _buildExamModeCta(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 0, 14, 0),
-      child: ExamModeSection(
-        countryCode: _profile?.country,
-        onSelected: _startExamModeQuiz,
-      ),
-    );
-  }
-
   /// Sınav Modu seçimi (sınav → ders → konu, kaydedilmiş sınav kısayolu
   /// dahil) tamamlanınca Bilgi Ligi'nin AYNI quiz akışını başlatır.
+  ///
+  /// PUAN BİRLEŞTİRME: Kullanıcının eğitim profili "sınava hazırlık" ve
+  /// profildeki sınav seçilen sınavla AYNI ise (örn. girişte TYT seçmiş,
+  /// Sınav Modu'nda TYT oynuyor), puan üst sekmedeki müfredat dersiyle
+  /// AYNI kategoriye yazılır — TYT Matematik puanı, Matematik sekmesinden
+  /// çözülen testlerin puanlarıyla tek havuzda toplanır (Genel/'all' zaten
+  /// her durumda ortak). Sorular yine sınava özgü havuzdan gelir; yalnızca
+  /// SKORUN yazıldığı kategori birleşir.
   Future<void> _startExamModeQuiz(ExamModeSelection picked) async {
     // Bu (sınav × ders) ikilisine özgü senkron anahtar/etiket — normal
     // müfredat derslerinden AYRI bir "ders" olarak sıralamaya girer, böylece
     // "LGS Türkçe" başarın "TYT Türkçe"den veya genel "Türkçe"den ayrı takip
     // edilir ama AYNI Bilgi Ligi liderlik tablosu mekanizmasını kullanır.
     final synthetic = examSyntheticSubject(picked.exam, picked.subject);
+    final pooled = _pooledCurriculumSubjectFor(picked);
     setState(() {
-      _subject = synthetic;
+      _subject = pooled ?? synthetic;
       _topic = picked.topic;
       _mode = _Mode.subject;
     });
     await _startQuizFor(synthetic,
         topic: picked.topic,
         examLabel: picked.exam.displayName,
-        optionCount: picked.exam.optionCount);
+        optionCount: picked.exam.optionCount,
+        scoreSubject: pooled);
+  }
+
+  /// Seçilen sınav profildeki sınavla eşleşiyorsa ve sınav dersinin müfredat
+  /// karşılığı kullanıcının ders listesinde varsa o dersi döner; aksi halde
+  /// null (→ sentetik sınav kategorisi kullanılır).
+  CurriculumSubject? _pooledCurriculumSubjectFor(ExamModeSelection picked) {
+    final p = _profile;
+    if (p == null || p.level != 'exam_prep') return null;
+    if (!examMatchesEduGrade(p.grade, picked.exam)) return null;
+    final mappedKey = kExamSubjectToCurriculumKey[picked.subject.key];
+    if (mappedKey == null) return null;
+    for (final s in _subjects) {
+      if (s.key == mappedKey) return s;
+    }
+    return null;
   }
 
   /// Tek CTA → ders + (varsa) konu seçimi zincirleme + quiz başlatma.
@@ -3499,23 +3430,27 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
 
   List<_LbEntry> _toLbEntries(List<LeagueLeaderRow> rows) {
     return [
-      for (int i = 0; i < rows.length; i++)
-        _LbEntry(
-          rank: i + 1,
-          // Kullanıcının kendi satırı için profil ekranındaki ad+soyad
-          // tercih edilir; eski submission'larda Auth displayName yazılmış
-          // olabilir, lokal `profile_name` daha güncel ve tutarlı.
-          name: rows[i].isMe && !_anonymousMode
-              ? _myDisplayName() // kullanıcı adı öncelikli
-              : (rows[i].displayName.isEmpty
-                  ? (rows[i].isMe ? 'Sen'.tr() : 'Anonim'.tr())
-                  : rows[i].displayName),
-          avatar: rows[i].avatar.isEmpty ? '🙂' : rows[i].avatar,
-          location: rows[i].location,
-          score: rows[i].score,
-          isMe: rows[i].isMe,
-        ),
+      for (int i = 0; i < rows.length; i++) _toLbEntry(rows[i], i + 1),
     ];
+  }
+
+  _LbEntry _toLbEntry(LeagueLeaderRow row, int rank) {
+    return _LbEntry(
+      rank: rank,
+      uid: row.uid,
+      // Kullanıcının kendi satırı için profil ekranındaki ad+soyad
+      // tercih edilir; eski submission'larda Auth displayName yazılmış
+      // olabilir, lokal `profile_name` daha güncel ve tutarlı.
+      name: row.isMe && !_anonymousMode
+          ? _myDisplayName() // kullanıcı adı öncelikli
+          : (row.displayName.isEmpty
+              ? (row.isMe ? 'Sen'.tr() : 'Anonim'.tr())
+              : row.displayName),
+      avatar: row.avatar.isEmpty ? '🙂' : row.avatar,
+      location: row.location,
+      score: row.score,
+      isMe: row.isMe,
+    );
   }
 
   // ── Konum istemi (location null iken büyük tam-sayfa istemi) ─────────────
@@ -3625,6 +3560,8 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
               ),
             ),
           ),
+          // "Sıran: #N" rozeti kaldırıldı — sıra artık en alta sabit
+          // "Senin Sıran" kartında her zaman görünüyor (kullanıcı talebi).
           Text(
             'PUAN'.tr(),
             style: headerStyle,
@@ -3634,9 +3571,93 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
     );
   }
 
+  /// Yarış öncesi küçük panel: "Kaç soruda yarışmak istersin?" — 5/10/15/20.
+  /// Seçime basınca panel kapanır ve yarışma o soru sayısıyla başlar;
+  /// dışarı dokunulursa null döner (yarış başlamaz).
+  Future<int?> _askQuestionCount() {
+    const orange = Color(0xFFFF6A00);
+    return showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 22),
+        decoration: BoxDecoration(
+          color: AppPalette.card(ctx),
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Kaç soruda yarışmak istersin?'.tr(),
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: AppPalette.textPrimary(ctx),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                for (final n in const [5, 10, 15, 20]) ...[
+                  if (n != 5) const SizedBox(width: 10),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => Navigator.of(ctx).pop(n),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          color: orange.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: orange.withValues(alpha: 0.55),
+                            width: 1.3,
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              '$n',
+                              style: GoogleFonts.inter(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                                color: orange,
+                                letterSpacing: -0.4,
+                              ),
+                            ),
+                            Text(
+                              'soru'.tr(),
+                              style: GoogleFonts.inter(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: AppPalette.textSecondary(ctx),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ── Quiz başlat (hero CTA → ders + opsiyonel konu seçimi sonrası) ─────────
+  /// [scoreSubject] verilirse SORULAR [subject]'ten (sınava özgü havuz),
+  /// PUAN ise [scoreSubject] kategorisine yazılır — profil sınavı ile Sınav
+  /// Modu sınavı aynıysa puanların tek havuzda toplanması için.
   Future<void> _startQuizFor(CurriculumSubject subject,
-      {String? topic, String? examLabel, int optionCount = 4}) async {
+      {String? topic,
+      String? examLabel,
+      int optionCount = 4,
+      CurriculumSubject? scoreSubject}) async {
     // Ebeveyn önizlemesi: quiz/yarışma başlatılamaz.
     if (ParentPreview.guard(context)) return;
     final profile = _profile;
@@ -3662,6 +3683,10 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
     }
     if (!mounted) return;
 
+    // Yarış öncesi soru sayısı paneli — kullanıcı 5/10/15/20 seçer.
+    final qCount = await _askQuestionCount();
+    if (qCount == null || !mounted) return;
+
     final result = await Navigator.of(context).push<Map<String, num>>(
       MaterialPageRoute(
         builder: (_) => BilgiLigiQuizScreen(
@@ -3673,6 +3698,8 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
           period: _period,
           examLabel: examLabel,
           optionCount: optionCount,
+          scoreSubjectKey: scoreSubject?.key,
+          questionCount: qCount,
         ),
       ),
     );
@@ -3744,7 +3771,9 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
                   : user?.displayName));
       await LeagueScores.add(
         LeagueAttempt(
-          subjectKey: subject.key,
+          // Puan kategorisi: profil sınavıyla eşleşen Sınav Modu testlerinde
+          // müfredat dersi (tek havuz), aksi halde quiz'in kendi dersi.
+          subjectKey: (scoreSubject ?? subject).key,
           topic: topic,
           score: score,
           durationSec: durationSec,
@@ -3764,7 +3793,7 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
         return;
       }
       setState(() {
-        _subject = subject;
+        _subject = scoreSubject ?? subject;
         _mode = _Mode.subject;
       });
       await _refreshMySummary();
@@ -4087,7 +4116,7 @@ class _LeaderboardRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final ink = AppPalette.textPrimary(context);
     final mute = AppPalette.textSecondary(context);
-    final isTop3 = entry.rank <= 3;
+    // Madalya satırın SAĞINDA gösterilir; sıra sütunu her zaman rakam.
     final medal = entry.rank == 1
         ? '🥇'
         : entry.rank == 2
@@ -4096,40 +4125,56 @@ class _LeaderboardRow extends StatelessWidget {
                 ? '🥉'
                 : '';
 
-    return Container(
+    // Kullanıcının kendi satırı listedeki TEK renkli satır — turuncu zemin
+    // + sol vurgu şeridi + turuncu sıra numarası ile hemen ayırt edilir.
+    const meAccent = Color(0xFFFF6A00);
+    // İlk 3 için metalik/afilli gradyan çerçeve (altın/gümüş/bronz simli
+    // görünüm): dış gradyan katmanı ince bir "çerçeve çizgisi" oluşturur.
+    final List<Color>? medalFrame = entry.rank == 1
+        ? const [Color(0xFFFFE082), Color(0xFFD4AF37), Color(0xFFFFF3C0)]
+        : entry.rank == 2
+            ? const [Color(0xFFE8E8EC), Color(0xFF9EA4B0), Color(0xFFF4F4F7)]
+            : entry.rank == 3
+                ? const [Color(0xFFE8B98A), Color(0xFFB3702E), Color(0xFFF0CBA5)]
+                : null;
+
+    final row = Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
         color: entry.isMe
-            ? const Color(0xFFFF6A00).withValues(alpha: 0.06)
-            : Colors.transparent,
+            ? meAccent.withValues(alpha: 0.12)
+            : (medalFrame != null ? AppPalette.card(context) : Colors.transparent),
+        borderRadius:
+            medalFrame != null ? BorderRadius.circular(10) : null,
         // Son satırda alt çizgi yok — çerçeve sınırına kapalı uçla biter.
-        border: isLast
+        border: medalFrame != null
             ? null
             : Border(
-                bottom: BorderSide(
-                  color: AppPalette.border(context),
-                  width: 0.6,
-                ),
+                left: entry.isMe
+                    ? const BorderSide(color: meAccent, width: 3)
+                    : BorderSide.none,
+                bottom: isLast
+                    ? BorderSide.none
+                    : BorderSide(
+                        color: AppPalette.border(context),
+                        width: 0.6,
+                      ),
               ),
       ),
       child: Row(
         children: [
-          // Rank
+          // Rank — her zaman rakam (madalya sağda).
           SizedBox(
             width: 32,
-            child: isTop3
-                ? Text(medal,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 18))
-                : Text(
-                    '${entry.rank}',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: mute,
-                    ),
-                  ),
+            child: Text(
+              '${entry.rank}',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: entry.isMe ? meAccent : mute,
+              ),
+            ),
           ),
           // Rank ile profil arası dikey ince çizgi
           Container(
@@ -4180,6 +4225,12 @@ class _LeaderboardRow extends StatelessWidget {
               ],
             ),
           ),
+          // İlk 3'ün madalyası — PUANIN SOLUNDA, ortaya doğru
+          // (altın/gümüş/bronz).
+          if (medal.isNotEmpty) ...[
+            Text(medal, style: const TextStyle(fontSize: 18)),
+            const SizedBox(width: 14),
+          ],
           // Skor
           Text(
             _fmt(entry.score),
@@ -4192,6 +4243,22 @@ class _LeaderboardRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+
+    // İlk 3: simli gradyan çerçeve sarmalayıcı; diğerleri düz satır.
+    if (medalFrame == null) return row;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+      padding: const EdgeInsets.all(1.6),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: medalFrame,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: row,
     );
   }
 
@@ -4340,20 +4407,26 @@ class _HeroButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const accent = Color(0xFFFF6A00);
-    final color = disabled ? const Color(0xFFB5B5BA) : accent;
+    // Beyaz zemin + yeşil çerçeve/yazı (kullanıcı talebi — eski turuncu
+    // dolgu kaldırıldı). Pasifken gri.
+    const green = Color(0xFF16A34A);
+    final color = disabled ? const Color(0xFFB5B5BA) : green;
     return Material(
-      color: color,
+      color: Colors.white,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color, width: 1.4),
+          ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: Colors.white, size: 18),
+              Icon(icon, color: color, size: 18),
               const SizedBox(width: 6),
               Flexible(
                 child: Text(
@@ -4364,7 +4437,10 @@ class _HeroButton extends StatelessWidget {
                   style: GoogleFonts.inter(
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
-                    color: Colors.white,
+                    // Yazı SİYAH (talep); çerçeve/ikon yeşil kalır.
+                    color: disabled
+                        ? const Color(0xFFB5B5BA)
+                        : const Color(0xFF111111),
                     letterSpacing: -0.1,
                   ),
                 ),

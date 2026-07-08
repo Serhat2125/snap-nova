@@ -538,6 +538,17 @@ service cloud.firestore {
       }
     }
 
+    // ── Collection-group: participants ────────────────────────────────────
+    // "Yarışlarım → Grup Arkadaşımla Yarışlarım" sekmesi kullanıcının
+    // katıldığı yarışları collectionGroup('participants') ile bulur.
+    // Yukarıdaki İÇ İÇE match collection-group sorgularını YETKİLENDİRMEZ
+    // (Firestore kuralı) — bu blok olmadan sorgu permission-denied alıyor
+    // ve sekme sessizce hep boş görünüyordu. Okuma zaten üstte tüm oturum
+    // açmışlara açık; burada da aynı seviye verilir, yazma verilmez.
+    match /{path=**}/participants/{uid} {
+      allow read: if isSignedIn();
+    }
+
     // ── contest_groups/{id}: KAYITLI yarışma grupları ─────────────────────
     //   (group_contests = tekil yarışma; contest_groups = isimlendirilip
     //    saklanan arkadaş grubu — İKİSİ AYRI koleksiyon. Bu blok eksikti ve

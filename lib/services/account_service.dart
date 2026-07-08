@@ -3,8 +3,10 @@
 //  saklar ve uygulama açılışında yönlendirme için kullanılır.
 //
 //  Storage: SharedPreferences (offline-first) + Firestore users/{uid}.accountType
-//  ile senkronize. İlk seçimden sonra değişmez (değiştirmek için profil >
-//  hesap tipini yeniden seç akışı gerekir — şu an MVP'de yok).
+//  ile senkronize. Rol DEĞİŞTİRİLEBİLİR: aynı e-posta ile öğrenci/öğretmen/
+//  ebeveyn arasında geçilebilir (onboarding'de yeniden seçim veya panel >
+//  "Hesap tipini değiştir"). Veriler uid+koleksiyon bazlı ayrı tutulduğundan
+//  rol geçişi mevcut verileri silmez — eski role dönülünce geri gelir.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import 'dart:async';

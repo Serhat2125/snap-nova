@@ -287,12 +287,8 @@ class LeagueScores {
       // buluta gitmeli — ülke kodu EduProfile.country'den türetilir, şehir
       // boş kalır (şehir sıralamasına girmez ama ülke+dünya sıralamasında
       // görünür).
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid == null || uid.isEmpty) return;
       if (profile == null) return;
-      final countryCode = (location?.countryCode ?? '').isNotEmpty
-          ? location!.countryCode
-          : profile.country.toUpperCase();
+      final countryCode = effectiveCountryCode(profile, location);
       if (countryCode.isEmpty) return;
 
       final resolvedName = (displayName ?? '').trim().isEmpty
@@ -313,6 +309,17 @@ class LeagueScores {
         'displayName': resolvedName,
         'avatar': avatar ?? '',
       };
+
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null || uid.isEmpty) {
+        // Auth henüz yok — puanı DÜŞÜRME (eskiden sessizce kayboluyordu:
+        // "ilk test puanım toplanmadı" şikayetinin kök nedeni). Outbox'a
+        // al; giriş sonrası flushOutbox() aynı clientSubmitId ile güvenle
+        // gönderir (CF idempotent, çift sayım yok).
+        await _enqueueOutbox(payload);
+        return;
+      }
+
       final sent = await _submitToCloud(payload);
       if (!sent) {
         // Retry edilebilir hata → outbox'a al; sonraki açılışta
@@ -383,6 +390,19 @@ class LeagueScores {
 
   /// Bekleyen cloud gönderimlerini tekrar dener. Bilgi Ligi ekranı açılışında
   /// çağrılır; idempotent (clientSubmitId) olduğu için çift sayım riski yok.
+  /// Skor GÖNDERİMİNDE ve sıralama OKUMASINDA kullanılan ülke kodu — tek
+  /// formül: konum seçiliyse onun kodu, değilse eğitim profili ülkesi
+  /// (upper-case). bilgi_ligi_screen._effectiveLocation da BUNU kullanır;
+  /// iki taraf ayrışırsa "puan buluta yazılıyor ama kullanıcı sıralamada
+  /// görünmüyor" hatası geri gelir (2026-07-08'de yaşandı). Tutarlılık
+  /// league_location_consistency_test.dart ile sabitlenmiştir.
+  static String effectiveCountryCode(
+      EduProfile? profile, UserLocation? location) {
+    final loc = (location?.countryCode ?? '').trim();
+    if (loc.isNotEmpty) return loc;
+    return (profile?.country ?? '').trim().toUpperCase();
+  }
+
   static Future<void> flushOutbox() {
     return _serialize(() async {
       final prefs = await SharedPreferences.getInstance();
@@ -522,6 +542,16 @@ class LeagueScores {
   /// (Cloud Function tarafındaki `san()` ile birebir aynı olmalı.)
   static String _san(String s) => s.replaceAll('/', '⁄');
 
+  /// Deterministik league_totals doküman id'si (uid_bucket_mode) —
+  /// Cloud Function tarafındaki yazımla birebir. myCloudTotal ve
+  /// LeagueLeaderboardService.fetchNeighbors aynı id'yi kullanır.
+  static String totalsDocId({
+    required String uid,
+    required String modeKey,
+    required LeaguePeriod period,
+  }) =>
+      _san('${uid}_${bucketFor(period)}_$modeKey');
+
   /// Kullanıcının KENDİ toplamını buluttan okur — "Senin Sıran" kartının
   /// liderlik tablosuyla aynı kaynağı göstermesi için. Doc id deterministik
   /// (uid_bucket_mode) olduğundan tek doküman okuması, sorgu yok.
@@ -534,7 +564,7 @@ class LeagueScores {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null || uid.isEmpty) return null;
-      final id = _san('${uid}_${bucketFor(period)}_$modeKey');
+      final id = totalsDocId(uid: uid, modeKey: modeKey, period: period);
       final doc = await FirebaseFirestore.instance
           .collection('league_totals')
           .doc(id)

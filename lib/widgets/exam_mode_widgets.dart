@@ -23,49 +23,94 @@ const kExamModeConfirmGreen = Color(0xFF10B981);
 
 /// "Sınav modu açmak ister misin? (LGS, YKS, KPSS…)" kartı — [titleOverride]
 /// verilirse (kaydedilmiş/kalıcı sınav varken) onun yerine gösterilir.
+/// [compact] → Dünya Sıralaması varyantı: ikon yok, beyaz zemin, daha ince
+/// gövde ve "Sınav Modu" kısa başlığı.
 class ExamModeCard extends StatelessWidget {
   final VoidCallback onTap;
   final String? titleOverride;
-  const ExamModeCard({super.key, required this.onTap, this.titleOverride});
+  final bool compact;
+  const ExamModeCard({
+    super.key,
+    required this.onTap,
+    this.titleOverride,
+    this.compact = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(compact ? 14 : 18),
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          padding: EdgeInsets.symmetric(
+              horizontal: 16, vertical: compact ? 12 : 14),
           decoration: BoxDecoration(
-            color: kExamModeAccent.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(18),
+            color: compact
+                ? Colors.white
+                : kExamModeAccent.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(compact ? 14 : 18),
+            // Kompakt varyantta çizgi YEŞİL — hero çerçevesiyle uyumlu.
             border: Border.all(
-                color: kExamModeAccent.withValues(alpha: 0.30), width: 1.2),
+                color: compact
+                    ? const Color(0xFF16A34A)
+                    : kExamModeAccent.withValues(alpha: 0.30),
+                width: compact ? 1.4 : 1.2),
           ),
           child: Row(
             children: [
-              Container(
-                width: 38, height: 38,
-                decoration: BoxDecoration(
-                  color: kExamModeAccent.withValues(alpha: 0.14),
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: const Text('🎯', style: TextStyle(fontSize: 18)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  titleOverride ??
-                      '${'Sınav modu açmak ister misin?'.tr()} (LGS, YKS, KPSS…)',
-                  style: GoogleFonts.inter(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w800,
-                    color: AppPalette.textPrimary(context),
-                    height: 1.3,
+              if (!compact) ...[
+                Container(
+                  width: 38, height: 38,
+                  decoration: BoxDecoration(
+                    color: kExamModeAccent.withValues(alpha: 0.14),
+                    shape: BoxShape.circle,
                   ),
+                  alignment: Alignment.center,
+                  child: const Text('🎯', style: TextStyle(fontSize: 18)),
                 ),
+                const SizedBox(width: 12),
+              ],
+              Expanded(
+                child: compact && titleOverride == null
+                    // Kompakt varyant: büyük başlık + altında parantez
+                    // içinde sınav adları (ayrı satır).
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Sınav Modunu Seçebilirsin'.tr(),
+                            style: GoogleFonts.inter(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF111111),
+                              height: 1.25,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '(LGS, YKS, KPSS…)',
+                            style: GoogleFonts.inter(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF6B7280),
+                            ),
+                          ),
+                        ],
+                      )
+                    : Text(
+                        titleOverride ??
+                            '${'Sınav modu açmak ister misin?'.tr()} (LGS, YKS, KPSS…)',
+                        style: GoogleFonts.inter(
+                          fontSize: compact ? 15 : 13.5,
+                          fontWeight: FontWeight.w800,
+                          color: compact
+                              ? const Color(0xFF111111)
+                              : AppPalette.textPrimary(context),
+                          height: 1.3,
+                        ),
+                      ),
               ),
               const SizedBox(width: 6),
               Icon(Icons.chevron_right_rounded, color: kExamModeAccent, size: 22),
@@ -121,14 +166,47 @@ class PinnedExamService {
       await prefs.remove(_kExamKey);
     } catch (_) {}
   }
+
+  // ── Seçim sayacı — "kaydet?" sorusu SPAM olmasın ─────────────────────────
+  // Soru ilk seçimde DEĞİL, aynı sınav [pinOfferThreshold]. kez seçildiğinde
+  // sorulur. Kullanıcı "Kaydetme" derse sayaç sıfırlanır → bir sonraki eşikte
+  // (6 seçim sonra) tekrar sorulur; "Kaydet" derse sınav kalıcı kısayol olur.
+  static const int pinOfferThreshold = 6;
+  static const _kPickCountPrefix = 'exam_mode_pick_count_';
+
+  /// Sınav seçim sayacını 1 artırır, yeni değeri döner. Hata → 1.
+  static Future<int> incrementPickCount(String examKey) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final k = '$_kPickCountPrefix$examKey';
+      final next = (prefs.getInt(k) ?? 0) + 1;
+      await prefs.setInt(k, next);
+      return next;
+    } catch (_) {
+      return 1;
+    }
+  }
+
+  static Future<void> resetPickCount(String examKey) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('$_kPickCountPrefix$examKey');
+    } catch (_) {}
+  }
 }
 
 /// Sınav seçildikten sonra "bunu kaydedeyim mi?" onayı — kaydedilirse bir
 /// sonraki gelişte bu sınav doğrudan kısayol olarak gösterilir.
+///
+/// İlk seçimlerde SORULMAZ: aynı sınav [PinnedExamService.pinOfferThreshold]
+/// (6). kez seçildiğinde sorulur — kullanıcı davranışı zaten netleşmiştir.
+/// "Kaydetme" derse sayaç sıfırlanır, 6 seçim sonra bir kez daha sorulur.
 Future<void> _maybeOfferPin(
     BuildContext context, String? countryCode, ExamDefinition exam) async {
   final current = await PinnedExamService.load(countryCode);
   if (current?.key == exam.key) return; // zaten kayıtlı, tekrar sorma
+  final picks = await PinnedExamService.incrementPickCount(exam.key);
+  if (picks < PinnedExamService.pinOfferThreshold) return;
   if (!context.mounted) return;
   final save = await showDialog<bool>(
     context: context,
@@ -168,6 +246,9 @@ Future<void> _maybeOfferPin(
       ],
     ),
   );
+  // Her iki cevapta da sayaç sıfırlanır: "Kaydet" → artık sorulmaz (pinned);
+  // "Kaydetme" → 6 seçim sonra tekrar sorulur, her seferinde değil.
+  await PinnedExamService.resetPickCount(exam.key);
   if (save == true) {
     await PinnedExamService.save(countryCode, exam);
   }
@@ -181,10 +262,17 @@ Future<void> _maybeOfferPin(
 class ExamModeSection extends StatefulWidget {
   final String? countryCode;
   final void Function(ExamModeSelection selection) onSelected;
+  /// false → üstteki "İstersen bu seçeneklerle de yarışabilirsin" başlığı
+  /// gizlenir (Dünya Sıralaması sade görünümü).
+  final bool showHeader;
+  /// true → kart kompakt varyantta çizilir (bkz. ExamModeCard.compact).
+  final bool compact;
   const ExamModeSection({
     super.key,
     required this.countryCode,
     required this.onSelected,
+    this.showHeader = true,
+    this.compact = false,
   });
 
   @override
@@ -241,25 +329,27 @@ class _ExamModeSectionState extends State<ExamModeSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 2, bottom: 8, top: 2),
-          child: Text(
-            (pinned == null
-                    ? 'İstersen bu seçeneklerle de yarışabilirsin'
-                    : 'Aşağıdaki sınav moduyla devam edebilirsin')
-                .tr(),
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              color: AppPalette.textPrimary(context),
-              letterSpacing: 0.4,
+        if (widget.showHeader)
+          Padding(
+            padding: const EdgeInsets.only(left: 2, bottom: 8, top: 2),
+            child: Text(
+              (pinned == null
+                      ? 'İstersen bu seçeneklerle de yarışabilirsin'
+                      : 'Aşağıdaki sınav moduyla devam edebilirsin')
+                  .tr(),
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                color: AppPalette.textPrimary(context),
+                letterSpacing: 0.4,
+              ),
             ),
           ),
-        ),
         pinned == null
-            ? ExamModeCard(onTap: _handleGeneric)
+            ? ExamModeCard(onTap: _handleGeneric, compact: widget.compact)
             : ExamModeCard(
                 titleOverride: pinned.displayName,
+                compact: widget.compact,
                 onTap: () => _handlePinned(pinned),
               ),
       ],

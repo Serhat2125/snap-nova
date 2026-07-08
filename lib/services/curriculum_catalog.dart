@@ -86,10 +86,40 @@ List<CurriculumSubject> curriculumFor(EduProfile? profile) {
 
   // 1-4) Static catalog lookup zinciri.
   final keys = _lookupKeys(profile);
+  final intlKey = 'international_${profile.level}';
   for (final k in keys) {
+    // Sınav profilinde 'international_exam_prep' JENERİK şablonuna düşmeden
+    // önce sınav-spesifik köprü (aşağıda) denenmeli — jenerik şablon TUS
+    // seçen kullanıcıya lise dersleri gösterirdi.
+    if (profile.level == 'exam_prep' && k == intlKey) continue;
     final found = _curriculum[k];
     if (found != null) return _materialize(found, profile.country);
   }
+
+  // 4.5) SINAV PROFİLİ KÖPRÜSÜ — statik katalogda '<ülke>_exam_prep_<sınav>'
+  // girişi olmayan sınavlar (TUS/DUS/EUS, MIR, OAB, Advokatexamen… tüm
+  // meslek sınavları ve yerel adlı sınavlar) için education_profile'daki
+  // evrensel sınav→ders sınıflayıcısından DOĞRU ders listesi kurulur.
+  // Konular AI müfredat önbelleği dolunca zenginleşir (onboarding prefetch /
+  // education_setup fetch); o ana kadar konu listesi boş olabilir ama
+  // DERSLER sınava uygundur (anatomi/cerrahi, anayasa/ceza hukuku vb.).
+  if (profile.level == 'exam_prep') {
+    final subs = subjectsForProfile(profile);
+    if (subs.isNotEmpty) {
+      return [
+        for (final s in subs)
+          CurriculumSubject(
+            key: s.key,
+            displayName: s.name,
+            emoji: s.emoji,
+            topics: aiTopics?[s.key] ?? const <String>[],
+          ),
+      ];
+    }
+    final intl = _curriculum[intlKey];
+    if (intl != null) return _materialize(intl, profile.country);
+  }
+
   // 5) Son çare: international_${level} ya da international_high.
   return _fallbackByLevel(profile.level);
 }
@@ -106,11 +136,11 @@ List<String> _lookupKeys(EduProfile p) {
   //    olduğundan eşleşmiyor; YKS profili boş konuya düşüyordu.
   final m = RegExp(r'(\d{1,2})').firstMatch(rawGrade);
   String g;
+  String? gFull; // çok kelimeli sınav adları için birleşik anahtar
   if (m != null) {
     g = m.group(1)!;
   } else {
-    final firstToken = rawGrade.trim().split(RegExp(r'\s+')).first;
-    g = firstToken
+    String norm(String s) => s
         .toLowerCase()
         .replaceAll('ı', 'i')
         .replaceAll('ö', 'o')
@@ -119,11 +149,23 @@ List<String> _lookupKeys(EduProfile p) {
         .replaceAll('ç', 'c')
         .replaceAll('ğ', 'g')
         .replaceAll(RegExp(r'[^a-z0-9_]'), '');
+    final tokens = rawGrade.trim().split(RegExp(r'\s+'));
+    g = norm(tokens.first);
     if (g.isEmpty) g = rawGrade; // emniyet
+    // "KPSS Ortaöğretim" → 'kpss_ortaogretim' — yalnız ilk kelimeye bakmak
+    // 'tr_exam_prep_kpss'e düşürüyordu, kpss_ortaogretim girişi hiç
+    // eşleşmiyordu. Parantezli açıklamalar ('YKS (Yükseköğretim…)') tam
+    // anahtar üretmez, zararsızca ilk-kelime anahtarına düşer.
+    if (tokens.length > 1 && !rawGrade.contains('(')) {
+      final joined =
+          tokens.map(norm).where((t) => t.isNotEmpty).join('_');
+      if (joined != g && joined.isNotEmpty) gFull = joined;
+    }
   }
   final t = p.track;
   return [
     if (t != null) '${c}_${l}_${g}_$t',
+    if (gFull != null) '${c}_${l}_$gFull',
     '${c}_${l}_$g',
     '${c}_$l',
     'international_$l',

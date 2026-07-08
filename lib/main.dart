@@ -304,6 +304,21 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
                 builder: (_) =>
                     QuAlsarArenaScreen(openAction: 'dueloInvites')));
             break;
+          case 'group_contest_invite':
+            // Grup yarışı daveti → yarışmayı DOĞRUDAN aç (davet edilen
+            // kullanıcı aynı soruları görüp çözer). contestId push data'sında
+            // (push_on_notification.ts); eski/eksik payload'da bildirim
+            // kutusuna düşer — kutudaki kart da aynı yarışı açar.
+            final contestId = payload['contestId']?.toString() ?? '';
+            if (contestId.isNotEmpty) {
+              nav.push(MaterialPageRoute(
+                  builder: (_) => GroupContestScreen(
+                      contestId: contestId, autoJoin: true)));
+            } else {
+              nav.push(MaterialPageRoute(
+                  builder: (_) => const NotificationsInboxScreen()));
+            }
+            break;
           default:
             // Diğer türler: bildirim kutusunu aç.
             nav.push(MaterialPageRoute(
@@ -728,7 +743,9 @@ class _HomeRouter extends StatelessWidget {
       builder: (_, snap) {
         if (!snap.hasData) return const QuAlsarSplashScreen();
         final prefs = snap.data!;
-        final startupScreen = prefs.getString('startup_screen') ?? 'library';
+        // Varsayılan = kamera (asıl ana sayfa); kullanıcı Ayarlar >
+        // Uygulamayı Kişiselleştir'den 'library' seçtiyse Kütüphanem açılır.
+        final startupScreen = prefs.getString('startup_screen') ?? 'camera';
         // Hesap tipine göre yönlendir.
         // AccountService.init() main.dart açılışta çağrıldığı için type hazır.
         final type = AccountService.instance.type;
@@ -745,7 +762,7 @@ class _HomeRouter extends StatelessWidget {
           }
           return const ParentShellScreen();
         }
-        // Öğrenci: varsayılan Kütüphanem; kullanıcı kamera seçtiyse kamera.
+        // Öğrenci: varsayılan Kamera; kullanıcı Kütüphanem seçtiyse o açılır.
         if (startupScreen == 'camera') return CameraScreen();
         return const _LibraryEntryShell();
       },

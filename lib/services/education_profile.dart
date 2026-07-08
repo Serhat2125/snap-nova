@@ -939,14 +939,24 @@ final Map<String, List<String>> _examSubjectKeys = {
     'matematik_ogretim', 'fen_bilg_ogretmen', 'sosyal_bilg_ogr',
     'gelisim_psik', 'cocuk_psik', 'turkish', 'math',
   ],
+  // Uzmanlık sınavları AYRI — her meslek kendi ders setini görür.
   'TUS': [
-    // TUS / DUS / EUS — tıp + diş + eczacılık merkez sınavları birlikte
+    // Tıpta Uzmanlık Sınavı — temel + klinik tıp bilimleri
     'anatomi', 'fizyoloji', 'biyokimya', 'histoloji', 'embriyoloji',
     'mikrobiyoloji', 'patoloji', 'farmakoloji',
     'ic_hast', 'cerrahi', 'pediatri', 'kadin_dogum',
     'psikiyatri', 'halk_sagligi', 'radyoloji',
+  ],
+  'DUS': [
+    // Diş Hekimliğinde Uzmanlık Sınavı — temel bilimler + diş klinik
+    'anatomi', 'fizyoloji', 'biyokimya', 'histoloji', 'embriyoloji',
+    'mikrobiyoloji', 'patoloji', 'farmakoloji',
     'restoratif', 'periodontoloji', 'oral_cerrahi',
+  ],
+  'EUS': [
+    // Eczacılıkta Uzmanlık Sınavı — eczacılık temel + meslek bilimleri
     'farmasotik_kimya', 'farmakognozi', 'farmasotik_tek',
+    'farmakoloji', 'biyokimya', 'mikrobiyoloji',
   ],
   'HAKIMLIK': [
     'anayasa', 'medeni_hukuk', 'borclar_hukuku',
@@ -999,6 +1009,27 @@ final Map<String, List<String>> _examSubjectKeys = {
   'UNIVERSITY_ENTRANCE': [
     'math', 'english_lang', 'physics', 'chem', 'bio', 'lit',
   ],
+
+  // ─── Evrensel MESLEK kategorileri ─────────────────────────────────────
+  // 130+ ülkenin yerel adlı meslek sınavları (baro, tıp ihtisası, muhasebe,
+  // memurluk) için jenerik ders setleri — anahtar kelime sınıflayıcısı
+  // (_examSubjectsForGrade sonu) bunlara yönlendirir. Tüm key'ler TR
+  // setlerinde de kullanılan mevcut _allSubjects anahtarlarıdır.
+  'INTL_LAW': [
+    'anayasa', 'medeni_hukuk', 'ceza_hukuku', 'idare_hukuku',
+    'borclar_hukuku', 'ticaret_hukuku', 'is_hukuku',
+  ],
+  'INTL_MEDICAL': [
+    'anatomi', 'fizyoloji', 'biyokimya', 'mikrobiyoloji', 'patoloji',
+    'farmakoloji', 'ic_hast', 'cerrahi', 'pediatri', 'radyoloji',
+  ],
+  'INTL_ACCOUNTING': [
+    'muhasebe', 'finans', 'kamu_maliyesi', 'mikroekonomi',
+    'makroekonomi', 'math',
+  ],
+  'INTL_CIVIL_SERVICE': [
+    'math', 'history', 'geo', 'anayasa', 'idare_hukuku', 'demokrasi',
+  ],
 };
 
 /// Onboarding'de `EduProfile.grade` olarak tutulan sınav adından (örn.
@@ -1027,9 +1058,9 @@ List<String>? _examSubjectsForGrade(String grade) {
   if (n.startsWith('ALES')) return _examSubjectKeys['ALES'];
   if (n.startsWith('KPSS LISANS')) return _examSubjectKeys['KPSS_LISANS'];
   if (n.startsWith('KPSS OABT')) return _examSubjectKeys['KPSS_OABT'];
-  if (n.startsWith('TUS') || n.startsWith('DUS') || n.startsWith('EUS')) {
-    return _examSubjectKeys['TUS'];
-  }
+  if (n.startsWith('TUS')) return _examSubjectKeys['TUS'];
+  if (n.startsWith('DUS')) return _examSubjectKeys['DUS'];
+  if (n.startsWith('EUS')) return _examSubjectKeys['EUS'];
   if (n.startsWith('HAKIM') || n.startsWith('SAVCI')) {
     return _examSubjectKeys['HAKIMLIK'];
   }
@@ -1061,8 +1092,82 @@ List<String>? _examSubjectsForGrade(String grade) {
       n.startsWith('KYOTSU') || n.startsWith('NYUSHI')) {
     return _examSubjectKeys['UNIVERSITY_ENTRANCE'];
   }
-  return null;
+
+  // ─── EVRENSEL KATEGORİ SINIFLAYICI ────────────────────────────────────
+  // Onboarding'in 130+ ülkelik sınav listeleri her dil/alfabede YEREL adlar
+  // içerir (ЕГЭ, 高考, 수능, الثانوية العامة, Abitur, ENEM, MIR, OAB…).
+  // Yukarıdaki ada-özel eşleşmeler tutmadıysa, sınav adındaki anahtar
+  // kelimelerden meslek/kategori çıkarılır; hiçbiri tutmazsa üniversite
+  // giriş jenerik seti döner. Böylece DÜNYANIN HER SINAVI daima anlamlı ve
+  // dolu bir ders listesi üretir (AI müfredat önbelleği varsa zaten o
+  // önceliklidir — bu, çevrimdışı/statik güvenlik ağıdır).
+  bool hasAny(List<String> kws) => kws.any(n.contains);
+
+  // Dil / yeterlilik sınavları
+  if (hasAny([
+    'IELTS', 'TOEFL', 'TOEIC', 'DUOLINGO', 'DELE', 'DELF', 'TCF',
+    'TESTDAF', 'DSH', 'TORFL', 'HSK', 'JLPT', 'KAZTEST', 'MUET',
+  ])) {
+    return _examSubjectKeys['IELTS'];
+  }
+  // Tıp / sağlık (ihtisas, denklik, lisans sınavları)
+  if (hasAny([
+    'MEDIC', 'MÉDIC', 'MÉDEC', 'MEDIZIN', 'MEDISCH', 'ARZT', 'LÄKAR',
+    'LEKAR', 'LEKÁR', 'LÉKAŘ', 'LIJEČNIK', 'ZDRAVNIK', 'ORVOSI',
+    'GYDYTOJO', 'ĀRSTA', 'ARSTI', 'LÆKNINGA', 'ЛЕКАР', 'ЛІКАР', 'ВРАЧ',
+    'ЭМЧ', '医', '醫', '의사', 'طب', 'HƏKIM', 'LUKMAN', 'TABOBAT',
+    'DOKTER', 'RESID', 'REZIDEN', 'RÉSIDAN', 'INTERNAT', 'MIR (',
+    'ENARM', 'EUNACOM', 'ENAM (', 'MCAT', 'GAMSAT', 'MDCAT', 'USMLE',
+    'FCPS', 'UKMPPD', 'PPDS', 'HPCSA', 'MEDAT', 'IMAT', 'UCAT', 'BMAT',
+    'HPAT',
+  ])) {
+    return _examSubjectKeys['INTL_MEDICAL'];
+  }
+  // Hukuk / baro / hâkimlik
+  if (hasAny([
+    'BAR', 'AVOCAT', 'AVVOCAT', 'ABOGAD', 'ADVOGA', 'ADVOKA', 'ADVOKÁ',
+    'ADWOKAT', 'АДВОКАТ', 'PRAVOSUD', 'PRAVNI', 'MAGISTRAT', 'JURIS',
+    'LAW', 'LEGAL', 'SOLICITOR', 'NOTARI', 'НОТАРИ', 'ΔΙΚΗΓΟΡ', '律師',
+    '律师', '司法', '변호사', 'المحامين', 'ՓԱՍՏԱԲԱՆ', 'ХУУЛЬЧ', 'VƏKIL',
+    'HUKUK', 'JOGI', 'LSAT', 'DIREITO', 'OAB',
+  ])) {
+    return _examSubjectKeys['INTL_LAW'];
+  }
+  // Muhasebe / finans ("CA Pakistan" gibi Chartered Accountant kısaltmaları
+  // yalnız baştaysa sayılır — 'CA' iki harfi başka adların içinde de geçer)
+  if (n.startsWith('CA ') ||
+      hasAny([
+        'CPA', 'CFA', 'ACCA', 'ACCOUNT', 'CONTAB', 'MUHASEBE', 'ICAN',
+        'SAICA', 'SOCPA', '會計', '会计',
+      ])) {
+    return _examSubjectKeys['INTL_ACCOUNTING'];
+  }
+  // Kamu / memurluk
+  if (hasAny([
+    'CIVIL SERVICE', 'CSS (', 'CPNS', '公務員', '公务员', '공무원',
+    'OPOSICI', 'CONCURSO P',
+  ])) {
+    return _examSubjectKeys['INTL_CIVIL_SERVICE'];
+  }
+  // Lisansüstü giriş
+  if (hasAny(['KAOYAN', '考研', 'АСПИРАНТ', 'DOTTORAT', 'دکتری'])) {
+    return _examSubjectKeys['GRE'];
+  }
+  // İngiliz sistemi okul sınavları (GCE varyantları vb.)
+  if (hasAny(['A-LEVEL', 'A LEVEL'])) return _examSubjectKeys['ALEVEL'];
+  if (hasAny(['O-LEVEL', 'O LEVEL'])) return _examSubjectKeys['GCSE'];
+  if (n.contains('IB DIPLOMA')) return _examSubjectKeys['IB'];
+
+  // Hiçbir kategori tutmadı → üniversite giriş / okul bitirme jenerik seti.
+  // (Matura, Bac, ENEM, ЕГЭ, 수능, HKDSE, WASSCE… hepsi bu sınıfa uyar.)
+  return _examSubjectKeys['UNIVERSITY_ENTRANCE'];
 }
+
+/// [_examSubjectsForGrade]'in public sarmalayıcısı — birim testleri ve dış
+/// modüller için. Sınav adından sorumlu ders anahtarlarını döner; evrensel
+/// sınıflayıcı sayesinde hiçbir sınav adı için null/boş dönmez.
+List<String>? examSubjectKeysForGrade(String grade) =>
+    _examSubjectsForGrade(grade);
 
 // Ülke × seviye × sınıf × alan → ders anahtarları
 // Türkiye müfredatı detaylı (sınıf+alan), diğer ülkeler seviye bazlı

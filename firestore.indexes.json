@@ -35,7 +35,7 @@
 
     /* ── Bilgi Ligi: 9 composite index (3 scope × 3 mode) ───────────────── */
     /*  scopeKey alanları:                                                  */
-    /*    scopeWorld   = "{level}|{grade}"                                  */
+    /*    scopeWorld   = "world"  (tek küresel havuz — bölünmez)            */
     /*    scopeCountry = "{countryCode}|{level}|{grade}"                    */
     /*    scopeCity    = "{countryCode}|{cityCode}|{level}|{grade}"         */
 

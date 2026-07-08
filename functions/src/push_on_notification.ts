@@ -27,6 +27,9 @@ interface NotifData {
   subjectKey?: string;
   subjectName?: string;
   topic?: string;
+  // Grup yarışı daveti — tıklamada yarışmayı doğrudan açmak için.
+  contestId?: string;
+  groupId?: string;
   milestone?: string;
   rewardDays?: number;
   // Öğretmen paneli bildirimleri (homework_service.dart / class_service.dart)
@@ -327,6 +330,10 @@ export const pushOnNotificationCreated = onDocumentCreated(
         fromUid: data.fromUid || "",
         fromUsername: data.fromUsername || "",
         targetUsername: data.targetUsername || "",
+        // Grup yarışı daveti: tıklamada yarışmanın DOĞRUDAN açılabilmesi
+        // için hedef id'ler payload'a eklenir (main.dart onTap yönlendirir).
+        contestId: data.contestId || "",
+        groupId: data.groupId || "",
         nid: event.params.nid,
       },
       android: {

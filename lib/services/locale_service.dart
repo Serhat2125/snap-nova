@@ -1002,7 +1002,9 @@ the same MANDATORY presence.''';
       'onb_compete_b2_desc': '6 terim–tanım çiftini ilk doğru eşleştiren kazanır; konuyu eğlenerek pekiştirirsin.',
       'onb_compete_b3_title': 'Skor tablosunda yüksel',
       'onb_compete_b3_desc': 'Süre, hamle ve doğruluğa göre sıralan; ülken adına dünya çapında en üst sıralara çık.',
-      'onb_grade_title': 'Eğitim Seviyeni Seç',
+      // Ana başlık "müfredat" der — hemen altında ülke/müfredat onayı var;
+      // seviye seçimi ise aşağıdaki ortalanmış bölüm başlığında.
+      'onb_grade_title': 'Eğitim Müfredatını Seç',
       'onb_grade_subtitle': 'Tüm içerikler eğitim seviyenize göre size özel hazırlanır.',
       'onb_grade_primary': 'İlkokul',
       'onb_grade_middle': 'Ortaokul',
@@ -1016,7 +1018,7 @@ the same MANDATORY presence.''';
       'onb_grade_personal': 'Okumuyorum / Kişisel Gelişim',
       'onb_grade_adult': 'Yetişkin / Kendi Çalışmam',
       'onb_grade_other': 'Diğer',
-      'onb_level_section': 'Eğitim Seviyen',
+      'onb_level_section': 'Eğitim Seviyeni Seçelim',
       'onb_dept_section': 'Bölüm',
       'onb_class_section': 'Sınıfın',
       'onb_pick_one': 'Seçim yap',

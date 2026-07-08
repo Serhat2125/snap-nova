@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../services/error_logger.dart';
@@ -18,6 +19,7 @@ import 'live_analysis_screen.dart';
 import 'academic_planner.dart';
 import 'calculator_screen.dart';
 import 'profile_screen.dart';
+import 'qualsar_arena_screen.dart' show arenaRouteObserver;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  CameraScreen
@@ -31,7 +33,7 @@ class CameraScreen extends StatefulWidget {
 }
 
 class _CameraScreenState extends State<CameraScreen>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, RouteAware {
   CameraController? _controller;
   bool _isInitialized = false;
   bool _isCapturing   = false;
@@ -40,10 +42,15 @@ class _CameraScreenState extends State<CameraScreen>
   int  _navIndex      = 1;
   String? _errorMsg;
 
-  // Ortam ışığı algılama — preview stream Y/B plane'inden örnekle
+  // Ortam ışığı algılama — GÖREV DÖNGÜLÜ örnekleme (ısınma düzeltmesi):
+  // 4 sn'de bir stream kısaca açılır, İLK kare ile parlaklık ölçülür ve
+  // hemen kapatılır. Eskiden stream SÜREKLİ açıktı → plugin saniyede ~30
+  // YUV karesi kopyalayıp Dart'a taşıyordu (1'ini kullansak bile) →
+  // kesintisiz CPU yükü telefonun ısınmasının ana nedenlerindendi.
   bool _isLowLight     = false;
   bool _lightStreaming = false;
-  int  _lastLightMs    = 0;
+  bool _lightDisabled  = false; // cihaz stream'i desteklemiyorsa kapat
+  Timer? _lightTimer;
 
   // Dinamik çerçeve rect — ScanFrameOverlay'den beslenir
   final ValueNotifier<Rect> _frameNotifier = ValueNotifier(Rect.zero);
@@ -64,26 +71,55 @@ class _CameraScreenState extends State<CameraScreen>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Rota takibi: kameranın üstüne sayfa açılınca donanımı bırak
+    // (ISINMA düzeltmesi — önizleme arkada çalışmaya devam ediyordu).
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) arenaRouteObserver.subscribe(this, route);
+  }
+
+  @override
   void dispose() {
+    arenaRouteObserver.unsubscribe(this);
     WidgetsBinding.instance.removeObserver(this);
+    _lightTimer?.cancel();
     _controller?.dispose();
     _frameNotifier.dispose();
     super.dispose();
   }
 
+  /// Kamerayı tamamen bırak — üstüne sayfa açıldığında ya da uygulama
+  /// arka plana geçtiğinde. Önizleme hattı + ışık örnekleme durur; cihaz
+  /// ısınmaz, pil yanmaz. Geri dönüşte `_initCamera` yeniden kurar.
+  void _pauseCamera() {
+    _lightTimer?.cancel();
+    _lightTimer = null;
+    // Controller'ı dispose et VE referansı temizle — yoksa bir sonraki
+    // build CameraPreview'i disposed instance'a çağırır → crash.
+    final old = _controller;
+    _controller = null;
+    _lightStreaming = false;
+    if (mounted) setState(() => _isInitialized = false);
+    old?.dispose();
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.inactive) {
-      // Controller'ı dispose et VE referansı temizle — yoksa bir sonraki
-      // build CameraPreview'i disposed instance'a çağırır → crash.
-      final old = _controller;
-      _controller = null;
-      _lightStreaming = false;
-      if (mounted) setState(() => _isInitialized = false);
-      old?.dispose();
+      _pauseCamera();
     } else if (state == AppLifecycleState.resumed && _controller == null) {
       _initCamera();
     }
+  }
+
+  // RouteAware — bu sayfanın üstüne başka sayfa açıldı / geri dönüldü.
+  @override
+  void didPushNext() => _pauseCamera();
+
+  @override
+  void didPopNext() {
+    if (_controller == null) _initCamera();
   }
 
   // ── Kamera başlatma ──────────────────────────────────────────────────────────
@@ -112,52 +148,113 @@ class _CameraScreenState extends State<CameraScreen>
     // imageFormatGroup verme — varsayılan platform formatı (Android: yuv420,
     // iOS: bgra8888) preview stream'i için gerekli. takePicture() zaten
     // her iki platformda JPEG döner.
-    final ctrl = CameraController(
-      camera, ResolutionPreset.high, enableAudio: false,
-    );
-
-    try {
-      await ctrl.initialize();
-      if (!mounted) return;
-      _controller = ctrl;
+    //
+    // KADEMELİ PRESET: bazı cihazların kamera HAL'i yüksek çözünürlükte
+    // preview + still kombinasyonunu DESTEKLEMEZ ve CameraX
+    // "No supported surface combination" fırlatır (ör. 1280x720
+    // PRIV+JPEG reddi). high başarısızsa medium, o da olmazsa low ile
+    // yeniden denenir — kamera hemen her cihazda açılır. Ham exception
+    // metni ASLA ekrana basılmaz; kullanıcıya kısa Türkçe mesaj gösterilir.
+    CameraController? ctrl;
+    CameraException? lastErr;
+    for (final preset in const [
+      ResolutionPreset.high,
+      ResolutionPreset.medium,
+      ResolutionPreset.low,
+    ]) {
+      final candidate =
+          CameraController(camera, preset, enableAudio: false);
       try {
-        _minZoom = await ctrl.getMinZoomLevel();
-        _maxZoom = await ctrl.getMaxZoomLevel();
-        _currentZoom = _minZoom;
-      } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'camera_screen'); }
-      setState(() { _isInitialized = true; _errorMsg = null; });
-      _startLightStream();
-    } on CameraException catch (e) {
-      if (mounted) setState(() => _errorMsg = e.description ?? localeService.tr('camera_error'));
+        await candidate.initialize();
+        ctrl = candidate;
+        break;
+      } on CameraException catch (e, st) {
+        lastErr = e;
+        ErrorLogger.instance
+            .capture(e, st, context: 'camera_init_${preset.name}');
+        try {
+          await candidate.dispose();
+        } catch (_) {/* yok say */}
+      }
     }
+    if (ctrl == null) {
+      debugPrint('[Camera] tüm presetler başarısız: ${lastErr?.description}');
+      if (mounted) {
+        setState(() => _errorMsg =
+            'Kamera bu cihazda başlatılamadı. Uygulamayı kapatıp açmayı dene; '
+                    'sorun sürerse Galeri\'den fotoğraf seçebilirsin.'
+                .tr());
+      }
+      return;
+    }
+
+    if (!mounted) {
+      try {
+        await ctrl.dispose();
+      } catch (_) {/* yok say */}
+      return;
+    }
+    _controller = ctrl;
+    try {
+      _minZoom = await ctrl.getMinZoomLevel();
+      _maxZoom = await ctrl.getMaxZoomLevel();
+      _currentZoom = _minZoom;
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'camera_screen'); }
+    if (!mounted) return;
+    setState(() { _isInitialized = true; _errorMsg = null; });
+    _startLightStream();
   }
 
-  // ── Ortam ışığı algılama ─────────────────────────────────────────────────
-  // Preview stream'den saniyede ~1 frame örnekleyip ilk plane'in (Android'de
-  // Y, iOS'ta B kanalı — her ikisi de parlaklıkla iyi korele) ortalamasını
-  // alır. Histerezis ile karanlık/aydınlık arasında geçiş kararlı kalır.
-  Future<void> _startLightStream() async {
-    if (_controller == null || _lightStreaming) return;
-    try {
-      await _controller!.startImageStream(_onPreviewFrame);
-      _lightStreaming = true;
-    } catch (_) {
-      // Bazı cihazlar stream + takePicture çakışması nedeniyle başlatamaz —
-      // bu durumda özellik sessizce kapanır, ikon sabit kalır.
-    }
+  // ── Ortam ışığı algılama — GÖREV DÖNGÜLÜ ─────────────────────────────────
+  // 4 sn'de bir stream kısaca açılır, İLK kare ile parlaklık ölçülür
+  // (Android'de Y, iOS'ta B kanalı — ikisi de parlaklıkla iyi korele) ve
+  // stream hemen kapatılır. Histerezis geçişi kararlı tutar.
+  static const _lightPeriod = Duration(seconds: 4);
+
+  void _startLightStream() {
+    if (_lightDisabled || _lightTimer != null) return;
+    _sampleLightOnce();
+    _lightTimer = Timer.periodic(_lightPeriod, (_) => _sampleLightOnce());
   }
 
   Future<void> _stopLightStream() async {
-    if (!_lightStreaming || _controller == null) return;
+    _lightTimer?.cancel();
+    _lightTimer = null;
+    if (!_lightStreaming || _controller == null) {
+      _lightStreaming = false;
+      return;
+    }
     try { await _controller!.stopImageStream(); } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'camera_screen'); }
     _lightStreaming = false;
   }
 
+  Future<void> _sampleLightOnce() async {
+    final ctrl = _controller;
+    if (ctrl == null || !ctrl.value.isInitialized) return;
+    if (_lightStreaming || _isCapturing) return;
+    try {
+      _lightStreaming = true;
+      await ctrl.startImageStream(_onPreviewFrame);
+    } catch (_) {
+      // Bazı cihazlar stream + takePicture çakışması nedeniyle başlatamaz —
+      // özellik sessizce kapanır, ikon sabit kalır; timer da durdurulur.
+      _lightStreaming = false;
+      _lightDisabled = true;
+      _lightTimer?.cancel();
+      _lightTimer = null;
+    }
+  }
+
   void _onPreviewFrame(CameraImage image) {
+    // Görev döngüsü: İLK kare yeter — stream hemen kapatılır, kalan kareler
+    // yok sayılır (re-entrancy guard'ı _lightStreaming).
+    if (!_lightStreaming) return;
+    _lightStreaming = false;
+    final ctrl = _controller;
+    if (ctrl != null) {
+      unawaited(ctrl.stopImageStream().catchError((_) {}));
+    }
     if (!mounted) return;
-    final now = DateTime.now().millisecondsSinceEpoch;
-    if (now - _lastLightMs < 1100) return; // ~0.9 Hz örnekleme
-    _lastLightMs = now;
 
     final bytes = image.planes.isEmpty ? null : image.planes.first.bytes;
     if (bytes == null || bytes.isEmpty) return;

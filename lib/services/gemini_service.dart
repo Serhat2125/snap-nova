@@ -3939,6 +3939,22 @@ $distLine
 ${ruleLines.join('\n')}
 - Tüm sorular OKUNUR, GERÇEKÇİ, MÜFREDATA UYGUN olmalı.
 - LaTeX, markdown, # başlık YASAK.
+
+[SORU KALİTESİ — İSTİSNASIZ ZORUNLU]
+- Soru kökü TEK, NET ve kendi başına anlamlı bir soru olmalı.
+- Soru kökü CEVABI ASLA ele vermez: doğru şıktaki cümle/kelime soru
+  kökünde tekrar edilemez, tırnak içinde verilemez. KÖTÜ ÖRNEK (YASAK):
+  "Hangi cümlede edat kullanılmamıştır? 'Onlar sinemaya gitmek istiyor.'"
+  — kökteki tırnaklı cümle doğru şıkla aynı; bu tür soru ÜRETME.
+- "Aşağıdaki cümlede/parçada" kalıbı kullanılıyorsa o cümle/parça kökte
+  TAM verilmeli ve TÜM şıklar o cümleye uygulanabilir olmalı; kökle
+  ilgisiz şık YASAK.
+- Şıklar dilbilgisel olarak PARALEL olmalı: hepsi cümle ya da hepsi tek
+  kelime/ifade — karışık uzunluk/türde şık dizisi YASAK.
+- TEK doğru cevap; kalan 3 çeldirici aynı kategoriden ve mantıklı.
+- Üretmeden önce HER soruyu kendin doğrula: kökten cevabı sezdiren,
+  belirsiz, çelişkili veya cevabı tartışmalı soruyu ELE, yerine yenisini
+  üret. Kalitesiz tek soru bile kabul edilemez.
 $outcomeBlock
 
 [ÇIKTI ŞEMASI]

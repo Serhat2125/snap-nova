@@ -1534,13 +1534,21 @@ class _GradePageState extends State<_GradePage> {
   String? _classKey;
   bool _levelOpen = true;
   bool _classOpen = false;
+  /// Üst mod sekmesi: false → "Sınıflar" (İlkokul/Ortaokul/Lise/Üniversite +
+  /// sınıf seçimi), true → "Sınavlar" (ülkenin sınav kataloğu — TR'de LGS'den
+  /// KPSS'ye). Sınav seçimi seviye+sınavı TEK adımda belirler; uygulamadaki
+  /// tüm ders/konu içerikleri seçilen sınava göre gelir (exam_prep profili).
+  bool _examsTab = false;
+  bool _examOpen = true;
   /// Eklenen profillerin string biçiminde listesi. Her giriş: 'level:grade'
   /// veya 'level:faculty:grade'. Kullanıcı "+ Başka seviye ekle" ile birden
   /// fazla profil ekleyebilir (örn. "Lise 11" + "YKS hazırlığı").
   final List<String> _picked = [];
   // Cihazın otomatik tespit edilen ülkesi (mini_test_country pref) — sınav
   // listelerini ülkeye göre filtrelemek için. initState'te yüklenir.
-  String _country = 'tr';
+  // GLOBAL-FIRST: pref henüz yazılmamışsa (init hatası gibi nadir durum)
+  // 'tr' varsaymak yanlış ülke kartı gösterirdi → nötr 'international'.
+  String _country = 'international';
 
   /// true → kullanıcı tespit edilen/seçilen ülkeyi onayladı.
   /// Onaylanmadıysa grade sayfasının üstünde "Sistem sizi X'de tespit etti,
@@ -1843,12 +1851,16 @@ class _GradePageState extends State<_GradePage> {
       'PMYO (Polis Meslek Yüksekokulu Sınavı)',
     ],
     // Üniversite sonrası sınavlar — KPSS Lisans, ALES, TUS vb.
+    // TUS/DUS/EUS ayrı girişler: her biri kendi uzmanlık ders setiyle gelir
+    // (education_profile._examSubjectKeys → 'TUS'/'DUS'/'EUS').
     'post_uni_exam': [
       'ALES',
       'KPSS Lisans',
       'YDS / YÖKDİL',
       'KPSS ÖABT',
-      'TUS / DUS / EUS',
+      'TUS (Tıpta Uzmanlık Sınavı)',
+      'DUS (Diş Hekimliğinde Uzmanlık Sınavı)',
+      'EUS (Eczacılıkta Uzmanlık Sınavı)',
       'Hâkimlik ve Savcılık Sınavları',
       'Kaymakamlık Sınavı',
       'Sayıştay Denetçi Yardımcılığı Sınavı',
@@ -1877,7 +1889,9 @@ class _GradePageState extends State<_GradePage> {
       'KPSS Lisans',
       'YDS / YÖKDİL',
       'KPSS ÖABT',
-      'TUS / DUS / EUS',
+      'TUS (Tıpta Uzmanlık Sınavı)',
+      'DUS (Diş Hekimliğinde Uzmanlık Sınavı)',
+      'EUS (Eczacılıkta Uzmanlık Sınavı)',
       'Hâkimlik ve Savcılık Sınavları',
       'Kaymakamlık Sınavı',
       'Sayıştay Denetçi Yardımcılığı Sınavı',
@@ -2717,15 +2731,81 @@ class _GradePageState extends State<_GradePage> {
   }
 
   /// "+ Başka seviye ekle" — picker'ı sıfırlayıp yeni seçim için aç.
+  ///
+  /// Akıllı sekme: ilk profil bir SINIF ise ikinci seçim ancak uyumlu bir
+  /// sınav olabilir → doğrudan Sınavlar sekmesi açılır ve yalnız eklenebilir
+  /// sınavlar listelenir (8. Sınıf → LGS; Lise 12 → YKS/MSÜ/KPSS Ortaöğretim
+  /// vb.; üniversite+ → KPSS Lisans/ALES/TUS/DUS/EUS…). İlk profil bir
+  /// sınavsa tersine Sınıflar sekmesi açılır.
   void _resetForAnother() {
+    bool toExams = _examsTab;
+    if (_picked.isNotEmpty) {
+      final first = _parseProfile(_picked.first);
+      toExams = !_isExamLevelKey(first.level);
+    }
     setState(() {
+      _examsTab = toExams;
       _level = null;
       _classKey = null;
       _dept = null;
-      _levelOpen = true;
+      _levelOpen = !toExams;
       _deptOpen = false;
       _classOpen = false;
+      _examOpen = toExams;
     });
+  }
+
+  /// Sınav hazırlık akışına ait seviye anahtarları — "Sınıflar" sekmesinde
+  /// gizlenir, "Sınavlar" sekmesinden tek adımda seçilir.
+  static bool _isExamLevelKey(String k) =>
+      k == 'lgs_prep' || k == 'uni_prep' || k == 'post_uni_exam';
+
+  /// Sınıflar ↔ Sınavlar sekme geçişi — devam eden (henüz eklenmemiş) seçim
+  /// sıfırlanır, eklenmiş profiller (_picked) korunur.
+  void _switchTab(bool exams) {
+    if (_examsTab == exams) return;
+    setState(() {
+      _examsTab = exams;
+      _level = null;
+      _classKey = null;
+      _dept = null;
+      _levelOpen = !exams;
+      _deptOpen = false;
+      _classOpen = false;
+      _examOpen = exams;
+    });
+  }
+
+  /// "Sınavlar" sekmesindeki tüm girişler: (seviye anahtarı, sınav adı).
+  /// Ülkeye göre — Sınav Modu kataloğuyla aynı kapsam: TR'de LGS'den tüm
+  /// KPSS modlarına kadar. Çift kayıtlar (YDS iki listede) tekilleştirilir.
+  List<({String level, String exam})> _allExamEntries() {
+    final out = <({String level, String exam})>[];
+    if (_country == 'tr') {
+      for (final e in _classMap['lgs_prep'] ?? const <String>[]) {
+        out.add((level: 'lgs_prep', exam: e));
+      }
+    }
+    for (final e in _classesFor('uni_prep', null)) {
+      if (e.startsWith('LGS')) continue; // lgs_prep girişinde zaten var
+      out.add((level: 'uni_prep', exam: e));
+    }
+    for (final e in _classesFor('post_uni_exam', null)) {
+      out.add((level: 'post_uni_exam', exam: e));
+    }
+    final seen = <String>{};
+    return out.where((t) => seen.add(t.exam)).toList();
+  }
+
+  /// Sınav seçimi — seviye + sınav tek dokunuş: mevcut _pickClass akışı
+  /// (limit, uyumluluk, kayıt, parent bildirimi) aynen kullanılır.
+  void _pickExam(({String level, String exam}) entry) {
+    setState(() {
+      _level = entry.level;
+      _dept = null;
+      _examOpen = false;
+    });
+    _pickClass(entry.exam);
   }
 
   /// Eklenen profil string'inden insan-okur etiket üret.
@@ -2761,9 +2841,10 @@ class _GradePageState extends State<_GradePage> {
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         children: [
-          SizedBox(height: 8),
-          _SectionIconBadge(icon: Icons.tune_rounded, color: widget.accent),
-          SizedBox(height: 16),
+          // İkon küçük + başlık yukarıda: alttaki seçeneklere alan kalsın.
+          _SectionIconBadge(
+              icon: Icons.tune_rounded, color: widget.accent, size: 52),
+          SizedBox(height: 10),
           Text(
             widget.forTeacher
                 ? 'Hangi seviyede eğitim vereceksiniz?'.tr()
@@ -2771,12 +2852,12 @@ class _GradePageState extends State<_GradePage> {
             textAlign: TextAlign.center,
             style: TextStyle(
               color: AppPalette.textPrimary(context),
-              fontSize: 26,
+              fontSize: 24,
               fontWeight: FontWeight.w800,
               letterSpacing: -0.3,
             ),
           ),
-          SizedBox(height: 8),
+          SizedBox(height: 6),
           Text(
             widget.forTeacher
                 ? 'Birden fazla seviye ve sınıf ekleyebilirsin; müfredat seçimine göre içerik ayarlanır.'
@@ -2789,7 +2870,7 @@ class _GradePageState extends State<_GradePage> {
               height: 1.5,
             ),
           ),
-          SizedBox(height: 20),
+          SizedBox(height: 14),
           Expanded(
             child: SingleChildScrollView(
               physics: BouncingScrollPhysics(),
@@ -2851,10 +2932,118 @@ class _GradePageState extends State<_GradePage> {
                     ),
                     SizedBox(height: 18),
                   ],
+                  // ── Ortalanmış bölüm başlığı + Sınıflar/Sınavlar sekmeleri ─
+                  Center(
+                    child: Text(
+                      localeService.tr('onb_level_section'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.2,
+                        color: AppPalette.textPrimary(context),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 12),
+                  // Tek çerçeve içinde segmentli kontrol — aktif taraf accent
+                  // rengiyle dolu, pasif taraf nötr.
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: AppPalette.card(context),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppPalette.textPrimary(context)
+                            .withValues(alpha: 0.16),
+                        width: 1.2,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _ModeTabButton(
+                            label: 'Sınıflar'.tr(),
+                            icon: Icons.school_rounded,
+                            active: !_examsTab,
+                            accent: widget.accent,
+                            onTap: () => _switchTab(false),
+                          ),
+                        ),
+                        Expanded(
+                          child: _ModeTabButton(
+                            label: 'Sınavlar'.tr(),
+                            icon: Icons.emoji_events_rounded,
+                            active: _examsTab,
+                            accent: widget.accent,
+                            onTap: () => _switchTab(true),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 26),
+                  if (_examsTab) ...[
+                    // ── SINAVLAR: ülkenin tüm sınav kataloğu (Sınav Modu ile
+                    //    aynı kapsam). Sınav seçimi seviye+sınavı tek adımda
+                    //    belirler; tüm ders/konu içerikleri sınava göre gelir.
+                    //    Bir sınıf profili zaten ekliyse yalnız o sınıfa
+                    //    UYUMLU sınavlar listelenir (8. Sınıf → LGS; Lise 12
+                    //    → YKS/MSÜ/KPSS Ortaöğretim; üniversite+ → KPSS
+                    //    Lisans/ALES/TUS/DUS/EUS…), uyumsuzlar hiç görünmez.
+                    Builder(builder: (context) {
+                      final entries = _picked.isEmpty
+                          ? _allExamEntries()
+                          : _allExamEntries()
+                              .where((e) =>
+                                  _isClassSelectable(e.level, e.exam))
+                              .toList();
+                      return _ExpandableSelect(
+                        accent: widget.accent,
+                        title: 'Sınavlar'.tr(),
+                        selectedLabel: _classKey?.tr() ??
+                            (entries.isEmpty
+                                ? 'Bu seviyeye eklenebilecek sınav yok'.tr()
+                                : 'Hazırlandığın sınavı seç'.tr()),
+                        selectedColor: _classKey == null || _level == null
+                            ? null
+                            : _levels
+                                .firstWhere((e) => e.key == _level)
+                                .color,
+                        selectedIcon: _classKey == null || _level == null
+                            ? null
+                            : _levels
+                                .firstWhere((e) => e.key == _level)
+                                .icon,
+                        isOpen: _examOpen && entries.isNotEmpty,
+                        enabled: entries.isNotEmpty,
+                        onToggle: () {
+                          if (entries.isEmpty) return;
+                          setState(() => _examOpen = !_examOpen);
+                        },
+                        children: [
+                          for (final entry in entries)
+                            _SelectRow(
+                              icon: _levels
+                                  .firstWhere((e) => e.key == entry.level)
+                                  .icon,
+                              color: _levels
+                                  .firstWhere((e) => e.key == entry.level)
+                                  .color,
+                              label: entry.exam.tr(),
+                              selected: _classKey == entry.exam,
+                              enabled: true,
+                              onTap: () => _pickExam(entry),
+                            ),
+                        ],
+                      );
+                    }),
+                    SizedBox(height: 16),
+                  ] else ...[
                   // ── Sekme 1: Eğitim Düzeyi ───────────────────────────────
                   _ExpandableSelect(
                     accent: widget.accent,
-                    title: localeService.tr('onb_level_section'),
+                    title: 'Eğitim Düzeyi'.tr(),
                     selectedLabel: _level == null
                         ? localeService.tr('onb_pick_level_hint')
                         : _labelFor(_level!),
@@ -2868,19 +3057,22 @@ class _GradePageState extends State<_GradePage> {
                     enabled: true,
                     onToggle: () => setState(() => _levelOpen = !_levelOpen),
                     children: [
+                      // Sınav seviyeleri (LGS/YKS/KPSS…) burada GİZLİ —
+                      // onlar "Sınavlar" sekmesinden tek adımda seçilir.
                       for (final g in _levels)
-                        _SelectRow(
-                          icon: g.icon,
-                          color: g.color,
-                          label: localeService.tr(g.labelKey),
-                          selected: _level == g.key,
-                          // Daha önce profil eklendiyse, bu seviyenin
-                          // SEÇİLMİŞ olanlarla uyumlu olup olmadığını kontrol
-                          // et — uyumsuzsa kilitli (gri + 🔒) göster.
-                          enabled: _picked.isEmpty ||
-                              _isLevelKeySelectable(g.key),
-                          onTap: () => _pickLevel(g.key),
-                        ),
+                        if (!_isExamLevelKey(g.key))
+                          _SelectRow(
+                            icon: g.icon,
+                            color: g.color,
+                            label: localeService.tr(g.labelKey),
+                            selected: _level == g.key,
+                            // Daha önce profil eklendiyse, bu seviyenin
+                            // SEÇİLMİŞ olanlarla uyumlu olup olmadığını kontrol
+                            // et — uyumsuzsa kilitli (gri + 🔒) göster.
+                            enabled: _picked.isEmpty ||
+                                _isLevelKeySelectable(g.key),
+                            onTap: () => _pickLevel(g.key),
+                          ),
                     ],
                   ),
                   // Tab'lar arası boşluk: 28px — etiketin (top:-16) açıklığı +
@@ -2901,28 +3093,20 @@ class _GradePageState extends State<_GradePage> {
                     ),
                     SizedBox(height: 28),
                   ],
-                  // ── Sekme: Sınıf / (sınav hazırlık seviyelerinde) Sınav  ──
+                  // ── Sekme: Sınıf ─────────────────────────────────────────
                   _ExpandableSelect(
                     accent: widget.accent,
-                    title: (_level == 'uni_prep' || _level == 'lgs_prep')
-                        ? localeService.tr('onb_exam_prep_section')
-                        : (_level == 'post_uni_exam'
-                            ? localeService.tr('onb_post_uni_exam_section')
-                            : localeService.tr('onb_class_section')),
+                    title: localeService.tr('onb_class_section'),
                     selectedLabel: _classKey?.tr() ??
                         (classEnabled
-                            ? ((_level == 'uni_prep' ||
-                                    _level == 'post_uni_exam' ||
-                                    _level == 'lgs_prep')
-                                ? localeService.tr('onb_pick_exam_hint')
-                                : localeService.tr('onb_pick_class_hint'))
+                            ? localeService.tr('onb_pick_class_hint')
                             : (_level == null
                                 ? localeService.tr('onb_pick_level_first')
                                 : (needsDept && _dept == null
                                     ? localeService.tr('onb_pick_dept_first')
                                     : localeService.tr('onb_no_class_needed')))),
                     selectedColor: null,
-                    // Sınıf/sınav seçildiğinde seviyenin ikonunu kullan —
+                    // Sınıf seçildiğinde seviyenin ikonunu kullan —
                     // ilkokul → backpack, lise → kitap, üniversite → mezar
                     // şapkası vb. (akademik / çocuksu uyumu).
                     selectedIcon: (_classKey != null && _level != null)
@@ -2943,7 +3127,7 @@ class _GradePageState extends State<_GradePage> {
                           color: widget.accent,
                           label: c.tr(),
                           selected: _classKey == c,
-                          // Mevcut profillerle uyumsuz sınıf/sınav → kilitli.
+                          // Mevcut profillerle uyumsuz sınıf → kilitli.
                           // Örn. Lise 12 + YKS seçili → "9/10/11. Sınıf" pasif.
                           enabled: _level == null ||
                               _isClassSelectable(_level!, c),
@@ -2952,6 +3136,7 @@ class _GradePageState extends State<_GradePage> {
                     ],
                   ),
                   SizedBox(height: 16),
+                  ],
                 ],
               ),
             ),
@@ -3014,6 +3199,60 @@ class _GradePageState extends State<_GradePage> {
             ),
           ),
       ],
+    );
+  }
+}
+
+// ── Sınıflar / Sınavlar mod sekmesi segmenti ───────────────────────────────
+// Eğitim seviyesi adımının üstündeki TEK çerçeve içinde iki eşit segment:
+// soldaki eğitim düzeyleri (İlkokul→Üniversite), sağdaki ülkenin sınav
+// kataloğu. Aktif segment accent rengiyle dolar, pasif olan nötr kalır.
+class _ModeTabButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool active;
+  final Color accent;
+  final VoidCallback onTap;
+  const _ModeTabButton({
+    required this.label,
+    required this.icon,
+    required this.active,
+    required this.accent,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = AppPalette.textPrimary(context);
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(vertical: 11),
+        decoration: BoxDecoration(
+          color: active ? accent : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon,
+                size: 18,
+                color: active ? Colors.white : ink.withValues(alpha: 0.55)),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w800,
+                color: active ? Colors.white : ink.withValues(alpha: 0.65),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -3629,13 +3868,20 @@ class _ProgressBar extends StatelessWidget {
 class _SectionIconBadge extends StatelessWidget {
   final IconData icon;
   final Color color;
-  const _SectionIconBadge({required this.icon, required this.color});
+  /// Rozet çapı — içerik alanı dar olan slaytlarda (örn. eğitim seviyesi)
+  /// küçültülerek seçeneklere yer açılır.
+  final double size;
+  const _SectionIconBadge({
+    required this.icon,
+    required this.color,
+    this.size = 72,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 72,
-      height: 72,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: color.withValues(alpha: 0.14),
@@ -3648,7 +3894,7 @@ class _SectionIconBadge extends StatelessWidget {
         ],
       ),
       alignment: Alignment.center,
-      child: Icon(icon, color: color, size: 34),
+      child: Icon(icon, color: color, size: size * 34 / 72),
     );
   }
 }
@@ -4906,31 +5152,31 @@ class _UserSetupPageState extends State<_UserSetupPage> {
     if (mounted) setState(() {});
   }
 
-  /// Tip kartına dokunma — rol kilidi varsa farklı tip seçilemez.
+  /// Tip kartına dokunma. Aynı e-posta artık farklı rol seçebilir — rol
+  /// değişimi serbest. Veriler uid+koleksiyon bazlı ayrı tutulduğundan karışmaz
+  /// (lig/sınıf/çocuk bağlantıları korunur); onay `_continue`'da alınır.
   void _selectType(AccountType t) {
-    final locked = _lockedType;
-    if (locked != null && t != locked) {
-      _snack('${'Bu e-posta zaten şu hesap tipiyle kayıtlı:'.tr()} '
-          '${locked.tr}. '
-          '${'Farklı bir rol için başka bir e-posta ile giriş yap.'.tr()}');
-      return;
-    }
     setState(() => _selectedType = t);
   }
 
-  /// "Bu e-posta zaten farklı bir rolle kayıtlı" diyaloğu. Onaylarsa seçim
-  /// mevcut role çevrilir; kullanıcı Devam Et ile o rol olarak girer.
-  Future<void> _showExistingRoleDialog(AccountType existing) async {
-    final go = await showDialog<bool>(
+  /// Rol değiştirme onayı — aynı e-posta farklı role geçebilir. Bilgilendirir;
+  /// kullanıcı onaylarsa true döner (yeni rolle devam edilir). Hiçbir veri
+  /// silinmez, istenildiğinde eski role dönülebilir.
+  Future<bool?> _confirmRoleSwitch({
+    required AccountType from,
+    required AccountType to,
+  }) {
+    return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text('Bu hesap zaten kayıtlı'.tr(),
+        title: Text('Rolü değiştir?'.tr(),
             style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
         content: Text(
-          '${'Bu e-posta şu hesap tipiyle kayıtlı:'.tr()} '
-          '${existing.emoji} ${existing.tr}.\n\n'
-          '${'Rol değiştirmek verilerinin karışmasına yol açacağı için kayıt sırasında engellenir. Farklı bir rol için başka bir e-posta kullanabilirsin.'.tr()}',
+          '${'Bu e-posta şu an şu rolle kayıtlı:'.tr()} '
+          '${from.emoji} ${from.tr}.\n\n'
+          '${to.emoji} ${to.tr} '
+          '${'moduna geçmek istediğine emin misin? Eski rolünün verileri silinmez, istediğinde geri dönebilirsin.'.tr()}',
           style: const TextStyle(fontSize: 13.5, height: 1.45),
         ),
         actions: [
@@ -4940,14 +5186,11 @@ class _UserSetupPageState extends State<_UserSetupPage> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('${existing.tr} ${'olarak devam et'.tr()}'),
+            child: Text('${to.tr} ${'olarak devam et'.tr()}'),
           ),
         ],
       ),
     );
-    if (go == true && mounted) {
-      setState(() => _selectedType = existing);
-    }
   }
 
   @override
@@ -5019,9 +5262,14 @@ class _UserSetupPageState extends State<_UserSetupPage> {
         final cloudType = await AccountService.instance.fetchCloudType();
         if (cloudType != null && cloudType != type) {
           if (!mounted) return;
-          _lockedType = cloudType;
-          await _showExistingRoleDialog(cloudType);
-          return;
+          // Rol DEĞİŞTİRME artık serbest (aynı e-posta). Bilgilendirici onay
+          // göster; kullanıcı onaylarsa yeni rolle devam eder. Eski rolün
+          // verileri (lig/sınıf/çocuk bağlantısı) uid altında korunur.
+          final proceed = await _confirmRoleSwitch(from: cloudType, to: type);
+          if (proceed != true) {
+            if (mounted) setState(() => _saving = false);
+            return;
+          }
         }
       }
 

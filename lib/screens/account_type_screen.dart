@@ -82,61 +82,39 @@ class _AccountTypeScreenState extends State<AccountTypeScreen> {
     );
   }
 
-  /// ROL KİLİDİ: cloud'da kayıtlı tip varsa ve istenenden farklıysa kullanıcı
-  /// bilgilendirilir, mevcut rolünün akışına yönlendirilir. true → devam.
+  /// Rol değiştirme onayı: cloud'da farklı bir tip kayıtlıysa kullanıcı
+  /// bilgilendirilir. Aynı e-posta ile rol değişimi ARTIK SERBEST — veriler
+  /// uid+koleksiyon bazlı ayrı tutulduğundan karışmaz, eski role dönülebilir.
+  /// true → yeni rolle devam et; false → vazgeçildi (mevcut ekranda kal).
   Future<bool> _guardExistingRole(AccountType want) async {
     final existing = await AccountService.instance.fetchCloudType();
     if (existing == null || existing == want) return true;
     if (!mounted) return false;
     setState(() => _saving = false);
-    await showDialog<void>(
+    final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Text('Bu hesap zaten kayıtlı'.tr()),
+        title: Text('Rolü değiştir?'.tr()),
         content: Text(
-          '${'Bu e-posta şu hesap tipiyle kayıtlı:'.tr()} '
+          '${'Bu e-posta şu an şu rolle kayıtlı:'.tr()} '
           '${existing.emoji} ${existing.tr}.\n\n'
-          '${'Rol değiştirmek verilerinin karışmasına yol açacağı için kayıt sırasında engellenir. Farklı bir rol için başka bir e-posta kullanabilirsin.'.tr()}',
+          '${want.emoji} ${want.tr} '
+          '${'moduna geçmek istediğine emin misin? Eski rolünün verileri silinmez, istediğinde geri dönebilirsin.'.tr()}',
         ),
         actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Vazgeç'.tr()),
+          ),
           FilledButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('${existing.tr} ${'olarak devam et'.tr()}'),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('${want.tr} ${'olarak devam et'.tr()}'),
           ),
         ],
       ),
     );
-    if (!mounted) return false;
-    await _routeToExisting(existing);
-    return false;
-  }
-
-  Future<void> _routeToExisting(AccountType t) async {
-    if (t == AccountType.parent || t == AccountType.teacher) {
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool(OnboardingScreen.prefKey, true);
-      } catch (_) {}
-    }
-    if (!mounted) return;
-    switch (t) {
-      case AccountType.student:
-        widget.onStudentSelected();
-        break;
-      case AccountType.parent:
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const ParentShellScreen()),
-          (route) => false,
-        );
-        break;
-      case AccountType.teacher:
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const TeacherShellScreen()),
-          (route) => false,
-        );
-        break;
-    }
+    return ok == true;
   }
 
   Future<void> _pick(AccountType t) async {

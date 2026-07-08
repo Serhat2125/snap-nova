@@ -141,10 +141,9 @@ class LeagueLeaderboardService {
         );
         break;
       case LeagueScope.world:
-        q = q.where(
-          'scopeWorld',
-          isEqualTo: '${profile.level}|${profile.grade}',
-        );
+        // Dünya = tek küresel havuz (level/grade'e bölünmez). CF yazımıyla
+        // birebir: league_submit.ts → scopeWorld = "world".
+        q = q.where('scopeWorld', isEqualTo: 'world');
         break;
     }
 
@@ -229,10 +228,9 @@ class LeagueLeaderboardService {
         );
         break;
       case LeagueScope.world:
-        q = q.where(
-          'scopeWorld',
-          isEqualTo: '${profile.level}|${profile.grade}',
-        );
+        // Dünya = tek küresel havuz (level/grade'e bölünmez). CF yazımıyla
+        // birebir: league_submit.ts → scopeWorld = "world".
+        q = q.where('scopeWorld', isEqualTo: 'world');
         break;
     }
 
@@ -336,10 +334,9 @@ class LeagueLeaderboardService {
         );
         break;
       case LeagueScope.world:
-        q = q.where(
-          'scopeWorld',
-          isEqualTo: '${profile.level}|${profile.grade}',
-        );
+        // Dünya = tek küresel havuz (level/grade'e bölünmez). CF yazımıyla
+        // birebir: league_submit.ts → scopeWorld = "world".
+        q = q.where('scopeWorld', isEqualTo: 'world');
         break;
     }
 
@@ -517,8 +514,9 @@ class LeagueLeaderboardService {
             '${location.countryCode}|${profile.level}|${profile.grade}';
         break;
       case LeagueScope.world:
+        // Dünya = tek küresel havuz; CF yazımıyla birebir ("world").
         scopeField = 'scopeWorld';
-        scopeValue = '${profile.level}|${profile.grade}';
+        scopeValue = 'world';
         break;
     }
 
@@ -572,6 +570,133 @@ class LeagueLeaderboardService {
       for (int i = 0; i < all.length; i++) {
         if (all[i].uid == myUid) return i + 1;
       }
+      return null;
+    }
+  }
+
+  /// Kullanıcı top listede görünmüyorsa liste altına eklenen
+  /// "⋮ → 2 üst + ben + 2 alt" bölümü için komşu rakipleri çeker.
+  ///
+  /// Yöntem: kendi totals dokümanı deterministik id'den okunur, sonra aynı
+  /// scope+bucket+mode filtresiyle iki sorgu atılır:
+  ///   • üst komşular — `score > benimki`, score ASC, limit `span`
+  ///     (en yakın üsttekiler; composite index DESC tanımlı ama Firestore
+  ///     indexleri tam ters yönde de tarayabilir → ek index gerekmez)
+  ///   • alt komşular — `score < benimki`, score DESC, limit `span`
+  ///
+  /// Dönen listeler skor DESC (görüntü) sırasındadır; `me` kullanıcının
+  /// kendi totals satırıdır. Skoru yoksa / auth yoksa null.
+  ///
+  /// Not: Eşit puanlı kullanıcılar kesin eşitsizlik (`>`/`<`) dışında
+  /// kaldığından komşu olarak görünmez — myRank()'in eşit-puan davranışıyla
+  /// tutarlı, kabul edilebilir.
+  static Future<
+      ({
+        List<LeagueLeaderRow> above,
+        LeagueLeaderRow me,
+        List<LeagueLeaderRow> below,
+      })?> fetchNeighbors({
+    required EduProfile profile,
+    required UserLocation location,
+    required LeagueScope scope,
+    required LeagueMode mode,
+    required LeaguePeriod period,
+    String? subjectKey,
+    String? topic,
+    int span = 2,
+  }) async {
+    final myUid = FirebaseAuth.instance.currentUser?.uid;
+    if (myUid == null || myUid.isEmpty) return null;
+    if (location.countryCode.isEmpty) return null;
+
+    // Scope alanı + değeri (myRank ile aynı eşleme)
+    final String scopeField;
+    final String scopeValue;
+    switch (scope) {
+      case LeagueScope.city:
+        if (location.cityCode.isEmpty) return null;
+        scopeField = 'scopeCity';
+        scopeValue =
+            '${location.countryCode}|${location.cityCode}|${profile.level}|${profile.grade}';
+        break;
+      case LeagueScope.country:
+        scopeField = 'scopeCountry';
+        scopeValue =
+            '${location.countryCode}|${profile.level}|${profile.grade}';
+        break;
+      case LeagueScope.world:
+        scopeField = 'scopeWorld';
+        scopeValue = 'world';
+        break;
+    }
+
+    // Mode anahtarı
+    final String modeKey;
+    switch (mode) {
+      case LeagueMode.overall:
+        modeKey = 'all';
+        break;
+      case LeagueMode.subject:
+        if (subjectKey == null || subjectKey.isEmpty) return null;
+        modeKey = 's:$subjectKey';
+        break;
+      case LeagueMode.topic:
+        if (subjectKey == null || subjectKey.isEmpty) return null;
+        if (topic == null || topic.isEmpty) return null;
+        modeKey = 't:$subjectKey|$topic';
+        break;
+    }
+
+    try {
+      final col = FirebaseFirestore.instance.collection('league_totals');
+
+      // Kendi satırım — tek doküman okuması (uid_bucket_mode).
+      final myDoc = await col
+          .doc(LeagueScores.totalsDocId(
+              uid: myUid, modeKey: modeKey, period: period))
+          .get()
+          .timeout(_leagueFetchTimeout);
+      final myData = myDoc.data();
+      final myScore = (myData?['score'] as num?)?.toDouble() ?? 0.0;
+      if (myData == null || myScore <= 0) return null;
+
+      Query<Map<String, dynamic>> base = col
+          .where(scopeField, isEqualTo: scopeValue)
+          .where('bucket', isEqualTo: LeagueScores.bucketFor(period))
+          .where('modeKey', isEqualTo: modeKey);
+
+      final results = await Future.wait([
+        base
+            .where('score', isGreaterThan: myScore)
+            .orderBy('score') // ASC → en yakın üsttekiler önce
+            .limit(span)
+            .get()
+            .timeout(_leagueFetchTimeout),
+        base
+            .where('score', isLessThan: myScore)
+            .orderBy('score', descending: true) // en yakın alttakiler önce
+            .limit(span)
+            .get()
+            .timeout(_leagueFetchTimeout),
+      ]);
+
+      LeagueLeaderRow rowOf(Map<String, dynamic> m) => LeagueLeaderRow(
+            uid: (m['uid'] ?? '').toString(),
+            displayName: (m['displayName'] ?? '').toString(),
+            avatar: (m['avatar'] ?? '').toString(),
+            location: _formatLocation(scope, m),
+            score: (m['score'] as num?)?.toDouble() ?? 0.0,
+            durationSec: (m['durationSec'] as num?)?.toInt() ?? 0,
+            isMe: (m['uid'] ?? '').toString() == myUid,
+          );
+
+      // Üst komşular ASC geldi → görüntü için DESC'e çevir.
+      final above =
+          results[0].docs.map((d) => rowOf(d.data())).toList().reversed.toList();
+      final below = results[1].docs.map((d) => rowOf(d.data())).toList();
+      return (above: above, me: rowOf(myData), below: below);
+    } catch (e) {
+      debugPrint('[LeagueLeaderboard] fetchNeighbors fail: $e');
       return null;
     }
   }

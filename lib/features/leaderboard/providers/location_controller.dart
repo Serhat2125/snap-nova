@@ -74,8 +74,15 @@ class LocationState {
 }
 
 /// Geo-IP konum tespiti — GeolocationService (ipapi.co + 2 yedek) kullanır.
-/// Ağ yoksa veya hata olursa Türkiye/İstanbul'a düşer (kullanıcı dropdown'dan
-/// değiştirebilir; bu sadece ilk varsayılan).
+///
+/// ŞEHİR TAHMİNİ YOKTUR: IP şehir tespiti Türkiye'de güvenilmez (operatör
+/// IP havuzları çoğunlukla İstanbul'da görünür — İzmir'deki kullanıcıya
+/// "İstanbul" atanıyordu, kullanıcı da değiştirmeden onaylayınca YANLIŞ
+/// şehir sıralamasına giriyordu). API açıkça şehir döndürmediyse şehir BOŞ
+/// bırakılır; onay akışı boş şehirle ilerlemeye izin vermediği için
+/// kullanıcı şehrini bilinçli olarak SEÇMEK zorunda kalır.
+/// Ülke bile tespit edilemezse hata fırlatılır → çağıran taraf manuel
+/// seçim moduna geçer (Türkiye/İstanbul körleme fallback'i KALDIRILDI).
 class _AutoLocationDetector {
   static Future<UserLocation> detect() async {
     try {
@@ -89,38 +96,21 @@ class _AutoLocationDetector {
           orElse: () => LocationCatalog.countries.first,
         );
         final countryName = entry.code == cc ? entry.name : cc;
-        final cityRaw = (info.extra['city'] as String?) ?? '';
-        final cityName = cityRaw.isEmpty ? _defaultCityFor(cc) : cityRaw;
+        final cityRaw = ((info.extra['city'] as String?) ?? '').trim();
         return UserLocation(
           country: countryName,
           countryCode: cc,
-          city: cityName,
-          cityCode: cityName.toLowerCase().replaceAll(' ', '-'),
+          city: cityRaw,
+          cityCode: cityRaw.isEmpty
+              ? ''
+              : cityRaw.toLowerCase().replaceAll(' ', '-'),
         );
       }
     } catch (e, st) {
       ErrorLogger.instance.capture(e, st, context: 'auto_location_detector');
     }
-    // Fallback: Türkiye/İstanbul (kullanıcı sonra değiştirebilir)
-    return UserLocation(
-      country: 'Türkiye',
-      countryCode: 'TR',
-      city: 'İstanbul',
-      cityCode: 'istanbul',
-    );
-  }
-
-  static String _defaultCityFor(String countryCode) {
-    // Çok temel — sadece coğrafi popülerlik için. Gerçek şehir API'den gelmezse
-    // kullanıcıdan seçmesini isteyeceğiz.
-    return const {
-      'TR': 'İstanbul',
-      'US': 'New York',
-      'DE': 'Berlin',
-      'FR': 'Paris',
-      'GB': 'London',
-      'JP': 'Tokyo',
-    }[countryCode] ?? '';
+    // Ülke dahi bilinmiyor → tahmin uydurma; manuel seçim moduna geç.
+    throw StateError('geo-ip unavailable');
   }
 }
 

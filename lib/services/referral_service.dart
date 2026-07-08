@@ -15,7 +15,7 @@
 //
 //  Akış:
 //    A) Davet eden:
-//       1) `ensureMyCode()` → kendi kodunu üretir (örn QUALS-7K9F2) veya getirir.
+//       1) `ensureMyCode()` → kendi kodunu üretir (örn 7K9F2M) veya getirir.
 //       2) Kodu paylaşır.
 //       3) `myStats()` → kaç kişi davet etti, kim katıldı.
 //    B) Davet edilen (yeni kullanıcı):
@@ -76,7 +76,7 @@ class InvitedUser {
 }
 
 class ReferralStats {
-  /// Bu kullanıcının paylaşacağı davet kodu — örn "QUALS-7K9F2".
+  /// Bu kullanıcının paylaşacağı davet kodu — örn "7K9F2M" (6 harf+rakam).
   final String myCode;
 
   /// Bu kullanıcıyı davet edenler (en fazla 1).
@@ -156,15 +156,16 @@ class ReferralService {
   }
 
   // ── Davet kodu üretimi ─────────────────────────────────────────────────────
-  // "QuAls-XXXXXX" format: 6 karakter, harf+rakam karışık, ambiguous karakter
-  // (O, 0, I, 1, L) yok. Örnek: QuAls-MBC5D6, QuAls-GK12M5, QuAls-12F3D6.
-  // UI tarafında "Al" hecesi kırmızı renkle render edilir.
+  // KISA format: prefix YOK, sadece 6 karakter harf+rakam. Örnek: MBC5D6,
+  // GK92M5. Ambiguous karakterler (O, 0, I, 1, L) alfabede yok — telefonda
+  // yazması/söylemesi kolay. Eski "QuAls-XXXXXX" kodları ensureMyCode'da
+  // otomatik kısa formata yenilenir; paylaşılmış eski kodlar redeemCode'da
+  // geriye dönük kabul edilmeye devam eder.
   static const _alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-  static final RegExp _codeFormat =
-      RegExp(r'^QuAls-[A-Z0-9]{6}$');
+  static final RegExp _codeFormat = RegExp(r'^[A-Z0-9]{6}$');
   static String _generateCode() {
     final rng = math.Random.secure();
-    final buf = StringBuffer('QuAls-');
+    final buf = StringBuffer();
     for (int i = 0; i < 6; i++) {
       buf.write(_alphabet[rng.nextInt(_alphabet.length)]);
     }
@@ -195,8 +196,10 @@ class ReferralService {
     try {
       final snap = await myDoc.get();
       final existing = snap.data()?['code'] as String?;
-      // Yeni formata (QuAls-XXXXXX) uyuyorsa mevcut kodu kullan.
-      // Eski formattaki kodlar (QUALS-XXXXX vb.) otomatik yenilenir.
+      // Yeni KISA formata (XXXXXX) uyuyorsa mevcut kodu kullan.
+      // Eski formattaki kodlar (QuAls-XXXXXX, QUALS-XXXXX vb.) otomatik
+      // kısa koda yenilenir; eskisi referral_codes'ta kaldığı için daha
+      // önce paylaşılmış eski kod da kullanılmaya devam edebilir.
       if (existing != null && _codeFormat.hasMatch(existing)) {
         return existing;
       }
@@ -267,16 +270,19 @@ class ReferralService {
   static Future<RedeemResult> redeemCode(String rawCode) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return RedeemResult.notAuthenticated;
-    // Format: QuAls-XXXXXX (6 alfanümerik). Kullanıcı her case'de yazabilir
-    // (quals-, QUALS-, Quals-, vb.); canonical biçime normalize edilir:
-    //   prefix → "QuAls-" (Firestore doc id'leri bu biçimde),
-    //   suffix → upper-case (alfabe sadece büyük harf + rakam).
+    // Yeni format: XXXXXX (6 alfanümerik, prefix yok). Geriye dönük uyum:
+    // daha önce paylaşılmış "QuAls-XXXXXX" kodları da kabul edilir (her
+    // case'de yazılabilir; Firestore doc id'si canonical "QuAls-" biçimi).
     final raw = rawCode.trim();
-    if (raw.isEmpty ||
-        !RegExp(r'^QUALS-[A-Z0-9]{6}$', caseSensitive: false).hasMatch(raw)) {
+    final String code;
+    if (RegExp(r'^[A-Z0-9]{6}$', caseSensitive: false).hasMatch(raw)) {
+      code = raw.toUpperCase();
+    } else if (RegExp(r'^QUALS-[A-Z0-9]{6}$', caseSensitive: false)
+        .hasMatch(raw)) {
+      code = 'QuAls-${raw.substring(6).toUpperCase()}';
+    } else {
       return RedeemResult.invalidCode;
     }
-    final code = 'QuAls-${raw.substring(6).toUpperCase()}';
     try {
       // Kod → owner lookup
       final codeDoc =
@@ -407,13 +413,27 @@ class ReferralService {
 }
 
 /// Onboarding adımı için: paylaşılan davet kodu URL/clipboard'tan parse edilir.
-/// URL örnek: https://qualsar.app/i/QuAls-MBC5D6
+/// URL örnek: https://qualsar.app/i/MBC5D6 (yeni) veya /i/QuAls-MBC5D6 (eski).
+/// Yeni kısa kod düz metinden YALNIZCA bağlamla yakalanır (link yolu veya
+/// "kodum:" etiketi) — rastgele 6 harfli kelimeler kod sanılmasın.
 String? parseInviteCodeFromText(String text) {
-  final m = RegExp(r'QUALS-[A-Z0-9]{6}', caseSensitive: false).firstMatch(text);
-  final raw = m?.group(0);
-  if (raw == null) return null;
-  // Canonical form: prefix "QuAls-" + uppercase suffix.
-  return 'QuAls-${raw.substring(6).toUpperCase()}';
+  // 1) Eski format — her yerde güvenle yakalanabilir (prefix ayırt edici).
+  final legacy =
+      RegExp(r'QUALS-[A-Z0-9]{6}', caseSensitive: false).firstMatch(text);
+  if (legacy != null) {
+    return 'QuAls-${legacy.group(0)!.substring(6).toUpperCase()}';
+  }
+  // 2) Yeni format — davet linki yolundan (/i/XXXXXX).
+  final fromUrl =
+      RegExp(r'/i/([A-Za-z0-9]{6})\b').firstMatch(text);
+  if (fromUrl != null) return fromUrl.group(1)!.toUpperCase();
+  // 3) Yeni format — "Davet kodum: XXXXXX" / "code: XXXXXX" etiketi.
+  final fromLabel = RegExp(
+    r'(?:kodu?m?u?n?|code)\s*[:=]?\s*([A-HJ-KM-NP-Z2-9]{6})\b',
+    caseSensitive: false,
+  ).firstMatch(text);
+  if (fromLabel != null) return fromLabel.group(1)!.toUpperCase();
+  return null;
 }
 
 // JSON helper export — eski kodlar için.

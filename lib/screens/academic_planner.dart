@@ -3396,29 +3396,10 @@ class _LibraryLandingState extends State<LibraryLanding> {
               ],
             ),
             SizedBox(height: 16),
-            // ── ÇALIŞ: Takvim | Pomodoro + AI Koç ────────────────────
+            // ── ÇALIŞ: Pomodoro | Ödevler + AI Koç | Takvim ──────────
             _sectionLabel('Çalış'),
             Row(
               children: [
-                Expanded(
-                  child: _LandingCard(
-                    icon: Icons.edit_calendar_rounded,
-                    imageAsset: 'assets/library_icons/calendar.png',
-                    title: localeService.tr('my_study_calendar'),
-                    subtitle: 'Programını planla, takip et'.tr(),
-                    color: _indigo,
-                    customBg: _cardBgs['calendar'],
-                    customTextColor: _cardInks['calendar'],
-                    onColorAccept: (c) =>
-                        _applyLibraryColor('calendar', c),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => StudyCalendarPage(),
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(width: 10),
                 Expanded(
                   child: _LandingCard(
                     icon: Icons.timer_rounded,
@@ -3437,6 +3418,25 @@ class _LibraryLandingState extends State<LibraryLanding> {
                     ),
                   ),
                 ),
+                SizedBox(width: 10),
+                Expanded(
+                  child: _LandingCard(
+                    // Fütüristik ikon seti: ödevler = görev fırlatma 🚀
+                    icon: Icons.rocket_launch_rounded,
+                    title: 'Sınıf Ödevlerim'.tr(),
+                    subtitle: 'Öğretmeninin verdiği ödevler'.tr(),
+                    color: Color(0xFF7C3AED),
+                    customBg: _cardBgs['homeworks'],
+                    customTextColor: _cardInks['homeworks'],
+                    onColorAccept: (c) =>
+                        _applyLibraryColor('homeworks', c),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const StudentHomeworksScreen(),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
             SizedBox(height: 12),
@@ -3444,7 +3444,8 @@ class _LibraryLandingState extends State<LibraryLanding> {
               children: [
                 Expanded(
                   child: _LandingCard(
-                    icon: Icons.psychology_rounded,
+                    // Fütüristik ikon seti: AI koç = robot asistan 🤖
+                    icon: Icons.smart_toy_rounded,
                     title: 'AI Koç'.tr(),
                     subtitle: 'Kişisel çalışma tavsiyeleri'.tr(),
                     color: Color(0xFF7C3AED),
@@ -3460,35 +3461,35 @@ class _LibraryLandingState extends State<LibraryLanding> {
                   ),
                 ),
                 SizedBox(width: 10),
-                Expanded(child: SizedBox()),
+                Expanded(
+                  child: _LandingCard(
+                    icon: Icons.edit_calendar_rounded,
+                    imageAsset: 'assets/library_icons/calendar.png',
+                    title: localeService.tr('my_study_calendar'),
+                    subtitle: 'Programını planla, takip et'.tr(),
+                    color: _indigo,
+                    customBg: _cardBgs['calendar'],
+                    customTextColor: _cardInks['calendar'],
+                    onColorAccept: (c) =>
+                        _applyLibraryColor('calendar', c),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => StudyCalendarPage(),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
             SizedBox(height: 16),
-            // ── SINIFIM: Ödevler | Kaynaklar ─────────────────────────
+            // ── SINIFIM: Kaynaklar (Ödevler yukarıda "Çalış"a taşındı) ──
             _sectionLabel('Sınıfım'),
             Row(
               children: [
                 Expanded(
                   child: _LandingCard(
-                    icon: Icons.assignment_turned_in_rounded,
-                    title: 'Sınıf Ödevlerim'.tr(),
-                    subtitle: 'Öğretmeninin verdiği ödevler'.tr(),
-                    color: Color(0xFF7C3AED),
-                    customBg: _cardBgs['homeworks'],
-                    customTextColor: _cardInks['homeworks'],
-                    onColorAccept: (c) =>
-                        _applyLibraryColor('homeworks', c),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const StudentHomeworksScreen(),
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: _LandingCard(
-                    icon: Icons.folder_shared_rounded,
+                    // Fütüristik ikon seti: kaynaklar = bağlantı ağı (hub)
+                    icon: Icons.hub_rounded,
                     title: 'Sınıf Kaynaklarım'.tr(),
                     subtitle: 'Öğretmenin paylaştığı dosyalar'.tr(),
                     color: Color(0xFF0EA5E9),
@@ -3503,6 +3504,8 @@ class _LibraryLandingState extends State<LibraryLanding> {
                     ),
                   ),
                 ),
+                SizedBox(width: 10),
+                Expanded(child: SizedBox()),
               ],
             ),
           ],

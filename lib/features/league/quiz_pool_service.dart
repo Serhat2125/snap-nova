@@ -26,6 +26,7 @@ import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../services/education_profile.dart';
 import '../../services/locale_service.dart';
@@ -93,6 +94,7 @@ class QuizPoolService {
     int count = 10,
     int sampleTests = 5,
     int? seed,
+    Set<String>? exclude,
   }) async {
     try {
       // Tüm testleri çek (havuz cap ≤100, yük az). createdAt ile
@@ -119,6 +121,16 @@ class QuizPoolService {
       }
       if (allQuestions.isEmpty) return const [];
 
+      // Kullanıcıya daha önce SUNULMUŞ sorular hariç tutulur (replay'de
+      // aynı soruların tekrar gelmemesi için). Kalan soru `count`'un
+      // altına düşerse eksik liste döner — çağıran taraf zaten <10 soruda
+      // AI'dan TAZE soru üretip havuza ekliyor; havuz böylece büyür.
+      if (exclude != null && exclude.isNotEmpty) {
+        allQuestions.removeWhere(
+            (q) => exclude.contains(questionHash((q['q'] ?? '').toString())));
+        if (allQuestions.isEmpty) return const [];
+      }
+
       // Fisher-Yates shuffle — seed varsa deterministik, yoksa rastgele.
       final rng = seed != null ? math.Random(seed) : math.Random();
       for (int i = allQuestions.length - 1; i > 0; i--) {
@@ -136,6 +148,61 @@ class QuizPoolService {
     } catch (e) {
       debugPrint('[QuizPool] fetch fail: $e');
       return const [];
+    }
+  }
+
+  // ── Sunulmuş soru takibi (yerel) — replay'de aynı sorular gelmesin ────────
+  // Kullanıcının gördüğü her sorunun hash'i poolKey bazında SharedPreferences
+  // listesinde tutulur (en yeni 300). fetchPoolQuestions(exclude:) bu seti
+  // eleyerek örnekler; havuzda yeni soru kalmazsa çağıran taraf AI'dan taze
+  // üretir. Deterministik (kova ilk denemesi) seçim de kaydedilir ki replay
+  // onları hariç tutabilsin.
+  static const _servedPrefix = 'quiz_served_v1_';
+  static const _servedCap = 300;
+
+  /// Soru metninden platformdan bağımsız kısa hash (FNV-1a hex).
+  static String questionHash(String q) {
+    var h = 0x811c9dc5;
+    for (final cu in q.trim().codeUnits) {
+      h ^= cu;
+      h = (h * 0x01000193) & 0xFFFFFFFF;
+    }
+    return h.toRadixString(16);
+  }
+
+  static String _servedPrefKey(String poolKey) =>
+      '$_servedPrefix${questionHash(poolKey)}';
+
+  /// Bu havuz için kullanıcıya daha önce sunulmuş soru hash'leri.
+  static Future<Set<String>> servedHashes(String poolKey) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return (prefs.getStringList(_servedPrefKey(poolKey)) ?? const [])
+          .toSet();
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  /// Sunulan soruları işaretle — liste cap'i aşarsa en eskiler düşer.
+  static Future<void> markServed(
+      String poolKey, List<Map<String, dynamic>> questions) async {
+    if (questions.isEmpty) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final k = _servedPrefKey(poolKey);
+      final list = prefs.getStringList(k) ?? <String>[];
+      for (final q in questions) {
+        final h = questionHash((q['q'] ?? '').toString());
+        list.remove(h); // varsa sona taşı (en yeni)
+        list.add(h);
+      }
+      final trimmed = list.length > _servedCap
+          ? list.sublist(list.length - _servedCap)
+          : list;
+      await prefs.setStringList(k, trimmed);
+    } catch (e) {
+      debugPrint('[QuizPool] markServed fail: $e');
     }
   }
 

@@ -182,17 +182,30 @@ class ContestGroupService {
           p.username.trim().isNotEmpty ? p.username.trim() : 'Oyuncu';
 
       // Sahip + tohum üyeleri tekilleştir (uid bazında).
+      // avatarData (base64 profil fotoğrafı) da üye kaydına eklenir —
+      // diğer üyeler grup listesinde gerçek fotoğrafı görsün. Boyut guard'ı:
+      // members dizisi tek dokümanda yaşar (1MB limit), aşırı büyük base64
+      // yazılmaz; o durumda UI zaten users/{uid}'den canlı çeker.
       final members = <Map<String, dynamic>>[
-        {'uid': uid, 'username': ownerName, 'avatar': p.avatar}
+        {
+          'uid': uid,
+          'username': ownerName,
+          'avatar': p.avatar,
+          if (p.avatarData.isNotEmpty && p.avatarData.length < 60000)
+            'avatarData': p.avatarData,
+        }
       ];
       final seenUids = <String>{uid};
       for (final m in seedMembers) {
         final mu = (m['uid'] ?? '').toString();
         if (mu.isEmpty || !seenUids.add(mu)) continue;
+        final mAvatarData = (m['avatarData'] ?? '').toString();
         members.add({
           'uid': mu,
           'username': (m['username'] ?? 'Oyuncu').toString(),
           'avatar': (m['avatar'] ?? '👤').toString(),
+          if (mAvatarData.isNotEmpty && mAvatarData.length < 60000)
+            'avatarData': mAvatarData,
         });
       }
 
@@ -287,7 +300,15 @@ class ContestGroupService {
       await _fs.collection(_collection).doc(groupId).set({
         'memberUids': FieldValue.arrayUnion([uid]),
         'members': FieldValue.arrayUnion([
-          {'uid': uid, 'username': name, 'avatar': p.avatar}
+          {
+            'uid': uid,
+            'username': name,
+            'avatar': p.avatar,
+            // Profil fotoğrafı — diğer üyeler listede görsün (boyut guard'ı
+            // createGroup ile aynı gerekçe: members tek dokümanda, 1MB limit).
+            if (p.avatarData.isNotEmpty && p.avatarData.length < 60000)
+              'avatarData': p.avatarData,
+          }
         ]),
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));

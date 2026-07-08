@@ -354,17 +354,41 @@ class _LiveAnalysisScreenState extends State<LiveAnalysisScreen>
         (c) => c.lensDirection == CameraLensDirection.back,
         orElse: () => cams.first,
       );
-      // Düşük çözünürlük → bellek ve CPU tasarrufu (preview için yeterli;
-      // _captureFrame() yine aynı controller'dan tam kalitede fotoğraf çeker).
-      final ctrl = CameraController(
-        back,
-        ResolutionPreset.high, // medium → high: net görüntü için
-        enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.yuv420,
-      );
-      await ctrl.initialize();
+      // KADEMELİ PRESET: bazı cihazların HAL'i yüksek çözünürlükte
+      // preview+still kombinasyonunu desteklemez ("No supported surface
+      // combination"). high → medium → low sırayla denenir.
+      CameraController? ctrl;
+      for (final preset in const [
+        ResolutionPreset.high,
+        ResolutionPreset.medium,
+        ResolutionPreset.low,
+      ]) {
+        final candidate = CameraController(
+          back,
+          preset,
+          enableAudio: false,
+          imageFormatGroup: ImageFormatGroup.yuv420,
+        );
+        try {
+          await candidate.initialize();
+          ctrl = candidate;
+          break;
+        } on CameraException catch (e) {
+          debugPrint(
+              '[LiveAnalysis] preset ${preset.name} fail: ${e.description}');
+          try {
+            await candidate.dispose();
+          } catch (_) {/* yok say */}
+        }
+      }
+      if (ctrl == null) {
+        if (mounted) setState(() => _camOpening = false);
+        _showSnack('Kamera açılamadı'.tr());
+        return;
+      }
       if (!mounted) {
-        unawaited(Future(() async => await ctrl.dispose()));
+        final c = ctrl;
+        unawaited(Future(() async => await c.dispose()));
         return;
       }
       // Sürekli otofokus + otomatik exposure → görüntü her zaman net.

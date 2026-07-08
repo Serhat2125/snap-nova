@@ -907,9 +907,13 @@ class HomeworkService {
           final agg = students.putIfAbsent(sub.studentUid,
               () => _StudentAgg(
                     uid: sub.studentUid,
-                    name: sub.studentDisplayName.isEmpty
-                        ? '@${sub.studentUsername}'
-                        : sub.studentDisplayName,
+                    // Ad boşsa @kullanıcıadı; İKİSİ de boşsa çıplak "@"
+                    // basma — "Öğrenci" fallback'i.
+                    name: sub.studentDisplayName.isNotEmpty
+                        ? sub.studentDisplayName
+                        : (sub.studentUsername.isNotEmpty
+                            ? '@${sub.studentUsername}'
+                            : 'Öğrenci'),
                   ));
           agg.assigned++;
           if (sub.isSubmitted) {
@@ -1029,9 +1033,12 @@ class HomeworkService {
           final sub = HomeworkSubmissionModel.fromMap(sd.data());
           if (!sub.isSubmitted) continue;
           final a = aggs.putIfAbsent(sub.studentUid, () => _GradeAgg(
-              sub.studentDisplayName.isEmpty
-                  ? '@${sub.studentUsername}'
-                  : sub.studentDisplayName));
+              // Ad → @kullanıcıadı → "Öğrenci" (çıplak "@" satırı yasak).
+              sub.studentDisplayName.isNotEmpty
+                  ? sub.studentDisplayName
+                  : (sub.studentUsername.isNotEmpty
+                      ? '@${sub.studentUsername}'
+                      : 'Öğrenci')));
           final qCount =
               hw.questionCount > 0 ? hw.questionCount : sub.answers.length;
           a.total += qCount;

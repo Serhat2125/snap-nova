@@ -4405,6 +4405,10 @@ class _DueloRecordsPage extends StatefulWidget {
 class _DueloRecordsPageState extends State<_DueloRecordsPage> {
   List<_DueloRecord> _items = const [];
 
+  /// Silme modu — hamburger menüden açılır; karta dokununca o yarış kaydı
+  /// silinir (grup yarışları sayfasıyla aynı mantık).
+  bool _deleteMode = false;
+
   @override
   void initState() {
     super.initState();
@@ -4571,6 +4575,44 @@ class _DueloRecordsPageState extends State<_DueloRecordsPage> {
     }
   }
 
+  /// Tüm kayıtları (bu sekmedeki) tek seferde sil — onaylı.
+  Future<void> _confirmClearAll() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dctx) => AlertDialog(
+        backgroundColor: AppPalette.card(dctx),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text('Tümünü sil?'.tr(),
+            style: _serif(size: 17, weight: FontWeight.w800)),
+        content: Text(
+            'Bu sayfadaki TÜM yarış kayıtların silinir. Bu işlem geri alınamaz.'
+                .tr(),
+            style: _sans(
+                size: 13,
+                height: 1.4,
+                color: AppPalette.textSecondary(dctx))),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dctx).pop(false),
+            child: Text('Vazgeç'.tr()),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dctx).pop(true),
+            child: Text('Sil'.tr(),
+                style: const TextStyle(
+                    color: Color(0xFFEF4444), fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    for (final r in List.of(_items)) {
+      await _DueloRecordStore.delete(r.id);
+    }
+    await _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -4586,6 +4628,57 @@ class _DueloRecordsPageState extends State<_DueloRecordsPage> {
           style: _serif(
               size: 18, weight: FontWeight.w700, letterSpacing: -0.01),
         ),
+        actions: [
+          // Hamburger menü — grup yarışları sayfasıyla aynı mantık:
+          // "Yarış sil" → dokunarak tek tek silme; "Tümünü sil" → onaylı.
+          PopupMenuButton<String>(
+            icon: Icon(Icons.menu_rounded,
+                color: AppPalette.textPrimary(context)),
+            color: AppPalette.card(context),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14)),
+            onSelected: (v) {
+              if (v == 'delete') {
+                setState(() => _deleteMode = !_deleteMode);
+              } else if (v == 'clear') {
+                _confirmClearAll();
+              }
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: 'delete',
+                child: Row(
+                  children: [
+                    Icon(
+                        _deleteMode
+                            ? Icons.close_rounded
+                            : Icons.delete_outline_rounded,
+                        size: 18,
+                        color: const Color(0xFFEF4444)),
+                    const SizedBox(width: 8),
+                    Text(
+                        _deleteMode
+                            ? 'Silme modunu kapat'.tr()
+                            : 'Yarış sil'.tr(),
+                        style: _sans(size: 13, weight: FontWeight.w700)),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'clear',
+                child: Row(
+                  children: [
+                    const Icon(Icons.delete_sweep_rounded,
+                        size: 18, color: Color(0xFFEF4444)),
+                    const SizedBox(width: 8),
+                    Text('Tümünü sil'.tr(),
+                        style: _sans(size: 13, weight: FontWeight.w700)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
       body: _items.isEmpty
           ? Center(
@@ -4608,22 +4701,54 @@ class _DueloRecordsPageState extends State<_DueloRecordsPage> {
                 ),
               ),
             )
-          : ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
-              itemCount: _items.length,
-              separatorBuilder: (_, __) => SizedBox(height: 12),
-              itemBuilder: (_, i) {
-                final r = _items[i];
-                return _DueloRecordFullCard(
-                  record: r,
-                  onTap: () => _openResultScreen(r),
-                  onOpenMistakes: () => widget.onOpenMistakes(r),
-                  onRematch: () => _rematchFromRecord(context, r),
-                  onShareSocial: () => widget.onShare(r, false),
-                  onShareFriend: () => widget.onShare(r, true),
-                  onLongPress: () => _confirmDelete(r),
-                );
-              },
+          : Column(
+              children: [
+                // Silme modu ipucu şeridi
+                if (_deleteMode)
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                          color: const Color(0xFFEF4444)
+                              .withValues(alpha: 0.40)),
+                    ),
+                    child: Text(
+                      '🗑️ ${'Silmek istediğin yarışa dokun.'.tr()}',
+                      style: _sans(
+                          size: 12,
+                          weight: FontWeight.w700,
+                          color: const Color(0xFFEF4444)),
+                    ),
+                  ),
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
+                    itemCount: _items.length,
+                    separatorBuilder: (_, __) => SizedBox(height: 12),
+                    itemBuilder: (_, i) {
+                      final r = _items[i];
+                      return _DueloRecordFullCard(
+                        record: r,
+                        // Silme modunda dokunuş = sil (onaylı); normalde
+                        // sonuç ekranı.
+                        onTap: _deleteMode
+                            ? () => _confirmDelete(r)
+                            : () => _openResultScreen(r),
+                        onOpenMistakes: () => widget.onOpenMistakes(r),
+                        onRematch: () => _rematchFromRecord(context, r),
+                        onShareSocial: () => widget.onShare(r, false),
+                        onShareFriend: () => widget.onShare(r, true),
+                        onLongPress: () => _confirmDelete(r),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
     );
   }
@@ -6771,11 +6896,16 @@ KURALLAR:
   /// Grup yarışlarım — bir yarışa dokununca o yarışın SIRALAMA TABLOSU
   /// (GroupContestScreen sonuç ekranı) açılır.
   void _openGroupRacesPage() {
+    // Silme modu: hamburger menüden açılır; yarışa dokununca o yarış
+    // LİSTEDEN kaldırılır (yalnız kendi katılım kaydı silinir — grup ve
+    // diğer üyeler etkilenmez).
+    bool deleteMode = false;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => Container(
         constraints: BoxConstraints(
             maxHeight: MediaQuery.of(ctx).size.height * 0.8),
         decoration: BoxDecoration(
@@ -6798,12 +6928,118 @@ KURALLAR:
               ),
             ),
             const SizedBox(height: 14),
-            Text('Grup Arkadaşımla Yarışlarım'.tr(),
-                style: _serif(size: 19, weight: FontWeight.w800)),
+            Row(
+              children: [
+                Expanded(
+                  child: Text('Grup Arkadaşımla Yarışlarım'.tr(),
+                      style: _serif(size: 19, weight: FontWeight.w800)),
+                ),
+                // Hamburger menü — silme modu ve liste temizliği.
+                PopupMenuButton<String>(
+                  icon: Icon(Icons.menu_rounded,
+                      color: AppPalette.textPrimary(ctx)),
+                  color: AppPalette.card(ctx),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  onSelected: (v) async {
+                    if (v == 'delete') {
+                      setSheet(() => deleteMode = !deleteMode);
+                    } else if (v == 'clear') {
+                      final ok = await showDialog<bool>(
+                        context: ctx,
+                        builder: (dctx) => AlertDialog(
+                          backgroundColor: AppPalette.card(dctx),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18)),
+                          title: Text('Tümünü listemden kaldır?'.tr(),
+                              style: _serif(
+                                  size: 17, weight: FontWeight.w800)),
+                          content: Text(
+                              'Bu listedeki TÜM yarışlar senin listenden '
+                                      'kaldırılır. Grup ve diğer üyeler '
+                                      'etkilenmez.'
+                                  .tr(),
+                              style: _sans(
+                                  size: 13,
+                                  height: 1.4,
+                                  color:
+                                      AppPalette.textSecondary(dctx))),
+                          actions: [
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.of(dctx).pop(false),
+                              child: Text('Vazgeç'.tr()),
+                            ),
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.of(dctx).pop(true),
+                              child: Text('Kaldır'.tr(),
+                                  style: const TextStyle(
+                                      color: Color(0xFFEF4444),
+                                      fontWeight: FontWeight.w800)),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (ok == true) {
+                        final list = await GroupContestService
+                            .myContestsStream()
+                            .first;
+                        for (final g in list) {
+                          await GroupContestService.leaveContest(g.id);
+                        }
+                      }
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(
+                              deleteMode
+                                  ? Icons.close_rounded
+                                  : Icons.delete_outline_rounded,
+                              size: 18,
+                              color: const Color(0xFFEF4444)),
+                          const SizedBox(width: 8),
+                          Text(
+                              deleteMode
+                                  ? 'Silme modunu kapat'.tr()
+                                  : 'Yarış sil'.tr(),
+                              style: _sans(
+                                  size: 13, weight: FontWeight.w700)),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'clear',
+                      child: Row(
+                        children: [
+                          const Icon(Icons.delete_sweep_rounded,
+                              size: 18, color: Color(0xFFEF4444)),
+                          const SizedBox(width: 8),
+                          Text('Tümünü listemden kaldır'.tr(),
+                              style: _sans(
+                                  size: 13, weight: FontWeight.w700)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
             const SizedBox(height: 4),
-            Text('Bir yarışa dokun → sonuç tablosu ve sıralama.'.tr(),
+            Text(
+                deleteMode
+                    ? 'Silmek istediğin yarışa dokun — listenden kaldırılır.'
+                        .tr()
+                    : 'Bir yarışa dokun → sonuç tablosu ve sıralama.'.tr(),
                 style: _sans(
-                    size: 12.5, color: AppPalette.textSecondary(ctx))),
+                    size: 12.5,
+                    color: deleteMode
+                        ? const Color(0xFFEF4444)
+                        : AppPalette.textSecondary(ctx))),
             const SizedBox(height: 12),
             Flexible(
               child: StreamBuilder<List<GroupContest>>(
@@ -6813,12 +7049,16 @@ KURALLAR:
                   if (list.isEmpty) return _raceEmptyNote(ctx);
                   return ListView(
                     padding: const EdgeInsets.only(bottom: 8),
-                    children: [for (final g in list) _myContestCard(g)],
+                    children: [
+                      for (final g in list)
+                        _myContestCard(g, deleteMode: deleteMode),
+                    ],
                   );
                 },
               ),
             ),
           ],
+        ),
         ),
       ),
     );
@@ -7387,20 +7627,38 @@ KURALLAR:
     );
   }
 
-  Widget _myContestCard(GroupContest c) {
+  Widget _myContestCard(GroupContest c, {bool deleteMode = false}) {
     const purple = Color(0xFF7C3AED);
+    const red = Color(0xFFEF4444);
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: GestureDetector(
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => GroupContestScreen(contestId: c.id),
-        )),
+        onTap: deleteMode
+            // Silme modu: dokununca yarış LİSTEMDEN kaldırılır (yalnız
+            // kendi katılım kaydı silinir; grup/diğer üyeler etkilenmez).
+            ? () async {
+                await GroupContestService.leaveContest(c.id);
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(
+                      '"${c.subjectName} • ${c.topic}" ${'listenden kaldırıldı'.tr()}'),
+                  behavior: SnackBarBehavior.floating,
+                ));
+              }
+            : () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => GroupContestScreen(contestId: c.id),
+                )),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           decoration: BoxDecoration(
-            color: AppPalette.card(context),
+            color: deleteMode
+                ? red.withValues(alpha: 0.06)
+                : AppPalette.card(context),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: purple.withValues(alpha: 0.30)),
+            border: Border.all(
+                color: deleteMode
+                    ? red.withValues(alpha: 0.45)
+                    : purple.withValues(alpha: 0.30)),
           ),
           child: Row(
             children: [
@@ -7424,7 +7682,9 @@ KURALLAR:
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded, color: purple),
+              deleteMode
+                  ? const Icon(Icons.delete_rounded, color: red)
+                  : const Icon(Icons.chevron_right_rounded, color: purple),
             ],
           ),
         ),
@@ -7567,10 +7827,20 @@ KURALLAR:
                   child: StreamBuilder<List<GroupInvite>>(
                     stream: ContestGroupService.watchGroupInvites(),
                     builder: (gc, gs) {
+                      // Sorgu hatası (kural/index) sessizce "boş" görünüyordu
+                      // — en azından log'a düşsün ki teşhis edilebilsin.
+                      if (gs.hasError) {
+                        debugPrint(
+                            '[Arena] watchGroupInvites error: ${gs.error}');
+                      }
                       final groups = gs.data ?? const <GroupInvite>[];
                       return StreamBuilder<List<DueloInvite>>(
                         stream: DueloMatchmakingService.watchInvites(),
                         builder: (dc, ds) {
+                          if (ds.hasError) {
+                            debugPrint(
+                                '[Arena] watchInvites error: ${ds.error}');
+                          }
                           final duels = ds.data ?? const <DueloInvite>[];
                           return ListView(
                             padding: EdgeInsets.zero,
@@ -8370,8 +8640,19 @@ KURALLAR:
         ),
         child: Row(
           children: [
-            Text(u.avatar.isNotEmpty ? u.avatar : '👤',
-                style: const TextStyle(fontSize: 20)),
+            // Instagram tarzı: solda yuvarlak profil fotoğrafı (base64 →
+            // canlı users/{uid} → URL → emoji/harf), sağında kullanıcı adı.
+            // URL'in düz METİN basılması ("https://lh3…" satırı) bitti.
+            SizedBox(
+              width: 34,
+              height: 34,
+              child: _GroupMemberAvatar(
+                uid: u.uid,
+                avatar: u.avatar,
+                avatarData: u.avatarData,
+                size: 30,
+              ),
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Text('@${u.username}',
@@ -8672,8 +8953,16 @@ KURALLAR:
           ),
           child: Row(
             children: [
-              Text(f.avatar.isNotEmpty ? f.avatar : '👤',
-                  style: const TextStyle(fontSize: 20)),
+              // Gerçek profil fotoğrafı (base64/canlı/URL) — URL metni değil.
+              SizedBox(
+                width: 34,
+                height: 34,
+                child: _GroupMemberAvatar(
+                  uid: f.uid,
+                  avatar: f.avatar,
+                  size: 30,
+                ),
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text('@$name',
@@ -9167,8 +9456,25 @@ KURALLAR:
     );
   }
 
+  /// Grup profili seçenekleri — önce klasikler, sonra EN BİLİNEN 30 hayvan
+  /// yüzü, ardından WhatsApp benzeri zengin emoji seti. UI yatay kaydırmalı
+  /// 2 sıra band olarak gösterir (sola kaydırdıkça devamı gelir).
   static const List<String> _kGroupEmojis = [
-    '👥', '🏆', '🔥', '⚡', '🎯', '🚀', '🧠', '⭐', '🎓', '💪', '🦁', '🐺'
+    // Klasikler (mevcut gruplarla geriye dönük uyum)
+    '👥', '🏆', '🔥', '⚡', '🎯', '🚀', '🧠', '⭐', '🎓', '💪',
+    // En bilinen 30 hayvan
+    '🦁', '🐺', '🐶', '🐱', '🐯', '🦊', '🐻', '🐼', '🐨', '🐵',
+    '🐸', '🐷', '🐮', '🐭', '🐹', '🐰', '🐔', '🐧', '🦉', '🦅',
+    '🦆', '🐴', '🦄', '🐢', '🐍', '🐬', '🐳', '🦈', '🐙', '🦋',
+    '🐝', '🐘',
+    // Zengin set — yüzler / semboller / aktivite / nesneler
+    '😀', '😎', '🤩', '😜', '🤓', '😇', '🥳', '🤠', '👻', '🤖',
+    '👽', '🦸', '🧙', '🧛', '🥷', '👑', '💎', '🎁', '🎈', '🎉',
+    '❤️', '💙', '💚', '💜', '🖤', '💛', '🧡', '💯', '✨', '🌟',
+    '🌈', '☀️', '🌙', '🌍', '🌋', '🌊', '⛰️', '🌸', '🌵', '🍀',
+    '🍕', '🍔', '🍩', '🍦', '🍭', '🧃', '⚽', '🏀', '🏐', '🎮',
+    '🎲', '🎸', '🎧', '🎤', '🎬', '📚', '✏️', '🔬', '🧪', '🔭',
+    '🛡️', '⚔️', '🏹', '🧿', '🗿',
   ];
 
   /// Kullanıcı adını çözüp [selected] üye haritasına ekler.
@@ -9270,23 +9576,33 @@ KURALLAR:
                         height: 1.35,
                         color: AppPalette.textSecondary(ctx))),
                 const SizedBox(height: 16),
-                Text('Profil'.tr(),
+                Text('Grup Profili'.tr(),
                     style: _sans(
                         size: 11,
                         weight: FontWeight.w700,
                         color: AppPalette.textSecondary(ctx),
                         letterSpacing: 0.06)),
                 const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final e in _kGroupEmojis)
-                      GestureDetector(
+                // Yatay kaydırmalı 2 sıralı emoji bandı — sola kaydırdıkça
+                // 30 hayvan + zengin (WhatsApp benzeri) set devam eder.
+                SizedBox(
+                  height: 44.0 * 2 + 8,
+                  child: GridView.builder(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 8,
+                      crossAxisSpacing: 8,
+                      childAspectRatio: 1,
+                    ),
+                    itemCount: _kGroupEmojis.length,
+                    itemBuilder: (_, i) {
+                      final e = _kGroupEmojis[i];
+                      return GestureDetector(
                         onTap: () => setSheet(() => emoji = e),
                         child: Container(
-                          width: 44,
-                          height: 44,
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
                             color: emoji == e
@@ -9300,10 +9616,12 @@ KURALLAR:
                               width: emoji == e ? 2 : 1,
                             ),
                           ),
-                          child: Text(e, style: const TextStyle(fontSize: 22)),
+                          child:
+                              Text(e, style: const TextStyle(fontSize: 22)),
                         ),
-                      ),
-                  ],
+                      );
+                    },
+                  ),
                 ),
                 const SizedBox(height: 16),
                 _groupField(ctx, nameCtl, 'Grup adı'.tr(), 'Örn: Sınıf Kankalar'),
@@ -9908,8 +10226,13 @@ KURALLAR:
                         padding: const EdgeInsets.only(bottom: 8),
                         child: Row(
                           children: [
-                            Text((m['avatar'] ?? '👤').toString(),
-                                style: const TextStyle(fontSize: 20)),
+                            _GroupMemberAvatar(
+                              uid: (m['uid'] ?? '').toString(),
+                              avatar: (m['avatar'] ?? '👤').toString(),
+                              avatarData:
+                                  (m['avatarData'] ?? '').toString(),
+                              size: 20,
+                            ),
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text('@${m['username'] ?? 'oyuncu'}',
@@ -9968,6 +10291,10 @@ KURALLAR:
     );
   }
 
+  /// Grup üyesi avatarı: 'http…' URL → yuvarlak profil resmi (Google foto),
+  /// kısa emoji → metin, aksi halde (uzun/base64/boş) 👤. Eskiden avatar düz
+  /// Text ile basıldığından foto URL'si üye listesinde ham metin görünüyor,
+  /// satırı taşırıp kullanıcı adını da kaydırıyordu.
   /// Kayıtlı grupla yeni yarış — grup modunu aç ve ORTADA, arka planı FLU bir
   /// ders seçim penceresi aç. Ders seçilince konu → ayar → yarış akışı devam
   /// eder (üyelere bildirim gider).
@@ -24398,6 +24725,96 @@ class _DueloMatchingResultsScreen extends StatelessWidget {
                 weight: FontWeight.w900,
                 color: _Palette.ink)),
       ],
+    );
+  }
+}
+
+// ── Grup üyesi avatarı ───────────────────────────────────────────────────────
+// Öncelik sırası: üye kaydındaki avatarData (base64 profil fotoğrafı) →
+// users/{uid} dokümanından CANLI avatarData (eski gruplarda üye kaydında bu
+// alan yok; bir kez çekilir, oturum boyunca cache'lenir) → http avatar URL →
+// emoji/👤. Böylece profil fotoğrafı olan HER üye grupta gerçek fotoğrafıyla
+// görünür — eskiden yalnız http URL'li (Google) avatarlar görünüyordu.
+class _GroupMemberAvatar extends StatelessWidget {
+  final String uid;
+  final String avatar;
+  final String avatarData;
+  final double size;
+  const _GroupMemberAvatar({
+    required this.uid,
+    required this.avatar,
+    this.avatarData = '',
+    this.size = 20,
+  });
+
+  /// uid → avatarData fetch cache'i (oturum ömrü). Aynı üye birden çok
+  /// listede görünse bile users/{uid} yalnız bir kez okunur.
+  static final Map<String, Future<String>> _fetchCache = {};
+
+  static Future<String> _fetchAvatarData(String uid) {
+    return _fetchCache.putIfAbsent(uid, () async {
+      try {
+        final snap = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .get()
+            .timeout(const Duration(seconds: 6));
+        return (snap.data()?['avatarData'] ?? '').toString();
+      } catch (_) {
+        return '';
+      }
+    });
+  }
+
+  Widget _fallback() {
+    final a = avatar.trim();
+    if (a.startsWith('http')) {
+      return ClipOval(
+        child: Image.network(
+          a,
+          width: size + 4,
+          height: size + 4,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) =>
+              Text('👤', style: TextStyle(fontSize: size)),
+        ),
+      );
+    }
+    if (a.isEmpty || a.length > 4) {
+      return Text('👤', style: TextStyle(fontSize: size));
+    }
+    return Text(a, style: TextStyle(fontSize: size), maxLines: 1);
+  }
+
+  Widget _memory(String data) {
+    try {
+      final raw = data.contains(',') ? data.split(',').last : data;
+      return ClipOval(
+        child: Image.memory(
+          base64Decode(raw),
+          width: size + 4,
+          height: size + 4,
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+          errorBuilder: (_, __, ___) => _fallback(),
+        ),
+      );
+    } catch (_) {
+      return _fallback();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (avatarData.trim().isNotEmpty) return _memory(avatarData);
+    if (uid.isEmpty) return _fallback();
+    return FutureBuilder<String>(
+      future: _fetchAvatarData(uid),
+      builder: (_, snap) {
+        final d = (snap.data ?? '').trim();
+        if (d.isNotEmpty) return _memory(d);
+        return _fallback();
+      },
     );
   }
 }

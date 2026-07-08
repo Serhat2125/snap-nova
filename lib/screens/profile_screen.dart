@@ -5977,7 +5977,7 @@ class _AppSettingsSheet extends StatefulWidget {
 }
 
 class _AppSettingsSheetState extends State<_AppSettingsSheet> {
-  String _startupScreen = 'library';
+  String _startupScreen = 'camera';
   bool _loaded = false;
 
   @override
@@ -5990,7 +5990,8 @@ class _AppSettingsSheetState extends State<_AppSettingsSheet> {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     setState(() {
-      _startupScreen = prefs.getString('startup_screen') ?? 'library';
+      // Varsayılan = kamera — main.dart _HomeRouter ile aynı olmalı.
+      _startupScreen = prefs.getString('startup_screen') ?? 'camera';
       _loaded = true;
     });
   }

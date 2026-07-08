@@ -16,8 +16,10 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/education_models.dart';
 import '../services/class_service.dart';
 import '../services/runtime_translator.dart';
+import '../services/user_profile_service.dart';
 import '../theme/app_theme.dart';
 import 'homework_solve_screen.dart';
+import 'teacher_homework_detail_screen.dart';
 
 class StudentHomeworksScreen extends StatefulWidget {
   const StudentHomeworksScreen({super.key});
@@ -178,8 +180,17 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
                         itemBuilder: (ctx, i) {
                           final (cls, hw) = allHws[i];
                           final sub = _mySubmissions[hw.id];
-                          return _buildHwCard(
-                              context, cls, hw, sub, ink, muted);
+                          // Sınıf içi "kaçıncı ödev" — bitiş tarihine göre
+                          // eski→yeni sıra (analiz ekranı başlığı için).
+                          final sameClass = allHws
+                              .where((e) => e.$1.classId == cls.classId)
+                              .map((e) => e.$2)
+                              .toList()
+                            ..sort((a, b) => a.dueAt.compareTo(b.dueAt));
+                          final orderNo =
+                              sameClass.indexWhere((h) => h.id == hw.id) + 1;
+                          return _buildHwCard(context, cls, hw, sub, ink,
+                              muted, orderNo);
                         },
                       ),
               )),
@@ -222,7 +233,8 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
   }
 
   Widget _buildHwCard(BuildContext context, JoinedClass cls, HomeworkModel hw,
-      HomeworkSubmissionModel? sub, Color ink, Color muted) {
+      HomeworkSubmissionModel? sub, Color ink, Color muted,
+      [int orderNo = 1]) {
     // Status badge
     Color statusColor; String statusLabel;
     if (sub?.isSubmitted ?? false) {
@@ -247,6 +259,25 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () async {
+          // TESLİM EDİLMİŞ ödev → öğretmenin gördüğü analiz ekranının aynısı
+          // (grafik/tablo, tarih künyesi, süre, AI analizi + sağ üstte
+          // ekran görüntüsü paylaş). readOnly: sınıf ortalaması sorgusu ve
+          // öğretmen aksiyonları atlanır (öğrenci izinleriyle uyumlu).
+          if (sub?.isSubmitted ?? false) {
+            final me = UserProfileService.instance;
+            await Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => TeacherHomeworkDetailScreen(
+                homework: hw,
+                submission: sub,
+                studentName: me.displayNameOrUsername,
+                studentAvatar: me.avatar,
+                orderNo: orderNo,
+                readOnly: true,
+              ),
+            ));
+            _load();
+            return;
+          }
           await Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => HomeworkSolveScreen(
               classId: cls.classId, homework: hw, submission: sub,
